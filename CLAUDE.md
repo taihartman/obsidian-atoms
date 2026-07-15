@@ -68,16 +68,27 @@ Full detail: `docs/dev-obsidian-cli.md`. Prefer CLI over Local REST API MCP for 
 | CLI binary | `/opt/homebrew/bin/obsidian` (or `/usr/local/bin/obsidian`) |
 | CLI toggle | Settings → **General → Advanced → Command line interface** ON |
 | Throwaway vault | `test_vault/test vault/` (gitignored) |
+| **Personal / phone vault** | `~/Documents/Remote Vault` (Obsidian Sync → phone) |
 | Plugin id | `atoms` |
 | Anthropic key | SecretStorage (settings store secret **name** only; never `data.json`) |
 
 Without the Advanced toggle, `obsidian` prints “Command line interface is not enabled” even if the binary exists.
 
+**Phone / Sync:** Merging to GitHub does **not** update the phone. Plugin files must land in **Remote Vault**’s `.obsidian/plugins/atoms/`. The default `./scripts/install-to-vault.sh` only hits the **test vault**. After user-visible changes the user will run on phone:
+
+```bash
+# From repo root — installs build into the vault Sync uses
+./scripts/install-to-vault.sh "$HOME/Documents/Remote Vault"
+```
+
+Then wait for Sync; fully restart Obsidian on phone; confirm **Settings → Atoms → Version x.y.z**. Stale version = Sync lag or wrong vault install path.
+
 ### Everyday loop
 
 ```bash
-# From repo root — Obsidian must be open on the test vault
-./scripts/install-to-vault.sh   # build + copy main.js + plugin:reload
+# From repo root — Obsidian must be open on the target vault
+./scripts/install-to-vault.sh   # build + copy main.js + plugin:reload (test vault only)
+./scripts/install-to-vault.sh "$HOME/Documents/Remote Vault"  # phone / real vault
 ./scripts/spike-via-cli.sh      # U1 spikes via CLI
 ```
 
