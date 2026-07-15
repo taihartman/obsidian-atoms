@@ -1,5 +1,5 @@
 import type { App } from "obsidian";
-import { Modal, Notice, Setting } from "obsidian";
+import { Modal, Notice } from "obsidian";
 import { classifyCapture, type ClassifyDeps } from "./classify";
 import type { MetadataContextProvider } from "./context";
 import {
@@ -260,42 +260,225 @@ export function mergeProposedFromReport(
   );
 }
 
+export interface DryRunPreviewModalOpts {
+  report: DryRunReport;
+  /** Optional: run process after preview (same includeToday as dry-run). */
+  onProcess?: () => void | Promise<void>;
+}
+
+function countByVerdict(report: DryRunReport): {
+  atom: number;
+  task: number;
+  noise: number;
+  failed: number;
+} {
+  let atom = 0;
+  let task = 0;
+  let noise = 0;
+  let failed = 0;
+  for (const e of report.entries) {
+    if (!e.outcome.ok) {
+      failed += 1;
+      continue;
+    }
+    const v = e.outcome.result.verdict;
+    if (v === "atom") atom += 1;
+    else if (v === "task") task += 1;
+    else noise += 1;
+  }
+  return { atom, task, noise, failed };
+}
+
+function snippet(text: string, max = 100): string {
+  const one = text.replace(/\s+/g, " ").trim();
+  if (one.length <= max) return one;
+  return one.slice(0, max - 1) + "…";
+}
+
 /**
- * Scrollable modal — no vault writes (AE5 filesystem stays clean).
+ * Card-based dry-run UI — scannable on phone. Markdown report still used for CLI.
  */
 export class DryRunPreviewModal extends Modal {
+  private readonly report: DryRunReport;
+  private readonly onProcess?: () => void | Promise<void>;
+
   constructor(
     app: App,
-    private readonly markdown: string,
-    private readonly summary: string,
+    reportOrMarkdown: DryRunReport | string,
+    summaryOrOpts?: string | DryRunPreviewModalOpts,
   ) {
     super(app);
+    // Back-compat: old (app, markdown, summary) — unused path after main update
+    if (typeof reportOrMarkdown === "string") {
+      this.report = {
+        entries: [],
+        totalUnprocessedScanned: 0,
+        classified: 0,
+        failed: 0,
+        wroteNothing: true,
+        generatedAt: new Date().toISOString(),
+      };
+      this.onProcess = undefined;
+    } else if (
+      summaryOrOpts &&
+      typeof summaryOrOpts === "object" &&
+      "report" in summaryOrOpts
+    ) {
+      this.report = summaryOrOpts.report;
+      this.onProcess = summaryOrOpts.onProcess;
+    } else {
+      this.report = reportOrMarkdown;
+      this.onProcess = undefined;
+    }
   }
 
   onOpen() {
     const { contentEl } = this;
     contentEl.empty();
-    contentEl.addClass("atoms-dry-run-modal");
+    contentEl.addClass("atoms-preview-modal");
+    this.modalEl.addClass("atoms-preview-modal-host");
 
-    contentEl.createEl("h2", { text: "Atoms — dry-run preview" });
-    contentEl.createEl("p", { text: this.summary });
+    const counts = countByVerdict(this.report);
 
-    new Setting(contentEl)
-      .setName("Vault writes")
-      .setDesc("None. This is preview only — markers and atoms are not created.")
-      .addButton((btn) =>
-        btn.setButtonText("Close").setCta().onClick(() => this.close()),
-      );
-
-    const pre = contentEl.createEl("pre", {
-      cls: "atoms-dry-run-body",
+    // Header
+    const header = contentEl.createDiv({ cls: "atoms-preview-header" });
+    header.createEl("h2", { text: "Preview" });
+    header.createEl("p", {
+      cls: "atoms-preview-sub",
+      text: "Nothing written yet — this is what Process would do.",
     });
-    pre.setText(this.markdown);
-    pre.style.maxHeight = "60vh";
-    pre.style.overflow = "auto";
-    pre.style.whiteSpace = "pre-wrap";
-    pre.style.userSelect = "text";
-    pre.style.fontSize = "12px";
+
+    // Summary pills
+    const pills = contentEl.createDiv({ cls: "atoms-preview-pills" });
+    const addPill = (label: string, n: number, cls: string) => {
+      if (n <= 0) return;
+      const p = pills.createSpan({ cls: `atoms-preview-pill ${cls}` });
+      p.createSpan({ text: String(n), cls: "atoms-preview-pill-n" });
+      p.createSpan({ text: label });
+    };
+    addPill("atoms", counts.atom, "is-atom");
+    addPill("tasks", counts.task, "is-task");
+    addPill("noise", counts.noise, "is-noise");
+    addPill("failed", counts.failed, "is-failed");
+    if (
+      counts.atom + counts.task + counts.noise + counts.failed === 0
+    ) {
+      pills.createSpan({
+        cls: "atoms-preview-pill is-empty",
+        text: "Nothing to preview",
+      });
+    }
+
+    // Scrollable cards
+    const list = contentEl.createDiv({ cls: "atoms-preview-list" });
+    if (this.report.entries.length === 0) {
+      list.createDiv({
+        cls: "atoms-preview-empty",
+        text: "No unprocessed captures in this run.",
+      });
+    } else {
+      for (const e of this.report.entries) {
+        this.renderCard(list, e);
+      }
+    }
+
+    // Footer actions
+    const footer = contentEl.createDiv({ cls: "atoms-preview-footer" });
+    const closeBtn = footer.createEl("button", {
+      cls: "atoms-preview-btn atoms-preview-btn-secondary",
+      text: "Close",
+    });
+    closeBtn.addEventListener("click", () => this.close());
+
+    if (this.onProcess && this.report.classified > 0) {
+      const go = footer.createEl("button", {
+        cls: "atoms-preview-btn atoms-preview-btn-primary",
+        text: "Process these",
+      });
+      go.addEventListener("click", () => {
+        void (async () => {
+          this.close();
+          await this.onProcess?.();
+        })();
+      });
+    }
+  }
+
+  private renderCard(parent: HTMLElement, e: PreviewEntry): void {
+    const card = parent.createDiv({ cls: "atoms-preview-card" });
+
+    if (!e.outcome.ok) {
+      const badge = card.createSpan({
+        cls: "atoms-preview-badge is-failed",
+        text: "failed",
+      });
+      void badge;
+      card.createDiv({
+        cls: "atoms-preview-title",
+        text: e.outcome.message || e.outcome.reason,
+      });
+      card.createDiv({
+        cls: "atoms-preview-capture",
+        text: snippet(e.capture.text),
+      });
+      card.createDiv({
+        cls: "atoms-preview-meta",
+        text: e.date,
+      });
+      return;
+    }
+
+    const r = e.outcome.result;
+    const badge = card.createSpan({
+      cls: `atoms-preview-badge is-${r.verdict}`,
+      text: r.verdict,
+    });
+    void badge;
+
+    if (r.verdict === "atom" && r.title.trim()) {
+      card.createDiv({ cls: "atoms-preview-title", text: r.title.trim() });
+    } else if (r.verdict === "task") {
+      card.createDiv({
+        cls: "atoms-preview-title",
+        text: "Task — marker only",
+      });
+    } else {
+      card.createDiv({
+        cls: "atoms-preview-title",
+        text: "Noise — discard",
+      });
+    }
+
+    card.createDiv({
+      cls: "atoms-preview-capture",
+      text: snippet(e.capture.text),
+    });
+
+    const meta = card.createDiv({ cls: "atoms-preview-meta-row" });
+    meta.createSpan({ text: e.date, cls: "atoms-preview-meta" });
+    if (r.tags?.length) {
+      for (const t of r.tags.slice(0, 4)) {
+        meta.createSpan({
+          cls: "atoms-preview-tag",
+          text: `#${t.replace(/^#/, "")}`,
+        });
+      }
+    }
+    if (r.links?.length) {
+      for (const link of r.links.slice(0, 3)) {
+        meta.createSpan({
+          cls: "atoms-preview-link",
+          text: link.note,
+        });
+      }
+    }
+    if (r.verdict === "atom" && e.wouldCreateAtomPath) {
+      const file = e.wouldCreateAtomPath.split("/").pop() ?? e.wouldCreateAtomPath;
+      card.createDiv({
+        cls: "atoms-preview-file",
+        text: `→ ${file}`,
+      });
+    }
   }
 
   onClose() {
@@ -304,7 +487,12 @@ export class DryRunPreviewModal extends Modal {
 }
 
 export function showDryRunNotice(report: DryRunReport): void {
-  new Notice(
-    `Atoms dry-run: ${report.classified} ok, ${report.failed} failed of ${report.entries.length} (scanned ${report.totalUnprocessedScanned}) — nothing written`,
-  );
+  const c = countByVerdict(report);
+  const parts: string[] = [];
+  if (c.atom) parts.push(`${c.atom} atom`);
+  if (c.task) parts.push(`${c.task} task`);
+  if (c.noise) parts.push(`${c.noise} noise`);
+  if (c.failed) parts.push(`${c.failed} failed`);
+  const summary = parts.length ? parts.join(" · ") : "nothing";
+  new Notice(`Atoms preview: ${summary} — nothing written yet`);
 }

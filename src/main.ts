@@ -891,11 +891,11 @@ export default class AtomsPlugin extends Plugin {
       console.log("[atoms] dry-run markdown\n" + md);
 
       showDryRunNotice(report);
-      new DryRunPreviewModal(
-        this.app,
-        md,
-        `${report.classified} ok · ${report.failed} failed · ${report.entries.length} shown of ${report.totalUnprocessedScanned} unprocessed · zero vault writes`,
-      ).open();
+      const includeToday = opts?.includeToday === true;
+      new DryRunPreviewModal(this.app, report, {
+        report,
+        onProcess: () => this.runProcessUnprocessed({ includeToday }),
+      }).open();
     } catch (e) {
       if (e instanceof DailyNotesDisabledError) {
         new Notice(e.message);

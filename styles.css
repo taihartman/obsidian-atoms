@@ -346,6 +346,217 @@
   color: var(--color-orange, #e07a5f);
 }
 
+/* —— Dry-run preview modal (card UI) —— */
+.atoms-preview-modal-host {
+  width: min(440px, 96vw);
+  max-width: 96vw;
+}
+
+.atoms-preview-modal {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  max-height: 85vh;
+  padding-bottom: 0 !important;
+}
+
+.atoms-preview-header {
+  padding: 4px 0 10px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  margin-bottom: 10px;
+}
+
+.atoms-preview-header h2 {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.atoms-preview-sub {
+  margin: 4px 0 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.atoms-preview-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.atoms-preview-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 980px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: var(--background-secondary);
+  color: var(--text-muted);
+}
+
+.atoms-preview-pill-n {
+  font-variant-numeric: tabular-nums;
+}
+
+.atoms-preview-pill.is-atom {
+  background: color-mix(in srgb, var(--interactive-accent) 18%, transparent);
+  color: var(--text-accent);
+}
+
+.atoms-preview-pill.is-task {
+  background: color-mix(in srgb, #4a9eff 18%, transparent);
+  color: #6eb6ff;
+}
+
+.atoms-preview-pill.is-noise {
+  opacity: 0.75;
+}
+
+.atoms-preview-pill.is-failed {
+  background: color-mix(in srgb, var(--text-error) 15%, transparent);
+  color: var(--text-error);
+}
+
+.atoms-preview-list {
+  flex: 1;
+  overflow-y: auto;
+  max-height: 52vh;
+  margin: 0 -4px;
+  padding: 0 4px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.atoms-preview-empty {
+  text-align: center;
+  color: var(--text-faint);
+  padding: 24px 12px;
+  font-size: 0.9rem;
+}
+
+.atoms-preview-card {
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.atoms-preview-badge {
+  align-self: flex-start;
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px 7px;
+  border-radius: 4px;
+  margin-bottom: 2px;
+}
+
+.atoms-preview-badge.is-atom {
+  background: color-mix(in srgb, var(--interactive-accent) 20%, transparent);
+  color: var(--text-accent);
+}
+
+.atoms-preview-badge.is-task {
+  background: color-mix(in srgb, #4a9eff 20%, transparent);
+  color: #93c5fd;
+}
+
+.atoms-preview-badge.is-noise {
+  background: var(--background-modifier-border);
+  color: var(--text-faint);
+}
+
+.atoms-preview-badge.is-failed {
+  background: color-mix(in srgb, var(--text-error) 18%, transparent);
+  color: var(--text-error);
+}
+
+.atoms-preview-title {
+  font-size: 0.98rem;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--text-normal);
+  letter-spacing: -0.01em;
+}
+
+.atoms-preview-capture {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  line-height: 1.35;
+  margin-top: 2px;
+}
+
+.atoms-preview-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin-top: 6px;
+}
+
+.atoms-preview-meta {
+  font-size: 0.75rem;
+  color: var(--text-faint);
+}
+
+.atoms-preview-tag {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.atoms-preview-link {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--color-orange, #e07a5f);
+  background: color-mix(in srgb, var(--color-orange, #e07a5f) 12%, transparent);
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.atoms-preview-file {
+  font-size: 0.72rem;
+  color: var(--text-faint);
+  font-family: var(--font-monospace);
+  margin-top: 4px;
+}
+
+.atoms-preview-footer {
+  display: flex;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--background-modifier-border);
+  margin-top: 4px;
+}
+
+.atoms-preview-btn {
+  flex: 1;
+  min-height: 44px;
+  border: none;
+  border-radius: 10px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.atoms-preview-btn-primary {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+}
+
+.atoms-preview-btn-secondary {
+  background: var(--background-modifier-border);
+  color: var(--text-normal);
+}
+
 /* Force-test today (manual only) */
 .atoms-home-try-today-card {
   display: flex;
