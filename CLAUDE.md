@@ -31,6 +31,12 @@ Where plan and amendments conflict, **the plan wins**. Amendments explain ration
 7. **Dry-run (U7) before write path (U8).**
 8. **Develop against throwaway vault only** (`test_vault/`) until dry-run is trusted on real history.
 
+## Versioning
+
+- Bump **`manifest.json`** + **`package.json`** (+ `versions.json`) on any user-visible change so desktop/phone builds are identifiable.
+- Show version in **Settings → Atoms**.
+- After install, user checks Settings for `Version x.y.z` (phone Sync lag is obvious if stale).
+
 ## Build order
 
 Implement strictly **U1 → U10**. Each unit = one atomic commit's worth of work. After each unit: show diffs + Verification evidence before continuing.

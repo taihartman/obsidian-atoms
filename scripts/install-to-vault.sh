@@ -12,6 +12,8 @@ npm run build
 
 mkdir -p "$DEST"
 cp "$ROOT/main.js" "$ROOT/manifest.json" "$ROOT/styles.css" "$DEST/"
+VERSION=$(node -e "console.log(JSON.parse(require('fs').readFileSync('manifest.json','utf8')).version)")
+echo "Installed Atoms v${VERSION} → $DEST"
 
 node -e '
 const fs = require("fs");

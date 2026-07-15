@@ -31,9 +31,14 @@ export class AtomsSettingTab extends PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
 
+    const version = this.plugin.manifest.version ?? "?";
     containerEl.createEl("h2", { text: "Atoms" });
     containerEl.createEl("p", {
-      text: "Classifies past daily-note captures into flat Atoms/ notes. Capture itself is handled by your iOS Shortcut.",
+      text: `Classifies past daily-note captures into flat Atoms/ notes. Capture itself is handled by your iOS Shortcut.`,
+      cls: "setting-item-description",
+    });
+    containerEl.createEl("p", {
+      text: `Version ${version}`,
       cls: "setting-item-description",
     });
 
@@ -336,8 +341,9 @@ export class AtomsSettingTab extends PluginSettingTab {
 
   private renderDevHints(containerEl: HTMLElement) {
     containerEl.createEl("h3", { text: "Development" });
+    const version = this.plugin.manifest.version ?? "?";
     containerEl.createEl("p", {
-      text: "Throwaway vault only. ./scripts/install-to-vault.sh reloads via Obsidian CLI. ./scripts/verify.sh runs automated checks.",
+      text: `Installed version: ${version}. After desktop install + Sync, confirm this matches on phone. ./scripts/install-to-vault.sh reloads via Obsidian CLI.`,
       cls: "setting-item-description",
     });
   }
