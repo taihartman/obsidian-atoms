@@ -231,6 +231,44 @@
   margin-top: 3px;
 }
 
+/* From the brain — zero-guilt on-this-day stream */
+.atoms-home-resurface-card {
+  margin: 0 12px 12px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--interactive-accent) 8%, var(--background-secondary));
+  border: 1px solid color-mix(in srgb, var(--interactive-accent) 22%, var(--background-modifier-border));
+}
+
+.atoms-home-resurface-kicker {
+  margin: 0 0 8px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-accent);
+}
+
+.atoms-home-resurface-snippet {
+  margin: 0 0 6px;
+  font-size: 1.02rem;
+  line-height: 1.4;
+  color: var(--text-normal);
+  font-weight: 500;
+}
+
+.atoms-home-resurface-title {
+  margin: 0 0 2px;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.atoms-home-resurface-meta {
+  margin: 0 0 12px;
+  font-size: 0.75rem;
+  color: var(--text-faint);
+}
+
 .atoms-home-empty {
   padding: 28px 16px;
   text-align: center;

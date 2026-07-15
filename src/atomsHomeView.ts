@@ -9,6 +9,13 @@ import {
   type AtomLibraryEntry,
 } from "./atomsHomeData";
 import {
+  calendarDateToday,
+  cueLabel,
+  listOnThisDayCandidates,
+  pickResurface,
+  type ResurfaceCandidate,
+} from "./resurface";
+import {
   CAPTURE_SHORTCUT_VERSION,
   labelInstallOrUpdate,
   needsShortcutCta,
@@ -43,6 +50,12 @@ export class AtomsHomeView extends ItemView {
   private rootEl: HTMLElement | null = null;
   private shortcutAcked: string | null = null;
   private refreshTimer: number | null = null;
+  /** Session-only skips for From-the-brain Next (not durable). */
+  private resurfaceSkipPaths = new Set<string>();
+  private resurfaceCandidates: ResurfaceCandidate[] = [];
+  private resurfaceCard: ResurfaceCandidate | null = null;
+  /** Raw atom files for resurface re-pick without re-read when possible. */
+  private atomFileInputs: Array<{ path: string; content: string }> = [];
 
   constructor(leaf: WorkspaceLeaf, plugin: AtomsPlugin) {
     super(leaf);
@@ -125,6 +138,11 @@ export class AtomsHomeView extends ItemView {
       })),
     );
     this.entries = listAtomLibraryEntries(inputs, folder);
+    this.atomFileInputs = inputs.map((i) => ({
+      path: i.path,
+      content: i.content,
+    }));
+    this.refreshResurfacePick(folder);
 
     this.shortcutAcked = readShortcutAck((k) => this.app.loadLocalStorage(k));
 
@@ -158,6 +176,70 @@ export class AtomsHomeView extends ItemView {
     return this.filter === "linked"
       ? filterLinkedOnly(this.entries)
       : this.entries;
+  }
+
+  private refreshResurfacePick(folder?: string): void {
+    const atomFolder =
+      folder ?? (this.plugin.settings.atomFolder || "Atoms");
+    const today = calendarDateToday();
+    this.resurfaceCandidates = listOnThisDayCandidates(
+      this.atomFileInputs,
+      today,
+      atomFolder,
+    );
+    this.resurfaceCard = pickResurface(
+      this.resurfaceCandidates,
+      this.resurfaceSkipPaths,
+    );
+  }
+
+  private renderResurfaceCard(scroll: HTMLElement): void {
+    const card = this.resurfaceCard;
+    if (!card) return;
+    const el = scroll.createDiv({ cls: "atoms-home-resurface-card" });
+    el.createEl("p", {
+      cls: "atoms-home-resurface-kicker",
+      text: `From the brain · ${cueLabel(card.cue)}`,
+    });
+    el.createEl("p", {
+      cls: "atoms-home-resurface-snippet",
+      text: card.bodySnippet,
+    });
+    el.createEl("p", {
+      cls: "atoms-home-resurface-title",
+      text: card.title,
+    });
+    el.createEl("p", {
+      cls: "atoms-home-resurface-meta",
+      text: card.matchDate,
+    });
+    const actions = el.createDiv({ cls: "atoms-home-wait-actions" });
+    const openBtn = actions.createEl("button", {
+      cls: "atoms-home-btn atoms-home-btn-primary",
+      text: "Open",
+    });
+    openBtn.addEventListener("click", () => void this.onOpenResurface(card));
+    const nextBtn = actions.createEl("button", {
+      cls: "atoms-home-btn atoms-home-btn-secondary",
+      text: "Next",
+    });
+    nextBtn.addEventListener("click", () => {
+      this.resurfaceSkipPaths.add(card.path);
+      this.resurfaceCard = pickResurface(
+        this.resurfaceCandidates,
+        this.resurfaceSkipPaths,
+      );
+      this.render();
+    });
+  }
+
+  private async onOpenResurface(card: ResurfaceCandidate): Promise<void> {
+    const file = this.app.vault.getAbstractFileByPath(card.path);
+    if (file && "extension" in file) {
+      await this.app.workspace.getLeaf(false).openFile(file as TFile);
+    } else {
+      new Notice("Atoms: note not found");
+    }
   }
 
   private render(): void {
@@ -208,6 +290,11 @@ export class AtomsHomeView extends ItemView {
     });
 
     const scroll = root.createDiv({ cls: "atoms-home-scroll" });
+
+    // Zero-guilt resurface stream (on-this-day) — only when a candidate exists
+    if (!firstDay) {
+      this.renderResurfaceCard(scroll);
+    }
 
     // Shortcut update banner (not first-day — setup card owns Install)
     if (this.showShortcutBanner()) {
