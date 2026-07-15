@@ -124,15 +124,30 @@ describe("buildVaultContext + stable prefix", () => {
       titles: ["Note one", "Note two"],
       vaultTags: ["idea"],
       activeVocabulary: ["idea", "question"],
+      personHubs: ["Nichita"],
     });
     const a = buildContextUserMessage(ctx);
     const b = buildContextUserMessage(ctx);
     const c = renderStablePrefix(ctx);
     expect(a).toBe(b);
     expect(a).toBe(c);
+    expect(a).toContain("### Person hubs");
+    expect(a).toContain("- Nichita");
     expect(a).not.toMatch(/\d{4}-\d{2}-\d{2}/); // no dates embedded as data
     // Instruction text may mention "run IDs" as a prohibition — that's fine.
     expect(a).not.toMatch(/run-id[=:]/i);
+  });
+
+  it("empty person hubs render as (none)", () => {
+    const ctx = buildVaultContext({
+      titles: ["Note"],
+      vaultTags: [],
+      activeVocabulary: ["idea"],
+    });
+    expect(ctx.personHubs).toEqual([]);
+    expect(buildContextUserMessage(ctx)).toContain(
+      "### Person hubs (from your vault — prefer linking these exact titles)\n(none)",
+    );
   });
 });
 

@@ -55,7 +55,7 @@ export class AtomsSettingTab extends PluginSettingTab {
     new Setting(containerEl)
       .setName("Privacy")
       .setDesc(
-        "Every run sends your vault's note titles, tags, and each capture to the Anthropic API over TLS. The model never rewrites your hand-authored notes — only new files in the atom folder and marker lines under captures.",
+        "Every run sends your vault's note titles, tags, a derived person-hub title list (titles only — never folder paths or hub body content), and each capture to the Anthropic API over TLS. The model never rewrites your hand-authored notes — only new files in the atom folder and marker lines under captures.",
       );
 
     new Setting(containerEl)

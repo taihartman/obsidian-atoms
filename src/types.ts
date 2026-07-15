@@ -54,10 +54,20 @@ export interface ClassifyFailure {
 
 export type ClassifyOutcome = ClassifySuccess | ClassifyFailure;
 
+/** Client-side hub match data (paths never included). */
+export interface PersonHubDetail {
+  canonicalTitle: string;
+  matchKeys: string[];
+}
+
 export interface VaultContext {
   titles: string[];
   tags: string[];
   vocabulary: string[];
+  /** Canonical person-hub titles (sorted). Never paths. Empty when none. */
+  personHubs: string[];
+  /** Alias-aware match keys for enrichPersonLinks (local only). */
+  personHubDetails: PersonHubDetail[];
 }
 
 /**
@@ -152,4 +162,6 @@ export const SPIKE_CONTEXT: VaultContext = {
   ],
   tags: ["idea", "question", "observation", "reference", "decision", "health"],
   vocabulary: ["idea", "question", "observation", "reference", "decision"],
+  personHubs: [],
+  personHubDetails: [],
 };

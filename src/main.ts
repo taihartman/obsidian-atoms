@@ -449,12 +449,14 @@ export default class AtomsPlugin extends Plugin {
         batchId,
       });
       const lines = parseBatchResultsJsonl(jsonl);
+      const hubCtx = this.contextProvider.buildContext();
       const report = await applyBackfillResults({
         app: this.app,
         work: opts.work,
         lines,
         atomFolder: this.settings.atomFolder,
         activeVocabulary: this.settings.activeVocabulary,
+        personHubDetails: hubCtx.personHubDetails,
       });
       this.lastBackfillReport = report;
 

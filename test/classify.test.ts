@@ -12,6 +12,8 @@ const ctx: VaultContext = {
   titles: ["Sleep debt doesn't accumulate linearly", "Other note"],
   tags: ["idea", "observation"],
   vocabulary: ["idea", "observation"],
+  personHubs: [],
+  personHubDetails: [],
 };
 
 function mockResponse(opts: {

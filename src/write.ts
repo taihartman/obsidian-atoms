@@ -14,6 +14,7 @@ import type {
   ClassificationResult,
   DailyNoteWithCaptures,
 } from "./types";
+import { enrichPersonLinks, type PersonHub } from "./people";
 import { mergeProposedTags } from "./vocabulary";
 
 export interface WritePathEntry {
@@ -89,7 +90,13 @@ export async function runWritePath(
 
     let result: ClassificationResult | null = null;
     if (opts.fixtureResults && opts.fixtureResults[i]) {
-      result = opts.fixtureResults[i]!;
+      // Fixtures skip live classify — still run people repair choke-point.
+      const hubs: PersonHub[] = (ctx.personHubDetails ?? []).map((d) => ({
+        canonicalTitle: d.canonicalTitle,
+        matchKeys: d.matchKeys,
+        path: "",
+      }));
+      result = enrichPersonLinks(capture.text, opts.fixtureResults[i]!, hubs);
     } else {
       const outcome = await classifyCapture(capture.text, ctx, {
         apiKey: opts.apiKey,

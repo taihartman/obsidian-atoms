@@ -1,6 +1,11 @@
 import type { App, TFile } from "obsidian";
 import type { Capture, VaultContext } from "./types";
 import {
+  discoverPersonHubs,
+  personHubTitles,
+  type PersonHub,
+} from "./people";
+import {
   eligibleTags,
   normalizeTag,
   sortTags,
@@ -103,13 +108,19 @@ export function buildVaultContext(opts: {
   titles: string[];
   vaultTags: string[];
   activeVocabulary: string[];
+  personHubs?: string[];
+  personHubDetails?: VaultContext["personHubDetails"];
 }): VaultContext {
   const titles = [...opts.titles].sort((a, b) => a.localeCompare(b));
   // Eligible = structural (person/preferences/…) ∪ user Active
   const vocabulary = eligibleTags(opts.activeVocabulary);
   // Union of vault tags + eligible vocabulary for the prompt tag list (U4).
   const tags = unionTags(opts.vaultTags, vocabulary);
-  return { titles, tags, vocabulary };
+  const personHubs = [...(opts.personHubs ?? [])].sort((a, b) =>
+    a.localeCompare(b),
+  );
+  const personHubDetails = opts.personHubDetails ?? [];
+  return { titles, tags, vocabulary, personHubs, personHubDetails };
 }
 
 /**
@@ -138,10 +149,16 @@ export class MetadataContextProvider implements ContextProvider {
     const titles = collectLinkTargets(caches);
     const counts = aggregateTagsFromFileCaches(caches);
     const vaultTags = sortTags([...counts.keys()]);
+    const hubs: PersonHub[] = discoverPersonHubs(caches);
     return buildVaultContext({
       titles,
       vaultTags,
       activeVocabulary: this.getActiveVocabulary(),
+      personHubs: personHubTitles(hubs),
+      personHubDetails: hubs.map((h) => ({
+        canonicalTitle: h.canonicalTitle,
+        matchKeys: h.matchKeys,
+      })),
     });
   }
 }
@@ -156,6 +173,9 @@ export function renderStablePrefix(context: VaultContext): string {
   const tags = context.tags.length
     ? context.tags.map((t) => `#${t}`).join(" ")
     : "(none)";
+  const personHubs = context.personHubs?.length
+    ? context.personHubs.map((t) => `- ${t}`).join("\n")
+    : "(none)";
   const titles = context.titles.length
     ? context.titles.map((t) => `- ${t}`).join("\n")
     : "(empty vault)";
@@ -167,6 +187,9 @@ export function renderStablePrefix(context: VaultContext): string {
     "",
     "### Tags present in vault",
     tags,
+    "",
+    "### Person hubs (from your vault — prefer linking these exact titles)",
+    personHubs,
     "",
     "### Note titles",
     titles,
