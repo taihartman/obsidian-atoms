@@ -498,7 +498,10 @@ export async function applyBackfillResults(opts: {
       atomFolder: opts.atomFolder,
       existingAtomPaths: existingAtoms,
     });
-    if (plan.action.kind === "create_atom") {
+    if (
+      plan.action.kind === "create_atom" ||
+      plan.action.kind === "update_atom"
+    ) {
       existingAtoms.add(plan.action.path);
     }
 

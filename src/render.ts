@@ -264,7 +264,8 @@ export function resolveCreatedField(
 
 export type WriteAction =
   | { kind: "create_atom"; path: string; content: string }
-  | { kind: "skip_atom_collision"; existingPath: string; title: string }
+  /** Same title already exists — rewrite that path (no second file). */
+  | { kind: "update_atom"; path: string; content: string; title: string }
   | { kind: "marker_only" };
 
 export interface PlannedWrite {
@@ -278,7 +279,8 @@ export interface PlannedWrite {
 
 /**
  * Plan vault writes for one successful classification (pure).
- * Collision (KTD8): no new file; marker still points at existing title.
+ * Collision (KTD8): never a second file for the same title — update the
+ * existing path so reprocess can land better tags/links (media repair).
  */
 export function planWrite(opts: {
   result: ClassificationResult;
@@ -290,7 +292,7 @@ export function planWrite(opts: {
   existingAtomPaths: Set<string>;
 }): PlannedWrite {
   const { result, capture, dailyPath, atomFolder, existingAtomPaths } = opts;
-  let resultForWrite = result;
+  const resultForWrite = result;
 
   if (result.verdict !== "atom") {
     return {
@@ -306,31 +308,22 @@ export function planWrite(opts: {
   const path = atomPathForTitle(atomFolder, title);
   const pathKey = path.replace(/\\/g, "/");
 
-  if (existingAtomPaths.has(pathKey) || existingAtomPaths.has(path)) {
-    // Collision: supersession link + marker only (KTD8)
-    const links = [
-      ...(result.links ?? []),
-      {
-        note: title,
-        reason: `revises [[${title}]] (same-title collision; no duplicate atom)`,
-      },
-    ];
-    resultForWrite = { ...result, links };
-    return {
-      markerLine: markerLineForDecision("atom", title),
-      dailyPath,
-      capture,
-      action: { kind: "skip_atom_collision", existingPath: path, title },
-      result: resultForWrite,
-    };
-  }
-
   const content = buildAtomMarkdown({
     result: resultForWrite,
     captureText: capture.text,
     created: resolveCreatedField(opts.dailyDate, capture.timestamp),
     sourceDailyPath: dailyPath,
   });
+
+  if (existingAtomPaths.has(pathKey) || existingAtomPaths.has(path)) {
+    return {
+      markerLine: markerLineForDecision("atom", title),
+      dailyPath,
+      capture,
+      action: { kind: "update_atom", path, content, title },
+      result: resultForWrite,
+    };
+  }
 
   return {
     markerLine: markerLineForDecision("atom", title),
@@ -343,13 +336,15 @@ export function planWrite(opts: {
 
 export interface ApplyWriteResult {
   atomCreated: string | null;
+  /** Set when same-title path was updated in place (not a second file). */
+  atomUpdated: string | null;
   atomSkippedCollision: string | null;
   markerAppended: boolean;
   dailyPath: string;
 }
 
 /**
- * Apply a planned write to the vault. Only create + append (R3/R4).
+ * Apply a planned write to the vault. Only create/update atoms + append markers (R3/R4).
  */
 export async function applyWrite(
   app: App,
@@ -357,6 +352,7 @@ export async function applyWrite(
   dailyContent: string,
 ): Promise<{ result: ApplyWriteResult; newDailyContent: string }> {
   let atomCreated: string | null = null;
+  let atomUpdated: string | null = null;
   let atomSkippedCollision: string | null = null;
 
   if (plan.action.kind === "create_atom") {
@@ -371,12 +367,25 @@ export async function applyWrite(
     if (!existing) {
       await app.vault.create(plan.action.path, plan.action.content);
       atomCreated = plan.action.path;
-    } else {
-      // Race: treat as collision
-      atomSkippedCollision = plan.action.path;
+    } else if ("extension" in existing) {
+      // Race: update in place instead of a second file
+      await app.vault.modify(existing as TFile, plan.action.content);
+      atomUpdated = plan.action.path;
     }
-  } else if (plan.action.kind === "skip_atom_collision") {
-    atomSkippedCollision = plan.action.existingPath;
+  } else if (plan.action.kind === "update_atom") {
+    const existing = app.vault.getAbstractFileByPath(plan.action.path);
+    if (existing && "extension" in existing) {
+      await app.vault.modify(existing as TFile, plan.action.content);
+      atomUpdated = plan.action.path;
+    } else {
+      // File vanished — create
+      const folder = plan.action.path.split("/").slice(0, -1).join("/");
+      if (folder && !app.vault.getAbstractFileByPath(folder)) {
+        await app.vault.createFolder(folder);
+      }
+      await app.vault.create(plan.action.path, plan.action.content);
+      atomCreated = plan.action.path;
+    }
   }
 
   const { content: newDailyContent, changed } = insertMarkerAfterCapture(
@@ -395,6 +404,7 @@ export async function applyWrite(
   return {
     result: {
       atomCreated,
+      atomUpdated,
       atomSkippedCollision,
       markerAppended: changed,
       dailyPath: plan.dailyPath,
