@@ -10,8 +10,8 @@
 
 .atoms-home-header {
   flex-shrink: 0;
-  padding: 8px 12px 10px;
-  border-bottom: 1px solid var(--background-modifier-border);
+  padding: 10px 16px 12px;
+  border-bottom: 1px solid color-mix(in srgb, var(--background-modifier-border) 70%, transparent);
 }
 
 .atoms-home-header-top {
@@ -41,65 +41,84 @@
 
 .atoms-home-title {
   margin: 0;
-  font-size: 1.75rem;
+  font-size: 1.85rem;
   font-weight: 700;
-  letter-spacing: -0.03em;
-  line-height: 1.15;
+  letter-spacing: -0.035em;
+  line-height: 1.1;
   color: var(--text-normal);
 }
 
 .atoms-home-subtitle {
-  margin: 4px 0 0;
-  font-size: 0.85rem;
+  margin: 5px 0 0;
+  font-size: 0.9rem;
+  font-weight: 400;
   color: var(--text-muted);
+  letter-spacing: -0.01em;
 }
 
 .atoms-home-scroll {
   flex: 1;
   overflow-y: auto;
-  padding: 12px 12px 24px;
+  padding: 14px 16px 32px;
   -webkit-overflow-scrolling: touch;
+}
+
+.atoms-home-card-eyebrow {
+  margin: 0 0 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-faint);
 }
 
 .atoms-home-wait-card {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 14px;
-  margin-bottom: 14px;
-  border-radius: 12px;
-  border: 1px solid color-mix(in srgb, var(--color-orange, #ff9f0a) 40%, transparent);
-  background: color-mix(in srgb, var(--color-orange, #ff9f0a) 12%, var(--background-secondary));
+  gap: 6px;
+  padding: 16px;
+  margin-bottom: 16px;
+  border-radius: 16px;
+  border: 1px solid color-mix(in srgb, var(--color-orange, #ff9f0a) 28%, transparent);
+  background: color-mix(in srgb, var(--color-orange, #ff9f0a) 9%, var(--background-secondary));
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--background-modifier-border) 40%, transparent);
 }
 
 .atoms-home-wait-card h2 {
   margin: 0;
-  font-size: 1.05rem;
-  font-weight: 700;
+  font-size: 1.15rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
   color: var(--text-normal);
 }
 
-.atoms-home-wait-card p {
+.atoms-home-wait-card > p:not(.atoms-home-card-eyebrow) {
   margin: 0;
-  font-size: 0.85rem;
+  font-size: 0.88rem;
   color: var(--text-muted);
-  line-height: 1.35;
+  line-height: 1.4;
 }
 
 .atoms-home-wait-actions {
   display: flex;
-  gap: 8px;
-  margin-top: 4px;
+  gap: 10px;
+  margin-top: 8px;
 }
 
 .atoms-home-btn {
   flex: 1;
-  min-height: 44px;
+  min-height: 46px;
   border: none;
-  border-radius: 10px;
+  border-radius: 12px;
   font-size: 0.95rem;
   font-weight: 600;
+  letter-spacing: -0.01em;
   cursor: pointer;
+  transition: opacity 0.12s ease, transform 0.12s ease;
+}
+
+.atoms-home-btn:active:not(:disabled) {
+  transform: scale(0.98);
+  opacity: 0.92;
 }
 
 .atoms-home-btn:disabled {
@@ -124,69 +143,101 @@
   margin: 0 2px 6px;
 }
 
-.atoms-home-filters {
+.atoms-home-lib-head {
   display: flex;
-  gap: 8px;
-  margin-bottom: 10px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 10px 0 10px;
+}
+
+.atoms-home-lib-head .atoms-home-section {
+  margin: 0;
+}
+
+.atoms-home-filters {
+  display: inline-flex;
+  gap: 0;
+  padding: 2px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--background-modifier-border) 85%, transparent);
 }
 
 .atoms-home-filter {
   border: none;
-  border-radius: 980px;
-  padding: 7px 12px;
-  min-height: 32px;
-  font-size: 0.8rem;
-  font-weight: 500;
+  border-radius: 8px;
+  padding: 6px 12px;
+  min-height: 30px;
+  font-size: 0.78rem;
+  font-weight: 600;
   cursor: pointer;
-  background: var(--background-secondary);
+  background: transparent;
   color: var(--text-muted);
+  letter-spacing: -0.01em;
 }
 
 .atoms-home-filter.is-active {
-  background: var(--background-modifier-hover);
+  background: var(--background-primary);
   color: var(--text-normal);
+  box-shadow: 0 0.5px 1.5px color-mix(in srgb, #000 14%, transparent);
 }
 
 .atoms-home-section {
-  font-size: 0.72rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--text-faint);
-  margin: 8px 2px 6px;
+  font-size: 0.8rem;
+  font-weight: 650;
+  text-transform: none;
+  letter-spacing: -0.015em;
+  color: var(--text-normal);
+  margin: 10px 2px 8px;
 }
 
 .atoms-home-list {
   background: var(--background-secondary);
-  border-radius: 12px;
+  border-radius: 14px;
   overflow: hidden;
-  margin-bottom: 14px;
-  border: 1px solid var(--background-modifier-border);
+  margin-bottom: 16px;
+  border: 1px solid color-mix(in srgb, var(--background-modifier-border) 80%, transparent);
+}
+
+.atoms-home-list-peek {
+  margin-bottom: 12px;
+  opacity: 0.95;
 }
 
 .atoms-home-cell {
   display: grid;
   grid-template-columns: 1fr auto;
-  gap: 4px 10px;
-  padding: 12px 14px;
-  min-height: 56px;
-  border-bottom: 1px solid var(--background-modifier-border);
+  gap: 4px 12px;
+  padding: 14px 16px;
+  min-height: 58px;
+  border-bottom: 1px solid color-mix(in srgb, var(--background-modifier-border) 70%, transparent);
   cursor: pointer;
   align-items: start;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .atoms-home-cell:last-child {
   border-bottom: none;
 }
 
-.atoms-home-cell:hover,
 .atoms-home-cell:active {
   background: var(--background-modifier-hover);
 }
 
 .atoms-home-cell-title {
-  font-size: 0.95rem;
+  font-size: 0.98rem;
+  font-weight: 550;
   line-height: 1.3;
+  letter-spacing: -0.015em;
   color: var(--text-normal);
+}
+
+.atoms-home-cell-main {
+  min-width: 0;
+}
+
+.atoms-home-cell-source {
+  color: var(--text-faint);
 }
 
 .atoms-home-cell-meta {
@@ -231,42 +282,95 @@
   margin-top: 3px;
 }
 
-/* From the brain — zero-guilt on-this-day stream */
+/* For you — memory card (Journal / Photos energy) */
+.atoms-home-section-for-you {
+  margin-top: 4px;
+}
+
 .atoms-home-resurface-card {
-  margin: 0 12px 12px;
-  padding: 14px 16px;
-  border-radius: 14px;
-  background: color-mix(in srgb, var(--interactive-accent) 8%, var(--background-secondary));
-  border: 1px solid color-mix(in srgb, var(--interactive-accent) 22%, var(--background-modifier-border));
+  position: relative;
+  margin: 0 0 18px;
+  padding: 18px 18px 14px;
+  border-radius: 18px;
+  background:
+    linear-gradient(
+      165deg,
+      color-mix(in srgb, var(--interactive-accent) 14%, var(--background-secondary)) 0%,
+      var(--background-secondary) 55%
+    );
+  border: 1px solid color-mix(in srgb, var(--interactive-accent) 18%, var(--background-modifier-border));
+  box-shadow:
+    0 1px 2px color-mix(in srgb, #000 6%, transparent),
+    0 8px 24px color-mix(in srgb, var(--interactive-accent) 8%, transparent);
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.atoms-home-resurface-card:active {
+  transform: scale(0.985);
 }
 
 .atoms-home-resurface-kicker {
-  margin: 0 0 8px;
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  margin: 0 0 10px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  text-transform: none;
   color: var(--text-accent);
 }
 
 .atoms-home-resurface-snippet {
-  margin: 0 0 6px;
-  font-size: 1.02rem;
-  line-height: 1.4;
+  margin: 0 0 12px;
+  font-size: 1.2rem;
+  line-height: 1.35;
+  letter-spacing: -0.02em;
   color: var(--text-normal);
-  font-weight: 500;
+  font-weight: 590;
+}
+
+.atoms-home-resurface-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 10px;
+  margin-bottom: 4px;
+  padding-right: 72px;
 }
 
 .atoms-home-resurface-title {
-  margin: 0 0 2px;
-  font-size: 0.82rem;
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 500;
   color: var(--text-muted);
+  letter-spacing: -0.01em;
 }
 
 .atoms-home-resurface-meta {
-  margin: 0 0 12px;
+  margin: 0;
   font-size: 0.75rem;
   color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.atoms-home-resurface-another {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  border: none;
+  background: color-mix(in srgb, var(--background-primary) 70%, transparent);
+  color: var(--text-accent);
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 8px 12px;
+  min-height: 36px;
+  border-radius: 980px;
+  cursor: pointer;
+  letter-spacing: -0.01em;
+}
+
+.atoms-home-resurface-another:active {
+  opacity: 0.75;
 }
 
 .atoms-home-empty {
@@ -600,11 +704,11 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 14px;
-  margin-bottom: 14px;
-  border-radius: 12px;
-  border: 1px solid color-mix(in srgb, var(--interactive-accent) 40%, transparent);
-  background: color-mix(in srgb, var(--interactive-accent) 12%, var(--background-secondary));
+  padding: 14px 16px;
+  margin-bottom: 16px;
+  border-radius: 16px;
+  border: 1px solid color-mix(in srgb, var(--interactive-accent) 28%, transparent);
+  background: color-mix(in srgb, var(--interactive-accent) 9%, var(--background-secondary));
 }
 
 .atoms-home-progress-card.is-done {
@@ -648,26 +752,27 @@
   width: 0%;
 }
 
-/* Force-test today (manual only) */
+/* Today — available but quieter than Ready */
 .atoms-home-try-today-card {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 14px;
-  margin-bottom: 14px;
-  border-radius: 12px;
-  border: 1px solid color-mix(in srgb, var(--interactive-accent) 35%, transparent);
-  background: color-mix(in srgb, var(--interactive-accent) 10%, var(--background-secondary));
+  gap: 6px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+  border-radius: 16px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-secondary);
 }
 
 .atoms-home-try-today-card h2 {
   margin: 0;
   font-size: 1.05rem;
-  font-weight: 700;
+  font-weight: 650;
+  letter-spacing: -0.02em;
   color: var(--text-normal);
 }
 
-.atoms-home-try-today-card > p {
+.atoms-home-try-today-card > p:not(.atoms-home-card-eyebrow) {
   margin: 0;
   font-size: 0.85rem;
   color: var(--text-muted);

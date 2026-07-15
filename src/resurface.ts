@@ -371,9 +371,33 @@ export function serializeThrottle(map: ResurfaceThrottleMap): string {
   return JSON.stringify(map);
 }
 
+/** Human cue labels — calm, Journal/For You tone (not ALL CAPS system chrome). */
 export function cueLabel(cue: ResurfaceCue): string {
   if (cue === "on-this-day") return "On this day";
-  if (cue === "connected") return "Connected to recent";
-  if (cue === "quiet") return "From a while ago";
-  return "From the brain";
+  if (cue === "connected") return "Related to something recent";
+  if (cue === "quiet") return "Worth meeting again";
+  return "For you";
+}
+
+/** Friendly date for meta: “Jul 15, 2024” */
+export function formatCueDate(ymd: string): string {
+  const m = (ymd ?? "").trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return ymd;
+  const months = [
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
+  ];
+  const mi = Number(m[2]) - 1;
+  const mon = months[mi] ?? m[2];
+  return `${mon} ${Number(m[3])}, ${m[1]}`;
 }

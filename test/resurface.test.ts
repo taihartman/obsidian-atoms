@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   calendarDateToday,
+  cueLabel,
+  formatCueDate,
   isOnThisDayMatch,
   isThrottled,
   listConnectedCandidates,
@@ -192,5 +194,13 @@ describe("calendarDateToday", () => {
   it("formats local date", () => {
     const d = new Date(2026, 6, 15);
     expect(calendarDateToday(d)).toBe("2026-07-15");
+  });
+});
+
+describe("copy helpers", () => {
+  it("human dates and calm cue labels", () => {
+    expect(formatCueDate("2024-07-15")).toBe("Jul 15, 2024");
+    expect(cueLabel("quiet")).toBe("Worth meeting again");
+    expect(cueLabel("connected")).toMatch(/recent/i);
   });
 });
