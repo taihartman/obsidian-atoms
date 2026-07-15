@@ -6,6 +6,10 @@ import type {
   VaultContext,
   Verdict,
 } from "./types";
+import {
+  enrichPersonLinks,
+  type PersonHub,
+} from "./people";
 import { filterTagsToActive } from "./vocabulary";
 
 export const ANTHROPIC_MESSAGES_URL = "https://api.anthropic.com/v1/messages";
@@ -88,10 +92,12 @@ export const SYSTEM_PROMPT = `You classify fleeting captures from a daily-note i
 - proposed_tags: only for genuinely useful new labels missing from Active (e.g. a recurring life domain). Never invent a flood of tags. Never put person display names as tags when a note title link works better.
 
 ## People (tasteful, automatic linking)
-- When a capture is about a named person and that person's name appears in the vault note titles list, you MUST link that exact title in links[] with a clear reason (e.g. "preference about [[Nichita]]", "relates to [[Nichita]]").
-- Match names case-insensitively to an existing title; use the vault's exact title string in links[].note.
+- When the context lists **Person hubs**, prefer those exact titles for people links (must-link when the capture is about that person).
+- Otherwise, when a capture is about a named person and that name appears in **Note titles**, you MUST link that exact title in links[] with a clear reason (e.g. "preference about [[Nichita]]", "relates to [[Nichita]]").
+- Match names case-insensitively; use the vault's exact title string in links[].note (canonical hub title, not a nickname spelling).
 - Do not invent a new person note title if a close existing title already fits.
 - One atom can carry both a person link and a preference claim.
+- Tasks that merely mention a name stay task/noise — do not force person atoms for chores.
 
 ## Links + supersession
 - Link to existing notes when the capture relates, revises, or contradicts them.
@@ -113,6 +119,10 @@ export function buildContextUserMessage(context: VaultContext): string {
     : "(none)";
   // Deterministic ordering is the caller's job; we render as given so the
   // cached prefix stays byte-stable within a run (KTD3 / U4).
+  const personHubs =
+    context.personHubs && context.personHubs.length
+      ? context.personHubs.map((t) => `- ${t}`).join("\n")
+      : "(none)";
   const titles = context.titles.length
     ? context.titles.map((t) => `- ${t}`).join("\n")
     : "(empty vault)";
@@ -126,9 +136,27 @@ export function buildContextUserMessage(context: VaultContext): string {
     "### Tags present in vault",
     tags,
     "",
+    "### Person hubs (from your vault — prefer linking these exact titles)",
+    personHubs,
+    "",
     "### Note titles",
     titles,
   ].join("\n");
+}
+
+function hubsForEnrich(context: VaultContext): PersonHub[] {
+  if (context.personHubDetails?.length) {
+    return context.personHubDetails.map((d) => ({
+      canonicalTitle: d.canonicalTitle,
+      matchKeys: d.matchKeys,
+      path: "",
+    }));
+  }
+  return (context.personHubs ?? []).map((t) => ({
+    canonicalTitle: t,
+    matchKeys: [t],
+    path: "",
+  }));
 }
 
 export function buildCaptureUserMessage(capture: string): string {
@@ -438,11 +466,14 @@ export async function classifyCapture(
     parsed.tags = filterTagsToActive(parsed.tags ?? [], deps.activeVocabulary);
   }
 
+  // People repair (atom-only, person-shaped) — single choke-point for live classify.
+  const result = enrichPersonLinks(capture, parsed, hubsForEnrich(context));
+
   // Retain all links (KTD10) — no resolution filter.
 
   return {
     ok: true,
-    result: parsed,
+    result,
     usage: parseUsage(json.usage),
     keyFingerprint: fingerprintKey(apiKey),
   };

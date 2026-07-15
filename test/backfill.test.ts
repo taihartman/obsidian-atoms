@@ -13,6 +13,8 @@ import {
 import type { Capture, DailyNoteWithCaptures, VaultContext } from "../src/types";
 
 const ctx: VaultContext = {
+  personHubs: [],
+  personHubDetails: [],
   titles: ["Note A", "Note B"],
   tags: ["idea"],
   vocabulary: ["idea"],

@@ -1,8 +1,630 @@
-/*
+/* Atoms home view — mobile-first (design: docs/design-handoff/atoms-view/) */
 
-This CSS file will be included with your plugin, and
-available in the app when your plugin is enabled.
+.atoms-home {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  background-color: var(--background-primary);
+}
 
-If your plugin does not need CSS, delete this file.
+.atoms-home-header {
+  flex-shrink: 0;
+  padding: 8px 12px 10px;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
 
-*/
+.atoms-home-header-top {
+  display: flex;
+  align-items: center;
+  min-height: 40px;
+}
+
+.atoms-home-spacer {
+  flex: 1;
+}
+
+.atoms-home-icon-btn {
+  min-width: 44px;
+  min-height: 44px;
+  border: none;
+  background: transparent;
+  color: var(--text-accent);
+  font-size: 1.15rem;
+  cursor: pointer;
+  border-radius: var(--radius-s);
+}
+
+.atoms-home-icon-btn:hover {
+  background: var(--background-modifier-hover);
+}
+
+.atoms-home-title {
+  margin: 0;
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  color: var(--text-normal);
+}
+
+.atoms-home-subtitle {
+  margin: 4px 0 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.atoms-home-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 12px 24px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.atoms-home-wait-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  margin-bottom: 14px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--color-orange, #ff9f0a) 40%, transparent);
+  background: color-mix(in srgb, var(--color-orange, #ff9f0a) 12%, var(--background-secondary));
+}
+
+.atoms-home-wait-card h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text-normal);
+}
+
+.atoms-home-wait-card p {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  line-height: 1.35;
+}
+
+.atoms-home-wait-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.atoms-home-btn {
+  flex: 1;
+  min-height: 44px;
+  border: none;
+  border-radius: 10px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.atoms-home-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.atoms-home-btn-primary {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+}
+
+.atoms-home-btn-secondary {
+  background: var(--background-modifier-border);
+  color: var(--text-accent);
+}
+
+.atoms-home-queue-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-orange, #ff9f0a);
+  margin: 0 2px 6px;
+}
+
+.atoms-home-filters {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.atoms-home-filter {
+  border: none;
+  border-radius: 980px;
+  padding: 7px 12px;
+  min-height: 32px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  background: var(--background-secondary);
+  color: var(--text-muted);
+}
+
+.atoms-home-filter.is-active {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.atoms-home-section {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-faint);
+  margin: 8px 2px 6px;
+}
+
+.atoms-home-list {
+  background: var(--background-secondary);
+  border-radius: 12px;
+  overflow: hidden;
+  margin-bottom: 14px;
+  border: 1px solid var(--background-modifier-border);
+}
+
+.atoms-home-cell {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px 10px;
+  padding: 12px 14px;
+  min-height: 56px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  cursor: pointer;
+  align-items: start;
+}
+
+.atoms-home-cell:last-child {
+  border-bottom: none;
+}
+
+.atoms-home-cell:hover,
+.atoms-home-cell:active {
+  background: var(--background-modifier-hover);
+}
+
+.atoms-home-cell-title {
+  font-size: 0.95rem;
+  line-height: 1.3;
+  color: var(--text-normal);
+}
+
+.atoms-home-cell-meta {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-top: 3px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.atoms-home-link-chip {
+  color: var(--color-orange, #e07a5f);
+  font-weight: 500;
+}
+
+.atoms-home-cell-time {
+  font-size: 0.78rem;
+  color: var(--text-faint);
+  white-space: nowrap;
+  padding-top: 2px;
+}
+
+.atoms-home-qcell {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  font-size: 0.88rem;
+  color: var(--text-muted);
+  line-height: 1.35;
+}
+
+.atoms-home-qcell:last-child {
+  border-bottom: none;
+}
+
+.atoms-home-qcell em {
+  display: block;
+  font-style: normal;
+  font-size: 0.75rem;
+  color: var(--text-faint);
+  margin-top: 3px;
+}
+
+.atoms-home-empty {
+  padding: 28px 16px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.atoms-home-empty-hint {
+  margin-top: 10px;
+  font-size: 0.82rem;
+  color: var(--text-faint);
+  line-height: 1.4;
+}
+
+.atoms-home-empty-soft {
+  color: var(--text-faint);
+  font-size: 0.85rem;
+}
+
+/* First-day setup */
+.atoms-home-setup-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  margin-bottom: 14px;
+  border-radius: 12px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-secondary);
+}
+
+.atoms-home-setup-card h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text-normal);
+}
+
+.atoms-home-setup-card > p {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.atoms-home-setup-steps {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+}
+
+.atoms-home-setup-steps li {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  line-height: 1.35;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.atoms-home-setup-steps li:last-child {
+  border-bottom: none;
+}
+
+.atoms-home-step-num {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--background-modifier-border);
+  color: var(--text-accent);
+  font-size: 0.75rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.atoms-home-mono {
+  font-family: var(--font-monospace);
+  font-size: 0.8rem;
+  white-space: pre-wrap;
+  background: var(--background-primary);
+  padding: 10px 12px;
+  border-radius: 8px;
+  color: var(--text-muted);
+  line-height: 1.45;
+  margin: 4px 0;
+}
+
+.atoms-home-setup-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.atoms-home-setup-hint {
+  margin-top: 4px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: var(--text-muted);
+  background: color-mix(in srgb, var(--color-orange, #ff9f0a) 10%, var(--background-primary));
+  border: 1px solid color-mix(in srgb, var(--color-orange, #ff9f0a) 28%, transparent);
+}
+
+.atoms-home-setup-hint strong {
+  color: var(--color-orange, #e07a5f);
+}
+
+/* —— Dry-run preview modal (card UI) —— */
+.atoms-preview-modal-host {
+  width: min(440px, 96vw);
+  max-width: 96vw;
+}
+
+.atoms-preview-modal {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  max-height: 85vh;
+  padding-bottom: 0 !important;
+}
+
+.atoms-preview-header {
+  padding: 4px 0 10px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  margin-bottom: 10px;
+}
+
+.atoms-preview-header h2 {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.atoms-preview-sub {
+  margin: 4px 0 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.atoms-preview-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.atoms-preview-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 980px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: var(--background-secondary);
+  color: var(--text-muted);
+}
+
+.atoms-preview-pill-n {
+  font-variant-numeric: tabular-nums;
+}
+
+.atoms-preview-pill.is-atom {
+  background: color-mix(in srgb, var(--interactive-accent) 18%, transparent);
+  color: var(--text-accent);
+}
+
+.atoms-preview-pill.is-task {
+  background: color-mix(in srgb, #4a9eff 18%, transparent);
+  color: #6eb6ff;
+}
+
+.atoms-preview-pill.is-noise {
+  opacity: 0.75;
+}
+
+.atoms-preview-pill.is-failed {
+  background: color-mix(in srgb, var(--text-error) 15%, transparent);
+  color: var(--text-error);
+}
+
+.atoms-preview-list {
+  flex: 1;
+  overflow-y: auto;
+  max-height: 52vh;
+  margin: 0 -4px;
+  padding: 0 4px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.atoms-preview-empty {
+  text-align: center;
+  color: var(--text-faint);
+  padding: 24px 12px;
+  font-size: 0.9rem;
+}
+
+.atoms-preview-card {
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.atoms-preview-badge {
+  align-self: flex-start;
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px 7px;
+  border-radius: 4px;
+  margin-bottom: 2px;
+}
+
+.atoms-preview-badge.is-atom {
+  background: color-mix(in srgb, var(--interactive-accent) 20%, transparent);
+  color: var(--text-accent);
+}
+
+.atoms-preview-badge.is-task {
+  background: color-mix(in srgb, #4a9eff 20%, transparent);
+  color: #93c5fd;
+}
+
+.atoms-preview-badge.is-noise {
+  background: var(--background-modifier-border);
+  color: var(--text-faint);
+}
+
+.atoms-preview-badge.is-failed {
+  background: color-mix(in srgb, var(--text-error) 18%, transparent);
+  color: var(--text-error);
+}
+
+.atoms-preview-title {
+  font-size: 0.98rem;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--text-normal);
+  letter-spacing: -0.01em;
+}
+
+.atoms-preview-capture {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  line-height: 1.35;
+  margin-top: 2px;
+}
+
+.atoms-preview-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin-top: 6px;
+}
+
+.atoms-preview-meta {
+  font-size: 0.75rem;
+  color: var(--text-faint);
+}
+
+.atoms-preview-tag {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.atoms-preview-link {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--color-orange, #e07a5f);
+  background: color-mix(in srgb, var(--color-orange, #e07a5f) 12%, transparent);
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.atoms-preview-file {
+  font-size: 0.72rem;
+  color: var(--text-faint);
+  font-family: var(--font-monospace);
+  margin-top: 4px;
+}
+
+.atoms-preview-footer {
+  display: flex;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--background-modifier-border);
+  margin-top: 4px;
+}
+
+.atoms-preview-btn {
+  flex: 1;
+  min-height: 44px;
+  border: none;
+  border-radius: 10px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.atoms-preview-btn-primary {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+}
+
+.atoms-preview-btn-secondary {
+  background: var(--background-modifier-border);
+  color: var(--text-normal);
+}
+
+/* Force-test today (manual only) */
+.atoms-home-try-today-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  margin-bottom: 14px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--interactive-accent) 35%, transparent);
+  background: color-mix(in srgb, var(--interactive-accent) 10%, var(--background-secondary));
+}
+
+.atoms-home-try-today-card h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text-normal);
+}
+
+.atoms-home-try-today-card > p {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+/* Shortcut update banner */
+.atoms-home-update-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  margin-bottom: 14px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--interactive-accent) 15%, var(--background-secondary));
+  border: 1px solid color-mix(in srgb, var(--interactive-accent) 30%, transparent);
+}
+
+.atoms-home-update-banner strong {
+  display: block;
+  font-size: 0.9rem;
+  color: var(--text-normal);
+}
+
+.atoms-home-update-meta {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.atoms-home-update-btn {
+  margin-left: auto;
+  border: none;
+  border-radius: 980px;
+  padding: 8px 14px;
+  min-height: 36px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  white-space: nowrap;
+}
+
+.atoms-home-footnote {
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--text-faint);
+  line-height: 1.4;
+  padding: 4px 8px 12px;
+  margin: 0;
+}

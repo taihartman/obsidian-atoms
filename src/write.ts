@@ -14,6 +14,7 @@ import type {
   ClassificationResult,
   DailyNoteWithCaptures,
 } from "./types";
+import { enrichPersonLinks, type PersonHub } from "./people";
 import { mergeProposedTags } from "./vocabulary";
 
 export interface WritePathEntry {
@@ -51,6 +52,8 @@ export interface RunWritePathOptions {
    * Map key: `${dailyPath}::${capture.startLine}` or sequential by order.
    */
   fixtureResults?: ClassificationResult[];
+  /** Manual force: include today's daily. Default false (never for auto-run). */
+  includeToday?: boolean;
 }
 
 /**
@@ -60,7 +63,9 @@ export interface RunWritePathOptions {
 export async function runWritePath(
   opts: RunWritePathOptions,
 ): Promise<WritePathReport> {
-  const listed = await getPastDailyNotesWithUnmarkedCaptures(opts.app);
+  const listed = await getPastDailyNotesWithUnmarkedCaptures(opts.app, {
+    includeToday: opts.includeToday,
+  });
   const work: Array<{ note: DailyNoteWithCaptures; capture: Capture }> = [];
   for (const note of listed.notes) {
     for (const capture of note.unprocessed) {
@@ -89,7 +94,13 @@ export async function runWritePath(
 
     let result: ClassificationResult | null = null;
     if (opts.fixtureResults && opts.fixtureResults[i]) {
-      result = opts.fixtureResults[i]!;
+      // Fixtures skip live classify — still run people repair choke-point.
+      const hubs: PersonHub[] = (ctx.personHubDetails ?? []).map((d) => ({
+        canonicalTitle: d.canonicalTitle,
+        matchKeys: d.matchKeys,
+        path: "",
+      }));
+      result = enrichPersonLinks(capture.text, opts.fixtureResults[i]!, hubs);
     } else {
       const outcome = await classifyCapture(capture.text, ctx, {
         apiKey: opts.apiKey,

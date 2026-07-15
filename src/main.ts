@@ -1,4 +1,5 @@
-import { Notice, Plugin, requestUrl } from "obsidian";
+import { Notice, Plugin, WorkspaceLeaf, requestUrl } from "obsidian";
+import { ATOMS_HOME_VIEW_TYPE, AtomsHomeView } from "./atomsHomeView";
 import {
   classifyCapture,
   logClassifyOutcome,
@@ -91,10 +92,66 @@ export default class AtomsPlugin extends Plugin {
       () => this.settings.activeVocabulary,
     );
     this.addSettingTab(new AtomsSettingTab(this.app, this));
+
+    this.registerView(ATOMS_HOME_VIEW_TYPE, (leaf) => new AtomsHomeView(leaf, this));
+    this.addRibbonIcon("library", "Open Atoms", () => {
+      void this.activateAtomsHome();
+    });
+
     this.registerCommands();
 
     // U9: never block launch — schedule auto-run after layout + metadata.
     void this.scheduleAutoRunLifecycle();
+  }
+
+  async activateAtomsHome(): Promise<void> {
+    const { workspace } = this.app;
+    let leaf: WorkspaceLeaf | null = null;
+    const existing = workspace.getLeavesOfType(ATOMS_HOME_VIEW_TYPE);
+    if (existing.length) {
+      leaf = existing[0]!;
+    } else {
+      leaf = workspace.getLeftLeaf(false) ?? workspace.getLeaf(false);
+      await leaf.setViewState({ type: ATOMS_HOME_VIEW_TYPE, active: true });
+    }
+    workspace.revealLeaf(leaf);
+    const view = leaf.view;
+    if (view instanceof AtomsHomeView) {
+      await view.refresh();
+    }
+  }
+
+  /** Called from Atoms home Preview — same dry-run as command. */
+  async runDryRunFromHome(opts?: { includeToday?: boolean }): Promise<void> {
+    await this.runDryRunPreview(opts);
+  }
+
+  /** Called from Atoms home Process — same write path as command. */
+  async runProcessFromHome(opts?: { includeToday?: boolean }): Promise<void> {
+    await this.runProcessUnprocessed(opts);
+  }
+
+  /** Called from Atoms home ⋯ menu. */
+  async runTestConnectionFromHome(): Promise<void> {
+    await this.runTestConnection();
+  }
+
+  /** Called from Atoms home ⋯ menu. */
+  async runBackfillFromHome(): Promise<void> {
+    await this.runBackfillFlow();
+  }
+
+  /** Open/create today's daily and show it in the editor. */
+  async openTodaysDailyFromHome(): Promise<void> {
+    try {
+      const { openTodaysDaily } = await import("./daily");
+      const file = await openTodaysDaily(this.app);
+      await this.app.workspace.getLeaf(false).openFile(file);
+    } catch (e) {
+      new Notice(
+        e instanceof Error ? e.message : "Could not open today's daily note",
+      );
+    }
   }
 
   onunload() {
@@ -233,6 +290,14 @@ export default class AtomsPlugin extends Plugin {
 
   private registerCommands() {
     this.addCommand({
+      id: "open-atoms-home",
+      name: "Open Atoms home",
+      callback: () => {
+        void this.activateAtomsHome();
+      },
+    });
+
+    this.addCommand({
       id: "spike-classify-hardcoded",
       name: "Spike: classify hardcoded capture",
       callback: () => {
@@ -289,10 +354,26 @@ export default class AtomsPlugin extends Plugin {
     });
 
     this.addCommand({
+      id: "dry-run-preview-include-today",
+      name: "Dry-run: preview including today (test)",
+      callback: () => {
+        void this.runDryRunPreview({ includeToday: true });
+      },
+    });
+
+    this.addCommand({
       id: "process-unprocessed",
       name: "Process unprocessed captures (write atoms + markers)",
       callback: () => {
         void this.runProcessUnprocessed();
+      },
+    });
+
+    this.addCommand({
+      id: "process-include-today",
+      name: "Process including today (test)",
+      callback: () => {
+        void this.runProcessUnprocessed({ includeToday: true });
       },
     });
 
@@ -449,12 +530,14 @@ export default class AtomsPlugin extends Plugin {
         batchId,
       });
       const lines = parseBatchResultsJsonl(jsonl);
+      const hubCtx = this.contextProvider.buildContext();
       const report = await applyBackfillResults({
         app: this.app,
         work: opts.work,
         lines,
         atomFolder: this.settings.atomFolder,
         activeVocabulary: this.settings.activeVocabulary,
+        personHubDetails: hubCtx.personHubDetails,
       });
       this.lastBackfillReport = report;
 
@@ -593,13 +676,18 @@ export default class AtomsPlugin extends Plugin {
   }
 
   /**
-   * U8 — classify + write atoms/markers for past unprocessed captures.
+   * U8 — classify + write atoms/markers for unprocessed captures.
+   * includeToday: manual force for testing on phone (never used by auto-run).
    */
-  private async runProcessUnprocessed() {
+  private async runProcessUnprocessed(opts?: { includeToday?: boolean }) {
     const apiKey = this.requireApiKey();
     if (!apiKey) return;
 
-    new Notice("Atoms: processing (writing)…");
+    new Notice(
+      opts?.includeToday
+        ? "Atoms: processing (including today)…"
+        : "Atoms: processing (writing)…",
+    );
     try {
       const report = await runWritePath({
         app: this.app,
@@ -609,6 +697,7 @@ export default class AtomsPlugin extends Plugin {
         activeVocabulary: this.settings.activeVocabulary,
         atomFolder: this.settings.atomFolder,
         maxCaptures: 15,
+        includeToday: opts?.includeToday,
         classifyDeps: {
           maxAttempts: 2,
           onAuthFailure: (msg) => new Notice(`Atoms: ${msg}`),
@@ -742,11 +831,15 @@ export default class AtomsPlugin extends Plugin {
    * U7 — full pipeline dry-run. Modal + lastDryRun* for CLI.
    * Never creates atoms or appends markers (AE5).
    */
-  private async runDryRunPreview() {
+  private async runDryRunPreview(opts?: { includeToday?: boolean }) {
     const apiKey = this.requireApiKey();
     if (!apiKey) return;
 
-    new Notice("Atoms: dry-run starting…");
+    new Notice(
+      opts?.includeToday
+        ? "Atoms: dry-run (including today)…"
+        : "Atoms: dry-run starting…",
+    );
     try {
       const report = await runDryRun({
         app: this.app,
@@ -757,6 +850,7 @@ export default class AtomsPlugin extends Plugin {
         atomFolder: this.settings.atomFolder,
         // Bound work for interactive use; remainder stays unmarked for next run.
         maxCaptures: 15,
+        includeToday: opts?.includeToday,
         classifyDeps: {
           // Fail fast on network blips during preview (still retries once).
           maxAttempts: 2,
@@ -797,11 +891,11 @@ export default class AtomsPlugin extends Plugin {
       console.log("[atoms] dry-run markdown\n" + md);
 
       showDryRunNotice(report);
-      new DryRunPreviewModal(
-        this.app,
-        md,
-        `${report.classified} ok · ${report.failed} failed · ${report.entries.length} shown of ${report.totalUnprocessedScanned} unprocessed · zero vault writes`,
-      ).open();
+      const includeToday = opts?.includeToday === true;
+      new DryRunPreviewModal(this.app, report, {
+        report,
+        onProcess: () => this.runProcessUnprocessed({ includeToday }),
+      }).open();
     } catch (e) {
       if (e instanceof DailyNotesDisabledError) {
         new Notice(e.message);

@@ -13,6 +13,7 @@ import type {
   DailyNoteWithCaptures,
   VaultContext,
 } from "./types";
+import { enrichPersonLinks, type PersonHub } from "./people";
 import { filterTagsToActive, mergeProposedTags } from "./vocabulary";
 
 export const BATCHES_URL = "https://api.anthropic.com/v1/messages/batches";
@@ -454,6 +455,8 @@ export async function applyBackfillResults(opts: {
   lines: BatchResultLine[];
   atomFolder: string;
   activeVocabulary: string[];
+  /** Optional hubs for post-batch people repair (same as live classify). */
+  personHubDetails?: Array<{ canonicalTitle: string; matchKeys: string[] }>;
 }): Promise<ApplyBackfillReport> {
   const byId = new Map(opts.work.map((w) => [w.customId, w]));
   const existingAtoms = listAtomPaths(opts.app, opts.atomFolder);
@@ -463,6 +466,11 @@ export async function applyBackfillResults(opts: {
   let atomsCreated = 0;
   let markersAppended = 0;
   const proposedIncoming: string[] = [];
+  const hubs: PersonHub[] = (opts.personHubDetails ?? []).map((d) => ({
+    canonicalTitle: d.canonicalTitle,
+    matchKeys: d.matchKeys,
+    path: "",
+  }));
 
   for (const line of opts.lines) {
     const item = byId.get(line.custom_id);
@@ -470,11 +478,12 @@ export async function applyBackfillResults(opts: {
       failed += 1;
       continue;
     }
-    const result = classificationFromBatchLine(line, opts.activeVocabulary);
+    let result = classificationFromBatchLine(line, opts.activeVocabulary);
     if (!result) {
       failed += 1;
       continue;
     }
+    result = enrichPersonLinks(item.capture.text, result, hubs);
     if (result.proposed_tags?.length) {
       proposedIncoming.push(...result.proposed_tags);
     }

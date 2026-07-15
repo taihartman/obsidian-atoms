@@ -54,10 +54,20 @@ export interface ClassifyFailure {
 
 export type ClassifyOutcome = ClassifySuccess | ClassifyFailure;
 
+/** Client-side hub match data (paths never included). */
+export interface PersonHubDetail {
+  canonicalTitle: string;
+  matchKeys: string[];
+}
+
 export interface VaultContext {
   titles: string[];
   tags: string[];
   vocabulary: string[];
+  /** Canonical person-hub titles (sorted). Never paths. Empty when none. */
+  personHubs: string[];
+  /** Alias-aware match keys for enrichPersonLinks (local only). */
+  personHubDetails: PersonHubDetail[];
 }
 
 /**
@@ -106,6 +116,12 @@ export interface LinkerSettings {
    * The actual key, if falling back, lives in loadLocalStorage — never data.json.
    */
   useDeviceLocalKeyFallback: boolean;
+  /**
+   * Optional iCloud/GitHub install URL for the capture Shortcut.
+   * Synced via data.json so phone/desktop share the same link.
+   * Empty → fall back to built-in CAPTURE_SHORTCUT_INSTALL_URL constant.
+   */
+  captureShortcutInstallUrl: string;
 }
 
 export const DEFAULT_SETTINGS: LinkerSettings = {
@@ -124,6 +140,7 @@ export const DEFAULT_SETTINGS: LinkerSettings = {
   ],
   proposedTags: [],
   useDeviceLocalKeyFallback: false,
+  captureShortcutInstallUrl: "",
 };
 
 /** SecretStorage / localStorage keys — lowercase-dashed (KTD5). */
@@ -152,4 +169,6 @@ export const SPIKE_CONTEXT: VaultContext = {
   ],
   tags: ["idea", "question", "observation", "reference", "decision", "health"],
   vocabulary: ["idea", "question", "observation", "reference", "decision"],
+  personHubs: [],
+  personHubDetails: [],
 };

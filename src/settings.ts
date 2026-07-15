@@ -1,4 +1,10 @@
-import { App, PluginSettingTab, SecretComponent, Setting } from "obsidian";
+import {
+  App,
+  Notice,
+  PluginSettingTab,
+  SecretComponent,
+  Setting,
+} from "obsidian";
 import type AtomsPlugin from "./main";
 import { aggregateTagsFromFileCaches } from "./context";
 import {
@@ -6,6 +12,14 @@ import {
   writeAutoRunEnabled,
   writeEgressAck,
 } from "./autorun";
+import {
+  CAPTURE_SHORTCUT_VERSION,
+  labelInstallOrUpdate,
+  openShortcutInstallUrl,
+  readShortcutAck,
+  resolveCaptureShortcutInstallUrl,
+  writeShortcutAck,
+} from "./captureShortcut";
 import {
   API_KEY_SECRET_ID_DEFAULT,
   LOCAL_STORAGE_API_KEY,
@@ -42,11 +56,86 @@ export class AtomsSettingTab extends PluginSettingTab {
       cls: "setting-item-description",
     });
 
+    this.renderCaptureSection(containerEl);
     this.renderApiSection(containerEl);
     this.renderAutoRunSection(containerEl);
     this.renderModelSection(containerEl);
     this.renderVocabularySection(containerEl);
     this.renderDevHints(containerEl);
+  }
+
+  private renderCaptureSection(containerEl: HTMLElement) {
+    containerEl.createEl("h3", { text: "Capture" });
+
+    const acked = readShortcutAck((k) => this.app.loadLocalStorage(k));
+    const installUrl = resolveCaptureShortcutInstallUrl(
+      this.plugin.settings.captureShortcutInstallUrl,
+    );
+    const urlSet = Boolean(installUrl);
+
+    new Setting(containerEl)
+      .setName("Daily capture format")
+      .setDesc(
+        "Write top-level bullets in your daily note: “- thought…”. Today’s note is never auto-processed; use Atoms home → Preview after midnight (or past dailies).",
+      );
+
+    new Setting(containerEl)
+      .setName("iCloud shortcut link")
+      .setDesc(
+        "Paste the iCloud share link from Shortcuts (Share → Copy iCloud Link). Syncs with the vault. See docs/capture-shortcut.md for how to build the shortcut.",
+      )
+      .addText((text) =>
+        text
+          .setPlaceholder("https://www.icloud.com/shortcuts/…")
+          .setValue(this.plugin.settings.captureShortcutInstallUrl)
+          .onChange(async (value) => {
+            this.plugin.settings.captureShortcutInstallUrl = value.trim();
+            await this.plugin.saveSettings();
+          }),
+      );
+
+    new Setting(containerEl)
+      .setName("Capture shortcut")
+      .setDesc(
+        urlSet
+          ? `Install or update the iOS shortcut (v${CAPTURE_SHORTCUT_VERSION}). Opens your iCloud link — Shortcuts.app still needs confirm. Acked: ${acked ?? "never"}.`
+          : `No link yet — paste an iCloud URL above (or create the shortcut on your phone, then paste). Version tag: ${CAPTURE_SHORTCUT_VERSION}.`,
+      )
+      .addButton((btn) =>
+        btn
+          .setButtonText(labelInstallOrUpdate(acked))
+          .setDisabled(!urlSet)
+          .onClick(() => {
+            if (!urlSet) {
+              new Notice(
+                "Paste an iCloud shortcut link above first (Shortcuts → Share → Copy iCloud Link).",
+              );
+              return;
+            }
+            const ok = openShortcutInstallUrl(installUrl);
+            if (!ok) {
+              new Notice("Could not open the shortcut link");
+              return;
+            }
+            writeShortcutAck(
+              (k, v) => this.app.saveLocalStorage(k, v),
+              CAPTURE_SHORTCUT_VERSION,
+            );
+            new Notice(
+              `Opened capture shortcut v${CAPTURE_SHORTCUT_VERSION} — add it in Shortcuts`,
+            );
+            this.display();
+          }),
+      );
+
+    new Setting(containerEl)
+      .setName("Open today's daily")
+      .setDesc("Jump to (or create) today’s Daily Notes file — does not process it.")
+      .addButton((btn) =>
+        btn.setButtonText("Open today").onClick(() => {
+          void this.plugin.openTodaysDailyFromHome();
+        }),
+      );
   }
 
   private renderApiSection(containerEl: HTMLElement) {
@@ -55,7 +144,7 @@ export class AtomsSettingTab extends PluginSettingTab {
     new Setting(containerEl)
       .setName("Privacy")
       .setDesc(
-        "Every run sends your vault's note titles, tags, and each capture to the Anthropic API over TLS. The model never rewrites your hand-authored notes — only new files in the atom folder and marker lines under captures.",
+        "Every run sends your vault's note titles, tags, a derived person-hub title list (titles only — never folder paths or hub body content), and each capture to the Anthropic API over TLS. The model never rewrites your hand-authored notes — only new files in the atom folder and marker lines under captures.",
       );
 
     new Setting(containerEl)

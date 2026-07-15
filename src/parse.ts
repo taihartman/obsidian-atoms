@@ -122,16 +122,20 @@ export function unprocessedCaptures(captures: Capture[]): Capture[] {
 }
 
 /**
- * Pure helper: given note path/date/content, skip today (and future) and
- * days with no unmarked captures.
+ * Pure helper: notes with unmarked captures.
+ * Default past-only (date < today). includeToday also keeps date === today.
+ * Future days always excluded.
  */
 export function collectPastNotesWithUnmarkedCaptures(
   notes: Array<{ path: string; date: string; content: string }>,
   today: string,
+  opts?: { includeToday?: boolean },
 ): DailyNoteWithCaptures[] {
+  const includeToday = opts?.includeToday === true;
   const out: DailyNoteWithCaptures[] = [];
   for (const note of notes) {
-    if (note.date >= today) continue; // today and future excluded (R1 / AE4)
+    if (note.date > today) continue;
+    if (!includeToday && note.date >= today) continue; // past-only default (R1 / AE4)
     const captures = parseCaptures(note.content);
     const unprocessed = unprocessedCaptures(captures);
     if (unprocessed.length === 0) continue;

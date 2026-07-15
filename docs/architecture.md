@@ -2,6 +2,10 @@
 
 Living system map. Implementation detail and unit order live in the plan; this doc is the **shape we protect** so the product stays world-class as it grows.
 
+## Product UI (v0.4+)
+
+**Atoms home** (`ItemView` type `atoms-home`): one mobile-first leaf — recent atom library + dominant waiting card when past captures are unprocessed. Preview reuses dry-run; Process reuses write path. Design: `docs/design-handoff/atoms-view/`.
+
 ## North star
 
 A second brain with three legs:
@@ -49,16 +53,19 @@ processInbox(dryRun)
 
 | Module | Responsibility | Unit |
 |---|---|---|
-| `main.ts` | Commands, onload/interval, key resolution | U1–U2, U9 |
+| `main.ts` | Commands, onload/interval, key resolution, home leaf | U1–U2, U9, home |
 | `settings.ts` | SecretStorage UI, vocab, privacy, auto-run | U2, U5, U9 |
 | `types.ts` | Shared types + defaults | all |
 | `parse.ts` | Capture extent + marker detection | U3 |
 | `context.ts` | `ContextProvider` / titles+tags+vocab | U4 |
 | `vocabulary.ts` | Active / vault / proposed tags | U5 |
 | `classify.ts` | Prompt, cache, schema, invariants, retry | U1, U6 |
+| `people.ts` | Person hub discovery + post-classify repair | people 0.3 |
 | `preview.ts` | Dry-run surface | U7 |
 | `render.ts` | Atom markdown + markers + sanitize/collision | U8 |
 | `backfill.ts` | Batch API + estimate gate | U10 |
+| `atomsHomeData.ts` | Pure library + wait-card helpers | home 0.4 |
+| `atomsHomeView.ts` | Mobile-first Atoms `ItemView` home | home 0.4 |
 
 ## Model contract
 
