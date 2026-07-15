@@ -4,7 +4,7 @@ Living system map. Implementation detail and unit order live in the plan; this d
 
 ## Product UI (v0.4+)
 
-**Atoms home** (`ItemView` type `atoms-home`): one mobile-first leaf — recent atom library + dominant waiting card when past captures are unprocessed. Preview reuses dry-run; Process reuses write path. **From the brain** card resurfaces one on-this-day atom (body snippet first; Open / Next; no review queue). Design: `docs/design-handoff/atoms-view/`.
+**Atoms home** (`ItemView` type `atoms-home`): one mobile-first leaf — recent atom library + dominant waiting card when past captures are unprocessed. Preview reuses dry-run; Process reuses write path. Live **progress card** during Preview/Process (`N of M` + snippet + bar; done summary; auto-run silent). **From the brain** card resurfaces one on-this-day atom (body snippet first; Open / Next; no review queue). Design: `docs/design-handoff/atoms-view/`.
 
 ## North star
 

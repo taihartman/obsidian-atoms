@@ -179,7 +179,11 @@ export interface RunDryRunOptions {
   /** Cap API calls this run (default: all unprocessed). */
   maxCaptures?: number;
   classifyDeps?: Partial<ClassifyDeps>;
-  onProgress?: (done: number, total: number) => void;
+  onProgress?: (
+    done: number,
+    total: number,
+    meta?: { captureText?: string },
+  ) => void;
   /** Manual force: include today's daily. Default false. */
   includeToday?: boolean;
 }
@@ -209,7 +213,7 @@ export async function runDryRun(
 
   for (let i = 0; i < slice.length; i++) {
     const { note, capture } = slice[i]!;
-    opts.onProgress?.(i + 1, slice.length);
+    opts.onProgress?.(i + 1, slice.length, { captureText: capture.text });
     const outcome = await classifyCapture(capture.text, ctx, {
       apiKey: opts.apiKey,
       model: opts.model,

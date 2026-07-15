@@ -29,6 +29,12 @@ import {
   getPastDailyNotesWithUnmarkedCaptures,
   openTodaysDaily,
 } from "./daily";
+import {
+  progressLabel,
+  progressPercent,
+  snippetCapture,
+  type RunPhase,
+} from "./runProgress";
 
 export const ATOMS_HOME_VIEW_TYPE = "atoms-home";
 
@@ -56,6 +62,14 @@ export class AtomsHomeView extends ItemView {
   private resurfaceCard: ResurfaceCandidate | null = null;
   /** Raw atom files for resurface re-pick without re-read when possible. */
   private atomFileInputs: Array<{ path: string; content: string }> = [];
+
+  /** Live Preview/Process progress (not cleared by library refresh). */
+  private runPhase: RunPhase = "idle";
+  private runDone = 0;
+  private runTotal = 0;
+  private runSnippet = "";
+  private runSummaryText = "";
+  private progressMount: HTMLElement | null = null;
 
   constructor(leaf: WorkspaceLeaf, plugin: AtomsPlugin) {
     super(leaf);
@@ -107,8 +121,95 @@ export class AtomsHomeView extends ItemView {
     this.render();
   }
 
+  /** Start a home-visible run (Preview or Process). */
+  beginRun(phase: "preview" | "process"): void {
+    this.busy = true;
+    this.runPhase = phase;
+    this.runDone = 0;
+    this.runTotal = 0;
+    this.runSnippet = "";
+    this.runSummaryText = "";
+    this.render();
+  }
+
+  /** In-place progress tick — avoid full library reload. */
+  updateRunProgress(
+    done: number,
+    total: number,
+    captureText?: string,
+  ): void {
+    this.runDone = done;
+    this.runTotal = total;
+    if (captureText !== undefined) {
+      this.runSnippet = snippetCapture(captureText);
+    }
+    if (this.progressMount && this.rootEl?.isConnected) {
+      this.patchProgressMount();
+      return;
+    }
+    this.render();
+  }
+
+  finishRun(summaryText: string): void {
+    this.busy = false;
+    this.runPhase = "done";
+    this.runSummaryText = summaryText;
+    this.runSnippet = "";
+    void this.refresh();
+  }
+
+  failRun(message?: string): void {
+    this.busy = false;
+    this.runPhase = "error";
+    this.runSummaryText = message?.trim() || "Something went wrong";
+    this.render();
+  }
+
+  clearRunUi(): void {
+    this.runPhase = "idle";
+    this.runDone = 0;
+    this.runTotal = 0;
+    this.runSnippet = "";
+    this.runSummaryText = "";
+    this.progressMount = null;
+  }
+
+  private patchProgressMount(): void {
+    const el = this.progressMount;
+    if (!el) return;
+    el.empty();
+    this.fillProgressContent(el);
+  }
+
+  private fillProgressContent(el: HTMLElement): void {
+    if (this.runPhase === "done" || this.runPhase === "error") {
+      el.createEl("h2", {
+        text: this.runPhase === "error" ? "Error" : "Done",
+      });
+      el.createEl("p", { text: this.runSummaryText });
+      return;
+    }
+    const phase = this.runPhase === "preview" ? "preview" : "process";
+    el.createEl("h2", {
+      text: progressLabel(phase, this.runDone, this.runTotal || 1),
+    });
+    if (this.runSnippet) {
+      el.createEl("p", {
+        cls: "atoms-home-progress-snippet",
+        text: this.runSnippet,
+      });
+    }
+    const track = el.createDiv({ cls: "atoms-home-progress-track" });
+    const fill = track.createDiv({ cls: "atoms-home-progress-fill" });
+    fill.style.width = `${progressPercent(this.runDone, this.runTotal)}%`;
+  }
+
   private isFirstDay(): boolean {
-    return this.entries.length === 0 && this.unprocessedCount === 0;
+    return (
+      this.entries.length === 0 &&
+      this.unprocessedCount === 0 &&
+      this.todayUnprocessedCount === 0
+    );
   }
 
   private installUrl(): string {
@@ -290,6 +391,20 @@ export class AtomsHomeView extends ItemView {
     });
 
     const scroll = root.createDiv({ cls: "atoms-home-scroll" });
+
+    // Live progress / done banner
+    if (this.runPhase !== "idle") {
+      const prog = scroll.createDiv({
+        cls:
+          "atoms-home-progress-card" +
+          (this.runPhase === "error" ? " is-error" : "") +
+          (this.runPhase === "done" ? " is-done" : ""),
+      });
+      this.progressMount = prog;
+      this.fillProgressContent(prog);
+    } else {
+      this.progressMount = null;
+    }
 
     // Zero-guilt resurface stream (on-this-day) — only when a candidate exists
     if (!firstDay) {
@@ -583,25 +698,11 @@ export class AtomsHomeView extends ItemView {
 
   private async onPreview(includeToday: boolean): Promise<void> {
     if (this.busy) return;
-    this.busy = true;
-    this.render();
-    try {
-      await this.plugin.runDryRunFromHome({ includeToday });
-    } finally {
-      this.busy = false;
-      await this.refresh();
-    }
+    await this.plugin.runDryRunFromHome({ includeToday });
   }
 
   private async onProcess(includeToday: boolean): Promise<void> {
     if (this.busy) return;
-    this.busy = true;
-    this.render();
-    try {
-      await this.plugin.runProcessFromHome({ includeToday });
-    } finally {
-      this.busy = false;
-      await this.refresh();
-    }
+    await this.plugin.runProcessFromHome({ includeToday });
   }
 }

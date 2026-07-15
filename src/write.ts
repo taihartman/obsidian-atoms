@@ -46,7 +46,11 @@ export interface RunWritePathOptions {
   atomFolder: string;
   maxCaptures?: number;
   classifyDeps?: Partial<ClassifyDeps>;
-  onProgress?: (done: number, total: number) => void;
+  onProgress?: (
+    done: number,
+    total: number,
+    meta?: { captureText?: string },
+  ) => void;
   /**
    * Optional pre-baked classifications (for CLI/fixture tests without network).
    * Map key: `${dailyPath}::${capture.startLine}` or sequential by order.
@@ -97,7 +101,7 @@ export async function runWritePath(
 
   for (let i = 0; i < slice.length; i++) {
     const { note, capture } = slice[i]!;
-    opts.onProgress?.(i + 1, slice.length);
+    opts.onProgress?.(i + 1, slice.length, { captureText: capture.text });
 
     let result: ClassificationResult | null = null;
     if (opts.fixtureResults && opts.fixtureResults[i]) {

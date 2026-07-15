@@ -36,6 +36,11 @@ import { runWritePath, type WritePathReport } from "./write";
 import type { ClassificationResult } from "./types";
 import { mergeProposedTags } from "./vocabulary";
 import {
+  formatRunSummary,
+  summaryFromDryRun,
+  summaryFromWrite,
+} from "./runProgress";
+import {
   canBuildContext,
   localDateString,
   PER_LAUNCH_CAP,
@@ -128,8 +133,8 @@ export default class AtomsPlugin extends Plugin {
 
   /** Called from Atoms home Process — same write path as command. */
   async runProcessFromHome(opts?: { includeToday?: boolean }): Promise<void> {
+    // finishHomeRun already refreshes open home leaves
     await this.runProcessUnprocessed(opts);
-    await this.refreshAtomsHomeLeaves();
   }
 
   /** Reload every open Atoms home leaf (after process / dry-run writes). */
@@ -140,6 +145,36 @@ export default class AtomsPlugin extends Plugin {
         await view.refresh();
       }
     }
+  }
+
+  /** Broadcast progress to every open Atoms home leaf (no-op if none open). */
+  private forEachAtomsHome(fn: (view: AtomsHomeView) => void): void {
+    for (const leaf of this.app.workspace.getLeavesOfType(ATOMS_HOME_VIEW_TYPE)) {
+      const view = leaf.view;
+      if (view instanceof AtomsHomeView) fn(view);
+    }
+  }
+
+  private beginHomeRun(phase: "preview" | "process"): void {
+    this.forEachAtomsHome((v) => v.beginRun(phase));
+  }
+
+  private updateHomeProgress(
+    done: number,
+    total: number,
+    captureText?: string,
+  ): void {
+    this.forEachAtomsHome((v) =>
+      v.updateRunProgress(done, total, captureText),
+    );
+  }
+
+  private finishHomeRun(summaryText: string): void {
+    this.forEachAtomsHome((v) => v.finishRun(summaryText));
+  }
+
+  private failHomeRun(message?: string): void {
+    this.forEachAtomsHome((v) => v.failRun(message));
   }
 
   /** Called from Atoms home ⋯ menu. */
@@ -694,6 +729,7 @@ export default class AtomsPlugin extends Plugin {
     const apiKey = this.requireApiKey();
     if (!apiKey) return;
 
+    this.beginHomeRun("process");
     new Notice(
       opts?.includeToday
         ? "Atoms: processing (including today)…"
@@ -712,6 +748,9 @@ export default class AtomsPlugin extends Plugin {
         classifyDeps: {
           maxAttempts: 2,
           onAuthFailure: (msg) => new Notice(`Atoms: ${msg}`),
+        },
+        onProgress: (done, total, meta) => {
+          this.updateHomeProgress(done, total, meta?.captureText);
         },
       });
       this.lastWriteReport = report;
@@ -737,11 +776,14 @@ export default class AtomsPlugin extends Plugin {
           marker: e.write.markerAppended,
         })),
       });
+      const summary = formatRunSummary(summaryFromWrite(report));
+      this.finishHomeRun(summary);
       new Notice(
         `Atoms: wrote ${report.atomsCreated} atom(s), ${report.markersAppended} marker(s), ${report.collisions} collision(s), ${report.failed} failed`,
       );
     } catch (e) {
       if (e instanceof DailyNotesDisabledError) {
+        this.failHomeRun(e.message);
         new Notice(e.message);
         return;
       }
@@ -749,6 +791,7 @@ export default class AtomsPlugin extends Plugin {
         name: e instanceof Error ? e.name : "Error",
         message: e instanceof Error ? e.message : "unknown",
       });
+      this.failHomeRun("Write path failed");
       new Notice("Atoms: write path failed (see console)");
     }
   }
@@ -846,6 +889,7 @@ export default class AtomsPlugin extends Plugin {
     const apiKey = this.requireApiKey();
     if (!apiKey) return;
 
+    this.beginHomeRun("preview");
     new Notice(
       opts?.includeToday
         ? "Atoms: dry-run (including today)…"
@@ -867,7 +911,8 @@ export default class AtomsPlugin extends Plugin {
           maxAttempts: 2,
           onAuthFailure: (msg) => new Notice(`Atoms: ${msg}`),
         },
-        onProgress: (done, total) => {
+        onProgress: (done, total, meta) => {
+          this.updateHomeProgress(done, total, meta?.captureText);
           if (done === total || done % 5 === 0) {
             console.log(`[atoms] dry-run progress ${done}/${total}`);
           }
@@ -901,19 +946,20 @@ export default class AtomsPlugin extends Plugin {
       });
       console.log("[atoms] dry-run markdown\n" + md);
 
+      const summary = formatRunSummary(summaryFromDryRun(report));
+      this.finishHomeRun(summary);
       showDryRunNotice(report);
       const includeToday = opts?.includeToday === true;
       new DryRunPreviewModal(this.app, report, {
         report,
         onProcess: async () => {
+          // begin/finish/fail handled inside runProcessUnprocessed
           await this.runProcessUnprocessed({ includeToday });
-          await this.refreshAtomsHomeLeaves();
         },
       }).open();
-      // Preview doesn't write, but refresh so counts stay honest if user switched leaves
-      await this.refreshAtomsHomeLeaves();
     } catch (e) {
       if (e instanceof DailyNotesDisabledError) {
+        this.failHomeRun(e.message);
         new Notice(e.message);
         return;
       }
@@ -921,6 +967,7 @@ export default class AtomsPlugin extends Plugin {
         name: e instanceof Error ? e.name : "Error",
         message: e instanceof Error ? e.message : "unknown",
       });
+      this.failHomeRun("Dry-run failed");
       new Notice("Atoms: dry-run failed (see console)");
     }
   }
