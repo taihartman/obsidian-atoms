@@ -6,14 +6,14 @@
  * Prefer Settings → Capture → paste link (syncs via data.json).
  */
 
-export const CAPTURE_SHORTCUT_VERSION = "1.0.0";
+export const CAPTURE_SHORTCUT_VERSION = "1.1.0";
 
 /**
  * Built-in default install URL (iCloud share).
  * User settings override still wins — see resolveCaptureShortcutInstallUrl.
  */
 export const CAPTURE_SHORTCUT_INSTALL_URL =
-  "https://www.icloud.com/shortcuts/e885d7c0d8f04a17803a2cc201f24409";
+  "https://www.icloud.com/shortcuts/28a87317da06494896ef183ec846606f";
 
 /** Device-local (never data.json). */
 export const LS_CAPTURE_SHORTCUT_ACK = "atoms-capture-shortcut-acked-version";
