@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   aggregateTagsFromFileCaches,
   buildVaultContext,
+  collectLinkTargets,
   collectTitles,
   renderStablePrefix,
   titleFromPath,
@@ -9,9 +10,11 @@ import {
 import { buildContextUserMessage } from "../src/classify";
 import {
   approveProposedTag,
+  eligibleTags,
   filterTagsToActive,
   mergeProposedTags,
   normalizeTag,
+  STRUCTURAL_TAGS,
   tagCountsSorted,
 } from "../src/vocabulary";
 
@@ -76,12 +79,22 @@ describe("buildVaultContext + stable prefix", () => {
       activeVocabulary: ["idea", "question", "observation"],
     });
     expect(ctx.titles).toEqual(["A note", "B note"]);
-    expect(ctx.vocabulary).toEqual(["idea", "observation", "question"]);
+    expect(ctx.vocabulary).toEqual([
+      "idea",
+      "observation",
+      "person",
+      "preferences",
+      "question",
+      "relationship",
+    ]);
     expect(ctx.tags).toEqual([
       "health",
       "idea",
       "observation",
+      "person",
+      "preferences",
       "question",
+      "relationship",
     ]);
   });
 
@@ -92,8 +105,18 @@ describe("buildVaultContext + stable prefix", () => {
       activeVocabulary: ["idea"],
     });
     expect(ctx.titles).toEqual([]);
-    expect(ctx.tags).toEqual(["idea"]);
-    expect(ctx.vocabulary).toEqual(["idea"]);
+    expect(ctx.tags).toEqual([
+      "idea",
+      "person",
+      "preferences",
+      "relationship",
+    ]);
+    expect(ctx.vocabulary).toEqual([
+      "idea",
+      "person",
+      "preferences",
+      "relationship",
+    ]);
   });
 
   it("rendered prefix is byte-identical across two captures (cache prerequisite)", () => {
@@ -113,14 +136,33 @@ describe("buildVaultContext + stable prefix", () => {
   });
 });
 
-describe("vocabulary (U5)", () => {
-  it("filters model tags to Active-only", () => {
+describe("vocabulary (U5) + structural tags", () => {
+  it("structural tags are always eligible", () => {
+    const e = eligibleTags(["idea"]);
+    for (const t of STRUCTURAL_TAGS) {
+      expect(e).toContain(t);
+    }
+    expect(e).toContain("idea");
+  });
+
+  it("filters model tags to eligible (Active ∪ structural)", () => {
     expect(
       filterTagsToActive(
-        ["idea", "health", "#Question", "noise-tag"],
+        ["idea", "health", "#Question", "noise-tag", "person", "preferences"],
         ["idea", "question"],
       ),
-    ).toEqual(["idea", "question"]);
+    ).toEqual(["idea", "person", "preferences", "question"]);
+  });
+
+  it("collectLinkTargets includes aliases", () => {
+    expect(
+      collectLinkTargets([
+        {
+          path: "Nichita/Nichita.md",
+          cache: { frontmatter: { aliases: ["Nic"] } },
+        },
+      ]),
+    ).toEqual(["Nic", "Nichita"]);
   });
 
   it("merges proposed tags without auto-activating", () => {

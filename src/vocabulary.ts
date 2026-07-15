@@ -1,6 +1,9 @@
 /**
  * Tag vocabulary helpers (U5 / R11).
  * Active list lives in settings (data.json — syncs). Proposed tags never auto-apply.
+ *
+ * Structural tags are always eligible for apply even if the user never curated
+ * a list — so people/preferences "just work" without setup (tasteful defaults).
  */
 
 /** Strip leading # and lowercase for stable comparison. */
@@ -18,13 +21,28 @@ export function unionTags(...lists: string[][]): string[] {
   return sortTags(lists.flat());
 }
 
-/** Keep only tags that appear in the Active vocabulary (R11). */
+/**
+ * Always-on product vocabulary — not open-ended AI tags.
+ * Safe to auto-apply when the model chooses them.
+ */
+export const STRUCTURAL_TAGS = [
+  "person",
+  "preferences",
+  "relationship",
+] as const;
+
+/** Tags the model may apply: structural ∪ user Active. */
+export function eligibleTags(activeVocabulary: string[]): string[] {
+  return unionTags([...STRUCTURAL_TAGS], activeVocabulary);
+}
+
+/** Keep only tags that are eligible (structural ∪ Active) — R11 with smart defaults. */
 export function filterTagsToActive(
   modelTags: string[],
   activeVocabulary: string[],
 ): string[] {
-  const active = new Set(activeVocabulary.map(normalizeTag));
-  return sortTags(modelTags.map(normalizeTag).filter((t) => active.has(t)));
+  const allowed = new Set(eligibleTags(activeVocabulary));
+  return sortTags(modelTags.map(normalizeTag).filter((t) => allowed.has(t)));
 }
 
 /**
@@ -95,4 +113,7 @@ export const DEFAULT_ACTIVE_VOCABULARY = [
   "observation",
   "reference",
   "decision",
+  "person",
+  "preferences",
+  "relationship",
 ] as const;

@@ -1,6 +1,11 @@
 import type { App, TFile } from "obsidian";
 import type { Capture, VaultContext } from "./types";
-import { normalizeTag, sortTags, unionTags } from "./vocabulary";
+import {
+  eligibleTags,
+  normalizeTag,
+  sortTags,
+  unionTags,
+} from "./vocabulary";
 
 /**
  * Swappable shortlist seam (KTD6). v1 returns the full title/tag universe;
@@ -20,11 +25,36 @@ export function titleFromPath(path: string): string {
 }
 
 /**
- * Collect titles from paths — sorted for byte-stable prefixes (no timestamps).
+ * Collect link targets from paths — basenames, sorted (no timestamps).
  */
 export function collectTitles(paths: string[]): string[] {
   const titles = paths.map(titleFromPath);
   return Array.from(new Set(titles)).sort((a, b) => a.localeCompare(b));
+}
+
+/**
+ * Basenames + frontmatter aliases so person hubs (e.g. Nichita/) stay linkable.
+ * Deterministic sort for stable cache prefixes.
+ */
+export function collectLinkTargets(
+  files: Array<{
+    path: string;
+    cache: { frontmatter?: Record<string, unknown> | null } | null;
+  }>,
+): string[] {
+  const out = new Set<string>();
+  for (const f of files) {
+    out.add(titleFromPath(f.path));
+    const aliases = f.cache?.frontmatter?.aliases;
+    if (typeof aliases === "string" && aliases.trim()) {
+      out.add(aliases.trim());
+    } else if (Array.isArray(aliases)) {
+      for (const a of aliases) {
+        if (typeof a === "string" && a.trim()) out.add(a.trim());
+      }
+    }
+  }
+  return [...out].sort((a, b) => a.localeCompare(b));
 }
 
 /**
@@ -75,8 +105,9 @@ export function buildVaultContext(opts: {
   activeVocabulary: string[];
 }): VaultContext {
   const titles = [...opts.titles].sort((a, b) => a.localeCompare(b));
-  const vocabulary = sortTags(opts.activeVocabulary.map(normalizeTag).filter(Boolean));
-  // Union of vault tags + Active vocabulary for the prompt tag list (U4).
+  // Eligible = structural (person/preferences/…) ∪ user Active
+  const vocabulary = eligibleTags(opts.activeVocabulary);
+  // Union of vault tags + eligible vocabulary for the prompt tag list (U4).
   const tags = unionTags(opts.vaultTags, vocabulary);
   return { titles, tags, vocabulary };
 }
@@ -100,11 +131,11 @@ export class MetadataContextProvider implements ContextProvider {
 
   buildContext(): VaultContext {
     const files = this.app.vault.getMarkdownFiles();
-    const titles = collectTitles(files.map((f: TFile) => f.path));
     const caches = files.map((f: TFile) => ({
       path: f.path,
       cache: this.app.metadataCache.getFileCache(f),
     }));
+    const titles = collectLinkTargets(caches);
     const counts = aggregateTagsFromFileCaches(caches);
     const vaultTags = sortTags([...counts.keys()]);
     return buildVaultContext({
