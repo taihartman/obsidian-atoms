@@ -2,8 +2,8 @@
  * Pure helpers for Preview/Process progress UI on Atoms home.
  */
 
-import type { DryRunReport, PreviewEntry } from "./preview";
-import type { WritePathEntry, WritePathReport } from "./write";
+import type { DryRunReport } from "./preview";
+import type { WritePathReport } from "./write";
 
 export type RunProgressMeta = {
   captureText?: string;
@@ -102,6 +102,3 @@ export function progressLabel(
   if (total <= 0) return `${verb}…`;
   return `${verb} ${done} of ${total}`;
 }
-
-// Re-export types used by callers that only need progress (avoid circular preview import issues in tests)
-export type { PreviewEntry };
