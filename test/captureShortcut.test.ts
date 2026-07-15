@@ -39,13 +39,18 @@ describe("ack storage helpers", () => {
 });
 
 describe("resolveCaptureShortcutInstallUrl", () => {
-  it("prefers settings URL over empty built-in", () => {
+  it("prefers settings URL; falls back to built-in default", () => {
     expect(
       resolveCaptureShortcutInstallUrl(
         "https://www.icloud.com/shortcuts/abc",
       ),
     ).toBe("https://www.icloud.com/shortcuts/abc");
-    expect(resolveCaptureShortcutInstallUrl("")).toBe("");
-    expect(resolveCaptureShortcutInstallUrl(null)).toBe("");
+    // Empty settings → built-in CAPTURE_SHORTCUT_INSTALL_URL
+    expect(resolveCaptureShortcutInstallUrl("")).toContain(
+      "icloud.com/shortcuts/",
+    );
+    expect(resolveCaptureShortcutInstallUrl(null)).toContain(
+      "icloud.com/shortcuts/",
+    );
   });
 });
