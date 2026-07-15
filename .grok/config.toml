@@ -1,0 +1,8 @@
+# Project-scoped Grok config for Obsidian AI Linker.
+# Requires Obsidian open on the throwaway vault + Local REST API (HTTP) enabled.
+# Set: export OBSIDIAN_REST_API_KEY='…'  (from Settings → Local REST API)
+
+[mcp_servers.obsidian]
+url = "http://127.0.0.1:27123/mcp/"
+enabled = true
+headers = { "Authorization" = "Bearer ${OBSIDIAN_REST_API_KEY}" }
