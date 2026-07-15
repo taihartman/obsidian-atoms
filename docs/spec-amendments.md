@@ -1,4 +1,4 @@
-# Spec Amendments — Obsidian AI Linker Plugin
+# Spec Amendments — Obsidian Atoms Plugin
 
 These are corrections to the handoff spec, ordered by how much they matter. Each one
 either closes a gap in something load-bearing, resolves an internal contradiction, or

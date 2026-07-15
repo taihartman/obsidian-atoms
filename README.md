@@ -1,8 +1,8 @@
-# Obsidian AI Linker
+# Obsidian Atoms
 
 Classifies **past** daily-note captures (atom / task / noise) via the Anthropic API, writes one atomic note per atom (declarative title + reason-bearing wikilinks, **verbatim** body), and marks every capture with a sentinel so nothing is reprocessed.
 
-Capture itself is out of scope (native iOS Shortcut). See `docs/plans/2026-07-15-001-feat-obsidian-ai-linker-plugin-plan.md` and `docs/spec-amendments.md`.
+Capture itself is out of scope (native iOS Shortcut). See `docs/plans/2026-07-15-001-feat-obsidian-atoms-plugin-plan.md` and `docs/spec-amendments.md`.
 
 ## Requirements
 

@@ -14,7 +14,7 @@ import {
   DailyNotesDisabledError,
   getPastDailyNotesWithUnmarkedCaptures,
 } from "./daily";
-import { AiLinkerSettingTab } from "./settings";
+import { AtomsSettingTab } from "./settings";
 import {
   DEFAULT_SETTINGS,
   LOCAL_STORAGE_API_KEY,
@@ -62,7 +62,7 @@ import {
   type CostEstimate,
 } from "./backfill";
 
-export default class AiLinkerPlugin extends Plugin {
+export default class AtomsPlugin extends Plugin {
   settings!: LinkerSettings;
   contextProvider!: MetadataContextProvider;
   /** Last classify outcome for CLI/dev inspection (no secrets). */
@@ -90,7 +90,7 @@ export default class AiLinkerPlugin extends Plugin {
       this.app,
       () => this.settings.activeVocabulary,
     );
-    this.addSettingTab(new AiLinkerSettingTab(this.app, this));
+    this.addSettingTab(new AtomsSettingTab(this.app, this));
     this.registerCommands();
 
     // U9: never block launch — schedule auto-run after layout + metadata.
@@ -166,7 +166,7 @@ export default class AiLinkerPlugin extends Plugin {
     const apiKey = this.getApiKey();
     if (!apiKey) {
       // Silent for auto path — manual commands still Notice.
-      console.log("[ai-linker] auto-run skipped: no API key");
+      console.log("[atoms] auto-run skipped: no API key");
       return { ran: false, reason: "missing_key" };
     }
 
@@ -189,7 +189,7 @@ export default class AiLinkerPlugin extends Plugin {
           maxAttempts: 2,
           // Auto-run: no auth spam Notices every hour — log only.
           onAuthFailure: (msg) => {
-            console.log("[ai-linker] auto-run auth failure", msg);
+            console.log("[atoms] auto-run auth failure", msg);
           },
         },
       });
@@ -207,11 +207,11 @@ export default class AiLinkerPlugin extends Plugin {
       const filed = report.markersAppended;
       if (filed > 0) {
         new Notice(
-          `AI Linker: filed ${filed} capture${filed === 1 ? "" : "s"} (${report.atomsCreated} atom${report.atomsCreated === 1 ? "" : "s"})`,
+          `Atoms: filed ${filed} capture${filed === 1 ? "" : "s"} (${report.atomsCreated} atom${report.atomsCreated === 1 ? "" : "s"})`,
         );
       }
       // Offline / all-failed: silent (retry next launch / next day).
-      console.log("[ai-linker] auto-run complete", {
+      console.log("[atoms] auto-run complete", {
         source,
         filed,
         atoms: report.atomsCreated,
@@ -221,7 +221,7 @@ export default class AiLinkerPlugin extends Plugin {
       return { ran: true, reason: "ok" };
     } catch (e) {
       // Never crash launch.
-      console.log("[ai-linker] auto-run error", {
+      console.log("[atoms] auto-run error", {
         name: e instanceof Error ? e.name : "Error",
         message: e instanceof Error ? e.message : "unknown",
       });
@@ -318,7 +318,7 @@ export default class AiLinkerPlugin extends Plugin {
       name: "Auto-run: try now (respects device gates)",
       callback: () => {
         void this.maybeAutoRun("manual").then((r) => {
-          new Notice(`AI Linker auto-run: ${r.ran ? "ran" : "skipped"} (${r.reason})`);
+          new Notice(`Atoms auto-run: ${r.ran ? "ran" : "skipped"} (${r.reason})`);
         });
       },
     });
@@ -344,7 +344,7 @@ export default class AiLinkerPlugin extends Plugin {
   async prepareBackfillEstimateOnly(): Promise<CostEstimate | null> {
     const apiKey = this.getApiKey();
     if (!apiKey) {
-      new Notice("AI Linker: set your API key in settings");
+      new Notice("Atoms: set your API key in settings");
       return null;
     }
     const prepared = await prepareBackfillEstimate({
@@ -365,11 +365,11 @@ export default class AiLinkerPlugin extends Plugin {
     const apiKey = this.requireApiKey();
     if (!apiKey) return;
     if (this.backfillInFlight) {
-      new Notice("AI Linker: backfill already in progress");
+      new Notice("Atoms: backfill already in progress");
       return;
     }
 
-    new Notice("AI Linker: counting tokens for backfill estimate…");
+    new Notice("Atoms: counting tokens for backfill estimate…");
     try {
       const model = DEFAULT_BACKFILL_MODEL;
       const prepared = await prepareBackfillEstimate({
@@ -380,18 +380,18 @@ export default class AiLinkerPlugin extends Plugin {
       });
       this.lastBackfillEstimate = prepared.estimate;
 
-      console.log("[ai-linker] backfill estimate", {
+      console.log("[atoms] backfill estimate", {
         ...prepared.estimate,
         workItems: prepared.work.length,
       });
 
       if (prepared.work.length === 0) {
-        new Notice("AI Linker: nothing to backfill (no unmarked past captures)");
+        new Notice("Atoms: nothing to backfill (no unmarked past captures)");
         return;
       }
 
       new Notice(
-        `AI Linker: ${prepared.estimate.summaryLine} — confirm in the dialog`,
+        `Atoms: ${prepared.estimate.summaryLine} — confirm in the dialog`,
       );
 
       new BackfillConfirmModal(this.app, prepared.estimate, async () => {
@@ -403,12 +403,12 @@ export default class AiLinkerPlugin extends Plugin {
         });
       }).open();
     } catch (e) {
-      console.log("[ai-linker] backfill estimate failed", {
+      console.log("[atoms] backfill estimate failed", {
         name: e instanceof Error ? e.name : "Error",
         message: e instanceof Error ? e.message.slice(0, 200) : "unknown",
       });
       new Notice(
-        `AI Linker: backfill estimate failed — ${e instanceof Error ? e.message.slice(0, 80) : "error"}`,
+        `Atoms: backfill estimate failed — ${e instanceof Error ? e.message.slice(0, 80) : "error"}`,
       );
     }
   }
@@ -424,23 +424,23 @@ export default class AiLinkerPlugin extends Plugin {
     try {
       const body = buildBatchCreateBody(opts.work, opts.model, opts.context);
       new Notice(
-        `AI Linker: submitting batch (${opts.work.length} request(s))…`,
+        `Atoms: submitting batch (${opts.work.length} request(s))…`,
       );
       const { batchId, requestCount } = await submitMessageBatch({
         apiKey: opts.apiKey,
         body,
       });
       this.lastBackfillBatchId = batchId;
-      console.log("[ai-linker] batch submitted", { batchId, requestCount });
+      console.log("[atoms] batch submitted", { batchId, requestCount });
 
-      new Notice("AI Linker: batch submitted — waiting for results…");
+      new Notice("Atoms: batch submitted — waiting for results…");
       await waitForBatchEnded({
         apiKey: opts.apiKey,
         batchId,
         intervalMs: 8000,
         maxWaitMs: 60 * 60 * 1000,
         onTick: (status) => {
-          console.log("[ai-linker] batch status", status);
+          console.log("[atoms] batch status", status);
         },
       });
 
@@ -467,17 +467,17 @@ export default class AiLinkerPlugin extends Plugin {
         await this.saveSettings();
       }
 
-      console.log("[ai-linker] backfill applied", report);
+      console.log("[atoms] backfill applied", report);
       new Notice(
-        `AI Linker backfill: ${report.applied} applied, ${report.atomsCreated} atom(s), ${report.markersAppended} marker(s), ${report.failed} failed`,
+        `Atoms backfill: ${report.applied} applied, ${report.atomsCreated} atom(s), ${report.markersAppended} marker(s), ${report.failed} failed`,
       );
     } catch (e) {
-      console.log("[ai-linker] backfill execute failed", {
+      console.log("[atoms] backfill execute failed", {
         name: e instanceof Error ? e.name : "Error",
         message: e instanceof Error ? e.message.slice(0, 200) : "unknown",
       });
       new Notice(
-        `AI Linker: backfill failed — ${e instanceof Error ? e.message.slice(0, 100) : "error"}`,
+        `Atoms: backfill failed — ${e instanceof Error ? e.message.slice(0, 100) : "error"}`,
       );
     } finally {
       this.backfillInFlight = false;
@@ -486,23 +486,23 @@ export default class AiLinkerPlugin extends Plugin {
 
   /** Public so Settings can trigger the same path as the command. */
   async runTestConnection() {
-    new Notice("AI Linker: testing connection…");
+    new Notice("Atoms: testing connection…");
     try {
       const report = await runConnectivityTest({
         apiKey: this.getApiKey(),
       });
       this.lastConnectivityReport = report;
       console.log(
-        "[ai-linker] connectivity",
+        "[atoms] connectivity",
         formatConnectivityConsole(report),
       );
-      new Notice(`AI Linker: ${report.userMessage}`);
+      new Notice(`Atoms: ${report.userMessage}`);
     } catch (e) {
-      console.log("[ai-linker] connectivity test failed", {
+      console.log("[atoms] connectivity test failed", {
         name: e instanceof Error ? e.name : "Error",
         message: e instanceof Error ? e.message.slice(0, 160) : "unknown",
       });
-      new Notice("AI Linker: connection test failed unexpectedly (see console)");
+      new Notice("Atoms: connection test failed unexpectedly (see console)");
     }
   }
 
@@ -526,9 +526,9 @@ export default class AiLinkerPlugin extends Plugin {
       // Prove flag is not in synced settings object
       inDataJsonSettings: "autoRun" in (this.settings as object),
     };
-    console.log("[ai-linker] auto-run status", payload);
+    console.log("[atoms] auto-run status", payload);
     new Notice(
-      `AI Linker auto-run: ${state.enabled ? "on" : "off"} · ack=${state.egressAcked} · last=${state.lastRunDay ?? "never"} · ready=${this.vaultIndexReady}`,
+      `Atoms auto-run: ${state.enabled ? "on" : "off"} · ack=${state.egressAcked} · last=${state.lastRunDay ?? "never"} · ready=${this.vaultIndexReady}`,
     );
   }
 
@@ -566,7 +566,7 @@ export default class AiLinkerPlugin extends Plugin {
   private requireApiKey(): string | null {
     const apiKey = this.getApiKey();
     if (!apiKey) {
-      new Notice("AI Linker: set your API key in settings");
+      new Notice("Atoms: set your API key in settings");
       return null;
     }
     return apiKey;
@@ -578,7 +578,7 @@ export default class AiLinkerPlugin extends Plugin {
     const prefix2 = buildContextUserMessage(
       this.contextProvider.buildContext(),
     );
-    console.log("[ai-linker] context prefix", {
+    console.log("[atoms] context prefix", {
       titleCount: ctx.titles.length,
       tagCount: ctx.tags.length,
       vocabulary: ctx.vocabulary,
@@ -588,7 +588,7 @@ export default class AiLinkerPlugin extends Plugin {
       head: prefix.slice(0, 400),
     });
     new Notice(
-      `AI Linker: context ${ctx.titles.length} titles, ${ctx.tags.length} tags — stable=${prefix === prefix2}`,
+      `Atoms: context ${ctx.titles.length} titles, ${ctx.tags.length} tags — stable=${prefix === prefix2}`,
     );
   }
 
@@ -599,7 +599,7 @@ export default class AiLinkerPlugin extends Plugin {
     const apiKey = this.requireApiKey();
     if (!apiKey) return;
 
-    new Notice("AI Linker: processing (writing)…");
+    new Notice("Atoms: processing (writing)…");
     try {
       const report = await runWritePath({
         app: this.app,
@@ -611,7 +611,7 @@ export default class AiLinkerPlugin extends Plugin {
         maxCaptures: 15,
         classifyDeps: {
           maxAttempts: 2,
-          onAuthFailure: (msg) => new Notice(`AI Linker: ${msg}`),
+          onAuthFailure: (msg) => new Notice(`Atoms: ${msg}`),
         },
       });
       this.lastWriteReport = report;
@@ -623,7 +623,7 @@ export default class AiLinkerPlugin extends Plugin {
         );
         await this.saveSettings();
       }
-      console.log("[ai-linker] write report", {
+      console.log("[atoms] write report", {
         atomsCreated: report.atomsCreated,
         markersAppended: report.markersAppended,
         collisions: report.collisions,
@@ -638,18 +638,18 @@ export default class AiLinkerPlugin extends Plugin {
         })),
       });
       new Notice(
-        `AI Linker: wrote ${report.atomsCreated} atom(s), ${report.markersAppended} marker(s), ${report.collisions} collision(s), ${report.failed} failed`,
+        `Atoms: wrote ${report.atomsCreated} atom(s), ${report.markersAppended} marker(s), ${report.collisions} collision(s), ${report.failed} failed`,
       );
     } catch (e) {
       if (e instanceof DailyNotesDisabledError) {
         new Notice(e.message);
         return;
       }
-      console.log("[ai-linker] write path failed", {
+      console.log("[atoms] write path failed", {
         name: e instanceof Error ? e.name : "Error",
         message: e instanceof Error ? e.message : "unknown",
       });
-      new Notice("AI Linker: write path failed (see console)");
+      new Notice("Atoms: write path failed (see console)");
     }
   }
 
@@ -695,7 +695,7 @@ export default class AiLinkerPlugin extends Plugin {
       },
     ];
 
-    new Notice("AI Linker: fixture write sample…");
+    new Notice("Atoms: fixture write sample…");
     try {
       const report = await runWritePath({
         app: this.app,
@@ -716,25 +716,25 @@ export default class AiLinkerPlugin extends Plugin {
         );
         await this.saveSettings();
       }
-      console.log("[ai-linker] fixture write report", {
+      console.log("[atoms] fixture write report", {
         atomsCreated: report.atomsCreated,
         markersAppended: report.markersAppended,
         collisions: report.collisions,
         entries: report.entries,
       });
       new Notice(
-        `AI Linker fixture: ${report.atomsCreated} atom(s), ${report.markersAppended} marker(s)`,
+        `Atoms fixture: ${report.atomsCreated} atom(s), ${report.markersAppended} marker(s)`,
       );
     } catch (e) {
       if (e instanceof DailyNotesDisabledError) {
         new Notice(e.message);
         return;
       }
-      console.log("[ai-linker] fixture write failed", {
+      console.log("[atoms] fixture write failed", {
         name: e instanceof Error ? e.name : "Error",
         message: e instanceof Error ? e.message : "unknown",
       });
-      new Notice("AI Linker: fixture write failed (see console)");
+      new Notice("Atoms: fixture write failed (see console)");
     }
   }
 
@@ -746,7 +746,7 @@ export default class AiLinkerPlugin extends Plugin {
     const apiKey = this.requireApiKey();
     if (!apiKey) return;
 
-    new Notice("AI Linker: dry-run starting…");
+    new Notice("Atoms: dry-run starting…");
     try {
       const report = await runDryRun({
         app: this.app,
@@ -760,11 +760,11 @@ export default class AiLinkerPlugin extends Plugin {
         classifyDeps: {
           // Fail fast on network blips during preview (still retries once).
           maxAttempts: 2,
-          onAuthFailure: (msg) => new Notice(`AI Linker: ${msg}`),
+          onAuthFailure: (msg) => new Notice(`Atoms: ${msg}`),
         },
         onProgress: (done, total) => {
           if (done === total || done % 5 === 0) {
-            console.log(`[ai-linker] dry-run progress ${done}/${total}`);
+            console.log(`[atoms] dry-run progress ${done}/${total}`);
           }
         },
       });
@@ -781,7 +781,7 @@ export default class AiLinkerPlugin extends Plugin {
       );
       await this.saveSettings();
 
-      console.log("[ai-linker] dry-run report", {
+      console.log("[atoms] dry-run report", {
         classified: report.classified,
         failed: report.failed,
         scanned: report.totalUnprocessedScanned,
@@ -794,7 +794,7 @@ export default class AiLinkerPlugin extends Plugin {
           marker: e.wouldWriteMarker,
         })),
       });
-      console.log("[ai-linker] dry-run markdown\n" + md);
+      console.log("[atoms] dry-run markdown\n" + md);
 
       showDryRunNotice(report);
       new DryRunPreviewModal(
@@ -807,11 +807,11 @@ export default class AiLinkerPlugin extends Plugin {
         new Notice(e.message);
         return;
       }
-      console.log("[ai-linker] dry-run failed", {
+      console.log("[atoms] dry-run failed", {
         name: e instanceof Error ? e.name : "Error",
         message: e instanceof Error ? e.message : "unknown",
       });
-      new Notice("AI Linker: dry-run failed (see console)");
+      new Notice("Atoms: dry-run failed (see console)");
     }
   }
 
@@ -819,7 +819,7 @@ export default class AiLinkerPlugin extends Plugin {
     try {
       const { notes, totalUnprocessed } =
         await getPastDailyNotesWithUnmarkedCaptures(this.app);
-      console.log("[ai-linker] unprocessed captures", {
+      console.log("[atoms] unprocessed captures", {
         days: notes.length,
         totalUnprocessed,
         notes: notes.map((n) => ({
@@ -833,18 +833,18 @@ export default class AiLinkerPlugin extends Plugin {
         })),
       });
       new Notice(
-        `AI Linker: ${totalUnprocessed} unprocessed capture(s) across ${notes.length} past day(s) — see console`,
+        `Atoms: ${totalUnprocessed} unprocessed capture(s) across ${notes.length} past day(s) — see console`,
       );
     } catch (e) {
       if (e instanceof DailyNotesDisabledError) {
         new Notice(e.message);
         return;
       }
-      console.log("[ai-linker] list-unprocessed failed", {
+      console.log("[atoms] list-unprocessed failed", {
         name: e instanceof Error ? e.name : "Error",
         message: e instanceof Error ? e.message : "unknown",
       });
-      new Notice("AI Linker: failed to list captures (see console)");
+      new Notice("Atoms: failed to list captures (see console)");
     }
   }
 
@@ -856,17 +856,17 @@ export default class AiLinkerPlugin extends Plugin {
       const { notes, totalUnprocessed } =
         await getPastDailyNotesWithUnmarkedCaptures(this.app);
       if (totalUnprocessed === 0) {
-        new Notice("AI Linker: no unprocessed captures");
+        new Notice("Atoms: no unprocessed captures");
         return;
       }
       const first = notes[0]!.unprocessed[0]!;
       const ctx = this.contextProvider.buildContext();
-      new Notice("AI Linker: classifying first unprocessed…");
+      new Notice("Atoms: classifying first unprocessed…");
       const outcome = await classifyCapture(first.text, ctx, {
         apiKey,
         model: this.settings.model,
         activeVocabulary: this.settings.activeVocabulary,
-        onAuthFailure: (msg) => new Notice(`AI Linker: ${msg}`),
+        onAuthFailure: (msg) => new Notice(`Atoms: ${msg}`),
       });
       this.lastClassifyOutcome = outcome;
       logClassifyOutcome("first-unprocessed", outcome);
@@ -880,23 +880,23 @@ export default class AiLinkerPlugin extends Plugin {
           await this.saveSettings();
         }
         new Notice(
-          `AI Linker: ${outcome.result.verdict}${
+          `Atoms: ${outcome.result.verdict}${
             outcome.result.title ? ` — ${outcome.result.title}` : ""
           } (cache_read=${outcome.usage.cache_read_input_tokens})`,
         );
       } else {
-        new Notice(`AI Linker: ${outcome.message}`);
+        new Notice(`Atoms: ${outcome.message}`);
       }
     } catch (e) {
       if (e instanceof DailyNotesDisabledError) {
         new Notice(e.message);
         return;
       }
-      console.log("[ai-linker] classify-first failed", {
+      console.log("[atoms] classify-first failed", {
         name: e instanceof Error ? e.name : "Error",
         message: e instanceof Error ? e.message : "unknown",
       });
-      new Notice("AI Linker: classify failed (see console)");
+      new Notice("Atoms: classify failed (see console)");
     }
   }
 
@@ -904,24 +904,24 @@ export default class AiLinkerPlugin extends Plugin {
     const apiKey = this.requireApiKey();
     if (!apiKey) return;
 
-    new Notice("AI Linker: classifying spike capture…");
+    new Notice("Atoms: classifying spike capture…");
     const outcome = await classifyCapture(SPIKE_CAPTURE, SPIKE_CONTEXT, {
       apiKey,
       model: this.settings.model,
       activeVocabulary: this.settings.activeVocabulary,
-      onAuthFailure: (msg) => new Notice(`AI Linker: ${msg}`),
+      onAuthFailure: (msg) => new Notice(`Atoms: ${msg}`),
     });
     this.lastClassifyOutcome = outcome;
     logClassifyOutcome("spike-classify", outcome);
 
     if (outcome.ok) {
       new Notice(
-        `AI Linker: ${outcome.result.verdict}${
+        `Atoms: ${outcome.result.verdict}${
           outcome.result.title ? ` — ${outcome.result.title}` : ""
         }`,
       );
     } else {
-      new Notice(`AI Linker: ${outcome.message}`);
+      new Notice(`Atoms: ${outcome.message}`);
     }
   }
 
@@ -935,8 +935,8 @@ export default class AiLinkerPlugin extends Plugin {
       "reminded me of [[Sleep debt doesn't accumulate linearly]] — maybe the plateau is just denial",
     ];
 
-    new Notice("AI Linker: measuring per-capture cache + day-batch…");
-    console.log("[ai-linker] === KTD3 fork measurement start ===");
+    new Notice("Atoms: measuring per-capture cache + day-batch…");
+    console.log("[atoms] === KTD3 fork measurement start ===");
 
     const perCaptureUsages = [];
     for (let i = 0; i < captures.length; i++) {
@@ -944,7 +944,7 @@ export default class AiLinkerPlugin extends Plugin {
         apiKey,
         model: this.settings.model,
         activeVocabulary: this.settings.activeVocabulary,
-        onAuthFailure: (msg) => new Notice(`AI Linker: ${msg}`),
+        onAuthFailure: (msg) => new Notice(`Atoms: ${msg}`),
       });
       logClassifyOutcome(`per-capture #${i + 1}`, outcome);
       if (outcome.ok) {
@@ -955,7 +955,7 @@ export default class AiLinkerPlugin extends Plugin {
     }
 
     const cacheReads = perCaptureUsages.map((u) => u.cache_read_input_tokens);
-    console.log("[ai-linker] per-capture usage summary", {
+    console.log("[atoms] per-capture usage summary", {
       calls: perCaptureUsages.length,
       cache_read_input_tokens: cacheReads,
       secondCallCacheRead: cacheReads[1] ?? 0,
@@ -980,12 +980,12 @@ export default class AiLinkerPlugin extends Plugin {
         throw: false,
       });
       const json = (res.json ?? {}) as Record<string, unknown>;
-      console.log("[ai-linker] day-batch", {
+      console.log("[atoms] day-batch", {
         status: res.status,
         usage: parseUsage(json.usage),
       });
     } catch {
-      console.log("[ai-linker] day-batch network error (details redacted)");
+      console.log("[atoms] day-batch network error (details redacted)");
     }
 
     const shape = buildMessagesRequest({
@@ -996,22 +996,22 @@ export default class AiLinkerPlugin extends Plugin {
     const msgs = shape.messages as Array<{
       content: Array<{ cache_control?: unknown }>;
     }>;
-    console.log("[ai-linker] request shape (safe)", {
+    console.log("[atoms] request shape (safe)", {
       captureAfterBreakpoint:
         Boolean(msgs[0]?.content?.[0]?.cache_control) &&
         !msgs[1]?.content?.[0]?.cache_control,
     });
 
-    new Notice("AI Linker: KTD3 measurement logged to console");
+    new Notice("Atoms: KTD3 measurement logged to console");
   }
 
   private runSecretStorageProbe() {
-    const probeId = "ai-linker-spike-probe";
+    const probeId = "atoms-spike-probe";
     const probeValue = `probe-${Date.now()}`;
 
     if (!this.app.secretStorage) {
       new Notice(
-        "AI Linker: SecretStorage API missing — use device-local fallback",
+        "Atoms: SecretStorage API missing — use device-local fallback",
       );
       return;
     }
@@ -1027,16 +1027,16 @@ export default class AiLinkerPlugin extends Plugin {
       }
       new Notice(
         ok
-          ? "AI Linker: SecretStorage read/write OK"
-          : "AI Linker: SecretStorage mismatch — consider device-local fallback",
+          ? "Atoms: SecretStorage read/write OK"
+          : "Atoms: SecretStorage mismatch — consider device-local fallback",
       );
     } catch (e) {
-      console.log("[ai-linker] SecretStorage probe FAILED", {
+      console.log("[atoms] SecretStorage probe FAILED", {
         name: e instanceof Error ? e.name : "Error",
         message: e instanceof Error ? e.message : "unknown",
       });
       new Notice(
-        "AI Linker: SecretStorage failed — enable device-local key fallback",
+        "Atoms: SecretStorage failed — enable device-local key fallback",
       );
     }
   }

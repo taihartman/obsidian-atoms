@@ -24,14 +24,14 @@ echo "Vault: $VAULT"
 echo "Listing linker-related commands:"
 (
   cd "$VAULT"
-  obsidian commands filter=ai-linker 2>/dev/null \
+  obsidian commands filter=atoms 2>/dev/null \
     || obsidian commands filter=linker 2>/dev/null \
     || obsidian commands 2>/dev/null | grep -i linker || true
 )
 
 # IDs from src/main.ts addCommand({ id: ... }) → manifest id prefix
-run "ai-linker:spike-secret-storage-probe"
-run "ai-linker:spike-classify-hardcoded"
-run "ai-linker:spike-cache-and-batch-fork"
+run "atoms:spike-secret-storage-probe"
+run "atoms:spike-classify-hardcoded"
+run "atoms:spike-cache-and-batch-fork"
 
 echo "Done. Check Obsidian Notices + DevTools console for output."

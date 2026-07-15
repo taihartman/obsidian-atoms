@@ -1,6 +1,6 @@
 # Dev: Obsidian CLI (official)
 
-Primary way agents and scripts drive the **throwaway vault** during AI Linker development.
+Primary way agents and scripts drive the **throwaway vault** during Atoms development.
 
 Docs: [obsidian.md/cli](https://obsidian.md/cli) · Help: [obsidian.md/help/cli](https://obsidian.md/help/cli)
 
@@ -52,7 +52,7 @@ obsidian vault="test vault" files
 
 **Never** point agent automation at your personal vault.
 
-## AI Linker dev loop
+## Atoms dev loop
 
 ```bash
 cd /Users/a515138832/StudioProjects/obsidian_plugin
@@ -63,11 +63,11 @@ npm run build
 Manual equivalents:
 
 ```bash
-obsidian plugin:reload id=ai-linker
-obsidian commands filter=ai-linker
-obsidian command id=ai-linker:spike-classify-hardcoded
-obsidian command id=ai-linker:spike-cache-and-batch-fork
-obsidian command id=ai-linker:spike-secret-storage-probe
+obsidian plugin:reload id=atoms
+obsidian commands filter=atoms
+obsidian command id=atoms:spike-classify-hardcoded
+obsidian command id=atoms:spike-cache-and-batch-fork
+obsidian command id=atoms:spike-secret-storage-probe
 ```
 
 List exact IDs if filter differs:
@@ -82,7 +82,7 @@ obsidian commands | grep -i linker
 
 | Command | Purpose |
 |---|---|
-| `obsidian plugin:reload id=ai-linker` | Hot-reload after build |
+| `obsidian plugin:reload id=atoms` | Hot-reload after build |
 | `obsidian plugins versions` | Confirm install |
 | `obsidian command id=…` | Run palette commands (spikes) |
 | `obsidian eval code="…"` | Run JS in app (debug) |
@@ -122,4 +122,4 @@ Both require Obsidian open. Prefer CLI when `obsidian` is on PATH.
 | No “Command line interface” toggle | Installer too old → re-download 1.12+ installer |
 | Wrong vault | `cd` into test vault or `vault=…` |
 | Plugin not listed | `./scripts/install-to-vault.sh` then `plugin:reload` |
-| Command id unknown | `obsidian commands filter=ai-linker` |
+| Command id unknown | `obsidian commands filter=atoms` |

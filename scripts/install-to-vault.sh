@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Install AI Linker into the throwaway test vault and reload via Obsidian CLI when available.
+# Install Atoms into the throwaway test vault and reload via Obsidian CLI when available.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 VAULT="${1:-$ROOT/test_vault/test vault}"
-DEST="$VAULT/.obsidian/plugins/ai-linker"
-PLUGIN_ID="ai-linker"
+DEST="$VAULT/.obsidian/plugins/atoms"
+PLUGIN_ID="atoms"
 
 cd "$ROOT"
 npm run build
@@ -22,9 +22,9 @@ const p = path.join(vault, ".obsidian", "community-plugins.json");
 let arr = [];
 try { arr = JSON.parse(fs.readFileSync(p, "utf8")); } catch {}
 if (!Array.isArray(arr)) arr = [];
-for (const id of ["ai-linker", "obsidian-local-rest-api"]) {
-  if (!arr.includes(id)) arr.push(id);
-}
+// Drop old plugin id if present
+arr = arr.filter((id) => id !== "ai-linker");
+if (!arr.includes("atoms")) arr.push("atoms");
 fs.mkdirSync(path.dirname(p), { recursive: true });
 fs.writeFileSync(p, JSON.stringify(arr, null, 2) + "\n");
 console.log("enabled:", arr.join(", "));

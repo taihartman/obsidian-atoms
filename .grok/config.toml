@@ -1,4 +1,4 @@
-# Project-scoped Grok config for Obsidian AI Linker.
+# Project-scoped Grok config for Obsidian Atoms.
 # Requires Obsidian open on the throwaway vault + Local REST API (HTTP) enabled.
 # Set: export OBSIDIAN_REST_API_KEY='…'  (from Settings → Local REST API)
 

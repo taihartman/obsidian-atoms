@@ -8,7 +8,7 @@ Grok (and other agents) drive the **throwaway vault** via the [Local REST API](h
 |---|---|
 | Read/write/list vault files | Seed fake dailies; inspect atoms/markers |
 | Search / tags | Fixture checks |
-| **Execute commands** | Run AI Linker spikes without the palette |
+| **Execute commands** | Run Atoms spikes without the palette |
 | Active / periodic notes | Later U3+ verification |
 
 **Limits:** plugin is **desktop-only**. Does **not** read SecretStorage secrets (your Anthropic key stays in Obsidian). MCP auth is a **separate** Local REST API key.
@@ -56,7 +56,7 @@ Then in Grok: search tools for `obsidian` / `command_execute` / `vault_read`.
 ## Agent playbook (test vault only)
 
 1. Confirm vault is the throwaway one (list root; expect `Welcome.md`, no real personal notes).
-2. After AI Linker key is set in Obsidian SecretStorage, execute:
+2. After Atoms key is set in Obsidian SecretStorage, execute:
    - `Spike: probe SecretStorage read/write`
    - `Spike: classify hardcoded capture`
    - `Spike: measure cache + per-day batch fork (KTD3)`

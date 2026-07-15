@@ -1,11 +1,11 @@
-# Implementation handoff — Obsidian AI Linker (for Grok or any coding agent)
+# Implementation handoff — Obsidian Atoms (for Grok or any coding agent)
 
 This is a paste-ready kickoff prompt. **How to use it:** paste the prompt below into
 Grok, then paste the full contents of the two source documents where indicated. Grok has
 no access to this filesystem, so the documents must travel with the prompt.
 
 Source documents (both live in this repo):
-- `docs/plans/2026-07-15-001-feat-obsidian-ai-linker-plugin-plan.md` — the implementation plan (authority)
+- `docs/plans/2026-07-15-001-feat-obsidian-atoms-plugin-plan.md` — the implementation plan (authority)
 - `docs/spec-amendments.md` — the corrected design + rationale the plan builds on
 
 ---
@@ -17,7 +17,7 @@ documents are the authority — **read both fully before writing any code**:
 
 1. THE PLAN (implementation authority):
    ```
-   <paste 2026-07-15-001-feat-obsidian-ai-linker-plugin-plan.md here>
+   <paste 2026-07-15-001-feat-obsidian-atoms-plugin-plan.md here>
    ```
 2. THE CORRECTED-DESIGN SOURCE it builds on (rationale for the plan's decisions):
    ```

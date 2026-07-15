@@ -91,7 +91,7 @@ describe("device-local storage (not data.json)", () => {
     });
 
     // Keys are device-local names — not written into settings object shape
-    expect(Object.keys(store).every((k) => k.startsWith("ai-linker-"))).toBe(
+    expect(Object.keys(store).every((k) => k.startsWith("atoms-"))).toBe(
       true,
     );
   });

@@ -3,11 +3,11 @@ artifact_contract: ce-unified-plan/v1
 artifact_readiness: implementation-ready
 product_contract_source: ce-plan-bootstrap
 execution: code
-title: "feat: Obsidian AI Linker plugin"
+title: "feat: Obsidian Atoms plugin"
 date: 2026-07-15
 ---
 
-# feat: Obsidian AI Linker plugin
+# feat: Obsidian Atoms plugin
 
 ## Product Contract
 
@@ -142,7 +142,7 @@ Everything up to and including the breakpoint is the stable prefix (1 write + N�
 ## Output Structure
 
 ```
-obsidian-ai-linker/
+obsidian-atoms/
 ├── manifest.json            # isDesktopOnly: false
 ├── package.json
 ├── esbuild.config.mjs

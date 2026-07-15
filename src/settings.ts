@@ -1,5 +1,5 @@
 import { App, PluginSettingTab, SecretComponent, Setting } from "obsidian";
-import type AiLinkerPlugin from "./main";
+import type AtomsPlugin from "./main";
 import { aggregateTagsFromFileCaches } from "./context";
 import {
   readDeviceAutoRunState,
@@ -18,11 +18,11 @@ import {
   tagCountsSorted,
 } from "./vocabulary";
 
-export class AiLinkerSettingTab extends PluginSettingTab {
-  plugin: AiLinkerPlugin;
+export class AtomsSettingTab extends PluginSettingTab {
+  plugin: AtomsPlugin;
   private customTagDraft = "";
 
-  constructor(app: App, plugin: AiLinkerPlugin) {
+  constructor(app: App, plugin: AtomsPlugin) {
     super(app, plugin);
     this.plugin = plugin;
   }
@@ -31,7 +31,7 @@ export class AiLinkerSettingTab extends PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
 
-    containerEl.createEl("h2", { text: "AI Linker" });
+    containerEl.createEl("h2", { text: "Atoms" });
     containerEl.createEl("p", {
       text: "Classifies past daily-note captures into flat Atoms/ notes. Capture itself is handled by your iOS Shortcut.",
       cls: "setting-item-description",

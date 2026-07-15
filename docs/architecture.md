@@ -1,4 +1,4 @@
-# Architecture — Obsidian AI Linker
+# Architecture — Obsidian Atoms
 
 Living system map. Implementation detail and unit order live in the plan; this doc is the **shape we protect** so the product stays world-class as it grows.
 

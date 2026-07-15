@@ -25,15 +25,15 @@ sleep 1
 echo "=== CLI: plugins / commands ==="
 (
   cd "$VAULT"
-  obsidian plugins:enabled | grep -E '^(ai-linker|daily-notes)$' || {
-    echo "FAIL: expected ai-linker and daily-notes enabled"
+  obsidian plugins:enabled | grep -E '^(atoms|daily-notes)$' || {
+    echo "FAIL: expected atoms and daily-notes enabled"
     exit 1
   }
-  obsidian commands filter=ai-linker
-  obsidian command id=ai-linker:list-unprocessed-captures
-  obsidian command id=ai-linker:log-context-prefix
+  obsidian commands filter=atoms
+  obsidian command id=atoms:list-unprocessed-captures
+  obsidian command id=atoms:log-context-prefix
   # Live context stability via plugin
-  out=$(obsidian eval 'code=(()=>{const p=app.plugins.plugins["ai-linker"];if(!p?.contextProvider)return "missing";const a=p.contextProvider.buildContext();const b=p.contextProvider.buildContext();return JSON.stringify({stable:JSON.stringify(a)===JSON.stringify(b),titles:a.titles.length,tags:a.tags.length,vocab:a.vocabulary.length})})()')
+  out=$(obsidian eval 'code=(()=>{const p=app.plugins.plugins["atoms"];if(!p?.contextProvider)return "missing";const a=p.contextProvider.buildContext();const b=p.contextProvider.buildContext();return JSON.stringify({stable:JSON.stringify(a)===JSON.stringify(b),titles:a.titles.length,tags:a.tags.length,vocab:a.vocabulary.length})})()')
   echo "$out"
   echo "$out" | grep -q 'stable":true' || { echo "FAIL: context not stable"; exit 1; }
 )
@@ -119,7 +119,7 @@ echo "=== live vault scan (CLI eval) ==="
       if(un.length===0) continue;
       days++; totalUn+=un.length;
     }
-    const p=app.plugins.plugins["ai-linker"];
+    const p=app.plugins.plugins["atoms"];
     const k=p?.getApiKey?.();
     return JSON.stringify({
       live:true,

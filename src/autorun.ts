@@ -1,10 +1,10 @@
 import type { App, EventRef } from "obsidian";
 
 /** Device-local keys — never data.json (KTD7 / R13). */
-export const LS_AUTO_RUN_ENABLED = "ai-linker-auto-run-enabled";
-export const LS_LAST_RUN_DAY = "ai-linker-last-run-day";
+export const LS_AUTO_RUN_ENABLED = "atoms-auto-run-enabled";
+export const LS_LAST_RUN_DAY = "atoms-last-run-day";
 /** One-time egress ack required before first unattended send (plan privacy). */
-export const LS_AUTO_RUN_EGRESS_ACK = "ai-linker-auto-run-egress-ack";
+export const LS_AUTO_RUN_EGRESS_ACK = "atoms-auto-run-egress-ack";
 
 /** Cap sequential API calls per launch so a month away doesn't fire ~150 (H7). */
 export const PER_LAUNCH_CAP = 15;

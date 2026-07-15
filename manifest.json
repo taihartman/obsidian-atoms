@@ -1,10 +1,10 @@
 {
-  "id": "ai-linker",
-  "name": "AI Linker",
+  "id": "atoms",
+  "name": "Atoms",
   "version": "0.1.0",
   "minAppVersion": "1.11.4",
   "description": "Classify past daily-note captures into linked atomic notes via the Anthropic API.",
-  "author": "AI Linker",
+  "author": "Atoms",
   "authorUrl": "",
   "isDesktopOnly": false
 }

@@ -439,7 +439,7 @@ export async function classifyCapture(
  */
 export function logClassifyOutcome(label: string, outcome: ClassifyOutcome): void {
   if (outcome.ok) {
-    console.log(`[ai-linker] ${label}`, {
+    console.log(`[atoms] ${label}`, {
       verdict: outcome.result.verdict,
       title: outcome.result.title,
       tags: outcome.result.tags,
@@ -449,7 +449,7 @@ export function logClassifyOutcome(label: string, outcome: ClassifyOutcome): voi
       key: outcome.keyFingerprint,
     });
   } else {
-    console.log(`[ai-linker] ${label} FAILED`, {
+    console.log(`[atoms] ${label} FAILED`, {
       reason: outcome.reason,
       status: outcome.status,
       message: outcome.message,

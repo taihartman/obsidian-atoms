@@ -84,7 +84,7 @@ export function buildPreviewEntry(opts: {
 /** Markdown report for modal / console (AE5: one entry per capture). */
 export function renderPreviewMarkdown(report: DryRunReport): string {
   const lines: string[] = [
-    "# AI Linker — dry-run preview",
+    "# Atoms — dry-run preview",
     "",
     `Generated: ${report.generatedAt}`,
     `Unprocessed scanned: ${report.totalUnprocessedScanned}`,
@@ -271,9 +271,9 @@ export class DryRunPreviewModal extends Modal {
   onOpen() {
     const { contentEl } = this;
     contentEl.empty();
-    contentEl.addClass("ai-linker-dry-run-modal");
+    contentEl.addClass("atoms-dry-run-modal");
 
-    contentEl.createEl("h2", { text: "AI Linker — dry-run preview" });
+    contentEl.createEl("h2", { text: "Atoms — dry-run preview" });
     contentEl.createEl("p", { text: this.summary });
 
     new Setting(contentEl)
@@ -284,7 +284,7 @@ export class DryRunPreviewModal extends Modal {
       );
 
     const pre = contentEl.createEl("pre", {
-      cls: "ai-linker-dry-run-body",
+      cls: "atoms-dry-run-body",
     });
     pre.setText(this.markdown);
     pre.style.maxHeight = "60vh";
@@ -301,6 +301,6 @@ export class DryRunPreviewModal extends Modal {
 
 export function showDryRunNotice(report: DryRunReport): void {
   new Notice(
-    `AI Linker dry-run: ${report.classified} ok, ${report.failed} failed of ${report.entries.length} (scanned ${report.totalUnprocessedScanned}) — nothing written`,
+    `Atoms dry-run: ${report.classified} ok, ${report.failed} failed of ${report.entries.length} (scanned ${report.totalUnprocessedScanned}) — nothing written`,
   );
 }

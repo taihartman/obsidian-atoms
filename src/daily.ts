@@ -12,7 +12,7 @@ import type { DailyNoteWithCaptures } from "./types";
 export class DailyNotesDisabledError extends Error {
   constructor() {
     super(
-      "AI Linker requires the core Daily Notes plugin to be enabled. Enable it under Settings → Core plugins.",
+      "Atoms requires the core Daily Notes plugin to be enabled. Enable it under Settings → Core plugins.",
     );
     this.name = "DailyNotesDisabledError";
   }

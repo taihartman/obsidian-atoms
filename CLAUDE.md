@@ -1,4 +1,4 @@
-# CLAUDE.md — Obsidian AI Linker
+# CLAUDE.md — Obsidian Atoms
 
 Project rules for any coding agent (Grok, Claude Code, Cursor). Deeper docs win when they conflict with this file only if they are the **implementation plan** or **spec amendments**.
 
@@ -10,7 +10,7 @@ Read **past** daily notes → split captures → classify atom/task/noise via An
 
 | Doc | Role |
 |---|---|
-| `docs/plans/2026-07-15-001-feat-obsidian-ai-linker-plugin-plan.md` | Implementation authority (units U1–U10) |
+| `docs/plans/2026-07-15-001-feat-obsidian-atoms-plugin-plan.md` | Implementation authority (units U1–U10) |
 | `docs/spec-amendments.md` | Corrected design + *why* (markers, append cut, rot) |
 | `docs/architecture.md` | Long-lived system map + future v2 shape |
 | `docs/u1-spike-findings.md` | Spike-verified API/SecretStorage notes |
@@ -60,7 +60,7 @@ Full detail: `docs/dev-obsidian-cli.md`. Prefer CLI over Local REST API MCP for 
 | CLI binary | `/opt/homebrew/bin/obsidian` (or `/usr/local/bin/obsidian`) |
 | CLI toggle | Settings → **General → Advanced → Command line interface** ON |
 | Throwaway vault | `test_vault/test vault/` (gitignored) |
-| Plugin id | `ai-linker` |
+| Plugin id | `atoms` |
 | Anthropic key | SecretStorage (settings store secret **name** only; never `data.json`) |
 
 Without the Advanced toggle, `obsidian` prints “Command line interface is not enabled” even if the binary exists.
@@ -80,23 +80,23 @@ cd "test_vault/test vault"
 
 obsidian version
 obsidian plugins:enabled
-obsidian plugin:reload id=ai-linker
+obsidian plugin:reload id=atoms
 
-obsidian commands filter=ai-linker
-obsidian command id=ai-linker:spike-secret-storage-probe
-obsidian command id=ai-linker:spike-classify-hardcoded
-obsidian command id=ai-linker:spike-cache-and-batch-fork
-obsidian command id=ai-linker:list-unprocessed-captures   # U3 read-only
-obsidian command id=ai-linker:dry-run-preview             # U7 — no vault writes
-obsidian command id=ai-linker:process-unprocessed         # U8 — live API write
-obsidian command id=ai-linker:process-fixture-sample      # U8 — fixture write (no API)
-obsidian command id=ai-linker:auto-run-status             # U9 — device-local gates
-obsidian command id=ai-linker:auto-run-now                # U9 — try (respects gates)
-obsidian command id=ai-linker:test-connection             # HTTPS + Anthropic probe (no secrets)
-obsidian command id=ai-linker:backfill-estimate-confirm   # U10 — estimate gate (batch only after confirm)
+obsidian commands filter=atoms
+obsidian command id=atoms:spike-secret-storage-probe
+obsidian command id=atoms:spike-classify-hardcoded
+obsidian command id=atoms:spike-cache-and-batch-fork
+obsidian command id=atoms:list-unprocessed-captures   # U3 read-only
+obsidian command id=atoms:dry-run-preview             # U7 — no vault writes
+obsidian command id=atoms:process-unprocessed         # U8 — live API write
+obsidian command id=atoms:process-fixture-sample      # U8 — fixture write (no API)
+obsidian command id=atoms:auto-run-status             # U9 — device-local gates
+obsidian command id=atoms:auto-run-now                # U9 — try (respects gates)
+obsidian command id=atoms:test-connection             # HTTPS + Anthropic probe (no secrets)
+obsidian command id=atoms:backfill-estimate-confirm   # U10 — estimate gate (batch only after confirm)
 
 # Safe key presence check (no raw key in output)
-obsidian eval 'code=(()=>{const p=app.plugins.plugins["ai-linker"];const k=p?.getApiKey?.();return JSON.stringify({hasKey:!!k,keyLen:k?.length??0,model:p?.settings?.model})})()'
+obsidian eval 'code=(()=>{const p=app.plugins.plugins["atoms"];const k=p?.getApiKey?.();return JSON.stringify({hasKey:!!k,keyLen:k?.length??0,model:p?.settings?.model})})()'
 ```
 
 ```bash
@@ -107,7 +107,7 @@ npm run seed:vault       # ~20 Daily/ fixtures in test vault
 
 **Agents must verify with CLI**, not only unit tests: after each unit that touches the plugin, run `./scripts/verify.sh` (or the relevant `obsidian command` / `obsidian eval`) while Obsidian is open on the throwaway vault, and report the CLI output as evidence.
 
-Spike results land in **Notices** + DevTools console (`[ai-linker] …`). CLI cannot scrape the renderer console; `fetch` from `eval` hits CORS — plugin code must use `requestUrl`.
+Spike results land in **Notices** + DevTools console (`[atoms] …`). CLI cannot scrape the renderer console; `fetch` from `eval` hits CORS — plugin code must use `requestUrl`.
 
 ### Optional MCP
 

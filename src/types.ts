@@ -124,8 +124,8 @@ export const DEFAULT_SETTINGS: LinkerSettings = {
 };
 
 /** SecretStorage / localStorage keys — lowercase-dashed (KTD5). */
-export const API_KEY_SECRET_ID_DEFAULT = "ai-linker-anthropic-api-key";
-export const LOCAL_STORAGE_API_KEY = "ai-linker-device-local-api-key";
+export const API_KEY_SECRET_ID_DEFAULT = "atoms-anthropic-api-key";
+export const LOCAL_STORAGE_API_KEY = "atoms-device-local-api-key";
 
 /** Hardcoded capture for the U1 spike command. */
 export const SPIKE_CAPTURE =
