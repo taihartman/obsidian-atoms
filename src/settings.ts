@@ -1,4 +1,10 @@
-import { App, PluginSettingTab, SecretComponent, Setting } from "obsidian";
+import {
+  App,
+  Notice,
+  PluginSettingTab,
+  SecretComponent,
+  Setting,
+} from "obsidian";
 import type AtomsPlugin from "./main";
 import { aggregateTagsFromFileCaches } from "./context";
 import {
@@ -6,6 +12,14 @@ import {
   writeAutoRunEnabled,
   writeEgressAck,
 } from "./autorun";
+import {
+  CAPTURE_SHORTCUT_INSTALL_URL,
+  CAPTURE_SHORTCUT_VERSION,
+  labelInstallOrUpdate,
+  openShortcutInstallUrl,
+  readShortcutAck,
+  writeShortcutAck,
+} from "./captureShortcut";
 import {
   API_KEY_SECRET_ID_DEFAULT,
   LOCAL_STORAGE_API_KEY,
@@ -42,11 +56,68 @@ export class AtomsSettingTab extends PluginSettingTab {
       cls: "setting-item-description",
     });
 
+    this.renderCaptureSection(containerEl);
     this.renderApiSection(containerEl);
     this.renderAutoRunSection(containerEl);
     this.renderModelSection(containerEl);
     this.renderVocabularySection(containerEl);
     this.renderDevHints(containerEl);
+  }
+
+  private renderCaptureSection(containerEl: HTMLElement) {
+    containerEl.createEl("h3", { text: "Capture" });
+
+    const acked = readShortcutAck((k) => this.app.loadLocalStorage(k));
+    const urlSet = Boolean(CAPTURE_SHORTCUT_INSTALL_URL.trim());
+
+    new Setting(containerEl)
+      .setName("Daily capture format")
+      .setDesc(
+        "Write top-level bullets in your daily note: “- thought…”. Today’s note is never auto-processed; use Atoms home → Preview after midnight (or past dailies).",
+      );
+
+    new Setting(containerEl)
+      .setName("Capture shortcut")
+      .setDesc(
+        urlSet
+          ? `Install or update the iOS shortcut (v${CAPTURE_SHORTCUT_VERSION}). Opens a link — Shortcuts.app still needs your confirm. Acked: ${acked ?? "never"}.`
+          : `Shortcut install link not configured yet (plugin v packs shortcut version ${CAPTURE_SHORTCUT_VERSION}). Maintainer: set CAPTURE_SHORTCUT_INSTALL_URL — see docs/capture-shortcut.md.`,
+      )
+      .addButton((btn) =>
+        btn
+          .setButtonText(labelInstallOrUpdate(acked))
+          .setDisabled(!urlSet)
+          .onClick(() => {
+            if (!urlSet) {
+              new Notice(
+                "Capture shortcut link not configured. See docs/capture-shortcut.md",
+              );
+              return;
+            }
+            const ok = openShortcutInstallUrl();
+            if (!ok) {
+              new Notice("Could not open the shortcut link");
+              return;
+            }
+            writeShortcutAck(
+              (k, v) => this.app.saveLocalStorage(k, v),
+              CAPTURE_SHORTCUT_VERSION,
+            );
+            new Notice(
+              `Opened capture shortcut v${CAPTURE_SHORTCUT_VERSION} — add it in Shortcuts`,
+            );
+            this.display();
+          }),
+      );
+
+    new Setting(containerEl)
+      .setName("Open today's daily")
+      .setDesc("Jump to (or create) today’s Daily Notes file — does not process it.")
+      .addButton((btn) =>
+        btn.setButtonText("Open today").onClick(() => {
+          void this.plugin.openTodaysDailyFromHome();
+        }),
+      );
   }
 
   private renderApiSection(containerEl: HTMLElement) {

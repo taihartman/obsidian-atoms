@@ -236,7 +236,151 @@
   text-align: center;
   color: var(--text-muted);
   font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.atoms-home-empty-hint {
+  margin-top: 10px;
+  font-size: 0.82rem;
+  color: var(--text-faint);
   line-height: 1.4;
+}
+
+.atoms-home-empty-soft {
+  color: var(--text-faint);
+  font-size: 0.85rem;
+}
+
+/* First-day setup */
+.atoms-home-setup-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  margin-bottom: 14px;
+  border-radius: 12px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-secondary);
+}
+
+.atoms-home-setup-card h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text-normal);
+}
+
+.atoms-home-setup-card > p {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.atoms-home-setup-steps {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+}
+
+.atoms-home-setup-steps li {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  line-height: 1.35;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.atoms-home-setup-steps li:last-child {
+  border-bottom: none;
+}
+
+.atoms-home-step-num {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--background-modifier-border);
+  color: var(--text-accent);
+  font-size: 0.75rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.atoms-home-mono {
+  font-family: var(--font-monospace);
+  font-size: 0.8rem;
+  white-space: pre-wrap;
+  background: var(--background-primary);
+  padding: 10px 12px;
+  border-radius: 8px;
+  color: var(--text-muted);
+  line-height: 1.45;
+  margin: 4px 0;
+}
+
+.atoms-home-setup-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.atoms-home-setup-hint {
+  margin-top: 4px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: var(--text-muted);
+  background: color-mix(in srgb, var(--color-orange, #ff9f0a) 10%, var(--background-primary));
+  border: 1px solid color-mix(in srgb, var(--color-orange, #ff9f0a) 28%, transparent);
+}
+
+.atoms-home-setup-hint strong {
+  color: var(--color-orange, #e07a5f);
+}
+
+/* Shortcut update banner */
+.atoms-home-update-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  margin-bottom: 14px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--interactive-accent) 15%, var(--background-secondary));
+  border: 1px solid color-mix(in srgb, var(--interactive-accent) 30%, transparent);
+}
+
+.atoms-home-update-banner strong {
+  display: block;
+  font-size: 0.9rem;
+  color: var(--text-normal);
+}
+
+.atoms-home-update-meta {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.atoms-home-update-btn {
+  margin-left: auto;
+  border: none;
+  border-radius: 980px;
+  padding: 8px 14px;
+  min-height: 36px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  white-space: nowrap;
 }
 
 .atoms-home-footnote {

@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Atoms — first-day & capture setup mock</title>
+  <style>
+    :root {
+      --bg: #000;
+      --grouped: #1c1c1e;
+      --elevated: #2c2c2e;
+      --sep: rgba(84, 84, 88, 0.65);
+      --label: #fff;
+      --secondary: rgba(235, 235, 245, 0.6);
+      --tertiary: rgba(235, 235, 245, 0.3);
+      --tint: #0a84ff;
+      --tint-soft: rgba(10, 132, 255, 0.18);
+      --orange: #ff9f0a;
+      --green: #30d158;
+      --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: var(--font);
+      background: #0a0a0c;
+      color: var(--label);
+      -webkit-font-smoothing: antialiased;
+    }
+    .page { max-width: 1100px; margin: 0 auto; padding: 28px 18px 80px; }
+    h1 { font-size: 1.4rem; font-weight: 700; letter-spacing: -0.03em; margin: 0 0 8px; }
+    .lede { color: var(--secondary); max-width: 40rem; line-height: 1.45; margin: 0 0 20px; }
+    .toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 24px; align-items: center; }
+    .toolbar span { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.07em; color: var(--tertiary); }
+    .chip {
+      border: none; background: var(--elevated); color: var(--secondary);
+      border-radius: 980px; padding: 8px 14px; font-size: 0.85rem; font-weight: 500; cursor: pointer;
+    }
+    .chip.on { background: var(--tint-soft); color: var(--tint); }
+    .stage { display: grid; grid-template-columns: auto 1fr; gap: 36px; align-items: start; }
+    @media (max-width: 860px) {
+      .stage { grid-template-columns: 1fr; justify-items: center; }
+      .notes-col { max-width: 375px; }
+    }
+    .cap { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--tertiary); text-align: center; margin-bottom: 10px; }
+    .phone {
+      width: 375px; height: 780px; background: var(--bg); border-radius: 44px;
+      border: 4px solid #2a2a2c; box-shadow: 0 28px 70px rgba(0,0,0,0.55);
+      overflow: hidden; display: flex; flex-direction: column; position: relative;
+    }
+    .status-bar { height: 47px; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 6px; font-size: 0.75rem; font-weight: 600; flex-shrink: 0; }
+    .nav { padding: 0 8px 8px 16px; flex-shrink: 0; }
+    .nav-top { display: flex; justify-content: space-between; align-items: center; min-height: 44px; }
+    .nav-btn { border: none; background: transparent; color: var(--tint); font-size: 1.05rem; min-width: 44px; min-height: 44px; cursor: pointer; padding: 8px; }
+    .large-title { font-size: 2.1rem; font-weight: 700; letter-spacing: -0.045em; margin: 0; line-height: 1.05; }
+    .subtitle { font-size: 0.9rem; color: var(--secondary); margin: 4px 0 0; }
+    .scroll { flex: 1; overflow-y: auto; min-height: 0; padding: 4px 16px 24px; }
+
+    .setup-card {
+      background: var(--grouped);
+      border: 1px solid var(--sep);
+      border-radius: 14px;
+      padding: 16px;
+      margin-bottom: 14px;
+    }
+    .setup-card h2 { margin: 0 0 6px; font-size: 1.1rem; font-weight: 700; letter-spacing: -0.02em; }
+    .setup-card p { margin: 0 0 12px; font-size: 0.88rem; color: var(--secondary); line-height: 1.4; }
+    .steps { margin: 0 0 14px; padding: 0; list-style: none; }
+    .steps li {
+      display: flex; gap: 10px; align-items: flex-start;
+      font-size: 0.88rem; color: var(--secondary); line-height: 1.35;
+      padding: 8px 0; border-bottom: 0.5px solid var(--sep);
+    }
+    .steps li:last-child { border-bottom: none; }
+    .num {
+      width: 22px; height: 22px; border-radius: 50%; background: var(--elevated);
+      color: var(--tint); font-size: 0.75rem; font-weight: 700;
+      display: grid; place-items: center; flex-shrink: 0; margin-top: 1px;
+    }
+    .steps strong { color: var(--label); font-weight: 600; }
+    .actions { display: flex; flex-direction: column; gap: 8px; }
+    .btn {
+      min-height: 48px; border: none; border-radius: 12px;
+      font-size: 1rem; font-weight: 600; cursor: pointer; width: 100%;
+    }
+    .btn.primary { background: var(--tint); color: #fff; }
+    .btn.secondary { background: var(--elevated); color: var(--tint); }
+    .btn.ghost { background: transparent; color: var(--secondary); font-weight: 500; font-size: 0.9rem; min-height: 40px; }
+
+    .hint {
+      margin-top: 12px; padding: 12px; border-radius: 10px;
+      background: rgba(255, 159, 10, 0.1); border: 1px solid rgba(255, 159, 10, 0.28);
+      font-size: 0.82rem; color: var(--secondary); line-height: 1.4;
+    }
+    .hint strong { color: var(--orange); }
+
+    .mono {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.8rem; background: var(--bg); padding: 10px 12px;
+      border-radius: 8px; color: var(--secondary); margin: 0 0 12px; line-height: 1.45;
+    }
+
+    .update-banner {
+      display: none; align-items: center; gap: 10px;
+      background: var(--tint-soft); border-radius: 12px; padding: 12px 14px; margin-bottom: 14px;
+    }
+    .update-banner.show { display: flex; }
+    .update-banner strong { display: block; font-size: 0.9rem; }
+    .update-banner span { font-size: 0.8rem; color: var(--secondary); }
+    .update-banner button {
+      margin-left: auto; border: none; background: var(--tint); color: #fff;
+      border-radius: 980px; padding: 8px 12px; font-size: 0.8rem; font-weight: 600; cursor: pointer; white-space: nowrap;
+    }
+
+    .section { font-size: 0.78rem; color: var(--secondary); text-transform: uppercase; margin: 10px 2px 8px; }
+    .list { background: var(--grouped); border-radius: 12px; overflow: hidden; margin-bottom: 16px; }
+    .cell { padding: 13px 16px; border-bottom: 0.5px solid var(--sep); font-size: 1rem; }
+    .cell:last-child { border-bottom: none; }
+    .cell-sub { font-size: 0.82rem; color: var(--secondary); margin-top: 3px; }
+    .empty-soft { text-align: center; color: var(--tertiary); font-size: 0.85rem; padding: 20px; }
+
+    .notes-col {
+      background: var(--grouped); border-radius: 14px; border: 1px solid #2c2c2e;
+      padding: 20px 22px; color: var(--secondary); font-size: 0.92rem; line-height: 1.5;
+    }
+    .notes-col h2 { margin: 0 0 10px; font-size: 1.05rem; color: var(--label); }
+    .notes-col ul { margin: 8px 0 0; padding-left: 1.15em; }
+    .notes-col code { font-size: 0.85em; color: var(--tint); }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <h1>First day · capture loop</h1>
+    <p class="lede">
+      When Atoms has nothing filed yet, home is a <strong style="color:var(--label)">setup + capture bridge</strong>,
+      not a blank library. Open today, install the capture shortcut, write bullets — process comes tomorrow or via past dailies.
+    </p>
+
+    <div class="toolbar">
+      <span>State</span>
+      <button type="button" class="chip on" data-state="first">First day (empty)</button>
+      <button type="button" class="chip" data-state="update">Shortcut update available</button>
+      <button type="button" class="chip" data-state="has-atoms">Has atoms (steady)</button>
+    </div>
+
+    <div class="stage">
+      <div>
+        <div class="cap">Mobile · Atoms home</div>
+        <div class="phone">
+          <div class="status-bar">9:41</div>
+          <div class="nav">
+            <div class="nav-top">
+              <button type="button" class="nav-btn">⋯</button>
+              <button type="button" class="nav-btn" title="Open today">◎</button>
+              <button type="button" class="nav-btn">⚙︎</button>
+            </div>
+            <h1 class="large-title">Atoms</h1>
+            <p class="subtitle" id="sub">Get set up to capture</p>
+          </div>
+          <div class="scroll" id="scroll">
+            <!-- filled by JS -->
+          </div>
+        </div>
+      </div>
+
+      <div class="notes-col">
+        <h2>Product decisions (this mock)</h2>
+        <ul>
+          <li><strong>Header ◎</strong> always opens / creates <strong>today’s daily</strong> (Daily Notes folder — e.g. Quick Notes). Never processes it.</li>
+          <li><strong>First-day card</strong> only when: no atoms in library <em>and</em> no past unprocessed queue.</li>
+          <li><strong>Capture format</strong> taught once: top-level <code>- bullet</code> lines only.</li>
+          <li><strong>Install shortcut</strong> opens a versioned URL (iCloud / GitHub release). App cannot push into Shortcuts.app.</li>
+          <li><strong>Update</strong> = same button when <code>CAPTURE_SHORTCUT_VERSION</code> &gt; last acked version in device-local storage.</li>
+          <li>Steady state (has atoms): first-day card gone; ◎ and ⋯ → Capture shortcut remain.</li>
+        </ul>
+        <p style="margin-top:16px;color:var(--tertiary);font-size:0.85rem">
+          Plan: <code>docs/plans/2026-07-15-004-feat-first-day-capture-loop-plan.md</code>
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const scroll = document.getElementById("scroll");
+    const sub = document.getElementById("sub");
+
+    function firstDayHTML(showUpdate) {
+      return `
+        ${showUpdate ? `
+        <div class="update-banner show">
+          <div>
+            <strong>Capture shortcut update</strong>
+            <span>v1.1 · bullet format + vault name fix</span>
+          </div>
+          <button type="button">Update</button>
+        </div>` : ""}
+        <div class="setup-card">
+          <h2>Start capturing</h2>
+          <p>Atoms files thoughts from your daily note after the day ends. Capture goes in Daily — not this list.</p>
+          <ol class="steps">
+            <li><span class="num">1</span><span><strong>Open today</strong> and write thoughts as bullets</span></li>
+            <li><span class="num">2</span><span><strong>Install the capture shortcut</strong> so share-sheet dumps land in the right note</span></li>
+            <li><span class="num">3</span><span>Tomorrow (or after midnight), <strong>Preview → Process</strong> from here</span></li>
+          </ol>
+          <div class="mono">- Nichita likes periwinkle pajamas<br>- buy milk</div>
+          <div class="actions">
+            <button type="button" class="btn primary">Open today’s note</button>
+            <button type="button" class="btn secondary">${showUpdate ? "Update capture shortcut" : "Install capture shortcut"}</button>
+          </div>
+          <div class="hint">
+            <strong>Why empty?</strong> This list only shows atoms Atoms has filed.
+            Today’s note is never auto-processed while you’re still writing.
+          </div>
+        </div>
+        <div class="section">Library</div>
+        <div class="list"><div class="empty-soft">No atoms yet</div></div>
+      `;
+    }
+
+    function steadyHTML() {
+      return `
+        <div class="section">Recently added</div>
+        <div class="list">
+          <div class="cell">
+            Nichita prefers periwinkle and soft pajamas
+            <div class="cell-sub" style="color:#ff9f0a">Nichita · from Jul 14</div>
+          </div>
+          <div class="cell">
+            Capture is cheap; review is the scarce resource
+            <div class="cell-sub">from Jul 11</div>
+          </div>
+        </div>
+      `;
+    }
+
+    function setState(name) {
+      document.querySelectorAll(".chip[data-state]").forEach((c) => {
+        c.classList.toggle("on", c.dataset.state === name);
+      });
+      if (name === "first") {
+        sub.textContent = "Get set up to capture";
+        scroll.innerHTML = firstDayHTML(false);
+      } else if (name === "update") {
+        sub.textContent = "Get set up to capture";
+        scroll.innerHTML = firstDayHTML(true);
+      } else {
+        sub.textContent = "Latest from your vault";
+        scroll.innerHTML = steadyHTML();
+      }
+    }
+
+    document.querySelectorAll(".chip[data-state]").forEach((b) => {
+      b.addEventListener("click", () => setState(b.dataset.state));
+    });
+    setState("first");
+  </script>
+</body>
+</html>

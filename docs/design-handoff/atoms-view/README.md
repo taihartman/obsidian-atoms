@@ -1,14 +1,15 @@
 # Atoms view — design handoff (settled)
 
-**Status:** design locked after adversarial review (2026-07-15).  
-**Open mock:** `index.html`
+**Status:** design locked after adversarial review (2026-07-15); **first-day loop** added (2026-07-15).  
+**Open mocks:** `index.html` (steady + waiting) · `first-day.html` (setup + shortcut)
 
 ## Product job
 
 Atoms **classifies past captures** and writes **flat atoms + markers**. The UI must support:
 
 1. **Trust / process** when work is pending (preview before write)  
-2. **Proof of what landed** when the queue is clear (library of atoms, with links visible)
+2. **Proof of what landed** when the queue is clear (library of atoms, with links visible)  
+3. **First-day bridge** when nothing is filed yet: open today, install/update capture shortcut, teach bullets  
 
 It is **not** a second file browser, not a People CRM, not an API console.
 
@@ -32,8 +33,18 @@ v1.1+ only if we need “hubs with *new* backlinks this week” as its own surfa
 
 - Banner/card when `unprocessedCount > 0` — high contrast, hard to miss  
 - Sheet / flow: **Preview first**, then Process  
-- ⋯ menu: Backfill, Test connection, Status  
+- ⋯ menu: Backfill, Test connection, Status, Capture shortcut  
 - ⚙ → Plugin settings  
+
+### First-day / empty library (no past queue)
+
+When `atoms.length === 0` and `unprocessedCount === 0`:
+
+- **Setup card** (not a blank void): Open today · Install/Update shortcut · bullet example  
+- **Header ◎** always opens/creates today’s daily (never processes it)  
+- **Shortcut update banner** when shipped `CAPTURE_SHORTCUT_VERSION` &gt; device-acked version  
+
+Detail + interactive states: `first-day.html`. Plan: `docs/plans/2026-07-15-004-feat-first-day-capture-loop-plan.md`.
 
 ### Recent rows must be Atoms-native (or we don’t build this)
 

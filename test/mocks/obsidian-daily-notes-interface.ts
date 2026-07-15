@@ -7,3 +7,14 @@ export function getAllDailyNotes(): Record<string, unknown> {
 export function getDateFromFile(): null {
   return null;
 }
+export function getDailyNote(
+  _date: unknown,
+  _notes: Record<string, unknown>,
+): null {
+  return null;
+}
+export async function createDailyNote(_date: unknown): Promise<{
+  path: string;
+}> {
+  return { path: "Quick Notes/test-today.md" };
+}

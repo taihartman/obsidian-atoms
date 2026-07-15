@@ -141,6 +141,19 @@ export default class AtomsPlugin extends Plugin {
     await this.runBackfillFlow();
   }
 
+  /** Open/create today's daily and show it in the editor. */
+  async openTodaysDailyFromHome(): Promise<void> {
+    try {
+      const { openTodaysDaily } = await import("./daily");
+      const file = await openTodaysDaily(this.app);
+      await this.app.workspace.getLeaf(false).openFile(file);
+    } catch (e) {
+      new Notice(
+        e instanceof Error ? e.message : "Could not open today's daily note",
+      );
+    }
+  }
+
   onunload() {
     this.autoRunInFlight = false;
   }
