@@ -81,20 +81,30 @@ describe("buildVaultContext + stable prefix", () => {
     expect(ctx.titles).toEqual(["A note", "B note"]);
     expect(ctx.vocabulary).toEqual([
       "idea",
+      "list",
+      "media",
+      "movie",
       "observation",
       "person",
       "preferences",
       "question",
       "relationship",
+      "show",
+      "watch",
     ]);
     expect(ctx.tags).toEqual([
       "health",
       "idea",
+      "list",
+      "media",
+      "movie",
       "observation",
       "person",
       "preferences",
       "question",
       "relationship",
+      "show",
+      "watch",
     ]);
   });
 
@@ -107,15 +117,25 @@ describe("buildVaultContext + stable prefix", () => {
     expect(ctx.titles).toEqual([]);
     expect(ctx.tags).toEqual([
       "idea",
+      "list",
+      "media",
+      "movie",
       "person",
       "preferences",
       "relationship",
+      "show",
+      "watch",
     ]);
     expect(ctx.vocabulary).toEqual([
       "idea",
+      "list",
+      "media",
+      "movie",
       "person",
       "preferences",
       "relationship",
+      "show",
+      "watch",
     ]);
   });
 

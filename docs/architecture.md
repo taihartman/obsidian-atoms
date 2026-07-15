@@ -51,6 +51,8 @@ processInbox(dryRun)
 
 **Product stance (0.4.3+):** second brain, not a task app. Classify soft-retires **task** (legacy markers still processed): **atom** for keepable memory including list/media dumps; **noise** for pure logistics. Home library remains atoms-only. Resurfacing stream + collection UIs stay v2.
 
+**Media shape (0.4.4+):** hybrid — prompt steers media dumps; structural tags `watch`/`show`/`movie`/`media`/`list` always eligible; `enrichMediaLinks` post-classify repair adds work-title links + media tags on high-precision “watch X” patterns (same idea as person repair).
+
 ## Module map (`src/`)
 
 | Module | Responsibility | Unit |

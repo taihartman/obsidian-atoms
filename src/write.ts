@@ -15,6 +15,7 @@ import type {
   DailyNoteWithCaptures,
 } from "./types";
 import { enrichPersonLinks, type PersonHub } from "./people";
+import { enrichMediaLinks } from "./media";
 import { mergeProposedTags } from "./vocabulary";
 
 export interface WritePathEntry {
@@ -112,6 +113,7 @@ export async function runWritePath(
         path: "",
       }));
       result = enrichPersonLinks(capture.text, opts.fixtureResults[i]!, hubs);
+      result = enrichMediaLinks(capture.text, result, ctx.titles ?? []);
     } else {
       const outcome = await classifyCapture(capture.text, ctx, {
         apiKey: opts.apiKey,
