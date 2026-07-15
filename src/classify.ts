@@ -23,7 +23,7 @@ export const CLASSIFICATION_SCHEMA = {
       type: "string",
       enum: ["atom", "task", "noise"],
       description:
-        "Conservative triage. Prefer noise when in doubt. atom = permanent claim; task = actionable to-do; noise = discard.",
+        "Second-brain triage. Prefer atom for keepable memory (including list/media). Prefer noise for pure logistics. task is rare/legacy — almost never use it.",
     },
     title: {
       type: "string",
@@ -65,23 +65,26 @@ export const CLASSIFICATION_SCHEMA = {
   additionalProperties: false,
 } as const;
 
-export const SYSTEM_PROMPT = `You classify fleeting captures from a daily-note inbox into a personal knowledge graph.
+export const SYSTEM_PROMPT = `You classify fleeting captures from a daily-note inbox into a personal knowledge graph (second brain). This product is NOT a task app — the user has Reminders/Things for chores.
 
 ## Output surface (hard rules)
 - You output ONLY: verdict, title, tags, proposed_tags, links.
 - You never rewrite, paraphrase, expand, or "improve" the capture body. The body is sacred and is written elsewhere, verbatim.
-- You never choose folders or move files. Placement is not your job.
+- You never choose folders or move files. Placement is not your job. One capture → at most one atom (never append into a Movies/list note).
 - Titles (when atom) are declarative claims, not topics.
   Good: "Sleep debt doesn't accumulate linearly"
   Bad: "Sleep notes" / "Thoughts on sleep"
   Good (person): "Nichita prefers periwinkle and soft pajamas"
   Bad (person): "Girlfriend notes" / "Nichita stuff"
+  Good (list/media): "Want to watch Past Lives" / "Severance season 2 is on the list"
+  Bad (list/media): "Movies" / "Watchlist notes"
 
-## Triage (conservative)
-- atom: a permanent claim, observation, decision, preference, or question worth linking into the graph.
-- task: actionable to-do ("buy milk", "email X").
-- noise: ephemeral, empty, or not worth keeping. When in doubt → noise.
+## Triage (second brain)
+- atom: anything worth meeting again in the graph — claims, observations, decisions, preferences, questions, **and list/media dumps** (shows, movies, books, restaurants, want-to, try-later). If the user would want to find it later, it is an atom.
+- noise: pure logistics, empty, or not worth keeping in a second brain ("buy milk", "email landlord", "call dentist at 3", lone timestamps). When in doubt between task and noise → **noise**. When in doubt between atom and noise for keepable content → **atom**.
+- task: **soft-retired / almost never**. Do not use task for list items, media, preferences, or people facts. Do not use task for ordinary chores (those are noise). Only emit task if nothing else fits and the capture is a pure to-do that somehow is not noise — prefer noise.
 - Durable facts about people you know (likes, habits, stories that matter) are usually atoms, not noise.
+- List dumps are **one atom per capture**, with a declarative title; use tags like #watch #movie #show #media #list when those labels are in Active vocabulary.
 
 ## Tags
 - tags: ONLY from the Active vocabulary listed in context. Drop anything else.
@@ -89,6 +92,7 @@ export const SYSTEM_PROMPT = `You classify fleeting captures from a daily-note i
   - #person — capture is primarily about a real person
   - #preferences — tastes, likes, dislikes, habits, aesthetics
   - #relationship — dynamics between people (not every person fact)
+  - #watch #movie #show #media #list — list/media dumps when present in Active
 - proposed_tags: only for genuinely useful new labels missing from Active (e.g. a recurring life domain). Never invent a flood of tags. Never put person display names as tags when a note title link works better.
 
 ## People (tasteful, automatic linking)
@@ -97,7 +101,7 @@ export const SYSTEM_PROMPT = `You classify fleeting captures from a daily-note i
 - Match names case-insensitively; use the vault's exact title string in links[].note (canonical hub title, not a nickname spelling).
 - Do not invent a new person note title if a close existing title already fits.
 - One atom can carry both a person link and a preference claim.
-- Tasks that merely mention a name stay task/noise — do not force person atoms for chores.
+- Pure logistics that merely mention a name stay **noise** — do not force person atoms for chores.
 
 ## Links + supersession
 - Link to existing notes when the capture relates, revises, or contradicts them.
@@ -105,6 +109,7 @@ export const SYSTEM_PROMPT = `You classify fleeting captures from a daily-note i
 - If this capture updates / revises / contradicts an existing claim, say so explicitly
   (e.g. "revises [[Old claim]]", "contradicts [[Old claim]]").
 - Prefer zero forced topical links over junk edges — except the people rule above when a name clearly matches a vault title.
+- If a Movies/Shows-style title already exists in Note titles, you may link it; do not invent a hub title just for the list.
 
 ## title
 - Required non-empty string iff verdict is atom.

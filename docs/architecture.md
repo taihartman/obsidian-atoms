@@ -49,6 +49,8 @@ processInbox(dryRun)
 | noise | no | `<!--linker:noise-->` | no |
 | unmarked | — | — | yes |
 
+**Product stance (0.4.3+):** second brain, not a task app. Classify soft-retires **task** (legacy markers still processed): **atom** for keepable memory including list/media dumps; **noise** for pure logistics. Home library remains atoms-only. Resurfacing stream + collection UIs stay v2.
+
 ## Module map (`src/`)
 
 | Module | Responsibility | Unit |

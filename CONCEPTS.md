@@ -22,7 +22,7 @@ A capture with no marker after its extent and non-empty body. Empty bullets (e.g
 ## Classification
 
 ### Verdict
-One of **atom**, **task**, or **noise**. Every verdict still gets a marker so the capture never re-enters the queue.
+One of **atom**, **task**, or **noise**. Every verdict still gets a marker so the capture never re-enters the queue. Product stance: **atom** for memory-worthy dumps (including list/media items); **noise** for pure logistics; **task** is soft-retired (legacy markers still mean processed; classify should rarely emit task).
 
 ### Dry-run (Preview)
 Classify without writing atoms or markers. Results may open in a card modal; vault stays unchanged.
@@ -40,6 +40,12 @@ Mobile-first `ItemView` leaf: library, wait/setup cards, and the primary surface
 
 ### Run progress
 In-home feedback during a long Preview/Process: phase, `N of M`, capture snippet, bar, then a done/error summary. Broadcast from the plugin to open home leaves; not driven by auto-run.
+
+### List dump
+A capture that is keepable list/media/preference material (e.g. show or movie to watch). First-ship product intent: one **atom per dump**, not append-into a Movies note and not a task marker.
+
+### Resurfacing (stream)
+v2 recall: re-show filed atoms without a guilt backlog (on-this-day, connected-to-recent, age-on-recall). Not a review queue. Deferred after filing quality.
 
 ## People (linking)
 

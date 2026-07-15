@@ -48,7 +48,7 @@ export class AtomsSettingTab extends PluginSettingTab {
     const version = this.plugin.manifest.version ?? "?";
     containerEl.createEl("h2", { text: "Atoms" });
     containerEl.createEl("p", {
-      text: `Classifies past daily-note captures into flat Atoms/ notes. Capture itself is handled by your iOS Shortcut.`,
+      text: `Second brain: files keepable captures (ideas, preferences, lists, media) as flat Atoms/ notes. Not a to-do app — pure logistics are marked noise. Capture itself is handled by your iOS Shortcut.`,
       cls: "setting-item-description",
     });
     containerEl.createEl("p", {

@@ -3,9 +3,12 @@ import {
   buildMessagesRequest,
   checkInvariants,
   classifyCapture,
+  CLASSIFICATION_SCHEMA,
   fingerprintKey,
+  SYSTEM_PROMPT,
 } from "../src/classify";
 import type { VaultContext } from "../src/types";
+import { DEFAULT_SETTINGS } from "../src/types";
 import { filterTagsToActive } from "../src/vocabulary";
 
 const ctx: VaultContext = {
@@ -40,6 +43,28 @@ function mockResponse(opts: {
     };
   });
 }
+
+describe("second-brain triage contract (0.4.3)", () => {
+  it("soft-retires task and files list dumps as atoms", () => {
+    expect(SYSTEM_PROMPT).toMatch(/second brain/i);
+    expect(SYSTEM_PROMPT).toMatch(/NOT a task app/i);
+    expect(SYSTEM_PROMPT).toMatch(/soft-retired/i);
+    expect(SYSTEM_PROMPT).toMatch(/list\/media dumps/i);
+    expect(SYSTEM_PROMPT).toMatch(/buy milk/);
+    expect(SYSTEM_PROMPT).toMatch(/When in doubt between task and noise → \*\*noise\*\*/);
+    expect(SYSTEM_PROMPT).toMatch(/one atom per capture/i);
+    const verdictDesc =
+      CLASSIFICATION_SCHEMA.properties.verdict.description as string;
+    expect(verdictDesc).toMatch(/almost never use it/i);
+    expect(verdictDesc).toMatch(/list\/media/i);
+  });
+
+  it("seeds default Active vocabulary with media/list tags", () => {
+    for (const t of ["watch", "movie", "show", "media", "list"]) {
+      expect(DEFAULT_SETTINGS.activeVocabulary).toContain(t);
+    }
+  });
+});
 
 describe("request shape (KTD3)", () => {
   it("places cache_control on context; capture after breakpoint", () => {
