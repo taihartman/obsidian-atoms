@@ -129,6 +129,97 @@ export function buildAtomMarkdown(opts: {
   return fm.join("\n") + body + (body.endsWith("\n") ? "" : "\n");
 }
 
+const MARKER_LINE_RE =
+  /^\s*(?:↳ .*\[\[.*\]\].*<!--linker-->|<!--linker:(?:task|noise)-->)\s*$/;
+
+/**
+ * True if any plugin marker sits after the capture before the next top-level bullet.
+ * Handles stacked markers from older bugs (don't insert another).
+ */
+export function captureAlreadyHasMarker(
+  lines: string[],
+  captureEndLine: number,
+): boolean {
+  for (let j = captureEndLine + 1; j < lines.length; j++) {
+    const line = lines[j]!;
+    if (/^- /.test(line)) break; // next capture
+    if (MARKER_LINE_RE.test(line)) return true;
+    // blank or non-bullet prose: keep scanning a few lines for orphan markers
+    if (line.trim() !== "" && !/^\s/.test(line) && !MARKER_LINE_RE.test(line)) {
+      // Non-indented non-bullet text — stop (next freeform line)
+      break;
+    }
+  }
+  return false;
+}
+
+/**
+ * Re-locate a capture in possibly-shifted daily content by matching the bullet line.
+ * Prefer exact startLine when it still matches; otherwise search.
+ */
+export function resolveCaptureEndLine(
+  lines: string[],
+  capture: { text: string; startLine: number; endLine: number },
+): number | null {
+  const firstLineText = capture.text.split("\n")[0] ?? "";
+  const bulletNeedle = firstLineText; // body after "- " may include timestamp stripped already
+
+  const tryAt = (idx: number): boolean => {
+    if (idx < 0 || idx >= lines.length) return false;
+    const m = lines[idx]!.match(/^- (.*)$/);
+    if (!m) return false;
+    // Compare against stripped body first line (timestamp may remain in file)
+    const raw = m[1]!;
+    const withoutTs = raw.replace(
+      /^(\d{1,2}:\d{2}(?::\d{2})?)\s+/,
+      "",
+    );
+    return withoutTs === bulletNeedle || raw === bulletNeedle;
+  };
+
+  if (tryAt(capture.startLine)) {
+    // extent: continuations after start
+    let end = capture.startLine;
+    const bodyLines = capture.text.split("\n");
+    // Prefer original span length when start still matches
+    const span = Math.max(0, capture.endLine - capture.startLine);
+    end = Math.min(lines.length - 1, capture.startLine + span);
+    // Expand through indented continuations if needed
+    let i = capture.startLine + 1;
+    while (
+      i < lines.length &&
+      /^[ \t]/.test(lines[i]!) &&
+      lines[i]!.trim() !== "" &&
+      !MARKER_LINE_RE.test(lines[i]!) &&
+      !/^- /.test(lines[i]!)
+    ) {
+      end = i;
+      i += 1;
+    }
+    return end;
+  }
+
+  // Search for matching bullet
+  for (let i = 0; i < lines.length; i++) {
+    if (!tryAt(i)) continue;
+    let end = i;
+    let j = i + 1;
+    while (
+      j < lines.length &&
+      /^[ \t]/.test(lines[j]!) &&
+      lines[j]!.trim() !== "" &&
+      !MARKER_LINE_RE.test(lines[j]!) &&
+      !/^- /.test(lines[j]!)
+    ) {
+      end = j;
+      j += 1;
+    }
+    // Prefer unique match; if multiple, first is ok for bottom-up processing
+    return end;
+  }
+  return null;
+}
+
 /**
  * Insert marker on the line immediately after the capture extent.
  * Original capture lines are byte-unchanged (R4/R6).
@@ -140,18 +231,14 @@ export function insertMarkerAfterCapture(
   markerLine: string,
 ): { content: string; changed: boolean } {
   const lines = dailyContent.split(/\r?\n/);
-  const after = capture.endLine + 1;
+  const endLine =
+    resolveCaptureEndLine(lines, capture) ?? capture.endLine;
 
-  // Already marked?
-  if (after < lines.length) {
-    const next = lines[after]!;
-    if (
-      /^\s*↳ .*\[\[.*\]\].*<!--linker-->\s*$/.test(next) ||
-      /^\s*<!--linker:(task|noise)-->\s*$/.test(next)
-    ) {
-      return { content: dailyContent, changed: false };
-    }
+  if (captureAlreadyHasMarker(lines, endLine)) {
+    return { content: dailyContent, changed: false };
   }
+
+  const after = endLine + 1;
 
   // Preserve whether file ended with newline
   const endsWithNewline = dailyContent.endsWith("\n");

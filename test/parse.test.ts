@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   collectPastNotesWithUnmarkedCaptures,
+  isEmptyCaptureText,
   isMarkerLine,
   parseCaptures,
   unprocessedCaptures,
@@ -159,5 +160,12 @@ describe("collectPastNotesWithUnmarkedCaptures — AE4 today excluded", () => {
       "- a\n\t<!--linker:task-->\n- b\n",
     );
     expect(unprocessedCaptures(caps).map((c) => c.text)).toEqual(["b"]);
+  });
+
+  it("skips empty bullet captures", () => {
+    const caps = parseCaptures("- \n- real\n-   \n");
+    expect(unprocessedCaptures(caps).map((c) => c.text)).toEqual(["real"]);
+    expect(isEmptyCaptureText("")).toBe(true);
+    expect(isEmptyCaptureText("  ")).toBe(true);
   });
 });

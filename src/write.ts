@@ -73,6 +73,13 @@ export async function runWritePath(
     }
   }
 
+  // Bottom-up within each daily so inserted markers don't shift later line numbers.
+  work.sort((a, b) => {
+    const byPath = a.note.path.localeCompare(b.note.path);
+    if (byPath !== 0) return byPath;
+    return b.capture.startLine - a.capture.startLine;
+  });
+
   const max = opts.maxCaptures ?? work.length;
   const slice = work.slice(0, max);
   const ctx = opts.contextProvider.buildContext();

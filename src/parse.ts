@@ -117,8 +117,13 @@ export function parseCaptures(content: string): Capture[] {
   return captures;
 }
 
+/** Skip empty / whitespace-only bullets (e.g. lone "- "). */
+export function isEmptyCaptureText(text: string): boolean {
+  return !text.replace(/\s+/g, " ").trim();
+}
+
 export function unprocessedCaptures(captures: Capture[]): Capture[] {
-  return captures.filter((c) => !c.processed);
+  return captures.filter((c) => !c.processed && !isEmptyCaptureText(c.text));
 }
 
 /**

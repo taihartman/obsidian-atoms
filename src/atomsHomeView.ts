@@ -42,6 +42,7 @@ export class AtomsHomeView extends ItemView {
   private busy = false;
   private rootEl: HTMLElement | null = null;
   private shortcutAcked: string | null = null;
+  private refreshTimer: number | null = null;
 
   constructor(leaf: WorkspaceLeaf, plugin: AtomsPlugin) {
     super(leaf);
@@ -65,10 +66,26 @@ export class AtomsHomeView extends ItemView {
     container.empty();
     container.addClass("atoms-home");
     this.rootEl = container;
+    // Keep library in sync when process writes atoms / markers elsewhere
+    const scheduleRefresh = () => {
+      if (this.busy) return; // onProcess finally refreshes
+      if (this.refreshTimer != null) window.clearTimeout(this.refreshTimer);
+      this.refreshTimer = window.setTimeout(() => {
+        this.refreshTimer = null;
+        void this.refresh();
+      }, 400);
+    };
+    this.registerEvent(this.app.vault.on("create", scheduleRefresh));
+    this.registerEvent(this.app.vault.on("modify", scheduleRefresh));
+    this.registerEvent(this.app.vault.on("delete", scheduleRefresh));
     await this.refresh();
   }
 
   async onClose(): Promise<void> {
+    if (this.refreshTimer != null) {
+      window.clearTimeout(this.refreshTimer);
+      this.refreshTimer = null;
+    }
     this.rootEl = null;
   }
 

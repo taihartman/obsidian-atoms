@@ -219,3 +219,26 @@ describe("formatAtomBody verbatim", () => {
     expect(body).toBe(text);
   });
 });
+
+describe("insertMarkerAfterCapture — no double markers", () => {
+  it("does not stack a second marker when one already follows the capture", () => {
+    const content = [
+      "- hello world",
+      "\t<!--linker:noise-->",
+      "- next",
+      "",
+    ].join("\n");
+    const cap = capture("hello world", 0, 0);
+    const once = insertMarkerAfterCapture(content, cap, "\t<!--linker:noise-->");
+    expect(once.changed).toBe(false);
+    const stacked = [
+      "- hello world",
+      "\t<!--linker:noise-->",
+      "\t<!--linker:noise-->",
+      "- next",
+      "",
+    ].join("\n");
+    const again = insertMarkerAfterCapture(stacked, cap, "\t<!--linker:noise-->");
+    expect(again.changed).toBe(false);
+  });
+});

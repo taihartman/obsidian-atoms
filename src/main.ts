@@ -129,6 +129,17 @@ export default class AtomsPlugin extends Plugin {
   /** Called from Atoms home Process — same write path as command. */
   async runProcessFromHome(opts?: { includeToday?: boolean }): Promise<void> {
     await this.runProcessUnprocessed(opts);
+    await this.refreshAtomsHomeLeaves();
+  }
+
+  /** Reload every open Atoms home leaf (after process / dry-run writes). */
+  async refreshAtomsHomeLeaves(): Promise<void> {
+    for (const leaf of this.app.workspace.getLeavesOfType(ATOMS_HOME_VIEW_TYPE)) {
+      const view = leaf.view;
+      if (view instanceof AtomsHomeView) {
+        await view.refresh();
+      }
+    }
   }
 
   /** Called from Atoms home ⋯ menu. */
@@ -894,8 +905,13 @@ export default class AtomsPlugin extends Plugin {
       const includeToday = opts?.includeToday === true;
       new DryRunPreviewModal(this.app, report, {
         report,
-        onProcess: () => this.runProcessUnprocessed({ includeToday }),
+        onProcess: async () => {
+          await this.runProcessUnprocessed({ includeToday });
+          await this.refreshAtomsHomeLeaves();
+        },
       }).open();
+      // Preview doesn't write, but refresh so counts stay honest if user switched leaves
+      await this.refreshAtomsHomeLeaves();
     } catch (e) {
       if (e instanceof DailyNotesDisabledError) {
         new Notice(e.message);
