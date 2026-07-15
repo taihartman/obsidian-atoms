@@ -147,16 +147,16 @@ describe("insertMarkerAfterCapture (R4/R6)", () => {
 });
 
 describe("planWrite collision (KTD8)", () => {
-  it("does not create a new file on same-title collision", () => {
+  it("updates the same path on same-title collision (no second file)", () => {
     const title = "Sleep debt plateaus";
     const path = atomPathForTitle("Atoms", title);
     const plan = planWrite({
       result: {
         verdict: "atom",
         title,
-        tags: ["idea"],
+        tags: ["idea", "watch"],
         proposed_tags: [],
-        links: [],
+        links: [{ note: "Show", reason: "media" }],
       },
       capture: capture("again the same thought"),
       dailyPath: "Daily/2026-07-13.md",
@@ -164,11 +164,13 @@ describe("planWrite collision (KTD8)", () => {
       atomFolder: "Atoms",
       existingAtomPaths: new Set([path]),
     });
-    expect(plan.action.kind).toBe("skip_atom_collision");
+    expect(plan.action.kind).toBe("update_atom");
+    if (plan.action.kind === "update_atom") {
+      expect(plan.action.path).toBe(path);
+      expect(plan.action.content).toContain("again the same thought");
+      expect(plan.action.content).toContain("watch");
+    }
     expect(plan.markerLine).toContain("[[Sleep debt plateaus]]");
-    expect(plan.result.links.some((l) => l.reason.includes("revises"))).toBe(
-      true,
-    );
   });
 
   it("plans create_atom with content for new title", () => {
