@@ -1,18 +1,30 @@
 /**
  * Capture shortcut install/update — versioned HTTPS link + device-local ack.
  * We cannot push into Shortcuts.app; "update" = open latest URL + ack.
+ *
+ * iCloud links can only be created from Shortcuts.app on an Apple device.
+ * Prefer Settings → Capture → paste link (syncs via data.json).
  */
 
 export const CAPTURE_SHORTCUT_VERSION = "1.0.0";
 
 /**
- * iCloud / GitHub release link for the capture shortcut.
- * Empty until published — UI disables Install and shows a Settings note.
+ * Built-in default install URL (repo ships empty).
+ * User/settings override wins — see resolveCaptureShortcutInstallUrl.
  */
 export const CAPTURE_SHORTCUT_INSTALL_URL = "";
 
 /** Device-local (never data.json). */
 export const LS_CAPTURE_SHORTCUT_ACK = "atoms-capture-shortcut-acked-version";
+
+/** Prefer synced settings URL, then built-in constant. */
+export function resolveCaptureShortcutInstallUrl(
+  settingsUrl?: string | null,
+): string {
+  const fromSettings = (settingsUrl ?? "").trim();
+  if (fromSettings) return fromSettings;
+  return (CAPTURE_SHORTCUT_INSTALL_URL ?? "").trim();
+}
 
 /** True when user should see Install or Update CTA. */
 export function needsShortcutCta(
@@ -50,9 +62,7 @@ export function writeShortcutAck(
  * Open install URL. Returns true if opened (caller may ack).
  * Empty URL → false (caller should Notice).
  */
-export function openShortcutInstallUrl(
-  url: string = CAPTURE_SHORTCUT_INSTALL_URL,
-): boolean {
+export function openShortcutInstallUrl(url: string): boolean {
   const u = (url ?? "").trim();
   if (!u) return false;
   try {

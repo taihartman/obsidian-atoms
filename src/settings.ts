@@ -13,11 +13,11 @@ import {
   writeEgressAck,
 } from "./autorun";
 import {
-  CAPTURE_SHORTCUT_INSTALL_URL,
   CAPTURE_SHORTCUT_VERSION,
   labelInstallOrUpdate,
   openShortcutInstallUrl,
   readShortcutAck,
+  resolveCaptureShortcutInstallUrl,
   writeShortcutAck,
 } from "./captureShortcut";
 import {
@@ -68,7 +68,10 @@ export class AtomsSettingTab extends PluginSettingTab {
     containerEl.createEl("h3", { text: "Capture" });
 
     const acked = readShortcutAck((k) => this.app.loadLocalStorage(k));
-    const urlSet = Boolean(CAPTURE_SHORTCUT_INSTALL_URL.trim());
+    const installUrl = resolveCaptureShortcutInstallUrl(
+      this.plugin.settings.captureShortcutInstallUrl,
+    );
+    const urlSet = Boolean(installUrl);
 
     new Setting(containerEl)
       .setName("Daily capture format")
@@ -77,11 +80,26 @@ export class AtomsSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
+      .setName("iCloud shortcut link")
+      .setDesc(
+        "Paste the iCloud share link from Shortcuts (Share → Copy iCloud Link). Syncs with the vault. See docs/capture-shortcut.md for how to build the shortcut.",
+      )
+      .addText((text) =>
+        text
+          .setPlaceholder("https://www.icloud.com/shortcuts/…")
+          .setValue(this.plugin.settings.captureShortcutInstallUrl)
+          .onChange(async (value) => {
+            this.plugin.settings.captureShortcutInstallUrl = value.trim();
+            await this.plugin.saveSettings();
+          }),
+      );
+
+    new Setting(containerEl)
       .setName("Capture shortcut")
       .setDesc(
         urlSet
-          ? `Install or update the iOS shortcut (v${CAPTURE_SHORTCUT_VERSION}). Opens a link — Shortcuts.app still needs your confirm. Acked: ${acked ?? "never"}.`
-          : `Shortcut install link not configured yet (plugin v packs shortcut version ${CAPTURE_SHORTCUT_VERSION}). Maintainer: set CAPTURE_SHORTCUT_INSTALL_URL — see docs/capture-shortcut.md.`,
+          ? `Install or update the iOS shortcut (v${CAPTURE_SHORTCUT_VERSION}). Opens your iCloud link — Shortcuts.app still needs confirm. Acked: ${acked ?? "never"}.`
+          : `No link yet — paste an iCloud URL above (or create the shortcut on your phone, then paste). Version tag: ${CAPTURE_SHORTCUT_VERSION}.`,
       )
       .addButton((btn) =>
         btn
@@ -90,11 +108,11 @@ export class AtomsSettingTab extends PluginSettingTab {
           .onClick(() => {
             if (!urlSet) {
               new Notice(
-                "Capture shortcut link not configured. See docs/capture-shortcut.md",
+                "Paste an iCloud shortcut link above first (Shortcuts → Share → Copy iCloud Link).",
               );
               return;
             }
-            const ok = openShortcutInstallUrl();
+            const ok = openShortcutInstallUrl(installUrl);
             if (!ok) {
               new Notice("Could not open the shortcut link");
               return;

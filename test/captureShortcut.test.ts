@@ -4,6 +4,7 @@ import {
   labelInstallOrUpdate,
   needsShortcutCta,
   readShortcutAck,
+  resolveCaptureShortcutInstallUrl,
   writeShortcutAck,
 } from "../src/captureShortcut";
 
@@ -34,5 +35,17 @@ describe("ack storage helpers", () => {
     expect(readShortcutAck(load)).toBeNull();
     writeShortcutAck(save, "1.0.0");
     expect(readShortcutAck(load)).toBe("1.0.0");
+  });
+});
+
+describe("resolveCaptureShortcutInstallUrl", () => {
+  it("prefers settings URL over empty built-in", () => {
+    expect(
+      resolveCaptureShortcutInstallUrl(
+        "https://www.icloud.com/shortcuts/abc",
+      ),
+    ).toBe("https://www.icloud.com/shortcuts/abc");
+    expect(resolveCaptureShortcutInstallUrl("")).toBe("");
+    expect(resolveCaptureShortcutInstallUrl(null)).toBe("");
   });
 });

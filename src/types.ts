@@ -116,6 +116,12 @@ export interface LinkerSettings {
    * The actual key, if falling back, lives in loadLocalStorage — never data.json.
    */
   useDeviceLocalKeyFallback: boolean;
+  /**
+   * Optional iCloud/GitHub install URL for the capture Shortcut.
+   * Synced via data.json so phone/desktop share the same link.
+   * Empty → fall back to built-in CAPTURE_SHORTCUT_INSTALL_URL constant.
+   */
+  captureShortcutInstallUrl: string;
 }
 
 export const DEFAULT_SETTINGS: LinkerSettings = {
@@ -134,6 +140,7 @@ export const DEFAULT_SETTINGS: LinkerSettings = {
   ],
   proposedTags: [],
   useDeviceLocalKeyFallback: false,
+  captureShortcutInstallUrl: "",
 };
 
 /** SecretStorage / localStorage keys — lowercase-dashed (KTD5). */

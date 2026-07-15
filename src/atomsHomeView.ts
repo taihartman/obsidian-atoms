@@ -9,12 +9,12 @@ import {
   type AtomLibraryEntry,
 } from "./atomsHomeData";
 import {
-  CAPTURE_SHORTCUT_INSTALL_URL,
   CAPTURE_SHORTCUT_VERSION,
   labelInstallOrUpdate,
   needsShortcutCta,
   openShortcutInstallUrl,
   readShortcutAck,
+  resolveCaptureShortcutInstallUrl,
   writeShortcutAck,
 } from "./captureShortcut";
 import {
@@ -79,8 +79,14 @@ export class AtomsHomeView extends ItemView {
     return this.entries.length === 0 && this.unprocessedCount === 0;
   }
 
+  private installUrl(): string {
+    return resolveCaptureShortcutInstallUrl(
+      this.plugin.settings.captureShortcutInstallUrl,
+    );
+  }
+
   private showShortcutBanner(): boolean {
-    if (!CAPTURE_SHORTCUT_INSTALL_URL.trim()) return false;
+    if (!this.installUrl()) return false;
     if (this.isFirstDay()) return false; // setup card owns Install
     return needsShortcutCta(this.shortcutAcked);
   }
@@ -271,11 +277,11 @@ export class AtomsHomeView extends ItemView {
         cls: "atoms-home-btn atoms-home-btn-secondary",
         text: installLabel,
       });
-      if (!CAPTURE_SHORTCUT_INSTALL_URL.trim()) {
+      if (!this.installUrl()) {
         installBtn.disabled = true;
         installBtn.setAttr(
           "title",
-          "Install link not configured yet — see Settings → Capture",
+          "Paste an iCloud link in Settings → Capture first",
         );
       }
       installBtn.addEventListener("click", () => this.onInstallShortcut());
@@ -410,10 +416,10 @@ export class AtomsHomeView extends ItemView {
   }
 
   private onInstallShortcut(): void {
-    const url = CAPTURE_SHORTCUT_INSTALL_URL.trim();
+    const url = this.installUrl();
     if (!url) {
       new Notice(
-        "Capture shortcut link is not configured yet. See Settings → Capture or docs/capture-shortcut.md",
+        "Paste an iCloud shortcut link in Settings → Capture (Shortcuts → Share → Copy iCloud Link).",
       );
       return;
     }
@@ -428,7 +434,7 @@ export class AtomsHomeView extends ItemView {
     );
     this.shortcutAcked = CAPTURE_SHORTCUT_VERSION;
     new Notice(
-      `Capture shortcut ${labelInstallOrUpdate(null) === "Install capture shortcut" ? "install" : "update"} opened — add it in Shortcuts, then you're set (v${CAPTURE_SHORTCUT_VERSION})`,
+      `Opened capture shortcut v${CAPTURE_SHORTCUT_VERSION} — add it in Shortcuts`,
     );
     this.render();
   }
