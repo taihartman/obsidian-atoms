@@ -14,6 +14,8 @@ Read **past** daily notes → split captures → classify atom/task/noise via An
 | `docs/spec-amendments.md` | Corrected design + *why* (markers, append cut, rot) |
 | `docs/architecture.md` | Long-lived system map + future v2 shape |
 | `docs/u1-spike-findings.md` | Spike-verified API/SecretStorage notes |
+| `docs/solutions/` | Documented solutions to past problems (bugs, patterns, workflows), by category with YAML frontmatter (`module`, `tags`, `problem_type`) — relevant when implementing or debugging in those areas |
+| `CONCEPTS.md` | Shared domain vocabulary (entities, named processes, status concepts) — relevant when orienting or discussing domain terms |
 
 Where plan and amendments conflict, **the plan wins**. Amendments explain rationale for plan KTDs.
 
