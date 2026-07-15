@@ -1,4 +1,5 @@
-import { Notice, Plugin, requestUrl } from "obsidian";
+import { Notice, Plugin, WorkspaceLeaf, requestUrl } from "obsidian";
+import { ATOMS_HOME_VIEW_TYPE, AtomsHomeView } from "./atomsHomeView";
 import {
   classifyCapture,
   logClassifyOutcome,
@@ -91,10 +92,53 @@ export default class AtomsPlugin extends Plugin {
       () => this.settings.activeVocabulary,
     );
     this.addSettingTab(new AtomsSettingTab(this.app, this));
+
+    this.registerView(ATOMS_HOME_VIEW_TYPE, (leaf) => new AtomsHomeView(leaf, this));
+    this.addRibbonIcon("library", "Open Atoms", () => {
+      void this.activateAtomsHome();
+    });
+
     this.registerCommands();
 
     // U9: never block launch — schedule auto-run after layout + metadata.
     void this.scheduleAutoRunLifecycle();
+  }
+
+  async activateAtomsHome(): Promise<void> {
+    const { workspace } = this.app;
+    let leaf: WorkspaceLeaf | null = null;
+    const existing = workspace.getLeavesOfType(ATOMS_HOME_VIEW_TYPE);
+    if (existing.length) {
+      leaf = existing[0]!;
+    } else {
+      leaf = workspace.getLeftLeaf(false) ?? workspace.getLeaf(false);
+      await leaf.setViewState({ type: ATOMS_HOME_VIEW_TYPE, active: true });
+    }
+    workspace.revealLeaf(leaf);
+    const view = leaf.view;
+    if (view instanceof AtomsHomeView) {
+      await view.refresh();
+    }
+  }
+
+  /** Called from Atoms home Preview — same dry-run as command. */
+  async runDryRunFromHome(): Promise<void> {
+    await this.runDryRunPreview();
+  }
+
+  /** Called from Atoms home Process — same write path as command. */
+  async runProcessFromHome(): Promise<void> {
+    await this.runProcessUnprocessed();
+  }
+
+  /** Called from Atoms home ⋯ menu. */
+  async runTestConnectionFromHome(): Promise<void> {
+    await this.runTestConnection();
+  }
+
+  /** Called from Atoms home ⋯ menu. */
+  async runBackfillFromHome(): Promise<void> {
+    await this.runBackfillFlow();
   }
 
   onunload() {
@@ -232,6 +276,14 @@ export default class AtomsPlugin extends Plugin {
   }
 
   private registerCommands() {
+    this.addCommand({
+      id: "open-atoms-home",
+      name: "Open Atoms home",
+      callback: () => {
+        void this.activateAtomsHome();
+      },
+    });
+
     this.addCommand({
       id: "spike-classify-hardcoded",
       name: "Spike: classify hardcoded capture",

@@ -1,0 +1,775 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Atoms view — settled mock</title>
+  <style>
+    :root {
+      --bg: #000;
+      --grouped: #1c1c1e;
+      --elevated: #2c2c2e;
+      --sep: rgba(84, 84, 88, 0.65);
+      --label: #fff;
+      --secondary: rgba(235, 235, 245, 0.6);
+      --tertiary: rgba(235, 235, 245, 0.3);
+      --tint: #0a84ff;
+      --tint-soft: rgba(10, 132, 255, 0.18);
+      --orange: #ff9f0a;
+      --green: #30d158;
+      --warn-bg: rgba(255, 159, 10, 0.12);
+      --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: var(--font);
+      background: #0a0a0c;
+      color: var(--label);
+      -webkit-font-smoothing: antialiased;
+    }
+    .page {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 28px 18px 80px;
+    }
+    .page h1 {
+      font-size: 1.4rem;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      margin: 0 0 6px;
+    }
+    .lede {
+      color: var(--secondary);
+      font-size: 0.95rem;
+      line-height: 1.45;
+      max-width: 38rem;
+      margin: 0 0 20px;
+    }
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 24px;
+      align-items: center;
+    }
+    .toolbar > span {
+      font-size: 0.68rem;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: var(--tertiary);
+    }
+    .chip {
+      border: none;
+      background: var(--elevated);
+      color: var(--secondary);
+      border-radius: 980px;
+      padding: 8px 14px;
+      font-size: 0.85rem;
+      font-weight: 500;
+      cursor: pointer;
+    }
+    .chip.on {
+      background: var(--tint-soft);
+      color: var(--tint);
+    }
+
+    .stage {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 36px;
+      align-items: start;
+    }
+    @media (max-width: 860px) {
+      .stage { grid-template-columns: 1fr; justify-items: center; }
+      .desk { display: none !important; }
+    }
+    .cap {
+      font-size: 0.68rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--tertiary);
+      text-align: center;
+      margin-bottom: 10px;
+    }
+
+    /* Phone */
+    .phone {
+      width: 375px;
+      height: 780px;
+      background: var(--bg);
+      border-radius: 44px;
+      border: 4px solid #2a2a2c;
+      box-shadow: 0 28px 70px rgba(0,0,0,0.55);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+    .status-bar {
+      height: 47px;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      padding-bottom: 6px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+    .nav { padding: 0 8px 8px 16px; flex-shrink: 0; }
+    .nav-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      min-height: 44px;
+    }
+    .nav-btn {
+      border: none;
+      background: transparent;
+      color: var(--tint);
+      font-size: 1.2rem;
+      min-width: 44px;
+      min-height: 44px;
+      cursor: pointer;
+      padding: 8px;
+    }
+    .large-title {
+      font-size: 2.1rem;
+      font-weight: 700;
+      letter-spacing: -0.045em;
+      margin: 0;
+      line-height: 1.05;
+    }
+    .subtitle {
+      font-size: 0.9rem;
+      color: var(--secondary);
+      margin: 4px 0 0;
+    }
+
+    .scroll {
+      flex: 1;
+      overflow-y: auto;
+      min-height: 0;
+      padding: 4px 16px 24px;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    /* Dominant waiting card */
+    .wait-card {
+      display: none;
+      flex-direction: column;
+      gap: 12px;
+      background: var(--warn-bg);
+      border: 1px solid rgba(255, 159, 10, 0.35);
+      border-radius: 14px;
+      padding: 16px;
+      margin-bottom: 18px;
+    }
+    .wait-card.show { display: flex; }
+    .wait-card h2 {
+      margin: 0;
+      font-size: 1.15rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+    .wait-card p {
+      margin: 0;
+      font-size: 0.88rem;
+      color: var(--secondary);
+      line-height: 1.35;
+    }
+    .wait-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 4px;
+    }
+    .btn {
+      flex: 1;
+      min-height: 48px;
+      border: none;
+      border-radius: 12px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .btn.primary { background: var(--tint); color: #fff; }
+    .btn.secondary {
+      background: var(--elevated);
+      color: var(--tint);
+    }
+
+    /* Filters */
+    .filters {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .filter {
+      border: none;
+      background: var(--grouped);
+      color: var(--secondary);
+      border-radius: 980px;
+      padding: 7px 12px;
+      font-size: 0.82rem;
+      font-weight: 500;
+      cursor: pointer;
+    }
+    .filter.on {
+      background: var(--elevated);
+      color: var(--label);
+    }
+
+    .section {
+      font-size: 0.78rem;
+      color: var(--secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      margin: 10px 2px 8px;
+    }
+
+    .list {
+      background: var(--grouped);
+      border-radius: 12px;
+      overflow: hidden;
+      margin-bottom: 16px;
+    }
+    .cell {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 6px 10px;
+      padding: 13px 16px;
+      border-bottom: 0.5px solid var(--sep);
+      cursor: pointer;
+      min-height: 64px;
+      align-items: start;
+    }
+    .cell:last-child { border-bottom: none; }
+    .cell:active { background: var(--elevated); }
+    .cell.dim { opacity: 0.35; }
+    .cell-title {
+      font-size: 1.02rem;
+      line-height: 1.3;
+      letter-spacing: -0.015em;
+    }
+    .cell-meta {
+      font-size: 0.82rem;
+      color: var(--secondary);
+      margin-top: 4px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+    }
+    .link-chip {
+      color: var(--orange);
+      font-weight: 500;
+    }
+    .cell-time {
+      font-size: 0.82rem;
+      color: var(--tertiary);
+      white-space: nowrap;
+      padding-top: 2px;
+    }
+
+    .queue-peek {
+      display: none;
+      margin-bottom: 8px;
+    }
+    .queue-peek.show { display: block; }
+    .queue-peek .list { opacity: 0.95; }
+    .queue-label {
+      font-size: 0.78rem;
+      color: var(--orange);
+      margin: 0 2px 8px;
+      font-weight: 600;
+    }
+    .qcell {
+      padding: 11px 16px;
+      border-bottom: 0.5px solid var(--sep);
+      font-size: 0.92rem;
+      color: var(--secondary);
+      line-height: 1.35;
+    }
+    .qcell:last-child { border-bottom: none; }
+    .qcell em {
+      font-style: normal;
+      color: var(--tertiary);
+      font-size: 0.78rem;
+      display: block;
+      margin-top: 3px;
+    }
+
+    .footnote {
+      text-align: center;
+      font-size: 0.78rem;
+      color: var(--tertiary);
+      line-height: 1.4;
+      padding: 8px 8px 16px;
+    }
+
+    /* Bottom safe — no tab bar; single home */
+    .home-footer {
+      flex-shrink: 0;
+      border-top: 0.5px solid var(--sep);
+      background: rgba(28,28,30,0.92);
+      padding: 10px 16px calc(14px + env(safe-area-inset-bottom, 10px));
+      display: none;
+      gap: 8px;
+    }
+    .home-footer.show { display: flex; }
+
+    /* Sheet */
+    .scrim {
+      display: none;
+      position: absolute;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 20;
+      align-items: flex-end;
+    }
+    .scrim.on { display: flex; }
+    .sheet {
+      width: 100%;
+      background: var(--grouped);
+      border-radius: 14px 14px 0 0;
+      padding: 12px 16px 32px;
+    }
+    .grab {
+      width: 36px;
+      height: 5px;
+      border-radius: 3px;
+      background: rgba(120,120,128,0.36);
+      margin: 0 auto 14px;
+    }
+    .sheet h3 {
+      margin: 0 0 6px;
+      text-align: center;
+      font-size: 1.2rem;
+      font-weight: 700;
+    }
+    .sheet > p {
+      margin: 0 0 16px;
+      text-align: center;
+      color: var(--secondary);
+      font-size: 0.9rem;
+    }
+    .sheet .btn { width: 100%; margin-bottom: 10px; flex: none; }
+    .sheet .btn.ghost {
+      background: transparent;
+      color: var(--secondary);
+      font-weight: 500;
+    }
+
+    /* Preview list inside sheet */
+    .preview-list {
+      background: var(--bg);
+      border-radius: 10px;
+      margin-bottom: 14px;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+    .preview-row {
+      padding: 10px 12px;
+      border-bottom: 0.5px solid var(--sep);
+      font-size: 0.85rem;
+    }
+    .preview-row:last-child { border-bottom: none; }
+    .preview-row strong { font-weight: 600; }
+    .tag {
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--tint);
+      margin-right: 6px;
+    }
+    .tag.task { color: #64d2ff; }
+    .tag.noise { color: var(--tertiary); }
+
+    /* Desktop */
+    .desk {
+      border-radius: 12px;
+      border: 1px solid #333;
+      height: 560px;
+      display: grid;
+      grid-template-columns: 340px 1fr;
+      overflow: hidden;
+      background: #111;
+      box-shadow: 0 18px 48px rgba(0,0,0,0.4);
+    }
+    .desk-side {
+      background: var(--bg);
+      border-right: 0.5px solid var(--sep);
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+    .desk-side .scroll { flex: 1; }
+    .desk-main { padding: 36px 40px; }
+    .desk-main h2 {
+      margin: 0 0 8px;
+      font-size: 1.65rem;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+    }
+    .desk-main .meta {
+      color: var(--secondary);
+      margin-bottom: 20px;
+      font-size: 0.95rem;
+    }
+    .desk-main .body {
+      color: var(--secondary);
+      font-size: 1.05rem;
+      line-height: 1.55;
+      max-width: 34rem;
+    }
+
+    .callout {
+      margin-top: 36px;
+      padding: 18px 20px;
+      border-radius: 14px;
+      background: var(--grouped);
+      border: 1px solid #2c2c2e;
+      color: var(--secondary);
+      font-size: 0.9rem;
+      line-height: 1.5;
+    }
+    .callout strong { color: var(--label); }
+    .callout ul { margin: 8px 0 0; padding-left: 1.15em; }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <h1>Atoms home — settled design</h1>
+    <p class="lede">
+      One surface. When the queue is clear, you browse what landed.
+      When work is waiting, processing owns the top of the screen — Preview first.
+      No Links tab, no admin chrome as home.
+    </p>
+
+    <div class="toolbar">
+      <span>State</span>
+      <button type="button" class="chip on" data-state="clear">Queue clear</button>
+      <button type="button" class="chip" data-state="waiting">12 waiting</button>
+      <button type="button" class="chip" data-state="preview">Open preview sheet</button>
+      <span style="margin-left:8px">Filter</span>
+      <button type="button" class="chip on" data-filter="all">All</button>
+      <button type="button" class="chip" data-filter="linked">Linked</button>
+    </div>
+
+    <div class="stage">
+      <div>
+        <div class="cap">Mobile · primary</div>
+        <div class="phone">
+          <div class="status-bar">9:41</div>
+          <div class="nav">
+            <div class="nav-top">
+              <button type="button" class="nav-btn" id="btn-more" title="More">⋯</button>
+              <button type="button" class="nav-btn" title="Settings">⚙︎</button>
+            </div>
+            <h1 class="large-title">Atoms</h1>
+            <p class="subtitle" id="subtitle">Latest from your vault</p>
+          </div>
+
+          <div class="scroll">
+            <!-- WAITING (dominant) -->
+            <div class="wait-card" id="wait-card">
+              <h2>12 captures waiting</h2>
+              <p>Past dailies ready to classify. Preview before anything is written.</p>
+              <div class="wait-actions">
+                <button type="button" class="btn primary" id="btn-preview">Preview</button>
+                <button type="button" class="btn secondary" id="btn-process">Process</button>
+              </div>
+            </div>
+
+            <div class="queue-peek" id="queue-peek">
+              <div class="queue-label">Still in dailies</div>
+              <div class="list">
+                <div class="qcell">Nichita likes periwinkle and soft pajamas<em>2026-07-14 · Daily</em></div>
+                <div class="qcell">buy milk and eggs before Thursday<em>2026-07-14 · Daily</em></div>
+                <div class="qcell">Tin mentioned a bakery near the canal<em>2026-07-13 · Daily</em></div>
+              </div>
+            </div>
+
+            <div class="filters" id="filters">
+              <button type="button" class="filter on" data-filter="all">All</button>
+              <button type="button" class="filter" data-filter="linked">Linked</button>
+            </div>
+
+            <div class="section" id="library-label">Recently added</div>
+            <div class="list" id="atom-list">
+              <div class="cell" data-linked="1" data-note="peri">
+                <div>
+                  <div class="cell-title">Nichita prefers periwinkle and soft pajamas</div>
+                  <div class="cell-meta">
+                    <span class="link-chip">Nichita</span>
+                    <span>· from Jul 14</span>
+                  </div>
+                </div>
+                <div class="cell-time">2h</div>
+              </div>
+              <div class="cell" data-linked="1" data-note="bakery">
+                <div>
+                  <div class="cell-title">Tin mentioned a bakery near the canal</div>
+                  <div class="cell-meta">
+                    <span class="link-chip">Tin</span>
+                    <span>· from Jul 13</span>
+                  </div>
+                </div>
+                <div class="cell-time">5h</div>
+              </div>
+              <div class="cell" data-linked="0" data-note="sleep">
+                <div>
+                  <div class="cell-title">Sleep debt still feels nonlinear after travel</div>
+                  <div class="cell-meta"><span>from Jul 12</span></div>
+                </div>
+                <div class="cell-time">Yest.</div>
+              </div>
+              <div class="cell" data-linked="0" data-note="capture">
+                <div>
+                  <div class="cell-title">Capture is cheap; review is the scarce resource</div>
+                  <div class="cell-meta"><span>from Jul 11</span></div>
+                </div>
+                <div class="cell-time">Mon</div>
+              </div>
+              <div class="cell" data-linked="0" data-note="titles">
+                <div>
+                  <div class="cell-title">Declarative titles beat topic titles for retrieval</div>
+                  <div class="cell-meta"><span>from Jul 10</span></div>
+                </div>
+                <div class="cell-time">Sun</div>
+              </div>
+            </div>
+
+            <p class="footnote" id="footnote">
+              Atom notes only. Capture stays in Daily · process when the card appears.
+            </p>
+          </div>
+
+          <div class="home-footer" id="footer">
+            <button type="button" class="btn primary" id="btn-preview-f">Preview</button>
+            <button type="button" class="btn secondary" id="btn-process-f">Process</button>
+          </div>
+
+          <div class="scrim" id="scrim">
+            <div class="sheet">
+              <div class="grab"></div>
+              <h3>Preview</h3>
+              <p>Nothing written yet. 5 of 12 shown.</p>
+              <div class="preview-list">
+                <div class="preview-row">
+                  <span class="tag">atom</span>
+                  <strong>Nichita prefers periwinkle…</strong>
+                  <div class="cell-meta" style="margin-top:4px">
+                    <span class="link-chip">→ Nichita</span>
+                  </div>
+                </div>
+                <div class="preview-row">
+                  <span class="tag task">task</span>
+                  buy milk and eggs — marker only
+                </div>
+                <div class="preview-row">
+                  <span class="tag">atom</span>
+                  <strong>Tin mentioned a bakery…</strong>
+                  <div class="cell-meta" style="margin-top:4px">
+                    <span class="link-chip">→ Tin</span>
+                  </div>
+                </div>
+                <div class="preview-row">
+                  <span class="tag">atom</span>
+                  <strong>Sleep debt still feels nonlinear…</strong>
+                </div>
+                <div class="preview-row">
+                  <span class="tag noise">noise</span>
+                  lol — marker only
+                </div>
+              </div>
+              <button type="button" class="btn primary" id="sheet-write">Process these</button>
+              <button type="button" class="btn secondary" id="sheet-close">Keep previewing</button>
+              <button type="button" class="btn ghost" id="sheet-cancel">Cancel</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="desk">
+        <div class="cap" style="grid-column:1/-1;padding:10px 0 0;margin:0;background:#111">Desktop · sidebar + note</div>
+        <div class="desk-side">
+          <div class="nav" style="padding-top:14px">
+            <h1 class="large-title" style="font-size:1.55rem">Atoms</h1>
+            <p class="subtitle" id="desk-sub">Latest from your vault</p>
+          </div>
+          <div class="scroll" id="desk-scroll"></div>
+        </div>
+        <div class="desk-main">
+          <h2 id="desk-title">Nichita prefers periwinkle and soft pajamas</h2>
+          <div class="meta" id="desk-meta"><span style="color:var(--orange)">Nichita</span> · from daily Jul 14</div>
+          <div class="body" id="desk-body">
+            Nichita likes periwinkle and soft pajamas
+            <br /><br />
+            <span style="color:var(--tertiary);font-size:0.9rem">Body unchanged. Structure only.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout">
+      <strong>Locked decisions</strong>
+      <ul>
+        <li>Home title is <strong>Atoms</strong>, not “Recent” or “Inbox”.</li>
+        <li><strong>No second tab</strong> in v1 — connections are chips + Linked filter.</li>
+        <li>Pending work uses a <strong>dominant card</strong> + Preview-first sheet.</li>
+        <li>Library is <strong>atoms only</strong>, Atoms-native rows (title, links, source day).</li>
+      </ul>
+      Full write-up: <code>docs/design-handoff/atoms-view/README.md</code>
+    </div>
+  </div>
+
+  <script>
+    const waitCard = document.getElementById("wait-card");
+    const queuePeek = document.getElementById("queue-peek");
+    const footer = document.getElementById("footer");
+    const scrim = document.getElementById("scrim");
+    const subtitle = document.getElementById("subtitle");
+    const deskSub = document.getElementById("desk-sub");
+    const deskScroll = document.getElementById("desk-scroll");
+    const footnote = document.getElementById("footnote");
+
+    function syncDesk() {
+      const parts = [];
+      if (waitCard.classList.contains("show")) {
+        parts.push(waitCard.outerHTML.replace("wait-card show", "wait-card show").replace(/id="[^"]*"/g, ""));
+      }
+      if (queuePeek.classList.contains("show")) {
+        parts.push(queuePeek.innerHTML);
+      }
+      parts.push(document.getElementById("filters").outerHTML);
+      parts.push(`<div class="section">${document.getElementById("library-label").textContent}</div>`);
+      parts.push(document.getElementById("atom-list").outerHTML);
+      deskScroll.innerHTML = parts.join("");
+      deskScroll.querySelectorAll(".filter").forEach((f) => {
+        f.addEventListener("click", () => setFilter(f.dataset.filter));
+      });
+      deskScroll.querySelectorAll(".cell").forEach((c) => {
+        c.addEventListener("click", () => select(c.dataset.note));
+      });
+      const pv = deskScroll.querySelector(".btn.primary");
+      if (pv) pv.addEventListener("click", openSheet);
+    }
+
+    function setState(state) {
+      document.querySelectorAll("[data-state]").forEach((c) => {
+        c.classList.toggle("on", c.dataset.state === state || (state === "preview" && c.dataset.state === "waiting"));
+      });
+      if (state === "preview") {
+        setStateWaiting(true);
+        openSheet();
+        return;
+      }
+      const waiting = state === "waiting";
+      setStateWaiting(waiting);
+      closeSheet();
+    }
+
+    function setStateWaiting(waiting) {
+      waitCard.classList.toggle("show", waiting);
+      queuePeek.classList.toggle("show", waiting);
+      footer.classList.toggle("show", waiting);
+      subtitle.textContent = waiting
+        ? "Process when ready · library below"
+        : "Latest from your vault";
+      deskSub.textContent = subtitle.textContent;
+      footnote.textContent = waiting
+        ? "Preview before write. Library below is already in Atoms/."
+        : "Atom notes only. Capture stays in Daily · process when the card appears.";
+      document.querySelectorAll(".chip[data-state]").forEach((c) => {
+        if (c.dataset.state === "preview") return;
+        c.classList.toggle("on", waiting ? c.dataset.state === "waiting" : c.dataset.state === "clear");
+      });
+      syncDesk();
+    }
+
+    function setFilter(name) {
+      document.querySelectorAll(".filter, .chip[data-filter]").forEach((el) => {
+        if (el.dataset.filter) el.classList.toggle("on", el.dataset.filter === name);
+      });
+      document.querySelectorAll("#atom-list .cell").forEach((cell) => {
+        const linked = cell.dataset.linked === "1";
+        cell.classList.toggle("dim", name === "linked" && !linked);
+        cell.style.display = name === "linked" && !linked ? "none" : "";
+      });
+      syncDesk();
+    }
+
+    function openSheet() {
+      scrim.classList.add("on");
+    }
+    function closeSheet() {
+      scrim.classList.remove("on");
+    }
+
+    document.querySelectorAll(".chip[data-state]").forEach((b) => {
+      b.addEventListener("click", () => setState(b.dataset.state));
+    });
+    document.querySelectorAll(".chip[data-filter], .filter").forEach((b) => {
+      b.addEventListener("click", () => setFilter(b.dataset.filter));
+    });
+    document.getElementById("btn-preview").addEventListener("click", openSheet);
+    document.getElementById("btn-preview-f").addEventListener("click", openSheet);
+    document.getElementById("btn-process").addEventListener("click", openSheet);
+    document.getElementById("btn-process-f").addEventListener("click", openSheet);
+    document.getElementById("sheet-cancel").addEventListener("click", closeSheet);
+    document.getElementById("sheet-close").addEventListener("click", closeSheet);
+    document.getElementById("sheet-write").addEventListener("click", () => {
+      closeSheet();
+      setStateWaiting(false);
+    });
+    scrim.addEventListener("click", (e) => {
+      if (e.target === scrim) closeSheet();
+    });
+
+    const notes = {
+      peri: {
+        title: "Nichita prefers periwinkle and soft pajamas",
+        meta: "Nichita · from daily Jul 14",
+        body: "Nichita likes periwinkle and soft pajamas",
+      },
+      bakery: {
+        title: "Tin mentioned a bakery near the canal",
+        meta: "Tin · from daily Jul 13",
+        body: "Tin mentioned a good bakery near the canal",
+      },
+      sleep: {
+        title: "Sleep debt still feels nonlinear after travel",
+        meta: "from daily Jul 12",
+        body: "sleep debt still feels nonlinear after travel",
+      },
+      capture: {
+        title: "Capture is cheap; review is the scarce resource",
+        meta: "from daily Jul 11",
+        body: "Capture is cheap; review is the scarce resource",
+      },
+      titles: {
+        title: "Declarative titles beat topic titles for retrieval",
+        meta: "from daily Jul 10",
+        body: "Declarative titles beat topic titles for retrieval",
+      },
+    };
+    function select(id) {
+      const n = notes[id];
+      if (!n) return;
+      document.getElementById("desk-title").textContent = n.title;
+      document.getElementById("desk-meta").innerHTML = n.meta.replace(
+        /(Nichita|Tin)/g,
+        '<span style="color:var(--orange)">$1</span>',
+      );
+      document.getElementById("desk-body").textContent = n.body;
+    }
+    document.querySelectorAll("#atom-list .cell").forEach((c) => {
+      c.addEventListener("click", () => select(c.dataset.note));
+    });
+
+    setStateWaiting(false);
+  </script>
+</body>
+</html>
