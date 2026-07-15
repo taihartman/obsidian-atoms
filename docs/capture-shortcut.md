@@ -1,8 +1,54 @@
-# Capture shortcut — iCloud link
+# Capture shortcut — Mac + iCloud
 
-Atoms **cannot** create an iCloud link by itself. Only **Shortcuts.app** on your iPhone/Mac can. Once you have the link, paste it in **Settings → Atoms → Capture → iCloud shortcut link** (syncs with the vault).
+## Mac right now (works without iCloud)
 
-## Build the shortcut (once, ~2 minutes)
+A Mac capture helper lives in the repo:
+
+| Path | What |
+|---|---|
+| `scripts/Atoms Capture.app` | Double-click → dialog → appends `- your text` to today’s daily |
+| `scripts/atoms-capture.sh` | CLI: `./scripts/atoms-capture.sh "thought"` |
+| `scripts/atoms-capture-shortcut.sh` | For Shortcuts **Run Shell Script** (see below) |
+
+Defaults: vault `~/Documents/Remote Vault`, folder `Quick Notes` (your Daily Notes settings).
+
+**Dock it:** drag `Atoms Capture.app` to the Dock, or Spotlight “Atoms Capture”.
+
+That is **enough for Mac capture**. iCloud is only needed so **phone** can install the same idea via a share link.
+
+### “Unknown Action” on Mac
+
+If **Capture to Daily Note** shows *This action could not be found in this version of Shortcuts*, it used an **Obsidian iOS-only** action. Delete that action (or the whole shortcut) and rebuild:
+
+1. Shortcuts → **+** → name **Atoms Capture**  
+2. **Ask for Input** → Text, prompt `Capture`  
+3. **Run Shell Script** → Shell `/bin/bash` · Pass Input **as arguments** · body:
+
+```bash
+/Users/a515138832/StudioProjects/obsidian_plugin/scripts/atoms-capture-shortcut.sh "$@"
+```
+
+4. Run once with ▶ to verify a bullet appears in today’s daily  
+5. Share → **Copy iCloud Link** → paste into Settings → Atoms → Capture  
+
+A copy of these steps is also on your Desktop: `Atoms-Capture-Shortcut-Setup.txt`.
+
+## iCloud link (phone install)
+
+**Neither this agent nor the plugin can mint `icloud.com/shortcuts/…` links.**  
+Apple only issues those when **you** share from Shortcuts.app.
+
+You already have a shortcut named **Capture to Daily Note** on this Mac (`shortcuts list`). Open it with:
+
+```bash
+shortcuts view "Capture to Daily Note"
+```
+
+Then: ensure it appends a **bullet** to today’s daily → Share → **Copy iCloud Link** → paste into **Settings → Atoms → Capture → iCloud shortcut link**.
+
+---
+
+## Build a new Shortcuts.app recipe (if you prefer)
 
 On **iPhone** (or Mac with Shortcuts):
 

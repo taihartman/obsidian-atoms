@@ -139,6 +139,16 @@ describe("collectPastNotesWithUnmarkedCaptures — AE4 today excluded", () => {
     ]);
   });
 
+  it("includeToday keeps today's unmarked captures for manual force", () => {
+    const notes = collectPastNotesWithUnmarkedCaptures(fixtures, "2026-07-15", {
+      includeToday: true,
+    });
+    expect(notes.map((n) => n.date)).toEqual(["2026-07-14", "2026-07-15"]);
+    expect(
+      notes.find((n) => n.date === "2026-07-15")!.unprocessed.map((c) => c.text),
+    ).toEqual(["unmarked in today should never be returned"]);
+  });
+
   it("drops days whose captures are all marked", () => {
     const notes = collectPastNotesWithUnmarkedCaptures(fixtures, "2026-07-15");
     expect(notes.find((n) => n.date === "2026-07-13")).toBeUndefined();

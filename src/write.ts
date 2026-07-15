@@ -52,6 +52,8 @@ export interface RunWritePathOptions {
    * Map key: `${dailyPath}::${capture.startLine}` or sequential by order.
    */
   fixtureResults?: ClassificationResult[];
+  /** Manual force: include today's daily. Default false (never for auto-run). */
+  includeToday?: boolean;
 }
 
 /**
@@ -61,7 +63,9 @@ export interface RunWritePathOptions {
 export async function runWritePath(
   opts: RunWritePathOptions,
 ): Promise<WritePathReport> {
-  const listed = await getPastDailyNotesWithUnmarkedCaptures(opts.app);
+  const listed = await getPastDailyNotesWithUnmarkedCaptures(opts.app, {
+    includeToday: opts.includeToday,
+  });
   const work: Array<{ note: DailyNoteWithCaptures; capture: Capture }> = [];
   for (const note of listed.notes) {
     for (const capture of note.unprocessed) {

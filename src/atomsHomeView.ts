@@ -36,6 +36,8 @@ export class AtomsHomeView extends ItemView {
   private filter: FilterMode = "all";
   private entries: AtomLibraryEntry[] = [];
   private unprocessedCount = 0;
+  /** Unprocessed bullets on today's daily only (for force-test UI). */
+  private todayUnprocessedCount = 0;
   private peek: Array<{ text: string; date: string }> = [];
   private busy = false;
   private rootEl: HTMLElement | null = null;
@@ -113,9 +115,21 @@ export class AtomsHomeView extends ItemView {
       const past = await getPastDailyNotesWithUnmarkedCaptures(this.app);
       this.unprocessedCount = past.totalUnprocessed;
       this.peek = queuePeekTexts(past.notes, 3);
+
+      const withToday = await getPastDailyNotesWithUnmarkedCaptures(this.app, {
+        includeToday: true,
+      });
+      const todayStr = new Date();
+      const y = todayStr.getFullYear();
+      const m = String(todayStr.getMonth() + 1).padStart(2, "0");
+      const d = String(todayStr.getDate()).padStart(2, "0");
+      const iso = `${y}-${m}-${d}`;
+      const todayNote = withToday.notes.find((n) => n.date === iso);
+      this.todayUnprocessedCount = todayNote?.unprocessed.length ?? 0;
     } catch (e) {
       if (e instanceof DailyNotesDisabledError) {
         this.unprocessedCount = 0;
+        this.todayUnprocessedCount = 0;
         this.peek = [];
       } else {
         throw e;
@@ -199,7 +213,7 @@ export class AtomsHomeView extends ItemView {
       b.addEventListener("click", () => this.onInstallShortcut());
     }
 
-    // Wait card
+    // Wait card — past dailies only (normal path)
     if (shouldShowWaitCard(this.unprocessedCount)) {
       const card = scroll.createDiv({ cls: "atoms-home-wait-card" });
       card.createEl("h2", {
@@ -214,13 +228,13 @@ export class AtomsHomeView extends ItemView {
         text: this.busy ? "…" : "Preview",
       });
       previewBtn.disabled = this.busy;
-      previewBtn.addEventListener("click", () => void this.onPreview());
+      previewBtn.addEventListener("click", () => void this.onPreview(false));
       const processBtn = actions.createEl("button", {
         cls: "atoms-home-btn atoms-home-btn-secondary",
         text: "Process",
       });
       processBtn.disabled = this.busy;
-      processBtn.addEventListener("click", () => void this.onProcess());
+      processBtn.addEventListener("click", () => void this.onProcess(false));
 
       if (this.peek.length) {
         scroll.createDiv({
@@ -234,6 +248,30 @@ export class AtomsHomeView extends ItemView {
           row.createEl("em", { text: p.date });
         }
       }
+    }
+
+    // Force-test today — so phone can exercise Preview/Process without waiting for midnight
+    if (this.todayUnprocessedCount > 0) {
+      const tryCard = scroll.createDiv({ cls: "atoms-home-try-today-card" });
+      tryCard.createEl("h2", {
+        text: `Today · ${this.todayUnprocessedCount} bullet${this.todayUnprocessedCount === 1 ? "" : "s"} ready to try`,
+      });
+      tryCard.createEl("p", {
+        text: "Normally today waits until tomorrow. Use this to test Preview / Process now. Auto-run never includes today.",
+      });
+      const tryActions = tryCard.createDiv({ cls: "atoms-home-wait-actions" });
+      const pToday = tryActions.createEl("button", {
+        cls: "atoms-home-btn atoms-home-btn-primary",
+        text: this.busy ? "…" : "Preview today",
+      });
+      pToday.disabled = this.busy;
+      pToday.addEventListener("click", () => void this.onPreview(true));
+      const wToday = tryActions.createEl("button", {
+        cls: "atoms-home-btn atoms-home-btn-secondary",
+        text: "Process today",
+      });
+      wToday.disabled = this.busy;
+      wToday.addEventListener("click", () => void this.onProcess(true));
     }
 
     // First-day setup card
@@ -257,7 +295,7 @@ export class AtomsHomeView extends ItemView {
       const s3 = steps.createEl("li");
       s3.createSpan({ cls: "atoms-home-step-num", text: "3" });
       s3.createSpan({
-        text: "Tomorrow (or after midnight), Preview → Process from here",
+        text: "Use “Preview today” below to test now, or wait until tomorrow for the normal queue",
       });
 
       setup.createDiv({
@@ -439,24 +477,24 @@ export class AtomsHomeView extends ItemView {
     this.render();
   }
 
-  private async onPreview(): Promise<void> {
+  private async onPreview(includeToday: boolean): Promise<void> {
     if (this.busy) return;
     this.busy = true;
     this.render();
     try {
-      await this.plugin.runDryRunFromHome();
+      await this.plugin.runDryRunFromHome({ includeToday });
     } finally {
       this.busy = false;
       await this.refresh();
     }
   }
 
-  private async onProcess(): Promise<void> {
+  private async onProcess(includeToday: boolean): Promise<void> {
     if (this.busy) return;
     this.busy = true;
     this.render();
     try {
-      await this.plugin.runProcessFromHome();
+      await this.plugin.runProcessFromHome({ includeToday });
     } finally {
       this.busy = false;
       await this.refresh();

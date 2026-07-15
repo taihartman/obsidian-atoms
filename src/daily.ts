@@ -53,18 +53,30 @@ export interface PastDailyNotesResult {
   totalUnprocessed: number;
 }
 
+export interface GetUnprocessedOpts {
+  /** When true, include today's daily (manual test / force process). Default false. */
+  includeToday?: boolean;
+  today?: Date;
+}
+
 /**
- * Scan **all** past daily notes for unmarked captures (never a day-level last-run
- * shortcut — amendment G). Excludes today. Throws if Daily Notes core is off.
+ * Scan daily notes for unmarked captures.
+ * Default excludes today (auto-run / normal process). Pass includeToday for
+ * manual "try with today" from the home view.
  */
 export async function getPastDailyNotesWithUnmarkedCaptures(
   app: App,
-  today: Date = new Date(),
+  todayOrOpts: Date | GetUnprocessedOpts = new Date(),
 ): Promise<PastDailyNotesResult> {
   if (!appHasDailyNotesPluginLoaded()) {
     throw new DailyNotesDisabledError();
   }
 
+  const opts: GetUnprocessedOpts =
+    todayOrOpts instanceof Date
+      ? { today: todayOrOpts }
+      : todayOrOpts ?? {};
+  const today = opts.today ?? new Date();
   const todayStr = formatLocalDate(today);
   const all = getAllDailyNotes();
   const notes: Array<{ path: string; date: string; content: string }> = [];
@@ -77,7 +89,9 @@ export async function getPastDailyNotesWithUnmarkedCaptures(
     notes.push({ path: file.path, date, content });
   }
 
-  const result = collectPastNotesWithUnmarkedCaptures(notes, todayStr);
+  const result = collectPastNotesWithUnmarkedCaptures(notes, todayStr, {
+    includeToday: opts.includeToday,
+  });
   return {
     notes: result,
     totalUnprocessed: result.reduce((n, x) => n + x.unprocessed.length, 0),

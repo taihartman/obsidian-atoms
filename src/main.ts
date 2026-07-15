@@ -122,13 +122,13 @@ export default class AtomsPlugin extends Plugin {
   }
 
   /** Called from Atoms home Preview — same dry-run as command. */
-  async runDryRunFromHome(): Promise<void> {
-    await this.runDryRunPreview();
+  async runDryRunFromHome(opts?: { includeToday?: boolean }): Promise<void> {
+    await this.runDryRunPreview(opts);
   }
 
   /** Called from Atoms home Process — same write path as command. */
-  async runProcessFromHome(): Promise<void> {
-    await this.runProcessUnprocessed();
+  async runProcessFromHome(opts?: { includeToday?: boolean }): Promise<void> {
+    await this.runProcessUnprocessed(opts);
   }
 
   /** Called from Atoms home ⋯ menu. */
@@ -354,10 +354,26 @@ export default class AtomsPlugin extends Plugin {
     });
 
     this.addCommand({
+      id: "dry-run-preview-include-today",
+      name: "Dry-run: preview including today (test)",
+      callback: () => {
+        void this.runDryRunPreview({ includeToday: true });
+      },
+    });
+
+    this.addCommand({
       id: "process-unprocessed",
       name: "Process unprocessed captures (write atoms + markers)",
       callback: () => {
         void this.runProcessUnprocessed();
+      },
+    });
+
+    this.addCommand({
+      id: "process-include-today",
+      name: "Process including today (test)",
+      callback: () => {
+        void this.runProcessUnprocessed({ includeToday: true });
       },
     });
 
@@ -660,13 +676,18 @@ export default class AtomsPlugin extends Plugin {
   }
 
   /**
-   * U8 — classify + write atoms/markers for past unprocessed captures.
+   * U8 — classify + write atoms/markers for unprocessed captures.
+   * includeToday: manual force for testing on phone (never used by auto-run).
    */
-  private async runProcessUnprocessed() {
+  private async runProcessUnprocessed(opts?: { includeToday?: boolean }) {
     const apiKey = this.requireApiKey();
     if (!apiKey) return;
 
-    new Notice("Atoms: processing (writing)…");
+    new Notice(
+      opts?.includeToday
+        ? "Atoms: processing (including today)…"
+        : "Atoms: processing (writing)…",
+    );
     try {
       const report = await runWritePath({
         app: this.app,
@@ -676,6 +697,7 @@ export default class AtomsPlugin extends Plugin {
         activeVocabulary: this.settings.activeVocabulary,
         atomFolder: this.settings.atomFolder,
         maxCaptures: 15,
+        includeToday: opts?.includeToday,
         classifyDeps: {
           maxAttempts: 2,
           onAuthFailure: (msg) => new Notice(`Atoms: ${msg}`),
@@ -809,11 +831,15 @@ export default class AtomsPlugin extends Plugin {
    * U7 — full pipeline dry-run. Modal + lastDryRun* for CLI.
    * Never creates atoms or appends markers (AE5).
    */
-  private async runDryRunPreview() {
+  private async runDryRunPreview(opts?: { includeToday?: boolean }) {
     const apiKey = this.requireApiKey();
     if (!apiKey) return;
 
-    new Notice("Atoms: dry-run starting…");
+    new Notice(
+      opts?.includeToday
+        ? "Atoms: dry-run (including today)…"
+        : "Atoms: dry-run starting…",
+    );
     try {
       const report = await runDryRun({
         app: this.app,
@@ -824,6 +850,7 @@ export default class AtomsPlugin extends Plugin {
         atomFolder: this.settings.atomFolder,
         // Bound work for interactive use; remainder stays unmarked for next run.
         maxCaptures: 15,
+        includeToday: opts?.includeToday,
         classifyDeps: {
           // Fail fast on network blips during preview (still retries once).
           maxAttempts: 2,

@@ -346,6 +346,32 @@
   color: var(--color-orange, #e07a5f);
 }
 
+/* Force-test today (manual only) */
+.atoms-home-try-today-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  margin-bottom: 14px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--interactive-accent) 35%, transparent);
+  background: color-mix(in srgb, var(--interactive-accent) 10%, var(--background-secondary));
+}
+
+.atoms-home-try-today-card h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text-normal);
+}
+
+.atoms-home-try-today-card > p {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
 /* Shortcut update banner */
 .atoms-home-update-banner {
   display: flex;

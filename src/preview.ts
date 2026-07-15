@@ -180,16 +180,20 @@ export interface RunDryRunOptions {
   maxCaptures?: number;
   classifyDeps?: Partial<ClassifyDeps>;
   onProgress?: (done: number, total: number) => void;
+  /** Manual force: include today's daily. Default false. */
+  includeToday?: boolean;
 }
 
 /**
- * Dry-run pipeline: classify past unmarked captures; never write vault files.
+ * Dry-run pipeline: classify unmarked captures; never write vault files.
  */
 export async function runDryRun(
   opts: RunDryRunOptions,
 ): Promise<DryRunReport> {
   const listed: PastDailyNotesResult =
-    await getPastDailyNotesWithUnmarkedCaptures(opts.app);
+    await getPastDailyNotesWithUnmarkedCaptures(opts.app, {
+      includeToday: opts.includeToday,
+    });
 
   const work: Array<{ note: DailyNoteWithCaptures; capture: Capture }> = [];
   for (const note of listed.notes) {
