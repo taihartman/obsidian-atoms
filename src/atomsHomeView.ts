@@ -11,6 +11,7 @@ import {
 import {
   calendarDateToday,
   cueLabel,
+  formatCueDate,
   listResurfaceCandidates,
   LS_RESURFACE_THROTTLE,
   markResurfaceShown,
@@ -327,36 +328,50 @@ export class AtomsHomeView extends ItemView {
   private renderResurfaceCard(scroll: HTMLElement): void {
     const card = this.resurfaceCard;
     if (!card) return;
-    const el = scroll.createDiv({ cls: "atoms-home-resurface-card" });
+
+    // Section eyebrow — one calm product word (Apple “For You”)
+    scroll.createDiv({
+      cls: "atoms-home-section atoms-home-section-for-you",
+      text: "For you",
+    });
+
+    const el = scroll.createDiv({
+      cls: "atoms-home-resurface-card",
+      attr: { role: "button", tabindex: "0" },
+    });
+    // Whole card opens the note — primary path; “Another” is secondary
+    el.addEventListener("click", (ev) => {
+      const t = ev.target as HTMLElement;
+      if (t.closest(".atoms-home-resurface-another")) return;
+      void this.onOpenResurface(card);
+    });
+
     el.createEl("p", {
       cls: "atoms-home-resurface-kicker",
-      text: `From the brain · ${cueLabel(card.cue)}`,
+      text: cueLabel(card.cue),
     });
     el.createEl("p", {
       cls: "atoms-home-resurface-snippet",
       text: card.bodySnippet,
     });
-    el.createEl("p", {
+    const foot = el.createDiv({ cls: "atoms-home-resurface-foot" });
+    foot.createEl("span", {
       cls: "atoms-home-resurface-title",
       text: card.title,
     });
     if (card.matchDate) {
-      el.createEl("p", {
+      foot.createEl("span", {
         cls: "atoms-home-resurface-meta",
-        text: card.matchDate,
+        text: formatCueDate(card.matchDate),
       });
     }
-    const actions = el.createDiv({ cls: "atoms-home-wait-actions" });
-    const openBtn = actions.createEl("button", {
-      cls: "atoms-home-btn atoms-home-btn-primary",
-      text: "Open",
+    const another = el.createEl("button", {
+      cls: "atoms-home-resurface-another",
+      text: "Another",
+      attr: { type: "button", "aria-label": "Show another memory" },
     });
-    openBtn.addEventListener("click", () => void this.onOpenResurface(card));
-    const nextBtn = actions.createEl("button", {
-      cls: "atoms-home-btn atoms-home-btn-secondary",
-      text: "Next",
-    });
-    nextBtn.addEventListener("click", () => {
+    another.addEventListener("click", (ev) => {
+      ev.stopPropagation();
       this.resurfaceSkipPaths.add(card.path);
       this.noteResurfaceShown(card.path);
       this.resurfaceCard = pickResurface(
@@ -415,19 +430,34 @@ export class AtomsHomeView extends ItemView {
       (this.app as any).setting?.openTabById?.("atoms");
     });
 
+    // One calm subtitle per state — no product jargon
+    const subtitle = firstDay
+      ? "Capture starts in your daily note"
+      : this.runPhase !== "idle"
+        ? this.runPhase === "preview"
+          ? "Previewing…"
+          : this.runPhase === "process"
+            ? "Filing…"
+            : this.runPhase === "done"
+              ? this.runSummaryText
+              : this.runSummaryText
+        : shouldShowWaitCard(this.unprocessedCount)
+          ? this.unprocessedCount === 1
+            ? "1 thought ready to file"
+            : `${this.unprocessedCount} thoughts ready to file`
+          : this.entries.length
+            ? "Your second brain"
+            : "Nothing filed yet";
+
     header.createEl("h1", { cls: "atoms-home-title", text: "Atoms" });
     header.createEl("p", {
       cls: "atoms-home-subtitle",
-      text: firstDay
-        ? "Get set up to capture"
-        : shouldShowWaitCard(this.unprocessedCount)
-          ? "Process when ready · library below"
-          : "Latest from your vault",
+      text: subtitle,
     });
 
     const scroll = root.createDiv({ cls: "atoms-home-scroll" });
 
-    // Live progress / done banner
+    // Progress — full-bleed calm bar, not a third competing card type
     if (this.runPhase !== "idle") {
       const prog = scroll.createDiv({
         cls:
@@ -441,40 +471,21 @@ export class AtomsHomeView extends ItemView {
       this.progressMount = null;
     }
 
-    // Zero-guilt resurface stream (on-this-day) — only when a candidate exists
-    if (!firstDay) {
-      this.renderResurfaceCard(scroll);
-    }
-
-    // Shortcut update banner (not first-day — setup card owns Install)
-    if (this.showShortcutBanner()) {
-      const banner = scroll.createDiv({ cls: "atoms-home-update-banner" });
-      const text = banner.createDiv();
-      text.createEl("strong", {
-        text:
-          this.shortcutAcked == null
-            ? "Capture shortcut"
-            : "Capture shortcut update",
-      });
-      text.createEl("span", {
-        text: `v${CAPTURE_SHORTCUT_VERSION}`,
-        cls: "atoms-home-update-meta",
-      });
-      const b = banner.createEl("button", {
-        text: this.shortcutAcked == null ? "Install" : "Update",
-        cls: "atoms-home-update-btn",
-      });
-      b.addEventListener("click", () => this.onInstallShortcut());
-    }
-
-    // Wait card — past dailies only (normal path)
+    // Work first when something needs a decision (Apple: primary job up top)
     if (shouldShowWaitCard(this.unprocessedCount)) {
       const card = scroll.createDiv({ cls: "atoms-home-wait-card" });
+      card.createEl("p", {
+        cls: "atoms-home-card-eyebrow",
+        text: "Ready",
+      });
       card.createEl("h2", {
-        text: `${this.unprocessedCount} capture${this.unprocessedCount === 1 ? "" : "s"} waiting`,
+        text:
+          this.unprocessedCount === 1
+            ? "One capture to review"
+            : `${this.unprocessedCount} captures to review`,
       });
       card.createEl("p", {
-        text: "Past dailies ready to classify. Preview before anything is written.",
+        text: "Preview first — nothing is written until you Process.",
       });
       const actions = card.createDiv({ cls: "atoms-home-wait-actions" });
       const previewBtn = actions.createEl("button", {
@@ -493,9 +504,11 @@ export class AtomsHomeView extends ItemView {
       if (this.peek.length) {
         scroll.createDiv({
           cls: "atoms-home-queue-label",
-          text: "Still in dailies",
+          text: "In your dailies",
         });
-        const peekList = scroll.createDiv({ cls: "atoms-home-list" });
+        const peekList = scroll.createDiv({
+          cls: "atoms-home-list atoms-home-list-peek",
+        });
         for (const p of this.peek) {
           const row = peekList.createDiv({ cls: "atoms-home-qcell" });
           row.createSpan({ text: p.text || "(empty)" });
@@ -504,14 +517,21 @@ export class AtomsHomeView extends ItemView {
       }
     }
 
-    // Force-test today — so phone can exercise Preview/Process without waiting for midnight
+    // Today force — available but quieter (power/test path, not guilt)
     if (this.todayUnprocessedCount > 0) {
       const tryCard = scroll.createDiv({ cls: "atoms-home-try-today-card" });
+      tryCard.createEl("p", {
+        cls: "atoms-home-card-eyebrow",
+        text: "Today",
+      });
       tryCard.createEl("h2", {
-        text: `Today · ${this.todayUnprocessedCount} bullet${this.todayUnprocessedCount === 1 ? "" : "s"} ready to try`,
+        text:
+          this.todayUnprocessedCount === 1
+            ? "1 bullet on today’s note"
+            : `${this.todayUnprocessedCount} bullets on today’s note`,
       });
       tryCard.createEl("p", {
-        text: "Normally today waits until tomorrow. Use this to test Preview / Process now. Auto-run never includes today.",
+        text: "Optional. Today is never auto-processed.",
       });
       const tryActions = tryCard.createDiv({ cls: "atoms-home-wait-actions" });
       const pToday = tryActions.createEl("button", {
@@ -528,39 +548,50 @@ export class AtomsHomeView extends ItemView {
       wToday.addEventListener("click", () => void this.onProcess(true));
     }
 
-    // First-day setup card
+    // Memory stream after work — delight when the queue is calm
+    if (!firstDay && this.runPhase === "idle") {
+      this.renderResurfaceCard(scroll);
+    }
+
+    if (this.showShortcutBanner()) {
+      const banner = scroll.createDiv({ cls: "atoms-home-update-banner" });
+      const text = banner.createDiv();
+      text.createEl("strong", {
+        text:
+          this.shortcutAcked == null
+            ? "Capture shortcut"
+            : "Shortcut update",
+      });
+      text.createEl("span", {
+        text: `v${CAPTURE_SHORTCUT_VERSION}`,
+        cls: "atoms-home-update-meta",
+      });
+      const b = banner.createEl("button", {
+        text: this.shortcutAcked == null ? "Install" : "Update",
+        cls: "atoms-home-update-btn",
+      });
+      b.addEventListener("click", () => this.onInstallShortcut());
+    }
+
     if (firstDay) {
       const setup = scroll.createDiv({ cls: "atoms-home-setup-card" });
-      setup.createEl("h2", { text: "Start capturing" });
       setup.createEl("p", {
-        text: "Atoms files thoughts from your daily note after the day ends. Capture goes in Daily — not this list.",
+        cls: "atoms-home-card-eyebrow",
+        text: "Get started",
       });
-      const steps = setup.createEl("ol", { cls: "atoms-home-setup-steps" });
-      const s1 = steps.createEl("li");
-      s1.createSpan({ cls: "atoms-home-step-num", text: "1" });
-      s1.createSpan({
-        text: "Open today and write thoughts as bullets",
+      setup.createEl("h2", { text: "Write one bullet today" });
+      setup.createEl("p", {
+        text: "Atoms files thoughts from past days. Capture stays in Daily — this list shows what was filed.",
       });
-      const s2 = steps.createEl("li");
-      s2.createSpan({ cls: "atoms-home-step-num", text: "2" });
-      s2.createSpan({
-        text: "Install the capture shortcut so share-sheet dumps land correctly",
-      });
-      const s3 = steps.createEl("li");
-      s3.createSpan({ cls: "atoms-home-step-num", text: "3" });
-      s3.createSpan({
-        text: "Use “Preview today” below to test now, or wait until tomorrow for the normal queue",
-      });
-
       setup.createDiv({
         cls: "atoms-home-mono",
-        text: "- Nichita likes periwinkle pajamas\n- buy milk",
+        text: "- Nichita likes periwinkle\n- watch Past Lives",
       });
 
       const actions = setup.createDiv({ cls: "atoms-home-setup-actions" });
       const openBtn = actions.createEl("button", {
         cls: "atoms-home-btn atoms-home-btn-primary",
-        text: "Open today's note",
+        text: "Open today",
       });
       openBtn.addEventListener("click", () => void this.onOpenToday());
 
@@ -577,73 +608,80 @@ export class AtomsHomeView extends ItemView {
         );
       }
       installBtn.addEventListener("click", () => this.onInstallShortcut());
-
-      const hint = setup.createDiv({ cls: "atoms-home-setup-hint" });
-      hint.createEl("strong", { text: "Why empty? " });
-      hint.createSpan({
-        text: "This list only shows atoms Atoms has filed. Today's note is never auto-processed while you're still writing. Use - bullets at the start of each line.",
-      });
     }
 
-    // Filters + library (hide filter chrome on pure first-day empty to reduce noise)
+    // Library — secondary surface
     if (!firstDay || this.entries.length > 0) {
-      const filters = scroll.createDiv({ cls: "atoms-home-filters" });
+      const libHead = scroll.createDiv({ cls: "atoms-home-lib-head" });
+      libHead.createDiv({
+        cls: "atoms-home-section",
+        text: "Library",
+      });
+      const filters = libHead.createDiv({
+        cls: "atoms-home-filters",
+        attr: { role: "tablist", "aria-label": "Filter library" },
+      });
       for (const mode of ["all", "linked"] as FilterMode[]) {
         const b = filters.createEl("button", {
           cls:
             "atoms-home-filter" + (this.filter === mode ? " is-active" : ""),
           text: mode === "all" ? "All" : "Linked",
+          attr: {
+            role: "tab",
+            "aria-selected": this.filter === mode ? "true" : "false",
+          },
         });
         b.addEventListener("click", () => {
           this.filter = mode;
           this.render();
         });
       }
+    } else if (!firstDay) {
+      scroll.createDiv({
+        cls: "atoms-home-section",
+        text: "Library",
+      });
     }
-
-    scroll.createDiv({
-      cls: "atoms-home-section",
-      text: "Recently added",
-    });
 
     const visible = this.visibleEntries();
     if (!visible.length) {
       const empty = scroll.createDiv({ cls: "atoms-home-empty" });
       if (this.entries.length) {
         empty.createEl("p", {
-          text: "No linked atoms in this filter. Switch to All, or process captures that link to notes.",
+          text: "Nothing linked in this filter.",
         });
       } else if (shouldShowWaitCard(this.unprocessedCount)) {
         empty.createEl("p", {
-          text: "Library fills after Process. Use Preview above first.",
+          text: "Library fills after you Process.",
         });
       } else if (!firstDay) {
         empty.createEl("p", {
-          text: "No atoms yet — this list only shows notes Atoms has filed into Atoms/.",
-        });
-      } else {
-        empty.createEl("p", {
-          cls: "atoms-home-empty-soft",
-          text: "No atoms yet",
+          text: "Filed atoms will show up here.",
         });
       }
     } else {
       const list = scroll.createDiv({ cls: "atoms-home-list" });
       const now = Date.now();
       for (const e of visible) {
-        const row = list.createDiv({ cls: "atoms-home-cell" });
+        const row = list.createDiv({
+          cls: "atoms-home-cell",
+          attr: { role: "button", tabindex: "0" },
+        });
         row.addEventListener("click", () => {
           void this.app.workspace.openLinkText(e.title, e.path, false);
         });
-        const main = row.createDiv();
+        const main = row.createDiv({ cls: "atoms-home-cell-main" });
         main.createDiv({ cls: "atoms-home-cell-title", text: e.title });
         const meta = main.createDiv({ cls: "atoms-home-cell-meta" });
-        for (const chip of e.linkChips) {
+        for (const chip of e.linkChips.slice(0, 4)) {
           meta.createSpan({ cls: "atoms-home-link-chip", text: chip });
         }
         if (e.sourceDay) {
           meta.createSpan({
-            text: (e.linkChips.length ? " · " : "") + `from ${e.sourceDay}`,
+            cls: "atoms-home-cell-source",
+            text:
+              (e.linkChips.length ? " · " : "") +
+              formatCueDate(e.sourceDay),
           });
         }
         row.createDiv({
@@ -651,15 +689,6 @@ export class AtomsHomeView extends ItemView {
           text: formatRelativeTime(e.mtime, now),
         });
       }
-    }
-
-    if (!firstDay) {
-      scroll.createEl("p", {
-        cls: "atoms-home-footnote",
-        text: shouldShowWaitCard(this.unprocessedCount)
-          ? "Preview before write. Library below is already in Atoms/."
-          : "Atom notes only. Capture stays in Daily.",
-      });
     }
   }
 
