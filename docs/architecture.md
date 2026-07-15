@@ -4,7 +4,7 @@ Living system map. Implementation detail and unit order live in the plan; this d
 
 ## Product UI (v0.4+)
 
-**Atoms home** (`ItemView` type `atoms-home`): one mobile-first leaf — recent atom library + dominant waiting card when past captures are unprocessed. Preview reuses dry-run; Process reuses write path. Live **progress card** during Preview/Process (`N of M` + snippet + bar; done summary; auto-run silent). **From the brain** card resurfaces one on-this-day atom (body snippet first; Open / Next; no review queue). Design: `docs/design-handoff/atoms-view/`.
+**Atoms home** (`ItemView` type `atoms-home`): one mobile-first leaf — recent atom library + dominant waiting card when past captures are unprocessed. Preview reuses dry-run; Process reuses write path. Live **progress card** during Preview/Process (`N of M` + snippet + bar; done summary; auto-run silent). **From the brain** multi-cue stream (on-this-day → connected-to-recent → quiet/spacing; body snippet; Open / Next; soft throttle; no review queue). Design: `docs/design-handoff/atoms-view/`.
 
 ## North star
 
@@ -127,9 +127,9 @@ Hard stops: today excluded · no file moves · no append-into-user-notes · no a
 
 These are the world-class gaps **named so we don’t paper over them with v1 hacks**:
 
-1. **Resurfacing stream** — re-show filed atoms without a backlog (antidote to epistemic rot).
+1. **Resurfacing stream** — v0.5 multi-cue home card (on-this-day / connected / quiet); further polish still welcome.
 2. **Consolidation pass** — map-of-content that *links* same-claim clusters; never rewrites bodies.
-3. **Age-on-recall** — surface stale `created` + no recent inbound links.
+3. **Age-on-recall** — quiet cue covers a first cut; richer “stale + no inbound links” still open.
 4. **Context shortlist** — swap `ContextProvider` when all-titles prefix cost degrades (log prefix tokens per run).
 5. **Orphan rebuild command** — marker present, file gone; never auto-reprocess on unresolved links (KTD10).
 
