@@ -11,9 +11,15 @@ import {
 import {
   calendarDateToday,
   cueLabel,
-  listOnThisDayCandidates,
+  listResurfaceCandidates,
+  LS_RESURFACE_THROTTLE,
+  markResurfaceShown,
+  parseThrottleJson,
   pickResurface,
+  pruneThrottle,
+  serializeThrottle,
   type ResurfaceCandidate,
+  type ResurfaceThrottleMap,
 } from "./resurface";
 import {
   CAPTURE_SHORTCUT_VERSION,
@@ -61,7 +67,12 @@ export class AtomsHomeView extends ItemView {
   private resurfaceCandidates: ResurfaceCandidate[] = [];
   private resurfaceCard: ResurfaceCandidate | null = null;
   /** Raw atom files for resurface re-pick without re-read when possible. */
-  private atomFileInputs: Array<{ path: string; content: string }> = [];
+  private atomFileInputs: Array<{
+    path: string;
+    content: string;
+    mtime?: number;
+  }> = [];
+  private resurfaceThrottle: ResurfaceThrottleMap = {};
 
   /** Live Preview/Process progress (not cleared by library refresh). */
   private runPhase: RunPhase = "idle";
@@ -242,7 +253,13 @@ export class AtomsHomeView extends ItemView {
     this.atomFileInputs = inputs.map((i) => ({
       path: i.path,
       content: i.content,
+      mtime: i.mtime,
     }));
+    this.resurfaceThrottle = pruneThrottle(
+      parseThrottleJson(
+        this.app.loadLocalStorage(LS_RESURFACE_THROTTLE) as string | null,
+      ),
+    );
     this.refreshResurfacePick(folder);
 
     this.shortcutAcked = readShortcutAck((k) => this.app.loadLocalStorage(k));
@@ -283,7 +300,7 @@ export class AtomsHomeView extends ItemView {
     const atomFolder =
       folder ?? (this.plugin.settings.atomFolder || "Atoms");
     const today = calendarDateToday();
-    this.resurfaceCandidates = listOnThisDayCandidates(
+    this.resurfaceCandidates = listResurfaceCandidates(
       this.atomFileInputs,
       today,
       atomFolder,
@@ -291,7 +308,20 @@ export class AtomsHomeView extends ItemView {
     this.resurfaceCard = pickResurface(
       this.resurfaceCandidates,
       this.resurfaceSkipPaths,
+      this.resurfaceThrottle,
     );
+  }
+
+  private persistThrottle(): void {
+    this.app.saveLocalStorage(
+      LS_RESURFACE_THROTTLE,
+      serializeThrottle(this.resurfaceThrottle),
+    );
+  }
+
+  private noteResurfaceShown(path: string): void {
+    this.resurfaceThrottle = markResurfaceShown(path, this.resurfaceThrottle);
+    this.persistThrottle();
   }
 
   private renderResurfaceCard(scroll: HTMLElement): void {
@@ -310,10 +340,12 @@ export class AtomsHomeView extends ItemView {
       cls: "atoms-home-resurface-title",
       text: card.title,
     });
-    el.createEl("p", {
-      cls: "atoms-home-resurface-meta",
-      text: card.matchDate,
-    });
+    if (card.matchDate) {
+      el.createEl("p", {
+        cls: "atoms-home-resurface-meta",
+        text: card.matchDate,
+      });
+    }
     const actions = el.createDiv({ cls: "atoms-home-wait-actions" });
     const openBtn = actions.createEl("button", {
       cls: "atoms-home-btn atoms-home-btn-primary",
@@ -326,15 +358,18 @@ export class AtomsHomeView extends ItemView {
     });
     nextBtn.addEventListener("click", () => {
       this.resurfaceSkipPaths.add(card.path);
+      this.noteResurfaceShown(card.path);
       this.resurfaceCard = pickResurface(
         this.resurfaceCandidates,
         this.resurfaceSkipPaths,
+        this.resurfaceThrottle,
       );
       this.render();
     });
   }
 
   private async onOpenResurface(card: ResurfaceCandidate): Promise<void> {
+    this.noteResurfaceShown(card.path);
     const file = this.app.vault.getAbstractFileByPath(card.path);
     if (file && "extension" in file) {
       await this.app.workspace.getLeaf(false).openFile(file as TFile);

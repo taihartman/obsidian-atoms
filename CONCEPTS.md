@@ -45,7 +45,10 @@ In-home feedback during a long Preview/Process: phase, `N of M`, capture snippet
 A capture that is keepable list/media/preference material (e.g. show or movie to watch). First-ship product intent: one **atom per dump**, not append-into a Movies note and not a task marker.
 
 ### Resurfacing (stream)
-v2 recall: re-show filed atoms without a guilt backlog (on-this-day, connected-to-recent, age-on-recall). Not a review queue. Deferred after filing quality.
+Zero-guilt home card that re-shows filed atoms for rehearsal (retrieval practice). Cue priority: **on-this-day** (calendar) → **connected** (shared links with recent atoms) → **quiet** (older / less touched). Open / Next; soft throttle; never a review queue.
+
+### Soft throttle
+Device-local “already shown recently” map so the same atom is not re-picked for several days after Open or Next.
 
 ## People (linking)
 
