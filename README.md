@@ -1,50 +1,101 @@
-# Obsidian Atoms
+# Atoms
 
-Classifies **past** daily-note captures (atom / task / noise) via the Anthropic API, writes one atomic note per atom (declarative title + reason-bearing wikilinks, **verbatim** body), and marks every capture with a sentinel so nothing is reprocessed.
+Obsidian plugin that turns **past daily-note captures** into a flat, linked knowledge graph.
 
-Capture itself is out of scope (native iOS Shortcut). See `docs/plans/2026-07-15-001-feat-obsidian-atoms-plugin-plan.md` and `docs/spec-amendments.md`.
+Capture on your phone (iOS Shortcut → daily note). Atoms classifies each bullet as **atom / task / noise**, writes permanent claims into `Atoms/`, and leaves **markers** so nothing reprocesses. Person hubs you already have (e.g. `Nichita`) get links and backlinks—no CRM, no AI folders.
 
-## Requirements
+**Plugin id:** `atoms` · **Version:** see `manifest.json` · **Requires:** Obsidian ≥ 1.11.4, core **Daily Notes**, Anthropic API key
 
-- Obsidian ≥ 1.11.4 (SecretStorage)
-- Core **Daily Notes** plugin enabled
-- Anthropic API key
+---
 
-## Project docs
+## What it does
 
-- **[CLAUDE.md](./CLAUDE.md)** — agent rules / non-negotiables  
-- **[docs/architecture.md](./docs/architecture.md)** — system map + v2 north star  
-- **[docs/dev-obsidian-cli.md](./docs/dev-obsidian-cli.md)** — official Obsidian CLI (preferred for agents)  
-- **[docs/dev-obsidian-mcp.md](./docs/dev-obsidian-mcp.md)** — Local REST API MCP (optional)  
-- Plan + amendments under `docs/`
+| Step | Behavior |
+|---|---|
+| **Capture** | Your job — iOS Shortcut or typing bullets (`- thought`) in Daily Notes |
+| **Classify** | Anthropic structured output: verdict, title, tags, links |
+| **Write** | New files only in a flat folder (default `Atoms/`) + append markers under past captures |
+| **People** | Vault-aware hubs + structural tags (`person`, `preferences`, `relationship`) |
+| **Home** | Mobile-first **Atoms** leaf: library, waiting queue, first-day setup, preview cards |
 
-## Dev setup
+### Non-negotiables
+
+- Body of every atom = capture text **verbatim**
+- Never move files or invent folders
+- **Auto-run never processes today’s daily** (manual “Preview/Process today” exists for testing)
+- API key in SecretStorage (or device-local fallback), never in `data.json`
+- Two write types only: atom files + marker lines
+
+---
+
+## Install (this private repo)
+
+1. Clone or download a release build (`main.js`, `manifest.json`, `styles.css`).
+2. Copy into `<Vault>/.obsidian/plugins/atoms/`.
+3. Enable **Atoms** in Community plugins (or unrestricted local plugins).
+4. Settings → set Anthropic API key.
+5. Settings → Capture → install the iOS shortcut (or use the default iCloud link baked into the plugin).
+
+Dev install into a vault:
 
 ```bash
 npm install
-npm run dev                     # watch-build main.js
-./scripts/install-to-vault.sh   # copy into test vault + CLI reload
-./scripts/spike-via-cli.sh      # U1 spikes via official CLI
+npm run build
+./scripts/install-to-vault.sh   # or copy main.js manifest.json styles.css manually
 ```
 
-Requires **Obsidian 1.12+** with CLI enabled (`obsidian` on PATH). Use the **throwaway vault** at `test_vault/test vault/` — never the real vault until dry-run is trusted.
+---
 
-### U1 spike commands (Command Palette)
+## Capture (phone)
 
-1. **Spike: probe SecretStorage read/write** — confirms key storage on this device (desktop now; re-run on iOS).
-2. **Spike: classify hardcoded capture** — one API call; logs `{verdict, title, tags, links}` to the console.
-3. **Spike: measure cache + per-day batch fork (KTD3)** — three per-capture calls (watch `cache_read_input_tokens`) + one day-batch call for cost/quality comparison.
+1. Write **bullets** in today’s daily (`- What's on your mind?`).
+2. Install shortcut from **Settings → Capture** (or Atoms home → Install).
+3. Shortcut should append a line like `- your text` (dash added for you).
+4. **Tomorrow** (or use **Preview today / Process today** to test): Atoms home → Preview → Process.
 
-Offline equivalent (no Obsidian):
+See [docs/capture-shortcut.md](./docs/capture-shortcut.md).
+
+---
+
+## Development
 
 ```bash
-ANTHROPIC_API_KEY=sk-… npm run spike:api
+npm install
+npm run dev          # watch-build main.js
+npm test
+npm run build
 ```
 
-## Non-negotiables
+Throwaway vault: `test_vault/test vault/`. Prefer that over a personal vault until dry-run looks right.
 
-- Atom body = capture text **verbatim**
-- Never move files / choose folders — flat configured folder only
-- Never read or modify **today's** daily note
-- Sentinel HTML comments mark **all three** verdicts
-- API key in SecretStorage (or device-local fallback), never `data.json`
+### Useful command palette entries
+
+- **Open Atoms home**
+- **Dry-run: preview classifications** / **including today (test)**
+- **Process unprocessed captures** / **including today (test)**
+- **Test connection**
+- **Backfill: estimate cost & confirm batch**
+
+---
+
+## Docs
+
+| Doc | Purpose |
+|---|---|
+| [CLAUDE.md](./CLAUDE.md) | Agent rules / non-negotiables |
+| [docs/architecture.md](./docs/architecture.md) | System map |
+| [docs/capture-shortcut.md](./docs/capture-shortcut.md) | iOS shortcut + iCloud link |
+| [docs/design-handoff/atoms-view/](./docs/design-handoff/atoms-view/) | Home UI mocks |
+| [docs/plans/](./docs/plans/) | Implementation plans |
+
+---
+
+## Repo
+
+Private GitHub: **[taihartman/obsidian-atoms](https://github.com/taihartman/obsidian-atoms)**
+
+(Previously `obsidian-ai-linker`; renamed with the product.)
+
+## License
+
+See repository license file if present; otherwise all rights reserved for this private project.
