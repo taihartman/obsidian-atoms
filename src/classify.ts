@@ -10,6 +10,7 @@ import {
   enrichPersonLinks,
   type PersonHub,
 } from "./people";
+import { enrichMediaLinks } from "./media";
 import { filterTagsToActive } from "./vocabulary";
 
 export const ANTHROPIC_MESSAGES_URL = "https://api.anthropic.com/v1/messages";
@@ -84,23 +85,30 @@ export const SYSTEM_PROMPT = `You classify fleeting captures from a daily-note i
 - noise: pure logistics, empty, or not worth keeping in a second brain ("buy milk", "email landlord", "call dentist at 3", lone timestamps). When in doubt between task and noise → **noise**. When in doubt between atom and noise for keepable content → **atom**.
 - task: **soft-retired / almost never**. Do not use task for list items, media, preferences, or people facts. Do not use task for ordinary chores (those are noise). Only emit task if nothing else fits and the capture is a pure to-do that somehow is not noise — prefer noise.
 - Durable facts about people you know (likes, habits, stories that matter) are usually atoms, not noise.
-- List dumps are **one atom per capture**, with a declarative title; use tags like #watch #movie #show #media #list when those labels are in Active vocabulary.
+- List dumps are **one atom per capture**, with a declarative title.
+
+## Media / watchlist dumps (high priority)
+- Captures about watching/reading a named work are **media atoms**, not mere #preferences.
+  Examples: "watch Past Lives", "Christian told me to watch my hero academia", "movie: Dune".
+- Tags: include #watch and #show or #movie (and #media when it fits). You may also add #preferences if taste is central — but never only #preferences when a work is named.
+- Links: ALWAYS put the **work title** in links[] (e.g. note: "My Hero Academia", reason: "show to watch"). Prefer an exact Note titles match when the vault already has that show/movie. Unresolved work titles are fine.
+- If a person recommended it ("X told me to watch…") and X is a Person hub or Note title, ALSO link that person (person repair may reinforce).
 
 ## Tags
-- tags: ONLY from the Active vocabulary listed in context. Drop anything else.
-- Always prefer these when they fit (they are part of the product vocabulary):
+- tags: ONLY from the Active vocabulary list in context **plus** product structural tags (person, preferences, relationship, watch, movie, show, media, list). Drop anything else.
+- Always prefer these when they fit:
   - #person — capture is primarily about a real person
-  - #preferences — tastes, likes, dislikes, habits, aesthetics
-  - #relationship — dynamics between people (not every person fact)
-  - #watch #movie #show #media #list — list/media dumps when present in Active
-- proposed_tags: only for genuinely useful new labels missing from Active (e.g. a recurring life domain). Never invent a flood of tags. Never put person display names as tags when a note title link works better.
+  - #preferences — tastes, likes, dislikes, habits, aesthetics (not a substitute for media tags)
+  - #relationship — dynamics between people
+  - #watch #movie #show #media #list — list/media dumps
+- proposed_tags: only for genuinely useful new labels missing from Active. Never invent a flood of tags. Never put person or show display names as tags when a note title link works better.
 
 ## People (tasteful, automatic linking)
 - When the context lists **Person hubs**, prefer those exact titles for people links (must-link when the capture is about that person).
 - Otherwise, when a capture is about a named person and that name appears in **Note titles**, you MUST link that exact title in links[] with a clear reason (e.g. "preference about [[Nichita]]", "relates to [[Nichita]]").
 - Match names case-insensitively; use the vault's exact title string in links[].note (canonical hub title, not a nickname spelling).
 - Do not invent a new person note title if a close existing title already fits.
-- One atom can carry both a person link and a preference claim.
+- One atom can carry a person link, a work link, and preference/media tags together.
 - Pure logistics that merely mention a name stay **noise** — do not force person atoms for chores.
 
 ## Links + supersession
@@ -108,8 +116,8 @@ export const SYSTEM_PROMPT = `You classify fleeting captures from a daily-note i
 - Always fill \`reason\` with readable prose that names the relationship.
 - If this capture updates / revises / contradicts an existing claim, say so explicitly
   (e.g. "revises [[Old claim]]", "contradicts [[Old claim]]").
-- Prefer zero forced topical links over junk edges — except the people rule above when a name clearly matches a vault title.
-- If a Movies/Shows-style title already exists in Note titles, you may link it; do not invent a hub title just for the list.
+- Prefer zero forced topical links over junk edges — except people rules and media work-title links above.
+- If a Movies/Shows hub title already exists in Note titles, you may also link it; still link the specific work when named.
 
 ## title
 - Required non-empty string iff verdict is atom.
@@ -472,7 +480,9 @@ export async function classifyCapture(
   }
 
   // People repair (atom-only, person-shaped) — single choke-point for live classify.
-  const result = enrichPersonLinks(capture, parsed, hubsForEnrich(context));
+  let result = enrichPersonLinks(capture, parsed, hubsForEnrich(context));
+  // Media/watchlist shape — tags + work link (high-precision local repair).
+  result = enrichMediaLinks(capture, result, context.titles ?? []);
 
   // Retain all links (KTD10) — no resolution filter.
 

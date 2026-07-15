@@ -29,6 +29,12 @@ export const STRUCTURAL_TAGS = [
   "person",
   "preferences",
   "relationship",
+  // Media / list dumps — always eligible so old Active lists still get smart tags
+  "watch",
+  "movie",
+  "show",
+  "media",
+  "list",
 ] as const;
 
 /** Tags the model may apply: structural ∪ user Active. */

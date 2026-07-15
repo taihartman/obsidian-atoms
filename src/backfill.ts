@@ -14,6 +14,7 @@ import type {
   VaultContext,
 } from "./types";
 import { enrichPersonLinks, type PersonHub } from "./people";
+import { enrichMediaLinks } from "./media";
 import { filterTagsToActive, mergeProposedTags } from "./vocabulary";
 
 export const BATCHES_URL = "https://api.anthropic.com/v1/messages/batches";
@@ -484,6 +485,7 @@ export async function applyBackfillResults(opts: {
       continue;
     }
     result = enrichPersonLinks(item.capture.text, result, hubs);
+    result = enrichMediaLinks(item.capture.text, result, []);
     if (result.proposed_tags?.length) {
       proposedIncoming.push(...result.proposed_tags);
     }
