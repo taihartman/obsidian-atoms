@@ -140,6 +140,47 @@ describe("stripSelfReferentialLinks", () => {
     expect(r).not.toContain("Self Title");
     expect(r).toContain("[[Other]]");
   });
+
+  it("drops links to aliases and prior titles (alsoSelf)", () => {
+    const title = "Ning is the strong Asian guy at CRG in a white collared shirt";
+    const prior = "Ning is the strong guy at CRG who wears white collared shirts";
+    const out = stripSelfReferentialLinks(
+      atom({
+        title,
+        links: [
+          {
+            note: prior,
+            reason: `restates same fact ([[${prior}]])`,
+          },
+          {
+            note: "People",
+            reason: "workplace index ([[People]])",
+          },
+        ],
+      }),
+      { alsoSelf: [prior] },
+    );
+    expect(out.links.map((l) => l.note)).toEqual(["People"]);
+  });
+
+  it("strips alias wikilinks from reasons", () => {
+    const title = "Grok has generous limits but weaker UI generation than Claude";
+    const alias =
+      "Grok has better usage limits than Claude Code and Codex, but its UI generation lags behind Claude";
+    const out = stripSelfReferentialLinks(
+      atom({
+        title,
+        links: [
+          {
+            note: alias,
+            reason: `repeats comparison ([[${alias}]])`,
+          },
+        ],
+      }),
+      { alsoSelf: [alias] },
+    );
+    expect(out.links).toHaveLength(0);
+  });
 });
 
 describe("maybeLinkPeopleIndex", () => {
