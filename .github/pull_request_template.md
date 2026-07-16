@@ -28,7 +28,10 @@ Closes #
 
 Screenshots:
 
-<!-- ![label](docs/qa/screenshots/<feature>/01-….png) -->
+<!-- GitHub PR *description* does NOT resolve repo-relative image paths (broken icon).
+     Use absolute raw URLs on the PR branch (after push):
+     ![label](https://raw.githubusercontent.com/<owner>/<repo>/<branch>/docs/qa/screenshots/<feature>/01-….png)
+     Still commit the PNGs under docs/qa/screenshots/ so they live with the PR. -->
 
 ## Plan / STATUS
 
