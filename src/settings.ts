@@ -20,6 +20,7 @@ import {
   resolveCaptureShortcutInstallUrl,
   writeShortcutAck,
 } from "./captureShortcut";
+import { clampAtomFolder } from "./render";
 import {
   API_KEY_SECRET_ID_DEFAULT,
   LOCAL_STORAGE_API_KEY,
@@ -114,7 +115,9 @@ export class AtomsSettingTab extends PluginSettingTab {
             }
             const ok = openShortcutInstallUrl(installUrl);
             if (!ok) {
-              new Notice("Could not open the shortcut link");
+              new Notice(
+                "Shortcut link must be an https://www.icloud.com/shortcuts/… URL",
+              );
               return;
             }
             writeShortcutAck(
@@ -144,7 +147,7 @@ export class AtomsSettingTab extends PluginSettingTab {
     new Setting(containerEl)
       .setName("Privacy")
       .setDesc(
-        "Every run sends your vault's note titles, tags, a derived person-hub title list (titles only — never folder paths or hub body content), and each capture to the Anthropic API over TLS. The model never rewrites your hand-authored notes — only new files in the atom folder and marker lines under captures.",
+        "Every run sends your vault's note titles, tags, a derived person-hub title list (titles only — never folder paths or hub body content), and each capture to the Anthropic API over TLS (your API key = optional paid usage). The model never rewrites your hand-authored notes — only new files in the atom folder and marker lines under captures. Existing atoms are never overwritten on title collision.",
       );
 
     new Setting(containerEl)
@@ -292,13 +295,15 @@ export class AtomsSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("Atom folder")
-      .setDesc("Flat folder for atom notes. Never chooses subfolders (R3).")
+      .setDesc(
+        "Flat single folder for atom notes (e.g. Atoms). Paths with .. or subfolders are rejected.",
+      )
       .addText((text) =>
         text
           .setPlaceholder("Atoms")
           .setValue(this.plugin.settings.atomFolder)
           .onChange(async (value) => {
-            this.plugin.settings.atomFolder = value.trim() || "Atoms";
+            this.plugin.settings.atomFolder = clampAtomFolder(value);
             await this.plugin.saveSettings();
           }),
       );

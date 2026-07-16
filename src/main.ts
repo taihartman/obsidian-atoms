@@ -1,5 +1,9 @@
 import { Notice, Plugin, WorkspaceLeaf, requestUrl } from "obsidian";
 import { ATOMS_HOME_VIEW_TYPE, AtomsHomeView } from "./atomsHomeView";
+import { clampAtomFolder } from "./render";
+
+/** Injected by esbuild: true in watch/dev, false in production Community builds. */
+declare const ATOMS_DEV_COMMANDS: boolean;
 import {
   classifyCapture,
   logClassifyOutcome,
@@ -403,51 +407,63 @@ export default class AtomsPlugin extends Plugin {
       },
     });
 
-    this.addCommand({
-      id: "spike-classify-hardcoded",
-      name: "Spike: classify hardcoded capture",
-      callback: () => {
-        void this.runSpikeClassify();
-      },
-    });
+    // Spike / fixture / log-only probes — only when esbuild defines true (watch/dev).
+    // Fail-closed: missing define → no spikes (safer for accidental packaging).
+    if (typeof ATOMS_DEV_COMMANDS !== "undefined" && ATOMS_DEV_COMMANDS) {
+      this.addCommand({
+        id: "spike-classify-hardcoded",
+        name: "Spike: classify hardcoded capture",
+        callback: () => {
+          void this.runSpikeClassify();
+        },
+      });
 
-    this.addCommand({
-      id: "spike-cache-and-batch-fork",
-      name: "Spike: measure cache + per-day batch fork (KTD3)",
-      callback: () => {
-        void this.runSpikeCacheAndBatch();
-      },
-    });
+      this.addCommand({
+        id: "spike-cache-and-batch-fork",
+        name: "Spike: measure cache + per-day batch fork (KTD3)",
+        callback: () => {
+          void this.runSpikeCacheAndBatch();
+        },
+      });
 
-    this.addCommand({
-      id: "spike-secret-storage-probe",
-      name: "Spike: probe SecretStorage read/write",
-      callback: () => {
-        this.runSecretStorageProbe();
-      },
-    });
+      this.addCommand({
+        id: "spike-secret-storage-probe",
+        name: "Spike: probe SecretStorage read/write",
+        callback: () => {
+          this.runSecretStorageProbe();
+        },
+      });
+
+      this.addCommand({
+        id: "log-context-prefix",
+        name: "Log vault context prefix (stable cache bytes)",
+        callback: () => {
+          this.runLogContextPrefix();
+        },
+      });
+
+      this.addCommand({
+        id: "classify-first-unprocessed",
+        name: "Classify first unprocessed capture (log only)",
+        callback: () => {
+          void this.runClassifyFirstUnprocessed();
+        },
+      });
+
+      this.addCommand({
+        id: "process-fixture-sample",
+        name: "Dev: write path with fixture classifications (test vault)",
+        callback: () => {
+          void this.runProcessFixtureSample();
+        },
+      });
+    }
 
     this.addCommand({
       id: "list-unprocessed-captures",
       name: "List unprocessed captures (log only)",
       callback: () => {
         void this.runListUnprocessed();
-      },
-    });
-
-    this.addCommand({
-      id: "log-context-prefix",
-      name: "Log vault context prefix (stable cache bytes)",
-      callback: () => {
-        this.runLogContextPrefix();
-      },
-    });
-
-    this.addCommand({
-      id: "classify-first-unprocessed",
-      name: "Classify first unprocessed capture (log only)",
-      callback: () => {
-        void this.runClassifyFirstUnprocessed();
       },
     });
 
@@ -480,15 +496,6 @@ export default class AtomsPlugin extends Plugin {
       name: "Process including today (test)",
       callback: () => {
         void this.runProcessUnprocessed({ includeToday: true });
-      },
-    });
-
-    /** Fixture write for CLI/dev when API is offline — still real vault writes. */
-    this.addCommand({
-      id: "process-fixture-sample",
-      name: "Dev: write path with fixture classifications (test vault)",
-      callback: () => {
-        void this.runProcessFixtureSample();
       },
     });
 
@@ -728,6 +735,7 @@ export default class AtomsPlugin extends Plugin {
       DEFAULT_SETTINGS,
       (await this.loadData()) as Partial<LinkerSettings>,
     );
+    this.settings.atomFolder = clampAtomFolder(this.settings.atomFolder);
   }
 
   async saveSettings() {

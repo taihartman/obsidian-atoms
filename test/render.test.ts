@@ -2,12 +2,14 @@ import { describe, expect, it } from "vitest";
 import {
   atomPathForTitle,
   buildAtomMarkdown,
+  clampAtomFolder,
   insertMarkerAfterCapture,
   markerLineForDecision,
   planWrite,
   resolveCreatedField,
   sanitizeFilename,
   formatAtomBody,
+  TITLE_MAX_LEN,
 } from "../src/render";
 import type { Capture, ClassificationResult } from "../src/types";
 import { parseCaptures } from "../src/parse";
@@ -22,7 +24,7 @@ const capture = (text: string, start = 0, end = 0): Capture => ({
   markerLine: null,
 });
 
-describe("sanitizeFilename (KTD8)", () => {
+describe("sanitizeFilename (KTD8 + security)", () => {
   it("replaces illegal chars and sets alias when changed", () => {
     const s = sanitizeFilename("Sleep: debt / plateaus?");
     expect(s.filename).not.toMatch(/[/:?]/);
@@ -33,6 +35,39 @@ describe("sanitizeFilename (KTD8)", () => {
     const s = sanitizeFilename("Sleep debt plateaus");
     expect(s.filename).toBe("Sleep debt plateaus");
     expect(s.alias).toBeNull();
+  });
+
+  it("neutralizes newlines and wikilink breakouts (AE2)", () => {
+    const s = sanitizeFilename("foo]]\nbar/../x");
+    expect(s.filename).not.toContain("\n");
+    expect(s.filename).not.toContain("]]");
+    expect(s.filename).not.toContain("/");
+    expect(s.filename).not.toMatch(/\.\./);
+    const marker = markerLineForDecision("atom", "foo]]\nbar/../x");
+    expect(marker.split("\n")).toHaveLength(1);
+    expect(marker).toMatch(/↳ \[\[.+\]\] <!--linker-->/);
+  });
+
+  it("bounds length", () => {
+    const long = "a".repeat(TITLE_MAX_LEN + 40);
+    expect(sanitizeFilename(long).filename.length).toBeLessThanOrEqual(
+      TITLE_MAX_LEN,
+    );
+  });
+});
+
+describe("clampAtomFolder (AE3)", () => {
+  it("accepts a single relative segment", () => {
+    expect(clampAtomFolder("Atoms")).toBe("Atoms");
+    expect(clampAtomFolder("My Atoms/")).toBe("My Atoms");
+  });
+
+  it("rejects poison / multi-segment / absolute", () => {
+    expect(clampAtomFolder("../Outside")).toBe("Atoms");
+    expect(clampAtomFolder("/abs")).toBe("Atoms");
+    expect(clampAtomFolder("foo/bar")).toBe("Atoms");
+    expect(clampAtomFolder("..")).toBe("Atoms");
+    expect(clampAtomFolder("")).toBe("Atoms");
   });
 });
 
@@ -146,8 +181,8 @@ describe("insertMarkerAfterCapture (R4/R6)", () => {
   });
 });
 
-describe("planWrite collision (KTD8)", () => {
-  it("updates the same path on same-title collision (no second file)", () => {
+describe("planWrite collision (protect existing)", () => {
+  it("skips file write on same-title collision and still plans marker", () => {
     const title = "Sleep debt plateaus";
     const path = atomPathForTitle("Atoms", title);
     const plan = planWrite({
@@ -164,11 +199,10 @@ describe("planWrite collision (KTD8)", () => {
       atomFolder: "Atoms",
       existingAtomPaths: new Set([path]),
     });
-    expect(plan.action.kind).toBe("update_atom");
-    if (plan.action.kind === "update_atom") {
+    expect(plan.action.kind).toBe("skip_existing_atom");
+    if (plan.action.kind === "skip_existing_atom") {
       expect(plan.action.path).toBe(path);
-      expect(plan.action.content).toContain("again the same thought");
-      expect(plan.action.content).toContain("watch");
+      expect(plan.action.title).toBe(title);
     }
     expect(plan.markerLine).toContain("[[Sleep debt plateaus]]");
   });

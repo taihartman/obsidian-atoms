@@ -6,6 +6,13 @@ Capture on your phone (iOS Shortcut → daily note). Atoms classifies each bulle
 
 **Plugin id:** `atoms` · **Version:** see `manifest.json` · **Requires:** Obsidian ≥ 1.11.4, core **Daily Notes**, Anthropic API key
 
+### Privacy & cost
+
+- Each classify run sends **vault note titles**, tags, person-hub **titles**, and the **capture text** to the Anthropic API over TLS.
+- You supply your own API key (SecretStorage). That usage is **optional paid** Anthropic billing — the plugin itself is free (MIT).
+- The model never rewrites your hand-authored daily bullets; it only creates flat atom files and appends markers. **Existing atom files are never overwritten** on title collision.
+- Auto-run (device-local, default off) requires a one-time egress acknowledgment.
+
 ---
 
 ## What it does
@@ -98,4 +105,4 @@ Private GitHub: **[taihartman/obsidian-atoms](https://github.com/taihartman/obsi
 
 ## License
 
-See repository license file if present; otherwise all rights reserved for this private project.
+MIT — see [LICENSE](./LICENSE).

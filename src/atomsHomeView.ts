@@ -796,7 +796,9 @@ export class AtomsHomeView extends ItemView {
     }
     const ok = openShortcutInstallUrl(url);
     if (!ok) {
-      new Notice("Could not open the shortcut link");
+      new Notice(
+        "Shortcut link must be an https://www.icloud.com/shortcuts/… URL",
+      );
       return;
     }
     writeShortcutAck(
