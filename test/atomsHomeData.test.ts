@@ -266,7 +266,7 @@ describe("countEligibleUpdateNotes", () => {
 created: 2026-07-14
 source: "[[2026-07-14]]"
 generated-by: linker
-atoms-quality: 2
+atoms-quality: 99
 quality-updated: 2026-07-16
 tags: []
 ---

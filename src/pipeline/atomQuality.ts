@@ -3,7 +3,8 @@
  * Bump CURRENT when Process/Update behavior that should re-touch old notes changes.
  */
 
-export const CURRENT_ATOMS_QUALITY = 2;
+/** Bump when Process/Update should re-touch older atoms (e.g. self-link ban). */
+export const CURRENT_ATOMS_QUALITY = 3;
 
 const GENERATED_BY_RE = /^generated-by:\s*linker\s*$/m;
 const QUALITY_RE = /^atoms-quality:\s*(\d+)\s*$/m;
