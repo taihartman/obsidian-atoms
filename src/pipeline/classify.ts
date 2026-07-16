@@ -483,8 +483,18 @@ export async function classifyCapture(
     };
   }
 
-  // Parse layer: trust structured-output schema. No try/catch around JSON.parse (KTD4).
-  let parsed = JSON.parse(textBlock.text) as ClassificationResult;
+  // Parse structured output. Schema usually yields valid JSON; still fail closed
+  // on truncate/escape errors so one bad completion does not kill the batch.
+  let parsed: ClassificationResult;
+  try {
+    parsed = JSON.parse(textBlock.text) as ClassificationResult;
+  } catch {
+    return {
+      ok: false,
+      reason: "invariant",
+      message: "Model returned invalid JSON (try Update again)",
+    };
+  }
 
   // Keepable product ideas must not soft-delete as task/noise (before invariants need title).
   parsed = rescueKeepableIdea(capture, parsed, context.titles ?? []);

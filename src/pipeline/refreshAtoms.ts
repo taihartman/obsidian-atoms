@@ -78,18 +78,16 @@ export function parseImmutableFrontmatter(content: string): {
     if (inAliases) {
       const item = line.match(/^\s*-\s+(.+)$/);
       if (item) {
+        // Strip surrounding quotes only — do not JSON.parse (apostrophes in
+        // names like Ning's break JSON and used to surface as parse errors).
         let v = item[1]!.trim();
-        try {
-          if (
-            (v.startsWith('"') && v.endsWith('"')) ||
-            (v.startsWith("'") && v.endsWith("'"))
-          ) {
-            v = JSON.parse(v.replace(/^'/, '"').replace(/'$/, '"'));
-          }
-        } catch {
-          /* keep raw */
+        if (
+          (v.startsWith('"') && v.endsWith('"')) ||
+          (v.startsWith("'") && v.endsWith("'"))
+        ) {
+          v = v.slice(1, -1);
         }
-        existingAliases.push(String(v));
+        if (v) existingAliases.push(v);
         continue;
       }
       if (/^\w/.test(line)) break;

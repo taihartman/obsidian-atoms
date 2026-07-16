@@ -3,6 +3,7 @@ import {
   buildRefreshedAtomMarkdown,
   extractCaptureBody,
   keepAsAtomResult,
+  parseImmutableFrontmatter,
   planRefreshApply,
   repairMarkerTitleInDaily,
 } from "../src/pipeline/refreshAtoms";
@@ -27,6 +28,27 @@ const atomResult = (): ClassificationResult => ({
   tags: ["idea"],
   proposed_tags: [],
   links: [{ note: "Old", reason: "revises [[Old]]" }],
+});
+
+describe("parseImmutableFrontmatter", () => {
+  it("parses aliases with apostrophes without JSON errors", () => {
+    const md = `---
+created: 2026-07-15
+source: "[[2026-07-15]]"
+generated-by: linker
+aliases:
+  - "Sherry is Ning's friend from CRG who works at a hospital"
+  - "Nichita likes Darkest Files because it makes her feel like a detective"
+tags: []
+---
+body
+`;
+    const fm = parseImmutableFrontmatter(md);
+    expect(fm.existingAliases).toContain(
+      "Sherry is Ning's friend from CRG who works at a hospital",
+    );
+    expect(fm.existingAliases[0]).not.toMatch(/^"/);
+  });
 });
 
 describe("extractCaptureBody", () => {
