@@ -24,6 +24,7 @@ import {
   calendarDateToday,
   calendarDayDelta,
   citatorLinesForAtom,
+  claimBodyForDisplay,
   cueLabel,
   formatCueDate,
   indexAtomFile,
@@ -560,7 +561,7 @@ export class AtomsHomeView extends ItemView {
       className: "atoms-home-mind-change-kicker",
     });
     claimQuote(el, {
-      text: card.bodySnippet,
+      text: claimBodyForDisplay(card.bodySnippet),
       maxLines: 4,
       className: "atoms-home-resurface-snippet",
     });
@@ -621,8 +622,11 @@ export class AtomsHomeView extends ItemView {
   ): void {
     const thenPath = card.path;
     const nowPath = card.laterPath ?? "";
-    const thenBody = this.readAtomBody(thenPath) || card.bodySnippet;
-    const nowBody = nowPath ? this.readAtomBody(nowPath) : "";
+    const thenBody =
+      claimBodyForDisplay(this.readAtomBody(thenPath) || card.bodySnippet);
+    const nowBody = nowPath
+      ? claimBodyForDisplay(this.readAtomBody(nowPath))
+      : "…";
     this.homeOpen = {
       kind: "mind-change-pair",
       thenPath,
@@ -658,7 +662,9 @@ export class AtomsHomeView extends ItemView {
       kind: "atom",
       path: self.path,
       title: self.title,
-      body: bodyAfterFrontmatter(file.content).trim() || self.bodySnippet,
+      body: claimBodyForDisplay(
+        bodyAfterFrontmatter(file.content).trim() || self.bodySnippet,
+      ),
       lines,
     };
     this.render();
@@ -672,7 +678,7 @@ export class AtomsHomeView extends ItemView {
       return;
     }
     backLink(scroll, {
-      label: "‹ For you",
+      label: "‹ Back",
       className: "atoms-home-back",
       onClick: () => this.closeHomeOpen(),
     });
@@ -716,7 +722,7 @@ export class AtomsHomeView extends ItemView {
   ): void {
     const wrap = scroll.createDiv({ cls: "atoms-home-pair" });
     backLink(wrap, {
-      label: "‹ For you",
+      label: "‹ Back",
       className: "atoms-home-back",
       onClick: () => this.closeHomeOpen(),
     });

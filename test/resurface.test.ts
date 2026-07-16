@@ -3,6 +3,7 @@ import {
   calendarDateToday,
   calendarDayDelta,
   citatorLinesForAtom,
+  claimBodyForDisplay,
   cueLabel,
   extractSupersessionEdges,
   formatCueDate,
@@ -510,5 +511,33 @@ describe("mind-change v2 copy helpers", () => {
         direction: "in",
       },
     ]);
+  });
+});
+
+describe("claimBodyForDisplay", () => {
+  it("strips trailing revises/contradicts edge lines for claim quotes only", () => {
+    expect(
+      claimBodyForDisplay("Now I believe Y.\n\nrevises [[Old claim]]."),
+    ).toBe("Now I believe Y.");
+    expect(
+      claimBodyForDisplay("Still true.\n\ncontradicts [[Earlier]]."),
+    ).toBe("Still true.");
+    expect(claimBodyForDisplay("[[Old claim]] revises.")).toBe("…");
+  });
+
+  it("keeps real claim text that merely mentions revises without a wikilink edge", () => {
+    expect(
+      claimBodyForDisplay("I revises nothing here, just a sentence."),
+    ).toBe("I revises nothing here, just a sentence.");
+  });
+
+  it("keeps claim prose that includes an edge mid-line with other words", () => {
+    expect(
+      claimBodyForDisplay("[[Old claim]] revises this thought entirely."),
+    ).toBe("[[Old claim]] revises this thought entirely.");
+  });
+
+  it("does not invent content when body is only an edge line", () => {
+    expect(claimBodyForDisplay("revises [[Old claim]].")).toBe("…");
   });
 });

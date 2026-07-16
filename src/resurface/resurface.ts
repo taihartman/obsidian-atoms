@@ -154,6 +154,41 @@ export function bodySnippet(body: string, max = 140): string {
   return one.slice(0, max - 1) + "…";
 }
 
+/**
+ * True when a line is hard supersession edge prose only
+ * (revises/contradicts + wikilink), with no other claim text.
+ */
+function isHardSupersessionDisplayLine(line: string): boolean {
+  const t = line.trim();
+  if (!t) return false;
+  SUPERSESSION_EDGE_RE.lastIndex = 0;
+  SUPERSESSION_EDGE_RE_FLIP.lastIndex = 0;
+  const m1 = SUPERSESSION_EDGE_RE.exec(t);
+  const m2 = SUPERSESSION_EDGE_RE_FLIP.exec(t);
+  const matched = m1?.[0] ?? m2?.[0];
+  if (!matched) return false;
+  // Residual after the edge match is only punctuation / whitespace.
+  const residual = t.replace(matched, "").replace(/[.\s,;:]+/g, "");
+  return residual.length === 0;
+}
+
+/**
+ * Display-only: drop hard supersession edge lines (revises/contradicts + wikilink)
+ * before showing claim quotes. Never mutates vault files; body stays sacred.
+ * Empty after strip → "…" so the quote chrome still has something to show.
+ */
+export function claimBodyForDisplay(body: string): string {
+  const text = body ?? "";
+  const kept = text
+    .split(/\r?\n/)
+    .filter((line) => !isHardSupersessionDisplayLine(line));
+  const out = kept
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+  return out || "…";
+}
+
 /** Normalize peer title for path/map keys. */
 export function normalizePeerTitle(raw: string): string {
   return (raw ?? "").replace(/\.md$/i, "").trim();
