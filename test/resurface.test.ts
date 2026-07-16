@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   calendarDateToday,
+  calendarDayDelta,
+  citatorLinesForAtom,
   cueLabel,
   extractSupersessionEdges,
   formatCueDate,
@@ -13,6 +15,8 @@ import {
   listResurfaceCandidates,
   markResurfaceShown,
   mindChangeAlreadyShownToday,
+  mindChangeConnectorLabel,
+  mindChangeHeroLaterLine,
   mindChangePairKey,
   monthDayKey,
   pickResurface,
@@ -268,6 +272,7 @@ describe("supersession edges + mind-change", () => {
     expect(list[0]!.bodySnippet).toBe("I used to think X");
     expect(list[0]!.laterTitle).toBe("New claim");
     expect(list[0]!.laterPath).toBe("Atoms/New claim.md");
+    expect(list[0]!.laterMatchDate).toBe("2026-07-01");
   });
 
   it("prioritizes mind-change above on-this-day", () => {
@@ -386,5 +391,108 @@ describe("mind-change pair throttle + contradicts", () => {
         pairThrottle,
       })?.cue,
     ).toBe("quiet");
+  });
+});
+
+describe("mind-change v2 copy helpers", () => {
+  it("calendarDayDelta counts whole calendar days", () => {
+    expect(calendarDayDelta("2026-01-01", "2026-01-13")).toBe(12);
+    expect(calendarDayDelta("2026-01-01", "2026-01-02")).toBe(1);
+    expect(calendarDayDelta("bad", "2026-01-02")).toBeNull();
+    expect(calendarDayDelta("2026-01-01", "")).toBeNull();
+  });
+
+  it("mindChangeHeroLaterLine uses day delta when known", () => {
+    expect(
+      mindChangeHeroLaterLine({
+        laterTitle: "Sleep debt doesn't stack",
+        relation: "revises",
+        dayDelta: 12,
+      }),
+    ).toBe(
+      "Twelve days later you revised this: Sleep debt doesn't stack",
+    );
+    expect(
+      mindChangeHeroLaterLine({
+        laterTitle: "No",
+        relation: "contradicts",
+        dayDelta: 1,
+      }),
+    ).toBe("One day later you contradicted this: No");
+  });
+
+  it("mindChangeHeroLaterLine falls back without inventing days", () => {
+    expect(
+      mindChangeHeroLaterLine({
+        laterTitle: "New claim",
+        relation: "revises",
+        dayDelta: null,
+      }),
+    ).toBe("Later you revised this: New claim");
+    expect(
+      mindChangeHeroLaterLine({
+        laterTitle: "New claim",
+        relation: "contradicts",
+      }),
+    ).toBe("Later you contradicted this: New claim");
+  });
+
+  it("never emits em dash or relates in hero later line", () => {
+    const line = mindChangeHeroLaterLine({
+      laterTitle: "X",
+      relation: "revises",
+      dayDelta: 5,
+    });
+    expect(line).not.toContain("—");
+    expect(line).not.toContain("relates");
+    expect(line).not.toContain("·");
+  });
+
+  it("mindChangeConnectorLabel is lowercase chrome", () => {
+    expect(mindChangeConnectorLabel("revises")).toBe("revised by");
+    expect(mindChangeConnectorLabel("contradicts")).toBe("contradicted by");
+  });
+
+  it("citatorLinesForAtom returns hard edges only", () => {
+    const older: IndexedAtom = {
+      path: "Atoms/Old claim.md",
+      title: "Old claim",
+      bodySnippet: "I used to think X",
+      matchDate: "2026-01-01",
+      mtime: 100,
+      linkChips: [],
+      content: atom({ created: "2026-01-01", body: "I used to think X" }),
+    };
+    const newer: IndexedAtom = {
+      path: "Atoms/New claim.md",
+      title: "New claim",
+      bodySnippet: "Now Y",
+      matchDate: "2026-07-01",
+      mtime: 200,
+      linkChips: ["Old claim"],
+      content: atom({
+        created: "2026-07-01",
+        body: "Now Y",
+        links: "revises [[Old claim]].",
+      }),
+    };
+    const out = citatorLinesForAtom(newer, [older, newer]);
+    expect(out).toEqual([
+      {
+        relationLabel: "revises",
+        peerTitle: "Old claim",
+        peerPath: "Atoms/Old claim.md",
+        direction: "out",
+      },
+    ]);
+    const inbound = citatorLinesForAtom(older, [older, newer]);
+    expect(inbound).toEqual([
+      {
+        relationLabel: "revised by",
+        peerTitle: "New claim",
+        peerPath: "Atoms/New claim.md",
+        direction: "in",
+      },
+    ]);
   });
 });
