@@ -72,7 +72,7 @@ describe("clampAtomFolder (AE3)", () => {
 });
 
 describe("buildAtomMarkdown (AE1 / R15)", () => {
-  it("has exactly the four frontmatter fields (+ optional aliases)", () => {
+  it("has core frontmatter fields + quality stamps (+ optional aliases)", () => {
     const result: ClassificationResult = {
       verdict: "atom",
       title: "Sleep debt plateaus",
@@ -90,12 +90,15 @@ describe("buildAtomMarkdown (AE1 / R15)", () => {
       captureText: "sleep debt seems to plateau",
       created: "2026-07-14T14:32:00",
       sourceDailyPath: "Daily/2026-07-14.md",
+      qualityUpdated: "2026-07-16",
     });
 
     expect(md).toMatch(/^---\n/);
     expect(md).toContain("created: 2026-07-14T14:32:00");
     expect(md).toContain('source: "[[2026-07-14]]"');
     expect(md).toContain("generated-by: linker");
+    expect(md).toContain("atoms-quality:");
+    expect(md).toContain("quality-updated: 2026-07-16");
     expect(md).toContain("tags:");
     expect(md).toContain("- idea");
     expect(md).not.toContain("model:");

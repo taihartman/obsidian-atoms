@@ -362,8 +362,18 @@ function seedFull() {
     },
   ];
 
-  for (const a of atoms) {
+  // Most atoms unstamped (eligible for Update notes). One stamped at current quality.
+  const CURRENT_ATOMS_QUALITY = 2;
+  for (let i = 0; i < atoms.length; i++) {
+    const a = atoms[i];
     const tagsYaml = a.tags.map((t) => `  - ${t}`).join("\n");
+    const qualityLines =
+      i === 0
+        ? [
+            `atoms-quality: ${CURRENT_ATOMS_QUALITY}`,
+            `quality-updated: ${a.created.slice(0, 10)}`,
+          ]
+        : [];
     writeFileSync(
       join(atomsFolder, a.file),
       [
@@ -371,6 +381,7 @@ function seedFull() {
         `created: ${a.created}`,
         `source: "[[${a.source}]]"`,
         "generated-by: linker",
+        ...qualityLines,
         "tags:",
         tagsYaml,
         "---",

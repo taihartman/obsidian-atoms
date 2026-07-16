@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   formatRunSummary,
+  formatUpdateSummary,
   progressLabel,
   progressPercent,
   snippetCapture,
@@ -60,6 +61,18 @@ describe("progress helpers", () => {
     expect(progressPercent(0, 0)).toBe(0);
     expect(progressLabel("process", 2, 5)).toBe("Processing 2 of 5");
     expect(progressLabel("preview", 1, 3)).toBe("Previewing 1 of 3");
+    expect(progressLabel("update", 3, 15)).toBe("Updating 3 of 15");
+  });
+
+  it("formatUpdateSummary includes remaining", () => {
+    expect(
+      formatUpdateSummary({
+        updated: 15,
+        remaining: 40,
+        failed: 0,
+        skipped: 1,
+      }),
+    ).toBe("Updated 15 notes · 40 still older · 1 skipped");
   });
 
   it("snippet truncates", () => {

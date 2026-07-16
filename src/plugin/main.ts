@@ -45,10 +45,15 @@ import {
   type DryRunReport,
 } from "../pipeline/preview";
 import { runWritePath, type WritePathReport } from "../pipeline/write";
+import {
+  REFRESH_BATCH_DEFAULT,
+  refreshEligibleAtoms,
+} from "../pipeline/refreshAtoms";
 import type { ClassificationResult } from "../shared/types";
 import { mergeProposedTags } from "../pipeline/vocabulary";
 import {
   formatRunSummary,
+  formatUpdateSummary,
   summaryFromDryRun,
   summaryFromWrite,
 } from "../home/runProgress";
@@ -173,6 +178,57 @@ export default class AtomsPlugin extends Plugin {
     await this.runProcessUnprocessed(opts);
   }
 
+  /** Called from Atoms home Update notes strip. */
+  async runUpdateNotesFromHome(): Promise<void> {
+    await this.runUpdateNotes();
+  }
+
+  /**
+   * Refresh older linker atoms to Process parity (plan 015).
+   * User-initiated only — never auto-run.
+   */
+  async runUpdateNotes(): Promise<void> {
+    const apiKey = this.requireApiKey();
+    if (!apiKey) return;
+
+    this.beginHomeRun("update");
+    new Notice("Atoms: updating older notes…");
+    try {
+      const report = await refreshEligibleAtoms({
+        app: this.app,
+        atomFolder: this.settings.atomFolder,
+        contextProvider: this.contextProvider,
+        apiKey,
+        model: this.settings.model,
+        activeVocabulary: this.settings.activeVocabulary,
+        limit: REFRESH_BATCH_DEFAULT,
+        classifyDeps: {
+          maxAttempts: 2,
+          onAuthFailure: (msg) => new Notice(`Atoms: ${msg}`),
+        },
+        onProgress: (done, total, meta) => {
+          this.updateHomeProgress(done, total, meta?.captureText);
+        },
+      });
+      const summary = formatUpdateSummary({
+        updated: report.updated,
+        remaining: report.remaining,
+        failed: report.failed,
+        skipped: report.skipped,
+      });
+      this.finishHomeRun(summary);
+      new Notice(`Atoms: ${summary}`);
+      devLog("[atoms] update notes", report);
+    } catch (e) {
+      devLog("[atoms] update notes failed", {
+        name: e instanceof Error ? e.name : "Error",
+        message: e instanceof Error ? e.message : "unknown",
+      });
+      this.failHomeRun("Update notes failed");
+      new Notice("Atoms: update notes failed (see console)");
+    }
+  }
+
   /** Reload every open Atoms home leaf (after process / dry-run writes). */
   async refreshAtomsHomeLeaves(): Promise<void> {
     for (const leaf of this.app.workspace.getLeavesOfType(ATOMS_HOME_VIEW_TYPE)) {
@@ -191,7 +247,7 @@ export default class AtomsPlugin extends Plugin {
     }
   }
 
-  private beginHomeRun(phase: "preview" | "process"): void {
+  private beginHomeRun(phase: "preview" | "process" | "update"): void {
     this.forEachAtomsHome((v) => v.beginRun(phase));
   }
 

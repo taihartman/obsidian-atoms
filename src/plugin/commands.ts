@@ -98,6 +98,14 @@ export function registerAtomsCommands(plugin: AtomsPlugin): void {
   });
 
   plugin.addCommand({
+    id: "update-notes",
+    name: "Update notes (refresh older atoms to current quality)",
+    callback: () => {
+      void plugin.runUpdateNotes();
+    },
+  });
+
+  plugin.addCommand({
     id: "process-include-today",
     name: "Process including today (test)",
     callback: () => {

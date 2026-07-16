@@ -136,6 +136,70 @@
   color: var(--text-accent);
 }
 
+/* Update notes — secondary library strip (dismissible) */
+.atoms-home-update-strip {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 14px 12px;
+  margin-bottom: 16px;
+  border-radius: 14px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-secondary);
+}
+
+.atoms-home-update-strip h2 {
+  margin: 0;
+  padding-right: 28px;
+  font-size: 1.15rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  color: var(--text-normal);
+}
+
+.atoms-home-update-strip > p:not(.atoms-home-card-eyebrow):not(.atoms-home-update-meta-line) {
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.atoms-home-update-meta-line {
+  margin: -2px 0 4px;
+  font-size: 0.8rem;
+  color: var(--text-faint);
+  line-height: 1.35;
+}
+
+.atoms-home-update-strip .atoms-home-card-eyebrow {
+  color: var(--text-accent);
+}
+
+.atoms-home-strip-dismiss {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 980px;
+  background: transparent;
+  color: var(--text-faint);
+  font-size: 1.15rem;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.atoms-home-strip-dismiss:hover {
+  color: var(--text-muted);
+  background: var(--background-modifier-hover);
+}
+
 .atoms-home-queue-label {
   font-size: 0.75rem;
   font-weight: 600;

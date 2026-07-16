@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| In progress | #25 | tai | ci/require-closes-issue | — | .github/workflows/pr-closes-issue.yml | CI enforce Closes #N |
+| In progress | #29 | tai | feat/update-notes-process-parity | docs/plans/2026-07-16-015-feat-atoms-quality-stamp-and-improve-plan.md | pipeline/refreshAtoms.ts, shared/atomQuality.ts, pipeline/render.ts, home/*, plugin/main.ts | Update notes 0.6.7 |
 
 ## How to claim (copy)
 

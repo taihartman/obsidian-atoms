@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   classifyLinkRole,
+  countEligibleForUpdate,
   extractDisplayLinkChips,
   extractLinkChips,
   extractSourceDay,
@@ -9,12 +10,14 @@ import {
   formatRelativeTime,
   isAutomaticFilingReady,
   isGeneratedAtomContent,
+  isUpdateNotesDismissed,
   listAtomLibraryEntries,
   parseAtomLibraryEntry,
   personNameFromClaimTitle,
   shouldShowWaitCard,
   titleFromAtomPath,
 } from "../src/home/atomsHomeData";
+import { CURRENT_ATOMS_QUALITY } from "../src/shared/atomQuality";
 
 const atomMd = (opts: {
   title?: string;
@@ -254,5 +257,34 @@ describe("isAutomaticFilingReady", () => {
         hasKey: false,
       }),
     ).toBe(false);
+  });
+});
+
+describe("Update notes eligibility helpers", () => {
+  it("counts unstamped linker atoms", () => {
+    const stamped = `---
+created: 2026-07-01
+source: "[[2026-07-01]]"
+generated-by: linker
+atoms-quality: ${CURRENT_ATOMS_QUALITY}
+quality-updated: 2026-07-16
+tags: []
+---
+body
+`;
+    expect(
+      countEligibleForUpdate([
+        { content: atomMd({ body: "old" }) },
+        { content: stamped },
+      ]),
+    ).toBe(1);
+  });
+
+  it("dismiss tracks quality generation", () => {
+    expect(isUpdateNotesDismissed(null, CURRENT_ATOMS_QUALITY)).toBe(false);
+    expect(
+      isUpdateNotesDismissed(String(CURRENT_ATOMS_QUALITY), CURRENT_ATOMS_QUALITY),
+    ).toBe(true);
+    expect(isUpdateNotesDismissed("1", CURRENT_ATOMS_QUALITY)).toBe(false);
   });
 });

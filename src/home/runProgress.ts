@@ -9,14 +9,20 @@ export type RunProgressMeta = {
   captureText?: string;
 };
 
-export type RunPhase = "idle" | "preview" | "process" | "done" | "error";
+export type RunPhase =
+  | "idle"
+  | "preview"
+  | "process"
+  | "update"
+  | "done"
+  | "error";
 
 export type RunSummary = {
   atoms: number;
   tasks: number;
   noise: number;
   failed: number;
-  mode: "preview" | "process";
+  mode: "preview" | "process" | "update";
 };
 
 export function snippetCapture(text: string, max = 72): string {
@@ -94,11 +100,40 @@ export function progressPercent(done: number, total: number): number {
 }
 
 export function progressLabel(
-  phase: "preview" | "process",
+  phase: "preview" | "process" | "update",
   done: number,
   total: number,
 ): string {
-  const verb = phase === "preview" ? "Previewing" : "Processing";
+  const verb =
+    phase === "preview"
+      ? "Previewing"
+      : phase === "update"
+        ? "Updating"
+        : "Processing";
   if (total <= 0) return `${verb}…`;
   return `${verb} ${done} of ${total}`;
+}
+
+export function formatUpdateSummary(opts: {
+  updated: number;
+  remaining: number;
+  failed: number;
+  skipped: number;
+}): string {
+  const parts: string[] = [];
+  if (opts.updated) {
+    parts.push(
+      `Updated ${opts.updated} note${opts.updated === 1 ? "" : "s"}`,
+    );
+  } else {
+    parts.push("No notes updated");
+  }
+  if (opts.remaining > 0) {
+    parts.push(
+      `${opts.remaining} still older`,
+    );
+  }
+  if (opts.failed) parts.push(`${opts.failed} failed`);
+  if (opts.skipped) parts.push(`${opts.skipped} skipped`);
+  return parts.join(" · ");
 }

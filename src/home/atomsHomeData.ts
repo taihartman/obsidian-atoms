@@ -2,6 +2,8 @@
  * Pure data for Atoms home view: library rows + pending helpers.
  */
 
+import { isEligibleForRefresh } from "../shared/atomQuality";
+
 /** Home-row chip role — person (warm) vs work/media (cool). */
 export type LinkChipRole = "person" | "work";
 
@@ -60,6 +62,29 @@ export function isGeneratedAtomContent(content: string): boolean {
   const end = content.indexOf("\n---", 3);
   const fm = end === -1 ? content.slice(0, 400) : content.slice(0, end + 4);
   return GENERATED_BY_RE.test(fm);
+}
+
+/** Count linker atoms below current quality (Update notes eligibility). */
+export function countEligibleForUpdate(
+  files: Array<{ content: string }>,
+): number {
+  let n = 0;
+  for (const f of files) {
+    if (isEligibleForRefresh(f.content)) n += 1;
+  }
+  return n;
+}
+
+export const LS_UPDATE_NOTES_DISMISSED_Q = "atoms-update-notes-dismissed-q";
+
+/** True when user dismissed Update strip for this quality generation. */
+export function isUpdateNotesDismissed(
+  stored: string | null | undefined,
+  currentQuality: number,
+): boolean {
+  if (stored == null || stored === "") return false;
+  const n = Number.parseInt(String(stored), 10);
+  return Number.isFinite(n) && n >= currentQuality;
 }
 
 export function extractSourceDay(content: string): string | null {

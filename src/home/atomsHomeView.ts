@@ -10,16 +10,23 @@ import {
 import type AtomsPlugin from "../plugin/main";
 import {
   bodyAfterFrontmatter,
+  countEligibleForUpdate,
   filingHeroCopy,
   filterLinkedOnly,
   formatRelativeTime,
   isAutomaticFilingReady,
+  isUpdateNotesDismissed,
   listAtomLibraryEntries,
+  LS_UPDATE_NOTES_DISMISSED_Q,
   queuePeekTexts,
   shouldShowWaitCard,
   type AtomLibraryEntry,
   type FilingHeroCopy,
 } from "./atomsHomeData";
+import {
+  CURRENT_ATOMS_QUALITY,
+} from "../shared/atomQuality";
+import { REFRESH_BATCH_DEFAULT } from "../pipeline/refreshAtoms";
 import {
   calendarDateToday,
   citatorChipsForAtom,
@@ -123,13 +130,16 @@ export class AtomsHomeView extends ItemView {
       }
     | null = null;
 
-  /** Live Preview/Process progress (not cleared by library refresh). */
+  /** Live Preview/Process/Update progress (not cleared by library refresh). */
   private runPhase: RunPhase = "idle";
   private runDone = 0;
   private runTotal = 0;
   private runSnippet = "";
   private runSummaryText = "";
   private progressMount: HTMLElement | null = null;
+  /** Linker atoms below CURRENT quality. */
+  private eligibleUpdateCount = 0;
+  private updateNotesDismissed = false;
 
   constructor(leaf: WorkspaceLeaf, plugin: AtomsPlugin) {
     super(leaf);
@@ -181,8 +191,8 @@ export class AtomsHomeView extends ItemView {
     this.render();
   }
 
-  /** Start a home-visible run (Preview or Process). */
-  beginRun(phase: "preview" | "process"): void {
+  /** Start a home-visible run (Preview, Process, or Update notes). */
+  beginRun(phase: "preview" | "process" | "update"): void {
     this.busy = true;
     this.runPhase = phase;
     this.runDone = 0;
@@ -249,7 +259,12 @@ export class AtomsHomeView extends ItemView {
       el.createEl("p", { text: this.runSummaryText });
       return;
     }
-    const phase = this.runPhase === "preview" ? "preview" : "process";
+    const phase: "preview" | "process" | "update" =
+      this.runPhase === "preview"
+        ? "preview"
+        : this.runPhase === "update"
+          ? "update"
+          : "process";
     el.createEl("h2", {
       text: progressLabel(phase, this.runDone, this.runTotal || 1),
     });
@@ -321,6 +336,11 @@ export class AtomsHomeView extends ItemView {
     this.refreshResurfacePick(folder);
 
     this.shortcutAcked = readShortcutAck((k) => this.app.loadLocalStorage(k));
+    this.eligibleUpdateCount = countEligibleForUpdate(inputs);
+    this.updateNotesDismissed = isUpdateNotesDismissed(
+      this.app.loadLocalStorage(LS_UPDATE_NOTES_DISMISSED_Q) as string | null,
+      CURRENT_ATOMS_QUALITY,
+    );
 
     try {
       const past = await getPastDailyNotesWithUnmarkedCaptures(this.app);
@@ -811,6 +831,16 @@ export class AtomsHomeView extends ItemView {
       }
     }
 
+    // Update notes — secondary strip (dismissible); never above Process wait
+    if (
+      !firstDay &&
+      this.runPhase === "idle" &&
+      this.eligibleUpdateCount > 0 &&
+      !this.updateNotesDismissed
+    ) {
+      this.renderUpdateNotesStrip(scroll);
+    }
+
     // One hero: Ready when pending; For you only when calm (home-v2)
     const workPending = shouldShowWaitCard(this.unprocessedCount);
     if (!firstDay && this.runPhase === "idle" && !workPending) {
@@ -1065,6 +1095,89 @@ export class AtomsHomeView extends ItemView {
           }),
       );
     modal.open();
+  }
+
+  private renderUpdateNotesStrip(scroll: HTMLElement): void {
+    const n = this.eligibleUpdateCount;
+    const batch = Math.min(REFRESH_BATCH_DEFAULT, n);
+    const strip = scroll.createDiv({ cls: "atoms-home-update-strip" });
+    const dismiss = strip.createEl("button", {
+      cls: "atoms-home-strip-dismiss",
+      attr: { "aria-label": "Dismiss", type: "button" },
+      text: "×",
+    });
+    dismiss.addEventListener("click", (e) => {
+      e.stopPropagation();
+      this.dismissUpdateNotesStrip();
+    });
+    strip.createEl("p", {
+      cls: "atoms-home-card-eyebrow",
+      text: "Library",
+    });
+    strip.createEl("h2", { text: "Update notes" });
+    strip.createEl("p", {
+      text:
+        n === 1
+          ? "Filing got smarter. 1 older note can catch up."
+          : `Filing got smarter. ${n} older notes can catch up.`,
+    });
+    strip.createEl("p", {
+      cls: "atoms-home-update-meta-line",
+      text:
+        n > batch
+          ? `Up to ${batch} this run · uses your API key`
+          : "Uses your API key",
+    });
+    const actions = strip.createDiv({ cls: "atoms-home-wait-actions" });
+    const btn = actions.createEl("button", {
+      cls: "atoms-home-btn atoms-home-btn-primary",
+      text: this.busy ? "…" : "Update",
+    });
+    btn.disabled = this.busy;
+    btn.addEventListener("click", () => this.confirmUpdateNotes());
+  }
+
+  private dismissUpdateNotesStrip(): void {
+    this.app.saveLocalStorage(
+      LS_UPDATE_NOTES_DISMISSED_Q,
+      String(CURRENT_ATOMS_QUALITY),
+    );
+    this.updateNotesDismissed = true;
+    this.render();
+  }
+
+  private confirmUpdateNotes(): void {
+    if (this.busy) return;
+    const n = this.eligibleUpdateCount;
+    const batch = Math.min(REFRESH_BATCH_DEFAULT, n);
+    const modal = new Modal(this.app);
+    modal.titleEl.setText(
+      n > batch
+        ? `Update up to ${batch} of ${n} notes?`
+        : `Refresh ${n} note${n === 1 ? "" : "s"} with AI?`,
+    );
+    modal.contentEl.createEl("p", {
+      text: "Same model pipeline as filing. Titles and links may update. Original capture text will not change. Uses your Anthropic API key.",
+    });
+    new Setting(modal.contentEl)
+      .addButton((b) =>
+        b.setButtonText("Cancel").onClick(() => modal.close()),
+      )
+      .addButton((b) =>
+        b
+          .setButtonText("Update")
+          .setCta()
+          .onClick(() => {
+            modal.close();
+            void this.onUpdateNotes();
+          }),
+      );
+    modal.open();
+  }
+
+  private async onUpdateNotes(): Promise<void> {
+    if (this.busy) return;
+    await this.plugin.runUpdateNotesFromHome();
   }
 
   private async onPreview(includeToday: boolean): Promise<void> {

@@ -23,7 +23,7 @@ World-class here means: **trust the body**, **intelligence in the graph**, **zer
 ## Design principles (load-bearing)
 
 1. **Verbatim body** — the model never authors the note body. Titles may be confident; the body preserves hedges and half-formedness (context-rot defense).
-2. **Two write types only** — (a) new files in flat `Atoms/`, (b) append-only marker lines on past dailies. No rewriting user prose, no folder intelligence.
+2. **Write types** — (a) new files in flat `Atoms/`, (b) append-only marker lines on past dailies, (c) **Update notes** may modify an existing linker atom’s model surfaces + stamp and, only when title changes, rewrite that capture’s plugin marker wikilink. No rewriting user capture prose, no folder intelligence.
 3. **Sentinel idempotency** — processed state is a plugin-owned HTML comment line, not “any wikilink.” Covers atom **and** task/noise (cost + correctness).
 4. **Conservative triage** — when in doubt, `noise`. Dry-run is the only human gate before writes.
 5. **Device-local control plane** — API key and auto-run flag do not sync; vocabulary and atoms do.
@@ -114,7 +114,9 @@ processInbox(dryRun)
 | Atoms | `Atoms/*.md` | yes (vault) |
 | Markers | under captures in daily notes | yes (vault) |
 
-Atom frontmatter (exact): `created`, `source` (wikilink), `generated-by`, `tags`. Optional `aliases` only when filename sanitization changes the title (KTD8).
+Atom frontmatter: `created`, `source` (wikilink), `generated-by`, `atoms-quality` (int pipeline generation), `quality-updated` (date), `tags`. Optional `aliases` when filename sanitization changes the title (KTD8) or refresh keeps an old path.
+
+**Update notes (0.6.7+):** user-initiated refresh of linker atoms with `atoms-quality` missing or below `CURRENT_ATOMS_QUALITY`. Same `classifyCapture` + enrich as Process; **in-place modify** (not `planWrite` create/skip). Capture body sacred; title/tags/links may change. Optional home strip (dismissible). Never auto-run. Title rename may rewrite the single plugin marker line on the source daily (narrow exception to append-only); on ambiguity, aliases only.
 
 ## Safety envelope
 

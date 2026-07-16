@@ -6,7 +6,8 @@ artifact_contract: ce-unified-plan/v1
 artifact_readiness: implementation-ready
 execution: code
 product_contract_source: ce-plan-bootstrap
-doc_review: "2026-07-16 light headless (coherence + feasibility + design + product)"
+doc_review: "2026-07-16 light headless; adversarial + mock v3.1 (2026-07-16)"
+status: implementing
 ---
 
 # feat: Refresh older atoms to Process parity (AI + quality stamp)

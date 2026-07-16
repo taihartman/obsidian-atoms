@@ -5,6 +5,10 @@ import type {
   ClassificationResult,
   Verdict,
 } from "../shared/types";
+import {
+  CURRENT_ATOMS_QUALITY,
+  qualityUpdatedDate,
+} from "../shared/atomQuality";
 
 /**
  * Marker line that would be / is appended under a capture (KTD1).
@@ -144,7 +148,7 @@ export function atomPathForTitle(atomFolder: string, title: string): string {
 }
 
 /**
- * Frontmatter exactly: created, source (wikilink), generated-by, tags.
+ * Frontmatter: created, source, generated-by, atoms-quality, quality-updated, tags.
  * Optional aliases only when sanitization changed the title (KTD8 / R15).
  */
 export function buildAtomMarkdown(opts: {
@@ -154,6 +158,9 @@ export function buildAtomMarkdown(opts: {
   created: string;
   /** Daily note path or basename for source wikilink */
   sourceDailyPath: string;
+  /** Pipeline generation; default CURRENT. */
+  atomsQuality?: number;
+  qualityUpdated?: string;
 }): string {
   const { result, captureText, created, sourceDailyPath } = opts;
   const title = result.title.trim();
@@ -162,6 +169,8 @@ export function buildAtomMarkdown(opts: {
     .replace(/\.md$/i, "")
     .split("/")
     .pop()!;
+  const quality = opts.atomsQuality ?? CURRENT_ATOMS_QUALITY;
+  const qUpdated = opts.qualityUpdated ?? qualityUpdatedDate();
 
   const tags = (result.tags ?? []).map((t) => t.replace(/^#/, ""));
   const fm: string[] = ["---", `created: ${created}`];
@@ -172,6 +181,8 @@ export function buildAtomMarkdown(opts: {
   // source as wikilink string in YAML — Obsidian resolves [[Note]]
   fm.push(`source: "[[${sourceName}]]"`);
   fm.push("generated-by: linker");
+  fm.push(`atoms-quality: ${quality}`);
+  fm.push(`quality-updated: ${qUpdated}`);
   if (tags.length) {
     fm.push("tags:");
     for (const t of tags) fm.push(`  - ${t}`);
