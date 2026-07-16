@@ -25,12 +25,31 @@ export type PersonHub = {
   path: string;
 };
 
-/** Path segment allowlist (KTD-P3). Case-sensitive on segment names as in plan. */
+/**
+ * Path segments that **boost** hub score (not exclusive gates).
+ * High: Social/, People/. Mild: Personal notes/ (never a free pass alone).
+ */
+export const PERSON_HUB_BOOST_SEGMENTS = {
+  social: "/Social/",
+  people: "/People/",
+  personalNotes: "/Personal notes/",
+} as const;
+
+/** @deprecated alias — prefer PERSON_HUB_BOOST_SEGMENTS / pathHasBoostSegment */
 export const PERSON_HUB_PATH_SEGMENTS = [
-  "/Social/",
-  "/People/",
-  "/Personal notes/",
+  PERSON_HUB_BOOST_SEGMENTS.social,
+  PERSON_HUB_BOOST_SEGMENTS.people,
+  PERSON_HUB_BOOST_SEGMENTS.personalNotes,
 ] as const;
+
+/** Max hubs sent to the model + repair (score-ranked). */
+export const PERSON_HUB_TOP_N = 40;
+
+/**
+ * Minimum score to enter the hub set unless under Social/People or tagged #person.
+ * Blocks single-word topics like Cooking.md at vault root (base 1 + single-word 2 = 3).
+ */
+export const PERSON_HUB_MIN_SCORE = 4;
 
 /**
  * Folder path prefixes / segments that never contribute hubs.
@@ -68,18 +87,97 @@ export const PERSON_HUB_DENY_TITLES = new Set(
   ].map((t) => t.toLowerCase()),
 );
 
-export function pathHasAllowlistSegment(path: string): boolean {
+function pathNorm(path: string): string {
   const normalized = path.startsWith("/") ? path : `/${path}`;
-  // Also match "Personal notes/" at start without leading slash variants
-  const withSlashes = normalized.includes("/")
-    ? normalized
-    : `/${normalized}`;
-  for (const seg of PERSON_HUB_PATH_SEGMENTS) {
+  return normalized.includes("/") ? normalized : `/${normalized}`;
+}
+
+/** True if path sits under any boost segment (Social / People / Personal notes). */
+export function pathHasBoostSegment(path: string): boolean {
+  const withSlashes = pathNorm(path);
+  for (const seg of Object.values(PERSON_HUB_BOOST_SEGMENTS)) {
     if (withSlashes.includes(seg)) return true;
-    // Root-level "Personal notes/Tin.md"
     if (path.startsWith(seg.slice(1))) return true;
   }
   return false;
+}
+
+/** @deprecated use pathHasBoostSegment */
+export const pathHasAllowlistSegment = pathHasBoostSegment;
+
+export function pathHasSocialBoost(path: string): boolean {
+  const n = pathNorm(path);
+  return (
+    n.includes(PERSON_HUB_BOOST_SEGMENTS.social) ||
+    path.startsWith("Social/")
+  );
+}
+
+export function pathHasPeopleBoost(path: string): boolean {
+  const n = pathNorm(path);
+  return (
+    n.includes(PERSON_HUB_BOOST_SEGMENTS.people) ||
+    path.startsWith("People/")
+  );
+}
+
+export function pathHasPersonalNotesBoost(path: string): boolean {
+  const n = pathNorm(path);
+  return (
+    n.includes(PERSON_HUB_BOOST_SEGMENTS.personalNotes) ||
+    path.startsWith("Personal notes/")
+  );
+}
+
+/** Frontmatter tags include structural #person (string | string[]). */
+export function frontmatterHasPersonTag(
+  cache: { frontmatter?: Record<string, unknown> | null } | null | undefined,
+): boolean {
+  const fm = cache?.frontmatter;
+  if (!fm || !("tags" in fm)) return false;
+  const v = fm.tags;
+  const check = (raw: string) => normalizeTag(raw) === "person";
+  if (typeof v === "string") {
+    return v.split(/[,\s]+/).some(check);
+  }
+  if (Array.isArray(v)) {
+    return v.some((item) => typeof item === "string" && check(item));
+  }
+  return false;
+}
+
+/**
+ * Score a person-like candidate. Higher = more likely a real person hub.
+ * Pure — used by discovery and unit tests.
+ */
+export function scorePersonHubCandidate(opts: {
+  path: string;
+  title: string;
+  hasPersonTag: boolean;
+}): number {
+  const { path, title, hasPersonTag } = opts;
+  let score = 1; // base person-like
+  if (pathHasSocialBoost(path)) score += 10;
+  if (pathHasPeopleBoost(path)) score += 8;
+  if (pathHasPersonalNotesBoost(path)) score += 1;
+  if (hasPersonTag) score += 5;
+  const words = title.trim().split(/\s+/).filter(Boolean);
+  if (words.length === 1) score += 2;
+  if (words.length >= 3) score -= 2;
+  return score;
+}
+
+/** Whether score + path/tag signals clear the discovery floor. */
+export function meetsPersonHubThreshold(opts: {
+  score: number;
+  path: string;
+  hasPersonTag: boolean;
+}): boolean {
+  if (opts.hasPersonTag) return true;
+  if (pathHasSocialBoost(opts.path) || pathHasPeopleBoost(opts.path)) {
+    return true;
+  }
+  return opts.score >= PERSON_HUB_MIN_SCORE;
 }
 
 export function pathInDenylistFolder(path: string): boolean {
@@ -132,46 +230,45 @@ export function aliasesFromCache(
 }
 
 /**
- * Discover person hubs under allowlisted paths only (KTD-P3).
- * On basename collision, prefer allowlisted path order; skip ambiguous auto-repair
- * by keeping first preferred and not merging match keys across different files.
+ * Discover person hubs: denylist + person-like basename, then **score → threshold → top N**.
+ * Path segments boost rank (Social/People high); they are not exclusive gates.
+ * On basename collision, keep the higher-scoring path.
  */
 export function discoverPersonHubs(files: PersonHubFile[]): PersonHub[] {
-  type Candidate = PersonHub & { rank: number };
+  type Candidate = PersonHub & { score: number };
   const byCanonical = new Map<string, Candidate>();
 
   for (const f of files) {
     const path = f.path.replace(/\\/g, "/");
     if (!path.toLowerCase().endsWith(".md")) continue;
     if (pathInDenylistFolder(path)) continue;
-    if (!pathHasAllowlistSegment(path)) continue;
 
     const canonicalTitle = basenameTitle(path);
     if (!isPersonLikeBasename(canonicalTitle)) continue;
+
+    const hasPersonTag = frontmatterHasPersonTag(f.cache ?? null);
+    const score = scorePersonHubCandidate({
+      path,
+      title: canonicalTitle,
+      hasPersonTag,
+    });
+    if (!meetsPersonHubThreshold({ score, path, hasPersonTag })) continue;
 
     const matchKeys = uniqueKeys([
       canonicalTitle,
       ...aliasesFromCache(f.cache ?? null),
     ]);
 
-    // Prefer deeper Social/People paths over generic Personal notes when colliding
-    let rank = 0;
-    if (path.includes("/Social/")) rank += 3;
-    if (path.includes("/People/")) rank += 2;
-    if (path.includes("/Personal notes/") || path.startsWith("Personal notes/"))
-      rank += 1;
-
     const existing = byCanonical.get(canonicalTitle.toLowerCase());
     if (existing) {
-      if (rank > existing.rank) {
+      if (score > existing.score) {
         byCanonical.set(canonicalTitle.toLowerCase(), {
           canonicalTitle,
           matchKeys,
           path,
-          rank,
+          score,
         });
       }
-      // Same basename, different path, equal/lower rank: leave existing; ambiguous skip is rare
       continue;
     }
 
@@ -179,12 +276,17 @@ export function discoverPersonHubs(files: PersonHubFile[]): PersonHub[] {
       canonicalTitle,
       matchKeys,
       path,
-      rank,
+      score,
     });
   }
 
   return [...byCanonical.values()]
-    .map(({ rank: _r, ...hub }) => hub)
+    .sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      return a.canonicalTitle.localeCompare(b.canonicalTitle);
+    })
+    .slice(0, PERSON_HUB_TOP_N)
+    .map(({ score: _s, ...hub }) => hub)
     .sort((a, b) => a.canonicalTitle.localeCompare(b.canonicalTitle));
 }
 
@@ -242,6 +344,37 @@ function personShaped(captureText: string, result: ClassificationResult): boolea
   if (result.title && PREFERENCE_OR_RELATION_RE.test(result.title)) return true;
   return false;
 }
+
+/** Exported for dry-run / process explainability. */
+export function isPersonShapedCapture(
+  captureText: string,
+  result: ClassificationResult,
+): boolean {
+  return personShaped(captureText, result);
+}
+
+/**
+ * True when an atom is person-shaped but no link targets a discovered hub.
+ * Call **after** `enrichPersonLinks` so successful repair is not flagged as a miss.
+ */
+export function personHubMissAfterEnrich(
+  captureText: string,
+  result: ClassificationResult,
+  hubs: PersonHub[],
+): boolean {
+  if (result.verdict !== "atom") return false;
+  if (!personShaped(captureText, result)) return false;
+  if (!hubs.length) return true;
+  const hubTitles = new Set(
+    hubs.map((h) => h.canonicalTitle.trim().toLowerCase()).filter(Boolean),
+  );
+  return !(result.links ?? []).some((l) =>
+    hubTitles.has((l.note ?? "").trim().toLowerCase()),
+  );
+}
+
+/** Short user-facing line for preview cards / Notices. */
+export const PERSON_HUB_MISS_LABEL = "No person hub matched";
 
 function linkTargetsHub(
   result: ClassificationResult,

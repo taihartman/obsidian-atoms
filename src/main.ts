@@ -856,9 +856,13 @@ export default class AtomsPlugin extends Plugin {
       });
       const summary = formatRunSummary(summaryFromWrite(report));
       this.finishHomeRun(summary);
-      new Notice(
-        `Atoms: wrote ${report.atomsCreated} atom(s), ${report.markersAppended} marker(s), ${report.collisions} collision(s), ${report.failed} failed`,
-      );
+      {
+        let notice = `Atoms: wrote ${report.atomsCreated} atom(s), ${report.markersAppended} marker(s), ${report.collisions} collision(s), ${report.failed} failed`;
+        if (report.personHubMisses > 0) {
+          notice += `, ${report.personHubMisses} no person hub${report.personHubMisses === 1 ? "" : "s"}`;
+        }
+        new Notice(notice);
+      }
     } catch (e) {
       if (e instanceof DailyNotesDisabledError) {
         this.failHomeRun(e.message);

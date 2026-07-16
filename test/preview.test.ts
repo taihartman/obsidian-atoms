@@ -74,6 +74,7 @@ describe("buildPreviewEntry + renderPreviewMarkdown (AE5 shape)", () => {
       totalUnprocessedScanned: 1,
       classified: 1,
       failed: 0,
+      personHubMisses: 0,
       wroteNothing: true,
       generatedAt: "2026-07-15T00:00:00.000Z",
     };
@@ -108,6 +109,74 @@ describe("buildPreviewEntry + renderPreviewMarkdown (AE5 shape)", () => {
     expect(entry.wouldWriteMarker).toBe("\t<!--linker:task-->");
   });
 
+  it("flags person-shaped atom with no hub match", () => {
+    const entry = buildPreviewEntry({
+      note,
+      capture: {
+        ...capture,
+        text: "Alex likes periwinkle pajamas",
+      },
+      atomFolder: "Atoms",
+      hubs: [],
+      outcome: {
+        ok: true,
+        result: {
+          verdict: "atom",
+          title: "Alex prefers periwinkle",
+          tags: ["preferences"],
+          proposed_tags: [],
+          links: [],
+        },
+        usage: emptyU(),
+        keyFingerprint: "…",
+      },
+    });
+    expect(entry.personHubMiss).toBe(true);
+    const md = renderPreviewMarkdown({
+      entries: [entry],
+      totalUnprocessedScanned: 1,
+      classified: 1,
+      failed: 0,
+      personHubMisses: 1,
+      wroteNothing: true,
+      generatedAt: "t",
+    });
+    expect(md).toContain("No person hub matched");
+  });
+
+  it("does not flag when hub is linked", () => {
+    const entry = buildPreviewEntry({
+      note,
+      capture: {
+        ...capture,
+        text: "Alex likes periwinkle pajamas",
+      },
+      atomFolder: "Atoms",
+      hubs: [
+        {
+          canonicalTitle: "Alex",
+          matchKeys: ["Alex"],
+          path: "People/Alex.md",
+        },
+      ],
+      outcome: {
+        ok: true,
+        result: {
+          verdict: "atom",
+          title: "Alex prefers periwinkle",
+          tags: ["person", "preferences"],
+          proposed_tags: [],
+          links: [
+            { note: "Alex", reason: "preference about [[Alex]]" },
+          ],
+        },
+        usage: emptyU(),
+        keyFingerprint: "…",
+      },
+    });
+    expect(entry.personHubMiss).toBe(false);
+  });
+
   it("failed classification still appears in preview", () => {
     const entry = buildPreviewEntry({
       note,
@@ -124,6 +193,7 @@ describe("buildPreviewEntry + renderPreviewMarkdown (AE5 shape)", () => {
       totalUnprocessedScanned: 1,
       classified: 0,
       failed: 1,
+      personHubMisses: 0,
       wroteNothing: true,
       generatedAt: "t",
     });

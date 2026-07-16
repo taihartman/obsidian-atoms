@@ -64,7 +64,7 @@ processInbox(dryRun)
 | `context.ts` | `ContextProvider` / titles+tags+vocab | U4 |
 | `vocabulary.ts` | Active / vault / proposed tags | U5 |
 | `classify.ts` | Prompt, cache, schema, invariants, retry | U1, U6 |
-| `people.ts` | Person hub discovery + post-classify repair | people 0.3 |
+| `people.ts` | Person hub discovery (score + top-N; Social/People boost) + post-classify repair | people 0.3 / ranking 0.6.3 |
 | `preview.ts` | Dry-run surface | U7 |
 | `render.ts` | Atom markdown + markers + sanitize/collision | U8 |
 | `backfill.ts` | Batch API + estimate gate | U10 |

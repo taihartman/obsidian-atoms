@@ -14,7 +14,11 @@ import type {
   ClassificationResult,
   DailyNoteWithCaptures,
 } from "./types";
-import { enrichPersonLinks, type PersonHub } from "./people";
+import {
+  enrichPersonLinks,
+  personHubMissAfterEnrich,
+  type PersonHub,
+} from "./people";
 import { enrichMediaLinks } from "./media";
 import { mergeProposedTags } from "./vocabulary";
 
@@ -26,6 +30,8 @@ export interface WritePathEntry {
   title: string;
   write: ApplyWriteResult;
   planned: PlannedWrite;
+  /** Person-shaped atom with no hub link after enrich. */
+  personHubMiss: boolean;
 }
 
 export interface WritePathReport {
@@ -36,6 +42,7 @@ export interface WritePathReport {
   failed: number;
   scanned: number;
   proposedTagsMerged: string[];
+  personHubMisses: number;
 }
 
 export interface RunWritePathOptions {
@@ -95,7 +102,13 @@ export async function runWritePath(
   let markersAppended = 0;
   let collisions = 0;
   let failed = 0;
+  let personHubMisses = 0;
   const proposedIncoming: string[] = [];
+  const hubs: PersonHub[] = (ctx.personHubDetails ?? []).map((d) => ({
+    canonicalTitle: d.canonicalTitle,
+    matchKeys: d.matchKeys,
+    path: "",
+  }));
 
   // Cache daily content we mutate within this run
   const dailyCache = new Map<string, string>();
@@ -107,11 +120,6 @@ export async function runWritePath(
     let result: ClassificationResult | null = null;
     if (opts.fixtureResults && opts.fixtureResults[i]) {
       // Fixtures skip live classify — still run people repair choke-point.
-      const hubs: PersonHub[] = (ctx.personHubDetails ?? []).map((d) => ({
-        canonicalTitle: d.canonicalTitle,
-        matchKeys: d.matchKeys,
-        path: "",
-      }));
       result = enrichPersonLinks(capture.text, opts.fixtureResults[i]!, hubs);
       result = enrichMediaLinks(capture.text, result, ctx.titles ?? []);
     } else {
@@ -130,6 +138,13 @@ export async function runWritePath(
         proposedIncoming.push(...result.proposed_tags);
       }
     }
+
+    const personHubMiss = personHubMissAfterEnrich(
+      capture.text,
+      result,
+      hubs,
+    );
+    if (personHubMiss) personHubMisses += 1;
 
     const plan = planWrite({
       result,
@@ -178,6 +193,7 @@ export async function runWritePath(
       title: result.title,
       write: writeResult,
       planned: plan,
+      personHubMiss,
     });
   }
 
@@ -195,5 +211,6 @@ export async function runWritePath(
     failed,
     scanned: work.length,
     proposedTagsMerged,
+    personHubMisses,
   };
 }
