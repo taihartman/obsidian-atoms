@@ -28,7 +28,8 @@ If hot files overlap an `In progress` claim → **stop** and re-scope or wait. D
 - Sentinel markers = processed; never lossy.  
 - Second brain, **not** a task app.  
 - Desktop + iOS + Android are consumers; no silent platform-only product.  
-- Constitution changes (`CLAUDE.md` non-negotiables / `docs/architecture.md` north star) **only via PR**.
+- Constitution changes (`CLAUDE.md` non-negotiables / `docs/architecture.md` north star) **only via PR**.  
+- **Phone dogfood after master:** run `npm run phone` (Remote Vault install) when plugin code lands on `master` — do not wait for a GitHub Release. Cut releases only when asked.
 
 ## Authority map
 
