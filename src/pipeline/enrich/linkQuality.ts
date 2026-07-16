@@ -140,12 +140,58 @@ export function titlesMatch(a: string, b: string): boolean {
   return (a ?? "").trim().toLowerCase() === (b ?? "").trim().toLowerCase();
 }
 
-/** Remove [[selfTitle]] (any case) from reason prose. */
+/** Normalize a self-identity string for matching. */
+export function normalizeSelfKey(s: string): string {
+  return (s ?? "").trim().toLowerCase();
+}
+
+/**
+ * Self set for an atom: current title + prior title + frontmatter aliases.
+ * Deduped, non-empty.
+ */
+export function collectSelfTitles(
+  primaryTitle: string,
+  alsoSelf: string[] = [],
+): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of [primaryTitle, ...alsoSelf]) {
+    const t = (raw ?? "").trim();
+    if (!t) continue;
+    const k = normalizeSelfKey(t);
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(t);
+  }
+  return out;
+}
+
+export function isNoteSelf(note: string, selves: string[]): boolean {
+  const n = normalizeSelfKey(note);
+  if (!n) return false;
+  return selves.some((s) => normalizeSelfKey(s) === n);
+}
+
+/** Remove [[self]] wikilinks for every identity in selves. */
 export function stripSelfWikilinks(reason: string, selfTitle: string): string {
-  const self = (selfTitle ?? "").trim();
-  if (!self || !(reason ?? "").trim()) return (reason ?? "").trim();
-  const re = new RegExp(`\\[\\[${escapeRegExp(self)}\\]\\]`, "gi");
-  let r = reason.replace(re, "");
+  return stripSelfWikilinksMany(reason, [selfTitle]);
+}
+
+export function stripSelfWikilinksMany(
+  reason: string,
+  selves: string[],
+): string {
+  let r = (reason ?? "").trim();
+  if (!r) return "";
+  // Longer titles first so nested/overlapping names strip cleanly
+  const ordered = [...selves]
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .sort((a, b) => b.length - a.length);
+  for (const self of ordered) {
+    const re = new RegExp(`\\[\\[${escapeRegExp(self)}\\]\\]`, "gi");
+    r = r.replace(re, "");
+  }
   r = r
     .replace(/\(\s*\)/g, "")
     .replace(/\s{2,}/g, " ")
@@ -159,53 +205,65 @@ export function stripSelfWikilinks(reason: string, selfTitle: string): string {
 
 /**
  * True when reason is mainly “this note already exists / duplicate of myself”.
- * Used to drop self-congratulatory graph noise after Update/Process.
+ * Checks against any self identity (title, alias, prior basename).
  */
-export function isSelfDuplicateReason(reason: string, selfTitle: string): boolean {
+export function isSelfDuplicateReason(
+  reason: string,
+  selfTitle: string,
+  alsoSelf: string[] = [],
+): boolean {
   const r = (reason ?? "").trim();
   if (!r) return false;
+  const selves = collectSelfTitles(selfTitle, alsoSelf);
   const lower = r.toLowerCase();
-  const self = (selfTitle ?? "").trim();
+
   if (
-    /\b(duplicate|already logged|already exists|exact preference|this exact preference|this same)\b/i.test(
+    /\b(duplicate|already logged|already exists|exact preference|this exact preference|this same|restates|reaffirms|reinforces this|revision adding)\b/i.test(
       r,
     ) &&
-    (/\b(existing note|this note|own note|same note|this exact|same recommendation)\b/i.test(
+    (/\b(existing note|this note|own note|same note|this exact|same recommendation|same career|same identifying|prior note)\b/i.test(
       r,
     ) ||
-      (self && lower.includes(self.toLowerCase())))
+      selves.some((s) => lower.includes(s.toLowerCase())))
   ) {
     return true;
   }
-  // revises/reinforces [[Self Title]] only
-  if (self) {
-    const selfLink = new RegExp(
-      `\\[\\[${escapeRegExp(self)}\\]\\]`,
-      "i",
-    );
+
+  for (const self of selves) {
+    const selfLink = new RegExp(`\\[\\[${escapeRegExp(self)}\\]\\]`, "i");
     if (
       selfLink.test(r) &&
-      /\b(revises|reinforces|duplicate|confirms|same)\b/i.test(r)
+      /\b(revises|reinforces|duplicate|confirms|same|restates|reaffirms|repeats)\b/i.test(
+        r,
+      )
     ) {
-      // If no other wikilink remains after stripping self, it's pure self-talk
-      const without = stripSelfWikilinks(r, self);
+      const without = stripSelfWikilinksMany(r, selves);
       if (!/\[\[.+\]\]/.test(without)) return true;
     }
   }
   return false;
 }
 
+export type StripSelfOpts = {
+  /** Prior basename, frontmatter aliases, other known self titles. */
+  alsoSelf?: string[];
+};
+
 /**
- * Drop links that target this atom's own title; strip self-wikilinks from
- * remaining reasons; drop pure self-duplicate noise.
- * Run after improveClassificationLinks so both Process and Update share it.
+ * Drop links that target this atom (current title, aliases, prior titles);
+ * strip those wikilinks from remaining reasons; drop pure self-duplicate noise.
+ * Run after improveClassificationLinks (Process + Update).
  */
 export function stripSelfReferentialLinks(
   result: ClassificationResult,
+  opts: StripSelfOpts = {},
 ): ClassificationResult {
   if (result.verdict !== "atom") return result;
-  const self = (result.title ?? "").trim();
-  if (!self) return result;
+  const primary = (result.title ?? "").trim();
+  if (!primary && !(opts.alsoSelf?.length)) return result;
+
+  const selves = collectSelfTitles(primary, opts.alsoSelf ?? []);
+  if (!selves.length) return result;
 
   const links = result.links ?? [];
   if (!links.length) return result;
@@ -214,29 +272,37 @@ export function stripSelfReferentialLinks(
   for (const l of links) {
     const note = (l.note ?? "").trim();
     if (!note) continue;
-    // Never link an atom to its own title
-    if (titlesMatch(note, self)) continue;
+    // Never link an atom to its own title / alias / prior basename
+    if (isNoteSelf(note, selves)) continue;
 
     let reason = (l.reason ?? "").trim();
-    if (isSelfDuplicateReason(reason, self)) {
-      reason = stripSelfWikilinks(reason, self);
-      // Pure self-dupe with no other substance → drop this link
+    if (isSelfDuplicateReason(reason, primary, opts.alsoSelf ?? [])) {
+      reason = stripSelfWikilinksMany(reason, selves);
       if (
         !reason ||
-        isSelfDuplicateReason(reason, self) ||
+        isSelfDuplicateReason(reason, primary, opts.alsoSelf ?? []) ||
         reason.length < 12
       ) {
         continue;
       }
     } else {
-      reason = stripSelfWikilinks(reason, self);
+      reason = stripSelfWikilinksMany(reason, selves);
     }
 
     if (!reason) {
       reason = `related to [[${note}]]`;
     }
-    // Final guard: reason must not re-introduce self as sole target
-    if (titlesMatch(note, self)) continue;
+    if (isNoteSelf(note, selves)) continue;
+    // Drop if after strip the only remaining wikilinks are still self (paranoia)
+    const remainingLinks = [...reason.matchAll(/\[\[([^\]]+)\]\]/g)].map(
+      (m) => m[1]!.trim(),
+    );
+    if (
+      remainingLinks.length > 0 &&
+      remainingLinks.every((t) => isNoteSelf(t, selves))
+    ) {
+      continue;
+    }
     next.push({ note, reason });
   }
 

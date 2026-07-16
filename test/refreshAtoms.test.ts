@@ -107,6 +107,55 @@ describe("buildRefreshedAtomMarkdown", () => {
 });
 
 describe("planRefreshApply", () => {
+  it("drops links to prior title / aliases as self", () => {
+    const prior = "weak old title";
+    const content = `---
+created: 2026-07-01
+source: "[[2026-07-01]]"
+generated-by: linker
+aliases:
+  - "even older title"
+tags: []
+---
+sleep debt seems to plateau
+
+junk
+`;
+    const plan = planRefreshApply({
+      path: "Atoms/weak old title.md",
+      oldTitle: prior,
+      oldContent: content,
+      result: {
+        verdict: "atom",
+        title: "Sleep debt plateaus",
+        tags: ["idea"],
+        proposed_tags: [],
+        links: [
+          {
+            note: prior,
+            reason: `restates ([[${prior}]])`,
+          },
+          {
+            note: "even older title",
+            reason: "duplicate of ([[even older title]])",
+          },
+          {
+            note: "Old",
+            reason: "revises [[Old]]",
+          },
+        ],
+      },
+      atomFolder: "Atoms",
+      existingAtomPaths: new Set(["Atoms/weak old title.md"]),
+      today: "2026-07-20",
+    });
+    expect(plan.content).toContain("revises [[Old]]");
+    // Prior titles may remain as frontmatter aliases; must not appear as body links
+    const body = plan.content.split("\n---\n").slice(1).join("\n---\n");
+    expect(body).not.toContain(`[[${prior}]]`);
+    expect(body).not.toContain("[[even older title]]");
+  });
+
   it("plans rename when title changes and path free", () => {
     const plan = planRefreshApply({
       path: "Atoms/weak old title.md",

@@ -53,8 +53,8 @@ describe("atomQuality", () => {
     expect(isEligibleForUpdate(stamped)).toBe(false);
   });
 
-  it("older stamp (v2) is eligible after quality bump to 3", () => {
-    expect(CURRENT_ATOMS_QUALITY).toBeGreaterThanOrEqual(3);
+  it("older stamp is eligible after quality bump", () => {
+    expect(CURRENT_ATOMS_QUALITY).toBeGreaterThanOrEqual(4);
     expect(parseAtomsQuality(stampedV2)).toBe(2);
     expect(isEligibleForUpdate(stampedV2)).toBe(true);
   });
