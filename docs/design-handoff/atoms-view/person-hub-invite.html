@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Atoms — Add person note (mock)</title>
+  <!--
+    Visual authority: docs/design-handoff/tokens/README.md (v2 editorial)
+    Mock hex = dark fallbacks of ship tokens (--interactive-accent, --atoms-person, etc.)
+  -->
+  <style>
+    :root {
+      /* Surfaces */
+      --bg-primary: #000000;
+      --bg-secondary: #1c1c1e;
+      --bg-elevated: #2c2c2e;
+      --sep: rgba(84, 84, 88, 0.55);
+      /* Text */
+      --text-label: #ffffff;
+      --text-secondary: rgba(235, 235, 245, 0.6);
+      --text-tertiary: rgba(235, 235, 245, 0.32);
+      /* Semantic accents (ship: Obsidian vars + --atoms-*) */
+      --tint: #0a84ff;
+      --person: #ff9f0a;
+      --work: #64d2ff;
+      --done: #30d158;
+      --error: #ff453a;
+      --mind: #bf5af2; /* typographic only — never fill */
+      /* Soft-fill recipe: color-mix 9–18% for chips + status only */
+      --person-soft: color-mix(in srgb, var(--person) 16%, transparent);
+      --work-soft: color-mix(in srgb, var(--work) 16%, transparent);
+      --tint-soft: color-mix(in srgb, var(--tint) 18%, transparent);
+      --done-soft: color-mix(in srgb, var(--done) 12%, transparent);
+      --done-border: color-mix(in srgb, var(--done) 32%, transparent);
+      --wait-soft: color-mix(in srgb, var(--person) 10%, transparent);
+      --wait-border: color-mix(in srgb, var(--person) 28%, transparent);
+      /* Shape */
+      --radius-card: 16px;
+      --radius-btn: 12px;
+      --radius-chip: 6px;
+      --radius-pill: 980px;
+      /* Type */
+      --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+      --claim-serif: "New York", ui-serif, Georgia, "Times New Roman", serif;
+      --page-bg: #121214;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: var(--font);
+      background: var(--page-bg);
+      color: var(--text-label);
+      -webkit-font-smoothing: antialiased;
+    }
+    .page { max-width: 1180px; margin: 0 auto; padding: 28px 18px 90px; }
+    .page > h1 {
+      font-size: 1.45rem; font-weight: 700; letter-spacing: -0.03em; margin: 0 0 8px;
+    }
+    .lede {
+      color: var(--text-secondary); max-width: 44rem; line-height: 1.5;
+      margin: 0 0 12px; font-size: 0.95rem;
+    }
+    .token-bar {
+      display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 18px;
+      font-size: 0.72rem; color: var(--text-tertiary);
+    }
+    .token-bar span {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 4px 10px; border-radius: var(--radius-pill);
+      background: var(--bg-secondary); border: 1px solid var(--sep);
+    }
+    .swatch {
+      width: 10px; height: 10px; border-radius: 3px;
+    }
+    .decisions {
+      background: var(--bg-secondary);
+      border: 1px solid var(--sep);
+      border-radius: var(--radius-card);
+      padding: 14px 16px;
+      margin-bottom: 22px;
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      line-height: 1.45;
+    }
+    .decisions strong { color: var(--text-label); font-weight: 600; }
+    .decisions ul { margin: 8px 0 0; padding-left: 1.15rem; }
+    .decisions li { margin: 4px 0; }
+    .toolbar {
+      display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 22px; align-items: center;
+    }
+    .toolbar > span {
+      font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.12em;
+      color: var(--text-tertiary); font-weight: 600;
+    }
+    .chip {
+      border: none; background: var(--bg-elevated); color: var(--text-secondary);
+      border-radius: var(--radius-pill); padding: 8px 14px;
+      font-size: 0.85rem; font-weight: 500; cursor: pointer;
+      min-height: 44px;
+    }
+    .chip.on {
+      background: var(--tint-soft);
+      color: var(--tint);
+    }
+
+    .stage {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 40px;
+      align-items: start;
+    }
+    @media (max-width: 900px) {
+      .stage { grid-template-columns: 1fr; justify-items: center; }
+      .side { max-width: 420px; width: 100%; }
+    }
+    .cap {
+      font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.12em;
+      color: var(--text-tertiary); text-align: center; margin-bottom: 10px; font-weight: 600;
+    }
+    .phone {
+      width: 375px;
+      height: 812px;
+      background: var(--bg-primary);
+      border-radius: 44px;
+      border: 4px solid #3a3a3c;
+      box-shadow: 0 28px 70px rgba(0,0,0,0.55);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+    .status-bar {
+      height: 50px;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      padding-bottom: 8px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+    .nav { padding: 0 10px 10px 16px; flex-shrink: 0; }
+    .nav-top {
+      display: flex; justify-content: space-between; align-items: center; min-height: 40px;
+    }
+    .nav-btn {
+      border: none; background: transparent; color: var(--tint);
+      font-size: 1.2rem; min-width: 44px; min-height: 44px; cursor: pointer;
+    }
+    .large-title {
+      /* display token */
+      font-size: 1.85rem; font-weight: 700; letter-spacing: -0.035em;
+      margin: 0; line-height: 1.05;
+    }
+    .subtitle {
+      /* body-muted */
+      font-size: 0.9rem; color: var(--text-secondary); margin: 5px 0 0;
+    }
+    .scroll {
+      flex: 1 1 auto;
+      overflow-y: auto;
+      min-height: 0;
+      padding: 6px 16px 28px;
+    }
+    .panel { display: none; }
+    .panel.is-active { display: block; }
+
+    /* Flat card — invite / update (not status soft-fill) */
+    .flat-card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--sep);
+      border-radius: var(--radius-card);
+      padding: 16px 14px 14px;
+      margin-bottom: 14px;
+    }
+    /* Status done — soft-fill allowed */
+    .status-done {
+      background: var(--done-soft);
+      border: 1px solid var(--done-border);
+      border-radius: var(--radius-card);
+      padding: 16px 14px 14px;
+      margin-bottom: 14px;
+    }
+    .kicker {
+      /* eyebrow / kicker: caps, person accent text only */
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.13em;
+      text-transform: uppercase;
+      color: var(--person);
+      margin: 0 0 6px;
+    }
+    .kicker-tint { color: var(--tint); }
+    .kicker-done { color: var(--done); }
+    .flat-card h2, .status-done h2 {
+      /* card-title */
+      margin: 0 0 6px;
+      font-size: 1.1rem;
+      font-weight: 650;
+      letter-spacing: -0.02em;
+    }
+    .flat-card p, .status-done p {
+      /* body-muted */
+      margin: 0 0 14px;
+      font-size: 0.88rem;
+      color: var(--text-secondary);
+      line-height: 1.4;
+    }
+    .status-done p:last-child { margin-bottom: 0; }
+
+    .btns { display: flex; gap: 10px; flex-wrap: wrap; }
+    .btn {
+      flex: 1;
+      min-height: 46px;
+      border: none;
+      border-radius: var(--radius-btn);
+      font-size: 0.95rem;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      cursor: pointer;
+    }
+    .btn:active { transform: scale(0.98); opacity: 0.92; }
+    .btn-primary { background: var(--tint); color: #fff; }
+    .btn-secondary { background: var(--bg-elevated); color: var(--tint); }
+    .btn-quiet {
+      flex: 1 1 100%;
+      background: transparent;
+      color: var(--text-secondary);
+      font-weight: 500;
+      min-height: 44px;
+    }
+
+    .sec {
+      font-size: 0.95rem; font-weight: 650; letter-spacing: -0.02em;
+      margin: 4px 0 10px;
+    }
+    .list {
+      background: var(--bg-secondary);
+      border-radius: var(--radius-card);
+      overflow: hidden;
+      border: 1px solid var(--sep);
+    }
+    .row {
+      display: grid; grid-template-columns: 1fr auto; gap: 4px 12px;
+      padding: 14px 16px; border-bottom: 0.5px solid var(--sep);
+      min-height: 58px; align-items: start;
+    }
+    .row:last-child { border-bottom: none; }
+    .row .t {
+      /* row-title */
+      font-size: 0.98rem; font-weight: 550; letter-spacing: -0.015em; line-height: 1.3;
+    }
+    .row .sub {
+      display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+      margin-top: 5px; font-size: 0.78rem; color: var(--text-tertiary);
+    }
+    .row .time {
+      font-size: 0.78rem; color: var(--text-tertiary);
+      font-variant-numeric: tabular-nums; padding-top: 2px;
+    }
+    /* Typed chips only — soft-fill recipe */
+    .chip-person {
+      display: inline-block; font-size: 0.78rem; font-weight: 600;
+      color: var(--person); background: var(--person-soft);
+      padding: 2px 8px; border-radius: var(--radius-chip);
+    }
+    .chip-work {
+      display: inline-block; font-size: 0.78rem; font-weight: 600;
+      color: var(--work); background: var(--work-soft);
+      padding: 2px 8px; border-radius: var(--radius-chip);
+    }
+
+    .toast {
+      position: absolute;
+      left: 20px; right: 20px; bottom: 28px;
+      background: var(--bg-elevated);
+      border-radius: 14px;
+      padding: 14px 16px;
+      font-size: 0.9rem;
+      font-weight: 500;
+      text-align: center;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.45);
+      display: none;
+    }
+    .toast.show { display: block; }
+
+    .side h2 {
+      font-size: 0.95rem; font-weight: 650; letter-spacing: -0.02em; margin: 0 0 10px;
+    }
+    .side p { font-size: 0.85rem; color: var(--text-secondary); line-height: 1.45; margin: 0 0 14px; }
+    .doctrine {
+      background: var(--bg-secondary); border: 1px solid var(--sep);
+      border-radius: var(--radius-card);
+      padding: 14px 16px; margin-bottom: 14px; font-size: 0.84rem;
+      color: var(--text-secondary); line-height: 1.45;
+    }
+    .doctrine strong { color: var(--text-label); }
+    .doctrine.bad {
+      border-color: color-mix(in srgb, var(--error) 35%, transparent);
+      background: color-mix(in srgb, var(--error) 8%, transparent);
+    }
+    .doctrine.bad strong { color: #ff8a80; }
+    code {
+      font-size: 0.78rem;
+      background: var(--bg-elevated);
+      padding: 2px 6px;
+      border-radius: 4px;
+      color: var(--text-secondary);
+    }
+    .footnote {
+      margin-top: 8px;
+      font-size: 0.75rem;
+      color: var(--text-tertiary);
+      line-height: 1.4;
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <h1>Add person note (invite)</h1>
+    <p class="lede">
+      Tokens: <code>docs/design-handoff/tokens/README.md</code> (v2 editorial).
+      Flat invite card, person orange kicker (text only), soft-fill chips only,
+      primary tint / secondary elevated / quiet. No em dashes. People only.
+    </p>
+    <div class="token-bar" aria-label="Token swatches">
+      <span><i class="swatch" style="background:var(--tint)"></i> tint / action</span>
+      <span><i class="swatch" style="background:var(--person)"></i> person</span>
+      <span><i class="swatch" style="background:var(--work)"></i> work</span>
+      <span><i class="swatch" style="background:var(--done)"></i> done</span>
+      <span><i class="swatch" style="background:var(--mind)"></i> mind (type only)</span>
+      <span><i class="swatch" style="background:var(--bg-secondary);border:1px solid var(--sep)"></i> flat card</span>
+    </div>
+    <div class="decisions">
+      <strong>Settled product</strong>
+      <ul>
+        <li><strong>People only</strong>. Invite, never silent auto-create.</li>
+        <li><strong>Flat card</strong> for invite (like Filing got smarter). Status soft-fill only for Added.</li>
+        <li><strong>Person orange</strong> on kicker text and person chips. Never purple fill.</li>
+        <li><strong>Copy:</strong> Add Ning? Backlinks will collect there.</li>
+        <li>Max one invite per home session. Not now cools that name down.</li>
+      </ul>
+    </div>
+
+    <div class="toolbar" id="toolbar">
+      <span>State</span>
+      <button type="button" class="chip on" data-state="invite">Home · invite</button>
+      <button type="button" class="chip" data-state="added">After Add</button>
+      <button type="button" class="chip" data-state="dismissed">After Not now</button>
+      <button type="button" class="chip" data-state="with-update">With Update strip</button>
+    </div>
+
+    <div class="stage">
+      <div>
+        <div class="cap" id="phone-cap">Home · invite</div>
+        <div class="phone">
+          <div class="status-bar">9:41</div>
+          <div class="nav">
+            <div class="nav-top">
+              <button type="button" class="nav-btn" aria-label="More">⋯</button>
+              <button type="button" class="nav-btn" aria-label="Today">◎</button>
+              <span style="flex:1"></span>
+              <button type="button" class="nav-btn" aria-label="Settings">⚙</button>
+            </div>
+            <h1 class="large-title">Atoms</h1>
+            <p class="subtitle" id="subtitle">Your second brain</p>
+          </div>
+          <div class="scroll">
+            <div class="panel is-active" data-panel="invite">
+              <div class="flat-card">
+                <p class="kicker">Person</p>
+                <h2>Add Ning?</h2>
+                <p>You filed a note about Ning, but there is no person note yet. Backlinks will collect there.</p>
+                <div class="btns">
+                  <button type="button" class="btn btn-primary" id="btn-add">Add Ning</button>
+                  <button type="button" class="btn btn-secondary" id="btn-not-now">Not now</button>
+                </div>
+              </div>
+              <div class="sec">Recent</div>
+              <div class="list">
+                <div class="row">
+                  <div>
+                    <div class="t">Ning is the strong Asian guy at CRG who wears white collared shirts</div>
+                    <div class="sub"><span class="chip-person">People</span><span>· Jul 15</span></div>
+                  </div>
+                  <div class="time">1d</div>
+                </div>
+                <div class="row">
+                  <div>
+                    <div class="t">Nichita likes the color periwinkle</div>
+                    <div class="sub"><span class="chip-person">Nichita</span><span>· Jul 15</span></div>
+                  </div>
+                  <div class="time">1d</div>
+                </div>
+                <div class="row">
+                  <div>
+                    <div class="t">Christian recommended watching My Hero Academia</div>
+                    <div class="sub"><span class="chip-work">My Hero Academia</span><span>· Jul 15</span></div>
+                  </div>
+                  <div class="time">1d</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="panel" data-panel="added">
+              <div class="status-done">
+                <p class="kicker kicker-done">Added</p>
+                <h2>Ning</h2>
+                <p>Person note created. This claim now links to Ning instead of the soft People index.</p>
+              </div>
+              <div class="sec">Recent</div>
+              <div class="list">
+                <div class="row">
+                  <div>
+                    <div class="t">Ning is the strong Asian guy at CRG who wears white collared shirts</div>
+                    <div class="sub"><span class="chip-person">Ning</span><span>· Jul 15</span></div>
+                  </div>
+                  <div class="time">1d</div>
+                </div>
+                <div class="row">
+                  <div>
+                    <div class="t">Nichita likes the color periwinkle</div>
+                    <div class="sub"><span class="chip-person">Nichita</span><span>· Jul 15</span></div>
+                  </div>
+                  <div class="time">1d</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="panel" data-panel="dismissed">
+              <div class="sec">Recent</div>
+              <div class="list">
+                <div class="row">
+                  <div>
+                    <div class="t">Ning is the strong Asian guy at CRG who wears white collared shirts</div>
+                    <div class="sub"><span class="chip-person">People</span><span>· Jul 15</span></div>
+                  </div>
+                  <div class="time">1d</div>
+                </div>
+              </div>
+              <p class="footnote">
+                Invite hidden. Still links to People until you add Ning later, or we invite again after cooldown.
+              </p>
+            </div>
+
+            <div class="panel" data-panel="with-update">
+              <div class="flat-card">
+                <p class="kicker kicker-tint">Library</p>
+                <h2>Filing got smarter</h2>
+                <p>Update 3 older notes to match? Titles and links may improve. Your original text stays the same.</p>
+                <div class="btns">
+                  <button type="button" class="btn btn-primary">Update</button>
+                  <button type="button" class="btn btn-secondary">Not now</button>
+                </div>
+              </div>
+              <div class="flat-card">
+                <p class="kicker">Person</p>
+                <h2>Add Sherry?</h2>
+                <p>You filed a note about Sherry, but there is no person note yet. Backlinks will collect there.</p>
+                <div class="btns">
+                  <button type="button" class="btn btn-primary">Add Sherry</button>
+                  <button type="button" class="btn btn-secondary">Not now</button>
+                </div>
+              </div>
+              <div class="sec">Recent</div>
+              <div class="list">
+                <div class="row">
+                  <div>
+                    <div class="t">Sherry’s name may be mispronounced; she’s Ning’s CRG friend at hospital</div>
+                    <div class="sub"><span class="chip-person">People</span><span>· Jul 15</span></div>
+                  </div>
+                  <div class="time">1d</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="toast" id="toast">Added Ning</div>
+        </div>
+      </div>
+
+      <div class="side">
+        <div class="doctrine">
+          <strong>Token map (this mock)</strong><br />
+          Invite = flat card (neutral hairline). Added = status done soft-fill.
+          Kicker person orange (text). Buttons: primary tint · secondary elevated.
+          Chips: person/work soft-fill 16%. Mind purple unused here (no mind-change surface).
+        </div>
+        <div class="doctrine">
+          <strong>Why not auto-create</strong><br />
+          Empty person notes Sync forever. Wrong people are worse than missing links.
+        </div>
+        <div class="doctrine bad">
+          <strong>Rejected</strong><br />
+          Silent auto-create · tag-matrix settings · multi-select create · CRM fields · purple fills on invite.
+        </div>
+        <h2>On Add</h2>
+        <p>
+          <code>Personal notes/Social/Ning.md</code><br />
+          Minimal title + optional #person. Re-point that atom chip People → Ning.
+        </p>
+        <p class="footnote">
+          Authority: docs/design-handoff/tokens/README.md ·
+          brief: docs/plans/2026-07-16-person-hub-creation-adversarial-and-apple-brief.md
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const labels = {
+      invite: "Home · invite",
+      added: "After Add Ning",
+      dismissed: "After Not now",
+      "with-update": "Update + person invite",
+    };
+    function show(state) {
+      document.querySelectorAll(".chip[data-state]").forEach((c) => {
+        c.classList.toggle("on", c.dataset.state === state);
+      });
+      document.querySelectorAll(".panel").forEach((p) => {
+        p.classList.toggle("is-active", p.dataset.panel === state);
+      });
+      document.getElementById("phone-cap").textContent = labels[state] || state;
+      document.getElementById("toast").classList.remove("show");
+    }
+    document.getElementById("toolbar").addEventListener("click", (e) => {
+      const b = e.target.closest("[data-state]");
+      if (b) show(b.dataset.state);
+    });
+    document.getElementById("btn-add")?.addEventListener("click", () => {
+      show("added");
+      const t = document.getElementById("toast");
+      t.classList.add("show");
+      setTimeout(() => t.classList.remove("show"), 1800);
+    });
+    document.getElementById("btn-not-now")?.addEventListener("click", () => show("dismissed"));
+  </script>
+</body>
+</html>
