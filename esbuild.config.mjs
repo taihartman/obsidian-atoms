@@ -41,6 +41,10 @@ const context = await esbuild.context({
 	treeShaking: true,
 	outfile: 'main.js',
 	minify: prod,
+	// Production Community builds hide spike/fixture commands (dead-code friendly).
+	define: {
+		ATOMS_DEV_COMMANDS: prod ? 'false' : 'true',
+	},
 });
 
 if (prod) {

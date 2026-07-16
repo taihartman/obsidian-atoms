@@ -15,7 +15,7 @@ export function markerLineForDecision(
   title: string,
 ): string {
   if (verdict === "atom") {
-    const t = title.trim() || "Untitled";
+    const t = displayTitleForAtom(title);
     return `\t↳ [[${t}]] <!--linker-->`;
   }
   if (verdict === "task") {
@@ -59,31 +59,62 @@ export const formatAtomBodyPreview = formatAtomBody;
 
 const ILLEGAL_FILENAME = /[/:\\?%*|"<>]/g;
 const RESERVED = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i;
+/** Bound model titles for paths + markers (pre-community security). */
+export const TITLE_MAX_LEN = 120;
 
 /**
- * KTD8: sanitize for filename; return alias = original title when changed.
+ * Safe single-segment atom folder. Rejects `..`, absolute paths, multi-segment.
+ * Default `Atoms` when invalid/empty.
+ */
+export function clampAtomFolder(raw: string | null | undefined): string {
+  const s = (raw ?? "").trim().replace(/\\/g, "/").replace(/\/+$/, "");
+  if (!s) return "Atoms";
+  if (s.startsWith("/") || /^[a-zA-Z]:/.test(s)) return "Atoms";
+  const parts = s.split("/").filter((p) => p.length > 0);
+  if (parts.length !== 1) return "Atoms";
+  const seg = parts[0]!;
+  if (seg === "." || seg === ".." || seg.includes("..")) return "Atoms";
+  if (/[\u0000-\u001F\u007F]/.test(seg)) return "Atoms";
+  if (ILLEGAL_FILENAME.test(seg)) return "Atoms";
+  return seg;
+}
+
+/**
+ * Sanitize model title for filename + wikilink/marker use.
+ * KTD8 + pre-community: control chars, `[[`/`]]`, length, illegal filename chars.
+ * `alias` = original trimmed title when display/filename form differs (for frontmatter).
  */
 export function sanitizeFilename(title: string): {
   filename: string;
   alias: string | null;
 } {
-  const original = title.trim() || "Untitled";
+  const original = (title ?? "").trim() || "Untitled";
   let name = original
+    .replace(/[\u0000-\u001F\u007F]/g, " ")
+    .replace(/\[\[/g, "(")
+    .replace(/\]\]/g, ")")
     .replace(ILLEGAL_FILENAME, "-")
     .replace(/\.\.+/g, ".")
     .replace(/^\.+/, "")
     .replace(/\.+$/, "")
     .replace(/\s+/g, " ")
     .trim();
+  if (name.length > TITLE_MAX_LEN) {
+    name = name.slice(0, TITLE_MAX_LEN).trim();
+  }
   if (!name || RESERVED.test(name)) name = "Untitled";
-  // Avoid empty after strip
   if (!name) name = "Untitled";
   const alias = name !== original ? original : null;
   return { filename: name, alias };
 }
 
+/** Display form for markers / wikilinks (same as filename segment). */
+export function displayTitleForAtom(title: string): string {
+  return sanitizeFilename(title).filename;
+}
+
 export function atomPathForTitle(atomFolder: string, title: string): string {
-  const folder = atomFolder.replace(/\/$/, "") || "Atoms";
+  const folder = clampAtomFolder(atomFolder);
   const { filename } = sanitizeFilename(title);
   return `${folder}/${filename}.md`;
 }
@@ -264,8 +295,11 @@ export function resolveCreatedField(
 
 export type WriteAction =
   | { kind: "create_atom"; path: string; content: string }
-  /** Same title already exists — rewrite that path (no second file). */
-  | { kind: "update_atom"; path: string; content: string; title: string }
+  /**
+   * Same title path already exists — leave that file untouched (protect body).
+   * Still append marker linking to the existing title.
+   */
+  | { kind: "skip_existing_atom"; path: string; title: string }
   | { kind: "marker_only" };
 
 export interface PlannedWrite {
@@ -279,8 +313,8 @@ export interface PlannedWrite {
 
 /**
  * Plan vault writes for one successful classification (pure).
- * Collision (KTD8): never a second file for the same title — update the
- * existing path so reprocess can land better tags/links (media repair).
+ * Collision: never a second file and never overwrite — protect existing atom;
+ * still append marker so the capture is processed.
  */
 export function planWrite(opts: {
   result: ClassificationResult;
@@ -307,6 +341,17 @@ export function planWrite(opts: {
   const title = result.title.trim();
   const path = atomPathForTitle(atomFolder, title);
   const pathKey = path.replace(/\\/g, "/");
+  const safeTitle = displayTitleForAtom(title);
+
+  if (existingAtomPaths.has(pathKey) || existingAtomPaths.has(path)) {
+    return {
+      markerLine: markerLineForDecision("atom", safeTitle),
+      dailyPath,
+      capture,
+      action: { kind: "skip_existing_atom", path, title: safeTitle },
+      result: resultForWrite,
+    };
+  }
 
   const content = buildAtomMarkdown({
     result: resultForWrite,
@@ -315,18 +360,8 @@ export function planWrite(opts: {
     sourceDailyPath: dailyPath,
   });
 
-  if (existingAtomPaths.has(pathKey) || existingAtomPaths.has(path)) {
-    return {
-      markerLine: markerLineForDecision("atom", title),
-      dailyPath,
-      capture,
-      action: { kind: "update_atom", path, content, title },
-      result: resultForWrite,
-    };
-  }
-
   return {
-    markerLine: markerLineForDecision("atom", title),
+    markerLine: markerLineForDecision("atom", safeTitle),
     dailyPath,
     capture,
     action: { kind: "create_atom", path, content },
@@ -344,7 +379,8 @@ export interface ApplyWriteResult {
 }
 
 /**
- * Apply a planned write to the vault. Only create/update atoms + append markers (R3/R4).
+ * Apply a planned write to the vault. Create new atoms only + append markers (R3/R4).
+ * Never modifies an existing atom file (collision protect).
  */
 export async function applyWrite(
   app: App,
@@ -367,25 +403,12 @@ export async function applyWrite(
     if (!existing) {
       await app.vault.create(plan.action.path, plan.action.content);
       atomCreated = plan.action.path;
-    } else if ("extension" in existing) {
-      // Race: update in place instead of a second file
-      await app.vault.modify(existing as TFile, plan.action.content);
-      atomUpdated = plan.action.path;
-    }
-  } else if (plan.action.kind === "update_atom") {
-    const existing = app.vault.getAbstractFileByPath(plan.action.path);
-    if (existing && "extension" in existing) {
-      await app.vault.modify(existing as TFile, plan.action.content);
-      atomUpdated = plan.action.path;
     } else {
-      // File vanished — create
-      const folder = plan.action.path.split("/").slice(0, -1).join("/");
-      if (folder && !app.vault.getAbstractFileByPath(folder)) {
-        await app.vault.createFolder(folder);
-      }
-      await app.vault.create(plan.action.path, plan.action.content);
-      atomCreated = plan.action.path;
+      // Race: another write landed first — protect existing, do not overwrite.
+      atomSkippedCollision = plan.action.path;
     }
+  } else if (plan.action.kind === "skip_existing_atom") {
+    atomSkippedCollision = plan.action.path;
   }
 
   const { content: newDailyContent, changed } = insertMarkerAfterCapture(
@@ -415,7 +438,7 @@ export async function applyWrite(
 
 /** List existing atom paths under folder for collision detection. */
 export function listAtomPaths(app: App, atomFolder: string): Set<string> {
-  const folder = atomFolder.replace(/\/$/, "") || "Atoms";
+  const folder = clampAtomFolder(atomFolder);
   const set = new Set<string>();
   for (const f of app.vault.getMarkdownFiles()) {
     if (f.path === folder || f.path.startsWith(folder + "/")) {
