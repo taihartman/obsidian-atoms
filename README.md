@@ -35,21 +35,30 @@ Capture on your phone (iOS Shortcut → daily note). Atoms classifies each bulle
 
 ---
 
-## Install (this private repo)
+## Install
 
-1. Clone or download a release build (`main.js`, `manifest.json`, `styles.css`).
-2. Copy into `<Vault>/.obsidian/plugins/atoms/`.
-3. Enable **Atoms** in Community plugins (or unrestricted local plugins).
-4. Settings → set Anthropic API key.
-5. Settings → Capture → install the iOS shortcut (or use the default iCloud link baked into the plugin).
+### Community plugins (once listed)
 
-Dev install into a vault:
+1. Settings → **Community plugins** → turn on community plugins if needed.
+2. **Browse** → search **Atoms** → Install → Enable.
+3. Continue with [First-run setup](#first-run-setup).
 
-```bash
-npm install
-npm run build
-./scripts/install-to-vault.sh   # or copy main.js manifest.json styles.css manually
-```
+### Manual / beta (GitHub Release)
+
+Use this before Community listing, or to pin a specific version:
+
+1. Open the latest [GitHub Release](https://github.com/taihartman/obsidian-atoms/releases) and download `main.js`, `manifest.json`, and `styles.css`.
+2. Create `<Vault>/.obsidian/plugins/atoms/` and copy those three files into it.
+3. Settings → Community plugins → refresh → enable **Atoms**.
+
+Optional beta channel: install via [BRAT](https://obsidian.md/plugins?id=obsidian42-brat) pointing at `taihartman/obsidian-atoms`.
+
+### First-run setup
+
+1. Settings → **Atoms** → set your Anthropic API key (SecretStorage).
+2. Confirm core **Daily Notes** is enabled.
+3. Settings → Capture → install the iOS shortcut (or use the default iCloud link).
+4. Capture bullets in daily notes, then use **Atoms** home → Preview → Process on **past** days (or the “including today” commands only for testing).
 
 ---
 
@@ -71,6 +80,7 @@ npm install
 npm run dev          # watch-build main.js
 npm test
 npm run build
+./scripts/install-to-vault.sh   # copy build into the throwaway vault
 ```
 
 Throwaway vault: `test_vault/test vault/`. Prefer that over a personal vault until dry-run looks right.
@@ -99,7 +109,9 @@ Throwaway vault: `test_vault/test vault/`. Prefer that over a personal vault unt
 
 ## Repo
 
-Private GitHub: **[taihartman/obsidian-atoms](https://github.com/taihartman/obsidian-atoms)**
+**[taihartman/obsidian-atoms](https://github.com/taihartman/obsidian-atoms)**
+
+Releases ship `main.js`, `manifest.json`, and `styles.css` for manual install and for the Community directory once listed.
 
 (Previously `obsidian-ai-linker`; renamed with the product.)
 
