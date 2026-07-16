@@ -9,7 +9,7 @@ import {
 import {
   collectPastNotesWithUnmarkedCaptures,
 } from "./parse";
-import type { DailyNoteWithCaptures } from "./types";
+import type { DailyNoteWithCaptures } from "../shared/types";
 
 export class DailyNotesDisabledError extends Error {
   constructor() {

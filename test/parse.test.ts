@@ -5,7 +5,7 @@ import {
   isMarkerLine,
   parseCaptures,
   unprocessedCaptures,
-} from "../src/parse";
+} from "../src/pipeline/parse";
 
 describe("parseCaptures — formats", () => {
   it("parses plain bullet thought", () => {

@@ -14,7 +14,7 @@ import {
   personNameFromClaimTitle,
   shouldShowWaitCard,
   titleFromAtomPath,
-} from "../src/atomsHomeData";
+} from "../src/home/atomsHomeData";
 
 const atomMd = (opts: {
   title?: string;

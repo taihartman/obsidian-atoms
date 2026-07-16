@@ -18,13 +18,13 @@ import type {
   ClassifyUsage,
   DailyNoteWithCaptures,
   VaultContext,
-} from "./types";
+} from "../shared/types";
 import { mergeProposedTags } from "./vocabulary";
 import {
   PERSON_HUB_MISS_LABEL,
   personHubMissAfterEnrich,
   type PersonHub,
-} from "./people";
+} from "./enrich/people";
 
 export interface PreviewEntry {
   dailyPath: string;

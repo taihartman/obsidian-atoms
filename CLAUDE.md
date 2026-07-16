@@ -143,12 +143,17 @@ Never log request headers/bodies, full error objects, or raw API keys. Redact ke
 
 ## Architecture seams (do not collapse)
 
-- `parse.ts` — capture extent + marker detection (KTD1)
-- `context.ts` — `ContextProvider` seam (all-titles v1; shortlist later)
-- `classify.ts` — request build, cache breakpoint, schema, invariants, retry
-- `render.ts` — atom file + markers; collision policy KTD8
-- `preview.ts` — dry-run only
-- `backfill.ts` — Batch API + cost gate
+Hybrid layout — see `docs/architecture.md` module map. Paths:
+
+- `pipeline/parse.ts` — capture extent + marker detection (KTD1)
+- `pipeline/context.ts` — `ContextProvider` seam (all-titles v1; shortlist later)
+- `pipeline/classify.ts` — request build, cache breakpoint, schema, invariants, retry
+- `pipeline/render.ts` — atom file + markers; collision policy KTD8
+- `pipeline/preview.ts` — dry-run only
+- `pipeline/write.ts` — write path
+- `pipeline/backfill.ts` — Batch API + cost gate
+- `pipeline/enrich/*` — post-classify repair (people, media, links, idea rescue)
+- `plugin/main.ts` — thin shell (lifecycle + wire); not a dumping ground for product logic
 
 Intelligence lives in **links + titles**, not folders.
 

@@ -4,17 +4,17 @@ import type {
   ClassifyOutcome,
   ClassifyUsage,
   VaultContext,
-} from "./types";
+} from "../shared/types";
 import {
   enrichPersonLinks,
   type PersonHub,
-} from "./people";
-import { enrichMediaLinks } from "./media";
+} from "./enrich/people";
+import { enrichMediaLinks } from "./enrich/media";
 import {
   improveClassificationLinks,
   maybeLinkPeopleIndex,
-} from "./linkQuality";
-import { rescueKeepableIdea } from "./ideaRescue";
+} from "./enrich/linkQuality";
+import { rescueKeepableIdea } from "./enrich/ideaRescue";
 import { filterTagsToActive } from "./vocabulary";
 
 /** Injected by esbuild: true in watch/dev, false in production Community builds. */

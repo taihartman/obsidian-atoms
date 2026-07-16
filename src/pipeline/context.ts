@@ -1,10 +1,10 @@
 import type { App, TFile } from "obsidian";
-import type { Capture, VaultContext } from "./types";
+import type { Capture, VaultContext } from "../shared/types";
 import {
   discoverPersonHubs,
   personHubTitles,
   type PersonHub,
-} from "./people";
+} from "./enrich/people";
 import {
   eligibleTags,
   normalizeTag,

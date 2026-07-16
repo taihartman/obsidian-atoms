@@ -15,7 +15,7 @@ import {
   isGeneratedAtomContent,
   isUnderAtomFolder,
   titleFromAtomPath,
-} from "./atomsHomeData";
+} from "../home/atomsHomeData";
 
 export type ResurfaceCue =
   | "mind-change"

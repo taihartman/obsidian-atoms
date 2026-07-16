@@ -3,9 +3,9 @@ import {
   buildPreviewEntry,
   renderPreviewMarkdown,
   type DryRunReport,
-} from "../src/preview";
-import { markerLineForDecision, formatLinkProse } from "../src/render";
-import type { Capture, DailyNoteWithCaptures } from "../src/types";
+} from "../src/pipeline/preview";
+import { markerLineForDecision, formatLinkProse } from "../src/pipeline/render";
+import type { Capture, DailyNoteWithCaptures } from "../src/shared/types";
 
 const capture: Capture = {
   text: "sleep debt seems to plateau",

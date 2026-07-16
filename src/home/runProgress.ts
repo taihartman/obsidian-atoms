@@ -2,8 +2,8 @@
  * Pure helpers for Preview/Process progress UI on Atoms home.
  */
 
-import type { DryRunReport } from "./preview";
-import type { WritePathReport } from "./write";
+import type { DryRunReport } from "../pipeline/preview";
+import type { WritePathReport } from "../pipeline/write";
 
 export type RunProgressMeta = {
   captureText?: string;

@@ -57,23 +57,32 @@ processInbox(dryRun)
 
 **Link / idea quality (0.6.6+):** `improveClassificationLinks` rewrites boilerplate reasons (“preference about X”); `rescueKeepableIdea` promotes product/app pitches from task/noise → atom; optional exact `People` index link for workplace-shaped captures without a person hub.
 
-## Module map (`src/`)
+## Module map (`src/`) — hybrid layout
 
-| Module | Responsibility | Unit |
-|---|---|---|
-| `main.ts` | Commands, onload/interval, key resolution, home leaf | U1–U2, U9, home |
-| `settings.ts` | SecretStorage UI, vocab, privacy, auto-run | U2, U5, U9 |
-| `types.ts` | Shared types + defaults | all |
-| `parse.ts` | Capture extent + marker detection | U3 |
-| `context.ts` | `ContextProvider` / titles+tags+vocab | U4 |
-| `vocabulary.ts` | Active / vault / proposed tags | U5 |
-| `classify.ts` | Prompt, cache, schema, invariants, retry | U1, U6 |
-| `people.ts` | Person hub discovery (score + top-N; Social/People boost) + post-classify repair | people 0.3 / ranking 0.6.3 |
-| `preview.ts` | Dry-run surface | U7 |
-| `render.ts` | Atom markdown + markers + sanitize/collision | U8 |
-| `backfill.ts` | Batch API + estimate gate | U10 |
-| `atomsHomeData.ts` | Pure library + wait-card helpers | home 0.4 |
-| `atomsHomeView.ts` | Mobile-first Atoms `ItemView` home | home 0.4 |
+**Layout rule (agents):** new filing logic → `pipeline/` (or `pipeline/enrich/`); home UI → `home/`; resurface cues → `resurface/`; settings/CTA → `settings/`; device gates → `platform/`; shared types → `shared/`. Wire-up only in `plugin/`.
+
+**Dependency rule:** `pipeline/**` never imports `home/`, `resurface/`, `settings/`, or `plugin/`. Features may import `pipeline` + `shared` + `platform`.
+
+| Path | Responsibility |
+|---|---|
+| `main.ts` | esbuild entry — re-exports `plugin/main` |
+| `plugin/main.ts` | Plugin lifecycle, home leaf, settings wire, auto-run schedule |
+| `plugin/commands.ts` | Command id registration (callbacks → plugin methods) |
+| `pipeline/parse.ts` | Capture extent + marker detection |
+| `pipeline/context.ts` | `ContextProvider` / titles+tags+vocab |
+| `pipeline/classify.ts` | Prompt, cache, schema, invariants, retry |
+| `pipeline/render.ts` | Atom markdown + markers + sanitize/collision |
+| `pipeline/write.ts` | Write-path orchestration |
+| `pipeline/preview.ts` | Dry-run surface |
+| `pipeline/backfill.ts` | Batch API + estimate gate |
+| `pipeline/daily.ts` | Past dailies / today open helpers |
+| `pipeline/vocabulary.ts` | Active / vault / proposed tags |
+| `pipeline/enrich/*` | Post-classify repair: people, media, linkQuality, ideaRescue |
+| `home/*` | Atoms home view + pure library helpers + run progress |
+| `resurface/resurface.ts` | Multi-cue stream / mind-change / throttle |
+| `settings/*` | Settings tab + capture shortcut CTA |
+| `platform/*` | Auto-run gates, connectivity probe |
+| `shared/types.ts` | Shared types + defaults |
 
 ## Model contract
 

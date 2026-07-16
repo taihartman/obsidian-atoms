@@ -4,7 +4,7 @@ import type {
   ClassificationLink,
   ClassificationResult,
   Verdict,
-} from "./types";
+} from "../shared/types";
 
 /**
  * Marker line that would be / is appended under a capture (KTD1).

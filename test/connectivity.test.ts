@@ -6,7 +6,7 @@ import {
   probeHttpsBaseline,
   runConnectivityTest,
   type ProbeResult,
-} from "../src/connectivity";
+} from "../src/platform/connectivity";
 
 describe("probeHttpsBaseline", () => {
   it("treats HTTP 200 as success", async () => {

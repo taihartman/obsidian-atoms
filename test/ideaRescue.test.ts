@@ -3,8 +3,8 @@ import {
   isKeepableIdea,
   rescueKeepableIdea,
   shortTitleFromCapture,
-} from "../src/ideaRescue";
-import type { ClassificationResult } from "../src/types";
+} from "../src/pipeline/enrich/ideaRescue";
+import type { ClassificationResult } from "../src/shared/types";
 
 const starbucks = `Personal starbucks weekend working session drink order tracker website.
 Please create a modern, clean website that will allow me to enter my starbucks drink orders that I order when I go to starbucks on the weekend and work on my app. I think it would be funny to publicly publish the drinks i order to track statistics about these drinks that I am ordering. This website will be live so we need a way to have me enter the drinks.`;

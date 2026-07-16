@@ -7,11 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| — | — | — | — | — | — | *(none)* |
-
-<!-- Example row (delete when unused):
-| In progress | #12 | tai | feat/example | docs/plans/2026-07-16-0xx-….md | src/classify.ts, src/render.ts | draft PR #34 |
--->
+| In progress | #21 | tai | refactor/hybrid-src-layout | docs/plans/2026-07-16-017-refactor-hybrid-src-layout-plan.md | src/**, docs/architecture.md | hybrid tree + commands extract; main still fat (follow-up ops split) |
 
 ## How to claim (copy)
 
