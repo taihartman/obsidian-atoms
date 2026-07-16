@@ -17,16 +17,26 @@ Before a QA pass, read:
 | Unit | `npm test` |
 | Typecheck + bundle | `npm run build` |
 | Seed throwaway vault | `npm run seed:vault` |
-| Install plugin into vault | `./scripts/install-to-vault.sh` (test vault) or Remote Vault path per CLAUDE.md |
-| Full agent verify | `./scripts/verify.sh` (Obsidian open + CLI on) |
-| Live CLI smoke | `obsidian command id=atoms:…` from vault cwd (see CLAUDE.md) |
+| Install plugin (agent QA) | `./scripts/install-to-vault.sh` → throwaway test vault |
+| Seed demo dogfood | `node scripts/seed-demo-vault.mjs` then install into `docs/media/demo-vault` |
+| Phone install only | `npm run phone` → Remote Vault **plugin files only** (CLAUDE.md) |
+| Full agent verify | `./scripts/verify.sh` (Obsidian open + CLI on **test** vault) |
+| Live CLI smoke | `obsidian command id=atoms:…` from **test/demo** vault cwd |
+
+## Vault lanes
+
+| Who | Vault | Purpose |
+|---|---|---|
+| **Agent dogfood / QA** | `test_vault/test vault/`, `docs/media/demo-vault/` | Process, Update notes, fixtures, screenshots — **all write experiments** |
+| **Phone product** | `~/Documents/Remote Vault` via Sync | Human live data; agent only installs plugin (`npm run phone`) |
+| **Never by default** | Remote Vault atoms/dailies | Unattended Update / fixture rewrite / bulk classify |
 
 ## Viewports / Devices
 
 | Surface | Target |
 |---|---|
 | **Primary (phone product)** | Obsidian mobile (iOS) on **Remote Vault** via Sync — install id `atoms`, check Settings version |
-| **Agent automation** | Desktop Obsidian **1.12.x** + CLI on throwaway `test_vault/test vault/` |
+| **Agent automation / dogfood** | Desktop Obsidian **1.12.x** + CLI on `test_vault/` or **demo-vault** (not Remote Vault notes) |
 | Home UI | Mobile-first `atoms-home` leaf (~phone width); desktop left sidebar leaf OK for smoke |
 
 Visual fidelity mocks (when UI change): `docs/design-handoff/atoms-view/`.
