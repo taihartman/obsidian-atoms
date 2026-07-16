@@ -1,0 +1,36 @@
+# Fail PRs that never link a closing Issue keyword.
+# GitHub only auto-closes on Closes/Fixes/Resolves #N — plain "Issue #N" is not enough.
+name: PR closes issue
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize, ready_for_review]
+
+jobs:
+  require-closes:
+    name: Require Closes #N
+    runs-on: ubuntu-latest
+    # Drafts may omit the number while scaffolding; enforce when ready or on merge-ready paths.
+    if: github.event.pull_request.draft == false
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Check PR body for Closes/Fixes/Resolves #N
+        env:
+          BODY: ${{ github.event.pull_request.body }}
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          set -euo pipefail
+          text="${TITLE}
+
+          ${BODY}"
+          # Allow optional colon and spaces: Closes #12, fixes: #3, Resolves # 7
+          if printf '%s' "$text" | grep -Eiq \
+            '(close[sd]?|fix(e[sd])?|resolve[sd]?)[[:space:]]*:?[[:space:]]*#[0-9]+'; then
+            echo "OK: PR links a closing Issue keyword."
+            exit 0
+          fi
+          echo "::error::PR must include Closes #N (or Fixes/Resolves #N) so GitHub auto-closes the claim Issue."
+          echo "Plain 'Issue #N' does not auto-close. See docs/collab.md and .github/pull_request_template.md."
+          exit 1

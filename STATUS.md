@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| In progress | #23 | tai | docs/pr-closes-issue-process | — | docs/collab.md, AGENTS.md, .github/pull_request_template.md | require Closes #N on every PR |
+| In progress | #25 | tai | ci/require-closes-issue | — | .github/workflows/pr-closes-issue.yml | CI enforce Closes #N |
 
 ## How to claim (copy)
 
@@ -23,4 +23,5 @@ States: `Queued` · `In progress` · `Blocked` · `In review` · `Done` (then re
 
 | Merged | Issue / PR | Summary |
 |---|---|---|
+| 2026-07-16 | #23 / #24 | require Closes #N process docs |
 | 2026-07-16 | #21 / #22 | hybrid src layout |

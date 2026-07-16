@@ -57,6 +57,8 @@ Also valid: `Fixes #N`, `Resolves #N` (same effect).
 
 Template: [`.github/pull_request_template.md`](../.github/pull_request_template.md).
 
+**CI:** non-draft PRs run [`.github/workflows/pr-closes-issue.yml`](../.github/workflows/pr-closes-issue.yml) — the check **Require Closes #N** fails if the body/title lack `Closes`/`Fixes`/`Resolves #N`. Drafts may scaffold without a number; mark ready only when the line is present.
+
 ### Claim states (`STATUS.md`)
 
 | State | Meaning |
