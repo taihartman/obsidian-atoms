@@ -1,5 +1,9 @@
 import type { App } from "obsidian";
-import { classifyCapture, type ClassifyDeps } from "./classify";
+import {
+  applyClassificationQuality,
+  classifyCapture,
+  type ClassifyDeps,
+} from "./classify";
 import type { MetadataContextProvider } from "./context";
 import { getPastDailyNotesWithUnmarkedCaptures } from "./daily";
 import {
@@ -15,11 +19,9 @@ import type {
   DailyNoteWithCaptures,
 } from "./types";
 import {
-  enrichPersonLinks,
   personHubMissAfterEnrich,
   type PersonHub,
 } from "./people";
-import { enrichMediaLinks } from "./media";
 import { mergeProposedTags } from "./vocabulary";
 
 export interface WritePathEntry {
@@ -119,9 +121,16 @@ export async function runWritePath(
 
     let result: ClassificationResult | null = null;
     if (opts.fixtureResults && opts.fixtureResults[i]) {
-      // Fixtures skip live classify — still run people repair choke-point.
-      result = enrichPersonLinks(capture.text, opts.fixtureResults[i]!, hubs);
-      result = enrichMediaLinks(capture.text, result, ctx.titles ?? []);
+      // Fixtures skip live classify — same quality pass as classifyCapture.
+      result = applyClassificationQuality(
+        capture.text,
+        opts.fixtureResults[i]!,
+        {
+          titles: ctx.titles ?? [],
+          personHubs: hubs,
+          personHubTitles: ctx.personHubs ?? [],
+        },
+      );
     } else {
       const outcome = await classifyCapture(capture.text, ctx, {
         apiKey: opts.apiKey,

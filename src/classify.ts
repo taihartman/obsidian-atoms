@@ -10,6 +10,11 @@ import {
   type PersonHub,
 } from "./people";
 import { enrichMediaLinks } from "./media";
+import {
+  improveClassificationLinks,
+  maybeLinkPeopleIndex,
+} from "./linkQuality";
+import { rescueKeepableIdea } from "./ideaRescue";
 import { filterTagsToActive } from "./vocabulary";
 
 /** Injected by esbuild: true in watch/dev, false in production Community builds. */
@@ -26,12 +31,12 @@ export const CLASSIFICATION_SCHEMA = {
       type: "string",
       enum: ["atom", "task", "noise"],
       description:
-        "Second-brain triage. Prefer atom for keepable memory (including list/media). Prefer noise for pure logistics. task is rare/legacy — almost never use it.",
+        "Second-brain triage. Prefer atom for keepable memory (including list/media and product/app ideas). Prefer noise for pure logistics. task is rare/legacy — almost never use it.",
     },
     title: {
       type: "string",
       description:
-        "Declarative claim title for atom verdicts (e.g. 'Sleep debt doesn't accumulate linearly'). Empty string for task/noise.",
+        "Short declarative claim for atom verdicts (~8–12 words; e.g. 'Sleep debt doesn't accumulate linearly'). Full detail stays in the body. Empty string for task/noise.",
     },
     tags: {
       type: "array",
@@ -56,7 +61,7 @@ export const CLASSIFICATION_SCHEMA = {
           reason: {
             type: "string",
             description:
-              "Human-readable relationship. Name supersession when applicable: 'revises [[…]]', 'contradicts [[…]]', or 'relates because …'.",
+              "Substantive relationship: if wikilinks were stripped, the sentence still teaches something. Prefer 'revises [[…]]', 'contradicts [[…]]', career/gift/game cues. Never bare 'preference about X'.",
           },
         },
         required: ["note", "reason"],
@@ -74,27 +79,29 @@ export const SYSTEM_PROMPT = `You classify fleeting captures from a daily-note i
 - You output ONLY: verdict, title, tags, proposed_tags, links.
 - You never rewrite, paraphrase, expand, or "improve" the capture body. The body is sacred and is written elsewhere, verbatim.
 - You never choose folders or move files. Placement is not your job. One capture → at most one atom (never append into a Movies/list note).
-- Titles (when atom) are declarative claims, not topics.
+- Titles (when atom) are **short declarative claims** (~8–12 words / under ~80 characters when possible), not topics and not a paste of the whole capture.
   Good: "Sleep debt doesn't accumulate linearly"
   Bad: "Sleep notes" / "Thoughts on sleep"
   Good (person): "Alex prefers periwinkle and soft pajamas"
   Bad (person): "Girlfriend notes" / "Alex stuff"
   Good (list/media): "Want to watch Past Lives" / "Severance season 2 is on the list"
   Bad (list/media): "Movies" / "Watchlist notes"
+  Bad (too long): a full multi-clause comparison as the filename — put nuance in the body
 
 ## Triage (second brain)
-- atom: anything worth meeting again in the graph — claims, observations, decisions, preferences, questions, **and list/media dumps** (shows, movies, books, restaurants, want-to, try-later). If the user would want to find it later, it is an atom.
+- atom: anything worth meeting again in the graph — claims, observations, decisions, preferences, questions, **list/media dumps**, **and product/app/build ideas** (website pitches, game mashups, "create a …" product specs). If the user would want to find it later, it is an atom.
 - noise: pure logistics, empty, or not worth keeping in a second brain ("buy milk", "email landlord", "call dentist at 3", lone timestamps). When in doubt between task and noise → **noise**. When in doubt between atom and noise for keepable content → **atom**.
-- task: **soft-retired / almost never**. Do not use task for list items, media, preferences, or people facts. Do not use task for ordinary chores (those are noise). Only emit task if nothing else fits and the capture is a pure to-do that somehow is not noise — prefer noise.
+- task: **soft-retired / almost never**. Do not use task for list items, media, preferences, people facts, or product ideas. Do not use task for ordinary chores (those are noise). Only emit task if nothing else fits and the capture is a pure to-do that somehow is not noise — prefer noise.
 - Durable facts about people you know (likes, habits, stories that matter) are usually atoms, not noise.
 - List dumps are **one atom per capture**, with a declarative title.
+- Product idea test: multi-sentence "create a website/app/game" pitches are **atoms** (tag idea/project when in Active or structural), never task/noise.
 
 ## Media / watchlist dumps (high priority)
 - Captures about watching/reading a named work are **media atoms**, not mere #preferences.
   Examples: "watch Past Lives", "Christian told me to watch my hero academia", "movie: Dune".
 - Tags: include #watch and #show or #movie (and #media when it fits). You may also add #preferences if taste is central — but never only #preferences when a work is named.
-- Links: ALWAYS put the **work title** in links[] (e.g. note: "My Hero Academia", reason: "show to watch"). Prefer an exact Note titles match when the vault already has that show/movie. Unresolved work titles are fine.
-- If a person recommended it ("X told me to watch…") and X is a Person hub or Note title, ALSO link that person (person repair may reinforce).
+- Links: put the **work title** in links[] **only if** that title already appears under Note titles in vault context. Do **not** invent hollow work notes. The work name can live in the atom title without a work link.
+- If a person recommended it ("X told me to watch…") and X is a Person hub or Note title, ALSO link that person with a substantive reason (person repair may reinforce).
 
 ## Tags
 - tags: ONLY from the Active vocabulary list in context **plus** product structural tags (person, preferences, relationship, watch, movie, show, media, list). Drop anything else.
@@ -107,23 +114,29 @@ export const SYSTEM_PROMPT = `You classify fleeting captures from a daily-note i
 
 ## People (tasteful, automatic linking)
 - When the context lists **Person hubs**, prefer those exact titles for people links (must-link when the capture is about that person).
-- Otherwise, when a capture is about a named person and that name appears in **Note titles**, you MUST link that exact title in links[] with a clear reason (e.g. "preference about [[Alex]]", "relates to [[Alex]]").
+- Otherwise, when a capture is about a named person and that name appears in **Note titles**, you MUST link that exact title in links[] with a **substantive** reason.
 - Match names case-insensitively; use the vault's exact title string in links[].note (canonical hub title, not a nickname spelling).
 - Do not invent a new person note title if a close existing title already fits.
 - One atom can carry a person link, a work link, and preference/media tags together.
 - Pure logistics that merely mention a name stay **noise** — do not force person atoms for chores.
+- Do not invent entity links from speech typos (e.g. "Kloe") unless that exact title exists in Note titles.
 
-## Links + supersession
+## Links + supersession (reason quality is load-bearing)
 - Link to existing notes when the capture relates, revises, or contradicts them.
-- Always fill \`reason\` with readable prose that names the relationship.
-- If this capture updates / revises / contradicts an existing claim, say so explicitly
-  (e.g. "revises [[Old claim]]", "contradicts [[Old claim]]").
-- Prefer zero forced topical links over junk edges — except people rules and media work-title links above.
-- If a Movies/Shows hub title already exists in Note titles, you may also link it; still link the specific work when named.
+- Always fill \`reason\` with readable prose that names the **relationship**.
+- **Reason must still teach something if wikilinks were stripped.**
+  Bad: "preference about [[Alex]]" / "update about [[Alex]]" / "media work to watch"
+  Good: "concrete aesthetic preference for gifts / clothes ([[Alex]])"
+  Good: "career status: Penfield interview — waiting to hear back ([[Alex]])"
+  Good: "adds a game they like for the detective feel ([[Alex]])"
+  Good: "revises [[Old claim]]" / "contradicts [[Old claim]]"
+- Prefer zero forced topical links over junk edges — except people rules and existing media work-title links above.
+- If a Movies/Shows hub title already exists in Note titles, you may also link it; still link the specific work only when that work title exists.
 
 ## title
 - Required non-empty string iff verdict is atom.
-- Empty string for task and noise.`;
+- Empty string for task and noise.
+- Prefer short claims; never use the entire capture as the title when it is long.`;
 
 export function buildContextUserMessage(context: VaultContext): string {
   const vocab = context.vocabulary.length
@@ -470,7 +483,11 @@ export async function classifyCapture(
   }
 
   // Parse layer: trust structured-output schema. No try/catch around JSON.parse (KTD4).
-  const parsed = JSON.parse(textBlock.text) as ClassificationResult;
+  let parsed = JSON.parse(textBlock.text) as ClassificationResult;
+
+  // Keepable product ideas must not soft-delete as task/noise (before invariants need title).
+  parsed = rescueKeepableIdea(capture, parsed, context.titles ?? []);
+
   const inv = checkInvariants(parsed);
   if (!inv.ok) {
     return { ok: false, reason: "invariant", message: inv.message };
@@ -483,10 +500,17 @@ export async function classifyCapture(
 
   // People repair (atom-only, person-shaped) — single choke-point for live classify.
   let result = enrichPersonLinks(capture, parsed, hubsForEnrich(context));
-  // Media/watchlist shape — tags + work link (high-precision local repair).
+  // Media/watchlist shape — tags + work link only when title exists in vault.
   result = enrichMediaLinks(capture, result, context.titles ?? []);
-
-  // Retain all links (KTD10) — no resolution filter.
+  // Optional People index when workplace-shaped and no person hub linked.
+  result = maybeLinkPeopleIndex(
+    capture,
+    result,
+    context.titles ?? [],
+    context.personHubs ?? [],
+  );
+  // Rewrite boilerplate reasons into substantive prose.
+  result = improveClassificationLinks(capture, result);
 
   return {
     ok: true,
@@ -494,6 +518,34 @@ export async function classifyCapture(
     usage: parseUsage(json.usage),
     keyFingerprint: fingerprintKey(apiKey),
   };
+}
+
+/**
+ * Shared post-classify quality pass for fixture / offline paths
+ * (write fixtures, backfill) — mirrors classifyCapture enrich chain.
+ */
+export function applyClassificationQuality(
+  capture: string,
+  result: ClassificationResult,
+  opts: {
+    titles?: string[];
+    personHubs?: PersonHub[];
+    personHubTitles?: string[];
+  } = {},
+): ClassificationResult {
+  const titles = opts.titles ?? [];
+  const hubs = opts.personHubs ?? [];
+  let r = rescueKeepableIdea(capture, result, titles);
+  r = enrichPersonLinks(capture, r, hubs);
+  r = enrichMediaLinks(capture, r, titles);
+  r = maybeLinkPeopleIndex(
+    capture,
+    r,
+    titles,
+    opts.personHubTitles ?? hubs.map((h) => h.canonicalTitle),
+  );
+  r = improveClassificationLinks(capture, r);
+  return r;
 }
 
 /**

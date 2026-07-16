@@ -1,5 +1,9 @@
 import { requestUrl, type App, Modal, Setting } from "obsidian";
-import { ANTHROPIC_VERSION, buildMessagesRequest } from "./classify";
+import {
+  ANTHROPIC_VERSION,
+  applyClassificationQuality,
+  buildMessagesRequest,
+} from "./classify";
 import type { MetadataContextProvider } from "./context";
 import { getPastDailyNotesWithUnmarkedCaptures } from "./daily";
 import {
@@ -13,8 +17,7 @@ import type {
   DailyNoteWithCaptures,
   VaultContext,
 } from "./types";
-import { enrichPersonLinks, type PersonHub } from "./people";
-import { enrichMediaLinks } from "./media";
+import type { PersonHub } from "./people";
 import { filterTagsToActive, mergeProposedTags } from "./vocabulary";
 
 export const BATCHES_URL = "https://api.anthropic.com/v1/messages/batches";
@@ -484,8 +487,10 @@ export async function applyBackfillResults(opts: {
       failed += 1;
       continue;
     }
-    result = enrichPersonLinks(item.capture.text, result, hubs);
-    result = enrichMediaLinks(item.capture.text, result, []);
+    result = applyClassificationQuality(item.capture.text, result, {
+      titles: [],
+      personHubs: hubs,
+    });
     if (result.proposed_tags?.length) {
       proposedIncoming.push(...result.proposed_tags);
     }
