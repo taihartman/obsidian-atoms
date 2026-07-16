@@ -4,7 +4,7 @@
  */
 
 /** Bump when Process/Update should re-touch older atoms (e.g. self-link ban). */
-export const CURRENT_ATOMS_QUALITY = 4;
+export const CURRENT_ATOMS_QUALITY = 5;
 
 const GENERATED_BY_RE = /^generated-by:\s*linker\s*$/m;
 const QUALITY_RE = /^atoms-quality:\s*(\d+)\s*$/m;
