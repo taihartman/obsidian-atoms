@@ -82,6 +82,11 @@ import {
   type ApplyBackfillReport,
   type CostEstimate,
 } from "../pipeline/backfill";
+import {
+  runRefreshEligibleAtoms,
+  type RefreshReport,
+} from "../pipeline/refreshAtoms";
+import { formatUpdateSummary } from "../home/runProgress";
 
 export default class AtomsPlugin extends Plugin {
   settings!: LinkerSettings;
@@ -100,8 +105,7 @@ export default class AtomsPlugin extends Plugin {
   lastBackfillReport: ApplyBackfillReport | null = null;
   lastBackfillBatchId: string | null = null;
   /** Last Update notes refresh report (CLI). */
-  lastRefreshReport: import("../pipeline/refreshAtoms").RefreshReport | null =
-    null;
+  lastRefreshReport: RefreshReport | null = null;
   /** Guards double-fire of onload + interval auto-run. */
   private autoRunInFlight = false;
   private backfillInFlight = false;
@@ -230,16 +234,16 @@ export default class AtomsPlugin extends Plugin {
    * Update notes — refresh eligible older atoms to Process parity (Issue #29).
    * User-initiated only; never from auto-run.
    */
-  async runUpdateNotes(): Promise<void> {
+  async runUpdateNotes(opts?: {
+    fixtureResults?: import("../shared/types").ClassificationResult[];
+    limit?: number;
+  }): Promise<void> {
     const apiKey = this.requireApiKey();
     if (!apiKey) return;
 
     this.beginHomeRun("update");
     new Notice("Atoms: updating older notes…");
     try {
-      const { runRefreshEligibleAtoms } = await import(
-        "../pipeline/refreshAtoms"
-      );
       const report = await runRefreshEligibleAtoms({
         app: this.app,
         contextProvider: this.contextProvider,
@@ -247,6 +251,8 @@ export default class AtomsPlugin extends Plugin {
         model: this.settings.model,
         activeVocabulary: this.settings.activeVocabulary,
         atomFolder: this.settings.atomFolder,
+        limit: opts?.limit,
+        fixtureResults: opts?.fixtureResults,
         classifyDeps: {
           maxAttempts: 2,
           onAuthFailure: (msg) => new Notice(`Atoms: ${msg}`),
@@ -256,7 +262,6 @@ export default class AtomsPlugin extends Plugin {
         },
       });
       this.lastRefreshReport = report;
-      const { formatUpdateSummary } = await import("../home/runProgress");
       const summary = formatUpdateSummary(report.updated, report.failed);
       this.finishHomeRun(summary);
       new Notice(

@@ -1023,9 +1023,12 @@ export class AtomsHomeView extends ItemView {
       this.renderResurfaceCard(scroll);
     }
 
+    // Show when not mid-run (idle/done/error). Hide only during preview/process/update.
     if (
       !firstDay &&
-      this.runPhase === "idle" &&
+      this.runPhase !== "preview" &&
+      this.runPhase !== "process" &&
+      this.runPhase !== "update" &&
       this.shouldShowUpdateNotesStrip()
     ) {
       this.renderUpdateNotesStrip(scroll);

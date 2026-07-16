@@ -426,27 +426,26 @@ export async function runRefreshEligibleAtoms(
         continue;
       }
 
-      if (plan.rename) {
-        const destExists = opts.app.vault.getAbstractFileByPath(plan.newPath);
-        if (destExists) {
-          // race — modify in place without rename
-          await opts.app.vault.modify(file, plan.content);
-        } else {
-          await opts.app.vault.modify(file, plan.content);
-          await opts.app.fileManager.renameFile(file, plan.newPath);
-          existing.delete(plan.path);
-          existing.add(plan.newPath);
-          report.renamed += 1;
-        }
-      } else {
-        await opts.app.vault.modify(file, plan.content);
-      }
+      // Write content first (in-place), then rename if needed.
+      // Prefer vault.rename only — fileManager.renameFile can hang in some vaults.
+      await opts.app.vault.modify(file, plan.content);
       report.updated += 1;
 
-      if (
-        plan.oldTitle !== plan.newTitle &&
-        plan.sourceBasename
-      ) {
+      if (plan.rename) {
+        const destExists = opts.app.vault.getAbstractFileByPath(plan.newPath);
+        if (!destExists) {
+          try {
+            await opts.app.vault.rename(file, plan.newPath);
+            existing.delete(plan.path);
+            existing.add(plan.newPath);
+            report.renamed += 1;
+          } catch {
+            // Content already refreshed; leave path (aliases carry old title).
+          }
+        }
+      }
+
+      if (plan.oldTitle !== plan.newTitle && plan.sourceBasename) {
         const daily = findDailyFile(opts.app, plan.sourceBasename);
         if (daily) {
           const dailyText = await opts.app.vault.read(daily);
