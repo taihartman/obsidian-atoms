@@ -833,7 +833,7 @@ export class AtomsHomeView extends ItemView {
       });
       setup.createDiv({
         cls: "atoms-home-mono",
-        text: "- Nichita likes periwinkle\n- watch Past Lives",
+        text: "- Alex likes periwinkle\n- watch Past Lives",
       });
 
       const actions = setup.createDiv({ cls: "atoms-home-setup-actions" });

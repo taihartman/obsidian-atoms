@@ -26,7 +26,7 @@ It is **not** a second file browser, not a People CRM, not an API console.
 | **Work pending** | Same shell · **dominant waiting card** · optional queue peek · primary **Preview** |
 
 **Links is not a v1 tab.** Connections show as:
-- Orange / accent chips on Recent rows (`Nichita`)  
+- Orange / accent chips on Recent rows (`Alex`)  
 - Optional filter chip: **All | Linked**  
 - Tapping a chip or row opens the note (hub or atom); Obsidian Backlinks do the rest  
 

@@ -36,8 +36,8 @@ ${opts.body}${opts.links ? `\n\n${opts.links}` : ""}
 
 describe("titleFromAtomPath", () => {
   it("strips folder and extension", () => {
-    expect(titleFromAtomPath("Atoms/Nichita prefers.md")).toBe(
-      "Nichita prefers",
+    expect(titleFromAtomPath("Atoms/Alex prefers.md")).toBe(
+      "Alex prefers",
     );
   });
 });
@@ -60,9 +60,9 @@ describe("extractSourceDay / chips", () => {
 
   it("extracts wikilinks excluding self title", () => {
     const body =
-      "Nichita likes teal\n\npreference about [[Nichita]]. Also [[Tin]].";
-    expect(extractLinkChips(body, "Nichita prefers teal")).toEqual([
-      "Nichita",
+      "Alex likes teal\n\npreference about [[Alex]]. Also [[Tin]].";
+    expect(extractLinkChips(body, "Alex prefers teal")).toEqual([
+      "Alex",
       "Tin",
     ]);
     expect(extractLinkChips("see [[Claim title]]", "Claim title")).toEqual([]);
@@ -136,7 +136,7 @@ describe("listAtomLibraryEntries", () => {
           mtime: 200,
           content: atomMd({
             body: "b",
-            links: "about [[Nichita]].",
+            links: "about [[Alex]].",
           }),
         },
         {
@@ -153,8 +153,8 @@ describe("listAtomLibraryEntries", () => {
       "Atoms",
     );
     expect(entries.map((e) => e.title)).toEqual(["Newer", "Older"]);
-    expect(entries[0]!.linkChips).toContain("Nichita");
-    expect(entries[0]!.displayChips.some((c) => c.label === "Nichita")).toBe(
+    expect(entries[0]!.linkChips).toContain("Alex");
+    expect(entries[0]!.displayChips.some((c) => c.label === "Alex")).toBe(
       true,
     );
   });
@@ -162,7 +162,7 @@ describe("listAtomLibraryEntries", () => {
   it("Linked filter keeps only displayable person/work chips", () => {
     const a = parseAtomLibraryEntry(
       "Atoms/A.md",
-      atomMd({ body: "x", links: "preference about [[Nichita]]." }),
+      atomMd({ body: "x", links: "preference about [[Alex]]." }),
       1,
     );
     const b = parseAtomLibraryEntry(

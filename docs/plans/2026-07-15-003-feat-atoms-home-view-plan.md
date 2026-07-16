@@ -50,7 +50,7 @@ Architecture already names **zero-guilt UI** and **mobile-primary** (`docs/archi
 |---|---|
 | AE1 | Open Atoms view with 0 unprocessed → sees recent atom titles; no waiting card |
 | AE2 | 3 unprocessed past captures → waiting card “3 captures waiting”; Preview opens dry-run results; Process writes and refreshes library |
-| AE3 | Atom linked to Nichita shows chip **Nichita**; Linked filter hides unlinked atoms |
+| AE3 | Atom linked to Alex shows chip **Alex**; Linked filter hides unlinked atoms |
 | AE4 | Tap atom row → leaf opens that note in the editor |
 
 ### Scope Boundaries
@@ -151,7 +151,7 @@ Architecture already names **zero-guilt UI** and **mobile-primary** (`docs/archi
 **Patterns:** pure functions like `parse.ts` / `people.ts`; vitest fixtures as markdown strings.
 
 **Test scenarios:**
-- Happy: atom with source + `[[Nichita]]` in body → chip Nichita, source day set  
+- Happy: atom with source + `[[Alex]]` in body → chip Alex, source day set  
 - Happy: sort two files by mtime  
 - Edge: no wikilinks → empty chips; Linked filter helper returns false  
 - Edge: self-link to own title excluded from chips  
@@ -256,7 +256,7 @@ Architecture already names **zero-guilt UI** and **mobile-primary** (`docs/archi
 | Full suite | Existing tests still green |
 | Manual clear | AE1: empty waiting, library lists atoms |
 | Manual pending | AE2: card → Preview (no write) → Process → library updates |
-| Manual chips | AE3: Nichita chip + Linked filter |
+| Manual chips | AE3: Alex chip + Linked filter |
 | Manual open | AE4: row opens atom |
 | Mobile | Leaf usable in phone drawer; primary buttons ≥44px hit area in CSS |
 

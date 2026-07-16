@@ -78,16 +78,16 @@ describe("connected + quiet + priority", () => {
       bodySnippet: "just filed",
       matchDate: "2026-07-14",
       mtime: 1_000_000,
-      linkChips: ["Nichita"],
+      linkChips: ["Alex"],
       content: "",
     },
     {
-      path: "Atoms/About Nichita.md",
-      title: "About Nichita",
+      path: "Atoms/About Alex.md",
+      title: "About Alex",
       bodySnippet: "she likes teal",
       matchDate: "2026-01-01",
       mtime: 500_000,
-      linkChips: ["Nichita"],
+      linkChips: ["Alex"],
       content: "",
     },
     {
@@ -104,7 +104,7 @@ describe("connected + quiet + priority", () => {
   it("connected shares link chip with recent seed", () => {
     const seeds = new Set(["Atoms/Recent.md"]);
     const c = listConnectedCandidates(indexed, seeds);
-    expect(c.map((x) => x.path)).toContain("Atoms/About Nichita.md");
+    expect(c.map((x) => x.path)).toContain("Atoms/About Alex.md");
     expect(c[0]!.cue).toBe("connected");
   });
 
@@ -135,17 +135,17 @@ describe("connected + quiet + priority", () => {
         path: "Atoms/Recent.md",
         content: atom({
           created: "2026-07-14",
-          body: "related to [[Nichita]]",
-          links: "about [[Nichita]]",
+          body: "related to [[Alex]]",
+          links: "about [[Alex]]",
         }),
         mtime: Date.now(),
       },
       {
-        path: "Atoms/About Nichita.md",
+        path: "Atoms/About Alex.md",
         content: atom({
           created: "2025-01-01",
-          body: "Nichita fact",
-          links: "about [[Nichita]]",
+          body: "Alex fact",
+          links: "about [[Alex]]",
         }),
         mtime: 200,
       },

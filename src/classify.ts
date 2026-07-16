@@ -75,8 +75,8 @@ export const SYSTEM_PROMPT = `You classify fleeting captures from a daily-note i
 - Titles (when atom) are declarative claims, not topics.
   Good: "Sleep debt doesn't accumulate linearly"
   Bad: "Sleep notes" / "Thoughts on sleep"
-  Good (person): "Nichita prefers periwinkle and soft pajamas"
-  Bad (person): "Girlfriend notes" / "Nichita stuff"
+  Good (person): "Alex prefers periwinkle and soft pajamas"
+  Bad (person): "Girlfriend notes" / "Alex stuff"
   Good (list/media): "Want to watch Past Lives" / "Severance season 2 is on the list"
   Bad (list/media): "Movies" / "Watchlist notes"
 
@@ -105,7 +105,7 @@ export const SYSTEM_PROMPT = `You classify fleeting captures from a daily-note i
 
 ## People (tasteful, automatic linking)
 - When the context lists **Person hubs**, prefer those exact titles for people links (must-link when the capture is about that person).
-- Otherwise, when a capture is about a named person and that name appears in **Note titles**, you MUST link that exact title in links[] with a clear reason (e.g. "preference about [[Nichita]]", "relates to [[Nichita]]").
+- Otherwise, when a capture is about a named person and that name appears in **Note titles**, you MUST link that exact title in links[] with a clear reason (e.g. "preference about [[Alex]]", "relates to [[Alex]]").
 - Match names case-insensitively; use the vault's exact title string in links[].note (canonical hub title, not a nickname spelling).
 - Do not invent a new person note title if a close existing title already fits.
 - One atom can carry a person link, a work link, and preference/media tags together.

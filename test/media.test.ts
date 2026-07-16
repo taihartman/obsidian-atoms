@@ -30,8 +30,8 @@ describe("isMediaShaped / extractWorkTitle", () => {
   });
 
   it("ignores pure preference without watch", () => {
-    expect(isMediaShaped("Nichita likes periwinkle")).toBe(false);
-    expect(extractWorkTitle("Nichita likes periwinkle")).toBeNull();
+    expect(isMediaShaped("Alex likes periwinkle")).toBe(false);
+    expect(extractWorkTitle("Alex likes periwinkle")).toBeNull();
   });
 });
 
@@ -58,10 +58,10 @@ describe("enrichMediaLinks", () => {
 
   it("no-op for non-media atoms", () => {
     const base = atomBase({
-      title: "Nichita likes periwinkle",
+      title: "Alex likes periwinkle",
       tags: ["preferences", "person"],
     });
-    const out = enrichMediaLinks("Nichita likes periwinkle", base, []);
+    const out = enrichMediaLinks("Alex likes periwinkle", base, []);
     expect(out).toEqual(base);
   });
 

@@ -485,7 +485,7 @@
             <div class="queue-peek" id="queue-peek">
               <div class="queue-label">Still in dailies</div>
               <div class="list">
-                <div class="qcell">Nichita likes periwinkle and soft pajamas<em>2026-07-14 · Daily</em></div>
+                <div class="qcell">Alex likes periwinkle and soft pajamas<em>2026-07-14 · Daily</em></div>
                 <div class="qcell">buy milk and eggs before Thursday<em>2026-07-14 · Daily</em></div>
                 <div class="qcell">Tin mentioned a bakery near the canal<em>2026-07-13 · Daily</em></div>
               </div>
@@ -500,9 +500,9 @@
             <div class="list" id="atom-list">
               <div class="cell" data-linked="1" data-note="peri">
                 <div>
-                  <div class="cell-title">Nichita prefers periwinkle and soft pajamas</div>
+                  <div class="cell-title">Alex prefers periwinkle and soft pajamas</div>
                   <div class="cell-meta">
-                    <span class="link-chip">Nichita</span>
+                    <span class="link-chip">Alex</span>
                     <span>· from Jul 14</span>
                   </div>
                 </div>
@@ -559,9 +559,9 @@
               <div class="preview-list">
                 <div class="preview-row">
                   <span class="tag">atom</span>
-                  <strong>Nichita prefers periwinkle…</strong>
+                  <strong>Alex prefers periwinkle…</strong>
                   <div class="cell-meta" style="margin-top:4px">
-                    <span class="link-chip">→ Nichita</span>
+                    <span class="link-chip">→ Alex</span>
                   </div>
                 </div>
                 <div class="preview-row">
@@ -602,10 +602,10 @@
           <div class="scroll" id="desk-scroll"></div>
         </div>
         <div class="desk-main">
-          <h2 id="desk-title">Nichita prefers periwinkle and soft pajamas</h2>
-          <div class="meta" id="desk-meta"><span style="color:var(--orange)">Nichita</span> · from daily Jul 14</div>
+          <h2 id="desk-title">Alex prefers periwinkle and soft pajamas</h2>
+          <div class="meta" id="desk-meta"><span style="color:var(--orange)">Alex</span> · from daily Jul 14</div>
           <div class="body" id="desk-body">
-            Nichita likes periwinkle and soft pajamas
+            Alex likes periwinkle and soft pajamas
             <br /><br />
             <span style="color:var(--tertiary);font-size:0.9rem">Body unchanged. Structure only.</span>
           </div>
@@ -730,9 +730,9 @@
 
     const notes = {
       peri: {
-        title: "Nichita prefers periwinkle and soft pajamas",
-        meta: "Nichita · from daily Jul 14",
-        body: "Nichita likes periwinkle and soft pajamas",
+        title: "Alex prefers periwinkle and soft pajamas",
+        meta: "Alex · from daily Jul 14",
+        body: "Alex likes periwinkle and soft pajamas",
       },
       bakery: {
         title: "Tin mentioned a bakery near the canal",
@@ -760,7 +760,7 @@
       if (!n) return;
       document.getElementById("desk-title").textContent = n.title;
       document.getElementById("desk-meta").innerHTML = n.meta.replace(
-        /(Nichita|Tin)/g,
+        /(Alex|Tin)/g,
         '<span style="color:var(--orange)">$1</span>',
       );
       document.getElementById("desk-body").textContent = n.body;

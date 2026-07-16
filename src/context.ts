@@ -38,7 +38,7 @@ export function collectTitles(paths: string[]): string[] {
 }
 
 /**
- * Basenames + frontmatter aliases so person hubs (e.g. Nichita/) stay linkable.
+ * Basenames + frontmatter aliases so person hubs (e.g. Alex/) stay linkable.
  * Deterministic sort for stable cache prefixes.
  */
 export function collectLinkTargets(

@@ -13,7 +13,7 @@ You should not have to “set up Atoms for people.” Capture freely; when a per
 
 **Zero-setup means:** no per-person setup and no Active-tag curation for structural tags. It does **not** mean “infer who is a person across every vault layout.” Prefer exact title/alias match; path allowlist ranks *which* notes are hubs.
 
-**Not the goal:** AI invents a people CRM, moves files into `Nichita/`, or rewrites her note.
+**Not the goal:** AI invents a people CRM, moves files into `Alex/`, or rewrites her note.
 
 ---
 
@@ -23,28 +23,28 @@ Existing structure (examples):
 
 | Path | Role |
 |---|---|
-| `Personal notes/Social/Nichita.md` | Person hub |
+| `Personal notes/Social/Alex.md` | Person hub |
 | `Personal notes/Social/People.md` | People index (not a hub) |
 | `Personal notes/Social/Social.md` | Social area root (not a hub) |
 | `Personal notes/Tin.md` | Person hub (under `/Personal notes/`) |
 
-So the “Nichita folder” mental model is really **a Social area with person notes**, not necessarily `Nichita/` as a directory. The design must treat **basename `Nichita`** as the preferred link target (Obsidian resolves `[[Nichita]]` to that file).
+So the “Alex folder” mental model is really **a Social area with person notes**, not necessarily `Alex/` as a directory. The design must treat **basename `Alex`** as the preferred link target (Obsidian resolves `[[Alex]]` to that file).
 
 ---
 
 ## How it should feel (target UX)
 
-1. Capture: *“Nichita likes pajamas / periwinkle”* (name or alias in the text is enough).  
+1. Capture: *“Alex likes pajamas / periwinkle”* (name or alias in the text is enough).  
 2. Process (auto-run / process / backfill):  
    - verdict **atom**  
    - tags include **person** (and **preferences** when the model chooses — structural, always eligible)  
-   - link **`[[Nichita]]`** with a concrete reason  
+   - link **`[[Alex]]`** with a concrete reason  
    - body verbatim; file still in flat `Atoms/`  
-3. **In-product proof:** dry-run preview and process Notice call out the people link (e.g. `linked → Nichita`) — do not rely only on opening the Backlinks panel.  
-4. Open `Nichita.md` → **Backlinks** also shows the new claim.  
+3. **In-product proof:** dry-run preview and process Notice call out the people link (e.g. `linked → Alex`) — do not rely only on opening the Backlinks panel.  
+4. Open `Alex.md` → **Backlinks** also shows the new claim.  
 5. You never: create special tags first, create a second hub, or file into a folder.
 
-Chores (*“buy Nichita flowers”*) stay **task** / **noise**, not person-pref atoms — and **repair never runs** on them.
+Chores (*“buy Alex flowers”*) stay **task** / **noise**, not person-pref atoms — and **repair never runs** on them.
 
 ---
 
@@ -55,7 +55,7 @@ Chores (*“buy Nichita flowers”*) stay **task** / **noise**, not person-pref 
 | Infer hubs from **notes you already have** under allowlisted paths | Require a setup wizard or vault-wide “capitalised title = person” |
 | Prefer **exact title / basename + alias match** → canonical link title | Hallucinate new person pages |
 | Structural tags **always eligible** (`person`, `preferences`, `relationship`) — not auto-applied on every capture | Open-ended auto-applied tag spam (including keyword `#preferences`) |
-| Keep **two write types** (atom file + daily marker) | AI folder placement or append-into-Nichita |
+| Keep **two write types** (atom file + daily marker) | AI folder placement or append-into-Alex |
 | Unresolved `[[Name]]` only when no vault match | Auto-create dozens of empty people notes |
 
 **Optional later (out of this plan):** create a single stub hub only when (a) capture is clearly about a proper name, (b) no match, (c) user opted in. Default **off**.
@@ -131,7 +131,7 @@ Pure: `enrichPersonLinks(captureText, result, hubs) → result` — **never** ch
 **Gates (all required for inject):**
 
 1. `result.verdict === "atom"`  
-2. Capture matches a hub `matchKey` (word-boundary, case-insensitive; longest-key-first; handle possessives like `Nichita’s` where practical)  
+2. Capture matches a hub `matchKey` (word-boundary, case-insensitive; longest-key-first; handle possessives like `Alex’s` where practical)  
 3. No existing `links[]` entry targets that hub’s `canonicalTitle`  
 4. **Person-shaped signal** — at least one of:  
    - model already emitted `#person` or `#preferences` or `#relationship`, **or**  
@@ -149,7 +149,7 @@ Pure: `enrichPersonLinks(captureText, result, hubs) → result` — **never** ch
 ### 5. Write path unchanged in shape
 
 - Still only create under configured flat atom folder + append markers.  
-- `[[Nichita]]` resolves via Obsidian — **no file move**.  
+- `[[Alex]]` resolves via Obsidian — **no file move**.  
 - Do **not** write into person hub notes.  
 - **No settings/schema migration**; allowlist/denylist are code constants. P4 bumps version only (+ privacy copy).
 
@@ -158,7 +158,7 @@ Pure: `enrichPersonLinks(captureText, result, hubs) → result` — **never** ch
 | Idea | Why skip now |
 |---|---|
 | Auto-create person notes | Can pollute vault; you already have hubs |
-| Route atoms into Social/Nichita folder | Violates flat-atoms invariant |
+| Route atoms into Social/Alex folder | Violates flat-atoms invariant |
 | Vault-wide capitalised basename = person | False hubs (Cooking, Budget, …) |
 | Keyword auto-`#preferences` | Tag spam; model already steered |
 | Embeddings / face recognition | Overkill |
@@ -204,11 +204,11 @@ Install Remote Vault + test vault; Settings still shows version for Sync check.
 
 | Check | Pass criteria |
 |---|---|
-| Unit tests | Discovery picks `Nichita` / `Tin` under allowlisted paths; denylists Projects/Quick Notes / index titles |
+| Unit tests | Discovery picks `Alex` / `Tin` under allowlisted paths; denylists Projects/Quick Notes / index titles |
 | Unit tests | Repair adds link + `person` when model omits and person-shaped gate passes |
-| Unit tests | Task + “Nichita” → no repair; already-linked → no dupe; alias `Nic` → note `Nichita` |
+| Unit tests | Task + “Alex” → no repair; already-linked → no dupe; alias `Al` → note `Alex` |
 | Unit tests | False friend `Cooking.md` outside allowlist never a hub |
-| Dry-run (live vault) | Capture mentioning Nichita shows link + in-preview people callout |
+| Dry-run (live vault) | Capture mentioning Alex shows link + in-preview people callout |
 | Process Notice | Mentions people link outcome when repair/model linked a hub |
 | Write path | Atom in `Atoms/`; hub gains backlink; hub body untouched |
 | No setup | Works without visiting tag settings if structural tags remain |
@@ -231,7 +231,7 @@ Install Remote Vault + test vault; Settings still shows version for Sync check.
 
 ## Out of scope
 
-- Resurfacing “Nichita prefs this year”  
+- Resurfacing “Alex prefs this year”  
 - Merging duplicate person notes  
 - Mobile-only UX  
 - Renaming GitHub repo  

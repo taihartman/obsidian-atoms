@@ -144,7 +144,7 @@ describe("buildVaultContext + stable prefix", () => {
       titles: ["Note one", "Note two"],
       vaultTags: ["idea"],
       activeVocabulary: ["idea", "question"],
-      personHubs: ["Nichita"],
+      personHubs: ["Alex"],
     });
     const a = buildContextUserMessage(ctx);
     const b = buildContextUserMessage(ctx);
@@ -152,7 +152,7 @@ describe("buildVaultContext + stable prefix", () => {
     expect(a).toBe(b);
     expect(a).toBe(c);
     expect(a).toContain("### Person hubs");
-    expect(a).toContain("- Nichita");
+    expect(a).toContain("- Alex");
     expect(a).not.toMatch(/\d{4}-\d{2}-\d{2}/); // no dates embedded as data
     // Instruction text may mention "run IDs" as a prohibition — that's fine.
     expect(a).not.toMatch(/run-id[=:]/i);
@@ -193,11 +193,11 @@ describe("vocabulary (U5) + structural tags", () => {
     expect(
       collectLinkTargets([
         {
-          path: "Nichita/Nichita.md",
-          cache: { frontmatter: { aliases: ["Nic"] } },
+          path: "Alex/Alex.md",
+          cache: { frontmatter: { aliases: ["Al"] } },
         },
       ]),
-    ).toEqual(["Nic", "Nichita"]);
+    ).toEqual(["Al", "Alex"]);
   });
 
   it("merges proposed tags without auto-activating", () => {

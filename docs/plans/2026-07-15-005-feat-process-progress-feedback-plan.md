@@ -115,7 +115,7 @@ User taps Process / Preview today
 Progress card (in scroll, above library):
   ┌─────────────────────────────────────┐
   │ Processing 3 of 12                  │
-  │ “Nichita likes periwinkle…”         │
+  │ “Alex likes periwinkle…”         │
   │ ████████░░░░░░░░  25%               │
   └─────────────────────────────────────┘
 

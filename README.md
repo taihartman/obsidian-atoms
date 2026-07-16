@@ -2,7 +2,7 @@
 
 Obsidian plugin that turns **past daily-note captures** into a flat, linked knowledge graph.
 
-Capture on your phone (iOS Shortcut → daily note). Atoms classifies each bullet as **atom / task / noise**, writes permanent claims into `Atoms/`, and leaves **markers** so nothing reprocesses. Person hubs you already have (e.g. `Nichita`) get links and backlinks—no CRM, no AI folders.
+Capture on your phone (iOS Shortcut → daily note). Atoms classifies each bullet as **atom / task / noise**, writes permanent claims into `Atoms/`, and leaves **markers** so nothing reprocesses. Person hubs you already have (e.g. `Alex`) get links and backlinks—no CRM, no AI folders.
 
 **Plugin id:** `atoms` · **Version:** see `manifest.json` · **Requires:** Obsidian ≥ 1.11.4, core **Daily Notes**, Anthropic API key
 

@@ -312,7 +312,7 @@ export class AtomsSettingTab extends PluginSettingTab {
   private renderVocabularySection(containerEl: HTMLElement) {
     containerEl.createEl("h3", { text: "Tag vocabulary" });
     containerEl.createEl("p", {
-      text: "Active tags may be applied by the model. #person, #preferences, and #relationship always work (smart defaults). Proposed tags need one-tap approval. People: link to a hub note (e.g. Nichita); atoms stay flat — use backlinks, not AI folders.",
+      text: "Active tags may be applied by the model. #person, #preferences, and #relationship always work (smart defaults). Proposed tags need one-tap approval. People: link to a hub note (e.g. Alex); atoms stay flat — use backlinks, not AI folders.",
       cls: "setting-item-description",
     });
 
