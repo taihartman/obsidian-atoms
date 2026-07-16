@@ -158,9 +158,12 @@ After **implementation** on any non-trivial change (feature or fix), **always** 
 1. **`ce-simplify-code`** — tighten the freshly written code (reuse, clarity, efficiency) without changing behavior  
 2. **`ce-code-review`** — multi-agent review of the branch/diff; fix P0/P1  
 3. **`ce-compound`** — write the durable learning to `docs/solutions/` (and CONCEPTS if needed) so the next session inherits *why*  
+4. **`world-class-qa`** — pre-merge product QA (project adapter: `docs/qa/`). Proves changed behavior with evidence; not unit tests alone. Ends with **`adversarial-qa`** (break-it pass) per that skill’s hard gate.  
+5. **PR** — body must include distilled **Core user stories** + **Edge cases & testing** (link full report under `docs/qa/YYYY-MM-DD-*-world-class-qa.md`)
 
-**Done means:** simplify + review + compound ran (or an explicit, recorded skip for pure mechanical churn: renames, version-only bumps with no logic).  
+**Done means:** simplify + code-review + compound + world-class-qa (incl. adversarial half) ran, or an explicit, recorded skip for pure mechanical churn (renames, version-only bumps with no logic, docs-only).  
 **Not done:** “tests green + committed” alone.  
+**QA not merge-ready:** checklist handoff or BLOCKED when Obsidian/phone/CLI prereqs missing — state gaps in the report; do not label code-read as world-class QA.  
 LFG / `ce-work` / agent sessions must not stop at implement — the shipping tail is part of the work, not optional polish.
 
 ## Out of scope (v1)
