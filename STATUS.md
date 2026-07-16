@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| In progress | #53 | tai | fix/drop-junk-link-reasons | — | linkQuality.ts | drop placeholder reasons; CURRENT=5 |
+| *(none)* | | | | | | |
 
 ## How to claim (copy)
 
@@ -24,6 +24,7 @@ States: `Queued` · `In progress` · `Blocked` · `In review` · `Done` (then re
 | Merged | Issue / PR | Summary |
 |---|---|---|
 | 2026-07-16 | — | remove PR Closes CI; agent-checked only |
+| 2026-07-16 | #53 / #54 | drop junk link reasons (0.6.10) |
 | 2026-07-16 | #48 / #49 | aliases/prior as self (0.6.9) |
 | 2026-07-16 | #40 / #41 | Recents use created not mtime |
 | 2026-07-16 | #39 / #42 | ban self-links quality 3 (0.6.8) |
