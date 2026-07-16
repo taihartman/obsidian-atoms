@@ -53,3 +53,14 @@ Durable fixture catalog for Atoms QA. Never commit API keys, SecretStorage dumps
 ## Fixture Maintenance
 
 When a feature adds a stable seed, CLI command, or device flag, update this file in the same change.
+
+### Mind-change pair (Belief Rehearsal)
+
+- **Purpose:** Prove For you mind-change hero and citator when hard supersession exists.
+- **Mode:** Automated (unit) + Live (seeded atoms).
+- **Surface:** Atoms home For you + home open.
+- **Setup (unit):** `test/resurface.test.ts` supersession cases.
+- **Setup (live):** Older + newer atom with `revises [[Old title]]` and `generated-by: linker`.
+- **Expected states:** Mind change kicker; old body; later line; citator chips on home open.
+- **Cleanup:** Delete fixture atoms after the pass.
+- **Evidence:** Unit tests + CLI/home visual.

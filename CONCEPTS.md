@@ -53,6 +53,12 @@ Zero-guilt home card that re-shows filed atoms for rehearsal (retrieval practice
 ### Soft throttle
 Device-local “already shown recently” map so the same atom is not re-picked for several days after Open or Next.
 
+### Mind-change (belief rehearsal)
+A For you cue when a hard supersession pair exists (`revises` / `contradicts` in link reasons). Hero shows the older atom’s body snippet first and a quiet “later you wrote…” line to the newer claim. Highest priority when eligible; at most one hero per day; no due queue. Soft death (hiding superseded claims) is separate and deferred.
+
+### Citator ribbon
+One-line subsequent-history chips on Atoms home when an open atom participates in hard supersession edges. Home product chrome only — not injected into the Obsidian editor.
+
 ## People (linking)
 
 ### Person hub

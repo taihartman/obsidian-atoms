@@ -67,3 +67,10 @@ obsidian command id=atoms:list-unprocessed-captures
 obsidian command id=atoms:dry-run-preview
 obsidian command id=atoms:process-unprocessed
 ```
+
+### For you / mind-change
+
+- Entrypoint: Atoms home “For you” when calm (no wait card).
+- Source: `src/resurface.ts`, `renderMindChangeCard` in `atomsHomeView.ts`.
+- Fixture: Mind-change pair.
+- Notes: Max one mind-change hero per calendar day (`atoms-mind-change-day-v1`).
