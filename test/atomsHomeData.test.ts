@@ -9,6 +9,7 @@ import {
   isGeneratedAtomContent,
   listAtomLibraryEntries,
   parseAtomLibraryEntry,
+  personNameFromClaimTitle,
   shouldShowWaitCard,
   titleFromAtomPath,
 } from "../src/atomsHomeData";
@@ -99,6 +100,23 @@ relates because [[Sleep debt plateaus is a very long claim title here]].`;
         [],
       ),
     ).toBeNull();
+  });
+
+  it("shortens long person-claim links (Sherry → Ning)", () => {
+    expect(
+      personNameFromClaimTitle(
+        "Ning is the strong Asian guy at CRG who wears a white collared shirt",
+      ),
+    ).toBe("Ning");
+    const body = `Sherry is Ning's friend
+
+relates to this note about Ning ([[Ning is the strong Asian guy at CRG who wears a white collared shirt]])`;
+    const chips = extractDisplayLinkChips(
+      body,
+      "Sherry is Ning's friend from CRG who works at a hospital",
+      ["person"],
+    );
+    expect(chips).toEqual([{ label: "Ning", role: "person" }]);
   });
 });
 
