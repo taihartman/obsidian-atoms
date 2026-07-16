@@ -4,7 +4,7 @@
 **Open mocks:**  
 - `index.html` — steady + waiting (v1)  
 - `first-day.html` — setup + shortcut  
-- **`home-v2.html`** — For you · one hero · typed chips (person/work, max 2) — **review before implement**
+- **`home-v2.html`** — For you · one hero · typed chips (person/work, max 2) — **settled; implemented 0.5.2**
 
 ## Product job
 

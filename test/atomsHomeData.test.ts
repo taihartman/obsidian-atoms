@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  classifyLinkRole,
+  extractDisplayLinkChips,
   extractLinkChips,
   extractSourceDay,
   filterLinkedOnly,
@@ -62,6 +64,42 @@ describe("extractSourceDay / chips", () => {
     ]);
     expect(extractLinkChips("see [[Claim title]]", "Claim title")).toEqual([]);
   });
+
+  it("types and caps display chips (person/work, max 2)", () => {
+    const body = `Christian told me to watch my hero academia
+
+media work to watch ([[My Hero Academia]]). preference about [[Christian]].
+relates because [[Sleep debt plateaus is a very long claim title here]].`;
+    const chips = extractDisplayLinkChips(body, "Christian recommended…", [
+      "watch",
+      "show",
+      "person",
+    ]);
+    expect(chips).toHaveLength(2);
+    expect(chips.map((c) => c.label)).toEqual([
+      "My Hero Academia",
+      "Christian",
+    ]);
+    expect(chips[0]!.role).toBe("work");
+    expect(chips[1]!.role).toBe("person");
+  });
+
+  it("classifies roles and demotes junk/long claims", () => {
+    expect(classifyLinkRole("Christian", "preference about ", ["person"])).toBe(
+      "person",
+    );
+    expect(
+      classifyLinkRole("My Hero Academia", "media work to watch ", ["watch"]),
+    ).toBe("work");
+    expect(classifyLinkRole("user link", "related ", [])).toBeNull();
+    expect(
+      classifyLinkRole(
+        "Sleep debt plateaus is a very long claim title",
+        "relates ",
+        [],
+      ),
+    ).toBeNull();
+  });
 });
 
 describe("listAtomLibraryEntries", () => {
@@ -96,12 +134,15 @@ describe("listAtomLibraryEntries", () => {
     );
     expect(entries.map((e) => e.title)).toEqual(["Newer", "Older"]);
     expect(entries[0]!.linkChips).toContain("Nichita");
+    expect(entries[0]!.displayChips.some((c) => c.label === "Nichita")).toBe(
+      true,
+    );
   });
 
-  it("Linked filter keeps only chips", () => {
+  it("Linked filter keeps only displayable person/work chips", () => {
     const a = parseAtomLibraryEntry(
       "Atoms/A.md",
-      atomMd({ body: "x", links: "[[Nichita]]" }),
+      atomMd({ body: "x", links: "preference about [[Nichita]]." }),
       1,
     );
     const b = parseAtomLibraryEntry(

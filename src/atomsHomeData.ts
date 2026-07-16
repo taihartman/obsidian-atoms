@@ -2,11 +2,22 @@
  * Pure data for Atoms home view: library rows + pending helpers.
  */
 
+/** Home-row chip role — person (warm) vs work/media (cool). */
+export type LinkChipRole = "person" | "work";
+
+export type DisplayLinkChip = {
+  label: string;
+  role: LinkChipRole;
+};
+
 export interface AtomLibraryEntry {
   path: string;
   title: string;
   sourceDay: string | null;
+  /** All body wikilinks (resurface / graph). */
   linkChips: string[];
+  /** Home display: max 2, typed person|work, model order. */
+  displayChips: DisplayLinkChip[];
   mtime: number;
 }
 
@@ -16,9 +27,21 @@ export interface AtomFileInput {
   content: string;
 }
 
+/** Max chips on a library row (home-v2). */
+export const HOME_CHIP_MAX = 2;
+
 const GENERATED_BY_RE = /^generated-by:\s*linker\s*$/m;
 const SOURCE_RE = /^source:\s*["']?\[\[([^\]]+)\]\]["']?\s*$/m;
+const TAGS_LINE_RE = /^tags:\s*$/m;
 const WIKILINK_RE = /\[\[([^\]|#]+)(?:\|[^\]]+)?\]\]/g;
+const DATE_TITLE_RE = /^\d{4}-\d{2}-\d{2}/;
+const JUNK_TITLES = new Set([
+  "user link",
+  "untitled",
+  "index",
+  "home",
+  "tags",
+]);
 
 /** Basename without .md */
 export function titleFromAtomPath(path: string): string {
@@ -81,6 +104,113 @@ export function extractLinkChips(body: string, selfTitle: string): string[] {
   return out;
 }
 
+/** Tags from frontmatter list (for chip typing hints). */
+export function extractFrontmatterTags(content: string): string[] {
+  if (!content.startsWith("---")) return [];
+  const end = content.indexOf("\n---", 3);
+  const fm = end === -1 ? content.slice(0, 800) : content.slice(0, end + 4);
+  const tags: string[] = [];
+  const lines = fm.split(/\r?\n/);
+  let inTags = false;
+  for (const line of lines) {
+    if (/^tags:\s*\[\]\s*$/.test(line)) return [];
+    if (/^tags:\s*$/.test(line)) {
+      inTags = true;
+      continue;
+    }
+    if (inTags) {
+      const item = line.match(/^\s*-\s+(.+)$/);
+      if (item) {
+        tags.push(item[1]!.trim().replace(/^#/, "").toLowerCase());
+        continue;
+      }
+      if (/^\w/.test(line)) break;
+    }
+  }
+  return tags;
+}
+
+/**
+ * Coarse role for home chips from surrounding reason prose + tags.
+ * Returns null = demote (related claim / junk / date) — not shown on home.
+ */
+export function classifyLinkRole(
+  note: string,
+  contextBefore: string,
+  tags: string[] = [],
+): LinkChipRole | null {
+  const n = note.trim();
+  const key = n.toLowerCase();
+  if (!n) return null;
+  if (DATE_TITLE_RE.test(n)) return null;
+  if (JUNK_TITLES.has(key)) return null;
+  // Long claim titles stay out of the glance row
+  if (n.length > 32 || n.split(/\s+/).length > 4) return null;
+
+  const ctx = (contextBefore ?? "").toLowerCase();
+  const tagSet = new Set(tags.map((t) => t.toLowerCase()));
+
+  const mediaCtx =
+    /\b(media work|watch|show|movie|anime|film|series|listen|read)\b/.test(
+      ctx,
+    ) ||
+    tagSet.has("watch") ||
+    tagSet.has("show") ||
+    tagSet.has("movie") ||
+    tagSet.has("media");
+
+  const personCtx =
+    /\b(person|people|about |preference about|matched|told me|recommended|hub)\b/.test(
+      ctx,
+    ) || tagSet.has("person");
+
+  if (mediaCtx && !personCtx) return "work";
+  if (personCtx && !mediaCtx) return "person";
+  if (mediaCtx && personCtx) {
+    // "Christian told me to watch X" window may mention both —
+    // prefer person for short names, work for title-like phrases
+    if (n.split(/\s+/).length <= 2 && !/\b(the|a|an)\b/i.test(n))
+      return "person";
+    return "work";
+  }
+
+  // Short proper-ish name → person; short media-ish → work
+  if (n.split(/\s+/).length <= 2) return "person";
+  return "work";
+}
+
+/**
+ * Home chips: model/body order, type person|work only, max HOME_CHIP_MAX.
+ * Related long claims and junk never appear.
+ */
+export function extractDisplayLinkChips(
+  body: string,
+  selfTitle: string,
+  tags: string[] = [],
+  max: number = HOME_CHIP_MAX,
+): DisplayLinkChip[] {
+  const self = selfTitle.trim().toLowerCase();
+  const seen = new Set<string>();
+  const out: DisplayLinkChip[] = [];
+  WIKILINK_RE.lastIndex = 0;
+  let m: RegExpExecArray | null;
+  while ((m = WIKILINK_RE.exec(body)) !== null) {
+    const note = (m[1] ?? "").trim();
+    if (!note) continue;
+    const key = note.toLowerCase();
+    if (key === self) continue;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const start = Math.max(0, (m.index ?? 0) - 80);
+    const contextBefore = body.slice(start, m.index ?? 0);
+    const role = classifyLinkRole(note, contextBefore, tags);
+    if (!role) continue;
+    out.push({ label: note, role });
+    if (out.length >= max) break;
+  }
+  return out;
+}
+
 export function parseAtomLibraryEntry(
   path: string,
   content: string,
@@ -88,11 +218,13 @@ export function parseAtomLibraryEntry(
 ): AtomLibraryEntry {
   const title = titleFromAtomPath(path);
   const body = bodyAfterFrontmatter(content);
+  const tags = extractFrontmatterTags(content);
   return {
     path,
     title,
     sourceDay: extractSourceDay(content),
     linkChips: extractLinkChips(body, title),
+    displayChips: extractDisplayLinkChips(body, title, tags),
     mtime,
   };
 }
@@ -116,7 +248,8 @@ export function listAtomLibraryEntries(
 }
 
 export function filterLinkedOnly(entries: AtomLibraryEntry[]): AtomLibraryEntry[] {
-  return entries.filter((e) => e.linkChips.length > 0);
+  // "Linked" = has a home-surfaceable person/work chip (not demoted claims)
+  return entries.filter((e) => e.displayChips.length > 0);
 }
 
 export function shouldShowWaitCard(unprocessedCount: number): boolean {

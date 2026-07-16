@@ -251,8 +251,29 @@
 }
 
 .atoms-home-link-chip {
-  color: var(--color-orange, #e07a5f);
-  font-weight: 500;
+  display: inline-block;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  padding: 2px 8px;
+  border-radius: 6px;
+  line-height: 1.25;
+}
+
+/* Person — warm (home-v2) */
+.atoms-home-link-chip.is-person {
+  color: var(--color-orange, #ff9f0a);
+  background: color-mix(in srgb, var(--color-orange, #ff9f0a) 14%, transparent);
+}
+
+/* Work / media — cool */
+.atoms-home-link-chip.is-work {
+  color: var(--color-cyan, #64d2ff);
+  background: color-mix(
+    in srgb,
+    var(--color-cyan, #64d2ff) 12%,
+    transparent
+  );
 }
 
 .atoms-home-cell-time {
