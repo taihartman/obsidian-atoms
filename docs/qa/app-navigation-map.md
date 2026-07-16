@@ -40,7 +40,18 @@ Living map for driving Atoms during QA. Update when commands, home cards, or set
 
 - **Commands:** Process unprocessed; dry-run preview; home buttons; include-today via ⋯ menu.
 - **Never auto:** `includeToday` only manual.
-- **Source:** `src/write.ts`, `src/preview.ts`, `src/main.ts`.
+- **Source:** `src/pipeline/write.ts`, `src/pipeline/preview.ts`, `src/plugin/main.ts`.
+
+### Update notes (refresh older atoms)
+
+- **When:** Linker atoms with missing/`atoms-quality` &lt; `CURRENT_ATOMS_QUALITY`; strip not dismissed for this quality gen.
+- **Entrypoint:** Home secondary strip **Update** (after Process wait if any); command `atoms:update-notes`.
+- **Flow:** strip → light confirm Modal → progress phase `update` → done summary (may show remaining).
+- **Dismiss:** strip × → device-local `atoms-update-notes-dismissed-q` = CURRENT.
+- **Never auto:** not called from `maybeAutoRun`.
+- **Source:** `src/pipeline/refreshAtoms.ts`, `src/shared/atomQuality.ts`, `src/home/atomsHomeView.ts`.
+- **Fixture:** unstamped `generated-by: linker` atom in `Atoms/`; unit tests in `test/refreshAtoms.test.ts`.
+- **QA:** body sacred; stamp CURRENT; Process collision path unchanged.
 
 ### Auto-run
 
@@ -66,6 +77,7 @@ obsidian command id=atoms:auto-run-now
 obsidian command id=atoms:list-unprocessed-captures
 obsidian command id=atoms:dry-run-preview
 obsidian command id=atoms:process-unprocessed
+obsidian command id=atoms:update-notes
 ```
 
 ### For you / mind-change

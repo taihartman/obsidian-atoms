@@ -54,6 +54,18 @@ Durable fixture catalog for Atoms QA. Never commit API keys, SecretStorage dumps
 
 When a feature adds a stable seed, CLI command, or device flag, update this file in the same change.
 
+### Update notes (quality stamp / legacy atoms)
+
+- **Purpose:** Prove eligibility, extract skip, stamp, and home strip counting.
+- **Mode:** Automated (+ live optional).
+- **Surface:** Atoms home Update strip; command `atoms:update-notes`.
+- **Setup (unit):** `test/refreshAtoms.test.ts`, `test/atomQuality.test.ts`.
+- **Setup (live throwaway):** unstamped atom under `Atoms/` with `generated-by: linker` and no `atoms-quality` (or quality &lt; 2). Optional multipara body (should **skip**).
+- **Expected states:** strip count &gt; 0 when eligible; after successful Update, atom has `atoms-quality: 2` and capture text unchanged; multipara skipped not corrupted.
+- **Cleanup:** delete QA-prefixed fixture atoms; re-seed vault if needed.
+- **Evidence:** unit suite + human phone checklist in QA report.
+- **Spend:** live Update calls Anthropic — use small batch / throwaway only.
+
 ### Mind-change pair (Belief Rehearsal)
 
 - **Purpose:** Prove For you mind-change hero and citator when hard supersession exists.
