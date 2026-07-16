@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Atoms — Add person note (mock)</title>
+  <style>
+    :root {
+      --bg: #000000;
+      --grouped: #1c1c1e;
+      --elevated: #2c2c2e;
+      --sep: rgba(84, 84, 88, 0.55);
+      --label: #ffffff;
+      --secondary: rgba(235, 235, 245, 0.6);
+      --tertiary: rgba(235, 235, 245, 0.32);
+      --tint: #0a84ff;
+      --tint-soft: rgba(10, 132, 255, 0.22);
+      --person: #ff9f0a;
+      --person-bg: rgba(255, 159, 10, 0.14);
+      --work: #64d2ff;
+      --work-bg: rgba(100, 210, 255, 0.12);
+      --green: #30d158;
+      --green-soft: rgba(48, 209, 88, 0.14);
+      --page-bg: #121214;
+      --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: var(--font);
+      background: var(--page-bg);
+      color: var(--label);
+      -webkit-font-smoothing: antialiased;
+    }
+    .page { max-width: 1180px; margin: 0 auto; padding: 28px 18px 90px; }
+    .page > h1 {
+      font-size: 1.45rem; font-weight: 700; letter-spacing: -0.03em; margin: 0 0 8px;
+    }
+    .lede {
+      color: var(--secondary); max-width: 44rem; line-height: 1.5;
+      margin: 0 0 12px; font-size: 0.95rem;
+    }
+    .decisions {
+      background: var(--grouped);
+      border: 1px solid var(--sep);
+      border-radius: 14px;
+      padding: 14px 16px;
+      margin-bottom: 22px;
+      font-size: 0.85rem;
+      color: var(--secondary);
+      line-height: 1.45;
+    }
+    .decisions strong { color: var(--label); font-weight: 600; }
+    .decisions ul { margin: 8px 0 0; padding-left: 1.15rem; }
+    .decisions li { margin: 4px 0; }
+    .toolbar {
+      display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 22px; align-items: center;
+    }
+    .toolbar > span {
+      font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.07em; color: var(--tertiary);
+    }
+    .chip {
+      border: none; background: var(--elevated); color: var(--secondary);
+      border-radius: 980px; padding: 8px 14px; font-size: 0.85rem; font-weight: 500; cursor: pointer;
+    }
+    .chip.on { background: var(--tint-soft); color: var(--tint); }
+
+    .stage {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 40px;
+      align-items: start;
+    }
+    @media (max-width: 900px) {
+      .stage { grid-template-columns: 1fr; justify-items: center; }
+      .side { max-width: 420px; width: 100%; }
+    }
+    .cap {
+      font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em;
+      color: var(--tertiary); text-align: center; margin-bottom: 10px;
+    }
+    .phone {
+      width: 375px;
+      height: 812px;
+      background: var(--bg);
+      border-radius: 44px;
+      border: 4px solid #3a3a3c;
+      box-shadow: 0 28px 70px rgba(0,0,0,0.55);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      color: #fff;
+    }
+    .status-bar {
+      height: 50px;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      padding-bottom: 8px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+    .nav { padding: 0 10px 10px 16px; flex-shrink: 0; }
+    .nav-top {
+      display: flex; justify-content: space-between; align-items: center; min-height: 40px;
+    }
+    .nav-btn {
+      border: none; background: transparent; color: var(--tint);
+      font-size: 1.2rem; min-width: 40px; min-height: 40px; cursor: pointer;
+    }
+    .large-title {
+      font-size: 2.05rem; font-weight: 700; letter-spacing: -0.045em;
+      margin: 0; line-height: 1.05;
+    }
+    .subtitle {
+      font-size: 0.9rem; color: var(--secondary); margin: 5px 0 0; letter-spacing: -0.01em;
+    }
+    .scroll {
+      flex: 1 1 auto;
+      overflow-y: auto;
+      min-height: 0;
+      padding: 6px 16px 28px;
+      -webkit-overflow-scrolling: touch;
+    }
+    .panel { display: none; }
+    .panel.is-active { display: block; }
+
+    .invite {
+      background: var(--grouped);
+      border: 1px solid var(--sep);
+      border-radius: 16px;
+      padding: 16px 14px 14px;
+      margin-bottom: 14px;
+    }
+    .eyebrow {
+      font-size: 0.72rem; font-weight: 600; color: var(--person);
+      margin: 0 0 4px; letter-spacing: 0.02em; text-transform: uppercase;
+    }
+    .invite h2 {
+      margin: 0 0 6px; font-size: 1.15rem; font-weight: 650; letter-spacing: -0.02em;
+    }
+    .invite p {
+      margin: 0 0 14px; font-size: 0.88rem; color: var(--secondary); line-height: 1.4;
+    }
+    .btns { display: flex; gap: 10px; flex-wrap: wrap; }
+    .btn {
+      flex: 1; min-height: 46px; border: none; border-radius: 12px;
+      font-size: 0.95rem; font-weight: 600; letter-spacing: -0.01em; cursor: pointer;
+    }
+    .btn-p { background: var(--tint); color: #fff; }
+    .btn-s { background: var(--elevated); color: var(--tint); }
+    .btn-q {
+      flex: 1 1 100%;
+      background: transparent;
+      color: var(--secondary);
+      font-weight: 500;
+      min-height: 40px;
+    }
+
+    .done-card {
+      background: var(--green-soft);
+      border: 1px solid rgba(48, 209, 88, 0.28);
+      border-radius: 16px;
+      padding: 16px;
+      margin-bottom: 14px;
+    }
+    .done-card .eyebrow { color: var(--green); }
+    .done-card h2 { margin: 0 0 6px; font-size: 1.15rem; font-weight: 650; }
+    .done-card p { margin: 0; font-size: 0.88rem; color: var(--secondary); line-height: 1.4; }
+
+    .sec {
+      font-size: 0.95rem; font-weight: 650; letter-spacing: -0.02em;
+      margin: 4px 0 10px;
+    }
+    .list {
+      background: var(--grouped); border-radius: 14px; overflow: hidden;
+      border: 1px solid var(--sep);
+    }
+    .row {
+      display: grid; grid-template-columns: 1fr auto; gap: 4px 12px;
+      padding: 14px 16px; border-bottom: 0.5px solid var(--sep);
+      min-height: 58px; align-items: start;
+    }
+    .row:last-child { border-bottom: none; }
+    .row .t {
+      font-size: 0.98rem; font-weight: 550; letter-spacing: -0.015em; line-height: 1.3;
+    }
+    .row .sub {
+      display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+      margin-top: 5px; font-size: 0.78rem; color: var(--tertiary);
+    }
+    .row .time {
+      font-size: 0.78rem; color: var(--tertiary); font-variant-numeric: tabular-nums;
+      padding-top: 2px;
+    }
+    .chip-p {
+      display: inline-block; font-size: 0.78rem; font-weight: 600;
+      color: var(--person); background: var(--person-bg);
+      padding: 2px 8px; border-radius: 6px;
+    }
+    .chip-w {
+      display: inline-block; font-size: 0.78rem; font-weight: 600;
+      color: var(--work); background: var(--work-bg);
+      padding: 2px 8px; border-radius: 6px;
+    }
+
+    .toast {
+      position: absolute;
+      left: 20px; right: 20px; bottom: 28px;
+      background: var(--elevated);
+      border-radius: 14px;
+      padding: 14px 16px;
+      font-size: 0.9rem;
+      font-weight: 500;
+      text-align: center;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.45);
+      display: none;
+    }
+    .toast.show { display: block; }
+
+    .side h2 {
+      font-size: 0.95rem; font-weight: 650; letter-spacing: -0.02em; margin: 0 0 10px;
+    }
+    .side p { font-size: 0.85rem; color: var(--secondary); line-height: 1.45; margin: 0 0 14px; }
+    .doctrine {
+      background: var(--grouped); border: 1px solid var(--sep); border-radius: 14px;
+      padding: 14px 16px; margin-bottom: 14px; font-size: 0.84rem; color: var(--secondary);
+      line-height: 1.45;
+    }
+    .doctrine strong { color: var(--label); }
+    .bad {
+      border-color: rgba(255, 69, 58, 0.35);
+      background: rgba(255, 69, 58, 0.08);
+    }
+    .bad strong { color: #ff8a80; }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <h1>Add person note (invite)</h1>
+    <p class="lede">
+      After filing, when a capture is clearly about a named person and no person note exists:
+      one calm strip. Human grants identity. <strong>People only.</strong> Never silent auto-create.
+      Never a tag matrix.
+    </p>
+    <div class="decisions">
+      <strong>Settled product</strong>
+      <ul>
+        <li><strong>People only</strong> — not media, places, or tag-toggled entity types.</li>
+        <li><strong>Invite, don’t invent</strong> — one name, one card, one accept.</li>
+        <li><strong>Copy:</strong> “Add Ning?” not “Create person hub entity.”</li>
+        <li><strong>Max 1 invite</strong> per home session (or 1/day).</li>
+        <li><strong>Not now</strong> dismisses that name calmly (device-local cooldown).</li>
+        <li><strong>On Add:</strong> stub under Social/ (or People/) + optional re-link that atom.</li>
+      </ul>
+    </div>
+
+    <div class="toolbar" id="toolbar">
+      <span>State</span>
+      <button type="button" class="chip on" data-state="invite">Home · invite</button>
+      <button type="button" class="chip" data-state="added">After Add</button>
+      <button type="button" class="chip" data-state="dismissed">After Not now</button>
+      <button type="button" class="chip" data-state="with-update">With Update strip</button>
+    </div>
+
+    <div class="stage">
+      <div>
+        <div class="cap" id="phone-cap">Home · invite</div>
+        <div class="phone" id="phone">
+          <div class="status-bar">9:41</div>
+          <div class="nav">
+            <div class="nav-top">
+              <button type="button" class="nav-btn" aria-label="More">⋯</button>
+              <button type="button" class="nav-btn" aria-label="Today">◎</button>
+              <span style="flex:1"></span>
+              <button type="button" class="nav-btn" aria-label="Settings">⚙</button>
+            </div>
+            <h1 class="large-title">Atoms</h1>
+            <p class="subtitle" id="subtitle">Your second brain</p>
+          </div>
+          <div class="scroll" id="scroll">
+            <!-- INVITE -->
+            <div class="panel is-active" data-panel="invite">
+              <div class="invite">
+                <p class="eyebrow">Person</p>
+                <h2>Add Ning?</h2>
+                <p>You filed a note about Ning, but there’s no person note yet. Backlinks will collect there.</p>
+                <div class="btns">
+                  <button type="button" class="btn btn-p" id="btn-add">Add Ning</button>
+                  <button type="button" class="btn btn-s" id="btn-not-now">Not now</button>
+                </div>
+              </div>
+              <div class="sec">Recent</div>
+              <div class="list">
+                <div class="row">
+                  <div>
+                    <div class="t">Ning is the strong Asian guy at CRG who wears white collared shirts</div>
+                    <div class="sub"><span class="chip-p">People</span><span>· Jul 15</span></div>
+                  </div>
+                  <div class="time">1d</div>
+                </div>
+                <div class="row">
+                  <div>
+                    <div class="t">Nichita likes the color periwinkle</div>
+                    <div class="sub"><span class="chip-p">Nichita</span><span>· Jul 15</span></div>
+                  </div>
+                  <div class="time">1d</div>
+                </div>
+                <div class="row">
+                  <div>
+                    <div class="t">Christian recommended watching My Hero Academia</div>
+                    <div class="sub">
+                      <span class="chip-w">My Hero Academia</span>
+                      <span>· Jul 15</span>
+                    </div>
+                  </div>
+                  <div class="time">1d</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- ADDED -->
+            <div class="panel" data-panel="added">
+              <div class="done-card">
+                <p class="eyebrow">Added</p>
+                <h2>Ning</h2>
+                <p>Person note created. This claim now links to Ning instead of the soft People index.</p>
+              </div>
+              <div class="sec">Recent</div>
+              <div class="list">
+                <div class="row">
+                  <div>
+                    <div class="t">Ning is the strong Asian guy at CRG who wears white collared shirts</div>
+                    <div class="sub"><span class="chip-p">Ning</span><span>· Jul 15</span></div>
+                  </div>
+                  <div class="time">1d</div>
+                </div>
+                <div class="row">
+                  <div>
+                    <div class="t">Nichita likes the color periwinkle</div>
+                    <div class="sub"><span class="chip-p">Nichita</span><span>· Jul 15</span></div>
+                  </div>
+                  <div class="time">1d</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- DISMISSED -->
+            <div class="panel" data-panel="dismissed">
+              <div class="sec">Recent</div>
+              <div class="list">
+                <div class="row">
+                  <div>
+                    <div class="t">Ning is the strong Asian guy at CRG who wears white collared shirts</div>
+                    <div class="sub"><span class="chip-p">People</span><span>· Jul 15</span></div>
+                  </div>
+                  <div class="time">1d</div>
+                </div>
+                <div class="row">
+                  <div>
+                    <div class="t">Nichita likes the color periwinkle</div>
+                    <div class="sub"><span class="chip-p">Nichita</span><span>· Jul 15</span></div>
+                  </div>
+                  <div class="time">1d</div>
+                </div>
+              </div>
+              <p style="margin:16px 4px 0;font-size:0.8rem;color:var(--tertiary);line-height:1.4">
+                Invite hidden. Still links to People until you add Ning later (or we invite again after cooldown).
+              </p>
+            </div>
+
+            <!-- WITH UPDATE -->
+            <div class="panel" data-panel="with-update">
+              <div class="invite" style="margin-bottom:12px">
+                <p class="eyebrow" style="color:var(--tint)">Library</p>
+                <h2>Filing got smarter</h2>
+                <p>Update 3 older notes to match? Titles and links may improve. Your original text stays the same.</p>
+                <div class="btns">
+                  <button type="button" class="btn btn-p">Update</button>
+                  <button type="button" class="btn btn-s">Not now</button>
+                </div>
+              </div>
+              <div class="invite">
+                <p class="eyebrow">Person</p>
+                <h2>Add Sherry?</h2>
+                <p>You filed a note about Sherry, but there’s no person note yet. Backlinks will collect there.</p>
+                <div class="btns">
+                  <button type="button" class="btn btn-p">Add Sherry</button>
+                  <button type="button" class="btn btn-s">Not now</button>
+                </div>
+              </div>
+              <div class="sec">Recent</div>
+              <div class="list">
+                <div class="row">
+                  <div>
+                    <div class="t">Sherry’s name may be mispronounced; she’s Ning’s CRG friend at hospital</div>
+                    <div class="sub"><span class="chip-p">People</span><span>· Jul 15</span></div>
+                  </div>
+                  <div class="time">1d</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="toast" id="toast">Added Ning</div>
+        </div>
+      </div>
+
+      <div class="side">
+        <div class="doctrine">
+          <strong>Why this, not auto-create</strong><br />
+          Empty person notes Sync forever. Wrong people are worse than missing links.
+          You already do this right with Nichita by hand. The product only asks once, at the moment of meaning.
+        </div>
+        <div class="doctrine">
+          <strong>People only</strong><br />
+          No invite for shows, games, places, or “any tag.” Media stays: link if the note exists, don’t invent a library.
+        </div>
+        <div class="doctrine bad">
+          <strong>Rejected</strong><br />
+          Silent auto-create · tag-matrix settings · multi-select “create 8 people” · CRM profile fields · agent bulk hub creation on Remote Vault.
+        </div>
+        <h2>File create on Add</h2>
+        <p>
+          <code style="color:var(--tint)">Personal notes/Social/Ning.md</code><br />
+          Minimal: title + optional <code style="color:var(--secondary)">#person</code>. No fake bio.
+          Best-effort: re-point that atom’s chip from People → Ning.
+        </p>
+        <h2>Related docs</h2>
+        <p style="margin:0;font-size:0.84rem;color:var(--secondary);line-height:1.5">
+          Product brief:
+          <code style="font-size:0.78rem">docs/plans/2026-07-16-person-hub-creation-adversarial-and-apple-brief.md</code>
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const labels = {
+      invite: "Home · invite",
+      added: "After Add Ning",
+      dismissed: "After Not now",
+      "with-update": "Update + person invite",
+    };
+    const subs = {
+      invite: "Your second brain",
+      added: "Your second brain",
+      dismissed: "Your second brain",
+      "with-update": "Your second brain",
+    };
+
+    function show(state) {
+      document.querySelectorAll(".chip").forEach((c) => {
+        c.classList.toggle("on", c.dataset.state === state);
+      });
+      document.querySelectorAll(".panel").forEach((p) => {
+        p.classList.toggle("is-active", p.dataset.panel === state);
+      });
+      document.getElementById("phone-cap").textContent = labels[state] || state;
+      document.getElementById("subtitle").textContent = subs[state] || "Your second brain";
+      document.getElementById("toast").classList.remove("show");
+    }
+
+    document.getElementById("toolbar").addEventListener("click", (e) => {
+      const b = e.target.closest("[data-state]");
+      if (!b) return;
+      show(b.dataset.state);
+    });
+
+    document.getElementById("btn-add")?.addEventListener("click", () => {
+      show("added");
+      const t = document.getElementById("toast");
+      t.classList.add("show");
+      setTimeout(() => t.classList.remove("show"), 1800);
+    });
+    document.getElementById("btn-not-now")?.addEventListener("click", () => show("dismissed"));
+  </script>
+</body>
+</html>
