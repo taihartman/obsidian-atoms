@@ -161,14 +161,16 @@ export function extractSupersessionEdges(content: string): SupersessionEdge[] {
   const push = (relation: string, peerRaw: string) => {
     const rel = relation.toLowerCase();
     if (rel !== "revises" && rel !== "contradicts") return;
+    const typedRel: SupersessionRelation =
+      rel === "revises" ? "revises" : "contradicts";
     const peerTitle = normalizePeerTitle(peerRaw);
     if (!peerTitle) return;
-    const key = `${rel}|${peerTitle.toLowerCase()}`;
+    const key = `${typedRel}|${peerTitle.toLowerCase()}`;
     if (seen.has(key)) return;
     seen.add(key);
     out.push({
       peerTitle,
-      relation: rel as SupersessionRelation,
+      relation: typedRel,
       direction: "outbound",
     });
   };

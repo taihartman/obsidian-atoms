@@ -4,8 +4,8 @@ import {
   Modal,
   Notice,
   Setting,
+  TFile,
   WorkspaceLeaf,
-  type TFile,
 } from "obsidian";
 import type AtomsPlugin from "./main";
 import {
@@ -64,6 +64,23 @@ import {
 export const ATOMS_HOME_VIEW_TYPE = "atoms-home";
 
 type FilterMode = "all" | "linked";
+
+/**
+ * Undocumented core settings modal — used by many plugins to deep-link.
+ * Not on the public App type; keep a narrow local interface (no `any`).
+ */
+type SettingsModalApi = {
+  open: () => void | Promise<void>;
+  openTabById: (id: string) => void;
+};
+
+function openPluginSettingsTab(app: object, tabId: string): void {
+  const setting = (app as { setting?: SettingsModalApi }).setting;
+  if (!setting) return;
+  void Promise.resolve(setting.open()).then(() => {
+    setting.openTabById(tabId);
+  });
+}
 
 /**
  * Mobile-first Atoms home: library when clear, wait card when pending,
@@ -596,11 +613,13 @@ export class AtomsHomeView extends ItemView {
       text: "Open in vault",
       attr: { type: "button" },
     });
-    vaultBtn.addEventListener("click", async () => {
-      const file = this.app.vault.getAbstractFileByPath(open.path);
-      if (file && "extension" in file) {
-        await this.app.workspace.getLeaf(false).openFile(file as TFile);
-      }
+    vaultBtn.addEventListener("click", () => {
+      void (async () => {
+        const file = this.app.vault.getAbstractFileByPath(open.path);
+        if (file instanceof TFile) {
+          await this.app.workspace.getLeaf(false).openFile(file);
+        }
+      })();
     });
   }
 
@@ -612,8 +631,8 @@ export class AtomsHomeView extends ItemView {
       return;
     }
     const file = this.app.vault.getAbstractFileByPath(card.path);
-    if (file && "extension" in file) {
-      await this.app.workspace.getLeaf(false).openFile(file as TFile);
+    if (file instanceof TFile) {
+      await this.app.workspace.getLeaf(false).openFile(file);
     } else {
       new Notice("Atoms: note not found");
     }
@@ -656,10 +675,7 @@ export class AtomsHomeView extends ItemView {
       attr: { "aria-label": "Settings" },
     });
     gearBtn.addEventListener("click", () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (this.app as any).setting?.open?.();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (this.app as any).setting?.openTabById?.("atoms");
+      openPluginSettingsTab(this.app, "atoms");
     });
 
     // One calm subtitle per state — no product jargon
@@ -884,11 +900,6 @@ export class AtomsHomeView extends ItemView {
           this.render();
         });
       }
-    } else if (!firstDay) {
-      scroll.createDiv({
-        cls: "atoms-home-section",
-        text: "Library",
-      });
     }
 
     const visible = this.visibleEntries();

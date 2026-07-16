@@ -1,4 +1,4 @@
-import { requestUrl, type App, Modal, Notice, Setting } from "obsidian";
+import { requestUrl, type App, Modal, Setting } from "obsidian";
 import { ANTHROPIC_VERSION, buildMessagesRequest } from "./classify";
 import type { MetadataContextProvider } from "./context";
 import { getPastDailyNotesWithUnmarkedCaptures } from "./daily";
@@ -365,7 +365,7 @@ export async function waitForBatchEnded(opts: {
   onTick?: (status: string) => void;
 }): Promise<void> {
   const sleep =
-    opts.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
+    opts.sleep ?? ((ms) => new Promise((r) => window.setTimeout(r, ms)));
   const maxWait = opts.maxWaitMs ?? 30 * 60 * 1000;
   const interval = opts.intervalMs ?? 5000;
   const start = Date.now();

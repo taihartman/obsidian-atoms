@@ -32,7 +32,6 @@ export const HOME_CHIP_MAX = 2;
 
 const GENERATED_BY_RE = /^generated-by:\s*linker\s*$/m;
 const SOURCE_RE = /^source:\s*["']?\[\[([^\]]+)\]\]["']?\s*$/m;
-const TAGS_LINE_RE = /^tags:\s*$/m;
 const WIKILINK_RE = /\[\[([^\]|#]+)(?:\|[^\]]+)?\]\]/g;
 const DATE_TITLE_RE = /^\d{4}-\d{2}-\d{2}/;
 const JUNK_TITLES = new Set([

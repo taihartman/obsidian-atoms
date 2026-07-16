@@ -1,4 +1,4 @@
-import type { App, TFile } from "obsidian";
+import { TFile, type App } from "obsidian";
 import type {
   Capture,
   ClassificationLink,
@@ -64,6 +64,29 @@ const RESERVED = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i;
 /** Bound model titles for paths + markers (pre-community security). */
 export const TITLE_MAX_LEN = 120;
 
+/** C0 controls, DEL, line/paragraph separators — no control-char regex. */
+function hasUnsafeControlChars(s: string): boolean {
+  for (let i = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i);
+    if (c <= 0x1f || c === 0x7f || c === 0x2028 || c === 0x2029) return true;
+  }
+  return false;
+}
+
+/** Strip unsafe control characters; leave printable content intact. */
+function stripUnsafeControlChars(s: string): string {
+  let out = "";
+  for (let i = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i);
+    if (c <= 0x1f || c === 0x7f || c === 0x2028 || c === 0x2029) {
+      out += " ";
+    } else {
+      out += s[i];
+    }
+  }
+  return out;
+}
+
 /**
  * Safe single-segment atom folder. Rejects `..`, absolute paths, multi-segment.
  * Default `Atoms` when invalid/empty.
@@ -76,7 +99,7 @@ export function clampAtomFolder(raw: string | null | undefined): string {
   if (parts.length !== 1) return "Atoms";
   const seg = parts[0]!;
   if (seg === "." || seg === ".." || seg.includes("..")) return "Atoms";
-  if (/[\u0000-\u001F\u007F\u2028\u2029]/.test(seg)) return "Atoms";
+  if (hasUnsafeControlChars(seg)) return "Atoms";
   if (ILLEGAL_FILENAME_CHAR.test(seg)) return "Atoms";
   return seg;
 }
@@ -91,8 +114,7 @@ export function sanitizeFilename(title: string): {
   alias: string | null;
 } {
   const original = (title ?? "").trim() || "Untitled";
-  let name = original
-    .replace(/[\u0000-\u001F\u007F\u2028\u2029]/g, " ")
+  let name = stripUnsafeControlChars(original)
     .replace(/\[\[/g, "(")
     .replace(/\]\]/g, ")")
     .replace(ILLEGAL_FILENAME_GLOBAL, "-")
@@ -213,7 +235,6 @@ export function resolveCaptureEndLine(
   if (tryAt(capture.startLine)) {
     // extent: continuations after start
     let end = capture.startLine;
-    const bodyLines = capture.text.split("\n");
     // Prefer original span length when start still matches
     const span = Math.max(0, capture.endLine - capture.startLine);
     end = Math.min(lines.length - 1, capture.startLine + span);
@@ -421,8 +442,8 @@ export async function applyWrite(
 
   if (changed) {
     const file = app.vault.getAbstractFileByPath(plan.dailyPath);
-    if (file && "extension" in file) {
-      await app.vault.modify(file as TFile, newDailyContent);
+    if (file instanceof TFile) {
+      await app.vault.modify(file, newDailyContent);
     }
   }
 

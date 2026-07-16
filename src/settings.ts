@@ -33,6 +33,14 @@ import {
   tagCountsSorted,
 } from "./vocabulary";
 
+function settingHeading(containerEl: HTMLElement, name: string): void {
+  new Setting(containerEl).setName(name).setHeading();
+}
+
+function loadLocal(app: App, key: string): unknown {
+  return app.loadLocalStorage(key) as unknown;
+}
+
 export class AtomsSettingTab extends PluginSettingTab {
   plugin: AtomsPlugin;
   private customTagDraft = "";
@@ -47,7 +55,7 @@ export class AtomsSettingTab extends PluginSettingTab {
     containerEl.empty();
 
     const version = this.plugin.manifest.version ?? "?";
-    containerEl.createEl("h2", { text: "Atoms" });
+    settingHeading(containerEl, "Atoms");
     containerEl.createEl("p", {
       text: `Second brain: files keepable captures (ideas, preferences, lists, media) as flat Atoms/ notes. Not a to-do app — pure logistics are marked noise. Capture itself is handled by your iOS Shortcut.`,
       cls: "setting-item-description",
@@ -66,9 +74,9 @@ export class AtomsSettingTab extends PluginSettingTab {
   }
 
   private renderCaptureSection(containerEl: HTMLElement) {
-    containerEl.createEl("h3", { text: "Capture" });
+    settingHeading(containerEl, "Capture");
 
-    const acked = readShortcutAck((k) => this.app.loadLocalStorage(k));
+    const acked = readShortcutAck((k) => loadLocal(this.app, k));
     const installUrl = resolveCaptureShortcutInstallUrl(
       this.plugin.settings.captureShortcutInstallUrl,
     );
@@ -142,7 +150,7 @@ export class AtomsSettingTab extends PluginSettingTab {
   }
 
   private renderApiSection(containerEl: HTMLElement) {
-    containerEl.createEl("h3", { text: "API & privacy" });
+    settingHeading(containerEl, "API & privacy");
 
     new Setting(containerEl)
       .setName("Privacy")
@@ -194,16 +202,15 @@ export class AtomsSettingTab extends PluginSettingTab {
       );
 
     if (this.plugin.settings.useDeviceLocalKeyFallback) {
+      const stored = loadLocal(this.app, LOCAL_STORAGE_API_KEY);
+      const localKey = typeof stored === "string" ? stored : "";
       new Setting(containerEl)
         .setName("Device-local API key")
         .setDesc("This device only. Prefer SecretStorage.")
         .addText((text) => {
           text
             .setPlaceholder("sk-ant-…")
-            .setValue(
-              (this.app.loadLocalStorage(LOCAL_STORAGE_API_KEY) as string) ??
-                "",
-            )
+            .setValue(localKey)
             .onChange((value) => {
               this.app.saveLocalStorage(
                 LOCAL_STORAGE_API_KEY,
@@ -222,13 +229,13 @@ export class AtomsSettingTab extends PluginSettingTab {
   }
 
   private renderAutoRunSection(containerEl: HTMLElement) {
-    containerEl.createEl("h3", { text: "Auto-run (this device)" });
+    settingHeading(containerEl, "Auto-run (this device)");
     containerEl.createEl("p", {
       text: "Stored only on this device (not synced via data.json). Default off. Requires a one-time privacy acknowledgment — unattended runs send titles + captures to Anthropic.",
       cls: "setting-item-description",
     });
 
-    const load = (k: string) => this.app.loadLocalStorage(k);
+    const load = (k: string): unknown => loadLocal(this.app, k);
     const save = (k: string, v: unknown) => this.app.saveLocalStorage(k, v);
     const state = readDeviceAutoRunState(load);
 
@@ -278,7 +285,7 @@ export class AtomsSettingTab extends PluginSettingTab {
   }
 
   private renderModelSection(containerEl: HTMLElement) {
-    containerEl.createEl("h3", { text: "Filing" });
+    settingHeading(containerEl, "Filing");
 
     new Setting(containerEl)
       .setName("Model")
@@ -310,7 +317,7 @@ export class AtomsSettingTab extends PluginSettingTab {
   }
 
   private renderVocabularySection(containerEl: HTMLElement) {
-    containerEl.createEl("h3", { text: "Tag vocabulary" });
+    settingHeading(containerEl, "Tag vocabulary");
     containerEl.createEl("p", {
       text: "Active tags may be applied by the model. #person, #preferences, and #relationship always work (smart defaults). Proposed tags need one-tap approval. People: link to a hub note (e.g. Alex); atoms stay flat — use backlinks, not AI folders.",
       cls: "setting-item-description",
@@ -366,7 +373,7 @@ export class AtomsSettingTab extends PluginSettingTab {
     // Proposed tags awaiting approval
     const proposed = this.plugin.settings.proposedTags ?? [];
     if (proposed.length > 0) {
-      containerEl.createEl("h4", { text: "Proposed (approve to activate)" });
+      settingHeading(containerEl, "Proposed (approve to activate)");
       for (const tag of proposed) {
         new Setting(containerEl)
           .setName(`#${tag}`)
@@ -398,7 +405,7 @@ export class AtomsSettingTab extends PluginSettingTab {
     }
 
     // Found in vault
-    containerEl.createEl("h4", { text: "Found in your vault" });
+    settingHeading(containerEl, "Found in your vault");
     const files = this.app.vault.getMarkdownFiles();
     const caches = files.map((f) => ({
       path: f.path,
@@ -434,7 +441,7 @@ export class AtomsSettingTab extends PluginSettingTab {
   }
 
   private renderDevHints(containerEl: HTMLElement) {
-    containerEl.createEl("h3", { text: "Development" });
+    settingHeading(containerEl, "Development");
     const version = this.plugin.manifest.version ?? "?";
     containerEl.createEl("p", {
       text: `Installed version: ${version}. After desktop install + Sync, confirm this matches on phone. ./scripts/install-to-vault.sh reloads via Obsidian CLI.`,
