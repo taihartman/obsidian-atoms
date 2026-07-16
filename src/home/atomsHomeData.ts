@@ -316,7 +316,7 @@ export function countEligibleUpdateNotes(
   return n;
 }
 
-/** Strip copy for Update notes (locked product strings). */
+/** Strip copy for Update notes (product strings). */
 export function updateNotesStripCopy(eligibleCount: number): {
   title: string;
   body: string;
@@ -324,15 +324,18 @@ export function updateNotesStripCopy(eligibleCount: number): {
 } {
   const n = Math.max(0, eligibleCount);
   return {
-    title: "Update notes",
-    body: `${n} older note${n === 1 ? "" : "s"} · same AI as filing · your words stay put`,
+    title: "Filing got smarter",
+    body:
+      n === 1
+        ? "Update 1 older note with the improved model? Your original text stays the same."
+        : `Update ${n} older notes with the improved model? Your original text stays the same.`,
     button: "Update",
   };
 }
 
 export function updateNotesConfirmCopy(batchCount: number): string {
   const n = Math.max(0, batchCount);
-  return `Refresh ${n} note${n === 1 ? "" : "s"} with AI? Titles and links may update. Original capture text will not. Uses your Anthropic key.`;
+  return `Update ${n} note${n === 1 ? "" : "s"} with the improved model? Titles and links may change. Your original capture text will not. Uses your Anthropic key.`;
 }
 
 /** True when this device will file past captures without a Process tap. */

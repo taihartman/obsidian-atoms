@@ -279,8 +279,9 @@ new
 describe("updateNotesStripCopy", () => {
   it("locks product copy", () => {
     const c = updateNotesStripCopy(3);
-    expect(c.title).toBe("Update notes");
+    expect(c.title).toBe("Filing got smarter");
     expect(c.button).toBe("Update");
+    expect(c.body).toContain("improved model");
     expect(c.body).toContain("3 older notes");
   });
 });

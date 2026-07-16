@@ -1276,7 +1276,7 @@ export class AtomsHomeView extends ItemView {
 
   private confirmUpdateNotes(batchCount: number): void {
     const modal = new Modal(this.app);
-    modal.titleEl.setText("Update notes");
+    modal.titleEl.setText("Filing got smarter");
     modal.contentEl.createEl("p", {
       text: updateNotesConfirmCopy(batchCount),
     });
