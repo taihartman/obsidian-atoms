@@ -466,6 +466,18 @@ export class AtomsHomeView extends ItemView {
     this.persistMindChangeMeta();
   }
 
+  private dismissMindChangeHero(card: ResurfaceCandidate): void {
+    this.resurfaceSkipPaths.add(card.path);
+    this.noteMindChangeInteraction(card);
+    this.pickNextResurface();
+    this.render();
+  }
+
+  private closeHomeOpen(): void {
+    this.homeOpen = null;
+    this.render();
+  }
+
   private pickNextResurface(): void {
     this.resurfaceCard = pickResurface(
       this.resurfaceCandidates,
@@ -585,30 +597,20 @@ export class AtomsHomeView extends ItemView {
       className: "atoms-home-mind-change-open",
       onClick: () => {
         this.noteMindChangeInteraction(card);
-        void this.openMindChangePair(card, true);
+        this.openMindChangePair(card, true);
       },
     });
     button(actions, {
       grade: "secondary",
       label: "Next",
       className: "atoms-home-mind-change-next",
-      onClick: () => {
-        this.resurfaceSkipPaths.add(card.path);
-        this.noteMindChangeInteraction(card);
-        this.pickNextResurface();
-        this.render();
-      },
+      onClick: () => this.dismissMindChangeHero(card),
     });
     button(actions, {
       grade: "quiet",
       label: "Not a mind-change",
       className: "atoms-home-mind-change-reject",
-      onClick: () => {
-        this.resurfaceSkipPaths.add(card.path);
-        this.noteMindChangeInteraction(card);
-        this.pickNextResurface();
-        this.render();
-      },
+      onClick: () => this.dismissMindChangeHero(card),
     });
   }
 
@@ -618,10 +620,10 @@ export class AtomsHomeView extends ItemView {
     return bodyAfterFrontmatter(file.content).trim();
   }
 
-  private async openMindChangePair(
+  private openMindChangePair(
     card: ResurfaceCandidate,
     interactionNoted: boolean,
-  ): Promise<void> {
+  ): void {
     const thenPath = card.path;
     const nowPath = card.laterPath ?? "";
     const thenBody = this.readAtomBody(thenPath) || card.bodySnippet;
@@ -677,10 +679,7 @@ export class AtomsHomeView extends ItemView {
     backLink(scroll, {
       label: "‹ For you",
       className: "atoms-home-back",
-      onClick: () => {
-        this.homeOpen = null;
-        this.render();
-      },
+      onClick: () => this.closeHomeOpen(),
     });
     scroll.createEl("h2", {
       cls: "atoms-home-open-title",
@@ -724,10 +723,7 @@ export class AtomsHomeView extends ItemView {
     backLink(wrap, {
       label: "‹ For you",
       className: "atoms-home-back",
-      onClick: () => {
-        this.homeOpen = null;
-        this.render();
-      },
+      onClick: () => this.closeHomeOpen(),
     });
 
     const thenCard = flatCard(wrap, { className: "atoms-home-pair-claim" });
@@ -780,8 +776,7 @@ export class AtomsHomeView extends ItemView {
             open.relation,
           );
         }
-        this.homeOpen = null;
-        this.render();
+        this.closeHomeOpen();
       },
     });
     button(actions, {
@@ -814,15 +809,10 @@ export class AtomsHomeView extends ItemView {
     this.noteResurfaceShown(card.path);
     if (card.cue === "mind-change") {
       this.noteMindChangeInteraction(card);
-      await this.openMindChangePair(card, true);
+      this.openMindChangePair(card, true);
       return;
     }
-    const file = this.app.vault.getAbstractFileByPath(card.path);
-    if (file instanceof TFile) {
-      await this.app.workspace.getLeaf(false).openFile(file);
-    } else {
-      new Notice("Atoms: note not found");
-    }
+    await this.openPathInVault(card.path);
   }
 
   private render(): void {

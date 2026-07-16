@@ -135,7 +135,7 @@ export function citatorLine(
     text: opts.relationLabel,
     cls: "atoms-ui-citator-line-rel",
   });
-  row.createSpan({ text: " ", cls: "atoms-ui-citator-line-space" });
+  row.appendText(" ");
   row.createSpan({
     text: opts.peerTitle,
     cls: "atoms-ui-citator-line-peer",

@@ -301,28 +301,6 @@ export function citatorLinesForAtom(
   return lines;
 }
 
-/**
- * @deprecated Prefer citatorLinesForAtom + typographic UI. Thin adapter for mid-migration.
- */
-export function citatorChipsForAtom(
-  atom: IndexedAtom,
-  indexed: IndexedAtom[],
-): Array<{ label: string; peerPath: string; peerTitle: string }> {
-  return citatorLinesForAtom(atom, indexed).map((line) => {
-    const titleCase =
-      line.relationLabel.charAt(0).toUpperCase() + line.relationLabel.slice(1);
-    return {
-      label: `${titleCase} · ${line.peerTitle}`,
-      peerPath: line.peerPath,
-      peerTitle: line.peerTitle,
-    };
-  });
-}
-
-export function mindChangeDayKey(todayYmd: string): string {
-  return todayYmd;
-}
-
 export function mindChangeAlreadyShownToday(
   storedDay: string | null | undefined,
   todayYmd: string,
@@ -754,20 +732,10 @@ export function mindChangeHeroLaterLine(opts: {
   return `Later you ${verb} this: ${title}`;
 }
 
-/**
- * @deprecated Use mindChangeHeroLaterLine. Kept for any residual call sites.
- */
-export function mindChangeLaterLine(
-  laterTitle: string,
-  relation: SupersessionRelation = "revises",
-): string {
-  return mindChangeHeroLaterLine({ laterTitle, relation });
-}
-
 /** Friendly date for meta: “Jul 15, 2024” */
 export function formatCueDate(ymd: string): string {
-  const m = (ymd ?? "").trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (!m) return ymd;
+  const parts = parseYmdParts(ymd);
+  if (!parts) return ymd;
   const months = [
     "Jan",
     "Feb",
@@ -782,7 +750,6 @@ export function formatCueDate(ymd: string): string {
     "Nov",
     "Dec",
   ];
-  const mi = Number(m[2]) - 1;
-  const mon = months[mi] ?? m[2];
-  return `${mon} ${Number(m[3])}, ${m[1]}`;
+  const mon = months[parts.m - 1] ?? String(parts.m).padStart(2, "0");
+  return `${mon} ${parts.d}, ${parts.y}`;
 }
