@@ -300,6 +300,99 @@ export function shouldShowWaitCard(unprocessedCount: number): boolean {
   return unprocessedCount > 0;
 }
 
+/** True when this device will file past captures without a Process tap. */
+export function isAutomaticFilingReady(snap: {
+  enabled: boolean;
+  egressAcked: boolean;
+  hasKey: boolean;
+}): boolean {
+  return snap.enabled && snap.egressAcked && snap.hasKey;
+}
+
+/** Home wait-surface story when past captures remain (automatic filing UX). */
+export type FilingHeroMode = "need_key" | "enable_auto" | "auto_on" | "auto_running";
+
+export type FilingHeroCopy = {
+  mode: FilingHeroMode;
+  eyebrow: string;
+  title: string;
+  body: string;
+  /** Primary button label (null = no primary). */
+  primaryLabel: string | null;
+  primaryAction: "open_settings" | "enable_auto" | "process" | null;
+  secondaryLabel: string | null;
+  secondaryAction: "preview" | "process" | null;
+};
+
+/**
+ * Pure: how the wait card should speak when pastUnprocessed > 0.
+ * Returns null when there is no past queue (caller uses calm home).
+ */
+export function filingHeroCopy(input: {
+  pastUnprocessed: number;
+  hasKey: boolean;
+  autoEnabled: boolean;
+  egressAcked: boolean;
+  inFlight?: boolean;
+}): FilingHeroCopy | null {
+  if (input.pastUnprocessed <= 0) return null;
+
+  const n = input.pastUnprocessed;
+  const countLabel =
+    n === 1 ? "One past capture waiting" : `${n} past captures waiting`;
+
+  if (!input.hasKey) {
+    return {
+      mode: "need_key",
+      eyebrow: "Ready",
+      title: countLabel,
+      body: "Add an API key on this phone so Atoms can file them. Today’s note is never auto-touched.",
+      primaryLabel: "Open settings",
+      primaryAction: "open_settings",
+      secondaryLabel: null,
+      secondaryAction: null,
+    };
+  }
+
+  const autoOn = input.autoEnabled && input.egressAcked;
+  if (input.inFlight && autoOn) {
+    return {
+      mode: "auto_running",
+      eyebrow: "Filing",
+      title: "Filing past thoughts…",
+      body: "Automatic filing is running. You can keep browsing — nothing needs a tap.",
+      primaryLabel: null,
+      primaryAction: null,
+      secondaryLabel: "Process now",
+      secondaryAction: "process",
+    };
+  }
+
+  if (!autoOn) {
+    return {
+      mode: "enable_auto",
+      eyebrow: "Ready",
+      title: countLabel,
+      body: "Turn on automatic filing so past days file when you open Obsidian. Or Process now.",
+      primaryLabel: "Turn on automatic filing",
+      primaryAction: "enable_auto",
+      secondaryLabel: "Process",
+      secondaryAction: "process",
+    };
+  }
+
+  return {
+    mode: "auto_on",
+    eyebrow: "Automatic",
+    title: countLabel,
+    body: "Automatic filing is on for this device. Past days file when you open Obsidian — Process only if you want them sooner.",
+    primaryLabel: "Process now",
+    primaryAction: "process",
+    secondaryLabel: "Preview",
+    secondaryAction: "preview",
+  };
+}
+
 /** Relative time label for library rows (en-US-ish, compact). */
 export function formatRelativeTime(mtimeMs: number, nowMs: number = Date.now()): string {
   const sec = Math.max(0, Math.floor((nowMs - mtimeMs) / 1000));
