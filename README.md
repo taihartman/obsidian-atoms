@@ -6,6 +6,8 @@ Capture on your phone (iOS Shortcut → daily note). Atoms classifies each bulle
 
 **Plugin id:** `atoms` · **Version:** see `manifest.json` · **Requires:** Obsidian ≥ 1.11.4, core **Daily Notes**, Anthropic API key
 
+**Coding agents:** start at [`AGENTS.md`](AGENTS.md) (claim rules + constitution). Humans do not need to memorize process — agents must.
+
 ### Privacy & cost
 
 - Each classify run sends **vault note titles**, tags, person-hub **titles**, and the **capture text** to the Anthropic API over TLS.

@@ -10,13 +10,15 @@ Living system map. Implementation detail and unit order live in the plan; this d
 
 A second brain with three legs:
 
-| Leg | v1 | v2 |
+| Leg | Now | Later |
 |---|---|---|
-| **Capture** | Already solved (iOS Shortcut → daily note) | Unchanged |
+| **Capture** | External (iOS Shortcut → daily note today; Android-capable later) | Still not owned by this plugin |
 | **File + link** | This plugin: triage, title, link, mark | Consolidation maps; supersession stays |
-| **Resurface** | Deferred | Stream (not queue): on-this-day, connected-to-recent, age-on-recall |
+| **Resurface** | Stream on home (on-this-day, connected, quiet; belief rehearsal) | Richer cues; still **not** a guilt queue |
 
-World-class here means: **trust the body**, **intelligence in the graph**, **zero guilt UI**, **mobile-primary**, **never lossy**.
+World-class here means: **trust the body**, **intelligence in the graph**, **zero guilt UI**, **mobile-primary** (desktop + iOS + Android consumers), **never lossy**.
+
+**Constitution changes** (this north star + `CLAUDE.md` non-negotiables) land only via PR — see `docs/collab.md`.
 
 ## Design principles (load-bearing)
 

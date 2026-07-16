@@ -1,10 +1,11 @@
 # Atoms view — design handoff (settled)
 
-**Status:** design locked after adversarial review (2026-07-15); **first-day loop** added (2026-07-15); **home v2** mock (2026-07-15).  
+**Status:** design locked after adversarial review (2026-07-15); **first-day loop** added (2026-07-15); **home v2** mock (2026-07-15); **update linking** mock (2026-07-16).  
 **Open mocks:**  
 - `index.html` — steady + waiting (v1)  
 - `first-day.html` — setup + shortcut  
-- **`home-v2.html`** — For you · one hero · typed chips (person/work, max 2) — **settled; implemented 0.5.2**
+- **`home-v2.html`** — For you · one hero · typed chips (person/work, max 2) — **settled; implemented 0.5.2**  
+- **`update-linking.html`** — quality upgrade path: home strip → review sheet → done (draft; not implemented)
 
 ## Product job
 
@@ -73,7 +74,23 @@ Not a bare `ls` of filenames with no Atoms meaning.
 - Data: `Atoms/` mtime list; unprocessed via existing daily parse; hubs optional chips from classification frontmatter/links in atom files  
 - Reuse dry-run / write commands behind Preview / Process  
 
+### Update notes — Process parity (quality stamp + AI refresh)
+
+When older atoms were filed under a weaker pipeline, home may show a **secondary** strip (never competing with Process as the hero):
+
+- **Parity:** same AI classify + enrich pipeline as Process (not a local-only polish)  
+- **Body sacred:** original capture text never changes  
+- **Model may change:** title, tags, link notes / reasons  
+- **Needs API key** (same as Process)  
+- **Happy path:** strip (**Update**) → **light confirm** → run → done  
+- Optional deep review later; not the default door  
+- Stamps: `atoms-quality` + `quality-updated` in frontmatter  
+
+Mock: `update-linking.html` (v3). Plan: `docs/plans/2026-07-16-015-feat-atoms-quality-stamp-and-improve-plan.md`.
+
 ## Open only at implement time
 
 - Exact filter chips (All / Linked only vs + This week)  
 - Whether task/noise markers appear in a collapsed “Also processed” section (default: **atoms only** on home)  
+
+ 
