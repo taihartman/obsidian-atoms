@@ -18,6 +18,8 @@ This repo is **two humans + many agents**. Humans may not read the process docs.
 
 If hot files overlap an `In progress` claim → **stop** and re-scope or wait. Do not “just be careful.”
 
+**PR → Issue close (mandatory):** every shipping PR body must include `Closes #<issue>` (or `Fixes` / `Resolves`) for the claimed Issue. Plain “Issue #N” does **not** auto-close. After merge, clear the `STATUS.md` row.
+
 ## Product guardrails (short)
 
 - **Body sacred** — never rewrite capture body into the atom.  
