@@ -341,3 +341,50 @@ describe("cueLabel mind-change", () => {
     expect(cueLabel("mind-change")).toBe("Mind change");
   });
 });
+
+describe("mind-change pair throttle + contradicts", () => {
+  it("extracts contradicts", () => {
+    const edges = extractSupersessionEdges(
+      atom({
+        created: "2026-07-10",
+        body: "No.",
+        links: "contradicts [[Earlier claim]].",
+      }),
+    );
+    expect(edges[0]).toMatchObject({
+      peerTitle: "Earlier claim",
+      relation: "contradicts",
+    });
+  });
+
+  it("pickResurface skips mind-change when pair is throttled", () => {
+    const cands = [
+      {
+        path: "Atoms/Old.md",
+        title: "Old",
+        bodySnippet: "x",
+        matchDate: "",
+        cue: "mind-change" as const,
+        laterPath: "Atoms/New.md",
+        laterTitle: "New",
+        relation: "revises" as const,
+      },
+      {
+        path: "Atoms/Quiet.md",
+        title: "Quiet",
+        bodySnippet: "z",
+        matchDate: "",
+        cue: "quiet" as const,
+      },
+    ];
+    const pk = mindChangePairKey("Atoms/Old.md", "Atoms/New.md");
+    const pairThrottle = { [pk]: Date.now() };
+    expect(
+      pickResurface(cands, [], {}, Date.now(), 7, {
+        todayYmd: "2026-07-16",
+        mindChangeDayShown: null,
+        pairThrottle,
+      })?.cue,
+    ).toBe("quiet");
+  });
+});
