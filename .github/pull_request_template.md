@@ -1,4 +1,5 @@
-<!-- Agents: keep Closes on its own line. GitHub only auto-closes with Closes/Fixes/Resolves #N. -->
+<!-- Agents: keep Closes on its own line. GitHub only auto-closes with Closes/Fixes/Resolves #N.
+     No CI enforces this — you must verify before mark-ready. Docs/chore with no Issue: delete the line or write N/A — no Issue. -->
 
 Closes #
 

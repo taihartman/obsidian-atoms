@@ -53,11 +53,14 @@ Also valid: `Fixes #N`, `Resolves #N` (same effect).
 | Match the **hard-claim** Issue number from `STATUS.md` | Forget the number and leave the Issue open forever |
 | After merge: clear the `STATUS.md` row (state Done / remove) | Leave `In progress` rows for merged work |
 
-**Agents:** when opening or updating a PR with `gh pr create` / `gh pr edit`, the body **must** include `Closes #<issue>` for the claimed Issue. “Mentioned #N” is not enough — that was how #21 stayed open after #22 merged.
+**Agents (not CI):** there is **no** GitHub Actions check for this (saves Actions minutes). When opening or updating a PR with `gh pr create` / `gh pr edit`, the agent **must** verify the body includes `Closes #<issue>` for the claimed Issue before mark-ready / merge. “Mentioned #N” is not enough — that was how #21 stayed open after #22 merged.
+
+| PR type | Body line |
+|---|---|
+| Shipping claim (has Issue) | `Closes #N` (claimed Issue from `STATUS.md`) |
+| Docs / chore / no Issue | No fake close — omit, or write `N/A — no Issue` (not `Closes nothing` as a fake keyword) |
 
 Template: [`.github/pull_request_template.md`](../.github/pull_request_template.md).
-
-**CI:** non-draft PRs run [`.github/workflows/pr-closes-issue.yml`](../.github/workflows/pr-closes-issue.yml) — the check **Require Closes #N** fails if the body/title lack `Closes`/`Fixes`/`Resolves #N`. Drafts may scaffold without a number; mark ready only when the line is present.
 
 ### Claim states (`STATUS.md`)
 

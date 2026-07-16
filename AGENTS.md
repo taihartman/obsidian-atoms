@@ -18,7 +18,7 @@ This repo is **two humans + many agents**. Humans may not read the process docs.
 
 If hot files overlap an `In progress` claim → **stop** and re-scope or wait. Do not “just be careful.”
 
-**PR → Issue close (mandatory):** every shipping PR body must include `Closes #<issue>` (or `Fixes` / `Resolves`) for the claimed Issue. Plain “Issue #N” does **not** auto-close. After merge, clear the `STATUS.md` row.
+**PR → Issue close (mandatory, agent-checked — no CI):** every shipping PR body must include `Closes #<issue>` (or `Fixes` / `Resolves`) for the claimed Issue. Plain “Issue #N” does **not** auto-close. Before mark-ready/merge, re-read the PR body and confirm. Docs/chore with no Issue: no fake `Closes`. After merge, clear the `STATUS.md` row.
 
 **PR evidence (mandatory):** check Test plan boxes only after real runs. UI / product-facing PRs must attach vault smoke **screenshots** under `docs/qa/screenshots/<feature>/` and link them in the PR body (CLAUDE.md shipping tail § PR evidence). Docs-only / pure logic: `N/A — no UI`.
 
