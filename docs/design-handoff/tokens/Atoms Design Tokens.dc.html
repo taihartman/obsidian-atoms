@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<style>
+  body { margin: 0; background: #0a0a0c; color: #fff; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  a { color: #0a84ff; text-decoration: none; }
+  a:hover { color: #64d2ff; }
+</style>
+</helmet>
+<div style="max-width: 1060px; margin: 0 auto; padding: 40px 24px 100px; display: flex; flex-direction: column; gap: 44px;">
+
+  <header style="display: flex; flex-direction: column; gap: 10px;">
+    <div style="font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: rgba(235,235,245,0.32);">Atoms · Obsidian plugin · design foundations · v2 editorial · 2026-07-16</div>
+    <h1 style="margin: 0; font-size: 34px; font-weight: 700; letter-spacing: -0.035em; line-height: 1.1;">Design tokens &amp; direction</h1>
+    <p style="margin: 0; max-width: 46rem; font-size: 15px; line-height: 1.55; color: rgba(235,235,245,0.6);">Extracted from shipped product DNA — <span style="font-family: ui-monospace, monospace; font-size: 0.88em; color: rgba(235,235,245,0.75);">styles.css</span>, the atoms-view handoff, and the belief-rehearsal mocks. v2 folds in the settled editorial revision: serif claim voice, flat cards, typographic belief markers, plain punctuation.</p>
+  </header>
+
+  <section style="display: flex; flex-direction: column; gap: 14px;">
+    <h2 style="margin: 0; font-size: 20px; font-weight: 650; letter-spacing: -0.02em;">Direction — six rules</h2>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px;">
+      <sc-for list="{{ rules }}" as="r" hint-placeholder-count="5">
+        <div style="background: #1c1c1e; border: 1px solid rgba(84,84,88,0.55); border-radius: 14px; padding: 16px 18px; display: flex; flex-direction: column; gap: 6px;">
+          <div style="font-size: 14px; font-weight: 650; letter-spacing: -0.01em;">{{ r.title }}</div>
+          <div style="font-size: 13px; line-height: 1.5; color: rgba(235,235,245,0.6);">{{ r.body }}</div>
+        </div>
+      </sc-for>
+    </div>
+  </section>
+
+  <section style="display: flex; flex-direction: column; gap: 14px;">
+    <h2 style="margin: 0; font-size: 20px; font-weight: 650; letter-spacing: -0.02em;">Color — semantic accents, never decorative</h2>
+    <p style="margin: 0; max-width: 46rem; font-size: 13.5px; line-height: 1.5; color: rgba(235,235,245,0.6);">Every accent means one thing. In the plugin, tokens resolve through Obsidian theme variables first (so user themes win), with the iOS-dark value as fallback. Max one hero accent per screen; chips carry the rest.</p>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(310px, 1fr)); gap: 10px;">
+      <sc-for list="{{ colors }}" as="c" hint-placeholder-count="8">
+        <div style="display: flex; align-items: center; gap: 14px; background: #1c1c1e; border: 1px solid rgba(84,84,88,0.4); border-radius: 12px; padding: 12px 14px;">
+          <div style="width: 52px; height: 52px; border-radius: 12px; flex-shrink: 0; border: 1px solid rgba(255,255,255,0.08); background: {{ c.swatch }};"></div>
+          <div style="min-width: 0; display: flex; flex-direction: column; gap: 2px;">
+            <div style="font-size: 13.5px; font-weight: 650;">{{ c.name }} <span style="font-weight: 400; color: rgba(235,235,245,0.45); font-variant-numeric: tabular-nums;">{{ c.hex }}</span></div>
+            <div style="font-size: 12px; font-family: ui-monospace, monospace; color: rgba(235,235,245,0.5); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ c.cssVar }}</div>
+            <div style="font-size: 12px; line-height: 1.4; color: rgba(235,235,245,0.6);">{{ c.use }}</div>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+    <div style="background: #1c1c1e; border: 1px solid rgba(84,84,88,0.4); border-radius: 12px; padding: 12px 16px; font-size: 12.5px; line-height: 1.5; color: rgba(235,235,245,0.6);"><strong style="color: #fff;">New chip categories:</strong> possible, but rationed. A chip type must earn its color: it needs a stable classifier output (like person/work), not a one-off tag. Mint from Obsidian’s remaining named accents so themes still win — next in line: <span style="display:inline-block; width:10px; height:10px; border-radius:3px; background:#ffd60a; vertical-align:-1px;"></span> <span style="font-family: ui-monospace, monospace;">var(--color-yellow, #ffd60a)</span> (e.g. place), <span style="display:inline-block; width:10px; height:10px; border-radius:3px; background:#ff375f; vertical-align:-1px;"></span> <span style="font-family: ui-monospace, monospace;">var(--color-pink, #ff375f)</span> (e.g. health). Same recipe as existing chips: 12–16% soft fill, full-strength text, radius 6. Hard caps: max 2 chips per row, ≤ 5 chip categories total app-wide — past that, new categories render as the neutral chip (<span style="font-family: ui-monospace, monospace;">#2c2c2e</span> fill, secondary text, like “Relates”) until one is retired. Never reuse blue (action), green (done), or red (error) for a category.</div>
+    <div style="background: #1c1c1e; border: 1px solid rgba(84,84,88,0.4); border-radius: 12px; padding: 12px 16px; font-size: 12.5px; line-height: 1.5; color: rgba(235,235,245,0.6);"><strong style="color: #fff;">Soft-fill recipe (narrowed in v2):</strong> <span style="font-family: ui-monospace, monospace;">color-mix(in srgb, ACCENT 9–18%, transparent)</span> fills apply to typed chips and transient status cards (waiting, progress, done, error) only. Hero and claim cards are flat grouped surfaces with neutral hairlines: no gradients, no accent-tinted cards, no accent borders. Purple never fills anything.</div>
+    <div style="background: #1c1c1e; border: 1px solid rgba(84,84,88,0.4); border-radius: 12px; padding: 14px 16px; display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start;">
+      <div style="flex: 1 1 320px; font-size: 12.5px; line-height: 1.55; color: rgba(235,235,245,0.6);"><strong style="color: #fff;">Light theme rules.</strong> Obsidian vars carry surfaces and text automatically (bg <span style="font-family: ui-monospace, monospace;">#f2f2f7</span> · card <span style="font-family: ui-monospace, monospace;">#fff</span> · sep <span style="font-family: ui-monospace, monospace;">rgba(60,60,67,.29)</span> · label <span style="font-family: ui-monospace, monospace;">#000</span> / 60% / 33%). Two rules the vars do NOT give you: chip and status fills mix into the card surface, not transparent (<span style="font-family: ui-monospace, monospace;">color-mix(in srgb, ACCENT 12–16%, var(--background-secondary))</span>); and accent TEXT darkens for contrast on light (<span style="font-family: ui-monospace, monospace;">color-mix(in srgb, ACCENT 75%, black)</span>) — raw #ff9f0a or #64d2ff on white fails WCAG. Purple text likewise darkens toward #8944ab.</div>
+      <div style="flex: 0 0 300px; background: #f2f2f7; border-radius: 12px; padding: 12px; color: #000;">
+        <div style="background: #fff; border-radius: 10px; padding: 12px 14px; border: 1px solid rgba(60,60,67,0.15);">
+          <div style="font-size: 10.5px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: #8944ab; margin-bottom: 8px;">Mind change</div>
+          <div style="font-family: 'New York', ui-serif, Georgia, serif; font-size: 14.5px; line-height: 1.42; margin-bottom: 10px;">“Sleep debt doesn’t really stack.”</div>
+          <div style="display: flex; gap: 6px;">
+            <span style="font-size: 11.5px; font-weight: 600; padding: 2px 8px; border-radius: 6px; color: #a35200; background: color-mix(in srgb, #ff9f0a 16%, #fff);">Alex</span>
+            <span style="font-size: 11.5px; font-weight: 600; padding: 2px 8px; border-radius: 6px; color: #00658a; background: color-mix(in srgb, #64d2ff 16%, #fff);">Severance</span>
+            <span style="font-size: 11.5px; color: rgba(60,60,67,0.6); padding: 2px 0;">From daily</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section style="display: flex; flex-direction: column; gap: 14px;">
+    <h2 style="margin: 0; font-size: 20px; font-weight: 650; letter-spacing: -0.02em;">Type — one family, tight tracking, weight does the work</h2>
+    <p style="margin: 0; max-width: 46rem; font-size: 13.5px; line-height: 1.5; color: rgba(235,235,245,0.6);">System stack only (<span style="font-family: ui-monospace, monospace; font-size: 0.9em;">-apple-system … system-ui</span>) — the plugin lives inside Obsidian and must feel native to the OS. Negative letter-spacing scales with size. No uppercase except eyebrows and section labels.</p>
+    <div style="background: #1c1c1e; border: 1px solid rgba(84,84,88,0.4); border-radius: 14px; overflow: hidden;">
+      <sc-for list="{{ type }}" as="t" hint-placeholder-count="8">
+        <div style="display: grid; grid-template-columns: 200px 1fr; gap: 20px; align-items: baseline; padding: 14px 18px; border-bottom: 1px solid rgba(84,84,88,0.35);">
+          <div style="display: flex; flex-direction: column; gap: 2px;">
+            <div style="font-size: 12.5px; font-weight: 600; color: rgba(235,235,245,0.85);">{{ t.token }}</div>
+            <div style="font-size: 11.5px; font-family: ui-monospace, monospace; color: rgba(235,235,245,0.45);">{{ t.spec }}</div>
+          </div>
+          <div style="font-family: {{ t.family }}; font-size: {{ t.size }}; font-weight: {{ t.weight }}; letter-spacing: {{ t.tracking }}; line-height: 1.35; color: {{ t.color }};">{{ t.sample }}</div>
+        </div>
+      </sc-for>
+    </div>
+  </section>
+
+  <section style="display: flex; flex-direction: column; gap: 14px;">
+    <h2 style="margin: 0; font-size: 20px; font-weight: 650; letter-spacing: -0.02em;">Shape, space &amp; touch</h2>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px;">
+      <div style="background: #1c1c1e; border: 1px solid rgba(84,84,88,0.4); border-radius: 14px; padding: 16px 18px;">
+        <div style="font-size: 13.5px; font-weight: 650; margin-bottom: 10px;">Radius scale</div>
+        <div style="display: flex; flex-direction: column; gap: 8px; font-size: 12.5px; color: rgba(235,235,245,0.6);">
+          <div style="display: flex; align-items: center; gap: 10px;"><div style="width: 30px; height: 30px; border-radius: 6px; background: #2c2c2e; flex-shrink: 0;"></div>6–8 · badges, code blocks, mini chips</div>
+          <div style="display: flex; align-items: center; gap: 10px;"><div style="width: 30px; height: 30px; border-radius: 12px; background: #2c2c2e; flex-shrink: 0;"></div>10–12 · buttons, small cards, banners</div>
+          <div style="display: flex; align-items: center; gap: 10px;"><div style="width: 30px; height: 30px; border-radius: 15px; background: #2c2c2e; flex-shrink: 0;"></div>14–16 · list groups, standard cards</div>
+          <div style="display: flex; align-items: center; gap: 10px;"><div style="width: 30px; height: 30px; border-radius: 17px; background: #2c2c2e; flex-shrink: 0;"></div>18 · legacy resurface hero (v1); v2 hero is 16</div>
+          <div style="display: flex; align-items: center; gap: 10px;"><div style="width: 30px; height: 30px; border-radius: 980px; background: #2c2c2e; flex-shrink: 0;"></div>980 (pill) · typed chips, citator chips, ⋯ buttons</div>
+        </div>
+      </div>
+      <div style="background: #1c1c1e; border: 1px solid rgba(84,84,88,0.4); border-radius: 14px; padding: 16px 18px;">
+        <div style="font-size: 13.5px; font-weight: 650; margin-bottom: 10px;">Spacing</div>
+        <div style="font-size: 12.5px; line-height: 1.7; color: rgba(235,235,245,0.6);">Base grid 2px, working steps <strong style="color: #fff;">4 · 6 · 8 · 10 · 12 · 14 · 16</strong>. Screen gutter 16. Card padding 14–18. Card-to-card 14–16. Section label to content 8. Nothing above 24 inside the phone frame — density is part of the trust.</div>
+      </div>
+      <div style="background: #1c1c1e; border: 1px solid rgba(84,84,88,0.4); border-radius: 14px; padding: 16px 18px;">
+        <div style="font-size: 13.5px; font-weight: 650; margin-bottom: 10px;">Touch &amp; motion</div>
+        <div style="font-size: 12.5px; line-height: 1.7; color: rgba(235,235,245,0.6);">Hit targets ≥ <strong style="color: #fff;">44px</strong> (buttons 44–46). Interactive text ≥ 60% label opacity. Press state: <span style="font-family: ui-monospace, monospace;">scale(0.98)</span> + opacity 0.92, 120–150ms ease. No hover-dependent affordances. Progress bars 6px, 3px radius. No confetti, no bounce, ever.</div>
+      </div>
+      <div style="background: #1c1c1e; border: 1px solid rgba(84,84,88,0.4); border-radius: 14px; padding: 16px 18px;">
+        <div style="font-size: 13.5px; font-weight: 650; margin-bottom: 10px;">Truncation &amp; width</div>
+        <div style="font-size: 12.5px; line-height: 1.7; color: rgba(235,235,245,0.6);">Hero claim body clamps at <strong style="color: #fff;">4 lines</strong> (ellipsis; Open shows the rest). Pair-view claims clamp at <strong style="color: #fff;">8 lines</strong>. Library titles: 2 lines. Citator peer titles: 1 line, ellipsis. Chips: max 45% of row width, ellipsis. Serif quotes never exceed <strong style="color: #fff;">65ch</strong>; on desktop the content column caps at 560px centered.</div>
+      </div>
+    </div>
+  </section>
+
+  <section style="display: flex; flex-direction: column; gap: 14px;">
+    <h2 style="margin: 0; font-size: 20px; font-weight: 650; letter-spacing: -0.02em;">Component recipes — live</h2>
+    <p style="margin: 0; max-width: 46rem; font-size: 13.5px; line-height: 1.5; color: rgba(235,235,245,0.6);">Built from the tokens above, matching shipped CSS. These are the only card grades: <strong style="color:#fff;">hero</strong> (one per screen, flat card + serif voice), <strong style="color:#fff;">status</strong> (soft-tinted, transient states only), <strong style="color:#fff;">plain group</strong> (list rows).</p>
+    <div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start;">
+
+      <div style="width: 375px; background: #000; border-radius: 24px; border: 1px solid #2a2a2c; padding: 16px; display: flex; flex-direction: column; gap: 14px;">
+        <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: rgba(235,235,245,0.32); font-weight: 600;">For you · mind-change hero</div>
+        <div style="background: #1c1c1e; border: 1px solid rgba(84,84,88,0.55); border-radius: 16px; padding: 16px 16px 14px;">
+          <div style="font-size: 11px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: #bf5af2; margin-bottom: 12px;">Mind change</div>
+          <p style="margin: 0 0 14px; font-family: Georgia, serif; font-size: 19px; line-height: 1.42;">“Sleep debt doesn’t really stack. One good night fixes most of it.”</p>
+          <p style="margin: 0 0 16px; padding-top: 12px; border-top: 1px solid rgba(84,84,88,0.55); font-size: 14px; line-height: 1.4; color: rgba(235,235,245,0.6);">Twelve days later you revised this: <span style="color: #0a84ff; font-weight: 500;">Sleep debt compounds across the week</span></p>
+          <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+            <div style="flex: 1; text-align: center; border-radius: 12px; padding: 12px 10px; font-size: 14.5px; font-weight: 600; background: #0a84ff; color: #fff;">Open</div>
+            <div style="flex: 1; text-align: center; border-radius: 12px; padding: 12px 10px; font-size: 14.5px; font-weight: 600; background: #2c2c2e;">Next</div>
+            <div style="flex: 1 1 100%; text-align: center; padding: 8px; font-size: 13px; font-weight: 500; color: rgba(235,235,245,0.6);">Not a mind-change</div>
+          </div>
+        </div>
+        <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: rgba(235,235,245,0.32); font-weight: 600;">Open pair · fossil → newer claim</div>
+        <div style="display: flex; flex-direction: column;">
+          <div style="background: #1c1c1e; border: 1px solid rgba(84,84,88,0.55); border-radius: 16px; padding: 14px 16px;">
+            <div style="font-size: 15px; font-weight: 650; letter-spacing: -0.02em; margin-bottom: 6px; color: rgba(235,235,245,0.85);">Sleep debt doesn’t stack</div>
+            <div style="font-size: 13.5px; line-height: 1.5; color: rgba(235,235,245,0.6);">Fossil card: plain group surface, serif-quoted verbatim body, no title.</div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 10px; margin: 12px 2px;">
+            <div style="flex: 1; height: 1px; background: rgba(84,84,88,0.55);"></div>
+            <div style="font-variant: all-small-caps; letter-spacing: 0.12em; font-size: 13px; color: #bf5af2;">revised by</div>
+            <div style="flex: 1; height: 1px; background: rgba(84,84,88,0.55);"></div>
+          </div>
+          <div style="background: #1c1c1e; border: 1px solid rgba(84,84,88,0.55); border-radius: 16px; padding: 14px 16px;">
+            <div style="font-size: 15px; font-weight: 650; letter-spacing: -0.02em; margin-bottom: 6px;">Sleep debt compounds across the week</div>
+            <div style="font-size: 13.5px; line-height: 1.5; color: rgba(235,235,245,0.6);">Newer claim: flat card too. Emphasis comes from the sans title and serif quote, not tint.</div>
+          </div>
+        </div>
+        <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: rgba(235,235,245,0.32); font-weight: 600;">Status card · waiting</div>
+        <div style="border-radius: 16px; border: 1px solid rgba(255,159,10,0.28); background: color-mix(in srgb, #ff9f0a 9%, #1c1c1e); padding: 16px; display: flex; flex-direction: column; gap: 6px;">
+          <div style="font-size: 11.5px; font-weight: 600; color: rgba(235,235,245,0.32);">READY TO FILE</div>
+          <div style="font-size: 18px; font-weight: 650; letter-spacing: -0.02em;">3 captures waiting</div>
+          <div style="font-size: 14px; color: rgba(235,235,245,0.6); line-height: 1.4;">From 2 past days. Preview shows every verdict before anything is written.</div>
+          <div style="display: flex; gap: 10px; margin-top: 8px;">
+            <div style="flex: 1; min-height: 46px; display: flex; align-items: center; justify-content: center; border-radius: 12px; font-size: 15px; font-weight: 600; background: #0a84ff; color: #fff;">Preview</div>
+            <div style="flex: 1; min-height: 46px; display: flex; align-items: center; justify-content: center; border-radius: 12px; font-size: 15px; font-weight: 600; background: rgba(84,84,88,0.55); color: #0a84ff;">Process</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="width: 375px; background: #000; border-radius: 24px; border: 1px solid #2a2a2c; padding: 16px; display: flex; flex-direction: column; gap: 14px;">
+        <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: rgba(235,235,245,0.32); font-weight: 600;">Library rows · typed chips (max 2)</div>
+        <div style="background: #1c1c1e; border: 1px solid rgba(84,84,88,0.45); border-radius: 14px; overflow: hidden;">
+          <sc-for list="{{ rows }}" as="row" hint-placeholder-count="3">
+            <div style="display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; padding: 14px 16px; border-bottom: 1px solid rgba(84,84,88,0.4); align-items: start;">
+              <div style="min-width: 0;">
+                <div style="font-size: 15.5px; font-weight: 550; line-height: 1.3; letter-spacing: -0.015em;">{{ row.title }}</div>
+                <div style="margin-top: 4px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center;">
+                  <sc-if value="{{ row.person }}" hint-placeholder-val="{{ true }}">
+                    <span style="font-size: 12.5px; font-weight: 600; padding: 2px 8px; border-radius: 6px; color: #ff9f0a; background: rgba(255,159,10,0.14);">{{ row.person }}</span>
+                  </sc-if>
+                  <sc-if value="{{ row.work }}" hint-placeholder-val="{{ false }}">
+                    <span style="font-size: 12.5px; font-weight: 600; padding: 2px 8px; border-radius: 6px; color: #64d2ff; background: rgba(100,210,255,0.12);">{{ row.work }}</span>
+                  </sc-if>
+                  <span style="font-size: 12.5px; color: rgba(235,235,245,0.6);">{{ row.meta }}</span>
+                </div>
+              </div>
+              <div style="font-size: 12.5px; color: rgba(235,235,245,0.32); white-space: nowrap; padding-top: 2px; font-variant-numeric: tabular-nums;">{{ row.time }}</div>
+            </div>
+          </sc-for>
+        </div>
+        <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: rgba(235,235,245,0.32); font-weight: 600;">Citator ribbon (text, hard edges only) · verdict badges · segmented filter</div>
+        <div style="background: #1c1c1e; border: 1px solid rgba(84,84,88,0.45); border-radius: 14px; padding: 14px 16px; display: flex; flex-direction: column; gap: 14px;">
+          <div style="display: flex; flex-wrap: wrap; gap: 6px 16px; padding-bottom: 10px; border-bottom: 1px solid rgba(84,84,88,0.45);">
+            <span style="font-size: 13px; font-weight: 500;"><span style="font-variant: all-small-caps; letter-spacing: 0.1em; color: #bf5af2;">revises</span> <span style="color: rgba(235,235,245,0.85);">Sleep debt doesn’t stack</span></span>
+            <span style="font-size: 13px; font-weight: 500;"><span style="font-variant: all-small-caps; letter-spacing: 0.1em; color: #bf5af2;">contradicted by</span> <span style="color: rgba(235,235,245,0.85);">Naps count toward the total</span></span>
+          </div>
+          <div style="display: flex; gap: 6px;">
+            <span style="font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; padding: 2px 7px; border-radius: 4px; background: rgba(10,132,255,0.2); color: #6eb6ff;">Atom</span>
+            <span style="font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; padding: 2px 7px; border-radius: 4px; background: rgba(84,84,88,0.55); color: rgba(235,235,245,0.32);">Noise</span>
+            <span style="font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; padding: 2px 7px; border-radius: 4px; background: rgba(255,69,58,0.18); color: #ff6961;">Failed</span>
+          </div>
+          <div style="display: inline-flex; align-self: flex-start; padding: 2px; border-radius: 10px; background: rgba(84,84,88,0.5);">
+            <span style="border-radius: 8px; padding: 6px 12px; font-size: 12.5px; font-weight: 600; background: #000; box-shadow: 0 0.5px 1.5px rgba(0,0,0,0.4);">All</span>
+            <span style="border-radius: 8px; padding: 6px 12px; font-size: 12.5px; font-weight: 600; color: rgba(235,235,245,0.6);">Linked</span>
+          </div>
+        </div>
+        <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: rgba(235,235,245,0.32); font-weight: 600;">Progress card · running</div>
+        <div style="border-radius: 16px; border: 1px solid rgba(10,132,255,0.28); background: color-mix(in srgb, #0a84ff 9%, #1c1c1e); padding: 14px 16px; display: flex; flex-direction: column; gap: 8px;">
+          <div style="font-size: 17px; font-weight: 700;">Filing 2 of 3…</div>
+          <div style="font-size: 13.5px; font-style: italic; color: rgba(235,235,245,0.6);">“maybe the linker should never rename…”</div>
+          <div style="height: 6px; border-radius: 3px; background: rgba(84,84,88,0.55); overflow: hidden;"><div style="height: 100%; width: 66%; border-radius: 3px; background: #0a84ff;"></div></div>
+        </div>
+      </div>
+
+      <div style="max-width: 300px; display: flex; flex-direction: column; gap: 12px; font-size: 13px; line-height: 1.55; color: rgba(235,235,245,0.6);">
+        <div style="font-size: 14px; font-weight: 650; color: #fff;">Usage notes</div>
+        <div><strong style="color: #fff;">One hero per screen.</strong> Mind-change &gt; on-this-day &gt; connected &gt; quiet. Everything else is a plain group or a status card.</div>
+        <div><strong style="color: #fff;">Chips are typed, not tags.</strong> Person = orange, work/media = cyan, max 2 per row. Belief history is typographic purple, never a chip fill. A chip color used outside its meaning is a bug.</div>
+        <div><strong style="color: #fff;">Connector (pair view):</strong> small-caps purple text on a hairline names the hard edge (<span style="font-family: ui-monospace, monospace; font-size: 0.9em;">revised by</span> / <span style="font-family: ui-monospace, monospace; font-size: 0.9em;">contradicted by</span>) between exactly two flat claim cards. Never a timeline.</div>
+        <div><strong style="color: #fff;">Copy:</strong> plain punctuation. No em dashes in app-authored copy (periods and colons); the ban never touches user capture text, which is sacred and verbatim. Quotation marks around claims are chrome: rendered by the component outside the text node, never inserted into the capture. If a capture contains its own quotes, lists, or wikilinks, it renders as written inside the chrome quotes.</div>
+        <div><strong style="color: #fff;">Buttons come in three grades:</strong> primary (solid tint), secondary (elevated fill, tint or normal text), quiet (transparent, secondary 60% text, full-width). Never more than one primary per card. Interactive text never drops below 60% label opacity; tertiary 32% is reserved for non-interactive meta.</div>
+        <div><strong style="color: #fff;">In-plugin, always route through Obsidian vars</strong> (<span style="font-family: ui-monospace, monospace; font-size: 0.9em;">var(--interactive-accent)</span> etc.) so light themes and user accents work; the hex values here are the dark fallbacks and the mock canon.</div>
+      </div>
+    </div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      rules: [
+        { title: "1 · Native to the pocket", body: "Mobile-first iOS-dark grouped-list energy inside an Obsidian leaf. System font, 16px gutters, thumb-reach buttons. Desktop gets the same view, not a different app." },
+        { title: "2 · Quiet by default", body: "No counts-as-guilt, no due queues, no confetti. Empty states fall through silently (never “0 mind-changes”). Auto-run makes zero noise." },
+        { title: "3 · One hero per screen", body: "For you shows at most one hero card per day, flat but serif-voiced. Everything else is a plain grouped list. Status cards (waiting, progress) never compete with the hero." },
+        { title: "4 · Accents are semantic", body: "Blue = action/tint. Orange = person + attention. Cyan = work/media. Purple = belief history (mind-change). Green = done. Color states a category, never decorates. Purple is typographic only: text, never a fill." },
+        { title: "5 · Theme-respecting", body: "Ship CSS resolves through Obsidian variables with color-mix soft fills, so user themes and light mode survive. Hard hex lives only in mocks and fallbacks." },
+        { title: "6 · Your words are quoted", body: "Claim bodies (hero, pair, atom open) render in a quiet serif inside quotation marks: your past self, cited. App chrome stays sans. App copy uses plain punctuation. Never an em dash." }
+      ],
+      colors: [
+        { name: "Tint / action", hex: "#0a84ff", swatch: "#0a84ff", cssVar: "var(--interactive-accent)", use: "Primary buttons, links, active state, progress fill, “later you wrote” emphasis." },
+        { name: "Person", hex: "#ff9f0a", swatch: "#ff9f0a", cssVar: "var(--color-orange, #ff9f0a)", use: "Person chips, waiting/attention card tint, setup hints." },
+        { name: "Work / media", hex: "#64d2ff", swatch: "#64d2ff", cssVar: "var(--color-cyan, #64d2ff)", use: "Work and media chips on library rows. Chip-only — never a card tint." },
+        { name: "Mind-change", hex: "#bf5af2", swatch: "#bf5af2", cssVar: "var(--color-purple, #bf5af2)", use: "Belief markers: hero kicker, pair connector, citator text. Typographic only. Purple never gets a fill, border, or gradient." },
+        { name: "Done", hex: "#30d158", swatch: "#30d158", cssVar: "var(--color-green, #30d158)", use: "Progress card success state. Nothing else." },
+        { name: "Error", hex: "#ff453a", swatch: "#ff453a", cssVar: "var(--text-error)", use: "Failed badges and error card state." },
+        { name: "Surfaces", hex: "#000 → #2c2c2e", swatch: "linear-gradient(135deg, #000 0%, #1c1c1e 50%, #2c2c2e 100%)", cssVar: "var(--background-primary / -secondary / modifier-border)", use: "bg #000 · grouped card #1c1c1e · elevated fill #2c2c2e · separator rgba(84,84,88,.55)." },
+        { name: "Text", hex: "#fff → 32%", swatch: "linear-gradient(135deg, #fff 0%, rgba(235,235,245,0.6) 50%, rgba(235,235,245,0.32) 100%)", cssVar: "var(--text-normal / -muted / -faint)", use: "label #fff · secondary 60% · tertiary 32% (eyebrows, timestamps, quiet actions)." }
+      ],
+      type: [
+        { token: "display", spec: "1.85rem · 700 · -0.035em", size: "1.85rem", weight: "700", tracking: "-0.035em", color: "#fff", sample: "Atoms" },
+        { token: "title-open", spec: "1.35rem · 700 · -0.03em", size: "1.35rem", weight: "700", tracking: "-0.03em", color: "#fff", sample: "Sleep debt compounds across the week" },
+        { token: "card-title", spec: "1.05–1.15rem · 650 · -0.02em", size: "1.1rem", weight: "650", tracking: "-0.02em", color: "#fff", sample: "3 captures waiting" },
+        { token: "claim-serif", spec: "'New York', ui-serif, Georgia · 1.05–1.3rem · 400 · lh 1.45", size: "1.2rem", weight: "400", tracking: "0", color: "#fff", family: "'New York', ui-serif, Georgia, serif", sample: "“Sleep debt doesn’t really stack. One good night fixes most of it.”" },
+        { token: "row-title", spec: "0.98rem · 550 · -0.015em", size: "0.98rem", weight: "550", tracking: "-0.015em", color: "#fff", sample: "Prefer preview before any write" },
+        { token: "body-muted", spec: "0.85–0.9rem · 400 · lh 1.4", size: "0.88rem", weight: "400", tracking: "-0.005em", color: "rgba(235,235,245,0.6)", sample: "Supporting copy, “later you wrote”, setup steps." },
+        { token: "chip / meta", spec: "0.75–0.8rem · 500–600 · -0.01em", size: "0.78rem", weight: "600", tracking: "-0.01em", color: "rgba(235,235,245,0.6)", sample: "Alex · From daily · 2d" },
+        { token: "eyebrow", spec: "0.68–0.72rem · 600 · +0.06em caps", size: "0.72rem", weight: "600", tracking: "0.06em", color: "rgba(235,235,245,0.32)", sample: "FOR YOU" }
+      ],
+      rows: [
+        { title: "Sleep debt compounds across the week", person: null, work: null, meta: "From daily · Jul 14", time: "2d" },
+        { title: "Alex prefers async review over live pairing", person: "Alex", work: null, meta: "From daily", time: "3d" },
+        { title: "Severance S2 is worth a rewatch for the lighting", person: null, work: "Severance", meta: "From daily", time: "1w" }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>
