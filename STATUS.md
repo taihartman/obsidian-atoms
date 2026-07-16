@@ -7,6 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
+| In progress | #33 | tai | feat/mind-change-home-ui-kit | docs/plans/2026-07-16-mind-change-home-ui-kit-plan.md | src/ui/**, src/home/atomsHomeView.ts, src/resurface/resurface.ts, styles.css, docs/components.md, docs/architecture.md | mind-change pair-open + full home UI kit |
 | In progress | #25 | tai | ci/require-closes-issue | — | .github/workflows/pr-closes-issue.yml | CI enforce Closes #N |
 
 ## How to claim (copy)
