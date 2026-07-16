@@ -1,7 +1,10 @@
 # Atoms view — design handoff (settled)
 
-**Status:** design locked after adversarial review (2026-07-15); **first-day loop** added (2026-07-15).  
-**Open mocks:** `index.html` (steady + waiting) · `first-day.html` (setup + shortcut)
+**Status:** design locked after adversarial review (2026-07-15); **first-day loop** added (2026-07-15); **home v2** mock (2026-07-15).  
+**Open mocks:**  
+- `index.html` — steady + waiting (v1)  
+- `first-day.html` — setup + shortcut  
+- **`home-v2.html`** — For you · one hero · typed chips (person/work, max 2) — **review before implement**
 
 ## Product job
 

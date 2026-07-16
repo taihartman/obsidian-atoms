@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Atoms home v2 — For you · chips · one hero</title>
+  <style>
+    :root {
+      --bg: #000;
+      --grouped: #1c1c1e;
+      --elevated: #2c2c2e;
+      --sep: rgba(84, 84, 88, 0.55);
+      --label: #fff;
+      --secondary: rgba(235, 235, 245, 0.6);
+      --tertiary: rgba(235, 235, 245, 0.32);
+      --tint: #0a84ff;
+      --tint-soft: rgba(10, 132, 255, 0.2);
+      --person: #ff9f0a;
+      --person-bg: rgba(255, 159, 10, 0.14);
+      --work: #64d2ff;
+      --work-bg: rgba(100, 210, 255, 0.12);
+      --orange-wait: #ff9f0a;
+      --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: var(--font);
+      background: #0a0a0c;
+      color: var(--label);
+      -webkit-font-smoothing: antialiased;
+    }
+    .page { max-width: 1120px; margin: 0 auto; padding: 28px 18px 90px; }
+    h1 { font-size: 1.45rem; font-weight: 700; letter-spacing: -0.03em; margin: 0 0 8px; }
+    .lede { color: var(--secondary); max-width: 42rem; line-height: 1.5; margin: 0 0 12px; font-size: 0.95rem; }
+    .decisions {
+      background: var(--grouped);
+      border: 1px solid var(--sep);
+      border-radius: 14px;
+      padding: 14px 16px;
+      margin-bottom: 22px;
+      font-size: 0.85rem;
+      color: var(--secondary);
+      line-height: 1.45;
+    }
+    .decisions strong { color: var(--label); font-weight: 600; }
+    .decisions ul { margin: 8px 0 0; padding-left: 1.15rem; }
+    .decisions li { margin: 4px 0; }
+    .toolbar {
+      display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 22px; align-items: center;
+    }
+    .toolbar > span {
+      font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.07em; color: var(--tertiary);
+    }
+    .chip {
+      border: none; background: var(--elevated); color: var(--secondary);
+      border-radius: 980px; padding: 8px 14px; font-size: 0.85rem; font-weight: 500; cursor: pointer;
+    }
+    .chip.on { background: var(--tint-soft); color: var(--tint); }
+
+    .stage {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 40px;
+      align-items: start;
+    }
+    @media (max-width: 900px) {
+      .stage { grid-template-columns: 1fr; justify-items: center; }
+      .side { max-width: 375px; width: 100%; }
+    }
+    .cap {
+      font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em;
+      color: var(--tertiary); text-align: center; margin-bottom: 10px;
+    }
+
+    /* Phone shell */
+    .phone {
+      width: 375px; height: 812px; background: var(--bg); border-radius: 44px;
+      border: 4px solid #2a2a2c; box-shadow: 0 28px 70px rgba(0,0,0,0.55);
+      overflow: hidden; display: flex; flex-direction: column; position: relative;
+    }
+    .status-bar {
+      height: 50px; display: flex; align-items: flex-end; justify-content: center;
+      padding-bottom: 8px; font-size: 0.75rem; font-weight: 600; flex-shrink: 0;
+    }
+    .nav { padding: 0 10px 10px 16px; flex-shrink: 0; }
+    .nav-top { display: flex; justify-content: space-between; align-items: center; min-height: 40px; }
+    .nav-btn {
+      border: none; background: transparent; color: var(--tint);
+      font-size: 1.2rem; min-width: 40px; min-height: 40px; cursor: pointer;
+    }
+    .large-title {
+      font-size: 2.05rem; font-weight: 700; letter-spacing: -0.045em;
+      margin: 0; line-height: 1.05;
+    }
+    .subtitle { font-size: 0.9rem; color: var(--secondary); margin: 5px 0 0; letter-spacing: -0.01em; }
+    .scroll { flex: 1; overflow-y: auto; min-height: 0; padding: 6px 16px 28px; }
+
+    /* Ready card */
+    .ready {
+      background: rgba(255, 159, 10, 0.1);
+      border: 1px solid rgba(255, 159, 10, 0.28);
+      border-radius: 16px;
+      padding: 16px;
+      margin-bottom: 18px;
+    }
+    .eyebrow {
+      font-size: 0.72rem; font-weight: 600; color: var(--tertiary);
+      margin: 0 0 4px; letter-spacing: 0.01em;
+    }
+    .ready h2 {
+      margin: 0 0 6px; font-size: 1.15rem; font-weight: 650; letter-spacing: -0.02em;
+    }
+    .ready p { margin: 0 0 12px; font-size: 0.88rem; color: var(--secondary); line-height: 1.4; }
+    .btns { display: flex; gap: 10px; }
+    .btn {
+      flex: 1; min-height: 46px; border: none; border-radius: 12px;
+      font-size: 0.95rem; font-weight: 600; letter-spacing: -0.01em; cursor: pointer;
+    }
+    .btn-p { background: var(--tint); color: #fff; }
+    .btn-s { background: var(--elevated); color: var(--tint); }
+
+    /* For you */
+    .sec {
+      font-size: 0.95rem; font-weight: 650; letter-spacing: -0.02em;
+      margin: 4px 0 10px; color: var(--label);
+    }
+    .for-you {
+      position: relative;
+      background: linear-gradient(165deg, rgba(10,132,255,0.18) 0%, var(--grouped) 52%);
+      border: 1px solid rgba(10,132,255,0.22);
+      border-radius: 18px;
+      padding: 18px 16px 14px;
+      margin-bottom: 20px;
+      box-shadow: 0 8px 28px rgba(10, 132, 255, 0.08);
+      cursor: pointer;
+    }
+    .for-you .kicker {
+      margin: 0 0 10px; font-size: 0.8rem; font-weight: 600; color: var(--tint);
+    }
+    .for-you .snip {
+      margin: 0 0 12px; font-size: 1.22rem; font-weight: 590;
+      letter-spacing: -0.025em; line-height: 1.32;
+    }
+    .for-you .meta {
+      display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: baseline;
+      padding-right: 78px; font-size: 0.8rem; color: var(--secondary);
+    }
+    .for-you .meta .date { color: var(--tertiary); font-size: 0.75rem; }
+    .another {
+      position: absolute; right: 12px; bottom: 12px;
+      border: none; background: rgba(44,44,46,0.85); color: var(--tint);
+      font-size: 0.8rem; font-weight: 600; padding: 8px 12px; border-radius: 980px;
+      min-height: 36px; cursor: pointer;
+    }
+
+    /* Library */
+    .lib-head {
+      display: flex; align-items: center; justify-content: space-between;
+      margin: 6px 0 10px;
+    }
+    .lib-head .sec { margin: 0; }
+    .seg {
+      display: inline-flex; padding: 2px; border-radius: 10px; background: var(--elevated);
+    }
+    .seg button {
+      border: none; background: transparent; color: var(--secondary);
+      font-size: 0.78rem; font-weight: 600; padding: 6px 12px; border-radius: 8px; cursor: pointer;
+    }
+    .seg button.on {
+      background: #3a3a3c; color: var(--label);
+      box-shadow: 0 0.5px 1.5px rgba(0,0,0,0.35);
+    }
+    .list {
+      background: var(--grouped); border-radius: 14px; overflow: hidden;
+      border: 1px solid var(--sep);
+    }
+    .row {
+      display: grid; grid-template-columns: 1fr auto; gap: 4px 12px;
+      padding: 14px 16px; border-bottom: 0.5px solid var(--sep);
+      min-height: 58px; align-items: start;
+    }
+    .row:last-child { border-bottom: none; }
+    .row .t {
+      font-size: 0.98rem; font-weight: 550; letter-spacing: -0.015em; line-height: 1.3;
+    }
+    .row .sub {
+      display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+      margin-top: 5px; font-size: 0.78rem; color: var(--tertiary);
+    }
+    .row .time {
+      font-size: 0.78rem; color: var(--tertiary); font-variant-numeric: tabular-nums;
+      padding-top: 2px;
+    }
+    /* Typed chips — max 2 roles */
+    .chip-p {
+      display: inline-block; font-size: 0.78rem; font-weight: 600;
+      color: var(--person); background: var(--person-bg);
+      padding: 2px 8px; border-radius: 6px; letter-spacing: -0.01em;
+    }
+    .chip-w {
+      display: inline-block; font-size: 0.78rem; font-weight: 600;
+      color: var(--work); background: var(--work-bg);
+      padding: 2px 8px; border-radius: 6px; letter-spacing: -0.01em;
+    }
+    /* Old style (before) — all orange soup */
+    .chip-old {
+      color: var(--person); font-weight: 600; font-size: 0.78rem;
+    }
+
+    /* Side notes + compare */
+    .side h2 {
+      font-size: 0.95rem; font-weight: 650; letter-spacing: -0.02em; margin: 0 0 10px;
+    }
+    .side p { font-size: 0.85rem; color: var(--secondary); line-height: 1.45; margin: 0 0 14px; }
+    .compare {
+      background: var(--grouped); border: 1px solid var(--sep); border-radius: 14px;
+      overflow: hidden; margin-bottom: 16px;
+    }
+    .compare .label {
+      font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.06em;
+      color: var(--tertiary); padding: 10px 14px 0;
+    }
+    .compare .row { border-color: var(--sep); }
+    .compare .bad .sub { gap: 4px 6px; }
+    .hidden { display: none !important; }
+    .home-indicator {
+      height: 28px; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+    }
+    .home-indicator span {
+      width: 120px; height: 4px; border-radius: 3px; background: #fff; opacity: 0.2;
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <h1>Atoms home v2</h1>
+    <p class="lede">
+      Mock for review before implement. Goal: Apple-like hierarchy — one hero,
+      For you memory, typed chips (person vs work), max two on a row, model owns meaning.
+    </p>
+    <div class="decisions">
+      <strong>Locked for this mock</strong>
+      <ul>
+        <li><strong>One hero:</strong> Ready <em>or</em> For you — not both fighting.</li>
+        <li><strong>For you:</strong> tap card opens note; <em>Another</em> secondary.</li>
+        <li><strong>Chips:</strong> person (warm) · work (cool). Max 2. Related claims stay out of the row.</li>
+        <li><strong>Order:</strong> prefer model link order; UI only caps + types from reason/role.</li>
+        <li><strong>Today force</strong> not on happy path (⋯ later) — omitted here.</li>
+      </ul>
+    </div>
+
+    <div class="toolbar">
+      <span>State</span>
+      <button type="button" class="chip on" data-state="calm" id="t-calm">Calm · For you</button>
+      <button type="button" class="chip" data-state="ready" id="t-ready">Ready to file</button>
+      <button type="button" class="chip" data-state="linked" id="t-linked">Library · Linked</button>
+    </div>
+
+    <div class="stage">
+      <div>
+        <div class="cap" id="phone-cap">Calm home</div>
+        <div class="phone" id="phone">
+          <div class="status-bar">9:41</div>
+          <div class="nav">
+            <div class="nav-top">
+              <button type="button" class="nav-btn" aria-label="More">⋯</button>
+              <button type="button" class="nav-btn" aria-label="Today">◎</button>
+              <span style="flex:1"></span>
+              <button type="button" class="nav-btn" aria-label="Settings">⚙</button>
+            </div>
+            <h1 class="large-title">Atoms</h1>
+            <p class="subtitle" id="sub">Your second brain</p>
+          </div>
+          <div class="scroll" id="scroll">
+            <!-- filled by JS -->
+          </div>
+          <div class="home-indicator"><span></span></div>
+        </div>
+      </div>
+
+      <div class="side">
+        <h2>Chip before / after</h2>
+        <p>Same atom. Left is “everything orange.” Right is typed, max two.</p>
+
+        <div class="compare">
+          <div class="label">Before — noisy</div>
+          <div class="row bad">
+            <div>
+              <div class="t">Christian recommended My Hero Academia</div>
+              <div class="sub">
+                <span class="chip-old">My Hero Academia</span>
+                <span class="chip-old">Christian</span>
+                <span class="chip-old">user link</span>
+                <span class="chip-old">Sleep debt plateaus</span>
+                <span>· Jul 10, 2026</span>
+              </div>
+            </div>
+            <div class="time">3m</div>
+          </div>
+          <div class="label">After — person + work only</div>
+          <div class="row">
+            <div>
+              <div class="t">Christian recommended My Hero Academia</div>
+              <div class="sub">
+                <span class="chip-p">Christian</span>
+                <span class="chip-w">My Hero Academia</span>
+                <span>· Jul 10, 2026</span>
+              </div>
+            </div>
+            <div class="time">3m</div>
+          </div>
+        </div>
+
+        <h2>What to check</h2>
+        <p>
+          Does “For you” feel like a memory, not a status card?<br />
+          Is Ready clearly the only job when pending?<br />
+          Are two chip colors enough, or do you want icons?
+        </p>
+        <p style="color: var(--tertiary); font-size: 0.8rem;">
+          File: <code>docs/design-handoff/atoms-view/home-v2.html</code>
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const rowsAll = [
+      {
+        t: "Nichita likes teal",
+        chips: [{ k: "p", l: "Nichita" }],
+        date: "Jun 1, 2026",
+        time: "3m",
+        linked: true,
+      },
+      {
+        t: "Christian recommended My Hero Academia",
+        chips: [
+          { k: "p", l: "Christian" },
+          { k: "w", l: "My Hero Academia" },
+        ],
+        date: "Jul 10, 2026",
+        time: "3m",
+        linked: true,
+      },
+      {
+        t: "Capture is cheap",
+        chips: [], // related claim demoted off home
+        date: "Nov 11, 2025",
+        time: "3m",
+        linked: false,
+      },
+      {
+        t: "Want to watch Past Lives",
+        chips: [{ k: "w", l: "Past Lives" }],
+        date: "Jul 15, 2024",
+        time: "3m",
+        linked: true,
+      },
+      {
+        t: "Sleep debt plateaus",
+        chips: [],
+        date: "Mar 1, 2020",
+        time: "Mar 1",
+        linked: false,
+      },
+    ];
+
+    function chipHtml(c) {
+      const cls = c.k === "p" ? "chip-p" : "chip-w";
+      return `<span class="${cls}">${c.l}</span>`;
+    }
+
+    function libraryHtml(filterLinked) {
+      const list = filterLinked ? rowsAll.filter((r) => r.linked) : rowsAll;
+      const rows = list
+        .map(
+          (r) => `
+        <div class="row">
+          <div>
+            <div class="t">${r.t}</div>
+            <div class="sub">
+              ${r.chips.map(chipHtml).join("")}
+              ${r.chips.length ? `<span>· ${r.date}</span>` : `<span>${r.date}</span>`}
+            </div>
+          </div>
+          <div class="time">${r.time}</div>
+        </div>`,
+        )
+        .join("");
+      return `
+        <div class="lib-head">
+          <div class="sec">Library</div>
+          <div class="seg" role="tablist">
+            <button type="button" class="${filterLinked ? "" : "on"}" data-filter="all">All</button>
+            <button type="button" class="${filterLinked ? "on" : ""}" data-filter="linked">Linked</button>
+          </div>
+        </div>
+        <div class="list">${rows}</div>`;
+    }
+
+    function forYouHtml() {
+      return `
+        <div class="sec">For you</div>
+        <div class="for-you" title="Tap opens note">
+          <p class="kicker">On this day</p>
+          <p class="snip">watch Past Lives after dinner sometime</p>
+          <div class="meta">
+            <span>Want to watch Past Lives</span>
+            <span class="date">Jul 15, 2024</span>
+          </div>
+          <button type="button" class="another">Another</button>
+        </div>`;
+    }
+
+    function readyHtml() {
+      return `
+        <div class="ready">
+          <p class="eyebrow">Ready</p>
+          <h2>3 captures to review</h2>
+          <p>Preview first — nothing is written until you Process.</p>
+          <div class="btns">
+            <button type="button" class="btn btn-p">Preview</button>
+            <button type="button" class="btn btn-s">Process</button>
+          </div>
+        </div>`;
+    }
+
+    const scroll = document.getElementById("scroll");
+    const sub = document.getElementById("sub");
+    const phoneCap = document.getElementById("phone-cap");
+    let filterLinked = false;
+
+    function render(state) {
+      document.querySelectorAll(".toolbar .chip").forEach((b) => {
+        b.classList.toggle("on", b.dataset.state === state);
+      });
+      if (state === "calm") {
+        phoneCap.textContent = "Calm · memory hero";
+        sub.textContent = "Your second brain";
+        scroll.innerHTML = forYouHtml() + libraryHtml(false);
+        filterLinked = false;
+      } else if (state === "ready") {
+        phoneCap.textContent = "Work pending · Ready only";
+        sub.textContent = "3 thoughts ready to file";
+        scroll.innerHTML = readyHtml() + libraryHtml(false);
+        filterLinked = false;
+      } else {
+        phoneCap.textContent = "Linked filter";
+        sub.textContent = "Your second brain";
+        filterLinked = true;
+        scroll.innerHTML = forYouHtml() + libraryHtml(true);
+      }
+      scroll.querySelectorAll("[data-filter]").forEach((b) => {
+        b.addEventListener("click", () => {
+          filterLinked = b.dataset.filter === "linked";
+          if (state === "ready") {
+            scroll.innerHTML = readyHtml() + libraryHtml(filterLinked);
+          } else {
+            scroll.innerHTML =
+              (state === "calm" || state === "linked" ? forYouHtml() : "") +
+              libraryHtml(filterLinked);
+          }
+          // rebind
+          render(state === "ready" ? "ready" : filterLinked ? "linked" : "calm");
+        });
+      });
+    }
+
+    document.querySelectorAll(".toolbar .chip").forEach((b) => {
+      b.addEventListener("click", () => render(b.dataset.state));
+    });
+    render("calm");
+  </script>
+</body>
+</html>
