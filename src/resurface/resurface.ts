@@ -708,12 +708,14 @@ export function mindChangeConnectorLabel(
 /**
  * Hero later-line (v2). No em dash. Optional relative-day when dayDelta is a
  * positive whole number from calendar YMD strings only.
+ * Returns prefix + title separately so UI can style the title without
+ * splitting on ": " (titles may contain colons).
  */
-export function mindChangeHeroLaterLine(opts: {
+export function mindChangeHeroLaterLineParts(opts: {
   laterTitle: string;
   relation?: SupersessionRelation;
   dayDelta?: number | null;
-}): string {
+}): { prefix: string; title: string } {
   const title = (opts.laterTitle ?? "").trim() || "Untitled";
   const verb =
     opts.relation === "contradicts" ? "contradicted" : "revised";
@@ -721,15 +723,27 @@ export function mindChangeHeroLaterLine(opts: {
   if (d != null && Number.isFinite(d) && d > 0) {
     const n = Math.floor(d);
     if (n === 1) {
-      return `One day later you ${verb} this: ${title}`;
+      return { prefix: `One day later you ${verb} this`, title };
     }
     const word = dayDeltaCardinalWord(n);
     if (word) {
-      return `${capitalizeWord(word)} days later you ${verb} this: ${title}`;
+      return {
+        prefix: `${capitalizeWord(word)} days later you ${verb} this`,
+        title,
+      };
     }
-    return `${n} days later you ${verb} this: ${title}`;
+    return { prefix: `${n} days later you ${verb} this`, title };
   }
-  return `Later you ${verb} this: ${title}`;
+  return { prefix: `Later you ${verb} this`, title };
+}
+
+export function mindChangeHeroLaterLine(opts: {
+  laterTitle: string;
+  relation?: SupersessionRelation;
+  dayDelta?: number | null;
+}): string {
+  const { prefix, title } = mindChangeHeroLaterLineParts(opts);
+  return `${prefix}: ${title}`;
 }
 
 /** Friendly date for meta: “Jul 15, 2024” */

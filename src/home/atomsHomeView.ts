@@ -33,7 +33,7 @@ import {
   LS_RESURFACE_THROTTLE,
   markResurfaceShown,
   mindChangeConnectorLabel,
-  mindChangeHeroLaterLine,
+  mindChangeHeroLaterLineParts,
   mindChangePairKey,
   parseThrottleJson,
   pickResurface,
@@ -569,7 +569,7 @@ export class AtomsHomeView extends ItemView {
         card.matchDate && card.laterMatchDate
           ? calendarDayDelta(card.matchDate, card.laterMatchDate)
           : null;
-      const line = mindChangeHeroLaterLine({
+      const { prefix, title } = mindChangeHeroLaterLineParts({
         laterTitle: card.laterTitle,
         relation: card.relation ?? "revises",
         dayDelta,
@@ -577,16 +577,11 @@ export class AtomsHomeView extends ItemView {
       const laterEl = el.createEl("p", {
         cls: "atoms-home-mind-change-later",
       });
-      const split = line.lastIndexOf(": ");
-      if (split >= 0) {
-        laterEl.appendText(line.slice(0, split + 2));
-        laterEl.createSpan({
-          cls: "atoms-home-mind-change-later-title",
-          text: line.slice(split + 2),
-        });
-      } else {
-        laterEl.setText(line);
-      }
+      laterEl.appendText(`${prefix}: `);
+      laterEl.createSpan({
+        cls: "atoms-home-mind-change-later-title",
+        text: title,
+      });
     }
     const actions = actionRow(el, {
       className: "atoms-home-mind-change-actions",

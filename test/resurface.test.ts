@@ -17,6 +17,7 @@ import {
   mindChangeAlreadyShownToday,
   mindChangeConnectorLabel,
   mindChangeHeroLaterLine,
+  mindChangeHeroLaterLineParts,
   mindChangePairKey,
   monthDayKey,
   pickResurface,
@@ -446,6 +447,21 @@ describe("mind-change v2 copy helpers", () => {
     expect(line).not.toContain("—");
     expect(line).not.toContain("relates");
     expect(line).not.toContain("·");
+  });
+
+  it("mindChangeHeroLaterLineParts keeps titles with colons intact", () => {
+    const parts = mindChangeHeroLaterLineParts({
+      laterTitle: "Sleep: debt stacks",
+      relation: "revises",
+      dayDelta: 3,
+    });
+    expect(parts.prefix).toBe("Three days later you revised this");
+    expect(parts.title).toBe("Sleep: debt stacks");
+    expect(mindChangeHeroLaterLine({
+      laterTitle: "Sleep: debt stacks",
+      relation: "revises",
+      dayDelta: 3,
+    })).toBe("Three days later you revised this: Sleep: debt stacks");
   });
 
   it("mindChangeConnectorLabel is lowercase chrome", () => {
