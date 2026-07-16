@@ -80,7 +80,8 @@ Template: [`.github/pull_request_template.md`](../.github/pull_request_template.
 6. Implement only the claimed scope; keep STATUS.md hot-files honest
 7. Shipping tail (CLAUDE.md): simplify → code-review → compound → world-class-qa
 8. Ready for review → state In review; request the other human when product-facing
-9. PR body includes **Closes #N** (claimed Issue); merge via GitHub; delete branch; clear STATUS.md row
+9. PR body includes **Closes #N** (claimed Issue); **Test plan boxes checked** only after real runs; **UI PRs** include vault **screenshots** under `docs/qa/screenshots/…` linked in the body (see CLAUDE.md shipping tail + PR template)
+10. Merge via GitHub; delete branch; clear STATUS.md row
 ```
 
 ### Isolation defaults

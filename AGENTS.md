@@ -20,6 +20,8 @@ If hot files overlap an `In progress` claim → **stop** and re-scope or wait. D
 
 **PR → Issue close (mandatory):** every shipping PR body must include `Closes #<issue>` (or `Fixes` / `Resolves`) for the claimed Issue. Plain “Issue #N” does **not** auto-close. After merge, clear the `STATUS.md` row.
 
+**PR evidence (mandatory):** check Test plan boxes only after real runs. UI / product-facing PRs must attach vault smoke **screenshots** under `docs/qa/screenshots/<feature>/` and link them in the PR body (CLAUDE.md shipping tail § PR evidence). Docs-only / pure logic: `N/A — no UI`.
+
 ## Product guardrails (short)
 
 - **Body sacred** — never rewrite capture body into the atom.  

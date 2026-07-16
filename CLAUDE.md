@@ -185,10 +185,11 @@ After **implementation** on any non-trivial change (feature or fix), **always** 
 3. **`ce-compound`** — write the durable learning to `docs/solutions/` (and CONCEPTS if needed) so the next session inherits *why*  
 4. **`world-class-qa`** — pre-merge product QA (project adapter: `docs/qa/`). Proves changed behavior with evidence; not unit tests alone. Ends with **`adversarial-qa`** (break-it pass) per that skill’s hard gate.  
 5. **PR** — body must include **`Closes #<issue>`** (auto-close the hard-claim Issue; “Issue #N” alone is not enough) + distilled **Core user stories** + **Edge cases & testing** (link full report under `docs/qa/YYYY-MM-DD-*-world-class-qa.md`)
-6. **After merge to `master` (plugin code):** run **`npm run phone`** so Remote Vault → phone Sync gets the build ASAP. Not a GitHub Release (release only when asked).
+6. **PR evidence (non-negotiable):** mark every **Test plan** checkbox only after it ran; for **UI / product-facing** changes, attach **screenshots** (or a short clip) of the live vault smoke — commit under `docs/qa/screenshots/<branch-or-feature>/` and link them in the PR body Evidence table. Capture via `obsidian vault="test vault" dev:screenshot path=…` after `./scripts/install-to-vault.sh`. Docs-only / pure logic: write `N/A — no UI` instead of fake images. Leaving the template boxes unchecked after “done” is a shipping-tail bug.
+7. **After merge to `master` (plugin code):** run **`npm run phone`** so Remote Vault → phone Sync gets the build ASAP. Not a GitHub Release (release only when asked).
 
-**Done means:** simplify + code-review + compound + world-class-qa (incl. adversarial half) ran, or an explicit, recorded skip for pure mechanical churn (renames, version-only bumps with no logic, docs-only).  
-**Not done:** “tests green + committed” alone.  
+**Done means:** simplify + code-review + compound + world-class-qa (incl. adversarial half) ran, or an explicit, recorded skip for pure mechanical churn (renames, version-only bumps with no logic, docs-only); PR Test plan boxes match real evidence; UI PRs include vault screenshots in the body.  
+**Not done:** “tests green + committed” alone, or a PR whose Test plan is still all `- [ ]` after the agent claimed verify.  
 **QA not merge-ready:** checklist handoff or BLOCKED when Obsidian/phone/CLI prereqs missing — state gaps in the report; do not label code-read as world-class QA.  
 LFG / `ce-work` / agent sessions must not stop at implement — the shipping tail is part of the work, not optional polish.  
 **Master landed:** plugin bits on phone via `npm run phone` (or recorded skip: docs-only / no Remote Vault on this machine).
