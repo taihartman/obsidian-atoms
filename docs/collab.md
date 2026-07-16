@@ -37,6 +37,26 @@ No implementation until all three exist:
 
 If your hot files overlap an **In progress** row → **stop**. Re-scope, wait, or talk to the other owner. Do not “just be careful.”
 
+### Closing issues on merge (required)
+
+GitHub **only** auto-closes an issue when the PR description (or a commit message on the default branch) contains a keyword link, e.g.:
+
+```text
+Closes #21
+```
+
+Also valid: `Fixes #N`, `Resolves #N` (same effect).
+
+| Do | Don’t |
+|---|---|
+| First line of PR body (or a clear `## Issue` section): `Closes #N` | Only say “Issue #N” or “related to #N” |
+| Match the **hard-claim** Issue number from `STATUS.md` | Forget the number and leave the Issue open forever |
+| After merge: clear the `STATUS.md` row (state Done / remove) | Leave `In progress` rows for merged work |
+
+**Agents:** when opening or updating a PR with `gh pr create` / `gh pr edit`, the body **must** include `Closes #<issue>` for the claimed Issue. “Mentioned #N” is not enough — that was how #21 stayed open after #22 merged.
+
+Template: [`.github/pull_request_template.md`](../.github/pull_request_template.md).
+
 ### Claim states (`STATUS.md`)
 
 | State | Meaning |
@@ -58,7 +78,7 @@ If your hot files overlap an **In progress** row → **stop**. Re-scope, wait, o
 6. Implement only the claimed scope; keep STATUS.md hot-files honest
 7. Shipping tail (CLAUDE.md): simplify → code-review → compound → world-class-qa
 8. Ready for review → state In review; request the other human when product-facing
-9. Merge via GitHub; delete branch; clear STATUS.md row
+9. PR body includes **Closes #N** (claimed Issue); merge via GitHub; delete branch; clear STATUS.md row
 ```
 
 ### Isolation defaults

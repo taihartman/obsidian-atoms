@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| In progress | #21 | tai | refactor/hybrid-src-layout | docs/plans/2026-07-16-017-refactor-hybrid-src-layout-plan.md | src/**, docs/architecture.md | hybrid tree + commands extract; main still fat (follow-up ops split) |
+| In progress | #23 | tai | docs/pr-closes-issue-process | — | docs/collab.md, AGENTS.md, .github/pull_request_template.md | require Closes #N on every PR |
 
 ## How to claim (copy)
 
@@ -23,4 +23,4 @@ States: `Queued` · `In progress` · `Blocked` · `In review` · `Done` (then re
 
 | Merged | Issue / PR | Summary |
 |---|---|---|
-| — | — | — |
+| 2026-07-16 | #21 / #22 | hybrid src layout |
