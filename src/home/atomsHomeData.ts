@@ -327,15 +327,15 @@ export function updateNotesStripCopy(eligibleCount: number): {
     title: "Filing got smarter",
     body:
       n === 1
-        ? "Update 1 older note with the improved model? Your original text stays the same."
-        : `Update ${n} older notes with the improved model? Your original text stays the same.`,
+        ? "Update 1 older note to match? Titles and links may improve. Your original text stays the same."
+        : `Update ${n} older notes to match? Titles and links may improve. Your original text stays the same.`,
     button: "Update",
   };
 }
 
 export function updateNotesConfirmCopy(batchCount: number): string {
   const n = Math.max(0, batchCount);
-  return `Update ${n} note${n === 1 ? "" : "s"} with the improved model? Titles and links may change. Your original capture text will not. Uses your Anthropic key.`;
+  return `Update ${n} note${n === 1 ? "" : "s"} to the newer filing quality? Titles and links may change. Your original capture text will not. Uses your Anthropic key.`;
 }
 
 /** True when this device will file past captures without a Process tap. */

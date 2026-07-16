@@ -281,7 +281,7 @@ describe("updateNotesStripCopy", () => {
     const c = updateNotesStripCopy(3);
     expect(c.title).toBe("Filing got smarter");
     expect(c.button).toBe("Update");
-    expect(c.body).toContain("improved model");
-    expect(c.body).toContain("3 older notes");
+    expect(c.body).toContain("3 older notes to match");
+    expect(c.body).not.toMatch(/\bmodel\b/i);
   });
 });
