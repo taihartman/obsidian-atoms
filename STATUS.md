@@ -7,6 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
+| In progress | #48 | tai | fix/self-links-include-aliases | — | linkQuality.ts, refreshAtoms.ts | aliases/prior as self; CURRENT=4 |
 | In progress | #25 | tai | ci/require-closes-issue | — | .github/workflows/pr-closes-issue.yml | CI enforce Closes #N |
 
 ## How to claim (copy)

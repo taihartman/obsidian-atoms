@@ -20,6 +20,7 @@ import {
   listAtomPaths,
   sanitizeFilename,
 } from "./render";
+import { stripSelfReferentialLinks } from "./enrich/linkQuality";
 import type { ClassificationResult } from "../shared/types";
 import type { PersonHub } from "./enrich/people";
 
@@ -280,7 +281,12 @@ export function planRefreshApply(opts: {
   today?: string;
 }): RefreshApplyPlan {
   const captureText = extractCaptureBody(opts.oldContent);
-  const forced = keepAsAtomResult(opts.result, opts.oldTitle);
+  let forced = keepAsAtomResult(opts.result, opts.oldTitle);
+  // Prior basename + aliases count as self (not “other notes” to link)
+  const { existingAliases } = parseImmutableFrontmatter(opts.oldContent);
+  forced = stripSelfReferentialLinks(forced, {
+    alsoSelf: [opts.oldTitle, ...existingAliases],
+  });
   const newTitle = displayTitleForAtom(forced.title);
   const newPath = atomPathForTitle(opts.atomFolder, forced.title);
   let rename = newPath !== opts.path;
