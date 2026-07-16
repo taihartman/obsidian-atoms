@@ -1,6 +1,7 @@
 import { ItemView, Menu, Notice, WorkspaceLeaf, type TFile } from "obsidian";
 import type AtomsPlugin from "./main";
 import {
+  bodyAfterFrontmatter,
   filterLinkedOnly,
   formatRelativeTime,
   listAtomLibraryEntries,
@@ -10,11 +11,17 @@ import {
 } from "./atomsHomeData";
 import {
   calendarDateToday,
+  citatorChipsForAtom,
   cueLabel,
   formatCueDate,
+  indexAtomFile,
   listResurfaceCandidates,
+  LS_MIND_CHANGE_DAY,
+  LS_MIND_CHANGE_PAIR_THROTTLE,
   LS_RESURFACE_THROTTLE,
   markResurfaceShown,
+  mindChangeLaterLine,
+  mindChangePairKey,
   parseThrottleJson,
   pickResurface,
   pruneThrottle,
@@ -74,6 +81,19 @@ export class AtomsHomeView extends ItemView {
     mtime?: number;
   }> = [];
   private resurfaceThrottle: ResurfaceThrottleMap = {};
+  /** Calendar day when a mind-change hero was last shown (1/day). */
+  private mindChangeDayShown: string | null = null;
+  /** Pair keys throttled after mind-change Open / Next / recovery. */
+  private mindChangePairThrottle: ResurfaceThrottleMap = {};
+  /** In-home atom detail (citator) — null when showing main home. */
+  private homeOpen:
+    | {
+        path: string;
+        title: string;
+        body: string;
+        chips: Array<{ label: string; peerPath: string; peerTitle: string }>;
+      }
+    | null = null;
 
   /** Live Preview/Process progress (not cleared by library refresh). */
   private runPhase: RunPhase = "idle";
@@ -261,6 +281,15 @@ export class AtomsHomeView extends ItemView {
         this.app.loadLocalStorage(LS_RESURFACE_THROTTLE) as string | null,
       ),
     );
+    this.mindChangeDayShown =
+      (this.app.loadLocalStorage(LS_MIND_CHANGE_DAY) as string | null) ?? null;
+    this.mindChangePairThrottle = pruneThrottle(
+      parseThrottleJson(
+        this.app.loadLocalStorage(LS_MIND_CHANGE_PAIR_THROTTLE) as
+          | string
+          | null,
+      ),
+    );
     this.refreshResurfacePick(folder);
 
     this.shortcutAcked = readShortcutAck((k) => this.app.loadLocalStorage(k));
@@ -310,6 +339,13 @@ export class AtomsHomeView extends ItemView {
       this.resurfaceCandidates,
       this.resurfaceSkipPaths,
       this.resurfaceThrottle,
+      Date.now(),
+      undefined,
+      {
+        mindChangeDayShown: this.mindChangeDayShown,
+        todayYmd: today,
+        pairThrottle: this.mindChangePairThrottle,
+      },
     );
   }
 
@@ -320,26 +356,69 @@ export class AtomsHomeView extends ItemView {
     );
   }
 
+  private persistMindChangeMeta(): void {
+    if (this.mindChangeDayShown) {
+      this.app.saveLocalStorage(LS_MIND_CHANGE_DAY, this.mindChangeDayShown);
+    }
+    this.app.saveLocalStorage(
+      LS_MIND_CHANGE_PAIR_THROTTLE,
+      serializeThrottle(this.mindChangePairThrottle),
+    );
+  }
+
   private noteResurfaceShown(path: string): void {
     this.resurfaceThrottle = markResurfaceShown(path, this.resurfaceThrottle);
     this.persistThrottle();
+  }
+
+  private noteMindChangeInteraction(card: ResurfaceCandidate): void {
+    const today = calendarDateToday();
+    this.mindChangeDayShown = today;
+    if (card.laterPath) {
+      const pk = mindChangePairKey(card.path, card.laterPath);
+      this.mindChangePairThrottle = markResurfaceShown(
+        pk,
+        this.mindChangePairThrottle,
+      );
+    }
+    this.noteResurfaceShown(card.path);
+    if (card.laterPath) this.noteResurfaceShown(card.laterPath);
+    this.persistMindChangeMeta();
+  }
+
+  private pickNextResurface(): void {
+    this.resurfaceCard = pickResurface(
+      this.resurfaceCandidates,
+      this.resurfaceSkipPaths,
+      this.resurfaceThrottle,
+      Date.now(),
+      undefined,
+      {
+        mindChangeDayShown: this.mindChangeDayShown,
+        todayYmd: calendarDateToday(),
+        pairThrottle: this.mindChangePairThrottle,
+      },
+    );
   }
 
   private renderResurfaceCard(scroll: HTMLElement): void {
     const card = this.resurfaceCard;
     if (!card) return;
 
-    // Section eyebrow — one calm product word (Apple “For You”)
     scroll.createDiv({
       cls: "atoms-home-section atoms-home-section-for-you",
       text: "For you",
     });
 
+    if (card.cue === "mind-change") {
+      this.renderMindChangeCard(scroll, card);
+      return;
+    }
+
     const el = scroll.createDiv({
       cls: "atoms-home-resurface-card",
       attr: { role: "button", tabindex: "0" },
     });
-    // Whole card opens the note — primary path; “Another” is secondary
     el.addEventListener("click", (ev) => {
       const t = ev.target as HTMLElement;
       if (t.closest(".atoms-home-resurface-another")) return;
@@ -374,17 +453,153 @@ export class AtomsHomeView extends ItemView {
       ev.stopPropagation();
       this.resurfaceSkipPaths.add(card.path);
       this.noteResurfaceShown(card.path);
-      this.resurfaceCard = pickResurface(
-        this.resurfaceCandidates,
-        this.resurfaceSkipPaths,
-        this.resurfaceThrottle,
-      );
+      this.pickNextResurface();
       this.render();
+    });
+  }
+
+  private renderMindChangeCard(
+    scroll: HTMLElement,
+    card: ResurfaceCandidate,
+  ): void {
+    const el = scroll.createDiv({
+      cls: "atoms-home-resurface-card atoms-home-mind-change-card",
+    });
+    el.createEl("p", {
+      cls: "atoms-home-resurface-kicker atoms-home-mind-change-kicker",
+      text: cueLabel("mind-change"),
+    });
+    el.createEl("p", {
+      cls: "atoms-home-resurface-snippet",
+      text: card.bodySnippet,
+    });
+    if (card.laterTitle) {
+      el.createEl("p", {
+        cls: "atoms-home-mind-change-later",
+        text: mindChangeLaterLine(
+          card.laterTitle,
+          card.relation ?? "revises",
+        ),
+      });
+    }
+    const actions = el.createDiv({ cls: "atoms-home-mind-change-actions" });
+    const openBtn = actions.createEl("button", {
+      cls: "atoms-home-mind-change-open",
+      text: "Open",
+      attr: { type: "button" },
+    });
+    openBtn.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      this.noteMindChangeInteraction(card);
+      void this.openAtomInHome(card.path);
+    });
+    const nextBtn = actions.createEl("button", {
+      cls: "atoms-home-mind-change-next",
+      text: "Next",
+      attr: { type: "button" },
+    });
+    nextBtn.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      this.resurfaceSkipPaths.add(card.path);
+      this.noteMindChangeInteraction(card);
+      this.pickNextResurface();
+      this.render();
+    });
+    const rejectBtn = actions.createEl("button", {
+      cls: "atoms-home-mind-change-reject",
+      text: "Not a mind-change",
+      attr: { type: "button" },
+    });
+    rejectBtn.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      this.resurfaceSkipPaths.add(card.path);
+      this.noteMindChangeInteraction(card);
+      this.pickNextResurface();
+      this.render();
+    });
+  }
+
+  private async openAtomInHome(path: string): Promise<void> {
+    const folder = this.plugin.settings.atomFolder || "Atoms";
+    const file = this.atomFileInputs.find((f) => f.path === path);
+    if (!file) {
+      new Notice("Atoms: note not found");
+      return;
+    }
+    const indexed = this.atomFileInputs
+      .map((f) => indexAtomFile(f.path, f.content, folder, f.mtime ?? 0))
+      .filter((x): x is NonNullable<typeof x> => !!x);
+    const self = indexed.find((a) => a.path === path);
+    if (!self) {
+      new Notice("Atoms: note not found");
+      return;
+    }
+    const chips = citatorChipsForAtom(self, indexed);
+    this.homeOpen = {
+      path: self.path,
+      title: self.title,
+      body: bodyAfterFrontmatter(file.content).trim() || self.bodySnippet,
+      chips,
+    };
+    this.render();
+  }
+
+  private renderHomeOpen(scroll: HTMLElement): void {
+    const open = this.homeOpen;
+    if (!open) return;
+    const back = scroll.createEl("button", {
+      cls: "atoms-home-back",
+      text: "‹ For you",
+      attr: { type: "button" },
+    });
+    back.addEventListener("click", () => {
+      this.homeOpen = null;
+      this.render();
+    });
+    scroll.createEl("h2", {
+      cls: "atoms-home-open-title",
+      text: open.title,
+    });
+    if (open.chips.length) {
+      const ribbon = scroll.createDiv({
+        cls: "atoms-home-citator-ribbon",
+        attr: { "aria-label": "Belief history" },
+      });
+      for (const c of open.chips) {
+        const chip = ribbon.createEl("button", {
+          cls: "atoms-home-citator-chip",
+          text: c.label,
+          attr: { type: "button" },
+        });
+        chip.addEventListener("click", () => {
+          void this.openAtomInHome(c.peerPath);
+        });
+      }
+    }
+    scroll.createEl("p", {
+      cls: "atoms-home-open-body",
+      text: open.body.slice(0, 1200),
+    });
+    const vaultBtn = scroll.createEl("button", {
+      cls: "atoms-home-open-vault",
+      text: "Open in vault",
+      attr: { type: "button" },
+    });
+    vaultBtn.addEventListener("click", async () => {
+      const file = this.app.vault.getAbstractFileByPath(open.path);
+      if (file && "extension" in file) {
+        await this.app.workspace.getLeaf(false).openFile(file as TFile);
+      }
     });
   }
 
   private async onOpenResurface(card: ResurfaceCandidate): Promise<void> {
     this.noteResurfaceShown(card.path);
+    if (card.cue === "mind-change") {
+      this.noteMindChangeInteraction(card);
+      await this.openAtomInHome(card.path);
+      return;
+    }
     const file = this.app.vault.getAbstractFileByPath(card.path);
     if (file && "extension" in file) {
       await this.app.workspace.getLeaf(false).openFile(file as TFile);
@@ -397,6 +612,12 @@ export class AtomsHomeView extends ItemView {
     const root = this.rootEl;
     if (!root) return;
     root.empty();
+
+    if (this.homeOpen) {
+      const scroll = root.createDiv({ cls: "atoms-home-scroll" });
+      this.renderHomeOpen(scroll);
+      return;
+    }
 
     const firstDay = this.isFirstDay();
 

@@ -2,14 +2,18 @@ import { describe, expect, it } from "vitest";
 import {
   calendarDateToday,
   cueLabel,
+  extractSupersessionEdges,
   formatCueDate,
   isOnThisDayMatch,
   isThrottled,
   listConnectedCandidates,
+  listMindChangeCandidates,
   listOnThisDayCandidates,
   listQuietCandidates,
   listResurfaceCandidates,
   markResurfaceShown,
+  mindChangeAlreadyShownToday,
+  mindChangePairKey,
   monthDayKey,
   pickResurface,
   type IndexedAtom,
@@ -202,5 +206,138 @@ describe("copy helpers", () => {
     expect(formatCueDate("2024-07-15")).toBe("Jul 15, 2024");
     expect(cueLabel("quiet")).toBe("Worth meeting again");
     expect(cueLabel("connected")).toMatch(/recent/i);
+  });
+});
+
+describe("supersession edges + mind-change", () => {
+  it("extracts revises wikilink from link prose", () => {
+    const edges = extractSupersessionEdges(
+      atom({
+        created: "2026-07-10",
+        body: "New take on sleep.",
+        links: "revises [[Sleep debt doesn't stack]].",
+      }),
+    );
+    expect(edges).toEqual([
+      {
+        peerTitle: "Sleep debt doesn't stack",
+        relation: "revises",
+        direction: "outbound",
+      },
+    ]);
+  });
+
+  it("ignores relates-only links", () => {
+    const edges = extractSupersessionEdges(
+      atom({
+        created: "2026-07-10",
+        body: "x",
+        links: "relates because [[Other]].",
+      }),
+    );
+    expect(edges).toEqual([]);
+  });
+
+  it("lists mind-change with old body primary", () => {
+    const older: IndexedAtom = {
+      path: "Atoms/Old claim.md",
+      title: "Old claim",
+      bodySnippet: "I used to think X",
+      matchDate: "2026-01-01",
+      mtime: 100,
+      linkChips: [],
+      content: atom({ created: "2026-01-01", body: "I used to think X" }),
+    };
+    const newer: IndexedAtom = {
+      path: "Atoms/New claim.md",
+      title: "New claim",
+      bodySnippet: "Now Y",
+      matchDate: "2026-07-01",
+      mtime: 200,
+      linkChips: ["Old claim"],
+      content: atom({
+        created: "2026-07-01",
+        body: "Now Y",
+        links: "revises [[Old claim]].",
+      }),
+    };
+    const list = listMindChangeCandidates([older, newer], "Atoms");
+    expect(list).toHaveLength(1);
+    expect(list[0]!.cue).toBe("mind-change");
+    expect(list[0]!.path).toBe("Atoms/Old claim.md");
+    expect(list[0]!.bodySnippet).toBe("I used to think X");
+    expect(list[0]!.laterTitle).toBe("New claim");
+    expect(list[0]!.laterPath).toBe("Atoms/New claim.md");
+  });
+
+  it("prioritizes mind-change above on-this-day", () => {
+    const files = [
+      {
+        path: "Atoms/Old claim.md",
+        content: atom({
+          created: "2024-07-15",
+          source: "2024-07-15",
+          body: "old belief body here",
+        }),
+        mtime: 50,
+      },
+      {
+        path: "Atoms/New claim.md",
+        content: atom({
+          created: "2026-07-01",
+          body: "updated",
+          links: "revises [[Old claim]].",
+        }),
+        mtime: 200,
+      },
+      {
+        path: "Atoms/Past Lives.md",
+        content: atom({
+          created: "2024-07-15",
+          source: "2024-07-15",
+          body: "anniversary memory",
+        }),
+        mtime: 80,
+      },
+    ];
+    const list = listResurfaceCandidates(files, "2026-07-15", "Atoms");
+    expect(list[0]!.cue).toBe("mind-change");
+    expect(list[0]!.path).toBe("Atoms/Old claim.md");
+  });
+
+  it("pickResurface skips mind-change after day cap", () => {
+    const cands = [
+      {
+        path: "Atoms/Old.md",
+        title: "Old",
+        bodySnippet: "x",
+        matchDate: "",
+        cue: "mind-change" as const,
+        laterPath: "Atoms/New.md",
+        laterTitle: "New",
+        relation: "revises" as const,
+      },
+      {
+        path: "Atoms/Other.md",
+        title: "Other",
+        bodySnippet: "y",
+        matchDate: "2024-07-15",
+        cue: "on-this-day" as const,
+      },
+    ];
+    expect(
+      pickResurface(cands, [], {}, Date.now(), 7, {
+        mindChangeDayShown: "2026-07-16",
+        todayYmd: "2026-07-16",
+      })?.cue,
+    ).toBe("on-this-day");
+    expect(mindChangeAlreadyShownToday("2026-07-16", "2026-07-16")).toBe(true);
+    expect(mindChangePairKey("b", "a")).toBe("a::b");
+  });
+});
+
+describe("cueLabel mind-change", () => {
+  it("labels mind change calmly", () => {
+    expect(cueLabel("mind-change")).toBe("Mind change");
   });
 });

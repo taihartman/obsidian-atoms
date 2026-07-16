@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Belief Rehearsal OS — design handoff</title>
+  <style>
+    :root {
+      --bg: #0a0a0c; --grouped: #1c1c1e; --label: #fff;
+      --secondary: rgba(235, 235, 245, 0.6); --tint: #0a84ff;
+      --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+    }
+    body { margin: 0; font-family: var(--font); background: var(--bg); color: var(--label); -webkit-font-smoothing: antialiased; }
+    .page { max-width: 640px; margin: 0 auto; padding: 28px 18px 80px; }
+    h1 { font-size: 1.45rem; letter-spacing: -0.03em; margin: 0 0 8px; }
+    .lede { color: var(--secondary); line-height: 1.5; margin: 0 0 20px; }
+    .card {
+      background: var(--grouped); border-radius: 14px; padding: 16px 18px; margin-bottom: 12px;
+    }
+    a { color: var(--tint); text-decoration: none; font-weight: 500; }
+    a:hover { text-decoration: underline; }
+    ul { color: var(--secondary); line-height: 1.5; margin: 8px 0 0; padding-left: 1.2rem; }
+    li { margin: 4px 0; }
+    .meta { font-size: 0.8rem; color: var(--secondary); margin-bottom: 22px; }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <h1>Belief Rehearsal OS</h1>
+    <p class="meta">Design authority for plan <code>docs/plans/2026-07-16-011-feat-belief-rehearsal-os-plan.md</code> · 2026-07-16</p>
+    <p class="lede">Product center: show when the mind changed. Stream hero first; one-line home citator second. Soft death deferred. No editor chrome. No queue.</p>
+    <div class="card">
+      <a href="mind-change-hero.html">1. Mind-change hero (For you)</a>
+      <ul>
+        <li>Old body snippet primary</li>
+        <li>Later line → new claim</li>
+        <li>Open · Next · Not a mind-change</li>
+        <li>Highest cue; max one per day</li>
+      </ul>
+    </div>
+    <div class="card">
+      <a href="home-open-citator.html">2. Home open + citator ribbon</a>
+      <ul>
+        <li>Subsequent-history chips on Atoms home only</li>
+        <li>No Obsidian note injection</li>
+      </ul>
+    </div>
+  </div>
+</body>
+</html>

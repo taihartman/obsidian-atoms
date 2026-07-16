@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Belief Rehearsal — mind-change hero</title>
+  <style>
+    :root {
+      --bg: #000; --grouped: #1c1c1e; --elevated: #2c2c2e; --sep: rgba(84, 84, 88, 0.55);
+      --label: #fff; --secondary: rgba(235, 235, 245, 0.6); --tertiary: rgba(235, 235, 245, 0.32);
+      --tint: #0a84ff; --tint-soft: rgba(10, 132, 255, 0.18);
+      --mind: #bf5af2; --mind-soft: rgba(191, 90, 242, 0.16);
+      --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: var(--font); background: #0a0a0c; color: var(--label); -webkit-font-smoothing: antialiased; }
+    .page { max-width: 900px; margin: 0 auto; padding: 28px 18px 80px; }
+    h1 { font-size: 1.35rem; letter-spacing: -0.03em; margin: 0 0 8px; }
+    .lede { color: var(--secondary); max-width: 40rem; line-height: 1.5; margin: 0 0 16px; font-size: 0.95rem; }
+    .decisions {
+      background: var(--grouped); border: 1px solid var(--sep); border-radius: 14px;
+      padding: 14px 16px; margin-bottom: 24px; font-size: 0.85rem; color: var(--secondary); line-height: 1.45;
+    }
+    .decisions strong { color: var(--label); }
+    .stage { display: flex; flex-wrap: wrap; gap: 36px; align-items: flex-start; }
+    .cap { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--tertiary); text-align: center; margin-bottom: 10px; }
+    .phone {
+      width: 375px; height: 812px; background: var(--bg); border-radius: 44px;
+      border: 4px solid #2a2a2c; box-shadow: 0 28px 70px rgba(0,0,0,0.55);
+      overflow: hidden; display: flex; flex-direction: column; position: relative;
+    }
+    .notch {
+      height: 28px; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 4px;
+      font-size: 0.72rem; font-weight: 600; color: var(--label);
+    }
+    .nav {
+      padding: 8px 16px 12px; display: flex; align-items: center; justify-content: space-between;
+    }
+    .nav .title { font-size: 1.2rem; font-weight: 700; letter-spacing: -0.02em; }
+    .nav .gear { color: var(--tint); font-size: 0.9rem; }
+    .scroll { flex: 1; overflow: hidden; padding: 0 16px 24px; }
+    .section-label {
+      font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em;
+      color: var(--tertiary); margin: 8px 0 8px;
+    }
+    .hero {
+      background: var(--grouped); border-radius: 16px; padding: 16px 16px 14px;
+      border: 1px solid rgba(191, 90, 242, 0.28);
+    }
+    .eyebrow {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 0.72rem; font-weight: 600; color: var(--mind);
+      background: var(--mind-soft); padding: 4px 10px; border-radius: 980px; margin-bottom: 12px;
+    }
+    .body-snip {
+      font-size: 1.05rem; line-height: 1.45; font-weight: 400; color: var(--label);
+      letter-spacing: -0.01em; margin: 0 0 14px;
+    }
+    .later {
+      font-size: 0.88rem; color: var(--secondary); line-height: 1.4; margin: 0 0 16px;
+      padding-top: 12px; border-top: 1px solid var(--sep);
+    }
+    .later em { font-style: normal; color: var(--tint); font-weight: 500; }
+    .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .btn {
+      flex: 1; min-width: 0; text-align: center; border: none; border-radius: 12px;
+      padding: 12px 10px; font-size: 0.9rem; font-weight: 600; font-family: inherit; cursor: default;
+    }
+    .btn.primary { background: var(--tint); color: #fff; }
+    .btn.secondary { background: var(--elevated); color: var(--label); }
+    .btn.quiet {
+      flex: 1 1 100%; background: transparent; color: var(--tertiary); font-weight: 500; font-size: 0.82rem; padding: 8px;
+    }
+    .lib-preview {
+      margin-top: 18px; opacity: 0.45;
+    }
+    .lib-row {
+      background: var(--grouped); border-radius: 12px; padding: 12px 14px; margin-bottom: 8px;
+      font-size: 0.9rem; color: var(--secondary);
+    }
+    .side { max-width: 320px; color: var(--secondary); font-size: 0.88rem; line-height: 1.5; }
+    .side h2 { color: var(--label); font-size: 0.95rem; margin: 0 0 8px; }
+    .side code { font-size: 0.8em; color: var(--mind); }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <h1>Mind-change hero</h1>
+    <p class="lede">Highest For you cue when a hard supersession pair exists. Body of the older claim first; newer claim as quiet “later.” Max one hero per day. No due counts.</p>
+    <div class="decisions">
+      <strong>Decisions locked</strong>
+      <ul>
+        <li>Priority: mind-change → on-this-day → connected → quiet</li>
+        <li>Hard tokens only: <code>revises</code> / <code>contradicts</code></li>
+        <li>Actions: Open · Next · Not a mind-change (recovery throttle)</li>
+        <li>Empty: no card (fall through) — never “0 mind-changes”</li>
+      </ul>
+    </div>
+    <div class="stage">
+      <div>
+        <div class="cap">375 × phone · For you</div>
+        <div class="phone">
+          <div class="notch">9:41</div>
+          <div class="nav">
+            <div class="title">Atoms</div>
+            <div class="gear">⋯</div>
+          </div>
+          <div class="scroll">
+            <div class="section-label">For you</div>
+            <div class="hero">
+              <div class="eyebrow">Mind change</div>
+              <p class="body-snip">Sleep debt doesn’t really stack — one good night fixes most of it. I’m probably fine running short this week.</p>
+              <p class="later">Later you wrote <em>Sleep debt compounds across the week</em> · revises</p>
+              <div class="actions">
+                <button type="button" class="btn primary">Open</button>
+                <button type="button" class="btn secondary">Next</button>
+                <button type="button" class="btn quiet">Not a mind-change</button>
+              </div>
+            </div>
+            <div class="lib-preview">
+              <div class="section-label">Library</div>
+              <div class="lib-row">Recent atoms stay below — not competing with the hero</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="side">
+        <h2>Hierarchy</h2>
+        <p>Eyebrow names the cue type without calendar language. Body is the fossil — what you used to believe in your own words. “Later” is secondary, tint only on the new title.</p>
+        <h2>Recovery</h2>
+        <p><strong>Not a mind-change</strong> is quiet, full-width, tertiary. It throttles this pair; it does not open a queue or ask for a grade.</p>
+        <h2>First appearance</h2>
+        <p>Once-only quiet peak allowed (subtle emphasis ok). No confetti. No multi-step tutorial.</p>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
