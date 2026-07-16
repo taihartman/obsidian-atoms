@@ -23,6 +23,11 @@ export interface AtomLibraryEntry {
   linkChips: string[];
   /** Home display: max 2, typed person|work, model order. */
   displayChips: DisplayLinkChip[];
+  /**
+   * Sort + relative-time clock for Recents.
+   * Prefer frontmatter `created` (not file mtime) so Update notes does not
+   * make every row say “5m ago”.
+   */
   mtime: number;
 }
 
@@ -77,6 +82,60 @@ export function extractSourceDay(content: string): string | null {
   // Daily basenames are often YYYY-MM-DD
   if (/^\d{4}-\d{2}-\d{2}/.test(name)) return name.slice(0, 10);
   return name;
+}
+
+const CREATED_RE = /^created:\s*(.+)$/m;
+
+/**
+ * Parse atom `created` frontmatter to epoch ms.
+ * Accepts `YYYY-MM-DD` or `YYYY-MM-DDTHH:mm(:ss)?` (local wall clock).
+ */
+export function parseCreatedMs(content: string): number | null {
+  if (!content.startsWith("---")) return null;
+  const end = content.indexOf("\n---", 3);
+  const fm = end === -1 ? content.slice(0, 800) : content.slice(0, end + 4);
+  const m = fm.match(CREATED_RE);
+  if (!m?.[1]) return null;
+  const raw = m[1].trim().replace(/^["']|["']$/g, "");
+  const dayOnly = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (dayOnly) {
+    const y = Number(dayOnly[1]);
+    const mo = Number(dayOnly[2]);
+    const d = Number(dayOnly[3]);
+    if (!y || !mo || !d) return null;
+    return new Date(y, mo - 1, d, 12, 0, 0, 0).getTime();
+  }
+  const withTime = raw.match(
+    /^(\d{4})-(\d{2})-(\d{2})T(\d{1,2}):(\d{2})(?::(\d{2}))?/,
+  );
+  if (withTime) {
+    const y = Number(withTime[1]);
+    const mo = Number(withTime[2]);
+    const d = Number(withTime[3]);
+    const h = Number(withTime[4]);
+    const mi = Number(withTime[5]);
+    const s = Number(withTime[6] ?? 0);
+    return new Date(y, mo - 1, d, h, mi, s, 0).getTime();
+  }
+  const t = Date.parse(raw);
+  return Number.isFinite(t) ? t : null;
+}
+
+/**
+ * Library sort/display clock: `created` → source day noon → file mtime.
+ * Update notes must not reshuffle Recents via file mtime.
+ */
+export function libraryTimeMs(content: string, fileMtimeMs: number): number {
+  const created = parseCreatedMs(content);
+  if (created != null && Number.isFinite(created)) return created;
+  const day = extractSourceDay(content);
+  if (day && /^\d{4}-\d{2}-\d{2}/.test(day)) {
+    const y = Number(day.slice(0, 4));
+    const mo = Number(day.slice(5, 7));
+    const d = Number(day.slice(8, 10));
+    if (y && mo && d) return new Date(y, mo - 1, d, 12, 0, 0, 0).getTime();
+  }
+  return fileMtimeMs;
 }
 
 /** Body after frontmatter (or full content if none). */
@@ -273,7 +332,7 @@ export function parseAtomLibraryEntry(
     sourceDay: extractSourceDay(content),
     linkChips: extractLinkChips(body, title),
     displayChips: extractDisplayLinkChips(body, title, tags),
-    mtime,
+    mtime: libraryTimeMs(content, mtime),
   };
 }
 
@@ -431,9 +490,12 @@ export function filingHeroCopy(input: {
   };
 }
 
-/** Relative time label for library rows (en-US-ish, compact). */
-export function formatRelativeTime(mtimeMs: number, nowMs: number = Date.now()): string {
-  const sec = Math.max(0, Math.floor((nowMs - mtimeMs) / 1000));
+/**
+ * Relative time label for library rows (en-US-ish, compact).
+ * `whenMs` should be libraryTimeMs (created), not raw file mtime after Update.
+ */
+export function formatRelativeTime(whenMs: number, nowMs: number = Date.now()): string {
+  const sec = Math.max(0, Math.floor((nowMs - whenMs) / 1000));
   if (sec < 60) return "now";
   const min = Math.floor(sec / 60);
   if (min < 60) return `${min}m`;
@@ -442,7 +504,7 @@ export function formatRelativeTime(mtimeMs: number, nowMs: number = Date.now()):
   const day = Math.floor(hr / 24);
   if (day === 1) return "Yest.";
   if (day < 7) return `${day}d`;
-  return new Date(mtimeMs).toLocaleDateString(undefined, {
+  return new Date(whenMs).toLocaleDateString(undefined, {
     month: "short",
     day: "numeric",
   });

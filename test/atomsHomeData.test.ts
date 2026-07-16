@@ -10,8 +10,10 @@ import {
   formatRelativeTime,
   isAutomaticFilingReady,
   isGeneratedAtomContent,
+  libraryTimeMs,
   listAtomLibraryEntries,
   parseAtomLibraryEntry,
+  parseCreatedMs,
   personNameFromClaimTitle,
   shouldShowWaitCard,
   titleFromAtomPath,
@@ -21,12 +23,14 @@ import {
 const atomMd = (opts: {
   title?: string;
   source?: string;
+  created?: string;
   body: string;
   links?: string;
 }) => {
   const title = opts.title ?? "Claim title";
+  const created = opts.created ?? "2026-07-14";
   return `---
-created: 2026-07-14
+created: ${created}
 source: "[[${opts.source ?? "2026-07-14"}]]"
 generated-by: linker
 tags:
@@ -124,19 +128,47 @@ relates to this note about Ning ([[Ning is the strong Asian guy at CRG who wears
   });
 });
 
+describe("parseCreatedMs / libraryTimeMs", () => {
+  it("prefers created over file mtime so Update does not reshuffle Recents", () => {
+    const content = atomMd({
+      created: "2026-07-10T09:00:00",
+      body: "old capture",
+    });
+    const fileMtime = Date.now(); // “just updated”
+    const t = libraryTimeMs(content, fileMtime);
+    expect(t).toBe(parseCreatedMs(content));
+    expect(t).toBeLessThan(fileMtime - 86_400_000);
+  });
+
+  it("parses day-only created as local noon", () => {
+    const ms = parseCreatedMs(atomMd({ created: "2026-07-14", body: "x" }));
+    expect(ms).not.toBeNull();
+    const d = new Date(ms!);
+    expect(d.getFullYear()).toBe(2026);
+    expect(d.getMonth()).toBe(6);
+    expect(d.getDate()).toBe(14);
+    expect(d.getHours()).toBe(12);
+  });
+});
+
 describe("listAtomLibraryEntries", () => {
-  it("filters folder, generated-by, sorts mtime desc", () => {
+  it("filters folder, generated-by, sorts by created (not file mtime)", () => {
     const entries = listAtomLibraryEntries(
       [
         {
           path: "Atoms/Older.md",
-          mtime: 100,
-          content: atomMd({ title: "Older", body: "a" }),
+          mtime: 9_999_999, // newer file mtime must not win
+          content: atomMd({
+            title: "Older",
+            created: "2026-07-01",
+            body: "a",
+          }),
         },
         {
           path: "Atoms/Newer.md",
-          mtime: 200,
+          mtime: 100, // older file mtime
           content: atomMd({
+            created: "2026-07-20",
             body: "b",
             links: "about [[Alex]].",
           }),

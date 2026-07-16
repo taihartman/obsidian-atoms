@@ -7,6 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
+| In progress | #40 | tai | fix/recents-use-created-not-mtime | — | home/atomsHomeData.ts | Recents use created not mtime |
 | In progress | #25 | tai | ci/require-closes-issue | — | .github/workflows/pr-closes-issue.yml | CI enforce Closes #N |
 
 ## How to claim (copy)
