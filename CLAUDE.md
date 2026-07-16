@@ -1,37 +1,44 @@
 # CLAUDE.md — Obsidian Atoms
 
-Project rules for any coding agent (Grok, Claude Code, Cursor). Deeper docs win when they conflict with this file only if they are the **implementation plan** or **spec amendments**.
+Project rules for any coding agent (Grok, Claude Code, Cursor, Codex, etc.). Deeper docs win when they conflict with this file only if they are the **implementation plan** or **spec amendments**.
+
+> **STOP — multiplayer repo.** Before any implementation: read [`docs/collab.md`](docs/collab.md) + [`STATUS.md`](STATUS.md). Hard claim required (assigned Issue + STATUS row + draft PR). Humans may not remind you; compliance is on the agent. Entry point for all tools: [`AGENTS.md`](AGENTS.md).
 
 ## Product in one sentence
 
-Read **past** daily notes → split captures → classify atom/task/noise via Anthropic → write flat atoms (declarative title, reason-bearing links, **verbatim** body) → mark every capture with a sentinel so nothing reprocesses. Capture UI is **out of scope** (iOS Shortcut already exists).
+Turn **past** daily captures into a trusted second brain: classify → flat atoms (declarative title, reason-bearing links, **verbatim** body) + sentinels → **Atoms home** library → gentle **resurface** (stream, not guilt queue). Capture UI is **out of scope** (external capture; iOS Shortcut today, Android-capable later). Desktop, iOS, and Android are first-class vault/plugin consumers.
 
 ## Authority (read before coding)
 
 | Doc | Role |
 |---|---|
-| `docs/plans/2026-07-15-001-feat-obsidian-atoms-plugin-plan.md` | Implementation authority (units U1–U10) |
+| `docs/collab.md` + `STATUS.md` | Multiplayer + agent process; **hard claim before code** |
+| `docs/architecture.md` | Long-lived system map + north star (constitution) |
+| Active plan under `docs/plans/` | Implementation authority for the claimed feature |
+| `docs/plans/2026-07-15-001-feat-obsidian-atoms-plugin-plan.md` | Historical core pipeline (U1–U10); not the live roadmap |
 | `docs/spec-amendments.md` | Corrected design + *why* (markers, append cut, rot) |
-| `docs/architecture.md` | Long-lived system map + future v2 shape |
 | `docs/u1-spike-findings.md` | Spike-verified API/SecretStorage notes |
 | `docs/solutions/` | Documented solutions to past problems (bugs, patterns, workflows), by category with YAML frontmatter (`module`, `tags`, `problem_type`) — relevant when implementing or debugging in those areas |
 | `CONCEPTS.md` | Shared domain vocabulary (entities, named processes, status concepts) — relevant when orienting or discussing domain terms |
 
-Where plan and amendments conflict, **the plan wins**. Amendments explain rationale for plan KTDs.
+Where an **active feature plan** and amendments conflict, **that plan wins**. Amendments explain rationale for plan KTDs.  
+**Constitution** (`CLAUDE.md` non-negotiables + `architecture.md` north star) changes **only via PR** — never silent mid-feature edits.
 
 ## Non-negotiables (bugs if violated)
 
 1. **Body is sacred** — capture text lands in the atom **verbatim** (whitespace / obvious typo only). Model output surface = title, tags, links only.
 2. **Never move files or choose folders** — atoms land flat in one configured folder (default `Atoms/`).
-3. **Never read or modify today's daily note.** Only *create files* and *append* markers to past dailies; never rewrite existing lines.
+3. **Default: do not process today's daily.** Pipeline excludes today so mid-day capture stays quiet. Explicit user force (Preview/Process today) is allowed; never rewrite existing daily lines — only *create* atom files and *append* markers.
 4. **Sentinel is the processed marker** for **all three** verdicts:
    - atom: `↳ [[title]] <!--linker-->`
    - task/noise: `<!--linker:task-->` / `<!--linker:noise-->`
    - Wikilinks *inside* capture text are **not** markers.
 5. **API key in SecretStorage** (or device-local fallback) — never `data.json`.
 6. **Nothing destroyed** — idempotent, re-runnable; bad classifications are never lossy.
-7. **Dry-run (U7) before write path (U8).**
-8. **Develop against throwaway vault only** (`test_vault/`) until dry-run is trusted on real history.
+7. **Untrusted classify/write paths need dry-run evidence** before relying on them. Gated **auto-run** may write without a per-run human dry-run once privacy + device gates pass.
+8. **Write experiments against throwaway vault** (`test_vault/`) until the path is trusted. Read-only / explicit user-OK checks on a real vault are fine; never point unattended automation at a personal vault.
+9. **Second brain, not a task app** — no due-date/checklist gravity; `task` verdict is soft-retired.
+10. **No platform-only product** without an explicit plan note (desktop/iOS/Android consumers).
 
 ## Versioning
 
@@ -39,13 +46,11 @@ Where plan and amendments conflict, **the plan wins**. Amendments explain ration
 - Show version in **Settings → Atoms**.
 - After install, user checks Settings for `Version x.y.z` (phone Sync lag is obvious if stale).
 
-## Build order
+## Stack + tests
 
-Implement strictly **U1 → U10**. Each unit = one atomic commit's worth of work. After each unit: show diffs + Verification evidence before continuing.
-
-- **U1** spike first (API + SecretStorage + KTD3/KTD5 forks).
-- **Test-first** on correctness cores: `parseCaptures` (U3), `render` (U8).
 - Stack: sample-plugin template, TypeScript + esbuild, `obsidian-daily-notes-interface`, `isDesktopOnly: false`, network via `requestUrl` (not `fetch` — CORS).
+- **Test-first** on correctness cores: `parseCaptures`, `render`, and other pure logic touched by the claim.
+- Historical core pipeline units: U1–U10 in the 2026-07-15 plan (done/superseded for roadmap purposes).
 
 ## Commands
 
@@ -149,7 +154,13 @@ Intelligence lives in **links + titles**, not folders.
 
 ## Workflow
 
-Default: plan → implement unit → verify → next unit. Full ce-* loop when using compound-engineering for net-new features. Amend lane for tiny post-ship tweaks.
+**Lanes (pick one first):** **[docs/workflow-lanes.md](docs/workflow-lanes.md)** — full · light · amend · debug · mechanical. Ambiguity → heavier lane. Agents state `Lane` / `Why` / `Doc-review` on non-trivial work before planning or coding.
+
+**Multiplayer:** follow [`docs/collab.md`](docs/collab.md). Hard claim = GitHub Issue (assigned) + [`STATUS.md`](STATUS.md) row + draft PR **before** implementation. Session start: read constitution → `STATUS.md` → open PRs → only then plan/code.
+
+Default: plan → implement claim → verify. Full ce-* loop for net-new / high-risk work. Light plan + light doc-review for small clear features. Amend for tiny post-ship tweaks. `ce-debug` for broken behavior.
+
+**Plan quality gate:** After writing or **materially updating** a plan in `docs/plans/` (product bar, KTDs, units, parity/scope flips), run at least a **light `ce-doc-review`** (`mode:headless` coherence + feasibility; add design/product lenses when UI or product claims move) **before** `ce-work` / implementation. Do not implement from an unreviewed plan rewrite mid-session. Full multi-persona doc-review for large or high-risk plans. See lane card for sizing.
 
 ### Mandatory shipping tail (do not skip)
 
@@ -166,6 +177,8 @@ After **implementation** on any non-trivial change (feature or fix), **always** 
 **QA not merge-ready:** checklist handoff or BLOCKED when Obsidian/phone/CLI prereqs missing — state gaps in the report; do not label code-read as world-class QA.  
 LFG / `ce-work` / agent sessions must not stop at implement — the shipping tail is part of the work, not optional polish.
 
-## Out of scope (v1)
+## Out of scope (unless constitution/plan explicitly opens it)
 
-Capture UI · AI folder placement · `append` into user notes · always-on 3am headless · embeddings · resurfacing stream (v2).
+Capture UI (any OS) · AI folder placement · `append` into user notes · always-on 3am headless · embeddings · competing with task managers/calendars.
+
+**Partially shipped — extend only via plans:** Atoms home, resurfacing stream, people hubs, belief rehearsal, auto-run/automatic filing.

@@ -53,10 +53,16 @@ describe("second-brain triage contract (0.4.3)", () => {
     expect(SYSTEM_PROMPT).toMatch(/buy milk/);
     expect(SYSTEM_PROMPT).toMatch(/When in doubt between task and noise → \*\*noise\*\*/);
     expect(SYSTEM_PROMPT).toMatch(/one atom per capture/i);
+    expect(SYSTEM_PROMPT).toMatch(/product\/app\/build ideas/i);
+    expect(SYSTEM_PROMPT).toMatch(/reason must still teach/i);
+    expect(SYSTEM_PROMPT).toMatch(/only if/i);
+    expect(SYSTEM_PROMPT).toMatch(/Note titles/i);
+    expect(SYSTEM_PROMPT).toMatch(/8–12 words|short declarative/i);
     const verdictDesc =
       CLASSIFICATION_SCHEMA.properties.verdict.description as string;
     expect(verdictDesc).toMatch(/almost never use it/i);
     expect(verdictDesc).toMatch(/list\/media/i);
+    expect(verdictDesc).toMatch(/product\/app ideas/i);
   });
 
   it("seeds default Active vocabulary with media/list tags", () => {

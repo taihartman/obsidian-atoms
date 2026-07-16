@@ -152,8 +152,16 @@ function ensureVaultSkeleton() {
     [
       "# Welcome",
       "",
-      "Synthetic dogfood vault for **Atoms** README screenshots.",
+      "Synthetic dogfood vault for **Atoms** — **target-quality** filing demo.",
       "All people, shows, and claims here are fictional sample content.",
+      "",
+      "## Look around",
+      "",
+      "1. Open **[[Jordan]]** → Backlinks with substantive reasons.",
+      "2. Open **[[People]]** → workplace index edges.",
+      "3. Open **[[App ideas]]** → product ideas kept as atoms (not task/noise).",
+      "4. Open a **Daily** note → captures + markers.",
+      "5. Graph view → hubs with dense edges; media links only when a hub note exists.",
       "",
     ].join("\n"),
   );
@@ -173,6 +181,12 @@ const people = {
       "",
       "Coworker on the design team. Likes quiet coffee walks.",
       "",
+      "## Preferences",
+      "- (atom backlinks add gift / aesthetic cues)",
+      "",
+      "## Work",
+      "- Design critiques prefer mornings",
+      "",
     ].join("\n"),
   },
   riley: {
@@ -186,6 +200,23 @@ const people = {
       "# Riley",
       "",
       "Friend who always has a book recommendation.",
+      "",
+    ].join("\n"),
+  },
+  index: {
+    path: "People/People.md",
+    body: [
+      "---",
+      "tags:",
+      "  - people-index",
+      "---",
+      "",
+      "# People",
+      "",
+      "Workplace + social index. New person atoms link here when no dedicated hub yet.",
+      "",
+      "## Studio",
+      "- (atom backlinks: Sam)",
       "",
     ].join("\n"),
   },
@@ -203,8 +234,26 @@ function seedFull() {
 
   writeFileSync(join(vault, people.jordan.path), people.jordan.body);
   writeFileSync(join(vault, people.riley.path), people.riley.body);
+  writeFileSync(join(vault, people.index.path), people.index.body);
 
-  // --- Atoms (filed) ---
+  mkdirSync(join(vault, "Projects"), { recursive: true });
+  writeFileSync(
+    join(vault, "Projects/App ideas.md"),
+    [
+      "---",
+      "tags:",
+      "  - project",
+      "  - ideas",
+      "---",
+      "",
+      "# App ideas",
+      "",
+      "Hub for product / build ideas. Keepable pitches stay **atoms** that link here.",
+      "",
+    ].join("\n"),
+  );
+
+  // --- Atoms (filed) — target-quality reasons ---
   const atoms = [
     {
       file: "Short walks unlock stuck problems.md",
@@ -214,7 +263,7 @@ function seedFull() {
       body: [
         "09:14 short walk fixed the design block better than another hour at the desk",
         "",
-        "relates to focus and recovery ([[Deep work needs recovery]]).",
+        "same recovery theme as deep-work breaks ([[Deep work needs recovery]])",
         "",
       ].join("\n"),
     },
@@ -236,7 +285,19 @@ function seedFull() {
       body: [
         "10:20 Jordan said morning design critiques land better than late afternoon",
         "",
-        "preference about [[Jordan]].",
+        "scheduling preference for critiques — mornings over late afternoon ([[Jordan]])",
+        "",
+      ].join("\n"),
+    },
+    {
+      file: "Jordan likes the color periwinkle.md",
+      created: `${d2}T11:00:00`,
+      source: d2,
+      tags: ["person", "preferences"],
+      body: [
+        "Jordan likes the color periwinkle",
+        "",
+        "concrete aesthetic preference for gifts / clothes ([[Jordan]])",
         "",
       ].join("\n"),
     },
@@ -248,7 +309,19 @@ function seedFull() {
       body: [
         "20:05 Riley said rewatch Arrival for the linguistics angle",
         "",
-        'media work to watch ([[Arrival]]). preference about [[Riley]].',
+        "watchlist: Arrival already in the vault · recommended by Riley ([[Arrival]]) · recommendation source ([[Riley]])",
+        "",
+      ].join("\n"),
+    },
+    {
+      file: "Sam is the strong designer at Studio who wears a white collared shirt.md",
+      created: `${d2}T12:00:00`,
+      source: d2,
+      tags: ["person", "observation"],
+      body: [
+        "Sam is the name of the really strong designer at Studio. Usually wears white collared shirt",
+        "",
+        "workplace / social index — identity cue from this capture ([[People]])",
         "",
       ].join("\n"),
     },
@@ -260,7 +333,7 @@ function seedFull() {
       body: [
         "08:40 capture is cheap; the scarce resource is a calm review pass later",
         "",
-        "relates to filing past dailies into atoms.",
+        "product stance for filing past dailies into atoms without a guilt review queue",
         "",
       ].join("\n"),
     },
@@ -271,6 +344,19 @@ function seedFull() {
       tags: ["question", "idea"],
       body: [
         "16:11 what would make tomorrow's planning feel light instead of heavy?",
+        "",
+      ].join("\n"),
+    },
+    {
+      file: "Starbucks weekend drink tracker site idea.md",
+      created: `${d1}T18:00:00`,
+      source: d1,
+      tags: ["idea", "project"],
+      body: [
+        "Personal starbucks weekend drink order tracker website.",
+        "Please create a modern website to log weekend Starbucks drinks publicly with private write access and AI fun facts.",
+        "",
+        "product / build idea to revisit ([[App ideas]])",
         "",
       ].join("\n"),
     },
@@ -334,8 +420,12 @@ function seedFull() {
       "",
       "- 10:20 Jordan said morning design critiques land better than late afternoon",
       "\t↳ [[Jordan prefers morning design critiques]] <!--linker-->",
+      "- Jordan likes the color periwinkle",
+      "\t↳ [[Jordan likes the color periwinkle]] <!--linker-->",
       "- 20:05 Riley said rewatch Arrival for the linguistics angle",
       "\t↳ [[Want to watch Arrival]] <!--linker-->",
+      "- Sam is the name of the really strong designer at Studio. Usually wears white collared shirt",
+      "\t↳ [[Sam is the strong designer at Studio who wears a white collared shirt]] <!--linker-->",
       "- email landlord about the lock",
       "\t<!--linker:noise-->",
       "",
@@ -351,8 +441,11 @@ function seedFull() {
       "\t↳ [[Capture is cheap review is scarce]] <!--linker-->",
       "- 16:11 what would make tomorrow's planning feel light instead of heavy?",
       "\t↳ [[Questions beat vague goals]] <!--linker-->",
+      "- Personal starbucks weekend drink order tracker website.",
+      "- Please create a modern website to log weekend Starbucks drinks publicly with private write access and AI fun facts.",
+      "\t↳ [[Starbucks weekend drink tracker site idea]] <!--linker-->",
       "- schedule dentist",
-      "\t<!--linker:task-->",
+      "\t<!--linker:noise-->",
       "",
     ].join("\n"),
   );
@@ -428,9 +521,14 @@ wipeFolder(dailyFolder);
 wipeFolder(atomsFolder);
 wipeFolder(peopleFolder);
 // Remove stray sample hubs from prior full seeds
-for (const extra of ["Arrival.md"]) {
+for (const extra of ["Arrival.md", "Welcome.md"]) {
   const p = join(vault, extra);
-  if (existsSync(p)) rmSync(p, { force: true });
+  if (existsSync(p) && extra !== "Welcome.md") rmSync(p, { force: true });
+}
+// Clean Projects/ between seeds (recreated in full mode)
+const projectsDir = join(vault, "Projects");
+if (existsSync(projectsDir) && mode !== "full") {
+  wipeFolder(projectsDir);
 }
 
 if (mode === "empty") seedEmpty();
