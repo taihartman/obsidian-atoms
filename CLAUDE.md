@@ -127,6 +127,7 @@ obsidian command id=atoms:auto-run-status             # U9 — device-local gate
 obsidian command id=atoms:auto-run-now                # U9 — try (respects gates)
 obsidian command id=atoms:test-connection             # HTTPS + Anthropic probe (no secrets)
 obsidian command id=atoms:backfill-estimate-confirm   # U10 — estimate gate (batch only after confirm)
+obsidian command id=atoms:update-notes                # refresh older atoms to current quality
 
 # Safe key presence check (no raw key in output)
 obsidian eval 'code=(()=>{const p=app.plugins.plugins["atoms"];const k=p?.getApiKey?.();return JSON.stringify({hasKey:!!k,keyLen:k?.length??0,model:p?.settings?.model})})()'

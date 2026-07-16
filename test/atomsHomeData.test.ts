@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   classifyLinkRole,
+  countEligibleUpdateNotes,
   extractDisplayLinkChips,
   extractLinkChips,
   extractSourceDay,
@@ -14,6 +15,7 @@ import {
   personNameFromClaimTitle,
   shouldShowWaitCard,
   titleFromAtomPath,
+  updateNotesStripCopy,
 } from "../src/home/atomsHomeData";
 
 const atomMd = (opts: {
@@ -254,5 +256,31 @@ describe("isAutomaticFilingReady", () => {
         hasKey: false,
       }),
     ).toBe(false);
+  });
+});
+
+describe("countEligibleUpdateNotes", () => {
+  it("counts unstamped linker atoms", () => {
+    const legacy = atomMd({ body: "old" });
+    const stamped = `---
+created: 2026-07-14
+source: "[[2026-07-14]]"
+generated-by: linker
+atoms-quality: 2
+quality-updated: 2026-07-16
+tags: []
+---
+new
+`;
+    expect(countEligibleUpdateNotes([legacy, stamped, "# hand"])).toBe(1);
+  });
+});
+
+describe("updateNotesStripCopy", () => {
+  it("locks product copy", () => {
+    const c = updateNotesStripCopy(3);
+    expect(c.title).toBe("Update notes");
+    expect(c.button).toBe("Update");
+    expect(c.body).toContain("3 older notes");
   });
 });

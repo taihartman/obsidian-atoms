@@ -362,8 +362,15 @@ function seedFull() {
     },
   ];
 
+  // First atom left unstamped (eligible for Update notes); rest stamp CURRENT=2.
+  let atomIdx = 0;
   for (const a of atoms) {
     const tagsYaml = a.tags.map((t) => `  - ${t}`).join("\n");
+    const stamp =
+      atomIdx === 0
+        ? []
+        : ["atoms-quality: 2", `quality-updated: ${d1}`];
+    atomIdx += 1;
     writeFileSync(
       join(atomsFolder, a.file),
       [
@@ -371,6 +378,7 @@ function seedFull() {
         `created: ${a.created}`,
         `source: "[[${a.source}]]"`,
         "generated-by: linker",
+        ...stamp,
         "tags:",
         tagsYaml,
         "---",

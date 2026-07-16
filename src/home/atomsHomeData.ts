@@ -2,6 +2,11 @@
  * Pure data for Atoms home view: library rows + pending helpers.
  */
 
+import {
+  CURRENT_ATOMS_QUALITY,
+  isEligibleForUpdate,
+} from "../pipeline/atomQuality";
+
 /** Home-row chip role — person (warm) vs work/media (cool). */
 export type LinkChipRole = "person" | "work";
 
@@ -297,6 +302,37 @@ export function filterLinkedOnly(entries: AtomLibraryEntry[]): AtomLibraryEntry[
 
 export function shouldShowWaitCard(unprocessedCount: number): boolean {
   return unprocessedCount > 0;
+}
+
+/** Count linker atoms with atoms-quality missing or below CURRENT (batch cap separate). */
+export function countEligibleUpdateNotes(
+  contents: string[],
+  current: number = CURRENT_ATOMS_QUALITY,
+): number {
+  let n = 0;
+  for (const c of contents) {
+    if (isEligibleForUpdate(c, current)) n += 1;
+  }
+  return n;
+}
+
+/** Strip copy for Update notes (locked product strings). */
+export function updateNotesStripCopy(eligibleCount: number): {
+  title: string;
+  body: string;
+  button: string;
+} {
+  const n = Math.max(0, eligibleCount);
+  return {
+    title: "Update notes",
+    body: `${n} older note${n === 1 ? "" : "s"} · same AI as filing · your words stay put`,
+    button: "Update",
+  };
+}
+
+export function updateNotesConfirmCopy(batchCount: number): string {
+  const n = Math.max(0, batchCount);
+  return `Refresh ${n} note${n === 1 ? "" : "s"} with AI? Titles and links may update. Original capture text will not. Uses your Anthropic key.`;
 }
 
 /** True when this device will file past captures without a Process tap. */

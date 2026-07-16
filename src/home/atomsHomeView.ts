@@ -10,6 +10,7 @@ import {
 import type AtomsPlugin from "../plugin/main";
 import {
   bodyAfterFrontmatter,
+  countEligibleUpdateNotes,
   filingHeroCopy,
   filterLinkedOnly,
   formatRelativeTime,
@@ -17,9 +18,15 @@ import {
   listAtomLibraryEntries,
   queuePeekTexts,
   shouldShowWaitCard,
+  updateNotesConfirmCopy,
+  updateNotesStripCopy,
   type AtomLibraryEntry,
   type FilingHeroCopy,
 } from "./atomsHomeData";
+import {
+  CURRENT_ATOMS_QUALITY,
+} from "../pipeline/atomQuality";
+import { UPDATE_NOTES_BATCH_LIMIT } from "../pipeline/refreshAtoms";
 import {
   calendarDateToday,
   calendarDayDelta,
@@ -83,6 +90,8 @@ import {
 
 export const ATOMS_HOME_VIEW_TYPE = "atoms-home";
 
+const LS_UPDATE_NOTES_DISMISSED_Q = "atoms-update-notes-dismissed-q";
+
 type FilterMode = "all" | "linked";
 
 /**
@@ -111,6 +120,8 @@ export class AtomsHomeView extends ItemView {
   private filter: FilterMode = "all";
   private entries: AtomLibraryEntry[] = [];
   private unprocessedCount = 0;
+  /** Linker atoms below CURRENT quality (for Update notes strip). */
+  private eligibleUpdateCount = 0;
   /** Unprocessed bullets on today's daily only (for force-test UI). */
   private todayUnprocessedCount = 0;
   private peek: Array<{ text: string; date: string }> = [];
@@ -218,8 +229,8 @@ export class AtomsHomeView extends ItemView {
     this.render();
   }
 
-  /** Start a home-visible run (Preview or Process). */
-  beginRun(phase: "preview" | "process"): void {
+  /** Start a home-visible run (Preview, Process, or Update notes). */
+  beginRun(phase: "preview" | "process" | "update"): void {
     this.busy = true;
     this.runPhase = phase;
     this.runDone = 0;
@@ -286,7 +297,12 @@ export class AtomsHomeView extends ItemView {
       el.createEl("p", { text: this.runSummaryText });
       return;
     }
-    const phase = this.runPhase === "preview" ? "preview" : "process";
+    const phase: "preview" | "process" | "update" =
+      this.runPhase === "preview"
+        ? "preview"
+        : this.runPhase === "update"
+          ? "update"
+          : "process";
     el.createEl("h2", {
       text: progressLabel(phase, this.runDone, this.runTotal || 1),
     });
@@ -357,6 +373,9 @@ export class AtomsHomeView extends ItemView {
       content: i.content,
       mtime: i.mtime,
     }));
+    this.eligibleUpdateCount = countEligibleUpdateNotes(
+      inputs.map((i) => i.content),
+    );
     this.resurfaceThrottle = pruneThrottle(
       parseThrottleJson(
         this.app.loadLocalStorage(LS_RESURFACE_THROTTLE) as string | null,
@@ -864,9 +883,11 @@ export class AtomsHomeView extends ItemView {
           ? "Previewing…"
           : this.runPhase === "process"
             ? "Filing…"
-            : this.runPhase === "done"
-              ? this.runSummaryText
-              : this.runSummaryText
+            : this.runPhase === "update"
+              ? "Updating…"
+              : this.runPhase === "done"
+                ? this.runSummaryText
+                : this.runSummaryText
         : shouldShowWaitCard(this.unprocessedCount)
           ? isAutomaticFilingReady(this.plugin.getAutoRunSnapshot())
             ? this.unprocessedCount === 1
@@ -1000,6 +1021,14 @@ export class AtomsHomeView extends ItemView {
     const workPending = shouldShowWaitCard(this.unprocessedCount);
     if (!firstDay && this.runPhase === "idle" && !workPending) {
       this.renderResurfaceCard(scroll);
+    }
+
+    if (
+      !firstDay &&
+      this.runPhase === "idle" &&
+      this.shouldShowUpdateNotesStrip()
+    ) {
+      this.renderUpdateNotesStrip(scroll);
     }
 
     if (this.showShortcutBanner()) {
@@ -1193,6 +1222,75 @@ export class AtomsHomeView extends ItemView {
           : "Could not open today's daily note",
       );
     }
+  }
+
+  private dismissedUpdateQuality(): number {
+    const raw = this.app.loadLocalStorage(LS_UPDATE_NOTES_DISMISSED_Q);
+    if (typeof raw === "string" && /^\d+$/.test(raw)) {
+      return Number.parseInt(raw, 10);
+    }
+    if (typeof raw === "number" && Number.isFinite(raw)) return raw;
+    return -1;
+  }
+
+  private shouldShowUpdateNotesStrip(): boolean {
+    if (this.eligibleUpdateCount <= 0) return false;
+    if (this.dismissedUpdateQuality() >= CURRENT_ATOMS_QUALITY) return false;
+    return true;
+  }
+
+  private renderUpdateNotesStrip(scroll: HTMLElement): void {
+    const batch = Math.min(
+      this.eligibleUpdateCount,
+      UPDATE_NOTES_BATCH_LIMIT,
+    );
+    const copy = updateNotesStripCopy(this.eligibleUpdateCount);
+    const card = flatCard(scroll, { className: "atoms-home-update-notes" });
+    card.createEl("h2", { text: copy.title });
+    card.createEl("p", { text: copy.body });
+    const actions = actionRow(card, {
+      className: "atoms-home-wait-actions",
+    });
+    button(actions, {
+      grade: "primary",
+      label: this.busy ? "…" : copy.button,
+      disabled: this.busy,
+      onClick: () => this.confirmUpdateNotes(batch),
+    });
+    button(actions, {
+      grade: "quiet",
+      label: "Not now",
+      disabled: this.busy,
+      onClick: () => {
+        this.app.saveLocalStorage(
+          LS_UPDATE_NOTES_DISMISSED_Q,
+          String(CURRENT_ATOMS_QUALITY),
+        );
+        this.render();
+      },
+    });
+  }
+
+  private confirmUpdateNotes(batchCount: number): void {
+    const modal = new Modal(this.app);
+    modal.titleEl.setText("Update notes");
+    modal.contentEl.createEl("p", {
+      text: updateNotesConfirmCopy(batchCount),
+    });
+    new Setting(modal.contentEl)
+      .addButton((b) =>
+        b.setButtonText("Cancel").onClick(() => modal.close()),
+      )
+      .addButton((b) =>
+        b
+          .setButtonText("Update")
+          .setCta()
+          .onClick(() => {
+            modal.close();
+            void this.plugin.runUpdateNotes();
+          }),
+      );
+    modal.open();
   }
 
   private onInstallShortcut(): void {

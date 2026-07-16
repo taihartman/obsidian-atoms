@@ -9,14 +9,20 @@ export type RunProgressMeta = {
   captureText?: string;
 };
 
-export type RunPhase = "idle" | "preview" | "process" | "done" | "error";
+export type RunPhase =
+  | "idle"
+  | "preview"
+  | "process"
+  | "update"
+  | "done"
+  | "error";
 
 export type RunSummary = {
   atoms: number;
   tasks: number;
   noise: number;
   failed: number;
-  mode: "preview" | "process";
+  mode: "preview" | "process" | "update";
 };
 
 export function snippetCapture(text: string, max = 72): string {
@@ -94,11 +100,24 @@ export function progressPercent(done: number, total: number): number {
 }
 
 export function progressLabel(
-  phase: "preview" | "process",
+  phase: "preview" | "process" | "update",
   done: number,
   total: number,
 ): string {
-  const verb = phase === "preview" ? "Previewing" : "Processing";
+  const verb =
+    phase === "preview"
+      ? "Previewing"
+      : phase === "update"
+        ? "Updating"
+        : "Processing";
   if (total <= 0) return `${verb}…`;
   return `${verb} ${done} of ${total}`;
+}
+
+export function formatUpdateSummary(updated: number, failed: number): string {
+  if (updated <= 0 && failed <= 0) return "Nothing to update";
+  if (failed > 0) {
+    return `Updated ${updated} note${updated === 1 ? "" : "s"} · ${failed} failed`;
+  }
+  return `Updated ${updated} note${updated === 1 ? "" : "s"} to current quality.`;
 }

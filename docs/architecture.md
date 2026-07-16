@@ -23,7 +23,7 @@ World-class here means: **trust the body**, **intelligence in the graph**, **zer
 ## Design principles (load-bearing)
 
 1. **Verbatim body** — the model never authors the note body. Titles may be confident; the body preserves hedges and half-formedness (context-rot defense).
-2. **Two write types only** — (a) new files in flat `Atoms/`, (b) append-only marker lines on past dailies. No rewriting user prose, no folder intelligence.
+2. **Three write types** — (a) new files in flat `Atoms/`, (b) append-only marker lines on past dailies, (c) **user-initiated** in-place refresh of existing linker atoms (Update notes: model surfaces only; body sacred). No rewriting user capture prose, no folder intelligence.
 3. **Sentinel idempotency** — processed state is a plugin-owned HTML comment line, not “any wikilink.” Covers atom **and** task/noise (cost + correctness).
 4. **Conservative triage** — when in doubt, `noise`. Dry-run is the only human gate before writes.
 5. **Device-local control plane** — API key and auto-run flag do not sync; vocabulary and atoms do.
@@ -75,6 +75,8 @@ processInbox(dryRun)
 | `pipeline/write.ts` | Write-path orchestration |
 | `pipeline/preview.ts` | Dry-run surface |
 | `pipeline/backfill.ts` | Batch API + estimate gate |
+| `pipeline/atomQuality.ts` | `CURRENT_ATOMS_QUALITY` + eligibility stamps |
+| `pipeline/refreshAtoms.ts` | Update notes: classify parity + in-place refresh |
 | `pipeline/daily.ts` | Past dailies / today open helpers |
 | `pipeline/vocabulary.ts` | Active / vault / proposed tags |
 | `pipeline/enrich/*` | Post-classify repair: people, media, linkQuality, ideaRescue |
@@ -115,7 +117,7 @@ processInbox(dryRun)
 | Atoms | `Atoms/*.md` | yes (vault) |
 | Markers | under captures in daily notes | yes (vault) |
 
-Atom frontmatter (exact): `created`, `source` (wikilink), `generated-by`, `tags`. Optional `aliases` only when filename sanitization changes the title (KTD8).
+Atom frontmatter: `created`, `source` (wikilink), `generated-by`, `tags`, plus quality stamps `atoms-quality` (int) and `quality-updated` (YYYY-MM-DD) on Process-created and Update-refreshed atoms. Optional `aliases` when sanitization changes the title (KTD8) or title rename needs a back-compat alias.
 
 ## Safety envelope
 
@@ -135,7 +137,7 @@ Atom frontmatter (exact): `created`, `source` (wikilink), `generated-by`, `tags`
                     └─────────────────────────┘
 ```
 
-Hard stops: today excluded · no file moves · no append-into-user-notes · no auto-apply proposed tags · backfill behind cost gate · auto-run needs egress ack.
+Hard stops: today excluded · no file moves · no append-into-user-notes · no auto-apply proposed tags · backfill behind cost gate · auto-run needs egress ack · **no auto Update notes** (user strip/command only).
 
 ## Future architecture (v2 — do not build yet)
 
