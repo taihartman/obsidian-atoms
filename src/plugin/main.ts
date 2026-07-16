@@ -238,7 +238,10 @@ export default class AtomsPlugin extends Plugin {
     fixtureResults?: import("../shared/types").ClassificationResult[];
     limit?: number;
   }): Promise<void> {
-    const apiKey = this.requireApiKey();
+    const usingFixtures = !!(opts?.fixtureResults && opts.fixtureResults.length);
+    const apiKey = usingFixtures
+      ? this.getApiKey() || "fixture"
+      : this.requireApiKey();
     if (!apiKey) return;
 
     this.beginHomeRun("update");
