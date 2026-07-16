@@ -9,8 +9,8 @@ import {
   parseBatchResultsJsonl,
   classificationFromBatchLine,
   BATCH_DISCOUNT,
-} from "../src/backfill";
-import type { Capture, DailyNoteWithCaptures, VaultContext } from "../src/types";
+} from "../src/pipeline/backfill";
+import type { Capture, DailyNoteWithCaptures, VaultContext } from "../src/shared/types";
 
 const ctx: VaultContext = {
   personHubs: [],

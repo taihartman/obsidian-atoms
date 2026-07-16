@@ -7,7 +7,7 @@ import {
   TFile,
   WorkspaceLeaf,
 } from "obsidian";
-import type AtomsPlugin from "./main";
+import type AtomsPlugin from "../plugin/main";
 import {
   bodyAfterFrontmatter,
   filingHeroCopy,
@@ -39,7 +39,7 @@ import {
   serializeThrottle,
   type ResurfaceCandidate,
   type ResurfaceThrottleMap,
-} from "./resurface";
+} from "../resurface/resurface";
 import {
   CAPTURE_SHORTCUT_VERSION,
   labelInstallOrUpdate,
@@ -48,12 +48,12 @@ import {
   readShortcutAck,
   resolveCaptureShortcutInstallUrl,
   writeShortcutAck,
-} from "./captureShortcut";
+} from "../settings/captureShortcut";
 import {
   DailyNotesDisabledError,
   getPastDailyNotesWithUnmarkedCaptures,
   openTodaysDaily,
-} from "./daily";
+} from "../pipeline/daily";
 import {
   progressLabel,
   progressPercent,

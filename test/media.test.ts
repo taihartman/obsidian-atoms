@@ -4,9 +4,9 @@ import {
   extractWorkTitle,
   isMediaShaped,
   titleCaseWork,
-} from "../src/media";
-import type { ClassificationResult } from "../src/types";
-import { filterTagsToActive, STRUCTURAL_TAGS } from "../src/vocabulary";
+} from "../src/pipeline/enrich/media";
+import type { ClassificationResult } from "../src/shared/types";
+import { filterTagsToActive, STRUCTURAL_TAGS } from "../src/pipeline/vocabulary";
 
 const atomBase = (over: Partial<ClassificationResult> = {}): ClassificationResult => ({
   verdict: "atom",

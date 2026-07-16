@@ -7,7 +7,7 @@ import {
   readShortcutAck,
   resolveCaptureShortcutInstallUrl,
   writeShortcutAck,
-} from "../src/captureShortcut";
+} from "../src/settings/captureShortcut";
 
 describe("needsShortcutCta / labels", () => {
   it("needs install when never acked", () => {

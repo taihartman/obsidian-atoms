@@ -6,10 +6,10 @@ import {
   CLASSIFICATION_SCHEMA,
   fingerprintKey,
   SYSTEM_PROMPT,
-} from "../src/classify";
-import type { VaultContext } from "../src/types";
-import { DEFAULT_SETTINGS } from "../src/types";
-import { filterTagsToActive } from "../src/vocabulary";
+} from "../src/pipeline/classify";
+import type { VaultContext } from "../src/shared/types";
+import { DEFAULT_SETTINGS } from "../src/shared/types";
+import { filterTagsToActive } from "../src/pipeline/vocabulary";
 
 const ctx: VaultContext = {
   titles: ["Sleep debt doesn't accumulate linearly", "Other note"],

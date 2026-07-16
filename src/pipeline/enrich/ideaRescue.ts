@@ -3,7 +3,7 @@
  * Prefer atom over silent loss of second-brain material.
  */
 
-import type { ClassificationResult } from "./types";
+import type { ClassificationResult } from "../../shared/types";
 
 const CHORE_RE =
   /\b(buy |email |call |schedule |text |pick up|remind|dentist|landlord|oat milk)\b/i;

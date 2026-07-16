@@ -16,8 +16,8 @@ import type {
   ClassificationResult,
   DailyNoteWithCaptures,
   VaultContext,
-} from "./types";
-import type { PersonHub } from "./people";
+} from "../shared/types";
+import type { PersonHub } from "./enrich/people";
 import { filterTagsToActive, mergeProposedTags } from "./vocabulary";
 
 export const BATCHES_URL = "https://api.anthropic.com/v1/messages/batches";

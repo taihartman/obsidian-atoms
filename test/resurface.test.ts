@@ -17,7 +17,7 @@ import {
   monthDayKey,
   pickResurface,
   type IndexedAtom,
-} from "../src/resurface";
+} from "../src/resurface/resurface";
 
 const atom = (opts: {
   created: string;

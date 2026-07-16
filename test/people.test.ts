@@ -12,8 +12,8 @@ import {
   personHubMissAfterEnrich,
   PERSON_HUB_TOP_N,
   scorePersonHubCandidate,
-} from "../src/people";
-import type { ClassificationResult } from "../src/types";
+} from "../src/pipeline/enrich/people";
+import type { ClassificationResult } from "../src/shared/types";
 
 function atom(
   partial: Partial<ClassificationResult> & { title: string },

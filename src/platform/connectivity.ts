@@ -2,7 +2,7 @@ import { requestUrl, type RequestUrlParam, type RequestUrlResponse } from "obsid
 import {
   ANTHROPIC_MESSAGES_URL,
   ANTHROPIC_VERSION,
-} from "./classify";
+} from "../pipeline/classify";
 
 export type ConnectivityProbeId = "https_baseline" | "anthropic_api";
 

@@ -1,4 +1,4 @@
-import type { Capture, DailyNoteWithCaptures, MarkerKind } from "./types";
+import type { Capture, DailyNoteWithCaptures, MarkerKind } from "../shared/types";
 
 /** Atom marker: ↳ … [[…]] … <!--linker--> (KTD1 / §A). */
 export const ATOM_MARKER_RE = /^\s*↳ .*\[\[.*\]\].*<!--linker-->\s*$/;

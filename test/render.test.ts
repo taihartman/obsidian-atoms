@@ -10,9 +10,9 @@ import {
   sanitizeFilename,
   formatAtomBody,
   TITLE_MAX_LEN,
-} from "../src/render";
-import type { Capture, ClassificationResult } from "../src/types";
-import { parseCaptures } from "../src/parse";
+} from "../src/pipeline/render";
+import type { Capture, ClassificationResult } from "../src/shared/types";
+import { parseCaptures } from "../src/pipeline/parse";
 
 const capture = (text: string, start = 0, end = 0): Capture => ({
   text,

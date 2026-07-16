@@ -5,13 +5,13 @@ import {
   SecretComponent,
   Setting,
 } from "obsidian";
-import type AtomsPlugin from "./main";
-import { aggregateTagsFromFileCaches } from "./context";
+import type AtomsPlugin from "../plugin/main";
+import { aggregateTagsFromFileCaches } from "../pipeline/context";
 import {
   readDeviceAutoRunState,
   writeAutoRunEnabled,
   writeEgressAck,
-} from "./autorun";
+} from "../platform/autorun";
 import {
   CAPTURE_SHORTCUT_VERSION,
   labelInstallOrUpdate,
@@ -20,18 +20,18 @@ import {
   resolveCaptureShortcutInstallUrl,
   writeShortcutAck,
 } from "./captureShortcut";
-import { clampAtomFolder } from "./render";
+import { clampAtomFolder } from "../pipeline/render";
 import {
   API_KEY_SECRET_ID_DEFAULT,
   LOCAL_STORAGE_API_KEY,
-} from "./types";
+} from "../shared/types";
 import {
   addCustomActiveTag,
   approveProposedTag,
   normalizeTag,
   removeActiveTag,
   tagCountsSorted,
-} from "./vocabulary";
+} from "../pipeline/vocabulary";
 
 function settingHeading(containerEl: HTMLElement, name: string): void {
   new Setting(containerEl).setName(name).setHeading();

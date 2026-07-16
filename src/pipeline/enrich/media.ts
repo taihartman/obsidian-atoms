@@ -4,8 +4,8 @@
  * Never changes verdict or title (same contract as enrichPersonLinks).
  */
 
-import type { ClassificationResult } from "./types";
-import { normalizeTag, sortTags } from "./vocabulary";
+import type { ClassificationResult } from "../../shared/types";
+import { normalizeTag, sortTags } from "../vocabulary";
 
 /** Detect obvious watch/read media dumps. */
 export function isMediaShaped(captureText: string): boolean {

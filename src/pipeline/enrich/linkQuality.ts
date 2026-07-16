@@ -3,7 +3,7 @@
  * Rewrites boilerplate reasons into substantive prose without an API retry.
  */
 
-import type { ClassificationLink, ClassificationResult } from "./types";
+import type { ClassificationLink, ClassificationResult } from "../../shared/types";
 
 /** Boilerplate patterns from model + older person/media repair defaults. */
 const WEAK_REASON_RE =

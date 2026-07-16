@@ -13,7 +13,7 @@ import {
   LS_AUTO_RUN_EGRESS_ACK,
   LS_LAST_RUN_DAY,
   PER_LAUNCH_CAP,
-} from "../src/autorun";
+} from "../src/platform/autorun";
 
 describe("shouldRunAutoProcess", () => {
   it("same-calendar-day with no past work → no run", () => {

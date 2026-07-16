@@ -6,8 +6,8 @@ import {
   collectTitles,
   renderStablePrefix,
   titleFromPath,
-} from "../src/context";
-import { buildContextUserMessage } from "../src/classify";
+} from "../src/pipeline/context";
+import { buildContextUserMessage } from "../src/pipeline/classify";
 import {
   approveProposedTag,
   eligibleTags,
@@ -16,7 +16,7 @@ import {
   normalizeTag,
   STRUCTURAL_TAGS,
   tagCountsSorted,
-} from "../src/vocabulary";
+} from "../src/pipeline/vocabulary";
 
 describe("titles", () => {
   it("strips path and extension", () => {

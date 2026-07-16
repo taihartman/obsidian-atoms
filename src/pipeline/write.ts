@@ -17,11 +17,11 @@ import type {
   Capture,
   ClassificationResult,
   DailyNoteWithCaptures,
-} from "./types";
+} from "../shared/types";
 import {
   personHubMissAfterEnrich,
   type PersonHub,
-} from "./people";
+} from "./enrich/people";
 import { mergeProposedTags } from "./vocabulary";
 
 export interface WritePathEntry {

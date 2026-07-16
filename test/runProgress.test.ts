@@ -6,9 +6,9 @@ import {
   snippetCapture,
   summaryFromDryRun,
   type RunSummary,
-} from "../src/runProgress";
-import type { DryRunReport } from "../src/preview";
-import type { Capture } from "../src/types";
+} from "../src/home/runProgress";
+import type { DryRunReport } from "../src/pipeline/preview";
+import type { Capture } from "../src/shared/types";
 
 const cap: Capture = {
   text: "x",

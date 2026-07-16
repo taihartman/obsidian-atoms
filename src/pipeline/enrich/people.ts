@@ -3,8 +3,8 @@
  * Paths stay local; model payload only sees canonical titles.
  */
 
-import type { ClassificationResult } from "./types";
-import { normalizeTag, sortTags } from "./vocabulary";
+import type { ClassificationResult } from "../../shared/types";
+import { normalizeTag, sortTags } from "../vocabulary";
 
 function basenameTitle(path: string): string {
   const base = path.split("/").pop() ?? path;

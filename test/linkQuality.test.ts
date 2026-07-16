@@ -4,8 +4,8 @@ import {
   isWeakLinkReason,
   maybeLinkPeopleIndex,
   rewriteWeakLinkReason,
-} from "../src/linkQuality";
-import type { ClassificationResult } from "../src/types";
+} from "../src/pipeline/enrich/linkQuality";
+import type { ClassificationResult } from "../src/shared/types";
 
 function atom(
   partial: Partial<ClassificationResult> & { title: string },
