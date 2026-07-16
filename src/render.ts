@@ -57,7 +57,9 @@ export function formatAtomBody(
 /** @deprecated alias — preview used the old name */
 export const formatAtomBodyPreview = formatAtomBody;
 
-const ILLEGAL_FILENAME = /[/:\\?%*|"<>]/g;
+/** No /g — used with .test(); global + test() is lastIndex-stateful. */
+const ILLEGAL_FILENAME_CHAR = /[/:\\?%*|"<>]/;
+const ILLEGAL_FILENAME_GLOBAL = /[/:\\?%*|"<>]/g;
 const RESERVED = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i;
 /** Bound model titles for paths + markers (pre-community security). */
 export const TITLE_MAX_LEN = 120;
@@ -74,8 +76,8 @@ export function clampAtomFolder(raw: string | null | undefined): string {
   if (parts.length !== 1) return "Atoms";
   const seg = parts[0]!;
   if (seg === "." || seg === ".." || seg.includes("..")) return "Atoms";
-  if (/[\u0000-\u001F\u007F]/.test(seg)) return "Atoms";
-  if (ILLEGAL_FILENAME.test(seg)) return "Atoms";
+  if (/[\u0000-\u001F\u007F\u2028\u2029]/.test(seg)) return "Atoms";
+  if (ILLEGAL_FILENAME_CHAR.test(seg)) return "Atoms";
   return seg;
 }
 
@@ -90,10 +92,10 @@ export function sanitizeFilename(title: string): {
 } {
   const original = (title ?? "").trim() || "Untitled";
   let name = original
-    .replace(/[\u0000-\u001F\u007F]/g, " ")
+    .replace(/[\u0000-\u001F\u007F\u2028\u2029]/g, " ")
     .replace(/\[\[/g, "(")
     .replace(/\]\]/g, ")")
-    .replace(ILLEGAL_FILENAME, "-")
+    .replace(ILLEGAL_FILENAME_GLOBAL, "-")
     .replace(/\.\.+/g, ".")
     .replace(/^\.+/, "")
     .replace(/\.+$/, "")

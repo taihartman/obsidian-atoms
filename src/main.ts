@@ -347,8 +347,9 @@ export default class AtomsPlugin extends Plugin {
       },
     });
 
-    // Spike / fixture / log-only probes — dev/watch builds only (not Community prod).
-    if (typeof ATOMS_DEV_COMMANDS === "undefined" || ATOMS_DEV_COMMANDS) {
+    // Spike / fixture / log-only probes — only when esbuild defines true (watch/dev).
+    // Fail-closed: missing define → no spikes (safer for accidental packaging).
+    if (typeof ATOMS_DEV_COMMANDS !== "undefined" && ATOMS_DEV_COMMANDS) {
       this.addCommand({
         id: "spike-classify-hardcoded",
         name: "Spike: classify hardcoded capture",
