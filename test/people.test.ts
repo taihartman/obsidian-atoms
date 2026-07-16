@@ -3,9 +3,14 @@ import {
   captureMentionsKey,
   discoverPersonHubs,
   enrichPersonLinks,
+  frontmatterHasPersonTag,
   isPersonLikeBasename,
+  meetsPersonHubThreshold,
+  pathHasBoostSegment,
   pathHasAllowlistSegment,
   pathInDenylistFolder,
+  PERSON_HUB_TOP_N,
+  scorePersonHubCandidate,
 } from "../src/people";
 import type { ClassificationResult } from "../src/types";
 
@@ -21,22 +26,19 @@ function atom(
   };
 }
 
-describe("path allowlist / denylist", () => {
-  it("allows Social / People / Personal notes paths", () => {
-    expect(pathHasAllowlistSegment("Personal notes/Social/Alex.md")).toBe(
-      true,
-    );
-    expect(pathHasAllowlistSegment("Personal notes/Tin.md")).toBe(true);
-    expect(pathHasAllowlistSegment("People/Alex.md")).toBe(true);
+describe("path boost / denylist", () => {
+  it("boosts Social / People / Personal notes paths", () => {
+    expect(pathHasBoostSegment("Personal notes/Social/Alex.md")).toBe(true);
+    expect(pathHasBoostSegment("Personal notes/Tin.md")).toBe(true);
+    expect(pathHasBoostSegment("People/Alex.md")).toBe(true);
+    expect(pathHasAllowlistSegment("People/Alex.md")).toBe(true); // deprecated alias
   });
 
   it("denies Projects / Quick Notes / Atoms folders", () => {
     expect(pathInDenylistFolder("Projects/Cooking.md")).toBe(true);
     expect(pathInDenylistFolder("Quick Notes/foo.md")).toBe(true);
     expect(pathInDenylistFolder("Atoms/Claim.md")).toBe(true);
-    expect(pathInDenylistFolder("Personal notes/Social/Alex.md")).toBe(
-      false,
-    );
+    expect(pathInDenylistFolder("Personal notes/Social/Alex.md")).toBe(false);
   });
 
   it("denies any dot-prefixed folder segment (vault configDir and hidden dirs)", () => {
@@ -61,22 +63,122 @@ describe("isPersonLikeBasename", () => {
   });
 });
 
+describe("scorePersonHubCandidate / threshold", () => {
+  it("ranks Social/People highly; Personal notes only mild", () => {
+    const social = scorePersonHubCandidate({
+      path: "Personal notes/Social/Alex.md",
+      title: "Alex",
+      hasPersonTag: false,
+    });
+    const bookList = scorePersonHubCandidate({
+      path: "Personal notes/Book list.md",
+      title: "Book list",
+      hasPersonTag: false,
+    });
+    expect(social).toBeGreaterThan(bookList);
+    expect(
+      meetsPersonHubThreshold({
+        score: bookList,
+        path: "Personal notes/Book list.md",
+        hasPersonTag: false,
+      }),
+    ).toBe(false);
+  });
+
+  it("requires #person or high path for bare root one-word titles", () => {
+    const cooking = scorePersonHubCandidate({
+      path: "Cooking/Cooking.md",
+      title: "Cooking",
+      hasPersonTag: false,
+    });
+    expect(
+      meetsPersonHubThreshold({
+        score: cooking,
+        path: "Cooking/Cooking.md",
+        hasPersonTag: false,
+      }),
+    ).toBe(false);
+
+    const rootAlex = scorePersonHubCandidate({
+      path: "Alex.md",
+      title: "Alex",
+      hasPersonTag: false,
+    });
+    expect(
+      meetsPersonHubThreshold({
+        score: rootAlex,
+        path: "Alex.md",
+        hasPersonTag: false,
+      }),
+    ).toBe(false);
+    expect(
+      meetsPersonHubThreshold({
+        score: rootAlex + 5,
+        path: "Alex.md",
+        hasPersonTag: true,
+      }),
+    ).toBe(true);
+  });
+});
+
+describe("frontmatterHasPersonTag", () => {
+  it("reads string and array tags", () => {
+    expect(
+      frontmatterHasPersonTag({ frontmatter: { tags: ["person", "x"] } }),
+    ).toBe(true);
+    expect(frontmatterHasPersonTag({ frontmatter: { tags: "person" } })).toBe(
+      true,
+    );
+    expect(frontmatterHasPersonTag({ frontmatter: { tags: ["idea"] } })).toBe(
+      false,
+    );
+  });
+});
+
 describe("discoverPersonHubs", () => {
-  it("picks Alex and Tin under allowlisted paths", () => {
+  it("picks Social/People people; drops Personal notes topic pages", () => {
     const hubs = discoverPersonHubs([
       { path: "Personal notes/Social/Alex.md", cache: null },
       { path: "Personal notes/Tin.md", cache: null },
       { path: "Personal notes/Social/People.md", cache: null },
+      { path: "Personal notes/Book list.md", cache: null },
+      { path: "Personal notes/Movie list.md", cache: null },
       { path: "Projects/Cooking.md", cache: null },
       { path: "Quick Notes/Scratch.md", cache: null },
-      { path: "RootOnly/Cooking.md", cache: null },
+      { path: "Cooking/Cooking.md", cache: null },
     ]);
     const titles = hubs.map((h) => h.canonicalTitle);
     expect(titles).toContain("Alex");
     expect(titles).toContain("Tin");
     expect(titles).not.toContain("People");
+    expect(titles).not.toContain("Book list");
+    expect(titles).not.toContain("Movie list");
     expect(titles).not.toContain("Cooking");
     expect(titles).not.toContain("Scratch");
+  });
+
+  it("includes root person only when tagged #person", () => {
+    const bare = discoverPersonHubs([{ path: "Alex.md", cache: null }]);
+    expect(bare).toHaveLength(0);
+
+    const tagged = discoverPersonHubs([
+      {
+        path: "Alex.md",
+        cache: { frontmatter: { tags: ["person"] } },
+      },
+    ]);
+    expect(tagged.map((h) => h.canonicalTitle)).toEqual(["Alex"]);
+  });
+
+  it("includes People/ hub notes without Personal notes free pass", () => {
+    const hubs = discoverPersonHubs([
+      { path: "People/Jordan.md", cache: null },
+      { path: "People/Riley.md", cache: null },
+    ]);
+    expect(hubs.map((h) => h.canonicalTitle).sort()).toEqual([
+      "Jordan",
+      "Riley",
+    ]);
   });
 
   it("includes frontmatter aliases as match keys, not as separate hubs", () => {
@@ -96,16 +198,33 @@ describe("discoverPersonHubs", () => {
   it("returns empty for empty vault", () => {
     expect(discoverPersonHubs([])).toEqual([]);
   });
+
+  it("caps at PERSON_HUB_TOP_N by score", () => {
+    const files = [];
+    for (let i = 0; i < PERSON_HUB_TOP_N + 15; i++) {
+      files.push({
+        path: `People/Person${String(i).padStart(3, "0")}.md`,
+        cache: null,
+      });
+    }
+    // Also sprinkle lower-score Personal notes single-word names
+    for (let i = 0; i < 10; i++) {
+      files.push({
+        path: `Personal notes/Extra${i}.md`,
+        cache: null,
+      });
+    }
+    const hubs = discoverPersonHubs(files);
+    expect(hubs.length).toBeLessThanOrEqual(PERSON_HUB_TOP_N);
+    // People/ should dominate over mild Personal notes
+    expect(hubs.every((h) => h.path.startsWith("People/"))).toBe(true);
+  });
 });
 
 describe("captureMentionsKey", () => {
   it("matches case-insensitive whole tokens and possessives", () => {
-    expect(captureMentionsKey("Alex likes periwinkle", "Alex")).toBe(
-      true,
-    );
-    expect(captureMentionsKey("alex likes periwinkle", "Alex")).toBe(
-      true,
-    );
+    expect(captureMentionsKey("Alex likes periwinkle", "Alex")).toBe(true);
+    expect(captureMentionsKey("alex likes periwinkle", "Alex")).toBe(true);
     expect(captureMentionsKey("Alex’s pajamas", "Alex")).toBe(true);
     expect(captureMentionsKey("Alex's pajamas", "Alex")).toBe(true);
   });

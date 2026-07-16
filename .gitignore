@@ -28,3 +28,6 @@ data.json
 
 # Local throwaway vault (may contain secrets)
 test_vault/
+
+# Regenerable screenshot dogfood vault (seed with scripts/seed-demo-vault.mjs)
+docs/media/demo-vault/

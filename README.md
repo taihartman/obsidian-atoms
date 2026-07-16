@@ -62,6 +62,54 @@ Optional beta channel: install via [BRAT](https://obsidian.md/plugins?id=obsidia
 
 ---
 
+## How to use (walkthrough)
+
+Empty vault → captures in Daily → file into a linked library. Screenshots use a synthetic dogfood vault (not personal notes).
+
+### 1. First open — empty home
+
+Open **Atoms** from the ribbon (library icon) or command palette → **Open home**. With no filed atoms yet, you get a setup card: write one bullet today, open today’s daily, install the capture shortcut.
+
+![Atoms first-day home with Get started card](docs/media/readme/01-first-day-home.png)
+
+### 2. Capture as daily bullets
+
+Write top-level bullets in a **past** daily note (or today’s note if you only want to test later with “including today”). Phone shortcut or desktop typing both work.
+
+![Past daily note with unprocessed capture bullets](docs/media/readme/02-daily-captures.png)
+
+### 3. Waiting to file
+
+When past days have unmarked bullets, home shows a **waiting** card (and a queue peek). Today’s daily is never auto-processed. Add an API key if prompted, then Preview / Process (or enable automatic filing after the privacy ack).
+
+![Atoms home showing past captures waiting to file](docs/media/readme/03-waiting-to-file.png)
+
+### 4. Library after filing
+
+Filed claims land as flat notes under `Atoms/`. Home lists them with optional person / work chips. Tap a row to open the atom.
+
+![Atoms library populated with filed notes and link chips](docs/media/readme/04-library-populated.png)
+
+### 5. An atom note
+
+Each atom keeps your capture text **verbatim**, plus frontmatter (`source`, tags, `generated-by`) and reason-bearing links the model proposed.
+
+![Example atom note with verbatim body and person link](docs/media/readme/05-atom-note.png)
+
+### 6. Person hubs
+
+Link to a person note you already keep (e.g. `People/Jordan`). Backlinks surface preferences and related atoms without a separate CRM.
+
+![Person hub note for Jordan](docs/media/readme/06-person-hub.png)
+
+### 7. Settings
+
+**Settings → Atoms**: API key (SecretStorage), capture shortcut URL, model, atom folder, vocabulary. Version is shown at the top of the tab.
+
+![Atoms plugin settings](docs/media/readme/07-settings-atoms.png)
+
+---
+
 ## Capture (phone)
 
 1. Write **bullets** in today’s daily (`- What's on your mind?`).
@@ -81,9 +129,14 @@ npm run dev          # watch-build main.js
 npm test
 npm run build
 ./scripts/install-to-vault.sh   # copy build into the throwaway vault
+node scripts/seed-demo-vault.mjs           # synthetic README dogfood (full library)
+node scripts/seed-demo-vault.mjs --empty   # first-day empty
+node scripts/seed-demo-vault.mjs --waiting # past captures pending
 ```
 
 Throwaway vault: `test_vault/test vault/`. Prefer that over a personal vault until dry-run looks right.
+
+README screenshots use **`docs/media/demo-vault/`** with fictional sample notes only (`seed-demo-vault.mjs`). Do not seed personal vault content into that folder.
 
 ### Useful command palette entries
 
