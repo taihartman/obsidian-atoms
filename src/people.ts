@@ -421,10 +421,11 @@ export function enrichPersonLinks(
       continue;
     }
 
+    // Substantive default — classify path also runs improveClassificationLinks.
     const reason =
       matchedKey.toLowerCase() === hub.canonicalTitle.toLowerCase()
-        ? `preference or claim about [[${hub.canonicalTitle}]]`
-        : `about [[${hub.canonicalTitle}]] (matched “${matchedKey}”)`;
+        ? `durable fact about [[${hub.canonicalTitle}]] from this capture`
+        : `about [[${hub.canonicalTitle}]] (matched “${matchedKey}”) — durable person fact`;
 
     links = [
       ...links,

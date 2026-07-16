@@ -154,11 +154,13 @@ Intelligence lives in **links + titles**, not folders.
 
 ## Workflow
 
+**Lanes (pick one first):** **[docs/workflow-lanes.md](docs/workflow-lanes.md)** — full · light · amend · debug · mechanical. Ambiguity → heavier lane. Agents state `Lane` / `Why` / `Doc-review` on non-trivial work before planning or coding.
+
 **Multiplayer:** follow [`docs/collab.md`](docs/collab.md). Hard claim = GitHub Issue (assigned) + [`STATUS.md`](STATUS.md) row + draft PR **before** implementation. Session start: read constitution → `STATUS.md` → open PRs → only then plan/code.
 
-Default: plan → implement claim → verify. Full ce-* loop when using compound-engineering for net-new features. Amend lane for tiny post-ship tweaks.
+Default: plan → implement claim → verify. Full ce-* loop for net-new / high-risk work. Light plan + light doc-review for small clear features. Amend for tiny post-ship tweaks. `ce-debug` for broken behavior.
 
-**Plan quality gate:** After writing or **materially updating** a plan in `docs/plans/` (product bar, KTDs, units, parity/scope flips), run at least a **light `ce-doc-review`** (`mode:headless` coherence + feasibility; add design/product lenses when UI or product claims move) **before** `ce-work` / implementation. Do not implement from an unreviewed plan rewrite mid-session. Full multi-persona doc-review for large or high-risk plans.
+**Plan quality gate:** After writing or **materially updating** a plan in `docs/plans/` (product bar, KTDs, units, parity/scope flips), run at least a **light `ce-doc-review`** (`mode:headless` coherence + feasibility; add design/product lenses when UI or product claims move) **before** `ce-work` / implementation. Do not implement from an unreviewed plan rewrite mid-session. Full multi-persona doc-review for large or high-risk plans. See lane card for sizing.
 
 ### Mandatory shipping tail (do not skip)
 

@@ -7,7 +7,8 @@ This repo is **two humans + many agents**. Humans may not read the process docs.
 1. Read **[CLAUDE.md](./CLAUDE.md)** (constitution + non-negotiables).  
 2. Read **[docs/collab.md](./docs/collab.md)** (multiplayer process).  
 3. Read **[STATUS.md](./STATUS.md)** (what is already claimed).  
-4. Check open GitHub Issues/PRs if `gh` is available.
+4. Check open GitHub Issues/PRs if `gh` is available.  
+5. On non-trivial work: pick a lane from **[docs/workflow-lanes.md](./docs/workflow-lanes.md)** (full / light / amend / debug) and state it before plan or code.
 
 **Do not implement until a hard claim exists:**
 
@@ -33,6 +34,7 @@ If hot files overlap an `In progress` claim → **stop** and re-scope or wait. D
 |---|---|
 | [CLAUDE.md](./CLAUDE.md) | Full project rules |
 | [docs/collab.md](./docs/collab.md) | Claim / conflict / AI-PM process |
+| [docs/workflow-lanes.md](./docs/workflow-lanes.md) | Full / light / amend / debug — process gates |
 | [STATUS.md](./STATUS.md) | Live in-flight claims |
 | [docs/architecture.md](./docs/architecture.md) | North star + system shape |
 | Active plan in `docs/plans/` | Feature implementation authority |

@@ -22,6 +22,7 @@ Neither human is permanent boss. The **constitution** is boss.
 | North star + system shape | `docs/architecture.md` | PR only |
 | Spec rationale | `docs/spec-amendments.md` | PR only |
 | Feature plans | `docs/plans/*` | Committed plan before non-trivial code |
+| Workflow lanes | [`docs/workflow-lanes.md`](./workflow-lanes.md) | Full / light / amend / debug — which CE gates apply |
 
 **Constitution changes are never silent agent edits mid-feature.** Open a PR that only (or primarily) changes the constitution, explain *why*, get a human review.
 

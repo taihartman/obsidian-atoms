@@ -103,8 +103,19 @@ function mediaTagsFor(captureText: string, workTitle: string | null): string[] {
   return [...tags];
 }
 
+/** True when `title` matches an existing vault note title (case-insensitive). */
+export function workTitleExistsInVault(
+  title: string,
+  noteTitles: string[],
+): boolean {
+  const want = title.trim().toLowerCase();
+  if (!want) return false;
+  return noteTitles.some((t) => t.trim().toLowerCase() === want);
+}
+
 /**
  * Post-classify media repair. Atom-only. Never changes verdict or title.
+ * Work-title links only when the vault already has that note (no empty stubs).
  */
 export function enrichMediaLinks(
   captureText: string,
@@ -122,6 +133,8 @@ export function enrichMediaLinks(
   const work = workRaw
     ? resolveWorkTitleAgainstVault(workRaw, noteTitles)
     : null;
+  const workInVault =
+    work != null && workTitleExistsInVault(work, noteTitles) ? work : null;
 
   for (const t of mediaTagsFor(captureText, work)) {
     if (!tags.some((x) => normalizeTag(x) === t)) {
@@ -131,12 +144,25 @@ export function enrichMediaLinks(
   }
   tags = sortTags(tags);
 
-  if (work && !hasLinkTo({ ...result, links }, work)) {
+  // Drop model-added unresolved work links (same policy as repair).
+  const beforeDrop = links.length;
+  links = links.filter((l) => {
+    const n = (l.note ?? "").trim();
+    if (!n) return false;
+    // Keep non-work-ish links; drop notes that look like the extracted work but missing from vault
+    if (work && n.toLowerCase() === work.toLowerCase() && !workInVault) {
+      return false;
+    }
+    return true;
+  });
+  if (links.length !== beforeDrop) changed = true;
+
+  if (workInVault && !hasLinkTo({ ...result, links }, workInVault)) {
     links = [
       ...links,
       {
-        note: work,
-        reason: `media work to watch ([[${work}]])`,
+        note: workInVault,
+        reason: `watchlist: ${workInVault} already in the vault`,
       },
     ];
     changed = true;

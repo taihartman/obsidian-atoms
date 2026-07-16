@@ -36,7 +36,7 @@ describe("isMediaShaped / extractWorkTitle", () => {
 });
 
 describe("enrichMediaLinks", () => {
-  it("adds media tags + work link; keeps title/verdict", () => {
+  it("adds media tags without work link when vault has no matching title", () => {
     const capture = "Christian told me to watch my hero academia";
     const out = enrichMediaLinks(capture, atomBase(), []);
     expect(out.verdict).toBe("atom");
@@ -44,16 +44,33 @@ describe("enrichMediaLinks", () => {
     expect(out.tags).toEqual(
       expect.arrayContaining(["watch", "show", "media", "preferences"]),
     );
-    expect(out.links.some((l) => /hero academia/i.test(l.note))).toBe(true);
+    expect(out.links.some((l) => /hero academia/i.test(l.note))).toBe(false);
   });
 
-  it("prefers existing vault title for work", () => {
+  it("links work only when vault already has that title", () => {
     const capture = "watch past lives";
     const out = enrichMediaLinks(capture, atomBase({ title: "Want Past Lives", tags: [] }), [
       "Past Lives",
       "Other",
     ]);
     expect(out.links.some((l) => l.note === "Past Lives")).toBe(true);
+  });
+
+  it("drops model work links that do not exist in vault", () => {
+    const capture = "Christian told me to watch my hero academia";
+    const out = enrichMediaLinks(
+      capture,
+      atomBase({
+        links: [
+          {
+            note: "My Hero Academia",
+            reason: "media work to watch ([[My Hero Academia]])",
+          },
+        ],
+      }),
+      [],
+    );
+    expect(out.links).toHaveLength(0);
   });
 
   it("no-op for non-media atoms", () => {
