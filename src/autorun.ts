@@ -17,19 +17,38 @@ export function localDateString(d: Date = new Date()): string {
 }
 
 /**
- * Last-run gate: run only when enabled and last successful/attempted calendar
- * day is strictly before today (same day → skip).
+ * Whether auto-run should attempt a write pass.
+ * Same calendar day still runs when past unprocessed remain (cap drain / retry).
+ * Does not stamp days — see shouldStampLastRunDay.
  */
 export function shouldRunAutoProcess(opts: {
   enabled: boolean;
   lastRunDay: string | null;
   today: string;
   egressAcked: boolean;
+  /** Past-only unmarked count (never includes today). Default 0. */
+  pastUnprocessedRemaining?: number;
 }): boolean {
   if (!opts.enabled) return false;
   if (!opts.egressAcked) return false;
+  const remaining = opts.pastUnprocessedRemaining ?? 0;
   if (!opts.lastRunDay) return true;
-  return opts.lastRunDay < opts.today;
+  if (opts.lastRunDay < opts.today) return true;
+  // Same day: continue only while past work remains (markers keep re-entry safe).
+  if (opts.lastRunDay === opts.today && remaining > 0) return true;
+  return false;
+}
+
+/**
+ * Stamp last-run day only after a non-throwing run leaves zero past work.
+ * Failures / remaining queue must not burn the calendar day.
+ */
+export function shouldStampLastRunDay(opts: {
+  threw: boolean;
+  pastRemainingAfter: number;
+}): boolean {
+  if (opts.threw) return false;
+  return opts.pastRemainingAfter === 0;
 }
 
 export interface DeviceAutoRunState {
@@ -67,6 +86,16 @@ export function writeEgressAck(
   acked: boolean,
 ): void {
   save(LS_AUTO_RUN_EGRESS_ACK, acked);
+}
+
+/**
+ * One-tap home enable: privacy ack + auto-run on (device-local only).
+ */
+export function enableAutomaticFiling(
+  save: (key: string, data: unknown) => void,
+): void {
+  writeEgressAck(save, true);
+  writeAutoRunEnabled(save, true);
 }
 
 /**

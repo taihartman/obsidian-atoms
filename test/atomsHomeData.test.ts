@@ -4,6 +4,7 @@ import {
   extractDisplayLinkChips,
   extractLinkChips,
   extractSourceDay,
+  filingHeroCopy,
   filterLinkedOnly,
   formatRelativeTime,
   isGeneratedAtomContent,
@@ -185,5 +186,53 @@ describe("shouldShowWaitCard / relative time", () => {
     expect(formatRelativeTime(now - 30_000, now)).toBe("now");
     expect(formatRelativeTime(now - 5 * 60_000, now)).toBe("5m");
     expect(formatRelativeTime(now - 3 * 3600_000, now)).toBe("3h");
+  });
+});
+
+describe("filingHeroCopy", () => {
+  it("returns null when no past unprocessed", () => {
+    expect(
+      filingHeroCopy({
+        pastUnprocessed: 0,
+        hasKey: true,
+        autoEnabled: true,
+        egressAcked: true,
+      }),
+    ).toBeNull();
+  });
+
+  it("need_key when no API key", () => {
+    const c = filingHeroCopy({
+      pastUnprocessed: 3,
+      hasKey: false,
+      autoEnabled: false,
+      egressAcked: false,
+    });
+    expect(c?.mode).toBe("need_key");
+    expect(c?.primaryAction).toBe("open_settings");
+  });
+
+  it("enable_auto when key but auto off", () => {
+    const c = filingHeroCopy({
+      pastUnprocessed: 2,
+      hasKey: true,
+      autoEnabled: false,
+      egressAcked: true,
+    });
+    expect(c?.mode).toBe("enable_auto");
+    expect(c?.primaryAction).toBe("enable_auto");
+    expect(c?.secondaryAction).toBe("process");
+  });
+
+  it("auto_on when automatic filing on — not Process-only homework", () => {
+    const c = filingHeroCopy({
+      pastUnprocessed: 4,
+      hasKey: true,
+      autoEnabled: true,
+      egressAcked: true,
+    });
+    expect(c?.mode).toBe("auto_on");
+    expect(c?.body.toLowerCase()).toMatch(/automatic filing/);
+    expect(c?.eyebrow).toBe("Automatic");
   });
 });
