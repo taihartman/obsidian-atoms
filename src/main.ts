@@ -274,14 +274,7 @@ export default class AtomsPlugin extends Plugin {
       return { ran: false, reason: "cache_not_ready" };
     }
 
-    let pastRemaining = 0;
-    try {
-      const listed = await getPastDailyNotesWithUnmarkedCaptures(this.app);
-      pastRemaining = listed.totalUnprocessed;
-    } catch {
-      // Daily notes missing / disabled — treat as no past work for gate.
-      pastRemaining = 0;
-    }
+    const pastRemaining = await this.countPastUnprocessed();
 
     if (
       !shouldRunAutoProcess({
@@ -352,19 +345,14 @@ export default class AtomsPlugin extends Plugin {
         await this.saveSettings();
       }
 
-      let pastAfter = 0;
-      try {
-        const after = await getPastDailyNotesWithUnmarkedCaptures(this.app);
-        pastAfter = after.totalUnprocessed;
-      } catch {
-        pastAfter = Math.max(0, pastRemaining - report.markersAppended);
-      }
-
-      if (
-        shouldStampLastRunDay({ threw: false, pastRemainingAfter: pastAfter })
-      ) {
-        writeLastRunDay(save, today);
-      }
+      const pastAfter = await this.countPastUnprocessed(
+        Math.max(0, pastRemaining - report.markersAppended),
+      );
+      const stamped = shouldStampLastRunDay({
+        threw: false,
+        pastRemainingAfter: pastAfter,
+      });
+      if (stamped) writeLastRunDay(save, today);
 
       const filed = report.markersAppended;
       if (filed > 0) {
@@ -381,10 +369,7 @@ export default class AtomsPlugin extends Plugin {
         failed: report.failed,
         scanned: report.scanned,
         pastAfter,
-        stamped: shouldStampLastRunDay({
-          threw: false,
-          pastRemainingAfter: pastAfter,
-        }),
+        stamped,
       });
       return { ran: true, reason: "ok" };
     } catch (e) {
@@ -396,6 +381,16 @@ export default class AtomsPlugin extends Plugin {
       return { ran: false, reason: "error" };
     } finally {
       this.autoRunInFlight = false;
+    }
+  }
+
+  /** Past-only unmarked count; on list failure use fallback (default 0). */
+  private async countPastUnprocessed(fallback = 0): Promise<number> {
+    try {
+      const listed = await getPastDailyNotesWithUnmarkedCaptures(this.app);
+      return listed.totalUnprocessed;
+    } catch {
+      return fallback;
     }
   }
 
@@ -703,13 +698,7 @@ export default class AtomsPlugin extends Plugin {
   private async showAutoRunStatus() {
     const snap = this.getAutoRunSnapshot();
     const today = localDateString();
-    let pastRemaining = 0;
-    try {
-      const listed = await getPastDailyNotesWithUnmarkedCaptures(this.app);
-      pastRemaining = listed.totalUnprocessed;
-    } catch {
-      pastRemaining = 0;
-    }
+    const pastRemaining = await this.countPastUnprocessed();
     const would = shouldRunAutoProcess({
       enabled: snap.enabled,
       lastRunDay: snap.lastRunDay,

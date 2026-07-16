@@ -12,6 +12,7 @@ import {
   filingHeroCopy,
   filterLinkedOnly,
   formatRelativeTime,
+  isAutomaticFilingReady,
   listAtomLibraryEntries,
   queuePeekTexts,
   shouldShowWaitCard,
@@ -452,17 +453,13 @@ export class AtomsHomeView extends ItemView {
               ? this.runSummaryText
               : this.runSummaryText
         : shouldShowWaitCard(this.unprocessedCount)
-          ? (() => {
-              const snap = this.plugin.getAutoRunSnapshot();
-              if (snap.enabled && snap.egressAcked && snap.hasKey) {
-                return this.unprocessedCount === 1
-                  ? "1 past thought will file automatically"
-                  : `${this.unprocessedCount} past thoughts will file automatically`;
-              }
-              return this.unprocessedCount === 1
-                ? "1 thought ready to file"
-                : `${this.unprocessedCount} thoughts ready to file`;
-            })()
+          ? isAutomaticFilingReady(this.plugin.getAutoRunSnapshot())
+            ? this.unprocessedCount === 1
+              ? "1 past thought will file automatically"
+              : `${this.unprocessedCount} past thoughts will file automatically`
+            : this.unprocessedCount === 1
+              ? "1 thought ready to file"
+              : `${this.unprocessedCount} thoughts ready to file`
           : this.entries.length
             ? "Your second brain"
             : "Nothing filed yet";
@@ -681,12 +678,10 @@ export class AtomsHomeView extends ItemView {
           text: "Nothing linked in this filter.",
         });
       } else if (shouldShowWaitCard(this.unprocessedCount)) {
-        const snap = this.plugin.getAutoRunSnapshot();
         empty.createEl("p", {
-          text:
-            snap.enabled && snap.egressAcked && snap.hasKey
-              ? "Library fills after automatic filing (or Process now)."
-              : "Library fills after you Process.",
+          text: isAutomaticFilingReady(this.plugin.getAutoRunSnapshot())
+            ? "Library fills after automatic filing (or Process now)."
+            : "Library fills after you Process.",
         });
       } else if (!firstDay) {
         empty.createEl("p", {

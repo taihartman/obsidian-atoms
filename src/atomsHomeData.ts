@@ -300,6 +300,15 @@ export function shouldShowWaitCard(unprocessedCount: number): boolean {
   return unprocessedCount > 0;
 }
 
+/** True when this device will file past captures without a Process tap. */
+export function isAutomaticFilingReady(snap: {
+  enabled: boolean;
+  egressAcked: boolean;
+  hasKey: boolean;
+}): boolean {
+  return snap.enabled && snap.egressAcked && snap.hasKey;
+}
+
 /** Home wait-surface story when past captures remain (automatic filing UX). */
 export type FilingHeroMode = "need_key" | "enable_auto" | "auto_on" | "auto_running";
 

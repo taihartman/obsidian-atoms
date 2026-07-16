@@ -7,6 +7,7 @@ import {
   filingHeroCopy,
   filterLinkedOnly,
   formatRelativeTime,
+  isAutomaticFilingReady,
   isGeneratedAtomContent,
   listAtomLibraryEntries,
   parseAtomLibraryEntry,
@@ -234,5 +235,24 @@ describe("filingHeroCopy", () => {
     expect(c?.mode).toBe("auto_on");
     expect(c?.body.toLowerCase()).toMatch(/automatic filing/);
     expect(c?.eyebrow).toBe("Automatic");
+  });
+});
+
+describe("isAutomaticFilingReady", () => {
+  it("requires enabled, ack, and key", () => {
+    expect(
+      isAutomaticFilingReady({
+        enabled: true,
+        egressAcked: true,
+        hasKey: true,
+      }),
+    ).toBe(true);
+    expect(
+      isAutomaticFilingReady({
+        enabled: true,
+        egressAcked: true,
+        hasKey: false,
+      }),
+    ).toBe(false);
   });
 });
