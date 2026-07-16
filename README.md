@@ -87,7 +87,7 @@ Throwaway vault: `test_vault/test vault/`. Prefer that over a personal vault unt
 
 ### Useful command palette entries
 
-- **Open Atoms home**
+- **Open home**
 - **Dry-run: preview classifications** / **including today (test)**
 - **Process unprocessed captures** / **including today (test)**
 - **Test connection**

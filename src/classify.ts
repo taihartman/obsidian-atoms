@@ -4,7 +4,6 @@ import type {
   ClassifyOutcome,
   ClassifyUsage,
   VaultContext,
-  Verdict,
 } from "./types";
 import {
   enrichPersonLinks,
@@ -12,6 +11,9 @@ import {
 } from "./people";
 import { enrichMediaLinks } from "./media";
 import { filterTagsToActive } from "./vocabulary";
+
+/** Injected by esbuild: true in watch/dev, false in production Community builds. */
+declare const ATOMS_DEV_COMMANDS: boolean;
 
 export const ANTHROPIC_MESSAGES_URL = "https://api.anthropic.com/v1/messages";
 export const ANTHROPIC_VERSION = "2023-06-01";
@@ -218,7 +220,7 @@ export function parseUsage(raw: unknown): ClassifyUsage {
 export function checkInvariants(
   result: ClassificationResult,
 ): { ok: true } | { ok: false; message: string } {
-  const verdict = result.verdict as Verdict;
+  const verdict = result.verdict;
   if (verdict === "atom") {
     if (!result.title || !result.title.trim()) {
       return { ok: false, message: "invariant: atom verdict requires a non-empty title" };
@@ -353,7 +355,7 @@ export interface ClassifyDeps {
 }
 
 const defaultSleep = (ms: number) =>
-  new Promise<void>((resolve) => setTimeout(resolve, ms));
+  new Promise<void>((resolve) => window.setTimeout(resolve, ms));
 
 /**
  * Classify a single capture. Request-layer defended (KTD4 layer 3).
@@ -496,8 +498,10 @@ export async function classifyCapture(
 
 /**
  * Safe console logging for spike / dev. Never dumps headers, bodies, or full errors.
+ * No-ops in production Community builds (ATOMS_DEV_COMMANDS false/undefined).
  */
 export function logClassifyOutcome(label: string, outcome: ClassifyOutcome): void {
+  if (typeof ATOMS_DEV_COMMANDS === "undefined" || !ATOMS_DEV_COMMANDS) return;
   if (outcome.ok) {
     console.log(`[atoms] ${label}`, {
       verdict: outcome.result.verdict,

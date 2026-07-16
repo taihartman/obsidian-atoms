@@ -32,7 +32,11 @@ export const PERSON_HUB_PATH_SEGMENTS = [
   "/Personal notes/",
 ] as const;
 
-/** Folder path prefixes / segments that never contribute hubs. */
+/**
+ * Folder path prefixes / segments that never contribute hubs.
+ * Dot-prefixed segments (vault configDir and other hidden folders) are
+ * denied separately in pathInDenylistFolder — never hardcode `.obsidian`.
+ */
 export const PERSON_HUB_DENY_FOLDER_PARTS = [
   "Atoms",
   "Quick Notes",
@@ -44,7 +48,6 @@ export const PERSON_HUB_DENY_FOLDER_PARTS = [
   "Tags",
   "Archive",
   "Recipes",
-  ".obsidian",
 ] as const;
 
 export const PERSON_HUB_DENY_TITLES = new Set(
@@ -82,6 +85,8 @@ export function pathHasAllowlistSegment(path: string): boolean {
 export function pathInDenylistFolder(path: string): boolean {
   const parts = path.split("/");
   for (const part of parts.slice(0, -1)) {
+    // Vault configDir is user-configurable (not always `.obsidian`).
+    if (part.startsWith(".")) return true;
     if (
       PERSON_HUB_DENY_FOLDER_PARTS.some(
         (d) => d.toLowerCase() === part.toLowerCase(),

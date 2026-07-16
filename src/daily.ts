@@ -1,4 +1,4 @@
-import type { App, TFile } from "obsidian";
+import { moment, type App, type TFile } from "obsidian";
 import {
   appHasDailyNotesPluginLoaded,
   createDailyNote,
@@ -10,27 +10,6 @@ import {
   collectPastNotesWithUnmarkedCaptures,
 } from "./parse";
 import type { DailyNoteWithCaptures } from "./types";
-
-/** Obsidian injects moment globally; daily-notes-interface expects a Moment. */
-type MomentLike = {
-  format: (f: string) => string;
-  clone?: () => MomentLike;
-};
-
-function todayMoment(): MomentLike {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const m = (globalThis as any).moment;
-  if (typeof m === "function") return m() as MomentLike;
-  // Fallback for tests without moment: minimal shim matching YYYY-MM-DD
-  const d = new Date();
-  const y = d.getFullYear();
-  const mo = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  const iso = `${y}-${mo}-${day}`;
-  return {
-    format: (f: string) => (f === "YYYY-MM-DD" ? iso : iso),
-  };
-}
 
 export class DailyNotesDisabledError extends Error {
   constructor() {
@@ -81,7 +60,7 @@ export async function getPastDailyNotesWithUnmarkedCaptures(
   const all = getAllDailyNotes();
   const notes: Array<{ path: string; date: string; content: string }> = [];
 
-  for (const file of Object.values(all) as TFile[]) {
+  for (const file of Object.values(all)) {
     const momentDate = getDateFromFile(file, "day");
     if (!momentDate) continue;
     const date = momentDate.format("YYYY-MM-DD");
@@ -106,11 +85,11 @@ export async function openTodaysDaily(app: App): Promise<TFile> {
   if (!appHasDailyNotesPluginLoaded()) {
     throw new DailyNotesDisabledError();
   }
-  const date = todayMoment() as Parameters<typeof getDailyNote>[0];
+  const date = moment();
   const all = getAllDailyNotes();
   let file: TFile | null = null;
   try {
-    file = getDailyNote(date, all) as TFile | null;
+    file = getDailyNote(date, all) ?? null;
   } catch {
     file = null;
   }

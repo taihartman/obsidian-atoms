@@ -4,6 +4,13 @@ import { clampAtomFolder } from "./render";
 
 /** Injected by esbuild: true in watch/dev, false in production Community builds. */
 declare const ATOMS_DEV_COMMANDS: boolean;
+
+/** Dev-only console logging — silent in Community production builds. */
+function devLog(...args: unknown[]): void {
+  if (typeof ATOMS_DEV_COMMANDS !== "undefined" && ATOMS_DEV_COMMANDS) {
+    console.log(...args);
+  }
+}
 import {
   classifyCapture,
   logClassifyOutcome,
@@ -126,7 +133,7 @@ export default class AtomsPlugin extends Plugin {
       leaf = workspace.getLeftLeaf(false) ?? workspace.getLeaf(false);
       await leaf.setViewState({ type: ATOMS_HOME_VIEW_TYPE, active: true });
     }
-    workspace.revealLeaf(leaf);
+    await workspace.revealLeaf(leaf);
     const view = leaf.view;
     if (view instanceof AtomsHomeView) {
       await view.refresh();
@@ -239,7 +246,8 @@ export default class AtomsPlugin extends Plugin {
     inFlight: boolean;
     hasKey: boolean;
   } {
-    const load = (k: string) => this.app.loadLocalStorage(k);
+    const load = (k: string): unknown =>
+      this.app.loadLocalStorage(k) as unknown;
     const state = readDeviceAutoRunState(load);
     return {
       ...state,
@@ -269,7 +277,8 @@ export default class AtomsPlugin extends Plugin {
     ran: boolean;
     reason: string;
   }> {
-    const load = (k: string) => this.app.loadLocalStorage(k);
+    const load = (k: string): unknown =>
+      this.app.loadLocalStorage(k) as unknown;
     const save = (k: string, v: unknown) => this.app.saveLocalStorage(k, v);
     const state = readDeviceAutoRunState(load);
     const today = localDateString();
@@ -308,14 +317,14 @@ export default class AtomsPlugin extends Plugin {
     const apiKey = this.getApiKey();
     if (!apiKey) {
       // Silent for auto path — manual commands still Notice. Do not stamp.
-      console.log("[atoms] auto-run skipped: no API key");
+      devLog("[atoms] auto-run skipped: no API key");
       return { ran: false, reason: "missing_key" };
     }
 
     // Nothing to do — stamp day so hourly interval does not re-scan forever.
     if (pastRemaining === 0) {
       writeLastRunDay(save, today);
-      console.log("[atoms] auto-run empty success", { source });
+      devLog("[atoms] auto-run empty success", { source });
       return { ran: true, reason: "empty" };
     }
 
@@ -334,7 +343,7 @@ export default class AtomsPlugin extends Plugin {
           maxAttempts: 2,
           // Auto-run: no auth spam Notices every hour — log only.
           onAuthFailure: (msg) => {
-            console.log("[atoms] auto-run auth failure", msg);
+            devLog("[atoms] auto-run auth failure", msg);
           },
         },
       });
@@ -366,7 +375,7 @@ export default class AtomsPlugin extends Plugin {
         await this.refreshAtomsHomeLeaves();
       }
       // Offline / all-failed without stamp: silent; retry same day on next open.
-      console.log("[atoms] auto-run complete", {
+      devLog("[atoms] auto-run complete", {
         source,
         filed,
         atoms: report.atomsCreated,
@@ -378,7 +387,7 @@ export default class AtomsPlugin extends Plugin {
       return { ran: true, reason: "ok" };
     } catch (e) {
       // Never crash launch; never stamp on throw (retry same day).
-      console.log("[atoms] auto-run error", {
+      devLog("[atoms] auto-run error", {
         name: e instanceof Error ? e.name : "Error",
         message: e instanceof Error ? e.message : "unknown",
       });
@@ -400,8 +409,8 @@ export default class AtomsPlugin extends Plugin {
 
   private registerCommands() {
     this.addCommand({
-      id: "open-atoms-home",
-      name: "Open Atoms home",
+      id: "open-home",
+      name: "Open home",
       callback: () => {
         void this.activateAtomsHome();
       },
@@ -485,7 +494,7 @@ export default class AtomsPlugin extends Plugin {
 
     this.addCommand({
       id: "process-unprocessed",
-      name: "Process unprocessed captures (write atoms + markers)",
+      name: "Process unprocessed captures (write + markers)",
       callback: () => {
         void this.runProcessUnprocessed();
       },
@@ -574,7 +583,7 @@ export default class AtomsPlugin extends Plugin {
       });
       this.lastBackfillEstimate = prepared.estimate;
 
-      console.log("[atoms] backfill estimate", {
+      devLog("[atoms] backfill estimate", {
         ...prepared.estimate,
         workItems: prepared.work.length,
       });
@@ -597,7 +606,7 @@ export default class AtomsPlugin extends Plugin {
         });
       }).open();
     } catch (e) {
-      console.log("[atoms] backfill estimate failed", {
+      devLog("[atoms] backfill estimate failed", {
         name: e instanceof Error ? e.name : "Error",
         message: e instanceof Error ? e.message.slice(0, 200) : "unknown",
       });
@@ -625,7 +634,7 @@ export default class AtomsPlugin extends Plugin {
         body,
       });
       this.lastBackfillBatchId = batchId;
-      console.log("[atoms] batch submitted", { batchId, requestCount });
+      devLog("[atoms] batch submitted", { batchId, requestCount });
 
       new Notice("Atoms: batch submitted — waiting for results…");
       await waitForBatchEnded({
@@ -634,7 +643,7 @@ export default class AtomsPlugin extends Plugin {
         intervalMs: 8000,
         maxWaitMs: 60 * 60 * 1000,
         onTick: (status) => {
-          console.log("[atoms] batch status", status);
+          devLog("[atoms] batch status", status);
         },
       });
 
@@ -663,12 +672,12 @@ export default class AtomsPlugin extends Plugin {
         await this.saveSettings();
       }
 
-      console.log("[atoms] backfill applied", report);
+      devLog("[atoms] backfill applied", report);
       new Notice(
         `Atoms backfill: ${report.applied} applied, ${report.atomsCreated} atom(s), ${report.markersAppended} marker(s), ${report.failed} failed`,
       );
     } catch (e) {
-      console.log("[atoms] backfill execute failed", {
+      devLog("[atoms] backfill execute failed", {
         name: e instanceof Error ? e.name : "Error",
         message: e instanceof Error ? e.message.slice(0, 200) : "unknown",
       });
@@ -688,13 +697,13 @@ export default class AtomsPlugin extends Plugin {
         apiKey: this.getApiKey(),
       });
       this.lastConnectivityReport = report;
-      console.log(
+      devLog(
         "[atoms] connectivity",
         formatConnectivityConsole(report),
       );
       new Notice(`Atoms: ${report.userMessage}`);
     } catch (e) {
-      console.log("[atoms] connectivity test failed", {
+      devLog("[atoms] connectivity test failed", {
         name: e instanceof Error ? e.name : "Error",
         message: e instanceof Error ? e.message.slice(0, 160) : "unknown",
       });
@@ -723,7 +732,7 @@ export default class AtomsPlugin extends Plugin {
       // Prove flag is not in synced settings object
       inDataJsonSettings: "autoRun" in (this.settings as object),
     };
-    console.log("[atoms] auto-run status", payload);
+    devLog("[atoms] auto-run status", payload);
     new Notice(
       `Atoms auto-run: ${snap.enabled ? "on" : "off"} · ack=${snap.egressAcked} · last=${snap.lastRunDay ?? "never"} · ready=${this.vaultIndexReady} · past=${pastRemaining}`,
     );
@@ -776,7 +785,7 @@ export default class AtomsPlugin extends Plugin {
     const prefix2 = buildContextUserMessage(
       this.contextProvider.buildContext(),
     );
-    console.log("[atoms] context prefix", {
+    devLog("[atoms] context prefix", {
       titleCount: ctx.titles.length,
       tagCount: ctx.tags.length,
       vocabulary: ctx.vocabulary,
@@ -831,7 +840,7 @@ export default class AtomsPlugin extends Plugin {
         );
         await this.saveSettings();
       }
-      console.log("[atoms] write report", {
+      devLog("[atoms] write report", {
         atomsCreated: report.atomsCreated,
         markersAppended: report.markersAppended,
         collisions: report.collisions,
@@ -856,7 +865,7 @@ export default class AtomsPlugin extends Plugin {
         new Notice(e.message);
         return;
       }
-      console.log("[atoms] write path failed", {
+      devLog("[atoms] write path failed", {
         name: e instanceof Error ? e.name : "Error",
         message: e instanceof Error ? e.message : "unknown",
       });
@@ -928,7 +937,7 @@ export default class AtomsPlugin extends Plugin {
         );
         await this.saveSettings();
       }
-      console.log("[atoms] fixture write report", {
+      devLog("[atoms] fixture write report", {
         atomsCreated: report.atomsCreated,
         markersAppended: report.markersAppended,
         collisions: report.collisions,
@@ -942,7 +951,7 @@ export default class AtomsPlugin extends Plugin {
         new Notice(e.message);
         return;
       }
-      console.log("[atoms] fixture write failed", {
+      devLog("[atoms] fixture write failed", {
         name: e instanceof Error ? e.name : "Error",
         message: e instanceof Error ? e.message : "unknown",
       });
@@ -983,7 +992,7 @@ export default class AtomsPlugin extends Plugin {
         onProgress: (done, total, meta) => {
           this.updateHomeProgress(done, total, meta?.captureText);
           if (done === total || done % 5 === 0) {
-            console.log(`[atoms] dry-run progress ${done}/${total}`);
+            devLog(`[atoms] dry-run progress ${done}/${total}`);
           }
         },
       });
@@ -1000,7 +1009,7 @@ export default class AtomsPlugin extends Plugin {
       );
       await this.saveSettings();
 
-      console.log("[atoms] dry-run report", {
+      devLog("[atoms] dry-run report", {
         classified: report.classified,
         failed: report.failed,
         scanned: report.totalUnprocessedScanned,
@@ -1013,7 +1022,7 @@ export default class AtomsPlugin extends Plugin {
           marker: e.wouldWriteMarker,
         })),
       });
-      console.log("[atoms] dry-run markdown\n" + md);
+      devLog("[atoms] dry-run markdown\n" + md);
 
       const summary = formatRunSummary(summaryFromDryRun(report));
       this.finishHomeRun(summary);
@@ -1032,7 +1041,7 @@ export default class AtomsPlugin extends Plugin {
         new Notice(e.message);
         return;
       }
-      console.log("[atoms] dry-run failed", {
+      devLog("[atoms] dry-run failed", {
         name: e instanceof Error ? e.name : "Error",
         message: e instanceof Error ? e.message : "unknown",
       });
@@ -1045,7 +1054,7 @@ export default class AtomsPlugin extends Plugin {
     try {
       const { notes, totalUnprocessed } =
         await getPastDailyNotesWithUnmarkedCaptures(this.app);
-      console.log("[atoms] unprocessed captures", {
+      devLog("[atoms] unprocessed captures", {
         days: notes.length,
         totalUnprocessed,
         notes: notes.map((n) => ({
@@ -1066,7 +1075,7 @@ export default class AtomsPlugin extends Plugin {
         new Notice(e.message);
         return;
       }
-      console.log("[atoms] list-unprocessed failed", {
+      devLog("[atoms] list-unprocessed failed", {
         name: e instanceof Error ? e.name : "Error",
         message: e instanceof Error ? e.message : "unknown",
       });
@@ -1118,7 +1127,7 @@ export default class AtomsPlugin extends Plugin {
         new Notice(e.message);
         return;
       }
-      console.log("[atoms] classify-first failed", {
+      devLog("[atoms] classify-first failed", {
         name: e instanceof Error ? e.name : "Error",
         message: e instanceof Error ? e.message : "unknown",
       });
@@ -1162,7 +1171,7 @@ export default class AtomsPlugin extends Plugin {
     ];
 
     new Notice("Atoms: measuring per-capture cache + day-batch…");
-    console.log("[atoms] === KTD3 fork measurement start ===");
+    devLog("[atoms] === KTD3 fork measurement start ===");
 
     const perCaptureUsages = [];
     for (let i = 0; i < captures.length; i++) {
@@ -1181,7 +1190,7 @@ export default class AtomsPlugin extends Plugin {
     }
 
     const cacheReads = perCaptureUsages.map((u) => u.cache_read_input_tokens);
-    console.log("[atoms] per-capture usage summary", {
+    devLog("[atoms] per-capture usage summary", {
       calls: perCaptureUsages.length,
       cache_read_input_tokens: cacheReads,
       secondCallCacheRead: cacheReads[1] ?? 0,
@@ -1206,12 +1215,12 @@ export default class AtomsPlugin extends Plugin {
         throw: false,
       });
       const json = (res.json ?? {}) as Record<string, unknown>;
-      console.log("[atoms] day-batch", {
+      devLog("[atoms] day-batch", {
         status: res.status,
         usage: parseUsage(json.usage),
       });
     } catch {
-      console.log("[atoms] day-batch network error (details redacted)");
+      devLog("[atoms] day-batch network error (details redacted)");
     }
 
     const shape = buildMessagesRequest({
@@ -1222,7 +1231,7 @@ export default class AtomsPlugin extends Plugin {
     const msgs = shape.messages as Array<{
       content: Array<{ cache_control?: unknown }>;
     }>;
-    console.log("[atoms] request shape (safe)", {
+    devLog("[atoms] request shape (safe)", {
       captureAfterBreakpoint:
         Boolean(msgs[0]?.content?.[0]?.cache_control) &&
         !msgs[1]?.content?.[0]?.cache_control,
@@ -1257,7 +1266,7 @@ export default class AtomsPlugin extends Plugin {
           : "Atoms: SecretStorage mismatch — consider device-local fallback",
       );
     } catch (e) {
-      console.log("[atoms] SecretStorage probe FAILED", {
+      devLog("[atoms] SecretStorage probe FAILED", {
         name: e instanceof Error ? e.name : "Error",
         message: e instanceof Error ? e.message : "unknown",
       });

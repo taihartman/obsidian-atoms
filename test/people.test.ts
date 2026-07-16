@@ -38,6 +38,12 @@ describe("path allowlist / denylist", () => {
       false,
     );
   });
+
+  it("denies any dot-prefixed folder segment (vault configDir and hidden dirs)", () => {
+    expect(pathInDenylistFolder(".obsidian/plugins/foo.md")).toBe(true);
+    expect(pathInDenylistFolder(".config/notes/Alex.md")).toBe(true);
+    expect(pathInDenylistFolder("Personal notes/.stash/Alex.md")).toBe(true);
+  });
 });
 
 describe("isPersonLikeBasename", () => {

@@ -8,7 +8,7 @@ import {
 } from "./daily";
 import {
   atomPathForTitle,
-  formatAtomBodyPreview,
+  formatAtomBody,
   markerLineForDecision,
 } from "./render";
 import type {
@@ -147,7 +147,7 @@ export function renderPreviewMarkdown(report: DryRunReport): string {
       lines.push("");
       lines.push("**Atom body (would write)**");
       lines.push("");
-      lines.push(formatAtomBodyPreview(e.capture.text, r));
+      lines.push(formatAtomBody(e.capture.text, r));
     }
     if (e.wouldWriteMarker) {
       lines.push("");

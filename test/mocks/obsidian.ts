@@ -15,6 +15,9 @@ export class Setting {
   setDesc() {
     return this;
   }
+  setHeading() {
+    return this;
+  }
   addButton() {
     return this;
   }
@@ -28,6 +31,22 @@ export class Setting {
     return this;
   }
 }
+export class TFile {
+  path: string;
+  basename?: string;
+  constructor(path = "") {
+    this.path = path;
+  }
+}
+export const moment = () => ({
+  format: (f: string) => {
+    const d = new Date();
+    const y = d.getFullYear();
+    const mo = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return f === "YYYY-MM-DD" ? `${y}-${mo}-${day}` : `${y}-${mo}-${day}`;
+  },
+});
 export class SecretComponent {}
 export class Modal {
   app: unknown;
@@ -49,5 +68,4 @@ export class Modal {
   close() {}
 }
 export type App = unknown;
-export type TFile = { path: string; basename?: string };
 export type EventRef = unknown;
