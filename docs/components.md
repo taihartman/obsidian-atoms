@@ -31,6 +31,10 @@ Shared presentation for Atoms home. Visual authority: [`docs/design-handoff/toke
 | `actionRow(parent)` | Flex row of buttons |
 | `filterTabs(parent, { modes, active, onChange })` | Library All / Linked |
 
+## Update notes strip
+
+Compose existing kit only — no dedicated factory: `flatCard` + `h2`/`p` + `actionRow` + `button` primary **Update** / quiet **Not now**. Class: `.atoms-home-update-notes`. Do **not** reuse `.atoms-home-update-banner` (capture shortcut CTA).
+
 ## Contributing a component
 
 1. Prefer extending an existing factory over inventing a one-off class in the view.

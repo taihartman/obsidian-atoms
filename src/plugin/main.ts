@@ -82,6 +82,11 @@ import {
   type ApplyBackfillReport,
   type CostEstimate,
 } from "../pipeline/backfill";
+import {
+  runRefreshEligibleAtoms,
+  type RefreshReport,
+} from "../pipeline/refreshAtoms";
+import { formatUpdateSummary } from "../home/runProgress";
 
 export default class AtomsPlugin extends Plugin {
   settings!: LinkerSettings;
@@ -99,6 +104,8 @@ export default class AtomsPlugin extends Plugin {
   lastBackfillEstimate: CostEstimate | null = null;
   lastBackfillReport: ApplyBackfillReport | null = null;
   lastBackfillBatchId: string | null = null;
+  /** Last Update notes refresh report (CLI). */
+  lastRefreshReport: RefreshReport | null = null;
   /** Guards double-fire of onload + interval auto-run. */
   private autoRunInFlight = false;
   private backfillInFlight = false;
@@ -191,7 +198,7 @@ export default class AtomsPlugin extends Plugin {
     }
   }
 
-  private beginHomeRun(phase: "preview" | "process"): void {
+  private beginHomeRun(phase: "preview" | "process" | "update"): void {
     this.forEachAtomsHome((v) => v.beginRun(phase));
   }
 
@@ -221,6 +228,50 @@ export default class AtomsPlugin extends Plugin {
   /** Called from Atoms home ⋯ menu. */
   async runBackfillFromHome(): Promise<void> {
     await this.runBackfillFlow();
+  }
+
+  /**
+   * Update notes — refresh eligible older atoms to Process parity (Issue #29).
+   * User-initiated only; never from auto-run.
+   */
+  async runUpdateNotes(opts?: {
+    fixtureResults?: import("../shared/types").ClassificationResult[];
+    limit?: number;
+  }): Promise<void> {
+    const apiKey = this.requireApiKey();
+    if (!apiKey) return;
+
+    this.beginHomeRun("update");
+    new Notice("Atoms: updating older notes…");
+    try {
+      const report = await runRefreshEligibleAtoms({
+        app: this.app,
+        contextProvider: this.contextProvider,
+        apiKey,
+        model: this.settings.model,
+        activeVocabulary: this.settings.activeVocabulary,
+        atomFolder: this.settings.atomFolder,
+        limit: opts?.limit,
+        fixtureResults: opts?.fixtureResults,
+        classifyDeps: {
+          maxAttempts: 2,
+          onAuthFailure: (msg) => new Notice(`Atoms: ${msg}`),
+        },
+        onProgress: (done, total, meta) => {
+          this.updateHomeProgress(done, total, meta?.captureText);
+        },
+      });
+      this.lastRefreshReport = report;
+      const summary = formatUpdateSummary(report.updated, report.failed);
+      this.finishHomeRun(summary);
+      new Notice(
+        `Atoms: updated ${report.updated}, renamed ${report.renamed}, markers ${report.markersRepaired}, failed ${report.failed}`,
+      );
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "update failed";
+      this.failHomeRun(msg);
+      new Notice(`Atoms: ${msg.slice(0, 100)}`);
+    }
   }
 
   /** Open/create today's daily and show it in the editor. */

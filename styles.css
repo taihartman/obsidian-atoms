@@ -934,6 +934,24 @@
 }
 
 /* Shortcut update banner */
+/* Update notes strip — flat card spacing (kit); not shortcut banner */
+.atoms-home-update-notes {
+  margin-bottom: 14px;
+  padding: 14px 14px 12px;
+}
+.atoms-home-update-notes h2 {
+  margin: 0 0 6px;
+  font-size: 1.1rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+.atoms-home-update-notes > p {
+  margin: 0 0 12px;
+  font-size: 0.88rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
 .atoms-home-update-banner {
   display: flex;
   align-items: center;

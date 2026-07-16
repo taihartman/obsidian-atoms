@@ -138,4 +138,12 @@ export function registerAtomsCommands(plugin: AtomsPlugin): void {
       void plugin.runBackfillFlow();
     },
   });
+
+  plugin.addCommand({
+    id: "update-notes",
+    name: "Update notes: refresh older atoms to current quality",
+    callback: () => {
+      void plugin.runUpdateNotes();
+    },
+  });
 }

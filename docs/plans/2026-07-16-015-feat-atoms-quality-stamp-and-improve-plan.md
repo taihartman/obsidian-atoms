@@ -46,7 +46,7 @@ Lost captures marked task/noise with **no** atom remain a separate path (unmark 
 | R6 | Needs API key + network (same as Process). No key → same calm failure as Process (settings / test connection). Copy must **not** say offline. |
 | R7 | UX happy path: home strip **Update** → **light confirm** (N notes, uses AI / key, body stays) → progress → done. Optional power “Review changes…” later; not required for v1. |
 | R8 | Never auto-refresh on vault open or phone interval. |
-| R9 | Batch cap (e.g. 20–50 per run) + progress UI; rate-limit friendly (reuse classify retry). |
+| R9 | Batch cap **≤15 per run** (Issue #29; phone-friendly) + progress UI; rate-limit friendly (reuse classify retry). |
 | R10 | Version bump user-visible; tests for stamp, extract capture, apply refresh plan, eligibility. |
 | R11 | If refresh would change title/filename: rename atom safely; update the **plugin-owned** daily marker line for that capture when locatable; never touch user capture bullets. |
 | R12 | Refresh **modifies** an existing atom in place (or renames it). It does **not** go through `planWrite` create/`skip_existing_atom` collision for “file already exists” — that path is for *new* Process writes only. |
@@ -167,8 +167,8 @@ flowchart TD
 
 ### Cost / batching
 
-- Default batch 20 (phone-friendly); desktop can allow 50.  
-- Progress card reuse Process progress patterns.  
+- Default batch **15** both platforms (Issue #29 acceptance). Optional higher setting later.  
+- Progress: extend home `RunPhase` / `runProgress.ts` + `statusCard` (same pattern as Preview/Process).  
 - Optional estimate: N × rough tokens — nice-to-have, not v1 blocker.
 
 ### When to bump CURRENT
@@ -181,15 +181,100 @@ flowchart TD
 
 ---
 
+## Architecture alignment (post hybrid layout + home UI kit)
+
+**Aligned to master as of 2026-07-16** (after #22 hybrid `src/`, #34 mind-change + `src/ui/` kit, #19 classification quality 0.6.6). Plan paths and UX below **supersede** the pre-hybrid flat-`src/` unit lists and any “raw DOM / offline polish” mock wording.
+
+### Layout map (where code goes)
+
+| Concern | Path | Why |
+|---|---|---|
+| `CURRENT_ATOMS_QUALITY` + pure stamp/eligibility helpers | `src/pipeline/atomQuality.ts` | Pipeline owns write stamps; pure so home can import |
+| Process stamp on create | `src/pipeline/render.ts` (`buildAtomMarkdown`) | Single create path |
+| Extract / plan refresh markdown (pure) | `src/pipeline/refreshAtoms.ts` | Vault write integrity lives with pipeline |
+| Live refresh orchestration + apply | `src/pipeline/refreshAtoms.ts` + thin `plugin/main` methods | Same pattern as backfill/process |
+| Commands | `src/plugin/commands.ts` → callbacks on plugin | `atoms:update-notes`, optional status |
+| Eligible count / list pure helpers | `src/home/atomsHomeData.ts` (or import pure from `pipeline/atomQuality`) | Home data layer already parses FM |
+| Home strip + confirm + progress wire | `src/home/atomsHomeView.ts` | Compose **UI kit only** |
+| Progress phase helpers | `src/home/runProgress.ts` | Extend `RunPhase` with update modes; do not fork a second progress system |
+| Shared types if needed | `src/shared/types.ts` | Only if cross-layer types grow |
+| Styles | Prefer existing `.atoms-ui-*` + minimal home class; **do not** reuse `.atoms-home-update-banner` (that is **capture shortcut** version CTA) | Avoid naming collision |
+
+### Dependency rule (non-negotiable)
+
+```
+pipeline/**  ↛  home/, resurface/, settings/, ui/, plugin/
+home/        →  ui/, pipeline pure helpers, plugin methods via view callbacks
+ui/          ↛  home/, pipeline/, plugin/
+```
+
+Refresh **apply** stays in `pipeline/` (or plugin calling pipeline). Home only: count eligible → confirm → call `plugin.runUpdateNotes()` (or equivalent) → show progress.
+
+### Third write type (architecture amend)
+
+Today architecture says **two write types**: (a) new `Atoms/` files, (b) append markers. **Update notes adds (c):** in-place **modify** (and optional rename) of existing linker-generated atoms + **narrow** marker-line wikilink retarget when title changes.
+
+Ship with an explicit `docs/architecture.md` note:
+
+- Frontmatter base remains `created`, `source`, `generated-by`, `tags` (+ optional `aliases`).
+- **Optional quality stamps:** `atoms-quality` (int), `quality-updated` (YYYY-MM-DD) on Process-created and Update-refreshed atoms.
+- Write types: create · append marker · **refresh in place** (user-initiated only; never auto-run).
+
+### UI kit standards (U4)
+
+Visual authority: `docs/design-handoff/tokens/README.md` + `docs/components.md`.
+
+| Surface | Kit building blocks |
+|---|---|
+| **Update notes strip** | `flatCard` (secondary / calm — **not** `statusCard` wait soft-fill; wait is for unprocessed captures only) + eyebrow (`kicker` default or existing `.atoms-home-card-eyebrow`) + body copy + `actionRow` + `button` primary **Update** |
+| **Light confirm** | Obsidian `Modal` (same pattern as `confirmEnableAutomaticFiling` in home view) — title + body + primary/secondary; mobile-safe. Full-screen mock review sheet is **out of v1**. |
+| **In-run progress** | Reuse `statusCard` + existing progress card fill (`runPhase` / `fillProgressContent`); extend phase enum e.g. `"update"` rather than one-off DOM |
+| **Done** | Existing done tone on progress card, or short Notice: “Updated N notes to current quality.” |
+
+**Copy (locked):**
+
+| Surface | Text |
+|---|---|
+| Strip title | **Update notes** |
+| Strip body | `N older notes · same AI as filing · your words stay put` |
+| Button | **Update** |
+| Confirm | `Refresh N notes with AI? Titles and links may update. Original capture text will not. Uses your Anthropic key.` |
+| Done | `Updated N notes to current quality.` |
+| No key | Same calm path as Process (settings / test connection) — **do not run** |
+
+**No** “offline · no API key.” **No** purple fills. **No** inventing a second button system (`atoms-home-btn` raw) when kit `button` exists.
+
+**Placement:** Show strip when `eligibleCount > 0` and not first-day setup dominance; **below** wait/progress heroes when those are up (filing unprocessed beats refresh). Prefer calm queue-clear state; still OK under library when waiting is showing if space allows — default: **idle + eligible**, hide while `runPhase !== idle`.
+
+**Do not** overload shortcut banner (`.atoms-home-update-banner` / “Shortcut update”) — different product.
+
+### Mock vs ship
+
+- Mock: `docs/design-handoff/atoms-view/update-linking.html` (draft; may still say “Improve linking”).
+- **Ship name:** Update notes / Update (this plan + Issue #29).
+- Mock optional “review sheet” = out of v1; light Modal confirm only.
+
+### Issue / claim
+
+- GitHub **#29** · plan path this file · STATUS + draft PR before code.
+- Batch **≤15** (issue acceptance overrides earlier “20–50” draft).
+
+---
+
 ## Implementation Units
 
 ### U1. Quality constant + stamp on Process write
 
 **Goal:** New atoms carry `atoms-quality` + `quality-updated`.
 
-**Files:** `src/atomQuality.ts`, `src/render.ts` (`buildAtomMarkdown`), tests, `docs/architecture.md`
+**Files:**
 
-**Verification:** render tests assert stamps at CURRENT.
+- `src/pipeline/atomQuality.ts` — `CURRENT_ATOMS_QUALITY = 2`, `qualityStampFields(today)`, pure `parseAtomsQuality(content)` / `isEligibleForUpdate(content)`  
+- `src/pipeline/render.ts` — `buildAtomMarkdown` adds stamps  
+- `test/render.test.ts` (+ small `test/atomQuality.test.ts` if pure helpers grow)  
+- `docs/architecture.md` — FM + write-type (c) note  
+
+**Verification:** render tests assert stamps at CURRENT; no `prompt-version`/`model` still.
 
 ---
 
@@ -197,11 +282,11 @@ flowchart TD
 
 **Goal:** Pure split/reassemble; body identity preserved.
 
-**Files:** `src/refreshAtoms.ts` (or `improveAtoms.ts` renamed), `test/refreshAtoms.test.ts`
+**Files:** `src/pipeline/refreshAtoms.ts`, `test/refreshAtoms.test.ts`
 
-**Approach:** `extractCaptureBody`, `buildRefreshedAtomMarkdown(oldContent, result, { quality, today, title })`, body byte-equal to extract.
+**Approach:** `extractCaptureBody`, `buildRefreshedAtomMarkdown(oldContent, result, { quality, today, title, oldTitle })`, capture region byte-equal to extract; preserve `created`/`source`; R13 keep-as-atom force.
 
-**Tests:** weak old atom → new reason; body unchanged; FM created/source kept.
+**Tests:** weak old atom → new reason; body unchanged; FM created/source kept; noise verdict still atom-shaped markdown.
 
 ---
 
@@ -210,55 +295,54 @@ flowchart TD
 **Goal:** Live API path identical choke points to Process.
 
 **Files:**
-- `src/refreshAtoms.ts` — orchestration + apply
-- `src/main.ts` — commands `atoms:update-notes` / status
-- `src/render.ts` — helpers for rename-safe paths if needed
-- `test/refreshAtoms.test.ts` — apply + keep-as-atom + body identity (extend U2 file or split)
+
+- `src/pipeline/refreshAtoms.ts` — list eligible under atom folder, orchestrate, apply  
+- `src/plugin/main.ts` — `runUpdateNotes` / key check / progress callbacks (mirror process/backfill)  
+- `src/plugin/commands.ts` — `atoms:update-notes` (+ optional status)  
+- `src/pipeline/render.ts` — rename-safe path helpers if not already exported  
+- `test/refreshAtoms.test.ts` — apply plans + keep-as-atom + body identity  
 
 **Approach:**
 
-- `refreshEligibleAtoms({ dryRun, limit })`  
-- Reuse `classifyCapture` + same context provider as Process  
-- Apply **in-place** `vault.modify` (not `planWrite` create); rename when title changes  
-- Marker repair for plugin-owned line only  
+- `refreshEligibleAtoms({ dryRun, limit: 15, … })`  
+- Reuse `classifyCapture` + same `ContextProvider` as Process (AE6)  
+- Apply **in-place** `vault.modify` / rename — **not** `planWrite` create / `skip_existing_atom`  
+- Marker repair for plugin-owned line only; aliases if marker not found  
 - R13 keep-as-atom if model returns noise/task  
-- Failures counted; continue batch; progress via existing progress helpers if present  
+- Failures counted; continue batch; progress via home progress hooks  
 
 **Test scenarios:**
-- Mock requestUrl → modify atom; body unchanged; quality stamped  
+
+- Mock classify → modify atom; body unchanged; quality stamped  
 - Noise verdict → still atom file; title preserved or model title if non-empty  
-- Rename path: old path gone / new path exists; marker updated when fixture daily present  
+- Rename: old path gone / new path exists; marker updated when fixture daily present  
 
 ---
 
-### U4. Home strip + light confirm + progress
+### U4. Home strip + light confirm + progress (UI kit)
 
-**Goal:** Parity UX from mock v3 (AI-honest).
+**Goal:** Calm secondary strip + Modal confirm + shared progress; kit-only DOM.
 
 **Files:**
-- `src/atomsHomeData.ts` — eligible count pure helper  
-- `src/atomsHomeView.ts` — secondary strip  
+
+- `src/home/atomsHomeData.ts` — `countEligibleForUpdate` / list helpers (pure)  
+- `src/home/atomsHomeView.ts` — strip compose with `flatCard` / `button` / `actionRow`; Modal confirm; wire `onUpdateNotes`  
+- `src/home/runProgress.ts` — extend phases/summary for update if needed  
 - `test/atomsHomeData.test.ts`  
-- styles if needed  
+- `styles.css` only if a thin layout class is required (prefer kit + existing home spacing)  
+- `docs/components.md` — one-line: Update notes strip = flatCard + primary Update (no new factory required unless strip repeats elsewhere)  
 
-**Copy (lock):**
-
-- Strip title: **Update notes**  
-- Strip body: “N older notes · same AI as filing · your words stay put”  
-- Button: **Update**  
-- Confirm: “Refresh N notes with AI? Titles and links may update. Original capture text will not. Uses your Anthropic key.”  
-- Done: “Updated N notes to current quality.”  
-- No key: reuse Process empty-key messaging (do not run).  
-
-**No** “offline · no API key.”
+**UX rules:** kit standards table above; copy lock; no shortcut-banner reuse.
 
 ---
 
 ### U5. Version, seed, docs
 
-**Goal:** Next user-visible version after 0.6.6 (or stacked PR), seed one legacy atom + one stamped; architecture + optional solutions note.
+**Goal:** Next user-visible version after 0.6.6; seed legacy + stamped atom; docs.
 
-**Files:** `package.json`, `manifest.json`, `versions.json`, `scripts/seed-demo-vault.mjs`, `docs/architecture.md`, `Claude.md` command list if commands are listed there
+**Files:** `package.json`, `manifest.json`, `versions.json`, `scripts/seed-demo-vault.mjs` (or seed script in use), `docs/architecture.md`, `CLAUDE.md` command list, design-handoff README status line if desired.
+
+**Phone:** after merge to master, `npm run phone` (not a GitHub Release unless asked).
 
 ---
 
@@ -309,10 +393,11 @@ U1 alone is forward-compatible if U3 slips.
 
 | Q | Default if implementing now |
 |---|---|
-| Exact confirm Modal vs Obsidian Notice + buttons | Prefer small Modal / action-sheet-like UI on mobile home |
+| Exact confirm Modal vs Obsidian Notice + buttons | **Modal** (match `confirmEnableAutomaticFiling`); not Notice-only |
 | Show token cost estimate on confirm | No in v1; N is enough |
-| Max batch on phone vs desktop | 20 both; optional setting later |
+| Max batch on phone vs desktop | **15 both** (Issue #29); optional setting later |
 | Power “Review changes” in v1 | Out of v1 (plan + mock optional only) |
+| New UI factory for strip? | **No** unless strip repeats; compose `flatCard` + `button` + `actionRow` |
 
 ## Doc review (2026-07-16 light headless)
 
@@ -330,6 +415,19 @@ U1 alone is forward-compatible if U3 slips.
 | FYI | Marker rewrite is append-only exception | Documented; keep narrow |
 
 **safe_auto applied:** R12–R13, naming lock, unit file lists, open questions, frontmatter cleanup, this section.
+
+### Architecture re-align (2026-07-16, post hybrid + UI kit)
+
+| Severity | Finding | Disposition |
+|---|---|---|
+| P1 | Units pointed at flat pre-hybrid paths (`src/main.ts`, `src/atomsHomeView.ts`) | Rewritten to `pipeline/` · `plugin/` · `home/` · `ui/` |
+| P1 | Home could invent raw DOM outside kit | U4 locked to `flatCard` / `button` / `actionRow` / `statusCard` + Modal |
+| P2 | `.atoms-home-update-banner` name collision with shortcut CTA | Explicit ban; separate strip |
+| P2 | Architecture “two write types” + FM exact list omit quality stamps | Amend architecture in U1/U5 |
+| P2 | Batch 20 vs Issue #29 ≤15 | Locked **15** |
+| P3 | Mock still “Improve linking” | Ship copy = Update notes; mock is draft |
+
+**safe_auto applied:** Architecture alignment section, unit path rewrite, batch 15, UI kit table, third write type note.
 
 ## Supersedes earlier draft
 
