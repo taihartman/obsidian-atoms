@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| *(none)* | | | | | | |
+| In progress | #53 | tai | fix/drop-junk-link-reasons | — | linkQuality.ts | drop placeholder reasons; CURRENT=5 |
 
 ## How to claim (copy)
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   improveClassificationLinks,
+  isJunkLinkReason,
   isSelfDuplicateReason,
   isWeakLinkReason,
   maybeLinkPeopleIndex,
@@ -161,6 +162,35 @@ describe("stripSelfReferentialLinks", () => {
       { alsoSelf: [prior] },
     );
     expect(out.links.map((l) => l.note)).toEqual(["People"]);
+  });
+
+  it("drops placeholder / junk model reasons", () => {
+    expect(
+      isJunkLinkReason(
+        "unrelated placeholder — remove if not applicable ([[Nichita]])",
+      ),
+    ).toBe(true);
+    expect(isJunkLinkReason("concrete preference ([[Nichita]])")).toBe(false);
+
+    const out = stripSelfReferentialLinks(
+      atom({
+        title: "Sherry is Ning's friend from CRG, works at hospital",
+        links: [
+          {
+            note: "Nichita",
+            reason:
+              "unrelated placeholder — remove if not applicable ([[Nichita]])",
+          },
+          {
+            note: "Ning is the strong guy at CRG who wears white collared shirts",
+            reason: "Sherry is Ning's friend from CRG",
+          },
+        ],
+      }),
+    );
+    expect(out.links.map((l) => l.note)).toEqual([
+      "Ning is the strong guy at CRG who wears white collared shirts",
+    ]);
   });
 
   it("strips alias wikilinks from reasons", () => {

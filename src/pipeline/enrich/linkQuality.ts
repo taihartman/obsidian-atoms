@@ -250,8 +250,40 @@ export type StripSelfOpts = {
 };
 
 /**
+ * Model garbage that must never land in atom reason prose.
+ * e.g. "unrelated placeholder — remove if not applicable ([[Nichita]])"
+ */
+export function isJunkLinkReason(reason: string): boolean {
+  const r = (reason ?? "").trim();
+  if (!r) return true;
+  if (
+    /\b(placeholder|lorem ipsum|sample reason|example reason|dummy reason)\b/i.test(
+      r,
+    )
+  ) {
+    return true;
+  }
+  if (
+    /\b(remove if|delete if|ignore if|not applicable|n\/a|tbd|todo)\b/i.test(r)
+  ) {
+    return true;
+  }
+  if (/\bunrelated placeholder\b/i.test(r)) return true;
+  if (/\bunrelated\b/i.test(r) && /\b(placeholder|remove|delete|ignore)\b/i.test(r)) {
+    return true;
+  }
+  // Meta-instruction voice (“if not relevant…”)
+  if (/\bif not (applicable|relevant|needed)\b/i.test(r)) return true;
+  // Bare “related to [[X]]” with nothing else is weak but allowed as fallback;
+  // pure “[[X]]” only is junk
+  if (/^\[\[.+\]\]\.?$/.test(r)) return true;
+  return false;
+}
+
+/**
  * Drop links that target this atom (current title, aliases, prior titles);
- * strip those wikilinks from remaining reasons; drop pure self-duplicate noise.
+ * strip those wikilinks from remaining reasons; drop pure self-duplicate noise
+ * and model placeholder/junk reasons.
  * Run after improveClassificationLinks (Process + Update).
  */
 export function stripSelfReferentialLinks(
@@ -260,10 +292,9 @@ export function stripSelfReferentialLinks(
 ): ClassificationResult {
   if (result.verdict !== "atom") return result;
   const primary = (result.title ?? "").trim();
-  if (!primary && !(opts.alsoSelf?.length)) return result;
-
-  const selves = collectSelfTitles(primary, opts.alsoSelf ?? []);
-  if (!selves.length) return result;
+  const also = opts.alsoSelf ?? [];
+  // Even without a title, still filter junk reasons
+  const selves = collectSelfTitles(primary, also);
 
   const links = result.links ?? [];
   if (!links.length) return result;
@@ -273,32 +304,37 @@ export function stripSelfReferentialLinks(
     const note = (l.note ?? "").trim();
     if (!note) continue;
     // Never link an atom to its own title / alias / prior basename
-    if (isNoteSelf(note, selves)) continue;
+    if (selves.length && isNoteSelf(note, selves)) continue;
 
     let reason = (l.reason ?? "").trim();
-    if (isSelfDuplicateReason(reason, primary, opts.alsoSelf ?? [])) {
+    if (isJunkLinkReason(reason)) continue;
+
+    if (primary && isSelfDuplicateReason(reason, primary, also)) {
       reason = stripSelfWikilinksMany(reason, selves);
       if (
         !reason ||
-        isSelfDuplicateReason(reason, primary, opts.alsoSelf ?? []) ||
+        isJunkLinkReason(reason) ||
+        isSelfDuplicateReason(reason, primary, also) ||
         reason.length < 12
       ) {
         continue;
       }
-    } else {
+    } else if (selves.length) {
       reason = stripSelfWikilinksMany(reason, selves);
     }
 
-    if (!reason) {
-      reason = `related to [[${note}]]`;
+    if (!reason || isJunkLinkReason(reason)) {
+      // Prefer no link over inventing weak prose for junk/empty
+      continue;
     }
-    if (isNoteSelf(note, selves)) continue;
+    if (selves.length && isNoteSelf(note, selves)) continue;
     // Drop if after strip the only remaining wikilinks are still self (paranoia)
     const remainingLinks = [...reason.matchAll(/\[\[([^\]]+)\]\]/g)].map(
       (m) => m[1]!.trim(),
     );
     if (
       remainingLinks.length > 0 &&
+      selves.length > 0 &&
       remainingLinks.every((t) => isNoteSelf(t, selves))
     ) {
       continue;
