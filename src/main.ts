@@ -119,25 +119,46 @@ export default class AtomsPlugin extends Plugin {
 
     this.registerCommands();
 
+    // Pin Atoms home in the left sidebar (Files / Search / Tags strip) on
+    // enable and cold start — same pattern as core sidebar plugins.
+    this.app.workspace.onLayoutReady(() => {
+      void this.ensureAtomsHomeSidebar({ reveal: false });
+    });
+
     // U9: never block launch — schedule auto-run after layout + metadata.
     void this.scheduleAutoRunLifecycle();
   }
 
+  /**
+   * Ensure an Atoms home leaf exists in the left sidebar.
+   * @param reveal When true, focus the leaf (ribbon / command). When false,
+   *   only create the tab if missing so first install gets the panel without
+   *   stealing focus from the open note on every launch.
+   */
+  private async ensureAtomsHomeSidebar(opts?: {
+    reveal?: boolean;
+  }): Promise<WorkspaceLeaf> {
+    const reveal = opts?.reveal ?? false;
+    const leaf = await this.app.workspace.ensureSideLeaf(
+      ATOMS_HOME_VIEW_TYPE,
+      "left",
+      {
+        // Only force-select when the user asked (ribbon / command).
+        active: reveal,
+        reveal,
+      },
+    );
+    if (reveal) {
+      const view = leaf.view;
+      if (view instanceof AtomsHomeView) {
+        await view.refresh();
+      }
+    }
+    return leaf;
+  }
+
   async activateAtomsHome(): Promise<void> {
-    const { workspace } = this.app;
-    let leaf: WorkspaceLeaf | null = null;
-    const existing = workspace.getLeavesOfType(ATOMS_HOME_VIEW_TYPE);
-    if (existing.length) {
-      leaf = existing[0]!;
-    } else {
-      leaf = workspace.getLeftLeaf(false) ?? workspace.getLeaf(false);
-      await leaf.setViewState({ type: ATOMS_HOME_VIEW_TYPE, active: true });
-    }
-    await workspace.revealLeaf(leaf);
-    const view = leaf.view;
-    if (view instanceof AtomsHomeView) {
-      await view.refresh();
-    }
+    await this.ensureAtomsHomeSidebar({ reveal: true });
   }
 
   /** Called from Atoms home Preview — same dry-run as command. */
