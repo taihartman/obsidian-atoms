@@ -517,39 +517,9 @@ export class AtomsHomeView extends ItemView {
       }
     }
 
-    // Today force — available but quieter (power/test path, not guilt)
-    if (this.todayUnprocessedCount > 0) {
-      const tryCard = scroll.createDiv({ cls: "atoms-home-try-today-card" });
-      tryCard.createEl("p", {
-        cls: "atoms-home-card-eyebrow",
-        text: "Today",
-      });
-      tryCard.createEl("h2", {
-        text:
-          this.todayUnprocessedCount === 1
-            ? "1 bullet on today’s note"
-            : `${this.todayUnprocessedCount} bullets on today’s note`,
-      });
-      tryCard.createEl("p", {
-        text: "Optional. Today is never auto-processed.",
-      });
-      const tryActions = tryCard.createDiv({ cls: "atoms-home-wait-actions" });
-      const pToday = tryActions.createEl("button", {
-        cls: "atoms-home-btn atoms-home-btn-primary",
-        text: this.busy ? "…" : "Preview today",
-      });
-      pToday.disabled = this.busy;
-      pToday.addEventListener("click", () => void this.onPreview(true));
-      const wToday = tryActions.createEl("button", {
-        cls: "atoms-home-btn atoms-home-btn-secondary",
-        text: "Process today",
-      });
-      wToday.disabled = this.busy;
-      wToday.addEventListener("click", () => void this.onProcess(true));
-    }
-
-    // Memory stream after work — delight when the queue is calm
-    if (!firstDay && this.runPhase === "idle") {
+    // One hero: Ready when pending; For you only when calm (home-v2)
+    const workPending = shouldShowWaitCard(this.unprocessedCount);
+    if (!firstDay && this.runPhase === "idle" && !workPending) {
       this.renderResurfaceCard(scroll);
     }
 
@@ -673,14 +643,21 @@ export class AtomsHomeView extends ItemView {
         const main = row.createDiv({ cls: "atoms-home-cell-main" });
         main.createDiv({ cls: "atoms-home-cell-title", text: e.title });
         const meta = main.createDiv({ cls: "atoms-home-cell-meta" });
-        for (const chip of e.linkChips.slice(0, 4)) {
-          meta.createSpan({ cls: "atoms-home-link-chip", text: chip });
+        for (const chip of e.displayChips) {
+          meta.createSpan({
+            cls:
+              "atoms-home-link-chip" +
+              (chip.role === "person"
+                ? " is-person"
+                : " is-work"),
+            text: chip.label,
+          });
         }
         if (e.sourceDay) {
           meta.createSpan({
             cls: "atoms-home-cell-source",
             text:
-              (e.linkChips.length ? " · " : "") +
+              (e.displayChips.length ? " · " : "") +
               formatCueDate(e.sourceDay),
           });
         }
@@ -697,6 +674,20 @@ export class AtomsHomeView extends ItemView {
     menu.addItem((i) =>
       i.setTitle("Open today's note").onClick(() => void this.onOpenToday()),
     );
+    if (this.todayUnprocessedCount > 0) {
+      menu.addItem((i) =>
+        i
+          .setTitle(
+            `Preview today (${this.todayUnprocessedCount})`,
+          )
+          .onClick(() => void this.onPreview(true)),
+      );
+      menu.addItem((i) =>
+        i
+          .setTitle(`Process today (${this.todayUnprocessedCount})`)
+          .onClick(() => void this.onProcess(true)),
+      );
+    }
     menu.addItem((i) =>
       i
         .setTitle(labelInstallOrUpdate(this.shortcutAcked))

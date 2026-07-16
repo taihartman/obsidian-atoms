@@ -1,7 +1,7 @@
 {
 	"id": "atoms",
 	"name": "Atoms",
-	"version": "0.5.1",
+	"version": "0.5.2",
 	"minAppVersion": "1.11.4",
 	"description": "Classify past daily-note captures into linked atomic notes via the Anthropic API.",
 	"author": "Atoms",
