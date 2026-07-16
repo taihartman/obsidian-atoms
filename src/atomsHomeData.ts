@@ -131,8 +131,49 @@ export function extractFrontmatterTags(content: string): string[] {
 }
 
 /**
+ * "Ning is the strong Asian guy…" → "Ning" for a glance chip.
+ * Full claim title still lives in the note / backlinks.
+ */
+export function personNameFromClaimTitle(note: string): string | null {
+  const n = note.trim();
+  if (!n) return null;
+  // Name is/was/has/'s …
+  const m = n.match(
+    /^([A-Za-z][A-Za-z'-]{1,24})(?:\s+([A-Za-z][A-Za-z'-]{1,24}))?\s+(is|was|has|'s)\b/i,
+  );
+  if (m) {
+    return m[2] ? `${m[1]} ${m[2]}` : m[1]!;
+  }
+  return null;
+}
+
+function isPersonContext(contextBefore: string, tags: string[]): boolean {
+  const ctx = (contextBefore ?? "").toLowerCase();
+  const tagSet = new Set(tags.map((t) => t.toLowerCase()));
+  return (
+    tagSet.has("person") ||
+    /\b(person|people|friend|about |preference about|matched|told me|recommended|hub|relates to this note about)\b/.test(
+      ctx,
+    )
+  );
+}
+
+function isMediaContext(contextBefore: string, tags: string[]): boolean {
+  const ctx = (contextBefore ?? "").toLowerCase();
+  const tagSet = new Set(tags.map((t) => t.toLowerCase()));
+  return (
+    tagSet.has("watch") ||
+    tagSet.has("show") ||
+    tagSet.has("movie") ||
+    tagSet.has("media") ||
+    /\b(media work|watch|show|movie|anime|film|series|listen|read)\b/.test(ctx)
+  );
+}
+
+/**
  * Coarse role for home chips from surrounding reason prose + tags.
  * Returns null = demote (related claim / junk / date) — not shown on home.
+ * Long person-claim titles are handled in extractDisplayLinkChips via short name.
  */
 export function classifyLinkRole(
   note: string,
@@ -144,44 +185,32 @@ export function classifyLinkRole(
   if (!n) return null;
   if (DATE_TITLE_RE.test(n)) return null;
   if (JUNK_TITLES.has(key)) return null;
-  // Long claim titles stay out of the glance row
-  if (n.length > 32 || n.split(/\s+/).length > 4) return null;
 
-  const ctx = (contextBefore ?? "").toLowerCase();
-  const tagSet = new Set(tags.map((t) => t.toLowerCase()));
+  const mediaCtx = isMediaContext(contextBefore, tags);
+  const personCtx = isPersonContext(contextBefore, tags);
+  const long = n.length > 32 || n.split(/\s+/).length > 4;
 
-  const mediaCtx =
-    /\b(media work|watch|show|movie|anime|film|series|listen|read)\b/.test(
-      ctx,
-    ) ||
-    tagSet.has("watch") ||
-    tagSet.has("show") ||
-    tagSet.has("movie") ||
-    tagSet.has("media");
-
-  const personCtx =
-    /\b(person|people|about |preference about|matched|told me|recommended|hub)\b/.test(
-      ctx,
-    ) || tagSet.has("person");
+  if (long) {
+    // Long titles are not full chips — person short-name handled by caller
+    return null;
+  }
 
   if (mediaCtx && !personCtx) return "work";
   if (personCtx && !mediaCtx) return "person";
   if (mediaCtx && personCtx) {
-    // "Christian told me to watch X" window may mention both —
-    // prefer person for short names, work for title-like phrases
     if (n.split(/\s+/).length <= 2 && !/\b(the|a|an)\b/i.test(n))
       return "person";
     return "work";
   }
 
-  // Short proper-ish name → person; short media-ish → work
   if (n.split(/\s+/).length <= 2) return "person";
   return "work";
 }
 
 /**
  * Home chips: model/body order, type person|work only, max HOME_CHIP_MAX.
- * Related long claims and junk never appear.
+ * Long claim titles usually demoted — except person claims shortened to a name
+ * (Sherry → [[Ning is the strong…]] shows as chip "Ning").
  */
 export function extractDisplayLinkChips(
   body: string,
@@ -201,11 +230,26 @@ export function extractDisplayLinkChips(
     if (key === self) continue;
     if (seen.has(key)) continue;
     seen.add(key);
-    const start = Math.max(0, (m.index ?? 0) - 80);
+    const start = Math.max(0, (m.index ?? 0) - 100);
     const contextBefore = body.slice(start, m.index ?? 0);
     const role = classifyLinkRole(note, contextBefore, tags);
-    if (!role) continue;
-    out.push({ label: note, role });
+    if (role) {
+      out.push({ label: note, role });
+    } else {
+      // Person-claim atom titles: surface short name when context is social
+      const short = personNameFromClaimTitle(note);
+      if (
+        short &&
+        short.toLowerCase() !== self &&
+        isPersonContext(contextBefore, tags)
+      ) {
+        const sk = short.toLowerCase();
+        if (!seen.has(`person:${sk}`)) {
+          seen.add(`person:${sk}`);
+          out.push({ label: short, role: "person" });
+        }
+      }
+    }
     if (out.length >= max) break;
   }
   return out;
