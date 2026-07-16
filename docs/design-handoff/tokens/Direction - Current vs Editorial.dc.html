@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<style>
+  body { margin: 0; background: #0a0a0c; color: #fff; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  a { color: #0a84ff; text-decoration: none; }
+  a:hover { color: #64d2ff; }
+</style>
+</helmet>
+<div style="max-width: 1800px; margin: 0 auto; padding: 28px 24px 80px;">
+  <h1 style="font-size: 1.35rem; letter-spacing: -0.03em; margin: 0 0 8px;">Direction — current vs editorial</h1>
+  <p style="color: rgba(235,235,245,0.6); max-width: 46rem; line-height: 1.5; margin: 0 0 28px; font-size: 0.95rem;"><a href="#3a">3a</a> is what ships today. <a href="#3b">3b</a> strips it to one accent, flat surfaces, typographic category labels, and a serif voice for claim bodies — your past words set like quotations.</p>
+  <div style="display: flex; flex-wrap: wrap; gap: 56px; align-items: flex-start; padding-bottom: 44px; margin-bottom: 44px; border-bottom: 1px solid rgba(84,84,88,0.4);">
+    <div id="4a">
+      <div style="display: flex; align-items: baseline; gap: 10px; margin-bottom: 12px;">
+        <span style="background:#0a84ff; color:#fff; border-radius:6px; padding:2px 8px; font-weight:700; font-size: 0.78rem;">4a</span>
+        <span style="font-size: 0.95rem; font-weight: 650;">Middle path — cards + chips from 3a, voice + discipline from 3b</span>
+      </div>
+      <div style="display: flex; gap: 24px; flex-wrap: wrap;">
+        <div style="width: 375px; height: 812px; background: #000; border-radius: 44px; border: 4px solid #2a2a2c; box-shadow: 0 28px 70px rgba(0,0,0,0.55); overflow: hidden; display: flex; flex-direction: column;">
+          <div style="height: 28px; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 4px; font-size: 0.72rem; font-weight: 600;">9:41</div>
+          <div style="padding: 10px 16px 12px; border-bottom: 1px solid rgba(84,84,88,0.4);">
+            <div style="display: flex; align-items: center; min-height: 40px;"><div style="flex: 1;"></div><div style="color: rgba(235,235,245,0.45); font-size: 1.05rem;">⋯</div></div>
+            <h2 style="margin: 0; font-size: 1.85rem; font-weight: 700; letter-spacing: -0.035em; line-height: 1.1;">Atoms</h2>
+            <p style="margin: 5px 0 0; font-size: 0.9rem; color: rgba(235,235,245,0.45);">42 atoms · queue clear</p>
+          </div>
+          <div style="flex: 1; overflow: hidden; padding: 14px 16px;">
+            <div style="margin: 0 0 18px; padding: 18px 18px 12px; border-radius: 16px; background: #1c1c1e; border: 1px solid rgba(84,84,88,0.55);">
+              <div style="font-size: 0.7rem; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: #bf5af2; margin-bottom: 12px;">Mind change</div>
+              <p style="margin: 0 0 12px; font-family: Georgia, 'Times New Roman', serif; font-size: 1.25rem; line-height: 1.42;">“Sleep debt doesn’t really stack. One good night fixes most of it, so I’m probably fine running short this week.”</p>
+              <p style="margin: 0 0 16px; padding-top: 12px; border-top: 1px solid rgba(84,84,88,0.45); font-size: 0.85rem; color: rgba(235,235,245,0.6); line-height: 1.45;">Twelve days later you revised this: <span style="color: #0a84ff;">Sleep debt compounds across the week</span></p>
+              <div style="display: flex; gap: 8px;">
+                <div style="flex: 1; min-height: 44px; display: flex; align-items: center; justify-content: center; border-radius: 12px; font-weight: 600; font-size: 0.9rem; background: #0a84ff;">Open</div>
+                <div style="flex: 1; min-height: 44px; display: flex; align-items: center; justify-content: center; border-radius: 12px; font-weight: 600; font-size: 0.9rem; background: #2c2c2e;">Next</div>
+              </div>
+              <div style="min-height: 38px; display: flex; align-items: center; justify-content: center; color: rgba(235,235,245,0.32); font-size: 0.8rem;">Not a mind-change</div>
+            </div>
+            <div style="font-size: 0.7rem; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(235,235,245,0.45); margin: 0 2px 8px;">Library</div>
+            <div style="background: #1c1c1e; border-radius: 16px; overflow: hidden; border: 1px solid rgba(84,84,88,0.45);">
+              <sc-for list="{{ rows }}" as="row" hint-placeholder-count="3">
+                <div style="display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; padding: 14px 16px; min-height: 58px; border-bottom: 1px solid rgba(84,84,88,0.4); align-items: start;">
+                  <div style="min-width: 0;">
+                    <div style="font-size: 0.98rem; font-weight: 500; line-height: 1.35; letter-spacing: -0.01em;">{{ row.title }}</div>
+                    <div style="font-size: 0.78rem; color: rgba(235,235,245,0.45); margin-top: 4px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center;">
+                      <sc-if value="{{ row.person }}" hint-placeholder-val="{{ false }}">
+                        <span style="font-size: 0.78rem; font-weight: 600; padding: 2px 8px; border-radius: 6px; color: #ff9f0a; background: rgba(255,159,10,0.14);">{{ row.person }}</span>
+                      </sc-if>
+                      <sc-if value="{{ row.work }}" hint-placeholder-val="{{ false }}">
+                        <span style="font-size: 0.78rem; font-weight: 600; padding: 2px 8px; border-radius: 6px; color: #64d2ff; background: rgba(100,210,255,0.12);">{{ row.work }}</span>
+                      </sc-if>
+                      <span>{{ row.meta }}</span>
+                    </div>
+                  </div>
+                  <div style="font-size: 0.76rem; color: rgba(235,235,245,0.32); white-space: nowrap; padding-top: 3px; font-variant-numeric: tabular-nums;">{{ row.time }}</div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+        <div style="width: 375px; height: 812px; background: #000; border-radius: 44px; border: 4px solid #2a2a2c; box-shadow: 0 28px 70px rgba(0,0,0,0.55); overflow: hidden; display: flex; flex-direction: column;">
+          <div style="height: 28px; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 4px; font-size: 0.72rem; font-weight: 600;">9:41</div>
+          <div style="padding: 8px 12px 10px; display: flex; align-items: center;">
+            <div style="color: #0a84ff; font-size: 0.95rem; font-weight: 500;">‹ For you</div>
+            <div style="flex: 1; text-align: center; font-size: 0.95rem; font-weight: 600; padding-right: 56px;">Mind change</div>
+          </div>
+          <div style="flex: 1; overflow: hidden; padding: 4px 16px 0;">
+            <div style="background: #1c1c1e; border: 1px solid rgba(84,84,88,0.55); border-radius: 16px; padding: 16px;">
+              <p style="margin: 0 0 10px; font-size: 0.76rem; color: rgba(235,235,245,0.32); font-variant-numeric: tabular-nums;">July 2</p>
+              <p style="margin: 0; font-family: Georgia, 'Times New Roman', serif; font-size: 1.15rem; line-height: 1.45; color: rgba(235,235,245,0.85);">“Sleep debt doesn’t really stack. One good night fixes most of it, so I’m probably fine running short this week.”</p>
+            </div>
+            <div style="display: flex; align-items: center; gap: 10px; margin: 14px 2px;">
+              <div style="flex: 1; height: 1px; background: rgba(84,84,88,0.55);"></div>
+              <span style="font-variant: all-small-caps; letter-spacing: 0.12em; font-size: 0.85rem; color: #bf5af2;">revised twelve days later</span>
+              <div style="flex: 1; height: 1px; background: rgba(84,84,88,0.55);"></div>
+            </div>
+            <div style="background: #1c1c1e; border: 1px solid rgba(84,84,88,0.55); border-radius: 16px; padding: 16px;">
+              <p style="margin: 0 0 8px; font-size: 0.76rem; color: rgba(235,235,245,0.32); font-variant-numeric: tabular-nums;">July 14</p>
+              <h3 style="margin: 0 0 10px; font-size: 1.12rem; font-weight: 650; letter-spacing: -0.02em; line-height: 1.3;">Sleep debt compounds across the week</h3>
+              <p style="margin: 0; font-family: Georgia, 'Times New Roman', serif; font-size: 1.05rem; line-height: 1.5; color: rgba(235,235,245,0.85);">“Sleep debt compounds across the week. One good night doesn’t wipe three short ones. I’m going to track it more honestly.”</p>
+            </div>
+            <div style="display: flex; gap: 8px; margin-top: 18px;">
+              <div style="flex: 1; min-height: 44px; display: flex; align-items: center; justify-content: center; border-radius: 12px; font-weight: 600; font-size: 0.9rem; background: #0a84ff;">Open in vault</div>
+              <div style="flex: 1; min-height: 44px; display: flex; align-items: center; justify-content: center; border-radius: 12px; font-weight: 600; font-size: 0.9rem; background: #2c2c2e;">Done</div>
+            </div>
+            <div style="min-height: 38px; display: flex; align-items: center; justify-content: center; color: rgba(235,235,245,0.32); font-size: 0.8rem;">Not a mind-change</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div style="max-width: 320px; color: rgba(235,235,245,0.6); font-size: 0.88rem; line-height: 1.5; display: flex; flex-direction: column; gap: 14px;">
+      <div>
+        <h2 style="color: #fff; font-size: 0.95rem; margin: 0 0 8px;">The merge (<a href="#4a">4a</a>)</h2>
+        <p style="margin: 0;">From 3a: grouped cards for figure/ground, colored typed chips (they’re functional wayfinding, not decoration), solid 44px buttons. From 3b: serif quote voice for claim bodies, one action accent, no gradients or tinted card fills. Pills stay, but only for semantic markers (kicker, connector, chips) — never as card treatment. No em dashes anywhere in app copy; periods and colons instead.</p>
+      </div>
+      <div>
+        <h2 style="color: #fff; font-size: 0.95rem; margin: 0 0 8px;">Why it doesn’t blend</h2>
+        <p style="margin: 0;">Hierarchy now comes from three distinct materials: serif quotes (your past words), sans chrome (the app), and card surfaces (grouping). The hero is the only serif-at-1.25rem block on screen — it wins without a glow.</p>
+      </div>
+    </div>
+  </div>
+  <div style="display: flex; flex-wrap: wrap; gap: 56px; align-items: flex-start;">
+
+    <div id="3a">
+      <div style="display: flex; align-items: baseline; gap: 10px; margin-bottom: 12px;">
+        <span style="background:#2c2c2e; color:#fff; border-radius:6px; padding:2px 8px; font-weight:700; font-size: 0.78rem;">3a</span>
+        <span style="font-size: 0.95rem; font-weight: 650;">Current — soft-fill semantic</span>
+      </div>
+      <div style="display: flex; gap: 24px; flex-wrap: wrap;">
+        <div style="width: 375px; height: 812px; background: #000; border-radius: 44px; border: 4px solid #2a2a2c; box-shadow: 0 28px 70px rgba(0,0,0,0.55); overflow: hidden; display: flex; flex-direction: column;">
+          <div style="height: 28px; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 4px; font-size: 0.72rem; font-weight: 600;">9:41</div>
+          <div style="padding: 10px 16px 12px; border-bottom: 1px solid rgba(84,84,88,0.4);">
+            <div style="display: flex; align-items: center; min-height: 40px;"><div style="flex: 1;"></div><div style="color: #0a84ff; font-size: 1.05rem;">⋯</div></div>
+            <h2 style="margin: 0; font-size: 1.85rem; font-weight: 700; letter-spacing: -0.035em; line-height: 1.1;">Atoms</h2>
+            <p style="margin: 5px 0 0; font-size: 0.9rem; color: rgba(235,235,245,0.6);">42 atoms · queue clear</p>
+          </div>
+          <div style="flex: 1; overflow: hidden; padding: 14px 16px;">
+            <div style="font-size: 0.8rem; font-weight: 650; margin: 0 2px 8px;">For you</div>
+            <div style="margin: 0 0 18px; padding: 18px 18px 14px; border-radius: 18px; background: linear-gradient(165deg, color-mix(in srgb, #bf5af2 12%, #1c1c1e) 0%, #1c1c1e 55%); border: 1px solid color-mix(in srgb, #bf5af2 35%, rgba(84,84,88,0.55));">
+              <div style="display: inline-block; margin: 0 0 10px; font-size: 0.72rem; font-weight: 600; color: #bf5af2; background: rgba(191,90,242,0.16); padding: 3px 10px; border-radius: 980px;">Mind change</div>
+              <p style="margin: 0 0 12px; font-size: 1.2rem; line-height: 1.35; letter-spacing: -0.02em; font-weight: 590;">Sleep debt doesn’t really stack. One good night fixes most of it, so I’m probably fine running short this week.</p>
+              <p style="margin: 10px 0 14px; padding-top: 12px; border-top: 1px solid rgba(84,84,88,0.55); font-size: 0.88rem; color: rgba(235,235,245,0.6); line-height: 1.4;">Later you wrote <span style="color: #0a84ff; font-weight: 500;">Sleep debt compounds across the week</span> · revises</p>
+              <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                <div style="flex: 1; min-height: 44px; display: flex; align-items: center; justify-content: center; border-radius: 12px; font-weight: 600; font-size: 0.9rem; background: #0a84ff;">Open</div>
+                <div style="flex: 1; min-height: 44px; display: flex; align-items: center; justify-content: center; border-radius: 12px; font-weight: 600; font-size: 0.9rem; background: rgba(84,84,88,0.4);">Next</div>
+                <div style="flex: 1 1 100%; min-height: 36px; display: flex; align-items: center; justify-content: center; color: rgba(235,235,245,0.32); font-size: 0.82rem; font-weight: 500;">Not a mind-change</div>
+              </div>
+            </div>
+            <div style="font-size: 0.8rem; font-weight: 650; margin: 0 2px 8px;">Library</div>
+            <div style="background: #1c1c1e; border-radius: 14px; overflow: hidden; border: 1px solid rgba(84,84,88,0.45);">
+              <sc-for list="{{ rows }}" as="row" hint-placeholder-count="3">
+                <div style="display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; padding: 14px 16px; min-height: 58px; border-bottom: 1px solid rgba(84,84,88,0.4); align-items: start;">
+                  <div style="min-width: 0;">
+                    <div style="font-size: 0.98rem; font-weight: 550; line-height: 1.3; letter-spacing: -0.015em;">{{ row.title }}</div>
+                    <div style="font-size: 0.8rem; color: rgba(235,235,245,0.6); margin-top: 3px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center;">
+                      <sc-if value="{{ row.person }}" hint-placeholder-val="{{ false }}">
+                        <span style="font-size: 0.78rem; font-weight: 600; padding: 2px 8px; border-radius: 6px; color: #ff9f0a; background: rgba(255,159,10,0.14);">{{ row.person }}</span>
+                      </sc-if>
+                      <sc-if value="{{ row.work }}" hint-placeholder-val="{{ false }}">
+                        <span style="font-size: 0.78rem; font-weight: 600; padding: 2px 8px; border-radius: 6px; color: #64d2ff; background: rgba(100,210,255,0.12);">{{ row.work }}</span>
+                      </sc-if>
+                      <span>{{ row.meta }}</span>
+                    </div>
+                  </div>
+                  <div style="font-size: 0.78rem; color: rgba(235,235,245,0.32); white-space: nowrap; padding-top: 2px;">{{ row.time }}</div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+        <div style="width: 375px; height: 812px; background: #000; border-radius: 44px; border: 4px solid #2a2a2c; box-shadow: 0 28px 70px rgba(0,0,0,0.55); overflow: hidden; display: flex; flex-direction: column;">
+          <div style="height: 28px; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 4px; font-size: 0.72rem; font-weight: 600;">9:41</div>
+          <div style="padding: 8px 12px 10px; display: flex; align-items: center;">
+            <div style="color: #0a84ff; font-size: 0.95rem; font-weight: 500;">‹ For you</div>
+            <div style="flex: 1; text-align: center; font-size: 0.95rem; font-weight: 600; padding-right: 56px;">Mind change</div>
+          </div>
+          <div style="flex: 1; overflow: hidden; padding: 0 16px;">
+            <div style="font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: rgba(235,235,245,0.32); margin: 8px 0 8px;">Then · Jul 2</div>
+            <div style="background: #1c1c1e; border: 1px solid rgba(84,84,88,0.55); border-radius: 16px; padding: 16px;">
+              <h3 style="margin: 0 0 10px; font-size: 1.05rem; font-weight: 650; letter-spacing: -0.02em; color: rgba(235,235,245,0.85);">Sleep debt doesn’t stack</h3>
+              <p style="margin: 0; font-size: 1.02rem; line-height: 1.5;">Sleep debt doesn’t really stack. One good night fixes most of it, so I’m probably fine running short this week.</p>
+              <p style="margin: 12px 0 0; font-size: 0.78rem; color: rgba(235,235,245,0.32);">From daily · generated by Atoms</p>
+            </div>
+            <div style="display: flex; align-items: center; gap: 10px; margin: 14px 2px;">
+              <div style="flex: 1; height: 1px; background: rgba(84,84,88,0.55);"></div>
+              <div style="font-size: 0.72rem; font-weight: 600; color: #bf5af2; background: rgba(191,90,242,0.16); padding: 3px 10px; border-radius: 980px;">revised by ↓</div>
+              <div style="flex: 1; height: 1px; background: rgba(84,84,88,0.55);"></div>
+            </div>
+            <div style="font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: rgba(235,235,245,0.32); margin: 0 0 8px;">Now · Jul 14</div>
+            <div style="background: linear-gradient(165deg, color-mix(in srgb, #bf5af2 10%, #1c1c1e) 0%, #1c1c1e 60%); border: 1px solid color-mix(in srgb, #bf5af2 30%, rgba(84,84,88,0.55)); border-radius: 16px; padding: 16px;">
+              <h3 style="margin: 0 0 10px; font-size: 1.05rem; font-weight: 650; letter-spacing: -0.02em;">Sleep debt compounds across the week</h3>
+              <p style="margin: 0; font-size: 1.02rem; line-height: 1.5;">Sleep debt compounds across the week. One good night doesn’t wipe three short ones. I’m going to track it more honestly.</p>
+              <p style="margin: 12px 0 0; font-size: 0.78rem; color: rgba(235,235,245,0.32);">From daily · generated by Atoms</p>
+            </div>
+            <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px;">
+              <div style="flex: 1; min-height: 44px; display: flex; align-items: center; justify-content: center; border-radius: 12px; font-weight: 600; font-size: 0.9rem; background: rgba(84,84,88,0.4);">Open in vault</div>
+              <div style="flex: 1; min-height: 44px; display: flex; align-items: center; justify-content: center; border-radius: 12px; font-weight: 600; font-size: 0.9rem; background: rgba(84,84,88,0.4);">Done</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="3b">
+      <div style="display: flex; align-items: baseline; gap: 10px; margin-bottom: 12px;">
+        <span style="background:#fff; color:#000; border-radius:6px; padding:2px 8px; font-weight:700; font-size: 0.78rem;">3b</span>
+        <span style="font-size: 0.95rem; font-weight: 650;">Editorial — one accent, serif voice</span>
+      </div>
+      <div style="display: flex; gap: 24px; flex-wrap: wrap;">
+        <div style="width: 375px; height: 812px; background: #0c0c0e; border-radius: 44px; border: 4px solid #2a2a2c; box-shadow: 0 28px 70px rgba(0,0,0,0.55); overflow: hidden; display: flex; flex-direction: column;">
+          <div style="height: 28px; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 4px; font-size: 0.72rem; font-weight: 600;">9:41</div>
+          <div style="padding: 10px 20px 14px;">
+            <div style="display: flex; align-items: center; min-height: 40px;"><div style="flex: 1;"></div><div style="color: rgba(235,235,245,0.45); font-size: 1.05rem;">⋯</div></div>
+            <h2 style="margin: 0; font-size: 1.7rem; font-weight: 700; letter-spacing: -0.03em; line-height: 1.1;">Atoms</h2>
+            <p style="margin: 5px 0 0; font-size: 0.85rem; color: rgba(235,235,245,0.45);">42 atoms · queue clear</p>
+          </div>
+          <div style="flex: 1; overflow: hidden; padding: 0 20px;">
+            <div style="border-top: 1px solid rgba(84,84,88,0.5); padding: 16px 0 20px;">
+              <div style="font-size: 0.7rem; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(235,235,245,0.45); margin-bottom: 12px;">Mind change</div>
+              <p style="margin: 0 0 14px; font-family: Georgia, 'Times New Roman', serif; font-size: 1.32rem; line-height: 1.42; font-weight: 400; letter-spacing: 0;">“Sleep debt doesn’t really stack. One good night fixes most of it, so I’m probably fine running short this week.”</p>
+              <p style="margin: 0 0 18px; font-size: 0.85rem; color: rgba(235,235,245,0.6); line-height: 1.45;">Twelve days later you revised this: <span style="color: #0a84ff;">Sleep debt compounds across the week</span></p>
+              <div style="display: flex; align-items: center; gap: 24px;">
+                <span style="font-size: 0.92rem; font-weight: 600; color: #0a84ff; min-height: 44px; display: inline-flex; align-items: center;">Open</span>
+                <span style="font-size: 0.92rem; font-weight: 500; color: rgba(235,235,245,0.6); min-height: 44px; display: inline-flex; align-items: center;">Next</span>
+                <span style="flex: 1;"></span>
+                <span style="font-size: 0.8rem; font-weight: 400; color: rgba(235,235,245,0.32); min-height: 44px; display: inline-flex; align-items: center;">Not a mind-change</span>
+              </div>
+            </div>
+            <div style="border-top: 1px solid rgba(84,84,88,0.5); padding-top: 14px;">
+              <div style="font-size: 0.7rem; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(235,235,245,0.45); margin-bottom: 4px;">Library</div>
+              <sc-for list="{{ rows }}" as="row" hint-placeholder-count="3">
+                <div style="display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; padding: 13px 0; min-height: 56px; border-bottom: 1px solid rgba(84,84,88,0.35); align-items: start;">
+                  <div style="min-width: 0;">
+                    <div style="font-size: 0.98rem; font-weight: 500; line-height: 1.35; letter-spacing: -0.01em;">{{ row.title }}</div>
+                    <div style="font-size: 0.76rem; color: rgba(235,235,245,0.45); margin-top: 4px; letter-spacing: 0.02em;">
+                      <sc-if value="{{ row.person }}" hint-placeholder-val="{{ false }}"><span style="font-variant: all-small-caps; letter-spacing: 0.08em; color: rgba(235,235,245,0.6); font-weight: 500;">{{ row.person }} · person&nbsp;&nbsp;</span></sc-if>
+                      <sc-if value="{{ row.work }}" hint-placeholder-val="{{ false }}"><span style="font-variant: all-small-caps; letter-spacing: 0.08em; color: rgba(235,235,245,0.6); font-weight: 500;">{{ row.work }} · media&nbsp;&nbsp;</span></sc-if>
+                      <span>{{ row.meta }}</span>
+                    </div>
+                  </div>
+                  <div style="font-size: 0.76rem; color: rgba(235,235,245,0.32); white-space: nowrap; padding-top: 3px; font-variant-numeric: tabular-nums;">{{ row.time }}</div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+        <div style="width: 375px; height: 812px; background: #0c0c0e; border-radius: 44px; border: 4px solid #2a2a2c; box-shadow: 0 28px 70px rgba(0,0,0,0.55); overflow: hidden; display: flex; flex-direction: column;">
+          <div style="height: 28px; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 4px; font-size: 0.72rem; font-weight: 600;">9:41</div>
+          <div style="padding: 8px 16px 10px; display: flex; align-items: center;">
+            <div style="color: #0a84ff; font-size: 0.95rem; font-weight: 500;">‹ For you</div>
+            <div style="flex: 1;"></div>
+          </div>
+          <div style="flex: 1; overflow: hidden; padding: 8px 20px 0;">
+            <div style="font-size: 0.7rem; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(235,235,245,0.45); margin-bottom: 14px;">Mind change · sleep</div>
+            <p style="margin: 0 0 10px; font-size: 0.76rem; color: rgba(235,235,245,0.32); font-variant-numeric: tabular-nums;">July 2</p>
+            <p style="margin: 0 0 24px; font-family: Georgia, 'Times New Roman', serif; font-size: 1.32rem; line-height: 1.45;">“Sleep debt doesn’t really stack. One good night fixes most of it, so I’m probably fine running short this week.”</p>
+            <div style="display: flex; align-items: center; gap: 12px; margin: 0 0 24px;">
+              <div style="width: 34px; height: 1px; background: rgba(84,84,88,0.7);"></div>
+              <span style="font-variant: all-small-caps; letter-spacing: 0.12em; font-size: 0.85rem; color: rgba(235,235,245,0.45);">revised twelve days later</span>
+            </div>
+            <p style="margin: 0 0 10px; font-size: 0.76rem; color: rgba(235,235,245,0.32); font-variant-numeric: tabular-nums;">July 14</p>
+            <h3 style="margin: 0 0 10px; font-size: 1.12rem; font-weight: 650; letter-spacing: -0.02em; line-height: 1.3;">Sleep debt compounds across the week</h3>
+            <p style="margin: 0 0 28px; font-family: Georgia, 'Times New Roman', serif; font-size: 1.08rem; line-height: 1.5; color: rgba(235,235,245,0.85);">“Sleep debt compounds across the week. One good night doesn’t wipe three short ones. I’m going to track it more honestly.”</p>
+            <div style="border-top: 1px solid rgba(84,84,88,0.5); padding-top: 16px; display: flex; align-items: center; gap: 24px;">
+              <span style="font-size: 0.92rem; font-weight: 600; color: #0a84ff; min-height: 44px; display: inline-flex; align-items: center;">Open in vault</span>
+              <span style="font-size: 0.92rem; font-weight: 500; color: rgba(235,235,245,0.6); min-height: 44px; display: inline-flex; align-items: center;">Done</span>
+              <span style="flex: 1;"></span>
+              <span style="font-size: 0.8rem; color: rgba(235,235,245,0.32); min-height: 44px; display: inline-flex; align-items: center;">Not a mind-change</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="max-width: 320px; color: rgba(235,235,245,0.6); font-size: 0.88rem; line-height: 1.5; display: flex; flex-direction: column; gap: 14px;">
+      <div>
+        <h2 style="color: #fff; font-size: 0.95rem; margin: 0 0 8px;">What changed in <a href="#3b">3b</a></h2>
+        <p style="margin: 0;">One accent (blue, tappable things only). No gradients, no tinted fills, no pills, no card-in-card — sections divided by hairlines on the page surface. Chips became small-caps text labels. Claim bodies set in serif quotes: your past words read as quotation, chrome stays sans.</p>
+      </div>
+      <div>
+        <h2 style="color: #fff; font-size: 0.95rem; margin: 0 0 8px;">What it costs</h2>
+        <p style="margin: 0;">Less scannable at a glance — the orange person chip was findable from across the room. Buttons as text links are quieter than 44px slabs (targets still 44px tall). And it drifts from stock-iOS toward Bear / iA Writer territory — a deliberate identity, but less “native.”</p>
+      </div>
+      <div>
+        <h2 style="color: #fff; font-size: 0.95rem; margin: 0 0 8px;">Middle path</h2>
+        <p style="margin: 0;">Adopt 3b’s color discipline and serif claim voice, keep grouped cards and solid primary buttons from 3a. Say the word and I’ll mock it.</p>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      rows: [
+        { title: "Sleep debt compounds across the week", person: null, work: null, meta: "From daily · Jul 14", time: "2d" },
+        { title: "Alex prefers async review over live pairing", person: "Alex", work: null, meta: "From daily", time: "3d" },
+        { title: "Severance S2 is worth a rewatch for the lighting", person: null, work: "Severance", meta: "From daily", time: "1w" }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

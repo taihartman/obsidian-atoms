@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Mind-change open — palimpsest</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@450;550;650;700&family=Fraunces:opsz,wght@9..144,450;9..144,560;9..144,650&family=JetBrains+Mono:wght@450;550&display=swap" rel="stylesheet" />
+  <style>
+    /*
+      frontend-design · mind-change pair open (round pass)
+
+      Hard rules
+      · Round everything (cards, pills, buttons, marks)
+      · NEVER book/spine palette: no gold, parchment, bone, terracotta, leather brown
+      · Cool neutrals only + one cool accent for “now”
+
+      Color (cool only)
+      · paper #0e1116 · surface #181c24 · ink #e8ecf4 · mute #8b93a7 · was #7a8499 · now #8aa4ff
+    */
+    :root {
+      --paper: #0e1116;
+      --surface: #181c24;
+      --ink: #e8ecf4;
+      --mute: #8b93a7;
+      --faint: #5c6478;
+      --was: #7a8499;
+      --now: #8aa4ff;
+      --now-soft: rgba(138, 164, 255, 0.14);
+      --now-border: rgba(138, 164, 255, 0.38);
+      --line: rgba(232, 236, 244, 0.1);
+      --radius-card: 28px;
+      --radius-pill: 980px;
+      --radius-btn: 16px;
+      --font-ui: "Figtree", system-ui, sans-serif;
+      --font-claim: "Fraunces", "Iowan Old Style", Georgia, serif;
+      --font-mark: "JetBrains Mono", ui-monospace, monospace;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { overflow-x: clip; }
+    body {
+      margin: 0;
+      min-height: 100dvh;
+      font-family: var(--font-ui);
+      background:
+        radial-gradient(1000px 520px at 12% -8%, rgba(138, 164, 255, 0.09), transparent 55%),
+        var(--paper);
+      color: var(--ink);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .page {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 40px 20px 96px;
+    }
+
+    .studio {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px 24px;
+      margin-bottom: 36px;
+      padding-bottom: 18px;
+      border-bottom: 1px solid var(--line);
+    }
+    .studio-mark {
+      font-family: var(--font-mark);
+      font-size: 0.7rem;
+      font-weight: 550;
+      letter-spacing: 0.04em;
+      color: var(--faint);
+      text-transform: lowercase;
+    }
+    .studio-note {
+      font-size: 0.85rem;
+      color: var(--mute);
+      max-width: 28rem;
+      line-height: 1.45;
+      margin: 0;
+    }
+    .studio-note strong {
+      color: var(--ink);
+      font-weight: 650;
+    }
+
+    .open {
+      position: relative;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-card);
+      padding: 24px 22px 28px;
+      max-width: 420px;
+      margin: 0 auto;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.32);
+    }
+
+    .nav {
+      display: flex;
+      align-items: center;
+      margin: 0 0 22px -6px;
+    }
+    /* Plain iOS-style back — not a pill CTA */
+    .back {
+      font-family: var(--font-ui);
+      font-size: 1.05rem;
+      font-weight: 500;
+      color: var(--now);
+      background: none;
+      border: none;
+      border-radius: 8px;
+      padding: 8px 10px;
+      margin: 0;
+      cursor: pointer;
+      letter-spacing: -0.01em;
+      min-height: 44px;
+    }
+    .back:focus-visible {
+      outline: 2px solid var(--now);
+      outline-offset: 2px;
+    }
+
+    .lede {
+      margin: 0 0 28px;
+      font-family: var(--font-claim);
+      font-size: clamp(1.5rem, 4.2vw, 1.8rem);
+      font-weight: 560;
+      font-variation-settings: "opsz" 72;
+      line-height: 1.22;
+      letter-spacing: -0.02em;
+      color: var(--ink);
+    }
+    .lede em {
+      font-style: normal;
+      color: var(--now);
+    }
+
+    .pair {
+      display: grid;
+      gap: 12px;
+    }
+
+    /* Soft rounded claim blocks — no vertical spine bar */
+    .was,
+    .now {
+      position: relative;
+      padding: 16px 16px 18px;
+      border-radius: 20px;
+      border: 1px solid var(--line);
+    }
+    .was {
+      background: rgba(122, 132, 153, 0.08);
+    }
+    .now {
+      background: var(--now-soft);
+      border-color: var(--now-border);
+    }
+
+    /* One action per claim — lives on the block it opens */
+    .claim-open {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      margin-top: 14px;
+      font-family: var(--font-ui);
+      font-size: 0.88rem;
+      font-weight: 650;
+      letter-spacing: -0.01em;
+      color: var(--now);
+      background: none;
+      border: none;
+      padding: 0;
+      cursor: pointer;
+      min-height: 36px;
+    }
+    .was .claim-open { color: var(--mute); }
+    .claim-open:hover { text-decoration: underline; text-underline-offset: 3px; }
+    .claim-open:focus-visible {
+      outline: 2px solid var(--now);
+      outline-offset: 3px;
+      border-radius: 6px;
+    }
+    .claim-open .chev { font-weight: 500; opacity: 0.75; }
+
+    .mark {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 12px;
+      padding: 4px 10px;
+      border-radius: var(--radius-pill);
+      font-family: var(--font-mark);
+      font-size: 0.66rem;
+      font-weight: 550;
+      letter-spacing: 0.05em;
+      text-transform: lowercase;
+    }
+    .was .mark {
+      color: var(--was);
+      background: rgba(122, 132, 153, 0.16);
+    }
+    .now .mark {
+      color: var(--now);
+      background: rgba(138, 164, 255, 0.18);
+    }
+    .mark .rel {
+      letter-spacing: 0.02em;
+      color: var(--mute);
+      font-weight: 450;
+      padding-left: 8px;
+      border-left: 1px solid rgba(139, 147, 167, 0.35);
+    }
+
+    .claim-title {
+      margin: 0 0 10px;
+      font-family: var(--font-claim);
+      font-size: 1.12rem;
+      font-weight: 560;
+      font-variation-settings: "opsz" 36;
+      line-height: 1.3;
+      letter-spacing: -0.015em;
+    }
+    .was .claim-title {
+      color: var(--mute);
+      text-decoration: line-through;
+      text-decoration-color: rgba(122, 132, 153, 0.55);
+      text-decoration-thickness: 1px;
+    }
+    .now .claim-title {
+      color: var(--ink);
+      font-weight: 650;
+    }
+
+    .claim-body {
+      margin: 0;
+      font-family: var(--font-claim);
+      font-size: 1rem;
+      font-weight: 450;
+      font-variation-settings: "opsz" 18;
+      line-height: 1.55;
+      max-width: 34ch;
+    }
+    .was .claim-body {
+      color: var(--faint);
+      text-decoration: line-through;
+      text-decoration-color: rgba(92, 100, 120, 0.55);
+      text-decoration-thickness: 1px;
+    }
+    .now .claim-body {
+      color: rgba(232, 236, 244, 0.88);
+    }
+
+    .foot {
+      max-width: 420px;
+      margin: 22px auto 0;
+      font-size: 0.8rem;
+      line-height: 1.5;
+      color: var(--faint);
+    }
+    .foot span { color: var(--mute); }
+
+    @media (max-width: 480px) {
+      .page { padding: 24px 14px 72px; }
+      .open { padding: 20px 16px 24px; border-radius: 24px; }
+      .claim-body { max-width: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header class="studio">
+      <div class="studio-mark">frontend-design · open mock</div>
+      <p class="studio-note">
+        <strong>One action per claim.</strong> Each block opens that note in the vault.
+        No bottom button row. Plain back only.
+      </p>
+    </header>
+
+    <article class="open" aria-label="Mind change open">
+      <div class="nav">
+        <button class="back" type="button">‹ For you</button>
+      </div>
+
+      <h1 class="lede">You changed your mind <em>about sleep debt</em></h1>
+
+      <div class="pair">
+        <section class="was" aria-label="Earlier claim">
+          <div class="mark">
+            <span>was</span>
+          </div>
+          <h2 class="claim-title">Sleep debt doesn’t stack</h2>
+          <p class="claim-body">
+            Sleep debt doesn’t stack the way people say. One good night and you’re fine — the “debt” framing just makes people anxious.
+          </p>
+          <button class="claim-open" type="button">
+            Open this note in vault <span class="chev" aria-hidden="true">›</span>
+          </button>
+        </section>
+
+        <section class="now" aria-label="Later claim">
+          <div class="mark">
+            <span>now</span>
+            <span class="rel">revises</span>
+          </div>
+          <h2 class="claim-title">Sleep debt compounds across the week</h2>
+          <p class="claim-body">
+            Sleep debt compounds across the week. One good night doesn’t wipe three short ones — I’m going to track it more honestly.
+          </p>
+          <button class="claim-open" type="button">
+            Open this note in vault <span class="chev" aria-hidden="true">›</span>
+          </button>
+        </section>
+      </div>
+    </article>
+
+    <p class="foot">
+      <span>Actions:</span> back → For you · each “Open this note in vault” → that claim’s file.
+      No earlier/later/vault triangle. Live plugin not changed.
+    </p>
+  </div>
+</body>
+</html>

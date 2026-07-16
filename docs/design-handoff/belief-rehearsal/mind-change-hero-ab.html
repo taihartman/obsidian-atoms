@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Mind-change A/B — clarity vs pro-max polish</title>
+  <style>
+    :root {
+      --bg: #000; --grouped: #1c1c1e; --elevated: #2c2c2e; --sep: rgba(84, 84, 88, 0.55);
+      --label: #fff; --secondary: rgba(235, 235, 245, 0.6); --tertiary: rgba(235, 235, 245, 0.32);
+      --tint: #0a84ff;
+      --mind: #bf5af2; --mind-soft: rgba(191, 90, 242, 0.16);
+      --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; font-family: var(--font); background: #08080a; color: var(--label);
+      -webkit-font-smoothing: antialiased;
+    }
+    .page { max-width: 980px; margin: 0 auto; padding: 24px 16px 64px; }
+    h1 { font-size: 1.25rem; letter-spacing: -0.03em; margin: 0 0 6px; }
+    .lede { color: var(--secondary); font-size: 0.92rem; line-height: 1.45; margin: 0 0 22px; max-width: 40rem; }
+    .row { display: flex; flex-wrap: wrap; gap: 28px; justify-content: center; }
+    .col { width: 375px; }
+    .cap {
+      font-size: 0.7rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+      color: var(--tertiary); text-align: center; margin-bottom: 10px;
+    }
+    .cap b { color: var(--label); font-weight: 700; letter-spacing: 0.04em; }
+    .cap .sub { display: block; margin-top: 4px; font-weight: 500; text-transform: none; letter-spacing: 0; color: var(--secondary); font-size: 0.78rem; }
+    .phone {
+      width: 375px; height: 720px; background: var(--bg); border-radius: 44px;
+      border: 4px solid #2a2a2c; box-shadow: 0 24px 60px rgba(0,0,0,0.55);
+      overflow: hidden; display: flex; flex-direction: column;
+    }
+    .notch {
+      height: 26px; display: flex; align-items: flex-end; justify-content: center;
+      padding-bottom: 4px; font-size: 0.7rem; font-weight: 600;
+    }
+    .nav {
+      padding: 6px 16px 10px; display: flex; align-items: center; justify-content: space-between;
+    }
+    .nav .title { font-size: 1.15rem; font-weight: 700; letter-spacing: -0.02em; }
+    .nav .gear { color: var(--tint); font-size: 0.9rem; }
+    .scroll { flex: 1; padding: 0 16px 20px; }
+    .section-label {
+      font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em;
+      color: var(--tertiary); margin: 6px 0 8px;
+    }
+    .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .btn {
+      flex: 1; min-width: 0; text-align: center; border: none; border-radius: 12px;
+      padding: 12px 10px; font-size: 0.9rem; font-weight: 600; font-family: inherit;
+    }
+    .btn.primary { background: var(--tint); color: #fff; }
+    .btn.secondary { background: var(--elevated); color: var(--label); }
+    .btn.quiet {
+      flex: 1 1 100%; background: transparent; color: var(--tertiary);
+      font-weight: 500; font-size: 0.82rem; padding: 8px;
+    }
+    .note {
+      margin-top: 28px; padding: 14px 16px; border-radius: 12px;
+      background: #141416; border: 1px solid var(--sep);
+      font-size: 0.85rem; color: var(--secondary); line-height: 1.45;
+    }
+    .note strong { color: var(--label); }
+
+    /* ========== A: Then / Now clarity ========== */
+    .a-hero {
+      background: var(--grouped); border-radius: 16px; padding: 16px 16px 14px;
+      border: 1px solid rgba(191, 90, 242, 0.28);
+    }
+    .a-eyebrow {
+      display: inline-flex; font-size: 0.72rem; font-weight: 600; color: var(--mind);
+      background: var(--mind-soft); padding: 4px 10px; border-radius: 980px; margin-bottom: 12px;
+    }
+    .a-block { margin: 0 0 12px; }
+    .a-block.now { margin: 0 0 16px; padding-top: 12px; border-top: 1px solid var(--sep); }
+    .a-meta { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
+    .a-label {
+      font-size: 0.68rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.07em; color: var(--tertiary);
+    }
+    .a-block.now .a-label { color: var(--mind); }
+    .a-verb { font-size: 0.72rem; color: var(--tertiary); font-weight: 500; }
+    .a-body {
+      font-size: 1.05rem; line-height: 1.45; margin: 0; color: var(--label);
+      letter-spacing: -0.01em;
+    }
+    .a-title {
+      font-size: 0.95rem; line-height: 1.4; margin: 0; color: var(--tint); font-weight: 500;
+    }
+
+    /* ========== B: Pro-max polish (soft glass / premium card) ========== */
+    .b-phone { background: #0b0b10; }
+    .b-scroll { background:
+      radial-gradient(120% 80% at 20% -10%, rgba(191, 90, 242, 0.22), transparent 55%),
+      radial-gradient(90% 60% at 100% 0%, rgba(10, 132, 255, 0.14), transparent 50%),
+      #0b0b10;
+    }
+    .b-hero {
+      position: relative;
+      border-radius: 22px;
+      padding: 18px 18px 16px;
+      background: linear-gradient(165deg, rgba(44, 44, 52, 0.92), rgba(28, 28, 34, 0.88));
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow:
+        0 1px 0 rgba(255,255,255,0.06) inset,
+        0 20px 40px rgba(0, 0, 0, 0.35),
+        0 0 0 1px rgba(191, 90, 242, 0.12);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+    }
+    .b-hero::before {
+      content: "";
+      position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+      background: linear-gradient(135deg, rgba(255,255,255,0.08), transparent 40%);
+      opacity: 0.7;
+    }
+    .b-eyebrow {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 0.7rem; font-weight: 650; letter-spacing: 0.02em;
+      color: #e9d5ff;
+      background: linear-gradient(90deg, rgba(191, 90, 242, 0.35), rgba(10, 132, 255, 0.2));
+      padding: 5px 11px; border-radius: 980px; margin-bottom: 14px;
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+    .b-eyebrow .dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: #d8b4fe; box-shadow: 0 0 8px #c084fc;
+    }
+    .b-quote {
+      font-size: 1.08rem; line-height: 1.48; margin: 0 0 16px;
+      color: #f5f5f7; font-weight: 450; letter-spacing: -0.015em;
+      position: relative;
+    }
+    .b-quote::before {
+      content: "“";
+      position: absolute; left: -2px; top: -10px;
+      font-size: 2rem; color: rgba(191, 90, 242, 0.35); font-weight: 300;
+    }
+    .b-later {
+      display: flex; gap: 10px; align-items: flex-start;
+      margin: 0 0 16px; padding: 12px 12px;
+      border-radius: 14px;
+      background: rgba(10, 132, 255, 0.1);
+      border: 1px solid rgba(10, 132, 255, 0.18);
+    }
+    .b-later-icon {
+      flex: 0 0 auto; width: 28px; height: 28px; border-radius: 8px;
+      background: rgba(10, 132, 255, 0.22); color: #7db7ff;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.75rem; font-weight: 700;
+    }
+    .b-later-copy { min-width: 0; }
+    .b-later-k {
+      font-size: 0.68rem; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.05em; color: rgba(235, 235, 245, 0.45); margin-bottom: 3px;
+    }
+    .b-later-t {
+      font-size: 0.92rem; line-height: 1.35; color: #8ec5ff; font-weight: 560; margin: 0;
+    }
+    .b-later-v {
+      font-size: 0.75rem; color: rgba(235, 235, 245, 0.4); margin-top: 3px;
+    }
+    .b-actions .btn.primary {
+      background: linear-gradient(180deg, #2f9bff, #0a84ff);
+      box-shadow: 0 8px 18px rgba(10, 132, 255, 0.28);
+    }
+    .b-actions .btn.secondary {
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.06);
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <h1>Mind-change A/B</h1>
+    <p class="lede">
+      Same content. <b style="color:#fff;font-weight:600">A</b> = role labels (Then/Now).
+      <b style="color:#fff;font-weight:600">B</b> = ui-ux-pro-max-ish craft (glass, glow, quote, nested “later” card).
+      Judge: which one makes old vs new obvious in under 1 second?
+    </p>
+
+    <div class="row">
+      <!-- A -->
+      <div class="col">
+        <div class="cap"><b>A · Clarity</b><span class="sub">Then / Now labels · product chrome</span></div>
+        <div class="phone">
+          <div class="notch">9:41</div>
+          <div class="nav">
+            <div class="title">Atoms</div>
+            <div class="gear">⋯</div>
+          </div>
+          <div class="scroll">
+            <div class="section-label">For you</div>
+            <div class="a-hero">
+              <div class="a-eyebrow">Mind change</div>
+              <div class="a-block">
+                <div class="a-meta"><span class="a-label">Then</span></div>
+                <p class="a-body">Sleep debt doesn’t really stack — one good night fixes most of it. I’m probably fine running short this week.</p>
+              </div>
+              <div class="a-block now">
+                <div class="a-meta">
+                  <span class="a-label">Now</span>
+                  <span class="a-verb">revises</span>
+                </div>
+                <p class="a-title">Sleep debt compounds across the week</p>
+              </div>
+              <div class="actions">
+                <button type="button" class="btn primary">Open then</button>
+                <button type="button" class="btn secondary">Next</button>
+                <button type="button" class="btn quiet">Not a mind-change</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- B -->
+      <div class="col">
+        <div class="cap"><b>B · Pro Max polish</b><span class="sub">glass · glow · quote · nested later</span></div>
+        <div class="phone b-phone">
+          <div class="notch">9:41</div>
+          <div class="nav">
+            <div class="title">Atoms</div>
+            <div class="gear">⋯</div>
+          </div>
+          <div class="scroll b-scroll">
+            <div class="section-label">For you</div>
+            <div class="b-hero">
+              <div class="b-eyebrow"><span class="dot"></span> Mind change</div>
+              <p class="b-quote">Sleep debt doesn’t really stack — one good night fixes most of it. I’m probably fine running short this week.</p>
+              <div class="b-later">
+                <div class="b-later-icon">→</div>
+                <div class="b-later-copy">
+                  <div class="b-later-k">Later belief</div>
+                  <p class="b-later-t">Sleep debt compounds across the week</p>
+                  <div class="b-later-v">revises this claim</div>
+                </div>
+              </div>
+              <div class="actions b-actions">
+                <button type="button" class="btn primary">Open</button>
+                <button type="button" class="btn secondary">Next</button>
+                <button type="button" class="btn quiet">Not a mind-change</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="note">
+      <strong>What to look for</strong><br />
+      A wins if you need zero inference about which side is old.<br />
+      B wins if craft / “premium” matters more than literal labels — but “Later belief” still has to be read; the glow doesn’t name Then/Now by itself.<br />
+      File: <code style="color:var(--mind)">docs/design-handoff/belief-rehearsal/mind-change-hero-ab.html</code>
+    </div>
+  </div>
+</body>
+</html>

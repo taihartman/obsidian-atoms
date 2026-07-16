@@ -14,21 +14,29 @@
     }
     * { box-sizing: border-box; }
     body { margin: 0; font-family: var(--font); background: #0a0a0c; color: var(--label); -webkit-font-smoothing: antialiased; }
-    .page { max-width: 900px; margin: 0 auto; padding: 28px 18px 80px; }
+    .page { max-width: 1100px; margin: 0 auto; padding: 28px 18px 80px; }
     h1 { font-size: 1.35rem; letter-spacing: -0.03em; margin: 0 0 8px; }
-    .lede { color: var(--secondary); max-width: 40rem; line-height: 1.5; margin: 0 0 16px; font-size: 0.95rem; }
+    .lede { color: var(--secondary); max-width: 42rem; line-height: 1.5; margin: 0 0 16px; font-size: 0.95rem; }
     .decisions {
       background: var(--grouped); border: 1px solid var(--sep); border-radius: 14px;
-      padding: 14px 16px; margin-bottom: 24px; font-size: 0.85rem; color: var(--secondary); line-height: 1.45;
+      padding: 14px 16px; margin-bottom: 28px; font-size: 0.85rem; color: var(--secondary); line-height: 1.45;
     }
     .decisions strong { color: var(--label); }
-    .stage { display: flex; flex-wrap: wrap; gap: 36px; align-items: flex-start; }
+    .decisions code { font-size: 0.8em; color: var(--mind); }
+    .stage { display: flex; flex-wrap: wrap; gap: 28px; align-items: flex-start; }
     .cap { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--tertiary); text-align: center; margin-bottom: 10px; }
+    .cap .tag {
+      display: inline-block; margin-left: 6px; padding: 2px 7px; border-radius: 980px;
+      font-size: 0.62rem; letter-spacing: 0.04em; vertical-align: middle;
+    }
+    .cap .tag.was { background: rgba(255,255,255,0.08); color: var(--tertiary); }
+    .cap .tag.prop { background: var(--mind-soft); color: var(--mind); }
     .phone {
       width: 375px; height: 812px; background: var(--bg); border-radius: 44px;
       border: 4px solid #2a2a2c; box-shadow: 0 28px 70px rgba(0,0,0,0.55);
       overflow: hidden; display: flex; flex-direction: column; position: relative;
     }
+    .phone.muted { opacity: 0.72; }
     .notch {
       height: 28px; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 4px;
       font-size: 0.72rem; font-weight: 600; color: var(--label);
@@ -52,6 +60,8 @@
       font-size: 0.72rem; font-weight: 600; color: var(--mind);
       background: var(--mind-soft); padding: 4px 10px; border-radius: 980px; margin-bottom: 12px;
     }
+
+    /* ——— Current (ambiguous) ——— */
     .body-snip {
       font-size: 1.05rem; line-height: 1.45; font-weight: 400; color: var(--label);
       letter-spacing: -0.01em; margin: 0 0 14px;
@@ -61,6 +71,33 @@
       padding-top: 12px; border-top: 1px solid var(--sep);
     }
     .later em { font-style: normal; color: var(--tint); font-weight: 500; }
+
+    /* ——— Proposed (Then / Now) ——— */
+    .claim-block { margin: 0 0 12px; }
+    .claim-block.now {
+      margin: 0 0 16px; padding-top: 12px; border-top: 1px solid var(--sep);
+    }
+    .claim-meta {
+      display: flex; align-items: baseline; justify-content: space-between;
+      gap: 8px; margin-bottom: 6px;
+    }
+    .claim-label {
+      font-size: 0.68rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.07em; color: var(--tertiary);
+    }
+    .claim-block.now .claim-label { color: var(--mind); }
+    .claim-verb {
+      font-size: 0.72rem; font-weight: 500; color: var(--tertiary);
+    }
+    .claim-body {
+      font-size: 1.05rem; line-height: 1.45; font-weight: 400; color: var(--label);
+      letter-spacing: -0.01em; margin: 0;
+    }
+    .claim-title {
+      font-size: 0.95rem; line-height: 1.4; font-weight: 500; color: var(--tint);
+      margin: 0;
+    }
+
     .actions { display: flex; gap: 8px; flex-wrap: wrap; }
     .btn {
       flex: 1; min-width: 0; text-align: center; border: none; border-radius: 12px;
@@ -71,35 +108,52 @@
     .btn.quiet {
       flex: 1 1 100%; background: transparent; color: var(--tertiary); font-weight: 500; font-size: 0.82rem; padding: 8px;
     }
-    .lib-preview {
-      margin-top: 18px; opacity: 0.45;
-    }
+    .lib-preview { margin-top: 18px; opacity: 0.45; }
     .lib-row {
       background: var(--grouped); border-radius: 12px; padding: 12px 14px; margin-bottom: 8px;
       font-size: 0.9rem; color: var(--secondary);
     }
-    .side { max-width: 320px; color: var(--secondary); font-size: 0.88rem; line-height: 1.5; }
+    .side { max-width: 300px; color: var(--secondary); font-size: 0.88rem; line-height: 1.5; }
     .side h2 { color: var(--label); font-size: 0.95rem; margin: 0 0 8px; }
+    .side p { margin: 0 0 14px; }
     .side code { font-size: 0.8em; color: var(--mind); }
+    .callout {
+      background: var(--mind-soft); border: 1px solid rgba(191, 90, 242, 0.35);
+      border-radius: 12px; padding: 12px 14px; margin-bottom: 16px;
+      font-size: 0.85rem; color: var(--secondary); line-height: 1.45;
+    }
+    .callout strong { color: var(--label); }
   </style>
 </head>
 <body>
   <div class="page">
-    <h1>Mind-change hero</h1>
-    <p class="lede">Highest For you cue when a hard supersession pair exists. Body of the older claim first; newer claim as quiet “later.” Max one hero per day. No due counts.</p>
+    <h1>Mind-change hero — clarity markup</h1>
+    <p class="lede">
+      Problem: big text looks like “the answer,” and “Later you wrote…” doesn’t scream
+      <strong style="color:var(--label);font-weight:600">old → new</strong>.
+      Proposed: explicit <strong style="color:var(--label);font-weight:600">Then / Now</strong> blocks; same data, clearer roles.
+    </p>
     <div class="decisions">
-      <strong>Decisions locked</strong>
+      <strong>Still locked (product)</strong>
       <ul>
-        <li>Priority: mind-change → on-this-day → connected → quiet</li>
+        <li>Old body stays primary (fossil / rot defense)</li>
         <li>Hard tokens only: <code>revises</code> / <code>contradicts</code></li>
-        <li>Actions: Open · Next · Not a mind-change (recovery throttle)</li>
-        <li>Empty: no card (fall through) — never “0 mind-changes”</li>
+        <li>Max one mind-change hero per day · Open / Next / Not a mind-change</li>
+        <li>No “N mind-changes due”</li>
+      </ul>
+      <strong style="display:block;margin-top:10px">Proposed (clarity only)</strong>
+      <ul>
+        <li>Micro-labels <code>Then</code> (old body) and <code>Now</code> (new title)</li>
+        <li>Relation verb sits on the Now row, not buried mid-sentence</li>
+        <li>Primary Open still opens <em>Then</em> (old atom); optional second open later</li>
       </ul>
     </div>
+
     <div class="stage">
+      <!-- CURRENT -->
       <div>
-        <div class="cap">375 × phone · For you</div>
-        <div class="phone">
+        <div class="cap">Current ship <span class="tag was">ambiguous</span></div>
+        <div class="phone muted">
           <div class="notch">9:41</div>
           <div class="nav">
             <div class="title">Atoms</div>
@@ -119,18 +173,68 @@
             </div>
             <div class="lib-preview">
               <div class="section-label">Library</div>
-              <div class="lib-row">Recent atoms stay below — not competing with the hero</div>
+              <div class="lib-row">Which text is old? Which is new?</div>
             </div>
           </div>
         </div>
       </div>
+
+      <!-- PROPOSED -->
+      <div>
+        <div class="cap">Proposed <span class="tag prop">Then / Now</span></div>
+        <div class="phone">
+          <div class="notch">9:41</div>
+          <div class="nav">
+            <div class="title">Atoms</div>
+            <div class="gear">⋯</div>
+          </div>
+          <div class="scroll">
+            <div class="section-label">For you</div>
+            <div class="hero">
+              <div class="eyebrow">Mind change</div>
+
+              <div class="claim-block then">
+                <div class="claim-meta">
+                  <span class="claim-label">Then</span>
+                </div>
+                <p class="claim-body">Sleep debt doesn’t really stack — one good night fixes most of it. I’m probably fine running short this week.</p>
+              </div>
+
+              <div class="claim-block now">
+                <div class="claim-meta">
+                  <span class="claim-label">Now</span>
+                  <span class="claim-verb">revises</span>
+                </div>
+                <p class="claim-title">Sleep debt compounds across the week</p>
+              </div>
+
+              <div class="actions">
+                <button type="button" class="btn primary">Open then</button>
+                <button type="button" class="btn secondary">Next</button>
+                <button type="button" class="btn quiet">Not a mind-change</button>
+              </div>
+            </div>
+            <div class="lib-preview">
+              <div class="section-label">Library</div>
+              <div class="lib-row">Then = old body · Now = new title</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div class="side">
-        <h2>Hierarchy</h2>
-        <p>Eyebrow names the cue type without calendar language. Body is the fossil — what you used to believe in your own words. “Later” is secondary, tint only on the new title.</p>
-        <h2>Recovery</h2>
-        <p><strong>Not a mind-change</strong> is quiet, full-width, tertiary. It throttles this pair; it does not open a queue or ask for a grade.</p>
-        <h2>First appearance</h2>
-        <p>Once-only quiet peak allowed (subtle emphasis ok). No confetti. No multi-step tutorial.</p>
+        <div class="callout">
+          <strong>Why this works</strong><br />
+          You don’t have to infer from “Later you wrote.” Labels name the roles before you read the words.
+        </div>
+        <h2>Hierarchy (unchanged)</h2>
+        <p>Then is still the fossil — your words, big type. Now is secondary: title only + relation verb.</p>
+        <h2>Open copy</h2>
+        <p><strong>Open then</strong> = open old atom (same as today). Alternatives if you hate the word: keep plain <strong>Open</strong>, or add a quiet “Open now” link later.</p>
+        <h2>Contradicts variant</h2>
+        <p>Same layout; Now row verb becomes <code>contradicts</code>.</p>
+        <h2>Open this mock</h2>
+        <p><code>docs/design-handoff/belief-rehearsal/mind-change-hero.html</code></p>
       </div>
     </div>
   </div>

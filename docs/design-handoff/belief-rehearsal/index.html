@@ -3,46 +3,142 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Belief Rehearsal OS — design handoff</title>
+  <title>Mind-change UI — show Claude Design</title>
   <style>
     :root {
-      --bg: #0a0a0c; --grouped: #1c1c1e; --label: #fff;
-      --secondary: rgba(235, 235, 245, 0.6); --tint: #0a84ff;
+      --bg: #0a0a0c;
+      --grouped: #1c1c1e;
+      --label: #fff;
+      --secondary: rgba(235, 235, 245, 0.6);
+      --tint: #0a84ff;
+      --mind: #bf5af2;
       --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
     }
-    body { margin: 0; font-family: var(--font); background: var(--bg); color: var(--label); -webkit-font-smoothing: antialiased; }
-    .page { max-width: 640px; margin: 0 auto; padding: 28px 18px 80px; }
-    h1 { font-size: 1.45rem; letter-spacing: -0.03em; margin: 0 0 8px; }
-    .lede { color: var(--secondary); line-height: 1.5; margin: 0 0 20px; }
-    .card {
-      background: var(--grouped); border-radius: 14px; padding: 16px 18px; margin-bottom: 12px;
+    body {
+      margin: 0;
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--label);
+      -webkit-font-smoothing: antialiased;
     }
-    a { color: var(--tint); text-decoration: none; font-weight: 500; }
+    .page { max-width: 720px; margin: 0 auto; padding: 28px 18px 80px; }
+    h1 { font-size: 1.45rem; letter-spacing: -0.03em; margin: 0 0 8px; }
+    h2 { font-size: 0.95rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--secondary); margin: 28px 0 12px; font-weight: 600; }
+    .lede { color: var(--secondary); line-height: 1.5; margin: 0 0 16px; }
+    .card {
+      background: var(--grouped);
+      border-radius: 14px;
+      padding: 16px 18px;
+      margin-bottom: 12px;
+    }
+    .card.primary { border: 1px solid rgba(191, 90, 242, 0.45); }
+    a { color: var(--tint); text-decoration: none; font-weight: 600; }
     a:hover { text-decoration: underline; }
     ul { color: var(--secondary); line-height: 1.5; margin: 8px 0 0; padding-left: 1.2rem; }
     li { margin: 4px 0; }
-    .meta { font-size: 0.8rem; color: var(--secondary); margin-bottom: 22px; }
+    .meta { font-size: 0.8rem; color: var(--secondary); margin-bottom: 18px; }
+    .pill {
+      display: inline-block;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      color: var(--mind);
+      background: rgba(191, 90, 242, 0.14);
+      padding: 3px 8px;
+      border-radius: 999px;
+      margin-bottom: 8px;
+    }
+    code { font-size: 0.85em; color: rgba(235, 235, 245, 0.85); }
+    .locks {
+      border-left: 3px solid var(--mind);
+      padding-left: 14px;
+      margin: 0 0 20px;
+      color: var(--secondary);
+      line-height: 1.55;
+    }
   </style>
 </head>
 <body>
   <div class="page">
-    <h1>Belief Rehearsal OS</h1>
-    <p class="meta">Design authority for plan <code>docs/plans/2026-07-16-011-feat-belief-rehearsal-os-plan.md</code> · 2026-07-16</p>
-    <p class="lede">Product center: show when the mind changed. Stream hero first; one-line home citator second. Soft death deferred. No editor chrome. No queue.</p>
-    <div class="card">
-      <a href="mind-change-hero.html">1. Mind-change hero (For you)</a>
+    <h1>Mind-change UI — Claude Design brief</h1>
+    <p class="meta">
+      Branch <code>docs/belief-rehearsal-hero-and-qa</code> · 2026-07-16 ·
+      process: <code>docs/handoffs/2026-07-16-mind-change-open-ux.md</code>
+    </p>
+    <p class="lede">
+      Atoms second brain: when the user revises or contradicts an older claim, For you shows a
+      <strong style="color:#fff">mind-change</strong> hero. Design job: make Then (old fossil) vs Now
+      (later claim) obvious on hero + after Open — without inventing a foreign brand.
+    </p>
+
+    <div class="card primary">
+      <span class="pill">Authority · v2 editorial tokens</span><br />
+      <a href="../tokens/README.md">docs/design-handoff/tokens/README.md</a>
       <ul>
-        <li>Old body snippet primary</li>
-        <li>Later line → new claim</li>
-        <li>Open · Next · Not a mind-change</li>
-        <li>Highest cue; max one per day</li>
+        <li>Settled 2026-07-16 with human review (v2 supersedes v1 same day)</li>
+        <li>Serif-quoted claim voice · flat cards · purple typographic only · chips stay colored</li>
+        <li>Canvas mocks: Direction (4a), Atoms Design Tokens, Belief Rehearsal pair (structure only)</li>
+        <li>Open: <code>docs/design-handoff/tokens/</code></li>
+      </ul>
+    </div>
+
+    <div class="locks">
+      <strong style="color:#fff">Hard locks (do not relitigate)</strong><br />
+      Fossil body first · only <code>revises</code> / <code>contradicts</code> · 1 hero/day · body sacred ·
+      tokens from <code>docs/design-handoff/tokens/</code> (not agent-invented palettes) ·
+      no book-spine / parchment / glass glow · no <code>src/</code> ship without Issue + STATUS + draft PR.
+    </div>
+
+    <h2>Session exploration (pre-token; archive)</h2>
+
+    <div class="card">
+      <a href="mind-change-open-pair.html">mind-change-open-pair.html</a>
+      <ul>
+        <li>Early pair-open structure (Then/Now). Visuals superseded by tokens v2 / Direction 4a</li>
       </ul>
     </div>
     <div class="card">
-      <a href="home-open-citator.html">2. Home open + citator ribbon</a>
+      <a href="mind-change-hero-native.html">mind-change-hero-native.html</a>
       <ul>
-        <li>Subsequent-history chips on Atoms home only</li>
-        <li>No Obsidian note injection</li>
+        <li>Ship vs Then/Now on Atoms chrome. Hero recipe now: flat card + serif quote (tokens README)</li>
+      </ul>
+    </div>
+
+    <h2>Earlier A/B archive</h2>
+
+    <div class="card">
+      <a href="mind-change-hero.html">mind-change-hero.html</a>
+      <ul>
+        <li>First Then/Now markup on iOS-ish chrome</li>
+      </ul>
+    </div>
+    <div class="card">
+      <a href="mind-change-hero-ab.html">mind-change-hero-ab.html</a>
+      <ul>
+        <li>A Then/Now vs B Pro-Max glass — B rejected (“super AI like”)</li>
+      </ul>
+    </div>
+    <div class="card">
+      <a href="mind-change-hero-abc.html">mind-change-hero-abc.html</a>
+      <ul>
+        <li>A Original · B frontend-design · C Hallmark — B &gt; C but still felt AI (foreign brand)</li>
+      </ul>
+    </div>
+    <div class="card">
+      <a href="home-open-citator.html">home-open-citator.html</a>
+      <ul>
+        <li>Live-ish home open + citator chips — <strong>wrong POV</strong> for mind-change Open</li>
+      </ul>
+    </div>
+
+    <h2>What Claude should design next</h2>
+    <div class="card">
+      <ul>
+        <li>Recolor <code>mind-change-open-pair.html</code> to match <code>mind-change-hero-native.html</code> / live Atoms tokens</li>
+        <li>Keep pair structure; polish hierarchy so Then → Now reads in one glance</li>
+        <li>Optional: refine Then/Now hero card labels on native chrome only</li>
+        <li>Do not invent a new product brand; do not ship TypeScript</li>
       </ul>
     </div>
   </div>
