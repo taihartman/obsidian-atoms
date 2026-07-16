@@ -151,6 +151,18 @@ Intelligence lives in **links + titles**, not folders.
 
 Default: plan → implement unit → verify → next unit. Full ce-* loop when using compound-engineering for net-new features. Amend lane for tiny post-ship tweaks.
 
+### Mandatory shipping tail (do not skip)
+
+After **implementation** on any non-trivial change (feature or fix), **always** finish the loop before calling the work done or opening a PR:
+
+1. **`ce-simplify-code`** — tighten the freshly written code (reuse, clarity, efficiency) without changing behavior  
+2. **`ce-code-review`** — multi-agent review of the branch/diff; fix P0/P1  
+3. **`ce-compound`** — write the durable learning to `docs/solutions/` (and CONCEPTS if needed) so the next session inherits *why*  
+
+**Done means:** simplify + review + compound ran (or an explicit, recorded skip for pure mechanical churn: renames, version-only bumps with no logic).  
+**Not done:** “tests green + committed” alone.  
+LFG / `ce-work` / agent sessions must not stop at implement — the shipping tail is part of the work, not optional polish.
+
 ## Out of scope (v1)
 
 Capture UI · AI folder placement · `append` into user notes · always-on 3am headless · embeddings · resurfacing stream (v2).
