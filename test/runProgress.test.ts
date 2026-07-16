@@ -95,6 +95,7 @@ describe("summaryFromDryRun", () => {
           },
           wouldWriteMarker: null,
           wouldCreateAtomPath: null,
+          personHubMiss: false,
         },
         {
           dailyPath: "a.md",
@@ -119,11 +120,13 @@ describe("summaryFromDryRun", () => {
           },
           wouldWriteMarker: null,
           wouldCreateAtomPath: null,
+          personHubMiss: false,
         },
       ],
       totalUnprocessedScanned: 2,
       classified: 2,
       failed: 0,
+      personHubMisses: 0,
       wroteNothing: true,
       generatedAt: "t",
     };

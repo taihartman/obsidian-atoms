@@ -345,6 +345,37 @@ function personShaped(captureText: string, result: ClassificationResult): boolea
   return false;
 }
 
+/** Exported for dry-run / process explainability. */
+export function isPersonShapedCapture(
+  captureText: string,
+  result: ClassificationResult,
+): boolean {
+  return personShaped(captureText, result);
+}
+
+/**
+ * True when an atom is person-shaped but no link targets a discovered hub.
+ * Call **after** `enrichPersonLinks` so successful repair is not flagged as a miss.
+ */
+export function personHubMissAfterEnrich(
+  captureText: string,
+  result: ClassificationResult,
+  hubs: PersonHub[],
+): boolean {
+  if (result.verdict !== "atom") return false;
+  if (!personShaped(captureText, result)) return false;
+  if (!hubs.length) return true;
+  const hubTitles = new Set(
+    hubs.map((h) => h.canonicalTitle.trim().toLowerCase()).filter(Boolean),
+  );
+  return !(result.links ?? []).some((l) =>
+    hubTitles.has((l.note ?? "").trim().toLowerCase()),
+  );
+}
+
+/** Short user-facing line for preview cards / Notices. */
+export const PERSON_HUB_MISS_LABEL = "No person hub matched";
+
 function linkTargetsHub(
   result: ClassificationResult,
   canonicalTitle: string,

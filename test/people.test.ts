@@ -9,6 +9,7 @@ import {
   pathHasBoostSegment,
   pathHasAllowlistSegment,
   pathInDenylistFolder,
+  personHubMissAfterEnrich,
   PERSON_HUB_TOP_N,
   scorePersonHubCandidate,
 } from "../src/people";
@@ -303,5 +304,52 @@ describe("enrichPersonLinks", () => {
   it("is identity when hubs empty", () => {
     const input = atom({ title: "Something", tags: ["idea"] });
     expect(enrichPersonLinks("Alex likes x", input, [])).toBe(input);
+  });
+});
+
+describe("personHubMissAfterEnrich", () => {
+  const hubs = [
+    {
+      canonicalTitle: "Alex",
+      matchKeys: ["Alex"],
+      path: "People/Alex.md",
+    },
+  ];
+
+  it("true for person-shaped atom with no hub link", () => {
+    expect(
+      personHubMissAfterEnrich(
+        "Alex likes teal",
+        atom({ title: "Alex prefers teal", tags: ["preferences"] }),
+        [],
+      ),
+    ).toBe(true);
+  });
+
+  it("false after repair links hub", () => {
+    const repaired = enrichPersonLinks(
+      "Alex likes teal",
+      atom({ title: "Alex prefers teal", tags: ["preferences"] }),
+      hubs,
+    );
+    expect(personHubMissAfterEnrich("Alex likes teal", repaired, hubs)).toBe(
+      false,
+    );
+  });
+
+  it("false for noise", () => {
+    expect(
+      personHubMissAfterEnrich(
+        "buy milk",
+        {
+          verdict: "noise",
+          title: "",
+          tags: [],
+          proposed_tags: [],
+          links: [],
+        },
+        hubs,
+      ),
+    ).toBe(false);
   });
 });

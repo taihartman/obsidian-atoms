@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Atoms README — phone frames (synthetic dogfood)</title>
+  <style>
+    :root {
+      --bg: #000;
+      --grouped: #1c1c1e;
+      --elevated: #2c2c2e;
+      --sep: rgba(84, 84, 88, 0.65);
+      --label: #fff;
+      --secondary: rgba(235, 235, 245, 0.6);
+      --tertiary: rgba(235, 235, 245, 0.35);
+      --tint: #0a84ff;
+      --tint-soft: rgba(10, 132, 255, 0.18);
+      --orange: #ff9f0a;
+      --green: #30d158;
+      --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: var(--font);
+      background: #111;
+      color: var(--label);
+      -webkit-font-smoothing: antialiased;
+      padding: 24px;
+    }
+    .frames { display: flex; flex-wrap: wrap; gap: 32px; align-items: flex-start; }
+    .wrap { width: 390px; }
+    .cap {
+      font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em;
+      color: #888; margin: 0 0 10px; text-align: center;
+    }
+    .phone {
+      width: 390px; height: 780px; background: var(--bg);
+      border-radius: 44px; border: 4px solid #2a2a2c;
+      box-shadow: 0 24px 60px rgba(0,0,0,0.5);
+      overflow: hidden; display: flex; flex-direction: column;
+      position: relative;
+    }
+    .status {
+      height: 48px; display: flex; align-items: flex-end; justify-content: center;
+      padding-bottom: 6px; font-size: 0.75rem; font-weight: 600; flex-shrink: 0;
+    }
+    .nav { padding: 0 12px 8px 16px; flex-shrink: 0; }
+    .nav-top { display: flex; justify-content: space-between; align-items: center; min-height: 40px; }
+    .nav-btn { color: var(--tint); font-size: 1rem; min-width: 36px; }
+    .title { font-size: 2rem; font-weight: 700; letter-spacing: -0.04em; margin: 0; line-height: 1.05; }
+    .sub { font-size: 0.88rem; color: var(--secondary); margin: 4px 0 0; }
+    .scroll { flex: 1; overflow: hidden; padding: 4px 16px 20px; min-height: 0; }
+    .card {
+      background: var(--grouped); border: 1px solid var(--sep);
+      border-radius: 14px; padding: 14px; margin-bottom: 12px;
+    }
+    .card.ready {
+      background: rgba(255, 159, 10, 0.12);
+      border-color: rgba(255, 159, 10, 0.35);
+    }
+    .eyebrow { font-size: 0.72rem; color: var(--orange); font-weight: 600; margin: 0 0 4px; text-transform: uppercase; letter-spacing: 0.04em; }
+    .card h2 { margin: 0 0 6px; font-size: 1.1rem; letter-spacing: -0.02em; }
+    .card p { margin: 0 0 10px; font-size: 0.86rem; color: var(--secondary); line-height: 1.35; }
+    .mono {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.82rem; background: var(--elevated); border-radius: 10px;
+      padding: 10px 12px; white-space: pre-wrap; margin-bottom: 12px; color: var(--label);
+    }
+    .btn {
+      display: block; width: 100%; border: none; border-radius: 12px;
+      padding: 12px; font-size: 0.95rem; font-weight: 600; margin-bottom: 8px; cursor: default;
+    }
+    .btn.primary { background: var(--elevated); color: var(--label); }
+    .btn.secondary { background: transparent; color: var(--tint); border: 1px solid var(--sep); }
+    .btn.full { background: var(--elevated); color: var(--label); }
+    .cell {
+      background: var(--grouped); border-radius: 12px; padding: 12px 14px;
+      margin-bottom: 8px; display: flex; justify-content: space-between; gap: 8px;
+    }
+    .cell-title { font-size: 0.95rem; font-weight: 600; margin: 0 0 4px; }
+    .cell-meta { font-size: 0.78rem; color: var(--secondary); }
+    .chip {
+      display: inline-block; font-size: 0.72rem; font-weight: 600;
+      padding: 2px 8px; border-radius: 980px; margin-right: 4px;
+    }
+    .chip.person { background: rgba(255, 159, 10, 0.2); color: var(--orange); }
+    .chip.work { background: var(--tint-soft); color: var(--tint); }
+    .time { font-size: 0.75rem; color: var(--tertiary); white-space: nowrap; }
+    .section { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.07em; color: var(--tertiary); margin: 14px 0 8px; }
+    .banner {
+      background: #2a1f3d; border-radius: 12px; padding: 12px 14px;
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 12px; font-size: 0.88rem;
+    }
+    .banner strong { display: block; }
+    .banner span { font-size: 0.75rem; color: var(--secondary); }
+    .install {
+      background: var(--elevated); border: none; color: var(--label);
+      border-radius: 980px; padding: 6px 14px; font-size: 0.82rem; font-weight: 600;
+    }
+    .filters { display: flex; gap: 6px; }
+    .filter {
+      border: none; background: var(--elevated); color: var(--secondary);
+      border-radius: 980px; padding: 4px 12px; font-size: 0.78rem;
+    }
+    .filter.on { background: var(--tint-soft); color: var(--tint); }
+    .note-body { font-size: 0.95rem; line-height: 1.45; color: var(--label); }
+    .note-body a { color: var(--tint); text-decoration: none; }
+    .props { font-size: 0.82rem; color: var(--secondary); margin: 0 0 16px; }
+    .props div { margin-bottom: 6px; }
+    .tag {
+      display: inline-block; background: rgba(10,132,255,0.18); color: var(--tint);
+      border-radius: 6px; padding: 2px 8px; font-size: 0.75rem; margin-right: 4px;
+    }
+    .settings-row {
+      padding: 12px 0; border-bottom: 0.5px solid var(--sep);
+    }
+    .settings-row h3 { margin: 0 0 4px; font-size: 0.95rem; font-weight: 600; }
+    .settings-row p { margin: 0; font-size: 0.8rem; color: var(--secondary); line-height: 1.35; }
+    .gear {
+      width: 36px; height: 36px; border-radius: 10px; background: var(--elevated);
+      display: grid; place-items: center; color: var(--secondary); font-size: 1rem;
+    }
+    .queue { font-size: 0.82rem; color: var(--secondary); margin: 0 0 8px; }
+    .queue-item {
+      background: var(--elevated); border-radius: 10px; padding: 10px 12px;
+      margin-bottom: 6px; font-size: 0.84rem;
+    }
+    .queue-item .d { font-size: 0.72rem; color: var(--tertiary); margin-top: 2px; }
+    .editor-line { font-size: 0.95rem; line-height: 1.5; margin: 0 0 6px; color: var(--label); }
+    .h1n { font-size: 1.6rem; font-weight: 700; letter-spacing: -0.03em; margin: 0 0 16px; }
+  </style>
+</head>
+<body>
+  <div class="frames">
+
+    <!-- 01 first day -->
+    <div class="wrap" id="f01">
+      <p class="cap">01 first-day home</p>
+      <div class="phone">
+        <div class="status">9:41</div>
+        <div class="nav">
+          <div class="nav-top"><span class="nav-btn">⋯</span><span class="gear">⚙</span></div>
+          <h1 class="title">Atoms</h1>
+          <p class="sub">Capture starts in your daily note</p>
+        </div>
+        <div class="scroll">
+          <div class="card">
+            <p class="eyebrow" style="color:var(--secondary)">Get started</p>
+            <h2>Write one bullet today</h2>
+            <p>Atoms files thoughts from past days. Capture stays in Daily — this list shows what was filed.</p>
+            <div class="mono">- Alex likes periwinkle
+- watch Past Lives</div>
+            <button class="btn primary">Open today</button>
+            <button class="btn secondary">Install capture shortcut</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 02 daily -->
+    <div class="wrap" id="f02">
+      <p class="cap">02 daily captures</p>
+      <div class="phone">
+        <div class="status">9:41</div>
+        <div class="nav">
+          <div class="nav-top"><span class="nav-btn">‹ Daily</span><span></span></div>
+          <h1 class="h1n" style="font-size:1.5rem">2026-07-15</h1>
+        </div>
+        <div class="scroll">
+          <p class="editor-line">• 08:40 capture is cheap; the scarce resource is a calm review pass later</p>
+          <p class="editor-line">• 16:11 what would make tomorrow's planning feel light instead of heavy?</p>
+          <p class="editor-line">• short walk unlocked a stuck design problem</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 03 waiting -->
+    <div class="wrap" id="f03">
+      <p class="cap">03 waiting to file</p>
+      <div class="phone">
+        <div class="status">9:41</div>
+        <div class="nav">
+          <div class="nav-top"><span class="nav-btn">⋯</span><span class="gear">⚙</span></div>
+          <h1 class="title">Atoms</h1>
+          <p class="sub">6 thoughts ready to file</p>
+        </div>
+        <div class="scroll">
+          <div class="card ready">
+            <p class="eyebrow">Ready</p>
+            <h2>6 past captures waiting</h2>
+            <p>Add an API key on this phone so Atoms can file them. Today's note is never auto-touched.</p>
+            <button class="btn full">Open settings</button>
+          </div>
+          <p class="queue" style="color:var(--orange);font-weight:600">In your dailies</p>
+          <div class="queue-item">Jordan said morning design critiques land better…<div class="d">2026-07-14</div></div>
+          <div class="queue-item">Riley said rewatch Arrival for the linguistics angle<div class="d">2026-07-14</div></div>
+          <div class="queue-item">buy oat milk<div class="d">2026-07-14</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 04 library -->
+    <div class="wrap" id="f04">
+      <p class="cap">04 library</p>
+      <div class="phone">
+        <div class="status">9:41</div>
+        <div class="nav">
+          <div class="nav-top"><span class="nav-btn">⋯</span><span class="gear">⚙</span></div>
+          <h1 class="title">Atoms</h1>
+          <p class="sub">Your second brain</p>
+        </div>
+        <div class="scroll">
+          <div class="banner">
+            <div><strong>Capture shortcut</strong><span>v1.1.0</span></div>
+            <button class="install">Install</button>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <span class="section" style="margin:0">Library</span>
+            <div class="filters"><span class="filter on">All</span><span class="filter">Linked</span></div>
+          </div>
+          <div class="cell" style="margin-top:10px">
+            <div>
+              <p class="cell-title">Capture is cheap review is scarce</p>
+              <p class="cell-meta">Jul 15, 2026</p>
+            </div>
+            <span class="time">now</span>
+          </div>
+          <div class="cell">
+            <div>
+              <p class="cell-title">Jordan prefers morning design critiques</p>
+              <p class="cell-meta"><span class="chip person">Jordan</span> · Jul 14</p>
+            </div>
+            <span class="time">now</span>
+          </div>
+          <div class="cell">
+            <div>
+              <p class="cell-title">Want to watch Arrival</p>
+              <p class="cell-meta"><span class="chip work">Arrival</span><span class="chip person">Riley</span></p>
+            </div>
+            <span class="time">now</span>
+          </div>
+          <div class="cell">
+            <div>
+              <p class="cell-title">Short walks unlock stuck problems</p>
+              <p class="cell-meta"><span class="chip work">Deep work needs recovery</span></p>
+            </div>
+            <span class="time">now</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 05 atom -->
+    <div class="wrap" id="f05">
+      <p class="cap">05 atom note</p>
+      <div class="phone">
+        <div class="status">9:41</div>
+        <div class="nav">
+          <div class="nav-top"><span class="nav-btn">‹ Atoms</span><span></span></div>
+        </div>
+        <div class="scroll">
+          <h1 class="h1n" style="font-size:1.35rem;line-height:1.2">Jordan prefers morning design critiques</h1>
+          <div class="props">
+            <div>source · <a href="#" style="color:var(--tint)">2026-07-14</a></div>
+            <div><span class="tag">person</span><span class="tag">preferences</span></div>
+          </div>
+          <div class="note-body">
+            10:20 Jordan said morning design critiques land better than late afternoon
+            <p style="margin-top:14px;color:var(--secondary)">preference about <a href="#">Jordan</a>.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 06 person hub -->
+    <div class="wrap" id="f06">
+      <p class="cap">06 person hub</p>
+      <div class="phone">
+        <div class="status">9:41</div>
+        <div class="nav">
+          <div class="nav-top"><span class="nav-btn">‹ People</span><span></span></div>
+        </div>
+        <div class="scroll">
+          <h1 class="h1n">Jordan</h1>
+          <div class="props"><span class="tag">person</span></div>
+          <div class="note-body">
+            Coworker on the design team. Likes quiet coffee walks.
+            <p style="margin-top:20px;font-size:0.8rem;color:var(--tertiary)">1 backlink · from filed atoms</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 07 settings -->
+    <div class="wrap" id="f07">
+      <p class="cap">07 settings</p>
+      <div class="phone">
+        <div class="status">9:41</div>
+        <div class="nav">
+          <div class="nav-top"><span class="nav-btn">‹ Settings</span><span></span></div>
+          <h1 class="h1n" style="font-size:1.5rem">Atoms</h1>
+          <p class="sub">Version 0.6.4</p>
+        </div>
+        <div class="scroll">
+          <div class="settings-row">
+            <h3>Daily capture format</h3>
+            <p>Write top-level bullets in your daily note. Today's note is never auto-processed.</p>
+          </div>
+          <div class="settings-row">
+            <h3>Capture shortcut</h3>
+            <p>Install or update the iOS shortcut. Opens your iCloud link.</p>
+          </div>
+          <div class="settings-row">
+            <h3>API & privacy</h3>
+            <p>Key in SecretStorage. Each run sends note titles, tags, and capture text over TLS.</p>
+          </div>
+          <div class="settings-row" style="border:none">
+            <h3>Atom folder</h3>
+            <p>Flat folder for filed notes (default Atoms/).</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</body>
+</html>

@@ -808,6 +808,13 @@
   border-radius: 4px;
 }
 
+.atoms-preview-person-miss {
+  margin-top: 6px;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
 .atoms-preview-file {
   font-size: 0.72rem;
   color: var(--text-faint);

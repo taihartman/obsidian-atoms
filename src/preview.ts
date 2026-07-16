@@ -20,6 +20,11 @@ import type {
   VaultContext,
 } from "./types";
 import { mergeProposedTags } from "./vocabulary";
+import {
+  PERSON_HUB_MISS_LABEL,
+  personHubMissAfterEnrich,
+  type PersonHub,
+} from "./people";
 
 export interface PreviewEntry {
   dailyPath: string;
@@ -30,6 +35,11 @@ export interface PreviewEntry {
   wouldWriteMarker: string | null;
   /** Atom path that *would* be created (atom verdict only). */
   wouldCreateAtomPath: string | null;
+  /**
+   * Person-shaped atom with no link to a discovered hub (after enrich).
+   * False when not person-shaped, not atom, or a hub was linked.
+   */
+  personHubMiss: boolean;
 }
 
 export interface DryRunReport {
@@ -37,6 +47,8 @@ export interface DryRunReport {
   totalUnprocessedScanned: number;
   classified: number;
   failed: number;
+  /** Person-shaped atoms with no person hub linked. */
+  personHubMisses: number;
   /** True when no vault write APIs were invoked by this path. */
   wroteNothing: true;
   generatedAt: string;
@@ -60,10 +72,14 @@ export function buildPreviewEntry(opts: {
   capture: Capture;
   outcome: ClassifyOutcome;
   atomFolder: string;
+  /** Hubs after classify enrich (same set as repair). */
+  hubs?: PersonHub[];
 }): PreviewEntry {
   const { note, capture, outcome, atomFolder } = opts;
+  const hubs = opts.hubs ?? [];
   let wouldWriteMarker: string | null = null;
   let wouldCreateAtomPath: string | null = null;
+  let personHubMiss = false;
 
   if (outcome.ok) {
     const r = outcome.result;
@@ -71,6 +87,7 @@ export function buildPreviewEntry(opts: {
     if (r.verdict === "atom" && r.title.trim()) {
       wouldCreateAtomPath = atomPathForTitle(atomFolder, r.title);
     }
+    personHubMiss = personHubMissAfterEnrich(capture.text, r, hubs);
   }
 
   return {
@@ -80,6 +97,7 @@ export function buildPreviewEntry(opts: {
     outcome,
     wouldWriteMarker,
     wouldCreateAtomPath,
+    personHubMiss,
   };
 }
 
@@ -142,6 +160,9 @@ export function renderPreviewMarkdown(report: DryRunReport): string {
       for (const link of r.links) {
         lines.push(`- ${link.reason || link.note}`);
       }
+    }
+    if (e.personHubMiss) {
+      lines.push(`**People:** ${PERSON_HUB_MISS_LABEL}`);
     }
     if (r.verdict === "atom") {
       lines.push("");
@@ -211,6 +232,11 @@ export async function runDryRun(
   const max = opts.maxCaptures ?? work.length;
   const slice = work.slice(0, max);
   const ctx: VaultContext = opts.contextProvider.buildContext();
+  const hubs: PersonHub[] = (ctx.personHubDetails ?? []).map((d) => ({
+    canonicalTitle: d.canonicalTitle,
+    matchKeys: d.matchKeys,
+    path: `${d.canonicalTitle}.md`,
+  }));
   const entries: PreviewEntry[] = [];
 
   for (let i = 0; i < slice.length; i++) {
@@ -228,16 +254,19 @@ export async function runDryRun(
         capture,
         outcome,
         atomFolder: opts.atomFolder,
+        hubs,
       }),
     );
   }
 
   const classified = entries.filter((e) => e.outcome.ok).length;
+  const personHubMisses = entries.filter((e) => e.personHubMiss).length;
   return {
     entries,
     totalUnprocessedScanned: work.length,
     classified,
     failed: entries.length - classified,
+    personHubMisses,
     wroteNothing: true,
     generatedAt: new Date().toISOString(),
   };
@@ -321,6 +350,7 @@ export class DryRunPreviewModal extends Modal {
         totalUnprocessedScanned: 0,
         classified: 0,
         failed: 0,
+        personHubMisses: 0,
         wroteNothing: true,
         generatedAt: new Date().toISOString(),
       };
@@ -478,6 +508,12 @@ export class DryRunPreviewModal extends Modal {
         });
       }
     }
+    if (e.personHubMiss) {
+      card.createDiv({
+        cls: "atoms-preview-person-miss",
+        text: PERSON_HUB_MISS_LABEL,
+      });
+    }
     if (r.verdict === "atom" && e.wouldCreateAtomPath) {
       const file = e.wouldCreateAtomPath.split("/").pop() ?? e.wouldCreateAtomPath;
       card.createDiv({
@@ -499,6 +535,11 @@ export function showDryRunNotice(report: DryRunReport): void {
   if (c.task) parts.push(`${c.task} task`);
   if (c.noise) parts.push(`${c.noise} noise`);
   if (c.failed) parts.push(`${c.failed} failed`);
+  if (report.personHubMisses > 0) {
+    parts.push(
+      `${report.personHubMisses} no person hub${report.personHubMisses === 1 ? "" : "s"}`,
+    );
+  }
   const summary = parts.length ? parts.join(" · ") : "nothing";
   new Notice(`Atoms preview: ${summary} — nothing written yet`);
 }

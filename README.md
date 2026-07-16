@@ -64,7 +64,7 @@ Optional beta channel: install via [BRAT](https://obsidian.md/plugins?id=obsidia
 
 ## How to use (walkthrough)
 
-Empty vault → captures in Daily → file into a linked library. Screenshots use a synthetic dogfood vault (not personal notes).
+Empty vault → captures in Daily → file into a linked library. Screenshots are **phone-frame** product UI with synthetic dogfood (not personal notes).
 
 ### 1. First open — empty home
 
