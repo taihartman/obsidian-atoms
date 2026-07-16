@@ -6,7 +6,11 @@ import {
   getPastDailyNotesWithUnmarkedCaptures,
   type PastDailyNotesResult,
 } from "./daily";
-import { formatAtomBodyPreview, markerLineForDecision } from "./render";
+import {
+  atomPathForTitle,
+  formatAtomBodyPreview,
+  markerLineForDecision,
+} from "./render";
 import type {
   Capture,
   ClassificationResult,
@@ -65,9 +69,7 @@ export function buildPreviewEntry(opts: {
     const r = outcome.result;
     wouldWriteMarker = markerLineForDecision(r.verdict, r.title);
     if (r.verdict === "atom" && r.title.trim()) {
-      // Preview only — full sanitize lands in U8.
-      const safe = r.title.trim().replace(/[/:\\?%*|"]/g, "-");
-      wouldCreateAtomPath = `${atomFolder.replace(/\/$/, "")}/${safe}.md`;
+      wouldCreateAtomPath = atomPathForTitle(atomFolder, r.title);
     }
   }
 

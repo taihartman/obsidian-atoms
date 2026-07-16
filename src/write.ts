@@ -142,7 +142,7 @@ export async function runWritePath(
 
     if (
       plan.action.kind === "create_atom" ||
-      plan.action.kind === "update_atom"
+      plan.action.kind === "skip_existing_atom"
     ) {
       existingAtoms.add(plan.action.path);
     }

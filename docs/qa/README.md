@@ -1,54 +1,48 @@
 # QA Playbook
 
-This folder is the project-specific adapter for the shared `world-class-qa` and `adversarial-qa` skills. The global skills define the method; this folder defines how this project is launched, which fixtures are valid, where screenshots live, and which routes matter.
+This folder is the project-specific adapter for the shared `world-class-qa` and `adversarial-qa` skills. The global skills define the method; this folder defines how Atoms is launched, which fixtures are valid, where evidence lives, and which surfaces matter.
 
 ## Required Preflight
 
 Before a QA pass, read:
 
 1. `docs/qa/testing-fixtures.md` for deterministic data, live-data constraints, and cleanup rules.
-2. `docs/qa/app-navigation-map.md` for route and tap-path anchors.
-3. The changed files and adjacent tests for the feature under QA.
+2. `docs/qa/app-navigation-map.md` for surface and command anchors.
+3. The changed files, plan (if any), and adjacent tests for the feature under QA.
 
 ## Run Commands
 
-From repo root (see `CLAUDE.md` / `README.md`):
-
-```bash
-npm install
-npm test                 # vitest unit tests
-npm run build            # tsc + production main.js
-./scripts/install-to-vault.sh   # build + copy into throwaway vault + plugin:reload
-./scripts/verify.sh      # tests + seed + install + CLI live checks (agents: run this)
-```
-
-Obsidian must be open on the target vault for CLI checks.
-
-```bash
-cd "test_vault/test vault"
-obsidian plugin:reload id=atoms
-obsidian commands filter=atoms
-obsidian command id=atoms:dry-run-preview
-obsidian command id=atoms:process-fixture-sample
-```
-
-Phone / Sync install (user-visible builds):
-
-```bash
-./scripts/install-to-vault.sh "$HOME/Documents/Remote Vault"
-```
+| Layer | Command |
+|---|---|
+| Unit | `npm test` |
+| Typecheck + bundle | `npm run build` |
+| Seed throwaway vault | `npm run seed:vault` |
+| Install plugin into vault | `./scripts/install-to-vault.sh` (test vault) or Remote Vault path per CLAUDE.md |
+| Full agent verify | `./scripts/verify.sh` (Obsidian open + CLI on) |
+| Live CLI smoke | `obsidian command id=atoms:…` from vault cwd (see CLAUDE.md) |
 
 ## Viewports / Devices
 
-- **Primary:** Obsidian mobile phone (Atoms home is mobile-first; design handoffs at 375px phone shells).
-- **Secondary:** Obsidian desktop with Atoms home leaf open.
-- Visual fidelity: compare live home UI to `docs/design-handoff/` mocks at phone width — not a web browser app.
+| Surface | Target |
+|---|---|
+| **Primary (phone product)** | Obsidian mobile (iOS) on **Remote Vault** via Sync — install id `atoms`, check Settings version |
+| **Agent automation** | Desktop Obsidian **1.12.x** + CLI on throwaway `test_vault/test vault/` |
+| Home UI | Mobile-first `atoms-home` leaf (~phone width); desktop left sidebar leaf OK for smoke |
+
+Visual fidelity mocks (when UI change): `docs/design-handoff/atoms-view/`.
 
 ## Evidence Paths
 
-- QA reports: `docs/qa/YYYY-MM-DD-<branch>-world-class-qa.md`.
-- Screenshots: `docs/qa/screenshots/<branch-or-feature>/<frame>.png` (manual capture from Obsidian or mock HTML).
+- QA reports: `docs/qa/YYYY-MM-DD-<branch>-world-class-qa.md`
+- Screenshots (if any): `docs/qa/screenshots/<branch-or-feature>/<frame>.png`
+- CLI transcript: paste into report Evidence section (no secrets / no raw API keys)
 
 ## Auth Reality
 
-No user sign-in. Anthropic API key lives in SecretStorage (or device-local fallback) — never in `data.json`. Live Process paths need a key; dry-run / fixture / pure unit paths do not. Never commit API keys.
+- Anthropic API key: **SecretStorage** (or device-local fallback). Never commit keys.
+- Auto-run flags: **device-local** (`loadLocalStorage`) — phone ≠ desktop.
+- Live classify needs a key on the device under test. Dry-run / fixture commands avoid spend when possible.
+
+## Merge gate (project)
+
+Non-trivial PRs must run **`world-class-qa`** (and its required **`adversarial-qa`** half) or record a **Blocked / checklist handoff** with named gaps. Unit tests alone are not QA.

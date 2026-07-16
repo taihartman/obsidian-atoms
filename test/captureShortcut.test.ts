@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   CAPTURE_SHORTCUT_VERSION,
+  isAllowedCaptureShortcutUrl,
   labelInstallOrUpdate,
   needsShortcutCta,
   readShortcutAck,
@@ -51,6 +52,30 @@ describe("resolveCaptureShortcutInstallUrl", () => {
     );
     expect(resolveCaptureShortcutInstallUrl(null)).toContain(
       "icloud.com/shortcuts/",
+    );
+  });
+});
+
+describe("isAllowedCaptureShortcutUrl (AE4)", () => {
+  it("allows iCloud shortcuts HTTPS links", () => {
+    expect(
+      isAllowedCaptureShortcutUrl(
+        "https://www.icloud.com/shortcuts/28a87317da06494896ef183ec846606f",
+      ),
+    ).toBe(true);
+  });
+
+  it("rejects javascript, http, wrong host, empty", () => {
+    expect(isAllowedCaptureShortcutUrl("javascript:alert(1)")).toBe(false);
+    expect(isAllowedCaptureShortcutUrl("http://www.icloud.com/shortcuts/x")).toBe(
+      false,
+    );
+    expect(isAllowedCaptureShortcutUrl("https://evil.example/shortcuts/x")).toBe(
+      false,
+    );
+    expect(isAllowedCaptureShortcutUrl("")).toBe(false);
+    expect(isAllowedCaptureShortcutUrl("https://www.icloud.com/other")).toBe(
+      false,
     );
   });
 });

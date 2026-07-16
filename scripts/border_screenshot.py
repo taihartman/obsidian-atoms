@@ -18,7 +18,11 @@ def main() -> None:
     raise SystemExit('Pillow is required: python3 -m pip install Pillow') from error
 
   input_path = Path(args.input)
-  output_path = Path(args.output) if args.output else input_path.with_name(f'{input_path.stem}-bordered{input_path.suffix}')
+  output_path = (
+    Path(args.output)
+    if args.output
+    else input_path.with_name(f'{input_path.stem}-bordered{input_path.suffix}')
+  )
   image = Image.open(input_path)
   bordered = ImageOps.expand(image, border=args.border, fill='black')
   output_path.parent.mkdir(parents=True, exist_ok=True)

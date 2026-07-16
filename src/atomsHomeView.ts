@@ -1,13 +1,24 @@
-import { ItemView, Menu, Notice, WorkspaceLeaf, type TFile } from "obsidian";
+import {
+  ItemView,
+  Menu,
+  Modal,
+  Notice,
+  Setting,
+  WorkspaceLeaf,
+  type TFile,
+} from "obsidian";
 import type AtomsPlugin from "./main";
 import {
   bodyAfterFrontmatter,
+  filingHeroCopy,
   filterLinkedOnly,
   formatRelativeTime,
+  isAutomaticFilingReady,
   listAtomLibraryEntries,
   queuePeekTexts,
   shouldShowWaitCard,
   type AtomLibraryEntry,
+  type FilingHeroCopy,
 } from "./atomsHomeData";
 import {
   calendarDateToday,
@@ -663,9 +674,13 @@ export class AtomsHomeView extends ItemView {
               ? this.runSummaryText
               : this.runSummaryText
         : shouldShowWaitCard(this.unprocessedCount)
-          ? this.unprocessedCount === 1
-            ? "1 thought ready to file"
-            : `${this.unprocessedCount} thoughts ready to file`
+          ? isAutomaticFilingReady(this.plugin.getAutoRunSnapshot())
+            ? this.unprocessedCount === 1
+              ? "1 past thought will file automatically"
+              : `${this.unprocessedCount} past thoughts will file automatically`
+            : this.unprocessedCount === 1
+              ? "1 thought ready to file"
+              : `${this.unprocessedCount} thoughts ready to file`
           : this.entries.length
             ? "Your second brain"
             : "Nothing filed yet";
@@ -692,35 +707,77 @@ export class AtomsHomeView extends ItemView {
       this.progressMount = null;
     }
 
-    // Work first when something needs a decision (Apple: primary job up top)
+    // Work first when past captures wait — automatic filing story (not homework-only)
     if (shouldShowWaitCard(this.unprocessedCount)) {
+      const snap = this.plugin.getAutoRunSnapshot();
+      const hero =
+        filingHeroCopy({
+          pastUnprocessed: this.unprocessedCount,
+          hasKey: snap.hasKey,
+          autoEnabled: snap.enabled,
+          egressAcked: snap.egressAcked,
+          inFlight: snap.inFlight,
+        }) ??
+        ({
+          mode: "enable_auto",
+          eyebrow: "Ready",
+          title: `${this.unprocessedCount} past captures waiting`,
+          body: "Process when you are ready.",
+          primaryLabel: "Process",
+          primaryAction: "process",
+          secondaryLabel: "Preview",
+          secondaryAction: "preview",
+        } satisfies FilingHeroCopy);
+
       const card = scroll.createDiv({ cls: "atoms-home-wait-card" });
       card.createEl("p", {
         cls: "atoms-home-card-eyebrow",
-        text: "Ready",
+        text: hero.eyebrow,
       });
-      card.createEl("h2", {
-        text:
-          this.unprocessedCount === 1
-            ? "One capture to review"
-            : `${this.unprocessedCount} captures to review`,
-      });
-      card.createEl("p", {
-        text: "Preview first — nothing is written until you Process.",
-      });
+      card.createEl("h2", { text: hero.title });
+      card.createEl("p", { text: hero.body });
       const actions = card.createDiv({ cls: "atoms-home-wait-actions" });
-      const previewBtn = actions.createEl("button", {
-        cls: "atoms-home-btn atoms-home-btn-primary",
-        text: this.busy ? "…" : "Preview",
-      });
-      previewBtn.disabled = this.busy;
-      previewBtn.addEventListener("click", () => void this.onPreview(false));
-      const processBtn = actions.createEl("button", {
-        cls: "atoms-home-btn atoms-home-btn-secondary",
-        text: "Process",
-      });
-      processBtn.disabled = this.busy;
-      processBtn.addEventListener("click", () => void this.onProcess(false));
+
+      const bindAction = (
+        label: string | null,
+        action: FilingHeroCopy["primaryAction"] | FilingHeroCopy["secondaryAction"],
+        primary: boolean,
+      ) => {
+        if (!label || !action) return;
+        const btn = actions.createEl("button", {
+          cls:
+            "atoms-home-btn " +
+            (primary ? "atoms-home-btn-primary" : "atoms-home-btn-secondary"),
+          text: this.busy ? "…" : label,
+        });
+        btn.disabled = this.busy;
+        btn.addEventListener("click", () => {
+          if (action === "open_settings") {
+            (this.app as { setting?: { openTabById?: (id: string) => void } })
+              .setting?.openTabById?.("atoms");
+            return;
+          }
+          if (action === "enable_auto") {
+            this.confirmEnableAutomaticFiling();
+            return;
+          }
+          if (action === "preview") void this.onPreview(false);
+          if (action === "process") void this.onProcess(false);
+        });
+      };
+
+      bindAction(hero.primaryLabel, hero.primaryAction, true);
+      bindAction(hero.secondaryLabel, hero.secondaryAction, false);
+
+      // enable_auto already has Process secondary — also offer Preview
+      if (hero.mode === "enable_auto" && hero.secondaryAction !== "preview") {
+        const previewBtn = actions.createEl("button", {
+          cls: "atoms-home-btn atoms-home-btn-secondary",
+          text: this.busy ? "…" : "Preview",
+        });
+        previewBtn.disabled = this.busy;
+        previewBtn.addEventListener("click", () => void this.onPreview(false));
+      }
 
       if (this.peek.length) {
         scroll.createDiv({
@@ -843,7 +900,9 @@ export class AtomsHomeView extends ItemView {
         });
       } else if (shouldShowWaitCard(this.unprocessedCount)) {
         empty.createEl("p", {
-          text: "Library fills after you Process.",
+          text: isAutomaticFilingReady(this.plugin.getAutoRunSnapshot())
+            ? "Library fills after automatic filing (or Process now)."
+            : "Library fills after you Process.",
         });
       } else if (!firstDay) {
         empty.createEl("p", {
@@ -958,7 +1017,9 @@ export class AtomsHomeView extends ItemView {
     }
     const ok = openShortcutInstallUrl(url);
     if (!ok) {
-      new Notice("Could not open the shortcut link");
+      new Notice(
+        "Shortcut link must be an https://www.icloud.com/shortcuts/… URL",
+      );
       return;
     }
     writeShortcutAck(
@@ -970,6 +1031,29 @@ export class AtomsHomeView extends ItemView {
       `Opened capture shortcut v${CAPTURE_SHORTCUT_VERSION} — add it in Shortcuts`,
     );
     this.render();
+  }
+
+  /** Privacy confirm then device-local ack + enable (U3). */
+  private confirmEnableAutomaticFiling(): void {
+    const modal = new Modal(this.app);
+    modal.titleEl.setText("Automatic filing");
+    modal.contentEl.createEl("p", {
+      text: "When you open Obsidian, Atoms can send past daily captures and vault titles to Anthropic over TLS to file them. Today’s daily note is never auto-touched. This setting stays on this device only.",
+    });
+    new Setting(modal.contentEl)
+      .addButton((b) =>
+        b.setButtonText("Cancel").onClick(() => modal.close()),
+      )
+      .addButton((b) =>
+        b
+          .setButtonText("Enable")
+          .setCta()
+          .onClick(() => {
+            modal.close();
+            void this.plugin.enableAutomaticFilingFromHome();
+          }),
+      );
+    modal.open();
   }
 
   private async onPreview(includeToday: boolean): Promise<void> {

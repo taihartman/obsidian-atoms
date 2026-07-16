@@ -1,52 +1,66 @@
 # Testing Fixtures
 
+Durable fixture catalog for Atoms QA. Never commit API keys, SecretStorage dumps, or personal vault content.
+
 ## Security Rules
 
-Never commit Anthropic API keys, SecretStorage dumps, personal vault contents, or Sync credentials.
+- No credentials, JWTs, or raw Anthropic keys in reports or fixtures.
+- Prefer throwaway vault (`test_vault/`) for write experiments.
+- Remote Vault is real Sync data — process only with user consent; never bulk-rewrite dailies.
 
 ## Current Fixtures
 
-### Vitest pure modules
+### Seeded test vault dailies
 
-- **Purpose:** Deterministic parse/render/resurface/classify behavior without Obsidian.
-- **Mode:** Automated.
-- **Surface:** `test/**/*.test.ts` with `test/mocks/`.
-- **Setup:** `npm test`.
-- **Expected states:** All suites green.
-- **Cleanup:** None.
-- **Evidence:** Vitest output in QA reports.
+- **Purpose:** Unprocessed captures on past dailies for parse/list/process smoke.
+- **Mode:** Automated + Live.
+- **Surface:** Daily notes + Process / list-unprocessed / auto-run.
+- **Setup:** `npm run seed:vault` then `./scripts/install-to-vault.sh` with Obsidian open on `test_vault/test vault/`.
+- **Expected states:** Unprocessed count &gt; 0 after seed (until process/markers); atoms under `Atoms/` after write path.
+- **Cleanup:** Re-seed or discard vault copy; do not commit vault contents.
+- **Evidence:** `./scripts/verify.sh` output; `atoms:list-unprocessed-captures`.
 
-### Throwaway test vault
+### Fixture Process (no API)
 
-- **Purpose:** CLI-driven plugin smoke without personal data.
-- **Mode:** Live / Both.
-- **Surface:** `test_vault/test vault/` (gitignored).
-- **Setup:** `npm run seed:vault` then `./scripts/install-to-vault.sh` with Obsidian open on that vault.
-- **Expected states:** Plugin id `atoms` enabled; commands listed under filter=atoms.
-- **Cleanup:** Re-seed or wipe vault notes under Daily/Atoms as needed; never use personal Remote Vault for destructive experiments.
-- **Evidence:** `obsidian command` / `obsidian eval` output.
+- **Purpose:** Write path without Anthropic spend.
+- **Mode:** Live CLI.
+- **Surface:** `atoms:process-fixture-sample` (if enabled) or dry-run preview.
+- **Setup:** Plugin installed; see command palette `atoms:`.
+- **Expected states:** Markers and/or atoms without network (fixture path).
+- **Cleanup:** Re-seed vault.
+- **Evidence:** CLI notice / `lastWriteReport` via eval (no secrets).
+
+### Device auto-run flags (local only)
+
+- **Purpose:** Enable automatic filing / egress ack for auto-run QA.
+- **Mode:** Live (device-local).
+- **Surface:** Settings → Atoms → Auto-run; home “Turn on automatic filing”.
+- **Setup:** Toggle on device under test; key present.
+- **Expected states:** `atoms:auto-run-status` shows on + ack; past work files on open when gates pass.
+- **Cleanup:** Toggle off after destructive tests if desired.
+- **Evidence:** Status command Notice/console; markers on past dailies.
+
+### Remote Vault (phone Sync)
+
+- **Purpose:** Real mobile product path.
+- **Mode:** Live / human phone.
+- **Surface:** Atoms home, Process, auto-run, For you.
+- **Setup:** Install built plugin to Remote Vault; Sync; key `mobile-key` or SecretStorage.
+- **Expected states:** Settings version matches ship; filing works offline-retry after 0.5.4.
+- **Cleanup:** User-owned; do not agent-wipe personal notes.
+- **Evidence:** Screenshot or human checklist rows in QA report.
+
+## Fixture Maintenance
+
+When a feature adds a stable seed, CLI command, or device flag, update this file in the same change.
 
 ### Mind-change pair (Belief Rehearsal)
 
 - **Purpose:** Prove For you mind-change hero and citator when hard supersession exists.
-- **Mode:** Automated (unit) + Live (seeded atoms in test vault).
+- **Mode:** Automated (unit) + Live (seeded atoms).
 - **Surface:** Atoms home For you + home open.
 - **Setup (unit):** `test/resurface.test.ts` supersession cases.
-- **Setup (live):** Two files under `Atoms/`:
-  - Older: body “I used to think X”, title `Old claim`.
-  - Newer: body “Now Y”, link prose `revises [[Old claim]].`, `generated-by: linker` frontmatter.
-- **Expected states:** Mind change kicker; old body snippet; later line; Open → citator “Revises · Old claim” on new or “Revised by · New claim” on old.
-- **Cleanup:** Delete the two atom files after the pass.
-- **Evidence:** Unit tests + CLI eval of pure functions if available; screenshots if human-captured.
-
-### Design handoff mocks
-
-- **Purpose:** Visual authority for home surfaces.
-- **Mode:** Reference (open in browser).
-- **Surface:** `docs/design-handoff/belief-rehearsal/*.html`, `docs/design-handoff/atoms-view/`.
-- **Setup:** Open HTML files locally.
-- **Evidence:** Side-by-side with live Obsidian when assessing fidelity.
-
-## Fixture Maintenance
-
-When a feature adds seed shapes or CLI commands, update this file in the same change.
+- **Setup (live):** Older + newer atom with `revises [[Old title]]` and `generated-by: linker`.
+- **Expected states:** Mind change kicker; old body; later line; citator chips on home open.
+- **Cleanup:** Delete fixture atoms after the pass.
+- **Evidence:** Unit tests + CLI/home visual.

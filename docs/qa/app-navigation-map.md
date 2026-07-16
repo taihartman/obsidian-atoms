@@ -1,43 +1,76 @@
 # App Navigation Map
 
-Living map for Obsidian Atoms plugin QA. Not a web app — surfaces are Obsidian leaves, commands, and Settings.
+Living map for driving Atoms during QA. Update when commands, home cards, or settings sections change.
 
 ## Launch
 
-- Run command: Obsidian open on vault → `./scripts/install-to-vault.sh` → `obsidian plugin:reload id=atoms`.
-- Primary device: phone via Sync (`Remote Vault`) or desktop throwaway vault.
-- Auth path: Settings → Atoms → Anthropic API key (SecretStorage). Optional for dry-run/fixture/unit.
+| Item | Value |
+|---|---|
+| App | Obsidian desktop or mobile |
+| Plugin id | `atoms` |
+| Throwaway vault | `test_vault/test vault/` (gitignored) |
+| Phone Sync vault | Remote Vault (user machine path; see CLAUDE.md) |
+| CLI | Settings → General → Advanced → Command line interface **ON** |
+| Install | `./scripts/install-to-vault.sh` then `obsidian plugin:reload id=atoms` |
 
 ## Key Surfaces
 
 ### Atoms home
 
-- Entrypoint: Command palette **Open Atoms home** / ribbon / leaf type `atoms-home`.
-- How to reach: enable plugin → open home leaf.
-- Source anchors: `src/atomsHomeView.ts`, `styles.css`.
-- Fixture: library atoms in `Atoms/`; optional unprocessed dailies for wait card.
-- Notes: mobile-first; For you hero only when calm (no wait card).
+- **Entrypoint:** Ribbon library icon, or command `atoms:open-atoms-home`, or open leaf type `atoms-home`.
+- **How to reach:** Command palette → “Open Atoms home”.
+- **Source:** `src/atomsHomeView.ts`, `src/atomsHomeData.ts`.
+- **Fixture:** Seeded past unprocessed for wait card; atoms in `Atoms/` for library / For you.
+- **Notes:** One hero: Ready / automatic filing / For you when calm. Progress card only for manual Preview/Process (not silent auto-run).
 
-### For you / mind-change
+### Wait card / automatic filing
 
-- Entrypoint: Atoms home scroll, section “For you”.
-- How to reach: home with zero unprocessed past captures + eligible resurface candidate.
-- Source anchors: `src/resurface.ts` (`listResurfaceCandidates`, `pickResurface`), `renderResurfaceCard` / `renderMindChangeCard`.
-- Fixture: Mind-change pair (see `testing-fixtures.md`).
-- Notes: Max one mind-change hero per calendar day (device-local `atoms-mind-change-day-v1`).
-
-### Home open + citator
-
-- Entrypoint: Mind-change **Open**, or future home atom open path.
-- Source anchors: `openAtomInHome`, `renderHomeOpen`, `citatorChipsForAtom`.
-- Notes: **Not** injected into Obsidian editor; “Open in vault” leaves pure note.
-
-### Dry-run / Process
-
-- Commands: `atoms:dry-run-preview`, `atoms:process-unprocessed`, `atoms:process-fixture-sample`.
-- Source: `main.ts`, `preview.ts`, `write.ts`.
+- **When:** Past unprocessed &gt; 0.
+- **Modes:** need key → open settings; enable auto → privacy modal; auto on → Process secondary.
+- **Source:** `filingHeroCopy` in `src/atomsHomeData.ts`.
+- **QA:** Enable flow must not write to `data.json` auto-run flags.
 
 ### Settings → Atoms
 
-- Version display; API key; capture shortcut; auto-run.
-- Source: `settings.ts`.
+- **Entrypoint:** Settings tab id `atoms`.
+- **Contains:** Version, API key / SecretStorage id, auto-run ack + enable, model, atom folder, vocab, capture shortcut URL.
+- **Source:** `src/settings.ts`.
+
+### Process / Preview (manual)
+
+- **Commands:** Process unprocessed; dry-run preview; home buttons; include-today via ⋯ menu.
+- **Never auto:** `includeToday` only manual.
+- **Source:** `src/write.ts`, `src/preview.ts`, `src/main.ts`.
+
+### Auto-run
+
+- **Triggers:** App open (after index ready); hourly interval; home enable → `maybeAutoRun("manual")`; command `atoms:auto-run-now`.
+- **Status:** `atoms:auto-run-status`.
+- **Source:** `src/autorun.ts`, `src/main.ts` `maybeAutoRun`.
+- **QA:** Same-day retry after offline; stamp only when past drained.
+
+### For you (resurface)
+
+- **When:** Home calm (no past wait card), not first-day setup.
+- **Source:** `src/resurface.ts`.
+- **Note:** Empty when all atoms same-day / young — not necessarily a bug.
+
+## Handy CLI anchors
+
+```bash
+obsidian plugins:enabled
+obsidian plugin:reload id=atoms
+obsidian commands filter=atoms
+obsidian command id=atoms:auto-run-status
+obsidian command id=atoms:auto-run-now
+obsidian command id=atoms:list-unprocessed-captures
+obsidian command id=atoms:dry-run-preview
+obsidian command id=atoms:process-unprocessed
+```
+
+### For you / mind-change
+
+- Entrypoint: Atoms home “For you” when calm (no wait card).
+- Source: `src/resurface.ts`, `renderMindChangeCard` in `atomsHomeView.ts`.
+- Fixture: Mind-change pair.
+- Notes: Max one mind-change hero per calendar day (`atoms-mind-change-day-v1`).

@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Atoms — what’s going on, in plain English</title>
+  <style>
+    :root {
+      --bg: #f6f4f1;
+      --paper: #fffdf9;
+      --ink: #1c1917;
+      --muted: #78716c;
+      --line: #e7e5e4;
+      --accent: #0f766e;
+      --accent-soft: #ccfbf1;
+      --warm: #c2410c;
+      --warm-soft: #ffedd5;
+      --violet: #6d28d9;
+      --violet-soft: #ede9fe;
+      --ok: #15803d;
+      --ok-soft: #dcfce7;
+      --shadow: 0 1px 2px rgba(28, 25, 23, 0.04), 0 12px 40px rgba(28, 25, 23, 0.06);
+      --radius: 16px;
+      --font: "SF Pro Text", "Segoe UI", system-ui, -apple-system, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      font-family: var(--font);
+      color: var(--ink);
+      background:
+        radial-gradient(1200px 600px at 10% -10%, #e0f2fe 0%, transparent 55%),
+        radial-gradient(900px 500px at 100% 0%, #fce7f3 0%, transparent 50%),
+        var(--bg);
+      line-height: 1.55;
+      font-size: 17px;
+    }
+
+    .wrap {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 48px 20px 96px;
+    }
+
+    header.hero {
+      margin-bottom: 40px;
+    }
+
+    .eyebrow {
+      display: inline-block;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--accent);
+      background: var(--accent-soft);
+      padding: 6px 10px;
+      border-radius: 999px;
+      margin-bottom: 14px;
+    }
+
+    h1 {
+      font-size: clamp(1.85rem, 4vw, 2.35rem);
+      line-height: 1.15;
+      letter-spacing: -0.03em;
+      margin: 0 0 14px;
+      font-weight: 700;
+    }
+
+    .lede {
+      color: var(--muted);
+      font-size: 1.08rem;
+      max-width: 38em;
+      margin: 0;
+    }
+
+    nav.toc {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 28px 0 8px;
+    }
+
+    nav.toc a {
+      text-decoration: none;
+      color: var(--ink);
+      background: var(--paper);
+      border: 1px solid var(--line);
+      padding: 8px 12px;
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 500;
+      box-shadow: 0 1px 0 rgba(0,0,0,0.02);
+    }
+
+    nav.toc a:hover { border-color: #a8a29e; }
+
+    section {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 28px 24px;
+      margin-top: 20px;
+    }
+
+    section h2 {
+      margin: 0 0 10px;
+      font-size: 1.25rem;
+      letter-spacing: -0.02em;
+    }
+
+    section p { margin: 0 0 14px; }
+    section p:last-child { margin-bottom: 0; }
+
+    .muted { color: var(--muted); }
+    .small { font-size: 0.92rem; }
+
+    /* Pipeline steps */
+    .steps {
+      display: grid;
+      gap: 12px;
+      margin: 18px 0 8px;
+    }
+
+    .step {
+      display: grid;
+      grid-template-columns: 44px 1fr;
+      gap: 14px;
+      align-items: start;
+      padding: 14px;
+      border-radius: 12px;
+      background: #fafaf9;
+      border: 1px solid var(--line);
+    }
+
+    .step .n {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      display: grid;
+      place-items: center;
+      font-weight: 700;
+      color: white;
+      font-size: 1.05rem;
+    }
+
+    .step:nth-child(1) .n { background: #0369a1; }
+    .step:nth-child(2) .n { background: var(--accent); }
+    .step:nth-child(3) .n { background: var(--violet); }
+
+    .step h3 {
+      margin: 2px 0 4px;
+      font-size: 1rem;
+    }
+
+    .step p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    .callout {
+      border-radius: 12px;
+      padding: 14px 16px;
+      margin: 16px 0 0;
+      font-size: 0.95rem;
+    }
+
+    .callout.teal {
+      background: var(--accent-soft);
+      color: #115e59;
+      border: 1px solid #99f6e4;
+    }
+
+    .callout.warm {
+      background: var(--warm-soft);
+      color: #9a3412;
+      border: 1px solid #fed7aa;
+    }
+
+    .callout.green {
+      background: var(--ok-soft);
+      color: #14532d;
+      border: 1px solid #bbf7d0;
+    }
+
+    .callout.violet {
+      background: var(--violet-soft);
+      color: #5b21b6;
+      border: 1px solid #ddd6fe;
+    }
+
+    .callout strong { font-weight: 650; }
+
+    /* Phone mock mini */
+    .phone {
+      max-width: 280px;
+      margin: 18px auto 8px;
+      border: 1px solid var(--line);
+      border-radius: 28px;
+      background: #0c0a09;
+      padding: 12px;
+      box-shadow: var(--shadow);
+    }
+
+    .phone-screen {
+      background: #fafaf9;
+      border-radius: 20px;
+      padding: 16px 14px 18px;
+      min-height: 220px;
+    }
+
+    .phone-title {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #a8a29e;
+      margin-bottom: 10px;
+    }
+
+    .phone-card {
+      background: white;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 12px;
+      margin-bottom: 10px;
+    }
+
+    .phone-card.empty {
+      border-style: dashed;
+      color: #a8a29e;
+      text-align: center;
+      padding: 20px 12px;
+      font-size: 13px;
+    }
+
+    .phone-card h4 {
+      margin: 0 0 4px;
+      font-size: 14px;
+    }
+
+    .phone-card p {
+      margin: 0;
+      font-size: 12px;
+      color: #78716c;
+    }
+
+    .chip {
+      display: inline-block;
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: #ffedd5;
+      color: #9a3412;
+      margin-top: 6px;
+    }
+
+    /* Compare two columns */
+    .compare {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 16px;
+    }
+
+    @media (max-width: 560px) {
+      .compare { grid-template-columns: 1fr; }
+    }
+
+    .compare .box {
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      padding: 14px;
+      background: #fafaf9;
+    }
+
+    .compare .box h3 {
+      margin: 0 0 8px;
+      font-size: 0.95rem;
+    }
+
+    .compare .box.bad h3 { color: var(--warm); }
+    .compare .box.good h3 { color: var(--ok); }
+
+    .compare ul {
+      margin: 0;
+      padding-left: 1.1em;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .compare li { margin-bottom: 4px; }
+
+    /* Graph viz */
+    .graph {
+      margin: 18px 0 8px;
+      padding: 20px 12px;
+      border-radius: 12px;
+      background: #fafaf9;
+      border: 1px solid var(--line);
+      text-align: center;
+      overflow: hidden;
+    }
+
+    .graph svg {
+      width: 100%;
+      max-width: 420px;
+      height: auto;
+    }
+
+    .graph-caption {
+      font-size: 0.88rem;
+      color: var(--muted);
+      margin-top: 8px;
+    }
+
+    /* Simple list */
+    ol.plain, ul.plain {
+      margin: 12px 0 0;
+      padding-left: 1.2em;
+    }
+
+    ol.plain li, ul.plain li {
+      margin-bottom: 8px;
+    }
+
+    .tag {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: 6px;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+
+    .tag.you { background: #dbeafe; color: #1e40af; }
+    .tag.now { background: var(--warm-soft); color: #9a3412; }
+    .tag.goal { background: var(--ok-soft); color: #14532d; }
+
+    footer {
+      margin-top: 28px;
+      color: var(--muted);
+      font-size: 0.88rem;
+      text-align: center;
+    }
+
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.88em;
+      background: #f5f5f4;
+      padding: 1px 6px;
+      border-radius: 5px;
+    }
+
+    a.inline { color: var(--accent); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="hero">
+      <div class="eyebrow">Plain English · for you</div>
+      <h1>What Atoms is doing — and why some things feel empty</h1>
+      <p class="lede">
+        Last time I used product jargon (“cold open,” “graph,” “day‑7”).
+        This page rewrites that in normal language, with pictures of what you
+        actually see on your phone.
+      </p>
+      <nav class="toc" aria-label="Jump to">
+        <a href="#loop">The 3 steps</a>
+        <a href="#magic">No Process button</a>
+        <a href="#cold">“Cold open”</a>
+        <a href="#foryou">Empty For you</a>
+        <a href="#graph">The “graph”</a>
+        <a href="#one">What #1 meant</a>
+        <a href="#now">What to do next</a>
+      </nav>
+    </header>
+
+    <!-- 1. The loop -->
+    <section id="loop">
+      <h2>Atoms is three steps — not one app feature</h2>
+      <p>
+        Think of it like a kitchen, not a single button:
+      </p>
+      <div class="steps">
+        <div class="step">
+          <div class="n">1</div>
+          <div>
+            <h3>Dump (capture)</h3>
+            <p>
+              You already do this. iOS Shortcut → daily note.
+              Messy bullets. No thinking required.
+            </p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="n">2</div>
+          <div>
+            <h3>File (Process)</h3>
+            <p>
+              The plugin reads past days, asks AI what each bullet is,
+              writes a clean atom note, and marks the bullet so it won’t
+              run again. <strong>This is the “Process” button.</strong>
+            </p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="n">3</div>
+          <div>
+            <h3>Surprise you later (For you)</h3>
+            <p>
+              Later, home shows one old atom again — “hey, remember this?”
+              That’s the magic feeling. It only works after step 2 has
+              been happening for a while.
+            </p>
+          </div>
+        </div>
+      </div>
+      <div class="callout teal">
+        <strong>Your instinct is right:</strong> if step 2 always needs a
+        finger-press, it never feels like a brain. It feels like homework.
+        Magic = step 2 mostly happens by itself.
+      </div>
+    </section>
+
+    <!-- Magic / auto process -->
+    <section id="magic">
+      <h2>What you said: “I don’t want to press Process”</h2>
+      <p>
+        That’s the product. When it works, you dump on your phone during
+        the day, and overnight (or quietly when you open Obsidian) the
+        plugin files everything. You open Atoms and just… see new atoms
+        and maybe one old memory. No “go process the inbox.”
+      </p>
+      <p class="muted small">
+        We already built a piece of this: <strong>auto-run</strong>
+        (device-local, gated, silent). It may not feel “on” yet for you
+        because keys, Sync, timing, or past-only rules get in the way —
+        but the direction you want is exactly “file without asking me.”
+      </p>
+      <div class="compare">
+        <div class="box bad">
+          <h3>Feels like a tool</h3>
+          <ul>
+            <li>Open app</li>
+            <li>Tap Process</li>
+            <li>Watch progress</li>
+            <li>Browse library</li>
+          </ul>
+        </div>
+        <div class="box good">
+          <h3>Feels like magic</h3>
+          <ul>
+            <li>Dump anytime</li>
+            <li>Open Atoms later</li>
+            <li>Stuff is already filed</li>
+            <li>“For you” shows a memory</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- Cold open -->
+    <section id="cold">
+      <h2>What I meant by “cold open is weak”</h2>
+      <p>
+        <span class="tag you">Translation</span>
+        <strong>Cold open</strong> = the first time someone opens Atoms
+        with almost nothing set up — not you after a day of building.
+      </p>
+      <p>
+        Imagine a friend installs the plugin. What do they see?
+      </p>
+      <div class="phone" aria-hidden="true">
+        <div class="phone-screen">
+          <div class="phone-title">Atoms · first open</div>
+          <div class="phone-card empty">
+            No atoms yet.<br />
+            Set API key · dump some notes · Process
+          </div>
+          <div class="phone-card empty">
+            For you — nothing to show
+          </div>
+        </div>
+      </div>
+      <p>
+        That’s not a bug. It’s just that the magic needs three things
+        lined up first: a key, some captures, and at least one Process
+        (or auto-run). I called that a “weak cold open” meaning:
+        <em>a stranger wouldn’t feel magic in 30 seconds.</em>
+      </p>
+      <div class="callout warm">
+        <strong>For you personally:</strong> this matters less. You’re
+        already past setup. Your pain is more “I still have to think about
+        Process,” not “I don’t know what this app is.”
+      </div>
+    </section>
+
+    <!-- For you empty -->
+    <section id="foryou">
+      <h2>Why “For you” is empty — and why that’s “by design”</h2>
+      <p>
+        <span class="tag now">Your Remote Vault today</span>
+        Roughly: a handful of atoms, all from <strong>today</strong>
+        (or the same calendar day). Process worked. Markers worked.
+        Library shows them.
+      </p>
+      <p>
+        <strong>For you</strong> is not “show me my newest notes.”
+        Newest notes are already in the library under “Recently added.”
+      </p>
+      <p>
+        For you is: <em>show me something I wouldn’t think to open</em> —
+        usually something older, or linked to what I just filed.
+      </p>
+
+      <div class="compare">
+        <div class="box">
+          <h3>Library says</h3>
+          <ul>
+            <li>“Here are your latest filed notes”</li>
+            <li>Useful right after Process</li>
+          </ul>
+        </div>
+        <div class="box">
+          <h3>For you says</h3>
+          <ul>
+            <li>“Remember this from another day?”</li>
+            <li>Needs history to work</li>
+          </ul>
+        </div>
+      </div>
+
+      <p style="margin-top:16px">How For you picks (simple version):</p>
+      <ol class="plain">
+        <li>
+          <strong>On this day</strong> — same month/day last year or
+          another year. (Needs atoms from past years/dates.)
+        </li>
+        <li>
+          <strong>Connected</strong> — shares a person/show/link with
+          something recent. (Needs a small web of links.)
+        </li>
+        <li>
+          <strong>Quiet</strong> — older, not touched recently.
+          (Needs atoms that aren’t all brand new.)
+        </li>
+      </ol>
+
+      <div class="callout warm">
+        <strong>Why empty “by design”:</strong> all your real atoms are
+        fresh and from the same day. There is no “older memory” yet, no
+        anniversary, and almost no “quiet old note.” The code is working —
+        it just has nothing eligible to resurface. Like a photo album
+        app with only photos from this morning: “On this day” has nothing
+        to show.
+      </div>
+
+      <div class="phone" aria-hidden="true" style="margin-top:20px">
+        <div class="phone-screen">
+          <div class="phone-title">After a few weeks…</div>
+          <div class="phone-card">
+            <h4>For you</h4>
+            <p>On this day · last July</p>
+            <h4 style="margin-top:8px">Ning and the long walk home</h4>
+            <p>…you wrote about stopping for noodles…</p>
+            <span class="chip">person · Ning</span>
+          </div>
+        </div>
+      </div>
+      <p class="muted small" style="text-align:center;margin-top:8px">
+        That’s the feeling we’re aiming for — not a bigger Process button.
+      </p>
+    </section>
+
+    <!-- Graph -->
+    <section id="graph">
+      <h2>What I meant by “the graph”</h2>
+      <p>
+        <span class="tag you">Translation</span>
+        Not a chart. Not analytics.
+        <strong>Graph</strong> = notes pointing at other notes with links —
+        like a little web of your life.
+      </p>
+      <p>
+        When Process runs, the AI doesn’t just dump text into a folder.
+        It creates a title, tags, and links such as:
+      </p>
+      <ul class="plain">
+        <li>this atom → <code>[[Ning]]</code> (a person)</li>
+        <li>this atom → <code>[[My Hero Academia]]</code> (a show)</li>
+        <li>this atom → another atom that revised an old thought</li>
+      </ul>
+
+      <div class="graph">
+        <svg viewBox="0 0 420 200" role="img" aria-label="Simple link graph">
+          <!-- lines -->
+          <line x1="210" y1="100" x2="80" y2="50" stroke="#d6d3d1" stroke-width="2"/>
+          <line x1="210" y1="100" x2="340" y2="50" stroke="#d6d3d1" stroke-width="2"/>
+          <line x1="210" y1="100" x2="100" y2="160" stroke="#d6d3d1" stroke-width="2"/>
+          <line x1="210" y1="100" x2="320" y2="160" stroke="#d6d3d1" stroke-width="2"/>
+          <!-- nodes -->
+          <circle cx="210" cy="100" r="28" fill="#0f766e"/>
+          <text x="210" y="104" text-anchor="middle" fill="white" font-size="11" font-family="system-ui">this dump</text>
+          <circle cx="80" cy="50" r="24" fill="#c2410c"/>
+          <text x="80" y="54" text-anchor="middle" fill="white" font-size="11" font-family="system-ui">Ning</text>
+          <circle cx="340" cy="50" r="24" fill="#6d28d9"/>
+          <text x="340" y="54" text-anchor="middle" fill="white" font-size="10" font-family="system-ui">MHA</text>
+          <circle cx="100" cy="160" r="24" fill="#0369a1"/>
+          <text x="100" y="164" text-anchor="middle" fill="white" font-size="10" font-family="system-ui">old atom</text>
+          <circle cx="320" cy="160" r="24" fill="#57534e"/>
+          <text x="320" y="164" text-anchor="middle" fill="white" font-size="10" font-family="system-ui">tag: media</text>
+        </svg>
+        <p class="graph-caption">
+          Those orange chips on home (people / work titles) are little windows into this web.
+        </p>
+      </div>
+
+      <p>
+        When I said <strong>“the graph is still thin”</strong>, I meant:
+        you only have a few atoms, so the web is tiny — a few dots, not a
+        constellation. “Connected” For‑you picks need shared links.
+        With five same‑day notes, there’s almost nothing to connect
+        <em>across time</em>.
+      </p>
+      <div class="callout violet">
+        <strong>You don’t need to “build a graph.”</strong>
+        You just keep dumping. Process (or auto) files + links.
+        Over weeks the web thickens by itself. That’s the product
+        compounding — not a separate feature.
+      </div>
+    </section>
+
+    <!-- Number one -->
+    <section id="one">
+      <h2>What “#1 — make day‑7 feel like a brain” meant</h2>
+      <p>
+        Sorry — that was the most jargon-y line. Plain version:
+      </p>
+      <p>
+        <span class="tag goal">Goal</span>
+        After about a week of real use, opening Atoms should feel less like
+        “inbox to clear” and more like “my life is accumulating somewhere smart.”
+      </p>
+      <p>That requires either:</p>
+      <ul class="plain">
+        <li>
+          <strong>Time</strong> — keep capturing for a week+ so For you
+          can find older / quieter notes, or
+        </li>
+        <li>
+          <strong>A temporary boost</strong> — seed a few older-looking
+          atoms in the test/real vault so you can <em>feel</em> For you
+          now (dogfood), without waiting for a real year of history.
+        </li>
+      </ul>
+      <p class="muted small">
+        I was not saying “ship a Day 7 feature.” I was saying: the product’s
+        peak moment is delayed until history exists — so right now judging
+        Atoms only by today’s 5 atoms under-sells what For you is for.
+      </p>
+    </section>
+
+    <!-- What next for you -->
+    <section id="now">
+      <h2>So what actually matters for <em>you</em> right now?</h2>
+      <p>Strip everything else. Three plain ideas:</p>
+      <ol class="plain">
+        <li>
+          <strong>Magic path:</strong> dump without thinking → filing
+          happens without a Process tap (auto-run solid on phone) →
+          home is for browsing + surprise, not “work.”
+        </li>
+        <li>
+          <strong>Empty For you is normal this week:</strong> not broken.
+          Wait for older atoms, or we can seed / soften rules so you can
+          demo the surprise sooner.
+        </li>
+        <li>
+          <strong>Links (“graph”) grow by using it:</strong> every filed
+          atom that points at people/shows makes the next ones smarter and
+          gives For you something to connect.
+        </li>
+      </ol>
+
+      <div class="callout green">
+        <strong>If we only improve one thing next for the “magic” feeling:</strong>
+        make filing invisible (reliable auto-run / “just works” overnight),
+        so you stop living on the Process button. For you gets better for free
+        as the vault ages.
+      </div>
+
+      <p style="margin-top:18px" class="muted small">
+        Money, strangers, cold open — those are “later, if this becomes a
+        product for other people.” For your own brain, auto-file + time is
+        80% of the remaining magic.
+      </p>
+    </section>
+
+    <footer>
+      Saved at <code>docs/ideation/2026-07-16-product-explained-simply.html</code>
+      · open in a browser · no build step
+    </footer>
+  </div>
+</body>
+</html>

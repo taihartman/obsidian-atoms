@@ -1,5 +1,9 @@
 import { Notice, Plugin, WorkspaceLeaf, requestUrl } from "obsidian";
 import { ATOMS_HOME_VIEW_TYPE, AtomsHomeView } from "./atomsHomeView";
+import { clampAtomFolder } from "./render";
+
+/** Injected by esbuild: true in watch/dev, false in production Community builds. */
+declare const ATOMS_DEV_COMMANDS: boolean;
 import {
   classifyCapture,
   logClassifyOutcome,
@@ -42,12 +46,15 @@ import {
 } from "./runProgress";
 import {
   canBuildContext,
+  enableAutomaticFiling,
   localDateString,
   PER_LAUNCH_CAP,
   readDeviceAutoRunState,
   shouldRunAutoProcess,
+  shouldStampLastRunDay,
   waitForVaultIndexReady,
   writeLastRunDay,
+  type DeviceAutoRunState,
 } from "./autorun";
 import {
   formatConnectivityConsole,
@@ -227,9 +234,36 @@ export default class AtomsPlugin extends Plugin {
     );
   }
 
+  /** Device-local auto-run snapshot for home (no secrets). */
+  getAutoRunSnapshot(): DeviceAutoRunState & {
+    inFlight: boolean;
+    hasKey: boolean;
+  } {
+    const load = (k: string) => this.app.loadLocalStorage(k);
+    const state = readDeviceAutoRunState(load);
+    return {
+      ...state,
+      inFlight: this.autoRunInFlight,
+      hasKey: !!this.getApiKey(),
+    };
+  }
+
+  /**
+   * One-tap enable from home: egress ack + auto-run on (device-local).
+   * Optionally tries an immediate silent run.
+   */
+  async enableAutomaticFilingFromHome(): Promise<void> {
+    const save = (k: string, v: unknown) => this.app.saveLocalStorage(k, v);
+    enableAutomaticFiling(save);
+    new Notice("Atoms: automatic filing on for this device");
+    await this.refreshAtomsHomeLeaves();
+    void this.maybeAutoRun("manual");
+  }
+
   /**
    * Device-local auto-run gate + silent failure (R13, U9).
    * Does not invoke buildContext until vaultIndexReady.
+   * Stamps last-run day only when past queue is drained (not on attempt/failure).
    */
   async maybeAutoRun(source: "onload" | "interval" | "manual"): Promise<{
     ran: boolean;
@@ -244,12 +278,15 @@ export default class AtomsPlugin extends Plugin {
       return { ran: false, reason: "cache_not_ready" };
     }
 
+    const pastRemaining = await this.countPastUnprocessed();
+
     if (
       !shouldRunAutoProcess({
         enabled: state.enabled,
         lastRunDay: state.lastRunDay,
         today,
         egressAcked: state.egressAcked,
+        pastUnprocessedRemaining: pastRemaining,
       })
     ) {
       return {
@@ -258,7 +295,9 @@ export default class AtomsPlugin extends Plugin {
           ? "disabled"
           : !state.egressAcked
             ? "no_egress_ack"
-            : "same_day",
+            : pastRemaining > 0
+              ? "blocked"
+              : "same_day",
       };
     }
 
@@ -268,18 +307,20 @@ export default class AtomsPlugin extends Plugin {
 
     const apiKey = this.getApiKey();
     if (!apiKey) {
-      // Silent for auto path — manual commands still Notice.
+      // Silent for auto path — manual commands still Notice. Do not stamp.
       console.log("[atoms] auto-run skipped: no API key");
       return { ran: false, reason: "missing_key" };
     }
 
+    // Nothing to do — stamp day so hourly interval does not re-scan forever.
+    if (pastRemaining === 0) {
+      writeLastRunDay(save, today);
+      console.log("[atoms] auto-run empty success", { source });
+      return { ran: true, reason: "empty" };
+    }
+
     this.autoRunInFlight = true;
     try {
-      // Stamp the day when we *attempt* so onload+interval don't double-fire
-      // the same calendar day even if processing fails mid-way (markers still
-      // make partial progress safe; remainder drains next successful day or manual).
-      writeLastRunDay(save, today);
-
       const report = await runWritePath({
         app: this.app,
         contextProvider: this.contextProvider,
@@ -288,6 +329,7 @@ export default class AtomsPlugin extends Plugin {
         activeVocabulary: this.settings.activeVocabulary,
         atomFolder: this.settings.atomFolder,
         maxCaptures: PER_LAUNCH_CAP,
+        // never includeToday on auto-run
         classifyDeps: {
           maxAttempts: 2,
           // Auto-run: no auth spam Notices every hour — log only.
@@ -307,23 +349,35 @@ export default class AtomsPlugin extends Plugin {
         await this.saveSettings();
       }
 
+      const pastAfter = await this.countPastUnprocessed(
+        Math.max(0, pastRemaining - report.markersAppended),
+      );
+      const stamped = shouldStampLastRunDay({
+        threw: false,
+        pastRemainingAfter: pastAfter,
+      });
+      if (stamped) writeLastRunDay(save, today);
+
       const filed = report.markersAppended;
       if (filed > 0) {
         new Notice(
           `Atoms: filed ${filed} capture${filed === 1 ? "" : "s"} (${report.atomsCreated} atom${report.atomsCreated === 1 ? "" : "s"})`,
         );
+        await this.refreshAtomsHomeLeaves();
       }
-      // Offline / all-failed: silent (retry next launch / next day).
+      // Offline / all-failed without stamp: silent; retry same day on next open.
       console.log("[atoms] auto-run complete", {
         source,
         filed,
         atoms: report.atomsCreated,
         failed: report.failed,
         scanned: report.scanned,
+        pastAfter,
+        stamped,
       });
       return { ran: true, reason: "ok" };
     } catch (e) {
-      // Never crash launch.
+      // Never crash launch; never stamp on throw (retry same day).
       console.log("[atoms] auto-run error", {
         name: e instanceof Error ? e.name : "Error",
         message: e instanceof Error ? e.message : "unknown",
@@ -331,6 +385,16 @@ export default class AtomsPlugin extends Plugin {
       return { ran: false, reason: "error" };
     } finally {
       this.autoRunInFlight = false;
+    }
+  }
+
+  /** Past-only unmarked count; on list failure use fallback (default 0). */
+  private async countPastUnprocessed(fallback = 0): Promise<number> {
+    try {
+      const listed = await getPastDailyNotesWithUnmarkedCaptures(this.app);
+      return listed.totalUnprocessed;
+    } catch {
+      return fallback;
     }
   }
 
@@ -343,51 +407,63 @@ export default class AtomsPlugin extends Plugin {
       },
     });
 
-    this.addCommand({
-      id: "spike-classify-hardcoded",
-      name: "Spike: classify hardcoded capture",
-      callback: () => {
-        void this.runSpikeClassify();
-      },
-    });
+    // Spike / fixture / log-only probes — only when esbuild defines true (watch/dev).
+    // Fail-closed: missing define → no spikes (safer for accidental packaging).
+    if (typeof ATOMS_DEV_COMMANDS !== "undefined" && ATOMS_DEV_COMMANDS) {
+      this.addCommand({
+        id: "spike-classify-hardcoded",
+        name: "Spike: classify hardcoded capture",
+        callback: () => {
+          void this.runSpikeClassify();
+        },
+      });
 
-    this.addCommand({
-      id: "spike-cache-and-batch-fork",
-      name: "Spike: measure cache + per-day batch fork (KTD3)",
-      callback: () => {
-        void this.runSpikeCacheAndBatch();
-      },
-    });
+      this.addCommand({
+        id: "spike-cache-and-batch-fork",
+        name: "Spike: measure cache + per-day batch fork (KTD3)",
+        callback: () => {
+          void this.runSpikeCacheAndBatch();
+        },
+      });
 
-    this.addCommand({
-      id: "spike-secret-storage-probe",
-      name: "Spike: probe SecretStorage read/write",
-      callback: () => {
-        this.runSecretStorageProbe();
-      },
-    });
+      this.addCommand({
+        id: "spike-secret-storage-probe",
+        name: "Spike: probe SecretStorage read/write",
+        callback: () => {
+          this.runSecretStorageProbe();
+        },
+      });
+
+      this.addCommand({
+        id: "log-context-prefix",
+        name: "Log vault context prefix (stable cache bytes)",
+        callback: () => {
+          this.runLogContextPrefix();
+        },
+      });
+
+      this.addCommand({
+        id: "classify-first-unprocessed",
+        name: "Classify first unprocessed capture (log only)",
+        callback: () => {
+          void this.runClassifyFirstUnprocessed();
+        },
+      });
+
+      this.addCommand({
+        id: "process-fixture-sample",
+        name: "Dev: write path with fixture classifications (test vault)",
+        callback: () => {
+          void this.runProcessFixtureSample();
+        },
+      });
+    }
 
     this.addCommand({
       id: "list-unprocessed-captures",
       name: "List unprocessed captures (log only)",
       callback: () => {
         void this.runListUnprocessed();
-      },
-    });
-
-    this.addCommand({
-      id: "log-context-prefix",
-      name: "Log vault context prefix (stable cache bytes)",
-      callback: () => {
-        this.runLogContextPrefix();
-      },
-    });
-
-    this.addCommand({
-      id: "classify-first-unprocessed",
-      name: "Classify first unprocessed capture (log only)",
-      callback: () => {
-        void this.runClassifyFirstUnprocessed();
       },
     });
 
@@ -423,20 +499,11 @@ export default class AtomsPlugin extends Plugin {
       },
     });
 
-    /** Fixture write for CLI/dev when API is offline — still real vault writes. */
-    this.addCommand({
-      id: "process-fixture-sample",
-      name: "Dev: write path with fixture classifications (test vault)",
-      callback: () => {
-        void this.runProcessFixtureSample();
-      },
-    });
-
     this.addCommand({
       id: "auto-run-status",
       name: "Auto-run: show device-local status",
       callback: () => {
-        this.showAutoRunStatus();
+        void this.showAutoRunStatus();
       },
     });
 
@@ -635,21 +702,22 @@ export default class AtomsPlugin extends Plugin {
     }
   }
 
-  private showAutoRunStatus() {
-    const load = (k: string) => this.app.loadLocalStorage(k);
-    const state = readDeviceAutoRunState(load);
+  private async showAutoRunStatus() {
+    const snap = this.getAutoRunSnapshot();
     const today = localDateString();
+    const pastRemaining = await this.countPastUnprocessed();
     const would = shouldRunAutoProcess({
-      enabled: state.enabled,
-      lastRunDay: state.lastRunDay,
+      enabled: snap.enabled,
+      lastRunDay: snap.lastRunDay,
       today,
-      egressAcked: state.egressAcked,
+      egressAcked: snap.egressAcked,
+      pastUnprocessedRemaining: pastRemaining,
     });
     const payload = {
-      ...state,
+      ...snap,
       today,
       vaultIndexReady: this.vaultIndexReady,
-      inFlight: this.autoRunInFlight,
+      pastRemaining,
       wouldRunNow: would,
       perLaunchCap: PER_LAUNCH_CAP,
       // Prove flag is not in synced settings object
@@ -657,7 +725,7 @@ export default class AtomsPlugin extends Plugin {
     };
     console.log("[atoms] auto-run status", payload);
     new Notice(
-      `Atoms auto-run: ${state.enabled ? "on" : "off"} · ack=${state.egressAcked} · last=${state.lastRunDay ?? "never"} · ready=${this.vaultIndexReady}`,
+      `Atoms auto-run: ${snap.enabled ? "on" : "off"} · ack=${snap.egressAcked} · last=${snap.lastRunDay ?? "never"} · ready=${this.vaultIndexReady} · past=${pastRemaining}`,
     );
   }
 
@@ -667,6 +735,7 @@ export default class AtomsPlugin extends Plugin {
       DEFAULT_SETTINGS,
       (await this.loadData()) as Partial<LinkerSettings>,
     );
+    this.settings.atomFolder = clampAtomFolder(this.settings.atomFolder);
   }
 
   async saveSettings() {

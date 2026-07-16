@@ -31,7 +31,10 @@ Classify without writing atoms or markers. Results may open in a card modal; vau
 Classify, create atoms when warranted, append markers for all three verdicts. Multi-capture runs must tolerate line drift (bottom-up order, re-locate, already-has-marker).
 
 ### Auto-run
-Device-local gated background process of past captures. Must stay silent—no per-item progress UI or toast spam.
+Device-local gated background process of past captures. Must stay silent—no per-item progress UI or toast spam. Stamps last-run day only after past work is drained (not on failed attempts); same-day re-entry allowed while past unprocessed remain. Never includes today's daily.
+
+### Automatic filing
+Product name for opt-in auto-run when surfaced on home (one-tap enable + status). Same device-local flags and privacy ack as Auto-run.
 
 ## Product UI
 

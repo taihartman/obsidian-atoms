@@ -32,17 +32,53 @@ def main() -> None:
     return
 
   path.write_text(
-    f'''# World-Class QA: {args.name}\n\n'''
-    '''## Verdict\n\nReady / Ready after fixes / Not ready / Blocked\n\n'''
-    '''## Charter\n\nWhat was tested and why.\n\n'''
-    '''## Preflight\n\n- Run command:\n- Fixture:\n- Navigation map:\n- Viewport/device:\n- Auth path:\n- Automation available:\n\n'''
-    '''## User Stories Tested\n\nConcrete stories, acceptance criteria, evidence, and status.\n\n'''
-    '''## Risk Matrix\n\nPositive, negative, edge, regression, perception, and accessibility checks.\n\n'''
-    '''## Evidence\n\nCommands, screenshots, devices, browser paths, test data, and fixtures.\n\n'''
-    '''## Findings\n\nBlocking and polish issues with evidence.\n\n'''
-    '''## Adversarial QA\n\nScenario ledger and proven holes from the destructive pass.\n\n'''
-    '''## Not Tested\n\nExplicit gaps and residual risk.\n\n'''
-    '''## Merge Decision\n\nFinal recommendation.\n''',
+    f'''# World-Class QA: {args.name}
+
+## Verdict
+
+Ready / Ready after fixes / Not ready / Blocked
+
+## Charter
+
+What was tested and why.
+
+## Preflight
+
+- Run command:
+- Fixture:
+- Navigation map:
+- Viewport/device:
+- Auth path:
+- Automation available:
+
+## User Stories Tested
+
+Concrete stories, acceptance criteria, evidence, and status.
+
+## Risk Matrix
+
+Positive, negative, edge, regression, perception, and accessibility checks.
+
+## Evidence
+
+Commands, screenshots, devices, CLI transcript, test data, and fixtures.
+
+## Findings
+
+Blocking and polish issues with evidence.
+
+## Adversarial QA
+
+Scenario ledger and proven holes from the destructive pass.
+
+## Not Tested
+
+Explicit gaps and residual risk.
+
+## Merge Decision
+
+Final recommendation.
+''',
     encoding='utf-8',
   )
   print(path)
