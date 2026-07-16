@@ -8,8 +8,9 @@ Living map for driving Atoms during QA. Update when commands, home cards, or set
 |---|---|
 | App | Obsidian desktop or mobile |
 | Plugin id | `atoms` |
-| Throwaway vault | `test_vault/test vault/` (gitignored) |
-| Phone Sync vault | Remote Vault (user machine path; see CLAUDE.md) |
+| Throwaway vault (agent QA) | `test_vault/test vault/` (gitignored) |
+| Demo vault (agent dogfood) | `docs/media/demo-vault/` (synthetic seed) |
+| Phone Sync vault | Remote Vault — **plugin install only** for agents; note rewrites = human (see CLAUDE.md vault lanes) |
 | CLI | Settings → General → Advanced → Command line interface **ON** |
 | Install | `./scripts/install-to-vault.sh` then `obsidian plugin:reload id=atoms` |
 

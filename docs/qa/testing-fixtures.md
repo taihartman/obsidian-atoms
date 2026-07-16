@@ -5,8 +5,9 @@ Durable fixture catalog for Atoms QA. Never commit API keys, SecretStorage dumps
 ## Security Rules
 
 - No credentials, JWTs, or raw Anthropic keys in reports or fixtures.
-- Prefer throwaway vault (`test_vault/`) for write experiments.
-- Remote Vault is real Sync data — process only with user consent; never bulk-rewrite dailies.
+- **Agent dogfood:** throwaway `test_vault/` and synthetic `docs/media/demo-vault/` only.
+- **Phone:** Remote Vault receives **plugin installs** (`npm run phone`), not agent note rewrites.
+- Remote Vault is real Sync data — Process/Update only by the human (or explicit user ask); never bulk-rewrite dailies unattended.
 
 ## Current Fixtures
 
@@ -40,15 +41,15 @@ Durable fixture catalog for Atoms QA. Never commit API keys, SecretStorage dumps
 - **Cleanup:** Toggle off after destructive tests if desired.
 - **Evidence:** Status command Notice/console; markers on past dailies.
 
-### Remote Vault (phone Sync)
+### Remote Vault (phone Sync) — human product vault
 
-- **Purpose:** Real mobile product path.
-- **Mode:** Live / human phone.
-- **Surface:** Atoms home, Process, auto-run, For you.
-- **Setup:** Install built plugin to Remote Vault; Sync; key `mobile-key` or SecretStorage.
-- **Expected states:** Settings version matches ship; filing works offline-retry after 0.5.4.
-- **Cleanup:** User-owned; do not agent-wipe personal notes.
-- **Evidence:** Screenshot or human checklist rows in QA report.
+- **Purpose:** Live phone product path; agent only **installs the plugin**, does not rewrite notes.
+- **Mode:** Live / human phone (agent: install only).
+- **Surface:** Settings version; human Process / Update / For you.
+- **Setup:** `npm run phone` after master; Sync; quit/reopen phone; key on device.
+- **Expected states:** Settings version matches ship.
+- **Cleanup:** User-owned; **never** agent bulk-Update / fixture-rewrite Atoms or dailies unless user explicitly asks.
+- **Evidence:** Human checklist or screenshot; version string on phone.
 
 ## Fixture Maintenance
 

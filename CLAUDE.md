@@ -36,7 +36,7 @@ Where an **active feature plan** and amendments conflict, **that plan wins**. Am
 5. **API key in SecretStorage** (or device-local fallback) — never `data.json`.
 6. **Nothing destroyed** — idempotent, re-runnable; bad classifications are never lossy.
 7. **Untrusted classify/write paths need dry-run evidence** before relying on them. Gated **auto-run** may write without a per-run human dry-run once privacy + device gates pass.
-8. **Write experiments against throwaway vault** (`test_vault/`) until the path is trusted. Read-only / explicit user-OK checks on a real vault are fine; never point unattended automation at a personal vault.
+8. **Vault lanes (agents):** write experiments, Update notes, fixtures, classify smoke, and vault rewrites → **demo / throwaway only** (`test_vault/`, `docs/media/demo-vault/`). **Never** mutate personal **Remote Vault** atoms/dailies unattended. Phone install (`npm run phone`) is the only default agent write into Remote Vault (plugin files only).
 9. **Second brain, not a task app** — no due-date/checklist gravity; `task` verdict is soft-retired.
 10. **No platform-only product** without an explicit plan note (desktop/iOS/Android consumers).
 
@@ -72,30 +72,44 @@ Full detail: `docs/dev-obsidian-cli.md`. Prefer CLI over Local REST API MCP for 
 | Obsidian | **1.12.7** installer (Homebrew cask) |
 | CLI binary | `/opt/homebrew/bin/obsidian` (or `/usr/local/bin/obsidian`) |
 | CLI toggle | Settings → **General → Advanced → Command line interface** ON |
-| Throwaway vault | `test_vault/test vault/` (gitignored) |
-| **Personal / phone vault** | `~/Documents/Remote Vault` (Obsidian Sync → phone) |
+| Throwaway vault (agent QA) | `test_vault/test vault/` (gitignored) |
+| Demo vault (agent dogfood / screenshots) | `docs/media/demo-vault/` via `npm run seed:demo` (synthetic only) |
+| **Personal / phone vault** | `~/Documents/Remote Vault` (Obsidian Sync → phone) — **human product data** |
 | Plugin id | `atoms` |
 | Anthropic key | SecretStorage (settings store secret **name** only; never `data.json`) |
 
 Without the Advanced toggle, `obsidian` prints “Command line interface is not enabled” even if the binary exists.
 
-**Phone / Sync (two lanes):**
+### Vault lanes (non-negotiable for agents)
+
+| Lane | Vault | Who | Allowed writes |
+|---|---|---|---|
+| **Agent dogfood / QA** | `test_vault/` + `docs/media/demo-vault/` | Coding agents | Process, Update notes, fixtures, seed, rewrites, CLI smoke, screenshots |
+| **Phone install only** | `~/Documents/Remote Vault` | Agent after master (or human) | **Plugin files only** via `npm run phone` — not atoms, not dailies, not bulk Update |
+| **Live personal data** | Remote Vault (desktop or phone) | **Human** | Process / Update / capture — agent only if user **explicitly** asks for that vault |
+
+**Do not** run `atoms:update-notes`, fixture rewrites, or unattended classify against Remote Vault “to check results.” That is how personal notes get scrambled. Dogfood the pipeline on **demo/test vault**, then install the build to phone.
+
+**Phone / Sync:**
 
 | Lane | When | Action |
 |---|---|---|
-| **Phone dogfood** | After anything lands on **`master`** that you want on device (default: always for user-visible plugin code) | Agent or human runs `npm run phone` on a machine with Remote Vault |
+| **Phone install** | After user-visible plugin code lands on **`master`** | `npm run phone` → Remote Vault plugin folder → Sync → phone |
 | **Release / market** | Intentional ship only (“release it” / Community list) | Tag + GitHub Release assets — **not** every master merge |
 
 Merging to GitHub alone does **not** update the phone. Plugin files must land in **Remote Vault**’s `.obsidian/plugins/atoms/`, then Sync.
 
 ```bash
-npm run phone   # build + install → $HOME/Documents/Remote Vault
+./scripts/install-to-vault.sh              # agent QA → test vault
+node scripts/seed-demo-vault.mjs           # synthetic demo dogfood
+./scripts/install-to-vault.sh docs/media/demo-vault
+npm run phone   # phone only → $HOME/Documents/Remote Vault (plugin files)
 # same as: ./scripts/install-to-vault.sh "$HOME/Documents/Remote Vault"
 ```
 
 Then wait for Sync; fully **quit & reopen** Obsidian on phone; confirm **Settings → Atoms → Version x.y.z**. Stale version = Sync lag or wrong vault path.
 
-**Agent rule:** After a PR merges to `master` (or you update local `master` with plugin code), **run `npm run phone` before ending the session** unless the change is docs-only or the user says skip. Do **not** cut a GitHub Release unless asked.
+**Agent rule:** After a PR merges to `master` (or you update local `master` with plugin code), **run `npm run phone` before ending the session** unless the change is docs-only or the user says skip. Do **not** cut a GitHub Release unless asked. Do **not** use phone install as an excuse to rewrite Remote Vault notes.
 
 ### Everyday loop
 
