@@ -7,7 +7,6 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| In progress | #48 | tai | fix/self-links-include-aliases | — | linkQuality.ts, refreshAtoms.ts | aliases/prior as self; CURRENT=4 |
 | In progress | #25 | tai | ci/require-closes-issue | — | .github/workflows/pr-closes-issue.yml | CI enforce Closes #N |
 
 ## How to claim (copy)
@@ -24,6 +23,7 @@ States: `Queued` · `In progress` · `Blocked` · `In review` · `Done` (then re
 
 | Merged | Issue / PR | Summary |
 |---|---|---|
+| 2026-07-16 | #48 / #49 | aliases/prior as self (0.6.9) |
 | 2026-07-16 | #40 / #41 | Recents use created not mtime |
 | 2026-07-16 | #39 / #42 | ban self-links quality 3 (0.6.8) |
 | 2026-07-16 | #29 / #37 | Update notes quality stamp + refresh (0.6.7) |
