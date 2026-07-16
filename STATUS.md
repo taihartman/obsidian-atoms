@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| *(none)* | | | | | | |
+| In progress | #51 | Tai | feat/capture-uri-silent-append | docs/plans/2026-07-16-018-feat-capture-uri-silent-append-plan.md | src/pipeline/daily.ts, captureAppend.ts, main.ts, docs/capture-shortcut.md | silent create+append URI |
 
 ## How to claim (copy)
 

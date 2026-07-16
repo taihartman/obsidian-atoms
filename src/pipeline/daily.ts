@@ -77,11 +77,19 @@ export async function getPastDailyNotesWithUnmarkedCaptures(
   };
 }
 
+export interface EnsureTodaysDailyResult {
+  file: TFile;
+  /** True when the note was created in this call. */
+  created: boolean;
+}
+
 /**
- * Resolve today's daily note (create if missing). Returns the file only —
- * caller opens it in the workspace. Never classifies or marks the note.
+ * Resolve today's daily note (create if missing). Never opens the editor,
+ * classifies, or marks the note.
  */
-export async function openTodaysDaily(app: App): Promise<TFile> {
+export async function ensureTodaysDaily(
+  app: App,
+): Promise<EnsureTodaysDailyResult> {
   if (!appHasDailyNotesPluginLoaded()) {
     throw new DailyNotesDisabledError();
   }
@@ -101,7 +109,16 @@ export async function openTodaysDaily(app: App): Promise<TFile> {
         "Could not create today's daily note. Check Daily Notes folder settings.",
       );
     }
-    return created;
+    return { file: created, created: true };
   }
+  return { file, created: false };
+}
+
+/**
+ * Resolve today's daily note (create if missing). Returns the file only —
+ * caller opens it in the workspace. Never classifies or marks the note.
+ */
+export async function openTodaysDaily(app: App): Promise<TFile> {
+  const { file } = await ensureTodaysDaily(app);
   return file;
 }

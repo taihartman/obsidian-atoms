@@ -6,7 +6,7 @@
  * Prefer Settings → Capture → paste link (syncs via data.json).
  */
 
-export const CAPTURE_SHORTCUT_VERSION = "1.1.0";
+export const CAPTURE_SHORTCUT_VERSION = "1.2.0";
 
 /**
  * Built-in default install URL (iCloud share).

@@ -126,6 +126,7 @@ export default class AtomsPlugin extends Plugin {
     });
 
     this.registerCommands();
+    this.registerCaptureProtocol();
 
     // Pin Atoms home in the left sidebar (Files / Search / Tags strip) on
     // enable and cold start — same pattern as core sidebar plugins.
@@ -135,6 +136,51 @@ export default class AtomsPlugin extends Plugin {
 
     // U9: never block launch — schedule auto-run after layout + metadata.
     void this.scheduleAutoRunLifecycle();
+  }
+
+  /**
+   * Shortcut / URI intake: create today's daily if missing, append a bullet,
+   * never open the note (stay fast).
+   *
+   * `obsidian://atoms-capture?vault=<name>&text=<url-encoded>`
+   * Alias: `data=` for Advanced URI familiarity.
+   */
+  private registerCaptureProtocol(): void {
+    this.registerObsidianProtocolHandler("atoms-capture", (params) => {
+      void this.handleCaptureProtocol(params);
+    });
+  }
+
+  private async handleCaptureProtocol(
+    params: Record<string, string | undefined>,
+  ): Promise<void> {
+    const {
+      appendCaptureToTodaysDaily,
+      captureTextFromProtocolParams,
+      EmptyCaptureError,
+      CaptureTooLongError,
+    } = await import("../pipeline/captureAppend");
+    try {
+      const raw = captureTextFromProtocolParams(params);
+      const result = await appendCaptureToTodaysDaily(this.app, raw);
+      new Notice(result.created ? "Captured (new daily)" : "Captured");
+    } catch (e) {
+      if (e instanceof DailyNotesDisabledError) {
+        new Notice(e.message);
+        return;
+      }
+      if (e instanceof EmptyCaptureError) {
+        new Notice("Atoms: empty capture");
+        return;
+      }
+      if (e instanceof CaptureTooLongError) {
+        new Notice(e.message);
+        return;
+      }
+      new Notice(
+        e instanceof Error ? e.message.slice(0, 120) : "Capture failed",
+      );
+    }
   }
 
   /**
