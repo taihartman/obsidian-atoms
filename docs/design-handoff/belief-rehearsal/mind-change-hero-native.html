@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Mind-change — product-native Then / Now</title>
+  <style>
+    /*
+      DNA: docs/design-handoff/atoms-view/ + live styles.css
+      Rule: clarity markup only. No second typeface, no spine, no new palette.
+      Rejected: B (serif / parchment / timeline) — foreign brand, reads AI.
+    */
+    :root {
+      --bg: #000;
+      --grouped: #1c1c1e;
+      --elevated: #2c2c2e;
+      --sep: rgba(84, 84, 88, 0.55);
+      --label: #fff;
+      --secondary: rgba(235, 235, 245, 0.6);
+      --tertiary: rgba(235, 235, 245, 0.32);
+      --tint: #0a84ff;
+      --tint-soft: rgba(10, 132, 255, 0.2);
+      --mind: #bf5af2;
+      --mind-soft: rgba(191, 90, 242, 0.16);
+      --mind-border: rgba(191, 90, 242, 0.35);
+      --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html, body { overflow-x: clip; }
+    body {
+      margin: 0;
+      font-family: var(--font);
+      background: #0a0a0c;
+      color: var(--label);
+      -webkit-font-smoothing: antialiased;
+    }
+    .page { max-width: 980px; margin: 0 auto; padding: 28px 16px 72px; }
+    h1 {
+      font-size: 1.35rem;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      margin: 0 0 8px;
+    }
+    .lede {
+      color: var(--secondary);
+      font-size: 0.95rem;
+      line-height: 1.5;
+      margin: 0 0 14px;
+      max-width: 40rem;
+    }
+    .lede b { color: var(--label); font-weight: 600; }
+    .note {
+      background: var(--grouped);
+      border: 1px solid var(--sep);
+      border-radius: 14px;
+      padding: 14px 16px;
+      margin-bottom: 24px;
+      font-size: 0.85rem;
+      color: var(--secondary);
+      line-height: 1.45;
+    }
+    .note strong { color: var(--label); font-weight: 600; }
+    .note ul { margin: 8px 0 0; padding-left: 1.15rem; }
+    .note li { margin: 4px 0; }
+    .note code {
+      font-size: 0.8em;
+      color: var(--mind);
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    .stage {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 28px;
+      justify-content: center;
+      align-items: flex-start;
+    }
+    .col { width: 375px; }
+    .cap {
+      text-align: center;
+      margin-bottom: 10px;
+      min-height: 2.6rem;
+    }
+    .cap .who {
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--tertiary);
+      margin-bottom: 4px;
+    }
+    .cap .name {
+      font-size: 0.95rem;
+      font-weight: 650;
+      letter-spacing: -0.02em;
+    }
+    .cap .sub {
+      font-size: 0.8rem;
+      color: var(--secondary);
+      margin-top: 2px;
+      line-height: 1.35;
+    }
+
+    /* Phone — same shell as atoms-view */
+    .phone {
+      width: 375px;
+      height: 812px;
+      background: var(--bg);
+      border-radius: 44px;
+      border: 4px solid #2a2a2c;
+      box-shadow: 0 28px 70px rgba(0, 0, 0, 0.55);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+    .phone.dim { opacity: 0.78; }
+    .status {
+      height: 50px;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      padding-bottom: 8px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+    .nav {
+      padding: 0 10px 10px 16px;
+      flex-shrink: 0;
+    }
+    .nav-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      min-height: 40px;
+    }
+    .nav-btn {
+      border: none;
+      background: transparent;
+      color: var(--tint);
+      font-size: 1.15rem;
+      min-width: 40px;
+      min-height: 40px;
+    }
+    .large-title {
+      font-size: 2.05rem;
+      font-weight: 700;
+      letter-spacing: -0.045em;
+      margin: 0;
+      line-height: 1.05;
+    }
+    .subtitle {
+      font-size: 0.9rem;
+      color: var(--secondary);
+      margin: 5px 0 0;
+      letter-spacing: -0.01em;
+    }
+    .scroll {
+      flex: 1;
+      overflow-y: auto;
+      min-height: 0;
+      padding: 6px 16px 28px;
+    }
+    .sec {
+      font-size: 0.95rem;
+      font-weight: 650;
+      letter-spacing: -0.02em;
+      margin: 4px 0 10px;
+    }
+
+    /* Live-ish mind-change card (styles.css) */
+    .hero {
+      position: relative;
+      margin: 0 0 18px;
+      padding: 18px 16px 14px;
+      border-radius: 18px;
+      background:
+        linear-gradient(
+          165deg,
+          rgba(191, 90, 242, 0.14) 0%,
+          var(--grouped) 55%
+        );
+      border: 1px solid var(--mind-border);
+      box-shadow:
+        0 1px 2px rgba(0, 0, 0, 0.12),
+        0 8px 24px rgba(191, 90, 242, 0.08);
+    }
+    .kicker {
+      display: inline-block;
+      margin: 0 0 12px;
+      padding: 3px 10px;
+      border-radius: 980px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      color: var(--mind);
+      background: var(--mind-soft);
+    }
+
+    /* Ship: ambiguous */
+    .snip {
+      margin: 0 0 12px;
+      font-size: 1.2rem;
+      line-height: 1.35;
+      letter-spacing: -0.02em;
+      font-weight: 590;
+      color: var(--label);
+    }
+    .later {
+      margin: 0 0 14px;
+      padding-top: 12px;
+      border-top: 1px solid var(--sep);
+      font-size: 0.88rem;
+      color: var(--secondary);
+      line-height: 1.4;
+    }
+    .later em {
+      font-style: normal;
+      color: var(--tint);
+      font-weight: 500;
+    }
+
+    /* Proposed: Then / Now — same type scale, role labels only */
+    .block { margin: 0 0 4px; }
+    .block.now {
+      margin: 12px 0 14px;
+      padding-top: 12px;
+      border-top: 1px solid var(--sep);
+    }
+    .meta {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+    .lab {
+      font-size: 0.68rem;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      color: var(--tertiary);
+      /* sentence case — not AI ALL-CAPS track */
+    }
+    .block.now .lab { color: var(--mind); }
+    .verb {
+      font-size: 0.72rem;
+      font-weight: 500;
+      color: var(--tertiary);
+    }
+    .body {
+      margin: 0;
+      font-size: 1.2rem;
+      line-height: 1.35;
+      letter-spacing: -0.02em;
+      font-weight: 590;
+      color: var(--label);
+    }
+    .title-now {
+      margin: 0;
+      font-size: 0.95rem;
+      line-height: 1.4;
+      font-weight: 550;
+      letter-spacing: -0.015em;
+      color: var(--tint);
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .btn {
+      flex: 1;
+      min-height: 44px;
+      border: none;
+      border-radius: 12px;
+      font-family: inherit;
+      font-size: 0.9rem;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      cursor: default;
+    }
+    .btn.p { background: var(--tint); color: #fff; }
+    .btn.s { background: var(--elevated); color: var(--label); }
+    .btn.q {
+      flex: 1 1 100%;
+      background: transparent;
+      color: var(--tertiary);
+      font-weight: 500;
+      font-size: 0.82rem;
+      min-height: 36px;
+    }
+
+    .lib {
+      margin-top: 6px;
+      opacity: 0.42;
+    }
+    .list {
+      background: var(--grouped);
+      border-radius: 14px;
+      border: 1px solid var(--sep);
+      overflow: hidden;
+    }
+    .row {
+      padding: 14px 16px;
+      border-bottom: 0.5px solid var(--sep);
+      font-size: 0.9rem;
+      color: var(--secondary);
+    }
+    .row:last-child { border-bottom: none; }
+    .home-ind {
+      height: 28px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .home-ind span {
+      width: 120px;
+      height: 4px;
+      border-radius: 3px;
+      background: #fff;
+      opacity: 0.2;
+    }
+
+    .foot {
+      margin-top: 28px;
+      max-width: 40rem;
+      font-size: 0.85rem;
+      color: var(--secondary);
+      line-height: 1.45;
+    }
+    .foot strong { color: var(--label); }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <h1>Mind-change — product-native</h1>
+    <p class="lede">
+      Same Atoms home chrome. <b>Only change:</b> name the two claims
+      <b>Then</b> (old body) and <b>Now</b> (new title + verb).
+      No serif, no timeline spine, no second palette.
+    </p>
+    <div class="note">
+      <strong>Tokens (already real)</strong>
+      <ul>
+        <li>iOS dark: black / <code>#1c1c1e</code> / system SF</li>
+        <li>Accent: blue tint · mind-change pill: <code>#bf5af2</code> (live)</li>
+        <li>Snippet type: 1.2rem · weight 590 · system UI (live resurface)</li>
+      </ul>
+      <strong style="display:block;margin-top:10px">Rejected as costume</strong>
+      <ul>
+        <li>B frontend-design: Source Serif, parchment, dual-hue spine</li>
+        <li>C Hallmark: hard rules, mono stamps, boxy editorial</li>
+      </ul>
+    </div>
+
+    <div class="stage">
+      <!-- Ship -->
+      <div class="col">
+        <div class="cap">
+          <div class="who">A · Current ship</div>
+          <div class="name">Ambiguous</div>
+          <div class="sub">Big text + “Later you wrote…”</div>
+        </div>
+        <div class="phone dim">
+          <div class="status">9:41</div>
+          <div class="nav">
+            <div class="nav-top">
+              <button type="button" class="nav-btn" aria-hidden="true">◎</button>
+              <button type="button" class="nav-btn" aria-hidden="true">⋯</button>
+            </div>
+            <h1 class="large-title">Atoms</h1>
+            <p class="subtitle">Your second brain</p>
+          </div>
+          <div class="scroll">
+            <div class="sec">For you</div>
+            <div class="hero">
+              <span class="kicker">Mind change</span>
+              <p class="snip">Sleep debt doesn’t really stack — one good night fixes most of it. I’m probably fine running short this week.</p>
+              <p class="later">Later you wrote <em>Sleep debt compounds across the week</em> · revises</p>
+              <div class="actions">
+                <button type="button" class="btn p">Open</button>
+                <button type="button" class="btn s">Next</button>
+                <button type="button" class="btn q">Not a mind-change</button>
+              </div>
+            </div>
+            <div class="lib">
+              <div class="sec">Library</div>
+              <div class="list">
+                <div class="row">Which line is old? Which is new?</div>
+              </div>
+            </div>
+          </div>
+          <div class="home-ind"><span></span></div>
+        </div>
+      </div>
+
+      <!-- Native Then/Now -->
+      <div class="col">
+        <div class="cap">
+          <div class="who">Proposed</div>
+          <div class="name">Then / Now</div>
+          <div class="sub">Same skin · roles labeled</div>
+        </div>
+        <div class="phone">
+          <div class="status">9:41</div>
+          <div class="nav">
+            <div class="nav-top">
+              <button type="button" class="nav-btn" aria-hidden="true">◎</button>
+              <button type="button" class="nav-btn" aria-hidden="true">⋯</button>
+            </div>
+            <h1 class="large-title">Atoms</h1>
+            <p class="subtitle">Your second brain</p>
+          </div>
+          <div class="scroll">
+            <div class="sec">For you</div>
+            <div class="hero">
+              <span class="kicker">Mind change</span>
+
+              <div class="block then">
+                <div class="meta">
+                  <span class="lab">Then</span>
+                </div>
+                <p class="body">Sleep debt doesn’t really stack — one good night fixes most of it. I’m probably fine running short this week.</p>
+              </div>
+
+              <div class="block now">
+                <div class="meta">
+                  <span class="lab">Now</span>
+                  <span class="verb">revises</span>
+                </div>
+                <p class="title-now">Sleep debt compounds across the week</p>
+              </div>
+
+              <div class="actions">
+                <button type="button" class="btn p">Open</button>
+                <button type="button" class="btn s">Next</button>
+                <button type="button" class="btn q">Not a mind-change</button>
+              </div>
+            </div>
+            <div class="lib">
+              <div class="sec">Library</div>
+              <div class="list">
+                <div class="row">Then = fossil body · Open → old atom</div>
+              </div>
+            </div>
+          </div>
+          <div class="home-ind"><span></span></div>
+        </div>
+      </div>
+    </div>
+
+    <p class="foot">
+      <strong>Product still locked:</strong> fossil primary ·
+      <code style="color:var(--mind)">revises</code> /
+      <code style="color:var(--mind)">contradicts</code> ·
+      Open opens Then · Next · Not a mind-change · 1 hero/day.
+      <br /><br />
+      File: <code style="color:var(--secondary)">docs/design-handoff/belief-rehearsal/mind-change-hero-native.html</code>
+    </p>
+  </div>
+</body>
+</html>
