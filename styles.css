@@ -312,19 +312,12 @@
   position: relative;
   margin: 0 0 18px;
   padding: 18px 18px 14px;
-  border-radius: 18px;
-  background:
-    linear-gradient(
-      165deg,
-      color-mix(in srgb, var(--interactive-accent) 14%, var(--background-secondary)) 0%,
-      var(--background-secondary) 55%
-    );
-  border: 1px solid color-mix(in srgb, var(--interactive-accent) 18%, var(--background-modifier-border));
-  box-shadow:
-    0 1px 2px color-mix(in srgb, #000 6%, transparent),
-    0 8px 24px color-mix(in srgb, var(--interactive-accent) 8%, transparent);
+  border-radius: 16px;
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  box-shadow: none;
   cursor: pointer;
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  transition: transform 0.15s ease;
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -394,20 +387,24 @@
   opacity: 0.75;
 }
 
-/* Belief rehearsal — mind-change hero + home citator */
+/* Belief rehearsal — mind-change hero + home citator (v2: flat, purple text-only) */
 .atoms-home-mind-change-card {
   position: relative;
-  border-color: color-mix(in srgb, #bf5af2 35%, var(--background-modifier-border));
+  border-color: var(--background-modifier-border);
+  cursor: default;
 }
 
 .atoms-home-mind-change-kicker {
-  color: #bf5af2;
-  background: color-mix(in srgb, #bf5af2 16%, transparent);
-  display: inline-block;
-  padding: 3px 10px;
-  border-radius: 980px;
+  color: var(--color-purple, #bf5af2);
+  background: transparent;
+  display: block;
+  padding: 0;
+  border-radius: 0;
   font-size: 0.72rem;
   font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin: 0 0 10px;
 }
 
 .atoms-home-mind-change-later {
@@ -417,6 +414,11 @@
   font-size: 0.88rem;
   color: var(--text-muted);
   line-height: 1.4;
+}
+
+.atoms-home-mind-change-later-title {
+  color: var(--text-accent);
+  font-weight: 600;
 }
 
 .atoms-home-mind-change-actions {
@@ -479,7 +481,7 @@
 
 .atoms-home-citator-ribbon {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 8px;
   margin-bottom: 16px;
   padding-bottom: 14px;
@@ -487,13 +489,14 @@
 }
 
 .atoms-home-citator-chip {
+  /* legacy class — prefer .atoms-ui-citator-line (no purple fill) */
   border: none;
   font-size: 0.78rem;
   font-weight: 500;
-  padding: 6px 11px;
-  border-radius: 980px;
-  background: color-mix(in srgb, #bf5af2 16%, transparent);
-  color: #bf5af2;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--color-purple, #bf5af2);
   cursor: pointer;
   max-width: 100%;
   text-align: left;
@@ -974,4 +977,347 @@
   line-height: 1.4;
   padding: 4px 8px 12px;
   margin: 0;
+}
+
+/* -------------------------------------------------------------------------- */
+/* UI kit — tokens + components (docs/design-handoff/tokens/README.md)        */
+/* Soft-fill only for person/work chips and transient status cards.           */
+/* Purple (#bf5af2) is typographic only — never fill, border, or gradient.    */
+/* -------------------------------------------------------------------------- */
+
+:root {
+  --atoms-purple: var(--color-purple, #bf5af2);
+  --atoms-person: var(--color-orange, #ff9f0a);
+  --atoms-work: var(--color-cyan, #64d2ff);
+  --atoms-radius-card: 16px;
+  --atoms-radius-btn: 12px;
+  --atoms-claim-serif: "New York", ui-serif, Georgia, "Times New Roman", serif;
+}
+
+/* Buttons */
+.atoms-ui-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 10px 16px;
+  border: none;
+  border-radius: var(--atoms-radius-btn);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.atoms-ui-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.atoms-ui-btn--primary {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+}
+
+.atoms-ui-btn--secondary {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.atoms-ui-btn--quiet {
+  background: transparent;
+  color: color-mix(in srgb, var(--text-muted) 85%, transparent);
+  font-weight: 500;
+  font-size: 0.82rem;
+  min-height: 36px;
+}
+
+.atoms-ui-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.atoms-ui-action-row .atoms-ui-btn--primary,
+.atoms-ui-action-row .atoms-ui-btn--secondary {
+  flex: 1;
+  min-width: 0;
+}
+
+.atoms-ui-action-row .atoms-ui-btn--quiet {
+  flex: 1 1 100%;
+}
+
+/* Flat card */
+.atoms-ui-flat-card {
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--atoms-radius-card);
+  padding: 16px 18px;
+}
+
+/* Status cards — soft-fill transient only */
+.atoms-ui-status-card {
+  border-radius: var(--atoms-radius-card);
+  padding: 16px 18px;
+  border: 1px solid transparent;
+}
+
+.atoms-ui-status-card--wait {
+  background: color-mix(in srgb, var(--interactive-accent) 10%, transparent);
+  border-color: color-mix(in srgb, var(--interactive-accent) 32%, transparent);
+}
+
+/* Wait card keeps product orange soft-fill when dual-classed with legacy */
+.atoms-home-wait-card.atoms-ui-status-card--wait {
+  border-color: color-mix(in srgb, var(--color-orange, #ff9f0a) 28%, transparent);
+  background: color-mix(
+    in srgb,
+    var(--color-orange, #ff9f0a) 9%,
+    var(--background-secondary)
+  );
+}
+
+.atoms-ui-status-card--progress {
+  background: color-mix(in srgb, var(--interactive-accent) 10%, transparent);
+  border-color: color-mix(in srgb, var(--interactive-accent) 32%, transparent);
+}
+
+.atoms-ui-status-card--done {
+  background: color-mix(in srgb, var(--color-green, #30d158) 10%, transparent);
+  border-color: color-mix(in srgb, var(--color-green, #30d158) 32%, transparent);
+}
+
+.atoms-ui-status-card--error {
+  background: color-mix(in srgb, var(--text-error) 10%, transparent);
+  border-color: color-mix(in srgb, var(--text-error) 32%, transparent);
+}
+
+/* Claim quote — serif + CSS chrome; body text sacred */
+.atoms-ui-claim-quote {
+  position: relative;
+  margin: 0;
+  padding: 0 0.35em;
+  font-family: var(--atoms-claim-serif);
+  font-size: 1.12rem;
+  line-height: 1.4;
+  letter-spacing: -0.01em;
+  color: var(--text-normal);
+  font-weight: 500;
+  white-space: pre-wrap;
+}
+
+.atoms-ui-claim-quote::before {
+  content: "\201C";
+  font-family: var(--atoms-claim-serif);
+  color: var(--text-faint);
+  margin-right: 0.05em;
+}
+
+.atoms-ui-claim-quote::after {
+  content: "\201D";
+  font-family: var(--atoms-claim-serif);
+  color: var(--text-faint);
+  margin-left: 0.05em;
+}
+
+.atoms-ui-claim-quote--clamp {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Kicker */
+.atoms-ui-kicker {
+  margin: 0 0 10px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text-accent);
+}
+
+.atoms-ui-kicker--mind {
+  color: var(--atoms-purple);
+  background: transparent;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-size: 0.72rem;
+}
+
+/* Citator line — typographic, no pill fill */
+.atoms-ui-citator-line {
+  display: block;
+  width: 100%;
+  border: none;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  text-align: left;
+  font-size: 0.88rem;
+  line-height: 1.35;
+  cursor: pointer;
+  color: var(--text-normal);
+}
+
+.atoms-ui-citator-line-rel {
+  color: var(--atoms-purple);
+  font-variant: small-caps;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+}
+
+.atoms-ui-citator-line-peer {
+  color: var(--text-accent);
+  font-weight: 500;
+}
+
+/* Link chips — person/work soft-fill kept */
+.atoms-ui-link-chip {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 500;
+  padding: 3px 8px;
+  border-radius: 980px;
+  background: color-mix(in srgb, var(--text-muted) 12%, transparent);
+  color: var(--text-muted);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.atoms-ui-link-chip--person {
+  background: color-mix(in srgb, var(--atoms-person) 16%, transparent);
+  color: var(--atoms-person);
+}
+
+.atoms-ui-link-chip--work {
+  background: color-mix(in srgb, var(--atoms-work) 16%, transparent);
+  color: var(--atoms-work);
+}
+
+/* List */
+.atoms-ui-list-group {
+  background: var(--background-secondary);
+  border-radius: var(--atoms-radius-card);
+  border: 1px solid var(--background-modifier-border);
+  overflow: hidden;
+}
+
+.atoms-ui-list-row {
+  padding: 12px 16px;
+  min-height: 58px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.atoms-ui-list-row:last-child {
+  border-bottom: none;
+}
+
+.atoms-ui-list-row:active {
+  background: var(--background-modifier-hover);
+}
+
+.atoms-ui-section-label {
+  margin: 18px 0 8px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.atoms-ui-back {
+  border: none;
+  background: transparent;
+  color: var(--text-accent);
+  font-size: 0.95rem;
+  font-weight: 500;
+  min-height: 44px;
+  padding: 0;
+  margin-bottom: 8px;
+  cursor: pointer;
+}
+
+.atoms-ui-filter-tabs {
+  display: flex;
+  gap: 6px;
+}
+
+.atoms-ui-filter-tab {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  font-weight: 500;
+  padding: 8px 12px;
+  min-height: 36px;
+  border-radius: 980px;
+  cursor: pointer;
+}
+
+.atoms-ui-filter-tab.is-active {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+  font-weight: 600;
+}
+
+/* Mind-change pair open */
+.atoms-home-pair {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.atoms-home-pair-claim {
+  /* flat card already padded */
+}
+
+.atoms-home-pair-date {
+  margin: 0 0 8px;
+  font-size: 0.75rem;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.atoms-home-pair-title {
+  margin: 0 0 8px;
+  font-size: 1.05rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  color: var(--text-normal);
+}
+
+.atoms-home-pair-connector {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 2px 0;
+}
+
+.atoms-home-pair-connector::before,
+.atoms-home-pair-connector::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--background-modifier-border);
+}
+
+.atoms-home-pair-connector-label {
+  color: var(--atoms-purple);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  font-variant: small-caps;
+  text-transform: lowercase;
+  white-space: nowrap;
+}
+
+.atoms-home-pair-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
 }

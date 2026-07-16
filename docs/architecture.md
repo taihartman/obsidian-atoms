@@ -4,7 +4,7 @@ Living system map. Implementation detail and unit order live in the plan; this d
 
 ## Product UI (v0.4+)
 
-**Atoms home** (`ItemView` type `atoms-home`): one mobile-first leaf — recent atom library + dominant waiting card when past captures are unprocessed. Preview reuses dry-run; Process reuses write path. Live **progress card** during Preview/Process (`N of M` + snippet + bar; done summary; auto-run silent). **From the brain** multi-cue stream (on-this-day → connected-to-recent → quiet/spacing; body snippet; Open / Next; soft throttle; no review queue). Design: `docs/design-handoff/atoms-view/`.
+**Atoms home** (`ItemView` type `atoms-home`): one mobile-first leaf — recent atom library + dominant waiting card when past captures are unprocessed. Preview reuses dry-run; Process reuses write path. Live **progress card** during Preview/Process (`N of M` + snippet + bar; done summary; auto-run silent). **For you** multi-cue stream (mind-change → on-this-day → connected → quiet; soft throttle; no review queue). Mind-change v2: flat hero with serif-quoted fossil + pair-open (Then / connector / Now). Shared chrome via `src/ui/` kit. Design: `docs/design-handoff/tokens/README.md` (editorial tokens); contribute guide: `docs/components.md`.
 
 ## North star
 
@@ -59,9 +59,9 @@ processInbox(dryRun)
 
 ## Module map (`src/`) — hybrid layout
 
-**Layout rule (agents):** new filing logic → `pipeline/` (or `pipeline/enrich/`); home UI → `home/`; resurface cues → `resurface/`; settings/CTA → `settings/`; device gates → `platform/`; shared types → `shared/`. Wire-up only in `plugin/`.
+**Layout rule (agents):** new filing logic → `pipeline/` (or `pipeline/enrich/`); home UI → `home/`; shared home presentation → `ui/`; resurface cues → `resurface/`; settings/CTA → `settings/`; device gates → `platform/`; shared types → `shared/`. Wire-up only in `plugin/`.
 
-**Dependency rule:** `pipeline/**` never imports `home/`, `resurface/`, `settings/`, or `plugin/`. Features may import `pipeline` + `shared` + `platform`.
+**Dependency rule:** `pipeline/**` never imports `home/`, `resurface/`, `settings/`, `ui/`, or `plugin/`. Features may import `pipeline` + `shared` + `platform`. `home/` and `resurface/` may import `ui/`. `ui/` must not import `home/`, `resurface/`, `pipeline/`, or `plugin/`.
 
 | Path | Responsibility |
 |---|---|
@@ -78,8 +78,9 @@ processInbox(dryRun)
 | `pipeline/daily.ts` | Past dailies / today open helpers |
 | `pipeline/vocabulary.ts` | Active / vault / proposed tags |
 | `pipeline/enrich/*` | Post-classify repair: people, media, linkQuality, ideaRescue |
+| `ui/*` | Thin DOM factories for home (button, flatCard, claimQuote, …) |
 | `home/*` | Atoms home view + pure library helpers + run progress |
-| `resurface/resurface.ts` | Multi-cue stream / mind-change / throttle |
+| `resurface/resurface.ts` | Multi-cue stream / mind-change / throttle / citator lines |
 | `settings/*` | Settings tab + capture shortcut CTA |
 | `platform/*` | Auto-run gates, connectivity probe |
 | `shared/types.ts` | Shared types + defaults |

@@ -34,8 +34,23 @@ Visual fidelity mocks (when UI change): `docs/design-handoff/atoms-view/`.
 ## Evidence Paths
 
 - QA reports: `docs/qa/YYYY-MM-DD-<branch>-world-class-qa.md`
-- Screenshots (if any): `docs/qa/screenshots/<branch-or-feature>/<frame>.png`
+- Screenshots: `docs/qa/screenshots/<branch-or-feature>/<frame>.png`
 - CLI transcript: paste into report Evidence section (no secrets / no raw API keys)
+
+### PR body evidence (required)
+
+For any PR that changes **user-visible UI** (Atoms home, For you, cards, pair-open, library chrome, settings product copy):
+
+1. Install to the throwaway vault (`./scripts/install-to-vault.sh`).
+2. Drive the happy path (CLI `atoms:open-home` + clicks via `obsidian eval`, or human).
+3. Capture frames with `obsidian vault="test vault" dev:screenshot path=docs/qa/screenshots/<feature>/0N-name.png`.
+4. Commit the PNGs under `docs/qa/screenshots/<feature>/` and **link them in the PR body** with **absolute** URLs — GitHub PR descriptions do **not** render repo-relative `![…](docs/…)` paths (broken image icon). After push:
+
+   `![label](https://raw.githubusercontent.com/<owner>/<repo>/<branch>/docs/qa/screenshots/<feature>/01-….png)`
+
+5. **Check** the matching Test plan boxes — never leave `- [ ]` after claiming the step ran.
+
+Pure logic / docs-only PRs: write `N/A — no UI` in Evidence. Skipping screenshots on a UI PR is a process failure, not optional polish.
 
 ## Auth Reality
 

@@ -49,8 +49,18 @@ export type ResurfaceCandidate = {
   laterTitle?: string;
   /** mind-change: newer claim path */
   laterPath?: string;
+  /** mind-change: newer claim memory day (YYYY-MM-DD) for dayDelta */
+  laterMatchDate?: string;
   /** mind-change: relation token */
   relation?: SupersessionRelation;
+};
+
+/** Typographic citator row (hard supersession edges only). */
+export type CitatorLine = {
+  relationLabel: string;
+  peerTitle: string;
+  peerPath: string;
+  direction: "out" | "in";
 };
 
 export type AtomFileForResurface = {
@@ -144,6 +154,41 @@ export function bodySnippet(body: string, max = 140): string {
   return one.slice(0, max - 1) + "…";
 }
 
+/**
+ * True when a line is hard supersession edge prose only
+ * (revises/contradicts + wikilink), with no other claim text.
+ */
+function isHardSupersessionDisplayLine(line: string): boolean {
+  const t = line.trim();
+  if (!t) return false;
+  SUPERSESSION_EDGE_RE.lastIndex = 0;
+  SUPERSESSION_EDGE_RE_FLIP.lastIndex = 0;
+  const m1 = SUPERSESSION_EDGE_RE.exec(t);
+  const m2 = SUPERSESSION_EDGE_RE_FLIP.exec(t);
+  const matched = m1?.[0] ?? m2?.[0];
+  if (!matched) return false;
+  // Residual after the edge match is only punctuation / whitespace.
+  const residual = t.replace(matched, "").replace(/[.\s,;:]+/g, "");
+  return residual.length === 0;
+}
+
+/**
+ * Display-only: drop hard supersession edge lines (revises/contradicts + wikilink)
+ * before showing claim quotes. Never mutates vault files; body stays sacred.
+ * Empty after strip → "…" so the quote chrome still has something to show.
+ */
+export function claimBodyForDisplay(body: string): string {
+  const text = body ?? "";
+  const kept = text
+    .split(/\r?\n/)
+    .filter((line) => !isHardSupersessionDisplayLine(line));
+  const out = kept
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+  return out || "…";
+}
+
 /** Normalize peer title for path/map keys. */
 export function normalizePeerTitle(raw: string): string {
   return (raw ?? "").replace(/\.md$/i, "").trim();
@@ -228,6 +273,7 @@ export function listMindChangeCandidates(
         mtime: newer.mtime,
         laterTitle: newer.title,
         laterPath: newer.path,
+        laterMatchDate: newer.matchDate || "",
         relation: e.relation,
       });
     }
@@ -242,17 +288,19 @@ export function listMindChangeCandidates(
   return out;
 }
 
-/** Citator chips for home open of one atom (inbound + outbound hard edges). */
-export function citatorChipsForAtom(
+/**
+ * Typographic citator lines for home open (inbound + outbound hard edges only).
+ * Labels are lowercase app chrome: revises / contradicts / revised by / contradicted by.
+ */
+export function citatorLinesForAtom(
   atom: IndexedAtom,
   indexed: IndexedAtom[],
-): Array<{ label: string; peerPath: string; peerTitle: string }> {
+): CitatorLine[] {
   const byTitle = new Map<string, IndexedAtom>();
   for (const a of indexed) {
     byTitle.set(a.title.toLowerCase(), a);
   }
-  const chips: Array<{ label: string; peerPath: string; peerTitle: string }> =
-    [];
+  const lines: CitatorLine[] = [];
   const seen = new Set<string>();
 
   for (const e of extractSupersessionEdges(atom.content)) {
@@ -261,16 +309,14 @@ export function citatorChipsForAtom(
     const key = `out|${e.relation}|${peer.path}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    const verb =
-      e.relation === "revises" ? "Revises" : "Contradicts";
-    chips.push({
-      label: `${verb} · ${peer.title}`,
+    lines.push({
+      relationLabel: e.relation === "revises" ? "revises" : "contradicts",
       peerPath: peer.path,
       peerTitle: peer.title,
+      direction: "out",
     });
   }
 
-  // Inbound: other atoms that revise/contradict this title
   for (const other of indexed) {
     if (other.path === atom.path) continue;
     for (const e of extractSupersessionEdges(other.content)) {
@@ -278,20 +324,16 @@ export function citatorChipsForAtom(
       const key = `in|${e.relation}|${other.path}`;
       if (seen.has(key)) continue;
       seen.add(key);
-      const verb =
-        e.relation === "revises" ? "Revised by" : "Contradicted by";
-      chips.push({
-        label: `${verb} · ${other.title}`,
+      lines.push({
+        relationLabel:
+          e.relation === "revises" ? "revised by" : "contradicted by",
         peerPath: other.path,
         peerTitle: other.title,
+        direction: "in",
       });
     }
   }
-  return chips;
-}
-
-export function mindChangeDayKey(todayYmd: string): string {
-  return todayYmd;
+  return lines;
 }
 
 export function mindChangeAlreadyShownToday(
@@ -608,19 +650,141 @@ export function cueLabel(cue: ResurfaceCue): string {
   return "For you";
 }
 
-/** Later-line copy for mind-change hero. */
-export function mindChangeLaterLine(
-  laterTitle: string,
+/**
+ * Whole local calendar days between two YYYY-MM-DD strings.
+ * Null if either is unparseable. Does not use mtime.
+ */
+export function calendarDayDelta(
+  fromYmd: string,
+  toYmd: string,
+): number | null {
+  const a = parseYmdParts(fromYmd);
+  const b = parseYmdParts(toYmd);
+  if (!a || !b) return null;
+  const ms =
+    Date.UTC(b.y, b.m - 1, b.d) - Date.UTC(a.y, a.m - 1, a.d);
+  return Math.round(ms / MS_DAY);
+}
+
+function parseYmdParts(
+  ymd: string,
+): { y: number; m: number; d: number } | null {
+  const m = (ymd ?? "").trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return null;
+  const y = Number(m[1]);
+  const mo = Number(m[2]);
+  const d = Number(m[3]);
+  if (!Number.isFinite(y) || !Number.isFinite(mo) || !Number.isFinite(d)) {
+    return null;
+  }
+  if (mo < 1 || mo > 12 || d < 1 || d > 31) return null;
+  return { y, m: mo, d };
+}
+
+/** English cardinal for day-delta phrasing (1–99); null if out of range. */
+export function dayDeltaCardinalWord(n: number): string | null {
+  if (!Number.isFinite(n) || n < 1 || n > 99 || !Number.isInteger(n)) {
+    return null;
+  }
+  const ones = [
+    "",
+    "one",
+    "two",
+    "three",
+    "four",
+    "five",
+    "six",
+    "seven",
+    "eight",
+    "nine",
+    "ten",
+    "eleven",
+    "twelve",
+    "thirteen",
+    "fourteen",
+    "fifteen",
+    "sixteen",
+    "seventeen",
+    "eighteen",
+    "nineteen",
+  ];
+  const tens = [
+    "",
+    "",
+    "twenty",
+    "thirty",
+    "forty",
+    "fifty",
+    "sixty",
+    "seventy",
+    "eighty",
+    "ninety",
+  ];
+  if (n < 20) return ones[n] ?? null;
+  const t = Math.floor(n / 10);
+  const o = n % 10;
+  const base = tens[t] ?? "";
+  if (!o) return base;
+  return `${base}-${ones[o]}`;
+}
+
+function capitalizeWord(s: string): string {
+  if (!s) return s;
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+/** Pair connector chrome (lowercase; small-caps via CSS). */
+export function mindChangeConnectorLabel(
   relation: SupersessionRelation = "revises",
-): string {
-  const verb = relation === "contradicts" ? "contradicts" : "revises";
-  return `Later you wrote ${laterTitle} · ${verb}`;
+): "revised by" | "contradicted by" {
+  return relation === "contradicts" ? "contradicted by" : "revised by";
+}
+
+/**
+ * Hero later-line (v2). No em dash. Optional relative-day when dayDelta is a
+ * positive whole number from calendar YMD strings only.
+ * Returns prefix + title separately so UI can style the title without
+ * splitting on ": " (titles may contain colons).
+ */
+export function mindChangeHeroLaterLineParts(opts: {
+  laterTitle: string;
+  relation?: SupersessionRelation;
+  dayDelta?: number | null;
+}): { prefix: string; title: string } {
+  const title = (opts.laterTitle ?? "").trim() || "Untitled";
+  const verb =
+    opts.relation === "contradicts" ? "contradicted" : "revised";
+  const d = opts.dayDelta;
+  if (d != null && Number.isFinite(d) && d > 0) {
+    const n = Math.floor(d);
+    if (n === 1) {
+      return { prefix: `One day later you ${verb} this`, title };
+    }
+    const word = dayDeltaCardinalWord(n);
+    if (word) {
+      return {
+        prefix: `${capitalizeWord(word)} days later you ${verb} this`,
+        title,
+      };
+    }
+    return { prefix: `${n} days later you ${verb} this`, title };
+  }
+  return { prefix: `Later you ${verb} this`, title };
+}
+
+export function mindChangeHeroLaterLine(opts: {
+  laterTitle: string;
+  relation?: SupersessionRelation;
+  dayDelta?: number | null;
+}): string {
+  const { prefix, title } = mindChangeHeroLaterLineParts(opts);
+  return `${prefix}: ${title}`;
 }
 
 /** Friendly date for meta: “Jul 15, 2024” */
 export function formatCueDate(ymd: string): string {
-  const m = (ymd ?? "").trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (!m) return ymd;
+  const parts = parseYmdParts(ymd);
+  if (!parts) return ymd;
   const months = [
     "Jan",
     "Feb",
@@ -635,7 +799,6 @@ export function formatCueDate(ymd: string): string {
     "Nov",
     "Dec",
   ];
-  const mi = Number(m[2]) - 1;
-  const mon = months[mi] ?? m[2];
-  return `${mon} ${Number(m[3])}, ${m[1]}`;
+  const mon = months[parts.m - 1] ?? String(parts.m).padStart(2, "0");
+  return `${mon} ${parts.d}, ${parts.y}`;
 }
