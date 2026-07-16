@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   improveClassificationLinks,
+  isSelfDuplicateReason,
   isWeakLinkReason,
   maybeLinkPeopleIndex,
   rewriteWeakLinkReason,
+  stripSelfReferentialLinks,
+  stripSelfWikilinks,
 } from "../src/pipeline/enrich/linkQuality";
 import type { ClassificationResult } from "../src/shared/types";
 
@@ -71,6 +74,71 @@ describe("improveClassificationLinks", () => {
     );
     expect(isWeakLinkReason(out.links[0]!.reason)).toBe(false);
     expect(out.links[1]!.reason).toBe("revises [[Old claim]]");
+  });
+});
+
+describe("stripSelfReferentialLinks", () => {
+  it("drops links whose note equals the atom title", () => {
+    const title = "Nichita likes the color periwinkle";
+    const out = stripSelfReferentialLinks(
+      atom({
+        title,
+        links: [
+          {
+            note: title,
+            reason: `duplicate of existing note ([[${title}]])`,
+          },
+          { note: "Nichita", reason: "preference about [[Nichita]]" },
+        ],
+      }),
+    );
+    expect(out.links.map((l) => l.note)).toEqual(["Nichita"]);
+  });
+
+  it("strips self wikilinks and drops pure self-duplicate reasons", () => {
+    const title = "Christian recommended watching My Hero Academia";
+    const out = stripSelfReferentialLinks(
+      atom({
+        title,
+        links: [
+          {
+            note: title,
+            reason: `duplicate/same recommendation already logged ([[${title}]])`,
+          },
+          {
+            note: "My Hero Academia",
+            reason: `names the show ([[My Hero Academia]]) and duplicates ([[${title}]])`,
+          },
+        ],
+      }),
+    );
+    expect(out.links.every((l) => l.note !== title)).toBe(true);
+    expect(out.links.some((l) => l.note === "My Hero Academia")).toBe(true);
+    for (const l of out.links) {
+      expect(l.reason.toLowerCase()).not.toContain(title.toLowerCase());
+      expect(l.reason).not.toMatch(new RegExp(`\\[\\[${title}\\]\\]`, "i"));
+    }
+  });
+
+  it("detects self-duplicate reason patterns", () => {
+    expect(
+      isSelfDuplicateReason(
+        "duplicate/reinforces existing note on this exact preference",
+        "Nichita loves pajamas",
+      ),
+    ).toBe(true);
+    expect(isSelfDuplicateReason("revises [[Old claim]]", "New claim")).toBe(
+      false,
+    );
+  });
+
+  it("stripSelfWikilinks removes only self targets", () => {
+    const r = stripSelfWikilinks(
+      "related to [[Self Title]] and [[Other]]",
+      "Self Title",
+    );
+    expect(r).not.toContain("Self Title");
+    expect(r).toContain("[[Other]]");
   });
 });
 

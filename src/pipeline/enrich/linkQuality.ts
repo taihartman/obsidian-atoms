@@ -132,6 +132,126 @@ export function improveClassificationLinks(
   return { ...result, links: next };
 }
 
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+export function titlesMatch(a: string, b: string): boolean {
+  return (a ?? "").trim().toLowerCase() === (b ?? "").trim().toLowerCase();
+}
+
+/** Remove [[selfTitle]] (any case) from reason prose. */
+export function stripSelfWikilinks(reason: string, selfTitle: string): string {
+  const self = (selfTitle ?? "").trim();
+  if (!self || !(reason ?? "").trim()) return (reason ?? "").trim();
+  const re = new RegExp(`\\[\\[${escapeRegExp(self)}\\]\\]`, "gi");
+  let r = reason.replace(re, "");
+  r = r
+    .replace(/\(\s*\)/g, "")
+    .replace(/\s{2,}/g, " ")
+    .replace(/\s+([.,;:!?])/g, "$1")
+    .replace(/([.,;:!?]){2,}/g, "$1")
+    .replace(/^(?:and|or|of|,|;|\s)+/i, "")
+    .replace(/(?:and|or|,|;|\s)+$/i, "")
+    .trim();
+  return r;
+}
+
+/**
+ * True when reason is mainly “this note already exists / duplicate of myself”.
+ * Used to drop self-congratulatory graph noise after Update/Process.
+ */
+export function isSelfDuplicateReason(reason: string, selfTitle: string): boolean {
+  const r = (reason ?? "").trim();
+  if (!r) return false;
+  const lower = r.toLowerCase();
+  const self = (selfTitle ?? "").trim();
+  if (
+    /\b(duplicate|already logged|already exists|exact preference|this exact preference|this same)\b/i.test(
+      r,
+    ) &&
+    (/\b(existing note|this note|own note|same note|this exact|same recommendation)\b/i.test(
+      r,
+    ) ||
+      (self && lower.includes(self.toLowerCase())))
+  ) {
+    return true;
+  }
+  // revises/reinforces [[Self Title]] only
+  if (self) {
+    const selfLink = new RegExp(
+      `\\[\\[${escapeRegExp(self)}\\]\\]`,
+      "i",
+    );
+    if (
+      selfLink.test(r) &&
+      /\b(revises|reinforces|duplicate|confirms|same)\b/i.test(r)
+    ) {
+      // If no other wikilink remains after stripping self, it's pure self-talk
+      const without = stripSelfWikilinks(r, self);
+      if (!/\[\[.+\]\]/.test(without)) return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Drop links that target this atom's own title; strip self-wikilinks from
+ * remaining reasons; drop pure self-duplicate noise.
+ * Run after improveClassificationLinks so both Process and Update share it.
+ */
+export function stripSelfReferentialLinks(
+  result: ClassificationResult,
+): ClassificationResult {
+  if (result.verdict !== "atom") return result;
+  const self = (result.title ?? "").trim();
+  if (!self) return result;
+
+  const links = result.links ?? [];
+  if (!links.length) return result;
+
+  const next: ClassificationLink[] = [];
+  for (const l of links) {
+    const note = (l.note ?? "").trim();
+    if (!note) continue;
+    // Never link an atom to its own title
+    if (titlesMatch(note, self)) continue;
+
+    let reason = (l.reason ?? "").trim();
+    if (isSelfDuplicateReason(reason, self)) {
+      reason = stripSelfWikilinks(reason, self);
+      // Pure self-dupe with no other substance → drop this link
+      if (
+        !reason ||
+        isSelfDuplicateReason(reason, self) ||
+        reason.length < 12
+      ) {
+        continue;
+      }
+    } else {
+      reason = stripSelfWikilinks(reason, self);
+    }
+
+    if (!reason) {
+      reason = `related to [[${note}]]`;
+    }
+    // Final guard: reason must not re-introduce self as sole target
+    if (titlesMatch(note, self)) continue;
+    next.push({ note, reason });
+  }
+
+  if (
+    next.length === links.length &&
+    next.every(
+      (l, i) =>
+        l.note === links[i]!.note && l.reason === (links[i]!.reason ?? "").trim(),
+    )
+  ) {
+    return result;
+  }
+  return { ...result, links: next };
+}
+
 /**
  * Optional People index link when person-shaped, no hub matched, exact "People" title exists.
  */

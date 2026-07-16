@@ -13,6 +13,7 @@ import { enrichMediaLinks } from "./enrich/media";
 import {
   improveClassificationLinks,
   maybeLinkPeopleIndex,
+  stripSelfReferentialLinks,
 } from "./enrich/linkQuality";
 import { rescueKeepableIdea } from "./enrich/ideaRescue";
 import { filterTagsToActive } from "./vocabulary";
@@ -511,6 +512,8 @@ export async function classifyCapture(
   );
   // Rewrite boilerplate reasons into substantive prose.
   result = improveClassificationLinks(capture, result);
+  // Never self-link / self-duplicate the atom title in graph prose.
+  result = stripSelfReferentialLinks(result);
 
   return {
     ok: true,
@@ -545,6 +548,7 @@ export function applyClassificationQuality(
     opts.personHubTitles ?? hubs.map((h) => h.canonicalTitle),
   );
   r = improveClassificationLinks(capture, r);
+  r = stripSelfReferentialLinks(r);
   return r;
 }
 

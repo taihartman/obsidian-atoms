@@ -7,6 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
+| In progress | #39 | tai | fix/ban-self-links-quality-3 | — | pipeline/enrich/linkQuality.ts, atomQuality.ts, classify.ts | ban self-links; CURRENT=3 |
 | In progress | #25 | tai | ci/require-closes-issue | — | .github/workflows/pr-closes-issue.yml | CI enforce Closes #N |
 
 ## How to claim (copy)
