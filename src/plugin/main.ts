@@ -907,6 +907,7 @@ export default class AtomsPlugin extends Plugin {
       },
     ];
 
+    this.beginHomeRun("process");
     new Notice("Atoms: fixture write sample…");
     try {
       const report = await runWritePath({
@@ -918,6 +919,9 @@ export default class AtomsPlugin extends Plugin {
         atomFolder: this.settings.atomFolder,
         maxCaptures: fixtures.length,
         fixtureResults: fixtures,
+        onProgress: (done, total, meta) => {
+          this.updateHomeProgress(done, total, meta?.captureText);
+        },
       });
       this.lastWriteReport = report;
       if (report.proposedTagsMerged.length) {
@@ -934,11 +938,14 @@ export default class AtomsPlugin extends Plugin {
         collisions: report.collisions,
         entries: report.entries,
       });
+      const summary = formatRunSummary(summaryFromWrite(report));
+      this.finishHomeRun(summary, this.landPeakFromWrite(report, "process"));
       new Notice(
         `Atoms fixture: ${report.atomsCreated} atom(s), ${report.markersAppended} marker(s)`,
       );
     } catch (e) {
       if (e instanceof DailyNotesDisabledError) {
+        this.failHomeRun(e.message);
         new Notice(e.message);
         return;
       }
@@ -946,6 +953,7 @@ export default class AtomsPlugin extends Plugin {
         name: e instanceof Error ? e.name : "Error",
         message: e instanceof Error ? e.message : "unknown",
       });
+      this.failHomeRun("Fixture write failed");
       new Notice("Atoms: fixture write failed (see console)");
     }
   }

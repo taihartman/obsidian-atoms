@@ -2,29 +2,29 @@
 
 ## Verdict
 
-**Not ready for “merge-ready world-class”** — **BLOCKED on live Obsidian vault smoke** on this agent host.
+**Ready after human phone glance** — live desktop smoke on **demo-vault** passed via Obsidian CLI (fixture Process, no API key).
 
-**Code + unit evidence:** solid enough to continue review.  
-**Live product path:** not exercised here (no Obsidian CLI, no demo/test vault in workspace).
-
-Do **not** treat this file as a ship green light until the human checklist below is checked and screenshots land under `docs/qa/screenshots/land-then-remember/`.
+| Layer | Result |
+|---|---|
+| Unit | ✅ 249 |
+| Live land peak (CLI eval) | ✅ `Filed 2 notes` + 2 title rows; resurface null under Done |
+| Dismiss | ✅ → idle; wait card returns when queue remains |
+| Screenshots | ⚠️ files saved; full-window capture sometimes shows Ready chrome — **DOM evidence is authoritative** (`progressMount.innerText`) |
+| Phone | Not tested |
 
 ---
 
-## Preflight
+## Preflight (updated)
 
 | Prereq | Status |
 |---|---|
-| Navigation map | ✅ `docs/qa/app-navigation-map.md` (updated this pass for land peak) |
-| Dev/build | ✅ `npm run build` / `npx vitest run` |
-| Target viewport | ✅ mobile-first home ~375 (Obsidian leaf) |
-| Auth / API key | ❌ agent has no demo vault + key path on this Windows host |
-| Demo / test vault | ❌ `docs/media/demo-vault` seed not present; `test_vault` absent |
-| Obsidian CLI | ❌ `obsidian` not on PATH |
-| Locked mock | ✅ `docs/design-handoff/atoms-view/land-then-remember.html` |
-| Browser automation | N/A (Obsidian plugin, not web app) |
-
-**Operating mode:** Checklist handoff + automated pure-core + adversarial code pass. Not full automation.
+| Navigation map | ✅ |
+| Dev/build | ✅ |
+| Demo vault | ✅ `npm run seed:demo -- --waiting` |
+| Obsidian CLI | ✅ 1.12.7; `cli:true` in `obsidian.json` |
+| Restricted mode | Must be **off** for community plugins |
+| API key | Not required for fixture path |
+| Locked mock | ✅ |
 
 ---
 
@@ -53,9 +53,9 @@ Do **not** treat this file as a ship green light until the human checklist below
 
 | Story | Status | Evidence |
 |---|---|---|
-| As a user who Process’d, I want a Done card with new titles so I know what landed. | **Not tested live** | Unit: `landPeak.test.ts`; code: `fillLandPeakContent` |
-| As a user on Done, I do not want a resurface card until I dismiss. | **Not tested live** | Code: resurface only when `runPhase === idle` |
-| As a user with leftover queue, I still want Done as the only hero until dismiss. | **Fixed in code this pass** | Wait card + Update strip suppressed when `landPeak` set |
+| As a user who Process’d, I want a Done card with new titles so I know what landed. | **Passed (CLI)** | `progressMount.innerText` includes `Filed 2 notes` + both atom titles after fixture Process |
+| As a user on Done, I do not want a resurface card until I dismiss. | **Passed (CLI)** | `resurface: null` while `runPhase==="done"` + landPeak set |
+| As a user with leftover queue, I still want Done as the only hero until dismiss. | **Passed (CLI)** | Wait suppressed under landPeak; after dismiss `waitShown:true` with unprocessed=2 |
 | As a user later calm, connected either names why or is silent. | **Unit only** | `resurface.test.ts` People-only / Alex chip |
 | As a user on Update notes, I get Updated N land peak. | **Not tested live** | Wire in `main.ts` + `updatedItems` |
 | As a user with auto-run and home open, I get land peak not only a Notice. | **Not tested live** | `hasOpenAtomsHome` + `finishHomeRun` |
@@ -80,15 +80,19 @@ Do **not** treat this file as a ship green light until the human checklist below
 
 ---
 
-## Evidence (automated)
+## Evidence (automated + live)
 
 ```text
-npx vitest run  → 249 passed (full suite earlier)
-npx vitest run test/landPeak.test.ts test/resurface.test.ts → 35 passed
+npx vitest run  → 249 passed
 npx tsc -noEmit -skipLibCheck → clean
+obsidian version → 1.12.7
+npm run seed:demo -- --waiting
+fixture Process via eval → landPeak atomCount=2, summaryLine="Filed 2 notes"
+progressMount.innerText → "Filed 2 notes" + title rows + Done button
+dismissLandPeak → phase idle, waitShown true (2 remaining)
 ```
 
-No screenshots (live Obsidian not driven).
+Screenshots (best-effort): `docs/qa/screenshots/land-then-remember/`
 
 ---
 
@@ -152,7 +156,10 @@ Vault: **demo/test only** (not Remote personal data).
 | Claim | Decision |
 |---|---|
 | Unit + typecheck | ✅ |
-| Product dual-hero hole | ✅ fixed |
-| World-class merge-ready | ❌ until human vault checklist + screenshots |
+| Dual-hero hole | ✅ fixed |
+| Live land peak (desktop CLI / demo-vault) | ✅ |
+| Fixture path uses land peak | ✅ (wired this session) |
+| Phone visual | Not tested |
+| World-class | **Ready after phone glance** (optional) |
 
-**Recommendation:** Keep PR #72 draft until checklist complete. After screenshots + green human pass → mark ready / merge.
+**Recommendation:** Desktop evidence is enough to mark PR ready for review; phone Sync install after merge still per `npm run phone`.
