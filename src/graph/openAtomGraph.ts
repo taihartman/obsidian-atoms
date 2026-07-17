@@ -3,6 +3,7 @@
  */
 
 import { Notice, TFile, type App, type WorkspaceLeaf } from "obsidian";
+import { getAllDailyNotes } from "obsidian-daily-notes-interface";
 import { isUnderAtomFolder } from "../home/atomsHomeData";
 import {
   atomFolderGraphQuery,
@@ -50,6 +51,28 @@ function inboundPaths(app: App, path: string): string[] {
     if (targets && targets[path] != null) out.push(src);
   }
   return out;
+}
+
+/** Daily note paths from core Daily Notes (marker backlinks live here). */
+export function buildDailyPathSet(app: App): Set<string> {
+  try {
+    const all = getAllDailyNotes();
+    return new Set(Object.values(all).map((f) => f.path));
+  } catch {
+    return new Set();
+  }
+}
+
+/** Basename starts with YYYY-MM-DD — fallback when Daily Notes API is empty. */
+export function pathLooksLikeDailyBasename(path: string): boolean {
+  const base = path.split("/").pop() ?? path;
+  return /^\d{4}-\d{2}-\d{2}/.test(base.replace(/\.md$/i, ""));
+}
+
+export function makeIsDailyPath(app: App): (path: string) => boolean {
+  const fromPlugin = buildDailyPathSet(app);
+  return (path: string) =>
+    fromPlugin.has(path) || pathLooksLikeDailyBasename(path);
 }
 
 /** Body wikilinks only (not frontmatter), resolved to vault paths. */
@@ -203,6 +226,8 @@ export async function runOpenAtomGraph(
   const sourceTargetBySeed: Record<string, string | null> = {};
   const inboundBySeed: Record<string, string[]> = {};
 
+  const isDailyPath = makeIsDailyPath(app);
+
   for (const path of seedPaths) {
     outboundBySeed[path] = outboundPaths(app, path);
     inboundBySeed[path] = inboundPaths(app, path);
@@ -223,6 +248,7 @@ export async function runOpenAtomGraph(
     bodyOutboundBySeed,
     sourceTargetBySeed,
     inboundBySeed,
+    isDailyPath,
   });
 
   const queryResult = toGraphSearchQuery(neighborhood, folder);

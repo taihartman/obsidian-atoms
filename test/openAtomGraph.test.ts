@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { applyGraphSearchFilter } from "../src/graph/openAtomGraph";
+import {
+  applyGraphSearchFilter,
+  pathLooksLikeDailyBasename,
+} from "../src/graph/openAtomGraph";
 
 describe("applyGraphSearchFilter", () => {
   it("returns false for empty view", () => {
@@ -32,5 +35,12 @@ describe("applyGraphSearchFilter", () => {
     );
     expect(ok).toBe(true);
     expect(setValue).toHaveBeenCalledWith('path:"Atoms"');
+  });
+});
+
+describe("pathLooksLikeDailyBasename", () => {
+  it("detects date basenames", () => {
+    expect(pathLooksLikeDailyBasename("Daily/2026-07-01.md")).toBe(true);
+    expect(pathLooksLikeDailyBasename("People/Alex.md")).toBe(false);
   });
 });

@@ -134,6 +134,21 @@ describe("buildClosedNeighborhood", () => {
     });
     expect(S).toContain("Notes/hub.md");
   });
+
+  it("drops daily inbound (marker spiderweb) but keeps hub inbound", () => {
+    const S = buildClosedNeighborhood({
+      seedPaths: ["Atoms/a.md"],
+      outboundBySeed: { "Atoms/a.md": [] },
+      bodyOutboundBySeed: { "Atoms/a.md": [] },
+      sourceTargetBySeed: {},
+      inboundBySeed: {
+        "Atoms/a.md": ["Daily/2026-07-01.md", "People/Alex.md"],
+      },
+      isDailyPath: (p) => p.startsWith("Daily/"),
+    });
+    expect(S).not.toContain("Daily/2026-07-01.md");
+    expect(S).toContain("People/Alex.md");
+  });
 });
 
 describe("toGraphSearchQuery", () => {

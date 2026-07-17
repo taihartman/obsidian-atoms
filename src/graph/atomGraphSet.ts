@@ -63,8 +63,20 @@ export function collectAtomSeedPaths(
 }
 
 /**
+ * Drop daily-note paths from inbound expansion.
+ * Filing markers (`↳ [[atom]]`) live on dailies and would re-spider the calendar.
+ */
+export function filterDailyInbound(
+  inboundPaths: string[],
+  isDailyPath: (path: string) => boolean,
+): string[] {
+  return inboundPaths.filter((p) => !isDailyPath(p));
+}
+
+/**
  * Closed neighborhood: seeds ∪ 1-hop (filtered outbound + inbound).
  * Paths are opaque strings; caller resolves files.
+ * Inbound from daily notes is dropped when `isDailyPath` is provided (default: keep all).
  */
 export function buildClosedNeighborhood(opts: {
   seedPaths: string[];
@@ -72,7 +84,10 @@ export function buildClosedNeighborhood(opts: {
   bodyOutboundBySeed: Record<string, string[]>;
   sourceTargetBySeed: Record<string, string | null | undefined>;
   inboundBySeed: Record<string, string[]>;
+  /** True for vault daily notes (marker backlinks). */
+  isDailyPath?: (path: string) => boolean;
 }): string[] {
+  const isDaily = opts.isDailyPath ?? (() => false);
   const S = new Set<string>();
   for (const seed of opts.seedPaths) {
     S.add(seed);
@@ -82,7 +97,12 @@ export function buildClosedNeighborhood(opts: {
       opts.bodyOutboundBySeed[seed] ?? [],
     );
     for (const p of filtered) S.add(p);
-    for (const p of opts.inboundBySeed[seed] ?? []) S.add(p);
+    for (const p of filterDailyInbound(
+      opts.inboundBySeed[seed] ?? [],
+      isDaily,
+    )) {
+      S.add(p);
+    }
   }
   return [...S].sort();
 }
