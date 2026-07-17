@@ -1,8 +1,14 @@
 # Atoms
 
-Obsidian plugin that turns **past daily-note captures** into a flat, linked knowledge graph.
+Get stuff **out of your head** into Obsidian — then have it **filed, linked, and gently brought back** so you can expand on it later.
 
-Capture on your phone (iOS Shortcut → daily note). Atoms classifies each bullet as **atom / task / noise**, writes permanent claims into `Atoms/`, and leaves **markers** so nothing reprocesses. Person hubs you already have (e.g. `Alex`) get links and backlinks—no CRM, no AI folders.
+The loop is simple:
+
+1. **Dump** — capture a thought instantly (phone shortcut or a bullet in Daily Notes). No filing UI, no folders, no “where does this go?”
+2. **File** — Atoms classifies **past** captures into flat notes under `Atoms/` (title, tags, reason-bearing links). Your original words stay **verbatim** as the body.
+3. **Recall** — home resurfaces filed notes (For you / mind-change / library) so you’re not stuck in a guilt task list. Open any atom in Obsidian and keep writing.
+
+It’s a **second brain inside your vault**, not a separate app and not a CRM. Person hubs you already keep get real links and backlinks.
 
 **Plugin id:** `atoms` · **Version:** see `manifest.json` · **Requires:** Obsidian ≥ 1.11.4, core **Daily Notes**, Anthropic API key
 
@@ -12,7 +18,8 @@ Capture on your phone (iOS Shortcut → daily note). Atoms classifies each bulle
 
 - Each classify run sends **vault note titles**, tags, person-hub **titles**, and the **capture text** to the Anthropic API over TLS.
 - You supply your own API key (SecretStorage). That usage is **optional paid** Anthropic billing — the plugin itself is free (MIT).
-- The model never rewrites your hand-authored daily bullets; it only creates flat atom files and appends markers. **Existing atom files are never overwritten** on title collision.
+- The model never rewrites your hand-authored daily bullets. It creates flat atom files, appends markers, and (only when you choose **Update notes**) refreshes titles/links/tags on existing linker atoms — **never** the capture body.
+- On Process title collision, **existing atom files are not overwritten** (protect-existing).
 - Auto-run (device-local, default off) requires a one-time egress acknowledgment.
 
 ---
@@ -21,11 +28,12 @@ Capture on your phone (iOS Shortcut → daily note). Atoms classifies each bulle
 
 | Step | Behavior |
 |---|---|
-| **Capture** | Your job — iOS Shortcut or typing bullets (`- thought`) in Daily Notes |
-| **Classify** | Anthropic structured output: verdict, title, tags, links |
-| **Write** | New files only in a flat folder (default `Atoms/`) + append markers under past captures |
-| **People** | Vault-aware hubs + structural tags (`person`, `preferences`, `relationship`) |
-| **Home** | Mobile-first **Atoms** leaf: library, waiting queue, first-day setup, preview cards |
+| **Capture** | Instant dump — iOS Shortcut or typing bullets (`- thought`) in Daily Notes. Capture UI is not this plugin. |
+| **Classify** | Anthropic structured output: keepable **atom** vs logistics **noise** (task soft-retired). Title, tags, reason-bearing links. |
+| **Write** | New flat files (default `Atoms/`) + append markers under past captures so nothing reprocesses. |
+| **Update notes** | Optional: re-run the same AI path on older atoms so titles/links match newer filing quality; body stays put. |
+| **People** | Vault-aware person hubs + structural tags — no AI folders, no CRM. |
+| **Home** | Mobile-first leaf: wait to file, library, first-day setup, **For you** resurface (incl. mind-change), progress while Preview/Process runs. |
 
 ### Non-negotiables
 
@@ -33,7 +41,8 @@ Capture on your phone (iOS Shortcut → daily note). Atoms classifies each bulle
 - Never move files or invent folders
 - **Auto-run never processes today’s daily** (manual “Preview/Process today” exists for testing)
 - API key in SecretStorage (or device-local fallback), never in `data.json`
-- Two write types only: atom files + marker lines
+- Write types: new atom files · append-only markers · user-initiated Update notes (model surfaces only)
+- Second brain, not a task app — no due-date queue
 
 ---
 
@@ -66,7 +75,7 @@ Optional beta channel: install via [BRAT](https://obsidian.md/plugins?id=obsidia
 
 ## How to use (walkthrough)
 
-Empty vault → captures in Daily → file into a linked library. Screenshots are **phone-frame** product UI with synthetic dogfood (not personal notes).
+Empty vault → dump into Daily → file into a linked library → open notes in Obsidian whenever you want to expand them. Screenshots are **phone-frame** product UI with synthetic dogfood (not personal notes).
 
 ### 1. First open — empty home
 
@@ -76,7 +85,7 @@ Open **Atoms** from the ribbon (library icon) or command palette → **Open home
 
 ### 2. Capture as daily bullets
 
-Write top-level bullets in a **past** daily note (or today’s note if you only want to test later with “including today”). Phone shortcut or desktop typing both work.
+Get it out of your head: top-level bullets in a **past** daily note (or today’s note if you only want to test later with “including today”). Phone shortcut or desktop typing both work.
 
 ![Past daily note with unprocessed capture bullets](docs/media/readme/02-daily-captures.png)
 
@@ -88,13 +97,13 @@ When past days have unmarked bullets, home shows a **waiting** card (and a queue
 
 ### 4. Library after filing
 
-Filed claims land as flat notes under `Atoms/`. Home lists them with optional person / work chips. Tap a row to open the atom.
+Filed claims land as flat notes under `Atoms/`. Home lists them with optional person / work chips. Tap a row to open the atom in Obsidian and keep writing.
 
 ![Atoms library populated with filed notes and link chips](docs/media/readme/04-library-populated.png)
 
 ### 5. An atom note
 
-Each atom keeps your capture text **verbatim**, plus frontmatter (`source`, tags, `generated-by`) and reason-bearing links the model proposed.
+Each atom keeps your capture text **verbatim**, plus frontmatter (`created`, `source`, tags, `generated-by`, quality stamps) and reason-bearing links the model proposed. Expand the note like any other Obsidian file.
 
 ![Example atom note with verbatim body and person link](docs/media/readme/05-atom-note.png)
 
@@ -110,11 +119,16 @@ Link to a person note you already keep (e.g. `People/Jordan`). Backlinks surface
 
 ![Atoms plugin settings](docs/media/readme/07-settings-atoms.png)
 
+### After you’re set up
+
+- **For you** on home gently resurfaces filed atoms (calendar day, connections, quiet spacing) and mind-change pairs when you revised yourself — stream, not a review queue.
+- **Update notes** (home strip or command) refreshes older atoms to current filing quality when the pipeline improves; original capture text still never changes.
+
 ---
 
 ## Capture (phone)
 
-1. Write **bullets** in today’s daily (`- What's on your mind?`).
+1. Dump a thought as a **bullet** in today’s daily (`- What's on your mind?`).
 2. Install shortcut from **Settings → Capture** (or Atoms home → Install).
 3. Shortcut should append a line like `- your text` (dash added for you).
 4. **Tomorrow** (or use **Preview today / Process today** to test): Atoms home → Preview → Process.
@@ -145,6 +159,7 @@ README screenshots use **`docs/media/demo-vault/`** with fictional sample notes 
 - **Open home**
 - **Dry-run: preview classifications** / **including today (test)**
 - **Process unprocessed captures** / **including today (test)**
+- **Update notes (refresh older atoms to current quality)**
 - **Test connection**
 - **Backfill: estimate cost & confirm batch**
 
