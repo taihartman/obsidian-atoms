@@ -4,6 +4,7 @@ import {
   calendarDayDelta,
   citatorLinesForAtom,
   claimBodyForDisplay,
+  connectedKicker,
   cueLabel,
   extractSupersessionEdges,
   formatCueDate,
@@ -107,11 +108,38 @@ describe("connected + quiet + priority", () => {
     },
   ];
 
-  it("connected shares link chip with recent seed", () => {
+  it("connected shares non-soft chip with recent seed and names it", () => {
     const seeds = new Set(["Atoms/Recent.md"]);
     const c = listConnectedCandidates(indexed, seeds);
     expect(c.map((x) => x.path)).toContain("Atoms/About Alex.md");
     expect(c[0]!.cue).toBe("connected");
+    expect(c[0]!.connectedVia).toBe("Alex");
+    expect(c[0]!.connectedSeedTitle).toBe("Recent");
+  });
+
+  it("People-only share does not create connected", () => {
+    const peopleOnly: IndexedAtom[] = [
+      {
+        path: "Atoms/New.md",
+        title: "New",
+        bodySnippet: "x",
+        matchDate: "2026-07-14",
+        mtime: 1_000_000,
+        linkChips: ["People"],
+        content: "",
+      },
+      {
+        path: "Atoms/Old.md",
+        title: "Old",
+        bodySnippet: "y",
+        matchDate: "2026-01-01",
+        mtime: 500_000,
+        linkChips: ["People"],
+        content: "",
+      },
+    ];
+    const c = listConnectedCandidates(peopleOnly, new Set(["Atoms/New.md"]));
+    expect(c).toHaveLength(0);
   });
 
   it("quiet prefers aged mtime", () => {
@@ -211,7 +239,8 @@ describe("copy helpers", () => {
   it("human dates and calm cue labels", () => {
     expect(formatCueDate("2024-07-15")).toBe("Jul 15, 2024");
     expect(cueLabel("quiet")).toBe("Worth meeting again");
-    expect(cueLabel("connected")).toMatch(/recent/i);
+    // Opaque "Related to something recent" must never ship as connected kicker.
+    expect(cueLabel("connected")).not.toMatch(/something recent/i);
   });
 });
 

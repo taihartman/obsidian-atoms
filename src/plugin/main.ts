@@ -53,6 +53,12 @@ import {
   summaryFromWrite,
 } from "../home/runProgress";
 import {
+  buildLandPeak,
+  landAtomsFromRefreshItems,
+  landAtomsFromWriteEntries,
+  type LandPeak,
+} from "../home/landPeak";
+import {
   canBuildContext,
   enableAutomaticFiling,
   localDateString,
@@ -212,8 +218,27 @@ export default class AtomsPlugin extends Plugin {
     );
   }
 
-  private finishHomeRun(summaryText: string): void {
-    this.forEachAtomsHome((v) => v.finishRun(summaryText));
+  private finishHomeRun(
+    summaryText: string,
+    landPeak?: LandPeak | null,
+  ): void {
+    this.forEachAtomsHome((v) => v.finishRun(summaryText, landPeak));
+  }
+
+  private hasOpenAtomsHome(): boolean {
+    return this.app.workspace.getLeavesOfType(ATOMS_HOME_VIEW_TYPE).length > 0;
+  }
+
+  private landPeakFromWrite(
+    report: WritePathReport,
+    source: "process" | "autorun",
+  ): LandPeak {
+    const atoms = landAtomsFromWriteEntries(report.entries);
+    return buildLandPeak({
+      source,
+      atoms,
+      markersAppended: report.markersAppended,
+    });
   }
 
   private failHomeRun(message?: string): void {
@@ -266,7 +291,11 @@ export default class AtomsPlugin extends Plugin {
       });
       this.lastRefreshReport = report;
       const summary = formatUpdateSummary(report.updated, report.failed);
-      this.finishHomeRun(summary);
+      const landPeak = buildLandPeak({
+        source: "update",
+        atoms: landAtomsFromRefreshItems(report.updatedItems ?? []),
+      });
+      this.finishHomeRun(summary, landPeak);
       new Notice(
         `Atoms: updated ${report.updated}, renamed ${report.renamed}, markers ${report.markersRepaired}, failed ${report.failed}`,
       );
@@ -448,7 +477,15 @@ export default class AtomsPlugin extends Plugin {
         new Notice(
           `Atoms: filed ${filed} capture${filed === 1 ? "" : "s"} (${report.atomsCreated} atom${report.atomsCreated === 1 ? "" : "s"})`,
         );
-        await this.refreshAtomsHomeLeaves();
+        if (this.hasOpenAtomsHome()) {
+          const summary = formatRunSummary(summaryFromWrite(report));
+          this.finishHomeRun(
+            summary,
+            this.landPeakFromWrite(report, "autorun"),
+          );
+        } else {
+          await this.refreshAtomsHomeLeaves();
+        }
       }
       // Offline / all-failed without stamp: silent; retry same day on next open.
       devLog("[atoms] auto-run complete", {
@@ -800,7 +837,7 @@ export default class AtomsPlugin extends Plugin {
         })),
       });
       const summary = formatRunSummary(summaryFromWrite(report));
-      this.finishHomeRun(summary);
+      this.finishHomeRun(summary, this.landPeakFromWrite(report, "process"));
       {
         let notice = `Atoms: wrote ${report.atomsCreated} atom(s), ${report.markersAppended} marker(s), ${report.collisions} collision(s), ${report.failed} failed`;
         if (report.personHubMisses > 0) {

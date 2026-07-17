@@ -36,6 +36,7 @@ import {
   calendarDayDelta,
   citatorLinesForAtom,
   claimBodyForDisplay,
+  connectedKicker,
   cueLabel,
   formatCueDate,
   indexAtomFile,
@@ -96,6 +97,10 @@ import {
   snippetCapture,
   type RunPhase,
 } from "./runProgress";
+import {
+  landDisplayFromPeak,
+  type LandPeak,
+} from "./landPeak";
 
 export const ATOMS_HOME_VIEW_TYPE = "atoms-home";
 
@@ -187,6 +192,8 @@ export class AtomsHomeView extends ItemView {
   private runSnippet = "";
   private runSummaryText = "";
   private progressMount: HTMLElement | null = null;
+  /** Post-write land peak — survives library refresh until dismiss. */
+  private landPeak: LandPeak | null = null;
 
   constructor(leaf: WorkspaceLeaf, plugin: AtomsPlugin) {
     super(leaf);
@@ -246,6 +253,7 @@ export class AtomsHomeView extends ItemView {
     this.runTotal = 0;
     this.runSnippet = "";
     this.runSummaryText = "";
+    this.landPeak = null;
     this.render();
   }
 
@@ -267,11 +275,14 @@ export class AtomsHomeView extends ItemView {
     this.render();
   }
 
-  finishRun(summaryText: string): void {
+  finishRun(summaryText: string, landPeak?: LandPeak | null): void {
     this.busy = false;
     this.runPhase = "done";
     this.runSummaryText = summaryText;
     this.runSnippet = "";
+    if (landPeak !== undefined) {
+      this.landPeak = landPeak;
+    }
     void this.refresh();
   }
 
@@ -279,6 +290,7 @@ export class AtomsHomeView extends ItemView {
     this.busy = false;
     this.runPhase = "error";
     this.runSummaryText = message?.trim() || "Something went wrong";
+    this.landPeak = null;
     this.render();
   }
 
@@ -289,6 +301,13 @@ export class AtomsHomeView extends ItemView {
     this.runSnippet = "";
     this.runSummaryText = "";
     this.progressMount = null;
+    this.landPeak = null;
+  }
+
+  dismissLandPeak(): void {
+    this.landPeak = null;
+    this.clearRunUi();
+    void this.refresh();
   }
 
   private patchProgressMount(): void {
@@ -298,12 +317,77 @@ export class AtomsHomeView extends ItemView {
     this.fillProgressContent(el);
   }
 
-  private fillProgressContent(el: HTMLElement): void {
-    if (this.runPhase === "done" || this.runPhase === "error") {
-      el.createEl("h2", {
-        text: this.runPhase === "error" ? "Error" : "Done",
-      });
+  private fillLandPeakContent(el: HTMLElement): void {
+    el.createEl("p", {
+      cls: "atoms-home-card-eyebrow",
+      text: "Done",
+    });
+    if (!this.landPeak) {
+      el.createEl("h2", { text: "Done" });
       el.createEl("p", { text: this.runSummaryText });
+      button(el, {
+        grade: "secondary",
+        label: "Done",
+        className: "atoms-home-land-dismiss",
+        onClick: () => this.dismissLandPeak(),
+      });
+      return;
+    }
+    const d = landDisplayFromPeak(this.landPeak);
+    el.createEl("h2", { text: d.headline });
+    el.createEl("p", { text: d.body });
+    if (d.rows.length) {
+      const list = el.createDiv({ cls: "atoms-home-landed" });
+      for (const row of d.rows) {
+        const btn = list.createEl("button", {
+          cls: "atoms-home-landed-row",
+          attr: { type: "button" },
+        });
+        btn.createSpan({
+          cls: "atoms-home-landed-title",
+          text: row.title,
+        });
+        if (row.meta) {
+          btn.createSpan({
+            cls: "atoms-home-landed-meta",
+            text: row.meta,
+          });
+        }
+        btn.addEventListener("click", () => {
+          void this.openLandedAtom(row.path);
+        });
+      }
+      if (d.moreCount > 0) {
+        list.createDiv({
+          cls: "atoms-home-landed-more",
+          text: `and ${d.moreCount} more in Recent`,
+        });
+      }
+    }
+    const actions = actionRow(el, { className: "atoms-home-land-actions" });
+    button(actions, {
+      grade: "secondary",
+      label: "Done",
+      className: "atoms-home-land-dismiss",
+      onClick: () => this.dismissLandPeak(),
+    });
+  }
+
+  private async openLandedAtom(path: string): Promise<void> {
+    this.landPeak = null;
+    this.clearRunUi();
+    await this.openPathInVault(path);
+    void this.refresh();
+  }
+
+  private fillProgressContent(el: HTMLElement): void {
+    if (this.runPhase === "error") {
+      el.createEl("h2", { text: "Error" });
+      el.createEl("p", { text: this.runSummaryText });
+      return;
+    }
+    if (this.runPhase === "done") {
+      this.fillLandPeakContent(el);
       return;
     }
     const phase: "preview" | "process" | "update" =
@@ -573,11 +657,35 @@ export class AtomsHomeView extends ItemView {
       void this.onOpenResurface(card);
     });
 
-    kicker(el, { text: cueLabel(card.cue) });
+    const kickerText =
+      card.cue === "connected" ? connectedKicker(card) : cueLabel(card.cue);
+    kicker(el, { text: kickerText });
     el.createEl("p", {
       cls: "atoms-home-resurface-snippet",
       text: card.bodySnippet,
     });
+    if (card.cue === "connected" && (card.connectedVia || card.connectedSeedTitle)) {
+      const via = card.connectedVia?.trim();
+      const seed = card.connectedSeedTitle?.trim();
+      const bridge = el.createEl("button", {
+        cls: "atoms-home-connected-bridge",
+        attr: { type: "button" },
+      });
+      bridge.setText(
+        via
+          ? `Same thread · via ${via}`
+          : seed
+            ? `Because of ${seed}`
+            : "Related note",
+      );
+      bridge.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        const target = seed || via || "";
+        if (target) {
+          void this.app.workspace.openLinkText(target, card.path, false);
+        }
+      });
+    }
     const foot = el.createDiv({ cls: "atoms-home-resurface-foot" });
     foot.createEl("span", {
       cls: "atoms-home-resurface-title",

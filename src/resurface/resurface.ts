@@ -53,6 +53,12 @@ export type ResurfaceCandidate = {
   laterMatchDate?: string;
   /** mind-change: relation token */
   relation?: SupersessionRelation;
+  /** connected: recent seed title that grounds the edge */
+  connectedSeedTitle?: string;
+  /** connected: shared chip / person hub name */
+  connectedVia?: string;
+  /** connected: how the edge was ranked */
+  connectedKind?: "seed" | "person";
 };
 
 /** Typographic citator row (hard supersession edges only). */
@@ -430,8 +436,88 @@ export function recentSeedPaths(
   return new Set(sorted.slice(0, take).map((a) => a.path));
 }
 
+/** Soft index hubs — alone they never create a connected card. */
+export const CONNECTED_SOFT_HUBS = new Set(["people"]);
+
+export function isSoftConnectedHub(name: string): boolean {
+  return CONNECTED_SOFT_HUBS.has((name ?? "").trim().toLowerCase());
+}
+
+type ConnectedEdge = {
+  rank: number;
+  seedTitle: string;
+  via?: string;
+  kind: "seed" | "person";
+};
+
 /**
- * Associative cue: shares a link chip with a recent seed, or chip matches a seed title.
+ * Best honest edge between a candidate and recent seeds.
+ * rank 3 = title↔chip seed strength; rank 2 = shared non-soft chip.
+ * Soft hubs alone return null.
+ */
+export function bestConnectedEdge(
+  candidate: IndexedAtom,
+  seeds: IndexedAtom[],
+): ConnectedEdge | null {
+  let best: ConnectedEdge | null = null;
+  const candTitle = candidate.title.trim();
+  const candTitleL = candTitle.toLowerCase();
+  const candChips = candidate.linkChips.map((c) => c.trim()).filter(Boolean);
+
+  for (const seed of seeds) {
+    const seedTitle = seed.title.trim();
+    if (!seedTitle) continue;
+    const seedTitleL = seedTitle.toLowerCase();
+    const seedChips = seed.linkChips.map((c) => c.trim()).filter(Boolean);
+
+    const seedTitleOnCand = candChips.some(
+      (c) => c.toLowerCase() === seedTitleL,
+    );
+    const candTitleOnSeed = seedChips.some(
+      (c) => c.toLowerCase() === candTitleL,
+    );
+    if (seedTitleOnCand || candTitleOnSeed) {
+      const edge: ConnectedEdge = {
+        rank: 3,
+        seedTitle,
+        kind: "seed",
+      };
+      if (!best || edge.rank > best.rank) best = edge;
+      continue;
+    }
+
+    for (const chip of candChips) {
+      const chipL = chip.toLowerCase();
+      if (!seedChips.some((s) => s.toLowerCase() === chipL)) continue;
+      if (isSoftConnectedHub(chip)) continue;
+      const edge: ConnectedEdge = {
+        rank: 2,
+        seedTitle,
+        via: chip,
+        kind: "person",
+      };
+      if (!best || edge.rank > best.rank) best = edge;
+    }
+  }
+  return best;
+}
+
+/** Kicker for a connected candidate — always has an object. */
+export function connectedKicker(card: ResurfaceCandidate): string {
+  if (card.connectedKind === "person" && card.connectedVia?.trim()) {
+    return `Also about ${card.connectedVia.trim()}`;
+  }
+  if (card.connectedSeedTitle?.trim()) {
+    return `Because of ${card.connectedSeedTitle.trim()}`;
+  }
+  if (card.connectedVia?.trim()) {
+    return `Also about ${card.connectedVia.trim()}`;
+  }
+  return "Memory";
+}
+
+/**
+ * Associative cue: honest shared edge with a recent seed (named or silence).
  */
 export function listConnectedCandidates(
   indexed: IndexedAtom[],
@@ -439,23 +525,13 @@ export function listConnectedCandidates(
 ): ResurfaceCandidate[] {
   if (!seedPaths.size) return [];
   const seeds = indexed.filter((a) => seedPaths.has(a.path));
-  const seedTitles = new Set(seeds.map((s) => s.title.toLowerCase()));
-  const seedChips = new Set(
-    seeds.flatMap((s) => s.linkChips.map((c) => c.toLowerCase())),
-  );
+  if (!seeds.length) return [];
 
   const out: ResurfaceCandidate[] = [];
   for (const a of indexed) {
     if (seedPaths.has(a.path)) continue;
-    const chips = a.linkChips.map((c) => c.toLowerCase());
-    const titleL = a.title.toLowerCase();
-    const hit =
-      chips.some((c) => seedChips.has(c) || seedTitles.has(c)) ||
-      [...seedChips].some((c) => c === titleL) ||
-      seeds.some((s) =>
-        s.linkChips.some((c) => c.toLowerCase() === titleL),
-      );
-    if (!hit) continue;
+    const edge = bestConnectedEdge(a, seeds);
+    if (!edge) continue;
     out.push({
       path: a.path,
       title: a.title,
@@ -463,6 +539,9 @@ export function listConnectedCandidates(
       matchDate: a.matchDate || "",
       cue: "connected",
       mtime: a.mtime,
+      connectedSeedTitle: edge.seedTitle,
+      connectedVia: edge.via,
+      connectedKind: edge.kind,
     });
   }
   out.sort(
@@ -645,7 +724,8 @@ export function serializeThrottle(map: ResurfaceThrottleMap): string {
 export function cueLabel(cue: ResurfaceCue): string {
   if (cue === "mind-change") return "Mind change";
   if (cue === "on-this-day") return "On this day";
-  if (cue === "connected") return "Related to something recent";
+  // Connected uses connectedKicker(card) at render time — never opaque.
+  if (cue === "connected") return "Memory";
   if (cue === "quiet") return "Worth meeting again";
   return "Memory";
 }
