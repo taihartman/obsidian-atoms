@@ -19,6 +19,7 @@ import {
   planCreatedOrderBackfill,
   shouldShowWaitCard,
   titleFromAtomPath,
+  updateNotesConfirmCopy,
   updateNotesStripCopy,
 } from "../src/home/atomsHomeData";
 
@@ -386,11 +387,30 @@ new
 });
 
 describe("updateNotesStripCopy", () => {
-  it("locks product copy", () => {
+  it("locks product copy for small N", () => {
     const c = updateNotesStripCopy(3);
     expect(c.title).toBe("Filing got smarter");
     expect(c.button).toBe("Update");
     expect(c.body).toContain("3 older notes to match");
     expect(c.body).not.toMatch(/\bmodel\b/i);
+  });
+
+  it("uses calm large-N body without guilt count", () => {
+    const c = updateNotesStripCopy(800);
+    expect(c.body).toMatch(/matter most/i);
+    expect(c.body).not.toContain("800");
+  });
+});
+
+describe("updateNotesConfirmCopy", () => {
+  it("polish-only does not mention Anthropic key", () => {
+    const t = updateNotesConfirmCopy({ refileBatch: 0, polishable: 12 });
+    expect(t.toLowerCase()).toMatch(/free/);
+    expect(t).not.toMatch(/Anthropic/i);
+  });
+
+  it("refile mentions key", () => {
+    const t = updateNotesConfirmCopy({ refileBatch: 15, polishable: 0 });
+    expect(t).toMatch(/Anthropic/i);
   });
 });

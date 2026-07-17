@@ -18,6 +18,8 @@ export type LandPeak = {
   markersAppended?: number;
   /** Update notes: classify/write failures (do not treat as "nothing to update"). */
   failedCount?: number;
+  /** Update notes: free local polish count (Phase A). */
+  polishedCount?: number;
   /** Subtitle / short summary for chrome */
   summaryLine: string;
 };
@@ -37,16 +39,27 @@ export function formatLandHeadline(
   source: LandSource,
   atomCount: number,
   failedCount: number = 0,
+  polishedCount: number = 0,
 ): string {
   if (source === "update") {
-    if (atomCount <= 0 && failedCount <= 0) return "Nothing to update";
-    if (atomCount <= 0 && failedCount > 0) {
+    if (atomCount <= 0 && polishedCount <= 0 && failedCount <= 0) {
+      return "Nothing to update";
+    }
+    if (atomCount <= 0 && polishedCount <= 0 && failedCount > 0) {
       return failedCount === 1
         ? "Couldn't update 1 note"
         : `Couldn't update ${failedCount} notes`;
     }
+    if (atomCount <= 0 && polishedCount > 0) {
+      return polishedCount === 1
+        ? "Cleaned up 1 note"
+        : `Cleaned up ${polishedCount} notes`;
+    }
     if (failedCount > 0) {
       return `Updated ${atomCount} · ${failedCount} failed`;
+    }
+    if (polishedCount > 0) {
+      return `Updated ${atomCount} · polished ${polishedCount}`;
     }
     return `Updated ${atomCount} note${atomCount === 1 ? "" : "s"}`;
   }
@@ -60,13 +73,20 @@ export function formatLandBody(
   atomCount: number,
   markersAppended?: number,
   failedCount: number = 0,
+  polishedCount: number = 0,
 ): string {
   if (source === "update") {
-    if (atomCount <= 0 && failedCount > 0) {
+    if (atomCount <= 0 && polishedCount <= 0 && failedCount > 0) {
       return "Check Settings → model id and API key, then try Update again.";
     }
     if (atomCount > 0 && failedCount > 0) {
       return "Some notes refreshed. Failed ones stay eligible — try Update again.";
+    }
+    if (atomCount <= 0 && polishedCount > 0) {
+      return "Cleaned up older link wording. Bodies unchanged.";
+    }
+    if (atomCount > 0 && polishedCount > 0) {
+      return "Titles and links refreshed; weak wording cleaned up. Bodies unchanged.";
     }
     return atomCount > 0
       ? "Titles and links refreshed. Bodies unchanged."
@@ -91,17 +111,28 @@ export function landDisplayFromPeak(peak: LandPeak): LandDisplay {
   const rows = peak.atoms.slice(0, LAND_TITLE_CAP);
   const moreCount = Math.max(0, peak.atomCount - rows.length);
   const failed = peak.failedCount ?? 0;
+  const polished = peak.polishedCount ?? 0;
   return {
-    headline: formatLandHeadline(peak.source, peak.atomCount, failed),
+    headline: formatLandHeadline(
+      peak.source,
+      peak.atomCount,
+      failed,
+      polished,
+    ),
     body: formatLandBody(
       peak.source,
       peak.atomCount,
       peak.markersAppended,
       failed,
+      polished,
     ),
     rows,
     moreCount,
-    isFailure: peak.source === "update" && failed > 0,
+    isFailure:
+      peak.source === "update" &&
+      failed > 0 &&
+      peak.atomCount <= 0 &&
+      polished <= 0,
   };
 }
 
@@ -110,17 +141,33 @@ export function buildLandPeak(opts: {
   atoms: LandedAtom[];
   markersAppended?: number;
   failedCount?: number;
+  polishedCount?: number;
+  /**
+   * Update notes: AI refile count for headlines (may differ from atoms.length
+   * when land rows show polish-only titles).
+   */
+  updatedCount?: number;
 }): LandPeak {
   const atoms = opts.atoms.filter((a) => (a.title ?? "").trim().length > 0);
-  const atomCount = atoms.length;
   const failedCount = Math.max(0, opts.failedCount ?? 0);
-  const summaryLine = formatLandHeadline(opts.source, atomCount, failedCount);
+  const polishedCount = Math.max(0, opts.polishedCount ?? 0);
+  const atomCount =
+    opts.source === "update" && opts.updatedCount !== undefined
+      ? Math.max(0, opts.updatedCount)
+      : atoms.length;
+  const summaryLine = formatLandHeadline(
+    opts.source,
+    atomCount,
+    failedCount,
+    polishedCount,
+  );
   return {
     source: opts.source,
     atoms,
     atomCount,
     markersAppended: opts.markersAppended,
     failedCount: failedCount > 0 ? failedCount : undefined,
+    polishedCount: polishedCount > 0 ? polishedCount : undefined,
     summaryLine,
   };
 }

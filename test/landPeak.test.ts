@@ -20,6 +20,7 @@ describe("formatLandHeadline", () => {
     expect(formatLandHeadline("update", 4)).toBe("Updated 4 notes");
     expect(formatLandHeadline("update", 0, 9)).toBe("Couldn't update 9 notes");
     expect(formatLandHeadline("update", 3, 6)).toBe("Updated 3 · 6 failed");
+    expect(formatLandHeadline("update", 0, 0, 5)).toBe("Cleaned up 5 notes");
   });
 });
 
@@ -33,6 +34,9 @@ describe("formatLandBody", () => {
     expect(formatLandBody("update", 2)).toMatch(/Bodies unchanged/);
     expect(formatLandBody("update", 0, undefined, 9)).toMatch(/model id/);
     expect(formatLandBody("update", 3, undefined, 6)).toMatch(/try Update again/);
+    expect(formatLandBody("update", 0, undefined, 0, 4)).toMatch(
+      /link wording/i,
+    );
   });
 });
 
@@ -47,6 +51,19 @@ describe("update failure land peak", () => {
     expect(d.headline).toBe("Couldn't update 9 notes");
     expect(d.isFailure).toBe(true);
     expect(d.body).toMatch(/model id/);
+  });
+
+  it("polish-only does not say Updated", () => {
+    const peak = buildLandPeak({
+      source: "update",
+      atoms: [{ title: "A", path: "Atoms/A.md" }],
+      polishedCount: 5,
+      updatedCount: 0,
+    });
+    const d = landDisplayFromPeak(peak);
+    expect(d.headline).toBe("Cleaned up 5 notes");
+    expect(d.headline).not.toMatch(/Updated/i);
+    expect(d.body).toMatch(/link wording/i);
   });
 });
 

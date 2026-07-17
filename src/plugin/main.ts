@@ -90,9 +90,11 @@ import {
   type CostEstimate,
 } from "../pipeline/backfill";
 import {
+  listLinkerAtoms,
   runRefreshEligibleAtoms,
   type RefreshReport,
 } from "../pipeline/refreshAtoms";
+import { isEligibleForUpdate } from "../pipeline/atomQuality";
 import { formatUpdateSummary } from "../home/runProgress";
 
 export default class AtomsPlugin extends Plugin {
@@ -265,18 +267,27 @@ export default class AtomsPlugin extends Plugin {
     limit?: number;
   }): Promise<void> {
     const usingFixtures = !!(opts?.fixtureResults && opts.fixtureResults.length);
+    const linker = await listLinkerAtoms(this.app, this.settings.atomFolder);
+    const needsApi =
+      usingFixtures || linker.some((a) => isEligibleForUpdate(a.content));
     const apiKey = usingFixtures
       ? this.getApiKey() || "fixture"
-      : this.requireApiKey();
-    if (!apiKey) return;
+      : needsApi
+        ? this.requireApiKey()
+        : this.getApiKey() || "polish-only";
+    if (needsApi && !apiKey) return;
 
     this.beginHomeRun("update");
-    new Notice("Atoms: updating older notes…");
+    new Notice(
+      needsApi
+        ? "Atoms: updating older notes…"
+        : "Atoms: cleaning up link wording…",
+    );
     try {
       const report = await runRefreshEligibleAtoms({
         app: this.app,
         contextProvider: this.contextProvider,
-        apiKey,
+        apiKey: apiKey || "polish-only",
         model: this.settings.model,
         activeVocabulary: this.settings.activeVocabulary,
         atomFolder: this.settings.atomFolder,
@@ -291,17 +302,30 @@ export default class AtomsPlugin extends Plugin {
         },
       });
       this.lastRefreshReport = report;
-      const summary = formatUpdateSummary(report.updated, report.failed);
+      const polished = report.polished ?? 0;
+      const summary = formatUpdateSummary(
+        report.updated,
+        report.failed,
+        polished,
+      );
+      const refileAtoms = landAtomsFromRefreshItems(
+        report.updatedItems ?? [],
+      );
+      const polishAtoms = landAtomsFromRefreshItems(
+        report.polishedItems ?? [],
+      );
       const landPeak = buildLandPeak({
         source: "update",
-        atoms: landAtomsFromRefreshItems(report.updatedItems ?? []),
+        atoms: refileAtoms.length > 0 ? refileAtoms : polishAtoms,
         failedCount: report.failed,
+        polishedCount: polished,
+        updatedCount: report.updated,
       });
       this.finishHomeRun(summary, landPeak);
       new Notice(
-        report.failed > 0 && report.updated <= 0
+        report.failed > 0 && report.updated <= 0 && polished <= 0
           ? `Atoms: couldn't update ${report.failed} note${report.failed === 1 ? "" : "s"} — check model id and API key`
-          : `Atoms: updated ${report.updated}, renamed ${report.renamed}, markers ${report.markersRepaired}, failed ${report.failed}`,
+          : `Atoms: polished ${polished}, updated ${report.updated}, renamed ${report.renamed}, failed ${report.failed}`,
       );
     } catch (e) {
       const msg = e instanceof Error ? e.message : "update failed";

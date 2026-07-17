@@ -8,6 +8,7 @@ import type { MetadataContextProvider } from "./context";
 import {
   CURRENT_ATOMS_QUALITY,
   isEligibleForUpdate,
+  isLinkerGenerated,
   localDateYmd,
   parseAtomsQuality,
   qualityStampLines,
@@ -20,17 +21,29 @@ import {
   listAtomPaths,
   sanitizeFilename,
 } from "./render";
-import { stripSelfReferentialLinks } from "./enrich/linkQuality";
-import type { ClassificationResult } from "../shared/types";
+import {
+  improveClassificationLinks,
+  isJunkLinkReason,
+  isWeakLinkReason,
+  stripSelfReferentialLinks,
+} from "./enrich/linkQuality";
+import {
+  extractLinkProseRegion,
+  parseLinkProse,
+} from "./parseLinkProse";
+import type { ClassificationLink, ClassificationResult } from "../shared/types";
 import type { PersonHub } from "./enrich/people";
 
 export const UPDATE_NOTES_BATCH_LIMIT = 15;
+/** Safety cap for free polish modifies per Update confirm. */
+export const POLISH_BATCH_LIMIT = 500;
 
 export type EligibleAtom = {
   path: string;
   title: string;
   content: string;
   quality: number;
+  mtime?: number;
 };
 
 /** Body after YAML frontmatter. */
@@ -221,30 +234,248 @@ export function sourceDailyBasename(sourceWikilink: string): string | null {
   return m[1].trim().replace(/\.md$/i, "");
 }
 
-export async function listEligibleAtoms(
+/** Tags from frontmatter (simple list form). */
+export function parseTagsFromFrontmatter(content: string): string[] {
+  const fm =
+    content.startsWith("---") && content.indexOf("\n---", 3) !== -1
+      ? content.slice(0, content.indexOf("\n---", 3) + 4)
+      : "";
+  if (/^tags:\s*\[\]\s*$/m.test(fm)) return [];
+  const tags: string[] = [];
+  let inTags = false;
+  for (const line of fm.split(/\r?\n/)) {
+    if (/^tags:\s*$/.test(line)) {
+      inTags = true;
+      continue;
+    }
+    if (inTags) {
+      const item = line.match(/^\s*-\s+(.+)$/);
+      if (item) {
+        tags.push(item[1]!.trim().replace(/^#/, ""));
+        continue;
+      }
+      if (/^\w/.test(line)) break;
+    }
+  }
+  return tags;
+}
+
+function linksEqual(a: ClassificationLink[], b: ClassificationLink[]): boolean {
+  if (a.length !== b.length) return false;
+  return a.every(
+    (l, i) =>
+      l.note === b[i]!.note &&
+      (l.reason ?? "").trim() === (b[i]!.reason ?? "").trim(),
+  );
+}
+
+/**
+ * Local polish: rewrite weak/junk/self link prose without API.
+ * Does not bump atoms-quality. Returns null when no change.
+ */
+export function planLocalPolish(opts: {
+  path: string;
+  title: string;
+  content: string;
+  today?: string;
+}): { path: string; content: string; captureText: string } | null {
+  if (!isLinkerGenerated(opts.content)) return null;
+  const captureText = extractCaptureBody(opts.content);
+  const prose = extractLinkProseRegion(opts.content);
+  const parsed = parseLinkProse(prose);
+  // Need structured links to polish; empty-link atoms go to refile
+  if (!parsed.length) return null;
+
+  const { existingAliases } = parseImmutableFrontmatter(opts.content);
+  let result: ClassificationResult = {
+    verdict: "atom",
+    title: opts.title,
+    tags: parseTagsFromFrontmatter(opts.content),
+    proposed_tags: [],
+    links: parsed,
+  };
+
+  result = improveClassificationLinks(captureText, result);
+  result = stripSelfReferentialLinks(result, {
+    alsoSelf: [opts.title, ...existingAliases],
+  });
+
+  if (linksEqual(result.links, parsed)) return null;
+
+  const content = buildPolishedAtomMarkdown({
+    oldContent: opts.content,
+    captureText,
+    result,
+    title: opts.title,
+    today: opts.today,
+  });
+  if (content === opts.content) return null;
+  return { path: opts.path, content, captureText };
+}
+
+/** Rebuild atom keeping quality stamp; only link region + optional links-polished. */
+export function buildPolishedAtomMarkdown(opts: {
+  oldContent: string;
+  captureText: string;
+  result: ClassificationResult;
+  title: string;
+  today?: string;
+}): string {
+  const today = opts.today ?? localDateYmd();
+  const quality = parseAtomsQuality(opts.oldContent);
+  const { created, sourceWikilink, existingAliases } = parseImmutableFrontmatter(
+    opts.oldContent,
+  );
+  const result = keepAsAtomResult(opts.result, opts.title);
+  const tags =
+    (result.tags ?? []).length > 0
+      ? result.tags!.map((t) => t.replace(/^#/, ""))
+      : parseTagsFromFrontmatter(opts.oldContent);
+
+  const fm: string[] = ["---", `created: ${created}`];
+  if (existingAliases.length) {
+    fm.push("aliases:");
+    for (const a of existingAliases) fm.push(`  - ${JSON.stringify(a)}`);
+  }
+  if (sourceWikilink) {
+    fm.push(`source: "${sourceWikilink}"`);
+  }
+  fm.push("generated-by: linker");
+  if (quality > 0) {
+    fm.push(...qualityStampLines(today, quality).lines);
+  }
+  fm.push(`links-polished: ${today}`);
+  if (tags.length) {
+    fm.push("tags:");
+    for (const t of tags) fm.push(`  - ${t}`);
+  } else {
+    fm.push("tags: []");
+  }
+  fm.push("---", "");
+  const body = formatAtomBody(opts.captureText, result);
+  return fm.join("\n") + body + (body.endsWith("\n") ? "" : "\n");
+}
+
+export type LinkStats = {
+  linkCount: number;
+  weakOrJunkCount: number;
+  brokenCount: number;
+};
+
+export function computeLinkStats(
+  content: string,
+  vaultTitles: Set<string>,
+): LinkStats {
+  const prose = extractLinkProseRegion(content);
+  const links = parseLinkProse(prose);
+  let weakOrJunkCount = 0;
+  let brokenCount = 0;
+  for (const l of links) {
+    const reason = (l.reason ?? "").trim();
+    if (isWeakLinkReason(reason) || isJunkLinkReason(reason)) {
+      weakOrJunkCount += 1;
+    }
+    const key = l.note.trim().toLowerCase();
+    if (key && !vaultTitles.has(key)) brokenCount += 1;
+  }
+  // Unparsed prose with wikilinks still counts as having links
+  if (!links.length && /\[\[.+\]\]/.test(prose)) {
+    return { linkCount: 1, weakOrJunkCount: 0, brokenCount: 0 };
+  }
+  return {
+    linkCount: links.length,
+    weakOrJunkCount,
+    brokenCount,
+  };
+}
+
+export function isPolishableContent(content: string, title: string): boolean {
+  return planLocalPolish({ path: "", title, content }) !== null;
+}
+
+export function refileScore(opts: {
+  quality: number;
+  stats: LinkStats;
+  mtime: number;
+}): number {
+  // Higher = more urgent for AI refile. Only meaningful when q < CURRENT.
+  let s = 0;
+  if (opts.stats.linkCount === 0) s += 1000;
+  if (
+    opts.stats.linkCount > 0 &&
+    opts.stats.weakOrJunkCount >= opts.stats.linkCount
+  ) {
+    s += 800;
+  }
+  s += opts.stats.brokenCount * 50;
+  // Newer recents slightly preferred over pure oldest (product: meet again)
+  s += Math.min(200, Math.floor(opts.mtime / 1e10));
+  // Older quality debt: slight boost for lower quality
+  s += Math.max(0, 10 - opts.quality);
+  return s;
+}
+
+export function rankRefileCandidates(
+  items: Array<EligibleAtom & { stats: LinkStats; mtime: number }>,
+  limit: number = UPDATE_NOTES_BATCH_LIMIT,
+  current: number = CURRENT_ATOMS_QUALITY,
+): EligibleAtom[] {
+  const eligible = items.filter((i) => i.quality < current);
+  eligible.sort((a, b) => {
+    const sa = refileScore({
+      quality: a.quality,
+      stats: a.stats,
+      mtime: a.mtime,
+    });
+    const sb = refileScore({
+      quality: b.quality,
+      stats: b.stats,
+      mtime: b.mtime,
+    });
+    if (sb !== sa) return sb - sa;
+    return a.path.localeCompare(b.path);
+  });
+  return eligible.slice(0, limit).map(({ stats: _s, mtime: _m, ...rest }) => rest);
+}
+
+export async function listLinkerAtoms(
   app: App,
   atomFolder: string,
-  limit: number = UPDATE_NOTES_BATCH_LIMIT,
-): Promise<EligibleAtom[]> {
+): Promise<Array<EligibleAtom & { mtime: number }>> {
   const folder = clampAtomFolder(atomFolder);
-  const out: EligibleAtom[] = [];
+  const out: Array<EligibleAtom & { mtime: number }> = [];
   const files = app.vault
     .getMarkdownFiles()
-    .filter((f) => f.path === folder || f.path.startsWith(`${folder}/`))
-    .sort((a, b) => a.stat.mtime - b.stat.mtime);
+    .filter((f) => f.path === folder || f.path.startsWith(`${folder}/`));
 
   for (const f of files) {
-    if (out.length >= limit) break;
     const content = await app.vault.read(f);
-    if (!isEligibleForUpdate(content)) continue;
+    if (!isLinkerGenerated(content)) continue;
     out.push({
       path: f.path,
       title: f.basename,
       content,
       quality: parseAtomsQuality(content),
+      mtime: f.stat.mtime,
     });
   }
   return out;
+}
+
+export async function listEligibleAtoms(
+  app: App,
+  atomFolder: string,
+  limit: number = UPDATE_NOTES_BATCH_LIMIT,
+): Promise<EligibleAtom[]> {
+  const all = await listLinkerAtoms(app, atomFolder);
+  const vaultTitles = new Set(
+    app.vault.getMarkdownFiles().map((f) => f.basename.toLowerCase()),
+  );
+  const withStats = all.map((a) => ({
+    ...a,
+    stats: computeLinkStats(a.content, vaultTitles),
+  }));
+  return rankRefileCandidates(withStats, limit);
 }
 
 export function countEligibleAtomsFromContents(
@@ -326,13 +557,20 @@ export function planRefreshApply(opts: {
 
 export type RefreshReport = {
   scanned: number;
+  /** Free local polish count (Phase A). */
+  polished: number;
+  /** AI refile count (Phase B). */
   updated: number;
   renamed: number;
   markersRepaired: number;
   failed: number;
   skipped: number;
-  /** Paths/titles successfully refreshed (for land peak). */
+  /** Paths/titles successfully refiled (for land peak). */
   updatedItems: Array<{ title: string; path: string }>;
+  /** Paths/titles successfully polished. */
+  polishedItems: Array<{ title: string; path: string }>;
+  /** True when Phase B attempted classify (API or fixtures). */
+  usedApi: boolean;
 };
 
 export type RunRefreshOptions = {
@@ -343,46 +581,139 @@ export type RunRefreshOptions = {
   activeVocabulary: string[];
   atomFolder: string;
   limit?: number;
+  polishLimit?: number;
   classifyDeps?: Partial<ClassifyDeps>;
   onProgress?: (
     done: number,
     total: number,
     meta?: { captureText?: string },
   ) => void;
-  /** Fixture classifications (tests) — sequential order of eligible list. */
+  /** Fixture classifications (tests) — sequential order of refile list. */
   fixtureResults?: ClassificationResult[];
+  /** Skip Phase A (tests). */
+  skipPolish?: boolean;
+  /** Skip Phase B (tests). */
+  skipRefile?: boolean;
 };
 
 /**
- * Refresh eligible atoms via same classifyCapture path as Process.
+ * Smart refresh: Phase A free polish, Phase B ranked Process-parity refile.
  */
 export async function runRefreshEligibleAtoms(
   opts: RunRefreshOptions,
 ): Promise<RefreshReport> {
-  const limit = opts.limit ?? UPDATE_NOTES_BATCH_LIMIT;
-  const eligible = await listEligibleAtoms(opts.app, opts.atomFolder, limit);
+  const refileLimit = opts.limit ?? UPDATE_NOTES_BATCH_LIMIT;
+  const polishLimit = opts.polishLimit ?? POLISH_BATCH_LIMIT;
   const report: RefreshReport = {
-    scanned: eligible.length,
+    scanned: 0,
+    polished: 0,
     updated: 0,
     renamed: 0,
     markersRepaired: 0,
     failed: 0,
     skipped: 0,
     updatedItems: [],
+    polishedItems: [],
+    usedApi: false,
   };
-  if (!eligible.length) return report;
 
+  const all = await listLinkerAtoms(opts.app, opts.atomFolder);
+  report.scanned = all.length;
+  const vaultTitles = new Set(
+    opts.app.vault.getMarkdownFiles().map((f) => f.basename.toLowerCase()),
+  );
+
+  // --- Phase A: local polish ---
+  const polishPlans: Array<{
+    path: string;
+    title: string;
+    content: string;
+    captureText: string;
+  }> = [];
+  if (!opts.skipPolish) {
+    for (const item of all) {
+      if (polishPlans.length >= polishLimit) break;
+      const plan = planLocalPolish({
+        path: item.path,
+        title: item.title,
+        content: item.content,
+      });
+      if (plan) {
+        polishPlans.push({
+          path: plan.path,
+          title: item.title,
+          content: plan.content,
+          captureText: plan.captureText,
+        });
+      }
+    }
+  }
+
+  const withStats = all.map((a) => {
+    // Prefer polished content for refile ranking when we will polish first
+    const polished = polishPlans.find((p) => p.path === a.path);
+    const content = polished?.content ?? a.content;
+    return {
+      ...a,
+      content,
+      stats: computeLinkStats(content, vaultTitles),
+    };
+  });
+  const refileList = opts.skipRefile
+    ? []
+    : rankRefileCandidates(withStats, refileLimit);
+
+  const totalSteps = polishPlans.length + refileList.length;
+  let done = 0;
+
+  for (const plan of polishPlans) {
+    opts.onProgress?.(done, totalSteps || 1, {
+      captureText: plan.captureText,
+    });
+    try {
+      const file = opts.app.vault.getAbstractFileByPath(plan.path);
+      if (!(file instanceof TFile)) {
+        report.failed += 1;
+        done += 1;
+        continue;
+      }
+      await opts.app.vault.modify(file, plan.content);
+      report.polished += 1;
+      report.polishedItems.push({ title: plan.title, path: plan.path });
+    } catch {
+      report.failed += 1;
+    }
+    done += 1;
+  }
+
+  if (!refileList.length) {
+    opts.onProgress?.(totalSteps, totalSteps || 1);
+    return report;
+  }
+
+  report.usedApi = true;
   const ctx = opts.contextProvider.buildContext();
   const existing = listAtomPaths(opts.app, opts.atomFolder);
   let fixtureIdx = 0;
 
-  for (let i = 0; i < eligible.length; i++) {
-    const item = eligible[i]!;
-    opts.onProgress?.(i, eligible.length, {
-      captureText: extractCaptureBody(item.content),
+  for (let i = 0; i < refileList.length; i++) {
+    const item = refileList[i]!;
+    // Re-read after polish may have rewritten the file
+    let liveContent = item.content;
+    try {
+      const f = opts.app.vault.getAbstractFileByPath(item.path);
+      if (f instanceof TFile) {
+        liveContent = await opts.app.vault.read(f);
+      }
+    } catch {
+      /* use planned content */
+    }
+
+    opts.onProgress?.(done, totalSteps, {
+      captureText: extractCaptureBody(liveContent),
     });
 
-    const captureText = extractCaptureBody(item.content);
+    const captureText = extractCaptureBody(liveContent);
     const hubs: PersonHub[] = (ctx.personHubDetails ?? []).map((d) => ({
       canonicalTitle: d.canonicalTitle,
       matchKeys: d.matchKeys,
@@ -402,6 +733,7 @@ export async function runRefreshEligibleAtoms(
       );
     } else if (opts.fixtureResults) {
       report.failed += 1;
+      done += 1;
       continue;
     } else {
       const outcome = await classifyCapture(captureText, ctx, {
@@ -412,6 +744,7 @@ export async function runRefreshEligibleAtoms(
       });
       if (!outcome.ok) {
         report.failed += 1;
+        done += 1;
         continue;
       }
       result = outcome.result;
@@ -420,7 +753,7 @@ export async function runRefreshEligibleAtoms(
     const plan = planRefreshApply({
       path: item.path,
       oldTitle: item.title,
-      oldContent: item.content,
+      oldContent: liveContent,
       result,
       atomFolder: opts.atomFolder,
       existingAtomPaths: existing,
@@ -430,11 +763,10 @@ export async function runRefreshEligibleAtoms(
       const file = opts.app.vault.getAbstractFileByPath(plan.path);
       if (!(file instanceof TFile)) {
         report.failed += 1;
+        done += 1;
         continue;
       }
 
-      // Write content first (in-place), then rename if needed.
-      // Prefer vault.rename only — fileManager.renameFile can hang in some vaults.
       await opts.app.vault.modify(file, plan.content);
       report.updated += 1;
 
@@ -476,9 +808,10 @@ export async function runRefreshEligibleAtoms(
     } catch {
       report.failed += 1;
     }
+    done += 1;
   }
 
-  opts.onProgress?.(eligible.length, eligible.length);
+  opts.onProgress?.(totalSteps, totalSteps || 1);
   return report;
 }
 

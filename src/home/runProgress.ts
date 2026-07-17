@@ -127,10 +127,26 @@ export function progressLabel(
   return `${verb} ${done} of ${total}`;
 }
 
-export function formatUpdateSummary(updated: number, failed: number): string {
-  if (updated <= 0 && failed <= 0) return "Nothing to update";
+export function formatUpdateSummary(
+  updated: number,
+  failed: number,
+  polished: number = 0,
+): string {
+  if (updated <= 0 && polished <= 0 && failed <= 0) return "Nothing to update";
+  if (updated <= 0 && polished > 0 && failed <= 0) {
+    return polished === 1
+      ? "Cleaned up link wording on 1 note."
+      : `Cleaned up link wording on ${polished} notes.`;
+  }
   if (failed > 0) {
-    return `Updated ${updated} note${updated === 1 ? "" : "s"} · ${failed} failed`;
+    const base =
+      updated > 0
+        ? `Updated ${updated} note${updated === 1 ? "" : "s"} · ${failed} failed`
+        : `Couldn't update ${failed} note${failed === 1 ? "" : "s"}`;
+    return polished > 0 ? `${base} · polished ${polished}` : base;
+  }
+  if (polished > 0) {
+    return `Updated ${updated} note${updated === 1 ? "" : "s"} · polished ${polished}.`;
   }
   return `Updated ${updated} note${updated === 1 ? "" : "s"} to current quality.`;
 }

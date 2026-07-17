@@ -10,7 +10,7 @@ import {
 import type AtomsPlugin from "../plugin/main";
 import {
   bodyAfterFrontmatter,
-  countEligibleUpdateNotes,
+  countUpdateWorkRemaining,
   extractSourceDay,
   filingHeroCopy,
   filterLinkedOnly,
@@ -22,6 +22,7 @@ import {
   planCreatedOrderBackfill,
   queuePeekTexts,
   shouldShowWaitCard,
+  titleFromAtomPath,
   updateNotesConfirmCopy,
   updateNotesStripCopy,
   type AtomLibraryEntry,
@@ -136,8 +137,10 @@ export class AtomsHomeView extends ItemView {
   private filter: FilterMode = "all";
   private entries: AtomLibraryEntry[] = [];
   private unprocessedCount = 0;
-  /** Linker atoms below CURRENT quality (for Update notes strip). */
+  /** Update work remaining: refile debt + polishable (for strip). */
   private eligibleUpdateCount = 0;
+  private updateRefileCount = 0;
+  private updatePolishableCount = 0;
   /** Unprocessed bullets on today's daily only (for force-test UI). */
   private todayUnprocessedCount = 0;
   private peek: Array<{ text: string; date: string }> = [];
@@ -507,9 +510,15 @@ export class AtomsHomeView extends ItemView {
       content: i.content,
       mtime: i.mtime,
     }));
-    this.eligibleUpdateCount = countEligibleUpdateNotes(
-      inputs.map((i) => i.content),
+    const work = countUpdateWorkRemaining(
+      inputs.map((i) => ({
+        content: i.content,
+        title: titleFromAtomPath(i.path),
+      })),
     );
+    this.eligibleUpdateCount = work.total;
+    this.updateRefileCount = work.refile;
+    this.updatePolishableCount = work.polishable;
     this.resurfaceThrottle = pruneThrottle(
       parseThrottleJson(
         this.app.loadLocalStorage(LS_RESURFACE_THROTTLE) as string | null,
@@ -1405,8 +1414,8 @@ export class AtomsHomeView extends ItemView {
   }
 
   private renderUpdateNotesStrip(scroll: HTMLElement): void {
-    const batch = Math.min(
-      this.eligibleUpdateCount,
+    const refileBatch = Math.min(
+      this.updateRefileCount,
       UPDATE_NOTES_BATCH_LIMIT,
     );
     const copy = updateNotesStripCopy(this.eligibleUpdateCount);
@@ -1420,7 +1429,11 @@ export class AtomsHomeView extends ItemView {
       grade: "primary",
       label: this.busy ? "…" : copy.button,
       disabled: this.busy,
-      onClick: () => this.confirmUpdateNotes(batch),
+      onClick: () =>
+        this.confirmUpdateNotes({
+          refileBatch,
+          polishable: this.updatePolishableCount,
+        }),
     });
     button(actions, {
       grade: "quiet",
@@ -1436,11 +1449,14 @@ export class AtomsHomeView extends ItemView {
     });
   }
 
-  private confirmUpdateNotes(batchCount: number): void {
+  private confirmUpdateNotes(opts: {
+    refileBatch: number;
+    polishable: number;
+  }): void {
     const modal = new Modal(this.app);
     modal.titleEl.setText("Filing got smarter");
     modal.contentEl.createEl("p", {
-      text: updateNotesConfirmCopy(batchCount),
+      text: updateNotesConfirmCopy(opts),
     });
     new Setting(modal.contentEl)
       .addButton((b) =>
