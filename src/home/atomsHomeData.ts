@@ -6,6 +6,7 @@ import {
   CURRENT_ATOMS_QUALITY,
   isEligibleForUpdate,
 } from "../pipeline/atomQuality";
+import { isPolishableContent } from "../pipeline/refreshAtoms";
 import { parseCaptures } from "../pipeline/parse";
 import { resolveCreatedField } from "../pipeline/render";
 
@@ -443,6 +444,23 @@ export function countEligibleUpdateNotes(
   return n;
 }
 
+/**
+ * Work remaining for Update strip: refile debt (q < CURRENT) + polishable links.
+ * Does not double-count for display when both — total = refile + polishable.
+ */
+export function countUpdateWorkRemaining(
+  entries: Array<{ content: string; title: string }>,
+  current: number = CURRENT_ATOMS_QUALITY,
+): { refile: number; polishable: number; total: number } {
+  let refile = 0;
+  let polishable = 0;
+  for (const e of entries) {
+    if (isEligibleForUpdate(e.content, current)) refile += 1;
+    if (isPolishableContent(e.content, e.title)) polishable += 1;
+  }
+  return { refile, polishable, total: refile + polishable };
+}
+
 /** Strip copy for Update notes (product strings). */
 export function updateNotesStripCopy(eligibleCount: number): {
   title: string;
@@ -453,16 +471,45 @@ export function updateNotesStripCopy(eligibleCount: number): {
   return {
     title: "Filing got smarter",
     body:
-      n === 1
-        ? "Update 1 older note to match? Titles and links may improve. Your original text stays the same."
-        : `Update ${n} older notes to match? Titles and links may improve. Your original text stays the same.`,
+      n === 0
+        ? "Older notes can use the new linking."
+        : n === 1
+          ? "Update 1 older note to match? Titles and links may improve. Your original text stays the same."
+          : n >= 50
+            ? "Older notes can use the new linking. We’ll start with the ones that matter most."
+            : `Update ${n} older notes to match? Titles and links may improve. Your original text stays the same.`,
     button: "Update",
   };
 }
 
-export function updateNotesConfirmCopy(batchCount: number): string {
-  const n = Math.max(0, batchCount);
-  return `Update ${n} note${n === 1 ? "" : "s"} to the newer filing quality? Titles and links may change. Your original capture text will not. Uses your Anthropic key.`;
+export type UpdateConfirmOpts = {
+  /** AI refile slots this pass (≤ batch limit). */
+  refileBatch: number;
+  /** Free polish candidates (may exceed batch). */
+  polishable: number;
+};
+
+export function updateNotesConfirmCopy(
+  batchCountOrOpts: number | UpdateConfirmOpts,
+): string {
+  if (typeof batchCountOrOpts === "number") {
+    const n = Math.max(0, batchCountOrOpts);
+    return `Update ${n} note${n === 1 ? "" : "s"} to the newer filing quality? Titles and links may change. Your original capture text will not. Uses your Anthropic key.`;
+  }
+  const refile = Math.max(0, batchCountOrOpts.refileBatch);
+  const polish = Math.max(0, batchCountOrOpts.polishable);
+  if (refile <= 0 && polish <= 0) {
+    return "Nothing needs a refresh right now.";
+  }
+  if (refile <= 0) {
+    return polish === 1
+      ? "Clean up link wording on 1 note? Free — no API key. Your original capture text will not change."
+      : `Clean up link wording on older notes (about ${polish})? Free — no API key. Your original capture text will not change.`;
+  }
+  if (polish <= 0) {
+    return `Update ${refile} note${refile === 1 ? "" : "s"} with the same AI as filing? Titles and links may change. Your original capture text will not. Uses your Anthropic key.`;
+  }
+  return `We’ll clean up weak link wording for free, then refresh up to ${refile} note${refile === 1 ? "" : "s"} with the same AI as filing. Titles and links may change. Your original capture text will not. Uses your Anthropic key.`;
 }
 
 /** True when this device will file past captures without a Process tap. */

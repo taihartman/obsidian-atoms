@@ -265,18 +265,31 @@ export default class AtomsPlugin extends Plugin {
     limit?: number;
   }): Promise<void> {
     const usingFixtures = !!(opts?.fixtureResults && opts.fixtureResults.length);
+    const { listLinkerAtoms } = await import("../pipeline/refreshAtoms");
+    const { isEligibleForUpdate: qualityEligible } = await import(
+      "../pipeline/atomQuality"
+    );
+    const linker = await listLinkerAtoms(this.app, this.settings.atomFolder);
+    const needsApi =
+      usingFixtures || linker.some((a) => qualityEligible(a.content));
     const apiKey = usingFixtures
       ? this.getApiKey() || "fixture"
-      : this.requireApiKey();
-    if (!apiKey) return;
+      : needsApi
+        ? this.requireApiKey()
+        : this.getApiKey() || "polish-only";
+    if (needsApi && !apiKey) return;
 
     this.beginHomeRun("update");
-    new Notice("Atoms: updating older notes…");
+    new Notice(
+      needsApi
+        ? "Atoms: updating older notes…"
+        : "Atoms: cleaning up link wording…",
+    );
     try {
       const report = await runRefreshEligibleAtoms({
         app: this.app,
         contextProvider: this.contextProvider,
-        apiKey,
+        apiKey: apiKey || "polish-only",
         model: this.settings.model,
         activeVocabulary: this.settings.activeVocabulary,
         atomFolder: this.settings.atomFolder,
@@ -291,17 +304,27 @@ export default class AtomsPlugin extends Plugin {
         },
       });
       this.lastRefreshReport = report;
-      const summary = formatUpdateSummary(report.updated, report.failed);
+      const polished = report.polished ?? 0;
+      const summary = formatUpdateSummary(
+        report.updated,
+        report.failed,
+        polished,
+      );
+      const landAtoms =
+        (report.updatedItems?.length ?? 0) > 0
+          ? landAtomsFromRefreshItems(report.updatedItems ?? [])
+          : landAtomsFromRefreshItems(report.polishedItems ?? []);
       const landPeak = buildLandPeak({
         source: "update",
-        atoms: landAtomsFromRefreshItems(report.updatedItems ?? []),
+        atoms: landAtoms,
         failedCount: report.failed,
+        polishedCount: polished,
       });
       this.finishHomeRun(summary, landPeak);
       new Notice(
-        report.failed > 0 && report.updated <= 0
+        report.failed > 0 && report.updated <= 0 && polished <= 0
           ? `Atoms: couldn't update ${report.failed} note${report.failed === 1 ? "" : "s"} — check model id and API key`
-          : `Atoms: updated ${report.updated}, renamed ${report.renamed}, markers ${report.markersRepaired}, failed ${report.failed}`,
+          : `Atoms: polished ${polished}, updated ${report.updated}, renamed ${report.renamed}, failed ${report.failed}`,
       );
     } catch (e) {
       const msg = e instanceof Error ? e.message : "update failed";

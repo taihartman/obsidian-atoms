@@ -76,7 +76,8 @@ processInbox(dryRun)
 | `pipeline/preview.ts` | Dry-run surface |
 | `pipeline/backfill.ts` | Batch API + estimate gate |
 | `pipeline/atomQuality.ts` | `CURRENT_ATOMS_QUALITY` + eligibility stamps |
-| `pipeline/refreshAtoms.ts` | Update notes: classify parity + in-place refresh |
+| `pipeline/refreshAtoms.ts` | Update notes: free local polish + ranked Process-parity refile |
+| `pipeline/parseLinkProse.ts` | Link-prose → structured links (offline polish) |
 | `pipeline/daily.ts` | Past dailies / today open helpers |
 | `pipeline/vocabulary.ts` | Active / vault / proposed tags |
 | `pipeline/enrich/*` | Post-classify repair: people, media, linkQuality, ideaRescue |

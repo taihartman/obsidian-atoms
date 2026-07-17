@@ -20,6 +20,7 @@ describe("formatLandHeadline", () => {
     expect(formatLandHeadline("update", 4)).toBe("Updated 4 notes");
     expect(formatLandHeadline("update", 0, 9)).toBe("Couldn't update 9 notes");
     expect(formatLandHeadline("update", 3, 6)).toBe("Updated 3 · 6 failed");
+    expect(formatLandHeadline("update", 0, 0, 5)).toBe("Cleaned up 5 notes");
   });
 });
 
@@ -33,6 +34,9 @@ describe("formatLandBody", () => {
     expect(formatLandBody("update", 2)).toMatch(/Bodies unchanged/);
     expect(formatLandBody("update", 0, undefined, 9)).toMatch(/model id/);
     expect(formatLandBody("update", 3, undefined, 6)).toMatch(/try Update again/);
+    expect(formatLandBody("update", 0, undefined, 0, 4)).toMatch(
+      /link wording/i,
+    );
   });
 });
 
