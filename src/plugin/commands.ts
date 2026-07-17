@@ -146,4 +146,12 @@ export function registerAtomsCommands(plugin: AtomsPlugin): void {
       void plugin.runUpdateNotes();
     },
   });
+
+  plugin.addCommand({
+    id: "open-atom-graph",
+    name: "Open atom graph",
+    callback: () => {
+      void plugin.runOpenAtomGraph();
+    },
+  });
 }
