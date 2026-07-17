@@ -123,6 +123,11 @@ export interface LinkerSettings {
    * Empty → fall back to built-in CAPTURE_SHORTCUT_INSTALL_URL constant.
    */
   captureShortcutInstallUrl: string;
+  /**
+   * Atoms Plus service base URL (dogfood override). Empty → default production host.
+   * Not a secret; session token stays device-local.
+   */
+  plusBaseUrl: string;
 }
 
 export const DEFAULT_SETTINGS: LinkerSettings = {
@@ -147,6 +152,7 @@ export const DEFAULT_SETTINGS: LinkerSettings = {
   proposedTags: [],
   useDeviceLocalKeyFallback: false,
   captureShortcutInstallUrl: "",
+  plusBaseUrl: "",
 };
 
 /** SecretStorage / localStorage keys — lowercase-dashed (KTD5). */

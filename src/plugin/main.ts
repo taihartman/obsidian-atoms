@@ -74,8 +74,11 @@ import {
 import {
   readPlusSession,
   resolveFilingAuth,
+  writePlusSession,
   type FilingAuth,
 } from "../platform/filingAuth";
+import { resolveClassifyAuth } from "../platform/classifyAuth";
+import { CURRENT_ATOMS_QUALITY } from "../pipeline/atomQuality";
 import {
   formatConnectivityConsole,
   runConnectivityTest,
@@ -275,12 +278,18 @@ export default class AtomsPlugin extends Plugin {
     const linker = await listLinkerAtoms(this.app, this.settings.atomFolder);
     const needsApi =
       usingFixtures || linker.some((a) => isEligibleForUpdate(a.content));
-    const apiKey = usingFixtures
+    let apiKey = usingFixtures
       ? this.getApiKey() || "fixture"
-      : needsApi
-        ? this.requireApiKey()
-        : this.getApiKey() || "polish-only";
-    if (needsApi && !apiKey) return;
+      : this.getApiKey() || "polish-only";
+    let plusDeps: import("../pipeline/classify").ClassifyDeps["plus"];
+    if (needsApi && !usingFixtures) {
+      const classifyAuth = this.requireClassifyAuth();
+      if (!classifyAuth) return;
+      apiKey = classifyAuth.apiKey || "plus";
+      plusDeps = classifyAuth.plus;
+    } else if (needsApi && !apiKey) {
+      return;
+    }
 
     this.beginHomeRun("update");
     new Notice(
@@ -300,6 +309,7 @@ export default class AtomsPlugin extends Plugin {
         fixtureResults: opts?.fixtureResults,
         classifyDeps: {
           maxAttempts: 2,
+          plus: plusDeps,
           onAuthFailure: (msg) => new Notice(`Atoms: ${msg}`),
         },
         onProgress: (done, total, meta) => {
@@ -452,10 +462,13 @@ export default class AtomsPlugin extends Plugin {
       return { ran: false, reason: "in_flight" };
     }
 
-    const apiKey = this.getApiKey();
-    if (!apiKey) {
+    const filing = this.resolveFilingAuth();
+    const classifyAuth = resolveClassifyAuth(filing, {
+      plusBaseUrl: this.settings.plusBaseUrl,
+    });
+    if (!classifyAuth.ok) {
       // Silent for auto path — manual commands still Notice. Do not stamp.
-      devLog("[atoms] auto-run skipped: no API key");
+      devLog("[atoms] auto-run skipped: no filing auth", classifyAuth.reason);
       return { ran: false, reason: "missing_key" };
     }
 
@@ -471,7 +484,7 @@ export default class AtomsPlugin extends Plugin {
       const report = await runWritePath({
         app: this.app,
         contextProvider: this.contextProvider,
-        apiKey,
+        apiKey: classifyAuth.apiKey,
         model: this.settings.model,
         activeVocabulary: this.settings.activeVocabulary,
         atomFolder: this.settings.atomFolder,
@@ -479,6 +492,7 @@ export default class AtomsPlugin extends Plugin {
         // never includeToday on auto-run
         classifyDeps: {
           maxAttempts: 2,
+          plus: classifyAuth.plus,
           // Auto-run: no auth spam Notices every hour — log only.
           onAuthFailure: (msg) => {
             devLog("[atoms] auto-run auth failure", msg);
@@ -809,6 +823,36 @@ export default class AtomsPlugin extends Plugin {
     return apiKey;
   }
 
+  /**
+   * BYOK or Plus credentials for Process/Preview/Update/auto-run (U3).
+   * Returns null after Notice when blocked.
+   */
+  private requireClassifyAuth():
+    | import("../platform/classifyAuth").ClassifyAuthOk
+    | null {
+    const auth = this.resolveFilingAuth();
+    const resolved = resolveClassifyAuth(auth, {
+      plusBaseUrl: this.settings.plusBaseUrl,
+      onRemaining: (remaining) => {
+        const session = readPlusSession(this.app);
+        if (!session) return;
+        const status =
+          remaining <= 0 ? "exhausted" : session.status === "trialing" ? "trialing" : "active";
+        writePlusSession(this.app, {
+          ...session,
+          remaining,
+          status,
+          refreshedAt: Date.now(),
+        });
+      },
+    });
+    if (!resolved.ok) {
+      new Notice(`Atoms: ${resolved.message}`);
+      return null;
+    }
+    return resolved;
+  }
+
   runLogContextPrefix() {
     const ctx = this.contextProvider.buildContext();
     const prefix = buildContextUserMessage(ctx);
@@ -834,8 +878,8 @@ export default class AtomsPlugin extends Plugin {
    * includeToday: manual force for testing on phone (never used by auto-run).
    */
   async runProcessUnprocessed(opts?: { includeToday?: boolean }) {
-    const apiKey = this.requireApiKey();
-    if (!apiKey) return;
+    const classifyAuth = this.requireClassifyAuth();
+    if (!classifyAuth) return;
 
     this.beginHomeRun("process");
     new Notice(
@@ -847,7 +891,7 @@ export default class AtomsPlugin extends Plugin {
       const report = await runWritePath({
         app: this.app,
         contextProvider: this.contextProvider,
-        apiKey,
+        apiKey: classifyAuth.apiKey,
         model: this.settings.model,
         activeVocabulary: this.settings.activeVocabulary,
         atomFolder: this.settings.atomFolder,
@@ -855,6 +899,7 @@ export default class AtomsPlugin extends Plugin {
         includeToday: opts?.includeToday,
         classifyDeps: {
           maxAttempts: 2,
+          plus: classifyAuth.plus,
           onAuthFailure: (msg) => new Notice(`Atoms: ${msg}`),
         },
         onProgress: (done, total, meta) => {
@@ -1012,8 +1057,8 @@ export default class AtomsPlugin extends Plugin {
    * Never creates atoms or appends markers (AE5).
    */
   async runDryRunPreview(opts?: { includeToday?: boolean }) {
-    const apiKey = this.requireApiKey();
-    if (!apiKey) return;
+    const classifyAuth = this.requireClassifyAuth();
+    if (!classifyAuth) return;
 
     this.beginHomeRun("preview");
     new Notice(
@@ -1025,16 +1070,18 @@ export default class AtomsPlugin extends Plugin {
       const report = await runDryRun({
         app: this.app,
         contextProvider: this.contextProvider,
-        apiKey,
+        apiKey: classifyAuth.apiKey,
         model: this.settings.model,
         activeVocabulary: this.settings.activeVocabulary,
         atomFolder: this.settings.atomFolder,
         // Bound work for interactive use; remainder stays unmarked for next run.
         maxCaptures: 15,
         includeToday: opts?.includeToday,
+        previewCacheQualityStamp: CURRENT_ATOMS_QUALITY,
         classifyDeps: {
           // Fail fast on network blips during preview (still retries once).
           maxAttempts: 2,
+          plus: classifyAuth.plus,
           onAuthFailure: (msg) => new Notice(`Atoms: ${msg}`),
         },
         onProgress: (done, total, meta) => {
