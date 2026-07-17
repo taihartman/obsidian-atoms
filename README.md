@@ -34,6 +34,7 @@ It’s a **second brain inside your vault**, not a separate app and not a CRM. P
 | **Update notes** | Optional: re-run the same AI path on older atoms so titles/links match newer filing quality; body stays put. |
 | **People** | Vault-aware person hubs + structural tags — no AI folders, no CRM. |
 | **Home** | Mobile-first leaf: wait to file, library, first-day setup, **For you** resurface (incl. mind-change), progress while Preview/Process runs. |
+| **Atom graph** | Command palette → **Open atom graph** — Global Graph filtered to atoms and notes they connect to (not the whole vault hairball). |
 
 ### Non-negotiables
 

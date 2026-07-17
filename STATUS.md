@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| *(none)* | | | | | | |
+| In progress | #83 | taihartman | feat/open-atom-graph | docs/plans/2026-07-17-003-feat-open-atom-graph-plan.md | src/graph/*, src/plugin/commands.ts, main.ts | Open atom graph command |
 
 ## How to claim (copy)
 

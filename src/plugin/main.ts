@@ -2,6 +2,7 @@ import { Notice, Plugin, WorkspaceLeaf, requestUrl } from "obsidian";
 import { ATOMS_HOME_VIEW_TYPE, AtomsHomeView } from "../home/atomsHomeView";
 import { clampAtomFolder } from "../pipeline/render";
 import { registerAtomsCommands } from "./commands";
+import { runOpenAtomGraph } from "../graph/openAtomGraph";
 
 /** Injected by esbuild: true in watch/dev, false in production Community builds. */
 declare const ATOMS_DEV_COMMANDS: boolean;
@@ -693,6 +694,11 @@ export default class AtomsPlugin extends Plugin {
       });
       new Notice("Atoms: connection test failed unexpectedly (see console)");
     }
+  }
+
+  /** Global Graph filtered to atoms + 1-hop connections (Issue #83). */
+  async runOpenAtomGraph(): Promise<void> {
+    await runOpenAtomGraph(this.app, this.settings.atomFolder);
   }
 
   async showAutoRunStatus() {
