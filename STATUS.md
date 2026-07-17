@@ -7,7 +7,8 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| *(none)* | | | | | | |
+| In progress | #71 | Tai | `feat/land-then-remember` | `docs/plans/2026-07-17-002-feat-land-then-remember-plan.md` | `landPeak.ts`, `atomsHomeView.ts`, `resurface.ts`, `main.ts` | Land peak + named connected; plan ready |
+| In review | #68 | Tai | `chore/drop-for-you-label` | (amend) | `atomsHomeView.ts` | Drop For you label — draft PR #69 |
 
 ## How to claim (copy)
 

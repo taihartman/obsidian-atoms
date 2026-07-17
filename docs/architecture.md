@@ -4,7 +4,7 @@ Living system map. Implementation detail and unit order live in the plan; this d
 
 ## Product UI (v0.4+)
 
-**Atoms home** (`ItemView` type `atoms-home`): one mobile-first leaf — recent atom library + dominant waiting card when past captures are unprocessed. Preview reuses dry-run; Process reuses write path. Live **progress card** during Preview/Process (`N of M` + snippet + bar; done summary; auto-run silent). **For you** multi-cue stream (mind-change → on-this-day → connected → quiet; soft throttle; no review queue). Mind-change v2: flat hero with serif-quoted fossil + pair-open (Then / connector / Now). Shared chrome via `src/ui/` kit. Design: `docs/design-handoff/tokens/README.md` (editorial tokens); contribute guide: `docs/components.md`.
+**Atoms home** (`ItemView` type `atoms-home`): one mobile-first leaf — recent atom library + dominant waiting card when past captures are unprocessed. Preview reuses dry-run; Process reuses write path. Live **progress card** during Preview/Process (`N of M` + snippet + bar; done summary; auto-run silent). Resurface multi-cue stream on home (mind-change → on-this-day → **named** connected → quiet; soft throttle; no review queue; no shelf label — cue kicker only). Post Process/Update/auto-run (home open): **land peak** (filed titles) freezes resurface until dismiss. Mind-change v2: flat hero with serif-quoted fossil + pair-open (Then / connector / Now). Shared chrome via `src/ui/` kit. Design: `docs/design-handoff/tokens/README.md` (editorial tokens); contribute guide: `docs/components.md`.
 
 ## North star
 

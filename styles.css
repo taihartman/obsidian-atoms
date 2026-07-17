@@ -906,6 +906,93 @@
   width: 0%;
 }
 
+/* Land peak (post Process / Update / auto-run) */
+.atoms-home-landed {
+  display: flex;
+  flex-direction: column;
+  margin: 4px 0 10px;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-secondary);
+}
+
+.atoms-home-landed-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  min-height: 48px;
+  padding: 12px 14px;
+  border: none;
+  border-bottom: 0.5px solid var(--background-modifier-border);
+  background: transparent;
+  color: var(--text-normal);
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+
+.atoms-home-landed-row:last-child {
+  border-bottom: none;
+}
+
+.atoms-home-landed-title {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.92rem;
+  font-weight: 550;
+  letter-spacing: -0.015em;
+}
+
+.atoms-home-landed-meta {
+  font-size: 0.75rem;
+  color: var(--text-faint);
+  font-weight: 500;
+}
+
+.atoms-home-landed-more {
+  padding: 10px 14px;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  border-top: 0.5px solid var(--background-modifier-border);
+}
+
+.atoms-home-land-actions {
+  margin-top: 4px;
+}
+
+.atoms-home-resurface-card .atoms-home-kicker,
+.atoms-ui-kicker {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.atoms-home-connected-bridge {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  margin: 0 0 8px;
+  padding: 8px 0;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+
+.atoms-home-connected-bridge:active {
+  opacity: 0.85;
+}
+
 /* Today — available but quieter than Ready */
 .atoms-home-try-today-card {
   display: flex;

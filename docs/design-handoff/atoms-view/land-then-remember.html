@@ -1,0 +1,1147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Atoms — Land, then remember (mock)</title>
+  <!--
+    Concept: Land, then remember
+    Visual authority: docs/design-handoff/tokens/README.md (v2 editorial)
+    Product: post-write peak is filing only; connected must name its reason or stay silent.
+  -->
+  <style>
+    :root, html[data-theme="dark"] {
+      --bg-primary: #000000;
+      --bg-secondary: #1c1c1e;
+      --bg-elevated: #2c2c2e;
+      --sep: rgba(84, 84, 88, 0.55);
+      --text-label: #ffffff;
+      --text-secondary: rgba(235, 235, 245, 0.6);
+      --text-tertiary: rgba(235, 235, 245, 0.32);
+      --tint: #0a84ff;
+      --person: #ff9f0a;
+      --work: #64d2ff;
+      --done: #30d158;
+      --error: #ff453a;
+      --mind: #bf5af2;
+      --person-soft: color-mix(in srgb, var(--person) 16%, transparent);
+      --work-soft: color-mix(in srgb, var(--work) 16%, transparent);
+      --tint-soft: color-mix(in srgb, var(--tint) 18%, transparent);
+      --done-soft: color-mix(in srgb, var(--done) 12%, transparent);
+      --done-border: color-mix(in srgb, var(--done) 32%, transparent);
+      --phone-border: #3a3a3c;
+      --page-bg: #121214;
+      --shadow: 0 28px 70px rgba(0,0,0,0.55);
+    }
+    html[data-theme="light"] {
+      --bg-primary: #f2f2f7;
+      --bg-secondary: #ffffff;
+      --bg-elevated: #e5e5ea;
+      --sep: rgba(60, 60, 67, 0.18);
+      --text-label: #000000;
+      --text-secondary: rgba(60, 60, 67, 0.72);
+      --text-tertiary: rgba(60, 60, 67, 0.42);
+      --tint: color-mix(in srgb, #0a84ff 75%, black);
+      --person: color-mix(in srgb, #ff9f0a 75%, black);
+      --work: color-mix(in srgb, #64d2ff 55%, black);
+      --done: color-mix(in srgb, #30d158 70%, black);
+      --error: color-mix(in srgb, #ff453a 75%, black);
+      --mind: color-mix(in srgb, #bf5af2 70%, black);
+      --person-soft: color-mix(in srgb, #ff9f0a 14%, var(--bg-secondary));
+      --work-soft: color-mix(in srgb, #64d2ff 14%, var(--bg-secondary));
+      --tint-soft: color-mix(in srgb, #0a84ff 14%, var(--bg-secondary));
+      --done-soft: color-mix(in srgb, #30d158 12%, var(--bg-secondary));
+      --done-border: color-mix(in srgb, #30d158 28%, var(--sep));
+      --phone-border: #c7c7cc;
+      --page-bg: #e8e8ed;
+      --shadow: 0 20px 50px rgba(0,0,0,0.12);
+    }
+    :root {
+      --radius-card: 16px;
+      --radius-btn: 12px;
+      --radius-chip: 6px;
+      --radius-pill: 980px;
+      --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+      --claim-serif: "New York", ui-serif, Georgia, "Times New Roman", serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: var(--font);
+      background: var(--page-bg);
+      color: var(--text-label);
+      -webkit-font-smoothing: antialiased;
+    }
+    .page { max-width: 1180px; margin: 0 auto; padding: 28px 18px 90px; }
+    .page > h1 {
+      font-size: 1.45rem; font-weight: 700; letter-spacing: -0.03em; margin: 0 0 8px;
+    }
+    .lede {
+      color: var(--text-secondary); max-width: 48rem; line-height: 1.5;
+      margin: 0 0 12px; font-size: 0.95rem;
+    }
+    .token-bar {
+      display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 18px;
+      font-size: 0.72rem; color: var(--text-tertiary);
+    }
+    .token-bar span {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 4px 10px; border-radius: var(--radius-pill);
+      background: var(--bg-secondary); border: 1px solid var(--sep);
+    }
+    .swatch { width: 10px; height: 10px; border-radius: 3px; }
+    .decisions {
+      background: var(--bg-secondary);
+      border: 1px solid var(--sep);
+      border-radius: var(--radius-card);
+      padding: 14px 16px;
+      margin-bottom: 18px;
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      line-height: 1.45;
+    }
+    .decisions strong { color: var(--text-label); font-weight: 600; }
+    .decisions ul { margin: 8px 0 0; padding-left: 1.15rem; }
+    .decisions li { margin: 4px 0; }
+    .out {
+      background: var(--bg-secondary);
+      border: 1px dashed var(--sep);
+      border-radius: var(--radius-card);
+      padding: 12px 16px;
+      margin-bottom: 22px;
+      font-size: 0.82rem;
+      color: var(--text-tertiary);
+      line-height: 1.45;
+    }
+    .out strong { color: var(--text-secondary); font-weight: 600; }
+    .toolbar {
+      display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; align-items: center;
+    }
+    .toolbar > span {
+      font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.12em;
+      color: var(--text-tertiary); font-weight: 600;
+      width: 100%;
+    }
+    @media (min-width: 700px) {
+      .toolbar > span { width: auto; }
+    }
+    .chip {
+      border: none; background: var(--bg-elevated); color: var(--text-secondary);
+      border-radius: var(--radius-pill); padding: 8px 14px;
+      font-size: 0.82rem; font-weight: 500; cursor: pointer;
+      min-height: 44px;
+    }
+    .chip.on {
+      background: var(--tint-soft);
+      color: var(--tint);
+    }
+    .chip.warn.on {
+      background: color-mix(in srgb, var(--error) 18%, transparent);
+      color: var(--error);
+    }
+
+    .stage {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 40px;
+      align-items: start;
+    }
+    @media (max-width: 900px) {
+      .stage { grid-template-columns: 1fr; justify-items: center; }
+      .side { max-width: 420px; width: 100%; }
+    }
+    .cap {
+      font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.12em;
+      color: var(--text-tertiary); text-align: center; margin-bottom: 10px; font-weight: 600;
+    }
+    .phone {
+      width: 375px;
+      height: 812px;
+      background: var(--bg-primary);
+      border-radius: 44px;
+      border: 4px solid var(--phone-border);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+    .status-bar {
+      height: 50px;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      padding-bottom: 8px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+    .nav { padding: 0 10px 10px 16px; flex-shrink: 0; }
+    .nav-top {
+      display: flex; justify-content: space-between; align-items: center; min-height: 40px;
+    }
+    .nav-btn {
+      border: none; background: transparent; color: var(--tint);
+      font-size: 1.2rem; min-width: 44px; min-height: 44px; cursor: pointer;
+    }
+    .large-title {
+      font-size: 2.05rem; font-weight: 700; letter-spacing: -0.045em;
+      margin: 0; line-height: 1.05;
+    }
+    .subtitle {
+      font-size: 0.9rem; color: var(--text-secondary); margin: 5px 0 0; letter-spacing: -0.01em;
+    }
+    .scroll {
+      flex: 1; overflow-y: auto; min-height: 0; padding: 6px 16px 28px;
+    }
+    .home-indicator {
+      height: 28px; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+    }
+    .home-indicator span {
+      width: 120px; height: 4px; border-radius: 3px; background: var(--text-label); opacity: 0.2;
+    }
+
+    .sec {
+      font-size: 0.95rem; font-weight: 650; letter-spacing: -0.02em;
+      margin: 4px 0 10px; color: var(--text-label);
+    }
+
+    .status {
+      border-radius: var(--radius-card);
+      padding: 16px;
+      margin-bottom: 18px;
+    }
+    .status.done {
+      background: var(--done-soft);
+      border: 1px solid var(--done-border);
+    }
+    .status .eyebrow {
+      font-size: 0.68rem; font-weight: 600; letter-spacing: 0.12em;
+      text-transform: uppercase; margin: 0 0 6px;
+      color: var(--done);
+    }
+    .status h2 {
+      margin: 0 0 6px; font-size: 1.15rem; font-weight: 650; letter-spacing: -0.02em;
+    }
+    .status p {
+      margin: 0 0 12px; font-size: 0.88rem; color: var(--text-secondary); line-height: 1.4;
+    }
+    .landed {
+      display: flex; flex-direction: column; gap: 0;
+      background: var(--bg-secondary);
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid var(--sep);
+      margin-bottom: 12px;
+    }
+    .landed button {
+      display: block; width: 100%; text-align: left;
+      border: none; background: transparent; color: var(--text-label);
+      padding: 12px 14px; font-size: 0.92rem; font-weight: 550;
+      letter-spacing: -0.015em; cursor: pointer;
+      border-bottom: 0.5px solid var(--sep);
+      min-height: 48px;
+    }
+    .landed button:last-child { border-bottom: none; }
+    .landed button:active { opacity: 0.85; }
+    .landed .meta {
+      display: block; font-size: 0.75rem; color: var(--text-tertiary);
+      font-weight: 500; margin-top: 3px;
+    }
+    .landed .title-line {
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .landed .more {
+      font-size: 0.82rem;
+      color: var(--text-secondary);
+      font-weight: 500;
+      padding: 12px 14px;
+      border-top: 0.5px solid var(--sep);
+    }
+    .btns { display: flex; gap: 10px; }
+    .btn {
+      flex: 1; min-height: 46px; border: none; border-radius: var(--radius-btn);
+      font-size: 0.95rem; font-weight: 600; letter-spacing: -0.01em; cursor: pointer;
+    }
+    .btn-p { background: var(--tint); color: #fff; }
+    .btn-s { background: var(--bg-elevated); color: var(--tint); }
+    html[data-theme="light"] .btn-p { color: #fff; }
+
+    /* For you — flat card (v2 editorial) */
+    .for-you {
+      position: relative;
+      background: var(--bg-secondary);
+      border: 1px solid var(--sep);
+      border-radius: var(--radius-card);
+      padding: 16px 16px 14px;
+      margin-bottom: 18px;
+      cursor: pointer;
+    }
+    .for-you.broken {
+      border-color: color-mix(in srgb, var(--error) 40%, var(--sep));
+    }
+    .for-you .kicker {
+      margin: 0 0 10px;
+      font-size: 0.68rem;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--tint);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .for-you.broken .kicker { color: var(--error); }
+    .for-you .kicker.mind { color: var(--mind); }
+    .for-you .snip {
+      margin: 0 0 10px;
+      font-family: var(--claim-serif);
+      font-size: 1.08rem;
+      font-weight: 400;
+      line-height: 1.42;
+      color: var(--text-label);
+      display: -webkit-box;
+      -webkit-line-clamp: 4;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .for-you .snip::before { content: "“"; color: var(--text-tertiary); }
+    .for-you .snip::after { content: "”"; color: var(--text-tertiary); }
+    .for-you .bridge {
+      display: block;
+      width: 100%;
+      text-align: left;
+      margin: 0 0 12px;
+      padding: 8px 0;
+      min-height: 44px;
+      border: none;
+      background: transparent;
+      font-size: 0.82rem;
+      color: var(--text-secondary);
+      line-height: 1.35;
+      cursor: pointer;
+      border-radius: 8px;
+    }
+    .for-you .bridge:active { opacity: 0.8; }
+    .for-you .bridge strong {
+      color: var(--tint);
+      font-weight: 600;
+    }
+    .for-you .bridge .via {
+      color: var(--person);
+      font-weight: 600;
+    }
+    .for-you .foot {
+      display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: baseline;
+      padding-right: 78px; font-size: 0.8rem; color: var(--text-secondary);
+    }
+    .for-you .foot .title {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 100%;
+    }
+    .for-you .foot .date { color: var(--text-tertiary); font-size: 0.75rem; }
+    .another {
+      position: absolute; right: 12px; bottom: 12px;
+      border: none; background: var(--bg-elevated); color: var(--tint);
+      font-size: 0.8rem; font-weight: 600; padding: 8px 12px;
+      border-radius: var(--radius-pill);
+      min-height: 36px; min-width: 44px; cursor: pointer;
+      z-index: 2;
+    }
+    .toast {
+      position: absolute;
+      left: 16px; right: 16px; bottom: 48px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--sep);
+      border-radius: 12px;
+      padding: 12px 14px;
+      font-size: 0.85rem;
+      color: var(--text-label);
+      box-shadow: var(--shadow);
+      z-index: 5;
+      display: none;
+    }
+    .toast.show { display: block; }
+    .toast .t { font-weight: 600; margin: 0 0 2px; }
+    .toast .s { margin: 0; color: var(--text-secondary); font-size: 0.8rem; }
+
+    .list {
+      background: var(--bg-secondary); border-radius: 14px; overflow: hidden;
+      border: 1px solid var(--sep);
+    }
+    .row {
+      display: grid; grid-template-columns: 1fr auto; gap: 4px 12px;
+      padding: 14px 16px; border-bottom: 0.5px solid var(--sep);
+      min-height: 58px; align-items: start;
+    }
+    .row:last-child { border-bottom: none; }
+    .row .t {
+      font-size: 0.98rem; font-weight: 550; letter-spacing: -0.015em; line-height: 1.3;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+    }
+    .row .sub {
+      display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+      margin-top: 5px; font-size: 0.78rem; color: var(--text-tertiary);
+    }
+    .row .time {
+      font-size: 0.78rem; color: var(--text-tertiary); font-variant-numeric: tabular-nums;
+      padding-top: 2px;
+    }
+    .chip-p {
+      display: inline-block; font-size: 0.78rem; font-weight: 600;
+      color: var(--person); background: var(--person-soft);
+      padding: 2px 8px; border-radius: var(--radius-chip); letter-spacing: -0.01em;
+    }
+    .chip-w {
+      display: inline-block; font-size: 0.78rem; font-weight: 600;
+      color: var(--work); background: var(--work-soft);
+      padding: 2px 8px; border-radius: var(--radius-chip); letter-spacing: -0.01em;
+    }
+    .new-dot {
+      display: inline-block; width: 6px; height: 6px; border-radius: 50%;
+      background: var(--done); margin-right: 6px; vertical-align: middle;
+    }
+
+    .side h2 {
+      font-size: 0.95rem; font-weight: 650; letter-spacing: -0.02em; margin: 0 0 10px;
+    }
+    .side p {
+      font-size: 0.85rem; color: var(--text-secondary); line-height: 1.45; margin: 0 0 14px;
+    }
+    .callout {
+      background: var(--bg-secondary);
+      border: 1px solid var(--sep);
+      border-radius: var(--radius-card);
+      padding: 14px 16px;
+      margin-bottom: 14px;
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      line-height: 1.45;
+    }
+    .callout strong { color: var(--text-label); }
+    .callout.bad { border-color: color-mix(in srgb, var(--error) 35%, var(--sep)); }
+    .callout.good { border-color: color-mix(in srgb, var(--done) 35%, var(--sep)); }
+    .callout code {
+      font-size: 0.8rem;
+      color: var(--tint);
+      background: var(--tint-soft);
+      padding: 1px 6px;
+      border-radius: 4px;
+    }
+    .story {
+      display: grid;
+      gap: 8px;
+      margin: 0 0 16px;
+    }
+    .story-step {
+      display: grid;
+      grid-template-columns: 28px 1fr;
+      gap: 10px;
+      align-items: start;
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      line-height: 1.4;
+    }
+    .story-step .n {
+      width: 28px; height: 28px; border-radius: 8px;
+      background: var(--bg-elevated); color: var(--text-label);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.75rem; font-weight: 700;
+    }
+    .hint {
+      font-size: 0.78rem;
+      color: var(--text-tertiary);
+      margin: 0 0 12px;
+      line-height: 1.4;
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <h1>Land, then remember</h1>
+    <p class="lede">
+      Post-write peak is proof of filing. For you only speaks when it can name its reason.
+      Same rules for Process, Update notes, and auto-run.
+    </p>
+    <div class="token-bar" aria-hidden="true">
+      <span><i class="swatch" style="background:var(--tint)"></i> tint</span>
+      <span><i class="swatch" style="background:var(--done)"></i> done</span>
+      <span><i class="swatch" style="background:var(--person)"></i> person</span>
+      <span><i class="swatch" style="background:var(--mind)"></i> mind (type only)</span>
+      <span>serif claim · no em dash</span>
+    </div>
+
+    <div class="decisions">
+      <strong>Product locks (v2 mock)</strong>
+      <ul>
+        <li><strong>Write peak sources:</strong> Process, Update notes, and auto-run completion all use the same land card. No associative re-pick on that refresh.</li>
+        <li><strong>Freeze during Done:</strong> while the Done land card is showing, <em>no For you section at all</em> (not only connected). One hero.</li>
+        <li><strong>After dismiss:</strong> calm home. Full cue priority returns: mind-change → on-this-day → named connected → quiet. Associative cues must pass the match floor.</li>
+        <li><strong>Done dismiss:</strong> tap <em>Done</em>, or open a landed title. Clears land peak for this visit. For you may pick only after dismiss (or on a later calm open of home).</li>
+        <li><strong>Named bridge or silence:</strong> connected kicker always has an object. Never “something recent.” Soft hubs alone (<code>People</code>) do not qualify.</li>
+        <li><strong>Bridge tap:</strong> card body opens the memory. Bridge line opens the seed (or person hub). Separate targets, ≥44px.</li>
+        <li><strong>Counts:</strong> 0 atoms → markers-only copy, no title list. 1 atom → one row. Many → first 3 titles + “and N more in Recent.”</li>
+        <li><strong>Copy:</strong> no em dashes in chrome. Long kickers and titles ellipsize.</li>
+      </ul>
+    </div>
+
+    <div class="out">
+      <strong>Out of this mock (separate claim if needed):</strong>
+      atom body fallback prose <code>Related to [[X]].</code> when a link has an empty reason
+      (<code>formatLinkProse</code>). That is write quality, not For you timing.
+    </div>
+
+    <div class="toolbar" id="toolbar-main">
+      <span>Peak</span>
+      <button type="button" class="chip warn" data-state="broken">Before · broken</button>
+      <button type="button" class="chip on" data-state="done2">Process · 2 filed</button>
+      <button type="button" class="chip" data-state="done0">Process · 0 atoms</button>
+      <button type="button" class="chip" data-state="done1">Process · 1 filed</button>
+      <button type="button" class="chip" data-state="doneMany">Process · many</button>
+      <button type="button" class="chip" data-state="update">Update notes done</button>
+      <button type="button" class="chip" data-state="autorun">Auto-run toast</button>
+    </div>
+    <div class="toolbar" id="toolbar-calm">
+      <span>Calm</span>
+      <button type="button" class="chip" data-state="named">Named seed</button>
+      <button type="button" class="chip" data-state="person">Also about Alex</button>
+      <button type="button" class="chip" data-state="long">Long title</button>
+      <button type="button" class="chip" data-state="mind">Mind-change ok</button>
+      <button type="button" class="chip" data-state="silent">Silence</button>
+    </div>
+    <div class="toolbar">
+      <span>Theme</span>
+      <button type="button" class="chip on" id="theme-dark">Dark</button>
+      <button type="button" class="chip" id="theme-light">Light</button>
+    </div>
+    <p class="hint">
+      On Done states, tap <strong>Done</strong> or a landed title to dismiss into calm (named bridge).
+      On named bridge, tap the bridge line vs the card body to see separate targets.
+    </p>
+
+    <div class="stage">
+      <div>
+        <div class="cap" id="phone-cap">Process · 2 filed</div>
+        <div class="phone" id="phone">
+          <div class="status-bar">9:41</div>
+          <div class="nav">
+            <div class="nav-top">
+              <button type="button" class="nav-btn" aria-label="More">⋯</button>
+              <button type="button" class="nav-btn" aria-label="Today">◎</button>
+              <span style="flex:1"></span>
+              <button type="button" class="nav-btn" aria-label="Settings">⚙</button>
+            </div>
+            <h1 class="large-title">Atoms</h1>
+            <p class="subtitle" id="sub">Your second brain</p>
+          </div>
+          <div class="scroll" id="scroll"></div>
+          <div class="toast" id="toast" role="status">
+            <p class="t" id="toast-t"></p>
+            <p class="s" id="toast-s"></p>
+          </div>
+          <div class="home-indicator"><span></span></div>
+        </div>
+      </div>
+
+      <div class="side">
+        <h2 id="side-title">What just landed</h2>
+        <p id="side-body"></p>
+        <div class="story" id="story"></div>
+        <div class="callout" id="callout"></div>
+        <div class="callout" id="locks-echo"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const LONG_TITLE =
+      "A longer note about why hard talks go better after sleep and soft light in the evening";
+
+    function libRows(opts = {}) {
+      const { many = false, silent = false } = opts;
+      if (silent) {
+        return `
+          <div class="sec">Recent</div>
+          <div class="list">
+            <div class="row">
+              <div>
+                <div class="t">Christian recommended My Hero Academia</div>
+                <div class="sub"><span class="chip-p">Christian</span><span class="chip-w">My Hero Academia</span></div>
+              </div>
+              <div class="time">3d</div>
+            </div>
+            <div class="row">
+              <div>
+                <div class="t">Weekend project notes</div>
+                <div class="sub"><span>· May 12</span></div>
+              </div>
+              <div class="time">2m</div>
+            </div>
+          </div>`;
+      }
+      const extra = many
+        ? `
+        <div class="row">
+          <div>
+            <div class="t"><span class="new-dot"></span>Coffee shop Wi‑Fi rules</div>
+            <div class="sub"><span>· Just now</span></div>
+          </div>
+          <div class="time">now</div>
+        </div>
+        <div class="row">
+          <div>
+            <div class="t"><span class="new-dot"></span>Packing list for Berlin</div>
+            <div class="sub"><span>· Just now</span></div>
+          </div>
+          <div class="time">now</div>
+        </div>`
+        : "";
+      return `
+        <div class="sec">Recent</div>
+        <div class="list">
+          <div class="row">
+            <div>
+              <div class="t"><span class="new-dot"></span>Ning’s gift idea</div>
+              <div class="sub"><span class="chip-p">Alex</span><span>· Just now</span></div>
+            </div>
+            <div class="time">now</div>
+          </div>
+          <div class="row">
+            <div>
+              <div class="t"><span class="new-dot"></span>Sleep before hard talks</div>
+              <div class="sub"><span class="chip-p">Alex</span><span>· Just now</span></div>
+            </div>
+            <div class="time">now</div>
+          </div>
+          ${extra}
+          <div class="row">
+            <div>
+              <div class="t">Christian recommended My Hero Academia</div>
+              <div class="sub"><span class="chip-p">Christian</span><span class="chip-w">My Hero Academia</span></div>
+            </div>
+            <div class="time">3d</div>
+          </div>
+          <div class="row">
+            <div>
+              <div class="t">Alex prefers soft pajamas</div>
+              <div class="sub"><span class="chip-p">Alex</span><span>· Jun 2</span></div>
+            </div>
+            <div class="time">6w</div>
+          </div>
+        </div>`;
+    }
+
+    function landedList(items, moreCount) {
+      const rows = items
+        .map(
+          (it) => `
+        <button type="button" class="js-open-landed" data-title="${it.title.replace(/"/g, "&quot;")}">
+          <span class="title-line">${it.title}</span>
+          <span class="meta">${it.meta}</span>
+        </button>`,
+        )
+        .join("");
+      const more =
+        moreCount > 0
+          ? `<div class="more">and ${moreCount} more in Recent</div>`
+          : "";
+      return `<div class="landed">${rows}${more}</div>`;
+    }
+
+    function doneCard(opts) {
+      const {
+        h2,
+        p,
+        items = [],
+        moreCount = 0,
+        showList = true,
+        dismissLabel = "Done",
+      } = opts;
+      const list =
+        showList && items.length
+          ? landedList(items, moreCount)
+          : "";
+      return `
+        <div class="status done">
+          <p class="eyebrow">Done</p>
+          <h2>${h2}</h2>
+          <p>${p}</p>
+          ${list}
+          <div class="btns">
+            <button type="button" class="btn btn-s js-dismiss-done">${dismissLabel}</button>
+          </div>
+        </div>`;
+    }
+
+    const states = {
+      broken: {
+        cap: "Before · after Process (broken)",
+        sideTitle: "Broken today",
+        sideBody: "Process finishes, home refreshes, For you claims a relationship with no object.",
+        story: [
+          ["1", "Process files notes."],
+          ["2", "Home reloads. Seeds = newest mtime."],
+          ["3", "Older note shares Alex."],
+          ["4", "Kicker: Related to something recent."],
+        ],
+        calloutClass: "bad",
+        callout: "<strong>Fails.</strong> Wrong peak + opaque claim.",
+        locks: "<strong>Dismiss:</strong> n/a (broken). <strong>Freeze:</strong> none today.",
+        html: () => `
+          ${doneCard({
+            h2: "Filed 2 notes",
+            p: "Then For you reloads with a vague related card.",
+            items: [],
+            showList: false,
+          })}
+          <div class="for-you broken" role="button" tabindex="0">
+            <p class="kicker">Related to something recent</p>
+            <p class="snip">Alex prefers soft pajamas and quiet mornings before hard talks.</p>
+            <div class="foot">
+              <span class="title">Alex prefers soft pajamas</span>
+              <span class="date">Jun 2</span>
+            </div>
+            <button type="button" class="another">Another</button>
+          </div>
+          ${libRows()}
+        `,
+      },
+      done2: {
+        cap: "Process · 2 filed",
+        sideTitle: "Land peak · 2 atoms",
+        sideBody: "No For you while Done is up. Same shell for Process.",
+        story: [
+          ["1", "Write path finishes."],
+          ["2", "Done card + titles."],
+          ["3", "Tap title → open atom (dismisses peak)."],
+          ["4", "Or tap Done → calm home."],
+        ],
+        calloutClass: "good",
+        callout: "<strong>One hero.</strong> Land card only. Associative cues frozen until dismiss.",
+        locks: "<strong>Dismiss:</strong> Done or open landed title. <strong>Then:</strong> calm pick may show named connected.",
+        dismissTo: "named",
+        html: () => `
+          ${doneCard({
+            h2: "Filed 2 notes",
+            p: "Open one to check how it linked.",
+            items: [
+              { title: "Ning’s gift idea", meta: "Linked · Alex" },
+              { title: "Sleep before hard talks", meta: "Linked · Alex" },
+            ],
+          })}
+          ${libRows()}
+        `,
+      },
+      done0: {
+        cap: "Process · 0 atoms",
+        sideTitle: "Land peak · markers only",
+        sideBody: "All noise/task or no new atoms. Still a land peak. No fake title list.",
+        story: [
+          ["1", "Run finished."],
+          ["2", "0 atoms created."],
+          ["3", "Copy states markers only."],
+          ["4", "No For you under Done."],
+        ],
+        calloutClass: "good",
+        callout: "<strong>0 atoms.</strong> Honest empty list. Still no connected re-roll.",
+        locks: "<strong>Dismiss:</strong> Done only (no titles).",
+        dismissTo: "silent",
+        html: () => `
+          ${doneCard({
+            h2: "Nothing new filed",
+            p: "3 markers written. No new atoms this run.",
+            showList: false,
+          })}
+          ${libRows({ silent: true })}
+        `,
+      },
+      done1: {
+        cap: "Process · 1 filed",
+        sideTitle: "Land peak · single atom",
+        sideBody: "One title. No plural padding.",
+        story: [
+          ["1", "One atom created."],
+          ["2", "Single landed row."],
+          ["3", "Open or Done dismisses."],
+        ],
+        calloutClass: "good",
+        callout: "<strong>1 atom.</strong> Singular copy: Filed 1 note.",
+        locks: "<strong>Dismiss:</strong> Done or open the one title.",
+        dismissTo: "named",
+        html: () => `
+          ${doneCard({
+            h2: "Filed 1 note",
+            p: "Open it to check how it linked.",
+            items: [
+              { title: "Ning’s gift idea", meta: "Linked · Alex" },
+            ],
+          })}
+          ${libRows()}
+        `,
+      },
+      doneMany: {
+        cap: "Process · many filed",
+        sideTitle: "Land peak · many atoms",
+        sideBody: "Show first 3 titles. Rest live in Recent.",
+        story: [
+          ["1", "12 atoms in one run (capped batch)."],
+          ["2", "Land list shows 3 + and N more."],
+          ["3", "No infinite scroll inside Done."],
+        ],
+        calloutClass: "good",
+        callout: "<strong>Many.</strong> Cap land list at 3. Point to Recent for the rest.",
+        locks: "<strong>Dismiss:</strong> Done or any of the 3 titles.",
+        dismissTo: "named",
+        html: () => `
+          ${doneCard({
+            h2: "Filed 12 notes",
+            p: "Open one to check how it linked.",
+            items: [
+              { title: "Ning’s gift idea", meta: "Linked · Alex" },
+              { title: "Sleep before hard talks", meta: "Linked · Alex" },
+              { title: LONG_TITLE, meta: "Linked · Alex" },
+            ],
+            moreCount: 9,
+          })}
+          ${libRows({ many: true })}
+        `,
+      },
+      update: {
+        cap: "Update notes · done",
+        sideTitle: "Same peak · Update",
+        sideBody: "Quality refresh is still a write. Same land rules. No connected under Done.",
+        story: [
+          ["1", "Update notes finishes."],
+          ["2", "Land card: Updated N notes."],
+          ["3", "Titles of refreshed atoms (optional first 3)."],
+          ["4", "Dismiss → calm. Same freeze rules."],
+        ],
+        calloutClass: "good",
+        callout: "<strong>Parity.</strong> Update notes is not a special escape hatch for For you.",
+        locks: "<strong>Source:</strong> update. <strong>Dismiss:</strong> Done or open title.",
+        dismissTo: "named",
+        html: () => `
+          ${doneCard({
+            h2: "Updated 4 notes",
+            p: "Titles and links refreshed. Bodies unchanged.",
+            items: [
+              { title: "Alex prefers soft pajamas", meta: "Links refreshed" },
+              { title: "Christian recommended My Hero Academia", meta: "Links refreshed" },
+            ],
+          })}
+          ${libRows()}
+        `,
+      },
+      autorun: {
+        cap: "Auto-run · home open",
+        sideTitle: "Auto-run · same peak if home open",
+        sideBody: "If Atoms home is open, show the same Done land card (not only a toast). If home is closed, a short Notice is enough. Still no connected re-pick.",
+        story: [
+          ["1", "Auto-run files past captures."],
+          ["2", "Home open → land card (same as Process)."],
+          ["3", "Home closed → Notice only (toast in mock)."],
+          ["4", "Never inject opaque For you."],
+        ],
+        calloutClass: "good",
+        callout: "<strong>Auto-run.</strong> Same product law. Mock shows land card + optional Notice when home was elsewhere.",
+        locks: "<strong>Source:</strong> auto-run. <strong>Dismiss:</strong> Done.",
+        dismissTo: "named",
+        toast: {
+          t: "Atoms filed 2 notes",
+          s: "From yesterday · open Atoms to review",
+        },
+        html: () => `
+          ${doneCard({
+            h2: "Filed 2 notes",
+            p: "Automatic filing finished. Open one to check how it linked.",
+            items: [
+              { title: "Ning’s gift idea", meta: "Linked · Alex" },
+              { title: "Sleep before hard talks", meta: "Linked · Alex" },
+            ],
+          })}
+          ${libRows()}
+        `,
+      },
+      named: {
+        cap: "Calm · named seed",
+        sideTitle: "After dismiss · named bridge",
+        sideBody: "Calm home. Connected only with a named object. Card opens memory. Bridge opens seed.",
+        story: [
+          ["1", "Done dismissed."],
+          ["2", "Match floor passed."],
+          ["3", "Kicker names seed."],
+          ["4", "Bridge line is its own target."],
+        ],
+        calloutClass: "good",
+        callout: "<strong>Targets.</strong> Body → memory. Bridge → seed. Another stays secondary.",
+        locks: "<strong>Interactive:</strong> tap card vs bridge in the phone.",
+        html: () => `
+          <div class="for-you js-open-memory" role="button" tabindex="0" data-open="memory">
+            <p class="kicker">Because of Ning’s gift idea</p>
+            <p class="snip">Alex prefers soft pajamas and quiet mornings before hard talks.</p>
+            <button type="button" class="bridge js-open-seed" data-open="seed">
+              Same thread · via <span class="via">Alex</span>
+              <br /><strong>Open Ning’s gift idea</strong>
+            </button>
+            <div class="foot">
+              <span class="title">Alex prefers soft pajamas</span>
+              <span class="date">Jun 2</span>
+            </div>
+            <button type="button" class="another">Another</button>
+          </div>
+          ${libRows()}
+        `,
+      },
+      person: {
+        cap: "Calm · person hub",
+        sideTitle: "Also about Alex",
+        sideBody: "Strongest honest edge is a real person hub. People index alone would stay silent.",
+        story: [
+          ["1", "Shared chip = Alex hub."],
+          ["2", "People index denied as sole edge."],
+          ["3", "Kicker: Also about Alex."],
+        ],
+        calloutClass: "good",
+        callout: "<strong>Person hub.</strong> Real titles compound. Soft indexes do not invent kinship.",
+        locks: "<strong>Bridge:</strong> open Alex hub.",
+        html: () => `
+        <div class="for-you js-open-memory" role="button" tabindex="0">
+            <p class="kicker">Also about Alex</p>
+            <p class="snip">Alex prefers soft pajamas and quiet mornings before hard talks.</p>
+            <button type="button" class="bridge js-open-seed" data-open="hub">
+              Shares a person link with a recent note
+              <br /><strong>Open Alex</strong>
+            </button>
+            <div class="foot">
+              <span class="title">Alex prefers soft pajamas</span>
+              <span class="date">Jun 2</span>
+            </div>
+            <button type="button" class="another">Another</button>
+          </div>
+          ${libRows()}
+        `,
+      },
+      long: {
+        cap: "Calm · long seed title",
+        sideTitle: "Ellipsis · long titles",
+        sideBody: "Kickers and land rows must not wrap the layout. Ellipsize one line.",
+        story: [
+          ["1", "Seed title is long."],
+          ["2", "Kicker ellipsizes."],
+          ["3", "Landed row ellipsizes."],
+        ],
+        calloutClass: "good",
+        callout: "<strong>Truncation.</strong> One-line kicker. Land title-line ellipsis. Snippet still clamps 4 lines.",
+        locks: "<strong>CSS:</strong> text-overflow on kicker + landed title-line.",
+        html: () => `
+        <div class="for-you js-open-memory" role="button" tabindex="0">
+            <p class="kicker" title="${LONG_TITLE}">Because of ${LONG_TITLE}</p>
+            <p class="snip">Alex prefers soft pajamas and quiet mornings before hard talks.</p>
+            <button type="button" class="bridge js-open-seed">
+              Same thread · via <span class="via">Alex</span>
+            </button>
+            <div class="foot">
+              <span class="title">Alex prefers soft pajamas</span>
+              <span class="date">Jun 2</span>
+            </div>
+            <button type="button" class="another">Another</button>
+          </div>
+          ${doneCard({
+            h2: "Filed 1 note",
+            p: "Open it to check how it linked.",
+            items: [{ title: LONG_TITLE, meta: "Linked · Alex" }],
+          }).replace("status done", "status done").replace(
+            /[\s\S]*/,
+            (m) => {
+              // Only show land list fragment for truncation demo under library context
+              return `
+          <div class="sec">Land list truncation (sample)</div>
+          ${landedList([{ title: LONG_TITLE, meta: "Linked · Alex" }], 0)}
+          ${libRows()}`;
+            },
+          )}
+        `,
+      },
+      mind: {
+        cap: "Calm · mind-change still allowed",
+        sideTitle: "After dismiss · higher cues",
+        sideBody: "Freeze during Done is total (no For you). After dismiss, mind-change and on-this-day still outrank connected. They are not associative junk.",
+        story: [
+          ["1", "Done dismissed."],
+          ["2", "Hard revises edge exists."],
+          ["3", "Mind-change hero wins over connected."],
+          ["4", "Connected waits its turn."],
+        ],
+        calloutClass: "good",
+        callout: "<strong>Freeze scope.</strong> During Done: no For you. After dismiss: full priority. Connected is the strict one, not mind-change.",
+        locks: "<strong>Priority:</strong> mind-change → on-this-day → named connected → quiet.",
+        html: () => `
+        <div class="for-you js-open-memory" role="button" tabindex="0">
+            <p class="kicker mind">Mind change</p>
+            <p class="snip">Hard talks go better after a full night of sleep.</p>
+            <div class="foot">
+              <span class="title">Sleep before hard talks</span>
+              <span class="date">Jun 2</span>
+            </div>
+            <button type="button" class="another">Another</button>
+          </div>
+          ${libRows()}
+        `,
+      },
+      silent: {
+        cap: "Calm · silence",
+        sideTitle: "Nothing to claim",
+        sideBody: "Only a soft edge or no edge. No For you section.",
+        story: [
+          ["1", "No strong seed title hit."],
+          ["2", "People-only share denied."],
+          ["3", "Library only."],
+        ],
+        calloutClass: "good",
+        callout: "<strong>Silence.</strong> Empty For you beats a false related card.",
+        locks: "<strong>Match floor:</strong> fail → no card.",
+        html: () => libRows({ silent: true }),
+      },
+    };
+
+    // Fix long state html - the replace hack is messy. Rewrite long cleanly.
+    states.long.html = () => `
+        <div class="for-you js-open-memory" role="button" tabindex="0">
+        <p class="kicker" title="Because of ${LONG_TITLE}">Because of ${LONG_TITLE}</p>
+        <p class="snip">Alex prefers soft pajamas and quiet mornings before hard talks.</p>
+        <button type="button" class="bridge js-open-seed">
+          Same thread · via <span class="via">Alex</span>
+        </button>
+        <div class="foot">
+          <span class="title">Alex prefers soft pajamas</span>
+          <span class="date">Jun 2</span>
+        </div>
+        <button type="button" class="another">Another</button>
+      </div>
+      <div class="sec">Land list sample</div>
+      ${landedList([{ title: LONG_TITLE, meta: "Linked · Alex" }], 0)}
+      ${libRows()}
+    `;
+
+    const scroll = document.getElementById("scroll");
+    const phoneCap = document.getElementById("phone-cap");
+    const sideTitle = document.getElementById("side-title");
+    const sideBody = document.getElementById("side-body");
+    const story = document.getElementById("story");
+    const callout = document.getElementById("callout");
+    const locksEcho = document.getElementById("locks-echo");
+    const toast = document.getElementById("toast");
+    const toastT = document.getElementById("toast-t");
+    const toastS = document.getElementById("toast-s");
+    const chips = document.querySelectorAll(".toolbar .chip[data-state]");
+
+    let current = "done2";
+
+    function setToast(spec) {
+      if (!spec) {
+        toast.classList.remove("show");
+        return;
+      }
+      toastT.textContent = spec.t;
+      toastS.textContent = spec.s;
+      toast.classList.add("show");
+      window.clearTimeout(setToast._t);
+      setToast._t = window.setTimeout(() => toast.classList.remove("show"), 4200);
+    }
+
+    function wirePhone() {
+      scroll.querySelectorAll(".js-dismiss-done").forEach((btn) => {
+        btn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          const to = states[current].dismissTo || "named";
+          render(to);
+        });
+      });
+      scroll.querySelectorAll(".js-open-landed").forEach((btn) => {
+        btn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          const title = btn.getAttribute("data-title") || "note";
+          setToast({ t: "Open atom", s: title });
+          const to = states[current].dismissTo || "named";
+          window.setTimeout(() => render(to), 500);
+        });
+      });
+      scroll.querySelectorAll(".js-open-seed").forEach((btn) => {
+        btn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          const kind = btn.getAttribute("data-open") || "seed";
+          setToast({
+            t: kind === "hub" ? "Open person hub" : "Open seed",
+            s: kind === "hub" ? "Alex" : "Ning’s gift idea",
+          });
+        });
+      });
+      scroll.querySelectorAll(".js-open-memory").forEach((el) => {
+        el.addEventListener("click", (e) => {
+          if (e.target.closest(".another, .bridge, .js-open-seed")) return;
+          setToast({ t: "Open memory", s: "Alex prefers soft pajamas" });
+        });
+      });
+      scroll.querySelectorAll(".another").forEach((btn) => {
+        btn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          setToast({ t: "Another", s: "Skip this memory (throttle path)" });
+        });
+      });
+    }
+
+    function render(key) {
+      const s = states[key];
+      if (!s) return;
+      current = key;
+      phoneCap.textContent = s.cap;
+      sideTitle.textContent = s.sideTitle;
+      sideBody.textContent = s.sideBody;
+      story.innerHTML = s.story
+        .map(
+          ([n, t]) =>
+            `<div class="story-step"><span class="n">${n}</span><span>${t}</span></div>`,
+        )
+        .join("");
+      callout.className = "callout " + s.calloutClass;
+      callout.innerHTML = s.callout;
+      locksEcho.className = "callout";
+      locksEcho.innerHTML = s.locks || "";
+      scroll.innerHTML = s.html();
+      chips.forEach((c) => c.classList.toggle("on", c.dataset.state === key));
+      if (s.toast) setToast(s.toast);
+      else if (key !== "named" && key !== "person" && key !== "long") {
+        /* keep toast if mid-demo open */ 
+      }
+      wirePhone();
+    }
+
+    chips.forEach((c) => {
+      c.addEventListener("click", () => render(c.dataset.state));
+    });
+
+    document.getElementById("theme-dark").addEventListener("click", () => {
+      document.documentElement.setAttribute("data-theme", "dark");
+      document.getElementById("theme-dark").classList.add("on");
+      document.getElementById("theme-light").classList.remove("on");
+    });
+    document.getElementById("theme-light").addEventListener("click", () => {
+      document.documentElement.setAttribute("data-theme", "light");
+      document.getElementById("theme-light").classList.add("on");
+      document.getElementById("theme-dark").classList.remove("on");
+    });
+    document.documentElement.setAttribute("data-theme", "dark");
+
+    render("done2");
+  </script>
+</body>
+</html>

@@ -331,6 +331,8 @@ export type RefreshReport = {
   markersRepaired: number;
   failed: number;
   skipped: number;
+  /** Paths/titles successfully refreshed (for land peak). */
+  updatedItems: Array<{ title: string; path: string }>;
 };
 
 export type RunRefreshOptions = {
@@ -366,6 +368,7 @@ export async function runRefreshEligibleAtoms(
     markersRepaired: 0,
     failed: 0,
     skipped: 0,
+    updatedItems: [],
   };
   if (!eligible.length) return report;
 
@@ -435,6 +438,8 @@ export async function runRefreshEligibleAtoms(
       await opts.app.vault.modify(file, plan.content);
       report.updated += 1;
 
+      let finalPath = plan.path;
+      let finalTitle = plan.newTitle || plan.oldTitle;
       if (plan.rename) {
         const destExists = opts.app.vault.getAbstractFileByPath(plan.newPath);
         if (!destExists) {
@@ -443,11 +448,14 @@ export async function runRefreshEligibleAtoms(
             existing.delete(plan.path);
             existing.add(plan.newPath);
             report.renamed += 1;
+            finalPath = plan.newPath;
+            finalTitle = plan.newTitle || finalTitle;
           } catch {
             // Content already refreshed; leave path (aliases carry old title).
           }
         }
       }
+      report.updatedItems.push({ title: finalTitle, path: finalPath });
 
       if (plan.oldTitle !== plan.newTitle && plan.sourceBasename) {
         const daily = findDailyFile(opts.app, plan.sourceBasename);
