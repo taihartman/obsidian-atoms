@@ -10,11 +10,13 @@ import {
   formatRelativeTime,
   isAutomaticFilingReady,
   isGeneratedAtomContent,
+  isDayOnlyCreated,
   libraryTimeMs,
   listAtomLibraryEntries,
   parseAtomLibraryEntry,
   parseCreatedMs,
   personNameFromClaimTitle,
+  planCreatedOrderBackfill,
   shouldShowWaitCard,
   titleFromAtomPath,
   updateNotesStripCopy,
@@ -148,6 +150,81 @@ describe("parseCreatedMs / libraryTimeMs", () => {
     expect(d.getMonth()).toBe(6);
     expect(d.getDate()).toBe(14);
     expect(d.getHours()).toBe(12);
+  });
+
+  it("detects day-only created", () => {
+    expect(isDayOnlyCreated(atomMd({ created: "2026-07-14", body: "x" }))).toBe(
+      true,
+    );
+    expect(
+      isDayOnlyCreated(atomMd({ created: "2026-07-14T12:00:03", body: "x" })),
+    ).toBe(false);
+  });
+});
+
+describe("planCreatedOrderBackfill", () => {
+  it("re-stamps day-only created from daily line order via body match", () => {
+    const daily = `- Andrew loves high school musical
+\t↳ [[Andrew loves High School Musical]] <!--linker-->
+- other note
+- Andrew doesn't actually like high school musical well he kinda does
+\t↳ [[Andrew's High School Musical love was actually a joke]] <!--linker-->
+`;
+    const loves = atomMd({
+      created: "2026-07-16",
+      source: "2026-07-16",
+      body: "Andrew loves high school musical",
+      links: "named work ([[High School Musical]])",
+    });
+    const joke = atomMd({
+      created: "2026-07-16",
+      source: "2026-07-16",
+      body: "Andrew doesn't actually like high school musical well he kinda does",
+      links: "revises ([[Andrew loves High School Musical]])",
+    });
+    const lovesPlan = planCreatedOrderBackfill(loves, daily, "2026-07-16");
+    const jokePlan = planCreatedOrderBackfill(joke, daily, "2026-07-16");
+    expect(lovesPlan?.created).toBe("2026-07-16T12:00:00");
+    // joke is third top-level bullet (line index 3 with marker lines in between)
+    expect(jokePlan?.created).toBe("2026-07-16T12:00:03");
+    expect(lovesPlan!.created < jokePlan!.created).toBe(true);
+    expect(lovesPlan!.content).toContain("Andrew loves high school musical");
+    expect(lovesPlan!.content).toContain("named work");
+    // library order: joke newer than loves
+    const entries = listAtomLibraryEntries(
+      [
+        {
+          path: "Atoms/Andrew loves High School Musical.md",
+          mtime: 1,
+          content: lovesPlan!.content,
+        },
+        {
+          path: "Atoms/Andrew's joke.md",
+          mtime: 2,
+          content: jokePlan!.content,
+        },
+      ],
+      "Atoms",
+    );
+    expect(entries.map((e) => e.title)).toEqual([
+      "Andrew's joke",
+      "Andrew loves High School Musical",
+    ]);
+  });
+
+  it("skips when created already has time", () => {
+    const daily = `- thought one\n`;
+    const atom = atomMd({
+      created: "2026-07-16T14:32:00",
+      body: "thought one",
+    });
+    expect(planCreatedOrderBackfill(atom, daily, "2026-07-16")).toBeNull();
+  });
+
+  it("skips ambiguous body match", () => {
+    const daily = `- same text\n- same text\n`;
+    const atom = atomMd({ created: "2026-07-16", body: "same text" });
+    expect(planCreatedOrderBackfill(atom, daily, "2026-07-16")).toBeNull();
   });
 });
 

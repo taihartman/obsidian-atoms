@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| *(none)* | | | | | | |
+| In progress | #63 | Tai | fix/library-within-day-order | chat brainstorm (world-class created order) | `src/pipeline/render.ts`, `src/home/atomsHomeData.ts`, `src/home/atomsHomeView.ts` | Within-day library order + silent backfill |
 
 ## How to claim (copy)
 

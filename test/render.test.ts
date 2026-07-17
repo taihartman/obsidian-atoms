@@ -240,8 +240,21 @@ describe("resolveCreatedField", () => {
       "2026-07-14T14:32:00",
     );
   });
-  it("falls back to daily date", () => {
-    expect(resolveCreatedField("2026-07-14", null)).toBe("2026-07-14");
+  it("untimestamped uses noon + startLine seconds for within-day order", () => {
+    expect(resolveCreatedField("2026-07-14", null, 0)).toBe(
+      "2026-07-14T12:00:00",
+    );
+    expect(resolveCreatedField("2026-07-14", null, 3)).toBe(
+      "2026-07-14T12:00:03",
+    );
+    expect(resolveCreatedField("2026-07-14", null, 13)).toBe(
+      "2026-07-14T12:00:13",
+    );
+  });
+  it("later startLine sorts after earlier (same day)", () => {
+    const early = resolveCreatedField("2026-07-14", null, 3);
+    const late = resolveCreatedField("2026-07-14", null, 13);
+    expect(early < late).toBe(true);
   });
 });
 
