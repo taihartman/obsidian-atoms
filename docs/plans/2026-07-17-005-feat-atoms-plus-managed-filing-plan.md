@@ -6,6 +6,7 @@ execution: code
 title: "Atoms Plus — managed filing plane"
 date: 2026-07-17
 deepened: 2026-07-17
+# U5 mock approved 2026-07-17 (docs/design-handoff/atoms-plus/index.html v3)
 ---
 
 # Atoms Plus — managed filing plane - Plan
@@ -18,7 +19,7 @@ deepened: 2026-07-17
 
 **Open blockers.** None product-blocking. Deferred planning choices: Stripe product IDs, proxy host deployment target, promo redemption default cap (operator-tunable).
 
-**Product Contract preservation.** Product Contract unchanged from ce-brainstorm enrichment (R1–R15, KD1–KD12). Planning adds HOW only.
+**Product Contract preservation.** Product Contract core unchanged (R1–R15, KD1–KD12). **UI surface authority** updated 2026-07-17: approved mock `docs/design-handoff/atoms-plus/index.html` (v3) — no ambient counters; Apple-plain limit copy; no rollover; no “For You” label. Planning HOW below; U1–U4 code partially landed on `feat/atoms-plus-managed-filing`.
 
 ## Product Contract
 
@@ -189,6 +190,23 @@ Limit UX when Plus exhausted: wait + top-up only — **never** pitch BYOK (R6). 
 | KTD-P5 | Stripe Checkout (web) for MVP subscribe/top-up/trial; magic link binds email → customer | Cross-device without App Store first; IAP can follow |
 | KTD-P6 | Transport failure (5xx/network) before model response: do not consume filing; 4xx after model: consume | Fair metering |
 | KTD-P7 | Plus model fixed server-side (Sonnet 5-class); ignore client model field on Plus path | Margin + R4 |
+| KTD-P8 | **UI SSOT = approved mock** `docs/design-handoff/atoms-plus/index.html` (v3). CSS/copy in mock is the product surface; plugin chrome matches mock, not invents meters | User approved mocks 2026-07-17 |
+| KTD-P9 | **No ambient remaining/150 UI** — server still meters; client may cache `remaining` for limit detection only. Numbers appear only on Offer / Get More sheets | Minimal UI direction |
+| KTD-P10 | **No rollover (MVP)** — allotment resets on billing date only | User-directed |
+| KTD-P11 | Limit copy: **“Monthly Limit Reached”** + allotment-starts-over language (not “renews automatically” next to Get More; not “filing paused”) | Apple-plain + anti auto-top-up confusion |
+| KTD-P12 | Offer always states: cost reason (AI usage costs us / supports development) + free own-key path | User-directed |
+
+### Implementation status (branch `feat/atoms-plus-managed-filing`)
+
+| Unit | Status |
+|------|--------|
+| U1 Filing auth | **Landed** (`src/platform/filingAuth.ts`, tests) |
+| U2 plusClient | **Landed** (`src/platform/plusClient.ts`, tests) |
+| U3 Classify Plus path | **Partial** (`deps.plus` on `classifyCapture`; wire from main/write/preview still open) |
+| U4 Preview cache | **Partial** (module landed; not wired into `runDryRun`) |
+| U5 UI | **Mock approved** → implement per U5a–U5e below |
+| U6 Service | Not started |
+| U7 Ship | Not started |
 
 ### Assumptions
 
@@ -199,16 +217,13 @@ Limit UX when Plus exhausted: wait + top-up only — **never** pitch BYOK (R6). 
 ### Sequencing
 
 ```
-U1 Credential types + resolveFilingAuth (plugin, tests)
-U2 plusClient surface (auth + entitlement + classify HTTP shapes; mockable)
-U3 Classify/write/preview/refresh/auto-run branch to proxy
-U4 Preview per-capture cache + remaining UI wiring
-U5 Home CTA + Settings Plus section + privacy copy
-U6 Plus service: auth, Stripe, meter, proxy (can parallel U1–U2 after API contract freeze)
-U7 Integration dogfood + version bump + README optional-payments refresh
+U1 ✓ → U2 ✓ → U3 wire remaining call sites → U4 wire cache
+U5a pure hero copy → U5b home bind → U5c settings → U5d offer/top-up sheets → U5e fidelity
+U6 Plus service (can parallel U5 once API shapes frozen; needed for live checkout)
+U7 dogfood + version + README
 ```
 
-U6 can start once U2 request/response shapes are frozen in a short API contract note under `docs/` or in this plan appendix.
+**Recommended next execution slice:** finish U3 call-site wiring + U4 cache wire, then **U5a→U5d** against mock (can use fixture Plus session without full U6 for UI). Live Stripe/trial needs U6.
 
 ### Risks
 
@@ -279,36 +294,144 @@ POST /v1/billing/checkout { kind: subscribe_monthly|subscribe_yearly|topup_50|..
 
 ---
 
-### U4 — Preview cache + metering display
+### U4 — Preview cache (wire-up)
 
-**Goal.** R14/R14b: charge only on real classify; free re-open of valid cache entries.
+**Goal.** R14/R14b: charge only on real classify; free re-open of valid cache entries. **No ambient remaining UI.**
 
-**Files:** `src/pipeline/preview.ts`, `src/platform/previewCache.ts` (new), `src/plugin/main.ts`, tests
+**Files:** `src/pipeline/preview.ts`, `src/platform/previewCache.ts` (exists), `src/plugin/main.ts`, `test/previewCache.test.ts` + preview integration tests
 
-**Approach.** Before classify in dry-run loop: lookup cache by KTD-P3 key. Hit → use stored result, do not call network. Miss → classify (proxy or BYOK), store. Cache device-local, size-capped (e.g. last 200 entries). Surface remaining from last proxy response on home/settings.
+**Approach.** Module already exists. Wire into dry-run loop: lookup by KTD-P3 key before classify; on hit skip network; on miss classify + put. Device-local store via `LS_PREVIEW_CACHE`. Shared for BYOK and Plus. On 402 from Plus, surface limit UX (U5) — do not show remaining meters.
 
 **Test scenarios:**
 - second Preview same capture → 0 network
 - capture text change → miss + re-classify
 - quality stamp bump → miss
-- BYOK path can use same cache (optional) or Plus-only — **prefer shared cache** for both
+- shared cache for byok + plus
+
+**Verify:** unit + dry-run path tests; no Settings “118/150” chrome.
 
 ---
 
-### U5 — Home + Settings product surfaces
+### U5 — Home + Settings (mock-approved) — split units
 
-**Goal.** Conversion and status UX without paywalling habit features.
+**Visual SSOT:** `docs/design-handoff/atoms-plus/index.html` (v3) + `docs/design-handoff/atoms-plus/README.md`  
+**Gate satisfied:** mock reviewed and approved by product owner (2026-07-17). Implement to match mock copy and hierarchy.
 
-**Execution note.** **Mock-first UI before real chrome.** Before shipping production Settings/home Plus UI: (1) static mock or throwaway visual entry / HTML mock of hero + Settings Plus section (states: none / trial / active / exhausted), (2) user review, (3) then implement against the approved mock. Do not jump straight from pure data modes to final CSS in the live plugin without that gate. (session-settled: user-directed — mock before build for U5)
+#### U5a — Pure hero / limit copy model
 
-**Files:** `src/home/atomsHomeData.ts`, `src/home/atomsHomeView.ts`, `src/settings/settings.ts`, `styles.css` as needed; mock under `docs/design-handoff/` or `docs/qa/screenshots/atoms-plus/` as agreed at U5 start
+**Goal.** Extend `filingHeroCopy` (and related pure helpers) for Plus states without DOM.
+
+**Files:** `src/home/atomsHomeData.ts`, `test/atomsHomeData.test.ts`
+
+**Approach.** Expand inputs beyond `hasKey`:
+- `filingAuthMode`: `none` | `byok` | `plus_active` | `plus_exhausted` (map from `resolveFilingAuth` + status)
+- Modes / copy (lock to mock):
+
+| Condition | Title | Body (intent) | Primary | Quiet |
+|-----------|--------|---------------|---------|-------|
+| past>0, none | N Captures Waiting | Turn past notes into linked atoms with Atoms Plus, or use your own Anthropic API key for free. | **Try Atoms Plus** | **Use My Own Key** |
+| past>0, plus_exhausted | **Monthly Limit Reached** | You’ve used this month’s included AI filings. Your allotment starts over on your next billing date. If you need more before then, you can buy additional filings. | **Get More** | **Not Now** |
+| past>0, byok or plus_active | (existing enable_auto / auto_on / process paths) | unchanged spirit | existing | existing |
+
+Actions to add: `open_plus` | `open_byok_settings` | `get_more` | `dismiss_limit` (Not Now).  
+**Never** primary/secondary that pitches BYOK on exhausted.  
+**Never** show remaining counts in hero.
+
+**Test scenarios:**
+- none + past → Try Atoms Plus + Use My Own Key; no “Open settings” only
+- plus_exhausted → Monthly Limit Reached; Get More; no BYOK string in body
+- byok + past → existing auto/process paths (regression)
+- past=0 → null hero
+
+**Patterns:** pure functions in `atomsHomeData.ts` (see existing `filingHeroCopy` tests).
+
+---
+
+#### U5b — Home view wiring
+
+**Goal.** Bind new actions in `atomsHomeView` / plugin.
+
+**Files:** `src/home/atomsHomeView.ts`, `src/plugin/main.ts`, `styles.css` only if existing card classes insufficient
 
 **Approach.**
-- `need_key` → when past unprocessed and auth none: primary **“Try Atoms Plus”** / open Plus settings; secondary still open settings for BYOK without shame.
-- Settings: `renderPlusSection` after API — email, magic link status, remaining 150, period end, subscribe/top-up/open checkout, privacy blurb (R8).
-- Model section: when Plus active, show “Managed: Sonnet (Plus)” and disable free-text model for managed path (BYOK model field still available when using own key).
+- Pass filing auth into hero builder (from `plugin.resolveFilingAuth()`).
+- `open_plus` → open Settings focused on Plus section (or open Offer modal — prefer Settings Plus section first; Offer can be nested).
+- `open_byok_settings` → open Settings API key section / focus secret field.
+- `get_more` → open Get More sheet / checkout topup_50 via plusClient when session exists.
+- `dismiss_limit` → hide soft prompt for session (device-local flag optional).
+- Match mock card hierarchy: kicker, title, body, primary then quiet (not three competing primaries).
 
-**Test scenarios:** pure functions on hero mode selection (hasKey / hasPlus / pastUnprocessed matrix).
+**Test scenarios:** unit-test pure action resolution if extracted; smoke manual on demo vault.
+
+**Execution note:** Prefer extending existing wait-card DOM builders; avoid new design system. Match `docs/design-handoff/tokens` (flat cards, ≥44px targets).
+
+---
+
+#### U5c — Settings Plus section (status + invite)
+
+**Goal.** Settings surfaces for signed-out / active / limit — **no ambient meters**.
+
+**Files:** `src/settings/settings.ts`, `src/shared/types.ts` (plusBaseUrl optional setting), `styles.css` as needed
+
+**Approach.** `renderPlusSection` after API section (mock order).
+
+**Signed out (S1 mock):**
+- Card: kicker Optional · **Skip the API Key**
+- Body: files for you; own key free forever; full app either way
+- Primary **See Plans** → Offer sheet (U5d)
+- Quiet **Enter Promo Code**
+- Footer privacy note (TLS / no train)
+
+**Active (S2 mock):**
+- Grouped rows: Status Active · Account email · Plan Monthly/Yearly · Renews date  
+- **No** remaining / 150 / progress bar  
+- **Manage Subscription** · **Sign Out**  
+- Footer: own key still available under API Key
+
+**Limit (S3 mock):**
+- Same **Monthly Limit Reached** copy as home  
+- **Get More** · **Manage Subscription**
+
+**Patterns:** private `renderXSection` + `settingHeading` in `settings.ts`.
+
+**Test scenarios:** pure builders for section model if extracted; otherwise light DOM-free snapshot of copy strings per status.
+
+---
+
+#### U5d — Offer sheet + Get More sheet (copy-locked)
+
+**Goal.** Only places that show **price and 150 / +50**.
+
+**Files:** `src/settings/` or `src/home/` modal helpers (prefer small Modal classes next to settings), `plusClient.createCheckout`
+
+**Offer (buy mock) — required copy beats:**
+- Title **Atoms Plus**
+- **$5** per month · **$50** per year · save two months
+- Bullets: **150 AI filings each month** (classifying/updating); **Unused filings don’t roll over**; no API key setup; library stays free / Plus optional
+- Cost: AI usage has a real cost; subscription helps cover it and supports development
+- Free path: Prefer to stay free? Own Anthropic API key in Settings. No Plus required
+- Primary **Start Free Trial** · Quiet **Not Now**
+- Fine print: 14 days free, then $5/month; cancel anytime; card required
+
+**Get More (top-up mock):**
+- Title **Additional Filings** / **Get More**
+- **$2** · 50 AI filings · one-time  
+- Explicit: **Does not change your subscription or renew automatically**
+- Primary **Continue** · Quiet **Cancel**
+
+**Test scenarios:** string constants or pure `offerCopy()` / `topUpCopy()` functions unit-tested so copy cannot drift silently.
+
+---
+
+#### U5e — Visual fidelity pass (scoped)
+
+**Goal.** Side-by-side mock vs live at 375-wide: hierarchy, button order, no For You, no meters.
+
+**Files:** screenshots under `docs/qa/screenshots/atoms-plus/`; PR evidence
+
+**Approach.** After U5a–d: seed device-local Plus session fixtures for active/exhausted; screenshot home + settings; compare to mock. Fix only fidelity gaps.
+
+**Verify:** PR links screenshots; world-class-qa optional if desired later.
 
 ---
 
@@ -358,13 +481,16 @@ POST /v1/billing/checkout { kind: subscribe_monthly|subscribe_yearly|topup_50|..
 
 - [ ] Free BYOK path unchanged for users without Plus
 - [ ] Plus user can file without pasting Anthropic key
-- [ ] Server enforces 150 + top-up; client shows remaining
+- [ ] Server enforces 150 + top-up; **no ambient remaining meter in UI**
 - [ ] Preview re-open does not re-bill unchanged captures
-- [ ] Exhausted UX offers wait/top-up only (no BYOK push)
+- [ ] Exhausted UX: **Monthly Limit Reached** + Get More only (no BYOK pitch)
+- [ ] Offer sheet: 150, no rollover, cost reason, free own-key path, trial
+- [ ] UI matches approved mock (`docs/design-handoff/atoms-plus/`) within fidelity pass
 - [ ] Cross-device magic link works on phone and desktop
 - [ ] Privacy/egress copy visible before first managed classify
-- [ ] Tests green; version bumped; QA evidence on PR
+- [ ] Tests green; version bumped; QA screenshots on PR
 - [ ] #90 left open (Efficient mode not in MVP)
+
 
 ## Appendix
 
