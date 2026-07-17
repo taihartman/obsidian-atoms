@@ -641,13 +641,13 @@ export function serializeThrottle(map: ResurfaceThrottleMap): string {
   return JSON.stringify(map);
 }
 
-/** Human cue labels — calm, Journal/For You tone (not ALL CAPS system chrome). */
+/** Human cue labels — calm kicker on the card (not ALL CAPS system chrome). */
 export function cueLabel(cue: ResurfaceCue): string {
   if (cue === "mind-change") return "Mind change";
   if (cue === "on-this-day") return "On this day";
   if (cue === "connected") return "Related to something recent";
   if (cue === "quiet") return "Worth meeting again";
-  return "For you";
+  return "Memory";
 }
 
 /**

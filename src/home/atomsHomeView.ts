@@ -557,10 +557,6 @@ export class AtomsHomeView extends ItemView {
     const card = this.resurfaceCard;
     if (!card) return;
 
-    sectionLabel(scroll, "For you", {
-      className: "atoms-home-section atoms-home-section-for-you",
-    });
-
     if (card.cue === "mind-change") {
       this.renderMindChangeCard(scroll, card);
       return;
@@ -1057,7 +1053,7 @@ export class AtomsHomeView extends ItemView {
       }
     }
 
-    // One hero: Ready when pending; For you only when calm (home-v2)
+    // One hero: Ready when pending; resurface card only when calm (home-v2)
     const workPending = shouldShowWaitCard(this.unprocessedCount);
     if (!firstDay && this.runPhase === "idle" && !workPending) {
       this.renderResurfaceCard(scroll);
