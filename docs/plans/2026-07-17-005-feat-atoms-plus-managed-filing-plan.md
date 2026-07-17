@@ -115,7 +115,7 @@ Filing already works when a key is present. The drop-off is **identity and setup
 | KD5 | Cross-device via **email magic link** | session-settled: user-directed — over password/OAuth/license key |
 | KD6 | Real proxy MVP first ship | session-settled: user-directed — over waitlist-only |
 | KD7 | Product quota ≠ `PER_LAUNCH_CAP` | session-settled: user-directed — 15 is safety fuse only |
-| KD8 | **$5 + Sonnet 5 + N=150 + top-up** | session-settled: user-directed — ~50% gross if maxed (bakeoff) |
+| KD8 | **$5 + Sonnet 5 + N=150 + top-up; no rollover** | session-settled: user-directed — unused do not bank; top-up for overflow |
 | KD9 | **14-day trial + card upfront**; capped promo **1–3 free months** | session-settled: user-directed — short trial + marketing codes |
 | KD10 | Bakeoff evidence | Sonnet 5 ~98%, Sonnet 4.5 ~96%, Haiku ~81%; enrich +0 soft judgment; `scripts/plus-model-bakeoff.mjs` |
 | KD11 | Preview costs when classify runs; **per-capture cache** | session-settled: user-directed — no double-charge on re-open; only changed captures re-bill |
