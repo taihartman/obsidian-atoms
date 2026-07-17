@@ -13,6 +13,7 @@ export {
   sectionLabel,
   statusCard,
   textButton,
+  textControl,
   type ButtonGrade,
   type KickerVariant,
   type LinkChipKind,
