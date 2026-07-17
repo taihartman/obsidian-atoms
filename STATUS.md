@@ -7,8 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| In progress | #71 | Tai | `feat/land-then-remember` | `docs/plans/2026-07-17-002-feat-land-then-remember-plan.md` | `landPeak.ts`, `atomsHomeView.ts`, `resurface.ts`, `main.ts` | Land peak + named connected; plan ready |
-| In review | #68 | Tai | `chore/drop-for-you-label` | (amend) | `atomsHomeView.ts` | Drop For you label — draft PR #69 |
+| *(none)* | | | | | | |
 
 ## How to claim (copy)
 
@@ -24,6 +23,7 @@ States: `Queued` · `In progress` · `Blocked` · `In review` · `Done` (then re
 
 | Merged | Issue / PR | Summary |
 |---|---|---|
+| 2026-07-17 | #71 / #72 | Land, then remember + drop For you label (0.6.14) |
 | 2026-07-17 | #66 / #67 | collision body-gate + Process failure surface (0.6.13) |
 | 2026-07-16 | #63 / #64 | library within-day created order (0.6.12) |
 | 2026-07-16 | — | remove PR Closes CI; agent-checked only |
