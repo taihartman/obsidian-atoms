@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| *(none)* | | | | | | |
+| In review | #74 | Tai | fix/ghost-text-button-chrome | — (amend) | styles.css, src/ui/factories.ts, src/home/atomsHomeView.ts, docs/solutions/ui-patterns/ | Ghost button kit + bridge spacing |
 
 ## How to claim (copy)
 
