@@ -10,19 +10,19 @@
 
 ## Verdict
 
-### **NOT MERGE-READY for public Plus** · **DOGFOOD-OK (local) with gaps**
+### **NOT MERGE-READY for public Plus** · **DOGFOOD-OK (local)** — prior P1/P2 **re-verified fixed**
 
 | Claim | Result |
 |--------|--------|
-| Unit / typecheck | ✅ 318 plugin tests + 5 service store tests; `npm run typecheck` clean |
-| Plus service API (auth, meter, refund, top-up) | ✅ Live HTTP smoke on `:8799` |
+| Unit / typecheck | ✅ **322** plugin tests + 5 service store; typecheck clean |
+| Plus service API (auth, meter, refund, top-up) | ✅ Live HTTP smoke on `:8799` (retest) |
 | Plugin pure product copy / auth matrix | ✅ Unit tests |
+| Prior QA P1/P2 fixes | ✅ Re-verified (see Retest) |
 | Live Obsidian UI (home + Settings) | ❌ **Not tested** — requires human Obsidian session |
-| Live managed classify with real Anthropic key | ❌ **Not tested** this pass (server had no key in smoke) |
+| Live managed classify with real Anthropic key | ❌ **Not tested** this pass (no key in smoke) |
 | Stripe / real email magic link | ❌ Not built |
-| Adversarial pass | ✅ Ran; findings below |
 
-**Hard gate trip:** §5 live drive of Obsidian leaf was not executed in this harness (no automated Obsidian UI driver). Per world-class-qa anti-fallback: this is **not** a Ready merge verdict for the feature’s user-visible surfaces.
+**Hard gate trip:** Live Obsidian leaf still not driven. Not public Ready.
 
 ---
 
@@ -296,9 +296,23 @@ Log: `/tmp/plus-qa-server.log` (ephemeral)
 ## Commands log
 
 ```bash
-npm test                                    # 318 pass
+npm test                                    # 322 pass (retest)
 cd plus-service && npm test                 # 5 pass
-npm run typecheck                           # clean
+npm run typecheck                           # clean (from plugin root)
 DOGFOOD_AUTO_GRANT=1 PORT=8799 node src/server.mjs
 curl health / magic-link / exchange / me / classify / topup
 ```
+
+---
+
+## Retest after fixes (2026-07-17 later)
+
+| Fix | How re-verified | Result |
+|-----|-----------------|--------|
+| **Not Now dismiss** | Unit: `plus_exhausted after Not Now` → quieter title `4 Captures Waiting`, secondary null; `isPlusLimitDismissedToday` | ✅ |
+| **Session only after /me** | Live: forged `sess_forged_*` → **401** Invalid session (client must not save); real session → **200** me | ✅ code + HTTP |
+| **Magic link port = PORT** | Live `PORT=8799`: log `publicBase=http://127.0.0.1:8799`; link contains `:8799` | ✅ `PORT_OK=yes` |
+| Refund still works | classify without Anthropic key → **503**, remaining stays **150** | ✅ |
+| Full suite | `npm test` **322** pass; service store **5** pass | ✅ |
+
+**Still open for Ready:** human Obsidian dogfood checklist + real Anthropic classify + Stripe/email for public.
