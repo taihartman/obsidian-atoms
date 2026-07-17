@@ -5,7 +5,10 @@ import {
   extractDisplayLinkChips,
   extractLinkChips,
   extractSourceDay,
+  atomsPlusOfferCopy,
+  atomsPlusTopUpCopy,
   filingHeroCopy,
+  filingPathFromAuth,
   filterLinkedOnly,
   formatRelativeTime,
   isAutomaticFilingReady,
@@ -314,7 +317,7 @@ describe("filingHeroCopy", () => {
     ).toBeNull();
   });
 
-  it("need_key when no API key", () => {
+  it("need_key when no API key — Try Plus + own key (mock v3)", () => {
     const c = filingHeroCopy({
       pastUnprocessed: 3,
       hasKey: false,
@@ -322,7 +325,27 @@ describe("filingHeroCopy", () => {
       egressAcked: false,
     });
     expect(c?.mode).toBe("need_key");
-    expect(c?.primaryAction).toBe("open_settings");
+    expect(c?.primaryAction).toBe("open_plus");
+    expect(c?.primaryLabel).toBe("Try Atoms Plus");
+    expect(c?.secondaryAction).toBe("open_byok_settings");
+    expect(c?.secondaryLabel).toBe("Use My Own Key");
+    expect(c?.title).toBe("3 Captures Waiting");
+  });
+
+  it("plus_exhausted — Monthly Limit Reached, no BYOK pitch", () => {
+    const c = filingHeroCopy({
+      pastUnprocessed: 4,
+      hasKey: false,
+      autoEnabled: true,
+      egressAcked: true,
+      filingPath: "plus_exhausted",
+    });
+    expect(c?.mode).toBe("plus_limit");
+    expect(c?.title).toBe("Monthly Limit Reached");
+    expect(c?.primaryAction).toBe("get_more");
+    expect(c?.secondaryAction).toBe("dismiss_limit");
+    expect(c?.body.toLowerCase()).not.toMatch(/paste|your own api key|sk-ant/);
+    expect(c?.body).toMatch(/allotment starts over/i);
   });
 
   it("enable_auto when key but auto off", () => {
@@ -347,6 +370,32 @@ describe("filingHeroCopy", () => {
     expect(c?.mode).toBe("auto_on");
     expect(c?.body.toLowerCase()).toMatch(/automatic filing/);
     expect(c?.eyebrow).toBe("Automatic");
+  });
+});
+
+describe("filingPathFromAuth", () => {
+  it("maps plus exhausted", () => {
+    expect(
+      filingPathFromAuth({ mode: "plus", status: "exhausted" }),
+    ).toBe("plus_exhausted");
+    expect(filingPathFromAuth({ mode: "byok" })).toBe("byok");
+    expect(filingPathFromAuth({ mode: "none" })).toBe("none");
+  });
+});
+
+describe("atomsPlus offer copy", () => {
+  it("includes 150, no rollover, cost reason, free path", () => {
+    const o = atomsPlusOfferCopy();
+    expect(o.bullets.join(" ")).toMatch(/150/);
+    expect(o.bullets.join(" ").toLowerCase()).toMatch(/don.t roll over|don’t roll over/);
+    expect(o.costReason.toLowerCase()).toMatch(/cost/);
+    expect(o.freePath.toLowerCase()).toMatch(/own.*key|api key/);
+  });
+
+  it("top-up is one-time not auto-renew", () => {
+    const t = atomsPlusTopUpCopy();
+    expect(t.body.toLowerCase()).toMatch(/one-time|does not.*renew automatically/);
+    expect(t.detail).toMatch(/50/);
   });
 });
 

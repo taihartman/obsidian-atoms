@@ -26,6 +26,15 @@ import {
   LOCAL_STORAGE_API_KEY,
 } from "../shared/types";
 import {
+  clearPlusSession,
+  readPlusSession,
+} from "../platform/filingAuth";
+import {
+  atomsPlusOfferCopy,
+  atomsPlusTopUpCopy,
+} from "../home/atomsHomeData";
+import { DEFAULT_PLUS_BASE_URL } from "../platform/plusClient";
+import {
   addCustomActiveTag,
   approveProposedTag,
   normalizeTag,
@@ -67,10 +76,149 @@ export class AtomsSettingTab extends PluginSettingTab {
 
     this.renderCaptureSection(containerEl);
     this.renderApiSection(containerEl);
+    this.renderPlusSection(containerEl);
     this.renderAutoRunSection(containerEl);
     this.renderModelSection(containerEl);
     this.renderVocabularySection(containerEl);
     this.renderDevHints(containerEl);
+  }
+
+  /**
+   * Atoms Plus — mock SSOT docs/design-handoff/atoms-plus/index.html (v3).
+   * No ambient remaining meters. Checkout needs Plus service (U6).
+   */
+  private renderPlusSection(containerEl: HTMLElement) {
+    settingHeading(containerEl, "Atoms Plus");
+
+    const auth = this.plugin.resolveFilingAuth();
+    const session = readPlusSession(this.app);
+    const offer = atomsPlusOfferCopy();
+    const topUp = atomsPlusTopUpCopy();
+
+    if (auth.mode === "plus" && auth.status === "exhausted") {
+      new Setting(containerEl)
+        .setName("Monthly Limit Reached")
+        .setDesc(
+          "You’ve used this month’s included AI filings. Your allotment starts over on your next billing date. If you need more before then, you can buy additional filings.",
+        )
+        .addButton((btn) =>
+          btn.setButtonText(topUp.primaryLabel).setCta().onClick(() => {
+            new Notice(
+              `${topUp.title}: ${topUp.price} · ${topUp.detail}. ${topUp.body} (Checkout when Plus service is live.)`,
+              8000,
+            );
+          }),
+        )
+        .addButton((btn) =>
+          btn.setButtonText("Manage Subscription").onClick(() => {
+            new Notice("Manage billing opens when Plus service is live.");
+          }),
+        );
+      if (session?.email) {
+        new Setting(containerEl)
+          .setName("Account")
+          .setDesc(session.email);
+      }
+      new Setting(containerEl)
+        .setName("Sign out")
+        .setDesc("Remove Plus session from this device only.")
+        .addButton((btn) =>
+          btn.setButtonText("Sign Out").onClick(() => {
+            clearPlusSession(this.app);
+            new Notice("Atoms Plus signed out on this device");
+            this.display();
+          }),
+        );
+      return;
+    }
+
+    if (auth.mode === "plus") {
+      const statusLabel =
+        auth.status === "trialing"
+          ? "Active · Trial"
+          : auth.status === "active"
+            ? "Active"
+            : "On";
+      new Setting(containerEl)
+        .setName("Status")
+        .setDesc(statusLabel);
+      new Setting(containerEl)
+        .setName("Account")
+        .setDesc(auth.email);
+      new Setting(containerEl)
+        .setName("Plan")
+        .setDesc(
+          session?.periodEnd
+            ? `Renews ${session.periodEnd.slice(0, 10)}`
+            : "Monthly or yearly — see Manage Subscription",
+        );
+      new Setting(containerEl)
+        .setName("Manage")
+        .addButton((btn) =>
+          btn.setButtonText("Manage Subscription").onClick(() => {
+            new Notice("Manage billing opens when Plus service is live.");
+          }),
+        )
+        .addButton((btn) =>
+          btn.setButtonText("Sign Out").onClick(() => {
+            clearPlusSession(this.app);
+            new Notice("Atoms Plus signed out on this device");
+            this.display();
+          }),
+        );
+      containerEl.createEl("p", {
+        text: "To use your own API key instead, add it under API Key. Plus is optional.",
+        cls: "setting-item-description",
+      });
+      return;
+    }
+
+    // Signed out
+    new Setting(containerEl)
+      .setName("Skip the API Key")
+      .setDesc(
+        "Atoms Plus files your captures for you. Or keep using your own key. It’s free forever, and the full app stays yours either way.",
+      )
+      .addButton((btn) =>
+        btn.setButtonText("See Plans").setCta().onClick(() => {
+          const lines = [
+            offer.title,
+            offer.priceMonthly,
+            offer.priceYearly,
+            ...offer.bullets,
+            offer.costReason,
+            offer.freePath,
+            offer.finePrint,
+            "(Checkout when Plus service is live.)",
+          ];
+          new Notice(lines.join(" · ").slice(0, 400), 12000);
+        }),
+      )
+      .addButton((btn) =>
+        btn.setButtonText("Enter Promo Code").onClick(() => {
+          new Notice("Promo codes redeem when Plus service is live.");
+        }),
+      );
+
+    containerEl.createEl("p", {
+      text: "When you use Plus, captures are sent securely to Anthropic under our account. We don’t train on your notes.",
+      cls: "setting-item-description",
+    });
+
+    new Setting(containerEl)
+      .setName("Plus service URL")
+      .setDesc(
+        `Dogfood override. Empty uses ${DEFAULT_PLUS_BASE_URL}. Not a secret.`,
+      )
+      .addText((text) =>
+        text
+          .setPlaceholder(DEFAULT_PLUS_BASE_URL)
+          .setValue(this.plugin.settings.plusBaseUrl)
+          .onChange(async (value) => {
+            this.plugin.settings.plusBaseUrl = value.trim();
+            await this.plugin.saveSettings();
+          }),
+      );
   }
 
   private renderCaptureSection(containerEl: HTMLElement) {

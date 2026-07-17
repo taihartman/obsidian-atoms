@@ -400,7 +400,14 @@ export default class AtomsPlugin extends Plugin {
     return {
       ...state,
       inFlight: this.autoRunInFlight,
-      hasKey: !!this.getApiKey(),
+      // Treat active/trialing Plus as "has filing credentials" for auto-run readiness.
+      hasKey: (() => {
+        const a = this.resolveFilingAuth();
+        if (a.mode === "byok") return true;
+        if (a.mode === "plus" && a.status !== "exhausted" && a.status !== "inactive")
+          return true;
+        return false;
+      })(),
     };
   }
 
