@@ -1,0 +1,24 @@
+Live demo-vault Atoms home (0.6.18) after Update with invalid model.
+Source: leaf.view.containerEl.innerText + landPeak JSON.
+
+Updated 0 notes · 2 failed
+
+Couldn't finish
+
+Couldn't update 2 notes
+
+Check Settings → model id and API key, then try Update again.
+
+Done
+
+---
+landPeak:
+{
+  "source": "update",
+  "atoms": [],
+  "atomCount": 0,
+  "failedCount": 2,
+  "summaryLine": "Couldn't update 2 notes"
+}
+phase: done
+lastRefreshReport example: scanned 2–3, updated 0, failed 2–3
