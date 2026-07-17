@@ -25,7 +25,7 @@
 | # | Title / primary | Job |
 |---|-----------------|-----|
 | H1 | 4 Captures Waiting · **Try Atoms Plus** | Two paths |
-| H2 | **Monthly Limit Reached** · **Get More** | Soft limit |
+| H2 | **Monthly Limit Reached** · **Get More** | Allotment used; resets on billing date (not auto top-up) |
 | S1 | **Skip the API Key** · **See Plans** | Invite |
 | Offer | **Atoms Plus** · $5 · **Start Free Trial** | 150, cost, free path |
 | S2 | Status **Active** · Manage Subscription | Quiet |
