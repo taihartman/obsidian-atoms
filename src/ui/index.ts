@@ -12,6 +12,7 @@ export {
   listRow,
   sectionLabel,
   statusCard,
+  textButton,
   type ButtonGrade,
   type KickerVariant,
   type LinkChipKind,

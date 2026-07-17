@@ -71,6 +71,7 @@ import {
   listRow,
   sectionLabel,
   statusCard,
+  textButton,
 } from "../ui";
 import {
   CAPTURE_SHORTCUT_VERSION,
@@ -340,7 +341,7 @@ export class AtomsHomeView extends ItemView {
       const list = el.createDiv({ cls: "atoms-home-landed" });
       for (const row of d.rows) {
         const btn = list.createEl("button", {
-          cls: "atoms-home-landed-row",
+          cls: "atoms-ui-ghost-btn atoms-home-landed-row",
           attr: { type: "button" },
         });
         btn.createSpan({
@@ -353,7 +354,8 @@ export class AtomsHomeView extends ItemView {
             text: row.meta,
           });
         }
-        btn.addEventListener("click", () => {
+        btn.addEventListener("click", (ev) => {
+          ev.stopPropagation();
           void this.openLandedAtom(row.path);
         });
       }
@@ -653,7 +655,7 @@ export class AtomsHomeView extends ItemView {
     });
     el.addEventListener("click", (ev) => {
       const t = ev.target as HTMLElement;
-      if (t.closest(".atoms-home-resurface-another, .atoms-ui-btn")) return;
+      if (t.closest(".atoms-home-resurface-another, .atoms-ui-btn, .atoms-ui-ghost-btn")) return;
       void this.onOpenResurface(card);
     });
 
@@ -667,23 +669,19 @@ export class AtomsHomeView extends ItemView {
     if (card.cue === "connected" && (card.connectedVia || card.connectedSeedTitle)) {
       const via = card.connectedVia?.trim();
       const seed = card.connectedSeedTitle?.trim();
-      const bridge = el.createEl("button", {
-        cls: "atoms-home-connected-bridge",
-        attr: { type: "button" },
-      });
-      bridge.setText(
-        via
+      textButton(el, {
+        label: via
           ? `Same thread · via ${via}`
           : seed
             ? `Because of ${seed}`
             : "Related note",
-      );
-      bridge.addEventListener("click", (ev) => {
-        ev.stopPropagation();
-        const target = seed || via || "";
-        if (target) {
-          void this.app.workspace.openLinkText(target, card.path, false);
-        }
+        className: "atoms-home-connected-bridge",
+        onClick: () => {
+          const target = seed || via || "";
+          if (target) {
+            void this.app.workspace.openLinkText(target, card.path, false);
+          }
+        },
       });
     }
     const foot = el.createDiv({ cls: "atoms-home-resurface-foot" });

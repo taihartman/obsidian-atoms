@@ -44,6 +44,36 @@ export function button(
   return btn;
 }
 
+/**
+ * Text-looking button with full Obsidian chrome reset.
+ * Prefer this over bare createEl("button") for ghost/inline actions
+ * (bridges, back links, list rows that must not look like system buttons).
+ */
+export function textButton(
+  parent: HTMLElement,
+  opts: {
+    label: string;
+    onClick?: (ev: MouseEvent) => void;
+    attrs?: AttrMap;
+    className?: string;
+    disabled?: boolean;
+  },
+): HTMLButtonElement {
+  const btn = parent.createEl("button", {
+    text: opts.label,
+    cls: mergeCls("atoms-ui-ghost-btn", opts.className),
+    attr: { type: "button", ...(opts.attrs ?? {}) },
+  });
+  if (opts.disabled) btn.disabled = true;
+  if (opts.onClick) {
+    btn.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      opts.onClick?.(ev);
+    });
+  }
+  return btn;
+}
+
 export function flatCard(
   parent: HTMLElement,
   opts?: {
@@ -126,7 +156,11 @@ export function citatorLine(
   },
 ): HTMLElement {
   const row = parent.createEl(opts.onPeerClick ? "button" : "p", {
-    cls: mergeCls("atoms-ui-citator-line", opts.className),
+    cls: mergeCls(
+      opts.onPeerClick && "atoms-ui-ghost-btn",
+      "atoms-ui-citator-line",
+      opts.className,
+    ),
     attr: opts.onPeerClick
       ? { type: "button" }
       : undefined,
@@ -223,16 +257,11 @@ export function backLink(
     className?: string;
   },
 ): HTMLButtonElement {
-  const btn = parent.createEl("button", {
-    text: opts.label,
-    cls: mergeCls("atoms-ui-back", opts.className),
-    attr: { type: "button" },
+  return textButton(parent, {
+    label: opts.label,
+    className: mergeCls("atoms-ui-back", opts.className),
+    onClick: opts.onClick,
   });
-  btn.addEventListener("click", (ev) => {
-    ev.stopPropagation();
-    opts.onClick();
-  });
-  return btn;
 }
 
 export function actionRow(
@@ -260,6 +289,7 @@ export function filterTabs(
     const tab = wrap.createEl("button", {
       text: mode.label,
       cls: mergeCls(
+        "atoms-ui-ghost-btn",
         "atoms-ui-filter-tab",
         mode.id === opts.active && "is-active",
       ),
