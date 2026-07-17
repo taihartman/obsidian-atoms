@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| In progress | #66 | agent | fix/collision-marker-integrity | docs/plans/2026-07-17-001-fix-collision-marker-integrity-plan.md | write.ts, render.ts, backfill.ts, main.ts, runProgress.ts | body-gate collision + surface Process failures |
+| In review | #66 | agent | fix/collision-marker-integrity | docs/plans/2026-07-17-001-fix-collision-marker-integrity-plan.md | write.ts, render.ts, backfill.ts, main.ts, runProgress.ts | PR #67 |
 
 ## How to claim (copy)
 
