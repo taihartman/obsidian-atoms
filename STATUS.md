@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| *(none)* | | | | | | |
+| In progress | #68 | Tai | `chore/drop-for-you-label` | (amend) | `atomsHomeView.ts`, `resurface.ts` | Drop For you section label; cue kicker only |
 
 ## How to claim (copy)
 

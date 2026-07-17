@@ -7,6 +7,7 @@
 - **`home-v2.html`** — For you · one hero · typed chips (person/work, max 2) — **settled; implemented 0.5.2**  
 - **`update-linking.html`** — quality upgrade path: home strip → review sheet → done (draft; not implemented)
 - **`person-hub-invite.html`** — **Add {Name}?** people-only invite (settled product; not implemented)
+- **`land-then-remember.html`** — **Land, then remember**: post-write peak (Process / Update / auto-run), 0·1·many counts, Done dismiss, named connected or silence, bridge tap, light theme (draft; not implemented)
 
 ## Product job
 
