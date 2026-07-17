@@ -859,21 +859,21 @@
   color: var(--text-normal);
 }
 
-/* Live Preview/Process progress */
+/* Live Preview/Process progress + land peak (land-then-remember mock rhythm) */
 .atoms-home-progress-card {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 14px 16px;
-  margin-bottom: 16px;
+  gap: 0;
+  padding: 16px;
+  margin-bottom: 18px;
   border-radius: 16px;
   border: 1px solid color-mix(in srgb, var(--interactive-accent) 28%, transparent);
   background: color-mix(in srgb, var(--interactive-accent) 9%, var(--background-secondary));
 }
 
 .atoms-home-progress-card.is-done {
-  border-color: color-mix(in srgb, var(--color-green, #30d158) 40%, transparent);
-  background: color-mix(in srgb, var(--color-green, #30d158) 10%, var(--background-secondary));
+  border-color: color-mix(in srgb, var(--color-green, #30d158) 32%, transparent);
+  background: color-mix(in srgb, var(--color-green, #30d158) 12%, var(--background-secondary));
 }
 
 .atoms-home-progress-card.is-error {
@@ -881,18 +881,38 @@
   background: color-mix(in srgb, var(--text-error) 10%, var(--background-secondary));
 }
 
+.atoms-home-progress-card > .atoms-home-card-eyebrow {
+  margin: 0 0 6px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-size: 0.68rem;
+}
+
+.atoms-home-progress-card.is-done > .atoms-home-card-eyebrow {
+  color: var(--color-green, #30d158);
+}
+
 .atoms-home-progress-card h2 {
-  margin: 0;
-  font-size: 1.05rem;
-  font-weight: 700;
+  margin: 0 0 6px;
+  font-size: 1.15rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
   color: var(--text-normal);
+  line-height: 1.25;
+}
+
+.atoms-home-progress-card > p:not(.atoms-home-card-eyebrow):not(.atoms-home-progress-snippet) {
+  margin: 0 0 12px;
+  font-size: 0.88rem;
+  color: var(--text-muted);
+  line-height: 1.45;
 }
 
 .atoms-home-progress-snippet {
-  margin: 0;
+  margin: 0 0 10px;
   font-size: 0.85rem;
   color: var(--text-muted);
-  line-height: 1.35;
+  line-height: 1.4;
   font-style: italic;
 }
 
@@ -901,7 +921,7 @@
   border-radius: 3px;
   background: var(--background-modifier-border);
   overflow: hidden;
-  margin-top: 2px;
+  margin-top: 4px;
 }
 
 .atoms-home-progress-fill {
@@ -916,25 +936,25 @@
 .atoms-home-landed {
   display: flex;
   flex-direction: column;
-  margin: 4px 0 10px;
+  margin: 0 0 12px;
   border-radius: 12px;
   overflow: hidden;
   border: 1px solid var(--background-modifier-border);
-  background: var(--background-secondary);
+  background: var(--background-primary);
 }
 
 .atoms-home-landed-row {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 2px;
+  gap: 4px;
   width: 100%;
-  min-height: 48px;
-  padding: 12px 14px;
+  min-height: 52px;
+  padding: 14px 16px;
   border-bottom: 0.5px solid var(--background-modifier-border);
   color: var(--text-normal);
   text-align: left;
-  line-height: 1.3;
+  line-height: 1.35;
 }
 
 .atoms-home-landed-row:last-child {
@@ -948,29 +968,35 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 0.92rem;
+  font-size: 0.95rem;
   font-weight: 550;
-  line-height: 1.3;
+  line-height: 1.35;
   letter-spacing: -0.015em;
   color: var(--text-normal);
 }
 
 .atoms-home-landed-meta {
-  font-size: 0.75rem;
-  line-height: 1.3;
+  font-size: 0.78rem;
+  line-height: 1.35;
   color: var(--text-faint);
   font-weight: 500;
 }
 
 .atoms-home-landed-more {
-  padding: 10px 14px;
+  padding: 12px 16px;
   font-size: 0.82rem;
   color: var(--text-muted);
   border-top: 0.5px solid var(--background-modifier-border);
 }
 
 .atoms-home-land-actions {
-  margin-top: 4px;
+  margin-top: 0;
+  gap: 10px;
+}
+
+.atoms-home-land-actions .atoms-home-btn,
+.atoms-home-land-dismiss {
+  min-height: 46px;
 }
 
 .atoms-home-resurface-card .atoms-home-kicker,
