@@ -48,18 +48,19 @@ export function button(
  * Text-looking control that is NOT a <button>.
  * Mobile Obsidian paints system chrome on <button> that CSS cannot fully kill
  * (bordered empty box). Use this for bridges / inline text actions.
+ * Pass `label` for plain text, or `build` for multi-line content (e.g. bridge).
  */
 export function textControl(
   parent: HTMLElement,
   opts: {
-    label: string;
+    label?: string;
+    build?: (el: HTMLDivElement) => void;
     onClick?: (ev: MouseEvent) => void;
     className?: string;
     attrs?: AttrMap;
   },
 ): HTMLDivElement {
   const el = parent.createDiv({
-    text: opts.label,
     cls: mergeCls("atoms-ui-ghost-btn", "atoms-ui-text-control", opts.className),
     attr: {
       role: "button",
@@ -67,6 +68,11 @@ export function textControl(
       ...(opts.attrs ?? {}),
     },
   });
+  if (opts.build) {
+    opts.build(el);
+  } else if (opts.label != null) {
+    el.setText(opts.label);
+  }
   if (opts.onClick) {
     el.addEventListener("click", (ev) => {
       ev.stopPropagation();

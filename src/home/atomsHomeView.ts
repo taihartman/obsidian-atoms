@@ -36,7 +36,7 @@ import {
   calendarDayDelta,
   citatorLinesForAtom,
   claimBodyForDisplay,
-  connectedBridgeLabel,
+  connectedBridge,
   connectedKicker,
   cueLabel,
   formatCueDate,
@@ -668,19 +668,29 @@ export class AtomsHomeView extends ItemView {
       text: card.bodySnippet,
     });
     if (card.cue === "connected") {
-      const bridgeLabel = connectedBridgeLabel(card);
-      const via = card.connectedVia?.trim();
-      const seed = card.connectedSeedTitle?.trim();
-      if (bridgeLabel) {
+      const bridge = connectedBridge(card);
+      if (bridge) {
         // Not a <button> — Obsidian mobile paints system chrome on buttons.
         textControl(el, {
-          label: bridgeLabel,
           className: "atoms-home-connected-bridge",
-          onClick: () => {
-            const target = seed || via || "";
-            if (target) {
-              void this.app.workspace.openLinkText(target, card.path, false);
+          build: (row) => {
+            if (bridge.whisper) {
+              row.createDiv({
+                cls: "atoms-home-connected-bridge-whisper",
+                text: bridge.whisper,
+              });
             }
+            row.createDiv({
+              cls: "atoms-home-connected-bridge-open",
+              text: bridge.openLabel,
+            });
+          },
+          onClick: () => {
+            void this.app.workspace.openLinkText(
+              bridge.target,
+              card.path,
+              false,
+            );
           },
         });
       }

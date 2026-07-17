@@ -4,6 +4,7 @@ import {
   calendarDayDelta,
   citatorLinesForAtom,
   claimBodyForDisplay,
+  connectedBridge,
   connectedBridgeLabel,
   connectedKicker,
   cueLabel,
@@ -573,7 +574,7 @@ describe("claimBodyForDisplay", () => {
 });
 
 describe("connected bridge / kicker copy", () => {
-  it("kicker Because of seed; bridge Open seed — never duplicates", () => {
+  it("seed: kicker Because of; bridge Open seed only", () => {
     const card = {
       path: "Atoms/A.md",
       title: "A",
@@ -588,12 +589,36 @@ describe("connected bridge / kicker copy", () => {
     expect(connectedKicker(card)).toBe(
       "Because of Andrew loves High School Musical",
     );
+    expect(connectedBridge(card)).toEqual({
+      openLabel: "Open Andrew loves High School Musical",
+      target: "Andrew loves High School Musical",
+    });
     expect(connectedBridgeLabel(card)).toBe(
       "Open Andrew loves High School Musical",
     );
   });
 
-  it("person via: Also about kicker + Same thread bridge", () => {
+  it("seed + via: whisper Same thread, Open seed", () => {
+    const card = {
+      path: "Atoms/A.md",
+      title: "A",
+      bodySnippet: "x",
+      matchDate: "2026-07-16",
+      mtime: 1,
+      linkChips: [],
+      cue: "connected" as const,
+      connectedVia: "Alex",
+      connectedSeedTitle: "Ning’s gift idea",
+      connectedKind: "seed" as const,
+    };
+    expect(connectedBridge(card)).toEqual({
+      whisper: "Same thread · via Alex",
+      openLabel: "Open Ning’s gift idea",
+      target: "Ning’s gift idea",
+    });
+  });
+
+  it("person via: Also about kicker + Open via only (no Same thread echo)", () => {
     const card = {
       path: "Atoms/A.md",
       title: "A",
@@ -607,6 +632,9 @@ describe("connected bridge / kicker copy", () => {
       connectedKind: "person" as const,
     };
     expect(connectedKicker(card)).toBe("Also about Nichita");
-    expect(connectedBridgeLabel(card)).toBe("Same thread · via Nichita");
+    expect(connectedBridge(card)).toEqual({
+      openLabel: "Open Nichita",
+      target: "Nichita",
+    });
   });
 });

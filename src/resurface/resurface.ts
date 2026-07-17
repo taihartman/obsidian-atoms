@@ -516,16 +516,46 @@ export function connectedKicker(card: ResurfaceCandidate): string {
   return "Memory";
 }
 
+/** Tappable bridge under the snippet — opens seed/hub (not the memory). */
+export type ConnectedBridge = {
+  /** Optional muted context line (never the only line). */
+  whisper?: string;
+  /** Accent action — the affordance ("Open …"). */
+  openLabel: string;
+  /** openLinkText target (title). */
+  target: string;
+};
+
 /**
- * Bridge line under the snippet — opens seed/hub, never repeats the kicker.
- * Design: "Same thread · via X" or "Open {seed}".
+ * Bridge under snippet. Kicker already answers "why"; bridge is the secondary
+ * target with a clear Open affordance. Never repeats the kicker.
+ *
+ * - person via → Open {via} only (kicker is Also about {via})
+ * - seed (+ optional via whisper) → Open {seed}
  */
-export function connectedBridgeLabel(card: ResurfaceCandidate): string | null {
+export function connectedBridge(card: ResurfaceCandidate): ConnectedBridge | null {
   const via = card.connectedVia?.trim();
   const seed = card.connectedSeedTitle?.trim();
-  if (via) return `Same thread · via ${via}`;
-  if (seed) return `Open ${seed}`;
+  if (card.connectedKind === "person" && via) {
+    return { openLabel: `Open ${via}`, target: via };
+  }
+  if (seed) {
+    return {
+      ...(via ? { whisper: `Same thread · via ${via}` } : {}),
+      openLabel: `Open ${seed}`,
+      target: seed,
+    };
+  }
+  if (via) {
+    return { openLabel: `Open ${via}`, target: via };
+  }
   return null;
+}
+
+/** @deprecated use connectedBridge — single-line label for older call sites/tests */
+export function connectedBridgeLabel(card: ResurfaceCandidate): string | null {
+  const b = connectedBridge(card);
+  return b?.openLabel ?? null;
 }
 
 /**
