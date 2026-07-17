@@ -1180,6 +1180,21 @@
   user-select: none;
 }
 
+/*
+ * Landed rows use textControl (ghost + text-control). text-control zeros
+ * padding for bridges; restore land-peak row padding after that rule so
+ * rows are not glued (craft miss: 0.6.22 spacing fix lost to cascade).
+ */
+.atoms-home-landed-row.atoms-ui-text-control {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-height: 52px;
+  padding: 14px 16px;
+  box-sizing: border-box;
+}
+
 /* Buttons */
 .atoms-ui-btn {
   display: inline-flex;
