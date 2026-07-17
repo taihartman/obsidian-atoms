@@ -11,11 +11,15 @@ import type AtomsPlugin from "../plugin/main";
 import {
   bodyAfterFrontmatter,
   countEligibleUpdateNotes,
+  extractSourceDay,
   filingHeroCopy,
   filterLinkedOnly,
   formatRelativeTime,
   isAutomaticFilingReady,
+  isDayOnlyCreated,
+  isGeneratedAtomContent,
   listAtomLibraryEntries,
+  planCreatedOrderBackfill,
   queuePeekTexts,
   shouldShowWaitCard,
   updateNotesConfirmCopy,
@@ -81,6 +85,11 @@ import {
   getPastDailyNotesWithUnmarkedCaptures,
   openTodaysDaily,
 } from "../pipeline/daily";
+import {
+  appHasDailyNotesPluginLoaded,
+  getAllDailyNotes,
+  getDateFromFile,
+} from "obsidian-daily-notes-interface";
 import {
   progressLabel,
   progressPercent,
@@ -353,12 +362,43 @@ export class AtomsHomeView extends ItemView {
     return needsShortcutCta(this.shortcutAcked);
   }
 
+  /**
+   * One-shot heal: day-only `created` → day + daily line order via body match.
+   * Writes only `created` frontmatter; skips when daily missing or ambiguous.
+   */
+  private async backfillCreatedOrder(atomFiles: TFile[]): Promise<void> {
+    if (!appHasDailyNotesPluginLoaded()) return;
+    const all = getAllDailyNotes();
+    const byDate = new Map<string, { content: string }>();
+    for (const file of Object.values(all)) {
+      const momentDate = getDateFromFile(file, "day");
+      if (!momentDate) continue;
+      const date = momentDate.format("YYYY-MM-DD");
+      if (byDate.has(date)) continue;
+      byDate.set(date, { content: await this.app.vault.cachedRead(file) });
+    }
+
+    for (const file of atomFiles) {
+      const raw = await this.app.vault.cachedRead(file);
+      if (!isGeneratedAtomContent(raw) || !isDayOnlyCreated(raw)) continue;
+      const day = extractSourceDay(raw);
+      if (!day || !/^\d{4}-\d{2}-\d{2}$/.test(day)) continue;
+      const daily = byDate.get(day);
+      if (!daily) continue;
+      const plan = planCreatedOrderBackfill(raw, daily.content, day);
+      if (!plan) continue;
+      await this.app.vault.modify(file, plan.content);
+    }
+  }
+
   private async loadData(): Promise<void> {
     const folder = this.plugin.settings.atomFolder || "Atoms";
     const files = this.app.vault.getMarkdownFiles().filter((f) => {
       const p = f.path;
       return p === folder || p.startsWith(`${folder}/`);
     });
+
+    await this.backfillCreatedOrder(files);
 
     const inputs = await Promise.all(
       files.map(async (f: TFile) => ({

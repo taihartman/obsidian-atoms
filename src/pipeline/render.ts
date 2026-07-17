@@ -319,16 +319,33 @@ export function insertMarkerAfterCapture(
   return { content, changed: true };
 }
 
-/** created field: daily date + optional capture time */
+function pad2(n: number): string {
+  return String(n).padStart(2, "0");
+}
+
+/**
+ * created field: real capture clock when bullet has HH:mm; else day + stable
+ * within-day order from startLine (noon + line seconds) so library Recents
+ * match daily bullet order without inventing wall-clock times far from midday.
+ */
 export function resolveCreatedField(
   dailyDate: string,
   captureTimestamp: string | null,
+  startLine: number = 0,
 ): string {
   if (captureTimestamp) {
     // dailyDate is YYYY-MM-DD; timestamp HH:mm or HH:mm:ss
     return `${dailyDate}T${captureTimestamp.length === 5 ? captureTimestamp + ":00" : captureTimestamp}`;
   }
-  return dailyDate;
+  const line = Math.max(0, Math.floor(startLine));
+  // Cap so we stay on the same calendar day (noon + up to ~11h59m59s).
+  const maxFromNoon = 11 * 3600 + 59 * 60 + 59;
+  const fromNoon = Math.min(line, maxFromNoon);
+  const total = 12 * 3600 + fromNoon;
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  return `${dailyDate}T${pad2(h)}:${pad2(m)}:${pad2(s)}`;
 }
 
 export type WriteAction =
@@ -394,7 +411,11 @@ export function planWrite(opts: {
   const content = buildAtomMarkdown({
     result: resultForWrite,
     captureText: capture.text,
-    created: resolveCreatedField(opts.dailyDate, capture.timestamp),
+    created: resolveCreatedField(
+      opts.dailyDate,
+      capture.timestamp,
+      capture.startLine,
+    ),
     sourceDailyPath: dailyPath,
   });
 

@@ -6,6 +6,8 @@ import {
   CURRENT_ATOMS_QUALITY,
   isEligibleForUpdate,
 } from "../pipeline/atomQuality";
+import { parseCaptures } from "../pipeline/parse";
+import { resolveCreatedField } from "../pipeline/render";
 
 /** Home-row chip role — person (warm) vs work/media (cool). */
 export type LinkChipRole = "person" | "work";
@@ -136,6 +138,72 @@ export function libraryTimeMs(content: string, fileMtimeMs: number): number {
     if (y && mo && d) return new Date(y, mo - 1, d, 12, 0, 0, 0).getTime();
   }
   return fileMtimeMs;
+}
+
+/** True when `created` is day-only (needs within-day order backfill). */
+export function isDayOnlyCreated(content: string): boolean {
+  if (!content.startsWith("---")) return false;
+  const end = content.indexOf("\n---", 3);
+  const fm = end === -1 ? content.slice(0, 800) : content.slice(0, end + 4);
+  const m = fm.match(CREATED_RE);
+  if (!m?.[1]) return false;
+  const raw = m[1].trim().replace(/^["']|["']$/g, "");
+  return /^\d{4}-\d{2}-\d{2}$/.test(raw);
+}
+
+/**
+ * Capture text first line from atom body (before link-prose blank line).
+ * Used to body-match the source daily — not the ↳ marker title.
+ */
+export function atomCaptureFirstLine(content: string): string {
+  const body = bodyAfterFrontmatter(content);
+  const capturePart = (body.split(/\n\n/)[0] ?? body).trimEnd();
+  return (capturePart.split("\n")[0] ?? "").trim();
+}
+
+/** Rewrite only the `created:` frontmatter line; body untouched. */
+export function rewriteCreatedFrontmatter(
+  content: string,
+  created: string,
+): string {
+  if (!content.startsWith("---")) return content;
+  const end = content.indexOf("\n---", 3);
+  if (end === -1) return content;
+  const fm = content.slice(0, end + 4);
+  const rest = content.slice(end + 4);
+  if (!CREATED_RE.test(fm)) return content;
+  const nextFm = fm.replace(CREATED_RE, `created: ${created}`);
+  return nextFm + rest;
+}
+
+/**
+ * If atom has day-only `created`, re-stamp from source daily bullet position
+ * (body match). Null when no change or no unique match.
+ */
+export function planCreatedOrderBackfill(
+  atomContent: string,
+  dailyContent: string,
+  dailyDate: string,
+): { content: string; created: string } | null {
+  if (!isDayOnlyCreated(atomContent)) return null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dailyDate)) return null;
+  const needle = atomCaptureFirstLine(atomContent);
+  if (!needle) return null;
+
+  const caps = parseCaptures(dailyContent);
+  const matches = caps.filter(
+    (c) => (c.text.split("\n")[0] ?? "").trim() === needle,
+  );
+  if (matches.length !== 1) return null;
+  const cap = matches[0]!;
+  const created = resolveCreatedField(
+    dailyDate,
+    cap.timestamp,
+    cap.startLine,
+  );
+  const content = rewriteCreatedFrontmatter(atomContent, created);
+  if (content === atomContent) return null;
+  return { content, created };
 }
 
 /** Body after frontmatter (or full content if none). */
