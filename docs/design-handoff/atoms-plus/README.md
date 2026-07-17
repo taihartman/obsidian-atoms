@@ -1,6 +1,6 @@
 # Atoms Plus — UI mocks (pre-impl)
 
-**Status:** draft mock v2 (minimal) for U5 review · **not implemented**  
+**Status:** draft mock **v3** (Apple language + minimal) · **not implemented**  
 **Open:** `index.html`
 
 ## Product (locked)
@@ -10,24 +10,27 @@
 - Preview costs when classify runs · cache free re-open
 - 14-day trial + card · magic link · capped promos
 
-## UI direction (v2)
+## UI direction (v3)
 
-- **No ambient counters** (no 118/150, no progress bars) on home or Settings while active
-- **Numbers only on buy / top-up / trial** sheets
-- **Why it costs:** model usage costs us money; Plus helps cover it and support Atoms
-- **Free path always named:** own Anthropic key, full product forever
-- Limit UI only when plan is full (soft “paused”), not as daily chrome
+- **No ambient counters** on home or Settings while active
+- **Numbers only on offer / Get More** sheets
+- **Apple-plain limit:** “Monthly Limit Reached” (not “filing paused”)
+- **Buttons:** Try Atoms Plus · Use My Own Key · Get More · Not Now · Start Free Trial · Continue / Cancel
+- **Why it costs:** once on the offer (real cost + supports development)
+- **Free path always named** without pressure
+- Limit UI only when the period is used up
 
 ## States to approve
 
-| # | Surface | State | Primary job |
-|---|---------|--------|-------------|
-| H1 | Home wait | **none** | Plus or own key (quiet) |
-| H2 | Home wait | **plan full** | Pause copy + add more (no numbers) |
-| S1 | Settings | **out** | Why Plus + free path → See plans |
-| Buy | Sheet | **purchase** | Price, 150/mo, cost reason, free path, trial |
-| S2 | Settings | **on** | Status on · email · renews (no meter) |
-| S3 | Settings | **full** | Paused + top-up sheet (+50/$2) |
+| # | Title / primary | Job |
+|---|-----------------|-----|
+| H1 | 4 Captures Waiting · **Try Atoms Plus** | Two paths |
+| H2 | **Monthly Limit Reached** · **Get More** | Soft limit |
+| S1 | **Skip the API Key** · **See Plans** | Invite |
+| Offer | **Atoms Plus** · $5 · **Start Free Trial** | 150, cost, free path |
+| S2 | Status **Active** · Manage Subscription | Quiet |
+| S3 | **Monthly Limit Reached** · Get More | Same language as home |
+| Top-up | **Additional Filings** · $2 · **Continue** | +50 |
 
 ## Gate
 

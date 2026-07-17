@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Atoms Plus — UI mock v2 (minimal)</title>
+<title>Atoms Plus — UI mock v3 (Apple language)</title>
 <style>
   :root {
     --bg: #000;
@@ -16,8 +16,7 @@
     --tint: #0a84ff;
     --person: #ff9f0a;
     --ok: #30d158;
-    --err: #ff453a;
-    --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+    --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", system-ui, sans-serif;
   }
   * { box-sizing: border-box; }
   body {
@@ -25,7 +24,8 @@
     font-family: var(--font);
     background: #0a0a0c;
     color: var(--label);
-    line-height: 1.45;
+    line-height: 1.42;
+    -webkit-font-smoothing: antialiased;
   }
   .page {
     max-width: 1100px;
@@ -38,7 +38,7 @@
     padding-bottom: 1.25rem;
   }
   .eyebrow {
-    font-size: 0.7rem;
+    font-size: 0.68rem;
     letter-spacing: 0.12em;
     text-transform: uppercase;
     color: var(--person);
@@ -54,22 +54,21 @@
   .lede {
     color: var(--muted);
     font-size: 0.95rem;
-    max-width: 40rem;
+    max-width: 42rem;
     margin: 0;
   }
-  .lede strong { color: var(--label); font-weight: 600; }
   .principles {
     margin: 1rem 0 0;
     padding: 0.85rem 1rem;
     background: var(--card);
     border: 1px solid var(--sep);
     border-radius: 12px;
-    font-size: 0.88rem;
+    font-size: 0.86rem;
     color: var(--muted);
   }
   .principles strong { color: var(--label); }
   .principles ul { margin: 0.4rem 0 0; padding-left: 1.15rem; }
-  .principles li { margin-bottom: 0.25rem; }
+  .principles li { margin-bottom: 0.3rem; }
   nav.jump {
     display: flex;
     flex-wrap: wrap;
@@ -125,7 +124,7 @@
     background: var(--bg);
     border-radius: 20px;
     min-height: 500px;
-    padding: 14px 14px 20px;
+    padding: 14px 14px 22px;
   }
   .cap {
     font-size: 0.72rem;
@@ -143,49 +142,43 @@
     background: var(--card);
     border-radius: 16px;
     border: 1px solid var(--sep);
-    padding: 16px;
+    padding: 16px 16px 14px;
     margin-bottom: 12px;
   }
   .card.waiting {
-    background: color-mix(in srgb, var(--person) 12%, transparent);
-    border-color: color-mix(in srgb, var(--person) 35%, transparent);
+    background: color-mix(in srgb, var(--person) 11%, transparent);
+    border-color: color-mix(in srgb, var(--person) 32%, transparent);
   }
   .card.plus {
-    background: color-mix(in srgb, var(--tint) 10%, transparent);
-    border-color: color-mix(in srgb, var(--tint) 32%, transparent);
-  }
-  .card.soft {
-    /* exhausted / limit: quiet, not alarm-red arcade */
-    background: var(--card);
-    border-color: var(--sep);
+    background: color-mix(in srgb, var(--tint) 9%, transparent);
+    border-color: color-mix(in srgb, var(--tint) 28%, transparent);
   }
   .kicker {
     font-size: 0.68rem;
     font-weight: 600;
-    letter-spacing: 0.12em;
+    letter-spacing: 0.11em;
     text-transform: uppercase;
     color: var(--person);
     margin: 0 0 6px;
   }
   .card.plus .kicker { color: var(--tint); }
-  .card.soft .kicker { color: var(--muted); }
   .card h3 {
-    font-size: 1.08rem;
+    font-size: 1.12rem;
     font-weight: 650;
-    letter-spacing: -0.02em;
-    margin: 0 0 8px;
+    letter-spacing: -0.022em;
+    margin: 0 0 6px;
+    line-height: 1.25;
   }
   .card p {
-    margin: 0 0 12px;
-    font-size: 0.88rem;
+    margin: 0 0 14px;
+    font-size: 0.9rem;
     color: var(--muted);
+    line-height: 1.4;
   }
-  .card p:last-child { margin-bottom: 0; }
   .btn-row {
     display: flex;
     flex-direction: column;
     gap: 8px;
-    margin-top: 4px;
   }
   .btn {
     display: flex;
@@ -193,17 +186,18 @@
     justify-content: center;
     min-height: 44px;
     border-radius: 12px;
-    font-size: 0.95rem;
+    font-size: 0.97rem;
     font-weight: 600;
+    letter-spacing: -0.01em;
   }
   .btn.primary { background: var(--tint); color: #fff; }
   .btn.secondary { background: var(--elev); color: var(--label); }
   .btn.quiet {
     background: transparent;
-    color: var(--muted);
+    color: var(--tint);
     font-weight: 500;
-    min-height: 36px;
-    font-size: 0.88rem;
+    min-height: 40px;
+    font-size: 0.92rem;
   }
   .section-label {
     font-size: 0.72rem;
@@ -221,50 +215,82 @@
     margin-bottom: 12px;
   }
   .settings-row {
-    padding: 14px 16px;
+    padding: 13px 16px;
     border-bottom: 1px solid var(--sep);
+    min-height: 52px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
   }
   .settings-row:last-child { border-bottom: none; }
-  .settings-row .label { font-size: 0.95rem; font-weight: 500; }
+  .settings-row .label { font-size: 0.97rem; font-weight: 400; }
   .settings-row .value {
-    font-size: 0.82rem;
+    font-size: 0.84rem;
     color: var(--muted);
-    margin-top: 3px;
+    margin-top: 2px;
   }
   .settings-row .value.ok { color: var(--ok); }
-  .privacy {
-    font-size: 0.78rem;
+  .footer-note {
+    font-size: 0.8rem;
     color: var(--faint);
-    line-height: 1.45;
-    margin: 12px 4px 0;
+    line-height: 1.4;
+    margin: 14px 6px 0;
   }
   .sheet {
-    margin-top: 10px;
-    padding: 14px;
-    background: var(--elev);
-    border-radius: 14px;
+    margin-top: 4px;
+    padding: 18px 16px 16px;
+    background: var(--card);
+    border-radius: 16px;
     border: 1px solid var(--sep);
   }
-  .sheet h4 {
-    margin: 0 0 8px;
+  .sheet .price-line {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    margin: 0 0 2px;
+  }
+  .sheet .price {
+    font-size: 1.65rem;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+  }
+  .sheet .period {
     font-size: 0.95rem;
+    color: var(--muted);
+    font-weight: 400;
+  }
+  .sheet .alt {
+    font-size: 0.84rem;
+    color: var(--muted);
+    margin: 0 0 14px;
+  }
+  .sheet h4 {
+    margin: 0 0 10px;
+    font-size: 1.2rem;
     font-weight: 650;
+    letter-spacing: -0.02em;
   }
   .sheet p {
     margin: 0 0 10px;
-    font-size: 0.82rem;
+    font-size: 0.88rem;
+    color: var(--muted);
+    line-height: 1.4;
+  }
+  .sheet p:last-of-type { margin-bottom: 16px; }
+  .bullets {
+    margin: 0 0 16px;
+    padding: 0;
+    list-style: none;
+  }
+  .bullets li {
+    position: relative;
+    padding: 0 0 8px 0;
+    font-size: 0.88rem;
     color: var(--muted);
   }
-  .sheet .price {
-    font-size: 1.25rem;
-    font-weight: 700;
-    letter-spacing: -0.02em;
-    margin: 0 0 4px;
-  }
-  .sheet .fine {
-    font-size: 0.75rem;
-    color: var(--faint);
-    margin: 0 0 12px;
+  .bullets li strong {
+    color: var(--label);
+    font-weight: 600;
   }
   .note {
     margin-top: 2rem;
@@ -281,34 +307,35 @@
 <body>
 <div class="page">
   <header class="top">
-    <p class="eyebrow">U5 mock v2 · minimal · not implemented</p>
-    <h1>Atoms Plus UI</h1>
+    <p class="eyebrow">U5 mock v3 · Apple language · not implemented</p>
+    <h1>Atoms Plus</h1>
     <p class="lede">
-      Quiet by default. No filing meters in daily UI. Numbers only when buying.
+      Clear. Calm. Human. No ambient counters. No alarm red. Numbers only when you choose to pay.
     </p>
     <div class="principles">
-      <strong>Direction (this rev)</strong>
+      <strong>Language rules (this rev)</strong>
       <ul>
-        <li>No “118 / 150” or progress bars on home or Settings while active.</li>
-        <li>Include count + price only on purchase / top-up / trial start.</li>
-        <li>Say why it costs: model usage costs us money; subscription helps keep Atoms going.</li>
-        <li>Always offer free path: own Anthropic key, full product, forever.</li>
-        <li>Limit moments appear only when needed (plan full), not as ambient chrome.</li>
+        <li>Title case buttons: Continue, Not Now, Get More, Start Free Trial</li>
+        <li>Short titles that name the situation, not internal jargon (“filing paused”)</li>
+        <li>Body: one idea per sentence; what happened, what they can do</li>
+        <li>Always name the free path without pressure</li>
+        <li>Cost honesty once, on the offer, not on every status screen</li>
       </ul>
     </div>
     <nav class="jump">
-      <a href="#h1">H1 Home · start</a>
-      <a href="#h2">H2 Home · plan full</a>
-      <a href="#s1">S1 Settings · out</a>
-      <a href="#buy">Buy sheet</a>
-      <a href="#s2">S2 Settings · on</a>
-      <a href="#s3">S3 Settings · full</a>
+      <a href="#h1">Home · start</a>
+      <a href="#h2">Home · limit</a>
+      <a href="#s1">Settings · off</a>
+      <a href="#buy">Offer</a>
+      <a href="#s2">Settings · on</a>
+      <a href="#s3">Settings · limit</a>
+      <a href="#topup">Get More</a>
     </nav>
   </header>
 
   <section class="block">
     <h2>Home</h2>
-    <p class="sub">Waiting past captures. No counters.</p>
+    <p class="sub">When past captures are waiting.</p>
     <div class="grid">
       <div id="h1">
         <div class="phone">
@@ -317,19 +344,18 @@
             <div class="nav-title">Atoms</div>
             <div class="card waiting">
               <p class="kicker">Ready</p>
-              <h3>4 past captures waiting</h3>
+              <h3>4 Captures Waiting</h3>
               <p>
-                File them with Atoms Plus, or use your own Anthropic key for free.
-                Today’s note is never auto-touched.
+                Turn past notes into linked atoms with Atoms Plus, or use your own Anthropic API key for free.
               </p>
               <div class="btn-row">
                 <div class="btn primary">Try Atoms Plus</div>
-                <div class="btn quiet">Use my own key</div>
+                <div class="btn quiet">Use My Own Key</div>
               </div>
             </div>
           </div>
         </div>
-        <p class="cap">H1 · no key · two paths, no pitch about quotas</p>
+        <p class="cap">H1 · equal dignity for paid and free paths</p>
       </div>
 
       <div id="h2">
@@ -337,28 +363,28 @@
           <div class="phone-notch"><span></span></div>
           <div class="screen">
             <div class="nav-title">Atoms</div>
-            <div class="card soft">
+            <div class="card">
               <p class="kicker">Atoms Plus</p>
-              <h3>Filing paused for now</h3>
+              <h3>Monthly Limit Reached</h3>
               <p>
-                You’ve used this period’s included note processing. It resets on your next billing date,
-                or you can add more when you need them.
+                You’ve used everything included with Plus for this billing period.
+                It renews automatically, or you can get more anytime.
               </p>
               <div class="btn-row">
-                <div class="btn primary">Add more processing</div>
-                <div class="btn quiet">Not now</div>
+                <div class="btn primary">Get More</div>
+                <div class="btn quiet">Not Now</div>
               </div>
             </div>
           </div>
         </div>
-        <p class="cap">H2 · plan full · no numbers · no BYOK pitch</p>
+        <p class="cap">H2 · was “filing paused” · now Apple-plain</p>
       </div>
     </div>
   </section>
 
   <section class="block">
-    <h2>Settings · Atoms Plus</h2>
-    <p class="sub">Quiet status. Details live on the buy sheet.</p>
+    <h2>Settings</h2>
+    <p class="sub">Quiet when on. Offer when off. Limit only when it matters.</p>
     <div class="grid">
       <div id="s1">
         <div class="phone">
@@ -368,23 +394,21 @@
             <p class="section-label">Atoms Plus</p>
             <div class="card plus">
               <p class="kicker">Optional</p>
-              <h3>File without setting up a key</h3>
+              <h3>Skip the API Key</h3>
               <p>
-                We run the model for you. That usage costs money; Plus helps cover it and keep Atoms going.
-                You can always use your own Anthropic key instead, free forever.
+                Atoms Plus files your captures for you. Or keep using your own key. It’s free forever, and the full app stays yours either way.
               </p>
               <div class="btn-row">
-                <div class="btn primary">See plans</div>
-                <div class="btn quiet">I have a promo code</div>
+                <div class="btn primary">See Plans</div>
+                <div class="btn quiet">Enter Promo Code</div>
               </div>
             </div>
-            <p class="privacy">
-              Captures leave your device over TLS to Anthropic under our plan. We don’t train on them.
-              Your library and For you stay free either way.
+            <p class="footer-note">
+              When you use Plus, captures are sent securely to Anthropic under our account. We don’t train on your notes.
             </p>
           </div>
         </div>
-        <p class="cap">S1 · signed out · reason + free path</p>
+        <p class="cap">S1 · invite, not a hard sell</p>
       </div>
 
       <div id="buy">
@@ -393,27 +417,34 @@
           <div class="screen">
             <div class="nav-title" style="font-size:1.35rem">Atoms Plus</div>
             <div class="sheet">
-              <h4>Monthly</h4>
-              <p class="price">$5<span style="font-size:0.9rem;font-weight:500;color:var(--muted)"> / month</span></p>
-              <p class="fine">or $50 / year (two months free)</p>
+              <h4>Atoms Plus</h4>
+              <div class="price-line">
+                <span class="price">$5</span>
+                <span class="period">per month</span>
+              </div>
+              <p class="alt">$50 per year · save two months</p>
+              <ul class="bullets">
+                <li><strong>150 AI filings each month</strong> for classifying and updating notes</li>
+                <li><strong>No API key setup</strong> on phone or desktop</li>
+                <li><strong>Same Atoms you already have</strong> library and For You stay free</li>
+              </ul>
               <p>
-                Includes about 150 note processes each month (classify, preview when it runs the model, and updates).
-                Enough for daily dumping without thinking about it.
+                AI usage has a real cost. Your subscription helps cover that and supports ongoing development.
               </p>
               <p>
-                Model usage is real cost on our side. Your subscription helps cover that and support Atoms.
-              </p>
-              <p>
-                Prefer free? Stay on your own Anthropic key in Settings. Full product, no Plus required.
+                Prefer to stay free? Use your own Anthropic API key in Settings. No Plus required.
               </p>
               <div class="btn-row">
-                <div class="btn primary">Start 14-day trial</div>
-                <div class="btn quiet">Not now</div>
+                <div class="btn primary">Start Free Trial</div>
+                <div class="btn quiet">Not Now</div>
               </div>
             </div>
+            <p class="footer-note" style="margin-top:12px">
+              14 days free, then $5/month. Cancel anytime. Card required for trial.
+            </p>
           </div>
         </div>
-        <p class="cap">Buy / trial sheet · only place we name 150</p>
+        <p class="cap">Offer · only place with 150 + price + why it costs</p>
       </div>
 
       <div id="s2">
@@ -425,27 +456,31 @@
             <div class="settings-group">
               <div class="settings-row">
                 <div class="label">Status</div>
-                <div class="value ok">On · monthly</div>
+                <div class="value ok">Active</div>
               </div>
               <div class="settings-row">
-                <div class="label">Signed in</div>
+                <div class="label">Account</div>
                 <div class="value">you@example.com</div>
               </div>
               <div class="settings-row">
+                <div class="label">Plan</div>
+                <div class="value">Monthly</div>
+              </div>
+              <div class="settings-row">
                 <div class="label">Renews</div>
-                <div class="value">Aug 17</div>
+                <div class="value">August 17, 2026</div>
               </div>
             </div>
             <div class="btn-row">
-              <div class="btn secondary">Manage billing</div>
-              <div class="btn quiet">Sign out on this device</div>
+              <div class="btn secondary">Manage Subscription</div>
+              <div class="btn quiet">Sign Out</div>
             </div>
-            <p class="privacy">
-              Using your own key instead? Set it under API key. Plus stays optional.
+            <p class="footer-note">
+              To use your own API key instead, add it under API Key. Plus is optional.
             </p>
           </div>
         </div>
-        <p class="cap">S2 · active · no remaining meter</p>
+        <p class="cap">S2 · Active · no meters</p>
       </div>
 
       <div id="s3">
@@ -454,40 +489,56 @@
           <div class="screen">
             <div class="nav-title" style="font-size:1.35rem">Atoms</div>
             <p class="section-label">Atoms Plus</p>
-            <div class="card soft">
-              <p class="kicker">Paused</p>
-              <h3>Included processing used for now</h3>
+            <div class="card">
+              <p class="kicker">Atoms Plus</p>
+              <h3>Monthly Limit Reached</h3>
               <p>
-                Resets on your next billing date. Or add more processing if you need it sooner.
+                Your included AI filings renew on August 17. Get more if you need them before then.
               </p>
               <div class="btn-row">
-                <div class="btn primary">Add more processing</div>
-                <div class="btn secondary">Manage billing</div>
+                <div class="btn primary">Get More</div>
+                <div class="btn secondary">Manage Subscription</div>
               </div>
-            </div>
-            <!-- top-up sheet fragment -->
-            <div class="sheet" style="margin-top:12px">
-              <h4>Add more</h4>
-              <p class="price">$2</p>
-              <p class="fine">+50 note processes · one-time</p>
-              <p>
-                Same model path as your plan. Helps cover usage cost when you go past the monthly include.
-              </p>
-              <div class="btn primary">Buy</div>
             </div>
           </div>
         </div>
-        <p class="cap">S3 · full · numbers only on top-up sheet</p>
+        <p class="cap">S3 · same title language as home</p>
+      </div>
+
+      <div id="topup">
+        <div class="phone">
+          <div class="phone-notch"><span></span></div>
+          <div class="screen">
+            <div class="nav-title" style="font-size:1.35rem">Get More</div>
+            <div class="sheet">
+              <h4>Additional Filings</h4>
+              <div class="price-line">
+                <span class="price">$2</span>
+              </div>
+              <p class="alt">50 AI filings · one-time</p>
+              <p>
+                Adds to your current period. Same quality as your monthly plan.
+              </p>
+              <p>
+                This covers additional model usage beyond what’s included each month.
+              </p>
+              <div class="btn-row">
+                <div class="btn primary">Continue</div>
+                <div class="btn quiet">Cancel</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="cap">Top-up · Apple checkout cadence (Continue / Cancel)</p>
       </div>
     </div>
   </section>
 
   <div class="note">
-    <strong>Product implication:</strong> still meter 150 server-side. UI just doesn’t ambient-display it.
-    When they hit the wall, soft “paused” + optional top-up sheet that names +50 for $2.
+    <strong>Was:</strong> “Filing paused for now” · “Add more processing” · ambient meters<br />
+    <strong>Now:</strong> “Monthly Limit Reached” · “Get More” · “You’ve used everything included with Plus for this billing period.”
     <br /><br />
-    <strong>Review:</strong> H1 primary / quiet secondary OK? Buy sheet tone (cost + support + free path) OK?
-    Any “note processes” wording you’d rather use (filings / classifies)?
+    <strong>Still open for you:</strong> Prefer “AI filings” vs “classifications” vs something warmer? Trial line fine at the bottom of the offer?
   </div>
 </div>
 </body>
