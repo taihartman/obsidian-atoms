@@ -45,9 +45,48 @@ export function button(
 }
 
 /**
- * Text-looking button with full Obsidian chrome reset.
- * Prefer this over bare createEl("button") for ghost/inline actions
- * (bridges, back links, list rows that must not look like system buttons).
+ * Text-looking control that is NOT a <button>.
+ * Mobile Obsidian paints system chrome on <button> that CSS cannot fully kill
+ * (bordered empty box). Use this for bridges / inline text actions.
+ */
+export function textControl(
+  parent: HTMLElement,
+  opts: {
+    label: string;
+    onClick?: (ev: MouseEvent) => void;
+    className?: string;
+    attrs?: AttrMap;
+  },
+): HTMLDivElement {
+  const el = parent.createDiv({
+    text: opts.label,
+    cls: mergeCls("atoms-ui-ghost-btn", "atoms-ui-text-control", opts.className),
+    attr: {
+      role: "button",
+      tabindex: "0",
+      ...(opts.attrs ?? {}),
+    },
+  });
+  if (opts.onClick) {
+    el.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      opts.onClick?.(ev);
+    });
+    el.addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter" || ev.key === " ") {
+        ev.preventDefault();
+        ev.stopPropagation();
+        opts.onClick?.(ev as unknown as MouseEvent);
+      }
+    });
+  }
+  return el;
+}
+
+/**
+ * Text-looking <button> with ghost chrome reset.
+ * Prefer textControl() when the action must never look like a system button
+ * (Obsidian mobile still paints some button chrome).
  */
 export function textButton(
   parent: HTMLElement,

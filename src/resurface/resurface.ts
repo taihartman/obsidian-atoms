@@ -517,6 +517,18 @@ export function connectedKicker(card: ResurfaceCandidate): string {
 }
 
 /**
+ * Bridge line under the snippet — opens seed/hub, never repeats the kicker.
+ * Design: "Same thread · via X" or "Open {seed}".
+ */
+export function connectedBridgeLabel(card: ResurfaceCandidate): string | null {
+  const via = card.connectedVia?.trim();
+  const seed = card.connectedSeedTitle?.trim();
+  if (via) return `Same thread · via ${via}`;
+  if (seed) return `Open ${seed}`;
+  return null;
+}
+
+/**
  * Associative cue: honest shared edge with a recent seed (named or silence).
  */
 export function listConnectedCandidates(

@@ -4,6 +4,7 @@ import {
   calendarDayDelta,
   citatorLinesForAtom,
   claimBodyForDisplay,
+  connectedBridgeLabel,
   connectedKicker,
   cueLabel,
   extractSupersessionEdges,
@@ -568,5 +569,44 @@ describe("claimBodyForDisplay", () => {
 
   it("does not invent content when body is only an edge line", () => {
     expect(claimBodyForDisplay("revises [[Old claim]].")).toBe("…");
+  });
+});
+
+describe("connected bridge / kicker copy", () => {
+  it("kicker Because of seed; bridge Open seed — never duplicates", () => {
+    const card = {
+      path: "Atoms/A.md",
+      title: "A",
+      bodySnippet: "x",
+      matchDate: "2026-07-16",
+      mtime: 1,
+      linkChips: [],
+      cue: "connected" as const,
+      connectedSeedTitle: "Andrew loves High School Musical",
+      connectedKind: "seed" as const,
+    };
+    expect(connectedKicker(card)).toBe(
+      "Because of Andrew loves High School Musical",
+    );
+    expect(connectedBridgeLabel(card)).toBe(
+      "Open Andrew loves High School Musical",
+    );
+  });
+
+  it("person via: Also about kicker + Same thread bridge", () => {
+    const card = {
+      path: "Atoms/A.md",
+      title: "A",
+      bodySnippet: "x",
+      matchDate: "2026-07-16",
+      mtime: 1,
+      linkChips: [],
+      cue: "connected" as const,
+      connectedVia: "Nichita",
+      connectedSeedTitle: "Recent",
+      connectedKind: "person" as const,
+    };
+    expect(connectedKicker(card)).toBe("Also about Nichita");
+    expect(connectedBridgeLabel(card)).toBe("Same thread · via Nichita");
   });
 });
