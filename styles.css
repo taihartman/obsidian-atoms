@@ -934,6 +934,7 @@
   border-bottom: 0.5px solid var(--background-modifier-border);
   color: var(--text-normal);
   text-align: left;
+  line-height: 1.3;
 }
 
 .atoms-home-landed-row:last-child {
@@ -943,16 +944,20 @@
 .atoms-home-landed-title {
   display: block;
   width: 100%;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 0.92rem;
   font-weight: 550;
+  line-height: 1.3;
   letter-spacing: -0.015em;
+  color: var(--text-normal);
 }
 
 .atoms-home-landed-meta {
   font-size: 0.75rem;
+  line-height: 1.3;
   color: var(--text-faint);
   font-weight: 500;
 }

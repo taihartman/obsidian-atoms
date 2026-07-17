@@ -348,23 +348,23 @@ export class AtomsHomeView extends ItemView {
     if (d.rows.length) {
       const list = el.createDiv({ cls: "atoms-home-landed" });
       for (const row of d.rows) {
-        const btn = list.createEl("button", {
-          cls: "atoms-ui-ghost-btn atoms-home-landed-row",
-          attr: { type: "button" },
-        });
-        btn.createSpan({
-          cls: "atoms-home-landed-title",
-          text: row.title,
-        });
-        if (row.meta) {
-          btn.createSpan({
-            cls: "atoms-home-landed-meta",
-            text: row.meta,
-          });
-        }
-        btn.addEventListener("click", (ev) => {
-          ev.stopPropagation();
-          void this.openLandedAtom(row.path);
+        textControl(list, {
+          className: "atoms-home-landed-row",
+          build: (btn) => {
+            btn.createSpan({
+              cls: "atoms-home-landed-title",
+              text: row.title,
+            });
+            if (row.meta) {
+              btn.createSpan({
+                cls: "atoms-home-landed-meta",
+                text: row.meta,
+              });
+            }
+          },
+          onClick: () => {
+            void this.openLandedAtom(row.path);
+          },
         });
       }
       if (d.moreCount > 0) {
