@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| In progress | #83 | taihartman | feat/open-atom-graph | docs/plans/2026-07-17-003-feat-open-atom-graph-plan.md | src/graph/*, src/plugin/commands.ts, main.ts | Open atom graph command |
+| *(none)* | | | | | | |
 
 ## How to claim (copy)
 
@@ -23,6 +23,7 @@ States: `Queued` · `In progress` · `Blocked` · `In review` · `Done` (then re
 
 | Merged | Issue / PR | Summary |
 |---|---|---|
+| 2026-07-17 | #83 / #84 | Open atom graph command (0.6.19) |
 | 2026-07-17 | #74 / #75 | ghost textButton kit + bridge chrome fix |
 | 2026-07-17 | #71 / #72 | Land, then remember + drop For you label (0.6.14) |
 | 2026-07-17 | #66 / #67 | collision body-gate + Process failure surface (0.6.13) |
