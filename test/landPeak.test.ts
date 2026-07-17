@@ -52,6 +52,19 @@ describe("update failure land peak", () => {
     expect(d.isFailure).toBe(true);
     expect(d.body).toMatch(/model id/);
   });
+
+  it("polish-only does not say Updated", () => {
+    const peak = buildLandPeak({
+      source: "update",
+      atoms: [{ title: "A", path: "Atoms/A.md" }],
+      polishedCount: 5,
+      updatedCount: 0,
+    });
+    const d = landDisplayFromPeak(peak);
+    expect(d.headline).toBe("Cleaned up 5 notes");
+    expect(d.headline).not.toMatch(/Updated/i);
+    expect(d.body).toMatch(/link wording/i);
+  });
 });
 
 describe("landDisplayFromPeak", () => {

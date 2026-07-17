@@ -488,30 +488,6 @@ export function countEligibleAtomsFromContents(
   return n;
 }
 
-/** Work remaining for strip: refile debt + polishable (titles for polish check). */
-export function countUpdateWorkFromEntries(
-  entries: Array<{ content: string; title: string }>,
-): { refile: number; polishable: number; total: number } {
-  let refile = 0;
-  let polishable = 0;
-  for (const e of entries) {
-    if (isEligibleForUpdate(e.content)) refile += 1;
-    if (isPolishableContent(e.content, e.title)) polishable += 1;
-  }
-  return {
-    refile,
-    polishable,
-    total: refile + polishable,
-  };
-}
-
-/** True when this Update run will call the model (Phase B work exists). */
-export function needsApiForUpdate(
-  entries: Array<{ content: string; title: string }>,
-): boolean {
-  return entries.some((e) => isEligibleForUpdate(e.content));
-}
-
 export type RefreshApplyPlan = {
   path: string;
   oldTitle: string;

@@ -142,11 +142,19 @@ export function buildLandPeak(opts: {
   markersAppended?: number;
   failedCount?: number;
   polishedCount?: number;
+  /**
+   * Update notes: AI refile count for headlines (may differ from atoms.length
+   * when land rows show polish-only titles).
+   */
+  updatedCount?: number;
 }): LandPeak {
   const atoms = opts.atoms.filter((a) => (a.title ?? "").trim().length > 0);
-  const atomCount = atoms.length;
   const failedCount = Math.max(0, opts.failedCount ?? 0);
   const polishedCount = Math.max(0, opts.polishedCount ?? 0);
+  const atomCount =
+    opts.source === "update" && opts.updatedCount !== undefined
+      ? Math.max(0, opts.updatedCount)
+      : atoms.length;
   const summaryLine = formatLandHeadline(
     opts.source,
     atomCount,

@@ -90,9 +90,11 @@ import {
   type CostEstimate,
 } from "../pipeline/backfill";
 import {
+  listLinkerAtoms,
   runRefreshEligibleAtoms,
   type RefreshReport,
 } from "../pipeline/refreshAtoms";
+import { isEligibleForUpdate } from "../pipeline/atomQuality";
 import { formatUpdateSummary } from "../home/runProgress";
 
 export default class AtomsPlugin extends Plugin {
@@ -265,13 +267,9 @@ export default class AtomsPlugin extends Plugin {
     limit?: number;
   }): Promise<void> {
     const usingFixtures = !!(opts?.fixtureResults && opts.fixtureResults.length);
-    const { listLinkerAtoms } = await import("../pipeline/refreshAtoms");
-    const { isEligibleForUpdate: qualityEligible } = await import(
-      "../pipeline/atomQuality"
-    );
     const linker = await listLinkerAtoms(this.app, this.settings.atomFolder);
     const needsApi =
-      usingFixtures || linker.some((a) => qualityEligible(a.content));
+      usingFixtures || linker.some((a) => isEligibleForUpdate(a.content));
     const apiKey = usingFixtures
       ? this.getApiKey() || "fixture"
       : needsApi
@@ -310,15 +308,18 @@ export default class AtomsPlugin extends Plugin {
         report.failed,
         polished,
       );
-      const landAtoms =
-        (report.updatedItems?.length ?? 0) > 0
-          ? landAtomsFromRefreshItems(report.updatedItems ?? [])
-          : landAtomsFromRefreshItems(report.polishedItems ?? []);
+      const refileAtoms = landAtomsFromRefreshItems(
+        report.updatedItems ?? [],
+      );
+      const polishAtoms = landAtomsFromRefreshItems(
+        report.polishedItems ?? [],
+      );
       const landPeak = buildLandPeak({
         source: "update",
-        atoms: landAtoms,
+        atoms: refileAtoms.length > 0 ? refileAtoms : polishAtoms,
         failedCount: report.failed,
         polishedCount: polished,
+        updatedCount: report.updated,
       });
       this.finishHomeRun(summary, landPeak);
       new Notice(
