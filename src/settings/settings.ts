@@ -28,12 +28,18 @@ import {
 import {
   clearPlusSession,
   readPlusSession,
+  writePlusSession,
 } from "../platform/filingAuth";
 import {
   atomsPlusOfferCopy,
   atomsPlusTopUpCopy,
 } from "../home/atomsHomeData";
-import { DEFAULT_PLUS_BASE_URL } from "../platform/plusClient";
+import {
+  DEFAULT_PLUS_BASE_URL,
+  requestMagicLink,
+  createCheckout,
+} from "../platform/plusClient";
+import { requestUrl } from "obsidian";
 import {
   addCustomActiveTag,
   approveProposedTag,
@@ -102,16 +108,35 @@ export class AtomsSettingTab extends PluginSettingTab {
           "You’ve used this month’s included AI filings. Your allotment starts over on your next billing date. If you need more before then, you can buy additional filings.",
         )
         .addButton((btn) =>
-          btn.setButtonText(topUp.primaryLabel).setCta().onClick(() => {
-            new Notice(
-              `${topUp.title}: ${topUp.price} · ${topUp.detail}. ${topUp.body} (Checkout when Plus service is live.)`,
-              8000,
+          btn.setButtonText("Get More").setCta().onClick(async () => {
+            const session = readPlusSession(this.app);
+            if (!session) {
+              new Notice("No Plus session on this device");
+              return;
+            }
+            const base =
+              this.plugin.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL;
+            const r = await createCheckout(
+              { baseUrl: base, request: requestUrl },
+              session.sessionToken,
+              "topup_50",
             );
+            if (!r.ok) {
+              new Notice(`Atoms Plus: ${r.message}`);
+              return;
+            }
+            new Notice(
+              `${topUp.title}: ${topUp.price} · ${topUp.detail}. ${topUp.body}`,
+              6000,
+            );
+            this.display();
           }),
         )
         .addButton((btn) =>
           btn.setButtonText("Manage Subscription").onClick(() => {
-            new Notice("Manage billing opens when Plus service is live.");
+            new Notice(
+              "Subscription management will open Stripe Customer Portal when configured.",
+            );
           }),
         );
       if (session?.email) {
@@ -189,14 +214,132 @@ export class AtomsSettingTab extends PluginSettingTab {
             offer.costReason,
             offer.freePath,
             offer.finePrint,
-            "(Checkout when Plus service is live.)",
           ];
-          new Notice(lines.join(" · ").slice(0, 400), 12000);
+          new Notice(lines.join(" · ").slice(0, 450), 12000);
         }),
+      );
+
+    new Setting(containerEl)
+      .setName("Email for magic link")
+      .setDesc(
+        "Dogfood: request a link from the Plus service (see server console), or paste a session below.",
       )
+      .addText((text) => {
+        text.setPlaceholder("you@example.com").inputEl.dataset.plusEmail = "1";
+      })
       .addButton((btn) =>
-        btn.setButtonText("Enter Promo Code").onClick(() => {
-          new Notice("Promo codes redeem when Plus service is live.");
+        btn.setButtonText("Send Magic Link").onClick(async () => {
+          const input = containerEl.querySelector(
+            "input[data-plus-email]",
+          ) as HTMLInputElement | null;
+          const email = input?.value?.trim() || "";
+          if (!email.includes("@")) {
+            new Notice("Enter a valid email first");
+            return;
+          }
+          const base =
+            this.plugin.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL;
+          const r = await requestMagicLink(
+            { baseUrl: base, request: requestUrl },
+            email,
+          );
+          if (!r.ok) {
+            new Notice(`Atoms Plus: ${r.message}`);
+            return;
+          }
+          new Notice(
+            "Magic link requested — open the link from the Plus server console, then paste the session token below.",
+            8000,
+          );
+        }),
+      );
+
+    new Setting(containerEl)
+      .setName("Paste session (dogfood)")
+      .setDesc("After opening the magic link in a browser, paste sess_… here.")
+      .addText((text) => {
+        text.setPlaceholder("sess_…").inputEl.dataset.plusSession = "1";
+      })
+      .addButton((btn) =>
+        btn.setButtonText("Save Session").onClick(async () => {
+          const input = containerEl.querySelector(
+            "input[data-plus-session]",
+          ) as HTMLInputElement | null;
+          const sessionToken = input?.value?.trim() || "";
+          const emailInput = containerEl.querySelector(
+            "input[data-plus-email]",
+          ) as HTMLInputElement | null;
+          const email = emailInput?.value?.trim() || "dogfood@local";
+          if (!sessionToken.startsWith("sess_")) {
+            new Notice("Session should look like sess_…");
+            return;
+          }
+          writePlusSession(this.app, {
+            sessionToken,
+            email,
+            status: "trialing",
+            remaining: 150,
+            refreshedAt: Date.now(),
+          });
+          // Prefer live /v1/me
+          try {
+            const base =
+              this.plugin.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL;
+            const res = await requestUrl({
+              url: `${base.replace(/\/+$/, "")}/v1/me`,
+              method: "GET",
+              headers: { authorization: `Bearer ${sessionToken}` },
+              throw: false,
+            });
+            if (res.status >= 200 && res.status < 300 && res.json) {
+              const j = res.json as Record<string, unknown>;
+              writePlusSession(this.app, {
+                sessionToken,
+                email: String(j.email || email),
+                status:
+                  j.status === "active" ||
+                  j.status === "trialing" ||
+                  j.status === "exhausted"
+                    ? j.status
+                    : "trialing",
+                remaining:
+                  typeof j.remaining === "number" ? j.remaining : 150,
+                periodEnd:
+                  typeof j.periodEnd === "string" ? j.periodEnd : undefined,
+                refreshedAt: Date.now(),
+              });
+            }
+          } catch {
+            /* keep local */
+          }
+          new Notice("Atoms Plus session saved on this device");
+          this.display();
+        }),
+      );
+
+    new Setting(containerEl)
+      .setName("Start Free Trial (dogfood)")
+      .setDesc("Requires a saved session. Grants trial period via Plus service.")
+      .addButton((btn) =>
+        btn.setButtonText("Start Free Trial").onClick(async () => {
+          const session = readPlusSession(this.app);
+          if (!session) {
+            new Notice("Save a Plus session first");
+            return;
+          }
+          const base =
+            this.plugin.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL;
+          const r = await createCheckout(
+            { baseUrl: base, request: requestUrl },
+            session.sessionToken,
+            "start_trial",
+          );
+          if (!r.ok) {
+            new Notice(`Atoms Plus: ${r.message}`);
+            return;
+          }
+          new Notice("Trial granted (dogfood). Refreshing…");
+          this.display();
         }),
       );
 
@@ -208,11 +351,11 @@ export class AtomsSettingTab extends PluginSettingTab {
     new Setting(containerEl)
       .setName("Plus service URL")
       .setDesc(
-        `Dogfood override. Empty uses ${DEFAULT_PLUS_BASE_URL}. Not a secret.`,
+        `Dogfood: http://127.0.0.1:8787 — empty uses ${DEFAULT_PLUS_BASE_URL}.`,
       )
       .addText((text) =>
         text
-          .setPlaceholder(DEFAULT_PLUS_BASE_URL)
+          .setPlaceholder("http://127.0.0.1:8787")
           .setValue(this.plugin.settings.plusBaseUrl)
           .onChange(async (value) => {
             this.plugin.settings.plusBaseUrl = value.trim();

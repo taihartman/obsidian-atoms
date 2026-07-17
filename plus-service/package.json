@@ -1,0 +1,15 @@
+{
+  "name": "atoms-plus-service",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Atoms Plus API: magic-link auth, filing meter, Anthropic proxy",
+  "scripts": {
+    "start": "node src/server.mjs",
+    "dev": "node --watch src/server.mjs",
+    "test": "node --test test/*.test.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
