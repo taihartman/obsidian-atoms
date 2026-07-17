@@ -125,7 +125,7 @@ function ensureVaultSkeleton() {
     JSON.stringify(
       {
         apiKeySecretId: "",
-        model: "claude-sonnet-4-20250514",
+        model: "claude-sonnet-5",
         atomFolder: "Atoms",
         activeVocabulary: [
           "idea",

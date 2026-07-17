@@ -320,11 +320,11 @@ export class AtomsHomeView extends ItemView {
   }
 
   private fillLandPeakContent(el: HTMLElement): void {
-    el.createEl("p", {
-      cls: "atoms-home-card-eyebrow",
-      text: "Done",
-    });
     if (!this.landPeak) {
+      el.createEl("p", {
+        cls: "atoms-home-card-eyebrow",
+        text: "Done",
+      });
       el.createEl("h2", { text: "Done" });
       el.createEl("p", { text: this.runSummaryText });
       button(el, {
@@ -336,6 +336,13 @@ export class AtomsHomeView extends ItemView {
       return;
     }
     const d = landDisplayFromPeak(this.landPeak);
+    if (d.isFailure) {
+      el.classList.add("is-error");
+    }
+    el.createEl("p", {
+      cls: "atoms-home-card-eyebrow",
+      text: d.isFailure ? "Couldn't finish" : "Done",
+    });
     el.createEl("h2", { text: d.headline });
     el.createEl("p", { text: d.body });
     if (d.rows.length) {

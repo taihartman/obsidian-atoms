@@ -294,10 +294,13 @@ export default class AtomsPlugin extends Plugin {
       const landPeak = buildLandPeak({
         source: "update",
         atoms: landAtomsFromRefreshItems(report.updatedItems ?? []),
+        failedCount: report.failed,
       });
       this.finishHomeRun(summary, landPeak);
       new Notice(
-        `Atoms: updated ${report.updated}, renamed ${report.renamed}, markers ${report.markersRepaired}, failed ${report.failed}`,
+        report.failed > 0 && report.updated <= 0
+          ? `Atoms: couldn't update ${report.failed} note${report.failed === 1 ? "" : "s"} — check model id and API key`
+          : `Atoms: updated ${report.updated}, renamed ${report.renamed}, markers ${report.markersRepaired}, failed ${report.failed}`,
       );
     } catch (e) {
       const msg = e instanceof Error ? e.message : "update failed";
