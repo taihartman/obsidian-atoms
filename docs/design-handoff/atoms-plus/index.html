@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Atoms Plus — UI mock (U5)</title>
+<title>Atoms Plus — UI mock v2 (minimal)</title>
 <style>
   :root {
     --bg: #000;
@@ -25,7 +25,7 @@
     font-family: var(--font);
     background: #0a0a0c;
     color: var(--label);
-    line-height: 1.4;
+    line-height: 1.45;
   }
   .page {
     max-width: 1100px;
@@ -54,10 +54,22 @@
   .lede {
     color: var(--muted);
     font-size: 0.95rem;
-    max-width: 42rem;
+    max-width: 40rem;
     margin: 0;
   }
   .lede strong { color: var(--label); font-weight: 600; }
+  .principles {
+    margin: 1rem 0 0;
+    padding: 0.85rem 1rem;
+    background: var(--card);
+    border: 1px solid var(--sep);
+    border-radius: 12px;
+    font-size: 0.88rem;
+    color: var(--muted);
+  }
+  .principles strong { color: var(--label); }
+  .principles ul { margin: 0.4rem 0 0; padding-left: 1.15rem; }
+  .principles li { margin-bottom: 0.25rem; }
   nav.jump {
     display: flex;
     flex-wrap: wrap;
@@ -73,10 +85,7 @@
     border-radius: 980px;
     background: var(--card);
   }
-  nav.jump a:hover { border-color: var(--tint); }
-  section.block {
-    margin-top: 2.5rem;
-  }
+  section.block { margin-top: 2.5rem; }
   section.block h2 {
     font-size: 1.05rem;
     font-weight: 650;
@@ -104,7 +113,6 @@
     height: 18px;
     display: flex;
     justify-content: center;
-    align-items: center;
     margin-bottom: 6px;
   }
   .phone-notch span {
@@ -116,16 +124,14 @@
   .screen {
     background: var(--bg);
     border-radius: 20px;
-    min-height: 520px;
+    min-height: 500px;
     padding: 14px 14px 20px;
-    overflow: hidden;
   }
   .cap {
     font-size: 0.72rem;
     color: var(--faint);
     margin: 0.65rem 0 0;
     text-align: center;
-    letter-spacing: 0.02em;
   }
   .nav-title {
     font-size: 1.75rem;
@@ -148,9 +154,10 @@
     background: color-mix(in srgb, var(--tint) 10%, transparent);
     border-color: color-mix(in srgb, var(--tint) 32%, transparent);
   }
-  .card.exhausted {
-    background: color-mix(in srgb, var(--err) 10%, transparent);
-    border-color: color-mix(in srgb, var(--err) 30%, transparent);
+  .card.soft {
+    /* exhausted / limit: quiet, not alarm-red arcade */
+    background: var(--card);
+    border-color: var(--sep);
   }
   .kicker {
     font-size: 0.68rem;
@@ -161,7 +168,7 @@
     margin: 0 0 6px;
   }
   .card.plus .kicker { color: var(--tint); }
-  .card.exhausted .kicker { color: var(--err); }
+  .card.soft .kicker { color: var(--muted); }
   .card h3 {
     font-size: 1.08rem;
     font-weight: 650;
@@ -169,16 +176,16 @@
     margin: 0 0 8px;
   }
   .card p {
-    margin: 0 0 14px;
+    margin: 0 0 12px;
     font-size: 0.88rem;
     color: var(--muted);
-    line-height: 1.45;
   }
   .card p:last-child { margin-bottom: 0; }
   .btn-row {
     display: flex;
     flex-direction: column;
     gap: 8px;
+    margin-top: 4px;
   }
   .btn {
     display: flex;
@@ -188,17 +195,9 @@
     border-radius: 12px;
     font-size: 0.95rem;
     font-weight: 600;
-    border: none;
-    cursor: default;
   }
-  .btn.primary {
-    background: var(--tint);
-    color: #fff;
-  }
-  .btn.secondary {
-    background: var(--elev);
-    color: var(--label);
-  }
+  .btn.primary { background: var(--tint); color: #fff; }
+  .btn.secondary { background: var(--elev); color: var(--label); }
   .btn.quiet {
     background: transparent;
     color: var(--muted);
@@ -206,33 +205,14 @@
     min-height: 36px;
     font-size: 0.88rem;
   }
-  .meta-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    font-size: 0.8rem;
-    color: var(--muted);
-    margin-bottom: 10px;
-  }
-  .meta-row strong {
-    color: var(--label);
+  .section-label {
+    font-size: 0.72rem;
     font-weight: 600;
-    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--faint);
+    margin: 16px 4px 8px;
   }
-  .bar {
-    height: 6px;
-    border-radius: 3px;
-    background: var(--elev);
-    overflow: hidden;
-    margin-bottom: 14px;
-  }
-  .bar > i {
-    display: block;
-    height: 100%;
-    border-radius: 3px;
-    background: var(--tint);
-  }
-  .bar.low > i { background: var(--err); width: 0% !important; }
   .settings-group {
     background: var(--card);
     border-radius: 14px;
@@ -243,33 +223,48 @@
   .settings-row {
     padding: 14px 16px;
     border-bottom: 1px solid var(--sep);
-    min-height: 52px;
   }
   .settings-row:last-child { border-bottom: none; }
-  .settings-row .label {
-    font-size: 0.95rem;
-    font-weight: 500;
-  }
+  .settings-row .label { font-size: 0.95rem; font-weight: 500; }
   .settings-row .value {
     font-size: 0.82rem;
     color: var(--muted);
     margin-top: 3px;
   }
   .settings-row .value.ok { color: var(--ok); }
-  .settings-row .value.warn { color: var(--err); }
-  .section-label {
-    font-size: 0.72rem;
-    font-weight: 600;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--faint);
-    margin: 16px 4px 8px;
-  }
   .privacy {
     font-size: 0.78rem;
     color: var(--faint);
-    line-height: 1.4;
+    line-height: 1.45;
     margin: 12px 4px 0;
+  }
+  .sheet {
+    margin-top: 10px;
+    padding: 14px;
+    background: var(--elev);
+    border-radius: 14px;
+    border: 1px solid var(--sep);
+  }
+  .sheet h4 {
+    margin: 0 0 8px;
+    font-size: 0.95rem;
+    font-weight: 650;
+  }
+  .sheet p {
+    margin: 0 0 10px;
+    font-size: 0.82rem;
+    color: var(--muted);
+  }
+  .sheet .price {
+    font-size: 1.25rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin: 0 0 4px;
+  }
+  .sheet .fine {
+    font-size: 0.75rem;
+    color: var(--faint);
+    margin: 0 0 12px;
   }
   .note {
     margin-top: 2rem;
@@ -286,26 +281,35 @@
 <body>
 <div class="page">
   <header class="top">
-    <p class="eyebrow">U5 mock · not implemented</p>
+    <p class="eyebrow">U5 mock v2 · minimal · not implemented</p>
     <h1>Atoms Plus UI</h1>
     <p class="lede">
-      Review hierarchy and copy before chrome. Product: <strong>$5/mo · 150 filings · Sonnet 5</strong>,
-      top-up <strong>+50 for $2</strong>, free BYOK forever, never pitch BYOK on exhaust.
+      Quiet by default. No filing meters in daily UI. Numbers only when buying.
     </p>
-    <nav class="jump" aria-label="Jump">
-      <a href="#h1">H1 Home · none</a>
-      <a href="#h2">H2 Home · exhausted</a>
+    <div class="principles">
+      <strong>Direction (this rev)</strong>
+      <ul>
+        <li>No “118 / 150” or progress bars on home or Settings while active.</li>
+        <li>Include count + price only on purchase / top-up / trial start.</li>
+        <li>Say why it costs: model usage costs us money; subscription helps keep Atoms going.</li>
+        <li>Always offer free path: own Anthropic key, full product, forever.</li>
+        <li>Limit moments appear only when needed (plan full), not as ambient chrome.</li>
+      </ul>
+    </div>
+    <nav class="jump">
+      <a href="#h1">H1 Home · start</a>
+      <a href="#h2">H2 Home · plan full</a>
       <a href="#s1">S1 Settings · out</a>
-      <a href="#s2">S2 Settings · active</a>
-      <a href="#s3">S3 Settings · exhausted</a>
+      <a href="#buy">Buy sheet</a>
+      <a href="#s2">S2 Settings · on</a>
+      <a href="#s3">S3 Settings · full</a>
     </nav>
   </header>
 
-  <section class="block" id="home">
-    <h2>Home · wait card</h2>
-    <p class="sub">Past captures waiting. Today is never auto-touched.</p>
+  <section class="block">
+    <h2>Home</h2>
+    <p class="sub">Waiting past captures. No counters.</p>
     <div class="grid">
-      <!-- H1 -->
       <div id="h1">
         <div class="phone">
           <div class="phone-notch"><span></span></div>
@@ -315,54 +319,47 @@
               <p class="kicker">Ready</p>
               <h3>4 past captures waiting</h3>
               <p>
-                File them with Atoms Plus (no Anthropic key needed), or add your own key in Settings.
+                File them with Atoms Plus, or use your own Anthropic key for free.
                 Today’s note is never auto-touched.
               </p>
               <div class="btn-row">
                 <div class="btn primary">Try Atoms Plus</div>
-                <div class="btn secondary">Process with my key</div>
-                <div class="btn quiet">Open settings</div>
+                <div class="btn quiet">Use my own key</div>
               </div>
-            </div>
-            <div class="card" style="opacity:0.55">
-              <h3 style="font-size:0.95rem;margin:0">Library · quiet</h3>
-              <p style="margin:6px 0 0;font-size:0.8rem">Recent atoms appear here after filing.</p>
             </div>
           </div>
         </div>
-        <p class="cap">H1 · none — convert without shaming BYOK</p>
+        <p class="cap">H1 · no key · two paths, no pitch about quotas</p>
       </div>
 
-      <!-- H2 -->
       <div id="h2">
         <div class="phone">
           <div class="phone-notch"><span></span></div>
           <div class="screen">
             <div class="nav-title">Atoms</div>
-            <div class="card exhausted">
-              <p class="kicker">Plan full</p>
-              <h3>4 past captures waiting</h3>
+            <div class="card soft">
+              <p class="kicker">Atoms Plus</p>
+              <h3>Filing paused for now</h3>
               <p>
-                You’ve used this month’s 150 filings. Wait until Aug 1, or top up 50 more for $2.
+                You’ve used this period’s included note processing. It resets on your next billing date,
+                or you can add more when you need them.
               </p>
               <div class="btn-row">
-                <div class="btn primary">Top up · +50 for $2</div>
-                <div class="btn secondary">Preview (uses a filing)</div>
-                <div class="btn quiet">Manage plan</div>
+                <div class="btn primary">Add more processing</div>
+                <div class="btn quiet">Not now</div>
               </div>
             </div>
           </div>
         </div>
-        <p class="cap">H2 · exhausted — wait or top-up only (no BYOK pitch)</p>
+        <p class="cap">H2 · plan full · no numbers · no BYOK pitch</p>
       </div>
     </div>
   </section>
 
-  <section class="block" id="settings">
-    <h2>Settings → Atoms Plus</h2>
-    <p class="sub">Below API key section. Model free-text stays for BYOK only when using own key.</p>
+  <section class="block">
+    <h2>Settings · Atoms Plus</h2>
+    <p class="sub">Quiet status. Details live on the buy sheet.</p>
     <div class="grid">
-      <!-- S1 -->
       <div id="s1">
         <div class="phone">
           <div class="phone-notch"><span></span></div>
@@ -371,110 +368,126 @@
             <p class="section-label">Atoms Plus</p>
             <div class="card plus">
               <p class="kicker">Optional</p>
-              <h3>File without an API key</h3>
+              <h3>File without setting up a key</h3>
               <p>
-                $5/mo or $50/yr. Includes 150 Sonnet filings. 14-day trial with card.
-                Captures go to Anthropic over TLS under our plan. We don’t train on them.
+                We run the model for you. That usage costs money; Plus helps cover it and keep Atoms going.
+                You can always use your own Anthropic key instead, free forever.
               </p>
               <div class="btn-row">
-                <div class="btn primary">Start free trial</div>
-                <div class="btn secondary">I have a promo code</div>
-              </div>
-            </div>
-            <div class="settings-group">
-              <div class="settings-row">
-                <div class="label">Email</div>
-                <div class="value">Sign in with magic link after checkout</div>
+                <div class="btn primary">See plans</div>
+                <div class="btn quiet">I have a promo code</div>
               </div>
             </div>
             <p class="privacy">
-              Prefer your own key? Keep using SecretStorage above. Plus never locks library or For you.
+              Captures leave your device over TLS to Anthropic under our plan. We don’t train on them.
+              Your library and For you stay free either way.
             </p>
           </div>
         </div>
-        <p class="cap">S1 · signed out</p>
+        <p class="cap">S1 · signed out · reason + free path</p>
       </div>
 
-      <!-- S2 -->
+      <div id="buy">
+        <div class="phone">
+          <div class="phone-notch"><span></span></div>
+          <div class="screen">
+            <div class="nav-title" style="font-size:1.35rem">Atoms Plus</div>
+            <div class="sheet">
+              <h4>Monthly</h4>
+              <p class="price">$5<span style="font-size:0.9rem;font-weight:500;color:var(--muted)"> / month</span></p>
+              <p class="fine">or $50 / year (two months free)</p>
+              <p>
+                Includes about 150 note processes each month (classify, preview when it runs the model, and updates).
+                Enough for daily dumping without thinking about it.
+              </p>
+              <p>
+                Model usage is real cost on our side. Your subscription helps cover that and support Atoms.
+              </p>
+              <p>
+                Prefer free? Stay on your own Anthropic key in Settings. Full product, no Plus required.
+              </p>
+              <div class="btn-row">
+                <div class="btn primary">Start 14-day trial</div>
+                <div class="btn quiet">Not now</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="cap">Buy / trial sheet · only place we name 150</p>
+      </div>
+
       <div id="s2">
         <div class="phone">
           <div class="phone-notch"><span></span></div>
           <div class="screen">
             <div class="nav-title" style="font-size:1.35rem">Atoms</div>
             <p class="section-label">Atoms Plus</p>
-            <div class="card plus">
-              <p class="kicker">Active</p>
-              <h3>You’re on Plus</h3>
-              <div class="meta-row">
-                <span>Filings left</span>
-                <strong>118 / 150</strong>
-              </div>
-              <div class="bar"><i style="width:79%"></i></div>
-              <div class="meta-row" style="margin-bottom:0">
-                <span>Renews</span>
-                <strong>Aug 17</strong>
-              </div>
-              <p style="margin-top:12px;margin-bottom:0">
-                Managed model: Sonnet. Preview uses a filing when it classifies; re-open is free until the capture changes.
-              </p>
-            </div>
             <div class="settings-group">
               <div class="settings-row">
-                <div class="label">Signed in</div>
-                <div class="value ok">you@example.com</div>
+                <div class="label">Status</div>
+                <div class="value ok">On · monthly</div>
               </div>
               <div class="settings-row">
-                <div class="label">Plan</div>
-                <div class="value">Monthly · $5</div>
+                <div class="label">Signed in</div>
+                <div class="value">you@example.com</div>
+              </div>
+              <div class="settings-row">
+                <div class="label">Renews</div>
+                <div class="value">Aug 17</div>
               </div>
             </div>
-            <div class="btn-row" style="margin-top:10px">
+            <div class="btn-row">
               <div class="btn secondary">Manage billing</div>
               <div class="btn quiet">Sign out on this device</div>
             </div>
+            <p class="privacy">
+              Using your own key instead? Set it under API key. Plus stays optional.
+            </p>
           </div>
         </div>
-        <p class="cap">S2 · trial / active (same shell; kicker “Trial” when trialing)</p>
+        <p class="cap">S2 · active · no remaining meter</p>
       </div>
 
-      <!-- S3 -->
       <div id="s3">
         <div class="phone">
           <div class="phone-notch"><span></span></div>
           <div class="screen">
             <div class="nav-title" style="font-size:1.35rem">Atoms</div>
             <p class="section-label">Atoms Plus</p>
-            <div class="card exhausted">
-              <p class="kicker">Plan full</p>
-              <h3>0 filings left</h3>
-              <div class="meta-row">
-                <span>Resets</span>
-                <strong>Aug 17</strong>
-              </div>
-              <div class="bar low"><i style="width:0%"></i></div>
+            <div class="card soft">
+              <p class="kicker">Paused</p>
+              <h3>Included processing used for now</h3>
               <p>
-                Wait for the period reset, or top up 50 filings for $2. Your library and For you stay open.
+                Resets on your next billing date. Or add more processing if you need it sooner.
               </p>
               <div class="btn-row">
-                <div class="btn primary">Top up · +50 for $2</div>
+                <div class="btn primary">Add more processing</div>
                 <div class="btn secondary">Manage billing</div>
               </div>
             </div>
-            <p class="privacy">
-              No “use your own API key” pitch here. Own key remains available under API key above if you already have one.
-            </p>
+            <!-- top-up sheet fragment -->
+            <div class="sheet" style="margin-top:12px">
+              <h4>Add more</h4>
+              <p class="price">$2</p>
+              <p class="fine">+50 note processes · one-time</p>
+              <p>
+                Same model path as your plan. Helps cover usage cost when you go past the monthly include.
+              </p>
+              <div class="btn primary">Buy</div>
+            </div>
           </div>
         </div>
-        <p class="cap">S3 · exhausted</p>
+        <p class="cap">S3 · full · numbers only on top-up sheet</p>
       </div>
     </div>
   </section>
 
   <div class="note">
-    <strong>Review asks:</strong> Is “Try Atoms Plus” the right primary on H1?
-    Is secondary “Process with my key” clear enough without stealing conversion?
-    Any copy that feels salesy or shaming?
-    After approval → implement pure hero modes + Settings section only.
+    <strong>Product implication:</strong> still meter 150 server-side. UI just doesn’t ambient-display it.
+    When they hit the wall, soft “paused” + optional top-up sheet that names +50 for $2.
+    <br /><br />
+    <strong>Review:</strong> H1 primary / quiet secondary OK? Buy sheet tone (cost + support + free path) OK?
+    Any “note processes” wording you’d rather use (filings / classifies)?
   </div>
 </div>
 </body>
