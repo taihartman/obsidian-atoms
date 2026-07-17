@@ -77,6 +77,10 @@ export function filterDailyInbound(
  * Closed neighborhood: seeds ∪ 1-hop (filtered outbound + inbound).
  * Paths are opaque strings; caller resolves files.
  * Inbound from daily notes is dropped when `isDailyPath` is provided (default: keep all).
+ *
+ * **Connected-first:** if any seed has a real edge, omit isolated seeds (zero
+ * filtered outbound + inbound). If every seed is isolated, include all seeds
+ * so the graph still shows the atom library.
  */
 export function buildClosedNeighborhood(opts: {
   seedPaths: string[];
@@ -88,21 +92,32 @@ export function buildClosedNeighborhood(opts: {
   isDailyPath?: (path: string) => boolean;
 }): string[] {
   const isDaily = opts.isDailyPath ?? (() => false);
-  const S = new Set<string>();
+
+  type SeedEdges = { seed: string; out: string[]; inn: string[] };
+  const perSeed: SeedEdges[] = [];
+  let anyConnected = false;
+
   for (const seed of opts.seedPaths) {
-    S.add(seed);
-    const filtered = filterSourceOnlyOutbound(
+    const out = filterSourceOnlyOutbound(
       opts.outboundBySeed[seed] ?? [],
       opts.sourceTargetBySeed[seed],
       opts.bodyOutboundBySeed[seed] ?? [],
     );
-    for (const p of filtered) S.add(p);
-    for (const p of filterDailyInbound(
+    const inn = filterDailyInbound(
       opts.inboundBySeed[seed] ?? [],
       isDaily,
-    )) {
-      S.add(p);
-    }
+    );
+    if (out.length > 0 || inn.length > 0) anyConnected = true;
+    perSeed.push({ seed, out, inn });
+  }
+
+  const S = new Set<string>();
+  for (const { seed, out, inn } of perSeed) {
+    const connected = out.length > 0 || inn.length > 0;
+    if (anyConnected && !connected) continue;
+    S.add(seed);
+    for (const p of out) S.add(p);
+    for (const p of inn) S.add(p);
   }
   return [...S].sort();
 }

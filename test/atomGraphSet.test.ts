@@ -149,6 +149,39 @@ describe("buildClosedNeighborhood", () => {
     expect(S).not.toContain("Daily/2026-07-01.md");
     expect(S).toContain("People/Alex.md");
   });
+
+  it("omits isolated seeds when any other seed is linked", () => {
+    const S = buildClosedNeighborhood({
+      seedPaths: ["Atoms/linked.md", "Atoms/lonely.md"],
+      outboundBySeed: {
+        "Atoms/linked.md": ["People/Alex.md"],
+        "Atoms/lonely.md": [],
+      },
+      bodyOutboundBySeed: {
+        "Atoms/linked.md": ["People/Alex.md"],
+        "Atoms/lonely.md": [],
+      },
+      sourceTargetBySeed: {},
+      inboundBySeed: {
+        "Atoms/linked.md": [],
+        "Atoms/lonely.md": [],
+      },
+    });
+    expect(S).toContain("Atoms/linked.md");
+    expect(S).toContain("People/Alex.md");
+    expect(S).not.toContain("Atoms/lonely.md");
+  });
+
+  it("keeps all seeds when every atom is isolated", () => {
+    const S = buildClosedNeighborhood({
+      seedPaths: ["Atoms/a.md", "Atoms/b.md"],
+      outboundBySeed: { "Atoms/a.md": [], "Atoms/b.md": [] },
+      bodyOutboundBySeed: { "Atoms/a.md": [], "Atoms/b.md": [] },
+      sourceTargetBySeed: {},
+      inboundBySeed: { "Atoms/a.md": [], "Atoms/b.md": [] },
+    });
+    expect(S).toEqual(["Atoms/a.md", "Atoms/b.md"]);
+  });
 });
 
 describe("toGraphSearchQuery", () => {
