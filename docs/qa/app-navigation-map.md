@@ -22,7 +22,14 @@ Living map for driving Atoms during QA. Update when commands, home cards, or set
 - **How to reach:** Command palette → “Open home” (plugin name shown beside it).
 - **Source:** `src/atomsHomeView.ts`, `src/atomsHomeData.ts`.
 - **Fixture:** Seeded past unprocessed for wait card; atoms in `Atoms/` for library / For you.
-- **Notes:** One hero: Ready / automatic filing / For you when calm. Progress card only for manual Preview/Process (not silent auto-run).
+- **Notes:** One hero: Ready / automatic filing / resurface when calm. Progress + **land peak** after Process/Update/auto-run (home open). Land peak freezes resurface, wait card, and Update strip until Done.
+
+### Land peak (post-write Done)
+
+- **When:** After Process / Update notes / auto-run with Atoms home open and a land payload.
+- **UI:** Done status card · filed titles (max 3 + more) · Done dismiss or open title.
+- **Source:** `src/home/landPeak.ts`, `fillLandPeakContent` in `atomsHomeView.ts`, `finishHomeRun` in `main.ts`.
+- **QA:** No resurface under Done; wait card suppressed while landPeak set; connected later must be named (not “Related to something recent”).
 
 ### Wait card / automatic filing
 
@@ -50,11 +57,12 @@ Living map for driving Atoms during QA. Update when commands, home cards, or set
 - **Source:** `src/autorun.ts`, `src/main.ts` `maybeAutoRun`.
 - **QA:** Same-day retry after offline; stamp only when past drained.
 
-### For you (resurface)
+### Resurface (cue card)
 
-- **When:** Home calm (no past wait card), not first-day setup.
-- **Source:** `src/resurface.ts`.
-- **Note:** Empty when all atoms same-day / young — not necessarily a bug.
+- **When:** Home calm (`runPhase === idle`, no past wait card), not first-day setup; not under land peak.
+- **Source:** `src/resurface/resurface.ts`.
+- **Connected:** Named kicker only (`Because of …` / `Also about …`); soft `People`-only edges dropped.
+- **Note:** Empty when no eligible cue — not necessarily a bug.
 
 ## Handy CLI anchors
 

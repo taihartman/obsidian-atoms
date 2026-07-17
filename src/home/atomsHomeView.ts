@@ -1072,8 +1072,9 @@ export class AtomsHomeView extends ItemView {
       this.progressMount = null;
     }
 
-    // Work first when past captures wait — automatic filing story (not homework-only)
-    if (shouldShowWaitCard(this.unprocessedCount)) {
+    // Work first when past captures wait — automatic filing story (not homework-only).
+    // Suppress while land peak is up (one hero: Done owns the screen).
+    if (shouldShowWaitCard(this.unprocessedCount) && !this.landPeak) {
       const snap = this.plugin.getAutoRunSnapshot();
       const hero =
         filingHeroCopy({
@@ -1167,12 +1168,13 @@ export class AtomsHomeView extends ItemView {
       this.renderResurfaceCard(scroll);
     }
 
-    // Show when not mid-run (idle/done/error). Hide only during preview/process/update.
+    // Show when not mid-run. Hide during preview/process/update and under land peak.
     if (
       !firstDay &&
       this.runPhase !== "preview" &&
       this.runPhase !== "process" &&
       this.runPhase !== "update" &&
+      !this.landPeak &&
       this.shouldShowUpdateNotesStrip()
     ) {
       this.renderUpdateNotesStrip(scroll);
