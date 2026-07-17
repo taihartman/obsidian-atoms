@@ -32,6 +32,12 @@ import {
 import {
   CURRENT_ATOMS_QUALITY,
 } from "../pipeline/atomQuality";
+import {
+  isPlusLimitDismissedToday,
+  localCalendarDay,
+  readPlusLimitDismissDay,
+  writePlusLimitDismissDay,
+} from "../platform/filingAuth";
 import { UPDATE_NOTES_BATCH_LIMIT } from "../pipeline/refreshAtoms";
 import {
   calendarDateToday,
@@ -1103,6 +1109,10 @@ export class AtomsHomeView extends ItemView {
     if (shouldShowWaitCard(this.unprocessedCount) && !this.landPeak) {
       const snap = this.plugin.getAutoRunSnapshot();
       const filingAuth = this.plugin.resolveFilingAuth();
+      const limitDismissed = isPlusLimitDismissedToday(
+        readPlusLimitDismissDay(this.app),
+        localCalendarDay(),
+      );
       const hero =
         filingHeroCopy({
           pastUnprocessed: this.unprocessedCount,
@@ -1111,6 +1121,7 @@ export class AtomsHomeView extends ItemView {
           egressAcked: snap.egressAcked,
           inFlight: snap.inFlight,
           filingPath: filingPathFromAuth(filingAuth),
+          plusLimitDismissedToday: limitDismissed,
         }) ??
         ({
           mode: "enable_auto",
@@ -1165,8 +1176,7 @@ export class AtomsHomeView extends ItemView {
               return;
             }
             if (action === "dismiss_limit") {
-              // Soft dismiss: just re-render calm path next refresh; no BYOK pitch.
-              this.unprocessedCount = this.unprocessedCount;
+              writePlusLimitDismissDay(this.app, localCalendarDay());
               this.render();
               return;
             }

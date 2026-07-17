@@ -51,6 +51,7 @@ Or use in-app exchange once Settings wires `exchangeMagicToken` after magic-link
 | `ATOMS_PLUS_TOPUP` | `50` | Top-up size |
 | `DOGFOOD_AUTO_GRANT` | `1` | Grant period on first magic exchange |
 | `PORT` | `8787` | Listen port |
+| `PUBLIC_BASE_URL` | `http://127.0.0.1:$PORT` | Magic-link host in logs (tracks PORT by default) |
 | `ATOMS_PLUS_PROMOS` | `FOUNDING=2` | `CODE=months` |
 
 Stripe price IDs reserved for later; dogfood checkout applies grants without Stripe.

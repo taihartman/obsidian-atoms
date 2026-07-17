@@ -41,6 +41,8 @@ export type FilingAuth =
 
 /** Device-local storage keys — lowercase-dashed (KTD5 family). */
 export const LS_PLUS_SESSION = "atoms-plus-session";
+/** Local calendar day (YYYY-MM-DD) when user dismissed Plus limit hero. */
+export const LS_PLUS_LIMIT_DISMISS_DAY = "atoms-plus-limit-dismiss-day";
 
 /**
  * Prefer Plus when session is present and entitlement is active/trialing.
@@ -171,4 +173,42 @@ export function writePlusSession(app: LocalStorageLike, session: PlusSession): v
 
 export function clearPlusSession(app: LocalStorageLike): void {
   app.saveLocalStorage(LS_PLUS_SESSION, "");
+}
+
+/** Local YYYY-MM-DD for dismiss-day comparison. */
+export function localCalendarDay(d: Date = new Date()): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+export function readPlusLimitDismissDay(app: LocalStorageLike): string | null {
+  try {
+    const raw = app.loadLocalStorage(LS_PLUS_LIMIT_DISMISS_DAY);
+    return typeof raw === "string" && /^\d{4}-\d{2}-\d{2}$/.test(raw.trim())
+      ? raw.trim()
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+export function writePlusLimitDismissDay(
+  app: LocalStorageLike,
+  day: string = localCalendarDay(),
+): void {
+  app.saveLocalStorage(LS_PLUS_LIMIT_DISMISS_DAY, day);
+}
+
+export function clearPlusLimitDismissDay(app: LocalStorageLike): void {
+  app.saveLocalStorage(LS_PLUS_LIMIT_DISMISS_DAY, "");
+}
+
+/** True when the loud "Monthly Limit Reached" card was dismissed for `today`. */
+export function isPlusLimitDismissedToday(
+  dismissedDay: string | null,
+  today: string = localCalendarDay(),
+): boolean {
+  return Boolean(dismissedDay && dismissedDay === today);
 }

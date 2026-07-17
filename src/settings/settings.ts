@@ -266,54 +266,59 @@ export class AtomsSettingTab extends PluginSettingTab {
             "input[data-plus-session]",
           ) as HTMLInputElement | null;
           const sessionToken = input?.value?.trim() || "";
-          const emailInput = containerEl.querySelector(
-            "input[data-plus-email]",
-          ) as HTMLInputElement | null;
-          const email = emailInput?.value?.trim() || "dogfood@local";
           if (!sessionToken.startsWith("sess_")) {
             new Notice("Session should look like sess_…");
             return;
           }
-          writePlusSession(this.app, {
-            sessionToken,
-            email,
-            status: "trialing",
-            remaining: 150,
-            refreshedAt: Date.now(),
-          });
-          // Prefer live /v1/me
+          // Only persist after server proves the session (QA P1).
+          const base =
+            this.plugin.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL;
           try {
-            const base =
-              this.plugin.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL;
             const res = await requestUrl({
               url: `${base.replace(/\/+$/, "")}/v1/me`,
               method: "GET",
               headers: { authorization: `Bearer ${sessionToken}` },
               throw: false,
             });
-            if (res.status >= 200 && res.status < 300 && res.json) {
-              const j = res.json as Record<string, unknown>;
-              writePlusSession(this.app, {
-                sessionToken,
-                email: String(j.email || email),
-                status:
-                  j.status === "active" ||
-                  j.status === "trialing" ||
-                  j.status === "exhausted"
-                    ? j.status
-                    : "trialing",
-                remaining:
-                  typeof j.remaining === "number" ? j.remaining : 150,
-                periodEnd:
-                  typeof j.periodEnd === "string" ? j.periodEnd : undefined,
-                refreshedAt: Date.now(),
-              });
+            if (res.status < 200 || res.status >= 300 || !res.json) {
+              new Notice(
+                "Session not accepted by Plus service. Check the URL and paste a fresh sess_ from the magic link.",
+                8000,
+              );
+              return;
             }
-          } catch {
-            /* keep local */
+            const j = res.json as Record<string, unknown>;
+            const email = String(j.email || "").trim();
+            if (!email) {
+              new Notice("Plus service returned no email for this session.");
+              return;
+            }
+            const status =
+              j.status === "active" ||
+              j.status === "trialing" ||
+              j.status === "exhausted" ||
+              j.status === "inactive"
+                ? j.status
+                : "unknown";
+            writePlusSession(this.app, {
+              sessionToken,
+              email,
+              status,
+              remaining:
+                typeof j.remaining === "number" ? j.remaining : undefined,
+              periodEnd:
+                typeof j.periodEnd === "string" ? j.periodEnd : undefined,
+              refreshedAt: Date.now(),
+            });
+            new Notice("Atoms Plus session verified and saved on this device");
+            this.display();
+          } catch (e) {
+            const msg = e instanceof Error ? e.message : "network error";
+            new Notice(
+              `Could not reach Plus service (${msg}). Is it running at ${base}?`,
+              8000,
+            );
           }
-          new Notice("Atoms Plus session saved on this device");
-          this.display();
         }),
       );
 

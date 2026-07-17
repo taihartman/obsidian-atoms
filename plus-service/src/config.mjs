@@ -7,8 +7,15 @@ function env(name, fallback = "") {
   return v === undefined || v === "" ? fallback : v;
 }
 
+const port = Number(env("PORT", "8787"));
+/** Public base for magic links — defaults to same host:port as this process. */
+const publicBaseUrl = env(
+  "PUBLIC_BASE_URL",
+  `http://127.0.0.1:${Number.isFinite(port) && port > 0 ? port : 8787}`,
+);
+
 export const config = {
-  port: Number(env("PORT", "8787")),
+  port: Number.isFinite(port) && port > 0 ? port : 8787,
   /** Operator Anthropic key for managed classify. Required for /v1/classify. */
   anthropicApiKey: env("ANTHROPIC_API_KEY"),
   /** Fixed model for Plus (R4 / KTD-P7). */
@@ -29,8 +36,7 @@ export const config = {
    */
   dogfoodAutoGrant: env("DOGFOOD_AUTO_GRANT", "1") !== "0",
   dogfoodGrantStatus: env("DOGFOOD_GRANT_STATUS", "trialing"), // trialing | active
-  /** Optional public base for magic links in logs (e.g. http://127.0.0.1:8787). */
-  publicBaseUrl: env("PUBLIC_BASE_URL", "http://127.0.0.1:8787"),
+  publicBaseUrl,
   /** Comma-separated promo codes → free months (1–3). e.g. FOUNDING=2,FRIENDS=1 */
   promoCodes: parsePromos(env("ATOMS_PLUS_PROMOS", "FOUNDING=2")),
   promoMaxRedemptions: Number(env("ATOMS_PLUS_PROMO_MAX", "100")),

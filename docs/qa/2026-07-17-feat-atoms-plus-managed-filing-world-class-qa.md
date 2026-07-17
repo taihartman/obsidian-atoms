@@ -210,24 +210,22 @@ Log: `/tmp/plus-qa-server.log` (ephemeral)
 
 ## Findings
 
-### P1 — Dogfood “Not Now” does not dismiss limit card
+### P1 — Dogfood “Not Now” does not dismiss limit card — **FIXED**
 
-- **Where:** `src/home/atomsHomeView.ts` `dismiss_limit` handler re-assigns `unprocessedCount` and re-renders; wait card still shows while past captures remain.
-- **Impact:** User cannot clear the limit prompt until period resets or they Get More; minor UX, not data loss.
-- **Proof:** code read (live Obsidian not required for logic).
-- **Disposition:** Fix or accept for dogfood; track before polish.
+- **Was:** no-op re-render.
+- **Fix:** device-local dismiss day (`LS_PLUS_LIMIT_DISMISS_DAY`); after Not Now, quieter card (count + Get More only) for rest of local day.
+- **Proof:** unit tests `plus_exhausted after Not Now`, `filingAuthDismiss`.
 
-### P1 — Paste session can claim Plus without server proof if `/me` fails
+### P1 — Paste session without server proof — **FIXED**
 
-- **Where:** `settings.ts` Save Session writes local session then optionally refreshes via `/me`.
-- **Impact:** Stale/forged `sess_` until first classify 401; confusing dogfood state.
-- **Disposition:** Accept for dogfood; production must only persist after successful exchange/`/me`.
+- **Was:** write session then maybe `/me`.
+- **Fix:** Save Session only after successful `GET /v1/me`; otherwise Notice and no persist.
+- **Proof:** code path in `settings.ts`.
 
-### P2 — Magic link `PUBLIC_BASE_URL` default port may mismatch server PORT
+### P2 — Magic link port mismatch — **FIXED**
 
-- **Where:** `plus-service` config default `8787` vs custom `PORT`.
-- **Impact:** Console link opens wrong port if PORT≠8787.
-- **Disposition:** Document; set `PUBLIC_BASE_URL` with PORT in README (already partially noted).
+- **Was:** `PUBLIC_BASE_URL` default always `:8787`.
+- **Fix:** default `http://127.0.0.1:${PORT}`; log `publicBase=` on listen.
 
 ### P2 — In-memory store: restart wipes sessions
 

@@ -575,6 +575,11 @@ export function filingHeroCopy(input: {
   inFlight?: boolean;
   /** Prefer this over hasKey when provided (Atoms Plus). */
   filingPath?: FilingPathKind;
+  /**
+   * When true, plus_exhausted uses a quieter card (after Not Now).
+   * Device-local dismiss day handled by caller.
+   */
+  plusLimitDismissedToday?: boolean;
 }): FilingHeroCopy | null {
   if (input.pastUnprocessed <= 0) return null;
 
@@ -600,6 +605,19 @@ export function filingHeroCopy(input: {
   }
 
   if (path === "plus_exhausted") {
+    if (input.plusLimitDismissedToday) {
+      // Quieter follow-up after Not Now — still actionable, not a no-op re-render.
+      return {
+        mode: "plus_limit",
+        eyebrow: "Atoms Plus",
+        title: countLabel,
+        body: "You’ve used this month’s included AI filings. Get More in Settings, or wait until your next billing date.",
+        primaryLabel: "Get More",
+        primaryAction: "get_more",
+        secondaryLabel: null,
+        secondaryAction: null,
+      };
+    }
     return {
       mode: "plus_limit",
       eyebrow: "Atoms Plus",

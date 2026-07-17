@@ -348,6 +348,22 @@ describe("filingHeroCopy", () => {
     expect(c?.body).toMatch(/allotment starts over/i);
   });
 
+  it("plus_exhausted after Not Now — quieter card, still Get More", () => {
+    const c = filingHeroCopy({
+      pastUnprocessed: 4,
+      hasKey: false,
+      autoEnabled: true,
+      egressAcked: true,
+      filingPath: "plus_exhausted",
+      plusLimitDismissedToday: true,
+    });
+    expect(c?.mode).toBe("plus_limit");
+    expect(c?.title).toBe("4 Captures Waiting");
+    expect(c?.primaryAction).toBe("get_more");
+    expect(c?.secondaryAction).toBeNull();
+    expect(c?.title).not.toBe("Monthly Limit Reached");
+  });
+
   it("enable_auto when key but auto off", () => {
     const c = filingHeroCopy({
       pastUnprocessed: 2,

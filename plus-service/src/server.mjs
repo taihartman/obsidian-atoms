@@ -240,6 +240,6 @@ const server = createServer((req, res) => {
 
 server.listen(config.port, () => {
   console.log(
-    `[plus] listening on http://127.0.0.1:${config.port} dogfoodAutoGrant=${config.dogfoodAutoGrant} anthropic=${Boolean(config.anthropicApiKey)}`,
+    `[plus] listening on http://127.0.0.1:${config.port} publicBase=${config.publicBaseUrl} dogfoodAutoGrant=${config.dogfoodAutoGrant} anthropic=${Boolean(config.anthropicApiKey)}`,
   );
 });
