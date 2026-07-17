@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| *(none)* | | | | | | |
+| In review | #66 | agent | fix/collision-marker-integrity | docs/plans/2026-07-17-001-fix-collision-marker-integrity-plan.md | write.ts, render.ts, backfill.ts, main.ts, runProgress.ts | PR #67 |
 
 ## How to claim (copy)
 
@@ -28,8 +28,3 @@ States: `Queued` · `In progress` · `Blocked` · `In review` · `Done` (then re
 | 2026-07-16 | #53 / #54 | drop junk link reasons (0.6.10) |
 | 2026-07-16 | #48 / #49 | aliases/prior as self (0.6.9) |
 | 2026-07-16 | #40 / #41 | Recents use created not mtime |
-| 2026-07-16 | #39 / #42 | ban self-links quality 3 (0.6.8) |
-| 2026-07-16 | #29 / #37 | Update notes quality stamp + refresh (0.6.7) |
-| 2026-07-16 | #33 / #34 | mind-change pair-open + home UI kit |
-| 2026-07-16 | #23 / #24 | require Closes #N process docs |
-| 2026-07-16 | #21 / #22 | hybrid src layout |

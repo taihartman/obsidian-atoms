@@ -89,8 +89,21 @@ export function summaryFromWrite(report: WritePathReport): RunSummary {
   for (const e of report.entries) {
     tallyVerdict(e.verdict, true, acc);
   }
-  // failed is already aggregate from write path (classify failures not in entries)
+  // failed includes classify + collision_mismatch (not in entries)
   return acc;
+}
+
+/** First failure line for home/Notice detail (empty when none). */
+export function formatWriteFailureDetail(
+  report: WritePathReport,
+  maxSnippet = 48,
+): string {
+  const f = report.failures?.[0];
+  if (!f) return "";
+  const snip = (f.captureText ?? "").replace(/\s+/g, " ").trim();
+  const short =
+    snip.length <= maxSnippet ? snip : snip.slice(0, maxSnippet - 1) + "…";
+  return `${f.reason}: ${short || "…"}`;
 }
 
 /** Progress fraction 0–100 for bar width. */

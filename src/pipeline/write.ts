@@ -13,6 +13,7 @@ import {
   type ApplyWriteResult,
   type PlannedWrite,
 } from "./render";
+import { extractCaptureBody } from "./refreshAtoms";
 import type {
   Capture,
   ClassificationResult,
@@ -36,6 +37,15 @@ export interface WritePathEntry {
   personHubMiss: boolean;
 }
 
+/** Classify or integrity failure — capture left unprocessed. */
+export interface WritePathFailure {
+  dailyPath: string;
+  date: string;
+  captureText: string;
+  reason: string;
+  message: string;
+}
+
 export interface WritePathReport {
   entries: WritePathEntry[];
   atomsCreated: number;
@@ -45,6 +55,7 @@ export interface WritePathReport {
   scanned: number;
   proposedTagsMerged: string[];
   personHubMisses: number;
+  failures: WritePathFailure[];
 }
 
 export interface RunWritePathOptions {
@@ -100,6 +111,7 @@ export async function runWritePath(
   const existingAtoms = listAtomPaths(opts.app, opts.atomFolder);
 
   const entries: WritePathEntry[] = [];
+  const failures: WritePathFailure[] = [];
   let atomsCreated = 0;
   let markersAppended = 0;
   let collisions = 0;
@@ -114,6 +126,22 @@ export async function runWritePath(
 
   // Cache daily content we mutate within this run
   const dailyCache = new Map<string, string>();
+
+  const pushFail = (
+    note: DailyNoteWithCaptures,
+    capture: Capture,
+    reason: string,
+    message: string,
+  ) => {
+    failed += 1;
+    failures.push({
+      dailyPath: note.path,
+      date: note.date,
+      captureText: capture.text.slice(0, 120),
+      reason,
+      message,
+    });
+  };
 
   for (let i = 0; i < slice.length; i++) {
     const { note, capture } = slice[i]!;
@@ -139,7 +167,12 @@ export async function runWritePath(
         ...opts.classifyDeps,
       });
       if (!outcome.ok) {
-        failed += 1;
+        pushFail(
+          note,
+          capture,
+          outcome.reason,
+          outcome.message || outcome.reason,
+        );
         continue;
       }
       result = outcome.result;
@@ -175,7 +208,12 @@ export async function runWritePath(
     if (content === undefined) {
       const file = opts.app.vault.getAbstractFileByPath(note.path);
       if (!file || !("extension" in file)) {
-        failed += 1;
+        pushFail(
+          note,
+          capture,
+          "missing_daily",
+          `Daily note missing or unreadable: ${note.path}`,
+        );
         continue;
       }
       content = await opts.app.vault.read(
@@ -187,7 +225,23 @@ export async function runWritePath(
       opts.app,
       plan,
       content,
+      { extractCaptureBody },
     );
+
+    if (writeResult.collisionBodyMismatch) {
+      const title =
+        plan.action.kind === "skip_existing_atom"
+          ? plan.action.title
+          : (result.title || "").trim() || "atom";
+      pushFail(
+        note,
+        capture,
+        "collision_mismatch",
+        `Title "${title}" already exists with a different body — left unprocessed`,
+      );
+      continue;
+    }
+
     dailyCache.set(note.path, newDailyContent);
 
     if (writeResult.atomCreated) atomsCreated += 1;
@@ -221,5 +275,6 @@ export async function runWritePath(
     scanned: work.length,
     proposedTagsMerged,
     personHubMisses,
+    failures,
   };
 }
