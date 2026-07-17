@@ -790,6 +790,7 @@ export default class AtomsPlugin extends Plugin {
         collisions: report.collisions,
         failed: report.failed,
         scanned: report.scanned,
+        failures: report.failures,
         entries: report.entries.map((e) => ({
           date: e.date,
           verdict: e.verdict,
@@ -804,6 +805,11 @@ export default class AtomsPlugin extends Plugin {
         let notice = `Atoms: wrote ${report.atomsCreated} atom(s), ${report.markersAppended} marker(s), ${report.collisions} collision(s), ${report.failed} failed`;
         if (report.personHubMisses > 0) {
           notice += `, ${report.personHubMisses} no person hub${report.personHubMisses === 1 ? "" : "s"}`;
+        }
+        if (report.failures.length > 0) {
+          const f = report.failures[0]!;
+          const snip = f.captureText.replace(/\s+/g, " ").trim().slice(0, 48);
+          notice += ` — ${f.reason}: ${snip}${f.captureText.length > 48 ? "…" : ""}`;
         }
         new Notice(notice);
       }

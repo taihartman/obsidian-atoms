@@ -11,6 +11,16 @@ import {
   qualityStampLines,
 } from "./atomQuality";
 
+/** Collapse whitespace for capture body equality (collision integrity). */
+export function normalizeCaptureText(text: string): string {
+  return (text ?? "").replace(/\s+/g, " ").trim();
+}
+
+/** True when two capture bodies are the same claim under whitespace normalize. */
+export function captureTextsMatch(a: string, b: string): boolean {
+  return normalizeCaptureText(a) === normalizeCaptureText(b);
+}
+
 /**
  * Marker line that would be / is appended under a capture (KTD1).
  * Pure — no vault I/O (U7 preview + U8 write path share this).
@@ -435,20 +445,57 @@ export interface ApplyWriteResult {
   atomSkippedCollision: string | null;
   markerAppended: boolean;
   dailyPath: string;
+  /**
+   * Title collision but existing atom body ≠ this capture — no marker written.
+   * Caller should treat as failed integrity (leave capture unprocessed).
+   */
+  collisionBodyMismatch: boolean;
 }
 
 /**
  * Apply a planned write to the vault. Create new atoms only + append markers (R3/R4).
  * Never modifies an existing atom file (collision protect).
+ * On title collision, only append marker when existing atom capture body matches
+ * this capture (whitespace-normalized).
  */
 export async function applyWrite(
   app: App,
   plan: PlannedWrite,
   dailyContent: string,
+  opts?: {
+    /** Existing atom file body for collision checks (caller may pre-read). */
+    existingAtomContent?: string | null;
+    extractCaptureBody?: (atomContent: string) => string;
+  },
 ): Promise<{ result: ApplyWriteResult; newDailyContent: string }> {
   let atomCreated: string | null = null;
   let atomUpdated: string | null = null;
   let atomSkippedCollision: string | null = null;
+  let collisionBodyMismatch = false;
+
+  const extractBody =
+    opts?.extractCaptureBody ??
+    ((c: string) => {
+      // Inline minimal extract if caller did not pass (avoid circular import default).
+      if (!c.startsWith("---")) return c.replace(/\s+$/, "");
+      const end = c.indexOf("\n---", 3);
+      const body =
+        end === -1 ? c : c.slice(end + 4).replace(/^\r?\n/, "").replace(/\s+$/, "");
+      if (!body) return "";
+      const m = body.match(/^([\s\S]*?)\n\n([\s\S]+)$/);
+      return m ? m[1]!.replace(/\s+$/, "") : body;
+    });
+
+  const bodyOkForPath = async (path: string): Promise<boolean> => {
+    let atomContent = opts?.existingAtomContent;
+    if (atomContent === undefined) {
+      const f = app.vault.getAbstractFileByPath(path);
+      if (!(f instanceof TFile)) return false;
+      atomContent = await app.vault.read(f);
+    }
+    if (atomContent === null || atomContent === undefined) return false;
+    return captureTextsMatch(extractBody(atomContent), plan.capture.text);
+  };
 
   if (plan.action.kind === "create_atom") {
     const folder = plan.action.path.split("/").slice(0, -1).join("/");
@@ -463,10 +510,38 @@ export async function applyWrite(
       await app.vault.create(plan.action.path, plan.action.content);
       atomCreated = plan.action.path;
     } else {
-      // Race: another write landed first — protect existing, do not overwrite.
+      // Race: another write landed first — protect existing; marker only if body matches.
+      if (!(await bodyOkForPath(plan.action.path))) {
+        collisionBodyMismatch = true;
+        return {
+          result: {
+            atomCreated: null,
+            atomUpdated: null,
+            atomSkippedCollision: plan.action.path,
+            markerAppended: false,
+            dailyPath: plan.dailyPath,
+            collisionBodyMismatch: true,
+          },
+          newDailyContent: dailyContent,
+        };
+      }
       atomSkippedCollision = plan.action.path;
     }
   } else if (plan.action.kind === "skip_existing_atom") {
+    if (!(await bodyOkForPath(plan.action.path))) {
+      collisionBodyMismatch = true;
+      return {
+        result: {
+          atomCreated: null,
+          atomUpdated: null,
+          atomSkippedCollision: plan.action.path,
+          markerAppended: false,
+          dailyPath: plan.dailyPath,
+          collisionBodyMismatch: true,
+        },
+        newDailyContent: dailyContent,
+      };
+    }
     atomSkippedCollision = plan.action.path;
   }
 
@@ -490,6 +565,7 @@ export async function applyWrite(
       atomSkippedCollision,
       markerAppended: changed,
       dailyPath: plan.dailyPath,
+      collisionBodyMismatch,
     },
     newDailyContent,
   };

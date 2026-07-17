@@ -527,6 +527,10 @@ export async function applyBackfillResults(opts: {
       plan,
       content,
     );
+    if (wr.collisionBodyMismatch) {
+      failed += 1;
+      continue;
+    }
     dailyCache.set(item.note.path, newDailyContent);
     applied += 1;
     if (wr.atomCreated) atomsCreated += 1;
