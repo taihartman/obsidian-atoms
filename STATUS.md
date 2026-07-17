@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| *(none)* | | | | | | |
+| In progress | #91 | Tai | feat/atoms-plus-managed-filing | docs/plans/2026-07-17-005-feat-atoms-plus-managed-filing-plan.md | src/shared/types.ts, src/platform/filingAuth.ts, src/plugin/main.ts, src/pipeline/classify.ts, src/home/atomsHomeData.ts, src/settings/settings.ts | U1 started |
 
 ## How to claim (copy)
 

@@ -72,6 +72,11 @@ import {
   type DeviceAutoRunState,
 } from "../platform/autorun";
 import {
+  readPlusSession,
+  resolveFilingAuth,
+  type FilingAuth,
+} from "../platform/filingAuth";
+import {
   formatConnectivityConsole,
   runConnectivityTest,
   type ConnectivityReport,
@@ -782,6 +787,17 @@ export default class AtomsPlugin extends Plugin {
     }
 
     return null;
+  }
+
+  /**
+   * BYOK vs Atoms Plus session (U1). Plus preferred when entitlement active/trialing/exhausted.
+   * Session token is device-local — never data.json.
+   */
+  resolveFilingAuth(): FilingAuth {
+    return resolveFilingAuth({
+      byokApiKey: this.getApiKey(),
+      plusSession: readPlusSession(this.app),
+    });
   }
 
   private requireApiKey(): string | null {
