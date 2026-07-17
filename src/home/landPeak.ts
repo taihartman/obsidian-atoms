@@ -16,6 +16,8 @@ export type LandPeak = {
   atoms: LandedAtom[];
   atomCount: number;
   markersAppended?: number;
+  /** Update notes: classify/write failures (do not treat as "nothing to update"). */
+  failedCount?: number;
   /** Subtitle / short summary for chrome */
   summaryLine: string;
 };
@@ -27,14 +29,25 @@ export type LandDisplay = {
   body: string;
   rows: LandedAtom[];
   moreCount: number;
+  /** True when update run had failures (error-toned Done card). */
+  isFailure?: boolean;
 };
 
 export function formatLandHeadline(
   source: LandSource,
   atomCount: number,
+  failedCount: number = 0,
 ): string {
   if (source === "update") {
-    if (atomCount <= 0) return "Nothing to update";
+    if (atomCount <= 0 && failedCount <= 0) return "Nothing to update";
+    if (atomCount <= 0 && failedCount > 0) {
+      return failedCount === 1
+        ? "Couldn't update 1 note"
+        : `Couldn't update ${failedCount} notes`;
+    }
+    if (failedCount > 0) {
+      return `Updated ${atomCount} · ${failedCount} failed`;
+    }
     return `Updated ${atomCount} note${atomCount === 1 ? "" : "s"}`;
   }
   if (atomCount <= 0) return "Nothing new filed";
@@ -46,8 +59,15 @@ export function formatLandBody(
   source: LandSource,
   atomCount: number,
   markersAppended?: number,
+  failedCount: number = 0,
 ): string {
   if (source === "update") {
+    if (atomCount <= 0 && failedCount > 0) {
+      return "Check Settings → model id and API key, then try Update again.";
+    }
+    if (atomCount > 0 && failedCount > 0) {
+      return "Some notes refreshed. Failed ones stay eligible — try Update again.";
+    }
     return atomCount > 0
       ? "Titles and links refreshed. Bodies unchanged."
       : "No notes needed a refresh.";
@@ -70,11 +90,18 @@ export function formatLandBody(
 export function landDisplayFromPeak(peak: LandPeak): LandDisplay {
   const rows = peak.atoms.slice(0, LAND_TITLE_CAP);
   const moreCount = Math.max(0, peak.atomCount - rows.length);
+  const failed = peak.failedCount ?? 0;
   return {
-    headline: formatLandHeadline(peak.source, peak.atomCount),
-    body: formatLandBody(peak.source, peak.atomCount, peak.markersAppended),
+    headline: formatLandHeadline(peak.source, peak.atomCount, failed),
+    body: formatLandBody(
+      peak.source,
+      peak.atomCount,
+      peak.markersAppended,
+      failed,
+    ),
     rows,
     moreCount,
+    isFailure: peak.source === "update" && failed > 0,
   };
 }
 
@@ -82,15 +109,18 @@ export function buildLandPeak(opts: {
   source: LandSource;
   atoms: LandedAtom[];
   markersAppended?: number;
+  failedCount?: number;
 }): LandPeak {
   const atoms = opts.atoms.filter((a) => (a.title ?? "").trim().length > 0);
   const atomCount = atoms.length;
-  const summaryLine = formatLandHeadline(opts.source, atomCount);
+  const failedCount = Math.max(0, opts.failedCount ?? 0);
+  const summaryLine = formatLandHeadline(opts.source, atomCount, failedCount);
   return {
     source: opts.source,
     atoms,
     atomCount,
     markersAppended: opts.markersAppended,
+    failedCount: failedCount > 0 ? failedCount : undefined,
     summaryLine,
   };
 }

@@ -18,6 +18,8 @@ describe("formatLandHeadline", () => {
   it("update wording", () => {
     expect(formatLandHeadline("update", 0)).toBe("Nothing to update");
     expect(formatLandHeadline("update", 4)).toBe("Updated 4 notes");
+    expect(formatLandHeadline("update", 0, 9)).toBe("Couldn't update 9 notes");
+    expect(formatLandHeadline("update", 3, 6)).toBe("Updated 3 · 6 failed");
   });
 });
 
@@ -29,6 +31,22 @@ describe("formatLandBody", () => {
 
   it("update body", () => {
     expect(formatLandBody("update", 2)).toMatch(/Bodies unchanged/);
+    expect(formatLandBody("update", 0, undefined, 9)).toMatch(/model id/);
+    expect(formatLandBody("update", 3, undefined, 6)).toMatch(/try Update again/);
+  });
+});
+
+describe("update failure land peak", () => {
+  it("all failed is not Nothing to update", () => {
+    const peak = buildLandPeak({
+      source: "update",
+      atoms: [],
+      failedCount: 9,
+    });
+    const d = landDisplayFromPeak(peak);
+    expect(d.headline).toBe("Couldn't update 9 notes");
+    expect(d.isFailure).toBe(true);
+    expect(d.body).toMatch(/model id/);
   });
 });
 
