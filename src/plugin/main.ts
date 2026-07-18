@@ -30,6 +30,7 @@ import {
 } from "../pipeline/daily";
 import { AtomsSettingTab } from "../settings/settings";
 import {
+  API_KEY_SECRET_ID_DEFAULT,
   DEFAULT_SETTINGS,
   LOCAL_STORAGE_API_KEY,
   SPIKE_CAPTURE,
@@ -766,13 +767,23 @@ export default class AtomsPlugin extends Plugin {
   }
 
   getApiKey(): string | null {
-    const secretId = this.settings.apiKeySecretId?.trim();
-    if (secretId && this.app.secretStorage) {
-      try {
-        const fromSecret = this.app.secretStorage.getSecret(secretId);
-        if (fromSecret) return fromSecret;
-      } catch {
-        /* fall through */
+    // Prefer configured secret id, then default id (users often store under the tip name
+    // without saving the id field). Secret values are vault+device local — not data.json.
+    const ids = [
+      this.settings.apiKeySecretId?.trim(),
+      API_KEY_SECRET_ID_DEFAULT,
+    ].filter((id): id is string => !!id);
+    const tried = new Set<string>();
+    if (this.app.secretStorage) {
+      for (const secretId of ids) {
+        if (tried.has(secretId)) continue;
+        tried.add(secretId);
+        try {
+          const fromSecret = this.app.secretStorage.getSecret(secretId);
+          if (fromSecret) return fromSecret;
+        } catch {
+          /* try next */
+        }
       }
     }
 
