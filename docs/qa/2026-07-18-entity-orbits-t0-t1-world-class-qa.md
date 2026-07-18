@@ -6,7 +6,7 @@
 
 ## Verdict
 
-**Ready after residual** — product behavior proven live on test vault; craft acceptable; adversarial minMembers + soft silence solid. Residual: phone/Sync not driven; human dogfood optional. No P0/P1 product holes.
+**Ready with honest residual** — UI proven when hub exists; real-user no-seed pass shows Also about stays silent (expected). Prior seeded frames are UI-only evidence, not day-one product proof.; craft acceptable; adversarial minMembers + soft silence solid. Residual: phone/Sync not driven; human dogfood optional. No P0/P1 product holes.
 
 ## Charter
 
@@ -198,6 +198,38 @@ Window forced to **390×844** (iPhone-ish). Live Also about still `Also about Yo
 | Live API atom | `docs/qa/screenshots/entity-orbits/05-live-api-also-about.png` | Pass — real classify → hub link → Also about |
 
 **Not a real iOS device** — desktop window resize only. Phone Sync residual remains.
+
+
+## Real-user pass (no seeding) — 2026-07-18 redo
+
+**Method change:** deleted all agent-seeded hubs/orbit atoms. Captured only raw daily bullets over three days, then **Process** + **force Process today**. No `Yosemite packing` note created.
+
+### Captures (user-shaped)
+
+| Day | Bullet | Result |
+|---|---|---|
+| 2026-07-16 | pack bug spray and a hat for the camping trip | **noise** (`<!--linker:noise-->`) |
+| 2026-07-17 | need hiking pants and board games for the trip | **atom** `Need hiking pants and board games for trip` · no external hub link |
+| 2026-07-18 (force today) | also pack trail mix and a headlamp | **atom** `Also pack trail mix and a headlamp for trip` · links **to prior packing atom** as same trip list |
+
+### Also about
+
+Both real packing atoms: **`alsoAbout: null`**.
+
+Why (by design): need ≥3 generated atoms hard-linking one **existing vault hub title**. Here: only 2 atoms, no user-created packing hub, first capture retired as noise.
+
+### Evidence
+
+- `docs/qa/screenshots/entity-orbits/10-real-user-atom-open.png`
+- `docs/qa/screenshots/entity-orbits/11-real-user-library.png`
+- Live atom body: trail mix → `[[Need hiking pants and board games for trip]]`
+
+### Verdict impact
+
+Prior seeded QA proved the **Also about UI** when a hub already exists.  
+This pass proves **day-one product truth**: packing alone does not invent a hub or light Also about. That is correct constitution (no invent stubs) and a **product gap** if users expect a packing shelf without ever creating a hub note.
+
+**Agent rule going forward:** dogfood = capture → Process only. Never seed hubs/atoms to force a green Also about screenshot.
 
 ## Merge Decision
 

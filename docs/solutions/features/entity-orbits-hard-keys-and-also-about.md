@@ -30,3 +30,15 @@ Sporadic captures (packing items, project crumbs) file as separate atoms. Soft l
 - `src/pipeline/enrich/entityLinks.ts`
 - `src/pipeline/entityOrbitIndex.ts` / `entityOrbitPolicy.ts`
 - `src/home/atomsHomeView.ts`
+
+## Real-user QA lesson (2026-07-18)
+
+Do **not** seed hub notes or pre-linked atoms to “prove” Also about.
+Dogfood path: user capture bullets → Process / force Process today → observe.
+
+Observed without a pre-existing packing hub:
+1. Some packing logistics → **noise** (not atom).
+2. Keepable list dumps → **atoms**, may link to each other when the model sees a chain.
+3. **Also about** stays silent until ≥3 generated atoms hard-link the **same existing vault hub title**.
+
+Seeding `Yosemite packing.md` + link-prose atoms invents a product experience users do not have on day one.
