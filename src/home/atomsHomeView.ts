@@ -1692,7 +1692,7 @@ export class AtomsHomeView extends ItemView {
           className: "atoms-home-cell",
           role: "button",
           onClick: () => {
-            void this.openAtomInHome(e.path);
+            void this.openPathInVault(e.path);
           },
         });
         const main = row.createDiv({ cls: "atoms-home-cell-main" });

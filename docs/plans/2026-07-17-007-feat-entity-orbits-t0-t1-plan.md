@@ -75,7 +75,7 @@ T2–T4 requirements (R16–R20, Suggest) are **out of this plan**.
 | KTD4 | Entity reinforce = media contract: atom-only; never title/verdict; **exact** case-insensitive title match only (no media-style contains resolve); high-precision shape gates | R8–R10; contains-match invents wrong hubs |
 | KTD5 | Orbit index pure + derived on home open / open-atom; no vault index files | KD5 product |
 | KTD6 | T1 UI on `openAtomInHome` / `renderHomeOpen` (not For you hero, not land peak hero) | R13; citator cousin |
-| KTD7 | **Library row opens in-home** (`openAtomInHome`) so Also about is reachable. Optional secondary “Open in vault” stays on the open view. Land peak / mind-change pair stay as today | Feasibility: today almost nothing calls `openAtomInHome` |
+| KTD7 | **Library row opens in-home** (`openAtomInHome`) so Also about is reachable. Optional secondary “Open in vault” stays on the open view. Land peak / mind-change pair stay as today. **Amended 2026-07-18:** library → vault note again (`docs/plans/2026-07-18-amend-library-open-vault-note.md`); Also about entry = Together → siblings + other in-home paths | Feasibility: today almost nothing calls `openAtomInHome` |
 | KTD8 | Person-only hard keys: if every surfaceable key for the open atom is in `personHubTitles` from `discoverPersonHubs` (cached on `loadData`), **suppress** Also about | R12 / KD8 |
 | KTD9 | No schema change; prompt-only for model guidance | Cost + contract simplicity |
 | KTD10 | No extra Anthropic call | R21–R23 |
