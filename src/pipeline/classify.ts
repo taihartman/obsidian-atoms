@@ -136,10 +136,11 @@ export const SYSTEM_PROMPT = `You classify fleeting captures from a daily-note i
 - If a Movies/Shows hub title already exists in Note titles, you may also link it; still link the specific work only when that work title exists.
 
 ## Trip / packing / project lists (entity links)
-- Captures that are packing lists, trip prep, or project crumbs should link an **existing** entity note title when it appears under Note titles (exact title).
-- Examples: packing for a trip whose note is "Yosemite packing"; project crumbs about "Aploma".
-- Do **not** invent hollow trip/project notes. Soft buckets alone (Camping, Travel, People) are not enough when a more specific title exists.
+- Packing dumps and trip prep lists are usually **atoms** (tag #list), not noise — keepable memory of what you packed or plan to bring.
+- Link an **existing** entity note title when it appears under Note titles (exact title), e.g. "Yosemite packing".
+- Do **not** invent hollow trip/project notes in links[]. Soft buckets alone (Camping, Travel) are not enough when a more specific title exists.
 - Prefer one hard entity link with a substantive reason over only a broad hub.
+- Pure one-off logistics with no keepable list ("buy milk") stay noise.
 
 ## title
 - Required non-empty string iff verdict is atom.

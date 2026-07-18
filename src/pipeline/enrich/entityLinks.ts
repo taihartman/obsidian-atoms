@@ -1,9 +1,11 @@
 /**
  * Trip / list / project entity reinforce — link-if-exists only.
  * Never changes verdict or title. Exact vault title match (no contains).
+ * Also rescues packing/trip list dumps from noise → atom.
  */
 
 import type { ClassificationResult } from "../../shared/types";
+import { shortTitleFromCapture } from "./ideaRescue";
 import { isSoftEntityKey } from "../softKeys";
 import { workTitleExistsInVault } from "./media";
 
@@ -19,6 +21,89 @@ export function isEntityShaped(captureText: string): boolean {
   if (/\b(?:project|ship|build|launch)\b/i.test(t) && t.length < 200) return true;
   if (/\blist\b/i.test(t) && /[,;]|\n\s*[-*]/.test(t)) return true;
   return false;
+}
+
+/**
+ * Suggest hub title when user has not created one yet.
+ * e.g. "pack X for Yosemite packing" → "Yosemite packing"
+ */
+export function suggestEntityHubLabel(text: string): string | null {
+  const t = (text ?? "").replace(/\s+/g, " ").trim();
+  if (!t) return null;
+
+  let m = t.match(/\bfor\s+([A-Za-z][\w' -]{1,40}?)\s+packing\b/i);
+  if (m?.[1]) {
+    const core = m[1].trim();
+    if (core.length >= 2 && !isSoftEntityKey(core)) {
+      return `${titleCaseWords(core)} packing`;
+    }
+  }
+
+  m = t.match(/\b([A-Za-z][\w' -]{2,30}?)\s+packing\b/i);
+  if (m?.[1]) {
+    const core = m[1].trim();
+    if (
+      !/^(my|the|a|an|our|this|their|some)$/i.test(core) &&
+      !isSoftEntityKey(core) &&
+      !isSoftEntityKey(`${core} packing`)
+    ) {
+      return `${titleCaseWords(core)} packing`;
+    }
+  }
+
+  m = t.match(
+    /\b(?:for|on)\s+(?:the\s+)?([A-Za-z][\w' -]{2,30}?)\s+trip\b/i,
+  );
+  if (m?.[1]) {
+    const core = m[1].trim();
+    if (
+      !/^(the|a|an|this|our|my|camping|road)$/i.test(core) &&
+      !isSoftEntityKey(core)
+    ) {
+      return `${titleCaseWords(core)} packing`;
+    }
+  }
+
+  return null;
+}
+
+function titleCaseWords(s: string): string {
+  return s
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join(" ");
+}
+
+/**
+ * Soft-rescue packing/trip list dumps the model marks noise.
+ * Prefer atom so invite + Also about can fire.
+ */
+export function rescueEntityListCapture(
+  captureText: string,
+  result: ClassificationResult,
+): ClassificationResult {
+  if (result.verdict === "atom") return result;
+  if (result.verdict !== "task" && result.verdict !== "noise") return result;
+  if (!isEntityShaped(captureText)) return result;
+  // Avoid pure one-word chores
+  const t = captureText.trim();
+  if (t.length < 12) return result;
+  if (!/\bpack/i.test(t) && !/\btrip\b/i.test(t) && !/\blist\b/i.test(t)) {
+    return result;
+  }
+
+  const title = shortTitleFromCapture(captureText);
+  const tags = [...(result.tags ?? [])];
+  if (!tags.some((x) => x.toLowerCase() === "list")) tags.push("list");
+
+  return {
+    ...result,
+    verdict: "atom",
+    title,
+    tags,
+    links: [...(result.links ?? [])],
+  };
 }
 
 function hasLinkTo(result: ClassificationResult, note: string): boolean {
@@ -88,17 +173,27 @@ export function enrichEntityLinks(
   result: ClassificationResult,
   noteTitles: string[] = [],
 ): ClassificationResult {
-  if (result.verdict !== "atom") return result;
-  if (!isEntityShaped(captureText)) return result;
+  // Rescue packing dumps before link reinforce
+  let r = rescueEntityListCapture(captureText, result);
+  if (r.verdict !== "atom") return r;
+  if (!isEntityShaped(captureText)) return r;
 
   const titles = findExactEntityTitlesInCapture(captureText, noteTitles);
-  if (!titles.length) return result;
+  // Also try suggested hub label if it already exists as a vault title
+  const suggested = suggestEntityHubLabel(captureText);
+  if (suggested && workTitleExistsInVault(suggested, noteTitles)) {
+    const exact = exactVaultTitle(suggested, noteTitles);
+    if (exact && !titles.some((t) => t.toLowerCase() === exact.toLowerCase())) {
+      titles.push(exact);
+    }
+  }
+  if (!titles.length) return r;
 
-  let links = [...(result.links ?? [])];
+  let links = [...(r.links ?? [])];
   let changed = false;
   for (const title of titles) {
     if (isSoftEntityKey(title)) continue;
-    if (hasLinkTo({ ...result, links }, title)) continue;
+    if (hasLinkTo({ ...r, links }, title)) continue;
     links = [
       ...links,
       {
@@ -108,6 +203,6 @@ export function enrichEntityLinks(
     ];
     changed = true;
   }
-  if (!changed) return result;
-  return { ...result, links };
+  if (!changed) return r;
+  return { ...r, links };
 }

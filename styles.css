@@ -521,6 +521,28 @@
   margin-top: 14px;
 }
 
+.atoms-home-entity-invite-kicker {
+  color: var(--color-cyan, #64d2ff) !important;
+}
+
+.atoms-home-entity-invite-peek {
+  list-style: none;
+  margin: 0 0 14px;
+  padding: 0;
+}
+
+.atoms-home-entity-invite-peek li {
+  font-size: 0.9rem;
+  font-weight: 500;
+  padding: 6px 0;
+  border-bottom: 0.5px solid var(--background-modifier-border);
+  color: var(--text-normal);
+}
+
+.atoms-home-entity-invite-peek li:last-child {
+  border-bottom: none;
+}
+
 .atoms-home-citator-ribbon {
   display: flex;
   flex-direction: column;

@@ -57,7 +57,7 @@ processInbox(dryRun)
 
 **Link / idea quality (0.6.6+):** `improveClassificationLinks` rewrites boilerplate reasons (“preference about X”); `rescueKeepableIdea` promotes product/app pitches from task/noise → atom; optional exact `People` index link for workplace-shaped captures without a person hub.
 
-**Entity orbits (0.6.24+):** packing/trip/project-shaped captures may gain **exact** vault entity links via `enrichEntityLinks` (piggyback classify). Soft buckets (Camping, People, …) never form a shelf alone. Home library opens atoms in-place; **Also about {entity} · N** shows sibling titles when ≥3 generated atoms hard-link the same existing note. See `docs/architecture-constellations.md`.
+**Entity orbits (0.6.24+ / 0.6.25):** packing/trip dumps rescue to **atoms** (not noise); link **exact** existing vault entity titles via `enrichEntityLinks`. Soft buckets never form a shelf alone. **Also about** when ≥3 atoms hard-link an existing hub. **Make {label}?** invite when packing-shaped atoms suggest a missing hub (user Create only — no silent stubs). Calm **Together** card when a hub orbit already exists. See `docs/architecture-constellations.md`.
 
 ## Module map (`src/`) — hybrid layout
 
