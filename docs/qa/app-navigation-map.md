@@ -61,8 +61,15 @@ Living map for driving Atoms during QA. Update when commands, home cards, or set
 
 - **When:** Home calm (`runPhase === idle`, no past wait card), not first-day setup; not under land peak.
 - **Source:** `src/resurface/resurface.ts`.
-- **Connected:** Named kicker only (`Because of …` / `Also about …`); soft `People`-only edges dropped.
+- **Connected:** Named kicker only (`Because of …` / `Also about …`); soft hubs alone dropped (`People`, `Camping`, `Travel`, … via `softKeys`).
 - **Note:** Empty when no eligible cue — not necessarily a bug.
+
+### Also about (entity orbits, 0.6.24+)
+
+- **When:** Open a generated atom **in-home** (library row → in-home) that hard-links an existing vault hub with ≥3 generated members.
+- **UI:** Strip `Also about {hub} · N` → title list of siblings; tap peer opens in-home. Soft Camping-only never shows.
+- **Source:** `entityOrbitIndex` / `entityOrbitPolicy` / `openAtomInHome` in `atomsHomeView.ts`.
+- **QA:** Seed ≥3 linker atoms with link-prose `[[Hub]]` + hub note outside or in vault; soft-only control atoms.
 
 ## Handy CLI anchors
 
