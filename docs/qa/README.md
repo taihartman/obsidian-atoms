@@ -31,6 +31,26 @@ Before a QA pass, read:
 | **Phone product** | `~/Documents/Remote Vault` via Sync | Human live data; agent only installs plugin (`npm run phone`) |
 | **Never by default** | Remote Vault atoms/dailies | Unattended Update / fixture rewrite / bulk classify |
 
+## Product dogfood honesty (mandatory)
+
+**Bug this kills:** agent plants hubs + perfect atoms, screenshots a green feature, claims “product works” — users never get that setup.
+
+| Kind of proof | Allowed | Not allowed as product proof |
+|---|---|---|
+| **Real product loop** | Append **capture bullets** only → Process / force Process today → observe | Pre-create hub notes, hand-write atom link-prose, plant ≥3 linked atoms just to light Also about / hubs / etc. |
+| **Plumbing / unit** | `npm test`, `seed:vault`, `seed:demo`, fixture Process, pure index fixtures | Calling that “day-one dogfood” in the PR verdict |
+| **UI chrome only** | After a real loop (or explicit “UI-only with labeled fixture”) | Unlabeled seeded screenshots as merge evidence for product magic |
+
+**Default dogfood steps (agents):**
+
+1. Install plugin to throwaway vault.  
+2. Write captures the way a user would (`- pack …` on past dailies; force today if needed).  
+3. Run **Process** / **Process include today** — not hand-authored atoms.  
+4. Report what actually happened (including noise, silence, missing Also about).  
+5. If a feature needs an existing hub to shine, say so — do not invent the hub to fake the aha unless the product itself creates it.
+
+**Scripts:** `npm run seed:vault` / `seed:demo` remain valid for parse/process plumbing and README chrome. They are **not** a substitute for step 2–4 when claiming a product surface works.
+
 ## Viewports / Devices
 
 | Surface | Target |

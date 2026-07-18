@@ -37,8 +37,9 @@ Where an **active feature plan** and amendments conflict, **that plan wins**. Am
 6. **Nothing destroyed** — idempotent, re-runnable; bad classifications are never lossy.
 7. **Untrusted classify/write paths need dry-run evidence** before relying on them. Gated **auto-run** may write without a per-run human dry-run once privacy + device gates pass.
 8. **Vault lanes (agents):** write experiments, Update notes, fixtures, classify smoke, and vault rewrites → **demo / throwaway only** (`test_vault/`, `docs/media/demo-vault/`). **Never** mutate personal **Remote Vault** atoms/dailies unattended. Phone install (`npm run phone`) is the only default agent write into Remote Vault (plugin files only).
-9. **Second brain, not a task app** — no due-date/checklist gravity; `task` verdict is soft-retired.
-10. **No platform-only product** without an explicit plan note (desktop/iOS/Android consumers).
+9. **Product dogfood honesty (agents):** Prove product claims with the **user loop** — append capture bullets to dailies → **Process** / force Process today → observe atoms, markers, home. Do **not** seed hub notes, pre-linked atoms, or hand-authored graphs to force a green feature screenshot, then call that day-one product proof. Scripted seeds (`npm run seed:vault`, `seed:demo`, unit fixtures, `process-fixture-sample`) are for **deterministic plumbing** only — label them as such in QA. Silence, noise, or missing UI without a hub is often the real product; document it. See `docs/qa/README.md` § Product dogfood honesty.
+10. **Second brain, not a task app** — no due-date/checklist gravity; `task` verdict is soft-retired.
+11. **No platform-only product** without an explicit plan note (desktop/iOS/Android consumers).
 
 ## Versioning
 

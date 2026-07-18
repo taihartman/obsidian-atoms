@@ -9,6 +9,17 @@ Durable fixture catalog for Atoms QA. Never commit API keys, SecretStorage dumps
 - **Phone:** Remote Vault receives **plugin installs** (`npm run phone`), not agent note rewrites.
 - Remote Vault is real Sync data — Process/Update only by the human (or explicit user ask); never bulk-rewrite dailies unattended.
 
+## Product proof vs fixture proof
+
+| | Product dogfood | Fixture / seed |
+|---|---|---|
+| **Goal** | What a user gets after capture → Process | Deterministic parse/write/UI chrome |
+| **Write** | Daily **capture bullets** only | `seed:vault`, `seed:demo`, hand atoms, fixture Process |
+| **OK to plant hubs/atoms?** | **No** (unless the product created them) | Yes, for unit/UI-only — **label in QA** |
+| **Silence / noise** | Real outcome — report it | May be bypassed on purpose |
+
+See `docs/qa/README.md` § Product dogfood honesty. Example learning: entity orbits / Also about — `docs/solutions/features/entity-orbits-hard-keys-and-also-about.md`.
+
 ## Current Fixtures
 
 ### Seeded test vault dailies
