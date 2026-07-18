@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| _(none)_ |  |  |  |  |  |  |
+| In progress | #97 | taihartman | `amend/library-open-vault-note` | `docs/plans/2026-07-18-amend-library-open-vault-note.md` | `src/home/atomsHomeView.ts` | Library → vault note; keep in-home for Together/siblings |
 
 ## How to claim (copy)
 

@@ -111,6 +111,8 @@ Phases are **gates**, not optional polish. Later phases require earlier success 
 
 **R14. Open contract.** Primary open target = in-home title list (phone-first). Secondary optional: open hub note if it exists. Do not rely on Obsidian’s backlinks pane as the product. Global Graph remains a parallel power path, not a substitute for T1.
 
+> **Amended 2026-07-18** (`docs/plans/2026-07-18-amend-library-open-vault-note.md`): **Library** row open target is the **vault note** (file-explorer). In-home title list / Also about remain for Together → siblings and other in-home navigation — not as the library open intermediary.
+
 **R15. Copy voice.** Memory shelf, not job queue. No “3 of 7 packed,” “still need to,” “review packing,” or completion language. No em dashes in app chrome. No mind-change purple fills on this surface. No person-orange kicker on non-person shelves.
 
 ### Home push (T2 — optional, gated)

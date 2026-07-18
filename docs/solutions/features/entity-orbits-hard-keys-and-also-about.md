@@ -16,7 +16,7 @@ Sporadic captures (packing items, project crumbs) file as separate atoms. Soft l
 1. **Piggyback classify** with `enrichEntityLinks` — exact vault title match only (no contains-resolve).
 2. **Shared soft denylist** (`softKeys.ts`) for orbits and connected resurface.
 3. **Derived orbit index** from **link-prose** wikilinks (not capture body).
-4. **Pull UI:** library opens in-home; **Also about {T} · N** when ≥3 members on a real hub title.
+4. **Pull UI:** **Also about {T} · N** when ≥3 members on a real hub title (in-home via Together → siblings). Library row opens the **vault note** directly (2026-07-18 dogfood amend — not the in-home reader).
 
 ## Why not
 
