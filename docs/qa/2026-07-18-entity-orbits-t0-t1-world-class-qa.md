@@ -186,6 +186,19 @@ Throwaway vault only: `Yosemite packing.md`, `Camping.md`, `Atoms/Orbit *.md` (n
 - Home Together push card (T2 out of scope)  
 - VoiceOver / full a11y  
 
+## Mobile viewport (desktop Obsidian resized)
+
+Window forced to **390×844** (iPhone-ish). Live Also about still `Also about Yosemite packing · 6` after real API Process.
+
+| Frame | Path | Craft |
+|---|---|---|
+| Also about | `docs/qa/screenshots/entity-orbits/06-mobile-also-about.png` | Pass — strip full-width, ≥44px feel, no clip |
+| Sibling list | `docs/qa/screenshots/entity-orbits/07-mobile-sibling-list.png` | Pass — 6 rows readable, hierarchy OK |
+| Library | `docs/qa/screenshots/entity-orbits/08-mobile-library.png` | Pass — rows stack cleanly |
+| Live API atom | `docs/qa/screenshots/entity-orbits/05-live-api-also-about.png` | Pass — real classify → hub link → Also about |
+
+**Not a real iOS device** — desktop window resize only. Phone Sync residual remains.
+
 ## Merge Decision
 
 **Approve merge** of #94 for desktop/agent quality bar with residual phone dogfood optional.
