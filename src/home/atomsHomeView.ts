@@ -202,10 +202,10 @@ export class AtomsHomeView extends ItemView {
           siblings: Array<{ path: string; title: string; sourceDate: string | null }>;
         } | null;
       }
-    | {
+      | {
         kind: "entity-siblings";
-        /** Atom we came from (back target). */
-        backPath: string;
+        /** Atom we came from; null when opened from Together (back → home). */
+        backPath: string | null;
         label: string;
         siblings: Array<{ path: string; title: string; sourceDate: string | null }>;
       }
@@ -232,7 +232,8 @@ export class AtomsHomeView extends ItemView {
     label: string;
     memberCount: number;
     peekTitles: string[];
-    samplePath: string;
+    /** Full orbit members for Open → title list. */
+    members: Array<{ path: string; title: string; sourceDate: string | null }>;
   } | null = null;
 
   /** Live Preview/Process progress (not cleared by library refresh). */
@@ -948,15 +949,12 @@ export class AtomsHomeView extends ItemView {
           personHubTitles: this.personHubTitles,
         });
         if (!primary) continue;
-        const others = sortSiblingRows(primary.others);
+        const members = sortSiblingRows(primary.orbit.members);
         this.togetherCard = {
           label: primary.orbit.label,
-          memberCount: primary.orbit.members.length,
-          peekTitles: [
-            a.title,
-            ...others.slice(0, 2).map((o) => o.title),
-          ].slice(0, 3),
-          samplePath: a.path,
+          memberCount: members.length,
+          peekTitles: members.slice(0, 3).map((m) => m.title),
+          members,
         };
         break;
       }
@@ -1020,7 +1018,15 @@ export class AtomsHomeView extends ItemView {
     button(actions, {
       grade: "primary",
       label: "Open",
-      onClick: () => void this.openAtomInHome(t.samplePath),
+      onClick: () => {
+        this.homeOpen = {
+          kind: "entity-siblings",
+          backPath: null,
+          label: t.label,
+          siblings: t.members,
+        };
+        this.render();
+      },
     });
     button(actions, {
       grade: "secondary",
@@ -1170,7 +1176,11 @@ export class AtomsHomeView extends ItemView {
         label: "‹ Back",
         className: "atoms-home-back",
         onClick: () => {
-          void this.openAtomInHome(open.backPath);
+          if (open.backPath) {
+            void this.openAtomInHome(open.backPath);
+          } else {
+            this.closeHomeOpen();
+          }
         },
       });
       scroll.createEl("h2", {

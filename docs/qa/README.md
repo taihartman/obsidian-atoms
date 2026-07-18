@@ -9,6 +9,7 @@ Before a QA pass, read:
 1. `docs/qa/testing-fixtures.md` for deterministic data, live-data constraints, and cleanup rules.
 2. `docs/qa/app-navigation-map.md` for surface and command anchors.
 3. The changed files, plan (if any), and adjacent tests for the feature under QA.
+4. **Acceptance authority** for product/UI claims: active plan under `docs/plans/`, product contract / architecture rules it cites (e.g. entity orbits Open contract R14), and on-screen copy next to CTAs. `world-class-qa` stories must use those acceptances — not handler bodies. **Shipped surfaces stay in scope** even if a plan slice deferred that tier.
 
 ## Run Commands
 
