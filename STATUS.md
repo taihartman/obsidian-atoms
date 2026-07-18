@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| In progress | #97 | taihartman | `amend/library-open-vault-note` | `docs/plans/2026-07-18-amend-library-open-vault-note.md` | `src/home/atomsHomeView.ts` | Library → vault note; keep in-home for Together/siblings |
+| _(none)_ |  |  |  |  |  |  |
 
 ## How to claim (copy)
 
@@ -23,6 +23,7 @@ States: `Queued` · `In progress` · `Blocked` · `In review` · `Done` (then re
 
 | Merged | Issue / PR | Summary |
 |---|---|---|
+| 2026-07-18 | #97 / #98 | Library row opens vault note (not in-home reader) |
 | 2026-07-18 | #93 #95 / #94 | Entity orbits T0–T3 + Together Open list (0.6.26) |
 | 2026-07-17 | #83 / #84 | Open atom graph command (0.6.19) |
 | 2026-07-17 | #74 / #75 | ghost textButton kit + bridge chrome fix |
