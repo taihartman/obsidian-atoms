@@ -485,6 +485,75 @@
   margin: 0 0 12px;
 }
 
+.atoms-home-also-about {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-secondary);
+  cursor: pointer;
+}
+
+.atoms-home-also-about:active {
+  transform: scale(0.98);
+  opacity: 0.92;
+}
+
+.atoms-home-also-about-text {
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: var(--color-cyan, #64d2ff);
+}
+
+.atoms-home-also-about-meta,
+.atoms-home-also-about-note {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+  margin: 0 0 14px;
+}
+
+.atoms-home-also-about-note {
+  margin-top: 14px;
+}
+
+/* Together / invite hero — space below before shortcut banner / library */
+.atoms-home-together-card,
+.atoms-home-entity-invite {
+  margin-bottom: 16px;
+}
+
+.atoms-home-together-card .atoms-ui-action-row,
+.atoms-home-entity-invite .atoms-ui-action-row {
+  margin-top: 4px;
+}
+
+.atoms-home-entity-invite-kicker {
+  color: var(--color-cyan, #64d2ff) !important;
+}
+
+.atoms-home-entity-invite-peek {
+  list-style: none;
+  margin: 0 0 14px;
+  padding: 0;
+}
+
+.atoms-home-entity-invite-peek li {
+  font-size: 0.9rem;
+  font-weight: 500;
+  padding: 6px 0;
+  border-bottom: 0.5px solid var(--background-modifier-border);
+  color: var(--text-normal);
+}
+
+.atoms-home-entity-invite-peek li:last-child {
+  border-bottom: none;
+}
+
 .atoms-home-citator-ribbon {
   display: flex;
   flex-direction: column;
@@ -1094,7 +1163,8 @@
   align-items: center;
   gap: 10px;
   padding: 12px 14px;
-  margin-bottom: 14px;
+  margin-top: 4px;
+  margin-bottom: 16px;
   border-radius: 12px;
   background: color-mix(in srgb, var(--interactive-accent) 15%, var(--background-secondary));
   border: 1px solid color-mix(in srgb, var(--interactive-accent) 30%, transparent);

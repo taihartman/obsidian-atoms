@@ -9,6 +9,17 @@ Durable fixture catalog for Atoms QA. Never commit API keys, SecretStorage dumps
 - **Phone:** Remote Vault receives **plugin installs** (`npm run phone`), not agent note rewrites.
 - Remote Vault is real Sync data — Process/Update only by the human (or explicit user ask); never bulk-rewrite dailies unattended.
 
+## Product proof vs fixture proof
+
+| | Product dogfood | Fixture / seed |
+|---|---|---|
+| **Goal** | What a user gets after capture → Process | Deterministic parse/write/UI chrome |
+| **Write** | Daily **capture bullets** only | `seed:vault`, `seed:demo`, hand atoms, fixture Process |
+| **OK to plant hubs/atoms?** | **No** (unless the product created them) | Yes, for unit/UI-only — **label in QA** |
+| **Silence / noise** | Real outcome — report it | May be bypassed on purpose |
+
+See `docs/qa/README.md` § Product dogfood honesty. Example learning: entity orbits / Also about — `docs/solutions/features/entity-orbits-hard-keys-and-also-about.md`.
+
 ## Current Fixtures
 
 ### Seeded test vault dailies
@@ -50,6 +61,42 @@ Durable fixture catalog for Atoms QA. Never commit API keys, SecretStorage dumps
 - **Expected states:** Settings version matches ship.
 - **Cleanup:** User-owned; **never** agent bulk-Update / fixture-rewrite Atoms or dailies unless user explicitly asks.
 - **Evidence:** Human checklist or screenshot; version string on phone.
+
+### Desktop throwaway vault (reuse — do not recreate)
+
+- **Purpose:** Default live Process / Also about / invite dogfood.
+- **Mode:** Live CLI.
+- **Path:** `test_vault/test vault/` (open as vault name **`test vault`**).
+- **Setup once:** `./scripts/install-to-vault.sh`; Settings → Atoms → API key (SecretStorage). Key is **per vault + device**.
+- **Reuse:** Agents **must not** delete the vault, wipe `.obsidian`, or `pm clear` desktop Obsidian between passes. Append captures → Process; clean only feature-specific notes when needed.
+- **Evidence:** `obsidian vault="test vault" …`
+
+### Android emulator vault **AtomsMobileQA** (reuse — do not recreate)
+
+- **Purpose:** Mobile UI smoke for Atoms home, Also about, Make list invite.
+- **Mode:** Live emulator (`adb` device `emulator-5554` or current AVD).
+- **Path on device:** `/sdcard/Documents/AtomsMobileQA`
+- **Setup once:**
+  1. Install Obsidian APK if needed (`Obsidian-*.apk` from obsidian-releases).
+  2. Push plugin: `main.js` `manifest.json` `styles.css` → `…/AtomsMobileQA/.obsidian/plugins/atoms/`
+  3. `community-plugins.json` → `["atoms"]`
+  4. First open: Use existing vault → Documents → **AtomsMobileQA** → Trust plugins.
+  5. API key: set in **this vault** on the emulator (Settings → Atoms). Emulator key ≠ desktop key.
+- **Reuse (mandatory):** **Do not** `pm clear md.obsidian` or delete `AtomsMobileQA` between QA runs unless the fixture is corrupt. Update plugin files in place; append captures / Process; screenshot.
+- **Open Atoms home:** command palette / ribbon **Open home** (`atoms:open-home`). URI `obsidian://command?vault=AtomsMobileQA&id=atoms:open-home` when supported.
+- **Evidence:** screenshots under `docs/qa/screenshots/entity-orbits-mobile/` (or feature folder).
+
+### API key persistence (why it “disappears”)
+
+| Cause | What happens |
+|---|---|
+| **Different vault** | SecretStorage is not shared across vaults. Key in Remote Vault ≠ test vault. |
+| **Emulator `pm clear`** | Wipes entire Obsidian app data including secrets. |
+| **New emulator / wipe data** | Same as clear. |
+| **Device-local fallback off + empty secret id** | Key only found if stored under the configured secret id (default `atoms-anthropic-api-key` is also tried as of 0.6.25). |
+| **data.json** | Never holds the key (by design). |
+
+**Agent rule:** Prefer **device-local key fallback** on throwaway vaults for dogfood stability, or re-enter SecretStorage once per vault and stop clearing app data.
 
 ## Fixture Maintenance
 

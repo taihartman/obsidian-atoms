@@ -72,6 +72,14 @@ Template: [`.github/pull_request_template.md`](../.github/pull_request_template.
 | `In review` | Implementation done; shipping tail / PR review |
 | `Done` | Merged; remove from In flight (optional: keep one release line) |
 
+## Product dogfood (agents + humans)
+
+When verifying **product** behavior (not pure unit tests):
+
+1. Prefer **capture → Process** on throwaway vault — not pre-planted hubs/atoms that force a green UI.  
+2. Seed scripts and fixture Process are for plumbing and labeled UI chrome only.  
+3. Full rule: [`docs/qa/README.md`](./qa/README.md) § Product dogfood honesty · constitution note in `CLAUDE.md` non-negotiable § product dogfood honesty.
+
 ## Day-to-day loop
 
 ```

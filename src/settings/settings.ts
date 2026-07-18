@@ -161,7 +161,7 @@ export class AtomsSettingTab extends PluginSettingTab {
     new Setting(containerEl)
       .setName("Anthropic API key")
       .setDesc(
-        "SecretStorage. The value never lives in data.json. Secret ids: lowercase alphanumeric with dashes.",
+        "SecretStorage on this vault + device only (not synced). Switching vaults or clearing app data (e.g. emulator pm clear) drops the key — re-enter once per vault. Secret ids: lowercase alphanumeric with dashes.",
       )
       .addComponent((el) =>
         new SecretComponent(this.app, el)

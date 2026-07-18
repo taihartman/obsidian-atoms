@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Atoms — Cluster / Together (mock)</title>
+  <!--
+    Concept: Together view for atoms filed across nights (auto-run)
+    Visual authority: docs/design-handoff/tokens/README.md (v2 editorial)
+    Cousins: person-hub-invite.html · land-then-remember.html
+    Product: nightly Process makes batch-at-file weak; threshold-on-home is the magic.
+  -->
+  <style>
+    :root, html[data-theme="dark"] {
+      --bg-primary: #000000;
+      --bg-secondary: #1c1c1e;
+      --bg-elevated: #2c2c2e;
+      --sep: rgba(84, 84, 88, 0.55);
+      --text-label: #ffffff;
+      --text-secondary: rgba(235, 235, 245, 0.6);
+      --text-tertiary: rgba(235, 235, 245, 0.32);
+      --tint: #0a84ff;
+      --person: #ff9f0a;
+      --work: #64d2ff;
+      --done: #30d158;
+      --error: #ff453a;
+      --mind: #bf5af2;
+      --person-soft: color-mix(in srgb, var(--person) 16%, transparent);
+      --work-soft: color-mix(in srgb, var(--work) 16%, transparent);
+      --tint-soft: color-mix(in srgb, var(--tint) 18%, transparent);
+      --done-soft: color-mix(in srgb, var(--done) 12%, transparent);
+      --done-border: color-mix(in srgb, var(--done) 32%, transparent);
+      --phone-border: #3a3a3c;
+      --page-bg: #121214;
+      --shadow: 0 28px 70px rgba(0,0,0,0.55);
+    }
+    html[data-theme="light"] {
+      --bg-primary: #f2f2f7;
+      --bg-secondary: #ffffff;
+      --bg-elevated: #e5e5ea;
+      --sep: rgba(60, 60, 67, 0.18);
+      --text-label: #000000;
+      --text-secondary: rgba(60, 60, 67, 0.72);
+      --text-tertiary: rgba(60, 60, 67, 0.42);
+      --tint: color-mix(in srgb, #0a84ff 75%, black);
+      --person: color-mix(in srgb, #ff9f0a 75%, black);
+      --work: color-mix(in srgb, #64d2ff 55%, black);
+      --done: color-mix(in srgb, #30d158 70%, black);
+      --error: color-mix(in srgb, #ff453a 75%, black);
+      --mind: color-mix(in srgb, #bf5af2 70%, black);
+      --person-soft: color-mix(in srgb, #ff9f0a 14%, var(--bg-secondary));
+      --work-soft: color-mix(in srgb, #64d2ff 14%, var(--bg-secondary));
+      --tint-soft: color-mix(in srgb, #0a84ff 14%, var(--bg-secondary));
+      --done-soft: color-mix(in srgb, #30d158 12%, var(--bg-secondary));
+      --done-border: color-mix(in srgb, #30d158 28%, var(--sep));
+      --phone-border: #c7c7cc;
+      --page-bg: #e8e8ed;
+      --shadow: 0 20px 50px rgba(0,0,0,0.12);
+    }
+    :root {
+      --radius-card: 16px;
+      --radius-btn: 12px;
+      --radius-chip: 6px;
+      --radius-pill: 980px;
+      --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+      --claim-serif: "New York", ui-serif, Georgia, "Times New Roman", serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: var(--font);
+      background: var(--page-bg);
+      color: var(--text-label);
+      -webkit-font-smoothing: antialiased;
+    }
+    .page { max-width: 1180px; margin: 0 auto; padding: 28px 18px 90px; }
+    .page > h1 {
+      font-size: 1.45rem; font-weight: 700; letter-spacing: -0.03em; margin: 0 0 8px;
+    }
+    .lede {
+      color: var(--text-secondary); max-width: 48rem; line-height: 1.5;
+      margin: 0 0 12px; font-size: 0.95rem;
+    }
+    .token-bar {
+      display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 18px;
+      font-size: 0.72rem; color: var(--text-tertiary);
+    }
+    .token-bar span {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 4px 10px; border-radius: var(--radius-pill);
+      background: var(--bg-secondary); border: 1px solid var(--sep);
+    }
+    .swatch { width: 10px; height: 10px; border-radius: 3px; }
+    .decisions {
+      background: var(--bg-secondary);
+      border: 1px solid var(--sep);
+      border-radius: var(--radius-card);
+      padding: 14px 16px;
+      margin-bottom: 18px;
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      line-height: 1.45;
+    }
+    .decisions strong { color: var(--text-label); font-weight: 600; }
+    .decisions ul { margin: 8px 0 0; padding-left: 1.15rem; }
+    .decisions li { margin: 4px 0; }
+    .toolbar {
+      display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 22px; align-items: center;
+    }
+    .toolbar > span {
+      font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.12em;
+      color: var(--text-tertiary); font-weight: 600;
+    }
+    .chip {
+      border: none; background: var(--bg-elevated); color: var(--text-secondary);
+      border-radius: var(--radius-pill); padding: 8px 14px;
+      font-size: 0.85rem; font-weight: 500; cursor: pointer;
+      min-height: 44px;
+    }
+    .chip.on {
+      background: var(--tint-soft);
+      color: var(--tint);
+    }
+    .theme-toggle {
+      margin-left: auto;
+      border: 1px solid var(--sep);
+      background: var(--bg-secondary);
+      color: var(--text-secondary);
+      border-radius: var(--radius-pill);
+      padding: 8px 14px;
+      font-size: 0.85rem;
+      font-weight: 500;
+      cursor: pointer;
+      min-height: 44px;
+    }
+
+    .stage {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 40px;
+      align-items: start;
+    }
+    @media (max-width: 900px) {
+      .stage { grid-template-columns: 1fr; justify-items: center; }
+      .side { max-width: 420px; width: 100%; }
+    }
+    .cap {
+      font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.12em;
+      color: var(--text-tertiary); text-align: center; margin-bottom: 10px; font-weight: 600;
+    }
+    .phone {
+      width: 375px;
+      height: 812px;
+      background: var(--bg-primary);
+      border-radius: 44px;
+      border: 4px solid var(--phone-border);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+    .status-bar {
+      height: 50px;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      padding-bottom: 8px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+    .nav { padding: 0 10px 10px 16px; flex-shrink: 0; }
+    .nav-top {
+      display: flex; justify-content: space-between; align-items: center; min-height: 40px;
+    }
+    .nav-btn {
+      border: none; background: transparent; color: var(--tint);
+      font-size: 1.2rem; min-width: 44px; min-height: 44px; cursor: pointer;
+    }
+    .large-title {
+      font-size: 1.85rem; font-weight: 700; letter-spacing: -0.035em;
+      margin: 0; line-height: 1.05;
+    }
+    .subtitle {
+      font-size: 0.9rem; color: var(--text-secondary); margin: 5px 0 0;
+    }
+    .scroll {
+      flex: 1 1 auto;
+      overflow-y: auto;
+      min-height: 0;
+      padding: 6px 16px 28px;
+    }
+    .panel { display: none; }
+    .panel.is-active { display: block; }
+
+    .flat-card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--sep);
+      border-radius: var(--radius-card);
+      padding: 16px 14px 14px;
+      margin-bottom: 14px;
+    }
+    .status-done {
+      background: var(--done-soft);
+      border: 1px solid var(--done-border);
+      border-radius: var(--radius-card);
+      padding: 16px 14px 14px;
+      margin-bottom: 14px;
+    }
+    .kicker {
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.13em;
+      text-transform: uppercase;
+      color: var(--work);
+      margin: 0 0 6px;
+    }
+    .kicker-person { color: var(--person); }
+    .kicker-done { color: var(--done); }
+    .kicker-tint { color: var(--tint); }
+    .flat-card h2, .status-done h2 {
+      margin: 0 0 6px;
+      font-size: 1.1rem;
+      font-weight: 650;
+      letter-spacing: -0.02em;
+    }
+    .flat-card p, .status-done p {
+      margin: 0 0 14px;
+      font-size: 0.88rem;
+      color: var(--text-secondary);
+      line-height: 1.4;
+    }
+    .status-done p:last-child { margin-bottom: 0; }
+    .peek {
+      margin: 0 0 12px;
+      padding: 0;
+      list-style: none;
+    }
+    .peek li {
+      font-size: 0.9rem;
+      font-weight: 500;
+      letter-spacing: -0.015em;
+      padding: 6px 0;
+      border-bottom: 0.5px solid var(--sep);
+      color: var(--text-label);
+    }
+    .peek li:last-child { border-bottom: none; }
+    .peek li span {
+      display: block;
+      font-size: 0.78rem;
+      font-weight: 400;
+      color: var(--text-tertiary);
+      margin-top: 2px;
+    }
+
+    .btns { display: flex; gap: 10px; flex-wrap: wrap; }
+    .btn {
+      flex: 1;
+      min-height: 46px;
+      border: none;
+      border-radius: var(--radius-btn);
+      font-size: 0.95rem;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      cursor: pointer;
+    }
+    .btn:active { transform: scale(0.98); opacity: 0.92; }
+    .btn-primary { background: var(--tint); color: #fff; }
+    .btn-secondary { background: var(--bg-elevated); color: var(--tint); }
+    .btn-quiet {
+      flex: 1 1 100%;
+      background: transparent;
+      color: var(--text-secondary);
+      font-weight: 500;
+      min-height: 44px;
+    }
+
+    .sec {
+      font-size: 0.95rem; font-weight: 650; letter-spacing: -0.02em;
+      margin: 4px 0 10px;
+    }
+    .list {
+      background: var(--bg-secondary);
+      border-radius: var(--radius-card);
+      overflow: hidden;
+      border: 1px solid var(--sep);
+    }
+    .row {
+      display: grid; grid-template-columns: 1fr auto; gap: 4px 12px;
+      padding: 14px 16px; border-bottom: 0.5px solid var(--sep);
+      min-height: 58px; align-items: start;
+      cursor: pointer;
+    }
+    .row:last-child { border-bottom: none; }
+    .row .t {
+      font-size: 0.98rem; font-weight: 550; letter-spacing: -0.015em; line-height: 1.3;
+    }
+    .row .sub {
+      display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+      margin-top: 5px; font-size: 0.78rem; color: var(--text-tertiary);
+    }
+    .row .time {
+      font-size: 0.78rem; color: var(--text-tertiary);
+      font-variant-numeric: tabular-nums; padding-top: 2px;
+    }
+    .chip-work {
+      display: inline-block; font-size: 0.78rem; font-weight: 600;
+      color: var(--work); background: var(--work-soft);
+      padding: 2px 8px; border-radius: var(--radius-chip);
+    }
+    .chip-neutral {
+      display: inline-block; font-size: 0.78rem; font-weight: 600;
+      color: var(--text-secondary); background: var(--bg-elevated);
+      padding: 2px 8px; border-radius: var(--radius-chip);
+    }
+
+    .back-row {
+      display: flex; align-items: center; gap: 4px;
+      margin: 0 0 12px;
+    }
+    .back {
+      border: none; background: transparent; color: var(--tint);
+      font-size: 0.95rem; font-weight: 500; min-height: 44px;
+      padding: 0 4px 0 0; cursor: pointer;
+    }
+    .open-title {
+      font-size: 1.35rem; font-weight: 700; letter-spacing: -0.03em;
+      margin: 0 0 4px; line-height: 1.15;
+    }
+    .open-meta {
+      font-size: 0.85rem; color: var(--text-secondary); margin: 0 0 16px;
+    }
+    .claim {
+      font-family: var(--claim-serif);
+      font-size: 1.05rem;
+      font-weight: 400;
+      line-height: 1.45;
+      color: var(--text-label);
+      margin: 0 0 10px;
+    }
+    .claim::before { content: "“"; color: var(--text-tertiary); }
+    .claim::after { content: "”"; color: var(--text-tertiary); }
+
+    .side h2 {
+      font-size: 0.95rem; font-weight: 650; margin: 18px 0 8px;
+    }
+    .side h2:first-child { margin-top: 0; }
+    .doctrine {
+      background: var(--bg-secondary);
+      border: 1px solid var(--sep);
+      border-radius: var(--radius-card);
+      padding: 12px 14px;
+      margin-bottom: 10px;
+      font-size: 0.84rem;
+      color: var(--text-secondary);
+      line-height: 1.45;
+    }
+    .doctrine strong { color: var(--text-label); }
+    .doctrine.bad { border-color: color-mix(in srgb, var(--error) 40%, var(--sep)); }
+    .footnote {
+      font-size: 0.75rem; color: var(--text-tertiary); line-height: 1.4; margin-top: 16px;
+    }
+    code {
+      font-size: 0.8em;
+      background: var(--bg-elevated);
+      padding: 1px 5px;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <h1>Cluster / Together</h1>
+    <p class="lede">
+      Sporadic captures file as separate atoms over nights of auto-run.
+      Magic is not a packing editor at Process time. It is noticing a cluster later,
+      and one calm place to see every related title at once.
+    </p>
+    <div class="token-bar">
+      <span><i class="swatch" style="background:#0a84ff"></i> tint action</span>
+      <span><i class="swatch" style="background:#64d2ff"></i> work chip / trip cluster</span>
+      <span><i class="swatch" style="background:#ff9f0a"></i> person (unused here)</span>
+      <span>flat cards · no purple fills · no em dashes</span>
+    </div>
+
+    <div class="decisions">
+      <strong>Nightly auto-run changes the product</strong>
+      <ul>
+        <li><strong>Weak:</strong> multi-item invite right after Process. Most nights land 0–1 packing atom. Silent auto-run has no audience.</li>
+        <li><strong>Strong:</strong> links accumulate every night. When the cluster is real (≥3 + shared trip/entity), home shows a quiet <strong>Together</strong> card.</li>
+        <li><strong>Open:</strong> title list (phone-friendly backlinks). Bodies stay separate. No merge, no checkboxes, no folder move.</li>
+        <li><strong>Invite hub</strong> only at threshold if no durable node exists. Same sparse bar as person hubs.</li>
+      </ul>
+    </div>
+
+    <div class="toolbar" id="toolbar">
+      <span>State</span>
+      <button type="button" class="chip on" data-state="night1">Night 1 · one atom</button>
+      <button type="button" class="chip" data-state="night3">Night 3 · threshold</button>
+      <button type="button" class="chip" data-state="together">Open Together</button>
+      <button type="button" class="chip" data-state="invite">Hub invite</button>
+      <button type="button" class="theme-toggle" id="theme">Light</button>
+    </div>
+
+    <div class="stage">
+      <div>
+        <div class="cap" id="phone-cap">Night 1 · one atom</div>
+        <div class="phone">
+          <div class="status-bar">9:41</div>
+          <div class="nav">
+            <div class="nav-top">
+              <button type="button" class="nav-btn" aria-label="menu">◎</button>
+              <button type="button" class="nav-btn" aria-label="settings">⚙</button>
+            </div>
+            <h1 class="large-title" id="nav-title">Atoms</h1>
+            <p class="subtitle" id="nav-sub">Filed overnight</p>
+          </div>
+          <div class="scroll">
+
+            <!-- Night 1: land peak only, no cluster UI -->
+            <div class="panel is-active" data-panel="night1">
+              <div class="status-done">
+                <p class="kicker kicker-done">Filed</p>
+                <h2>1 note last night</h2>
+                <p>Bug spray for the trail</p>
+              </div>
+              <div class="sec">Recently added</div>
+              <div class="list">
+                <div class="row">
+                  <div>
+                    <div class="t">Bug spray for the trail</div>
+                    <div class="sub"><span class="chip-work">Camping</span> · yesterday</div>
+                  </div>
+                  <div class="time">1d</div>
+                </div>
+                <div class="row">
+                  <div>
+                    <div class="t">Sleep debt does not pile linearly</div>
+                    <div class="sub">3 days ago</div>
+                  </div>
+                  <div class="time">3d</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Night 3: threshold → Together card (calm home, not process toast) -->
+            <div class="panel" data-panel="night3">
+              <div class="flat-card">
+                <p class="kicker">Together</p>
+                <h2>Yosemite packing</h2>
+                <p>3 notes filed over a few nights. Open to see them all.</p>
+                <ul class="peek">
+                  <li>Hiking pants and board games<span>last night</span></li>
+                  <li>Hat for sun<span>2 days ago</span></li>
+                  <li>Bug spray for the trail<span>4 days ago</span></li>
+                </ul>
+                <div class="btns">
+                  <button type="button" class="btn btn-primary" data-go="together">Open</button>
+                  <button type="button" class="btn btn-secondary">Not now</button>
+                </div>
+              </div>
+              <div class="sec">Recently added</div>
+              <div class="list">
+                <div class="row">
+                  <div>
+                    <div class="t">Hiking pants and board games</div>
+                    <div class="sub"><span class="chip-work">Camping</span> <span class="chip-neutral">Yosemite</span> · yesterday</div>
+                  </div>
+                  <div class="time">1d</div>
+                </div>
+                <div class="row">
+                  <div>
+                    <div class="t">Hat for sun</div>
+                    <div class="sub"><span class="chip-work">Camping</span> · 2 days ago</div>
+                  </div>
+                  <div class="time">2d</div>
+                </div>
+                <div class="row">
+                  <div>
+                    <div class="t">Bug spray for the trail</div>
+                    <div class="sub"><span class="chip-work">Camping</span> · 4 days ago</div>
+                  </div>
+                  <div class="time">4d</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Together open: title list = phone backlinks -->
+            <div class="panel" data-panel="together">
+              <div class="back-row">
+                <button type="button" class="back" data-go="night3">‹ Atoms</button>
+              </div>
+              <h2 class="open-title">Yosemite packing</h2>
+              <p class="open-meta">3 notes · linked over several nights</p>
+              <div class="list">
+                <div class="row">
+                  <div>
+                    <div class="t">Hiking pants and board games</div>
+                    <div class="sub">from Jul 16</div>
+                  </div>
+                  <div class="time">1d</div>
+                </div>
+                <div class="row">
+                  <div>
+                    <div class="t">Hat for sun</div>
+                    <div class="sub">from Jul 15</div>
+                  </div>
+                  <div class="time">2d</div>
+                </div>
+                <div class="row">
+                  <div>
+                    <div class="t">Bug spray for the trail</div>
+                    <div class="sub">from Jul 13</div>
+                  </div>
+                  <div class="time">4d</div>
+                </div>
+              </div>
+              <p class="open-meta" style="margin-top:14px">
+                Each note keeps its own body. This view only gathers titles.
+              </p>
+            </div>
+
+            <!-- Hub invite at threshold (no durable node yet) -->
+            <div class="panel" data-panel="invite">
+              <div class="flat-card">
+                <p class="kicker kicker-person">Invite</p>
+                <h2>Make Yosemite packing?</h2>
+                <p>
+                  Three notes already point at this trip.
+                  One hub note so you can open them together later.
+                </p>
+                <div class="btns">
+                  <button type="button" class="btn btn-primary" data-go="together">Create</button>
+                  <button type="button" class="btn btn-secondary">Not now</button>
+                </div>
+              </div>
+              <div class="sec">Recently added</div>
+              <div class="list">
+                <div class="row">
+                  <div>
+                    <div class="t">Hiking pants and board games</div>
+                    <div class="sub"><span class="chip-work">Camping</span> · yesterday</div>
+                  </div>
+                  <div class="time">1d</div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <div class="side">
+        <h2>Why this still helps with nightly filing</h2>
+        <div class="doctrine">
+          <strong>Process is not the show.</strong><br />
+          Auto-run files while you sleep. There is often no human at the moment three packing lines become a set. The product must notice <em>across days</em>, then speak once on calm home.
+        </div>
+        <div class="doctrine">
+          <strong>What compounds every night</strong><br />
+          Quiet links into Camping / trip entity. No UI. Cost is classify you already pay. On night 3 the cluster becomes visible. Night 1 stays silent (correct).
+        </div>
+        <div class="doctrine">
+          <strong>What the user gets</strong><br />
+          Not a packing app. A memory shelf: open Yosemite packing and see every related claim title. Tap any row into the real atom.
+        </div>
+        <div class="doctrine bad">
+          <strong>Rejected</strong><br />
+          Toast every night · “3 of 7 packed” progress · auto-merge bodies · folder next to other packing lists · permanent Collections tab · checkboxes by default.
+        </div>
+        <h2>Ship order</h2>
+        <div class="doctrine">
+          1. Stronger shared links (no UI)<br />
+          2. Threshold Together card + open title list<br />
+          3. Hub invite if no node (person-hub cousin)<br />
+          4. Optional checkboxes / append much later
+        </div>
+        <p class="footnote">
+          Authority: docs/design-handoff/tokens/README.md ·
+          cousins: person-hub-invite.html · land-then-remember.html ·
+          draft mock only (not claimed / not implemented)
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const labels = {
+      night1: "Night 1 · one atom",
+      night3: "Night 3 · threshold",
+      together: "Open Together",
+      invite: "Hub invite",
+    };
+    const subs = {
+      night1: "Filed overnight",
+      night3: "Something belongs together",
+      together: "Cluster",
+      invite: "Optional hub",
+    };
+    function show(state) {
+      document.querySelectorAll(".chip[data-state]").forEach((c) => {
+        c.classList.toggle("on", c.dataset.state === state);
+      });
+      document.querySelectorAll(".panel").forEach((p) => {
+        p.classList.toggle("is-active", p.dataset.panel === state);
+      });
+      document.getElementById("phone-cap").textContent = labels[state] || state;
+      document.getElementById("nav-sub").textContent = subs[state] || "";
+      document.getElementById("nav-title").textContent =
+        state === "together" ? "Together" : "Atoms";
+    }
+    document.getElementById("toolbar").addEventListener("click", (e) => {
+      const b = e.target.closest("[data-state]");
+      if (b) show(b.dataset.state);
+    });
+    document.querySelector(".phone").addEventListener("click", (e) => {
+      const go = e.target.closest("[data-go]");
+      if (go) show(go.dataset.go);
+    });
+    document.getElementById("theme").addEventListener("click", () => {
+      const html = document.documentElement;
+      const next = html.getAttribute("data-theme") === "light" ? "dark" : "light";
+      html.setAttribute("data-theme", next);
+      document.getElementById("theme").textContent = next === "light" ? "Dark" : "Light";
+    });
+  </script>
+</body>
+</html>
