@@ -9,7 +9,9 @@ import {
 } from "obsidian";
 import type AtomsPlugin from "../plugin/main";
 import {
+  ALSO_ABOUT_BODY_NOTE,
   bodyAfterFrontmatter,
+  buildAlsoAboutStripModel,
   countUpdateWorkRemaining,
   extractSourceDay,
   filingHeroCopy,
@@ -28,6 +30,15 @@ import {
   type AtomLibraryEntry,
   type FilingHeroCopy,
 } from "./atomsHomeData";
+import { buildOrbits } from "../pipeline/entityOrbitIndex";
+import {
+  pickPrimaryOrbit,
+  sortSiblingRows,
+} from "../pipeline/entityOrbitPolicy";
+import {
+  discoverPersonHubs,
+  type PersonHubFile,
+} from "../pipeline/enrich/people";
 import {
   CURRENT_ATOMS_QUALITY,
 } from "../pipeline/atomQuality";
@@ -174,6 +185,19 @@ export class AtomsHomeView extends ItemView {
         title: string;
         body: string;
         lines: CitatorLine[];
+        alsoAbout?: {
+          label: string;
+          otherCount: number;
+          stripText: string;
+          siblings: Array<{ path: string; title: string; sourceDate: string | null }>;
+        } | null;
+      }
+    | {
+        kind: "entity-siblings";
+        /** Atom we came from (back target). */
+        backPath: string;
+        label: string;
+        siblings: Array<{ path: string; title: string; sourceDate: string | null }>;
       }
     | {
         kind: "mind-change-pair";
@@ -189,6 +213,8 @@ export class AtomsHomeView extends ItemView {
         interactionNoted: boolean;
       }
     | null = null;
+  /** Cached person hub titles for Also about exclusivity. */
+  private personHubTitles: string[] = [];
 
   /** Live Preview/Process progress (not cleared by library refresh). */
   private runPhase: RunPhase = "idle";
@@ -510,6 +536,15 @@ export class AtomsHomeView extends ItemView {
       content: i.content,
       mtime: i.mtime,
     }));
+    const hubFiles: PersonHubFile[] = this.app.vault
+      .getMarkdownFiles()
+      .map((f) => ({
+        path: f.path,
+        cache: this.app.metadataCache.getFileCache(f),
+      }));
+    this.personHubTitles = discoverPersonHubs(hubFiles).map(
+      (h) => h.canonicalTitle,
+    );
     const work = countUpdateWorkRemaining(
       inputs.map((i) => ({
         content: i.content,
@@ -830,6 +865,47 @@ export class AtomsHomeView extends ItemView {
     this.render();
   }
 
+  private buildAlsoAboutForPath(path: string): {
+    label: string;
+    otherCount: number;
+    stripText: string;
+    siblings: Array<{ path: string; title: string; sourceDate: string | null }>;
+  } | null {
+    const folder = this.plugin.settings.atomFolder || "Atoms";
+    const vaultTitles = this.app.vault
+      .getMarkdownFiles()
+      .map((f) => f.basename);
+    const atoms = this.atomFileInputs
+      .filter((f) => isGeneratedAtomContent(f.content))
+      .map((f) => ({
+        path: f.path,
+        title: titleFromAtomPath(f.path),
+        content: f.content,
+        sourceDate: extractSourceDay(f.content),
+      }));
+    void folder;
+    const orbits = buildOrbits(atoms, {
+      vaultTitles,
+      personHubTitles: this.personHubTitles,
+    });
+    const primary = pickPrimaryOrbit(path, orbits, {
+      personHubTitles: this.personHubTitles,
+    });
+    if (!primary) return null;
+    const siblings = sortSiblingRows(primary.others);
+    const strip = buildAlsoAboutStripModel(
+      primary.orbit.label,
+      siblings.length,
+    );
+    if (!strip) return null;
+    return {
+      label: strip.label,
+      otherCount: strip.otherCount,
+      stripText: strip.stripText,
+      siblings,
+    };
+  }
+
   private async openAtomInHome(path: string): Promise<void> {
     const folder = this.plugin.settings.atomFolder || "Atoms";
     const file = this.atomFileInputs.find((f) => f.path === path);
@@ -854,6 +930,7 @@ export class AtomsHomeView extends ItemView {
         bodyAfterFrontmatter(file.content).trim() || self.bodySnippet,
       ),
       lines,
+      alsoAbout: this.buildAlsoAboutForPath(self.path),
     };
     this.render();
   }
@@ -865,6 +942,41 @@ export class AtomsHomeView extends ItemView {
       this.renderMindChangePair(scroll, open);
       return;
     }
+    if (open.kind === "entity-siblings") {
+      backLink(scroll, {
+        label: "‹ Back",
+        className: "atoms-home-back",
+        onClick: () => {
+          void this.openAtomInHome(open.backPath);
+        },
+      });
+      scroll.createEl("h2", {
+        cls: "atoms-home-open-title",
+        text: open.label,
+      });
+      scroll.createEl("p", {
+        cls: "atoms-home-also-about-meta",
+        text: `${open.siblings.length} notes · linked over several nights`,
+      });
+      const list = listGroup(scroll, { className: "atoms-home-list" });
+      for (const s of open.siblings) {
+        listRow(list, {
+          className: "atoms-home-cell",
+          role: "button",
+          onClick: () => {
+            void this.openAtomInHome(s.path);
+          },
+        }).createDiv({ cls: "atoms-home-cell-main" }).createDiv({
+          cls: "atoms-home-cell-title",
+          text: s.title,
+        });
+      }
+      scroll.createEl("p", {
+        cls: "atoms-home-also-about-note",
+        text: ALSO_ABOUT_BODY_NOTE,
+      });
+      return;
+    }
     backLink(scroll, {
       label: "‹ Back",
       className: "atoms-home-back",
@@ -874,6 +986,33 @@ export class AtomsHomeView extends ItemView {
       cls: "atoms-home-open-title",
       text: open.title,
     });
+    if (open.alsoAbout) {
+      const strip = scroll.createDiv({
+        cls: "atoms-home-also-about",
+        attr: { role: "button", tabindex: "0" },
+      });
+      strip.createDiv({
+        cls: "atoms-home-also-about-text",
+        text: open.alsoAbout.stripText,
+      });
+      const openList = () => {
+        if (!open.alsoAbout) return;
+        this.homeOpen = {
+          kind: "entity-siblings",
+          backPath: open.path,
+          label: open.alsoAbout.label,
+          siblings: open.alsoAbout.siblings,
+        };
+        this.render();
+      };
+      strip.addEventListener("click", openList);
+      strip.addEventListener("keydown", (ev) => {
+        if (ev.key === "Enter" || ev.key === " ") {
+          ev.preventDefault();
+          openList();
+        }
+      });
+    }
     if (open.lines.length) {
       const ribbon = scroll.createDiv({
         cls: "atoms-home-citator-ribbon",
@@ -1309,7 +1448,7 @@ export class AtomsHomeView extends ItemView {
           className: "atoms-home-cell",
           role: "button",
           onClick: () => {
-            void this.app.workspace.openLinkText(e.title, e.path, false);
+            void this.openAtomInHome(e.path);
           },
         });
         const main = row.createDiv({ cls: "atoms-home-cell-main" });

@@ -10,6 +10,7 @@ import {
   type PersonHub,
 } from "./enrich/people";
 import { enrichMediaLinks } from "./enrich/media";
+import { enrichEntityLinks } from "./enrich/entityLinks";
 import {
   improveClassificationLinks,
   maybeLinkPeopleIndex,
@@ -133,6 +134,12 @@ export const SYSTEM_PROMPT = `You classify fleeting captures from a daily-note i
   Good: "revises [[Old claim]]" / "contradicts [[Old claim]]"
 - Prefer zero forced topical links over junk edges — except people rules and existing media work-title links above.
 - If a Movies/Shows hub title already exists in Note titles, you may also link it; still link the specific work only when that work title exists.
+
+## Trip / packing / project lists (entity links)
+- Captures that are packing lists, trip prep, or project crumbs should link an **existing** entity note title when it appears under Note titles (exact title).
+- Examples: packing for a trip whose note is "Yosemite packing"; project crumbs about "Aploma".
+- Do **not** invent hollow trip/project notes. Soft buckets alone (Camping, Travel, People) are not enough when a more specific title exists.
+- Prefer one hard entity link with a substantive reason over only a broad hub.
 
 ## title
 - Required non-empty string iff verdict is atom.
@@ -520,6 +527,8 @@ export async function classifyCapture(
     context.titles ?? [],
     context.personHubs ?? [],
   );
+  // Trip/list/project entity reinforce — exact vault titles only.
+  result = enrichEntityLinks(capture, result, context.titles ?? []);
   // Rewrite boilerplate reasons into substantive prose.
   result = improveClassificationLinks(capture, result);
   // Never self-link / self-duplicate the atom title in graph prose.
@@ -557,6 +566,7 @@ export function applyClassificationQuality(
     titles,
     opts.personHubTitles ?? hubs.map((h) => h.canonicalTitle),
   );
+  r = enrichEntityLinks(capture, r, titles);
   r = improveClassificationLinks(capture, r);
   r = stripSelfReferentialLinks(r);
   return r;

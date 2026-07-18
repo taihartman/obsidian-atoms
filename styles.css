@@ -485,6 +485,42 @@
   margin: 0 0 12px;
 }
 
+.atoms-home-also-about {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-secondary);
+  cursor: pointer;
+}
+
+.atoms-home-also-about:active {
+  transform: scale(0.98);
+  opacity: 0.92;
+}
+
+.atoms-home-also-about-text {
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: var(--color-cyan, #64d2ff);
+}
+
+.atoms-home-also-about-meta,
+.atoms-home-also-about-note {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+  margin: 0 0 14px;
+}
+
+.atoms-home-also-about-note {
+  margin-top: 14px;
+}
+
 .atoms-home-citator-ribbon {
   display: flex;
   flex-direction: column;

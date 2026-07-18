@@ -57,6 +57,8 @@ processInbox(dryRun)
 
 **Link / idea quality (0.6.6+):** `improveClassificationLinks` rewrites boilerplate reasons (“preference about X”); `rescueKeepableIdea` promotes product/app pitches from task/noise → atom; optional exact `People` index link for workplace-shaped captures without a person hub.
 
+**Entity orbits (0.6.24+):** packing/trip/project-shaped captures may gain **exact** vault entity links via `enrichEntityLinks` (piggyback classify). Soft buckets (Camping, People, …) never form a shelf alone. Home library opens atoms in-place; **Also about {entity} · N** shows sibling titles when ≥3 generated atoms hard-link the same existing note. See `docs/architecture-constellations.md`.
+
 ## Module map (`src/`) — hybrid layout
 
 **Layout rule (agents):** new filing logic → `pipeline/` (or `pipeline/enrich/`); home UI → `home/`; shared home presentation → `ui/`; resurface cues → `resurface/`; settings/CTA → `settings/`; device gates → `platform/`; shared types → `shared/`. Wire-up only in `plugin/`.
@@ -80,9 +82,11 @@ processInbox(dryRun)
 | `pipeline/parseLinkProse.ts` | Link-prose → structured links (offline polish) |
 | `pipeline/daily.ts` | Past dailies / today open helpers |
 | `pipeline/vocabulary.ts` | Active / vault / proposed tags |
-| `pipeline/enrich/*` | Post-classify repair: people, media, linkQuality, ideaRescue |
+| `pipeline/enrich/*` | Post-classify repair: people, media, entityLinks, linkQuality, ideaRescue |
+| `pipeline/softKeys.ts` | Soft entity denylist (orbits + connected resurface) |
+| `pipeline/entityOrbitIndex.ts` / `entityOrbitPolicy.ts` | Hard-key sibling orbits (Also about) |
 | `ui/*` | Thin DOM factories for home (button, flatCard, claimQuote, …) |
-| `home/*` | Atoms home view + pure library helpers + run progress |
+| `home/*` | Atoms home view + pure library helpers + run progress + Also about |
 | `resurface/resurface.ts` | Multi-cue stream / mind-change / throttle / citator lines |
 | `settings/*` | Settings tab + capture shortcut CTA |
 | `platform/*` | Auto-run gates, connectivity probe |

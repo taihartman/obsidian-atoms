@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| *(none)* | | | | | | |
+| In progress | #93 | Tai | feat/entity-orbits-t0-t1 | docs/plans/2026-07-17-007-feat-entity-orbits-t0-t1-plan.md | src/pipeline/softKeys.ts, entityLinks, entityOrbit*, classify.ts, resurface.ts, atomsHome* | PR #94 draft |
 
 ## How to claim (copy)
 

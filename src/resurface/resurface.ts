@@ -16,6 +16,7 @@ import {
   isUnderAtomFolder,
   titleFromAtomPath,
 } from "../home/atomsHomeData";
+import { isSoftEntityKey, SOFT_ENTITY_KEYS } from "../pipeline/softKeys";
 
 export type ResurfaceCue =
   | "mind-change"
@@ -436,11 +437,11 @@ export function recentSeedPaths(
   return new Set(sorted.slice(0, take).map((a) => a.path));
 }
 
-/** Soft index hubs — alone they never create a connected card. */
-export const CONNECTED_SOFT_HUBS = new Set(["people"]);
+/** @deprecated use SOFT_ENTITY_KEYS / isSoftEntityKey — kept for tests */
+export const CONNECTED_SOFT_HUBS = SOFT_ENTITY_KEYS;
 
 export function isSoftConnectedHub(name: string): boolean {
-  return CONNECTED_SOFT_HUBS.has((name ?? "").trim().toLowerCase());
+  return isSoftEntityKey(name);
 }
 
 type ConnectedEdge = {

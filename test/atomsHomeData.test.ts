@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  ALSO_ABOUT_BODY_NOTE,
+  alsoAboutStripLabel,
+  buildAlsoAboutStripModel,
   classifyLinkRole,
   countEligibleUpdateNotes,
   extractDisplayLinkChips,
@@ -399,6 +402,20 @@ describe("updateNotesStripCopy", () => {
     const c = updateNotesStripCopy(800);
     expect(c.body).toMatch(/matter most/i);
     expect(c.body).not.toContain("800");
+  });
+});
+
+describe("alsoAbout strip copy", () => {
+  it("builds strip when others exist", () => {
+    const m = buildAlsoAboutStripModel("Yosemite packing", 2);
+    expect(m?.stripText).toBe("Also about Yosemite packing · 2");
+    expect(alsoAboutStripLabel("X", 3)).toBe("Also about X · 3");
+    expect(ALSO_ABOUT_BODY_NOTE).toMatch(/own body/i);
+    expect(ALSO_ABOUT_BODY_NOTE).not.toMatch(/—/);
+  });
+
+  it("null when no others", () => {
+    expect(buildAlsoAboutStripModel("Yosemite packing", 0)).toBeNull();
   });
 });
 

@@ -144,6 +144,31 @@ describe("connected + quiet + priority", () => {
     expect(c).toHaveLength(0);
   });
 
+  it("Camping-only share does not create connected", () => {
+    const campingOnly: IndexedAtom[] = [
+      {
+        path: "Atoms/New.md",
+        title: "Bug spray",
+        bodySnippet: "x",
+        matchDate: "2026-07-14",
+        mtime: 1_000_000,
+        linkChips: ["Camping"],
+        content: "",
+      },
+      {
+        path: "Atoms/Old.md",
+        title: "Hat",
+        bodySnippet: "y",
+        matchDate: "2026-01-01",
+        mtime: 500_000,
+        linkChips: ["Camping"],
+        content: "",
+      },
+    ];
+    const c = listConnectedCandidates(campingOnly, new Set(["Atoms/New.md"]));
+    expect(c).toHaveLength(0);
+  });
+
   it("quiet prefers aged mtime", () => {
     const now = 1_000_000 + 20 * 24 * 60 * 60 * 1000;
     const q = listQuietCandidates(indexed, {
