@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| In progress | #93 | Tai | feat/entity-orbits-t0-t1 | docs/plans/2026-07-17-007-feat-entity-orbits-t0-t1-plan.md | src/pipeline/softKeys.ts, entityLinks, entityOrbit*, classify.ts, resurface.ts, atomsHome* | PR #94 draft |
+| _(none)_ |  |  |  |  |  |  |
 
 ## How to claim (copy)
 
@@ -23,6 +23,7 @@ States: `Queued` · `In progress` · `Blocked` · `In review` · `Done` (then re
 
 | Merged | Issue / PR | Summary |
 |---|---|---|
+| 2026-07-18 | #93 #95 / #94 | Entity orbits T0–T3 + Together Open list (0.6.26) |
 | 2026-07-17 | #83 / #84 | Open atom graph command (0.6.19) |
 | 2026-07-17 | #74 / #75 | ghost textButton kit + bridge chrome fix |
 | 2026-07-17 | #71 / #72 | Land, then remember + drop For you label (0.6.14) |
