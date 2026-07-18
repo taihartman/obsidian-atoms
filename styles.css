@@ -521,6 +521,17 @@
   margin-top: 14px;
 }
 
+/* Together / invite hero — space below before shortcut banner / library */
+.atoms-home-together-card,
+.atoms-home-entity-invite {
+  margin-bottom: 16px;
+}
+
+.atoms-home-together-card .atoms-ui-action-row,
+.atoms-home-entity-invite .atoms-ui-action-row {
+  margin-top: 4px;
+}
+
 .atoms-home-entity-invite-kicker {
   color: var(--color-cyan, #64d2ff) !important;
 }
@@ -1152,7 +1163,8 @@
   align-items: center;
   gap: 10px;
   padding: 12px 14px;
-  margin-bottom: 14px;
+  margin-top: 4px;
+  margin-bottom: 16px;
   border-radius: 12px;
   background: color-mix(in srgb, var(--interactive-accent) 15%, var(--background-secondary));
   border: 1px solid color-mix(in srgb, var(--interactive-accent) 30%, transparent);
