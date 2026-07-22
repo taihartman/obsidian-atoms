@@ -14,11 +14,11 @@ import { runOpenAtomGraph } from "../graph/openAtomGraph";
 /** Injected by esbuild: true in watch/dev, false in production Community builds. */
 declare const ATOMS_DEV_COMMANDS: boolean;
 
-/** Dev-only console logging — silent in Community production builds. */
+/** Dev-only console logging — ATOMS_DEV_COMMANDS is false in production (esbuild DCE). */
 function devLog(...args: unknown[]): void {
-  if (typeof ATOMS_DEV_COMMANDS !== "undefined" && ATOMS_DEV_COMMANDS) {
-    console.log(...args);
-  }
+  if (typeof ATOMS_DEV_COMMANDS === "undefined" || !ATOMS_DEV_COMMANDS) return;
+  // eslint-disable-next-line no-console -- dev/watch builds only
+  console.log(...args);
 }
 import {
   classifyCapture,
@@ -807,7 +807,7 @@ export default class AtomsPlugin extends Plugin {
     }
 
     if (this.settings.useDeviceLocalKeyFallback) {
-      const local = this.app.loadLocalStorage(LOCAL_STORAGE_API_KEY);
+      const local: unknown = this.app.loadLocalStorage(LOCAL_STORAGE_API_KEY);
       if (typeof local === "string" && local.trim()) return local.trim();
     }
 

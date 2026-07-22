@@ -85,13 +85,14 @@ export async function openTodaysDaily(app: App): Promise<TFile> {
   if (!appHasDailyNotesPluginLoaded()) {
     throw new DailyNotesDisabledError();
   }
-  const date = moment();
+  // moment() is Obsidian's bundled moment; interface expects a Moment-like.
+  const date = moment() as Parameters<typeof getDailyNote>[0];
   const all = getAllDailyNotes();
-  let file: TFile | null = null;
+  let file: TFile | undefined;
   try {
-    file = getDailyNote(date, all) ?? null;
+    file = getDailyNote(date, all) ?? undefined;
   } catch {
-    file = null;
+    file = undefined;
   }
   // getDailyNote may return undefined when missing depending on version
   if (!file) {

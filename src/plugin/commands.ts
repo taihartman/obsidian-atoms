@@ -141,7 +141,7 @@ export function registerAtomsCommands(plugin: AtomsPlugin): void {
 
   plugin.addCommand({
     id: "update-notes",
-    name: "Update notes: refresh older atoms to current quality",
+    name: "Refresh older atoms to current quality",
     callback: () => {
       void plugin.runUpdateNotes();
     },
