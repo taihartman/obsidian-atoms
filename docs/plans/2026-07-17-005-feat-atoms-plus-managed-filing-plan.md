@@ -27,7 +27,7 @@ deepened: 2026-07-17
 
 Atoms Plus is a **managed filing plane**, not a second product and not a paywall on recall. Strangers (and phone-first users) who will not paste `sk-ant-…` subscribe monthly (with a yearly discount). Atoms routes classify / paid refile through a managed Anthropic path under hard caps. Free users keep full home, library, For you, and BYOK with free-text model choice. Plus never pushes “just use your own key” when the plan is exhausted — wait for reset or optional top-up only. Subscription status works **across devices** (phone + desktop share one plan). **Time-boxed free Plus** (trial and/or promo codes) uses the same entitlement for marketing and testing — not unlimited free managed keys.
 
-**Pricing / model (bakeoff-backed):** **$5/mo** or **$50/yr** (~2 months free), **Sonnet 5-class** + local enrich, **150 filings/mo**, top-up **+50 for $2**. **14-day trial with card upfront**; capped **founding/marketing promo codes** for 1–3 free months. **Email magic link** for cross-device. Preview **costs a filing** when classify runs, but **cached results re-open free**; only changed captures re-classify/re-charge. Capture companion / widgets / Efficient mode / multi-tier are out of scope for MVP.
+**Pricing / model (bakeoff-backed):** Commercial numbers live in repo-root **`plus-pricing.json`** (SSOT — edit there only; plugin `src/shared/plusPricing.ts` + `plus-service` load it). Currently **$6/mo** or **$60/yr**, **150 filings/period**, top-up **+50 for $2**, **14-day trial**. **Sonnet 5-class** + local enrich. **Email magic link** for cross-device. Preview **costs a filing** when classify runs, but **cached results re-open free**. Capture companion / widgets / Efficient mode / multi-tier are out of scope for MVP.
 
 ### Problem Frame
 
@@ -39,7 +39,7 @@ Filing already works when a key is present. The drop-off is **identity and setup
 
 **R2. Plus removes key setup, not product features.** Subscribers file without pasting an Anthropic API key. Library, For you, polish, protect-existing, and home habit surfaces are **never Plus-only**. (session-settled: user-directed — managed key convenience over feature lock)
 
-**R3. One plan at launch.** Single **Atoms Plus** SKU: **$5/month** or **$50/year** (~2 months free). No multi-tier ladder (Plus / Plus More) in v1. (session-settled: user-directed — $5/$50; one plan over multi-tier)
+**R3. One plan at launch.** Single **Atoms Plus** SKU: **$6/month** or **$60/year** (~2 months free). No multi-tier ladder (Plus / Plus More) in v1. (session-settled: user-directed — $6/$60; was $5/$50)
 
 **R4. Managed model policy — Sonnet 5-class (MVP).** On Plus, Atoms chooses the filing model: **Sonnet 5-class only** for MVP (best quality on bakeoff ~98% with enrich). No free-text model id on the Plus path. BYOK keeps the existing free-text model setting. Local enrich (idea rescue, person/media links, link-quality rewrite) always runs. **Not in MVP:** user-facing Efficient / lower-model toggle for more filings — track as follow-up issue (session-settled: user-directed — Sonnet-only MVP; Efficient later via issue).
 
@@ -71,7 +71,7 @@ Filing already works when a key is present. The drop-off is **identity and setup
 
 **In scope**
 
-- One Plus SKU ($5/mo or $50/yr)
+- One Plus SKU ($6/mo or $60/yr)
 - Managed Anthropic proxy path for classify / Preview / auto-run / Update refile
 - Cross-device via email magic link
 - Exhaustion: wait + **+50/$2** top-up; no BYOK push on limit path
@@ -86,7 +86,7 @@ Filing already works when a key is present. The drop-off is **identity and setup
 - Capture companion, widgets, share sheet (separate product surface)
 - Multi-tier upgrade ladder with proration
 - Unattended cloud worker that files when Obsidian is fully closed (beyond existing device auto-run)
-- **Efficient model toggle** (Haiku / lower model for more filings at same $5) — post-MVP; tracked as [#90](https://github.com/taihartman/obsidian-atoms/issues/90)
+- **Efficient model toggle** (Haiku / lower model for more filings at same $6) — post-MVP; tracked as [#90](https://github.com/taihartman/obsidian-atoms/issues/90)
 - Multi-provider BYOK, lifetime SKU
 - Public Community listing as a hard gate (may ship Plus to dogfooders in parallel)
 
@@ -110,13 +110,13 @@ Filing already works when a key is present. The drop-off is **identity and setup
 | ID | Decision | Notes |
 |----|----------|--------|
 | KD1 | Managed filing plane, not feature paywall | session-settled: user-directed — convenience over locking For you |
-| KD2 | One SKU; **$5/mo or $50/yr** | session-settled: user-directed — $50/yr ≈ 2 months free |
+| KD2 | One SKU; **$6/mo or $60/yr** | session-settled: user-directed — $60/yr ≈ 2 months free (was $5/$50) |
 | KD3 | We pick Plus model (Sonnet 5); BYOK keeps free-text | session-settled: user-approved — margin control |
 | KD4 | Cap exhaustion = wait + **+50/$2** top-up; never push BYOK | session-settled: user-directed — protect Plus revenue |
 | KD5 | Cross-device via **email magic link** | session-settled: user-directed — over password/OAuth/license key |
 | KD6 | Real proxy MVP first ship | session-settled: user-directed — over waitlist-only |
 | KD7 | Product quota ≠ `PER_LAUNCH_CAP` | session-settled: user-directed — 15 is safety fuse only |
-| KD8 | **$5 + Sonnet 5 + N=150 + top-up; no rollover** | session-settled: user-directed — unused do not bank; top-up for overflow |
+| KD8 | **$6 + Sonnet 5 + N=150 + top-up; no rollover** | session-settled: user-directed — unused do not bank; top-up for overflow |
 | KD9 | **14-day trial + card upfront**; capped promo **1–3 free months** | session-settled: user-directed — short trial + marketing codes |
 | KD10 | Bakeoff evidence | Sonnet 5 ~98%, Sonnet 4.5 ~96%, Haiku ~81%; enrich +0 soft judgment; `scripts/plus-model-bakeoff.mjs` |
 | KD11 | Preview costs when classify runs; **per-capture cache** | session-settled: user-directed — no double-charge on re-open; only changed captures re-bill |
@@ -137,7 +137,7 @@ Filing already works when a key is present. The drop-off is **identity and setup
 - Q4: ~~Preview~~ → **counts when classify runs** + **per-capture cache** locked.
 - Q5: ~~Trial~~ → **14 days + card upfront** locked.
 - Q6: ~~Promo~~ → **capped founding/marketing codes, 1–3 free months** locked.
-- Q7: ~~Yearly~~ → **$50/yr** locked.
+- Q7: ~~Yearly~~ → **$60/yr** locked (with $6/mo).
 - Q8: ~~fingerprint~~ → **KTD-P3** (capture text + model + quality stamp; vault title list not required for cache key).
 - Q9: Promo redemption cap defaults — **operator-tunable** (suggest 100); non-blocking.
 
@@ -154,7 +154,7 @@ Filing already works when a key is present. The drop-off is **identity and setup
 
 Two deployables:
 
-1. **Plus service** (greenfield, outside the plugin bundle) — email magic-link auth, Stripe (subscription $5/$50, top-up +50/$2, 14-day trial card-upfront, promo codes), entitlement store, **Anthropic proxy** that holds the operator key, meters filings (150/mo + top-ups), enforces hard caps. Never returns the Anthropic master key to clients.
+1. **Plus service** (greenfield, outside the plugin bundle) — email magic-link auth, Stripe (subscription $6/$60, top-up +50/$2, 14-day trial card-upfront, promo codes), entitlement store, **Anthropic proxy** that holds the operator key, meters filings (150/mo + top-ups), enforces hard caps. Never returns the Anthropic master key to clients.
 2. **Plugin** — credential resolution **BYOK | Plus session**; when Plus, classify/Preview/Update refile/auto-run call the proxy via `requestUrl` (not raw `fetch`); home CTA replaces dead-end `need_key`; Settings Plus section; **client Preview cache** per R14b.
 
 ```
@@ -406,12 +406,12 @@ Actions to add: `open_plus` | `open_byok_settings` | `get_more` | `dismiss_limit
 
 **Offer (buy mock) — required copy beats:**
 - Title **Atoms Plus**
-- **$5** per month · **$50** per year · save two months
+- **$6** per month · **$60** per year · save two months
 - Bullets: **150 AI filings each month** (classifying/updating); **Unused filings don’t roll over**; no API key setup; library stays free / Plus optional
 - Cost: AI usage has a real cost; subscription helps cover it and supports development
 - Free path: Prefer to stay free? Own Anthropic API key in Settings. No Plus required
 - Primary **Start Free Trial** · Quiet **Not Now**
-- Fine print: 14 days free, then $5/month; cancel anytime; card required
+- Fine print: 14 days free, then $6/month; cancel anytime; card required
 
 **Get More (top-up mock):**
 - Title **Additional Filings** / **Get More**
@@ -443,7 +443,7 @@ Actions to add: `open_plus` | `open_byok_settings` | `get_more` | `dismiss_limit
 
 **Approach.**
 - Magic link email → short-lived token → session
-- Stripe: products for $5/mo, $50/yr, one-time +50/$2; Checkout Sessions; webhooks update entitlement
+- Stripe: products for $6/mo, $60/yr, one-time +50/$2; Checkout Sessions; webhooks update entitlement
 - 14-day trial with card on subscription
 - Promo codes: Stripe coupons or app-level codes with max redemptions
 - Meter: atomic increment remaining; reject when 0 with 402

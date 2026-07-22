@@ -1,11 +1,35 @@
 /**
  * Env config — never log secret values.
+ * Commercial numbers default from repo-root plus-pricing.json (SSOT).
  */
+
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 function env(name, fallback = "") {
   const v = process.env[name];
   return v === undefined || v === "" ? fallback : v;
 }
+
+function loadPricingSsot() {
+  try {
+    const root = join(dirname(fileURLToPath(import.meta.url)), "../..");
+    const raw = readFileSync(join(root, "plus-pricing.json"), "utf8");
+    return JSON.parse(raw);
+  } catch {
+    return {
+      monthlyUsd: 6,
+      yearlyUsd: 60,
+      topUpUsd: 2,
+      includedFilingsPerPeriod: 150,
+      topUpFilings: 50,
+      trialDays: 14,
+    };
+  }
+}
+
+const pricing = loadPricingSsot();
 
 const port = Number(env("PORT", "8787"));
 /** Public base for magic links — defaults to same host:port as this process. */
@@ -25,11 +49,19 @@ export const config = {
     "https://api.anthropic.com/v1/messages",
   ),
   anthropicVersion: env("ANTHROPIC_VERSION", "2023-06-01"),
-  /** Included filings per billing period (no rollover MVP). */
-  includedFilings: Number(env("ATOMS_PLUS_INCLUDED", "150")),
-  topUpFilings: Number(env("ATOMS_PLUS_TOPUP", "50")),
-  /** Days for trial entitlement when granting trial. */
-  trialDays: Number(env("ATOMS_PLUS_TRIAL_DAYS", "14")),
+  /** From plus-pricing.json unless env override. */
+  includedFilings: Number(
+    env("ATOMS_PLUS_INCLUDED", String(pricing.includedFilingsPerPeriod ?? 150)),
+  ),
+  topUpFilings: Number(
+    env("ATOMS_PLUS_TOPUP", String(pricing.topUpFilings ?? 50)),
+  ),
+  trialDays: Number(
+    env("ATOMS_PLUS_TRIAL_DAYS", String(pricing.trialDays ?? 14)),
+  ),
+  monthlyUsd: pricing.monthlyUsd,
+  yearlyUsd: pricing.yearlyUsd,
+  topUpUsd: pricing.topUpUsd,
   /**
    * Dogfood: first magic-link exchange grants active/trial without Stripe.
    * Set DOGFOOD_AUTO_GRANT=0 in production.

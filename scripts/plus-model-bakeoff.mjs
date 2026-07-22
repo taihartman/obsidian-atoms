@@ -691,5 +691,5 @@ const out = `/tmp/atoms-plus-bakeoff-${Date.now()}.json`;
 await fs.writeFile(out, JSON.stringify({ ranked, results, titleCount: titles.length }, null, 2));
 console.log("\n[bakeoff] wrote", out);
 console.log(
-  "[bakeoff] $5/mo Plus: aim COGS << $2.50/user. Haiku wins if quality ≈ Sonnet on this set.",
+  "[bakeoff] $6/mo Plus: aim COGS << $3/user. Haiku wins if quality ≈ Sonnet on this set.",
 );

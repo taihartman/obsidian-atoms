@@ -9,6 +9,15 @@ import {
 import { isPolishableContent } from "../pipeline/refreshAtoms";
 import { parseCaptures } from "../pipeline/parse";
 import { resolveCreatedField } from "../pipeline/render";
+import {
+  PLUS_PRICING,
+  includedFilingsBullet,
+  monthlyPriceLabel,
+  topUpDetailLabel,
+  topUpPriceLabel,
+  trialFinePrint,
+  yearlyPriceLabel,
+} from "../shared/plusPricing";
 
 /** Home-row chip role — person (warm) vs work/media (cool). */
 export type LinkChipRole = "person" | "work";
@@ -682,7 +691,10 @@ export function filingPathFromAuth(auth: {
   return "plus_active";
 }
 
-/** Offer / Get More copy (SSOT for U5d — unit-tested). */
+/**
+ * Offer / Get More copy. Dollar amounts and filing counts come from
+ * repo-root `plus-pricing.json` via `src/shared/plusPricing.ts` (SSOT).
+ */
 export function atomsPlusOfferCopy(): {
   title: string;
   priceMonthly: string;
@@ -696,10 +708,10 @@ export function atomsPlusOfferCopy(): {
 } {
   return {
     title: "Atoms Plus",
-    priceMonthly: "$5 per month",
-    priceYearly: "$50 per year · save two months",
+    priceMonthly: monthlyPriceLabel(),
+    priceYearly: yearlyPriceLabel(),
     bullets: [
-      "150 AI filings each month for classifying and updating notes. Unused filings don’t roll over",
+      includedFilingsBullet(),
       "No API key setup on phone or desktop",
       "Your library stays free. Plus is optional. The rest of Atoms does not require a subscription",
     ],
@@ -709,8 +721,7 @@ export function atomsPlusOfferCopy(): {
       "Prefer to stay free? Use your own Anthropic API key in Settings. No Plus required.",
     primaryLabel: "Start Free Trial",
     secondaryLabel: "Not Now",
-    finePrint:
-      "14 days free, then $5/month. Cancel anytime. Card required for trial.",
+    finePrint: trialFinePrint(),
   };
 }
 
@@ -722,11 +733,12 @@ export function atomsPlusTopUpCopy(): {
   primaryLabel: string;
   secondaryLabel: string;
 } {
+  const n = PLUS_PRICING.topUpFilings;
   return {
     title: "Additional Filings",
-    price: "$2",
-    detail: "50 AI filings · one-time",
-    body: "One-time purchase. Adds 50 filings to this month only. Does not change your subscription or renew automatically.",
+    price: topUpPriceLabel(),
+    detail: topUpDetailLabel(),
+    body: `One-time purchase. Adds ${n} filings to this month only. Does not change your subscription or renew automatically.`,
     primaryLabel: "Continue",
     secondaryLabel: "Cancel",
   };

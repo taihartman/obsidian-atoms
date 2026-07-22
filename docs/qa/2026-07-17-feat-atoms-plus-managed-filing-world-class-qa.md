@@ -28,7 +28,7 @@
 
 ## Charter
 
-Ship **Atoms Plus**: optional metered AI filing plane ($5 / 150 Sonnet / no rollover) with free BYOK forever, Apple-plain limit UX, dogfood Plus service. Must not paywall library; must not pitch BYOK on exhaust; must not double-charge Preview re-open.
+Ship **Atoms Plus**: optional metered AI filing plane ($6 / 150 Sonnet / no rollover) with free BYOK forever, Apple-plain limit UX, dogfood Plus service. Must not paywall library; must not pitch BYOK on exhaust; must not double-charge Preview re-open.
 
 **Regression risk:** Process / Preview / auto-run / Update notes auth paths; home wait card; Settings.
 
