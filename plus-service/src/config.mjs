@@ -1,6 +1,7 @@
 /**
  * Env config — never log secret values.
  * Commercial numbers default from repo-root plus-pricing.json (SSOT).
+ * Env-backed fields are getters so tests can set process.env before access.
  */
 
 import { readFileSync } from "node:fs";
@@ -31,55 +32,6 @@ function loadPricingSsot() {
 
 const pricing = loadPricingSsot();
 
-const port = Number(env("PORT", "8787"));
-/** Public base for magic links — defaults to same host:port as this process. */
-const publicBaseUrl = env(
-  "PUBLIC_BASE_URL",
-  `http://127.0.0.1:${Number.isFinite(port) && port > 0 ? port : 8787}`,
-);
-
-export const config = {
-  port: Number.isFinite(port) && port > 0 ? port : 8787,
-  /** Operator Anthropic key for managed classify. Required for /v1/classify. */
-  anthropicApiKey: env("ANTHROPIC_API_KEY"),
-  /** Fixed model for Plus (R4 / KTD-P7). */
-  anthropicModel: env("ATOMS_PLUS_MODEL", "claude-sonnet-5"),
-  anthropicUrl: env(
-    "ANTHROPIC_MESSAGES_URL",
-    "https://api.anthropic.com/v1/messages",
-  ),
-  anthropicVersion: env("ANTHROPIC_VERSION", "2023-06-01"),
-  /** From plus-pricing.json unless env override. */
-  includedFilings: Number(
-    env("ATOMS_PLUS_INCLUDED", String(pricing.includedFilingsPerPeriod ?? 150)),
-  ),
-  topUpFilings: Number(
-    env("ATOMS_PLUS_TOPUP", String(pricing.topUpFilings ?? 50)),
-  ),
-  trialDays: Number(
-    env("ATOMS_PLUS_TRIAL_DAYS", String(pricing.trialDays ?? 14)),
-  ),
-  monthlyUsd: pricing.monthlyUsd,
-  yearlyUsd: pricing.yearlyUsd,
-  topUpUsd: pricing.topUpUsd,
-  /**
-   * Dogfood: first magic-link exchange grants active/trial without Stripe.
-   * Set DOGFOOD_AUTO_GRANT=0 in production.
-   */
-  dogfoodAutoGrant: env("DOGFOOD_AUTO_GRANT", "1") !== "0",
-  dogfoodGrantStatus: env("DOGFOOD_GRANT_STATUS", "trialing"), // trialing | active
-  publicBaseUrl,
-  /** Comma-separated promo codes → free months (1–3). e.g. FOUNDING=2,FRIENDS=1 */
-  promoCodes: parsePromos(env("ATOMS_PLUS_PROMOS", "FOUNDING=2")),
-  promoMaxRedemptions: Number(env("ATOMS_PLUS_PROMO_MAX", "100")),
-  /** Stripe (optional for dogfood). */
-  stripeSecretKey: env("STRIPE_SECRET_KEY"),
-  stripeWebhookSecret: env("STRIPE_WEBHOOK_SECRET"),
-  stripePriceMonthly: env("STRIPE_PRICE_MONTHLY"),
-  stripePriceYearly: env("STRIPE_PRICE_YEARLY"),
-  stripePriceTopup: env("STRIPE_PRICE_TOPUP"),
-};
-
 function parsePromos(raw) {
   const map = new Map();
   for (const part of raw.split(",")) {
@@ -90,3 +42,80 @@ function parsePromos(raw) {
   }
   return map;
 }
+
+export const config = {
+  get port() {
+    const port = Number(env("PORT", "8787"));
+    return Number.isFinite(port) && port > 0 ? port : 8787;
+  },
+  get anthropicApiKey() {
+    return env("ANTHROPIC_API_KEY");
+  },
+  get anthropicModel() {
+    return env("ATOMS_PLUS_MODEL", "claude-sonnet-5");
+  },
+  get anthropicUrl() {
+    return env("ANTHROPIC_MESSAGES_URL", "https://api.anthropic.com/v1/messages");
+  },
+  get anthropicVersion() {
+    return env("ANTHROPIC_VERSION", "2023-06-01");
+  },
+  get includedFilings() {
+    return Number(
+      env("ATOMS_PLUS_INCLUDED", String(pricing.includedFilingsPerPeriod ?? 150)),
+    );
+  },
+  get topUpFilings() {
+    return Number(env("ATOMS_PLUS_TOPUP", String(pricing.topUpFilings ?? 50)));
+  },
+  get trialDays() {
+    return Number(env("ATOMS_PLUS_TRIAL_DAYS", String(pricing.trialDays ?? 14)));
+  },
+  get monthlyUsd() {
+    return pricing.monthlyUsd;
+  },
+  get yearlyUsd() {
+    return pricing.yearlyUsd;
+  },
+  get topUpUsd() {
+    return pricing.topUpUsd;
+  },
+  /**
+   * Dogfood: first magic-link exchange grants active/trial without Stripe.
+   * Set DOGFOOD_AUTO_GRANT=0 in production.
+   */
+  get dogfoodAutoGrant() {
+    return env("DOGFOOD_AUTO_GRANT", "1") !== "0";
+  },
+  get dogfoodGrantStatus() {
+    return env("DOGFOOD_GRANT_STATUS", "trialing");
+  },
+  get publicBaseUrl() {
+    return env("PUBLIC_BASE_URL", `http://127.0.0.1:${this.port}`);
+  },
+  get promoCodes() {
+    return parsePromos(env("ATOMS_PLUS_PROMOS", "FOUNDING=2"));
+  },
+  get promoMaxRedemptions() {
+    return Number(env("ATOMS_PLUS_PROMO_MAX", "100"));
+  },
+  get stripeSecretKey() {
+    return env("STRIPE_SECRET_KEY");
+  },
+  get stripeWebhookSecret() {
+    return env("STRIPE_WEBHOOK_SECRET");
+  },
+  get stripePriceMonthly() {
+    return env("STRIPE_PRICE_MONTHLY");
+  },
+  get stripePriceYearly() {
+    return env("STRIPE_PRICE_YEARLY");
+  },
+  get stripePriceTopup() {
+    return env("STRIPE_PRICE_TOPUP");
+  },
+  /** Force instant grants even when Stripe is configured. */
+  get stripeDogfoodCheckout() {
+    return env("STRIPE_DOGFOOD_CHECKOUT", "0") === "1";
+  },
+};

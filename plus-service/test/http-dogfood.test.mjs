@@ -39,6 +39,13 @@ before(async () => {
       DOGFOOD_AUTO_GRANT: "1",
       // leave ANTHROPIC unset to prove refund path
       ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || "",
+      // force dogfood checkout path in CI/local with real Stripe env
+      STRIPE_SECRET_KEY: "",
+      STRIPE_WEBHOOK_SECRET: "",
+      STRIPE_PRICE_MONTHLY: "",
+      STRIPE_PRICE_YEARLY: "",
+      STRIPE_PRICE_TOPUP: "",
+      STRIPE_DOGFOOD_CHECKOUT: "0",
     },
     stdio: ["ignore", "pipe", "pipe"],
   });

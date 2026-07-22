@@ -24,6 +24,8 @@ data.json
 # Local env / keys
 .env
 .env.*
+!.env.example
+!plus-service/.env.example
 *.pem
 
 # Local throwaway vault (may contain secrets)

@@ -26,6 +26,8 @@ function periodEndFromNow(days) {
  *   periodEnd: string,
  *   plan: 'monthly'|'yearly'|'trial'|'promo',
  *   promoRedemptions: number,
+ *   stripeCustomerId?: string,
+ *   stripeSubscriptionId?: string,
  * }} Account
  */
 
@@ -38,6 +40,12 @@ export function createStore() {
   const sessions = new Map();
   /** promo code → redemption count */
   const promoUses = new Map();
+  /** Stripe event id → true (webhook idempotency) */
+  const processedEvents = new Set();
+  /** stripe customer id → email */
+  const stripeCustomers = new Map();
+  /** email → stripe subscription id */
+  const stripeSubs = new Map();
 
   function getAccount(email) {
     const key = email.trim().toLowerCase();
@@ -204,6 +212,45 @@ export function createStore() {
     };
   }
 
+  function hasProcessedEvent(eventId) {
+    return processedEvents.has(eventId);
+  }
+
+  function markEventProcessed(eventId) {
+    if (eventId) processedEvents.add(eventId);
+  }
+
+  function setStripeCustomer(email, customerId) {
+    const a = ensureAccount(email);
+    a.stripeCustomerId = customerId;
+    stripeCustomers.set(customerId, a.email);
+    return a;
+  }
+
+  function setStripeSubscription(email, subId) {
+    const a = ensureAccount(email);
+    a.stripeSubscriptionId = subId;
+    stripeSubs.set(a.email, subId);
+    return a;
+  }
+
+  function emailFromStripeCustomer(customerId) {
+    return stripeCustomers.get(customerId) ?? null;
+  }
+
+  /** Cancel / end paid access — keep remaining top-up filings until used. */
+  function revokeSubscription(email) {
+    const a = ensureAccount(email);
+    a.stripeSubscriptionId = undefined;
+    if (a.remaining > 0) {
+      a.status = "active";
+    } else {
+      a.status = "inactive";
+      a.remaining = 0;
+    }
+    return a;
+  }
+
   return {
     createMagicToken,
     exchangeMagic,
@@ -216,8 +263,15 @@ export function createStore() {
     publicAccount,
     ensureAccount,
     getAccount,
+    hasProcessedEvent,
+    markEventProcessed,
+    setStripeCustomer,
+    setStripeSubscription,
+    emailFromStripeCustomer,
+    revokeSubscription,
     /** test helpers */
     _sessions: sessions,
     _accounts: accounts,
+    _processedEvents: processedEvents,
   };
 }

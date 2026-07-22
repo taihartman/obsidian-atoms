@@ -1,14 +1,22 @@
 /**
  * Atoms Plus HTTP API — matches plugin plusClient paths.
  *
- * Env: ANTHROPIC_API_KEY (required for classify), PORT, DOGFOOD_AUTO_GRANT, …
+ * Env: ANTHROPIC_API_KEY (required for classify), PORT, DOGFOOD_AUTO_GRANT,
+ *      STRIPE_* (optional — real Checkout when set). Loads ../.env if present.
  * Start: npm start (from plus-service/)
  */
 
+import "./loadEnv.mjs";
 import { createServer } from "node:http";
 import { config } from "./config.mjs";
 import { createStore } from "./store.mjs";
 import { proxyClassify } from "./anthropic.mjs";
+import {
+  applyStripeEvent,
+  constructEvent,
+  createCheckoutSession,
+  stripeConfigured,
+} from "./stripe.mjs";
 
 const store = createStore();
 
@@ -24,20 +32,25 @@ function json(res, status, body) {
   res.end(data);
 }
 
-function readBody(req) {
+function readRawBody(req) {
   return new Promise((resolve, reject) => {
     const chunks = [];
     req.on("data", (c) => chunks.push(c));
     req.on("end", () => {
-      const raw = Buffer.concat(chunks).toString("utf8");
-      if (!raw) return resolve({});
-      try {
-        resolve(JSON.parse(raw));
-      } catch {
-        reject(new Error("invalid json"));
-      }
+      resolve(Buffer.concat(chunks).toString("utf8"));
     });
     req.on("error", reject);
+  });
+}
+
+function readBody(req) {
+  return readRawBody(req).then((raw) => {
+    if (!raw) return {};
+    try {
+      return JSON.parse(raw);
+    } catch {
+      throw new Error("invalid json");
+    }
   });
 }
 
@@ -70,7 +83,38 @@ async function handler(req, res) {
         dogfoodAutoGrant: config.dogfoodAutoGrant,
         includedFilings: config.includedFilings,
         hasAnthropicKey: Boolean(config.anthropicApiKey),
+        stripe: stripeConfigured(),
       });
+    }
+
+    // GET /v1/billing/return — browser land after Checkout
+    if (req.method === "GET" && path === "/v1/billing/return") {
+      const ok = url.searchParams.get("ok") !== "0";
+      res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+      res.end(`<!doctype html><meta charset=utf-8><title>Atoms Plus</title>
+<body style="font-family:system-ui;max-width:32rem;margin:2rem auto;padding:0 1rem">
+<h1>${ok ? "Payment received" : "Checkout canceled"}</h1>
+<p>${ok ? "Return to Obsidian — Plus updates after the webhook lands (usually seconds)." : "No charge. You can try again from Atoms Settings."}</p>
+</body>`);
+      return;
+    }
+
+    // POST /v1/billing/webhook — raw body + Stripe-Signature
+    if (req.method === "POST" && path === "/v1/billing/webhook") {
+      const raw = await readRawBody(req);
+      try {
+        const event = constructEvent(raw, req.headers["stripe-signature"]);
+        const result = applyStripeEvent(store, event);
+        console.log(
+          `[plus] stripe webhook ${event.type} → ${result.action || "ok"}${result.email ? ` ${result.email}` : ""}`,
+        );
+        return json(res, 200, { received: true, ...result });
+      } catch (err) {
+        const status = err?.status && err.status >= 400 ? err.status : 400;
+        const msg = err instanceof Error ? err.message : "webhook error";
+        console.error("[plus] webhook reject", msg);
+        return json(res, status, { message: msg });
+      }
     }
 
     // POST /v1/auth/magic-link
@@ -152,7 +196,7 @@ async function handler(req, res) {
       });
     }
 
-    // POST /v1/billing/checkout — dogfood stub (Stripe optional later)
+    // POST /v1/billing/checkout — Stripe Checkout when configured; else dogfood grant
     if (req.method === "POST" && path === "/v1/billing/checkout") {
       const session = bearer(req);
       const a = store.accountFromSession(session);
@@ -160,10 +204,27 @@ async function handler(req, res) {
       const body = await readBody(req);
       const kind = String(body.kind || "");
 
+      const useStripe =
+        stripeConfigured() && !config.stripeDogfoodCheckout;
+
+      if (useStripe) {
+        try {
+          const cs = await createCheckoutSession({
+            email: a.email,
+            kind: /** @type {import('./stripe.mjs').CheckoutKind} */ (kind),
+          });
+          return json(res, 200, { url: cs.url, id: cs.id });
+        } catch (err) {
+          const status = err?.status && err.status >= 400 ? err.status : 502;
+          const msg = err instanceof Error ? err.message : "Checkout failed";
+          return json(res, status, { message: msg });
+        }
+      }
+
       if (kind === "topup_50") {
         store.addTopUp(a.email, config.topUpFilings);
         return json(res, 200, {
-          url: `${config.publicBaseUrl}/health?topup=ok`,
+          url: `${config.publicBaseUrl}/v1/billing/return?ok=1&dogfood=topup`,
           message: "Dogfood: top-up applied without Stripe",
         });
       }
@@ -175,12 +236,22 @@ async function handler(req, res) {
       ) {
         store.grantPeriod(a.email, {
           status: kind === "start_trial" ? "trialing" : "active",
-          plan: kind === "subscribe_yearly" ? "yearly" : kind === "start_trial" ? "trial" : "monthly",
-          days: kind === "start_trial" ? config.trialDays : kind === "subscribe_yearly" ? 365 : 30,
+          plan:
+            kind === "subscribe_yearly"
+              ? "yearly"
+              : kind === "start_trial"
+                ? "trial"
+                : "monthly",
+          days:
+            kind === "start_trial"
+              ? config.trialDays
+              : kind === "subscribe_yearly"
+                ? 365
+                : 30,
           remaining: config.includedFilings,
         });
         return json(res, 200, {
-          url: `${config.publicBaseUrl}/health?subscribe=ok`,
+          url: `${config.publicBaseUrl}/v1/billing/return?ok=1&dogfood=subscribe`,
           message: "Dogfood: subscription granted without Stripe",
         });
       }
@@ -240,6 +311,6 @@ const server = createServer((req, res) => {
 
 server.listen(config.port, () => {
   console.log(
-    `[plus] listening on http://127.0.0.1:${config.port} publicBase=${config.publicBaseUrl} dogfoodAutoGrant=${config.dogfoodAutoGrant} anthropic=${Boolean(config.anthropicApiKey)}`,
+    `[plus] listening on http://127.0.0.1:${config.port} publicBase=${config.publicBaseUrl} dogfoodAutoGrant=${config.dogfoodAutoGrant} stripe=${stripeConfigured()} anthropic=${Boolean(config.anthropicApiKey)}`,
   );
 });

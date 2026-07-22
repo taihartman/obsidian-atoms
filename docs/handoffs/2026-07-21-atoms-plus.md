@@ -53,16 +53,23 @@ Plugin resolves **none | byok | plus** → same pipeline; Plus hits `plus-servic
 ## Next steps
 
 1. **Work in the sibling worktree** (path in frontmatter) on `feat/atoms-plus-managed-filing`.
-2. **Human or agent dogfood with real key** (if you have `ANTHROPIC_API_KEY`):
+2. **Stripe test catalog + live Checkout smoke** (code landed; needs `sk_test_`):
+   ```bash
+   cd plus-service
+   export STRIPE_SECRET_KEY=sk_test_…
+   node scripts/create-stripe-catalog.mjs   # → STRIPE_PRICE_*
+   # stripe listen --forward-to localhost:8787/v1/billing/webhook
+   export STRIPE_WEBHOOK_SECRET=whsec_… DOGFOOD_AUTO_GRANT=0
+   npm start
+   # Checkout kinds open real Stripe URL; webhook grants filings
+   ```
+   OpenCode Stripe MCP is **live** OAuth — do **not** create catalog via MCP until test mode; use the script + test secret.
+3. **Human or agent dogfood with real key** (if you have `ANTHROPIC_API_KEY`):
    ```bash
    cd plus-service && ANTHROPIC_API_KEY=… DOGFOOD_AUTO_GRANT=1 npm start
    # Obsidian test vault: Settings → Plus URL http://127.0.0.1:8787
    # Magic link → paste sess_ → Save Session → Process past captures
    ```
-3. **Stripe (user said Stripe MCP works)** — replace dogfood checkout grants:
-   - Create products/prices from `plus-pricing.json` ($6, $60, $2 top-up).
-   - Checkout Sessions + webhooks → `grantPeriod` / `addTopUp` in durable store.
-   - Disable `DOGFOOD_AUTO_GRANT` off localhost.
 4. **Durable store** — replace in-memory `plus-service/src/store.mjs` (SQLite/Postgres/D1).
 5. **Real magic-link email** (Resend/Postmark) instead of console-only links.
 6. **U5e** fidelity screenshots vs mock; **U7** version bump, README optional-paid language, mark PR ready when dogfood loop is clean.

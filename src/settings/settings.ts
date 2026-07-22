@@ -125,10 +125,18 @@ export class AtomsSettingTab extends PluginSettingTab {
               new Notice(`Atoms Plus: ${r.message}`);
               return;
             }
-            new Notice(
-              `${topUp.title}: ${topUp.price} · ${topUp.detail}. ${topUp.body}`,
-              6000,
-            );
+            if (r.url) {
+              window.open(r.url, "_blank");
+              new Notice(
+                `${topUp.title}: complete checkout in the browser, then reopen Settings.`,
+                8000,
+              );
+            } else {
+              new Notice(
+                `${topUp.title}: ${topUp.price} · ${topUp.detail}. ${topUp.body}`,
+                6000,
+              );
+            }
             this.display();
           }),
         )
@@ -343,7 +351,15 @@ export class AtomsSettingTab extends PluginSettingTab {
             new Notice(`Atoms Plus: ${r.message}`);
             return;
           }
-          new Notice("Trial granted (dogfood). Refreshing…");
+          if (r.url) {
+            window.open(r.url, "_blank");
+            new Notice(
+              "Checkout opened — finish in the browser, then Save Session again or reopen Settings to refresh status.",
+              10000,
+            );
+          } else {
+            new Notice("Trial granted (dogfood). Refreshing…");
+          }
           this.display();
         }),
       );
