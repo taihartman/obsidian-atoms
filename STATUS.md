@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| _(none)_ |  |  |  |  |  |  |
+| In review | #100 | Tai | `docs/soft-unfreeze-reconsider-mock` | design handoff mock only | `docs/design-handoff/atoms-view/soft-unfreeze-reconsider.html`, `docs/qa/screenshots/soft-unfreeze-reconsider/` | Mock + phone screenshots; implement later |
 
 ## How to claim (copy)
 
