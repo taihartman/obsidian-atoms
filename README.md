@@ -55,15 +55,17 @@ It’s a **second brain inside your vault**, not a separate app and not a CRM. P
 2. **Browse** → search **Atoms** → Install → Enable.
 3. Continue with [First-run setup](#first-run-setup).
 
-### Manual / beta (GitHub Release)
+### Beta / phone + desktop (BRAT — preferred)
 
-Use this before Community listing, or to pin a specific version:
+1. Install [BRAT](https://obsidian.md/plugins?id=obsidian42-brat).
+2. BRAT → **Add beta plugin** → `taihartman/obsidian-atoms`.
+3. Enable **Atoms**. After each [GitHub Release](https://github.com/taihartman/obsidian-atoms/releases), use BRAT **Check for updates** (desktop and phone vaults that use the same install path).
 
-1. Open the latest [GitHub Release](https://github.com/taihartman/obsidian-atoms/releases) and download `main.js`, `manifest.json`, and `styles.css`.
-2. Create `<Vault>/.obsidian/plugins/atoms/` and copy those three files into it.
+### Manual (GitHub Release)
+
+1. Download `main.js`, `manifest.json`, and `styles.css` from the latest [Release](https://github.com/taihartman/obsidian-atoms/releases).
+2. Put them in `<Vault>/.obsidian/plugins/atoms/`.
 3. Settings → Community plugins → refresh → enable **Atoms**.
-
-Optional beta channel: install via [BRAT](https://obsidian.md/plugins?id=obsidian42-brat) pointing at `taihartman/obsidian-atoms`.
 
 ### First-run setup
 

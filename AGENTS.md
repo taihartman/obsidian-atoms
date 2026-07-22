@@ -31,7 +31,7 @@ If hot files overlap an `In progress` claim → **stop** and re-scope or wait. D
 - Second brain, **not** a task app.  
 - Desktop + iOS + Android are consumers; no silent platform-only product.  
 - Constitution changes (`CLAUDE.md` non-negotiables / `docs/architecture.md` north star) **only via PR**.  
-- **Phone install after master:** run `npm run phone` (plugin files → Remote Vault → Sync) when plugin code lands on `master`. That is **install only**, not vault rewrites.
+- **No agent phone/Remote Vault plugin install.** Humans update desktop + phone via **BRAT** (`taihartman/obsidian-atoms`) after a GitHub Release (or manual Release assets). Agents never copy plugin files into personal vaults.
 - **Agent dogfood on demo/test vault only:** Process, Update notes, fixtures, classify smoke, screenshots → `test_vault/` or `docs/media/demo-vault/`. **Never** unattended mutate personal Remote Vault notes. Live personal data = human (or explicit user ask).
 - **Product dogfood ≠ fixture theater:** For “does the product work?” evidence, use the real loop — **capture bullets → Process / force Process today** — then observe. Do **not** pre-create hub notes, hand-write atom link-prose, or plant perfect graphs just to force a green screenshot (e.g. Also about). Label unit/UI-only fixture proofs honestly. Detail: `docs/qa/README.md` § Product dogfood honesty.
 
