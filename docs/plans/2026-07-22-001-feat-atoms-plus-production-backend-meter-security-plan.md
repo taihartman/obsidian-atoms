@@ -77,7 +77,7 @@ From origin plan / Plus pricing SSOT (`plus-pricing.json`):
 | Track | Issue | PR | Notes |
 |-------|-------|-----|--------|
 | **Plugin Plus MVP** (UI, BYOK dual-path, local dogfood service) | #91 | #92 | Keep until U5e/U7 plugin shipping tail |
-| **Plus production backend + meter security** | **New Issue** (open when starting U2+) | Branch off master or continue worktree; draft PR | Owns `plus-service/` deploy, DB, email, U1–U9 server; plugin Idempotency-Key may land as small PR or same backend PR if scoped |
+| **Plus production backend + meter security** | **#107** | Branch off master or continue worktree; draft PR | Owns `plus-service/` deploy, DB, email, U2–U9; U1 fail-closed landed on #92 |
 
 **U1 fail-closed** may still land on #92 as a small safety commit (no public DNS). Everything that needs Postgres/email/host → **backend Issue**, not silent scope creep on #91.
 
