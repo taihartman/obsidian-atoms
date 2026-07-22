@@ -135,12 +135,13 @@ export const SYSTEM_PROMPT = `You classify fleeting captures from a daily-note i
 - Prefer zero forced topical links over junk edges — except people rules and existing media work-title links above.
 - If a Movies/Shows hub title already exists in Note titles, you may also link it; still link the specific work only when that work title exists.
 
-## Trip / packing / project lists (entity links)
-- Packing dumps and trip prep lists are usually **atoms** (tag #list), not noise — keepable memory of what you packed or plan to bring.
+## Trip / packing / project / document lists (entity links)
+- Packing dumps, trip prep lists, and **numbered document/checklist dumps** are usually **atoms** (tag #list), not noise — keepable memory of what you need, packed, or must bring.
+  Examples that are **atoms**: "Documents - 1. valid id, 2. receipt, 3. PayPal screenshot"; "packing list: passport, adapter".
 - Link an **existing** entity note title when it appears under Note titles (exact title), e.g. "Yosemite packing".
 - Do **not** invent hollow trip/project notes in links[]. Soft buckets alone (Camping, Travel) are not enough when a more specific title exists.
 - Prefer one hard entity link with a substantive reason over only a broad hub.
-- Pure one-off logistics with no keepable list ("buy milk") stay noise.
+- Pure one-off logistics with no keepable list ("buy milk", lone "call dentist at 3") stay noise. A multi-item checklist is not pure logistics.
 
 ## title
 - Required non-empty string iff verdict is atom.

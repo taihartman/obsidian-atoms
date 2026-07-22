@@ -16,6 +16,7 @@ import {
   type PlannedWrite,
 } from "./render";
 import { extractCaptureBody } from "./refreshAtoms";
+import { shortTitleFromCapture } from "./enrich/ideaRescue";
 
 export type ReconsiderTargetGate =
   | { ok: true; capture: Capture }
@@ -107,6 +108,17 @@ export function collisionNotice(): string {
 export function filedNotice(title: string): string {
   const t = title.trim() || "note";
   return `Filed as “${t}”`;
+}
+
+/** User override when the model still says skip — keep as atom with body-derived title. */
+export function forceKeepAtomResult(captureText: string): ClassificationResult {
+  return {
+    verdict: "atom",
+    title: shortTitleFromCapture(captureText),
+    tags: ["list"],
+    proposed_tags: [],
+    links: [],
+  };
 }
 
 export interface ReconsiderApplyOpts {

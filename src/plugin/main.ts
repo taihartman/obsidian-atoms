@@ -60,6 +60,7 @@ import {
   findCaptureAtLine,
   flagOffNotice,
   filedNotice,
+  forceKeepAtomResult,
   collisionNotice,
   gateReconsiderTarget,
   missNotice,
@@ -1373,34 +1374,41 @@ export default class AtomsPlugin extends Plugin {
         await this.saveSettings();
       }
 
+      const commitResult = async (r: typeof result) => {
+        const report = await applyReconsiderWrite({
+          app: this.app,
+          dailyPath: file.path,
+          dailyDate: dailyDateForFile(this.app, file),
+          capture: gate.capture,
+          result: r,
+          atomFolder: this.settings.atomFolder,
+        });
+        if (!report.ok) {
+          if (report.reason === "collision") {
+            new Notice(collisionNotice());
+          } else if (report.reason === "no_change") {
+            /* Apply should have been disabled */
+          } else {
+            new Notice("Atoms: could not reconsider (see console)");
+            devLog("[atoms] reconsider apply failed", report);
+          }
+          return;
+        }
+        new Notice(filedNotice(report.title ?? r.title));
+        this.forEachAtomsHome((v) => {
+          void v.refresh();
+        });
+      };
+
       new ReconsiderModal(this.app, {
         capture: gate.capture,
         nowKind,
         result,
         onApply: async () => {
-          const report = await applyReconsiderWrite({
-            app: this.app,
-            dailyPath: file.path,
-            dailyDate: dailyDateForFile(this.app, file),
-            capture: gate.capture,
-            result,
-            atomFolder: this.settings.atomFolder,
-          });
-          if (!report.ok) {
-            if (report.reason === "collision") {
-              new Notice(collisionNotice());
-            } else if (report.reason === "no_change") {
-              /* Apply should have been disabled */
-            } else {
-              new Notice("Atoms: could not reconsider (see console)");
-              devLog("[atoms] reconsider apply failed", report);
-            }
-            return;
-          }
-          new Notice(filedNotice(report.title ?? result.title));
-          this.forEachAtomsHome((v) => {
-            void v.refresh();
-          });
+          await commitResult(result);
+        },
+        onKeepAnyway: async () => {
+          await commitResult(forceKeepAtomResult(gate.capture.text));
         },
       }).open();
     } catch (e) {

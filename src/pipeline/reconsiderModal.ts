@@ -12,11 +12,15 @@ export interface ReconsiderModalOpts {
   result: ClassificationResult | null;
   loading?: boolean;
   errorMessage?: string;
+  /** Model proposed atom — commit that plan. */
   onApply?: () => void | Promise<void>;
+  /** Model still skip — user forces keep as note. */
+  onKeepAnyway?: () => void | Promise<void>;
 }
 
 /**
  * Single-capture reconsider sheet: Now → Proposed, Apply commits the plan.
+ * When still skipped: Keep as note (user override).
  */
 export class ReconsiderModal extends Modal {
   private readonly opts: ReconsiderModalOpts;
@@ -117,12 +121,21 @@ export class ReconsiderModal extends Modal {
     const canApply =
       !!this.opts.result &&
       canApplyReconsider(this.opts.nowKind, this.opts.result.verdict);
+    const canForce =
+      !!this.opts.result &&
+      !canApply &&
+      !!this.opts.onKeepAnyway &&
+      this.opts.loading !== true;
 
     const helper = contentEl.createDiv({ cls: "atoms-reconsider-helper" });
     if (this.opts.loading || this.opts.errorMessage) {
       helper.setText("");
     } else if (canApply) {
       helper.setText("Creates one note. Leaves your capture wording alone.");
+    } else if (canForce) {
+      helper.setText(
+        "Model still skipped it. Keep as note if you want it in your library.",
+      );
     } else if (this.opts.result) {
       helper.setText("Still not worth keeping.");
     }
@@ -134,23 +147,41 @@ export class ReconsiderModal extends Modal {
     });
     cancel.addEventListener("click", () => this.close());
 
-    const apply = footer.createEl("button", {
-      cls: "atoms-reconsider-btn atoms-reconsider-btn-primary",
-      text: canApply ? "Apply" : "No change",
-    });
-    apply.disabled =
-      !canApply || !this.opts.onApply || this.opts.loading === true;
-    apply.addEventListener("click", () => {
-      if (apply.disabled || this.applying || !this.opts.onApply) return;
-      this.applying = true;
-      apply.disabled = true;
-      void Promise.resolve(this.opts.onApply())
-        .then(() => this.close())
-        .catch(() => {
-          this.applying = false;
-          apply.disabled = false;
-        });
-    });
+    if (canForce) {
+      const keep = footer.createEl("button", {
+        cls: "atoms-reconsider-btn atoms-reconsider-btn-primary",
+        text: "Keep as note",
+      });
+      keep.addEventListener("click", () => {
+        if (this.applying || !this.opts.onKeepAnyway) return;
+        this.applying = true;
+        keep.disabled = true;
+        void Promise.resolve(this.opts.onKeepAnyway())
+          .then(() => this.close())
+          .catch(() => {
+            this.applying = false;
+            keep.disabled = false;
+          });
+      });
+    } else {
+      const apply = footer.createEl("button", {
+        cls: "atoms-reconsider-btn atoms-reconsider-btn-primary",
+        text: canApply ? "Apply" : "No change",
+      });
+      apply.disabled =
+        !canApply || !this.opts.onApply || this.opts.loading === true;
+      apply.addEventListener("click", () => {
+        if (apply.disabled || this.applying || !this.opts.onApply) return;
+        this.applying = true;
+        apply.disabled = true;
+        void Promise.resolve(this.opts.onApply())
+          .then(() => this.close())
+          .catch(() => {
+            this.applying = false;
+            apply.disabled = false;
+          });
+      });
+    }
   }
 
   onClose() {
