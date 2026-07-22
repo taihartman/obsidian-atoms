@@ -157,7 +157,7 @@ async function openGraphLeaf(app: App): Promise<WorkspaceLeaf | null> {
       ).commands;
       const ok = cmds?.executeCommandById?.("graph:open");
       if (ok === false) return null;
-      await new Promise((r) => setTimeout(r, 50));
+      await new Promise((r) => window.setTimeout(r, 50));
       return app.workspace.getLeavesOfType("graph")[0] ?? null;
     } catch {
       return null;
@@ -259,7 +259,7 @@ export async function runOpenAtomGraph(
   }
 
   // Allow view to mount
-  await new Promise((r) => setTimeout(r, 30));
+  await new Promise((r) => window.setTimeout(r, 30));
 
   let applied = applyGraphSearchFilter(leaf.view, queryResult.query);
   let folderFallback = false;

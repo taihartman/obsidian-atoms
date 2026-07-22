@@ -1089,7 +1089,7 @@ export class AtomsHomeView extends ItemView {
       this.entityInvite = null;
       await this.loadData();
       this.render();
-    } catch (e) {
+    } catch {
       new Notice("Atoms: could not create list note");
     }
   }
@@ -1782,7 +1782,9 @@ export class AtomsHomeView extends ItemView {
   }
 
   private dismissedUpdateQuality(): number {
-    const raw = this.app.loadLocalStorage(LS_UPDATE_NOTES_DISMISSED_Q);
+    const raw: unknown = this.app.loadLocalStorage(
+      LS_UPDATE_NOTES_DISMISSED_Q,
+    );
     if (typeof raw === "string" && /^\d+$/.test(raw)) {
       return Number.parseInt(raw, 10);
     }

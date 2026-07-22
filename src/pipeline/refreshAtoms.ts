@@ -327,9 +327,10 @@ export function buildPolishedAtomMarkdown(opts: {
     opts.oldContent,
   );
   const result = keepAsAtomResult(opts.result, opts.title);
+  const resultTags = result.tags ?? [];
   const tags =
-    (result.tags ?? []).length > 0
-      ? result.tags!.map((t) => t.replace(/^#/, ""))
+    resultTags.length > 0
+      ? resultTags.map((t) => t.replace(/^#/, ""))
       : parseTagsFromFrontmatter(opts.oldContent);
 
   const fm: string[] = ["---", `created: ${created}`];

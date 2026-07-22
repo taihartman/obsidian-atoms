@@ -16,8 +16,9 @@ export function parseLinkProse(prose: string): ClassificationLink[] {
   const raw = (prose ?? "").replace(/\s+/g, " ").trim();
   if (!raw) return [];
 
+  // Split on ". " without lookbehind (iOS Safari <16.4 / older WKWebView).
   const segments = raw
-    .split(/(?<=\.)\s+/)
+    .split(/\.\s+/)
     .map((s) => s.trim())
     .filter(Boolean);
 

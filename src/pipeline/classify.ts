@@ -579,8 +579,10 @@ export function applyClassificationQuality(
  */
 export function logClassifyOutcome(label: string, outcome: ClassifyOutcome): void {
   if (typeof ATOMS_DEV_COMMANDS === "undefined" || !ATOMS_DEV_COMMANDS) return;
+  // eslint-disable-next-line no-console -- dev/watch builds only; production define strips call
+  const log = console.log.bind(console);
   if (outcome.ok) {
-    console.log(`[atoms] ${label}`, {
+    log(`[atoms] ${label}`, {
       verdict: outcome.result.verdict,
       title: outcome.result.title,
       tags: outcome.result.tags,
@@ -590,7 +592,7 @@ export function logClassifyOutcome(label: string, outcome: ClassifyOutcome): voi
       key: outcome.keyFingerprint,
     });
   } else {
-    console.log(`[atoms] ${label} FAILED`, {
+    log(`[atoms] ${label} FAILED`, {
       reason: outcome.reason,
       status: outcome.status,
       message: outcome.message,
