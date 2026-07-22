@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| In review | #100 | Tai | `feat/reconsider-capture-100` | `docs/plans/2026-07-22-001-feat-reconsider-capture-plan.md` | reconsider + flag | PR #102 · flag default off |
+| _(none)_ |  |  |  |  |  |  |
 
 ## How to claim (copy)
 
@@ -23,6 +23,7 @@ States: `Queued` · `In progress` · `Blocked` · `In review` · `Done` (then re
 
 | Merged | Issue / PR | Summary |
 |---|---|---|
+| 2026-07-22 | #100 / #102 | Reconsider capture (flagged) · release 0.6.27 |
 | 2026-07-18 | #97 / #98 | Library row opens vault note (not in-home reader) |
 | 2026-07-18 | #93 #95 / #94 | Entity orbits T0–T3 + Together Open list (0.6.26) |
 | 2026-07-17 | #83 / #84 | Open atom graph command (0.6.19) |
