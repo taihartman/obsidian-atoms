@@ -70,10 +70,15 @@ Plugin resolves **none | byok | plus** → same pipeline; Plus hits `plus-servic
    # Obsidian test vault: Settings → Plus URL http://127.0.0.1:8787
    # Magic link → paste sess_ → Save Session → Process past captures
    ```
-4. **Durable store** — replace in-memory `plus-service/src/store.mjs` (SQLite/Postgres/D1).
-5. **Real magic-link email** (Resend/Postmark) instead of console-only links.
-6. **U5e** fidelity screenshots vs mock; **U7** version bump, README optional-paid language, mark PR ready when dogfood loop is clean.
-7. Do **not** start companion/widgets or Efficient mode (#90) unless product reopens them.
+4. **Production backend + meter security (plan, doc-reviewed):**  
+   `docs/plans/2026-07-22-001-feat-atoms-plus-production-backend-meter-security-plan.md`  
+   Fail-closed, Postgres meter, webhook/portal, proxy caps, email, U9 security suite.  
+   **Claim split:** #91/#92 = plugin MVP; **new Issue** for backend U2+. U1 may land on #92.  
+   Adversarial SoT: `docs/qa/2026-07-22-atoms-plus-meter-security-review.md` (write in U9a).
+5. **Durable store** — U2 in that plan (Postgres/SQLite + atomic meter + ledger).
+6. **Real magic-link email** — U5 (Resend/Postmark); kill `dev-exchange` in prod.
+7. **U5e** fidelity screenshots vs mock; shipping **U7** version/README when dogfood + staging green.
+8. Do **not** start companion/widgets or Efficient mode (#90) unless product reopens them.
 
 ## Key files
 

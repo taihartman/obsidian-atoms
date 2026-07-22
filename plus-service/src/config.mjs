@@ -114,8 +114,15 @@ export const config = {
   get stripePriceTopup() {
     return env("STRIPE_PRICE_TOPUP");
   },
-  /** Force instant grants even when Stripe is configured. */
+  /** Force instant grants even when Stripe is configured. Never honor in production (see prodGate). */
   get stripeDogfoodCheckout() {
     return env("STRIPE_DOGFOOD_CHECKOUT", "0") === "1";
+  },
+  /**
+   * Product env: set ATOMS_PLUS_ENV=production for fail-closed boot.
+   * Also treats NODE_ENV=production as production.
+   */
+  get atomsPlusEnv() {
+    return env("ATOMS_PLUS_ENV", env("NODE_ENV", "development"));
   },
 };

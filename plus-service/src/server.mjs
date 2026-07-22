@@ -17,6 +17,19 @@ import {
   createCheckoutSession,
   stripeConfigured,
 } from "./stripe.mjs";
+import {
+  allowDevExchange,
+  allowDogfoodCheckout,
+  assertProductionReady,
+  isProduction,
+} from "./prodGate.mjs";
+
+try {
+  assertProductionReady();
+} catch (err) {
+  console.error(err instanceof Error ? err.message : err);
+  process.exit(1);
+}
 
 const store = createStore();
 
@@ -75,8 +88,11 @@ async function handler(req, res) {
   }
 
   try {
-    // Health
+    // Health — minimal in production (less recon)
     if (req.method === "GET" && (path === "/" || path === "/health")) {
+      if (isProduction()) {
+        return json(res, 200, { ok: true, service: "atoms-plus" });
+      }
       return json(res, 200, {
         ok: true,
         service: "atoms-plus",
@@ -131,8 +147,11 @@ async function handler(req, res) {
       return json(res, 200, { ok: true });
     }
 
-    // GET /v1/auth/dev-exchange?token= — browser-friendly dogfood
+    // GET /v1/auth/dev-exchange?token= — browser-friendly dogfood (disabled in prod)
     if (req.method === "GET" && path === "/v1/auth/dev-exchange") {
+      if (!allowDevExchange()) {
+        return json(res, 404, { message: "Not found" });
+      }
       const token = url.searchParams.get("token") || "";
       const out = store.exchangeMagic(token);
       if (!out) {
@@ -196,7 +215,7 @@ async function handler(req, res) {
       });
     }
 
-    // POST /v1/billing/checkout — Stripe Checkout when configured; else dogfood grant
+    // POST /v1/billing/checkout — Stripe when configured; dogfood grants only off-prod
     if (req.method === "POST" && path === "/v1/billing/checkout") {
       const session = bearer(req);
       const a = store.accountFromSession(session);
@@ -204,10 +223,8 @@ async function handler(req, res) {
       const body = await readBody(req);
       const kind = String(body.kind || "");
 
-      const useStripe =
-        stripeConfigured() && !config.stripeDogfoodCheckout;
-
-      if (useStripe) {
+      // Real Stripe when configured and dogfood instant-grants are not allowed
+      if (stripeConfigured() && !allowDogfoodCheckout()) {
         try {
           const cs = await createCheckoutSession({
             email: a.email,
@@ -219,6 +236,14 @@ async function handler(req, res) {
           const msg = err instanceof Error ? err.message : "Checkout failed";
           return json(res, status, { message: msg });
         }
+      }
+
+      // Production (or non-dogfood) without usable Stripe → fail closed
+      if (!allowDogfoodCheckout()) {
+        return json(res, 503, {
+          message:
+            "Billing is not configured. Stripe Checkout required in this environment.",
+        });
       }
 
       if (kind === "topup_50") {
@@ -311,6 +336,6 @@ const server = createServer((req, res) => {
 
 server.listen(config.port, () => {
   console.log(
-    `[plus] listening on http://127.0.0.1:${config.port} publicBase=${config.publicBaseUrl} dogfoodAutoGrant=${config.dogfoodAutoGrant} stripe=${stripeConfigured()} anthropic=${Boolean(config.anthropicApiKey)}`,
+    `[plus] listening on http://127.0.0.1:${config.port} publicBase=${config.publicBaseUrl} env=${isProduction() ? "production" : "dev"} dogfoodAutoGrant=${config.dogfoodAutoGrant} stripe=${stripeConfigured()} anthropic=${Boolean(config.anthropicApiKey)}`,
   );
 });

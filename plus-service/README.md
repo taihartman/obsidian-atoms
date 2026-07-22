@@ -28,6 +28,18 @@ http://127.0.0.1:8787
 
 Without Stripe env, **checkout kinds grant immediately** (dogfood).
 
+## Production fail-closed (U1)
+
+```bash
+export ATOMS_PLUS_ENV=production
+export DOGFOOD_AUTO_GRANT=0
+export STRIPE_DOGFOOD_CHECKOUT=0
+# + full STRIPE_* + ANTHROPIC + PUBLIC_BASE_URL=https://…
+npm start   # exits 1 if any gate fails
+```
+
+In production: no free checkout grants, no `/v1/auth/dev-exchange`, minimal `/health`.
+
 ## Stripe test mode
 
 Prefer **test** keys (`sk_test_…`). Do not use live keys for local dogfood.
