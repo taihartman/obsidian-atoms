@@ -137,6 +137,45 @@ export async function createCheckoutSession(opts) {
 }
 
 /**
+ * @param {{ customerId: string, returnUrl?: string }} opts
+ */
+export async function createPortalSession(opts) {
+  if (!config.stripeSecretKey) {
+    const err = new Error("STRIPE_SECRET_KEY not set");
+    err.status = 503;
+    throw err;
+  }
+  const session = await stripeForm("/billing_portal/sessions", {
+    customer: opts.customerId,
+    return_url:
+      opts.returnUrl || `${config.publicBaseUrl}/v1/billing/return?ok=1&portal=1`,
+  });
+  if (typeof session.url !== "string" || !session.url) {
+    throw new Error("Stripe portal missing url");
+  }
+  return session;
+}
+
+function allowedPriceIds() {
+  return new Set(
+    [
+      config.stripePriceMonthly,
+      config.stripePriceYearly,
+      config.stripePriceTopup,
+    ].filter(Boolean),
+  );
+}
+
+/** @returns {'monthly'|'yearly'|'topup'|null} */
+function grantFromPriceId(priceId) {
+  if (!priceId) return null;
+  if (priceId === config.stripePriceTopup) return "topup";
+  if (priceId === config.stripePriceYearly) return "yearly";
+  if (priceId === config.stripePriceMonthly) return "monthly";
+  return null;
+}
+
+/**
  * Verify Stripe-Signature header. Returns event object or throws.
  * @param {string} rawBody
  * @param {string | undefined} signatureHeader
@@ -226,7 +265,29 @@ export function applyStripeEvent(store, event) {
       return { handled: false, action: "missing_email" };
     }
 
-    if (kind === "topup_50" || obj.mode === "payment") {
+    // Prefer paid/complete; unpaid async methods should not grant yet
+    const payStatus = String(obj.payment_status || "paid");
+    if (payStatus === "unpaid") {
+      store.markEventProcessed(event.id);
+      return { handled: true, action: "unpaid_skip", email };
+    }
+
+    // Price allowlist when line_items present (expanded sessions)
+    const linePrice =
+      obj.line_items?.data?.[0]?.price?.id ||
+      obj.metadata?.price_id ||
+      "";
+    if (linePrice && allowedPriceIds().size && !allowedPriceIds().has(linePrice)) {
+      store.markEventProcessed(event.id);
+      return { handled: true, action: "unknown_price", email };
+    }
+    const fromPrice = grantFromPriceId(linePrice);
+
+    if (
+      kind === "topup_50" ||
+      fromPrice === "topup" ||
+      obj.mode === "payment"
+    ) {
       store.addTopUp(email, config.topUpFilings);
       if (obj.customer) store.setStripeCustomer(email, String(obj.customer));
       store.markEventProcessed(event.id);
@@ -235,7 +296,10 @@ export function applyStripeEvent(store, event) {
 
     const planMeta = String(obj.metadata?.plan || "");
     const isTrial = kind === "start_trial" || planMeta === "trial";
-    const isYearly = kind === "subscribe_yearly" || planMeta === "yearly";
+    const isYearly =
+      kind === "subscribe_yearly" ||
+      planMeta === "yearly" ||
+      fromPrice === "yearly";
     store.grantPeriod(email, {
       status: isTrial ? "trialing" : "active",
       plan: isTrial ? "trial" : isYearly ? "yearly" : "monthly",

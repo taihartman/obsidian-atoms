@@ -58,6 +58,7 @@ async function plusRequest(
     method: string;
     sessionToken?: string;
     body?: unknown;
+    headers?: Record<string, string>;
   },
 ): Promise<PlusHttpOk | PlusApiError> {
   const base = cfg.baseUrl?.trim();
@@ -72,6 +73,7 @@ async function plusRequest(
   const headers: Record<string, string> = {
     "content-type": "application/json",
     accept: "application/json",
+    ...opts.headers,
   };
   if (opts.sessionToken?.trim()) {
     headers.authorization = `Bearer ${opts.sessionToken.trim()}`;
@@ -261,12 +263,17 @@ export async function classifyViaProxy(
   cfg: PlusClientConfig,
   sessionToken: string,
   body: ProxyClassifyBody,
+  opts?: { idempotencyKey?: string },
 ): Promise<ProxyClassifySuccess | PlusApiError> {
+  const key =
+    opts?.idempotencyKey?.trim() ||
+    `u_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
   const res = await plusRequest(cfg, {
     path: "/v1/classify",
     method: "POST",
     sessionToken,
     body,
+    headers: { "Idempotency-Key": key },
   });
   if (!res.ok) return res;
   if (res.status < 200 || res.status >= 300) {
@@ -321,6 +328,49 @@ export async function createCheckout(
     };
   }
   return { ok: true, url };
+}
+
+export async function createBillingPortal(
+  cfg: PlusClientConfig,
+  sessionToken: string,
+): Promise<{ ok: true; url: string } | PlusApiError> {
+  const res = await plusRequest(cfg, {
+    path: "/v1/billing/portal",
+    method: "POST",
+    sessionToken,
+    body: {},
+  });
+  if (!res.ok) return res;
+  if (res.status < 200 || res.status >= 300) {
+    return mapError(res.status, res.json);
+  }
+  const url = typeof res.json.url === "string" ? res.json.url : "";
+  if (!url) {
+    return {
+      ok: false,
+      status: res.status,
+      code: "unknown",
+      message: "Portal response missing url",
+    };
+  }
+  return { ok: true, url };
+}
+
+export async function signOutPlus(
+  cfg: PlusClientConfig,
+  sessionToken: string,
+): Promise<{ ok: true } | PlusApiError> {
+  const res = await plusRequest(cfg, {
+    path: "/v1/auth/sign-out",
+    method: "POST",
+    sessionToken,
+    body: {},
+  });
+  if (!res.ok) return res;
+  if (res.status < 200 || res.status >= 300) {
+    return mapError(res.status, res.json);
+  }
+  return { ok: true };
 }
 
 /** Default production base — override in settings for dogfood. */

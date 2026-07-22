@@ -125,4 +125,35 @@ export const config = {
   get atomsPlusEnv() {
     return env("ATOMS_PLUS_ENV", env("NODE_ENV", "development"));
   },
+  /** memory | sqlite */
+  get storeMode() {
+    return env("ATOMS_PLUS_STORE", "memory").toLowerCase();
+  },
+  get databasePath() {
+    return env(
+      "ATOMS_PLUS_DATABASE_PATH",
+      join(dirname(fileURLToPath(import.meta.url)), "../data/plus.sqlite"),
+    );
+  },
+  get sessionTtlDays() {
+    return Number(env("ATOMS_PLUS_SESSION_TTL_DAYS", "60"));
+  },
+  get maxCaptureChars() {
+    return Number(env("ATOMS_PLUS_MAX_CAPTURE_CHARS", "8000"));
+  },
+  get maxContextTitles() {
+    return Number(env("ATOMS_PLUS_MAX_CONTEXT_TITLES", "40"));
+  },
+  get maxTokens() {
+    return Number(env("ATOMS_PLUS_MAX_TOKENS", "2048"));
+  },
+  get rateLimitPerMinute() {
+    return Number(env("ATOMS_PLUS_RATE_LIMIT_PER_MIN", "30"));
+  },
+  get resendApiKey() {
+    return env("RESEND_API_KEY");
+  },
+  get magicLinkFrom() {
+    return env("ATOMS_PLUS_EMAIL_FROM", "Atoms Plus <plus@tryatoms.app>");
+  },
 };

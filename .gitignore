@@ -37,3 +37,4 @@ docs/media/demo-vault/
 # Plus service local
 plus-service/node_modules/
 plus-service/.env
+plus-service/data/

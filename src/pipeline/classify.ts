@@ -425,6 +425,9 @@ export async function classifyCapture(
     try {
       if (plus) {
         const base = plus.baseUrl.replace(/\/+$/, "");
+        // One key per logical classify attempt; retries reuse attempt slot via outer loop
+        // only for transient failures — new UUID each attempt so transport refunds stay fair.
+        const idem = `cls_${Date.now().toString(36)}_${attempt}_${Math.random().toString(36).slice(2, 9)}`;
         const res = await request({
           url: `${base}/v1/classify`,
           method: "POST",
@@ -432,6 +435,7 @@ export async function classifyCapture(
             "content-type": "application/json",
             accept: "application/json",
             authorization: `Bearer ${plus.sessionToken.trim()}`,
+            "Idempotency-Key": idem,
           },
           body: JSON.stringify({
             capture,

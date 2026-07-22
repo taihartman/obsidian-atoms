@@ -15,6 +15,7 @@ import {
   applyStripeEvent,
   constructEvent,
   createCheckoutSession,
+  createPortalSession,
   stripeConfigured,
 } from "./stripe.mjs";
 import {
@@ -23,6 +24,8 @@ import {
   assertProductionReady,
   isProduction,
 } from "./prodGate.mjs";
+import { sendMagicLinkEmail } from "./email.mjs";
+import { checkRateLimit, clientIp } from "./ratelimit.mjs";
 
 try {
   assertProductionReady();
@@ -135,15 +138,30 @@ async function handler(req, res) {
 
     // POST /v1/auth/magic-link
     if (req.method === "POST" && path === "/v1/auth/magic-link") {
+      const rl = checkRateLimit(`ml:${clientIp(req)}`);
+      if (!rl.ok) {
+        return json(res, 429, {
+          message: "Too many requests",
+          retryAfterSec: rl.retryAfterSec,
+        });
+      }
       const body = await readBody(req);
       const email = String(body.email || "").trim().toLowerCase();
       if (!email || !email.includes("@")) {
         return json(res, 400, { message: "Valid email required" });
       }
       const token = store.createMagicToken(email);
-      const link = `${config.publicBaseUrl}/v1/auth/dev-exchange?token=${token}`;
-      // Dev: print link (no email provider in dogfood)
-      console.log(`[plus] magic link for ${email}: ${link}`);
+      const link = allowDevExchange()
+        ? `${config.publicBaseUrl}/v1/auth/dev-exchange?token=${token}`
+        : `${config.publicBaseUrl}/v1/auth/exchange?token=${token}`;
+      await sendMagicLinkEmail({ to: email, link });
+      return json(res, 200, { ok: true });
+    }
+
+    // POST /v1/auth/sign-out
+    if (req.method === "POST" && path === "/v1/auth/sign-out") {
+      const session = bearer(req);
+      if (session && store.revokeSession) store.revokeSession(session);
       return json(res, 200, { ok: true });
     }
 
@@ -284,10 +302,44 @@ async function handler(req, res) {
       return json(res, 400, { message: `Unknown checkout kind: ${kind}` });
     }
 
+    // POST /v1/billing/portal
+    if (req.method === "POST" && path === "/v1/billing/portal") {
+      const session = bearer(req);
+      const a = store.accountFromSession(session);
+      if (!a) return json(res, 401, { message: "Invalid session" });
+      const cust = a.stripeCustomerId;
+      if (!cust || !stripeConfigured()) {
+        return json(res, 400, {
+          message: "No Stripe customer on this account yet",
+        });
+      }
+      try {
+        const portal = await createPortalSession({ customerId: cust });
+        return json(res, 200, { url: portal.url });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Portal failed";
+        return json(res, 502, { message: msg });
+      }
+    }
+
     // POST /v1/classify
     if (req.method === "POST" && path === "/v1/classify") {
       const session = bearer(req);
-      const consume = store.tryConsumeFiling(session);
+      const ip = clientIp(req);
+      const rl = checkRateLimit(`cl:${ip}:${session.slice(0, 12)}`);
+      if (!rl.ok) {
+        return json(res, 429, {
+          message: "Too many classify requests",
+          retryAfterSec: rl.retryAfterSec,
+        });
+      }
+
+      const idem =
+        String(req.headers["idempotency-key"] || "").trim() ||
+        String(req.headers["x-idempotency-key"] || "").trim() ||
+        "";
+
+      const consume = store.tryConsumeFiling(session, idem || undefined);
       if (!consume.ok) {
         if (consume.code === "auth") {
           return json(res, 401, { message: "Invalid session" });
@@ -300,10 +352,19 @@ async function handler(req, res) {
         });
       }
 
+      if (consume.replay && consume.cached?.responseJson) {
+        return json(res, 200, {
+          ...consume.cached.responseJson,
+          remaining:
+            consume.cached.remaining ??
+            store.accountFromSession(session)?.remaining,
+          replay: true,
+        });
+      }
+
       const body = await readBody(req);
       const upstream = await proxyClassify(body);
       if (!upstream.ok) {
-        // Transport / upstream failure before usable result — refund (KTD-P6)
         store.refundFiling(session);
         const status =
           upstream.status && upstream.status >= 400 ? upstream.status : 502;
@@ -314,12 +375,21 @@ async function handler(req, res) {
       }
 
       const a = store.accountFromSession(session);
-      return json(res, 200, {
+      const out = {
         result: upstream.json,
         remaining: a?.remaining ?? 0,
         status: a?.status ?? "unknown",
-        usageId: `u_${Date.now()}`,
-      });
+        usageId: idem || `u_${Date.now()}`,
+      };
+      if (idem && store.completeUsage) {
+        store.completeUsage(idem, {
+          email: a?.email,
+          status: "ok",
+          responseJson: out,
+          remaining: out.remaining,
+        });
+      }
+      return json(res, 200, out);
     }
 
     return json(res, 404, { message: "Not found" });

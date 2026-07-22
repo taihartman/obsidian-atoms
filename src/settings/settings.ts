@@ -38,6 +38,9 @@ import {
   DEFAULT_PLUS_BASE_URL,
   requestMagicLink,
   createCheckout,
+  createBillingPortal,
+  getEntitlement,
+  signOutPlus,
 } from "../platform/plusClient";
 import { requestUrl } from "obsidian";
 import {
@@ -87,6 +90,31 @@ export class AtomsSettingTab extends PluginSettingTab {
     this.renderModelSection(containerEl);
     this.renderVocabularySection(containerEl);
     this.renderDevHints(containerEl);
+  }
+
+  private async refreshPlusEntitlement(): Promise<void> {
+    const session = readPlusSession(this.app);
+    if (!session) return;
+    const base =
+      this.plugin.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL;
+    const r = await getEntitlement(
+      { baseUrl: base, request: requestUrl },
+      session.sessionToken,
+    );
+    if (!r.ok) {
+      new Notice(`Atoms Plus: ${r.message}`);
+      return;
+    }
+    const e = r.entitlement;
+    writePlusSession(this.app, {
+      ...session,
+      email: e.email || session.email,
+      status: e.status,
+      remaining: e.remaining,
+      periodEnd: e.periodEnd,
+      refreshedAt: Date.now(),
+    });
+    new Notice("Atoms Plus status refreshed");
   }
 
   /**
@@ -141,10 +169,20 @@ export class AtomsSettingTab extends PluginSettingTab {
           }),
         )
         .addButton((btn) =>
-          btn.setButtonText("Manage Subscription").onClick(() => {
-            new Notice(
-              "Subscription management will open Stripe Customer Portal when configured.",
+          btn.setButtonText("Manage Subscription").onClick(async () => {
+            const session = readPlusSession(this.app);
+            if (!session) return;
+            const base =
+              this.plugin.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL;
+            const r = await createBillingPortal(
+              { baseUrl: base, request: requestUrl },
+              session.sessionToken,
             );
+            if (!r.ok) {
+              new Notice(`Atoms Plus: ${r.message}`);
+              return;
+            }
+            window.open(r.url, "_blank");
           }),
         );
       if (session?.email) {
@@ -188,12 +226,39 @@ export class AtomsSettingTab extends PluginSettingTab {
       new Setting(containerEl)
         .setName("Manage")
         .addButton((btn) =>
-          btn.setButtonText("Manage Subscription").onClick(() => {
-            new Notice("Manage billing opens when Plus service is live.");
+          btn.setButtonText("Manage Subscription").onClick(async () => {
+            const session = readPlusSession(this.app);
+            if (!session) return;
+            const base =
+              this.plugin.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL;
+            const r = await createBillingPortal(
+              { baseUrl: base, request: requestUrl },
+              session.sessionToken,
+            );
+            if (!r.ok) {
+              new Notice(`Atoms Plus: ${r.message}`);
+              return;
+            }
+            window.open(r.url, "_blank");
           }),
         )
         .addButton((btn) =>
-          btn.setButtonText("Sign Out").onClick(() => {
+          btn.setButtonText("Refresh status").onClick(async () => {
+            await this.refreshPlusEntitlement();
+            this.display();
+          }),
+        )
+        .addButton((btn) =>
+          btn.setButtonText("Sign Out").onClick(async () => {
+            const session = readPlusSession(this.app);
+            const base =
+              this.plugin.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL;
+            if (session) {
+              await signOutPlus(
+                { baseUrl: base, request: requestUrl },
+                session.sessionToken,
+              );
+            }
             clearPlusSession(this.app);
             new Notice("Atoms Plus signed out on this device");
             this.display();

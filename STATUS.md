@@ -8,7 +8,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
 | In progress | #91 | Tai | feat/atoms-plus-managed-filing | docs/plans/2026-07-17-005-feat-atoms-plus-managed-filing-plan.md | src/platform/*, src/settings/settings.ts, plus-service/ | Plugin Plus MVP + Stripe dogfood + U1 fail-closed; PR #92 |
-| Queued | #107 | — | — | docs/plans/2026-07-22-001-feat-atoms-plus-production-backend-meter-security-plan.md | plus-service/** | Prod backend U2+ (Postgres, email, deploy); claim before code |
+| In progress | #107 | Tai | feat/atoms-plus-managed-filing | docs/plans/2026-07-22-001-feat-atoms-plus-production-backend-meter-security-plan.md | plus-service/** | Prod backend U2–U9 on same branch as #92; SQLite durable + gates |
 
 ## How to claim (copy)
 
