@@ -6,7 +6,7 @@ Durable fixture catalog for Atoms QA. Never commit API keys, SecretStorage dumps
 
 - No credentials, JWTs, or raw Anthropic keys in reports or fixtures.
 - **Agent dogfood:** throwaway `test_vault/` and synthetic `docs/media/demo-vault/` only.
-- **Phone:** Remote Vault receives **plugin installs** (`npm run phone`), not agent note rewrites.
+- **Phone / personal vaults:** humans install the plugin via **BRAT** (or Release assets). Agents never copy plugin files into personal vaults and never rewrite notes there unattended.
 - Remote Vault is real Sync data — Process/Update only by the human (or explicit user ask); never bulk-rewrite dailies unattended.
 
 ## Product proof vs fixture proof
@@ -54,11 +54,11 @@ See `docs/qa/README.md` § Product dogfood honesty. Example learning: entity orb
 
 ### Remote Vault (phone Sync) — human product vault
 
-- **Purpose:** Live phone product path; agent only **installs the plugin**, does not rewrite notes.
-- **Mode:** Live / human phone (agent: install only).
+- **Purpose:** Live phone product path; humans own install + data.
+- **Mode:** Live / human phone (agent: no default access).
 - **Surface:** Settings version; human Process / Update / For you.
-- **Setup:** `npm run phone` after master; Sync; quit/reopen phone; key on device.
-- **Expected states:** Settings version matches ship.
+- **Setup:** BRAT → `taihartman/obsidian-atoms` → check for updates after a GitHub Release; Sync if multi-device; key on device.
+- **Expected states:** Settings version matches release.
 - **Cleanup:** User-owned; **never** agent bulk-Update / fixture-rewrite Atoms or dailies unless user explicitly asks.
 - **Evidence:** Human checklist or screenshot; version string on phone.
 

@@ -20,7 +20,7 @@ Before a QA pass, read:
 | Seed throwaway vault | `npm run seed:vault` |
 | Install plugin (agent QA) | `./scripts/install-to-vault.sh` → throwaway test vault |
 | Seed demo dogfood | `node scripts/seed-demo-vault.mjs` then install into `docs/media/demo-vault` |
-| Phone install only | `npm run phone` → Remote Vault **plugin files only** (CLAUDE.md) |
+| Human desktop/phone install | **BRAT** → `taihartman/obsidian-atoms` after GitHub Release (CLAUDE.md) |
 | Full agent verify | `./scripts/verify.sh` (Obsidian open + CLI on **test** vault) |
 | Live CLI smoke | `obsidian command id=atoms:…` from **test/demo** vault cwd |
 
@@ -29,7 +29,7 @@ Before a QA pass, read:
 | Who | Vault | Purpose |
 |---|---|---|
 | **Agent dogfood / QA** | `test_vault/test vault/`, `docs/media/demo-vault/` | Process, Update notes, fixtures, screenshots — **all write experiments** |
-| **Phone product** | `~/Documents/Remote Vault` via Sync | Human live data; agent only installs plugin (`npm run phone`) |
+| **Phone / personal product** | Remote Vault or any live vault | Human live data; plugin via **BRAT** / Release — agents do not install or rewrite |
 | **Never by default** | Remote Vault atoms/dailies | Unattended Update / fixture rewrite / bulk classify |
 
 ## Product dogfood honesty (mandatory)

@@ -36,7 +36,7 @@ Where an **active feature plan** and amendments conflict, **that plan wins**. Am
 5. **API key in SecretStorage** (or device-local fallback) — never `data.json`.
 6. **Nothing destroyed** — idempotent, re-runnable; bad classifications are never lossy.
 7. **Untrusted classify/write paths need dry-run evidence** before relying on them. Gated **auto-run** may write without a per-run human dry-run once privacy + device gates pass.
-8. **Vault lanes (agents):** write experiments, Update notes, fixtures, classify smoke, and vault rewrites → **demo / throwaway only** (`test_vault/`, `docs/media/demo-vault/`). **Never** mutate personal **Remote Vault** atoms/dailies unattended. Phone install (`npm run phone`) is the only default agent write into Remote Vault (plugin files only).
+  8. **Vault lanes (agents):** write experiments, Update notes, fixtures, classify smoke, and vault rewrites → **demo / throwaway only** (`test_vault/`, `docs/media/demo-vault/`). **Never** mutate personal **Remote Vault** (or any live personal vault) atoms/dailies unattended. Plugin installs for humans: **BRAT** / GitHub Release — agents do not copy plugin files into personal vaults.
 9. **Product dogfood honesty (agents):** Prove product claims with the **user loop** — append capture bullets to dailies → **Process** / force Process today → observe atoms, markers, home. Do **not** seed hub notes, pre-linked atoms, or hand-authored graphs to force a green feature screenshot, then call that day-one product proof. Scripted seeds (`npm run seed:vault`, `seed:demo`, unit fixtures, `process-fixture-sample`) are for **deterministic plumbing** only — label them as such in QA. Silence, noise, or missing UI without a hub is often the real product; document it. See `docs/qa/README.md` § Product dogfood honesty.
 10. **Second brain, not a task app** — no due-date/checklist gravity; `task` verdict is soft-retired.
 11. **No platform-only product** without an explicit plan note (desktop/iOS/Android consumers).
@@ -86,38 +86,24 @@ Without the Advanced toggle, `obsidian` prints “Command line interface is not 
 | Lane | Vault | Who | Allowed writes |
 |---|---|---|---|
 | **Agent dogfood / QA** | `test_vault/` + `docs/media/demo-vault/` | Coding agents | Process, Update notes, fixtures, seed, rewrites, CLI smoke, screenshots |
-| **Phone install only** | `~/Documents/Remote Vault` | Agent after master (or human) | **Plugin files only** via `npm run phone` — not atoms, not dailies, not bulk Update |
-| **Live personal data** | Remote Vault (desktop or phone) | **Human** | Process / Update / capture — agent only if user **explicitly** asks for that vault |
+| **Live personal data** | Remote Vault / phone / any real vault | **Human** | Process / Update / capture — agent only if user **explicitly** asks for that vault |
 
-**Do not** run `atoms:update-notes`, fixture rewrites, or unattended classify against Remote Vault “to check results.” That is how personal notes get scrambled. Dogfood the pipeline on **demo/test vault**, then install the build to phone.
+**Do not** run `atoms:update-notes`, fixture rewrites, or unattended classify against Remote Vault “to check results.” That is how personal notes get scrambled. Dogfood the pipeline on **demo/test vault**.
 
-**Phone / Sync:**
+**Human install (desktop + phone):** prefer **[BRAT](https://obsidian.md/plugins?id=obsidian42-brat)** → add `taihartman/obsidian-atoms` → check for updates after a GitHub Release. Manual: download `main.js` / `manifest.json` / `styles.css` from the [latest Release](https://github.com/taihartman/obsidian-atoms/releases). Confirm **Settings → Atoms → Version x.y.z**.
 
 | Lane | When | Action |
 |---|---|---|
-| **Phone install** | After user-visible plugin code lands on **`master`** | `npm run phone` → Remote Vault plugin folder → Sync → phone |
-| **Release / market** | Intentional ship only (“release it” / Community list) | Tag + GitHub Release assets — **not** every master merge |
+| **Release** | Intentional ship only (“release it” / user asks) | Tag + GitHub Release assets (`main.js`, `manifest.json`, `styles.css`) — BRAT pulls from there |
+| **Every master merge** | Plugin code lands | No agent vault copy step. Humans update via BRAT when they want the build |
 
-Merging to GitHub alone does **not** update the phone. Plugin files must land in **Remote Vault**’s `.obsidian/plugins/atoms/`, then Sync.
+**Agent rule:** Do **not** install plugin bits into personal/Remote Vault. Do **not** cut a GitHub Release unless asked. After merge, clear `STATUS.md` and stop — phone/desktop dogfood is human + BRAT.
 
-```bash
-./scripts/install-to-vault.sh              # agent QA → test vault
-node scripts/seed-demo-vault.mjs           # synthetic demo dogfood
-./scripts/install-to-vault.sh docs/media/demo-vault
-npm run phone   # phone only → $HOME/Documents/Remote Vault (plugin files)
-# same as: ./scripts/install-to-vault.sh "$HOME/Documents/Remote Vault"
-```
-
-Then wait for Sync; fully **quit & reopen** Obsidian on phone; confirm **Settings → Atoms → Version x.y.z**. Stale version = Sync lag or wrong vault path.
-
-**Agent rule:** After a PR merges to `master` (or you update local `master` with plugin code), **run `npm run phone` before ending the session** unless the change is docs-only or the user says skip. Do **not** cut a GitHub Release unless asked. Do **not** use phone install as an excuse to rewrite Remote Vault notes.
-
-### Everyday loop
+### Everyday loop (agent QA vault)
 
 ```bash
-# From repo root — Obsidian must be open on the target vault
+# From repo root — Obsidian must be open on the throwaway vault
 ./scripts/install-to-vault.sh   # build + copy main.js + plugin:reload (test vault only)
-npm run phone                   # phone / Remote Vault (after master)
 ./scripts/spike-via-cli.sh      # U1 spikes via CLI
 ```
 
@@ -201,14 +187,14 @@ After **implementation** on any non-trivial change (feature or fix), **always** 
 3. **`ce-compound`** — write the durable learning to `docs/solutions/` (and CONCEPTS if needed) so the next session inherits *why*  
 4. **`world-class-qa`** — pre-merge product QA (project adapter: `docs/qa/`). Proves changed behavior with evidence; not unit tests alone. Ends with **`adversarial-qa`** (break-it pass) per that skill’s hard gate.  
 5. **PR** — body must include **`Closes #<issue>`** (auto-close the hard-claim Issue; “Issue #N” alone is not enough) + distilled **Core user stories** + **Edge cases & testing** (link full report under `docs/qa/YYYY-MM-DD-*-world-class-qa.md`)
-6. **PR evidence (non-negotiable):** mark every **Test plan** checkbox only after it ran; for **UI / product-facing** changes, attach **screenshots** (or a short clip) of the live vault smoke — commit under `docs/qa/screenshots/<branch-or-feature>/` and link them in the PR body Evidence table using **absolute** `https://raw.githubusercontent.com/<owner>/<repo>/<branch>/…` URLs (PR descriptions do **not** render repo-relative image paths — they show a broken icon). Capture via `obsidian vault="test vault" dev:screenshot path=…` after `./scripts/install-to-vault.sh`. Docs-only / pure logic: write `N/A — no UI` instead of fake images. Leaving the template boxes unchecked after “done” is a shipping-tail bug.
-7. **After merge to `master` (plugin code):** run **`npm run phone`** so Remote Vault → phone Sync gets the build ASAP. Not a GitHub Release (release only when asked).
+  6. **PR evidence (non-negotiable):** mark every **Test plan** checkbox only after it ran; for **UI / product-facing** changes, attach **screenshots** (or a short clip) of the live vault smoke — commit under `docs/qa/screenshots/<branch-or-feature>/` and link them in the PR body Evidence table using **absolute** `https://raw.githubusercontent.com/<owner>/<repo>/<branch>/…` URLs (PR descriptions do **not** render repo-relative image paths — they show a broken icon). Capture via `obsidian vault="test vault" dev:screenshot path=…` after `./scripts/install-to-vault.sh`. Docs-only / pure logic: write `N/A — no UI` instead of fake images. Leaving the template boxes unchecked after “done” is a shipping-tail bug.
+  7. **After merge to `master`:** clear `STATUS.md`. **Release** only when the user asks (“release it”) — GitHub Release assets for BRAT / manual install. No post-merge phone/Remote Vault plugin copy.
 
 **Done means:** simplify + code-review + compound + world-class-qa (incl. adversarial half) ran, or an explicit, recorded skip for pure mechanical churn (renames, version-only bumps with no logic, docs-only); PR Test plan boxes match real evidence; UI PRs include vault screenshots in the body.  
 **Not done:** “tests green + committed” alone, or a PR whose Test plan is still all `- [ ]` after the agent claimed verify.  
-**QA not merge-ready:** checklist handoff or BLOCKED when Obsidian/phone/CLI prereqs missing — state gaps in the report; do not label code-read as world-class QA.  
+**QA not merge-ready:** checklist handoff or BLOCKED when Obsidian/CLI prereqs missing — state gaps in the report; do not label code-read as world-class QA.  
 LFG / `ce-work` / agent sessions must not stop at implement — the shipping tail is part of the work, not optional polish.  
-**Master landed:** plugin bits on phone via `npm run phone` (or recorded skip: docs-only / no Remote Vault on this machine).
+**Master landed:** STATUS cleared; humans pull via **BRAT** (or Release assets) when they want the build on desktop/phone.
 
 ## Out of scope (unless constitution/plan explicitly opens it)
 

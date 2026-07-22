@@ -13,8 +13,7 @@
     "seed:demo": "node scripts/seed-demo-vault.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc -noEmit -skipLibCheck",
-    "phone": "bash scripts/install-to-vault.sh \"$HOME/Documents/Remote Vault\""
+    "typecheck": "tsc -noEmit -skipLibCheck"
   },
   "keywords": [
     "obsidian",
