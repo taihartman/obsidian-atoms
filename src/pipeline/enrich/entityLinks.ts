@@ -19,7 +19,31 @@ export function isEntityShaped(captureText: string): boolean {
     return true;
   if (/\btrip\s+to\b/i.test(t)) return true;
   if (/\b(?:project|ship|build|launch)\b/i.test(t) && t.length < 200) return true;
-  if (/\blist\b/i.test(t) && /[,;]|\n\s*[-*]/.test(t)) return true;
+  if (/\blist\b/i.test(t) && /[,;]|\n\s*[-*]|\b\d+[.)]/.test(t)) return true;
+  if (isKeepableListDump(t)) return true;
+  return false;
+}
+
+/**
+ * Numbered / multi-item checklists the user would want back (docs, errands with
+ * several parts) — not one-line "buy milk".
+ */
+export function isKeepableListDump(captureText: string): boolean {
+  const t = (captureText ?? "").replace(/\s+/g, " ").trim();
+  if (!t || t.length < 24 || t.length > 600) return false;
+  // Numbered checklist: 1. … 2. …
+  if (/\b1[.)]\s+\S/.test(t) && /\b2[.)]\s+\S/.test(t)) return true;
+  // Topic + several comma items (documents, need, bring, checklist, …)
+  const commas = (t.match(/,/g) ?? []).length;
+  if (
+    commas >= 2 &&
+    t.length >= 36 &&
+    /\b(documents?|docs|checklist|need|bring|pack|items?|papers?|id\b|receipt|paypal|passport)\b/i.test(
+      t,
+    )
+  ) {
+    return true;
+  }
   return false;
 }
 
@@ -76,7 +100,7 @@ function titleCaseWords(s: string): string {
 }
 
 /**
- * Soft-rescue packing/trip list dumps the model marks noise.
+ * Soft-rescue packing/trip/document list dumps the model marks noise.
  * Prefer atom so invite + Also about can fire.
  */
 export function rescueEntityListCapture(
@@ -85,11 +109,16 @@ export function rescueEntityListCapture(
 ): ClassificationResult {
   if (result.verdict === "atom") return result;
   if (result.verdict !== "task" && result.verdict !== "noise") return result;
-  if (!isEntityShaped(captureText)) return result;
-  // Avoid pure one-word chores
   const t = captureText.trim();
   if (t.length < 12) return result;
-  if (!/\bpack/i.test(t) && !/\btrip\b/i.test(t) && !/\blist\b/i.test(t)) {
+  const keepableList = isKeepableListDump(t);
+  if (!isEntityShaped(captureText) && !keepableList) return result;
+  if (
+    !keepableList &&
+    !/\bpack/i.test(t) &&
+    !/\btrip\b/i.test(t) &&
+    !/\blist\b/i.test(t)
+  ) {
     return result;
   }
 

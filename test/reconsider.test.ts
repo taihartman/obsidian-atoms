@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   canApplyReconsider,
   findCaptureAtLine,
+  forceKeepAtomResult,
   gateReconsiderTarget,
   labelVerdict,
 } from "../src/pipeline/reconsider";
@@ -78,5 +79,15 @@ describe("parse + gate noise", () => {
     const pack = caps.find((c) => c.text.includes("packing"));
     const g = gateReconsiderTarget(pack ?? null);
     expect(g.ok).toBe(true);
+  });
+});
+
+describe("forceKeepAtomResult", () => {
+  it("builds atom from capture text", () => {
+    const r = forceKeepAtomResult(
+      "Documents - 1. valid id, 2. receipt, 3. PayPal",
+    );
+    expect(r.verdict).toBe("atom");
+    expect(r.title.toLowerCase()).toContain("document");
   });
 });

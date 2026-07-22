@@ -4,6 +4,8 @@ import {
   exactVaultTitle,
   findExactEntityTitlesInCapture,
   isEntityShaped,
+  isKeepableListDump,
+  rescueEntityListCapture,
 } from "../src/pipeline/enrich/entityLinks";
 import type { ClassificationResult } from "../src/shared/types";
 
@@ -25,6 +27,33 @@ describe("isEntityShaped", () => {
 
   it("ignores unrelated prose", () => {
     expect(isEntityShaped("Alex likes periwinkle")).toBe(false);
+  });
+});
+
+describe("isKeepableListDump + rescue", () => {
+  const docs =
+    "Documents - 1. valid id, 2. reciept, 3. screenshot of PayPal statement. Will call opens at 1:00pm";
+
+  it("detects numbered document checklist", () => {
+    expect(isKeepableListDump(docs)).toBe(true);
+    expect(isEntityShaped(docs)).toBe(true);
+  });
+
+  it("does not rescue bare buy milk", () => {
+    expect(isKeepableListDump("buy milk")).toBe(false);
+  });
+
+  it("rescues noise → atom for docs checklist", () => {
+    const out = rescueEntityListCapture(docs, {
+      verdict: "noise",
+      title: "",
+      tags: [],
+      proposed_tags: [],
+      links: [],
+    });
+    expect(out.verdict).toBe("atom");
+    expect(out.title.length).toBeGreaterThan(3);
+    expect(out.tags.map((t) => t.toLowerCase())).toContain("list");
   });
 });
 
