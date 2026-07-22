@@ -122,6 +122,11 @@ export interface LinkerSettings {
    * Empty → fall back to built-in CAPTURE_SHORTCUT_INSTALL_URL constant.
    */
   captureShortcutInstallUrl: string;
+  /**
+   * Feature flag: Reconsider capture (soft-unfreeze noise/task → reclassify).
+   * Off by default until dogfood-ready.
+   */
+  enableReconsiderCapture: boolean;
 }
 
 export const DEFAULT_SETTINGS: LinkerSettings = {
@@ -146,6 +151,7 @@ export const DEFAULT_SETTINGS: LinkerSettings = {
   proposedTags: [],
   useDeviceLocalKeyFallback: false,
   captureShortcutInstallUrl: "",
+  enableReconsiderCapture: false,
 };
 
 /** SecretStorage / localStorage keys — lowercase-dashed (KTD5). */

@@ -329,6 +329,82 @@ export function insertMarkerAfterCapture(
   return { content, changed: true };
 }
 
+/**
+ * Remove all plugin marker lines after the capture extent (until next top-level
+ * bullet). Capture body lines are never touched. Used by Reconsider only.
+ */
+export function stripMarkersAfterCapture(
+  dailyContent: string,
+  capture: Capture,
+): { content: string; removed: number; endLine: number | null } {
+  const lines = dailyContent.split(/\r?\n/);
+  const endLine = resolveCaptureEndLine(lines, capture);
+  if (endLine === null) {
+    return { content: dailyContent, removed: 0, endLine: null };
+  }
+
+  const keep: string[] = [];
+  let removed = 0;
+  for (let j = 0; j < lines.length; j++) {
+    if (j <= endLine) {
+      keep.push(lines[j]!);
+      continue;
+    }
+    const line = lines[j]!;
+    if (/^- /.test(line)) {
+      keep.push(...lines.slice(j));
+      break;
+    }
+    if (MARKER_LINE_RE.test(line)) {
+      removed += 1;
+      continue;
+    }
+    keep.push(line);
+  }
+
+  if (removed === 0) {
+    return { content: dailyContent, removed: 0, endLine };
+  }
+
+  const endsWithNewline = dailyContent.endsWith("\n");
+  let content = keep.join("\n");
+  if (endsWithNewline && !content.endsWith("\n")) content += "\n";
+  return { content, removed, endLine };
+}
+
+/**
+ * Replace the marker region under a capture with a new marker line.
+ * Strips stacked sentinels first, then inserts. Body sacred.
+ */
+export function replaceMarkerAfterCapture(
+  dailyContent: string,
+  capture: Capture,
+  markerLine: string,
+): { content: string; changed: boolean } {
+  const stripped = stripMarkersAfterCapture(dailyContent, capture);
+  if (stripped.endLine === null) {
+    return { content: dailyContent, changed: false };
+  }
+  // After strip, insert as if no marker (capture indices still valid for body)
+  const inserted = insertMarkerAfterCapture(
+    stripped.content,
+    capture,
+    markerLine,
+  );
+  const changed =
+    stripped.removed > 0 || inserted.changed;
+  if (!changed) {
+    // Already had identical single marker — still force replace path identity
+    const lines = dailyContent.split(/\r?\n/);
+    const end = stripped.endLine;
+    const next = lines[end + 1] ?? "";
+    if (next === markerLine || next.trim() === markerLine.trim()) {
+      return { content: dailyContent, changed: false };
+    }
+  }
+  return { content: inserted.content, changed: true };
+}
+
 function pad2(n: number): string {
   return String(n).padStart(2, "0");
 }

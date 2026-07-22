@@ -6,8 +6,10 @@ import {
   insertMarkerAfterCapture,
   markerLineForDecision,
   planWrite,
+  replaceMarkerAfterCapture,
   resolveCreatedField,
   sanitizeFilename,
+  stripMarkersAfterCapture,
   formatAtomBody,
   TITLE_MAX_LEN,
 } from "../src/pipeline/render";
@@ -292,5 +294,37 @@ describe("insertMarkerAfterCapture — no double markers", () => {
     ].join("\n");
     const again = insertMarkerAfterCapture(stacked, cap, "\t<!--linker:noise-->");
     expect(again.changed).toBe(false);
+  });
+});
+
+describe("replaceMarkerAfterCapture (reconsider)", () => {
+  it("strips stacked markers and writes one new marker; body unchanged", () => {
+    const daily = [
+      "- packing list for Japan",
+      "\t<!--linker:noise-->",
+      "\t<!--linker:noise-->",
+      "- next",
+      "",
+    ].join("\n");
+    const cap = capture("packing list for Japan", 0, 0);
+    const original = daily.split("\n")[0];
+    const marker = markerLineForDecision("atom", "Japan packing list");
+    const { content, changed } = replaceMarkerAfterCapture(daily, cap, marker);
+    expect(changed).toBe(true);
+    expect(content.split("\n")[0]).toBe(original);
+    expect(content).toContain(marker);
+    expect((content.match(/<!--linker/g) ?? []).length).toBe(1);
+    expect(content).toContain("- next");
+  });
+
+  it("stripMarkers removes only marker lines under capture", () => {
+    const daily =
+      "- buy milk\n\t<!--linker:task-->\n\t<!--linker:noise-->\n- keep\n";
+    const cap = capture("buy milk", 0, 0);
+    const { content, removed } = stripMarkersAfterCapture(daily, cap);
+    expect(removed).toBe(2);
+    expect(content).toContain("- buy milk");
+    expect(content).not.toContain("linker");
+    expect(content).toContain("- keep");
   });
 });

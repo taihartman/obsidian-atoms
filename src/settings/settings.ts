@@ -314,6 +314,20 @@ export class AtomsSettingTab extends PluginSettingTab {
             await this.plugin.saveSettings();
           }),
       );
+
+    new Setting(containerEl)
+      .setName("Reconsider capture")
+      .setDesc(
+        "Experimental. Command palette → Reconsider capture: ask again about one skipped line (noise/task marker) under the cursor. Off by default.",
+      )
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.enableReconsiderCapture === true)
+          .onChange(async (on) => {
+            this.plugin.settings.enableReconsiderCapture = on;
+            await this.plugin.saveSettings();
+          }),
+      );
   }
 
   private renderVocabularySection(containerEl: HTMLElement) {
