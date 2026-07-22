@@ -8,6 +8,7 @@
 - **`update-linking.html`** — quality upgrade path: home strip → review sheet → done (draft; not implemented)
 - **`person-hub-invite.html`** — **Add {Name}?** people-only invite (settled product; not implemented)
 - **`land-then-remember.html`** — **Land, then remember**: post-write peak (Process / Update / auto-run), 0·1·many counts, Done dismiss, named connected or silence, bridge tap, light theme (draft; not implemented)
+- **`soft-unfreeze-reconsider.html`** — **Reconsider capture** (#100): cursor on skipped line → classify once → Now → Proposed sheet → Apply (draft; not implemented)
 
 ## Product job
 

@@ -1,0 +1,860 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Atoms — Reconsider capture (mock)</title>
+  <!--
+    Concept: Soft unfreeze / Reconsider
+    Issue: #100
+    Visual authority: docs/design-handoff/tokens/README.md (v2 editorial)
+    Product: cursor on a skipped capture → classify once → Now → Proposed → Apply
+  -->
+  <style>
+    :root {
+      --bg-primary: #000000;
+      --bg-secondary: #1c1c1e;
+      --bg-elevated: #2c2c2e;
+      --sep: rgba(84, 84, 88, 0.55);
+      --text-label: #ffffff;
+      --text-secondary: rgba(235, 235, 245, 0.6);
+      --text-tertiary: rgba(235, 235, 245, 0.32);
+      --tint: #0a84ff;
+      --person: #ff9f0a;
+      --work: #64d2ff;
+      --done: #30d158;
+      --error: #ff453a;
+      --mind: #bf5af2;
+      --person-soft: color-mix(in srgb, var(--person) 16%, transparent);
+      --work-soft: color-mix(in srgb, var(--work) 16%, transparent);
+      --tint-soft: color-mix(in srgb, var(--tint) 18%, transparent);
+      --done-soft: color-mix(in srgb, var(--done) 12%, transparent);
+      --done-border: color-mix(in srgb, var(--done) 32%, transparent);
+      --error-soft: color-mix(in srgb, var(--error) 12%, transparent);
+      --error-border: color-mix(in srgb, var(--error) 30%, transparent);
+      --radius-card: 16px;
+      --radius-btn: 12px;
+      --radius-chip: 6px;
+      --radius-pill: 980px;
+      --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+      --claim-serif: "New York", ui-serif, Georgia, "Times New Roman", serif;
+      --page-bg: #121214;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: var(--font);
+      background: var(--page-bg);
+      color: var(--text-label);
+      -webkit-font-smoothing: antialiased;
+    }
+    .page { max-width: 1180px; margin: 0 auto; padding: 28px 18px 90px; }
+    .page > h1 {
+      font-size: 1.45rem; font-weight: 700; letter-spacing: -0.03em; margin: 0 0 8px;
+    }
+    .lede {
+      color: var(--text-secondary); max-width: 48rem; line-height: 1.5;
+      margin: 0 0 12px; font-size: 0.95rem;
+    }
+    .token-bar {
+      display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 18px;
+      font-size: 0.72rem; color: var(--text-tertiary);
+    }
+    .token-bar span {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 4px 10px; border-radius: var(--radius-pill);
+      background: var(--bg-secondary); border: 1px solid var(--sep);
+    }
+    .swatch { width: 10px; height: 10px; border-radius: 3px; }
+    .decisions {
+      background: var(--bg-secondary);
+      border: 1px solid var(--sep);
+      border-radius: var(--radius-card);
+      padding: 14px 16px;
+      margin-bottom: 14px;
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      line-height: 1.45;
+    }
+    .decisions strong { color: var(--text-label); font-weight: 600; }
+    .decisions ul { margin: 8px 0 0; padding-left: 1.15rem; }
+    .decisions li { margin: 4px 0; }
+    .out {
+      background: var(--bg-secondary);
+      border: 1px dashed var(--sep);
+      border-radius: var(--radius-card);
+      padding: 12px 16px;
+      margin-bottom: 22px;
+      font-size: 0.82rem;
+      color: var(--text-tertiary);
+      line-height: 1.45;
+    }
+    .out strong { color: var(--text-secondary); font-weight: 600; }
+    .toolbar {
+      display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 22px; align-items: center;
+    }
+    .toolbar > span {
+      font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.12em;
+      color: var(--text-tertiary); font-weight: 600;
+      width: 100%;
+    }
+    @media (min-width: 700px) {
+      .toolbar > span { width: auto; }
+    }
+    .chip {
+      border: none; background: var(--bg-elevated); color: var(--text-secondary);
+      border-radius: var(--radius-pill); padding: 8px 14px;
+      font-size: 0.82rem; font-weight: 500; cursor: pointer;
+      min-height: 44px;
+    }
+    .chip.on {
+      background: var(--tint-soft);
+      color: var(--tint);
+    }
+
+    .stage {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 40px;
+      align-items: start;
+    }
+    @media (max-width: 900px) {
+      .stage { grid-template-columns: 1fr; justify-items: center; }
+      .side { max-width: 420px; width: 100%; }
+    }
+    .cap {
+      font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.12em;
+      color: var(--text-tertiary); text-align: center; margin-bottom: 10px; font-weight: 600;
+    }
+    .phone {
+      width: 375px;
+      height: 812px;
+      background: var(--bg-primary);
+      border-radius: 44px;
+      border: 4px solid #3a3a3c;
+      box-shadow: 0 28px 70px rgba(0,0,0,0.55);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+    .status-bar {
+      height: 50px;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      padding-bottom: 8px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+    .nav { padding: 0 10px 8px 16px; flex-shrink: 0; }
+    .nav-top {
+      display: flex; justify-content: space-between; align-items: center; min-height: 40px;
+    }
+    .nav-btn {
+      border: none; background: transparent; color: var(--tint);
+      font-size: 1.05rem; min-width: 44px; min-height: 44px; cursor: pointer;
+      font-weight: 500;
+    }
+    .nav-center {
+      font-size: 0.95rem; font-weight: 650; letter-spacing: -0.02em;
+    }
+    .daily-title {
+      font-size: 1.65rem; font-weight: 700; letter-spacing: -0.035em;
+      margin: 0; line-height: 1.1;
+    }
+    .daily-sub {
+      font-size: 0.82rem; color: var(--text-tertiary); margin: 4px 0 0;
+    }
+    .scroll {
+      flex: 1;
+      overflow-y: auto;
+      min-height: 0;
+      padding: 4px 16px 28px;
+    }
+    .editor {
+      font-size: 0.98rem;
+      line-height: 1.55;
+      letter-spacing: -0.01em;
+    }
+    .bullet {
+      display: flex;
+      gap: 10px;
+      padding: 6px 8px;
+      margin: 0 -8px;
+      border-radius: 10px;
+      color: var(--text-label);
+    }
+    .bullet .dot {
+      color: var(--text-tertiary);
+      flex-shrink: 0;
+      width: 12px;
+    }
+    .bullet .body { flex: 1; min-width: 0; }
+    .bullet.is-focus {
+      background: var(--tint-soft);
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tint) 35%, transparent);
+    }
+    .bullet .caret {
+      display: inline-block;
+      width: 2px;
+      height: 1.05em;
+      background: var(--tint);
+      vertical-align: text-bottom;
+      margin-left: 1px;
+      animation: blink 1s step-end infinite;
+    }
+    @keyframes blink {
+      50% { opacity: 0; }
+    }
+    .marker-ghost {
+      margin: 2px 0 10px 22px;
+      font-size: 0.72rem;
+      color: var(--text-tertiary);
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      opacity: 0.55;
+      letter-spacing: -0.02em;
+    }
+    .marker-ghost.is-atom {
+      color: var(--done);
+      opacity: 0.75;
+      font-family: var(--font);
+      font-size: 0.8rem;
+    }
+    .home-indicator {
+      height: 28px; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .home-indicator span {
+      width: 120px; height: 4px; border-radius: 4px; background: var(--bg-elevated);
+    }
+
+    /* Sheet overlay */
+    .sheet-root {
+      position: absolute;
+      inset: 0;
+      z-index: 20;
+      display: none;
+      flex-direction: column;
+      justify-content: flex-end;
+    }
+    .sheet-root.is-open { display: flex; }
+    .scrim {
+      position: absolute; inset: 0;
+      background: rgba(0, 0, 0, 0.52);
+    }
+    .sheet {
+      position: relative;
+      z-index: 1;
+      margin: 0 8px 10px;
+      background: rgba(28, 28, 30, 0.97);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border-radius: 18px;
+      border: 1px solid var(--sep);
+      padding: 10px 16px 16px;
+      max-height: 78%;
+      overflow-y: auto;
+      box-shadow: 0 18px 50px rgba(0,0,0,0.45);
+    }
+    .grab {
+      width: 36px; height: 4px; border-radius: 4px;
+      background: var(--bg-elevated);
+      margin: 2px auto 12px;
+    }
+    .sheet-kicker {
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.13em;
+      text-transform: uppercase;
+      color: var(--tint);
+      margin: 0 0 6px;
+    }
+    .sheet h2 {
+      margin: 0 0 6px;
+      font-size: 1.2rem;
+      font-weight: 650;
+      letter-spacing: -0.025em;
+    }
+    .sheet-lead {
+      margin: 0 0 14px;
+      font-size: 0.88rem;
+      color: var(--text-secondary);
+      line-height: 1.4;
+    }
+    .snippet {
+      background: var(--bg-primary);
+      border: 1px solid var(--sep);
+      border-radius: 12px;
+      padding: 12px 14px;
+      margin-bottom: 14px;
+      font-size: 0.92rem;
+      line-height: 1.4;
+      letter-spacing: -0.01em;
+    }
+    .snippet .from {
+      font-size: 0.72rem;
+      color: var(--text-tertiary);
+      margin: 0 0 6px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    .compare {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      gap: 8px;
+      align-items: stretch;
+      margin-bottom: 8px;
+    }
+    .leg {
+      background: var(--bg-elevated);
+      border-radius: 12px;
+      padding: 12px 12px 11px;
+      min-height: 88px;
+    }
+    .leg .lab {
+      font-size: 0.68rem;
+      font-weight: 650;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-tertiary);
+      margin: 0 0 8px;
+    }
+    .badge {
+      display: inline-block;
+      font-size: 0.72rem;
+      font-weight: 650;
+      letter-spacing: 0.02em;
+      padding: 3px 8px;
+      border-radius: var(--radius-pill);
+      margin-bottom: 8px;
+    }
+    .badge-skip {
+      color: var(--text-secondary);
+      background: color-mix(in srgb, var(--text-secondary) 14%, transparent);
+    }
+    .badge-note {
+      color: var(--done);
+      background: var(--done-soft);
+    }
+    .badge-same {
+      color: var(--text-tertiary);
+      background: color-mix(in srgb, var(--text-tertiary) 14%, transparent);
+    }
+    .leg .claim {
+      font-family: var(--claim-serif);
+      font-size: 0.95rem;
+      font-weight: 500;
+      letter-spacing: -0.015em;
+      line-height: 1.3;
+      margin: 0;
+    }
+    .leg .quiet {
+      margin: 0;
+      font-size: 0.88rem;
+      color: var(--text-secondary);
+      line-height: 1.35;
+    }
+    .arrow {
+      align-self: center;
+      color: var(--text-tertiary);
+      font-size: 1.1rem;
+      font-weight: 500;
+      padding-top: 10px;
+    }
+    .chips {
+      display: flex; flex-wrap: wrap; gap: 6px;
+      margin: 10px 0 0;
+    }
+    .chip-person {
+      display: inline-block; font-size: 0.78rem; font-weight: 600;
+      color: var(--person); background: var(--person-soft);
+      padding: 2px 8px; border-radius: var(--radius-chip);
+    }
+    .chip-work {
+      display: inline-block; font-size: 0.78rem; font-weight: 600;
+      color: var(--work); background: var(--work-soft);
+      padding: 2px 8px; border-radius: var(--radius-chip);
+    }
+    .helper {
+      margin: 4px 0 14px;
+      font-size: 0.8rem;
+      color: var(--text-tertiary);
+      line-height: 1.35;
+      min-height: 1.1em;
+    }
+    .helper.warn { color: color-mix(in srgb, var(--error) 75%, white); }
+    .btns { display: flex; gap: 10px; }
+    .btn {
+      flex: 1;
+      min-height: 48px;
+      border: none;
+      border-radius: var(--radius-btn);
+      font-size: 0.95rem;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      cursor: pointer;
+    }
+    .btn:active { transform: scale(0.98); opacity: 0.92; }
+    .btn-primary { background: var(--tint); color: #fff; }
+    .btn-primary:disabled {
+      background: var(--bg-elevated);
+      color: var(--text-tertiary);
+      cursor: default;
+      transform: none;
+      opacity: 1;
+    }
+    .btn-secondary { background: var(--bg-elevated); color: var(--tint); }
+    .loading-row {
+      display: flex; align-items: center; gap: 12px;
+      padding: 18px 4px 22px;
+      color: var(--text-secondary);
+      font-size: 0.92rem;
+    }
+    .spin {
+      width: 18px; height: 18px;
+      border: 2px solid var(--sep);
+      border-top-color: var(--tint);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .toast {
+      position: absolute;
+      left: 20px; right: 20px; bottom: 36px;
+      z-index: 30;
+      background: var(--bg-elevated);
+      border-radius: 14px;
+      padding: 14px 16px;
+      font-size: 0.9rem;
+      font-weight: 500;
+      text-align: center;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.45);
+      display: none;
+      line-height: 1.35;
+    }
+    .toast.show { display: block; }
+    .toast.ok { border: 1px solid var(--done-border); background: color-mix(in srgb, var(--done) 10%, var(--bg-elevated)); }
+    .toast.bad { border: 1px solid var(--error-border); background: color-mix(in srgb, var(--error) 10%, var(--bg-elevated)); }
+
+    .cmdk {
+      position: absolute;
+      left: 16px; right: 16px; top: 120px;
+      z-index: 25;
+      display: none;
+      background: rgba(44, 44, 46, 0.98);
+      border: 1px solid var(--sep);
+      border-radius: 14px;
+      overflow: hidden;
+      box-shadow: 0 24px 60px rgba(0,0,0,0.5);
+    }
+    .cmdk.is-open { display: block; }
+    .cmdk-q {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--sep);
+      color: var(--text-secondary);
+      font-size: 0.95rem;
+    }
+    .cmdk-q strong { color: var(--text-label); font-weight: 500; }
+    .cmdk-row {
+      padding: 14px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--tint-soft);
+    }
+    .cmdk-row .name { font-size: 0.95rem; font-weight: 550; }
+    .cmdk-row .meta { font-size: 0.75rem; color: var(--text-tertiary); }
+
+    .side h2 {
+      font-size: 0.95rem; font-weight: 650; letter-spacing: -0.02em; margin: 0 0 10px;
+    }
+    .side p { font-size: 0.85rem; color: var(--text-secondary); line-height: 1.45; margin: 0 0 14px; }
+    .doctrine {
+      background: var(--bg-secondary); border: 1px solid var(--sep);
+      border-radius: var(--radius-card);
+      padding: 14px 16px; margin-bottom: 14px; font-size: 0.84rem;
+      color: var(--text-secondary); line-height: 1.45;
+    }
+    .doctrine strong { color: var(--text-label); }
+    .doctrine.bad {
+      border-color: color-mix(in srgb, var(--error) 35%, transparent);
+      background: color-mix(in srgb, var(--error) 8%, transparent);
+    }
+    .doctrine.bad strong { color: #ff8a80; }
+    code {
+      font-size: 0.78rem;
+      background: var(--bg-elevated);
+      padding: 2px 6px;
+      border-radius: 4px;
+      color: var(--text-secondary);
+    }
+    .footnote {
+      margin-top: 8px;
+      font-size: 0.75rem;
+      color: var(--text-tertiary);
+      line-height: 1.4;
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <h1>Reconsider capture</h1>
+    <p class="lede">
+      Soft unfreeze for a wrong skip. Cursor on the line → command → classify once →
+      <strong style="color:var(--text-label);font-weight:600">Now → Proposed</strong> → Apply.
+      Body never rewrites. Issue <code>#100</code>.
+    </p>
+    <div class="token-bar" aria-label="Token swatches">
+      <span><i class="swatch" style="background:var(--tint)"></i> tint / action</span>
+      <span><i class="swatch" style="background:var(--done)"></i> note / filed</span>
+      <span><i class="swatch" style="background:var(--person)"></i> person chip</span>
+      <span><i class="swatch" style="background:var(--work)"></i> work chip</span>
+      <span><i class="swatch" style="background:var(--bg-elevated);border:1px solid var(--sep)"></i> sheet</span>
+    </div>
+    <div class="decisions">
+      <strong>Settled product</strong>
+      <ul>
+        <li><strong>Entry:</strong> cursor on the skipped bullet (or its stamp line). No home noise list. No post-Process nag.</li>
+        <li><strong>Verb:</strong> Reconsider capture. Buttons: Cancel · Apply.</li>
+        <li><strong>Promise:</strong> classify once; Apply commits that plan (never re-rolls).</li>
+        <li><strong>v1 matrix:</strong> skipped → note only. Same skip → Apply disabled. Already a note → refuse demote.</li>
+        <li><strong>Language:</strong> “skipped” / “note” — never HTML comments or noise/task jargon in UI.</li>
+      </ul>
+    </div>
+    <div class="out">
+      <strong>Out of v1</strong> — vault-wide picker · batch reconsider · strip-without-classify ·
+      atom demote · auto sheet after Process · teaching <code>&lt;!--linker:noise--&gt;</code>
+    </div>
+
+    <div class="toolbar" id="toolbar">
+      <span>State</span>
+      <button type="button" class="chip on" data-state="daily">Daily · focus</button>
+      <button type="button" class="chip" data-state="cmd">Command</button>
+      <button type="button" class="chip" data-state="loading">Asking…</button>
+      <button type="button" class="chip" data-state="promote">Now → note</button>
+      <button type="button" class="chip" data-state="nochange">Still skip</button>
+      <button type="button" class="chip" data-state="filed">Filed</button>
+      <button type="button" class="chip" data-state="miss">Miss cursor</button>
+      <button type="button" class="chip" data-state="collision">Collision</button>
+      <button type="button" class="chip" data-state="demote">Already a note</button>
+    </div>
+
+    <div class="stage">
+      <div>
+        <div class="cap" id="phone-cap">Daily · cursor on skipped capture</div>
+        <div class="phone">
+          <div class="status-bar">9:41</div>
+          <div class="nav">
+            <div class="nav-top">
+              <button type="button" class="nav-btn" aria-label="Back">‹ Notes</button>
+              <span class="nav-center">Daily</span>
+              <button type="button" class="nav-btn" aria-label="More">⋯</button>
+            </div>
+            <h1 class="daily-title">2026-07-18</h1>
+            <p class="daily-sub">Saturday · past day</p>
+          </div>
+          <div class="scroll">
+            <div class="editor" id="editor">
+              <div class="bullet">
+                <span class="dot">•</span>
+                <span class="body">buy milk on the way home</span>
+              </div>
+              <div class="marker-ghost" data-m="buy"><!-- skipped --></div>
+
+              <div class="bullet is-focus" id="focus-bullet">
+                <span class="dot">•</span>
+                <span class="body" id="focus-body">packing list for Japan: passport, JR pass printout, adapter, gifts for Sherry<span class="caret" id="caret"></span></span>
+              </div>
+              <div class="marker-ghost" id="focus-marker" data-m="pack"><!-- skipped --></div>
+
+              <div class="bullet">
+                <span class="dot">•</span>
+                <span class="body">Christian recommended watching My Hero Academia</span>
+              </div>
+              <div class="marker-ghost is-atom" data-m="mha">↳ Christian recommended My Hero Academia</div>
+            </div>
+          </div>
+          <div class="home-indicator"><span></span></div>
+
+          <!-- Command palette -->
+          <div class="cmdk" id="cmdk" aria-hidden="true">
+            <div class="cmdk-q">Atoms: <strong>recon</strong></div>
+            <div class="cmdk-row">
+              <span class="name">Reconsider capture</span>
+              <span class="meta">Atoms</span>
+            </div>
+          </div>
+
+          <!-- Sheet -->
+          <div class="sheet-root" id="sheet-root" aria-hidden="true">
+            <div class="scrim" id="scrim"></div>
+            <div class="sheet" id="sheet">
+              <div class="grab"></div>
+              <p class="sheet-kicker">Reconsider</p>
+              <h2 id="sheet-title">Nothing written yet</h2>
+              <p class="sheet-lead" id="sheet-lead">Ask again about this capture. Your words stay as they are.</p>
+
+              <div class="snippet" id="snippet">
+                <p class="from">Capture</p>
+                packing list for Japan: passport, JR pass printout, adapter, gifts for Sherry
+              </div>
+
+              <div id="sheet-body">
+                <!-- filled by JS -->
+              </div>
+
+              <p class="helper" id="helper"></p>
+              <div class="btns">
+                <button type="button" class="btn btn-secondary" id="btn-cancel">Cancel</button>
+                <button type="button" class="btn btn-primary" id="btn-apply">Apply</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="toast" id="toast"></div>
+        </div>
+      </div>
+
+      <div class="side">
+        <div class="doctrine">
+          <strong>North star</strong><br />
+          You’re looking at a line that was set aside. Reconsider asks again, shows the new answer, and on Apply either files a note or quietly leaves it set aside — nothing else moves.
+        </div>
+        <div class="doctrine">
+          <strong>Write path (hidden)</strong><br />
+          Replace stamp region under the capture → create atom if proposed is a note → collision body-gate. Never rewrite the bullet. Never batch Process.
+        </div>
+        <div class="doctrine bad">
+          <strong>Rejected</strong><br />
+          “Unprocess” / “Unlock” · noise browser on home · Process these re-roll · strip marker only · auto modal after Process · demote note → skip in v1.
+        </div>
+        <h2>Copy bank</h2>
+        <p>
+          Miss: <em>Place the cursor on a skipped capture, then try again.</em><br />
+          No change: <em>Still not worth keeping.</em><br />
+          Filed: <em>Filed as Japan packing list…</em><br />
+          Collision: <em>Couldn’t file — a note with that claim already exists.</em><br />
+          Demote: <em>This one already became a note. Open it or edit the daily yourself.</em>
+        </p>
+        <p class="footnote">
+          Authority: issue #100 · tokens README · Apple decisions session 2026-07-22<br />
+          Open: <code>docs/design-handoff/atoms-view/soft-unfreeze-reconsider.html</code>
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const CAPTURE = "packing list for Japan: passport, JR pass printout, adapter, gifts for Sherry";
+    const CLAIM = "Japan trip packing includes passport, JR pass, adapter, and gifts for Sherry";
+
+    const labels = {
+      daily: "Daily · cursor on skipped capture",
+      cmd: "Command palette",
+      loading: "Asking again…",
+      promote: "Now → note · Apply",
+      nochange: "Still skip · Apply off",
+      filed: "After Apply",
+      miss: "Miss · no focus",
+      collision: "Collision block",
+      demote: "Already a note · refuse",
+    };
+
+    const els = {
+      cap: document.getElementById("phone-cap"),
+      cmdk: document.getElementById("cmdk"),
+      sheetRoot: document.getElementById("sheet-root"),
+      sheetBody: document.getElementById("sheet-body"),
+      sheetTitle: document.getElementById("sheet-title"),
+      sheetLead: document.getElementById("sheet-lead"),
+      helper: document.getElementById("helper"),
+      apply: document.getElementById("btn-apply"),
+      toast: document.getElementById("toast"),
+      focusBullet: document.getElementById("focus-bullet"),
+      focusBody: document.getElementById("focus-body"),
+      focusMarker: document.getElementById("focus-marker"),
+      caret: document.getElementById("caret"),
+      snippet: document.getElementById("snippet"),
+    };
+
+    function compareHTML({ nowBadge, nowClass, nowHtml, nextBadge, nextClass, nextHtml }) {
+      return `
+        <div class="compare">
+          <div class="leg">
+            <p class="lab">Now</p>
+            <span class="badge ${nowClass}">${nowBadge}</span>
+            <div>${nowHtml}</div>
+          </div>
+          <div class="arrow">→</div>
+          <div class="leg">
+            <p class="lab">Proposed</p>
+            <span class="badge ${nextClass}">${nextBadge}</span>
+            <div>${nextHtml}</div>
+          </div>
+        </div>`;
+    }
+
+    function setEditor({ focused = true, markerKind = "skip", claim = CLAIM } = {}) {
+      els.focusBullet.classList.toggle("is-focus", focused);
+      els.caret.style.display = focused ? "inline-block" : "none";
+      els.focusBody.innerHTML =
+        CAPTURE + (focused ? '<span class="caret" id="caret"></span>' : "");
+      if (markerKind === "skip") {
+        els.focusMarker.className = "marker-ghost";
+        els.focusMarker.textContent = "<!-- skipped -->";
+      } else if (markerKind === "atom") {
+        els.focusMarker.className = "marker-ghost is-atom";
+        els.focusMarker.textContent = "↳ " + claim;
+      }
+    }
+
+    function openSheet(open) {
+      els.sheetRoot.classList.toggle("is-open", open);
+      els.sheetRoot.setAttribute("aria-hidden", open ? "false" : "true");
+    }
+
+    function openCmd(open) {
+      els.cmdk.classList.toggle("is-open", open);
+      els.cmdk.setAttribute("aria-hidden", open ? "false" : "true");
+    }
+
+    function toast(msg, kind) {
+      els.toast.textContent = msg;
+      els.toast.className = "toast show" + (kind ? " " + kind : "");
+    }
+
+    function clearToast() {
+      els.toast.className = "toast";
+      els.toast.textContent = "";
+    }
+
+    function show(state) {
+      document.querySelectorAll(".chip[data-state]").forEach((c) => {
+        c.classList.toggle("on", c.dataset.state === state);
+      });
+      els.cap.textContent = labels[state] || state;
+      clearToast();
+      openCmd(false);
+      openSheet(false);
+      els.apply.disabled = false;
+      els.apply.textContent = "Apply";
+      els.helper.className = "helper";
+      els.helper.textContent = "";
+      els.sheetTitle.textContent = "Nothing written yet";
+      els.sheetLead.textContent = "Ask again about this capture. Your words stay as they are.";
+      els.snippet.style.display = "block";
+      setEditor({ focused: true, markerKind: "skip" });
+
+      if (state === "daily") {
+        return;
+      }
+
+      if (state === "cmd") {
+        openCmd(true);
+        return;
+      }
+
+      if (state === "miss") {
+        setEditor({ focused: false, markerKind: "skip" });
+        document.querySelectorAll(".bullet").forEach((b) => b.classList.remove("is-focus"));
+        toast("Place the cursor on a skipped capture, then try again.");
+        return;
+      }
+
+      if (state === "demote") {
+        setEditor({ focused: true, markerKind: "atom" });
+        toast("This one already became a note. Open it or edit the daily yourself.", "bad");
+        return;
+      }
+
+      if (state === "filed") {
+        setEditor({ focused: true, markerKind: "atom" });
+        toast("Filed as “" + CLAIM + "”", "ok");
+        return;
+      }
+
+      // sheet states
+      openSheet(true);
+
+      if (state === "loading") {
+        els.sheetTitle.textContent = "Asking again…";
+        els.sheetLead.textContent = "One capture. Nothing written yet.";
+        els.snippet.style.display = "block";
+        els.sheetBody.innerHTML = `
+          <div class="loading-row"><span class="spin" aria-hidden="true"></span> Looking at this line…</div>`;
+        els.apply.disabled = true;
+        els.apply.textContent = "Apply";
+        els.helper.textContent = "";
+        return;
+      }
+
+      if (state === "promote") {
+        els.sheetBody.innerHTML = compareHTML({
+          nowBadge: "Skipped",
+          nowClass: "badge-skip",
+          nowHtml: `<p class="quiet">Set aside. Not in your library.</p>`,
+          nextBadge: "Note",
+          nextClass: "badge-note",
+          nextHtml: `<p class="claim">${CLAIM}</p>
+            <div class="chips">
+              <span class="chip-person">Sherry</span>
+              <span class="chip-work">Japan</span>
+            </div>`,
+        });
+        els.helper.textContent = "Creates one note. Leaves your capture wording alone.";
+        els.apply.disabled = false;
+        return;
+      }
+
+      if (state === "nochange") {
+        els.sheetBody.innerHTML = compareHTML({
+          nowBadge: "Skipped",
+          nowClass: "badge-skip",
+          nowHtml: `<p class="quiet">Set aside. Not in your library.</p>`,
+          nextBadge: "Skipped",
+          nextClass: "badge-same",
+          nextHtml: `<p class="quiet">Still logistics — not worth keeping.</p>`,
+        });
+        els.helper.textContent = "Still not worth keeping.";
+        els.apply.disabled = true;
+        els.apply.textContent = "No change";
+        return;
+      }
+
+      if (state === "collision") {
+        els.sheetBody.innerHTML = compareHTML({
+          nowBadge: "Skipped",
+          nowClass: "badge-skip",
+          nowHtml: `<p class="quiet">Set aside. Not in your library.</p>`,
+          nextBadge: "Note",
+          nextClass: "badge-note",
+          nextHtml: `<p class="claim">${CLAIM}</p>`,
+        });
+        els.helper.className = "helper warn";
+        els.helper.textContent = "Couldn’t file — a note with that claim already exists.";
+        els.apply.disabled = true;
+        els.apply.textContent = "Can’t apply";
+        return;
+      }
+    }
+
+    document.getElementById("toolbar").addEventListener("click", (e) => {
+      const b = e.target.closest("[data-state]");
+      if (b) show(b.dataset.state);
+    });
+
+    document.getElementById("btn-cancel").addEventListener("click", () => show("daily"));
+    document.getElementById("scrim").addEventListener("click", () => show("daily"));
+    document.getElementById("btn-apply").addEventListener("click", () => {
+      if (!els.apply.disabled) show("filed");
+    });
+    document.querySelector(".cmdk-row").addEventListener("click", () => show("loading"));
+
+    show("daily");
+  </script>
+</body>
+</html>
