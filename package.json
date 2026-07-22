@@ -1,6 +1,6 @@
 {
   "name": "obsidian-atoms",
-  "version": "0.6.26",
+  "version": "0.6.27",
   "description": "Classify past daily-note captures into atomic notes via Anthropic API",
   "main": "main.js",
   "type": "module",

@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| _(none)_ |  |  |  |  |  |  |
+| In progress | #100 | Tai | `feat/reconsider-capture-100` | `docs/plans/2026-07-22-001-feat-reconsider-capture-plan.md` | `src/pipeline/reconsider.ts`, `reconsiderModal.ts`, `render.ts`, `main.ts`, settings flag | Feature flag off by default |
 
 ## How to claim (copy)
 
