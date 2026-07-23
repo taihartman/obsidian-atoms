@@ -163,7 +163,7 @@ U7   Deploy (Fly default) + docs/runbooks/atoms-plus-prod.md + public URL
   `/Users/a515138832/StudioProjects/obsidian_plugin-atoms-plus`  
   (linked worktree of main repo `obsidian_plugin`).  
 - Last feature commit before this handoff: `e2e4b9c feat(plus): prominent Refresh status after Checkout`  
-- WIP handoff commit: `19504e4 wip: handoff snapshot — plus production backend`  
+- WIP handoff commit: branch tip `wip: handoff snapshot — plus production backend` (see `git log -1`)  
 - Diff vs `origin/master`: ~57 files, large Plus surface (+8k lines)  
 - Remote: `origin` → `taihartman/obsidian-atoms`
 
