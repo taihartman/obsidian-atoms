@@ -10,6 +10,8 @@ import {
 
 /**
  * @param {unknown} raw
+ * @param {number} maxItems
+ * @param {number} maxLen
  * @returns {string[]}
  */
 function asStringList(raw, maxItems, maxLen) {
@@ -23,49 +25,49 @@ function asStringList(raw, maxItems, maxLen) {
   return out;
 }
 
+function hashTags(list) {
+  return list.length
+    ? list.map((t) => `#${String(t).replace(/^#/, "")}`).join(" ")
+    : "(none)";
+}
+
+function bulletList(list, empty) {
+  return list.length ? list.map((t) => `- ${t}`).join("\n") : empty;
+}
+
 /**
  * Bound vault context from client (titles / tags / vocabulary / person hubs).
  * @param {unknown} context
  */
 export function boundContext(context) {
-  const c = context && typeof context === "object" ? context : {};
+  const c =
+    context && typeof context === "object"
+      ? /** @type {Record<string, unknown>} */ (context)
+      : {};
   const maxTitles = config.maxContextTitles;
   return {
-    titles: asStringList(/** @type {any} */ (c).titles, maxTitles, 200),
-    tags: asStringList(/** @type {any} */ (c).tags, 80, 64),
-    vocabulary: asStringList(/** @type {any} */ (c).vocabulary, 80, 64),
-    personHubs: asStringList(/** @type {any} */ (c).personHubs, 40, 120),
+    titles: asStringList(c.titles, maxTitles, 200),
+    tags: asStringList(c.tags, 80, 64),
+    vocabulary: asStringList(c.vocabulary, 80, 64),
+    personHubs: asStringList(c.personHubs, 40, 120),
   };
 }
 
 export function buildContextUserMessage(context) {
-  const vocab = context.vocabulary.length
-    ? context.vocabulary.map((t) => `#${t.replace(/^#/, "")}`).join(" ")
-    : "(none)";
-  const tags = context.tags.length
-    ? context.tags.map((t) => `#${t.replace(/^#/, "")}`).join(" ")
-    : "(none)";
-  const personHubs = context.personHubs.length
-    ? context.personHubs.map((t) => `- ${t}`).join("\n")
-    : "(none)";
-  const titles = context.titles.length
-    ? context.titles.map((t) => `- ${t}`).join("\n")
-    : "(empty vault)";
-
   return [
     "## Vault context (stable prefix — do not include timestamps or run IDs)",
     "",
     "### Active vocabulary",
-    vocab,
+    hashTags(context.vocabulary),
     "",
     "### Tags present in vault",
-    tags,
+    hashTags(context.tags),
     "",
     "### Person hubs (from your vault — prefer linking these exact titles)",
-    personHubs,
+    bulletList(context.personHubs, "(none)"),
     "",
     "### Note titles",
-    titles,
+    bulletList(context.titles, "(empty vault)"),
   ].join("\n");
 }
 
@@ -79,47 +81,35 @@ export function buildCaptureUserMessage(capture) {
   ].join("\n");
 }
 
+function reject(status, message) {
+  return { ok: false, status, message };
+}
+
 /**
  * Build Anthropic Messages body server-side. Client may send capture + context only.
  * messagesRequest is ignored (and oversized bodies rejected).
  * @param {{ messagesRequest?: object, capture?: string, context?: unknown }} body
  */
 export function buildClassifyPayload(body) {
-  // Reject huge client blobs before work (including ignored messagesRequest)
   const maxBytes = 100_000;
   try {
-    const probe = JSON.stringify(body ?? {});
-    if (probe.length > maxBytes) {
-      return {
-        ok: false,
-        status: 413,
-        message: "Classify request too large",
-      };
+    if (JSON.stringify(body ?? {}).length > maxBytes) {
+      return reject(413, "Classify request too large");
     }
   } catch {
-    return { ok: false, status: 400, message: "Invalid classify body" };
+    return reject(400, "Invalid classify body");
   }
 
   const capture = String(body?.capture ?? "").trim();
-  if (!capture) {
-    return {
-      ok: false,
-      status: 400,
-      message: "capture is required",
-    };
-  }
+  if (!capture) return reject(400, "capture is required");
   if (capture.length > config.maxCaptureChars) {
-    return {
-      ok: false,
-      status: 413,
-      message: `capture exceeds ${config.maxCaptureChars} characters`,
-    };
+    return reject(
+      413,
+      `capture exceeds ${config.maxCaptureChars} characters`,
+    );
   }
 
   const ctx = boundContext(body?.context);
-  const contextText = buildContextUserMessage(ctx);
-  const captureText = buildCaptureUserMessage(capture);
-
   const payload = {
     model: config.anthropicModel,
     max_tokens: config.maxTokens,
@@ -130,7 +120,7 @@ export function buildClassifyPayload(body) {
         content: [
           {
             type: "text",
-            text: contextText,
+            text: buildContextUserMessage(ctx),
             cache_control: { type: "ephemeral", ttl: "5m" },
           },
         ],
@@ -140,7 +130,7 @@ export function buildClassifyPayload(body) {
         content: [
           {
             type: "text",
-            text: captureText,
+            text: buildCaptureUserMessage(capture),
           },
         ],
       },
@@ -153,7 +143,11 @@ export function buildClassifyPayload(body) {
     },
   };
 
-  return { ok: true, payload, ignoredClientMessagesRequest: Boolean(body?.messagesRequest) };
+  return {
+    ok: true,
+    payload,
+    ignoredClientMessagesRequest: Boolean(body?.messagesRequest),
+  };
 }
 
 /**
@@ -161,16 +155,11 @@ export function buildClassifyPayload(body) {
  */
 export async function proxyClassify(body) {
   if (!config.anthropicApiKey) {
-    return {
-      ok: false,
-      status: 503,
-      message: "Plus service missing ANTHROPIC_API_KEY",
-    };
+    return reject(503, "Plus service missing ANTHROPIC_API_KEY");
   }
 
   const built = buildClassifyPayload(body);
   if (!built.ok) return built;
-  const payload = built.payload;
 
   try {
     const res = await fetch(config.anthropicUrl, {
@@ -180,7 +169,7 @@ export async function proxyClassify(body) {
         "x-api-key": config.anthropicApiKey,
         "anthropic-version": config.anthropicVersion,
       },
-      body: JSON.stringify(payload),
+      body: JSON.stringify(built.payload),
     });
     const json = await res.json().catch(() => ({}));
     if (!res.ok) {

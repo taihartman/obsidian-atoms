@@ -5,7 +5,6 @@ import {
   allowDogfoodCheckout,
   allowDevExchange,
   checkProductionReady,
-  isProduction,
 } from "../src/prodGate.mjs";
 import { buildClassifyPayload } from "../src/anthropic.mjs";
 import { applyStripeEvent, constructEvent } from "../src/stripe.mjs";
@@ -71,11 +70,7 @@ describe("U9 security meter regressions", () => {
 
   it("P0-3: capture required; oversize capture 413", () => {
     assert.equal(buildClassifyPayload({}).ok, false);
-    process.env.ATOMS_PLUS_MAX_CAPTURE_CHARS = "20";
-    // config is getters — need rebuild via long capture vs default 8000
-    delete process.env.ATOMS_PLUS_MAX_CAPTURE_CHARS;
-    const long = "y".repeat(20_000);
-    const r = buildClassifyPayload({ capture: long });
+    const r = buildClassifyPayload({ capture: "y".repeat(20_000) });
     assert.equal(r.ok, false);
     assert.equal(r.status, 413);
   });
@@ -89,38 +84,34 @@ describe("U9 security meter regressions", () => {
     assert.equal(r2.ok, false);
   });
 
-  it("P1-6: idempotent classify key does not double consume", () => {
-    process.env.DOGFOOD_AUTO_GRANT = "0";
-    const store2 = createMemoryStore();
-    store2.grantPeriod("i@t.co", { remaining: 5, status: "active" });
-    const tok = store2.createMagicToken("i@t.co");
-    const { session } = store2.exchangeMagic(tok);
-    store2.getAccount("i@t.co").remaining = 5;
-    store2.getAccount("i@t.co").status = "active";
+  function sessionAt(email, remaining, status = "active") {
+    const store = createMemoryStore();
+    store.grantPeriod(email, { remaining, status });
+    const { session } = store.exchangeMagic(store.createMagicToken(email));
+    const a = store.getAccount(email);
+    a.remaining = remaining;
+    a.status = status;
+    return { store, session };
+  }
 
-    const c1 = store2.tryConsumeFiling(session, "key-1");
+  it("P1-6: idempotent classify key does not double consume", () => {
+    const { store, session } = sessionAt("i@t.co", 5);
+    const c1 = store.tryConsumeFiling(session, "key-1");
     assert.equal(c1.ok, true);
     assert.equal(c1.replay, false);
-    store2.completeUsage("key-1", {
+    store.completeUsage("key-1", {
       status: "ok",
       responseJson: { result: { ok: true } },
       remaining: 4,
     });
-    const c2 = store2.tryConsumeFiling(session, "key-1");
+    const c2 = store.tryConsumeFiling(session, "key-1");
     assert.equal(c2.ok, true);
     assert.equal(c2.replay, true);
-    assert.equal(store2.getAccount("i@t.co").remaining, 4);
+    assert.equal(store.getAccount("i@t.co").remaining, 4);
   });
 
   it("P1-7: server remaining 0 exhausts regardless of client fantasy", () => {
-    process.env.DOGFOOD_AUTO_GRANT = "0";
-    const store = createMemoryStore();
-    store.grantPeriod("f@t.co", { remaining: 0, status: "exhausted" });
-    const tok = store.createMagicToken("f@t.co");
-    const { session } = store.exchangeMagic(tok);
-    store.getAccount("f@t.co").remaining = 0;
-    store.getAccount("f@t.co").status = "exhausted";
-    // Client could claim remaining 9999 locally — store still rejects
+    const { store, session } = sessionAt("f@t.co", 0, "exhausted");
     const c = store.tryConsumeFiling(session, "forge-1");
     assert.equal(c.ok, false);
     assert.equal(c.code, "exhausted");
@@ -221,16 +212,8 @@ describe("U9 security meter regressions", () => {
     assert.ok(r.errors.some((e) => e.includes("DATABASE_URL")));
   });
 
-  it("U9-12: production requires Idempotency-Key (gate helper)", () => {
-    process.env.ATOMS_PLUS_ENV = "production";
-    assert.equal(isProduction(), true);
-    // Server enforces header; document contract here
-    const missing = "";
-    assert.equal(Boolean(missing), false);
-  });
-
   it("server template has structured schema required fields", () => {
-    assert.ok(SYSTEM_PROMPT.includes("Body is sacred") || SYSTEM_PROMPT.includes("sacred"));
+    assert.ok(SYSTEM_PROMPT.includes("sacred"));
     assert.deepEqual(CLASSIFICATION_SCHEMA.required, [
       "verdict",
       "title",
@@ -241,14 +224,7 @@ describe("U9 security meter regressions", () => {
   });
 
   it("P1-3: expired session cannot classify", () => {
-    process.env.DOGFOOD_AUTO_GRANT = "0";
-    const store = createMemoryStore();
-    store.grantPeriod("exp@t.co", { remaining: 10, status: "active" });
-    const tok = store.createMagicToken("exp@t.co");
-    const { session } = store.exchangeMagic(tok);
-    store.getAccount("exp@t.co").remaining = 10;
-    store.getAccount("exp@t.co").status = "active";
-    // Expire session
+    const { store, session } = sessionAt("exp@t.co", 10);
     const h = [...store._sessions.keys()][0];
     store._sessions.get(h).exp = Date.now() - 1000;
     const c = store.tryConsumeFiling(session, "exp-key");
@@ -257,13 +233,7 @@ describe("U9 security meter regressions", () => {
   });
 
   it("P1-3: revoked session cannot classify", () => {
-    process.env.DOGFOOD_AUTO_GRANT = "0";
-    const store = createMemoryStore();
-    store.grantPeriod("rv@t.co", { remaining: 10, status: "active" });
-    const tok = store.createMagicToken("rv@t.co");
-    const { session } = store.exchangeMagic(tok);
-    store.getAccount("rv@t.co").remaining = 10;
-    store.getAccount("rv@t.co").status = "active";
+    const { store, session } = sessionAt("rv@t.co", 10);
     store.revokeSession(session);
     const c = store.tryConsumeFiling(session, "rv-key");
     assert.equal(c.ok, false);

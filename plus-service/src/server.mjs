@@ -82,6 +82,29 @@ function bearer(req) {
   return m ? m[1] : "";
 }
 
+/** Browser landing after magic-link email (or dogfood dev-exchange). */
+function renderExchangeHtml(res, out) {
+  if (!out) {
+    res.writeHead(400, { "content-type": "text/html; charset=utf-8" });
+    res.end(`<!doctype html><meta charset=utf-8><title>Atoms Plus</title>
+<body style="font-family:system-ui;max-width:32rem;margin:2rem auto;padding:0 1rem">
+<h1>Link expired</h1>
+<p>Request a new sign-in link from Atoms Settings.</p>
+</body>`);
+    return;
+  }
+  res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+  res.end(`<!doctype html><meta charset=utf-8><title>Atoms Plus</title>
+<body style="font-family:system-ui;max-width:32rem;margin:2rem auto;padding:0 1rem">
+<h1>Signed in</h1>
+<p>Email: <strong>${out.account.email}</strong></p>
+<p>Status: <strong>${out.account.status}</strong> · remaining ${out.account.remaining}</p>
+<p>Paste this session into <strong>Obsidian → Settings → Atoms Plus</strong>:</p>
+<pre style="background:#f4f4f5;padding:12px;border-radius:8px;word-break:break-all">${out.session}</pre>
+<p style="color:#666;font-size:0.9rem">You can close this tab after pasting.</p>
+</body>`);
+}
+
 async function handler(req, res) {
   const url = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`);
   const path = url.pathname.replace(/\/+$/, "") || "/";
@@ -157,10 +180,8 @@ async function handler(req, res) {
         return json(res, 400, { message: "Valid email required" });
       }
       const token = await store.createMagicToken(email);
-      // Production: plugin opens exchange in-app; never dump sess_ via HTML.
-      const link = allowDevExchange()
-        ? `${config.publicBaseUrl}/v1/auth/dev-exchange?token=${token}`
-        : `${config.publicBaseUrl}/v1/auth/exchange?token=${encodeURIComponent(token)}`;
+      // Browser-openable GET exchange (email click). Dev alias still works.
+      const link = `${config.publicBaseUrl}/v1/auth/exchange?token=${encodeURIComponent(token)}`;
       const sent = await sendMagicLinkEmail({ to: email, link });
       if (!sent.ok) {
         return json(res, 503, {
@@ -177,32 +198,26 @@ async function handler(req, res) {
       return json(res, 200, { ok: true });
     }
 
-    // GET /v1/auth/dev-exchange?token= — browser-friendly dogfood (disabled in prod)
+    // GET /v1/auth/dev-exchange — dogfood alias (disabled in prod)
     if (req.method === "GET" && path === "/v1/auth/dev-exchange") {
       if (!allowDevExchange()) {
         return json(res, 404, { message: "Not found" });
       }
-      const token = url.searchParams.get("token") || "";
-      const out = await store.exchangeMagic(token);
-      if (!out) {
-        res.writeHead(400, { "content-type": "text/plain" });
-        res.end("Invalid or expired link. Request a new magic link from Atoms Settings.");
-        return;
-      }
-      res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-      res.end(`<!doctype html><meta charset=utf-8><title>Atoms Plus</title>
-<body style="font-family:system-ui;max-width:32rem;margin:2rem auto;padding:0 1rem">
-<h1>Signed in</h1>
-<p>Email: <strong>${out.account.email}</strong></p>
-<p>Status: <strong>${out.account.status}</strong> · remaining ${out.account.remaining}</p>
-<p>Paste this session into the plugin dogfood (or use the app exchange flow):</p>
-<pre style="background:#f4f4f5;padding:12px;border-radius:8px;word-break:break-all">${out.session}</pre>
-<p style="color:#666;font-size:0.9rem">Dev helper only. Production uses in-app exchange.</p>
-</body>`);
-      return;
+      return renderExchangeHtml(
+        res,
+        await store.exchangeMagic(url.searchParams.get("token") || ""),
+      );
     }
 
-    // POST /v1/auth/exchange
+    // GET /v1/auth/exchange?token= — email magic-link landing (browser)
+    if (req.method === "GET" && path === "/v1/auth/exchange") {
+      return renderExchangeHtml(
+        res,
+        await store.exchangeMagic(url.searchParams.get("token") || ""),
+      );
+    }
+
+    // POST /v1/auth/exchange — plugin in-app exchange
     if (req.method === "POST" && path === "/v1/auth/exchange") {
       const body = await readBody(req);
       const token = String(body.token || "").trim();

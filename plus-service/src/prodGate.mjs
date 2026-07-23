@@ -2,7 +2,6 @@
  * Production fail-closed gates (plan U1).
  * ATOMS_PLUS_ENV=production (or PROD/production NODE_ENV) refuses unsafe dogfood.
  */
-
 import { config } from "./config.mjs";
 import { stripeConfigured } from "./stripe.mjs";
 
@@ -30,71 +29,62 @@ export function allowDevExchange() {
 }
 
 /**
- * @returns {{ ok: true } | { ok: false, errors: string[] }}
+ * @returns {{ ok: true, errors: string[] } | { ok: false, errors: string[] }}
  */
 export function checkProductionReady() {
   if (!isProduction()) return { ok: true, errors: [] };
 
   /** @type {string[]} */
   const errors = [];
+  const need = (cond, msg) => {
+    if (cond) errors.push(msg);
+  };
 
-  if (config.dogfoodAutoGrant) {
-    errors.push("DOGFOOD_AUTO_GRANT must be 0 in production");
-  }
-  if (config.stripeDogfoodCheckout) {
-    errors.push("STRIPE_DOGFOOD_CHECKOUT must not be 1 in production");
-  }
-  if (!config.stripeSecretKey) {
-    errors.push("STRIPE_SECRET_KEY required in production");
-  }
-  if (!config.stripeWebhookSecret) {
-    errors.push("STRIPE_WEBHOOK_SECRET required in production");
-  }
-  if (!config.stripePriceMonthly) {
-    errors.push("STRIPE_PRICE_MONTHLY required in production");
-  }
-  if (!config.stripePriceYearly) {
-    errors.push("STRIPE_PRICE_YEARLY required in production");
-  }
-  if (!config.stripePriceTopup) {
-    errors.push("STRIPE_PRICE_TOPUP required in production");
-  }
-  if (!config.anthropicApiKey) {
-    errors.push("ANTHROPIC_API_KEY required in production");
-  }
-  if (!config.databaseUrl) {
-    errors.push(
-      "DATABASE_URL required in production (managed Postgres meter — KTD-B1)",
-    );
-  }
+  need(config.dogfoodAutoGrant, "DOGFOOD_AUTO_GRANT must be 0 in production");
+  need(
+    config.stripeDogfoodCheckout,
+    "STRIPE_DOGFOOD_CHECKOUT must not be 1 in production",
+  );
+  need(!config.stripeSecretKey, "STRIPE_SECRET_KEY required in production");
+  need(
+    !config.stripeWebhookSecret,
+    "STRIPE_WEBHOOK_SECRET required in production",
+  );
+  need(!config.stripePriceMonthly, "STRIPE_PRICE_MONTHLY required in production");
+  need(!config.stripePriceYearly, "STRIPE_PRICE_YEARLY required in production");
+  need(!config.stripePriceTopup, "STRIPE_PRICE_TOPUP required in production");
+  need(!config.anthropicApiKey, "ANTHROPIC_API_KEY required in production");
+  need(
+    !config.databaseUrl,
+    "DATABASE_URL required in production (managed Postgres meter — KTD-B1)",
+  );
+  need(
+    !config.resendApiKey,
+    "RESEND_API_KEY required in production (magic-link email)",
+  );
+
   const storeMode = (config.storeMode || "memory").toLowerCase();
-  if (storeMode === "memory") {
-    errors.push(
-      "ATOMS_PLUS_STORE must not be memory in production (use postgres)",
-    );
-  }
-  if (storeMode === "sqlite") {
-    errors.push(
-      "ATOMS_PLUS_STORE=sqlite is single-process only; production requires postgres",
-    );
-  }
-  if (!config.resendApiKey) {
-    errors.push("RESEND_API_KEY required in production (magic-link email)");
-  }
+  need(
+    storeMode === "memory",
+    "ATOMS_PLUS_STORE must not be memory in production (use postgres)",
+  );
+  need(
+    storeMode === "sqlite",
+    "ATOMS_PLUS_STORE=sqlite is single-process only; production requires postgres",
+  );
 
   const base = (config.publicBaseUrl || "").toLowerCase();
-  if (
-    !base ||
-    base.includes("127.0.0.1") ||
-    base.includes("localhost")
-  ) {
-    errors.push(
-      "PUBLIC_BASE_URL must be a public https host in production (not localhost)",
-    );
-  }
-  if (base && !base.startsWith("https://")) {
-    errors.push("PUBLIC_BASE_URL must use https in production");
-  }
+  need(
+    !base || base.includes("127.0.0.1") || base.includes("localhost"),
+    "PUBLIC_BASE_URL must be a public https host in production (not localhost)",
+  );
+  need(
+    Boolean(base) &&
+      !base.includes("127.0.0.1") &&
+      !base.includes("localhost") &&
+      !base.startsWith("https://"),
+    "PUBLIC_BASE_URL must use https in production",
+  );
 
   return errors.length ? { ok: false, errors } : { ok: true, errors: [] };
 }
