@@ -43,6 +43,7 @@ import {
   type EntityInviteCandidate,
 } from "../pipeline/entityInvite";
 import {
+  applyHardLinkToAtomContent,
   collectPersonInvites,
   formatPersonNoteMarkdown,
   PERSON_INVITE_SNOOZE_DAYS,
@@ -58,7 +59,6 @@ import {
 } from "../pipeline/enrich/people";
 import { formatLinkProse } from "../pipeline/render";
 import { extractLinkProseRegion, parseLinkProse } from "../pipeline/parseLinkProse";
-import { isSoftEntityKey } from "../pipeline/softKeys";
 import {
   CURRENT_ATOMS_QUALITY,
 } from "../pipeline/atomQuality";
@@ -1017,27 +1017,23 @@ export class AtomsHomeView extends ItemView {
       disabled: this.personInviteBusy,
       onClick: () => void this.onAddPersonNote(inv),
     });
+    const dismiss = () => {
+      this.snoozePersonInvite(inv.displayName);
+      this.personInvite = null;
+      this.refreshEntitySurfaces();
+      this.render();
+    };
     button(actions, {
       grade: "secondary",
       label: copy.dismissLabel,
       disabled: this.personInviteBusy,
-      onClick: () => {
-        this.snoozePersonInvite(inv.displayName);
-        this.personInvite = null;
-        this.refreshEntitySurfaces();
-        this.render();
-      },
+      onClick: dismiss,
     });
     button(actions, {
       grade: "secondary",
       label: copy.alreadyLabel,
       disabled: this.personInviteBusy,
-      onClick: () => {
-        this.snoozePersonInvite(inv.displayName);
-        this.personInvite = null;
-        this.refreshEntitySurfaces();
-        this.render();
-      },
+      onClick: dismiss,
     });
   }
 
@@ -1104,45 +1100,13 @@ export class AtomsHomeView extends ItemView {
     if (!(file instanceof TFile)) return;
     const content = await this.app.vault.read(file);
     if (!isGeneratedAtomContent(content)) return;
-    const prose = extractLinkProseRegion(content);
-    const links = parseLinkProse(prose);
-    const filtered = links.filter((l) => {
-      const n = l.note.trim().toLowerCase();
-      if (n === "people" || isSoftEntityKey(n)) return false;
-      // drop peer atom-title links when upgrading to person
-      return true;
-    });
-    const has = filtered.some(
-      (l) => l.note.trim().toLowerCase() === name.toLowerCase(),
+    const next = applyHardLinkToAtomContent(
+      content,
+      name,
+      `about [[${name}]]`,
+      { dropSoft: true },
     );
-    const nextLinks = has
-      ? filtered
-      : [
-          ...filtered,
-          {
-            note: name,
-            reason: `about [[${name}]]`,
-          },
-        ];
-    const newProse = formatLinkProse(nextLinks);
-    let nextContent: string;
-    if (prose) {
-      nextContent = content.replace(prose, newProse);
-    } else {
-      const body = bodyAfterFrontmatter(content).trimEnd();
-      const fmEnd = content.indexOf("\n---", 3);
-      if (content.startsWith("---") && fmEnd !== -1) {
-        const fm = content.slice(0, fmEnd + 4);
-        const rest = content.slice(fmEnd + 4).replace(/^\r?\n/, "");
-        const capture = rest.split(/\n\n/)[0] ?? rest;
-        nextContent = `${fm}\n${capture.trimEnd()}\n\n${newProse}\n`;
-      } else {
-        nextContent = `${body}\n\n${newProse}\n`;
-      }
-    }
-    if (nextContent !== content) {
-      await this.app.vault.modify(file, nextContent);
-    }
+    if (next) await this.app.vault.modify(file, next);
   }
 
   private renderEntityInviteCard(scroll: HTMLElement): void {

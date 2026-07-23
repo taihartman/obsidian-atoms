@@ -11,6 +11,7 @@ import {
 import { isSoftEntityKey } from "./softKeys";
 import { extractLinkProseRegion, parseLinkProse } from "./parseLinkProse";
 import { isJunkLinkReason } from "./enrich/linkQuality";
+import { formatLinkProse } from "./render";
 
 export const PERSON_INVITE_SNOOZE_DAYS = 14;
 export const PERSON_INVITE_RECENT_DAYS = 14;
@@ -30,11 +31,15 @@ export type PersonAtomInput = {
   sourceDate?: string | null;
 };
 
-const KINSHIP = new Set(
-  ["mom", "dad", "mother", "father", "mama", "papa", "mum"].map((s) =>
-    s.toLowerCase(),
-  ),
-);
+const KINSHIP = new Set([
+  "mom",
+  "dad",
+  "mother",
+  "father",
+  "mama",
+  "papa",
+  "mum",
+]);
 
 /** Place / show / brand tokens that must never become person invites. */
 export const PERSON_INVITE_DENY_NAMES = new Set(
@@ -388,19 +393,45 @@ export function personNotePath(folderPrefix: string, name: string): string {
   return folder ? `${folder}/${safe}.md` : `${safe}.md`;
 }
 
-/** Labels of atom-folder basenames that must not form orbit keys. */
-export function atomTitleOrbitBlocklist(
-  atomPaths: string[],
-  atomFolder: string,
-): Set<string> {
-  const folder = atomFolder.replace(/\/$/, "") || "Atoms";
-  const out = new Set<string>();
-  for (const p of atomPaths) {
-    const norm = p.replace(/\\/g, "/");
-    if (!norm.startsWith(folder + "/") && !norm.startsWith(folder)) continue;
-    const base = norm.split("/").pop() ?? "";
-    const title = base.replace(/\.md$/i, "").trim().toLowerCase();
-    if (title) out.add(title);
+/**
+ * Pure: rewrite atom markdown link-prose to hard-link `note` with reason.
+ * Drops soft-bucket links when dropSoft is true. Returns null if unchanged.
+ */
+export function applyHardLinkToAtomContent(
+  content: string,
+  note: string,
+  reason: string,
+  opts: { dropSoft?: boolean } = {},
+): string | null {
+  const want = note.trim();
+  if (!want) return null;
+  const prose = extractLinkProseRegion(content);
+  let next = parseLinkProse(prose);
+  if (opts.dropSoft) {
+    next = next.filter((l) => {
+      const n = l.note.trim().toLowerCase();
+      return n !== "people" && !isSoftEntityKey(n);
+    });
   }
-  return out;
+  const has = next.some(
+    (l) => l.note.trim().toLowerCase() === want.toLowerCase(),
+  );
+  if (!has) next = [...next, { note: want, reason }];
+  const newProse = formatLinkProse(next);
+  if (prose) {
+    const out = content.replace(prose, newProse);
+    return out === content ? null : out;
+  }
+  if (has && !opts.dropSoft) return null;
+  // append after capture body
+  if (content.startsWith("---")) {
+    const fmEnd = content.indexOf("\n---", 3);
+    if (fmEnd !== -1) {
+      const fm = content.slice(0, fmEnd + 4);
+      const rest = content.slice(fmEnd + 4).replace(/^\r?\n/, "");
+      const capture = rest.split(/\n\n/)[0] ?? rest;
+      return `${fm}\n${capture.trimEnd()}\n\n${newProse}\n`;
+    }
+  }
+  return `${content.trimEnd()}\n\n${newProse}\n`;
 }

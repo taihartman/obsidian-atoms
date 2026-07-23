@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  applyHardLinkToAtomContent,
   collectPersonInvites,
   formatPersonNoteMarkdown,
   isDeniedPersonName,
@@ -125,6 +126,27 @@ describe("collectPersonInvites", () => {
       { personHubTitles: ["Nichita"], vaultTitles: ["Nichita"] },
     );
     expect(invites.some((i) => i.displayName === "Nichita")).toBe(false);
+  });
+});
+
+describe("applyHardLinkToAtomContent", () => {
+  it("adds hard link and drops soft People", () => {
+    const content = `---
+generated-by: linker
+---
+Mom wants dinner
+
+workplace ([[People]]).
+`;
+    const next = applyHardLinkToAtomContent(
+      content,
+      "Mom",
+      "about [[Mom]]",
+      { dropSoft: true },
+    );
+    expect(next).toBeTruthy();
+    expect(next!).toContain("[[Mom]]");
+    expect(next!).not.toContain("[[People]]");
   });
 });
 
