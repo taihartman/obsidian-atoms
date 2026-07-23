@@ -93,9 +93,18 @@ export class AtomsSettingTab extends PluginSettingTab {
     this.renderDevHints(containerEl);
   }
 
-  private async refreshPlusEntitlement(): Promise<void> {
+  /**
+   * Pull latest Plus entitlement into device session.
+   * @returns true if session was updated from the service
+   */
+  private async refreshPlusEntitlement(opts?: {
+    quiet?: boolean;
+  }): Promise<boolean> {
     const session = readPlusSession(this.app);
-    if (!session) return;
+    if (!session) {
+      if (!opts?.quiet) new Notice("No Plus session on this device");
+      return false;
+    }
     const base =
       this.plugin.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL;
     const r = await getEntitlement(
@@ -103,8 +112,8 @@ export class AtomsSettingTab extends PluginSettingTab {
       session.sessionToken,
     );
     if (!r.ok) {
-      new Notice(`Atoms Plus: ${r.message}`);
-      return;
+      if (!opts?.quiet) new Notice(`Atoms Plus: ${r.message}`);
+      return false;
     }
     const e = r.entitlement;
     writePlusSession(this.app, {
@@ -115,7 +124,27 @@ export class AtomsSettingTab extends PluginSettingTab {
       periodEnd: e.periodEnd,
       refreshedAt: Date.now(),
     });
-    new Notice("Atoms Plus status refreshed");
+    if (!opts?.quiet) new Notice("Atoms Plus status refreshed");
+    return true;
+  }
+
+  private addRefreshStatusButton(
+    setting: Setting,
+    opts?: { cta?: boolean },
+  ): void {
+    setting.addButton((btn) => {
+      btn.setButtonText("Refresh status");
+      if (opts?.cta) btn.setCta();
+      btn.onClick(async () => {
+        btn.setDisabled(true);
+        try {
+          await this.refreshPlusEntitlement();
+          this.display();
+        } finally {
+          btn.setDisabled(false);
+        }
+      });
+    });
   }
 
   /**
@@ -157,7 +186,7 @@ export class AtomsSettingTab extends PluginSettingTab {
             if (r.url) {
               window.open(r.url, "_blank");
               new Notice(
-                `${topUp.title}: complete checkout in the browser, then reopen Settings.`,
+                `${topUp.title}: complete checkout in the browser, then tap Refresh status.`,
                 8000,
               );
             } else {
@@ -186,6 +215,14 @@ export class AtomsSettingTab extends PluginSettingTab {
             window.open(r.url, "_blank");
           }),
         );
+      this.addRefreshStatusButton(
+        new Setting(containerEl)
+          .setName("Refresh status")
+          .setDesc(
+            "After Checkout or top-up, pull the latest plan from the Plus service.",
+          ),
+        { cta: true },
+      );
       if (session?.email) {
         new Setting(containerEl)
           .setName("Account")
@@ -211,9 +248,16 @@ export class AtomsSettingTab extends PluginSettingTab {
           : auth.status === "active"
             ? "Active"
             : "On";
-      new Setting(containerEl)
-        .setName("Status")
-        .setDesc(statusLabel);
+      const remainingLabel =
+        typeof auth.remaining === "number"
+          ? ` · ${auth.remaining} filings left`
+          : "";
+      this.addRefreshStatusButton(
+        new Setting(containerEl)
+          .setName("Status")
+          .setDesc(`${statusLabel}${remainingLabel}`),
+        { cta: true },
+      );
       new Setting(containerEl)
         .setName("Account")
         .setDesc(auth.email);
@@ -241,12 +285,6 @@ export class AtomsSettingTab extends PluginSettingTab {
               return;
             }
             window.open(r.url, "_blank");
-          }),
-        )
-        .addButton((btn) =>
-          btn.setButtonText("Refresh status").onClick(async () => {
-            await this.refreshPlusEntitlement();
-            this.display();
           }),
         )
         .addButton((btn) =>
@@ -420,11 +458,12 @@ export class AtomsSettingTab extends PluginSettingTab {
           if (r.url) {
             window.open(r.url, "_blank");
             new Notice(
-              "Checkout opened — finish in the browser, then Save Session again or reopen Settings to refresh status.",
+              "Checkout opened — finish in the browser, then tap Refresh status.",
               10000,
             );
           } else {
             new Notice("Trial granted (dogfood). Refreshing…");
+            await this.refreshPlusEntitlement({ quiet: true });
           }
           this.display();
         }),
