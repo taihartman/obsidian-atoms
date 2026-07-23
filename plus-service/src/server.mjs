@@ -345,6 +345,13 @@ async function handler(req, res) {
         String(req.headers["x-idempotency-key"] || "").trim() ||
         "";
 
+      // U9-12: require Idempotency-Key in production (retry-safe meter)
+      if (isProduction() && !idem) {
+        return json(res, 400, {
+          message: "Idempotency-Key header required",
+        });
+      }
+
       const consume = await store.tryConsumeFiling(session, idem || undefined);
       if (!consume.ok) {
         if (consume.code === "auth") {

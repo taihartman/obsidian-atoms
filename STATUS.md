@@ -8,7 +8,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
 | In progress | #91 | Tai | feat/atoms-plus-managed-filing | docs/plans/2026-07-17-005-feat-atoms-plus-managed-filing-plan.md | src/platform/*, src/settings/settings.ts, plus-service/ | Plugin Plus MVP dogfood OK (Stripe trial + Process + Refresh); PR #92 MERGEABLE · not public-ready |
-| In progress | #107 | Tai | feat/atoms-plus-managed-filing | docs/plans/2026-07-22-001-feat-atoms-plus-production-backend-meter-security-plan.md | plus-service/** | U1+U2 done (Postgres store + meter tests). **NEXT:** U4 server-owned classify / U3 harden / U5 email · handoff `docs/handoffs/2026-07-23-plus-production-backend.md` |
+| In progress | #107 | Tai | feat/atoms-plus-managed-filing | docs/plans/2026-07-22-001-feat-atoms-plus-production-backend-meter-security-plan.md | plus-service/** | U1+U2+U4+U9b done. **NEXT:** U3 webhook/portal polish · U5 Resend email · U6 promo · U7 deploy |
 
 ## How to claim (copy)
 

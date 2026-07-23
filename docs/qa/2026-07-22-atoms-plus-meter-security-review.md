@@ -51,11 +51,11 @@ Maps 1:1 to plan U9 tests. Update this file when findings change.
 - [x] `ATOMS_PLUS_ENV=production` fail-closed (U1)
 - [x] No dogfood checkout / auto-grant in prod (U1)
 - [x] Durable Postgres meter + ledger (U2) — `ATOMS_PLUS_STORE=postgres` + `DATABASE_URL`; sqlite/memory for local
-- [ ] Webhook price allowlist + durable event id (U3)
-- [ ] Server-built classify payload + rate limits (U4)
+- [ ] Webhook price allowlist + durable event id (U3) — partial (claim-before-grant, allowlist, portal exist)
+- [x] Server-built classify payload (U4) — ignores client messagesRequest; rate limits stub present
 - [ ] Email magic link; no dev-exchange (U5)
-- [ ] Promo per-email cap (U6)
-- [x] Plugin Idempotency-Key (U8) — dogfood path landed
+- [ ] Promo per-email cap (U6) — per-email unique exists; prod codes from env still soft
+- [x] Plugin Idempotency-Key (U8) — dogfood path landed; prod requires header
 - [ ] U9 suite green on staging before public DNS (U7)
 
 ## Explicit: client remaining is never SoT
