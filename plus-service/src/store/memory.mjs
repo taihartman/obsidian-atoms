@@ -1,22 +1,14 @@
 /**
  * In-memory store (tests + explicit ATOMS_PLUS_STORE=memory).
  */
-import { randomBytes, createHash } from "node:crypto";
 import { config } from "../config.mjs";
-
-function id(prefix) {
-  return `${prefix}_${randomBytes(16).toString("hex")}`;
-}
-
-function periodEndFromNow(days) {
-  const d = new Date();
-  d.setUTCDate(d.getUTCDate() + days);
-  return d.toISOString();
-}
-
-function hashToken(token) {
-  return createHash("sha256").update(token).digest("hex");
-}
+import {
+  applyStatusRules,
+  hashToken,
+  id,
+  periodEndFromNow,
+  publicAccount,
+} from "./shared.mjs";
 
 export function createMemoryStore() {
   const accounts = new Map();
@@ -55,13 +47,7 @@ export function createMemoryStore() {
   }
 
   function refreshAccountStatus(a) {
-    if (!a) return a;
-    if (a.status !== "inactive" && new Date(a.periodEnd) < new Date()) {
-      a.status = "exhausted";
-      a.remaining = 0;
-    } else if (a.remaining <= 0 && a.status !== "inactive") {
-      a.status = "exhausted";
-    }
+    applyStatusRules(a);
     return a;
   }
 
@@ -217,16 +203,6 @@ export function createMemoryStore() {
     });
     a.promoRedemptions += 1;
     return { ok: true, account: a, months };
-  }
-
-  function publicAccount(a) {
-    return {
-      email: a.email,
-      status: a.status,
-      remaining: a.remaining,
-      periodEnd: a.periodEnd,
-      plan: a.plan,
-    };
   }
 
   return {

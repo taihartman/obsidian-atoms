@@ -2,25 +2,18 @@
  * Managed Postgres store (KTD-B1). Multi-instance safe meter + ledger.
  * Requires DATABASE_URL. Uses `pg` Pool.
  */
-import { randomBytes, createHash } from "node:crypto";
 import pg from "pg";
 import { config } from "../config.mjs";
+import {
+  applyStatusRules,
+  hashToken,
+  id,
+  periodEndFromNow,
+  publicAccount,
+  rowToAccount,
+} from "./shared.mjs";
 
 const { Pool } = pg;
-
-function id(prefix) {
-  return `${prefix}_${randomBytes(16).toString("hex")}`;
-}
-
-function periodEndFromNow(days) {
-  const d = new Date();
-  d.setUTCDate(d.getUTCDate() + days);
-  return d.toISOString();
-}
-
-function hashToken(token) {
-  return createHash("sha256").update(token).digest("hex");
-}
 
 const MIGRATE_SQL = `
 CREATE TABLE IF NOT EXISTS accounts (
@@ -83,23 +76,6 @@ export async function createPostgresStore(databaseUrl) {
 
   const sessionTtlMs = () => config.sessionTtlDays * 24 * 60 * 60 * 1000;
 
-  function rowToAccount(r) {
-    if (!r) return null;
-    return {
-      email: r.email,
-      status: r.status,
-      remaining: r.remaining,
-      periodEnd:
-        r.period_end instanceof Date
-          ? r.period_end.toISOString()
-          : String(r.period_end),
-      plan: r.plan,
-      promoRedemptions: r.promo_redemptions,
-      stripeCustomerId: r.stripe_customer_id || undefined,
-      stripeSubscriptionId: r.stripe_subscription_id || undefined,
-    };
-  }
-
   async function getAccount(email) {
     const key = email.trim().toLowerCase();
     const { rows } = await pool.query(
@@ -145,15 +121,7 @@ export async function createPostgresStore(databaseUrl) {
 
   async function refreshAccountStatus(a) {
     if (!a) return a;
-    let dirty = false;
-    if (a.status !== "inactive" && new Date(a.periodEnd) < new Date()) {
-      a.status = "exhausted";
-      a.remaining = 0;
-      dirty = true;
-    } else if (a.remaining <= 0 && a.status !== "inactive") {
-      a.status = "exhausted";
-      dirty = true;
-    }
+    const { dirty } = applyStatusRules(a);
     if (dirty) await saveAccount(a);
     return a;
   }
@@ -165,6 +133,23 @@ export async function createPostgresStore(databaseUrl) {
     a.remaining = opts.remaining ?? config.includedFilings;
     a.periodEnd = periodEndFromNow(opts.days ?? 30);
     return saveAccount(a);
+  }
+
+  /** Atomic top-up — avoids lost updates under concurrent webhooks. */
+  async function addTopUp(email, n = config.topUpFilings) {
+    await ensureAccount(email);
+    const { rows } = await pool.query(
+      `UPDATE accounts SET
+         remaining = remaining + $2,
+         status = CASE
+           WHEN status IN ('exhausted', 'inactive') THEN 'active'
+           ELSE status
+         END
+       WHERE email = $1
+       RETURNING *`,
+      [email.trim().toLowerCase(), n],
+    );
+    return rowToAccount(rows[0]);
   }
 
   async function createMagicToken(email) {
@@ -408,13 +393,6 @@ export async function createPostgresStore(databaseUrl) {
     }
   }
 
-  async function addTopUp(email, n = config.topUpFilings) {
-    const a = await ensureAccount(email);
-    a.remaining += n;
-    if (a.status === "exhausted" || a.status === "inactive") a.status = "active";
-    return saveAccount(a);
-  }
-
   async function redeemPromo(email, code) {
     const upper = code.trim().toUpperCase();
     const months = config.promoCodes.get(upper);
@@ -470,16 +448,6 @@ export async function createPostgresStore(databaseUrl) {
     a.promoRedemptions += 1;
     await saveAccount(a);
     return { ok: true, account: a, months };
-  }
-
-  function publicAccount(a) {
-    return {
-      email: a.email,
-      status: a.status,
-      remaining: a.remaining,
-      periodEnd: a.periodEnd,
-      plan: a.plan,
-    };
   }
 
   return {

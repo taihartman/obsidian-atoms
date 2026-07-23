@@ -10,6 +10,7 @@
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { config } from "./config.mjs";
+import { isProduction } from "./prodGate.mjs";
 import { createMemoryStore } from "./store/memory.mjs";
 import { createSqliteStore } from "./store/sqlite.mjs";
 import { createPostgresStore } from "./store/postgres.mjs";
@@ -33,11 +34,11 @@ export async function createStore(opts = {}) {
 
   // Production always uses Postgres when DATABASE_URL is present (KTD-B1).
   // Avoid fail-open memory meter if ops set DATABASE_URL but forget ATOMS_PLUS_STORE.
-  const prod =
-    (process.env.ATOMS_PLUS_ENV || "").toLowerCase() === "production" ||
-    (process.env.ATOMS_PLUS_ENV || "").toLowerCase() === "prod" ||
-    (process.env.NODE_ENV || "").toLowerCase() === "production";
-  if (prod && databaseUrl && (mode === "memory" || mode === "auto" || !mode)) {
+  if (
+    isProduction() &&
+    databaseUrl &&
+    (mode === "memory" || mode === "auto" || !mode)
+  ) {
     mode = "postgres";
   }
 

@@ -1,25 +1,18 @@
 /**
  * Durable SQLite store (node:sqlite). Path from config.databasePath.
  */
-import { randomBytes, createHash } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { config } from "../config.mjs";
-
-function id(prefix) {
-  return `${prefix}_${randomBytes(16).toString("hex")}`;
-}
-
-function periodEndFromNow(days) {
-  const d = new Date();
-  d.setUTCDate(d.getUTCDate() + days);
-  return d.toISOString();
-}
-
-function hashToken(token) {
-  return createHash("sha256").update(token).digest("hex");
-}
+import {
+  applyStatusRules,
+  hashToken,
+  id,
+  periodEndFromNow,
+  publicAccount,
+  rowToAccount,
+} from "./shared.mjs";
 
 function migrate(db) {
   db.exec(`
@@ -82,20 +75,6 @@ export function createSqliteStore(dbPath = config.databasePath) {
 
   const sessionTtlMs = () => config.sessionTtlDays * 24 * 60 * 60 * 1000;
 
-  function rowToAccount(r) {
-    if (!r) return null;
-    return {
-      email: r.email,
-      status: r.status,
-      remaining: r.remaining,
-      periodEnd: r.period_end,
-      plan: r.plan,
-      promoRedemptions: r.promo_redemptions,
-      stripeCustomerId: r.stripe_customer_id || undefined,
-      stripeSubscriptionId: r.stripe_subscription_id || undefined,
-    };
-  }
-
   function getAccount(email) {
     const key = email.trim().toLowerCase();
     const r = db
@@ -137,15 +116,7 @@ export function createSqliteStore(dbPath = config.databasePath) {
 
   function refreshAccountStatus(a) {
     if (!a) return a;
-    let dirty = false;
-    if (a.status !== "inactive" && new Date(a.periodEnd) < new Date()) {
-      a.status = "exhausted";
-      a.remaining = 0;
-      dirty = true;
-    } else if (a.remaining <= 0 && a.status !== "inactive") {
-      a.status = "exhausted";
-      dirty = true;
-    }
+    const { dirty } = applyStatusRules(a);
     if (dirty) saveAccount(a);
     return a;
   }
@@ -370,16 +341,6 @@ export function createSqliteStore(dbPath = config.databasePath) {
     a.promoRedemptions += 1;
     saveAccount(a);
     return { ok: true, account: a, months };
-  }
-
-  function publicAccount(a) {
-    return {
-      email: a.email,
-      status: a.status,
-      remaining: a.remaining,
-      periodEnd: a.periodEnd,
-      plan: a.plan,
-    };
   }
 
   return {
