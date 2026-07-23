@@ -154,4 +154,12 @@ export function registerAtomsCommands(plugin: AtomsPlugin): void {
       void plugin.runOpenAtomGraph();
     },
   });
+
+  plugin.addCommand({
+    id: "reconsider-capture",
+    name: "Reconsider capture",
+    callback: () => {
+      void plugin.runReconsiderCapture();
+    },
+  });
 }

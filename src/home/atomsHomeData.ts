@@ -764,6 +764,36 @@ export function formatRelativeTime(whenMs: number, nowMs: number = Date.now()): 
   });
 }
 
+/** Also about strip copy — no em dashes. */
+export const ALSO_ABOUT_BODY_NOTE =
+  "Each note keeps its own body. This view only gathers titles.";
+
+export function alsoAboutStripLabel(entityLabel: string, otherCount: number): string {
+  const label = (entityLabel ?? "").trim() || "related";
+  const n = Math.max(0, otherCount);
+  return `Also about ${label} · ${n}`;
+}
+
+export type AlsoAboutStripModel = {
+  label: string;
+  otherCount: number;
+  stripText: string;
+};
+
+export function buildAlsoAboutStripModel(
+  entityLabel: string,
+  otherCount: number,
+): AlsoAboutStripModel | null {
+  if (otherCount < 1) return null;
+  const label = (entityLabel ?? "").trim();
+  if (!label) return null;
+  return {
+    label,
+    otherCount,
+    stripText: alsoAboutStripLabel(label, otherCount),
+  };
+}
+
 export function queuePeekTexts(
   notes: Array<{ unprocessed: Array<{ text: string }>; date: string }>,
   max = 3,

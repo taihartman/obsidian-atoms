@@ -128,6 +128,11 @@ export interface LinkerSettings {
    * Not a secret; session token stays device-local.
    */
   plusBaseUrl: string;
+  /**
+   * Feature flag: Reconsider capture (soft-unfreeze noise/task → reclassify).
+   * Off by default until dogfood-ready.
+   */
+  enableReconsiderCapture: boolean;
 }
 
 export const DEFAULT_SETTINGS: LinkerSettings = {
@@ -153,6 +158,7 @@ export const DEFAULT_SETTINGS: LinkerSettings = {
   useDeviceLocalKeyFallback: false,
   captureShortcutInstallUrl: "",
   plusBaseUrl: "",
+  enableReconsiderCapture: false,
 };
 
 /** SecretStorage / localStorage keys — lowercase-dashed (KTD5). */

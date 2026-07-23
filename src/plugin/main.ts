@@ -1,4 +1,11 @@
-import { Notice, Plugin, WorkspaceLeaf, requestUrl } from "obsidian";
+import {
+  MarkdownView,
+  Notice,
+  Plugin,
+  TFile,
+  WorkspaceLeaf,
+  requestUrl,
+} from "obsidian";
 import { ATOMS_HOME_VIEW_TYPE, AtomsHomeView } from "../home/atomsHomeView";
 import { clampAtomFolder } from "../pipeline/render";
 import { registerAtomsCommands } from "./commands";
@@ -30,6 +37,7 @@ import {
 } from "../pipeline/daily";
 import { AtomsSettingTab } from "../settings/settings";
 import {
+  API_KEY_SECRET_ID_DEFAULT,
   DEFAULT_SETTINGS,
   LOCAL_STORAGE_API_KEY,
   SPIKE_CAPTURE,
@@ -45,6 +53,19 @@ import {
   showDryRunNotice,
   type DryRunReport,
 } from "../pipeline/preview";
+import {
+  applyReconsiderWrite,
+  atomRefuseNotice,
+  dailyDateForFile,
+  findCaptureAtLine,
+  flagOffNotice,
+  filedNotice,
+  forceKeepAtomResult,
+  collisionNotice,
+  gateReconsiderTarget,
+  missNotice,
+} from "../pipeline/reconsider";
+import { ReconsiderModal } from "../pipeline/reconsiderModal";
 import { runWritePath, type WritePathReport } from "../pipeline/write";
 import type { ClassificationResult } from "../shared/types";
 import { mergeProposedTags } from "../pipeline/vocabulary";
@@ -792,13 +813,23 @@ export default class AtomsPlugin extends Plugin {
   }
 
   getApiKey(): string | null {
-    const secretId = this.settings.apiKeySecretId?.trim();
-    if (secretId && this.app.secretStorage) {
-      try {
-        const fromSecret = this.app.secretStorage.getSecret(secretId);
-        if (fromSecret) return fromSecret;
-      } catch {
-        /* fall through */
+    // Prefer configured secret id, then default id (users often store under the tip name
+    // without saving the id field). Secret values are vault+device local — not data.json.
+    const ids = [
+      this.settings.apiKeySecretId?.trim(),
+      API_KEY_SECRET_ID_DEFAULT,
+    ].filter((id): id is string => !!id);
+    const tried = new Set<string>();
+    if (this.app.secretStorage) {
+      for (const secretId of ids) {
+        if (tried.has(secretId)) continue;
+        tried.add(secretId);
+        try {
+          const fromSecret = this.app.secretStorage.getSecret(secretId);
+          if (fromSecret) return fromSecret;
+        } catch {
+          /* try next */
+        }
       }
     }
 
@@ -1340,6 +1371,124 @@ export default class AtomsPlugin extends Plugin {
     });
 
     new Notice("Atoms: KTD3 measurement logged to console");
+  }
+
+  /**
+   * Soft-unfreeze: reclassify one noise/task capture under the cursor.
+   * Gated by settings.enableReconsiderCapture (default off).
+   */
+  async runReconsiderCapture() {
+    if (!this.settings.enableReconsiderCapture) {
+      new Notice(flagOffNotice());
+      return;
+    }
+
+    const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+    if (!view || !(view.file instanceof TFile)) {
+      new Notice(missNotice());
+      return;
+    }
+
+    const file = view.file;
+    const content = view.editor.getValue();
+    const cursor = view.editor.getCursor();
+    const line0 = cursor.line;
+
+    const capture = findCaptureAtLine(content, line0);
+    const gate = gateReconsiderTarget(capture);
+    if (!gate.ok) {
+      if (gate.reason === "atom") {
+        new Notice(atomRefuseNotice());
+      } else {
+        new Notice(missNotice());
+      }
+      return;
+    }
+
+    const apiKey = this.requireApiKey();
+    if (!apiKey) return;
+
+    const nowKind = gate.capture.markerKind!;
+    const loading = new ReconsiderModal(this.app, {
+      capture: gate.capture,
+      nowKind,
+      result: null,
+      loading: true,
+    });
+    loading.open();
+
+    try {
+      const ctx = this.contextProvider.buildContext();
+      const outcome = await classifyCapture(gate.capture.text, ctx, {
+        apiKey,
+        model: this.settings.model,
+        activeVocabulary: this.settings.activeVocabulary,
+        maxAttempts: 2,
+        onAuthFailure: (msg) => new Notice(`Atoms: ${msg}`),
+      });
+
+      loading.close();
+
+      if (!outcome.ok) {
+        new Notice(`Atoms: ${outcome.message || outcome.reason}`);
+        return;
+      }
+
+      const result = outcome.result;
+      if (result.proposed_tags?.length) {
+        this.settings.proposedTags = mergeProposedTags(
+          this.settings.proposedTags,
+          result.proposed_tags,
+          this.settings.activeVocabulary,
+        );
+        await this.saveSettings();
+      }
+
+      const commitResult = async (r: typeof result) => {
+        const report = await applyReconsiderWrite({
+          app: this.app,
+          dailyPath: file.path,
+          dailyDate: dailyDateForFile(this.app, file),
+          capture: gate.capture,
+          result: r,
+          atomFolder: this.settings.atomFolder,
+        });
+        if (!report.ok) {
+          if (report.reason === "collision") {
+            new Notice(collisionNotice());
+          } else if (report.reason === "no_change") {
+            /* Apply should have been disabled */
+          } else {
+            new Notice("Atoms: could not reconsider (see console)");
+            devLog("[atoms] reconsider apply failed", report);
+          }
+          return;
+        }
+        new Notice(filedNotice(report.title ?? r.title));
+        this.forEachAtomsHome((v) => {
+          void v.refresh();
+        });
+      };
+
+      new ReconsiderModal(this.app, {
+        capture: gate.capture,
+        nowKind,
+        result,
+        onApply: async () => {
+          await commitResult(result);
+        },
+        onKeepAnyway: async () => {
+          await commitResult(forceKeepAtomResult(gate.capture.text));
+        },
+      }).open();
+    } catch (e) {
+      loading.close();
+      devLog("[atoms] reconsider failed", {
+        name: e instanceof Error ? e.name : "Error",
+        message: e instanceof Error ? e.message : "unknown",
+      });
+      new Notice("Atoms: reconsider failed (see console)");
+    }
   }
 
   runSecretStorageProbe() {

@@ -538,7 +538,7 @@ export class AtomsSettingTab extends PluginSettingTab {
     new Setting(containerEl)
       .setName("Anthropic API key")
       .setDesc(
-        "SecretStorage. The value never lives in data.json. Secret ids: lowercase alphanumeric with dashes.",
+        "SecretStorage on this vault + device only (not synced). Switching vaults or clearing app data (e.g. emulator pm clear) drops the key — re-enter once per vault. Secret ids: lowercase alphanumeric with dashes.",
       )
       .addComponent((el) =>
         new SecretComponent(this.app, el)
@@ -688,6 +688,20 @@ export class AtomsSettingTab extends PluginSettingTab {
           .setValue(this.plugin.settings.atomFolder)
           .onChange(async (value) => {
             this.plugin.settings.atomFolder = clampAtomFolder(value);
+            await this.plugin.saveSettings();
+          }),
+      );
+
+    new Setting(containerEl)
+      .setName("Reconsider capture")
+      .setDesc(
+        "Experimental. Command palette → Reconsider capture: ask again about one skipped line (noise/task marker) under the cursor. Off by default.",
+      )
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.enableReconsiderCapture === true)
+          .onChange(async (on) => {
+            this.plugin.settings.enableReconsiderCapture = on;
             await this.plugin.saveSettings();
           }),
       );

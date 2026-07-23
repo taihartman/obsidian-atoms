@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| In progress | #91 | Tai | feat/atoms-plus-managed-filing | docs/plans/2026-07-17-005-feat-atoms-plus-managed-filing-plan.md | src/platform/*, src/settings/settings.ts, plus-service/ | Plugin Plus MVP + Stripe dogfood + U1 fail-closed; PR #92 |
+| In progress | #91 | Tai | feat/atoms-plus-managed-filing | docs/plans/2026-07-17-005-feat-atoms-plus-managed-filing-plan.md | src/platform/*, src/settings/settings.ts, plus-service/ | Plugin Plus MVP + Stripe dogfood + U1 fail-closed; PR #92 · rebased onto master 2026-07-23 |
 | In progress | #107 | Tai | feat/atoms-plus-managed-filing | docs/plans/2026-07-22-001-feat-atoms-plus-production-backend-meter-security-plan.md | plus-service/** | Prod backend U2–U9 on same branch as #92; SQLite durable + gates |
 
 ## How to claim (copy)
@@ -24,6 +24,9 @@ States: `Queued` · `In progress` · `Blocked` · `In review` · `Done` (then re
 
 | Merged | Issue / PR | Summary |
 |---|---|---|
+| 2026-07-22 | #100 / #102 | Reconsider capture (flagged) · release 0.6.27 |
+| 2026-07-18 | #97 / #98 | Library row opens vault note (not in-home reader) |
+| 2026-07-18 | #93 #95 / #94 | Entity orbits T0–T3 + Together Open list (0.6.26) |
 | 2026-07-17 | #83 / #84 | Open atom graph command (0.6.19) |
 | 2026-07-17 | #74 / #75 | ghost textButton kit + bridge chrome fix |
 | 2026-07-17 | #71 / #72 | Land, then remember + drop For you label (0.6.14) |

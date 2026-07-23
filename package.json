@@ -1,6 +1,6 @@
 {
   "name": "obsidian-atoms",
-  "version": "0.6.23",
+  "version": "0.6.28",
   "description": "Classify past daily-note captures into atomic notes via Anthropic API",
   "main": "main.js",
   "type": "module",
@@ -13,8 +13,7 @@
     "seed:demo": "node scripts/seed-demo-vault.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc -noEmit -skipLibCheck",
-    "phone": "bash scripts/install-to-vault.sh \"$HOME/Documents/Remote Vault\""
+    "typecheck": "tsc -noEmit -skipLibCheck"
   },
   "keywords": [
     "obsidian",

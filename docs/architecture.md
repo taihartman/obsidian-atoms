@@ -57,6 +57,8 @@ processInbox(dryRun)
 
 **Link / idea quality (0.6.6+):** `improveClassificationLinks` rewrites boilerplate reasons (“preference about X”); `rescueKeepableIdea` promotes product/app pitches from task/noise → atom; optional exact `People` index link for workplace-shaped captures without a person hub.
 
+**Entity orbits (0.6.24+ / 0.6.25):** packing/trip dumps rescue to **atoms** (not noise); link **exact** existing vault entity titles via `enrichEntityLinks`. Soft buckets never form a shelf alone. **Also about** when ≥3 atoms hard-link an existing hub. **Make {label}?** invite when packing-shaped atoms suggest a missing hub (user Create only — no silent stubs). Calm **Together** card when a hub orbit already exists. See `docs/architecture-constellations.md`.
+
 ## Module map (`src/`) — hybrid layout
 
 **Layout rule (agents):** new filing logic → `pipeline/` (or `pipeline/enrich/`); home UI → `home/`; shared home presentation → `ui/`; resurface cues → `resurface/`; settings/CTA → `settings/`; device gates → `platform/`; shared types → `shared/`. Wire-up only in `plugin/`.
@@ -80,9 +82,11 @@ processInbox(dryRun)
 | `pipeline/parseLinkProse.ts` | Link-prose → structured links (offline polish) |
 | `pipeline/daily.ts` | Past dailies / today open helpers |
 | `pipeline/vocabulary.ts` | Active / vault / proposed tags |
-| `pipeline/enrich/*` | Post-classify repair: people, media, linkQuality, ideaRescue |
+| `pipeline/enrich/*` | Post-classify repair: people, media, entityLinks, linkQuality, ideaRescue |
+| `pipeline/softKeys.ts` | Soft entity denylist (orbits + connected resurface) |
+| `pipeline/entityOrbitIndex.ts` / `entityOrbitPolicy.ts` | Hard-key sibling orbits (Also about) |
 | `ui/*` | Thin DOM factories for home (button, flatCard, claimQuote, …) |
-| `home/*` | Atoms home view + pure library helpers + run progress |
+| `home/*` | Atoms home view + pure library helpers + run progress + Also about |
 | `resurface/resurface.ts` | Multi-cue stream / mind-change / throttle / citator lines |
 | `settings/*` | Settings tab + capture shortcut CTA |
 | `platform/*` | Auto-run gates, connectivity probe |

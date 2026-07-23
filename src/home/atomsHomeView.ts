@@ -9,7 +9,9 @@ import {
 } from "obsidian";
 import type AtomsPlugin from "../plugin/main";
 import {
+  ALSO_ABOUT_BODY_NOTE,
   bodyAfterFrontmatter,
+  buildAlsoAboutStripModel,
   countUpdateWorkRemaining,
   extractSourceDay,
   filingHeroCopy,
@@ -29,6 +31,24 @@ import {
   type AtomLibraryEntry,
   type FilingHeroCopy,
 } from "./atomsHomeData";
+import { buildOrbits } from "../pipeline/entityOrbitIndex";
+import {
+  pickPrimaryOrbit,
+  sortSiblingRows,
+} from "../pipeline/entityOrbitPolicy";
+import {
+  collectEntityInvites,
+  entityInviteCopy,
+  ENTITY_INVITE_SNOOZE_DAYS,
+  formatEntityHubMarkdown,
+  type EntityInviteCandidate,
+} from "../pipeline/entityInvite";
+import {
+  discoverPersonHubs,
+  type PersonHubFile,
+} from "../pipeline/enrich/people";
+import { formatLinkProse } from "../pipeline/render";
+import { extractLinkProseRegion, parseLinkProse } from "../pipeline/parseLinkProse";
 import {
   CURRENT_ATOMS_QUALITY,
 } from "../pipeline/atomQuality";
@@ -115,6 +135,7 @@ import {
 export const ATOMS_HOME_VIEW_TYPE = "atoms-home";
 
 const LS_UPDATE_NOTES_DISMISSED_Q = "atoms-update-notes-dismissed-q";
+const LS_ENTITY_INVITE_SNOOZE = "atoms-entity-invite-snooze";
 
 type FilterMode = "all" | "linked";
 
@@ -181,6 +202,19 @@ export class AtomsHomeView extends ItemView {
         title: string;
         body: string;
         lines: CitatorLine[];
+        alsoAbout?: {
+          label: string;
+          otherCount: number;
+          stripText: string;
+          siblings: Array<{ path: string; title: string; sourceDate: string | null }>;
+        } | null;
+      }
+      | {
+        kind: "entity-siblings";
+        /** Atom we came from; null when opened from Together (back → home). */
+        backPath: string | null;
+        label: string;
+        siblings: Array<{ path: string; title: string; sourceDate: string | null }>;
       }
     | {
         kind: "mind-change-pair";
@@ -196,6 +230,18 @@ export class AtomsHomeView extends ItemView {
         interactionNoted: boolean;
       }
     | null = null;
+  /** Cached person hub titles for Also about exclusivity. */
+  private personHubTitles: string[] = [];
+  /** Pending entity hub invite (Make packing list?). */
+  private entityInvite: EntityInviteCandidate | null = null;
+  /** Surfaceable Together orbit for calm home card. */
+  private togetherCard: {
+    label: string;
+    memberCount: number;
+    peekTitles: string[];
+    /** Full orbit members for Open → title list. */
+    members: Array<{ path: string; title: string; sourceDate: string | null }>;
+  } | null = null;
 
   /** Live Preview/Process progress (not cleared by library refresh). */
   private runPhase: RunPhase = "idle";
@@ -517,6 +563,16 @@ export class AtomsHomeView extends ItemView {
       content: i.content,
       mtime: i.mtime,
     }));
+    const hubFiles: PersonHubFile[] = this.app.vault
+      .getMarkdownFiles()
+      .map((f) => ({
+        path: f.path,
+        cache: this.app.metadataCache.getFileCache(f),
+      }));
+    this.personHubTitles = discoverPersonHubs(hubFiles).map(
+      (h) => h.canonicalTitle,
+    );
+    this.refreshEntitySurfaces();
     const work = countUpdateWorkRemaining(
       inputs.map((i) => ({
         content: i.content,
@@ -837,6 +893,255 @@ export class AtomsHomeView extends ItemView {
     this.render();
   }
 
+  private readInviteSnooze(): Set<string> {
+    const raw = this.app.loadLocalStorage(LS_ENTITY_INVITE_SNOOZE) as
+      | string
+      | null;
+    const out = new Set<string>();
+    if (!raw) return out;
+    try {
+      const obj = JSON.parse(raw) as Record<string, number>;
+      const now = Date.now();
+      for (const [k, until] of Object.entries(obj)) {
+        if (typeof until === "number" && until > now) out.add(k.toLowerCase());
+      }
+    } catch {
+      /* ignore */
+    }
+    return out;
+  }
+
+  private snoozeEntityInvite(label: string): void {
+    const raw = this.app.loadLocalStorage(LS_ENTITY_INVITE_SNOOZE) as
+      | string
+      | null;
+    let obj: Record<string, number> = {};
+    try {
+      if (raw) obj = JSON.parse(raw) as Record<string, number>;
+    } catch {
+      obj = {};
+    }
+    const until =
+      Date.now() + ENTITY_INVITE_SNOOZE_DAYS * 24 * 60 * 60 * 1000;
+    obj[label.trim().toLowerCase()] = until;
+    this.app.saveLocalStorage(LS_ENTITY_INVITE_SNOOZE, JSON.stringify(obj));
+  }
+
+  private refreshEntitySurfaces(): void {
+    const vaultTitles = this.app.vault.getMarkdownFiles().map((f) => f.basename);
+    const atoms = this.atomFileInputs
+      .filter((f) => isGeneratedAtomContent(f.content))
+      .map((f) => ({
+        path: f.path,
+        title: titleFromAtomPath(f.path),
+        content: f.content,
+        sourceDate: extractSourceDay(f.content),
+      }));
+
+    const invites = collectEntityInvites(atoms, vaultTitles, {
+      snoozedLabels: this.readInviteSnooze(),
+      minMembers: 1,
+    });
+    this.entityInvite = invites[0] ?? null;
+
+    // Together card: any surfaceable orbit (hub already exists)
+    this.togetherCard = null;
+    if (!this.entityInvite) {
+      const orbits = buildOrbits(atoms, {
+        vaultTitles,
+        personHubTitles: this.personHubTitles,
+      });
+      for (const a of atoms) {
+        const primary = pickPrimaryOrbit(a.path, orbits, {
+          personHubTitles: this.personHubTitles,
+        });
+        if (!primary) continue;
+        const members = sortSiblingRows(primary.orbit.members);
+        this.togetherCard = {
+          label: primary.orbit.label,
+          memberCount: members.length,
+          peekTitles: members.slice(0, 3).map((m) => m.title),
+          members,
+        };
+        break;
+      }
+    }
+  }
+
+  private renderEntityInviteCard(scroll: HTMLElement): void {
+    const inv = this.entityInvite;
+    if (!inv) return;
+    const copy = entityInviteCopy(inv.label, inv.memberPaths.length);
+    const card = flatCard(scroll, { className: "atoms-home-entity-invite" });
+    card.createEl("p", {
+      cls: "atoms-home-card-eyebrow atoms-home-entity-invite-kicker",
+      text: copy.kicker,
+    });
+    card.createEl("h2", { text: copy.title });
+    card.createEl("p", { text: copy.body });
+    if (inv.memberTitles.length) {
+      const peek = card.createEl("ul", { cls: "atoms-home-entity-invite-peek" });
+      for (const t of inv.memberTitles.slice(0, 3)) {
+        peek.createEl("li", { text: t });
+      }
+    }
+    const actions = actionRow(card);
+    button(actions, {
+      grade: "primary",
+      label: copy.createLabel,
+      onClick: () => void this.onCreateEntityHub(inv),
+    });
+    button(actions, {
+      grade: "secondary",
+      label: copy.dismissLabel,
+      onClick: () => {
+        this.snoozeEntityInvite(inv.label);
+        this.entityInvite = null;
+        this.refreshEntitySurfaces();
+        this.render();
+      },
+    });
+  }
+
+  private renderTogetherCard(scroll: HTMLElement): void {
+    const t = this.togetherCard;
+    if (!t) return;
+    const card = flatCard(scroll, { className: "atoms-home-together-card" });
+    card.createEl("p", {
+      cls: "atoms-home-card-eyebrow atoms-home-entity-invite-kicker",
+      text: "Together",
+    });
+    card.createEl("h2", { text: t.label });
+    card.createEl("p", {
+      text: `${t.memberCount} notes. Open to see them all.`,
+    });
+    if (t.peekTitles.length) {
+      const peek = card.createEl("ul", { cls: "atoms-home-entity-invite-peek" });
+      for (const title of t.peekTitles) {
+        peek.createEl("li", { text: title });
+      }
+    }
+    const actions = actionRow(card);
+    button(actions, {
+      grade: "primary",
+      label: "Open",
+      onClick: () => {
+        this.homeOpen = {
+          kind: "entity-siblings",
+          backPath: null,
+          label: t.label,
+          siblings: t.members,
+        };
+        this.render();
+      },
+    });
+    button(actions, {
+      grade: "secondary",
+      label: "Not now",
+      onClick: () => {
+        this.togetherCard = null;
+        this.render();
+      },
+    });
+  }
+
+  private async onCreateEntityHub(inv: EntityInviteCandidate): Promise<void> {
+    const label = inv.label.trim();
+    if (!label) return;
+    const path = `${label}.md`;
+    try {
+      const existing = this.app.vault.getAbstractFileByPath(path);
+      if (!existing) {
+        await this.app.vault.create(path, formatEntityHubMarkdown(label));
+      }
+      // Re-point member atoms: add hard link to new hub in link-prose
+      for (const memberPath of inv.memberPaths) {
+        const file = this.app.vault.getAbstractFileByPath(memberPath);
+        if (!(file instanceof TFile)) continue;
+        const content = await this.app.vault.read(file);
+        if (!isGeneratedAtomContent(content)) continue;
+        const prose = extractLinkProseRegion(content);
+        const links = parseLinkProse(prose);
+        const has = links.some(
+          (l) => l.note.trim().toLowerCase() === label.toLowerCase(),
+        );
+        if (has) continue;
+        const nextLinks = [
+          ...links,
+          {
+            note: label,
+            reason: `belongs with [[${label}]]`,
+          },
+        ];
+        const newProse = formatLinkProse(nextLinks);
+        let nextContent: string;
+        if (prose) {
+          nextContent = content.replace(prose, newProse);
+        } else {
+          // append after body
+          const body = bodyAfterFrontmatter(content).trimEnd();
+          const fmEnd = content.indexOf("\n---", 3);
+          if (content.startsWith("---") && fmEnd !== -1) {
+            const fm = content.slice(0, fmEnd + 4);
+            const rest = content.slice(fmEnd + 4).replace(/^\r?\n/, "");
+            const capture = rest.split(/\n\n/)[0] ?? rest;
+            nextContent = `${fm}\n${capture.trimEnd()}\n\n${newProse}\n`;
+          } else {
+            nextContent = `${body}\n\n${newProse}\n`;
+          }
+        }
+        await this.app.vault.modify(file, nextContent);
+      }
+      new Notice(`Atoms: created ${label}`);
+      this.entityInvite = null;
+      await this.loadData();
+      this.render();
+    } catch (e) {
+      new Notice("Atoms: could not create list note");
+    }
+  }
+
+  private buildAlsoAboutForPath(path: string): {
+    label: string;
+    otherCount: number;
+    stripText: string;
+    siblings: Array<{ path: string; title: string; sourceDate: string | null }>;
+  } | null {
+    const folder = this.plugin.settings.atomFolder || "Atoms";
+    const vaultTitles = this.app.vault
+      .getMarkdownFiles()
+      .map((f) => f.basename);
+    const atoms = this.atomFileInputs
+      .filter((f) => isGeneratedAtomContent(f.content))
+      .map((f) => ({
+        path: f.path,
+        title: titleFromAtomPath(f.path),
+        content: f.content,
+        sourceDate: extractSourceDay(f.content),
+      }));
+    void folder;
+    const orbits = buildOrbits(atoms, {
+      vaultTitles,
+      personHubTitles: this.personHubTitles,
+    });
+    const primary = pickPrimaryOrbit(path, orbits, {
+      personHubTitles: this.personHubTitles,
+    });
+    if (!primary) return null;
+    const siblings = sortSiblingRows(primary.others);
+    const strip = buildAlsoAboutStripModel(
+      primary.orbit.label,
+      siblings.length,
+    );
+    if (!strip) return null;
+    return {
+      label: strip.label,
+      otherCount: strip.otherCount,
+      stripText: strip.stripText,
+      siblings,
+    };
+  }
+
   private async openAtomInHome(path: string): Promise<void> {
     const folder = this.plugin.settings.atomFolder || "Atoms";
     const file = this.atomFileInputs.find((f) => f.path === path);
@@ -861,6 +1166,7 @@ export class AtomsHomeView extends ItemView {
         bodyAfterFrontmatter(file.content).trim() || self.bodySnippet,
       ),
       lines,
+      alsoAbout: this.buildAlsoAboutForPath(self.path),
     };
     this.render();
   }
@@ -872,6 +1178,45 @@ export class AtomsHomeView extends ItemView {
       this.renderMindChangePair(scroll, open);
       return;
     }
+    if (open.kind === "entity-siblings") {
+      backLink(scroll, {
+        label: "‹ Back",
+        className: "atoms-home-back",
+        onClick: () => {
+          if (open.backPath) {
+            void this.openAtomInHome(open.backPath);
+          } else {
+            this.closeHomeOpen();
+          }
+        },
+      });
+      scroll.createEl("h2", {
+        cls: "atoms-home-open-title",
+        text: open.label,
+      });
+      scroll.createEl("p", {
+        cls: "atoms-home-also-about-meta",
+        text: `${open.siblings.length} notes · linked over several nights`,
+      });
+      const list = listGroup(scroll, { className: "atoms-home-list" });
+      for (const s of open.siblings) {
+        listRow(list, {
+          className: "atoms-home-cell",
+          role: "button",
+          onClick: () => {
+            void this.openAtomInHome(s.path);
+          },
+        }).createDiv({ cls: "atoms-home-cell-main" }).createDiv({
+          cls: "atoms-home-cell-title",
+          text: s.title,
+        });
+      }
+      scroll.createEl("p", {
+        cls: "atoms-home-also-about-note",
+        text: ALSO_ABOUT_BODY_NOTE,
+      });
+      return;
+    }
     backLink(scroll, {
       label: "‹ Back",
       className: "atoms-home-back",
@@ -881,6 +1226,33 @@ export class AtomsHomeView extends ItemView {
       cls: "atoms-home-open-title",
       text: open.title,
     });
+    if (open.alsoAbout) {
+      const strip = scroll.createDiv({
+        cls: "atoms-home-also-about",
+        attr: { role: "button", tabindex: "0" },
+      });
+      strip.createDiv({
+        cls: "atoms-home-also-about-text",
+        text: open.alsoAbout.stripText,
+      });
+      const openList = () => {
+        if (!open.alsoAbout) return;
+        this.homeOpen = {
+          kind: "entity-siblings",
+          backPath: open.path,
+          label: open.alsoAbout.label,
+          siblings: open.alsoAbout.siblings,
+        };
+        this.render();
+      };
+      strip.addEventListener("click", openList);
+      strip.addEventListener("keydown", (ev) => {
+        if (ev.key === "Enter" || ev.key === " ") {
+          ev.preventDefault();
+          openList();
+        }
+      });
+    }
     if (open.lines.length) {
       const ribbon = scroll.createDiv({
         cls: "atoms-home-citator-ribbon",
@@ -1223,10 +1595,21 @@ export class AtomsHomeView extends ItemView {
       }
     }
 
-    // One hero: Ready when pending; resurface card only when calm (home-v2)
+    // One hero: Ready when pending; entity invite / Together / resurface when calm
     const workPending = shouldShowWaitCard(this.unprocessedCount);
-    if (!firstDay && this.runPhase === "idle" && !workPending) {
-      this.renderResurfaceCard(scroll);
+    if (
+      !firstDay &&
+      this.runPhase === "idle" &&
+      !workPending &&
+      !this.landPeak
+    ) {
+      if (this.entityInvite) {
+        this.renderEntityInviteCard(scroll);
+      } else if (this.togetherCard) {
+        this.renderTogetherCard(scroll);
+      } else {
+        this.renderResurfaceCard(scroll);
+      }
     }
 
     // Show when not mid-run. Hide during preview/process/update and under land peak.
@@ -1345,7 +1728,7 @@ export class AtomsHomeView extends ItemView {
           className: "atoms-home-cell",
           role: "button",
           onClick: () => {
-            void this.app.workspace.openLinkText(e.title, e.path, false);
+            void this.openPathInVault(e.path);
           },
         });
         const main = row.createDiv({ cls: "atoms-home-cell-main" });
