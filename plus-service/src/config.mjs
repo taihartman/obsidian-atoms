@@ -94,7 +94,11 @@ export const config = {
     return env("PUBLIC_BASE_URL", `http://127.0.0.1:${this.port}`);
   },
   get promoCodes() {
-    return parsePromos(env("ATOMS_PLUS_PROMOS", "FOUNDING=2"));
+    // KTD-B8: no default public FOUNDING in production — env only
+    const a = env("ATOMS_PLUS_ENV", env("NODE_ENV", "development")).toLowerCase();
+    const isProd = a === "production" || a === "prod";
+    const defaultPromos = isProd ? "" : "FOUNDING=2";
+    return parsePromos(env("ATOMS_PLUS_PROMOS", defaultPromos));
   },
   get promoMaxRedemptions() {
     return Number(env("ATOMS_PLUS_PROMO_MAX", "100"));

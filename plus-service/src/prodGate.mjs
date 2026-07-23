@@ -78,6 +78,9 @@ export function checkProductionReady() {
       "ATOMS_PLUS_STORE=sqlite is single-process only; production requires postgres",
     );
   }
+  if (!config.resendApiKey) {
+    errors.push("RESEND_API_KEY required in production (magic-link email)");
+  }
 
   const base = (config.publicBaseUrl || "").toLowerCase();
   if (
@@ -88,6 +91,9 @@ export function checkProductionReady() {
     errors.push(
       "PUBLIC_BASE_URL must be a public https host in production (not localhost)",
     );
+  }
+  if (base && !base.startsWith("https://")) {
+    errors.push("PUBLIC_BASE_URL must use https in production");
   }
 
   return errors.length ? { ok: false, errors } : { ok: true, errors: [] };

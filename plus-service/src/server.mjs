@@ -157,10 +157,16 @@ async function handler(req, res) {
         return json(res, 400, { message: "Valid email required" });
       }
       const token = await store.createMagicToken(email);
+      // Production: plugin opens exchange in-app; never dump sess_ via HTML.
       const link = allowDevExchange()
         ? `${config.publicBaseUrl}/v1/auth/dev-exchange?token=${token}`
-        : `${config.publicBaseUrl}/v1/auth/exchange?token=${token}`;
-      await sendMagicLinkEmail({ to: email, link });
+        : `${config.publicBaseUrl}/v1/auth/exchange?token=${encodeURIComponent(token)}`;
+      const sent = await sendMagicLinkEmail({ to: email, link });
+      if (!sent.ok) {
+        return json(res, 503, {
+          message: sent.message || "Could not send sign-in email",
+        });
+      }
       return json(res, 200, { ok: true });
     }
 

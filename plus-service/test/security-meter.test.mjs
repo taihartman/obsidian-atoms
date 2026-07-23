@@ -8,8 +8,9 @@ import {
   isProduction,
 } from "../src/prodGate.mjs";
 import { buildClassifyPayload } from "../src/anthropic.mjs";
-import { applyStripeEvent } from "../src/stripe.mjs";
+import { applyStripeEvent, constructEvent } from "../src/stripe.mjs";
 import { CLASSIFICATION_SCHEMA, SYSTEM_PROMPT } from "../src/classifyTemplate.mjs";
+import { checkRateLimit } from "../src/ratelimit.mjs";
 
 describe("U9 security meter regressions", () => {
   beforeEach(() => {
@@ -237,5 +238,62 @@ describe("U9 security meter regressions", () => {
       "proposed_tags",
       "links",
     ]);
+  });
+
+  it("P1-3: expired session cannot classify", () => {
+    process.env.DOGFOOD_AUTO_GRANT = "0";
+    const store = createMemoryStore();
+    store.grantPeriod("exp@t.co", { remaining: 10, status: "active" });
+    const tok = store.createMagicToken("exp@t.co");
+    const { session } = store.exchangeMagic(tok);
+    store.getAccount("exp@t.co").remaining = 10;
+    store.getAccount("exp@t.co").status = "active";
+    // Expire session
+    const h = [...store._sessions.keys()][0];
+    store._sessions.get(h).exp = Date.now() - 1000;
+    const c = store.tryConsumeFiling(session, "exp-key");
+    assert.equal(c.ok, false);
+    assert.equal(c.code, "auth");
+  });
+
+  it("P1-3: revoked session cannot classify", () => {
+    process.env.DOGFOOD_AUTO_GRANT = "0";
+    const store = createMemoryStore();
+    store.grantPeriod("rv@t.co", { remaining: 10, status: "active" });
+    const tok = store.createMagicToken("rv@t.co");
+    const { session } = store.exchangeMagic(tok);
+    store.getAccount("rv@t.co").remaining = 10;
+    store.getAccount("rv@t.co").status = "active";
+    store.revokeSession(session);
+    const c = store.tryConsumeFiling(session, "rv-key");
+    assert.equal(c.ok, false);
+    assert.equal(c.code, "auth");
+  });
+
+  it("P1-1 / U6: production has no default FOUNDING promo", async () => {
+    process.env.ATOMS_PLUS_ENV = "production";
+    delete process.env.ATOMS_PLUS_PROMOS;
+    const { config } = await import(`../src/config.mjs?t=${Date.now()}`);
+    assert.equal(config.promoCodes.has("FOUNDING"), false);
+  });
+
+  it("P1-5: rate limit eventually 429s", () => {
+    process.env.ATOMS_PLUS_RATE_LIMIT_PER_MIN = "3";
+    const key = `rl-test-${Date.now()}`;
+    assert.equal(checkRateLimit(key, 3).ok, true);
+    assert.equal(checkRateLimit(key, 3).ok, true);
+    assert.equal(checkRateLimit(key, 3).ok, true);
+    const blocked = checkRateLimit(key, 3);
+    assert.equal(blocked.ok, false);
+    assert.ok(blocked.retryAfterSec >= 1);
+    delete process.env.ATOMS_PLUS_RATE_LIMIT_PER_MIN;
+  });
+
+  it("unsigned webhook construct rejects", () => {
+    process.env.STRIPE_WEBHOOK_SECRET = "whsec_test";
+    assert.throws(
+      () => constructEvent(JSON.stringify({ id: "e", type: "ping" }), undefined),
+      /Missing Stripe-Signature/,
+    );
   });
 });

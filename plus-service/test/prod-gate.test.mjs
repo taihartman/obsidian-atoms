@@ -98,9 +98,29 @@ describe("prodGate", () => {
     process.env.PUBLIC_BASE_URL = "https://plus.tryatoms.app";
     process.env.DATABASE_URL = "postgres://user:pass@localhost:5432/plus";
     process.env.ATOMS_PLUS_STORE = "postgres";
+    process.env.RESEND_API_KEY = "re_test_x";
     const { checkProductionReady } = await loadGate();
     const r = checkProductionReady();
     assert.equal(r.ok, true, r.errors?.join("; "));
+  });
+
+  it("checkProductionReady fails without RESEND_API_KEY", async () => {
+    process.env.ATOMS_PLUS_ENV = "production";
+    process.env.DOGFOOD_AUTO_GRANT = "0";
+    process.env.STRIPE_SECRET_KEY = "sk_test_x";
+    process.env.STRIPE_WEBHOOK_SECRET = "whsec_x";
+    process.env.STRIPE_PRICE_MONTHLY = "price_m";
+    process.env.STRIPE_PRICE_YEARLY = "price_y";
+    process.env.STRIPE_PRICE_TOPUP = "price_t";
+    process.env.ANTHROPIC_API_KEY = "sk-ant-x";
+    process.env.PUBLIC_BASE_URL = "https://plus.tryatoms.app";
+    process.env.DATABASE_URL = "postgres://user:pass@localhost:5432/plus";
+    process.env.ATOMS_PLUS_STORE = "postgres";
+    delete process.env.RESEND_API_KEY;
+    const { checkProductionReady } = await loadGate();
+    const r = checkProductionReady();
+    assert.equal(r.ok, false);
+    assert.ok(r.errors.some((e) => e.includes("RESEND")));
   });
 
   it("checkProductionReady fails on memory store in production", async () => {
