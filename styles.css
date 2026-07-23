@@ -536,6 +536,10 @@
   color: var(--color-cyan, #64d2ff) !important;
 }
 
+.atoms-home-person-invite-kicker {
+  color: var(--color-orange, #ff9f0a) !important;
+}
+
 .atoms-home-entity-invite-peek {
   list-style: none;
   margin: 0 0 14px;
