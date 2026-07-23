@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| In progress | #60 | agent | feat/person-hub-invite | docs/plans/2026-07-23-001-feat-person-hub-invite-plan.md | personInvite.ts, people.ts, entityOrbitIndex.ts, atomsHomeView.ts | Person hub invite + peer/upgrade |
+| _(none)_ |  |  |  |  |  |  |
 
 ## How to claim (copy)
 
