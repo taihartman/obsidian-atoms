@@ -1,11 +1,53 @@
 /**
- * Atoms Plus HTTP client (U2). Injectable requestUrl; never logs session tokens.
+ * Atoms Plus HTTP client (U2). Injectable request; never logs session tokens.
+ *
+ * Prefer {@link plusFetchRequest} over Obsidian `requestUrl` for Plus:
+ * desktop `requestUrl` often fails to localhost (`net::ERR_FAILED`) while
+ * renderer `fetch` works. Production Plus is CORS-enabled (`*`).
  */
 
 import type { RequestUrlParam, RequestUrlResponse } from "obsidian";
 import type { PlusEntitlementStatus, PlusSession } from "./filingAuth";
 
 export type RequestFn = (params: RequestUrlParam) => Promise<RequestUrlResponse>;
+
+/**
+ * Fetch-backed request matching the subset of requestUrl we use (status/json/text).
+ * Does not throw on HTTP 4xx/5xx (like requestUrl with throw:false).
+ */
+export async function plusFetchRequest(
+  params: RequestUrlParam,
+): Promise<RequestUrlResponse> {
+  const res = await fetch(params.url, {
+    method: params.method ?? "GET",
+    headers: params.headers,
+    body:
+      params.body === undefined || params.body === null
+        ? undefined
+        : typeof params.body === "string"
+          ? params.body
+          : String(params.body),
+  });
+  const text = await res.text();
+  let json: unknown = {};
+  try {
+    json = text ? JSON.parse(text) : {};
+  } catch {
+    json = {};
+  }
+  const bytes = new TextEncoder().encode(text);
+  const headers: Record<string, string> = {};
+  res.headers.forEach((value, key) => {
+    headers[key] = value;
+  });
+  return {
+    status: res.status,
+    headers,
+    text,
+    json,
+    arrayBuffer: bytes.buffer,
+  } as RequestUrlResponse;
+}
 
 export type PlusCheckoutKind =
   | "subscribe_monthly"

@@ -43,6 +43,7 @@ import {
   signOutPlus,
 } from "../platform/plusClient";
 import { requestUrl } from "obsidian";
+import { plusFetchRequest } from "../platform/plusClient";
 import {
   addCustomActiveTag,
   approveProposedTag,
@@ -98,7 +99,7 @@ export class AtomsSettingTab extends PluginSettingTab {
     const base =
       this.plugin.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL;
     const r = await getEntitlement(
-      { baseUrl: base, request: requestUrl },
+      { baseUrl: base, request: plusFetchRequest },
       session.sessionToken,
     );
     if (!r.ok) {
@@ -145,7 +146,7 @@ export class AtomsSettingTab extends PluginSettingTab {
             const base =
               this.plugin.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL;
             const r = await createCheckout(
-              { baseUrl: base, request: requestUrl },
+              { baseUrl: base, request: plusFetchRequest },
               session.sessionToken,
               "topup_50",
             );
@@ -175,7 +176,7 @@ export class AtomsSettingTab extends PluginSettingTab {
             const base =
               this.plugin.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL;
             const r = await createBillingPortal(
-              { baseUrl: base, request: requestUrl },
+              { baseUrl: base, request: plusFetchRequest },
               session.sessionToken,
             );
             if (!r.ok) {
@@ -232,7 +233,7 @@ export class AtomsSettingTab extends PluginSettingTab {
             const base =
               this.plugin.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL;
             const r = await createBillingPortal(
-              { baseUrl: base, request: requestUrl },
+              { baseUrl: base, request: plusFetchRequest },
               session.sessionToken,
             );
             if (!r.ok) {
@@ -255,7 +256,7 @@ export class AtomsSettingTab extends PluginSettingTab {
               this.plugin.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL;
             if (session) {
               await signOutPlus(
-                { baseUrl: base, request: requestUrl },
+                { baseUrl: base, request: plusFetchRequest },
                 session.sessionToken,
               );
             }
@@ -313,7 +314,7 @@ export class AtomsSettingTab extends PluginSettingTab {
           const base =
             this.plugin.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL;
           const r = await requestMagicLink(
-            { baseUrl: base, request: requestUrl },
+            { baseUrl: base, request: plusFetchRequest },
             email,
           );
           if (!r.ok) {
@@ -408,7 +409,7 @@ export class AtomsSettingTab extends PluginSettingTab {
           const base =
             this.plugin.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL;
           const r = await createCheckout(
-            { baseUrl: base, request: requestUrl },
+            { baseUrl: base, request: plusFetchRequest },
             session.sessionToken,
             "start_trial",
           );

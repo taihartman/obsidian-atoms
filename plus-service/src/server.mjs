@@ -36,14 +36,20 @@ try {
 
 const store = createStore();
 
+/** Browser (Obsidian fetch) CORS — must allow Idempotency-Key or POST preflight fails. */
+const CORS_HEADERS = {
+  "access-control-allow-origin": "*",
+  "access-control-allow-headers":
+    "content-type, authorization, idempotency-key, x-idempotency-key, accept",
+  "access-control-allow-methods": "GET, POST, OPTIONS",
+};
+
 function json(res, status, body) {
   const data = JSON.stringify(body);
   res.writeHead(status, {
     "content-type": "application/json",
     "content-length": Buffer.byteLength(data),
-    "access-control-allow-origin": "*",
-    "access-control-allow-headers": "content-type, authorization",
-    "access-control-allow-methods": "GET, POST, OPTIONS",
+    ...CORS_HEADERS,
   });
   res.end(data);
 }
@@ -82,9 +88,8 @@ async function handler(req, res) {
 
   if (req.method === "OPTIONS") {
     res.writeHead(204, {
-      "access-control-allow-origin": "*",
-      "access-control-allow-headers": "content-type, authorization",
-      "access-control-allow-methods": "GET, POST, OPTIONS",
+      ...CORS_HEADERS,
+      "access-control-max-age": "86400",
     });
     res.end();
     return;

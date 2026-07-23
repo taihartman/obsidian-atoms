@@ -1,4 +1,5 @@
 import { requestUrl } from "obsidian";
+import { plusFetchRequest } from "../platform/plusClient";
 import type {
   ClassificationResult,
   ClassifyOutcome,
@@ -419,18 +420,21 @@ export async function classifyCapture(
     context,
   });
 
-  const request = deps.request ?? requestUrl;
+  // Plus: fetch (localhost dogfood + CORS host). BYOK: requestUrl (no CORS to Anthropic).
+  const request = deps.request ?? (plus ? plusFetchRequest : requestUrl);
   const sleep = deps.sleep ?? defaultSleep;
   const maxAttempts = deps.maxAttempts ?? 3;
 
   let status = 0;
   let json: Record<string, unknown> = {};
   let lastTransient: ClassifyOutcome | null = null;
+  let plusErrorMessage: string | undefined;
   let keyFingerprint = plus
     ? "plus"
     : fingerprintKey(apiKey ?? "");
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    plusErrorMessage = undefined;
     try {
       if (plus) {
         const base = plus.baseUrl.replace(/\/+$/, "");
@@ -458,6 +462,10 @@ export async function classifyCapture(
           typeof res.json === "object" && res.json !== null
             ? (res.json as Record<string, unknown>)
             : {};
+        // Keep proxy error text (session vs upstream key) before unwrapping result.
+        if (typeof outer.message === "string" && outer.message.trim()) {
+          plusErrorMessage = outer.message.trim().slice(0, 200);
+        }
         // Proxy may wrap Anthropic response in { result, remaining } or return Anthropic shape.
         if (
           typeof outer.result === "object" &&
@@ -515,9 +523,15 @@ export async function classifyCapture(
     }
 
     if (status === 401 || status === 403) {
-      const message = plus
-        ? "Plus session rejected. Sign in again from Settings → Atoms Plus."
-        : "API key rejected (401/403). Check the key in settings.";
+      const upstream = (plusErrorMessage ?? "").toLowerCase();
+      const message = !plus
+        ? "API key rejected (401/403). Check the key in settings."
+        : upstream.includes("upstream") || upstream.includes("model auth")
+          ? "Plus service cannot reach Anthropic (managed API key invalid). Operator: fix ANTHROPIC_API_KEY on the Plus server."
+          : upstream.includes("invalid session") || upstream.includes("expired")
+            ? "Plus session rejected. Sign in again from Settings → Atoms Plus."
+            : plusErrorMessage?.trim() ||
+              "Plus session rejected. Sign in again from Settings → Atoms Plus.";
       deps.onAuthFailure?.(message);
       return { ok: false, reason: "auth", status, message };
     }
