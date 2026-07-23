@@ -62,7 +62,13 @@ One-line subsequent-history chips on Atoms home when an open atom participates i
 ## People (linking)
 
 ### Person hub
-A vault note treated as a person entity for linking. Matching and link repair prefer hub titles and match keys over free-form model inventiveness.
+A vault note treated as a person entity for linking. Matching and link repair prefer hub titles and match keys over free-form model inventiveness. Identity lives in the hub note, not in name-tags.
+
+### Person hub invite
+Calm Atoms home card (**Add {Name}?**) after Process/Update when a high-confidence person has no hub. Human accept creates a minimal person note; never silent auto-create. Soft `[[People]]` is fallback only until accept or a real hub exists.
+
+### Peer link (pre-hub)
+Plugin link-prose between generated atoms that share the same high-confidence missing person (or later project) label before a hub note exists. On invite accept, peers and soft bucket links **upgrade** to the new hub. Soft buckets are never identity peers.
 
 ## Flagged ambiguities
 

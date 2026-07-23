@@ -74,6 +74,11 @@ function resolveVaultLabel(id: string, vaultTitles: string[]): string | null {
 export type BuildOrbitsOpts = {
   vaultTitles: string[];
   personHubTitles?: Set<string> | string[];
+  /**
+   * Atom-folder basenames (lower) that must never form orbit keys —
+   * peer links between generated atoms stay graph edges without Also about.
+   */
+  excludeOrbitTitles?: Set<string> | string[];
 };
 
 /**
@@ -84,6 +89,14 @@ export function buildOrbits(
   opts: BuildOrbitsOpts,
 ): EntityOrbit[] {
   const vaultTitles = opts.vaultTitles ?? [];
+  const exclude = new Set(
+    [...(opts.excludeOrbitTitles ?? [])].map((t) => t.trim().toLowerCase()),
+  );
+  // Also exclude all atom titles in the input set (peer claim titles)
+  for (const a of atoms) {
+    const t = a.title.trim().toLowerCase();
+    if (t) exclude.add(t);
+  }
   const map = new Map<string, OrbitMember[]>();
   const labels = new Map<string, string>();
 
@@ -95,6 +108,7 @@ export function buildOrbits(
       if (!id || id === self) continue;
       if (isSoftEntityKey(key)) continue;
       if (isDailyBasenameKey(key)) continue;
+      if (exclude.has(id)) continue;
       const label = resolveVaultLabel(id, vaultTitles);
       if (!label) continue;
       labels.set(id, label);

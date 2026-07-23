@@ -94,6 +94,45 @@ describe("buildOrbits + policy", () => {
     expect(orbits.find((o) => o.id === "ghost trip")).toBeUndefined();
   });
 
+  it("peer links between atom titles never form orbits", () => {
+    const vault2 = [...vault, "Bug spray", "Hat", "Pants"];
+    const peers = [
+      {
+        path: "Atoms/a.md",
+        title: "Bug spray",
+        content: atomMd(
+          "Bug spray",
+          "spray",
+          "same person (no person note yet) ([[Hat]]).",
+        ),
+        sourceDate: "2026-07-10",
+      },
+      {
+        path: "Atoms/b.md",
+        title: "Hat",
+        content: atomMd(
+          "Hat",
+          "hat",
+          "same person (no person note yet) ([[Bug spray]]).",
+        ),
+        sourceDate: "2026-07-11",
+      },
+      {
+        path: "Atoms/c.md",
+        title: "Pants",
+        content: atomMd(
+          "Pants",
+          "pants",
+          "same person (no person note yet) ([[Hat]]).",
+        ),
+        sourceDate: "2026-07-12",
+      },
+    ];
+    const orbits = buildOrbits(peers, { vaultTitles: vault2 });
+    expect(orbits.find((o) => o.id === "hat")).toBeUndefined();
+    expect(orbits.find((o) => o.id === "bug spray")).toBeUndefined();
+  });
+
   it("daily basename never surfaces", () => {
     const atoms = threeYosemite.map((a) => ({
       ...a,

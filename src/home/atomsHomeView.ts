@@ -43,6 +43,19 @@ import {
   type EntityInviteCandidate,
 } from "../pipeline/entityInvite";
 import {
+  applyHardLinkToAtomContent,
+  applyPersonPeerLinksToContents,
+  collectPersonInvites,
+  formatPersonNoteMarkdown,
+  PERSON_INVITE_SNOOZE_DAYS,
+  personInviteCopy,
+  personNotePath,
+  resolvePeopleFolderPrefix,
+  resolvePersonInviteName,
+  type PersonInviteCandidate,
+} from "../pipeline/personInvite";
+import { PersonNoteSuggestModal } from "./personNoteSuggestModal";
+import {
   discoverPersonHubs,
   type PersonHubFile,
 } from "../pipeline/enrich/people";
@@ -129,6 +142,7 @@ export const ATOMS_HOME_VIEW_TYPE = "atoms-home";
 
 const LS_UPDATE_NOTES_DISMISSED_Q = "atoms-update-notes-dismissed-q";
 const LS_ENTITY_INVITE_SNOOZE = "atoms-entity-invite-snooze";
+const LS_PERSON_INVITE_SNOOZE = "atoms-person-invite-snooze";
 
 type FilterMode = "all" | "linked";
 
@@ -227,6 +241,9 @@ export class AtomsHomeView extends ItemView {
   private personHubTitles: string[] = [];
   /** Pending entity hub invite (Make packing list?). */
   private entityInvite: EntityInviteCandidate | null = null;
+  /** Pending person note invite (Add {Name}?). Outranks packing. */
+  private personInvite: PersonInviteCandidate | null = null;
+  private personInviteBusy = false;
   /** Surfaceable Together orbit for calm home card. */
   private togetherCard: {
     label: string;
@@ -886,10 +903,8 @@ export class AtomsHomeView extends ItemView {
     this.render();
   }
 
-  private readInviteSnooze(): Set<string> {
-    const raw = this.app.loadLocalStorage(LS_ENTITY_INVITE_SNOOZE) as
-      | string
-      | null;
+  private readSnoozeMap(lsKey: string): Set<string> {
+    const raw = this.app.loadLocalStorage(lsKey) as string | null;
     const out = new Set<string>();
     if (!raw) return out;
     try {
@@ -904,24 +919,33 @@ export class AtomsHomeView extends ItemView {
     return out;
   }
 
-  private snoozeEntityInvite(label: string): void {
-    const raw = this.app.loadLocalStorage(LS_ENTITY_INVITE_SNOOZE) as
-      | string
-      | null;
+  private writeSnooze(lsKey: string, label: string, days: number): void {
+    const raw = this.app.loadLocalStorage(lsKey) as string | null;
     let obj: Record<string, number> = {};
     try {
       if (raw) obj = JSON.parse(raw) as Record<string, number>;
     } catch {
       obj = {};
     }
-    const until =
-      Date.now() + ENTITY_INVITE_SNOOZE_DAYS * 24 * 60 * 60 * 1000;
-    obj[label.trim().toLowerCase()] = until;
-    this.app.saveLocalStorage(LS_ENTITY_INVITE_SNOOZE, JSON.stringify(obj));
+    obj[label.trim().toLowerCase()] = Date.now() + days * 24 * 60 * 60 * 1000;
+    this.app.saveLocalStorage(lsKey, JSON.stringify(obj));
+  }
+
+  private readInviteSnooze(): Set<string> {
+    return this.readSnoozeMap(LS_ENTITY_INVITE_SNOOZE);
+  }
+
+  private snoozeEntityInvite(label: string): void {
+    this.writeSnooze(LS_ENTITY_INVITE_SNOOZE, label, ENTITY_INVITE_SNOOZE_DAYS);
+  }
+
+  private snoozePersonInvite(name: string): void {
+    this.writeSnooze(LS_PERSON_INVITE_SNOOZE, name, PERSON_INVITE_SNOOZE_DAYS);
   }
 
   private refreshEntitySurfaces(): void {
-    const vaultTitles = this.app.vault.getMarkdownFiles().map((f) => f.basename);
+    const files = this.app.vault.getMarkdownFiles();
+    const vaultTitles = files.map((f) => f.basename);
     const atoms = this.atomFileInputs
       .filter((f) => isGeneratedAtomContent(f.content))
       .map((f) => ({
@@ -931,15 +955,23 @@ export class AtomsHomeView extends ItemView {
         sourceDate: extractSourceDay(f.content),
       }));
 
+    const personInvites = collectPersonInvites(atoms, {
+      personHubTitles: [...this.personHubTitles],
+      vaultTitles,
+      snoozedNames: this.readSnoozeMap(LS_PERSON_INVITE_SNOOZE),
+    });
+    this.personInvite = personInvites[0] ?? null;
+
     const invites = collectEntityInvites(atoms, vaultTitles, {
       snoozedLabels: this.readInviteSnooze(),
       minMembers: 1,
     });
-    this.entityInvite = invites[0] ?? null;
+    // Person invite outranks packing Make
+    this.entityInvite = this.personInvite ? null : (invites[0] ?? null);
 
     // Together card: any surfaceable orbit (hub already exists)
     this.togetherCard = null;
-    if (!this.entityInvite) {
+    if (!this.personInvite && !this.entityInvite) {
       const orbits = buildOrbits(atoms, {
         vaultTitles,
         personHubTitles: this.personHubTitles,
@@ -958,6 +990,199 @@ export class AtomsHomeView extends ItemView {
         };
         break;
       }
+    }
+  }
+
+  private renderPersonInviteCard(scroll: HTMLElement): void {
+    const inv = this.personInvite;
+    if (!inv) return;
+    const copy = personInviteCopy(inv.displayName, inv.memberPaths.length, {
+      existingNote: inv.existingNote,
+    });
+    const card = flatCard(scroll, {
+      className: "atoms-home-entity-invite atoms-home-person-invite",
+    });
+    card.createEl("p", {
+      cls: "atoms-home-card-eyebrow atoms-home-entity-invite-kicker atoms-home-person-invite-kicker",
+      text: copy.kicker,
+    });
+    card.createEl("h2", { text: copy.title });
+    card.createEl("p", { text: copy.body });
+    if (inv.memberTitles.length) {
+      const peek = card.createEl("ul", { cls: "atoms-home-entity-invite-peek" });
+      for (const t of inv.memberTitles.slice(0, 3)) {
+        peek.createEl("li", { text: t });
+      }
+    }
+    const actions = actionRow(card);
+    button(actions, {
+      grade: "primary",
+      label: this.personInviteBusy
+        ? inv.existingNote
+          ? "Linking…"
+          : "Adding…"
+        : copy.createLabel,
+      disabled: this.personInviteBusy,
+      onClick: () => void this.onAddPersonNote(inv),
+    });
+    button(actions, {
+      grade: "secondary",
+      label: copy.alreadyLabel,
+      disabled: this.personInviteBusy,
+      onClick: () => this.onAlreadyHavePerson(inv),
+    });
+    button(actions, {
+      grade: "secondary",
+      label: copy.dismissLabel,
+      disabled: this.personInviteBusy,
+      onClick: () => {
+        this.snoozePersonInvite(inv.displayName);
+        this.personInvite = null;
+        this.refreshEntitySurfaces();
+        this.render();
+      },
+    });
+  }
+
+  /**
+   * Already have them — pick an existing vault note and link atoms to it.
+   * Never creates a person note. Not the same as Not now (snooze only).
+   */
+  private onAlreadyHavePerson(inv: PersonInviteCandidate): void {
+    if (this.personInviteBusy) return;
+    const folder = this.plugin.settings.atomFolder || "Atoms";
+    new PersonNoteSuggestModal(this.app, folder, async (file) => {
+      await this.linkInviteToExistingNote(inv, file);
+    }).open();
+  }
+
+  private async linkInviteToExistingNote(
+    inv: PersonInviteCandidate,
+    file: TFile,
+  ): Promise<void> {
+    const linkName = file.basename.trim();
+    if (!linkName) return;
+    this.personInviteBusy = true;
+    this.render();
+    try {
+      const paths = this.upgradePathSet(inv);
+      for (const memberPath of paths) {
+        await this.upgradeAtomToPerson(memberPath, linkName);
+      }
+      this.snoozePersonInvite(inv.displayName);
+      this.personInvite = null;
+      new Notice(`Atoms: linked to ${linkName}`);
+      await this.loadData();
+      this.render();
+    } catch {
+      new Notice("Atoms: could not link to that note");
+      this.render();
+    } finally {
+      this.personInviteBusy = false;
+    }
+  }
+
+  private async onAddPersonNote(inv: PersonInviteCandidate): Promise<void> {
+    const name = inv.displayName.trim();
+    if (!name || this.personInviteBusy) return;
+    this.personInviteBusy = true;
+    this.render();
+    try {
+      const folder = resolvePeopleFolderPrefix(
+        this.app.vault.getMarkdownFiles().map((f) => f.path),
+      );
+      const path = personNotePath(folder, name);
+      const existing = this.app.vault.getAbstractFileByPath(path);
+      const anyTitle = this.app.vault
+        .getMarkdownFiles()
+        .find((f) => f.basename.toLowerCase() === name.toLowerCase());
+      let created = false;
+      if (!(existing instanceof TFile) && !anyTitle) {
+        const parts = folder.split("/").filter(Boolean);
+        let acc = "";
+        for (const part of parts) {
+          acc = acc ? `${acc}/${part}` : part;
+          const folderExists = this.app.vault.getAbstractFileByPath(acc);
+          if (!folderExists) {
+            await this.app.vault.createFolder(acc);
+          }
+        }
+        await this.app.vault.create(path, formatPersonNoteMarkdown(name));
+        created = true;
+      }
+
+      const paths = this.upgradePathSet(inv);
+      for (const memberPath of paths) {
+        await this.upgradeAtomToPerson(memberPath, name);
+      }
+
+      // Multi-member same-name group: ensure peers if still no hard hub (edge)
+      if (paths.size >= 2 && created) {
+        await this.applyPeersForPaths([...paths]);
+      }
+
+      new Notice(
+        created ? `Atoms: added ${name}` : `Atoms: linked to ${name}`,
+      );
+      this.personInvite = null;
+      await this.loadData();
+      this.render();
+    } catch {
+      new Notice("Atoms: could not add person note");
+      this.render();
+    } finally {
+      this.personInviteBusy = false;
+    }
+  }
+
+  private upgradePathSet(inv: PersonInviteCandidate): Set<string> {
+    const upgradePaths = new Set(inv.memberPaths);
+    const label = inv.displayName.trim().toLowerCase();
+    for (const f of this.atomFileInputs) {
+      if (!isGeneratedAtomContent(f.content)) continue;
+      if (upgradePaths.has(f.path)) continue;
+      const body = bodyAfterFrontmatter(f.content).split(/\n\n/)[0] ?? "";
+      const title = titleFromAtomPath(f.path);
+      const n = resolvePersonInviteName(body, title);
+      if (n && n.toLowerCase() === label) upgradePaths.add(f.path);
+    }
+    return upgradePaths;
+  }
+
+  private async upgradeAtomToPerson(
+    memberPath: string,
+    name: string,
+  ): Promise<void> {
+    const file = this.app.vault.getAbstractFileByPath(memberPath);
+    if (!(file instanceof TFile)) return;
+    const content = await this.app.vault.read(file);
+    if (!isGeneratedAtomContent(content)) return;
+    const next = applyHardLinkToAtomContent(
+      content,
+      name,
+      `about [[${name}]]`,
+      { dropSoft: true },
+    );
+    if (next) await this.app.vault.modify(file, next);
+  }
+
+  private async applyPeersForPaths(paths: string[]): Promise<void> {
+    const members: { path: string; title: string; content: string }[] = [];
+    for (const p of paths) {
+      const file = this.app.vault.getAbstractFileByPath(p);
+      if (!(file instanceof TFile)) continue;
+      const content = await this.app.vault.read(file);
+      if (!isGeneratedAtomContent(content)) continue;
+      members.push({
+        path: p,
+        title: titleFromAtomPath(p),
+        content,
+      });
+    }
+    const updates = applyPersonPeerLinksToContents(members);
+    for (const [p, content] of updates) {
+      const file = this.app.vault.getAbstractFileByPath(p);
+      if (file instanceof TFile) await this.app.vault.modify(file, content);
     }
   }
 
@@ -1559,7 +1784,7 @@ export class AtomsHomeView extends ItemView {
       }
     }
 
-    // One hero: Ready when pending; entity invite / Together / resurface when calm
+    // One hero: Ready when pending; person invite > packing Make > Together / resurface
     const workPending = shouldShowWaitCard(this.unprocessedCount);
     if (
       !firstDay &&
@@ -1567,7 +1792,9 @@ export class AtomsHomeView extends ItemView {
       !workPending &&
       !this.landPeak
     ) {
-      if (this.entityInvite) {
+      if (this.personInvite) {
+        this.renderPersonInviteCard(scroll);
+      } else if (this.entityInvite) {
         this.renderEntityInviteCard(scroll);
       } else if (this.togetherCard) {
         this.renderTogetherCard(scroll);
