@@ -9,6 +9,15 @@ import {
 import { isPolishableContent } from "../pipeline/refreshAtoms";
 import { parseCaptures } from "../pipeline/parse";
 import { resolveCreatedField } from "../pipeline/render";
+import {
+  PLUS_PRICING,
+  includedFilingsBullet,
+  monthlyPriceLabel,
+  topUpDetailLabel,
+  topUpPriceLabel,
+  trialFinePrint,
+  yearlyPriceLabel,
+} from "../shared/plusPricing";
 
 /** Home-row chip role — person (warm) vs work/media (cool). */
 export type LinkChipRole = "person" | "work";
@@ -521,8 +530,30 @@ export function isAutomaticFilingReady(snap: {
   return snap.enabled && snap.egressAcked && snap.hasKey;
 }
 
-/** Home wait-surface story when past captures remain (automatic filing UX). */
-export type FilingHeroMode = "need_key" | "enable_auto" | "auto_on" | "auto_running";
+/**
+ * Home wait-surface story when past captures remain.
+ * Plus modes from approved mock docs/design-handoff/atoms-plus/index.html (v3).
+ */
+export type FilingHeroMode =
+  | "need_key"
+  | "plus_limit"
+  | "enable_auto"
+  | "auto_on"
+  | "auto_running";
+
+/** Filing path for wait-card branching (from resolveFilingAuth + status). */
+export type FilingPathKind = "none" | "byok" | "plus_active" | "plus_exhausted";
+
+export type FilingHeroAction =
+  | "open_settings"
+  | "open_plus"
+  | "open_byok_settings"
+  | "get_more"
+  | "dismiss_limit"
+  | "enable_auto"
+  | "process"
+  | "preview"
+  | null;
 
 export type FilingHeroCopy = {
   mode: FilingHeroMode;
@@ -531,14 +562,19 @@ export type FilingHeroCopy = {
   body: string;
   /** Primary button label (null = no primary). */
   primaryLabel: string | null;
-  primaryAction: "open_settings" | "enable_auto" | "process" | null;
+  primaryAction: FilingHeroAction;
+  /** Quiet / secondary control (mock: often quiet text button). */
   secondaryLabel: string | null;
-  secondaryAction: "preview" | "process" | null;
+  secondaryAction: FilingHeroAction;
+  /** Prefer quiet grade for secondary (Apple-style). */
+  secondaryQuiet?: boolean;
 };
 
 /**
  * Pure: how the wait card should speak when pastUnprocessed > 0.
  * Returns null when there is no past queue (caller uses calm home).
+ *
+ * `filingPath` optional for back-compat: when omitted, uses hasKey → byok | none.
  */
 export function filingHeroCopy(input: {
   pastUnprocessed: number;
@@ -546,26 +582,65 @@ export function filingHeroCopy(input: {
   autoEnabled: boolean;
   egressAcked: boolean;
   inFlight?: boolean;
+  /** Prefer this over hasKey when provided (Atoms Plus). */
+  filingPath?: FilingPathKind;
+  /**
+   * When true, plus_exhausted uses a quieter card (after Not Now).
+   * Device-local dismiss day handled by caller.
+   */
+  plusLimitDismissedToday?: boolean;
 }): FilingHeroCopy | null {
   if (input.pastUnprocessed <= 0) return null;
 
   const n = input.pastUnprocessed;
   const countLabel =
-    n === 1 ? "One past capture waiting" : `${n} past captures waiting`;
+    n === 1 ? "1 Capture Waiting" : `${n} Captures Waiting`;
 
-  if (!input.hasKey) {
+  const path: FilingPathKind =
+    input.filingPath ?? (input.hasKey ? "byok" : "none");
+
+  if (path === "none") {
     return {
       mode: "need_key",
       eyebrow: "Ready",
       title: countLabel,
-      body: "Add an API key on this phone so Atoms can file them. Today’s note is never auto-touched.",
-      primaryLabel: "Open settings",
-      primaryAction: "open_settings",
-      secondaryLabel: null,
-      secondaryAction: null,
+      body: "Turn past notes into linked atoms with Atoms Plus, or use your own Anthropic API key for free.",
+      primaryLabel: "Try Atoms Plus",
+      primaryAction: "open_plus",
+      secondaryLabel: "Use My Own Key",
+      secondaryAction: "open_byok_settings",
+      secondaryQuiet: true,
     };
   }
 
+  if (path === "plus_exhausted") {
+    if (input.plusLimitDismissedToday) {
+      // Quieter follow-up after Not Now — still actionable, not a no-op re-render.
+      return {
+        mode: "plus_limit",
+        eyebrow: "Atoms Plus",
+        title: countLabel,
+        body: "You’ve used this month’s included AI filings. Get More in Settings, or wait until your next billing date.",
+        primaryLabel: "Get More",
+        primaryAction: "get_more",
+        secondaryLabel: null,
+        secondaryAction: null,
+      };
+    }
+    return {
+      mode: "plus_limit",
+      eyebrow: "Atoms Plus",
+      title: "Monthly Limit Reached",
+      body: "You’ve used this month’s included AI filings. Your allotment starts over on your next billing date. If you need more before then, you can buy additional filings.",
+      primaryLabel: "Get More",
+      primaryAction: "get_more",
+      secondaryLabel: "Not Now",
+      secondaryAction: "dismiss_limit",
+      secondaryQuiet: true,
+    };
+  }
+
+  // byok or plus_active — existing automatic-filing story
   const autoOn = input.autoEnabled && input.egressAcked;
   if (input.inFlight && autoOn) {
     return {
@@ -602,6 +677,70 @@ export function filingHeroCopy(input: {
     primaryAction: "process",
     secondaryLabel: "Preview",
     secondaryAction: "preview",
+  };
+}
+
+/** Map resolveFilingAuth result → wait-card path. */
+export function filingPathFromAuth(auth: {
+  mode: "none" | "byok" | "plus";
+  status?: string;
+}): FilingPathKind {
+  if (auth.mode === "none") return "none";
+  if (auth.mode === "byok") return "byok";
+  if (auth.status === "exhausted") return "plus_exhausted";
+  return "plus_active";
+}
+
+/**
+ * Offer / Get More copy. Dollar amounts and filing counts come from
+ * repo-root `plus-pricing.json` via `src/shared/plusPricing.ts` (SSOT).
+ */
+export function atomsPlusOfferCopy(): {
+  title: string;
+  priceMonthly: string;
+  priceYearly: string;
+  bullets: string[];
+  costReason: string;
+  freePath: string;
+  primaryLabel: string;
+  secondaryLabel: string;
+  finePrint: string;
+} {
+  return {
+    title: "Atoms Plus",
+    priceMonthly: monthlyPriceLabel(),
+    priceYearly: yearlyPriceLabel(),
+    bullets: [
+      includedFilingsBullet(),
+      "No API key setup on phone or desktop",
+      "Your library stays free. Plus is optional. The rest of Atoms does not require a subscription",
+    ],
+    costReason:
+      "AI usage has a real cost. Your subscription helps cover that and supports ongoing development.",
+    freePath:
+      "Prefer to stay free? Use your own Anthropic API key in Settings. No Plus required.",
+    primaryLabel: "Start Free Trial",
+    secondaryLabel: "Not Now",
+    finePrint: trialFinePrint(),
+  };
+}
+
+export function atomsPlusTopUpCopy(): {
+  title: string;
+  price: string;
+  detail: string;
+  body: string;
+  primaryLabel: string;
+  secondaryLabel: string;
+} {
+  const n = PLUS_PRICING.topUpFilings;
+  return {
+    title: "Additional Filings",
+    price: topUpPriceLabel(),
+    detail: topUpDetailLabel(),
+    body: `One-time purchase. Adds ${n} filings to this month only. Does not change your subscription or renew automatically.`,
+    primaryLabel: "Continue",
+    secondaryLabel: "Cancel",
   };
 }
 

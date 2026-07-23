@@ -42,6 +42,7 @@ export type ClassifyFailureReason =
   | "server"
   | "offline"
   | "invariant"
+  | "quota"
   | "unknown";
 
 export interface ClassifyFailure {
@@ -123,6 +124,11 @@ export interface LinkerSettings {
    */
   captureShortcutInstallUrl: string;
   /**
+   * Atoms Plus service base URL (dogfood override). Empty → default production host.
+   * Not a secret; session token stays device-local.
+   */
+  plusBaseUrl: string;
+  /**
    * Feature flag: Reconsider capture (soft-unfreeze noise/task → reclassify).
    * Off by default until dogfood-ready.
    */
@@ -151,12 +157,32 @@ export const DEFAULT_SETTINGS: LinkerSettings = {
   proposedTags: [],
   useDeviceLocalKeyFallback: false,
   captureShortcutInstallUrl: "",
+  plusBaseUrl: "",
   enableReconsiderCapture: false,
 };
 
 /** SecretStorage / localStorage keys — lowercase-dashed (KTD5). */
 export const API_KEY_SECRET_ID_DEFAULT = "atoms-anthropic-api-key";
 export const LOCAL_STORAGE_API_KEY = "atoms-device-local-api-key";
+
+/** Re-export Plus filing auth types (Atoms Plus MVP). */
+export type {
+  FilingAuth,
+  FilingAuthMode,
+  PlusEntitlementStatus,
+  PlusSession,
+} from "../platform/filingAuth";
+export {
+  LS_PLUS_SESSION,
+  clearPlusSession,
+  parsePlusSession,
+  plusCanClassify,
+  plusIsExhausted,
+  readPlusSession,
+  resolveFilingAuth,
+  serializePlusSession,
+  writePlusSession,
+} from "../platform/filingAuth";
 
 /** Hardcoded capture for the U1 spike command. */
 export const SPIKE_CAPTURE =

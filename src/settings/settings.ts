@@ -26,6 +26,25 @@ import {
   LOCAL_STORAGE_API_KEY,
 } from "../shared/types";
 import {
+  clearPlusSession,
+  readPlusSession,
+  writePlusSession,
+} from "../platform/filingAuth";
+import {
+  atomsPlusOfferCopy,
+  atomsPlusTopUpCopy,
+} from "../home/atomsHomeData";
+import {
+  DEFAULT_PLUS_BASE_URL,
+  requestMagicLink,
+  createCheckout,
+  createBillingPortal,
+  getEntitlement,
+  signOutPlus,
+} from "../platform/plusClient";
+import { requestUrl } from "obsidian";
+import { plusFetchRequest } from "../platform/plusClient";
+import {
   addCustomActiveTag,
   approveProposedTag,
   normalizeTag,
@@ -67,10 +86,408 @@ export class AtomsSettingTab extends PluginSettingTab {
 
     this.renderCaptureSection(containerEl);
     this.renderApiSection(containerEl);
+    this.renderPlusSection(containerEl);
     this.renderAutoRunSection(containerEl);
     this.renderModelSection(containerEl);
     this.renderVocabularySection(containerEl);
     this.renderDevHints(containerEl);
+  }
+
+  /**
+   * Pull latest Plus entitlement into device session.
+   * @returns true if session was updated from the service
+   */
+  private async refreshPlusEntitlement(opts?: {
+    quiet?: boolean;
+  }): Promise<boolean> {
+    const session = readPlusSession(this.app);
+    if (!session) {
+      if (!opts?.quiet) new Notice("No Plus session on this device");
+      return false;
+    }
+    const base =
+      this.plugin.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL;
+    const r = await getEntitlement(
+      { baseUrl: base, request: plusFetchRequest },
+      session.sessionToken,
+    );
+    if (!r.ok) {
+      if (!opts?.quiet) new Notice(`Atoms Plus: ${r.message}`);
+      return false;
+    }
+    const e = r.entitlement;
+    writePlusSession(this.app, {
+      ...session,
+      email: e.email || session.email,
+      status: e.status,
+      remaining: e.remaining,
+      periodEnd: e.periodEnd,
+      refreshedAt: Date.now(),
+    });
+    if (!opts?.quiet) new Notice("Atoms Plus status refreshed");
+    return true;
+  }
+
+  private addRefreshStatusButton(
+    setting: Setting,
+    opts?: { cta?: boolean },
+  ): void {
+    setting.addButton((btn) => {
+      btn.setButtonText("Refresh status");
+      if (opts?.cta) btn.setCta();
+      btn.onClick(async () => {
+        btn.setDisabled(true);
+        try {
+          await this.refreshPlusEntitlement();
+          this.display();
+        } finally {
+          btn.setDisabled(false);
+        }
+      });
+    });
+  }
+
+  /**
+   * Atoms Plus — mock SSOT docs/design-handoff/atoms-plus/index.html (v3).
+   * No ambient remaining meters. Checkout needs Plus service (U6).
+   */
+  private renderPlusSection(containerEl: HTMLElement) {
+    settingHeading(containerEl, "Atoms Plus");
+
+    const auth = this.plugin.resolveFilingAuth();
+    const session = readPlusSession(this.app);
+    const offer = atomsPlusOfferCopy();
+    const topUp = atomsPlusTopUpCopy();
+
+    if (auth.mode === "plus" && auth.status === "exhausted") {
+      new Setting(containerEl)
+        .setName("Monthly Limit Reached")
+        .setDesc(
+          "You’ve used this month’s included AI filings. Your allotment starts over on your next billing date. If you need more before then, you can buy additional filings.",
+        )
+        .addButton((btn) =>
+          btn.setButtonText("Get More").setCta().onClick(async () => {
+            const session = readPlusSession(this.app);
+            if (!session) {
+              new Notice("No Plus session on this device");
+              return;
+            }
+            const base =
+              this.plugin.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL;
+            const r = await createCheckout(
+              { baseUrl: base, request: plusFetchRequest },
+              session.sessionToken,
+              "topup_50",
+            );
+            if (!r.ok) {
+              new Notice(`Atoms Plus: ${r.message}`);
+              return;
+            }
+            if (r.url) {
+              window.open(r.url, "_blank");
+              new Notice(
+                `${topUp.title}: complete checkout in the browser, then tap Refresh status.`,
+                8000,
+              );
+            } else {
+              new Notice(
+                `${topUp.title}: ${topUp.price} · ${topUp.detail}. ${topUp.body}`,
+                6000,
+              );
+            }
+            this.display();
+          }),
+        )
+        .addButton((btn) =>
+          btn.setButtonText("Manage Subscription").onClick(async () => {
+            const session = readPlusSession(this.app);
+            if (!session) return;
+            const base =
+              this.plugin.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL;
+            const r = await createBillingPortal(
+              { baseUrl: base, request: plusFetchRequest },
+              session.sessionToken,
+            );
+            if (!r.ok) {
+              new Notice(`Atoms Plus: ${r.message}`);
+              return;
+            }
+            window.open(r.url, "_blank");
+          }),
+        );
+      this.addRefreshStatusButton(
+        new Setting(containerEl)
+          .setName("Refresh status")
+          .setDesc(
+            "After Checkout or top-up, pull the latest plan from the Plus service.",
+          ),
+        { cta: true },
+      );
+      if (session?.email) {
+        new Setting(containerEl)
+          .setName("Account")
+          .setDesc(session.email);
+      }
+      new Setting(containerEl)
+        .setName("Sign out")
+        .setDesc("Remove Plus session from this device only.")
+        .addButton((btn) =>
+          btn.setButtonText("Sign Out").onClick(() => {
+            clearPlusSession(this.app);
+            new Notice("Atoms Plus signed out on this device");
+            this.display();
+          }),
+        );
+      return;
+    }
+
+    if (auth.mode === "plus") {
+      const statusLabel =
+        auth.status === "trialing"
+          ? "Active · Trial"
+          : auth.status === "active"
+            ? "Active"
+            : "On";
+      const remainingLabel =
+        typeof auth.remaining === "number"
+          ? ` · ${auth.remaining} filings left`
+          : "";
+      this.addRefreshStatusButton(
+        new Setting(containerEl)
+          .setName("Status")
+          .setDesc(`${statusLabel}${remainingLabel}`),
+        { cta: true },
+      );
+      new Setting(containerEl)
+        .setName("Account")
+        .setDesc(auth.email);
+      new Setting(containerEl)
+        .setName("Plan")
+        .setDesc(
+          session?.periodEnd
+            ? `Renews ${session.periodEnd.slice(0, 10)}`
+            : "Monthly or yearly — see Manage Subscription",
+        );
+      new Setting(containerEl)
+        .setName("Manage")
+        .addButton((btn) =>
+          btn.setButtonText("Manage Subscription").onClick(async () => {
+            const session = readPlusSession(this.app);
+            if (!session) return;
+            const base =
+              this.plugin.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL;
+            const r = await createBillingPortal(
+              { baseUrl: base, request: plusFetchRequest },
+              session.sessionToken,
+            );
+            if (!r.ok) {
+              new Notice(`Atoms Plus: ${r.message}`);
+              return;
+            }
+            window.open(r.url, "_blank");
+          }),
+        )
+        .addButton((btn) =>
+          btn.setButtonText("Sign Out").onClick(async () => {
+            const session = readPlusSession(this.app);
+            const base =
+              this.plugin.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL;
+            if (session) {
+              await signOutPlus(
+                { baseUrl: base, request: plusFetchRequest },
+                session.sessionToken,
+              );
+            }
+            clearPlusSession(this.app);
+            new Notice("Atoms Plus signed out on this device");
+            this.display();
+          }),
+        );
+      containerEl.createEl("p", {
+        text: "To use your own API key instead, add it under API Key. Plus is optional.",
+        cls: "setting-item-description",
+      });
+      return;
+    }
+
+    // Signed out
+    new Setting(containerEl)
+      .setName("Skip the API Key")
+      .setDesc(
+        "Atoms Plus files your captures for you. Or keep using your own key. It’s free forever, and the full app stays yours either way.",
+      )
+      .addButton((btn) =>
+        btn.setButtonText("See Plans").setCta().onClick(() => {
+          const lines = [
+            offer.title,
+            offer.priceMonthly,
+            offer.priceYearly,
+            ...offer.bullets,
+            offer.costReason,
+            offer.freePath,
+            offer.finePrint,
+          ];
+          new Notice(lines.join(" · ").slice(0, 450), 12000);
+        }),
+      );
+
+    new Setting(containerEl)
+      .setName("Email for magic link")
+      .setDesc(
+        "Dogfood: request a link from the Plus service (see server console), or paste a session below.",
+      )
+      .addText((text) => {
+        text.setPlaceholder("you@example.com").inputEl.dataset.plusEmail = "1";
+      })
+      .addButton((btn) =>
+        btn.setButtonText("Send Magic Link").onClick(async () => {
+          const input = containerEl.querySelector(
+            "input[data-plus-email]",
+          ) as HTMLInputElement | null;
+          const email = input?.value?.trim() || "";
+          if (!email.includes("@")) {
+            new Notice("Enter a valid email first");
+            return;
+          }
+          const base =
+            this.plugin.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL;
+          const r = await requestMagicLink(
+            { baseUrl: base, request: plusFetchRequest },
+            email,
+          );
+          if (!r.ok) {
+            new Notice(`Atoms Plus: ${r.message}`);
+            return;
+          }
+          new Notice(
+            "Magic link requested — open the link from the Plus server console, then paste the session token below.",
+            8000,
+          );
+        }),
+      );
+
+    new Setting(containerEl)
+      .setName("Paste session (dogfood)")
+      .setDesc("After opening the magic link in a browser, paste sess_… here.")
+      .addText((text) => {
+        text.setPlaceholder("sess_…").inputEl.dataset.plusSession = "1";
+      })
+      .addButton((btn) =>
+        btn.setButtonText("Save Session").onClick(async () => {
+          const input = containerEl.querySelector(
+            "input[data-plus-session]",
+          ) as HTMLInputElement | null;
+          const sessionToken = input?.value?.trim() || "";
+          if (!sessionToken.startsWith("sess_")) {
+            new Notice("Session should look like sess_…");
+            return;
+          }
+          // Only persist after server proves the session (QA P1).
+          const base =
+            this.plugin.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL;
+          try {
+            const res = await requestUrl({
+              url: `${base.replace(/\/+$/, "")}/v1/me`,
+              method: "GET",
+              headers: { authorization: `Bearer ${sessionToken}` },
+              throw: false,
+            });
+            if (res.status < 200 || res.status >= 300 || !res.json) {
+              new Notice(
+                "Session not accepted by Plus service. Check the URL and paste a fresh sess_ from the magic link.",
+                8000,
+              );
+              return;
+            }
+            const j = res.json as Record<string, unknown>;
+            const email = String(j.email || "").trim();
+            if (!email) {
+              new Notice("Plus service returned no email for this session.");
+              return;
+            }
+            const status =
+              j.status === "active" ||
+              j.status === "trialing" ||
+              j.status === "exhausted" ||
+              j.status === "inactive"
+                ? j.status
+                : "unknown";
+            writePlusSession(this.app, {
+              sessionToken,
+              email,
+              status,
+              remaining:
+                typeof j.remaining === "number" ? j.remaining : undefined,
+              periodEnd:
+                typeof j.periodEnd === "string" ? j.periodEnd : undefined,
+              refreshedAt: Date.now(),
+            });
+            new Notice("Atoms Plus session verified and saved on this device");
+            this.display();
+          } catch (e) {
+            const msg = e instanceof Error ? e.message : "network error";
+            new Notice(
+              `Could not reach Plus service (${msg}). Is it running at ${base}?`,
+              8000,
+            );
+          }
+        }),
+      );
+
+    new Setting(containerEl)
+      .setName("Start Free Trial (dogfood)")
+      .setDesc("Requires a saved session. Grants trial period via Plus service.")
+      .addButton((btn) =>
+        btn.setButtonText("Start Free Trial").onClick(async () => {
+          const session = readPlusSession(this.app);
+          if (!session) {
+            new Notice("Save a Plus session first");
+            return;
+          }
+          const base =
+            this.plugin.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL;
+          const r = await createCheckout(
+            { baseUrl: base, request: plusFetchRequest },
+            session.sessionToken,
+            "start_trial",
+          );
+          if (!r.ok) {
+            new Notice(`Atoms Plus: ${r.message}`);
+            return;
+          }
+          if (r.url) {
+            window.open(r.url, "_blank");
+            new Notice(
+              "Checkout opened — finish in the browser, then tap Refresh status.",
+              10000,
+            );
+          } else {
+            new Notice("Trial granted (dogfood). Refreshing…");
+            await this.refreshPlusEntitlement({ quiet: true });
+          }
+          this.display();
+        }),
+      );
+
+    containerEl.createEl("p", {
+      text: "When you use Plus, captures are sent securely to Anthropic under our account. We don’t train on your notes.",
+      cls: "setting-item-description",
+    });
+
+    new Setting(containerEl)
+      .setName("Plus service URL")
+      .setDesc(
+        `Dogfood: http://127.0.0.1:8787 — empty uses ${DEFAULT_PLUS_BASE_URL}.`,
+      )
+      .addText((text) =>
+        text
+          .setPlaceholder("http://127.0.0.1:8787")
+          .setValue(this.plugin.settings.plusBaseUrl)
+          .onChange(async (value) => {
+            this.plugin.settings.plusBaseUrl = value.trim();
+            await this.plugin.saveSettings();
+          }),
+      );
   }
 
   private renderCaptureSection(containerEl: HTMLElement) {

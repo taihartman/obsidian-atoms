@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Atoms Plus — UI mock v3 (Apple language)</title>
+<style>
+  :root {
+    --bg: #000;
+    --card: #1c1c1e;
+    --elev: #2c2c2e;
+    --sep: rgba(84, 84, 88, 0.55);
+    --label: #fff;
+    --muted: rgba(235, 235, 245, 0.6);
+    --faint: rgba(235, 235, 245, 0.32);
+    --tint: #0a84ff;
+    --person: #ff9f0a;
+    --ok: #30d158;
+    --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: var(--font);
+    background: #0a0a0c;
+    color: var(--label);
+    line-height: 1.42;
+    -webkit-font-smoothing: antialiased;
+  }
+  .page {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 2rem 1.25rem 4rem;
+  }
+  header.top {
+    margin-bottom: 1.75rem;
+    border-bottom: 1px solid var(--sep);
+    padding-bottom: 1.25rem;
+  }
+  .eyebrow {
+    font-size: 0.68rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--person);
+    font-weight: 600;
+    margin: 0 0 0.4rem;
+  }
+  h1 {
+    font-size: 1.55rem;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    margin: 0 0 0.5rem;
+  }
+  .lede {
+    color: var(--muted);
+    font-size: 0.95rem;
+    max-width: 42rem;
+    margin: 0;
+  }
+  .principles {
+    margin: 1rem 0 0;
+    padding: 0.85rem 1rem;
+    background: var(--card);
+    border: 1px solid var(--sep);
+    border-radius: 12px;
+    font-size: 0.86rem;
+    color: var(--muted);
+  }
+  .principles strong { color: var(--label); }
+  .principles ul { margin: 0.4rem 0 0; padding-left: 1.15rem; }
+  .principles li { margin-bottom: 0.3rem; }
+  nav.jump {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin: 1.25rem 0 0;
+  }
+  nav.jump a {
+    font-size: 0.78rem;
+    color: var(--tint);
+    text-decoration: none;
+    padding: 0.35rem 0.7rem;
+    border: 1px solid var(--sep);
+    border-radius: 980px;
+    background: var(--card);
+  }
+  section.block { margin-top: 2.5rem; }
+  section.block h2 {
+    font-size: 1.05rem;
+    font-weight: 650;
+    letter-spacing: -0.02em;
+    margin: 0 0 0.35rem;
+  }
+  section.block .sub {
+    color: var(--muted);
+    font-size: 0.85rem;
+    margin: 0 0 1.1rem;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1.5rem;
+  }
+  .phone {
+    background: #111;
+    border-radius: 28px;
+    border: 2px solid #2a2a2e;
+    padding: 10px;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.45);
+  }
+  .phone-notch {
+    height: 18px;
+    display: flex;
+    justify-content: center;
+    margin-bottom: 6px;
+  }
+  .phone-notch span {
+    width: 72px;
+    height: 5px;
+    border-radius: 3px;
+    background: #2c2c2e;
+  }
+  .screen {
+    background: var(--bg);
+    border-radius: 20px;
+    min-height: 500px;
+    padding: 14px 14px 22px;
+  }
+  .cap {
+    font-size: 0.72rem;
+    color: var(--faint);
+    margin: 0.65rem 0 0;
+    text-align: center;
+  }
+  .nav-title {
+    font-size: 1.75rem;
+    font-weight: 700;
+    letter-spacing: -0.035em;
+    margin: 4px 0 14px;
+  }
+  .card {
+    background: var(--card);
+    border-radius: 16px;
+    border: 1px solid var(--sep);
+    padding: 16px 16px 14px;
+    margin-bottom: 12px;
+  }
+  .card.waiting {
+    background: color-mix(in srgb, var(--person) 11%, transparent);
+    border-color: color-mix(in srgb, var(--person) 32%, transparent);
+  }
+  .card.plus {
+    background: color-mix(in srgb, var(--tint) 9%, transparent);
+    border-color: color-mix(in srgb, var(--tint) 28%, transparent);
+  }
+  .kicker {
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+    color: var(--person);
+    margin: 0 0 6px;
+  }
+  .card.plus .kicker { color: var(--tint); }
+  .card h3 {
+    font-size: 1.12rem;
+    font-weight: 650;
+    letter-spacing: -0.022em;
+    margin: 0 0 6px;
+    line-height: 1.25;
+  }
+  .card p {
+    margin: 0 0 14px;
+    font-size: 0.9rem;
+    color: var(--muted);
+    line-height: 1.4;
+  }
+  .btn-row {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    border-radius: 12px;
+    font-size: 0.97rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  .btn.primary { background: var(--tint); color: #fff; }
+  .btn.secondary { background: var(--elev); color: var(--label); }
+  .btn.quiet {
+    background: transparent;
+    color: var(--tint);
+    font-weight: 500;
+    min-height: 40px;
+    font-size: 0.92rem;
+  }
+  .section-label {
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--faint);
+    margin: 16px 4px 8px;
+  }
+  .settings-group {
+    background: var(--card);
+    border-radius: 14px;
+    border: 1px solid var(--sep);
+    overflow: hidden;
+    margin-bottom: 12px;
+  }
+  .settings-row {
+    padding: 13px 16px;
+    border-bottom: 1px solid var(--sep);
+    min-height: 52px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+  .settings-row:last-child { border-bottom: none; }
+  .settings-row .label { font-size: 0.97rem; font-weight: 400; }
+  .settings-row .value {
+    font-size: 0.84rem;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+  .settings-row .value.ok { color: var(--ok); }
+  .footer-note {
+    font-size: 0.8rem;
+    color: var(--faint);
+    line-height: 1.4;
+    margin: 14px 6px 0;
+  }
+  .sheet {
+    margin-top: 4px;
+    padding: 18px 16px 16px;
+    background: var(--card);
+    border-radius: 16px;
+    border: 1px solid var(--sep);
+  }
+  .sheet .price-line {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    margin: 0 0 2px;
+  }
+  .sheet .price {
+    font-size: 1.65rem;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+  }
+  .sheet .period {
+    font-size: 0.95rem;
+    color: var(--muted);
+    font-weight: 400;
+  }
+  .sheet .alt {
+    font-size: 0.84rem;
+    color: var(--muted);
+    margin: 0 0 14px;
+  }
+  .sheet h4 {
+    margin: 0 0 10px;
+    font-size: 1.2rem;
+    font-weight: 650;
+    letter-spacing: -0.02em;
+  }
+  .sheet p {
+    margin: 0 0 10px;
+    font-size: 0.88rem;
+    color: var(--muted);
+    line-height: 1.4;
+  }
+  .sheet p:last-of-type { margin-bottom: 16px; }
+  .bullets {
+    margin: 0 0 16px;
+    padding: 0;
+    list-style: none;
+  }
+  .bullets li {
+    position: relative;
+    padding: 0 0 8px 0;
+    font-size: 0.88rem;
+    color: var(--muted);
+  }
+  .bullets li strong {
+    color: var(--label);
+    font-weight: 600;
+  }
+  .note {
+    margin-top: 2rem;
+    padding: 1rem 1.15rem;
+    background: var(--card);
+    border-radius: 12px;
+    border: 1px solid var(--sep);
+    font-size: 0.88rem;
+    color: var(--muted);
+  }
+  .note strong { color: var(--label); }
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="top">
+    <p class="eyebrow">U5 mock v3 · Apple language · not implemented</p>
+    <h1>Atoms Plus</h1>
+    <p class="lede">
+      Clear. Calm. Human. No ambient counters. No alarm red. Numbers only when you choose to pay.
+    </p>
+    <div class="principles">
+      <strong>Language rules (this rev)</strong>
+      <ul>
+        <li>Title case buttons: Continue, Not Now, Get More, Start Free Trial</li>
+        <li>Short titles that name the situation, not internal jargon (“filing paused”)</li>
+        <li>Body: one idea per sentence; what happened, what they can do</li>
+        <li>Always name the free path without pressure</li>
+        <li>Cost honesty once, on the offer, not on every status screen</li>
+      </ul>
+    </div>
+    <nav class="jump">
+      <a href="#h1">Home · start</a>
+      <a href="#h2">Home · limit</a>
+      <a href="#s1">Settings · off</a>
+      <a href="#buy">Offer</a>
+      <a href="#s2">Settings · on</a>
+      <a href="#s3">Settings · limit</a>
+      <a href="#topup">Get More</a>
+    </nav>
+  </header>
+
+  <section class="block">
+    <h2>Home</h2>
+    <p class="sub">When past captures are waiting.</p>
+    <div class="grid">
+      <div id="h1">
+        <div class="phone">
+          <div class="phone-notch"><span></span></div>
+          <div class="screen">
+            <div class="nav-title">Atoms</div>
+            <div class="card waiting">
+              <p class="kicker">Ready</p>
+              <h3>4 Captures Waiting</h3>
+              <p>
+                Turn past notes into linked atoms with Atoms Plus, or use your own Anthropic API key for free.
+              </p>
+              <div class="btn-row">
+                <div class="btn primary">Try Atoms Plus</div>
+                <div class="btn quiet">Use My Own Key</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="cap">H1 · equal dignity for paid and free paths</p>
+      </div>
+
+      <div id="h2">
+        <div class="phone">
+          <div class="phone-notch"><span></span></div>
+          <div class="screen">
+            <div class="nav-title">Atoms</div>
+            <div class="card">
+              <p class="kicker">Atoms Plus</p>
+              <h3>Monthly Limit Reached</h3>
+              <p>
+                You’ve used this month’s included AI filings. Your allotment starts over on your next billing date. If you need more before then, you can buy additional filings.
+              </p>
+              <div class="btn-row">
+                <div class="btn primary">Get More</div>
+                <div class="btn quiet">Not Now</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="cap">H2 · was “filing paused” · now Apple-plain</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="block">
+    <h2>Settings</h2>
+    <p class="sub">Quiet when on. Offer when off. Limit only when it matters.</p>
+    <div class="grid">
+      <div id="s1">
+        <div class="phone">
+          <div class="phone-notch"><span></span></div>
+          <div class="screen">
+            <div class="nav-title" style="font-size:1.35rem">Atoms</div>
+            <p class="section-label">Atoms Plus</p>
+            <div class="card plus">
+              <p class="kicker">Optional</p>
+              <h3>Skip the API Key</h3>
+              <p>
+                Atoms Plus files your captures for you. Or keep using your own key. It’s free forever, and the full app stays yours either way.
+              </p>
+              <div class="btn-row">
+                <div class="btn primary">See Plans</div>
+                <div class="btn quiet">Enter Promo Code</div>
+              </div>
+            </div>
+            <p class="footer-note">
+              When you use Plus, captures are sent securely to Anthropic under our account. We don’t train on your notes.
+            </p>
+          </div>
+        </div>
+        <p class="cap">S1 · invite, not a hard sell</p>
+      </div>
+
+      <div id="buy">
+        <div class="phone">
+          <div class="phone-notch"><span></span></div>
+          <div class="screen">
+            <div class="nav-title" style="font-size:1.35rem">Atoms Plus</div>
+            <div class="sheet">
+              <h4>Atoms Plus</h4>
+              <div class="price-line">
+                <span class="price">$6</span>
+                <span class="period">per month</span>
+              </div>
+              <p class="alt">$60 per year · save two months</p>
+              <ul class="bullets">
+                <li><strong>150 AI filings each month</strong> for classifying and updating notes. Unused filings don’t roll over</li>
+                <li><strong>No API key setup</strong> on phone or desktop</li>
+                <li><strong>Your library stays free</strong> Plus is optional. The rest of Atoms does not require a subscription</li>
+              </ul>
+              <p>
+                AI usage has a real cost. Your subscription helps cover that and supports ongoing development.
+              </p>
+              <p>
+                Prefer to stay free? Use your own Anthropic API key in Settings. No Plus required.
+              </p>
+              <div class="btn-row">
+                <div class="btn primary">Start Free Trial</div>
+                <div class="btn quiet">Not Now</div>
+              </div>
+            </div>
+            <p class="footer-note" style="margin-top:12px">
+              14 days free, then $6/month. Cancel anytime. Card required for trial.
+            </p>
+          </div>
+        </div>
+        <p class="cap">Offer · only place with 150 + price + why it costs</p>
+      </div>
+
+      <div id="s2">
+        <div class="phone">
+          <div class="phone-notch"><span></span></div>
+          <div class="screen">
+            <div class="nav-title" style="font-size:1.35rem">Atoms</div>
+            <p class="section-label">Atoms Plus</p>
+            <div class="settings-group">
+              <div class="settings-row">
+                <div class="label">Status</div>
+                <div class="value ok">Active</div>
+              </div>
+              <div class="settings-row">
+                <div class="label">Account</div>
+                <div class="value">you@example.com</div>
+              </div>
+              <div class="settings-row">
+                <div class="label">Plan</div>
+                <div class="value">Monthly</div>
+              </div>
+              <div class="settings-row">
+                <div class="label">Renews</div>
+                <div class="value">August 17, 2026</div>
+              </div>
+            </div>
+            <div class="btn-row">
+              <div class="btn secondary">Manage Subscription</div>
+              <div class="btn quiet">Sign Out</div>
+            </div>
+            <p class="footer-note">
+              To use your own API key instead, add it under API Key. Plus is optional.
+            </p>
+          </div>
+        </div>
+        <p class="cap">S2 · Active · no meters</p>
+      </div>
+
+      <div id="s3">
+        <div class="phone">
+          <div class="phone-notch"><span></span></div>
+          <div class="screen">
+            <div class="nav-title" style="font-size:1.35rem">Atoms</div>
+            <p class="section-label">Atoms Plus</p>
+            <div class="card">
+              <p class="kicker">Atoms Plus</p>
+              <h3>Monthly Limit Reached</h3>
+              <p>
+                You’ve used this month’s included AI filings. Your allotment starts over on August 17. Need more before then? You can buy additional filings.
+              </p>
+              <div class="btn-row">
+                <div class="btn primary">Get More</div>
+                <div class="btn secondary">Manage Subscription</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="cap">S3 · same title language as home</p>
+      </div>
+
+      <div id="topup">
+        <div class="phone">
+          <div class="phone-notch"><span></span></div>
+          <div class="screen">
+            <div class="nav-title" style="font-size:1.35rem">Get More</div>
+            <div class="sheet">
+              <h4>Additional Filings</h4>
+              <div class="price-line">
+                <span class="price">$2</span>
+              </div>
+              <p class="alt">50 AI filings · one-time</p>
+              <p>
+                One-time purchase. Adds 50 filings to this month only. Does not change your subscription or renew automatically.
+              </p>
+              <div class="btn-row">
+                <div class="btn primary">Continue</div>
+                <div class="btn quiet">Cancel</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="cap">Top-up · Apple checkout cadence (Continue / Cancel)</p>
+      </div>
+    </div>
+  </section>
+
+  <div class="note">
+    <strong>Was:</strong> “Filing paused for now” · “Add more processing” · ambient meters<br />
+    <strong>Now:</strong> “Monthly Limit Reached” · “Get More” · “You’ve used everything included with Plus for this billing period.”
+    <br /><br />
+    <strong>Still open for you:</strong> Prefer “AI filings” vs “classifications” vs something warmer? Trial line fine at the bottom of the offer?
+  </div>
+</div>
+</body>
+</html>

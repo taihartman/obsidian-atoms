@@ -25,6 +25,14 @@ import {
   personHubMissAfterEnrich,
   type PersonHub,
 } from "./enrich/people";
+import {
+  fingerprintPreviewKey,
+  lookupPreviewCache,
+  LS_PREVIEW_CACHE,
+  parsePreviewCache,
+  putPreviewCache,
+  serializePreviewCache,
+} from "../platform/previewCache";
 
 export interface PreviewEntry {
   dailyPath: string;
@@ -209,6 +217,11 @@ export interface RunDryRunOptions {
   ) => void;
   /** Manual force: include today's daily. Default false. */
   includeToday?: boolean;
+  /**
+   * Quality stamp for Preview cache keys (R14b). When set with model+capture,
+   * hits skip network. Omit to disable cache.
+   */
+  previewCacheQualityStamp?: string | number;
 }
 
 /**
@@ -238,16 +251,59 @@ export async function runDryRun(
     path: `${d.canonicalTitle}.md`,
   }));
   const entries: PreviewEntry[] = [];
+  const useCache = opts.previewCacheQualityStamp !== undefined;
+  let cacheStore = useCache
+    ? parsePreviewCache(opts.app.loadLocalStorage(LS_PREVIEW_CACHE))
+    : null;
 
   for (let i = 0; i < slice.length; i++) {
     const { note, capture } = slice[i]!;
     opts.onProgress?.(i + 1, slice.length, { captureText: capture.text });
-    const outcome = await classifyCapture(capture.text, ctx, {
-      apiKey: opts.apiKey,
-      model: opts.model,
-      activeVocabulary: opts.activeVocabulary,
-      ...opts.classifyDeps,
-    });
+
+    let outcome: ClassifyOutcome;
+    if (useCache && cacheStore) {
+      const key = fingerprintPreviewKey(
+        capture.text,
+        opts.model,
+        opts.previewCacheQualityStamp!,
+      );
+      const hit = lookupPreviewCache(cacheStore, key);
+      if (hit) {
+        outcome = {
+          ok: true,
+          result: hit,
+          usage: {
+            input_tokens: 0,
+            output_tokens: 0,
+            cache_creation_input_tokens: 0,
+            cache_read_input_tokens: 0,
+          },
+          keyFingerprint: "preview-cache",
+        };
+      } else {
+        outcome = await classifyCapture(capture.text, ctx, {
+          apiKey: opts.apiKey,
+          model: opts.model,
+          activeVocabulary: opts.activeVocabulary,
+          ...opts.classifyDeps,
+        });
+        if (outcome.ok) {
+          cacheStore = putPreviewCache(cacheStore, key, outcome.result);
+          opts.app.saveLocalStorage(
+            LS_PREVIEW_CACHE,
+            serializePreviewCache(cacheStore),
+          );
+        }
+      }
+    } else {
+      outcome = await classifyCapture(capture.text, ctx, {
+        apiKey: opts.apiKey,
+        model: opts.model,
+        activeVocabulary: opts.activeVocabulary,
+        ...opts.classifyDeps,
+      });
+    }
+
     entries.push(
       buildPreviewEntry({
         note,

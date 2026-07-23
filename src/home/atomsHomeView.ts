@@ -15,6 +15,7 @@ import {
   countUpdateWorkRemaining,
   extractSourceDay,
   filingHeroCopy,
+  filingPathFromAuth,
   filterLinkedOnly,
   formatRelativeTime,
   isAutomaticFilingReady,
@@ -64,6 +65,12 @@ import { extractLinkProseRegion, parseLinkProse } from "../pipeline/parseLinkPro
 import {
   CURRENT_ATOMS_QUALITY,
 } from "../pipeline/atomQuality";
+import {
+  isPlusLimitDismissedToday,
+  localCalendarDay,
+  readPlusLimitDismissDay,
+  writePlusLimitDismissDay,
+} from "../platform/filingAuth";
 import { UPDATE_NOTES_BATCH_LIMIT } from "../pipeline/refreshAtoms";
 import {
   calendarDateToday,
@@ -1698,6 +1705,11 @@ export class AtomsHomeView extends ItemView {
     // Suppress while land peak is up (one hero: Done owns the screen).
     if (shouldShowWaitCard(this.unprocessedCount) && !this.landPeak) {
       const snap = this.plugin.getAutoRunSnapshot();
+      const filingAuth = this.plugin.resolveFilingAuth();
+      const limitDismissed = isPlusLimitDismissedToday(
+        readPlusLimitDismissDay(this.app),
+        localCalendarDay(),
+      );
       const hero =
         filingHeroCopy({
           pastUnprocessed: this.unprocessedCount,
@@ -1705,11 +1717,13 @@ export class AtomsHomeView extends ItemView {
           autoEnabled: snap.enabled,
           egressAcked: snap.egressAcked,
           inFlight: snap.inFlight,
+          filingPath: filingPathFromAuth(filingAuth),
+          plusLimitDismissedToday: limitDismissed,
         }) ??
         ({
           mode: "enable_auto",
           eyebrow: "Ready",
-          title: `${this.unprocessedCount} past captures waiting`,
+          title: `${this.unprocessedCount} Captures Waiting`,
           body: "Process when you are ready.",
           primaryLabel: "Process",
           primaryAction: "process",
@@ -1719,7 +1733,10 @@ export class AtomsHomeView extends ItemView {
 
       const card = statusCard(scroll, {
         tone: "wait",
-        className: "atoms-home-wait-card",
+        className:
+          hero.mode === "plus_limit"
+            ? "atoms-home-wait-card atoms-home-wait-card--limit"
+            : "atoms-home-wait-card",
       });
       card.createEl("p", {
         cls: "atoms-home-card-eyebrow",
@@ -1735,15 +1752,29 @@ export class AtomsHomeView extends ItemView {
         label: string | null,
         action: FilingHeroCopy["primaryAction"] | FilingHeroCopy["secondaryAction"],
         primary: boolean,
+        quiet?: boolean,
       ) => {
         if (!label || !action) return;
         button(actions, {
-          grade: primary ? "primary" : "secondary",
+          grade: primary ? "primary" : quiet ? "quiet" : "secondary",
           label: this.busy ? "…" : label,
           disabled: this.busy,
           onClick: () => {
-            if (action === "open_settings") {
+            if (action === "open_settings" || action === "open_plus") {
               openPluginSettingsTab(this.app, "atoms");
+              return;
+            }
+            if (action === "open_byok_settings") {
+              openPluginSettingsTab(this.app, "atoms");
+              return;
+            }
+            if (action === "get_more") {
+              openPluginSettingsTab(this.app, "atoms");
+              return;
+            }
+            if (action === "dismiss_limit") {
+              writePlusLimitDismissDay(this.app, localCalendarDay());
+              this.render();
               return;
             }
             if (action === "enable_auto") {
@@ -1757,7 +1788,12 @@ export class AtomsHomeView extends ItemView {
       };
 
       bindAction(hero.primaryLabel, hero.primaryAction, true);
-      bindAction(hero.secondaryLabel, hero.secondaryAction, false);
+      bindAction(
+        hero.secondaryLabel,
+        hero.secondaryAction,
+        false,
+        hero.secondaryQuiet,
+      );
 
       // enable_auto already has Process secondary — also offer Preview
       if (hero.mode === "enable_auto" && hero.secondaryAction !== "preview") {

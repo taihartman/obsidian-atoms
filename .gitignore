@@ -24,6 +24,8 @@ data.json
 # Local env / keys
 .env
 .env.*
+!.env.example
+!plus-service/.env.example
 *.pem
 
 # Local throwaway vault (may contain secrets)
@@ -31,3 +33,8 @@ test_vault/
 
 # Regenerable screenshot dogfood vault (seed with scripts/seed-demo-vault.mjs)
 docs/media/demo-vault/
+
+# Plus service local
+plus-service/node_modules/
+plus-service/.env
+plus-service/data/
