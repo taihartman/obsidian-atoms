@@ -69,7 +69,7 @@ Primary: single vault owner on desktop and phone (Obsidian Sync), using capture 
 - R10a. If a matching person note appears without Add (user-created or Sync), the next Process/Update/home refresh may upgrade plugin link-prose in the same window — still never silent-create a note.
 - R11. On accept, upgrade atoms in a **short recent window** (planning picks exact days; product intent ~14 days of generated atoms), not whole-vault archaeology. Limit upgrade set to atoms that share the invite’s high-confidence label (not arbitrary string collisions).
 - R12. Confirmation: in-home success state is canonical; Notice is backup (“Added {Name}”). Undo = user deletes the note; no multi-step CRM undo stack required for v1.
-- R12a. **Already have them:** secondary path or Not-now reason that snoozes the extracted label **without** creating a note (suppress create). Full alias merge can wait.
+- R12a. **Already have them…:** opens a vault note picker (person-folder paths ranked first). Choosing a note upgrades invite member atoms to hard-link that note’s title, snoozes the extracted invite label, and **never creates** a person note. Distinct from Not now (snooze only, no link).
 
 **Dismiss**
 
@@ -149,7 +149,6 @@ None blocking planning. Planning may choose concrete defaults for dismiss TTL, r
 
 ### Deferred from review
 
-- Full alias picker (“link to existing note…”) beyond R12a suppress-without-create
 - Accessibility implementation detail (min targets, live regions) — planning + mock parity
 - Whether invite-eligible misses should stop writing soft `[[People]]` entirely (R15 keeps write-time fallback; surface rules already ban People-as-shelf)
 

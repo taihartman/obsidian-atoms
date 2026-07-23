@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   applyHardLinkToAtomContent,
+  applyPersonPeerLinksToContents,
   collectPersonInvites,
   formatPersonNoteMarkdown,
   isDeniedPersonName,
@@ -126,6 +127,47 @@ describe("collectPersonInvites", () => {
       { personHubTitles: ["Nichita"], vaultTitles: ["Nichita"] },
     );
     expect(invites.some((i) => i.displayName === "Nichita")).toBe(false);
+  });
+});
+
+describe("personInviteCopy existing vs new", () => {
+  it("uses Link to when existingNote", () => {
+    const c = personInviteCopy("Ning", 1, { existingNote: true });
+    expect(c.title).toContain("Link to");
+    expect(c.createLabel).toContain("Link to");
+    expect(c.alreadyLabel).toMatch(/Choose different/i);
+  });
+
+  it("Already have them is not the same label as Not now", () => {
+    const c = personInviteCopy("Dom", 2);
+    expect(c.alreadyLabel).not.toBe(c.dismissLabel);
+    expect(c.alreadyLabel.toLowerCase()).toContain("already");
+  });
+});
+
+describe("applyPersonPeerLinksToContents", () => {
+  it("adds mutual peer links for two members", () => {
+    const a = `---
+generated-by: linker
+---
+Dom is a guy
+
+workplace ([[People]]).
+`;
+    const b = `---
+generated-by: linker
+---
+Dom wears trainers
+
+workplace ([[People]]).
+`;
+    const updates = applyPersonPeerLinksToContents([
+      { path: "Atoms/a.md", title: "Dom is a guy", content: a },
+      { path: "Atoms/b.md", title: "Dom wears trainers", content: b },
+    ]);
+    expect(updates.size).toBe(2);
+    expect(updates.get("Atoms/a.md")).toContain("Dom wears trainers");
+    expect(updates.get("Atoms/b.md")).toContain("Dom is a guy");
   });
 });
 

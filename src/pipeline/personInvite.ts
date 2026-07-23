@@ -334,6 +334,7 @@ export function formatPersonNoteMarkdown(name: string): string {
 export function personInviteCopy(
   name: string,
   memberCount: number,
+  opts: { existingNote?: boolean } = {},
 ): {
   kicker: string;
   title: string;
@@ -344,6 +345,19 @@ export function personInviteCopy(
 } {
   const n = Math.max(1, memberCount);
   const display = name.trim() || "them";
+  if (opts.existingNote) {
+    return {
+      kicker: "People",
+      title: `Link to ${display}?`,
+      body:
+        n === 1
+          ? `A note named ${display} already exists. Link this memory to it — no new person note.`
+          : `${n} memories mention ${display}. Link them to the existing note — no new person note.`,
+      createLabel: `Link to ${display}`,
+      dismissLabel: "Not now",
+      alreadyLabel: "Choose different note…",
+    };
+  }
   return {
     kicker: "People",
     title: `Add ${display}?`,
@@ -353,8 +367,47 @@ export function personInviteCopy(
         : `You filed ${n} notes about ${display}, but there’s no person note yet. Backlinks will collect here.`,
     createLabel: `Add ${display}`,
     dismissLabel: "Not now",
-    alreadyLabel: "Already have them",
+    alreadyLabel: "Already have them…",
   };
+}
+
+/** Peer link reason (pre-hub). */
+export function personPeerReason(peerTitle: string): string {
+  const t = peerTitle.trim() || "related claim";
+  return `same person — related claim ([[${t}]])`;
+}
+
+/**
+ * For each path in a multi-member same-name group without a hub, return
+ * updated content with peer links to the other members (orbit-safe titles).
+ * Input map path → full atom markdown. Only paths with ≥2 members produce edges.
+ */
+export function applyPersonPeerLinksToContents(
+  members: { path: string; title: string; content: string }[],
+): Map<string, string> {
+  const out = new Map<string, string>();
+  if (members.length < 2) return out;
+  for (const self of members) {
+    let content = self.content;
+    let changed = false;
+    for (const other of members) {
+      if (other.path === self.path) continue;
+      const peerTitle = other.title.trim();
+      if (!peerTitle) continue;
+      const next = applyHardLinkToAtomContent(
+        content,
+        peerTitle,
+        personPeerReason(peerTitle),
+        { dropSoft: false },
+      );
+      if (next) {
+        content = next;
+        changed = true;
+      }
+    }
+    if (changed) out.set(self.path, content);
+  }
+  return out;
 }
 
 /** Prefer Social/People family for new person notes. */

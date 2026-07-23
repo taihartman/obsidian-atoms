@@ -44,6 +44,7 @@ import {
 } from "../pipeline/entityInvite";
 import {
   applyHardLinkToAtomContent,
+  applyPersonPeerLinksToContents,
   collectPersonInvites,
   formatPersonNoteMarkdown,
   PERSON_INVITE_SNOOZE_DAYS,
@@ -53,6 +54,7 @@ import {
   resolvePersonInviteName,
   type PersonInviteCandidate,
 } from "../pipeline/personInvite";
+import { PersonNoteSuggestModal } from "./personNoteSuggestModal";
 import {
   discoverPersonHubs,
   type PersonHubFile,
@@ -994,7 +996,9 @@ export class AtomsHomeView extends ItemView {
   private renderPersonInviteCard(scroll: HTMLElement): void {
     const inv = this.personInvite;
     if (!inv) return;
-    const copy = personInviteCopy(inv.displayName, inv.memberPaths.length);
+    const copy = personInviteCopy(inv.displayName, inv.memberPaths.length, {
+      existingNote: inv.existingNote,
+    });
     const card = flatCard(scroll, {
       className: "atoms-home-entity-invite atoms-home-person-invite",
     });
@@ -1013,28 +1017,69 @@ export class AtomsHomeView extends ItemView {
     const actions = actionRow(card);
     button(actions, {
       grade: "primary",
-      label: this.personInviteBusy ? "Adding…" : copy.createLabel,
+      label: this.personInviteBusy
+        ? inv.existingNote
+          ? "Linking…"
+          : "Adding…"
+        : copy.createLabel,
       disabled: this.personInviteBusy,
       onClick: () => void this.onAddPersonNote(inv),
-    });
-    const dismiss = () => {
-      this.snoozePersonInvite(inv.displayName);
-      this.personInvite = null;
-      this.refreshEntitySurfaces();
-      this.render();
-    };
-    button(actions, {
-      grade: "secondary",
-      label: copy.dismissLabel,
-      disabled: this.personInviteBusy,
-      onClick: dismiss,
     });
     button(actions, {
       grade: "secondary",
       label: copy.alreadyLabel,
       disabled: this.personInviteBusy,
-      onClick: dismiss,
+      onClick: () => this.onAlreadyHavePerson(inv),
     });
+    button(actions, {
+      grade: "secondary",
+      label: copy.dismissLabel,
+      disabled: this.personInviteBusy,
+      onClick: () => {
+        this.snoozePersonInvite(inv.displayName);
+        this.personInvite = null;
+        this.refreshEntitySurfaces();
+        this.render();
+      },
+    });
+  }
+
+  /**
+   * Already have them — pick an existing vault note and link atoms to it.
+   * Never creates a person note. Not the same as Not now (snooze only).
+   */
+  private onAlreadyHavePerson(inv: PersonInviteCandidate): void {
+    if (this.personInviteBusy) return;
+    const folder = this.plugin.settings.atomFolder || "Atoms";
+    new PersonNoteSuggestModal(this.app, folder, async (file) => {
+      await this.linkInviteToExistingNote(inv, file);
+    }).open();
+  }
+
+  private async linkInviteToExistingNote(
+    inv: PersonInviteCandidate,
+    file: TFile,
+  ): Promise<void> {
+    const linkName = file.basename.trim();
+    if (!linkName) return;
+    this.personInviteBusy = true;
+    this.render();
+    try {
+      const paths = this.upgradePathSet(inv);
+      for (const memberPath of paths) {
+        await this.upgradeAtomToPerson(memberPath, linkName);
+      }
+      this.snoozePersonInvite(inv.displayName);
+      this.personInvite = null;
+      new Notice(`Atoms: linked to ${linkName}`);
+      await this.loadData();
+      this.render();
+    } catch {
+      new Notice("Atoms: could not link to that note");
+      this.render();
+    } finally {
+      this.personInviteBusy = false;
+    }
   }
 
   private async onAddPersonNote(inv: PersonInviteCandidate): Promise<void> {
@@ -1051,6 +1096,7 @@ export class AtomsHomeView extends ItemView {
       const anyTitle = this.app.vault
         .getMarkdownFiles()
         .find((f) => f.basename.toLowerCase() === name.toLowerCase());
+      let created = false;
       if (!(existing instanceof TFile) && !anyTitle) {
         const parts = folder.split("/").filter(Boolean);
         let acc = "";
@@ -1062,25 +1108,22 @@ export class AtomsHomeView extends ItemView {
           }
         }
         await this.app.vault.create(path, formatPersonNoteMarkdown(name));
+        created = true;
       }
 
-      const upgradePaths = new Set(inv.memberPaths);
-      for (const f of this.atomFileInputs) {
-        if (!isGeneratedAtomContent(f.content)) continue;
-        if (upgradePaths.has(f.path)) continue;
-        const body = bodyAfterFrontmatter(f.content).split(/\n\n/)[0] ?? "";
-        const title = titleFromAtomPath(f.path);
-        const n = resolvePersonInviteName(body, title);
-        if (n && n.toLowerCase() === name.toLowerCase()) {
-          upgradePaths.add(f.path);
-        }
-      }
-
-      for (const memberPath of upgradePaths) {
+      const paths = this.upgradePathSet(inv);
+      for (const memberPath of paths) {
         await this.upgradeAtomToPerson(memberPath, name);
       }
 
-      new Notice(`Atoms: added ${name}`);
+      // Multi-member same-name group: ensure peers if still no hard hub (edge)
+      if (paths.size >= 2 && created) {
+        await this.applyPeersForPaths([...paths]);
+      }
+
+      new Notice(
+        created ? `Atoms: added ${name}` : `Atoms: linked to ${name}`,
+      );
       this.personInvite = null;
       await this.loadData();
       this.render();
@@ -1090,6 +1133,20 @@ export class AtomsHomeView extends ItemView {
     } finally {
       this.personInviteBusy = false;
     }
+  }
+
+  private upgradePathSet(inv: PersonInviteCandidate): Set<string> {
+    const upgradePaths = new Set(inv.memberPaths);
+    const label = inv.displayName.trim().toLowerCase();
+    for (const f of this.atomFileInputs) {
+      if (!isGeneratedAtomContent(f.content)) continue;
+      if (upgradePaths.has(f.path)) continue;
+      const body = bodyAfterFrontmatter(f.content).split(/\n\n/)[0] ?? "";
+      const title = titleFromAtomPath(f.path);
+      const n = resolvePersonInviteName(body, title);
+      if (n && n.toLowerCase() === label) upgradePaths.add(f.path);
+    }
+    return upgradePaths;
   }
 
   private async upgradeAtomToPerson(
@@ -1107,6 +1164,26 @@ export class AtomsHomeView extends ItemView {
       { dropSoft: true },
     );
     if (next) await this.app.vault.modify(file, next);
+  }
+
+  private async applyPeersForPaths(paths: string[]): Promise<void> {
+    const members: { path: string; title: string; content: string }[] = [];
+    for (const p of paths) {
+      const file = this.app.vault.getAbstractFileByPath(p);
+      if (!(file instanceof TFile)) continue;
+      const content = await this.app.vault.read(file);
+      if (!isGeneratedAtomContent(content)) continue;
+      members.push({
+        path: p,
+        title: titleFromAtomPath(p),
+        content,
+      });
+    }
+    const updates = applyPersonPeerLinksToContents(members);
+    for (const [p, content] of updates) {
+      const file = this.app.vault.getAbstractFileByPath(p);
+      if (file instanceof TFile) await this.app.vault.modify(file, content);
+    }
   }
 
   private renderEntityInviteCard(scroll: HTMLElement): void {

@@ -24,6 +24,11 @@ import {
   type PersonHub,
 } from "./enrich/people";
 import { mergeProposedTags } from "./vocabulary";
+import {
+  applyPersonPeerLinksToContents,
+  resolvePersonInviteName,
+} from "./personInvite";
+import { TFile } from "obsidian";
 
 export interface WritePathEntry {
   dailyPath: string;
@@ -266,6 +271,9 @@ export async function runWritePath(
     opts.activeVocabulary,
   );
 
+  // Pre-hub peer links among same-name atoms created this run (R14).
+  await applyPersonPeersForNewAtoms(opts.app, entries, hubs);
+
   return {
     entries,
     atomsCreated,
@@ -277,4 +285,61 @@ export async function runWritePath(
     personHubMisses,
     failures,
   };
+}
+
+/**
+ * Group newly written atoms by high-confidence person label; if ≥2 share a
+ * label with no person hub, write orbit-safe peer links between them.
+ */
+async function applyPersonPeersForNewAtoms(
+  app: App,
+  entries: WritePathEntry[],
+  hubs: PersonHub[],
+): Promise<void> {
+  const hubLower = new Set(
+    hubs.map((h) => h.canonicalTitle.trim().toLowerCase()).filter(Boolean),
+  );
+  type Mem = { path: string; title: string; content: string };
+  const byLabel = new Map<string, Mem[]>();
+
+  for (const e of entries) {
+    if (e.verdict !== "atom") continue;
+    if (!e.write.atomCreated && !e.write.atomSkippedCollision) continue; // both string|null
+    const path =
+      e.planned.action.kind === "create_atom" ||
+      e.planned.action.kind === "skip_existing_atom"
+        ? e.planned.action.path
+        : null;
+    if (!path) continue;
+    const file = app.vault.getAbstractFileByPath(path);
+    if (!(file instanceof TFile)) continue;
+    const content = await app.vault.read(file);
+    const name = resolvePersonInviteName(e.captureText, e.title);
+    if (!name) continue;
+    const id = name.toLowerCase();
+    if (hubLower.has(id)) continue;
+    const list = byLabel.get(id) ?? [];
+    list.push({ path, title: e.title, content });
+    byLabel.set(id, list);
+  }
+
+  for (const members of byLabel.values()) {
+    if (members.length < 2) continue;
+    // re-read fresh content
+    const fresh: Mem[] = [];
+    for (const m of members) {
+      const file = app.vault.getAbstractFileByPath(m.path);
+      if (!(file instanceof TFile)) continue;
+      fresh.push({
+        path: m.path,
+        title: m.title,
+        content: await app.vault.read(file),
+      });
+    }
+    const updates = applyPersonPeerLinksToContents(fresh);
+    for (const [p, next] of updates) {
+      const file = app.vault.getAbstractFileByPath(p);
+      if (file instanceof TFile) await app.vault.modify(file, next);
+    }
+  }
 }
