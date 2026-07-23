@@ -34,7 +34,7 @@ try {
   process.exit(1);
 }
 
-const store = createStore();
+const store = await createStore();
 
 /** Browser (Obsidian fetch) CORS — must allow Idempotency-Key or POST preflight fails. */
 const CORS_HEADERS = {
@@ -108,6 +108,7 @@ async function handler(req, res) {
         includedFilings: config.includedFilings,
         hasAnthropicKey: Boolean(config.anthropicApiKey),
         stripe: stripeConfigured(),
+        store: store.kind || "unknown",
       });
     }
 
@@ -128,7 +129,7 @@ async function handler(req, res) {
       const raw = await readRawBody(req);
       try {
         const event = constructEvent(raw, req.headers["stripe-signature"]);
-        const result = applyStripeEvent(store, event);
+        const result = await applyStripeEvent(store, event);
         console.log(
           `[plus] stripe webhook ${event.type} → ${result.action || "ok"}${result.email ? ` ${result.email}` : ""}`,
         );
@@ -155,7 +156,7 @@ async function handler(req, res) {
       if (!email || !email.includes("@")) {
         return json(res, 400, { message: "Valid email required" });
       }
-      const token = store.createMagicToken(email);
+      const token = await store.createMagicToken(email);
       const link = allowDevExchange()
         ? `${config.publicBaseUrl}/v1/auth/dev-exchange?token=${token}`
         : `${config.publicBaseUrl}/v1/auth/exchange?token=${token}`;
@@ -166,7 +167,7 @@ async function handler(req, res) {
     // POST /v1/auth/sign-out
     if (req.method === "POST" && path === "/v1/auth/sign-out") {
       const session = bearer(req);
-      if (session && store.revokeSession) store.revokeSession(session);
+      if (session && store.revokeSession) await store.revokeSession(session);
       return json(res, 200, { ok: true });
     }
 
@@ -176,7 +177,7 @@ async function handler(req, res) {
         return json(res, 404, { message: "Not found" });
       }
       const token = url.searchParams.get("token") || "";
-      const out = store.exchangeMagic(token);
+      const out = await store.exchangeMagic(token);
       if (!out) {
         res.writeHead(400, { "content-type": "text/plain" });
         res.end("Invalid or expired link. Request a new magic link from Atoms Settings.");
@@ -199,7 +200,7 @@ async function handler(req, res) {
     if (req.method === "POST" && path === "/v1/auth/exchange") {
       const body = await readBody(req);
       const token = String(body.token || "").trim();
-      const out = store.exchangeMagic(token);
+      const out = await store.exchangeMagic(token);
       if (!out) {
         return json(res, 401, { message: "Invalid or expired magic link" });
       }
@@ -218,7 +219,7 @@ async function handler(req, res) {
     // GET /v1/me
     if (req.method === "GET" && path === "/v1/me") {
       const session = bearer(req);
-      const a = store.accountFromSession(session);
+      const a = await store.accountFromSession(session);
       if (!a) return json(res, 401, { message: "Invalid session" });
       return json(res, 200, store.publicAccount(a));
     }
@@ -226,10 +227,10 @@ async function handler(req, res) {
     // POST /v1/promo
     if (req.method === "POST" && path === "/v1/promo") {
       const session = bearer(req);
-      const a = store.accountFromSession(session);
+      const a = await store.accountFromSession(session);
       if (!a) return json(res, 401, { message: "Invalid session" });
       const body = await readBody(req);
-      const result = store.redeemPromo(a.email, String(body.code || ""));
+      const result = await store.redeemPromo(a.email, String(body.code || ""));
       if (!result.ok) return json(res, 400, { message: result.message });
       return json(res, 200, {
         ok: true,
@@ -241,7 +242,7 @@ async function handler(req, res) {
     // POST /v1/billing/checkout — Stripe when configured; dogfood grants only off-prod
     if (req.method === "POST" && path === "/v1/billing/checkout") {
       const session = bearer(req);
-      const a = store.accountFromSession(session);
+      const a = await store.accountFromSession(session);
       if (!a) return json(res, 401, { message: "Invalid session" });
       const body = await readBody(req);
       const kind = String(body.kind || "");
@@ -270,7 +271,7 @@ async function handler(req, res) {
       }
 
       if (kind === "topup_50") {
-        store.addTopUp(a.email, config.topUpFilings);
+        await store.addTopUp(a.email, config.topUpFilings);
         return json(res, 200, {
           url: `${config.publicBaseUrl}/v1/billing/return?ok=1&dogfood=topup`,
           message: "Dogfood: top-up applied without Stripe",
@@ -282,7 +283,7 @@ async function handler(req, res) {
         kind === "subscribe_yearly" ||
         kind === "start_trial"
       ) {
-        store.grantPeriod(a.email, {
+        await store.grantPeriod(a.email, {
           status: kind === "start_trial" ? "trialing" : "active",
           plan:
             kind === "subscribe_yearly"
@@ -310,7 +311,7 @@ async function handler(req, res) {
     // POST /v1/billing/portal
     if (req.method === "POST" && path === "/v1/billing/portal") {
       const session = bearer(req);
-      const a = store.accountFromSession(session);
+      const a = await store.accountFromSession(session);
       if (!a) return json(res, 401, { message: "Invalid session" });
       const cust = a.stripeCustomerId;
       if (!cust || !stripeConfigured()) {
@@ -344,10 +345,15 @@ async function handler(req, res) {
         String(req.headers["x-idempotency-key"] || "").trim() ||
         "";
 
-      const consume = store.tryConsumeFiling(session, idem || undefined);
+      const consume = await store.tryConsumeFiling(session, idem || undefined);
       if (!consume.ok) {
         if (consume.code === "auth") {
           return json(res, 401, { message: "Invalid session" });
+        }
+        if (consume.code === "in_flight") {
+          return json(res, 409, {
+            message: "Classify already in progress for this Idempotency-Key",
+          });
         }
         return json(res, 402, {
           message:
@@ -358,11 +364,10 @@ async function handler(req, res) {
       }
 
       if (consume.replay && consume.cached?.responseJson) {
+        const me = await store.accountFromSession(session);
         return json(res, 200, {
           ...consume.cached.responseJson,
-          remaining:
-            consume.cached.remaining ??
-            store.accountFromSession(session)?.remaining,
+          remaining: consume.cached.remaining ?? me?.remaining,
           replay: true,
         });
       }
@@ -370,16 +375,17 @@ async function handler(req, res) {
       const body = await readBody(req);
       const upstream = await proxyClassify(body);
       if (!upstream.ok) {
-        store.refundFiling(session);
+        await store.refundFiling(session, idem || undefined);
         const status =
           upstream.status && upstream.status >= 400 ? upstream.status : 502;
+        const me = await store.accountFromSession(session);
         return json(res, status, {
           message: upstream.message,
-          remaining: store.accountFromSession(session)?.remaining,
+          remaining: me?.remaining,
         });
       }
 
-      const a = store.accountFromSession(session);
+      const a = await store.accountFromSession(session);
       const out = {
         result: upstream.json,
         remaining: a?.remaining ?? 0,
@@ -387,7 +393,7 @@ async function handler(req, res) {
         usageId: idem || `u_${Date.now()}`,
       };
       if (idem && store.completeUsage) {
-        store.completeUsage(idem, {
+        await store.completeUsage(idem, {
           email: a?.email,
           status: "ok",
           responseJson: out,

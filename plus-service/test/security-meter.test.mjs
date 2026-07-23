@@ -81,12 +81,12 @@ describe("U9 security meter regressions", () => {
     assert.equal(store2.getAccount("i@t.co").remaining, 4);
   });
 
-  it("P1-2: unknown price action when line price not allowlisted", () => {
+  it("P1-2: unknown price action when line price not allowlisted", async () => {
     process.env.STRIPE_PRICE_MONTHLY = "price_m";
     process.env.STRIPE_PRICE_YEARLY = "price_y";
     process.env.STRIPE_PRICE_TOPUP = "price_t";
     const store = createMemoryStore();
-    const r = applyStripeEvent(store, {
+    const r = await applyStripeEvent(store, {
       id: "evt_bad_price",
       type: "checkout.session.completed",
       data: {
@@ -102,7 +102,7 @@ describe("U9 security meter regressions", () => {
     assert.equal(store.getAccount("x@y.co")?.remaining ?? 0, 0);
   });
 
-  it("webhook replay is duplicate", () => {
+  it("webhook replay is duplicate", async () => {
     const store = createMemoryStore();
     const ev = {
       id: "evt_once",
@@ -119,8 +119,8 @@ describe("U9 security meter regressions", () => {
         },
       },
     };
-    assert.equal(applyStripeEvent(store, ev).action, "subscribe");
-    assert.equal(applyStripeEvent(store, ev).action, "duplicate");
+    assert.equal((await applyStripeEvent(store, ev)).action, "subscribe");
+    assert.equal((await applyStripeEvent(store, ev)).action, "duplicate");
     assert.equal(store.getAccount("dup@t.co").remaining, 150);
   });
 
@@ -128,9 +128,26 @@ describe("U9 security meter regressions", () => {
     process.env.ATOMS_PLUS_ENV = "production";
     process.env.DOGFOOD_AUTO_GRANT = "0";
     delete process.env.STRIPE_SECRET_KEY;
+    delete process.env.DATABASE_URL;
     process.env.PUBLIC_BASE_URL = "https://plus.tryatoms.app";
     process.env.ANTHROPIC_API_KEY = "sk-ant-x";
     const r = checkProductionReady();
     assert.equal(r.ok, false);
+  });
+
+  it("prod gate requires DATABASE_URL", () => {
+    process.env.ATOMS_PLUS_ENV = "production";
+    process.env.DOGFOOD_AUTO_GRANT = "0";
+    process.env.STRIPE_SECRET_KEY = "sk_test_x";
+    process.env.STRIPE_WEBHOOK_SECRET = "whsec_x";
+    process.env.STRIPE_PRICE_MONTHLY = "price_m";
+    process.env.STRIPE_PRICE_YEARLY = "price_y";
+    process.env.STRIPE_PRICE_TOPUP = "price_t";
+    process.env.ANTHROPIC_API_KEY = "sk-ant-x";
+    process.env.PUBLIC_BASE_URL = "https://plus.tryatoms.app";
+    delete process.env.DATABASE_URL;
+    const r = checkProductionReady();
+    assert.equal(r.ok, false);
+    assert.ok(r.errors.some((e) => e.includes("DATABASE_URL")));
   });
 });

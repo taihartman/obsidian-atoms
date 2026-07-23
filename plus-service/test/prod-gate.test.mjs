@@ -96,9 +96,46 @@ describe("prodGate", () => {
     process.env.STRIPE_PRICE_TOPUP = "price_t";
     process.env.ANTHROPIC_API_KEY = "sk-ant-x";
     process.env.PUBLIC_BASE_URL = "https://plus.tryatoms.app";
+    process.env.DATABASE_URL = "postgres://user:pass@localhost:5432/plus";
+    process.env.ATOMS_PLUS_STORE = "postgres";
     const { checkProductionReady } = await loadGate();
     const r = checkProductionReady();
     assert.equal(r.ok, true, r.errors?.join("; "));
+  });
+
+  it("checkProductionReady fails on memory store in production", async () => {
+    process.env.ATOMS_PLUS_ENV = "production";
+    process.env.DOGFOOD_AUTO_GRANT = "0";
+    process.env.STRIPE_SECRET_KEY = "sk_test_x";
+    process.env.STRIPE_WEBHOOK_SECRET = "whsec_x";
+    process.env.STRIPE_PRICE_MONTHLY = "price_m";
+    process.env.STRIPE_PRICE_YEARLY = "price_y";
+    process.env.STRIPE_PRICE_TOPUP = "price_t";
+    process.env.ANTHROPIC_API_KEY = "sk-ant-x";
+    process.env.PUBLIC_BASE_URL = "https://plus.tryatoms.app";
+    process.env.DATABASE_URL = "postgres://user:pass@localhost:5432/plus";
+    process.env.ATOMS_PLUS_STORE = "memory";
+    const { checkProductionReady } = await loadGate();
+    const r = checkProductionReady();
+    assert.equal(r.ok, false);
+    assert.ok(r.errors.some((e) => e.includes("memory")));
+  });
+
+  it("checkProductionReady fails without DATABASE_URL", async () => {
+    process.env.ATOMS_PLUS_ENV = "production";
+    process.env.DOGFOOD_AUTO_GRANT = "0";
+    process.env.STRIPE_SECRET_KEY = "sk_test_x";
+    process.env.STRIPE_WEBHOOK_SECRET = "whsec_x";
+    process.env.STRIPE_PRICE_MONTHLY = "price_m";
+    process.env.STRIPE_PRICE_YEARLY = "price_y";
+    process.env.STRIPE_PRICE_TOPUP = "price_t";
+    process.env.ANTHROPIC_API_KEY = "sk-ant-x";
+    process.env.PUBLIC_BASE_URL = "https://plus.tryatoms.app";
+    delete process.env.DATABASE_URL;
+    const { checkProductionReady } = await loadGate();
+    const r = checkProductionReady();
+    assert.equal(r.ok, false);
+    assert.ok(r.errors.some((e) => e.includes("DATABASE_URL")));
   });
 
   it("checkProductionReady rejects localhost PUBLIC_BASE_URL", async () => {

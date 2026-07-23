@@ -62,6 +62,22 @@ export function checkProductionReady() {
   if (!config.anthropicApiKey) {
     errors.push("ANTHROPIC_API_KEY required in production");
   }
+  if (!config.databaseUrl) {
+    errors.push(
+      "DATABASE_URL required in production (managed Postgres meter — KTD-B1)",
+    );
+  }
+  const storeMode = (config.storeMode || "memory").toLowerCase();
+  if (storeMode === "memory") {
+    errors.push(
+      "ATOMS_PLUS_STORE must not be memory in production (use postgres)",
+    );
+  }
+  if (storeMode === "sqlite") {
+    errors.push(
+      "ATOMS_PLUS_STORE=sqlite is single-process only; production requires postgres",
+    );
+  }
 
   const base = (config.publicBaseUrl || "").toLowerCase();
   if (

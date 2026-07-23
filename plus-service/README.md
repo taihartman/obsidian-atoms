@@ -28,17 +28,39 @@ http://127.0.0.1:8787
 
 Without Stripe env, **checkout kinds grant immediately** (dogfood).
 
+## Durable store (U2)
+
+| Mode | Env | Use |
+|------|-----|-----|
+| `memory` | default / tests | Ephemeral |
+| `sqlite` | `ATOMS_PLUS_STORE=sqlite` + optional `ATOMS_PLUS_DATABASE_PATH` | Local dogfood durable |
+| `postgres` | `ATOMS_PLUS_STORE=postgres` + `DATABASE_URL` | **Production** (multi-instance safe) |
+
+```bash
+# Local durable dogfood
+ATOMS_PLUS_STORE=sqlite ATOMS_PLUS_DATABASE_PATH=./data/plus.sqlite npm start
+
+# Production-shaped (managed Postgres)
+ATOMS_PLUS_STORE=postgres DATABASE_URL=postgres://… npm start
+```
+
+Meter: atomic `remaining - 1 WHERE remaining > 0`, `usage_events` ledger with `Idempotency-Key` → `response_json` replay. Prod gate **requires** `DATABASE_URL`.
+
+Postgres meter suite (optional): `DATABASE_URL=… PLUS_METER_PG=1 npm test`
+
 ## Production fail-closed (U1)
 
 ```bash
 export ATOMS_PLUS_ENV=production
 export DOGFOOD_AUTO_GRANT=0
 export STRIPE_DOGFOOD_CHECKOUT=0
+export DATABASE_URL=postgres://…   # managed Postgres required
+export ATOMS_PLUS_STORE=postgres
 # + full STRIPE_* + ANTHROPIC + PUBLIC_BASE_URL=https://…
 npm start   # exits 1 if any gate fails
 ```
 
-In production: no free checkout grants, no `/v1/auth/dev-exchange`, minimal `/health`.
+In production: no free checkout grants, no `/v1/auth/dev-exchange`, minimal `/health`, Postgres meter.
 
 ## Stripe test mode
 

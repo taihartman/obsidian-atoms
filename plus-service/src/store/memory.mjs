@@ -131,12 +131,23 @@ export function createMemoryStore() {
   function tryConsumeFiling(sessionToken, idempotencyKey) {
     if (idempotencyKey && usageByKey.has(idempotencyKey)) {
       const prev = usageByKey.get(idempotencyKey);
-      return {
-        ok: true,
-        replay: true,
-        account: accountFromSession(sessionToken),
-        cached: prev,
-      };
+      if (prev?.status === "ok" && prev.responseJson) {
+        return {
+          ok: true,
+          replay: true,
+          account: accountFromSession(sessionToken),
+          cached: prev,
+        };
+      }
+      if (prev?.status === "refunded") {
+        usageByKey.delete(idempotencyKey);
+      } else if (prev?.status === "reserved") {
+        return {
+          ok: false,
+          code: "in_flight",
+          account: accountFromSession(sessionToken),
+        };
+      }
     }
     const a = accountFromSession(sessionToken);
     if (!a) return { ok: false, code: "auth" };
@@ -151,6 +162,9 @@ export function createMemoryStore() {
       a.status = "exhausted";
       a.remaining = 0;
     }
+    if (idempotencyKey) {
+      usageByKey.set(idempotencyKey, { status: "reserved" });
+    }
     return { ok: true, account: a, replay: false };
   }
 
@@ -159,12 +173,18 @@ export function createMemoryStore() {
     usageByKey.set(idempotencyKey, payload);
   }
 
-  function refundFiling(sessionToken) {
+  function refundFiling(sessionToken, idempotencyKey) {
     const a = accountFromSession(sessionToken);
     if (!a) return;
     a.remaining += 1;
     if (a.status === "exhausted" && a.remaining > 0) {
       a.status = a.plan === "trial" ? "trialing" : "active";
+    }
+    if (idempotencyKey && usageByKey.has(idempotencyKey)) {
+      const prev = usageByKey.get(idempotencyKey);
+      if (prev?.status !== "ok") {
+        usageByKey.set(idempotencyKey, { status: "refunded" });
+      }
     }
   }
 
@@ -225,6 +245,11 @@ export function createMemoryStore() {
     ensureAccount,
     getAccount,
     hasProcessedEvent: (id) => processedEvents.has(id),
+    claimEvent(id) {
+      if (!id || processedEvents.has(id)) return false;
+      processedEvents.add(id);
+      return true;
+    },
     markEventProcessed: (id) => id && processedEvents.add(id),
     setStripeCustomer(email, customerId) {
       const a = ensureAccount(email);

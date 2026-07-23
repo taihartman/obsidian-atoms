@@ -125,7 +125,7 @@ export const config = {
   get atomsPlusEnv() {
     return env("ATOMS_PLUS_ENV", env("NODE_ENV", "development"));
   },
-  /** memory | sqlite */
+  /** memory | sqlite | postgres */
   get storeMode() {
     return env("ATOMS_PLUS_STORE", "memory").toLowerCase();
   },
@@ -134,6 +134,10 @@ export const config = {
       "ATOMS_PLUS_DATABASE_PATH",
       join(dirname(fileURLToPath(import.meta.url)), "../data/plus.sqlite"),
     );
+  },
+  /** Managed Postgres connection string (KTD-B1). */
+  get databaseUrl() {
+    return env("DATABASE_URL");
   },
   get sessionTtlDays() {
     return Number(env("ATOMS_PLUS_SESSION_TTL_DAYS", "60"));

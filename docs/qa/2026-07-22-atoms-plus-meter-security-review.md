@@ -48,14 +48,14 @@ Maps 1:1 to plan U9 tests. Update this file when findings change.
 
 ## Production must-haves (checklist)
 
-- [ ] `ATOMS_PLUS_ENV=production` fail-closed (U1)
-- [ ] No dogfood checkout / auto-grant in prod (U1)
-- [ ] Durable Postgres meter + ledger (U2)
+- [x] `ATOMS_PLUS_ENV=production` fail-closed (U1)
+- [x] No dogfood checkout / auto-grant in prod (U1)
+- [x] Durable Postgres meter + ledger (U2) — `ATOMS_PLUS_STORE=postgres` + `DATABASE_URL`; sqlite/memory for local
 - [ ] Webhook price allowlist + durable event id (U3)
 - [ ] Server-built classify payload + rate limits (U4)
 - [ ] Email magic link; no dev-exchange (U5)
 - [ ] Promo per-email cap (U6)
-- [ ] Plugin Idempotency-Key (U8)
+- [x] Plugin Idempotency-Key (U8) — dogfood path landed
 - [ ] U9 suite green on staging before public DNS (U7)
 
 ## Explicit: client remaining is never SoT

@@ -237,12 +237,27 @@ export function constructEvent(rawBody, signatureHeader) {
 
 /**
  * Map a verified Stripe event into store mutations.
- * @param {import('./store.mjs').createStore extends Function ? any : never} store
+ * Store methods may be sync (memory/sqlite) or async (postgres) — always awaited.
+ * @param {object} store
  * @param {object} event
- * @returns {{ handled: boolean, action?: string, email?: string }}
+ * @returns {Promise<{ handled: boolean, action?: string, email?: string }>}
  */
-export function applyStripeEvent(store, event) {
-  if (store.hasProcessedEvent(event.id)) {
+/**
+ * Claim event id before mutating entitlements. Returns "duplicate" if already claimed.
+ * Do not claim unpaid/skip paths that must remain retriable.
+ */
+async function claimOrDuplicate(store, eventId) {
+  if (typeof store.claimEvent === "function") {
+    const claimed = await store.claimEvent(eventId);
+    return claimed ? "claimed" : "duplicate";
+  }
+  if (await store.hasProcessedEvent(eventId)) return "duplicate";
+  await store.markEventProcessed(eventId);
+  return "claimed";
+}
+
+export async function applyStripeEvent(store, event) {
+  if (await store.hasProcessedEvent(event.id)) {
     return { handled: true, action: "duplicate" };
   }
 
@@ -261,14 +276,14 @@ export function applyStripeEvent(store, event) {
       .toLowerCase();
     const kind = String(obj.metadata?.kind || "");
     if (!email) {
-      store.markEventProcessed(event.id);
+      // Claim so Stripe stops retrying a permanently unusable payload
+      await claimOrDuplicate(store, event.id);
       return { handled: false, action: "missing_email" };
     }
 
-    // Prefer paid/complete; unpaid async methods should not grant yet
+    // Prefer paid/complete; unpaid async methods should not grant yet — do NOT claim
     const payStatus = String(obj.payment_status || "paid");
     if (payStatus === "unpaid") {
-      store.markEventProcessed(event.id);
       return { handled: true, action: "unpaid_skip", email };
     }
 
@@ -278,19 +293,24 @@ export function applyStripeEvent(store, event) {
       obj.metadata?.price_id ||
       "";
     if (linePrice && allowedPriceIds().size && !allowedPriceIds().has(linePrice)) {
-      store.markEventProcessed(event.id);
+      await claimOrDuplicate(store, event.id);
       return { handled: true, action: "unknown_price", email };
     }
     const fromPrice = grantFromPriceId(linePrice);
+
+    // Claim before grant — crash after claim + before grant is preferred to double-mint
+    const claim = await claimOrDuplicate(store, event.id);
+    if (claim === "duplicate") {
+      return { handled: true, action: "duplicate" };
+    }
 
     if (
       kind === "topup_50" ||
       fromPrice === "topup" ||
       obj.mode === "payment"
     ) {
-      store.addTopUp(email, config.topUpFilings);
-      if (obj.customer) store.setStripeCustomer(email, String(obj.customer));
-      store.markEventProcessed(event.id);
+      await store.addTopUp(email, config.topUpFilings);
+      if (obj.customer) await store.setStripeCustomer(email, String(obj.customer));
       return { handled: true, action: "topup", email };
     }
 
@@ -300,17 +320,16 @@ export function applyStripeEvent(store, event) {
       kind === "subscribe_yearly" ||
       planMeta === "yearly" ||
       fromPrice === "yearly";
-    store.grantPeriod(email, {
+    await store.grantPeriod(email, {
       status: isTrial ? "trialing" : "active",
       plan: isTrial ? "trial" : isYearly ? "yearly" : "monthly",
       days: isTrial ? config.trialDays : isYearly ? 365 : 30,
       remaining: config.includedFilings,
     });
-    if (obj.customer) store.setStripeCustomer(email, String(obj.customer));
+    if (obj.customer) await store.setStripeCustomer(email, String(obj.customer));
     if (obj.subscription) {
-      store.setStripeSubscription(email, String(obj.subscription));
+      await store.setStripeSubscription(email, String(obj.subscription));
     }
-    store.markEventProcessed(event.id);
     return {
       handled: true,
       action: isTrial ? "trial" : "subscribe",
@@ -322,23 +341,27 @@ export function applyStripeEvent(store, event) {
     const reason = String(obj.billing_reason || "");
     // subscription_create is covered by checkout.session.completed
     if (reason !== "subscription_cycle" && reason !== "subscription_update") {
-      store.markEventProcessed(event.id);
+      await claimOrDuplicate(store, event.id);
       return { handled: true, action: "invoice_skip", email: undefined };
     }
-    const email = resolveInvoiceEmail(store, obj);
+    const email = await resolveInvoiceEmail(store, obj);
     if (!email) {
-      store.markEventProcessed(event.id);
+      await claimOrDuplicate(store, event.id);
       return { handled: false, action: "missing_email" };
     }
-    const plan = store.getAccount(email)?.plan;
+    const claim = await claimOrDuplicate(store, event.id);
+    if (claim === "duplicate") {
+      return { handled: true, action: "duplicate" };
+    }
+    const acct = await store.getAccount(email);
+    const plan = acct?.plan;
     const isYearly = plan === "yearly";
-    store.grantPeriod(email, {
+    await store.grantPeriod(email, {
       status: "active",
       plan: isYearly ? "yearly" : "monthly",
       days: isYearly ? 365 : 30,
       remaining: config.includedFilings,
     });
-    store.markEventProcessed(event.id);
     return { handled: true, action: "renew", email };
   }
 
@@ -347,27 +370,30 @@ export function applyStripeEvent(store, event) {
     (type === "customer.subscription.updated" &&
       obj.status === "canceled")
   ) {
-    const email = resolveSubEmail(store, obj);
+    const email = await resolveSubEmail(store, obj);
     if (email) {
-      store.revokeSubscription(email);
-      store.markEventProcessed(event.id);
+      const claim = await claimOrDuplicate(store, event.id);
+      if (claim === "duplicate") {
+        return { handled: true, action: "duplicate" };
+      }
+      await store.revokeSubscription(email);
       return { handled: true, action: "revoke", email };
     }
-    store.markEventProcessed(event.id);
+    await claimOrDuplicate(store, event.id);
     return { handled: false, action: "missing_email" };
   }
 
   // Acknowledge unknown types so Stripe stops retrying
-  store.markEventProcessed(event.id);
+  await claimOrDuplicate(store, event.id);
   return { handled: true, action: "ignored" };
 }
 
-function resolveInvoiceEmail(store, inv) {
+async function resolveInvoiceEmail(store, inv) {
   const meta = inv.subscription_details?.metadata?.email || inv.metadata?.email;
   if (meta) return String(meta).trim().toLowerCase();
   const cust = inv.customer ? String(inv.customer) : "";
   if (cust) {
-    const byCust = store.emailFromStripeCustomer(cust);
+    const byCust = await store.emailFromStripeCustomer(cust);
     if (byCust) return byCust;
   }
   if (typeof inv.customer_email === "string" && inv.customer_email) {
@@ -376,10 +402,10 @@ function resolveInvoiceEmail(store, inv) {
   return "";
 }
 
-function resolveSubEmail(store, sub) {
+async function resolveSubEmail(store, sub) {
   const meta = sub.metadata?.email;
   if (meta) return String(meta).trim().toLowerCase();
   const cust = sub.customer ? String(sub.customer) : "";
-  if (cust) return store.emailFromStripeCustomer(cust) || "";
+  if (cust) return (await store.emailFromStripeCustomer(cust)) || "";
   return "";
 }

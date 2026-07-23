@@ -70,8 +70,8 @@ describe("webhook signature + grants", () => {
     assert.equal(ev.id, "evt_ok");
   });
 
-  it("grants period on checkout.session.completed and is idempotent", () => {
-    const store = createStore();
+  it("grants period on checkout.session.completed and is idempotent", async () => {
+    const store = await createStore({ mode: "memory" });
     const event = {
       id: "evt_sub_1",
       type: "checkout.session.completed",
@@ -88,20 +88,20 @@ describe("webhook signature + grants", () => {
         },
       },
     };
-    const r1 = applyStripeEvent(store, event);
+    const r1 = await applyStripeEvent(store, event);
     assert.equal(r1.action, "subscribe");
-    assert.equal(store.getAccount("pay@atoms.test").remaining, 150);
-    assert.equal(store.getAccount("pay@atoms.test").status, "active");
+    assert.equal((await store.getAccount("pay@atoms.test")).remaining, 150);
+    assert.equal((await store.getAccount("pay@atoms.test")).status, "active");
 
-    const r2 = applyStripeEvent(store, event);
+    const r2 = await applyStripeEvent(store, event);
     assert.equal(r2.action, "duplicate");
-    assert.equal(store.getAccount("pay@atoms.test").remaining, 150);
+    assert.equal((await store.getAccount("pay@atoms.test")).remaining, 150);
   });
 
-  it("top-up adds 50", () => {
-    const store = createStore();
-    store.grantPeriod("t@atoms.test", { remaining: 10, status: "active" });
-    applyStripeEvent(store, {
+  it("top-up adds 50", async () => {
+    const store = await createStore({ mode: "memory" });
+    await store.grantPeriod("t@atoms.test", { remaining: 10, status: "active" });
+    await applyStripeEvent(store, {
       id: "evt_top_1",
       type: "checkout.session.completed",
       data: {
@@ -111,18 +111,18 @@ describe("webhook signature + grants", () => {
         },
       },
     });
-    assert.equal(store.getAccount("t@atoms.test").remaining, 60);
+    assert.equal((await store.getAccount("t@atoms.test")).remaining, 60);
   });
 
-  it("renewal invoice resets remaining without rollover", () => {
-    const store = createStore();
-    store.grantPeriod("r@atoms.test", {
+  it("renewal invoice resets remaining without rollover", async () => {
+    const store = await createStore({ mode: "memory" });
+    await store.grantPeriod("r@atoms.test", {
       remaining: 12,
       status: "active",
       plan: "monthly",
     });
-    store.setStripeCustomer("r@atoms.test", "cus_r");
-    applyStripeEvent(store, {
+    await store.setStripeCustomer("r@atoms.test", "cus_r");
+    await applyStripeEvent(store, {
       id: "evt_inv_1",
       type: "invoice.paid",
       data: {
@@ -133,12 +133,12 @@ describe("webhook signature + grants", () => {
         },
       },
     });
-    assert.equal(store.getAccount("r@atoms.test").remaining, 150);
+    assert.equal((await store.getAccount("r@atoms.test")).remaining, 150);
   });
 
-  it("trial checkout marks trialing", () => {
-    const store = createStore();
-    applyStripeEvent(store, {
+  it("trial checkout marks trialing", async () => {
+    const store = await createStore({ mode: "memory" });
+    await applyStripeEvent(store, {
       id: "evt_trial",
       type: "checkout.session.completed",
       data: {
@@ -152,7 +152,7 @@ describe("webhook signature + grants", () => {
         },
       },
     });
-    const a = store.getAccount("tr@atoms.test");
+    const a = await store.getAccount("tr@atoms.test");
     assert.equal(a.status, "trialing");
     assert.equal(a.plan, "trial");
     assert.equal(a.remaining, 150);

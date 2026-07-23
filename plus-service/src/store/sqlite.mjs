@@ -212,55 +212,82 @@ export function createSqliteStore(dbPath = config.databasePath) {
   }
 
   function tryConsumeFiling(sessionToken, idempotencyKey) {
-    if (idempotencyKey) {
-      const prev = db
-        .prepare("SELECT * FROM usage_events WHERE idempotency_key = ?")
-        .get(idempotencyKey);
-      if (prev && prev.status === "ok" && prev.response_json) {
-        return {
-          ok: true,
-          replay: true,
-          account: accountFromSession(sessionToken),
-          cached: {
-            responseJson: JSON.parse(prev.response_json),
-            remaining: prev.remaining,
-            status: "ok",
-          },
-        };
-      }
-    }
-
     const a = accountFromSession(sessionToken);
     if (!a) return { ok: false, code: "auth" };
     if (a.status === "inactive") return { ok: false, code: "auth" };
 
-    const result = db
-      .prepare(
-        `UPDATE accounts SET remaining = remaining - 1,
-          status = CASE WHEN remaining - 1 <= 0 THEN 'exhausted' ELSE status END
-         WHERE email = ? AND remaining > 0 AND status IN ('active','trialing','unknown')
-         RETURNING *`,
-      )
-      .get(a.email);
-
-    if (!result) {
-      const cur = getAccount(a.email);
-      if (cur) {
-        cur.status = "exhausted";
-        cur.remaining = 0;
-        saveAccount(cur);
+    // Serialize meter + ledger (KTD-B5). Single-writer WAL; BEGIN IMMEDIATE locks.
+    db.exec("BEGIN IMMEDIATE");
+    try {
+      if (idempotencyKey) {
+        const prev = db
+          .prepare("SELECT * FROM usage_events WHERE idempotency_key = ?")
+          .get(idempotencyKey);
+        if (prev && prev.status === "ok" && prev.response_json) {
+          db.exec("COMMIT");
+          return {
+            ok: true,
+            replay: true,
+            account: accountFromSession(sessionToken),
+            cached: {
+              responseJson: JSON.parse(prev.response_json),
+              remaining: prev.remaining,
+              status: "ok",
+            },
+          };
+        }
+        if (prev && prev.status === "reserved") {
+          db.exec("COMMIT");
+          return { ok: false, code: "in_flight", account: getAccount(a.email) };
+        }
+        if (prev && prev.status === "refunded") {
+          db.prepare(
+            `UPDATE usage_events SET status = 'reserved', response_json = NULL,
+              remaining = NULL, email = ?, created_at = ? WHERE idempotency_key = ?`,
+          ).run(a.email, new Date().toISOString(), idempotencyKey);
+        } else if (!prev) {
+          db.prepare(
+            `INSERT INTO usage_events (idempotency_key, email, status, created_at)
+             VALUES (?, ?, 'reserved', ?)`,
+          ).run(idempotencyKey, a.email, new Date().toISOString());
+        }
       }
-      return { ok: false, code: "exhausted", account: getAccount(a.email) };
-    }
 
-    if (idempotencyKey) {
-      db.prepare(
-        `INSERT OR IGNORE INTO usage_events (idempotency_key, email, status, created_at)
-         VALUES (?, ?, 'reserved', ?)`,
-      ).run(idempotencyKey, a.email, new Date().toISOString());
-    }
+      const result = db
+        .prepare(
+          `UPDATE accounts SET remaining = remaining - 1,
+            status = CASE WHEN remaining - 1 <= 0 THEN 'exhausted' ELSE status END
+           WHERE email = ? AND remaining > 0 AND status IN ('active','trialing','unknown')
+           RETURNING *`,
+        )
+        .get(a.email);
 
-    return { ok: true, account: rowToAccount(result), replay: false };
+      if (!result) {
+        if (idempotencyKey) {
+          db.prepare(
+            `DELETE FROM usage_events WHERE idempotency_key = ? AND status = 'reserved'`,
+          ).run(idempotencyKey);
+        }
+        const cur = getAccount(a.email);
+        if (cur) {
+          cur.status = "exhausted";
+          cur.remaining = 0;
+          saveAccount(cur);
+        }
+        db.exec("COMMIT");
+        return { ok: false, code: "exhausted", account: getAccount(a.email) };
+      }
+
+      db.exec("COMMIT");
+      return { ok: true, account: rowToAccount(result), replay: false };
+    } catch (e) {
+      try {
+        db.exec("ROLLBACK");
+      } catch {
+        /* ignore */
+      }
+      throw e;
+    }
   }
 
   function completeUsage(idempotencyKey, payload) {
@@ -282,7 +309,7 @@ export function createSqliteStore(dbPath = config.databasePath) {
     );
   }
 
-  function refundFiling(sessionToken) {
+  function refundFiling(sessionToken, idempotencyKey) {
     const a = accountFromSession(sessionToken);
     if (!a) return;
     db.prepare(
@@ -293,6 +320,12 @@ export function createSqliteStore(dbPath = config.databasePath) {
         END
        WHERE email = ?`,
     ).run(a.email);
+    if (idempotencyKey) {
+      db.prepare(
+        `UPDATE usage_events SET status = 'refunded', response_json = NULL
+         WHERE idempotency_key = ? AND status = 'reserved'`,
+      ).run(idempotencyKey);
+    }
   }
 
   function addTopUp(email, n = config.topUpFilings) {
@@ -368,6 +401,16 @@ export function createSqliteStore(dbPath = config.databasePath) {
       return Boolean(
         db.prepare("SELECT 1 FROM stripe_events WHERE event_id = ?").get(eventId),
       );
+    },
+    /** @returns {boolean} true if newly claimed */
+    claimEvent(eventId) {
+      if (!eventId) return false;
+      const info = db
+        .prepare(
+          "INSERT OR IGNORE INTO stripe_events (event_id, processed_at) VALUES (?, ?)",
+        )
+        .run(eventId, new Date().toISOString());
+      return info.changes > 0;
     },
     markEventProcessed(eventId) {
       if (!eventId) return;
