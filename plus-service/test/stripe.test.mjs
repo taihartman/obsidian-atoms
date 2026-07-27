@@ -157,4 +157,38 @@ describe("webhook signature + grants", () => {
     assert.equal(a.plan, "trial");
     assert.equal(a.remaining, 150);
   });
+
+  it("checkout email mismatch does not grant", async () => {
+    const store = await createStore({ mode: "memory" });
+    const r = await applyStripeEvent(store, {
+      id: "evt_mismatch",
+      type: "checkout.session.completed",
+      data: {
+        object: {
+          mode: "subscription",
+          metadata: {
+            email: "plugin@atoms.test",
+            kind: "start_trial",
+            plan: "trial",
+          },
+          customer_details: { email: "other@evil.test" },
+        },
+      },
+    });
+    assert.equal(r.action, "email_mismatch");
+    assert.equal(await store.getAccount("plugin@atoms.test"), null);
+    assert.equal(await store.getAccount("other@evil.test"), null);
+    const dup = await applyStripeEvent(store, {
+      id: "evt_mismatch",
+      type: "checkout.session.completed",
+      data: {
+        object: {
+          mode: "subscription",
+          metadata: { email: "plugin@atoms.test", kind: "start_trial" },
+          customer_details: { email: "other@evil.test" },
+        },
+      },
+    });
+    assert.equal(dup.action, "duplicate");
+  });
 });

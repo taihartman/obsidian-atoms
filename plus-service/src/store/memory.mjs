@@ -6,6 +6,7 @@ import {
   applyStatusRules,
   hashToken,
   id,
+  isEntitledAccount,
   periodEndFromNow,
   publicAccount,
 } from "./shared.mjs";
@@ -91,6 +92,30 @@ export function createMemoryStore() {
     return token;
   }
 
+  function createSession(email) {
+    const key = email.trim().toLowerCase();
+    const session = id("sess");
+    sessions.set(hashToken(session), {
+      email: key,
+      exp: Date.now() + sessionTtlMs(),
+      revoked: false,
+    });
+    return session;
+  }
+
+  /**
+   * Soft start: mint sess_ only for non-entitled inactive accounts.
+   * @returns {{ ok: true, session: string, account: object } | { ok: false, needsMagicLink: true, account: object }}
+   */
+  function startWithEmail(email) {
+    const a = refreshAccountStatus(ensureAccount(email));
+    if (isEntitledAccount(a)) {
+      return { ok: false, needsMagicLink: true, account: a };
+    }
+    const session = createSession(a.email);
+    return { ok: true, session, account: a };
+  }
+
   function exchangeMagic(token) {
     const row = magicTokens.get(token);
     if (!row) return null;
@@ -114,12 +139,7 @@ export function createMemoryStore() {
       });
     }
     refreshAccountStatus(a);
-    const session = id("sess");
-    sessions.set(hashToken(session), {
-      email: row.email,
-      exp: Date.now() + sessionTtlMs(),
-      revoked: false,
-    });
+    const session = createSession(row.email);
     return { session, account: a };
   }
 
@@ -490,6 +510,8 @@ export function createMemoryStore() {
   return {
     kind: "memory",
     createMagicToken,
+    createSession,
+    startWithEmail,
     exchangeMagic,
     accountFromSession,
     revokeSession,

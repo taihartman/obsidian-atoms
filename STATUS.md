@@ -7,6 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
+| In progress | #123 | Tai | `feat/plus-stripe-first-onboarding` | `docs/plans/2026-07-27-002-feat-atoms-plus-stripe-first-onboarding-plan.md` | plus-service store/server/stripe, filingAuth, plusClient, settings, plusResume, main | U1–U7 stripe-first onboarding |
 | Blocked | #115 | Tai | — | `docs/qa/2026-07-27-plus-public-launch-checklist.md` | Fly secrets, Resend, Stripe live | Docs+0.6.31 shipped (#117). Waiting: Fly billing card, Resend domain+2nd email, Stripe live keys/prices/webhook |
 
 ## How to claim (copy)

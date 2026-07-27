@@ -105,9 +105,11 @@ function renderExchangeHtml(res, out) {
 <h1>Signed in</h1>
 <p>Email: <strong>${out.account.email}</strong></p>
 <p>Status: <strong>${out.account.status}</strong> · remaining ${out.account.remaining}</p>
-<p>Paste this session into <strong>Obsidian → Settings → Atoms Plus</strong>:</p>
+<p><strong>Switch back to Obsidian</strong> → Settings → Atoms Plus → <strong>Refresh status</strong>.</p>
+<p style="color:#666;font-size:0.9rem">If Refresh does not pick up this device, advanced: paste session below once.</p>
+<details style="margin-top:1rem"><summary style="cursor:pointer;color:#666">Advanced: session token</summary>
 <pre style="background:#f4f4f5;padding:12px;border-radius:8px;word-break:break-all">${out.session}</pre>
-<p style="color:#666;font-size:0.9rem">You can close this tab after pasting.</p>
+</details>
 </body>`);
 }
 
@@ -147,10 +149,66 @@ async function handler(req, res) {
       res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
       res.end(`<!doctype html><meta charset=utf-8><title>Atoms Plus</title>
 <body style="font-family:system-ui;max-width:32rem;margin:2rem auto;padding:0 1rem">
-<h1>${ok ? "Payment received" : "Checkout canceled"}</h1>
-<p>${ok ? "Return to Obsidian — Plus updates after the webhook lands (usually seconds)." : "No charge. You can try again from Atoms Settings."}</p>
+<h1>${ok ? "You're set" : "Checkout canceled"}</h1>
+<p>${
+        ok
+          ? "Switch back to <strong>Obsidian</strong> — Atoms Plus updates automatically (or tap Refresh status). Checkout email must match the email you entered in the plugin."
+          : "No charge. Open Atoms → Finish trial setup to try again."
+      }</p>
+${
+  ok
+    ? `<p style="color:#666;font-size:0.9rem">Lost your session on this device? Request a sign-in link from Atoms Settings (same email).</p>`
+    : ""
+}
 </body>`);
       return;
+    }
+
+    // POST /v1/auth/start — soft account + sess_ (inactive only)
+    if (req.method === "POST" && path === "/v1/auth/start") {
+      const body = await readBody(req);
+      const email = String(body.email || "")
+        .trim()
+        .toLowerCase();
+      if (!email || !email.includes("@")) {
+        return json(res, 400, { message: "Valid email required" });
+      }
+      const rlIp = checkRateLimit(`start:${clientIp(req)}`);
+      if (!rlIp.ok) {
+        return json(res, 429, {
+          message: "Too many requests",
+          retryAfterSec: rlIp.retryAfterSec,
+        });
+      }
+      const rlEm = checkRateLimit(`start:${email}`);
+      if (!rlEm.ok) {
+        return json(res, 429, {
+          message: "Too many requests",
+          retryAfterSec: rlEm.retryAfterSec,
+        });
+      }
+      if (typeof store.startWithEmail !== "function") {
+        return json(res, 503, { message: "Start not available" });
+      }
+      const out = await store.startWithEmail(email);
+      if (!out.ok) {
+        return json(res, 409, {
+          needsMagicLink: true,
+          email: out.account.email,
+          status: out.account.status,
+          message: "Sign in with a magic link for this email",
+        });
+      }
+      const pub = store.publicAccount(out.account);
+      return json(res, 200, {
+        session: out.session,
+        sessionToken: out.session,
+        email: pub.email,
+        status: pub.status,
+        remaining: pub.remaining,
+        periodEnd: pub.periodEnd,
+        plan: pub.plan,
+      });
     }
 
     // POST /v1/billing/webhook — raw body + Stripe-Signature
@@ -173,6 +231,11 @@ async function handler(req, res) {
 
     // POST /v1/auth/magic-link
     if (req.method === "POST" && path === "/v1/auth/magic-link") {
+      const body = await readBody(req);
+      const email = String(body.email || "").trim().toLowerCase();
+      if (!email || !email.includes("@")) {
+        return json(res, 400, { message: "Valid email required" });
+      }
       const rl = checkRateLimit(`ml:${clientIp(req)}`);
       if (!rl.ok) {
         return json(res, 429, {
@@ -180,10 +243,12 @@ async function handler(req, res) {
           retryAfterSec: rl.retryAfterSec,
         });
       }
-      const body = await readBody(req);
-      const email = String(body.email || "").trim().toLowerCase();
-      if (!email || !email.includes("@")) {
-        return json(res, 400, { message: "Valid email required" });
+      const rlEm = checkRateLimit(`ml:${email}`);
+      if (!rlEm.ok) {
+        return json(res, 429, {
+          message: "Too many requests",
+          retryAfterSec: rlEm.retryAfterSec,
+        });
       }
       const token = await store.createMagicToken(email);
       // Browser-openable GET exchange (email click). Dev alias still works.
@@ -281,6 +346,32 @@ async function handler(req, res) {
       if (!a) return json(res, 401, { message: "Invalid session" });
       const body = await readBody(req);
       const kind = String(body.kind || "");
+
+      const rlCk = checkRateLimit(`checkout:${clientIp(req)}`);
+      if (!rlCk.ok) {
+        return json(res, 429, {
+          message: "Too many requests",
+          retryAfterSec: rlCk.retryAfterSec,
+        });
+      }
+      const rlCs = checkRateLimit(
+        `checkout:${a.email}:${String(session).slice(0, 12)}`,
+      );
+      if (!rlCs.ok) {
+        return json(res, 429, {
+          message: "Too many requests",
+          retryAfterSec: rlCs.retryAfterSec,
+        });
+      }
+
+      if (
+        kind === "start_trial" &&
+        (a.status === "active" || a.status === "trialing")
+      ) {
+        return json(res, 409, {
+          message: "Already subscribed — use Manage billing or magic link",
+        });
+      }
 
       // Real Stripe when configured and dogfood instant-grants are not allowed
       if (stripeConfigured() && !allowDogfoodCheckout()) {

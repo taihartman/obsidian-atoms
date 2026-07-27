@@ -67,3 +67,41 @@ export function applyStatusRules(a) {
   }
   return { dirty };
 }
+
+/** Entitled accounts must not receive sess_ from unauthenticated auth/start. */
+export function isEntitledAccount(a) {
+  if (!a) return false;
+  if (a.stripeCustomerId) return true;
+  const st = String(a.status || "");
+  return st === "active" || st === "trialing" || st === "exhausted";
+}
+
+/**
+ * Resolve Checkout grant email.
+ * Prefer server-set metadata.email / client_reference_id (plugin Checkout).
+ * If free-form customer email disagrees with that target → fail closed.
+ * Payment Links without metadata fall back to customer_details / customer_email.
+ * @returns {{ email: string } | { mismatch: true, email?: string } | { missing: true }}
+ */
+export function resolveCheckoutGrantEmail(obj) {
+  const norm = (v) =>
+    String(v || "")
+      .trim()
+      .toLowerCase();
+  const meta = norm(obj?.metadata?.email);
+  const cref = norm(obj?.client_reference_id);
+  const cust = norm(obj?.customer_email);
+  const details = norm(obj?.customer_details?.email);
+  const target = meta || cref;
+  if (target) {
+    for (const free of [cust, details]) {
+      if (free && free !== target) {
+        return { mismatch: true, email: target };
+      }
+    }
+    return { email: target };
+  }
+  const fallback = cust || details;
+  if (!fallback) return { missing: true };
+  return { email: fallback };
+}

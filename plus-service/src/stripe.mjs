@@ -5,6 +5,7 @@
 
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { config } from "./config.mjs";
+import { resolveCheckoutGrantEmail } from "./store/shared.mjs";
 
 /** @typedef {'start_trial'|'subscribe_monthly'|'subscribe_yearly'|'topup_50'} CheckoutKind */
 
@@ -265,23 +266,23 @@ export async function applyStripeEvent(store, event) {
   const obj = event.data?.object ?? {};
 
   if (type === "checkout.session.completed") {
-    // Payment Links put email on customer_details, not customer_email/metadata.
-    const email = (
-      obj.metadata?.email ||
-      obj.customer_email ||
-      obj.customer_details?.email ||
-      obj.client_reference_id ||
-      ""
-    )
-      .toString()
-      .trim()
-      .toLowerCase();
-    const kind = String(obj.metadata?.kind || "");
-    if (!email) {
-      // Claim so Stripe stops retrying a permanently unusable payload
+    // Plugin Checkout: grant only metadata.email / client_reference_id.
+    // Free-form customer email that disagrees → fail closed (claim, no grant).
+    const resolved = resolveCheckoutGrantEmail(obj);
+    if (resolved.missing) {
       await claimOrDuplicate(store, event.id);
       return { handled: false, action: "missing_email" };
     }
+    if (resolved.mismatch) {
+      await claimOrDuplicate(store, event.id);
+      console.error(
+        "[plus] checkout email mismatch — no grant",
+        resolved.email,
+      );
+      return { handled: true, action: "email_mismatch", email: resolved.email };
+    }
+    const email = resolved.email;
+    const kind = String(obj.metadata?.kind || "");
 
     // Prefer paid/complete; unpaid async methods should not grant yet — do NOT claim
     const payStatus = String(obj.payment_status || "paid");

@@ -9,6 +9,7 @@ import {
   applyStatusRules,
   hashToken,
   id,
+  isEntitledAccount,
   periodEndFromNow,
   publicAccount,
   rowToAccount,
@@ -148,6 +149,24 @@ export function createSqliteStore(dbPath = config.databasePath) {
     return token;
   }
 
+  function createSession(email) {
+    const key = email.trim().toLowerCase();
+    const session = id("sess");
+    db.prepare(
+      "INSERT INTO sessions (token_hash, email, exp_ms, revoked) VALUES (?, ?, ?, 0)",
+    ).run(hashToken(session), key, Date.now() + sessionTtlMs());
+    return session;
+  }
+
+  function startWithEmail(email) {
+    let a = refreshAccountStatus(ensureAccount(email));
+    if (isEntitledAccount(a)) {
+      return { ok: false, needsMagicLink: true, account: a };
+    }
+    const session = createSession(a.email);
+    return { ok: true, session, account: a };
+  }
+
   function exchangeMagic(token) {
     const row = db
       .prepare("SELECT * FROM magic_tokens WHERE token = ?")
@@ -170,10 +189,7 @@ export function createSqliteStore(dbPath = config.databasePath) {
       });
     }
     a = refreshAccountStatus(a);
-    const session = id("sess");
-    db.prepare(
-      "INSERT INTO sessions (token_hash, email, exp_ms, revoked) VALUES (?, ?, ?, 0)",
-    ).run(hashToken(session), row.email, Date.now() + sessionTtlMs());
+    const session = createSession(row.email);
     return { session, account: a };
   }
 
@@ -356,6 +372,8 @@ export function createSqliteStore(dbPath = config.databasePath) {
   return {
     kind: "sqlite",
     createMagicToken,
+    createSession,
+    startWithEmail,
     exchangeMagic,
     accountFromSession,
     revokeSession,

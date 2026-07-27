@@ -6,6 +6,7 @@ import {
   exchangeMagicToken,
   getEntitlement,
   requestMagicLink,
+  startPlusAccount,
   type RequestFn,
 } from "../src/platform/plusClient";
 
@@ -27,6 +28,45 @@ function mockRequest(
 const base = "https://plus.test";
 
 describe("plusClient", () => {
+  it("startPlusAccount posts email and returns session", async () => {
+    const request = mockRequest((p) => {
+      expect(p.url).toBe("https://plus.test/v1/auth/start");
+      expect(JSON.parse(String(p.body))).toEqual({ email: "a@b.co" });
+      return {
+        status: 200,
+        json: {
+          session: "sess_soft",
+          email: "a@b.co",
+          status: "inactive",
+          remaining: 0,
+        },
+      };
+    });
+    const r = await startPlusAccount({ baseUrl: base, request }, "a@b.co");
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.session.sessionToken).toBe("sess_soft");
+      expect(r.session.status).toBe("inactive");
+    }
+  });
+
+  it("startPlusAccount maps 409 to needsMagicLink", async () => {
+    const request = mockRequest(() => ({
+      status: 409,
+      json: {
+        needsMagicLink: true,
+        email: "paid@b.co",
+        message: "use magic",
+      },
+    }));
+    const r = await startPlusAccount({ baseUrl: base, request }, "paid@b.co");
+    expect(r.ok).toBe(false);
+    if (!r.ok && "needsMagicLink" in r) {
+      expect(r.needsMagicLink).toBe(true);
+      expect(r.email).toBe("paid@b.co");
+    }
+  });
+
   it("requestMagicLink posts email", async () => {
     const request = mockRequest((p) => {
       expect(p.url).toBe("https://plus.test/v1/auth/magic-link");

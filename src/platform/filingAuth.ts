@@ -43,6 +43,8 @@ export type FilingAuth =
 export const LS_PLUS_SESSION = "atoms-plus-session";
 /** Local calendar day (YYYY-MM-DD) when user dismissed Plus limit hero. */
 export const LS_PLUS_LIMIT_DISMISS_DAY = "atoms-plus-limit-dismiss-day";
+/** Set while Stripe Checkout is open — drives resume poll (not classify). */
+export const LS_PLUS_AWAITING_CHECKOUT = "atoms-plus-awaiting-checkout";
 
 /**
  * Prefer Plus when session is present and entitlement is active/trialing.
@@ -173,6 +175,29 @@ export function writePlusSession(app: LocalStorageLike, session: PlusSession): v
 
 export function clearPlusSession(app: LocalStorageLike): void {
   app.saveLocalStorage(LS_PLUS_SESSION, "");
+  clearAwaitingCheckout(app);
+}
+
+/** Soft session present (may be inactive — setup / Finish trial). */
+export function hasPlusSetupSession(session: PlusSession | null): boolean {
+  return Boolean(session?.sessionToken?.trim() && session?.email?.trim());
+}
+
+export function isAwaitingCheckout(app: LocalStorageLike): boolean {
+  try {
+    const raw = app.loadLocalStorage(LS_PLUS_AWAITING_CHECKOUT);
+    return raw === "1" || raw === true || raw === "true";
+  } catch {
+    return false;
+  }
+}
+
+export function setAwaitingCheckout(app: LocalStorageLike, on: boolean): void {
+  app.saveLocalStorage(LS_PLUS_AWAITING_CHECKOUT, on ? "1" : "");
+}
+
+export function clearAwaitingCheckout(app: LocalStorageLike): void {
+  setAwaitingCheckout(app, false);
 }
 
 /** Local YYYY-MM-DD for dismiss-day comparison. */
