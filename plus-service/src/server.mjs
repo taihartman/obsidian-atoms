@@ -27,6 +27,7 @@ import {
 import { sendMagicLinkEmail } from "./email.mjs";
 import { checkRateLimit, clientIp } from "./ratelimit.mjs";
 import { handleMirrorRoutes } from "./mirror/http.mjs";
+import { handleMcpRequest } from "./mcp/handler.mjs";
 
 try {
   assertProductionReady();
@@ -348,6 +349,21 @@ async function handler(req, res) {
         const msg = err instanceof Error ? err.message : "Portal failed";
         return json(res, 502, { message: msg });
       }
+    }
+
+    // Remote MCP (Streamable HTTP)
+    if (path === "/mcp") {
+      if (req.method === "OPTIONS") {
+        res.writeHead(204, CORS_HEADERS);
+        res.end();
+        return;
+      }
+      await handleMcpRequest(req, res, {
+        store,
+        publicBaseUrl: config.publicBaseUrl,
+        readRawBody,
+      });
+      return;
     }
 
     // Ask mirror (Plus session) — before classify
