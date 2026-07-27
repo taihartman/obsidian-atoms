@@ -1,12 +1,26 @@
 /**
- * Register read-only Ask tools on an McpServer.
+ * Register Ask tools on an McpServer (read + write-via-outbox).
  */
 import { z } from "zod";
+import { checkRateLimit } from "../ratelimit.mjs";
+import {
+  validateOutboxPayload,
+  OUTBOX_RELATIONS,
+} from "../store/askHelpers.mjs";
 
 const EMPTY_HINT =
   "mirror empty—sync from Obsidian (Settings → Atoms → Ask → Sync now)";
 const MISSING_HINT =
   "no atom with that title/path in the mirror (hub notes outside Atoms/ are not synced; use neighbors to find atoms that link to this name)";
+const PENDING_HINT =
+  "Queued for your vault—open Obsidian (Ask enabled + Allow filing). Usually lands within a minute when the app is open. Do not claim it is filed until fetch_atom returns it.";
+
+function jsonTool(obj, isError = false) {
+  return {
+    content: [{ type: "text", text: JSON.stringify(obj, null, 2) }],
+    ...(isError ? { isError: true } : {}),
+  };
+}
 
 /**
  * @param {import('@modelcontextprotocol/sdk/server/mcp.js').McpServer} mcp
@@ -14,6 +28,10 @@ const MISSING_HINT =
  */
 export function registerAskTools(mcp, ctx) {
   const { email, store } = ctx;
+
+  function writeRateOk() {
+    return checkRateLimit(`ask-write:${email}`, 30);
+  }
 
   mcp.registerTool(
     "search_atoms",
@@ -162,6 +180,159 @@ export function registerAskTools(mcp, ctx) {
           },
         ],
       };
+    },
+  );
+
+  mcp.registerTool(
+    "create_atom",
+    {
+      description:
+        "Queue a new atom for the user's vault (outbox). Does NOT write instantly—status stays pending until Obsidian applies it. Prefer user-dictated body text; do not invent facts.",
+      inputSchema: {
+        title: z.string().describe("Declarative atom title"),
+        body: z.string().describe("Atom body / capture text"),
+        tags: z.array(z.string()).optional(),
+        links: z
+          .array(
+            z.object({
+              note: z.string(),
+              reason: z.string().optional(),
+            }),
+          )
+          .optional(),
+        client_request_id: z
+          .string()
+          .optional()
+          .describe("Idempotency key for retries"),
+      },
+    },
+    async (args) => {
+      const rl = writeRateOk();
+      if (!rl.ok) {
+        return jsonTool(
+          {
+            error: "rate_limited",
+            retryAfterSec: rl.retryAfterSec,
+          },
+          true,
+        );
+      }
+      const v = validateOutboxPayload("create", args);
+      if (!v.ok) return jsonTool({ error: v.error }, true);
+      const enq = await store.outboxEnqueue(email, {
+        kind: "create",
+        payload: v.payload,
+        client_request_id: v.payload.client_request_id,
+      });
+      if (!enq.ok) {
+        return jsonTool(
+          {
+            error: enq.error || "enqueue_failed",
+            hint:
+              enq.error === "outbox_full"
+                ? "Too many pending writes—open Obsidian to drain the queue"
+                : undefined,
+          },
+          true,
+        );
+      }
+      return jsonTool({
+        status: enq.status,
+        outbox_id: enq.id,
+        title: v.payload.title,
+        duplicate: Boolean(enq.duplicate),
+        hint: PENDING_HINT,
+      });
+    },
+  );
+
+  mcp.registerTool(
+    "continue_atom",
+    {
+      description:
+        "Queue a NEW child atom that continues/revises/contradicts a parent (parent body never modified). Parent must exist in the Ask mirror. Pending until Obsidian applies.",
+      inputSchema: {
+        parent_title: z.string().describe("Existing mirrored atom title"),
+        title: z.string().describe("Title for the new child atom"),
+        body: z.string().describe("Child atom body"),
+        relation: z
+          .enum(["continues", "revises", "contradicts", "adds_detail"])
+          .optional()
+          .describe("Graph relation to parent (default continues)"),
+        tags: z.array(z.string()).optional(),
+        links: z
+          .array(
+            z.object({
+              note: z.string(),
+              reason: z.string().optional(),
+            }),
+          )
+          .optional(),
+        client_request_id: z.string().optional(),
+      },
+    },
+    async (args) => {
+      const rl = writeRateOk();
+      if (!rl.ok) {
+        return jsonTool(
+          {
+            error: "rate_limited",
+            retryAfterSec: rl.retryAfterSec,
+          },
+          true,
+        );
+      }
+      const parentTitle = String(args.parent_title || "").trim();
+      const parent = await store.mirrorFetch(email, parentTitle);
+      if (!parent) {
+        const st = await store.mirrorStatus(email);
+        return jsonTool(
+          {
+            error: "parent_not_found",
+            parent_title: parentTitle,
+            mirror_count: st.count,
+            hint:
+              "Parent must be in the Ask mirror—fetch_atom or search first; user may need Settings → Ask → Sync now after Process.",
+          },
+          true,
+        );
+      }
+      const relation = args.relation || "continues";
+      if (!OUTBOX_RELATIONS.has(relation)) {
+        return jsonTool({ error: "invalid relation" }, true);
+      }
+      const v = validateOutboxPayload("continue", {
+        ...args,
+        parent_title: parent.title || parentTitle,
+        relation,
+      });
+      if (!v.ok) return jsonTool({ error: v.error }, true);
+      const enq = await store.outboxEnqueue(email, {
+        kind: "continue",
+        payload: v.payload,
+        client_request_id: v.payload.client_request_id,
+      });
+      if (!enq.ok) {
+        return jsonTool(
+          {
+            error: enq.error || "enqueue_failed",
+            hint:
+              enq.error === "outbox_full"
+                ? "Too many pending writes—open Obsidian to drain the queue"
+                : undefined,
+          },
+          true,
+        );
+      }
+      return jsonTool({
+        status: enq.status,
+        outbox_id: enq.id,
+        title: v.payload.title,
+        parent_title: v.payload.parent_title,
+        relation: v.payload.relation,
+        duplicate: Boolean(enq.duplicate),
+        hint: PENDING_HINT,
+      });
     },
   );
 }

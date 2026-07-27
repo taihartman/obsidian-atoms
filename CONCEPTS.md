@@ -70,16 +70,22 @@ Calm Atoms home card (**Add {Name}?**) after Process/Update when a high-confiden
 ### Peer link (pre-hub)
 Plugin link-prose between generated atoms that share the same high-confidence missing person (or later project) label before a hub note exists. On invite accept, peers and soft bucket links **upgrade** to the new hub. Soft buckets are never identity peers.
 
-## Ask (pull recall)
+## Ask (pull recall + optional write)
 
 ### Atoms Ask
-Product name for **pull recall** via remote MCP: the user chats in Claude or ChatGPT; Atoms exposes read-only tools over an optional cloud mirror of `Atoms/`. Not an in-plugin chat UI. Distinct from Local REST / dev MCP agent tooling.
+Product name for **pull recall** (and optional **write-via-outbox**) via remote MCP: the user chats in Claude or ChatGPT; Atoms exposes tools over an optional cloud mirror of `Atoms/`. Not an in-plugin chat UI. Distinct from Local REST / dev MCP agent tooling.
 
 ### Atom mirror
-Hosted, opt-in copy of flat `Atoms/*.md` (title, tags, link reasons, verbatim body) used only for Ask search/fetch. Vault remains source of truth. User can wipe. Not full-vault backup; not dailies.
+Hosted, opt-in copy of flat `Atoms/*.md` (title, tags, link reasons, verbatim body) used for Ask search/fetch. Vault remains source of truth. User can wipe. Not full-vault backup; not dailies.
+
+### Ask outbox
+Cloud queue of create/continue intents from Claude. Plugin pulls with Plus `sess_`, creates new files under `Atoms/` (`generated-by: ask-mcp`), mirrors them, then acks. Pending ≠ filed. Requires **Allow filing** in Settings.
+
+### Ask write / continue
+MCP tools `create_atom` and `continue_atom`. Continue = new child atom + relation link (same spirit as #16); parent body never modified. Ask-origin atoms are first-class in Library (`linker` \| `ask-mcp`).
 
 ### Remote MCP (Ask)
-Public Streamable HTTP MCP endpoint (Plus host) that Anthropic/OpenAI clouds call. Tools are read-only. Connector auth is MCP OAuth bound to Plus identity, not the plugin’s device-local `sess_` token as the connector credential.
+Public Streamable HTTP MCP endpoint (Plus host) that Anthropic/OpenAI clouds call. Read tools plus optional write-via-outbox. Connector auth is MCP OAuth bound to Plus identity, not the plugin’s device-local `sess_` token as the connector credential.
 
 ## Flagged ambiguities
 

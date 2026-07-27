@@ -951,7 +951,7 @@ export class AtomsSettingTab extends PluginSettingTab {
     const mcpUrl = askMcpUrl(base);
 
     containerEl.createEl("p", {
-      text: "Chat with your atoms in Claude (phone + desktop). Atoms only hosts a read-only cloud mirror of Atoms/ — no chat UI here.",
+      text: "Chat with your atoms in Claude (phone + desktop). Plus hosts an Atoms/ mirror for search, and can queue new atoms from Claude until this vault applies them — no chat UI here.",
       cls: "setting-item-description",
     });
 
@@ -967,7 +967,7 @@ export class AtomsSettingTab extends PluginSettingTab {
     new Setting(containerEl)
       .setName("Privacy acknowledgment")
       .setDesc(
-        "I understand: (1) only Atoms/ leaves this device; (2) bodies are stored on Atoms Plus servers; (3) the host can decrypt at rest in v1 (not zero-knowledge); (4) when I chat in Claude, Anthropic receives tool results (titles, snippets, bodies); (5) Wipe deletes the cloud mirror and revokes connector tokens; (6) turning Ask off does not wipe.",
+        "I understand: (1) only Atoms/ leaves this device; (2) bodies are stored on Atoms Plus servers; (3) the host can decrypt at rest in v1 (not zero-knowledge); (4) when I chat in Claude, Anthropic receives tool results (titles, snippets, bodies); (5) with Allow filing, Claude can queue new atom bodies to Plus until Obsidian writes them under Atoms/; (6) Wipe deletes the cloud mirror, pending outbox writes, and connector tokens; (7) turning Ask off does not wipe.",
       )
       .addToggle((tog) =>
         tog.setValue(ack).onChange(async (on) => {
@@ -994,7 +994,37 @@ export class AtomsSettingTab extends PluginSettingTab {
               return;
             }
             this.plugin.settings.askEnabled = on;
+            if (!on) this.plugin.settings.askWriteAckAt = "";
             await this.plugin.saveSettings();
+            this.display();
+          }),
+      );
+
+    const writeAck = Boolean(this.plugin.settings.askWriteAckAt);
+    new Setting(containerEl)
+      .setName("Allow filing from Claude")
+      .setDesc(
+        "When on, this vault applies Claude create/continue outbox items under your Atoms folder (new files only; never rewrites existing bodies). Requires Ask mirror enabled.",
+      )
+      .addToggle((tog) =>
+        tog
+          .setValue(writeAck)
+          .setDisabled(!ack || !this.plugin.settings.askEnabled)
+          .onChange(async (on) => {
+            if (on && !this.plugin.settings.askEnabled) {
+              new Notice("Enable Ask mirror first");
+              this.display();
+              return;
+            }
+            this.plugin.settings.askWriteAckAt = on
+              ? new Date().toISOString()
+              : "";
+            await this.plugin.saveSettings();
+            if (on) {
+              void this.plugin.applyAskOutbox().catch(() => {
+                /* */
+              });
+            }
             this.display();
           }),
       );
@@ -1048,11 +1078,13 @@ export class AtomsSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("Wipe cloud copy")
-      .setDesc("Delete mirrored atoms and revoke Claude Ask tokens for this account.")
+      .setDesc(
+        "Delete mirrored atoms, pending Ask writes (outbox), and revoke Claude Ask tokens for this account. Does not delete vault files.",
+      )
       .addButton((btn) =>
         btn.setButtonText("Wipe").setWarning().onClick(async () => {
           const ok = window.confirm(
-            "Wipe cloud atom mirror and revoke Ask connector access?",
+            "Wipe cloud atom mirror, pending Ask writes, and revoke Ask connector access? Local vault files are kept.",
           );
           if (!ok) return;
           const r = await askMirrorWipe(

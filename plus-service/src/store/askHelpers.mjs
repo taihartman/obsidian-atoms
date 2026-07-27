@@ -210,3 +210,138 @@ export function makeSnippet(body, query, max = 240) {
   if (start + max < text.length) snip = snip + "…";
   return snip.replace(/\s+/g, " ").trim();
 }
+
+/** Ask outbox (write path) */
+export const OUTBOX_STALE_MS = 15 * 60 * 1000;
+export const OUTBOX_MAX_OPEN = 50;
+export const OUTBOX_MAX_BODY = 100_000;
+export const OUTBOX_TITLE_MAX = 120;
+export const OUTBOX_MAX_TAGS = 20;
+export const OUTBOX_MAX_LINKS = 10;
+export const OUTBOX_RELATIONS = new Set([
+  "continues",
+  "revises",
+  "contradicts",
+  "adds_detail",
+]);
+
+/**
+ * @param {string} relation
+ * @param {string} parentTitle
+ */
+export function relationReason(relation, parentTitle) {
+  const p = String(parentTitle || "").trim();
+  switch (relation) {
+    case "revises":
+      return `revises [[${p}]]`;
+    case "contradicts":
+      return `contradicts [[${p}]]`;
+    case "adds_detail":
+      return `adds detail to [[${p}]]`;
+    case "continues":
+    default:
+      return `continues [[${p}]]`;
+  }
+}
+
+/**
+ * @param {"create"|"continue"} kind
+ * @param {object} raw
+ * @returns {{ ok: true, payload: object } | { ok: false, error: string }}
+ */
+export function validateOutboxPayload(kind, raw) {
+  const title = String(raw?.title || "")
+    .trim()
+    .slice(0, OUTBOX_TITLE_MAX);
+  const body = String(raw?.body ?? "");
+  if (!title) return { ok: false, error: "title required" };
+  if (!body.trim()) return { ok: false, error: "body required" };
+  if (body.length > OUTBOX_MAX_BODY) {
+    return { ok: false, error: `body exceeds ${OUTBOX_MAX_BODY} chars` };
+  }
+  let tags = Array.isArray(raw?.tags) ? raw.tags.map(String) : [];
+  tags = tags
+    .map((t) => t.replace(/[\r\n#]/g, "").trim())
+    .filter(Boolean)
+    .slice(0, OUTBOX_MAX_TAGS);
+  let links = Array.isArray(raw?.links) ? raw.links : [];
+  links = links
+    .slice(0, OUTBOX_MAX_LINKS)
+    .map((l) => ({
+      note: String(l?.note || "")
+        .replace(/[\r\n\[\]]/g, "")
+        .trim()
+        .slice(0, OUTBOX_TITLE_MAX),
+      reason: String(l?.reason || "")
+        .replace(/[\r\n]/g, " ")
+        .trim()
+        .slice(0, 500),
+    }))
+    .filter((l) => l.note);
+  const client_request_id = raw?.client_request_id
+    ? String(raw.client_request_id).trim().slice(0, 128)
+    : undefined;
+
+  if (kind === "continue") {
+    const parent_title = String(raw?.parent_title || "").trim().slice(0, OUTBOX_TITLE_MAX);
+    if (!parent_title) return { ok: false, error: "parent_title required" };
+    let relation = String(raw?.relation || "continues").trim();
+    if (!OUTBOX_RELATIONS.has(relation)) {
+      return { ok: false, error: "invalid relation" };
+    }
+    const reason = relationReason(relation, parent_title);
+    const hasParent = links.some(
+      (l) => l.note.toLowerCase() === parent_title.toLowerCase(),
+    );
+    if (!hasParent) {
+      links = [{ note: parent_title, reason }, ...links];
+    }
+    return {
+      ok: true,
+      payload: {
+        title,
+        body,
+        tags,
+        links,
+        parent_title,
+        relation,
+        client_request_id,
+      },
+    };
+  }
+
+  return {
+    ok: true,
+    payload: { title, body, tags, links, client_request_id },
+  };
+}
+
+/**
+ * @param {object} row
+ */
+export function publicOutboxRow(row) {
+  return {
+    id: row.id,
+    kind: row.kind,
+    status: row.status,
+    payload: row.payload,
+    error: row.error || null,
+    client_request_id: row.client_request_id || null,
+    created_at: row.created_at,
+    claimed_at: row.claimed_at || null,
+    applied_at: row.applied_at || null,
+  };
+}
+
+export function encryptOutboxPayload(payload) {
+  return encryptMirrorField(JSON.stringify(payload));
+}
+
+export function decryptOutboxPayload(enc) {
+  const text = decryptMirrorField(enc);
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}

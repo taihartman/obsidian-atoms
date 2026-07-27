@@ -19,6 +19,11 @@ import {
   rowToPublicAtom,
   scoreSearch,
   verifyPkce,
+  OUTBOX_STALE_MS,
+  OUTBOX_MAX_OPEN,
+  encryptOutboxPayload,
+  decryptOutboxPayload,
+  publicOutboxRow,
 } from "./askHelpers.mjs";
 
 export function createMemoryStore() {
@@ -35,6 +40,8 @@ export function createMemoryStore() {
   const usageByKey = new Map();
   /** email → Map<path, row> */
   const atomMirror = new Map();
+  /** email → Map<id, outbox row> */
+  const askOutbox = new Map();
   /** pending_id → pending oauth */
   const mcpPending = new Map();
   /** code_hash → auth code row */
@@ -375,8 +382,151 @@ export function createMemoryStore() {
   function mirrorWipe(email) {
     const e = normEmail(email);
     atomMirror.delete(e);
+    askOutbox.delete(e);
     mcpRevokeForEmail(e);
     return { ok: true };
+  }
+
+  function outboxBucket(email) {
+    const e = normEmail(email);
+    let m = askOutbox.get(e);
+    if (!m) {
+      m = new Map();
+      askOutbox.set(e, m);
+    }
+    return m;
+  }
+
+  function outboxOpenCount(email) {
+    const bucket = askOutbox.get(normEmail(email));
+    if (!bucket) return 0;
+    let n = 0;
+    for (const r of bucket.values()) {
+      if (r.status === "pending" || r.status === "claimed") n++;
+    }
+    return n;
+  }
+
+  function outboxPublic(r) {
+    if (!r) return null;
+    return publicOutboxRow({
+      id: r.id,
+      kind: r.kind,
+      status: r.status,
+      payload: decryptOutboxPayload(r.payload_enc),
+      error: r.error,
+      client_request_id: r.client_request_id,
+      created_at: r.created_at,
+      claimed_at: r.claimed_at,
+      applied_at: r.applied_at,
+    });
+  }
+
+  function outboxEnqueue(email, opts) {
+    const e = normEmail(email);
+    const kind = opts.kind === "continue" ? "continue" : "create";
+    const crid = opts.client_request_id
+      ? String(opts.client_request_id).trim().slice(0, 128)
+      : "";
+    const bucket = outboxBucket(e);
+    if (crid) {
+      for (const r of bucket.values()) {
+        if (r.client_request_id === crid) {
+          return { ok: true, ...outboxPublic(r), duplicate: true };
+        }
+      }
+    }
+    if (outboxOpenCount(e) >= OUTBOX_MAX_OPEN) {
+      return { ok: false, error: "outbox_full" };
+    }
+    const row = {
+      id: id("obx"),
+      email: e,
+      kind,
+      payload_enc: encryptOutboxPayload(opts.payload),
+      status: "pending",
+      client_request_id: crid || null,
+      error: null,
+      created_at: new Date().toISOString(),
+      claimed_at: null,
+      applied_at: null,
+    };
+    bucket.set(row.id, row);
+    return { ok: true, ...outboxPublic(row), duplicate: false };
+  }
+
+  function outboxReclaimStale(email) {
+    const bucket = askOutbox.get(normEmail(email));
+    if (!bucket) return;
+    const cutoff = Date.now() - OUTBOX_STALE_MS;
+    for (const r of bucket.values()) {
+      if (
+        r.status === "claimed" &&
+        r.claimed_at &&
+        new Date(r.claimed_at).getTime() < cutoff
+      ) {
+        r.status = "pending";
+        r.claimed_at = null;
+      }
+    }
+  }
+
+  function outboxPull(email, opts = {}) {
+    const e = normEmail(email);
+    outboxReclaimStale(e);
+    const lim = Math.min(Math.max(Number(opts.limit) || 1, 1), 10);
+    const bucket = outboxBucket(e);
+    const pending = [...bucket.values()]
+      .filter((r) => r.status === "pending")
+      .sort((a, b) => a.created_at.localeCompare(b.created_at))
+      .slice(0, lim);
+    const now = new Date().toISOString();
+    const items = [];
+    for (const r of pending) {
+      r.status = "claimed";
+      r.claimed_at = now;
+      items.push(outboxPublic(r));
+    }
+    let pending_count = 0;
+    let claimed_count = 0;
+    for (const r of bucket.values()) {
+      if (r.status === "pending") pending_count++;
+      if (r.status === "claimed") claimed_count++;
+    }
+    return { items, pending_count, claimed_count };
+  }
+
+  function outboxAck(email, opts) {
+    const e = normEmail(email);
+    const oid = String(opts.id || "").trim();
+    const st = opts.status === "rejected" ? "rejected" : "applied";
+    if (!oid) return { ok: false, error: "id required" };
+    const bucket = askOutbox.get(e);
+    const row = bucket?.get(oid);
+    if (!row) return { ok: false, error: "not_found" };
+    if (row.status === "applied" || row.status === "rejected") {
+      return { ok: true, ...outboxPublic(row), already: true };
+    }
+    row.status = st;
+    row.error = opts.error ? String(opts.error).slice(0, 500) : null;
+    row.applied_at = new Date().toISOString();
+    return { ok: true, ...outboxPublic(row) };
+  }
+
+  function outboxGet(email, outboxId) {
+    const e = normEmail(email);
+    const row = askOutbox.get(e)?.get(String(outboxId || ""));
+    return outboxPublic(row);
+  }
+
+  function outboxPendingCount(email) {
+    outboxReclaimStale(email);
+    return outboxOpenCount(email);
+  }
+
+  function _forceOutboxClaimedAt(email, outboxId, iso) {
+    const row = askOutbox.get(normEmail(email))?.get(outboxId);
+    if (row) row.claimed_at = iso;
   }
 
   function mirrorStatus(email) {
@@ -579,6 +729,12 @@ export function createMemoryStore() {
     mirrorNeighbors,
     mirrorWipe,
     mirrorStatus,
+    outboxEnqueue,
+    outboxPull,
+    outboxAck,
+    outboxGet,
+    outboxPendingCount,
+    _forceOutboxClaimedAt,
     mcpCreatePending,
     mcpGetPending,
     mcpDeletePending,

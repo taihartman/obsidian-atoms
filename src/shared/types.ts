@@ -137,6 +137,11 @@ export interface LinkerSettings {
   askEnabled: boolean;
   /** Privacy ack timestamp ISO — required before first Ask push. */
   askPrivacyAckAt: string;
+  /**
+   * Allow filing from Claude (outbox apply). Separate from read mirror ack.
+   * ISO timestamp when enabled; empty = off.
+   */
+  askWriteAckAt: string;
   /** path → content hash for Ask push skip. */
   askMirrorHashes: Record<string, string>;
 }
@@ -167,6 +172,7 @@ export const DEFAULT_SETTINGS: LinkerSettings = {
   enableReconsiderCapture: false,
   askEnabled: false,
   askPrivacyAckAt: "",
+  askWriteAckAt: "",
   askMirrorHashes: {},
 };
 

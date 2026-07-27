@@ -147,6 +147,7 @@ export default class AtomsPlugin extends Plugin {
   /** Guards double-fire of onload + interval auto-run. */
   private autoRunInFlight = false;
   private backfillInFlight = false;
+  private askOutboxInFlight = false;
   /** Set true only after waitForVaultIndexReady (U9 cold-start gate). */
   private vaultIndexReady = false;
 
@@ -179,6 +180,20 @@ export default class AtomsPlugin extends Plugin {
       "../platform/plusResume"
     );
     schedulePlusCheckoutResume(this);
+
+    // Ask outbox: apply Claude writes when vault is open.
+    this.app.workspace.onLayoutReady(() => {
+      void this.applyAskOutbox().catch(() => {
+        /* best-effort */
+      });
+    });
+    this.registerInterval(
+      window.setInterval(() => {
+        void this.applyAskOutbox().catch(() => {
+          /* best-effort */
+        });
+      }, 60_000),
+    );
   }
 
   /**
@@ -370,6 +385,9 @@ export default class AtomsPlugin extends Plugin {
           : `Atoms: polished ${polished}, updated ${report.updated}, renamed ${report.renamed}, failed ${report.failed}`,
       );
       void this.syncAskMirror().catch(() => {
+        /* best-effort */
+      });
+      void this.applyAskOutbox().catch(() => {
         /* best-effort */
       });
     } catch (e) {
@@ -822,6 +840,124 @@ export default class AtomsPlugin extends Plugin {
   }
 
   /**
+   * Pull Ask outbox and create atoms under Atoms/ (best-effort).
+   * Requires Ask mirror enabled + Allow filing ack.
+   */
+  async applyAskOutbox(): Promise<{ landed: number; rejected: number }> {
+    const empty = { landed: 0, rejected: 0 };
+    if (
+      !this.settings.askEnabled ||
+      !this.settings.askPrivacyAckAt ||
+      !this.settings.askWriteAckAt
+    ) {
+      return empty;
+    }
+    if (this.askOutboxInFlight) return empty;
+    this.askOutboxInFlight = true;
+    try {
+      const { readPlusSession } = await import("../platform/filingAuth");
+      const session = readPlusSession(this.app);
+      if (!session) return empty;
+      const {
+        DEFAULT_PLUS_BASE_URL,
+        askOutboxPull,
+        askOutboxAck,
+        plusFetchRequest,
+      } = await import("../platform/plusClient");
+      const { planAskOutboxApply } = await import("../platform/askOutbox");
+      const base = this.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL;
+      const cfg = { baseUrl: base, request: plusFetchRequest };
+      const folder = clampAtomFolder(this.settings.atomFolder);
+      let landed = 0;
+      let rejected = 0;
+      // One item per pull (P0)
+      for (let i = 0; i < 10; i++) {
+        const pull = await askOutboxPull(cfg, session.sessionToken, 1);
+        if (!pull.ok || pull.items.length === 0) break;
+        const item = pull.items[0]!;
+        const payload = item.payload;
+        if (!payload?.title || payload.body == null) {
+          await askOutboxAck(cfg, session.sessionToken, {
+            id: item.id,
+            status: "rejected",
+            error: "invalid_payload",
+          });
+          rejected++;
+          continue;
+        }
+        const { atomPathForTitle } = await import("../pipeline/render");
+        const pathGuess = atomPathForTitle(folder, payload.title);
+        const existingFile = this.app.vault.getAbstractFileByPath(pathGuess);
+        let existingContent: string | null = null;
+        if (existingFile instanceof TFile) {
+          existingContent = await this.app.vault.read(existingFile);
+        }
+        const payloadIn = {
+          title: payload.title,
+          body: String(payload.body),
+          tags: payload.tags,
+          links: payload.links,
+        };
+        let plan = planAskOutboxApply(payloadIn, folder, existingContent);
+        if (plan.action === "create") {
+          const parent = plan.path.includes("/")
+            ? plan.path.slice(0, plan.path.lastIndexOf("/"))
+            : folder;
+          if (parent && !this.app.vault.getAbstractFileByPath(parent)) {
+            await this.app.vault.createFolder(parent);
+          }
+          try {
+            await this.app.vault.create(plan.path, plan.content);
+          } catch {
+            const again = this.app.vault.getAbstractFileByPath(plan.path);
+            if (again instanceof TFile) {
+              const content = await this.app.vault.read(again);
+              plan = planAskOutboxApply(payloadIn, folder, content);
+            } else {
+              await askOutboxAck(cfg, session.sessionToken, {
+                id: item.id,
+                status: "rejected",
+                error: "create_failed",
+              });
+              rejected++;
+              continue;
+            }
+          }
+        }
+        if (plan.action === "reject") {
+          await askOutboxAck(cfg, session.sessionToken, {
+            id: item.id,
+            status: "rejected",
+            error: plan.reason,
+          });
+          rejected++;
+          continue;
+        }
+        // create or applied_idempotent → mirror then ack
+        const n = await this.syncAskMirror({ force: false });
+        if (n < 0) {
+          break;
+        }
+        await askOutboxAck(cfg, session.sessionToken, {
+          id: item.id,
+          status: "applied",
+        });
+        landed++;
+      }
+      if (landed > 0 || rejected > 0) {
+        const parts: string[] = [];
+        if (landed > 0) parts.push(`landed ${landed} atom(s)`);
+        if (rejected > 0) parts.push(`${rejected} write(s) rejected`);
+        new Notice(`Ask: ${parts.join(", ")}`);
+        void this.refreshAtomsHomeLeaves();
+      }
+      return { landed, rejected };
+    } finally {
+      this.askOutboxInFlight = false;
+    }
+  }
+
+  /**
    * Push Atoms/ to Plus Ask mirror (best-effort). Returns atoms uploaded, or -1 on hard fail notice.
    */
   async syncAskMirror(opts?: { force?: boolean }): Promise<number> {
@@ -1049,6 +1185,9 @@ export default class AtomsPlugin extends Plugin {
         new Notice(notice);
       }
       void this.syncAskMirror().catch(() => {
+        /* best-effort */
+      });
+      void this.applyAskOutbox().catch(() => {
         /* best-effort */
       });
     } catch (e) {

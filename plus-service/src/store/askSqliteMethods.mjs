@@ -11,6 +11,11 @@ import {
   rowToPublicAtom,
   scoreSearch,
   verifyPkce,
+  OUTBOX_STALE_MS,
+  OUTBOX_MAX_OPEN,
+  encryptOutboxPayload,
+  decryptOutboxPayload,
+  publicOutboxRow,
 } from "./askHelpers.mjs";
 
 export const ASK_SQLITE_DDL = `
@@ -73,6 +78,22 @@ CREATE TABLE IF NOT EXISTS mcp_browser_sessions (
   email TEXT NOT NULL,
   exp_ms INTEGER NOT NULL
 );
+CREATE TABLE IF NOT EXISTS ask_outbox (
+  id TEXT PRIMARY KEY,
+  email TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  payload_enc TEXT NOT NULL,
+  status TEXT NOT NULL,
+  client_request_id TEXT,
+  error TEXT,
+  created_at TEXT NOT NULL,
+  claimed_at TEXT,
+  applied_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_ask_outbox_email_status ON ask_outbox(email, status);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_ask_outbox_email_crid
+  ON ask_outbox(email, client_request_id)
+  WHERE client_request_id IS NOT NULL AND client_request_id != '';
 `;
 
 /**
@@ -223,8 +244,171 @@ export function createAskSqliteMethods(db, deps) {
   function mirrorWipe(email) {
     const e = normEmail(email);
     db.prepare("DELETE FROM atom_mirror WHERE email = ?").run(e);
+    db.prepare("DELETE FROM ask_outbox WHERE email = ?").run(e);
     mcpRevokeForEmail(e);
     return { ok: true };
+  }
+
+  function outboxOpenCount(email) {
+    const e = normEmail(email);
+    const r = db
+      .prepare(
+        `SELECT COUNT(*) AS n FROM ask_outbox
+         WHERE email = ? AND status IN ('pending','claimed')`,
+      )
+      .get(e);
+    return r?.n ?? 0;
+  }
+
+  function outboxRowFromDb(r) {
+    if (!r) return null;
+    return publicOutboxRow({
+      id: r.id,
+      kind: r.kind,
+      status: r.status,
+      payload: decryptOutboxPayload(r.payload_enc),
+      error: r.error,
+      client_request_id: r.client_request_id,
+      created_at: r.created_at,
+      claimed_at: r.claimed_at,
+      applied_at: r.applied_at,
+    });
+  }
+
+  /**
+   * @param {string} email
+   * @param {{ kind: string, payload: object, client_request_id?: string }} opts
+   */
+  function outboxEnqueue(email, opts) {
+    const e = normEmail(email);
+    const kind = opts.kind === "continue" ? "continue" : "create";
+    const crid = opts.client_request_id
+      ? String(opts.client_request_id).trim().slice(0, 128)
+      : "";
+    if (crid) {
+      const existing = db
+        .prepare(
+          `SELECT * FROM ask_outbox WHERE email = ? AND client_request_id = ?`,
+        )
+        .get(e, crid);
+      if (existing) {
+        return { ok: true, ...outboxRowFromDb(existing), duplicate: true };
+      }
+    }
+    if (outboxOpenCount(e) >= OUTBOX_MAX_OPEN) {
+      return { ok: false, error: "outbox_full" };
+    }
+    const idRow = id("obx");
+    const now = new Date().toISOString();
+    const payload_enc = encryptOutboxPayload(opts.payload);
+    db.prepare(
+      `INSERT INTO ask_outbox
+       (id, email, kind, payload_enc, status, client_request_id, error, created_at, claimed_at, applied_at)
+       VALUES (?, ?, ?, ?, 'pending', ?, NULL, ?, NULL, NULL)`,
+    ).run(idRow, e, kind, payload_enc, crid || null, now);
+    const row = db.prepare("SELECT * FROM ask_outbox WHERE id = ?").get(idRow);
+    return { ok: true, ...outboxRowFromDb(row), duplicate: false };
+  }
+
+  function outboxReclaimStale(email) {
+    const e = normEmail(email);
+    const cutoff = new Date(Date.now() - OUTBOX_STALE_MS).toISOString();
+    db.prepare(
+      `UPDATE ask_outbox SET status = 'pending', claimed_at = NULL
+       WHERE email = ? AND status = 'claimed' AND claimed_at IS NOT NULL AND claimed_at < ?`,
+    ).run(e, cutoff);
+  }
+
+  /**
+   * @param {string} email
+   * @param {{ limit?: number }} [opts]
+   */
+  function outboxPull(email, opts = {}) {
+    const e = normEmail(email);
+    outboxReclaimStale(e);
+    const lim = Math.min(Math.max(Number(opts.limit) || 1, 1), 10);
+    const pending = db
+      .prepare(
+        `SELECT * FROM ask_outbox WHERE email = ? AND status = 'pending'
+         ORDER BY created_at ASC LIMIT ?`,
+      )
+      .all(e, lim);
+    const now = new Date().toISOString();
+    const items = [];
+    for (const r of pending) {
+      db.prepare(
+        `UPDATE ask_outbox SET status = 'claimed', claimed_at = ?
+         WHERE id = ? AND email = ? AND status = 'pending'`,
+      ).run(now, r.id, e);
+      const updated = db
+        .prepare(`SELECT * FROM ask_outbox WHERE id = ? AND email = ?`)
+        .get(r.id, e);
+      if (updated?.status === "claimed") {
+        items.push(outboxRowFromDb(updated));
+      }
+    }
+    const counts = db
+      .prepare(
+        `SELECT
+           SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) AS pending_count,
+           SUM(CASE WHEN status = 'claimed' THEN 1 ELSE 0 END) AS claimed_count
+         FROM ask_outbox WHERE email = ?`,
+      )
+      .get(e);
+    return {
+      items,
+      pending_count: counts?.pending_count ?? 0,
+      claimed_count: counts?.claimed_count ?? 0,
+    };
+  }
+
+  /**
+   * @param {string} email
+   * @param {{ id: string, status: "applied"|"rejected", error?: string }} opts
+   */
+  function outboxAck(email, opts) {
+    const e = normEmail(email);
+    const oid = String(opts.id || "").trim();
+    const st = opts.status === "rejected" ? "rejected" : "applied";
+    if (!oid) return { ok: false, error: "id required" };
+    const row = db
+      .prepare(`SELECT * FROM ask_outbox WHERE id = ? AND email = ?`)
+      .get(oid, e);
+    if (!row) return { ok: false, error: "not_found" };
+    if (row.status === "applied" || row.status === "rejected") {
+      return { ok: true, ...outboxRowFromDb(row), already: true };
+    }
+    const now = new Date().toISOString();
+    db.prepare(
+      `UPDATE ask_outbox SET status = ?, error = ?, applied_at = ?
+       WHERE id = ? AND email = ?`,
+    ).run(st, opts.error ? String(opts.error).slice(0, 500) : null, now, oid, e);
+    const updated = db
+      .prepare(`SELECT * FROM ask_outbox WHERE id = ? AND email = ?`)
+      .get(oid, e);
+    return { ok: true, ...outboxRowFromDb(updated) };
+  }
+
+  function outboxGet(email, outboxId) {
+    const e = normEmail(email);
+    const r = db
+      .prepare(`SELECT * FROM ask_outbox WHERE id = ? AND email = ?`)
+      .get(String(outboxId || ""), e);
+    return outboxRowFromDb(r);
+  }
+
+  function outboxPendingCount(email) {
+    const e = normEmail(email);
+    outboxReclaimStale(e);
+    return outboxOpenCount(e);
+  }
+
+  /** Test-only: age a claimed row for stale-lease tests. */
+  function _forceOutboxClaimedAt(email, outboxId, iso) {
+    const e = normEmail(email);
+    db.prepare(
+      `UPDATE ask_outbox SET claimed_at = ? WHERE id = ? AND email = ?`,
+    ).run(iso, outboxId, e);
   }
 
   function mirrorStatus(email) {
@@ -443,6 +627,12 @@ export function createAskSqliteMethods(db, deps) {
     mirrorNeighbors,
     mirrorWipe,
     mirrorStatus,
+    outboxEnqueue,
+    outboxPull,
+    outboxAck,
+    outboxGet,
+    outboxPendingCount,
+    _forceOutboxClaimedAt,
     mcpCreatePending,
     mcpGetPending,
     mcpDeletePending,

@@ -542,6 +542,83 @@ export async function askMirrorStatus(
   };
 }
 
+export type AskOutboxItem = {
+  id: string;
+  kind: string;
+  status: string;
+  payload: {
+    title?: string;
+    body?: string;
+    tags?: string[];
+    links?: { note: string; reason?: string }[];
+    parent_title?: string;
+    relation?: string;
+  } | null;
+};
+
+export async function askOutboxPull(
+  cfg: PlusClientConfig,
+  sessionToken: string,
+  limit = 1,
+): Promise<
+  | {
+      ok: true;
+      items: AskOutboxItem[];
+      pending_count: number;
+      claimed_count: number;
+    }
+  | PlusApiError
+> {
+  const res = await plusRequest(cfg, {
+    path: "/v1/ask/outbox/pull",
+    method: "POST",
+    sessionToken,
+    body: { limit },
+  });
+  if (!res.ok) return res;
+  if (res.status < 200 || res.status >= 300) {
+    return mapError(res.status, res.json);
+  }
+  const items = Array.isArray(res.json.items)
+    ? (res.json.items as AskOutboxItem[])
+    : [];
+  return {
+    ok: true,
+    items,
+    pending_count:
+      typeof res.json.pending_count === "number" ? res.json.pending_count : 0,
+    claimed_count:
+      typeof res.json.claimed_count === "number" ? res.json.claimed_count : 0,
+  };
+}
+
+export async function askOutboxAck(
+  cfg: PlusClientConfig,
+  sessionToken: string,
+  opts: { id: string; status: "applied" | "rejected"; error?: string },
+): Promise<{ ok: true; id: string; status: string } | PlusApiError> {
+  const res = await plusRequest(cfg, {
+    path: "/v1/ask/outbox/ack",
+    method: "POST",
+    sessionToken,
+    body: {
+      id: opts.id,
+      status: opts.status,
+      error: opts.error,
+    },
+  });
+  if (!res.ok) return res;
+  if (res.status < 200 || res.status >= 300) {
+    return mapError(res.status, res.json);
+  }
+  return {
+    ok: true,
+    id: typeof res.json.id === "string" ? res.json.id : opts.id,
+    status:
+      typeof res.json.status === "string" ? res.json.status : opts.status,
+  };
+}
+
 /** Default production base — override in settings for dogfood. */
 /** Public Plus API. Override only for local dogfood via settings. */
 export const DEFAULT_PLUS_BASE_URL = "https://plus.taihartman.com";
