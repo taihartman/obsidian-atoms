@@ -2,6 +2,10 @@
  * Ask mirror push planner — Atoms/ paths only, hash skip.
  * Hash is mobile-safe (no Node crypto).
  */
+import {
+  extractLinkProseRegion,
+  parseLinkProse,
+} from "../pipeline/parseLinkProse";
 
 export type AskMirrorAtomPayload = {
   path: string;
@@ -21,6 +25,8 @@ export type VaultFileRead = {
 export function splitAtomMarkdown(content: string): {
   body: string;
   tags: string[];
+  parent?: string;
+  relation?: string;
 } {
   if (!content.startsWith("---")) {
     return { body: content, tags: [] };
@@ -45,7 +51,16 @@ export function splitAtomMarkdown(content: string): {
       }
     }
   }
-  return { body, tags };
+  const parentM = fm.match(/^parent:\s*["']?(.+?)["']?\s*$/m);
+  const relationM = fm.match(/^relation:\s*["']?(\w+)["']?\s*$/m);
+  const parent = parentM?.[1]?.trim().replace(/^\[\[|\]\]$/g, "");
+  const relation = relationM?.[1]?.trim();
+  return {
+    body,
+    tags,
+    ...(parent ? { parent } : {}),
+    ...(relation ? { relation } : {}),
+  };
 }
 
 /** Fast stable content fingerprint (not cryptographic). */
@@ -79,44 +94,34 @@ export function extractWikilinks(text: string): string[] {
   return out;
 }
 
-const WIKILINK_RE = /\[\[([^\]|#]+)(?:\|[^\]]+)?\]\]/g;
-
 /**
- * Parse reason-bearing link prose (same idea as parseLinkProse) + bare wikilinks.
- * Prefers segments with reasons; fills missing notes as { note } only.
+ * Structured links: reasons only from link-prose region (after blank line),
+ * not capture text. Bare wikilinks elsewhere → note only.
  */
-export function linksFromAtomBody(body: string): { note: string; reason?: string }[] {
-  const text = body || "";
+export function linksFromAtomBody(
+  body: string,
+): { note: string; reason?: string }[] {
   const byNote = new Map<string, { note: string; reason?: string }>();
-
-  const normalized = text.replace(/\s+/g, " ").trim();
-  if (normalized) {
-    const segments = normalized
-      .split(/(?<=\.)\s+/)
-      .map((s) => s.trim())
-      .filter(Boolean);
-    for (const seg of segments) {
-      const reason = seg.replace(/\.$/, "").trim();
-      if (!reason) continue;
-      const titles: string[] = [];
-      WIKILINK_RE.lastIndex = 0;
-      let m: RegExpExecArray | null;
-      while ((m = WIKILINK_RE.exec(reason)) !== null) {
-        const t = (m[1] ?? "").trim();
-        if (t) titles.push(t);
-      }
-      if (!titles.length) continue;
-      const note = titles[titles.length - 1]!;
-      const key = note.toLowerCase();
-      // Prefer longer/more specific reason if duplicate
-      const prev = byNote.get(key);
-      if (!prev?.reason || reason.length >= (prev.reason?.length ?? 0)) {
-        byNote.set(key, { note, reason });
-      }
+  // Body-only: extractLinkProseRegion needs FM or blank-line split
+  let region = "";
+  if (body.startsWith("---")) {
+    region = extractLinkProseRegion(body);
+  } else {
+    const text = (body || "").replace(/\s+$/, "");
+    const m = text.match(/^([\s\S]*?)\n\n([\s\S]+)$/);
+    region = m ? m[2]!.replace(/\s+$/, "") : "";
+  }
+  for (const l of parseLinkProse(region)) {
+    const note = (l.note || "").trim();
+    if (!note) continue;
+    const reason = (l.reason || "").trim();
+    if (reason.length > 280) {
+      byNote.set(note.toLowerCase(), { note });
+    } else {
+      byNote.set(note.toLowerCase(), reason ? { note, reason } : { note });
     }
   }
-
-  for (const note of extractWikilinks(text)) {
+  for (const note of extractWikilinks(body)) {
     const key = note.toLowerCase();
     if (!byNote.has(key)) byNote.set(key, { note });
   }
@@ -138,9 +143,28 @@ export function planAskMirrorUpsert(
   for (const f of files) {
     if (!f.path.startsWith(folder + "/") && f.path !== folder) continue;
     if (!f.path.endsWith(".md")) continue;
-    const { body, tags } = splitAtomMarkdown(f.content);
+    const { body, tags, parent, relation } = splitAtomMarkdown(f.content);
     const title = f.basename.replace(/\.md$/i, "");
     const links = linksFromAtomBody(body);
+    if (parent) {
+      const key = parent.toLowerCase();
+      const reason =
+        relation === "revises"
+          ? `revises [[${parent}]]`
+          : relation === "contradicts"
+            ? `contradicts [[${parent}]]`
+            : relation === "adds_detail"
+              ? `adds detail to [[${parent}]]`
+              : relation === "continues"
+                ? `continues [[${parent}]]`
+                : undefined;
+      const prev = links.find((l) => l.note.toLowerCase() === key);
+      if (prev) {
+        if (reason && !prev.reason) prev.reason = reason;
+      } else {
+        links.push(reason ? { note: parent, reason } : { note: parent });
+      }
+    }
     const hash = contentHash([
       title,
       body,

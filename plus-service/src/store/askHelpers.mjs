@@ -68,7 +68,19 @@ export function extractWikilinks(text) {
 }
 
 /**
- * Parse reason-bearing sentences from body (Process/Ask link prose).
+ * Link-prose region only (after first blank line). Never treat capture body as reason.
+ * @param {string} body
+ */
+export function extractLinkProseRegion(body) {
+  const text = (body || "").replace(/\s+$/, "");
+  if (!text) return "";
+  const m = text.match(/^([\s\S]*?)\n\n([\s\S]+)$/);
+  return m ? m[2].replace(/\s+$/, "") : "";
+}
+
+/**
+ * Parse reason-bearing sentences from **link prose region only** (not capture text).
+ * Bare wikilinks anywhere in body still add { note } without inventing reasons.
  * @param {string} body
  * @returns {{ note: string, reason?: string }[]}
  */
@@ -76,7 +88,8 @@ export function linksFromAtomBody(body) {
   const text = body || "";
   /** @type {Map<string, { note: string, reason?: string }>} */
   const byNote = new Map();
-  const normalized = text.replace(/\s+/g, " ").trim();
+  const prose = extractLinkProseRegion(text);
+  const normalized = prose.replace(/\s+/g, " ").trim();
   if (normalized) {
     const segments = normalized
       .split(/(?<=\.)\s+/)
@@ -96,12 +109,24 @@ export function linksFromAtomBody(body) {
       if (!titles.length) continue;
       const note = titles[titles.length - 1];
       const key = note.toLowerCase();
+      // Only set reason if segment is "link-shaped" (not a multi-sentence dump):
+      // prefer segments that are short or start with relation verbs / end with ( [[note]] ).
+      const compact =
+        reason.length <= 280 ||
+        /^(continues|revises|contradicts|adds detail|related)/i.test(reason) ||
+        /\(\[\[/.test(reason);
+      if (!compact && titles.length === 1 && reason.length > 280) {
+        // Over-long segment: store note only, avoid whole-body reason
+        if (!byNote.has(key)) byNote.set(key, { note });
+        continue;
+      }
       const prev = byNote.get(key);
-      if (!prev?.reason || reason.length >= (prev.reason?.length ?? 0)) {
+      if (!prev?.reason || (reason.length <= 280 && reason.length >= (prev.reason?.length ?? 0))) {
         byNote.set(key, { note, reason });
       }
     }
   }
+  // Bare wikilinks in full body (including capture) → note only
   for (const note of extractWikilinks(text)) {
     const key = note.toLowerCase();
     if (!byNote.has(key)) byNote.set(key, { note });

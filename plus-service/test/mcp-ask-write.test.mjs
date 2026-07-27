@@ -100,12 +100,19 @@ describe("MCP ask write helpers + store path", () => {
     assert.equal(v.ok, false);
   });
 
-  it("parses reason prose from body for mirror links", () => {
+  it("parses reason only from link-prose region (not capture)", () => {
     const body =
       "It was a joke.\n\ncontradicts [[Parent claim]].\n";
     const links = linksFromAtomBody(body);
     const hit = links.find((l) => l.note === "Parent claim");
     assert.ok(hit?.reason?.includes("contradicts"));
+    // Capture text must not become reason for media/person links
+    const hsm = linksFromAtomBody(
+      "Andrew loves High School Musical named work.\n\ndurable taste fact about [[Andrew]] from this capture.\n",
+    );
+    const andrew = hsm.find((l) => l.note === "Andrew");
+    assert.ok(andrew?.reason?.includes("durable taste"));
+    assert.ok(!andrew?.reason?.includes("High School Musical named work"));
     const merged = mergeLinksFromBody([{ note: "Parent claim" }], body);
     assert.ok(
       merged.find((l) => l.note === "Parent claim")?.reason?.includes(
