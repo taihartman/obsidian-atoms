@@ -284,7 +284,11 @@ export function registerAskTools(mcp, ctx) {
       }
       const parentTitle = String(args.parent_title || "").trim();
       const parent = await store.mirrorFetch(email, parentTitle);
-      if (!parent) {
+      const parentPending =
+        !parent &&
+        typeof store.outboxHasOpenTitle === "function" &&
+        (await store.outboxHasOpenTitle(email, parentTitle));
+      if (!parent && !parentPending) {
         const st = await store.mirrorStatus(email);
         return jsonTool(
           {
@@ -292,7 +296,7 @@ export function registerAskTools(mcp, ctx) {
             parent_title: parentTitle,
             mirror_count: st.count,
             hint:
-              "Parent must be in the Ask mirror—fetch_atom or search first; user may need Settings → Ask → Sync now after Process.",
+              "Parent must be in the Ask mirror or still pending in the outbox (create_atom first). Otherwise Sync Ask after Process.",
           },
           true,
         );
@@ -303,7 +307,7 @@ export function registerAskTools(mcp, ctx) {
       }
       const v = validateOutboxPayload("continue", {
         ...args,
-        parent_title: parent.title || parentTitle,
+        parent_title: parent?.title || parentTitle,
         relation,
       });
       if (!v.ok) return jsonTool({ error: v.error }, true);
@@ -330,8 +334,74 @@ export function registerAskTools(mcp, ctx) {
         title: v.payload.title,
         parent_title: v.payload.parent_title,
         relation: v.payload.relation,
+        parent_pending: Boolean(parentPending),
         duplicate: Boolean(enq.duplicate),
-        hint: PENDING_HINT,
+        hint: parentPending
+          ? `${PENDING_HINT} Parent is still pending—both land when Obsidian applies the outbox (parent first if ordered).`
+          : PENDING_HINT,
+      });
+    },
+  );
+
+  mcp.registerTool(
+    "cancel_pending",
+    {
+      description:
+        "Cancel a pending or claimed outbox write before Obsidian applies it. Cannot undo applied atoms.",
+      inputSchema: {
+        outbox_id: z.string().describe("outbox_id from create_atom/continue_atom"),
+      },
+    },
+    async ({ outbox_id }) => {
+      const rl = writeRateOk();
+      if (!rl.ok) {
+        return jsonTool(
+          { error: "rate_limited", retryAfterSec: rl.retryAfterSec },
+          true,
+        );
+      }
+      const r = await store.outboxCancel(email, outbox_id);
+      if (!r.ok) {
+        return jsonTool(
+          {
+            error: r.error || "cancel_failed",
+            status: r.status,
+            outbox_id,
+          },
+          true,
+        );
+      }
+      return jsonTool({
+        status: "cancelled",
+        outbox_id: r.id,
+        previous_status: "pending_or_claimed",
+      });
+    },
+  );
+
+  mcp.registerTool(
+    "list_atoms",
+    {
+      description:
+        "List mirrored atoms (title, path, tags) with offset pagination. Use to enumerate the full mirror beyond search_atoms limit 25.",
+      inputSchema: {
+        limit: z.number().int().min(1).max(50).optional(),
+        offset: z.number().int().min(0).optional(),
+      },
+    },
+    async ({ limit, offset }) => {
+      const page = await store.mirrorList(email, {
+        limit: limit ?? 25,
+        offset: offset ?? 0,
+      });
+      return jsonTool({
+        ...page,
+        hint:
+          page.next_offset != null
+            ? `More results: call list_atoms with offset=${page.next_offset}`
+            : page.total === 0
+              ? EMPTY_HINT
+              : undefined,
       });
     },
   );

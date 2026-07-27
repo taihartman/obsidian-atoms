@@ -5,6 +5,8 @@ import { ASK_MCP_INSTRUCTIONS } from "../src/mcp/instructions.mjs";
 import {
   validateOutboxPayload,
   relationReason,
+  linksFromAtomBody,
+  mergeLinksFromBody,
 } from "../src/store/askHelpers.mjs";
 
 describe("MCP ask write helpers + store path", () => {
@@ -96,5 +98,33 @@ describe("MCP ask write helpers + store path", () => {
       body: "   ",
     });
     assert.equal(v.ok, false);
+  });
+
+  it("parses reason prose from body for mirror links", () => {
+    const body =
+      "It was a joke.\n\ncontradicts [[Parent claim]].\n";
+    const links = linksFromAtomBody(body);
+    const hit = links.find((l) => l.note === "Parent claim");
+    assert.ok(hit?.reason?.includes("contradicts"));
+    const merged = mergeLinksFromBody([{ note: "Parent claim" }], body);
+    assert.ok(
+      merged.find((l) => l.note === "Parent claim")?.reason?.includes(
+        "contradicts",
+      ),
+    );
+  });
+
+  it("continue allowed when parent only in outbox", async () => {
+    const store = await createStore({ mode: "memory" });
+    await store.grantPeriod("w@t.co", { status: "active", remaining: 10 });
+    await store.outboxEnqueue("w@t.co", {
+      kind: "create",
+      payload: { title: "New parent", body: "base" },
+    });
+    assert.equal(
+      await store.outboxHasOpenTitle("w@t.co", "New parent"),
+      true,
+    );
+    assert.equal(await store.mirrorFetch("w@t.co", "New parent"), null);
   });
 });

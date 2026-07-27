@@ -7,6 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
+| In progress | #131 | Tai | `fix/ask-write-dogfood-followups` | dogfood handoff (inline) | `src/platform/askMirror.ts`, `plus-service/src/store/*`, `plus-service/src/mcp/tools.mjs`, `plus-service/src/mirror/http.mjs` | link reasons, cancel_pending, continue pending parent, list_atoms |
 | Blocked | #115 | Tai | — | `docs/qa/2026-07-27-plus-public-launch-checklist.md` | Fly secrets, Resend, Stripe live | Docs+0.6.31 shipped (#117). Waiting: Fly billing card, Resend domain+2nd email, Stripe live keys/prices/webhook |
 
 ## How to claim (copy)

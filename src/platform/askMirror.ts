@@ -79,6 +79,50 @@ export function extractWikilinks(text: string): string[] {
   return out;
 }
 
+const WIKILINK_RE = /\[\[([^\]|#]+)(?:\|[^\]]+)?\]\]/g;
+
+/**
+ * Parse reason-bearing link prose (same idea as parseLinkProse) + bare wikilinks.
+ * Prefers segments with reasons; fills missing notes as { note } only.
+ */
+export function linksFromAtomBody(body: string): { note: string; reason?: string }[] {
+  const text = body || "";
+  const byNote = new Map<string, { note: string; reason?: string }>();
+
+  const normalized = text.replace(/\s+/g, " ").trim();
+  if (normalized) {
+    const segments = normalized
+      .split(/(?<=\.)\s+/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    for (const seg of segments) {
+      const reason = seg.replace(/\.$/, "").trim();
+      if (!reason) continue;
+      const titles: string[] = [];
+      WIKILINK_RE.lastIndex = 0;
+      let m: RegExpExecArray | null;
+      while ((m = WIKILINK_RE.exec(reason)) !== null) {
+        const t = (m[1] ?? "").trim();
+        if (t) titles.push(t);
+      }
+      if (!titles.length) continue;
+      const note = titles[titles.length - 1]!;
+      const key = note.toLowerCase();
+      // Prefer longer/more specific reason if duplicate
+      const prev = byNote.get(key);
+      if (!prev?.reason || reason.length >= (prev.reason?.length ?? 0)) {
+        byNote.set(key, { note, reason });
+      }
+    }
+  }
+
+  for (const note of extractWikilinks(text)) {
+    const key = note.toLowerCase();
+    if (!byNote.has(key)) byNote.set(key, { note });
+  }
+  return [...byNote.values()];
+}
+
 /**
  * Build upsert payloads from vault files under atom folder.
  * @param lastHashes path → content hash from previous push
@@ -96,7 +140,7 @@ export function planAskMirrorUpsert(
     if (!f.path.endsWith(".md")) continue;
     const { body, tags } = splitAtomMarkdown(f.content);
     const title = f.basename.replace(/\.md$/i, "");
-    const links = extractWikilinks(body).map((note) => ({ note }));
+    const links = linksFromAtomBody(body);
     const hash = contentHash([
       title,
       body,

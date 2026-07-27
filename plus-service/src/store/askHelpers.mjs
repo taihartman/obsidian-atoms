@@ -68,22 +68,74 @@ export function extractWikilinks(text) {
 }
 
 /**
- * Merge stored links with wikilinks parsed from body (fills empty links[]).
+ * Parse reason-bearing sentences from body (Process/Ask link prose).
+ * @param {string} body
+ * @returns {{ note: string, reason?: string }[]}
+ */
+export function linksFromAtomBody(body) {
+  const text = body || "";
+  /** @type {Map<string, { note: string, reason?: string }>} */
+  const byNote = new Map();
+  const normalized = text.replace(/\s+/g, " ").trim();
+  if (normalized) {
+    const segments = normalized
+      .split(/(?<=\.)\s+/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const re = /\[\[([^\]|#]+)(?:\|[^\]]+)?\]\]/g;
+    for (const seg of segments) {
+      const reason = seg.replace(/\.$/, "").trim();
+      if (!reason) continue;
+      const titles = [];
+      re.lastIndex = 0;
+      let m;
+      while ((m = re.exec(reason)) !== null) {
+        const t = String(m[1] || "").trim();
+        if (t) titles.push(t);
+      }
+      if (!titles.length) continue;
+      const note = titles[titles.length - 1];
+      const key = note.toLowerCase();
+      const prev = byNote.get(key);
+      if (!prev?.reason || reason.length >= (prev.reason?.length ?? 0)) {
+        byNote.set(key, { note, reason });
+      }
+    }
+  }
+  for (const note of extractWikilinks(text)) {
+    const key = note.toLowerCase();
+    if (!byNote.has(key)) byNote.set(key, { note });
+  }
+  return [...byNote.values()];
+}
+
+/**
+ * Merge stored links with body-derived links (reasons preferred).
  * @param {{ note: string, reason?: string }[]} links
  * @param {string} body
  */
 export function mergeLinksFromBody(links, body) {
-  const base = Array.isArray(links) ? [...links] : [];
-  const have = new Set(
-    base.map((l) => String(l?.note || "").trim().toLowerCase()).filter(Boolean),
-  );
-  for (const note of extractWikilinks(body)) {
-    const k = note.toLowerCase();
-    if (have.has(k)) continue;
-    have.add(k);
-    base.push({ note });
+  /** @type {Map<string, { note: string, reason?: string }>} */
+  const byNote = new Map();
+  for (const l of Array.isArray(links) ? links : []) {
+    const note = String(l?.note || "").trim();
+    if (!note) continue;
+    const key = note.toLowerCase();
+    const reason = l?.reason ? String(l.reason).trim() : undefined;
+    byNote.set(key, reason ? { note, reason } : { note });
   }
-  return base;
+  for (const l of linksFromAtomBody(body)) {
+    const key = l.note.toLowerCase();
+    const prev = byNote.get(key);
+    if (!prev) {
+      byNote.set(key, l);
+      continue;
+    }
+    if (!prev.reason && l.reason) {
+      byNote.set(key, { note: prev.note || l.note, reason: l.reason });
+    }
+  }
+  return [...byNote.values()];
 }
 
 export function rowToPublicAtom(row, { includeBody = true } = {}) {
