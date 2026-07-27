@@ -173,6 +173,12 @@ export default class AtomsPlugin extends Plugin {
 
     // U9: never block launch — schedule auto-run after layout + metadata.
     void this.scheduleAutoRunLifecycle();
+
+    // Plus: resume entitlement poll after Stripe Checkout (awaitingCheckout).
+    const { schedulePlusCheckoutResume } = await import(
+      "../platform/plusResume"
+    );
+    schedulePlusCheckoutResume(this);
   }
 
   /**

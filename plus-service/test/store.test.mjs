@@ -63,4 +63,38 @@ describe("plus store", () => {
     assert.equal((await store.getAccount("s@q.co")).remaining, 3);
     if (store.close) store.close();
   });
+
+  it("startWithEmail soft account inactive no filings", async () => {
+    const store = await createStore({ mode: "memory" });
+    const out = await store.startWithEmail("Soft@Ex.com");
+    assert.equal(out.ok, true);
+    assert.ok(String(out.session).startsWith("sess_"));
+    assert.equal(out.account.email, "soft@ex.com");
+    assert.equal(out.account.status, "inactive");
+    assert.equal(out.account.remaining, 0);
+    const fail = await store.tryConsumeFiling(out.session);
+    assert.equal(fail.ok, false);
+    assert.equal(fail.code, "auth");
+  });
+
+  it("startWithEmail refuses entitled account", async () => {
+    const store = await createStore({ mode: "memory" });
+    await store.grantPeriod("paid@x.co", {
+      remaining: 10,
+      status: "active",
+    });
+    const out = await store.startWithEmail("paid@x.co");
+    assert.equal(out.ok, false);
+    assert.equal(out.needsMagicLink, true);
+    assert.equal(out.session, undefined);
+  });
+
+  it("second start mints new session still inactive", async () => {
+    const store = await createStore({ mode: "memory" });
+    const a = await store.startWithEmail("twice@x.co");
+    const b = await store.startWithEmail("twice@x.co");
+    assert.ok(a.ok && b.ok);
+    assert.notEqual(a.session, b.session);
+    assert.equal(b.account.status, "inactive");
+  });
 });

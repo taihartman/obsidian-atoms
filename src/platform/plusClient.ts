@@ -225,6 +225,68 @@ export async function requestMagicLink(
   return { ok: true };
 }
 
+/**
+ * Soft account + device session (inactive). Entitled emails → needsMagicLink.
+ */
+export async function startPlusAccount(
+  cfg: PlusClientConfig,
+  email: string,
+): Promise<
+  | { ok: true; session: PlusSession }
+  | { ok: false; needsMagicLink: true; email: string; message: string }
+  | PlusApiError
+> {
+  const res = await plusRequest(cfg, {
+    path: "/v1/auth/start",
+    method: "POST",
+    body: { email: email.trim() },
+  });
+  if (!res.ok) return res;
+  if (res.status === 409 || res.json.needsMagicLink === true) {
+    const em =
+      typeof res.json.email === "string" ? res.json.email : email.trim();
+    return {
+      ok: false,
+      needsMagicLink: true,
+      email: em,
+      message:
+        typeof res.json.message === "string"
+          ? res.json.message
+          : "Sign in with a magic link for this email",
+    };
+  }
+  if (res.status < 200 || res.status >= 300) {
+    return mapError(res.status, res.json);
+  }
+  const sessionToken =
+    typeof res.json.session === "string"
+      ? res.json.session
+      : typeof res.json.sessionToken === "string"
+        ? res.json.sessionToken
+        : "";
+  const em = typeof res.json.email === "string" ? res.json.email : "";
+  if (!sessionToken || !em) {
+    return {
+      ok: false,
+      status: res.status,
+      code: "unknown",
+      message: "Plus start response missing session",
+    };
+  }
+  const ent = parseEntitlement(res.json);
+  return {
+    ok: true,
+    session: {
+      sessionToken,
+      email: em,
+      status: ent.status === "unknown" ? "inactive" : ent.status,
+      remaining: ent.remaining ?? 0,
+      periodEnd: ent.periodEnd,
+      refreshedAt: Date.now(),
+    },
+  };
+}
+
 export async function exchangeMagicToken(
   cfg: PlusClientConfig,
   token: string,

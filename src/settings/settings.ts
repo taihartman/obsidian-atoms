@@ -27,7 +27,9 @@ import {
 } from "../shared/types";
 import {
   clearPlusSession,
+  hasPlusSetupSession,
   readPlusSession,
+  setAwaitingCheckout,
   writePlusSession,
 } from "../platform/filingAuth";
 import {
@@ -37,6 +39,7 @@ import {
 import {
   DEFAULT_PLUS_BASE_URL,
   requestMagicLink,
+  startPlusAccount,
   createCheckout,
   createBillingPortal,
   getEntitlement,
@@ -314,14 +317,54 @@ export class AtomsSettingTab extends PluginSettingTab {
       return;
     }
 
-    // Signed out
+    // Soft session (inactive) — finish trial without paste
+    if (hasPlusSetupSession(session) && session?.status === "inactive") {
+      new Setting(containerEl)
+        .setName("Finish trial setup")
+        .setDesc(
+          `${session.email} — complete Stripe checkout (card for 14-day trial). Return here and status updates automatically.`,
+        )
+        .addButton((btn) =>
+          btn.setButtonText("Finish trial setup").setCta().onClick(async () => {
+            btn.setDisabled(true);
+            try {
+              await this.openTrialCheckout(session);
+            } finally {
+              btn.setDisabled(false);
+              this.display();
+            }
+          }),
+        );
+      this.addRefreshStatusButton(
+        new Setting(containerEl)
+          .setName("Refresh status")
+          .setDesc("After checkout, pull the latest plan (or wait for auto-update)."),
+      );
+      new Setting(containerEl)
+        .setName("Sign out")
+        .setDesc("Remove Plus setup from this device.")
+        .addButton((btn) =>
+          btn.setButtonText("Sign Out").onClick(() => {
+            clearPlusSession(this.app);
+            new Notice("Atoms Plus signed out on this device");
+            this.display();
+          }),
+        );
+      containerEl.createEl("p", {
+        text: "When you use Plus, captures are sent securely to Anthropic under our account. We don’t train on your notes.",
+        cls: "setting-item-description",
+      });
+      return;
+    }
+
+    // Signed out — stripe-first
     new Setting(containerEl)
       .setName("Skip the API Key")
       .setDesc(
         "Atoms Plus files your captures for you. Or keep using your own key. It’s free forever, and the full app stays yours either way.",
       )
       .addButton((btn) =>
-        btn.setButtonText("See Plans").setCta().onClick(() => {
+        btn.setButtonText("See Plans").onClick(() => {
           const lines = [
             offer.title,
             offer.priceMonthly,
@@ -336,17 +379,64 @@ export class AtomsSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName("Email for magic link")
+      .setName("Email")
       .setDesc(
-        "Dogfood: request a link from the Plus service (see server console), or paste a session below.",
+        "Start a free trial (card required). Checkout opens in your browser — then return to Obsidian.",
       )
       .addText((text) => {
         text.setPlaceholder("you@example.com").inputEl.dataset.plusEmail = "1";
       })
       .addButton((btn) =>
-        btn.setButtonText("Send Magic Link").onClick(async () => {
+        btn.setButtonText("Start free trial").setCta().onClick(async () => {
           const input = containerEl.querySelector(
             "input[data-plus-email]",
+          ) as HTMLInputElement | null;
+          const email = input?.value?.trim() || "";
+          if (!email.includes("@")) {
+            new Notice("Enter a valid email first");
+            return;
+          }
+          btn.setDisabled(true);
+          try {
+            const base =
+              this.plugin.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL;
+            const started = await startPlusAccount(
+              { baseUrl: base, request: plusFetchRequest },
+              email,
+            );
+            if (!started.ok) {
+              if ("needsMagicLink" in started && started.needsMagicLink) {
+                new Notice(
+                  "This email already has Plus — send a sign-in link below.",
+                  8000,
+                );
+                return;
+              }
+              new Notice(`Atoms Plus: ${started.message}`);
+              return;
+            }
+            writePlusSession(this.app, started.session);
+            await this.openTrialCheckout(started.session);
+          } finally {
+            btn.setDisabled(false);
+            this.display();
+          }
+        }),
+      );
+
+    new Setting(containerEl)
+      .setName("Sign in on another device")
+      .setDesc(
+        "Already subscribed? Email a one-time link. Open it, then Refresh status here.",
+      )
+      .addText((text) => {
+        text.setPlaceholder("you@example.com").inputEl.dataset.plusMagicEmail =
+          "1";
+      })
+      .addButton((btn) =>
+        btn.setButtonText("Send sign-in link").onClick(async () => {
+          const input = containerEl.querySelector(
+            "input[data-plus-magic-email]",
           ) as HTMLInputElement | null;
           const email = input?.value?.trim() || "";
           if (!email.includes("@")) {
@@ -364,20 +454,21 @@ export class AtomsSettingTab extends PluginSettingTab {
             return;
           }
           new Notice(
-            "Magic link requested — open the link from the Plus server console, then paste the session token below.",
-            8000,
+            "Check your email for a sign-in link. Then return here and tap Refresh status.",
+            10000,
           );
         }),
       );
 
+    // Advanced: paste session (restore fallback)
     new Setting(containerEl)
-      .setName("Paste session (dogfood)")
-      .setDesc("After opening the magic link in a browser, paste sess_… here.")
+      .setName("Advanced: paste session")
+      .setDesc("Only if Refresh status does not work after the sign-in link.")
       .addText((text) => {
         text.setPlaceholder("sess_…").inputEl.dataset.plusSession = "1";
       })
       .addButton((btn) =>
-        btn.setButtonText("Save Session").onClick(async () => {
+        btn.setButtonText("Save session").onClick(async () => {
           const input = containerEl.querySelector(
             "input[data-plus-session]",
           ) as HTMLInputElement | null;
@@ -386,7 +477,6 @@ export class AtomsSettingTab extends PluginSettingTab {
             new Notice("Session should look like sess_…");
             return;
           }
-          // Only persist after server proves the session (QA P1).
           const base =
             this.plugin.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL;
           try {
@@ -398,7 +488,7 @@ export class AtomsSettingTab extends PluginSettingTab {
             });
             if (res.status < 200 || res.status >= 300 || !res.json) {
               new Notice(
-                "Session not accepted by Plus service. Check the URL and paste a fresh sess_ from the magic link.",
+                "Session not accepted. Request a fresh sign-in link.",
                 8000,
               );
               return;
@@ -426,50 +516,12 @@ export class AtomsSettingTab extends PluginSettingTab {
                 typeof j.periodEnd === "string" ? j.periodEnd : undefined,
               refreshedAt: Date.now(),
             });
-            new Notice("Atoms Plus session verified and saved on this device");
+            new Notice("Atoms Plus session saved on this device");
             this.display();
           } catch (e) {
             const msg = e instanceof Error ? e.message : "network error";
-            new Notice(
-              `Could not reach Plus service (${msg}). Is it running at ${base}?`,
-              8000,
-            );
+            new Notice(`Could not reach Plus service (${msg})`, 8000);
           }
-        }),
-      );
-
-    new Setting(containerEl)
-      .setName("Start Free Trial (dogfood)")
-      .setDesc("Requires a saved session. Grants trial period via Plus service.")
-      .addButton((btn) =>
-        btn.setButtonText("Start Free Trial").onClick(async () => {
-          const session = readPlusSession(this.app);
-          if (!session) {
-            new Notice("Save a Plus session first");
-            return;
-          }
-          const base =
-            this.plugin.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL;
-          const r = await createCheckout(
-            { baseUrl: base, request: plusFetchRequest },
-            session.sessionToken,
-            "start_trial",
-          );
-          if (!r.ok) {
-            new Notice(`Atoms Plus: ${r.message}`);
-            return;
-          }
-          if (r.url) {
-            window.open(r.url, "_blank");
-            new Notice(
-              "Checkout opened — finish in the browser, then tap Refresh status.",
-              10000,
-            );
-          } else {
-            new Notice("Trial granted (dogfood). Refreshing…");
-            await this.refreshPlusEntitlement({ quiet: true });
-          }
-          this.display();
         }),
       );
 
@@ -477,6 +529,34 @@ export class AtomsSettingTab extends PluginSettingTab {
       text: "When you use Plus, captures are sent securely to Anthropic under our account. We don’t train on your notes.",
       cls: "setting-item-description",
     });
+  }
+
+  private async openTrialCheckout(session: {
+    sessionToken: string;
+  }): Promise<void> {
+    const base =
+      this.plugin.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL;
+    new Notice("Updating subscription…", 4000);
+    const r = await createCheckout(
+      { baseUrl: base, request: plusFetchRequest },
+      session.sessionToken,
+      "start_trial",
+    );
+    if (!r.ok) {
+      new Notice(`Atoms Plus: ${r.message}`);
+      return;
+    }
+    if (r.url) {
+      setAwaitingCheckout(this.app, true);
+      window.open(r.url, "_blank");
+      new Notice(
+        "Complete checkout in the browser, then return here — status updates automatically.",
+        12000,
+      );
+    } else {
+      new Notice("Trial updated. Refreshing…");
+      await this.refreshPlusEntitlement({ quiet: true });
+    }
   }
 
   private renderCaptureSection(containerEl: HTMLElement) {

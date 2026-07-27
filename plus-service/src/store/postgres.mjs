@@ -8,6 +8,7 @@ import {
   applyStatusRules,
   hashToken,
   id,
+  isEntitledAccount,
   periodEndFromNow,
   publicAccount,
   rowToAccount,
@@ -171,6 +172,26 @@ export async function createPostgresStore(databaseUrl) {
     return token;
   }
 
+  async function createSession(email) {
+    const key = email.trim().toLowerCase();
+    const session = id("sess");
+    await pool.query(
+      "INSERT INTO sessions (token_hash, email, exp_ms, revoked) VALUES ($1, $2, $3, FALSE)",
+      [hashToken(session), key, Date.now() + sessionTtlMs()],
+    );
+    return session;
+  }
+
+  async function startWithEmail(email) {
+    let a = await ensureAccount(email);
+    a = await refreshAccountStatus(a);
+    if (isEntitledAccount(a)) {
+      return { ok: false, needsMagicLink: true, account: a };
+    }
+    const session = await createSession(a.email);
+    return { ok: true, session, account: a };
+  }
+
   async function exchangeMagic(token) {
     const client = await pool.connect();
     let email;
@@ -214,11 +235,7 @@ export async function createPostgresStore(databaseUrl) {
       });
     }
     a = await refreshAccountStatus(a);
-    const session = id("sess");
-    await pool.query(
-      "INSERT INTO sessions (token_hash, email, exp_ms, revoked) VALUES ($1, $2, $3, FALSE)",
-      [hashToken(session), email, Date.now() + sessionTtlMs()],
-    );
+    const session = await createSession(email);
     return { session, account: a };
   }
 
@@ -463,6 +480,8 @@ export async function createPostgresStore(databaseUrl) {
   return {
     kind: "postgres",
     createMagicToken,
+    createSession,
+    startWithEmail,
     exchangeMagic,
     accountFromSession,
     revokeSession,
