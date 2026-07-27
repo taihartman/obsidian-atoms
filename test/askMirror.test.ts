@@ -15,33 +15,56 @@ describe("askMirror", () => {
     expect(body).toContain("I prefer tea");
   });
 
-  it("extracts wikilinks and reason prose into links on plan", () => {
+  it("prefers FM atom-links; does not swallow capture as reason", () => {
     expect(extractWikilinks("see ([[Nichita]]) and [[Foo|bar]]")).toEqual([
       "Nichita",
       "Foo",
     ]);
     const files = [
       {
-        path: "Atoms/Peri.md",
-        basename: "Peri",
-        content: "Nichita likes ( [[Nichita]] ).\n",
-      },
-      {
         path: "Atoms/Child.md",
         basename: "Child",
-        content:
-          "---\ntags: []\nparent: \"Parent claim\"\nrelation: contradicts\n---\nIt was a joke.\n\ncontradicts [[Parent claim]].\n",
+        content: `---
+tags: []
+parent: "Parent claim"
+relation: contradicts
+atom-links:
+  - note: "Parent claim"
+    reason: "contradicts [[Parent claim]]"
+---
+It was a joke.
+
+[[Parent claim]]
+`,
+      },
+      {
+        path: "Atoms/Coco.md",
+        basename: "Coco",
+        content: `---
+tags: []
+atom-links:
+  - note: "Nichita"
+    reason: "shared favorite seasoning (chipotle) for chicken thighs"
+---
+I love the spice project Coco chipotle seasoning it's delicious
+it's mine and Nichita's favorite seasoning for chicken thighs
+
+[[Nichita]]
+`,
       },
       {
         path: "Atoms/HSM.md",
         basename: "HSM",
-        content:
-          "---\ntags: []\n---\nAndrew loves High School Musical named work Andrew is a fan of.\n\ndurable taste fact about [[Andrew]] from this capture.\n",
+        content: `---
+tags: []
+---
+Andrew loves High School Musical named work Andrew is a fan of.
+
+durable taste fact about [[Andrew]] from this capture.
+`,
       },
     ];
     const { atoms } = planAskMirrorUpsert(files, "Atoms", {});
-    const peri = atoms.find((a) => a.title === "Peri");
-    expect(peri?.links.some((l) => l.note === "Nichita")).toBe(true);
     const child = atoms.find((a) => a.title === "Child");
     expect(child?.links).toEqual(
       expect.arrayContaining([
@@ -51,10 +74,16 @@ describe("askMirror", () => {
         }),
       ]),
     );
+    const coco = atoms.find((a) => a.title === "Coco");
+    const nich = coco?.links.find((l) => l.note === "Nichita");
+    expect(nich?.reason).toBe(
+      "shared favorite seasoning (chipotle) for chicken thighs",
+    );
+    expect(nich?.reason).not.toMatch(/I love the spice/);
     const hsm = atoms.find((a) => a.title === "HSM");
     const andrew = hsm?.links.find((l) => l.note === "Andrew");
-    expect(andrew?.reason).toMatch(/durable taste/);
-    expect(andrew?.reason).not.toMatch(/named work Andrew is a fan/);
+    // Process-style short one-liner OK; capture paragraph is not the reason
+    expect(andrew?.reason ?? "").not.toMatch(/named work Andrew is a fan/);
   });
 
   it("plans only Atoms/ and skips unchanged hash", () => {

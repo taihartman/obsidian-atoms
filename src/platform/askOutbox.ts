@@ -5,7 +5,6 @@ import type { ClassificationLink } from "../shared/types";
 import {
   atomPathForTitle,
   clampAtomFolder,
-  formatLinkProse,
   normalizeCaptureText,
   sanitizeFilename,
 } from "../pipeline/render";
@@ -31,7 +30,10 @@ function yamlQuote(s: string): string {
 }
 
 /**
- * Build Ask-origin atom markdown (not Process buildAtomMarkdown).
+ * Build Ask-origin atom markdown.
+ * Capture body is sacred/verbatim — NO reason prose flattened into body.
+ * Structured links + parent/relation live in frontmatter; bare [[wikilinks]]
+ * at end keep Obsidian graph edges without duplicating reason text.
  */
 export function buildAskAtomMarkdown(opts: {
   title: string;
@@ -39,7 +41,6 @@ export function buildAskAtomMarkdown(opts: {
   tags?: string[];
   links?: { note: string; reason?: string }[];
   created?: string;
-  /** continue_atom parent title */
   parent?: string;
   relation?: string;
 }): { pathSegment: string; content: string; title: string } {
@@ -56,6 +57,27 @@ export function buildAskAtomMarkdown(opts: {
       note: sanitizeFilename(l.note).filename,
       reason: (l.reason || "").trim(),
     }));
+
+  // continue: ensure parent edge in structured links
+  if (opts.parent?.trim()) {
+    const p = sanitizeFilename(opts.parent.trim()).filename;
+    const rel = (opts.relation || "continues").trim();
+    const reason =
+      rel === "revises"
+        ? `revises [[${p}]]`
+        : rel === "contradicts"
+          ? `contradicts [[${p}]]`
+          : rel === "adds_detail"
+            ? `adds detail to [[${p}]]`
+            : `continues [[${p}]]`;
+    if (!links.some((l) => l.note.toLowerCase() === p.toLowerCase())) {
+      links.unshift({ note: p, reason });
+    } else {
+      const hit = links.find((l) => l.note.toLowerCase() === p.toLowerCase())!;
+      if (!hit.reason) hit.reason = reason;
+    }
+  }
+
   const fm: string[] = ["---", `created: ${created}`];
   if (alias) {
     fm.push("aliases:");
@@ -75,13 +97,26 @@ export function buildAskAtomMarkdown(opts: {
   } else {
     fm.push("tags: []");
   }
+  // Structured edge data (MCP reads this via mirror push — not body parse)
+  if (links.length) {
+    fm.push("atom-links:");
+    for (const l of links) {
+      fm.push(`  - note: ${yamlQuote(l.note)}`);
+      if (l.reason) fm.push(`    reason: ${yamlQuote(l.reason)}`);
+    }
+  }
   fm.push("---", "");
-  // Capture body only — link reasons live in FM parent/relation + structured
-  // mirror links; optional short prose for Obsidian graph (not mixed into capture).
+
   const body = String(opts.body ?? "").replace(/\s+$/, "");
-  const prose = formatLinkProse(links);
-  const fullBody = prose ? `${body}\n\n${prose}` : body;
-  const content = fm.join("\n") + fullBody + (fullBody.endsWith("\n") ? "" : "\n");
+  // Bare wikilinks only (graph); reasons stay in FM atom-links
+  const wikiLines = links.map((l) => `[[${l.note}]]`);
+  const uniqueWiki = [...new Set(wikiLines)];
+  const fullBody =
+    uniqueWiki.length > 0
+      ? `${body}\n\n${uniqueWiki.join("\n")}`
+      : body;
+  const content =
+    fm.join("\n") + fullBody + (fullBody.endsWith("\n") ? "" : "\n");
   return { pathSegment: title, content, title };
 }
 

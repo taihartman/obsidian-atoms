@@ -1,11 +1,8 @@
 /**
  * Ask mirror push planner — Atoms/ paths only, hash skip.
- * Hash is mobile-safe (no Node crypto).
+ * Structured links prefer frontmatter `atom-links:`; body is not mined for reasons.
  */
-import {
-  extractLinkProseRegion,
-  parseLinkProse,
-} from "../pipeline/parseLinkProse";
+import { parseLinkProse } from "../pipeline/parseLinkProse";
 
 export type AskMirrorAtomPayload = {
   path: string;
@@ -21,18 +18,21 @@ export type VaultFileRead = {
   content: string;
 };
 
-/** Parse simple frontmatter tags list and body after ---. */
+type FmLink = { note: string; reason?: string };
+
+/** Parse frontmatter tags, atom-links, parent/relation, body. */
 export function splitAtomMarkdown(content: string): {
   body: string;
   tags: string[];
   parent?: string;
   relation?: string;
+  fmLinks: FmLink[];
 } {
   if (!content.startsWith("---")) {
-    return { body: content, tags: [] };
+    return { body: content, tags: [], fmLinks: [] };
   }
   const end = content.indexOf("\n---", 3);
-  if (end < 0) return { body: content, tags: [] };
+  if (end < 0) return { body: content, tags: [], fmLinks: [] };
   const fm = content.slice(3, end);
   const body = content.slice(end + 4).replace(/^\n/, "");
   const tags: string[] = [];
@@ -55,15 +55,39 @@ export function splitAtomMarkdown(content: string): {
   const relationM = fm.match(/^relation:\s*["']?(\w+)["']?\s*$/m);
   const parent = parentM?.[1]?.trim().replace(/^\[\[|\]\]$/g, "");
   const relation = relationM?.[1]?.trim();
+
+  const fmLinks: FmLink[] = [];
+  // atom-links:
+  //   - note: "X"
+  //     reason: "Y"
+  const block = fm.match(
+    /^atom-links:\s*\n((?:[ \t]+.+\n?)*)/m,
+  );
+  if (block?.[1]) {
+    let cur: FmLink | null = null;
+    for (const line of block[1].split("\n")) {
+      const noteM = line.match(/^\s*-\s+note:\s*(.+)$/);
+      const reasonM = line.match(/^\s+reason:\s*(.+)$/);
+      if (noteM) {
+        if (cur) fmLinks.push(cur);
+        const note = noteM[1]!.trim().replace(/^["']|["']$/g, "");
+        cur = note ? { note } : null;
+      } else if (reasonM && cur) {
+        cur.reason = reasonM[1]!.trim().replace(/^["']|["']$/g, "");
+      }
+    }
+    if (cur) fmLinks.push(cur);
+  }
+
   return {
     body,
     tags,
+    fmLinks,
     ...(parent ? { parent } : {}),
     ...(relation ? { relation } : {}),
   };
 }
 
-/** Fast stable content fingerprint (not cryptographic). */
 export function contentHash(parts: string[]): string {
   let h = 2166136261;
   for (const p of parts) {
@@ -77,7 +101,6 @@ export function contentHash(parts: string[]): string {
   return (h >>> 0).toString(16);
 }
 
-/** Extract unique [[wikilink]] targets from markdown (display alias stripped). */
 export function extractWikilinks(text: string): string[] {
   const out: string[] = [];
   const seen = new Set<string>();
@@ -95,43 +118,98 @@ export function extractWikilinks(text: string): string[] {
 }
 
 /**
- * Structured links: reasons only from link-prose region (after blank line),
- * not capture text. Bare wikilinks elsewhere → note only.
+ * Link-prose region only (after first blank line) — Process atoms legacy.
+ * Never treat capture paragraph as reason.
  */
-export function linksFromAtomBody(
-  body: string,
-): { note: string; reason?: string }[] {
-  const byNote = new Map<string, { note: string; reason?: string }>();
-  // Body-only: extractLinkProseRegion needs FM or blank-line split
-  let region = "";
-  if (body.startsWith("---")) {
-    region = extractLinkProseRegion(body);
-  } else {
-    const text = (body || "").replace(/\s+$/, "");
-    const m = text.match(/^([\s\S]*?)\n\n([\s\S]+)$/);
-    region = m ? m[2]!.replace(/\s+$/, "") : "";
-  }
-  for (const l of parseLinkProse(region)) {
-    const note = (l.note || "").trim();
-    if (!note) continue;
-    const reason = (l.reason || "").trim();
-    if (reason.length > 280) {
-      byNote.set(note.toLowerCase(), { note });
-    } else {
-      byNote.set(note.toLowerCase(), reason ? { note, reason } : { note });
-    }
-  }
-  for (const note of extractWikilinks(body)) {
-    const key = note.toLowerCase();
-    if (!byNote.has(key)) byNote.set(key, { note });
-  }
-  return [...byNote.values()];
+function linkProseRegion(body: string): string {
+  const text = (body || "").replace(/\s+$/, "");
+  const m = text.match(/^([\s\S]*?)\n\n([\s\S]+)$/);
+  return m ? m[2]!.replace(/\s+$/, "") : "";
 }
 
 /**
- * Build upsert payloads from vault files under atom folder.
- * @param lastHashes path → content hash from previous push
+ * Build structured links for mirror:
+ * 1. FM atom-links (authoritative)
+ * 2. parent/relation FM
+ * 3. Process-style short link-prose region only (≤280 chars / segment)
+ * 4. bare wikilinks → note only
  */
+export function linksFromAtomFile(opts: {
+  body: string;
+  fmLinks?: FmLink[];
+  parent?: string;
+  relation?: string;
+}): { note: string; reason?: string }[] {
+  const byNote = new Map<string, { note: string; reason?: string }>();
+
+  for (const l of opts.fmLinks || []) {
+    const note = (l.note || "").trim();
+    if (!note) continue;
+    const reason = (l.reason || "").trim();
+    byNote.set(
+      note.toLowerCase(),
+      reason ? { note, reason } : { note },
+    );
+  }
+
+  if (opts.parent?.trim()) {
+    const p = opts.parent.trim();
+    const key = p.toLowerCase();
+    const rel = (opts.relation || "").trim();
+    const reason =
+      rel === "revises"
+        ? `revises [[${p}]]`
+        : rel === "contradicts"
+          ? `contradicts [[${p}]]`
+          : rel === "adds_detail"
+            ? `adds detail to [[${p}]]`
+            : rel === "continues"
+              ? `continues [[${p}]]`
+              : undefined;
+    const prev = byNote.get(key);
+    if (!prev) {
+      byNote.set(key, reason ? { note: p, reason } : { note: p });
+    } else if (reason && !prev.reason) {
+      byNote.set(key, { note: prev.note, reason });
+    }
+  }
+
+  // Legacy Process: only parse short link-prose segments (not capture)
+  if (byNote.size === 0 || ![...byNote.values()].some((l) => l.reason)) {
+    const region = linkProseRegion(opts.body);
+    for (const l of parseLinkProse(region)) {
+      const note = (l.note || "").trim();
+      if (!note) continue;
+      const reason = (l.reason || "").trim();
+      const key = note.toLowerCase();
+      if (reason.length > 280) {
+        if (!byNote.has(key)) byNote.set(key, { note });
+        continue;
+      }
+      const prev = byNote.get(key);
+      if (!prev) {
+        byNote.set(key, reason ? { note, reason } : { note });
+      } else if (reason && !prev.reason) {
+        byNote.set(key, { note: prev.note, reason });
+      }
+    }
+  }
+
+  for (const note of extractWikilinks(opts.body)) {
+    const key = note.toLowerCase();
+    if (!byNote.has(key)) byNote.set(key, { note });
+  }
+
+  return [...byNote.values()];
+}
+
+/** @deprecated use linksFromAtomFile — kept name for tests */
+export function linksFromAtomBody(
+  body: string,
+): { note: string; reason?: string }[] {
+  return linksFromAtomFile({ body });
+}
+
 export function planAskMirrorUpsert(
   files: VaultFileRead[],
   atomFolder: string,
@@ -143,28 +221,11 @@ export function planAskMirrorUpsert(
   for (const f of files) {
     if (!f.path.startsWith(folder + "/") && f.path !== folder) continue;
     if (!f.path.endsWith(".md")) continue;
-    const { body, tags, parent, relation } = splitAtomMarkdown(f.content);
+    const { body, tags, parent, relation, fmLinks } = splitAtomMarkdown(
+      f.content,
+    );
     const title = f.basename.replace(/\.md$/i, "");
-    const links = linksFromAtomBody(body);
-    if (parent) {
-      const key = parent.toLowerCase();
-      const reason =
-        relation === "revises"
-          ? `revises [[${parent}]]`
-          : relation === "contradicts"
-            ? `contradicts [[${parent}]]`
-            : relation === "adds_detail"
-              ? `adds detail to [[${parent}]]`
-              : relation === "continues"
-                ? `continues [[${parent}]]`
-                : undefined;
-      const prev = links.find((l) => l.note.toLowerCase() === key);
-      if (prev) {
-        if (reason && !prev.reason) prev.reason = reason;
-      } else {
-        links.push(reason ? { note: parent, reason } : { note: parent });
-      }
-    }
+    const links = linksFromAtomFile({ body, fmLinks, parent, relation });
     const hash = contentHash([
       title,
       body,

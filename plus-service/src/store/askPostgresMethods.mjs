@@ -16,6 +16,7 @@ import {
   encryptOutboxPayload,
   decryptOutboxPayload,
   publicOutboxRow,
+  relationFromReason,
 } from "./askHelpers.mjs";
 
 export const ASK_PG_DDL = `
@@ -201,9 +202,10 @@ export function createAskPostgresMethods(pool, deps) {
     const keyLower = keyTitle.toLowerCase();
     const e = normEmail(email);
     const outgoing = center
-      ? mergeLinksFromBody(center.links || [], center.text || []).map((l) => ({
+      ? mergeLinksFromBody(center.links || [], center.text || "").map((l) => ({
           title: l.note,
           reason: l.reason || null,
+          relation: relationFromReason(l.reason),
           direction: "out",
         }))
       : [];
@@ -215,13 +217,14 @@ export function createAskPostgresMethods(pool, deps) {
     for (const r of rows) {
       const pub = rowToPublicAtom(r, { includeBody: true });
       if (pub.title.toLowerCase() === keyLower) continue;
-      const links = mergeLinksFromBody(pub.links || [], pub.text || []);
+      const links = mergeLinksFromBody(pub.links || [], pub.text || "");
       for (const l of links) {
         if (String(l.note || "").toLowerCase() === keyLower) {
           backlinks.push({
             title: pub.title,
             path: pub.path,
             reason: l.reason || null,
+            relation: relationFromReason(l.reason),
             direction: "in",
             snippet: makeSnippet(pub.text, keyTitle, 160),
           });
