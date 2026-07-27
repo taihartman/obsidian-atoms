@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| In progress | #112 | Tai | `feat/ask-brain-remote-mcp` | `docs/plans/2026-07-27-001-feat-ask-brain-remote-mcp-plan.md` | `plus-service/**` (P0); later `src/platform/plusClient.ts`, `src/settings/settings.ts` | Ask remote MCP. Done: U1–U3+U5 (mirror store/HTTP, MCP tools). Next: U4 OAuth, U7 deploy, U6 phone dogfood. PR #116. |
+| In review | #112 | Tai | `feat/ask-brain-remote-mcp` | `docs/plans/2026-07-27-001-feat-ask-brain-remote-mcp-plan.md` | `plus-service/**`, `src/settings/settings.ts`, `src/platform/askMirror.ts`, `src/plugin/main.ts` | Ask remote MCP 0.6.31. U1–U7 + P1 Settings. Needs Fly deploy + phone Claude dogfood. P2: #119 ChatGPT, #120 DIY. PR #116. |
 
 ## How to claim (copy)
 
