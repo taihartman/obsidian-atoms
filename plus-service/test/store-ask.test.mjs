@@ -80,6 +80,57 @@ describe("ask mirror + mcp store", () => {
           const hits = await store.mirrorSearch("s@ex.co", "zebra", 8);
           assert.ok(hits.length >= 2);
           assert.equal(hits[0].title, "Zebra habitat");
+          assert.ok(hits[0].score > hits[1].score);
+        });
+      });
+
+      it("parses wikilinks into links and neighbors backlinks", async () => {
+        await withStore(mode, async (store) => {
+          await seedAccount(store, "g@ex.co");
+          await store.mirrorUpsert("g@ex.co", [
+            {
+              path: "Atoms/Peri.md",
+              title: "Nichita likes periwinkle",
+              body: "Nichita likes the color ([[Nichita]]).",
+              links: [],
+            },
+            {
+              path: "Atoms/Other.md",
+              title: "Other Nichita note",
+              body: "Also about [[Nichita]].",
+            },
+          ]);
+          const atom = await store.mirrorFetch("g@ex.co", "Nichita likes periwinkle");
+          assert.ok(atom.links.some((l) => l.note === "Nichita"));
+          const n = await store.mirrorNeighbors("g@ex.co", "Nichita");
+          assert.equal(n.found, false);
+          assert.ok(n.backlinks.length >= 2);
+          assert.ok(n.backlinks.every((b) => b.direction === "in"));
+        });
+      });
+
+      it("tag filter on search", async () => {
+        await withStore(mode, async (store) => {
+          await seedAccount(store, "t@ex.co");
+          await store.mirrorUpsert("t@ex.co", [
+            {
+              path: "Atoms/A.md",
+              title: "Alpha decision",
+              body: "x",
+              tags: ["decision"],
+            },
+            {
+              path: "Atoms/B.md",
+              title: "Alpha person",
+              body: "x",
+              tags: ["person"],
+            },
+          ]);
+          const hits = await store.mirrorSearch("t@ex.co", "Alpha", 8, {
+            tags: ["person"],
+          });
+          assert.equal(hits.length, 1);
+          assert.equal(hits[0].title, "Alpha person");
         });
       });
 

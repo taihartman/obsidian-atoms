@@ -30,7 +30,10 @@ export function prepareMirrorRow(email, atom) {
   const title = String(atom.title || path.replace(/\.md$/i, "")).trim();
   const body = String(atom.body ?? "");
   const tags = Array.isArray(atom.tags) ? atom.tags.map(String) : [];
-  const links = Array.isArray(atom.links) ? atom.links : [];
+  const links = mergeLinksFromBody(
+    Array.isArray(atom.links) ? atom.links : [],
+    body,
+  );
   const tagsJson = JSON.stringify(tags);
   const linksJson = JSON.stringify(links);
   const hash = contentHash([title, body, tagsJson, linksJson]);
@@ -47,10 +50,52 @@ export function prepareMirrorRow(email, atom) {
   };
 }
 
+/** Unique [[wikilink]] targets; alias/heading stripped. */
+export function extractWikilinks(text) {
+  const out = [];
+  const seen = new Set();
+  const re = /\[\[([^\]|#]+)(?:[|#][^\]]*)?\]\]/g;
+  let m;
+  while ((m = re.exec(text || "")) !== null) {
+    const note = String(m[1] || "").trim();
+    if (!note) continue;
+    const key = note.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(note);
+  }
+  return out;
+}
+
+/**
+ * Merge stored links with wikilinks parsed from body (fills empty links[]).
+ * @param {{ note: string, reason?: string }[]} links
+ * @param {string} body
+ */
+export function mergeLinksFromBody(links, body) {
+  const base = Array.isArray(links) ? [...links] : [];
+  const have = new Set(
+    base.map((l) => String(l?.note || "").trim().toLowerCase()).filter(Boolean),
+  );
+  for (const note of extractWikilinks(body)) {
+    const k = note.toLowerCase();
+    if (have.has(k)) continue;
+    have.add(k);
+    base.push({ note });
+  }
+  return base;
+}
+
 export function rowToPublicAtom(row, { includeBody = true } = {}) {
   if (!row) return null;
   const tags = safeJson(row.tags_json ?? row.tagsJson, []);
-  const links = safeJson(row.links_json ?? row.linksJson, []);
+  let links = safeJson(row.links_json ?? row.linksJson, []);
+  const enc = row.body_enc ?? row.bodyEnc ?? row.body_text ?? row.bodyText ?? "";
+  let text;
+  if (includeBody) {
+    text = decryptMirrorField(enc);
+    links = mergeLinksFromBody(links, text);
+  }
   const out = {
     id: row.atom_id ?? row.atomId,
     title: row.title,
@@ -60,10 +105,7 @@ export function rowToPublicAtom(row, { includeBody = true } = {}) {
     contentHash: row.content_hash ?? row.contentHash,
     updatedAt: iso(row.updated_at ?? row.updatedAt),
   };
-  if (includeBody) {
-    const enc = row.body_enc ?? row.bodyEnc ?? row.body_text ?? row.bodyText ?? "";
-    out.text = decryptMirrorField(enc);
-  }
+  if (includeBody) out.text = text;
   return out;
 }
 
@@ -83,7 +125,8 @@ function iso(v) {
 }
 
 /**
- * Score candidate for search (higher = better). Title hits beat body.
+ * Score candidate for search (higher = better).
+ * Exact title > title prefix > title contains (earlier better) > tags > body TF.
  * @param {{ title: string, path: string, tags: string[], body: string }} doc
  * @param {string} query
  */
@@ -95,23 +138,58 @@ export function scoreSearch(doc, query) {
   const tags = (doc.tags || []).map((t) => String(t).toLowerCase());
   const body = (doc.body || "").toLowerCase();
   let score = 0;
-  if (title === q) score += 100;
-  else if (title.includes(q)) score += 50;
-  if (path.includes(q)) score += 20;
+
+  if (title === q) score += 1000;
+  else if (title.startsWith(q)) score += 400;
+  else {
+    const ti = title.indexOf(q);
+    if (ti >= 0) score += 200 - Math.min(ti, 100);
+  }
+
+  if (path.includes(q)) score += 30;
+
   for (const t of tags) {
-    if (t === q) score += 40;
-    else if (t.includes(q)) score += 15;
+    if (t === q) score += 150;
+    else if (t.includes(q)) score += 40;
   }
-  if (body.includes(q)) score += 10;
-  const words = q.split(/\s+/).filter(Boolean);
-  if (words.length > 1) {
-    let allInBody = true;
-    for (const w of words) {
-      if (!body.includes(w) && !title.includes(w)) allInBody = false;
+
+  // Body: occurrence count (capped) + early position bonus
+  if (body.includes(q)) {
+    let count = 0;
+    let from = 0;
+    let first = -1;
+    while (count < 20) {
+      const i = body.indexOf(q, from);
+      if (i < 0) break;
+      if (first < 0) first = i;
+      count += 1;
+      from = i + q.length;
     }
-    if (allInBody) score += 5;
+    score += 20 + count * 8;
+    if (first >= 0 && first < 200) score += 15;
   }
+
+  const words = q.split(/\s+/).filter((w) => w.length > 1);
+  if (words.length > 1) {
+    let hit = 0;
+    for (const w of words) {
+      if (title.includes(w)) hit += 2;
+      else if (body.includes(w)) hit += 1;
+    }
+    score += hit * 12;
+  }
+
   return score;
+}
+
+/**
+ * @param {string[]} tags
+ * @param {string[] | undefined} filterTags
+ */
+export function matchesTagFilter(tags, filterTags) {
+  if (!filterTags?.length) return true;
+  const have = new Set((tags || []).map((t) => String(t).toLowerCase()));
+  return filterTags.every((t) => have.has(String(t).toLowerCase()));
 }
 
 /**

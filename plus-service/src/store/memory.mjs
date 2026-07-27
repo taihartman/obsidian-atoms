@@ -12,6 +12,8 @@ import {
 } from "./shared.mjs";
 import {
   makeSnippet,
+  matchesTagFilter,
+  mergeLinksFromBody,
   normEmail,
   prepareMirrorRow,
   rowToPublicAtom,
@@ -294,14 +296,16 @@ export function createMemoryStore() {
     return null;
   }
 
-  function mirrorSearch(email, query, limit = 8) {
+  function mirrorSearch(email, query, limit = 8, opts = {}) {
     const e = normEmail(email);
     const bucket = atomMirror.get(e);
     if (!bucket) return [];
     const lim = Math.min(Math.max(Number(limit) || 8, 1), 25);
+    const tagFilter = opts.tags;
     const scored = [];
     for (const row of bucket.values()) {
       const pub = rowToPublicAtom(row, { includeBody: true });
+      if (!matchesTagFilter(pub.tags, tagFilter)) continue;
       const s = scoreSearch(
         { title: pub.title, path: pub.path, tags: pub.tags, body: pub.text },
         query,
@@ -314,6 +318,7 @@ export function createMemoryStore() {
             title: pub.title,
             path: pub.path,
             tags: pub.tags,
+            score: s,
             snippet: makeSnippet(pub.text, query),
           },
         });
@@ -321,6 +326,50 @@ export function createMemoryStore() {
     }
     scored.sort((a, b) => b.score - a.score || a.hit.title.localeCompare(b.hit.title));
     return scored.slice(0, lim).map((x) => x.hit);
+  }
+
+  /** Outgoing links + atoms that link to this title (backlinks). */
+  function mirrorNeighbors(email, idOrTitle) {
+    const e = normEmail(email);
+    const bucket = atomMirror.get(e);
+    if (!bucket) return null;
+    const center = mirrorFetch(email, idOrTitle);
+    // Even without a hub note, treat query string as the join key for backlinks
+    const keyTitle = center?.title || String(idOrTitle || "").trim();
+    if (!keyTitle) return null;
+    const keyLower = keyTitle.toLowerCase();
+    const outgoing = center
+      ? mergeLinksFromBody(center.links || [], center.text || []).map((l) => ({
+          title: l.note,
+          reason: l.reason || null,
+          direction: "out",
+        }))
+      : [];
+    const backlinks = [];
+    for (const row of bucket.values()) {
+      const pub = rowToPublicAtom(row, { includeBody: true });
+      if (pub.title.toLowerCase() === keyLower) continue;
+      const links = mergeLinksFromBody(pub.links || [], pub.text || "");
+      for (const l of links) {
+        if (String(l.note || "").toLowerCase() === keyLower) {
+          backlinks.push({
+            title: pub.title,
+            path: pub.path,
+            reason: l.reason || null,
+            direction: "in",
+            snippet: makeSnippet(pub.text, keyTitle, 160),
+          });
+          break;
+        }
+      }
+    }
+    return {
+      title: keyTitle,
+      path: center?.path || null,
+      found: Boolean(center),
+      outgoing,
+      backlinks,
+    };
   }
 
   function mirrorWipe(email) {
@@ -527,6 +576,7 @@ export function createMemoryStore() {
     mirrorUpsert,
     mirrorFetch,
     mirrorSearch,
+    mirrorNeighbors,
     mirrorWipe,
     mirrorStatus,
     mcpCreatePending,

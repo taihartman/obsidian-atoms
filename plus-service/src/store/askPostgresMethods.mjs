@@ -4,6 +4,8 @@
 import { hashToken, id } from "./shared.mjs";
 import {
   makeSnippet,
+  matchesTagFilter,
+  mergeLinksFromBody,
   normEmail,
   prepareMirrorRow,
   rowToPublicAtom,
@@ -137,16 +139,18 @@ export function createAskPostgresMethods(pool, deps) {
     return null;
   }
 
-  async function mirrorSearch(email, query, limit = 8) {
+  async function mirrorSearch(email, query, limit = 8, opts = {}) {
     const e = normEmail(email);
     const lim = Math.min(Math.max(Number(limit) || 8, 1), 25);
     const { rows } = await pool.query(
       "SELECT * FROM atom_mirror WHERE email = $1",
       [e],
     );
+    const tagFilter = opts.tags;
     const scored = [];
     for (const r of rows) {
       const pub = rowToPublicAtom(r, { includeBody: true });
+      if (!matchesTagFilter(pub.tags, tagFilter)) continue;
       const s = scoreSearch(
         { title: pub.title, path: pub.path, tags: pub.tags, body: pub.text },
         query,
@@ -159,6 +163,7 @@ export function createAskPostgresMethods(pool, deps) {
             title: pub.title,
             path: pub.path,
             tags: pub.tags,
+            score: s,
             snippet: makeSnippet(pub.text, query),
           },
         });
@@ -166,6 +171,50 @@ export function createAskPostgresMethods(pool, deps) {
     }
     scored.sort((a, b) => b.score - a.score || a.hit.title.localeCompare(b.hit.title));
     return scored.slice(0, lim).map((x) => x.hit);
+  }
+
+  async function mirrorNeighbors(email, idOrTitle) {
+    const center = await mirrorFetch(email, idOrTitle);
+    const keyTitle = center?.title || String(idOrTitle || "").trim();
+    if (!keyTitle) return null;
+    const keyLower = keyTitle.toLowerCase();
+    const e = normEmail(email);
+    const outgoing = center
+      ? mergeLinksFromBody(center.links || [], center.text || []).map((l) => ({
+          title: l.note,
+          reason: l.reason || null,
+          direction: "out",
+        }))
+      : [];
+    const { rows } = await pool.query(
+      "SELECT * FROM atom_mirror WHERE email = $1",
+      [e],
+    );
+    const backlinks = [];
+    for (const r of rows) {
+      const pub = rowToPublicAtom(r, { includeBody: true });
+      if (pub.title.toLowerCase() === keyLower) continue;
+      const links = mergeLinksFromBody(pub.links || [], pub.text || []);
+      for (const l of links) {
+        if (String(l.note || "").toLowerCase() === keyLower) {
+          backlinks.push({
+            title: pub.title,
+            path: pub.path,
+            reason: l.reason || null,
+            direction: "in",
+            snippet: makeSnippet(pub.text, keyTitle, 160),
+          });
+          break;
+        }
+      }
+    }
+    return {
+      title: keyTitle,
+      path: center?.path || null,
+      found: Boolean(center),
+      outgoing,
+      backlinks,
+    };
   }
 
   async function mcpRevokeForEmail(email) {
@@ -416,6 +465,7 @@ export function createAskPostgresMethods(pool, deps) {
     mirrorUpsert,
     mirrorFetch,
     mirrorSearch,
+    mirrorNeighbors,
     mirrorWipe,
     mirrorStatus,
     mcpCreatePending,
