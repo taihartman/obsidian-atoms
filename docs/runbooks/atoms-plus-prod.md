@@ -73,7 +73,8 @@ fly secrets set -a atoms-plus \
   STRIPE_PRICE_TOPUP=… \
   ANTHROPIC_API_KEY=… \
   RESEND_API_KEY=… \
-  ATOMS_PLUS_EMAIL_FROM='Atoms Plus <plus@tryatoms.app>'
+  ATOMS_PLUS_EMAIL_FROM='Atoms Plus <plus@tryatoms.app>' \
+  ATOMS_ASK_MIRROR_KEY="$(openssl rand -hex 32)"
 
 # Deploy (build context = repo root)
 fly deploy -a atoms-plus -c plus-service/fly.toml \
@@ -103,13 +104,31 @@ Settings → Atoms Plus → confirm session after magic link / Checkout → **Re
 ## Verify
 
 ```bash
-curl -sS https://plus.tryatoms.app/health
+curl -sS https://plus.taihartman.com/health
 # {"ok":true,"service":"atoms-plus"}
+
+# Ask / MCP (after deploy with ATOMS_ASK_MIRROR_KEY)
+curl -sS -o /dev/null -w "%{http_code}\n" -X POST https://plus.taihartman.com/mcp \
+  -H 'content-type: application/json' -d '{}'
+# expect 401
+curl -sS https://plus.taihartman.com/.well-known/oauth-protected-resource | head -c 200
+curl -sS https://plus.taihartman.com/.well-known/oauth-authorization-server | head -c 200
 
 cd plus-service && npm test
 # Optional live Postgres meter suite:
 # DATABASE_URL=… PLUS_METER_PG=1 npm test
 ```
+
+### Ask (remote MCP)
+
+| Item | Value |
+|------|--------|
+| MCP URL | `https://plus.taihartman.com/mcp` (or `PUBLIC_BASE_URL/mcp`) |
+| OAuth authorize | `/oauth/authorize` |
+| Claude callback | `https://claude.ai/api/mcp/auth_callback` |
+| Secret | `ATOMS_ASK_MIRROR_KEY` (AES-GCM at rest; rotate = re-encrypt not automated) |
+
+Claude: Settings → Connectors → Add custom connector → paste MCP URL → complete magic-link OAuth in browser.
 
 Security checklist: `docs/qa/2026-07-22-atoms-plus-meter-security-review.md`
 

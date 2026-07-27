@@ -28,6 +28,10 @@ import { sendMagicLinkEmail } from "./email.mjs";
 import { checkRateLimit, clientIp } from "./ratelimit.mjs";
 import { handleMirrorRoutes } from "./mirror/http.mjs";
 import { handleMcpRequest } from "./mcp/handler.mjs";
+import {
+  handleOauthRoutes,
+  maybeFinishOauthAfterExchange,
+} from "./oauth/routes.mjs";
 
 try {
   assertProductionReady();
@@ -205,18 +209,26 @@ async function handler(req, res) {
       if (!allowDevExchange()) {
         return json(res, 404, { message: "Not found" });
       }
-      return renderExchangeHtml(
-        res,
-        await store.exchangeMagic(url.searchParams.get("token") || ""),
+      const out = await store.exchangeMagic(
+        url.searchParams.get("token") || "",
       );
+      const pending = url.searchParams.get("pending") || "";
+      if (await maybeFinishOauthAfterExchange(res, store, out, pending)) {
+        return;
+      }
+      return renderExchangeHtml(res, out);
     }
 
     // GET /v1/auth/exchange?token= — email magic-link landing (browser)
     if (req.method === "GET" && path === "/v1/auth/exchange") {
-      return renderExchangeHtml(
-        res,
-        await store.exchangeMagic(url.searchParams.get("token") || ""),
+      const out = await store.exchangeMagic(
+        url.searchParams.get("token") || "",
       );
+      const pending = url.searchParams.get("pending") || "";
+      if (await maybeFinishOauthAfterExchange(res, store, out, pending)) {
+        return;
+      }
+      return renderExchangeHtml(res, out);
     }
 
     // POST /v1/auth/exchange — plugin in-app exchange
@@ -349,6 +361,21 @@ async function handler(req, res) {
         const msg = err instanceof Error ? err.message : "Portal failed";
         return json(res, 502, { message: msg });
       }
+    }
+
+    // OAuth AS + well-known (Ask / Claude connectors)
+    if (
+      await handleOauthRoutes({
+        req,
+        res,
+        path,
+        url,
+        store,
+        readRawBody,
+        readBody,
+      })
+    ) {
+      return;
     }
 
     // Remote MCP (Streamable HTTP)

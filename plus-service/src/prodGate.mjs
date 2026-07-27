@@ -85,6 +85,10 @@ export function checkProductionReady() {
       !base.startsWith("https://"),
     "PUBLIC_BASE_URL must use https in production",
   );
+  need(
+    !config.askMirrorKey,
+    "ATOMS_ASK_MIRROR_KEY required in production (Ask atom mirror encryption)",
+  );
 
   return errors.length ? { ok: false, errors } : { ok: true, errors: [] };
 }

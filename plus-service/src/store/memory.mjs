@@ -42,6 +42,8 @@ export function createMemoryStore() {
   const mcpRefresh = new Map();
   /** client_id → client */
   const mcpClients = new Map();
+  /** browser session id → { email, exp } */
+  const mcpBrowserSessions = new Map();
 
   const sessionTtlMs = () => config.sessionTtlDays * 24 * 60 * 60 * 1000;
 
@@ -344,6 +346,36 @@ export function createMemoryStore() {
     mcpPending.delete(pendingId);
   }
 
+  function mcpUpdatePending(pendingId, patch) {
+    const row = mcpPending.get(pendingId);
+    if (!row) return null;
+    if (Date.now() > row.exp) {
+      mcpPending.delete(pendingId);
+      return null;
+    }
+    Object.assign(row, patch);
+    return row;
+  }
+
+  function mcpCreateBrowserSession(email) {
+    const sid = id("obs");
+    mcpBrowserSessions.set(sid, {
+      email: normEmail(email),
+      exp: Date.now() + 15 * 60 * 1000,
+    });
+    return sid;
+  }
+
+  function mcpGetBrowserSession(sid) {
+    if (!sid) return null;
+    const row = mcpBrowserSessions.get(sid);
+    if (!row || Date.now() > row.exp) {
+      if (row) mcpBrowserSessions.delete(sid);
+      return null;
+    }
+    return row;
+  }
+
   function mcpCreateAuthCode(fields) {
     const code = id("ac");
     mcpAuthCodes.set(hashToken(code), {
@@ -478,6 +510,9 @@ export function createMemoryStore() {
     mcpCreatePending,
     mcpGetPending,
     mcpDeletePending,
+    mcpUpdatePending,
+    mcpCreateBrowserSession,
+    mcpGetBrowserSession,
     mcpCreateAuthCode,
     mcpExchangeCode: mcpExchangeCodeSync,
     mcpRefreshTokens,

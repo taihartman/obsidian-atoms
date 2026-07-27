@@ -66,6 +66,11 @@ CREATE TABLE IF NOT EXISTS mcp_oauth_clients (
   client_name TEXT,
   token_endpoint_auth_method TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS mcp_browser_sessions (
+  session_id TEXT PRIMARY KEY,
+  email TEXT NOT NULL,
+  exp_ms BIGINT NOT NULL
+);
 `;
 
 /**
@@ -223,6 +228,47 @@ export function createAskPostgresMethods(pool, deps) {
     ]);
   }
 
+  async function mcpUpdatePending(pendingId, patch) {
+    const row = await mcpGetPending(pendingId);
+    if (!row) return null;
+    const next = { ...row, ...patch };
+    delete next.pendingId;
+    delete next.exp;
+    await pool.query(
+      "UPDATE mcp_oauth_pending SET payload_json = $1 WHERE pending_id = $2",
+      [JSON.stringify(next), pendingId],
+    );
+    return mcpGetPending(pendingId);
+  }
+
+  async function mcpCreateBrowserSession(email) {
+    const sid = id("obs");
+    await pool.query(
+      "INSERT INTO mcp_browser_sessions (session_id, email, exp_ms) VALUES ($1,$2,$3)",
+      [sid, normEmail(email), Date.now() + 15 * 60 * 1000],
+    );
+    return sid;
+  }
+
+  async function mcpGetBrowserSession(sid) {
+    if (!sid) return null;
+    const { rows } = await pool.query(
+      "SELECT * FROM mcp_browser_sessions WHERE session_id = $1",
+      [sid],
+    );
+    const r = rows[0];
+    if (!r || Date.now() > Number(r.exp_ms)) {
+      if (r) {
+        await pool.query(
+          "DELETE FROM mcp_browser_sessions WHERE session_id = $1",
+          [sid],
+        );
+      }
+      return null;
+    }
+    return { email: r.email, exp: Number(r.exp_ms) };
+  }
+
   async function mcpCreateAuthCode(fields) {
     const code = id("ac");
     await pool.query(
@@ -375,6 +421,9 @@ export function createAskPostgresMethods(pool, deps) {
     mcpCreatePending,
     mcpGetPending,
     mcpDeletePending,
+    mcpUpdatePending,
+    mcpCreateBrowserSession,
+    mcpGetBrowserSession,
     mcpCreateAuthCode,
     mcpExchangeCode,
     mcpRefreshTokens,

@@ -415,6 +415,77 @@ export async function signOutPlus(
   return { ok: true };
 }
 
+export async function askMirrorUpsert(
+  cfg: PlusClientConfig,
+  sessionToken: string,
+  atoms: Array<{
+    path: string;
+    title: string;
+    body: string;
+    tags?: string[];
+    links?: { note: string; reason?: string }[];
+  }>,
+): Promise<{ ok: true; count: number; upserted: number } | PlusApiError> {
+  const res = await plusRequest(cfg, {
+    path: "/v1/ask/mirror/upsert",
+    method: "POST",
+    sessionToken,
+    body: { atoms },
+  });
+  if (!res.ok) return res;
+  if (res.status < 200 || res.status >= 300) {
+    return mapError(res.status, res.json);
+  }
+  const count = typeof res.json.count === "number" ? res.json.count : 0;
+  const upserted =
+    typeof res.json.upserted === "number" ? res.json.upserted : 0;
+  return { ok: true, count, upserted };
+}
+
+export async function askMirrorWipe(
+  cfg: PlusClientConfig,
+  sessionToken: string,
+): Promise<{ ok: true } | PlusApiError> {
+  const res = await plusRequest(cfg, {
+    path: "/v1/ask/mirror/wipe",
+    method: "POST",
+    sessionToken,
+    body: {},
+  });
+  if (!res.ok) return res;
+  if (res.status < 200 || res.status >= 300) {
+    return mapError(res.status, res.json);
+  }
+  return { ok: true };
+}
+
+export async function askMirrorStatus(
+  cfg: PlusClientConfig,
+  sessionToken: string,
+): Promise<{ ok: true; count: number; updatedAt: string | null } | PlusApiError> {
+  const res = await plusRequest(cfg, {
+    path: "/v1/ask/mirror/status",
+    method: "GET",
+    sessionToken,
+  });
+  if (!res.ok) return res;
+  if (res.status < 200 || res.status >= 300) {
+    return mapError(res.status, res.json);
+  }
+  return {
+    ok: true,
+    count: typeof res.json.count === "number" ? res.json.count : 0,
+    updatedAt:
+      typeof res.json.updatedAt === "string" ? res.json.updatedAt : null,
+  };
+}
+
 /** Default production base — override in settings for dogfood. */
 /** Public Plus API. Override only for local dogfood via settings. */
 export const DEFAULT_PLUS_BASE_URL = "https://plus.taihartman.com";
+
+/** Claude custom connector MCP URL for this Plus host. */
+export function askMcpUrl(plusBaseUrl: string): string {
+  const base = (plusBaseUrl || DEFAULT_PLUS_BASE_URL).replace(/\/$/, "");
+  return `${base}/mcp`;
+}

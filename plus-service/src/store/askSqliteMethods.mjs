@@ -66,6 +66,11 @@ CREATE TABLE IF NOT EXISTS mcp_oauth_clients (
   client_name TEXT,
   token_endpoint_auth_method TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS mcp_browser_sessions (
+  session_id TEXT PRIMARY KEY,
+  email TEXT NOT NULL,
+  exp_ms INTEGER NOT NULL
+);
 `;
 
 /**
@@ -217,6 +222,42 @@ export function createAskSqliteMethods(db, deps) {
     );
   }
 
+  function mcpUpdatePending(pendingId, patch) {
+    const row = mcpGetPending(pendingId);
+    if (!row) return null;
+    const next = { ...row, ...patch };
+    delete next.pendingId;
+    delete next.exp;
+    db.prepare(
+      "UPDATE mcp_oauth_pending SET payload_json = ? WHERE pending_id = ?",
+    ).run(JSON.stringify(next), pendingId);
+    return mcpGetPending(pendingId);
+  }
+
+  function mcpCreateBrowserSession(email) {
+    const sid = id("obs");
+    db.prepare(
+      "INSERT INTO mcp_browser_sessions (session_id, email, exp_ms) VALUES (?, ?, ?)",
+    ).run(sid, normEmail(email), Date.now() + 15 * 60 * 1000);
+    return sid;
+  }
+
+  function mcpGetBrowserSession(sid) {
+    if (!sid) return null;
+    const r = db
+      .prepare("SELECT * FROM mcp_browser_sessions WHERE session_id = ?")
+      .get(sid);
+    if (!r || Date.now() > r.exp_ms) {
+      if (r) {
+        db.prepare("DELETE FROM mcp_browser_sessions WHERE session_id = ?").run(
+          sid,
+        );
+      }
+      return null;
+    }
+    return { email: r.email, exp: r.exp_ms };
+  }
+
   function mcpCreateAuthCode(fields) {
     const code = id("ac");
     db.prepare(
@@ -358,6 +399,9 @@ export function createAskSqliteMethods(db, deps) {
     mcpCreatePending,
     mcpGetPending,
     mcpDeletePending,
+    mcpUpdatePending,
+    mcpCreateBrowserSession,
+    mcpGetBrowserSession,
     mcpCreateAuthCode,
     mcpExchangeCode,
     mcpRefreshTokens,

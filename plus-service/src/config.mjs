@@ -174,4 +174,15 @@ export const config = {
   get magicLinkFrom() {
     return env("ATOMS_PLUS_EMAIL_FROM", "Atoms Plus <plus@tryatoms.app>");
   },
+  /**
+   * AES-256-GCM key for atom mirror at rest (64 hex chars or passphrase).
+   * Required in production when Ask mirror is used (prodGate).
+   */
+  get askMirrorKey() {
+    return env("ATOMS_ASK_MIRROR_KEY");
+  },
+  /** Canonical MCP resource URL (no trailing slash). */
+  get mcpResourceUrl() {
+    return `${this.publicBaseUrl.replace(/\/$/, "")}/mcp`;
+  },
 };
