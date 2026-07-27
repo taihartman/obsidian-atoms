@@ -10,6 +10,7 @@ artifact_contract: ce-unified-plan/v1
 artifact_readiness: implementation-ready
 product_contract_source: ce-plan-bootstrap
 doc_review: 2026-07-27
+doc_review_resolved: 2026-07-27
 deepened: null
 ---
 
@@ -17,35 +18,39 @@ deepened: null
 
 ## Goal Capsule
 
-Ship the **stranger-grade** Plus signup path: **email in plugin → soft device session → Stripe trial (card) → return to Obsidian → Process**, without pasting `sess_` on the happy path. Mobile-first (refresh-on-resume). Magic link only for restore / second device.
+Ship the **stranger-grade** Plus signup path: **email in plugin → soft device session → Stripe trial (card) → return to Obsidian → Process**, without pasting `sess_` on the happy path. Mobile-first (refresh-on-resume + onload poll). Magic link only for restore / second device / already-entitled sign-in.
 
 **Authority:** origin design `docs/plans/2026-07-27-001-design-atoms-plus-stripe-first-onboarding.md` wins on UX. Backend meter/security KTDs from `docs/plans/2026-07-22-001-feat-atoms-plus-production-backend-meter-security-plan.md` remain (fail-closed, webhook grants, no dogfood in prod). Pricing SSOT: `plus-pricing.json`.
 
-**Stop when:** success criteria in origin design §11 pass on test_vault (+ human phone smoke). Do not expand into IAP, MCP, or promo redesign.
+**Stop when:** success criteria in origin design §11 pass on test_vault (+ human phone smoke), except Privacy/Terms URLs may be placeholders until human hosts pages (see R-PRIVACY). Do not expand into IAP, MCP, or promo redesign.
+
+**Doc-review (2026-07-27):** P0/P1 auto-resolved into KTDs + units below (session mint gate, returning user, webhook matrix, resume extract, checkout RL, exchange HTML, risks).
 
 ---
 
 ## Product Contract
 
-**Product Contract preservation:** carries origin design decisions A/A1/E2/X2/H3/D1–D2; no re-pricing; BYOK forever.
+**Product Contract preservation:** carries origin design decisions A/A1/E2/X2/H3/D1–D2; no re-pricing; BYOK forever. **Added from review:** R-RETURN, R-SESS (session mint security).
 
 ### Requirements
 
 | ID | Requirement |
 |----|-------------|
-| R-START | Email → Continue creates **soft account** (`inactive`, remaining 0) + device `sess_` before Checkout |
-| R-TRIAL | Primary CTA opens Stripe Checkout `start_trial` (card + `trial_period_days` from pricing SSOT) |
-| R-LOCK | Checkout email **locked** to session account; webhook grants **only** that email |
+| R-START | Email → **Start free trial** creates **soft account** (`inactive`, remaining 0) + device `sess_` **only if** account is new/inactive and not already entitled |
+| R-RETURN | If email already `active`\|`trialing`\|`exhausted` (or has `stripeCustomerId`): **do not** mint session via start; **do not** open `start_trial` Checkout — offer **Send sign-in link** (magic) only |
+| R-TRIAL | Primary CTA opens Stripe Checkout `start_trial` (card + `trial_period_days` from pricing SSOT) when soft-start succeeded |
+| R-LOCK | Checkout email bound to session account; webhook grants **only** server-set `metadata.email` / `client_reference_id` |
 | R-GRANT | Filings only after successful Checkout webhook (not on soft start) |
-| R-RESUME | While `awaitingCheckout`, on focus/resume auto `GET /v1/me` with short poll; no paste required |
+| R-RESUME | While `awaitingCheckout` (persisted LS): on **onload/layoutReady**, visibility/focus, and bounded interval → `GET /v1/me`; no paste required |
 | R-HOME | Home **Try Atoms Plus** and Settings both enter the same flow |
-| R-FINISH | Abandoned Checkout → **Finish trial setup** (reuse session + Checkout) |
-| R-DEVICE2 | Second device / lost session → magic link only (no second charge) |
-| R-KILL | Remove dogfood labels; paste-`sess_` is power-user/fallback only (collapsed or gone from primary UI) |
-| R-PORTAL | Settings **Manage billing** → Customer Portal when `stripeCustomerId` exists |
-| R-PRIVACY | Privacy + Terms links + existing Anthropic disclosure near trial CTA |
-| R-ABUSE | Rate-limit soft-start + magic-link (IP + email); soft account cannot classify |
-| R-IAP | Web Stripe only (plugin in host Obsidian); no native IAP this plan |
+| R-FINISH | Abandoned Checkout → **Finish trial setup** whenever token + inactive (flag optional) |
+| R-DEVICE2 | Second device / lost session / entitled restore → magic link only (no second charge; no start mint) |
+| R-SESS | Unauthenticated start **never** returns a usable `sess_` for already-entitled accounts |
+| R-KILL | Remove dogfood labels; paste-`sess_` collapsed Advanced only; remove Advanced paste in next minor after AE1 phone green (follow-up issue) |
+| R-PORTAL | Settings **Manage billing** → Customer Portal when customer exists |
+| R-PRIVACY | Privacy + Terms link **slots** + Anthropic disclosure near trial CTA; **public launch** of this UX requires non-placeholder URLs or explicit human waiver |
+| R-ABUSE | RL soft-start + magic-link + **checkout** (IP + email/session); soft account cannot classify; start budgets below |
+| R-IAP | Web Stripe only; no native IAP this plan |
 
 ### Actors
 
@@ -53,9 +58,9 @@ Ship the **stranger-grade** Plus signup path: **email in plugin → soft device 
 |----|--------|
 | A-NEW | New user, no BYOK, wants Plus |
 | A-MOBILE | iOS/Android Obsidian (primary) |
-| A-DESKTOP | Desktop Obsidian (same spine; optional deep link polish) |
-| A-RETURN | User with paid/trial entitlement, new device |
-| A-BYOK | User with own key (Plus preferred when entitled) |
+| A-DESKTOP | Desktop Obsidian (same spine) |
+| A-RETURN | User with paid/trial entitlement, new device or reinstall |
+| A-BYOK | User with own key — Process stays BYOK while Plus inactive/setup; Plus preferred when entitled |
 
 ### Key flows
 
@@ -63,32 +68,38 @@ Ship the **stranger-grade** Plus signup path: **email in plugin → soft device 
 |----|------|
 | F1 | Happy: Try Plus → email → Checkout → resume → Process |
 | F2 | Abandon Checkout → Finish setup → complete pay → Process |
-| F3 | Second device magic link → Process (shared meter) |
-| F4 | Exhausted → Get More top-up (existing; keep) |
+| F3 | Second device / entitled restore: magic link → Process |
+| F4 | Exhausted → Get More top-up (existing) |
 | F5 | Manage / cancel via Portal |
+| F6 | Already subscribed + Start free trial email → magic-link prompt, no Checkout |
 
 ### Acceptance examples
 
 | ID | Example |
 |----|---------|
 | AE1 | Phone: complete trial without ever seeing “paste sess_” |
-| AE2 | Soft session alone: Process does not file (inactive) |
-| AE3 | Stripe email edited away from plugin email: **no** grant to wrong account (fail closed or force plugin email) |
-| AE4 | Two rapid soft-starts same email: rate-limited or idempotent session refresh |
-| AE5 | After pay, kill Safari and reopen Obsidian: status becomes trialing within poll window |
+| AE2 | Soft session alone: Process does not file (inactive); BYOK still works if key present |
+| AE3 | Stripe `customer_details.email` ≠ metadata email: **no** grant; event claimed; user sees “checkout email must match” |
+| AE4 | Burst soft-starts: HTTP 429 after budget (e.g. 5/email/hour, 20/IP/hour) |
+| AE5 | After pay, kill Safari, cold-start Obsidian: onload poll → trialing without paste |
+| AE6 | `POST /v1/auth/start` for entitled email: **no** `sess_` in response; client shows magic-link UI |
+| AE7 | Attacker knows victim email: start cannot steal active meter |
 
 ### Scope
 
-**In:** plugin Settings + home CTA wiring, filingAuth soft-session UX, plusClient start API, plus-service `auth/start` + session mint, Stripe email lock + webhook harden, return HTML, resume poll, copy, tests, version bump, QA notes.
+**In:** plugin Settings + home Modal, filingAuth + `awaitingCheckout`, plusClient start + shared refresh, plus-service start/session gate, Stripe webhook harden + checkout RL, return + exchange HTML, resume onload poll, copy, tests, version bump, QA note.
 
-**Out:** Apple/Google IAP; session in vault Sync; password accounts; Checkout-with-zero-pre-session; Ask/MCP (#112); redesign of limit/top-up chrome (keep handoff); live Stripe/Resend ops (#115 secrets) — parallel track.
+**Out:** Apple/Google IAP; session in vault Sync; password accounts; Checkout-with-zero-pre-session; Ask/MCP (#112); limit/top-up chrome redesign; live Stripe/Resend ops (#115); durable shared RL (Redis); disposable-email blocklist; CONCEPTS.md thrash (optional later).
 
 ### Deferred (non-blocking)
 
 - Desktop `obsidian://` deep link polish  
-- Magic-link page that auto-delivers session without any copy (v1: Refresh status OK)  
-- Disposable-email blocklist / CAPTCHA  
-- Hosted Privacy/Terms page content (links can point to placeholders human fills)
+- Magic-link auto-inject session (v1: Refresh OK)  
+- Disposable-email / CAPTCHA  
+- Hosted Privacy/Terms **content** (URLs human-owned)  
+- Shared multi-instance rate limiter  
+- “Sign out all devices” / revoke-others-on-magic (cap sessions only in v1)  
+- Remove Advanced paste (next minor after AE1)  
 
 ---
 
@@ -98,225 +109,191 @@ Ship the **stranger-grade** Plus signup path: **email in plugin → soft device 
 
 | ID | Decision | Rationale |
 |----|----------|-----------|
-| KTD-O1 | `POST /v1/auth/start` `{ email }` → `ensureAccount` + **mint session** (no filings). Idempotent for same email if already inactive. | Soft account without magic token; magic stays restore-only |
-| KTD-O2 | Plugin flag `awaitingCheckout: true` (device-local, next to session) set when Checkout URL opened; cleared when `/v1/me` is active/trialing/exhausted | Drives resume poll without treating inactive as classifiable |
-| KTD-O3 | `resolveFilingAuth`: keep **inactive** from classifying; Settings/home show signed-in-soft UI when **token + inactive** (Finish setup). `awaitingCheckout` drives **resume poll only**, not Finish-setup visibility | Today inactive falls through to BYOK/none — breaks Finish setup unless we special-case UI |
-| KTD-O4 | Stripe Checkout: pass `customer_email` + metadata + `client_reference_id`; prefer Stripe API options that **disable email edit** if available for account mode; webhook resolve order: `metadata.email` → `client_reference_id` **only** (drop free-form customer_details if mismatch) | Origin mismatch rule |
-| KTD-O5 | Resume: `document.visibilitychange` + `window focus` (desktop) + short `registerInterval` while `awaitingCheckout` (3–6 polls / ~30s) calling existing `refreshPlusEntitlement` | No Obsidian “app resume” API; visibility is portable |
-| KTD-O6 | Home `open_plus` opens Settings **or** a small Modal with email field (prefer **Modal** so mobile doesn’t bury CTA in Settings) | Design H3; less friction than settings-only |
-| KTD-O7 | Return page: copy “Switch back to Obsidian — Atoms updates automatically”; link **Send sign-in email** (magic) if lost session; optional desktop deep link later | Mobile-first |
-| KTD-O8 | Rate limit `start:{ip}` and `start:{email}` + existing `ml:{ip}`; add `ml:{email}` | Origin abuse |
-| KTD-O9 | Privacy/Terms: settings keys or constants for URLs (empty → hide link); no fake legal HTML in repo | Human hosts pages |
-| KTD-O10 | Version bump on ship (0.6.x); Release after merge for BRAT | CLAUDE.md versioning |
+| KTD-O1 | `POST /v1/auth/start` `{ email }`: normalize → `ensureAccount`. **Mint session only if** status is `inactive` **and** not entitled (no active/trialing/exhausted; treat `stripeCustomerId` as entitled). Else return **409** (or 200 without session) + `{ needsMagicLink: true, email }` — **never** `sess_`. Account-idempotent; **each successful soft start mints a fresh session** (prior soft sess_ left until TTL; optional oldest revoke if >10 sessions/email). | Soft path without magic; blocks ATO of paid emails |
+| KTD-O2 | `awaitingCheckout` in LS (sibling key or session blob). Set when Checkout URL opened. Clear when: entitlement active/trialing/exhausted; **sign-out / clearPlusSession**; start failure before open; poll cap after final refresh. | Resume without classifying inactive |
+| KTD-O3 | Classify: inactive never Plus-classifies. UI: soft signed-in when **token + inactive**. `awaitingCheckout` = poll only. BYOK: Process uses BYOK while inactive. | Finish setup + BYOK coexistence |
+| KTD-O4 | Checkout: `customer_email` + `metadata.email` + `client_reference_id` = session email. Webhook grant target = `metadata.email` ?? `client_reference_id` only. If `customer_email` or `customer_details.email` present and **normalizes ≠** grant target → **no grant**, log, **claim event** (stop retries). Return/Finish copy: email must match. | AE3 single rule |
+| KTD-O5 | Resume: persist flag; **onload + onLayoutReady** immediate `/v1/me`; then visibility/focus + interval backoff ~30–60s (3–8 polls). Extract **`refreshPlusSession(app, cfg)`** in `plusClient`/`filingAuth` — Settings + resume both call it (do not use private Settings method). Quiet “Updating subscription…” while polling. | Mobile WebView + cold start |
+| KTD-O6 | Shared **Modal** for home + Settings entry (email + Start free trial / Finish / magic). | H3 mobile |
+| KTD-O7 | Return HTML: mobile copy; magic form → existing magic-link API (same RL); **never** embed sess_; generic success. Exchange HTML: restore-first copy; paste last resort. | Kill paste happy path server-side too |
+| KTD-O8 | RL budgets (in-process, best-effort): `start:{email}` ≤5/hour, `start:{ip}` ≤20/hour; `ml:{email}` + `ml:{ip}`; `checkout:{ip}` + `checkout:{session}` ≤10/hour. Document multi-instance residual. | Abuse without Redis |
+| KTD-O9 | Privacy/Terms URL constants; hide if empty; **DoD public** needs real URLs or waiver note in PR. | Legal surface |
+| KTD-O10 | Version bump + BRAT release on merge | CLAUDE.md |
+| KTD-O11 | Checkout `start_trial` if account already active\|trialing → **409** (client should not open). | Server belt for F6 |
+| KTD-O12 | Email squatting residual: card-required + Radar + start-only-if-inactive; support runbook one-liner (cancel/refund). Card ≠ email proof. | Adversarial residual |
 
 ### Patterns to follow
 
-- Session LS: `src/platform/filingAuth.ts` (`atoms-plus-session`)  
-- HTTP client: `src/platform/plusClient.ts` + `plusFetchRequest`  
-- Checkout already session-scoped: `plus-service/src/server.mjs` checkout handler  
+- Session LS: `src/platform/filingAuth.ts`  
+- HTTP: `src/platform/plusClient.ts` + `plusFetchRequest`  
+- Checkout session-scoped: `plus-service/src/server.mjs`  
 - Rate limit: `plus-service/src/ratelimit.mjs`  
-- Offer copy SSOT: `src/home/atomsHomeData.ts` `atomsPlusOfferCopy`  
-- Design chrome: `docs/design-handoff/atoms-plus/`  
+- Offer copy: `src/home/atomsHomeData.ts`  
+- Design: `docs/design-handoff/atoms-plus/`  
 - Security tests: `plus-service/test/security-meter.test.mjs`, `stripe.test.mjs`
 
 ### Assumptions
 
-- Live Stripe + Resend domain may still be incomplete (#115); implement against **test** Stripe + local/prod host; email lock tests don’t need live money.  
-- Hosted Privacy/Terms URLs may be TBD — ship link slots.  
-- IAP out of scope (settled).
+- Implement against test Stripe + current host; #115 live secrets parallel.  
+- Privacy/Terms URLs may ship empty in dev builds.  
+- IAP out of scope.
 
 ### Sequencing
 
-U1 store/session mint → U2 HTTP start + RL + Stripe lock + return HTML → U3 plugin client + filingAuth flag → U4 Settings/Modal UI + kill dogfood → U5 resume poll → U6 home CTA → U7 tests/QA/version → shipping tail.
+U1 → U2 → U3 → U4 → U5 → U6 → U7 → shipping tail.
 
-**Depends on:** plus-service already production-shaped (Postgres, webhook, portal) on master.
-
-**Parallel OK:** #115 ops secrets (human).
+**Depends on:** production-shaped plus-service on master.  
+**Parallel:** #115 ops.
 
 ### Risks
 
 | Risk | Mitigation |
 |------|------------|
-| Soft session confuses BYOK path | KTD-O3: inactive never classifies; UI-only “Plus setup” |
-| Stripe still allows email edit | Fail-closed webhook on mismatch; test in stripe.test.mjs |
-| Mobile never fires visibility | Interval while awaitingCheckout + manual Refresh |
-| Abuse of soft accounts | RL + no filings until webhook |
-| Paste power-users | Keep collapsed “Advanced: paste session” optional one release |
+| Start ATO of entitled email | KTD-O1/O11 + AE6/AE7 tests |
+| Soft session vs BYOK | KTD-O3; inactive never classifies |
+| Stripe email edit | KTD-O4 fail-closed + matrix tests + user copy |
+| Mobile visibility flaky | onload poll + interval + manual Refresh |
+| Soft-account / Stripe spam | KTD-O8 + no filings until webhook |
+| Email squatting (pay as victim) | KTD-O12; support runbook |
+| In-process RL multi-instance | Residual; deferred shared RL |
+| Paste Advanced stays forever | R-KILL exit: remove next minor after AE1 |
+| Mismatch: paid but no grant | Return/Finish copy + claim event + runbook refund |
 
 ---
 
 ## Implementation Units
 
-### U1 — Store: mint session without magic exchange
+### U1 — Store: session mint + entitled gate
 
-**Goal:** Soft account can receive a `sess_` without dogfood grant.
+**Goal:** Soft mint without dogfood; never mint for entitled accounts.
 
-**Files:**  
-- `plus-service/src/store/postgres.mjs`  
-- `plus-service/src/store/sqlite.mjs`  
-- `plus-service/src/store/memory.mjs`  
-- `plus-service/test/store.test.mjs`
-
-**Approach:** Extract `createSession(email)` used by `exchangeMagic` and new start path. `startWithEmail(email)` = normalize → `ensureAccount` → `createSession` → `{ session, account }` with account still inactive/0 remaining when not auto-grant. **Never** call dogfood grant on start.
-
-**Tests:**  
-- start creates inactive remaining 0  
-- second start same email returns new session, still inactive  
-- exchangeMagic still one-time; dogfood grant only when flag on  
-
-**Done when:** store tests green; no classify path changed.
-
----
-
-### U2 — HTTP: `POST /v1/auth/start` + Stripe email harden + return page
-
-**Goal:** Public API for soft start; checkout/webhook mismatch-safe; better return HTML.
-
-**Files:**  
-- `plus-service/src/server.mjs`  
-- `plus-service/src/stripe.mjs`  
-- `plus-service/src/ratelimit.mjs` (if key helpers needed)  
-- `plus-service/test/security-meter.test.mjs`  
-- `plus-service/test/stripe.test.mjs`  
-- `plus-service/test/http-dogfood.test.mjs` (or new `http-onboarding.test.mjs`)
+**Files:** `plus-service/src/store/{postgres,sqlite,memory}.mjs`, `plus-service/test/store.test.mjs`
 
 **Approach:**  
-1. `POST /v1/auth/start` body `{ email }` — validate email, RL `start:{ip}` + `start:{email}`, return same JSON shape as exchange (session + publicAccount).  
-2. Magic-link: also RL `ml:{email}`.  
-3. Webhook email resolution: prefer `metadata.email` / `client_reference_id`; if `customer_details.email` differs, **do not grant** (log).  
-4. Checkout: keep `customer_email` + metadata; document Stripe Dashboard “collect email” settings if API can’t hard-lock.  
-5. `GET /v1/billing/return`: mobile-first copy + optional “Email me a sign-in link” form posting to magic-link.
+- Extract `createSession(email)`.  
+- `startWithEmail(email)`: ensureAccount → if entitled (`active`\|`trialing`\|`exhausted` or `stripeCustomerId`) return `{ ok: false, needsMagicLink: true, account }` **without** session; else createSession → `{ ok: true, session, account }` inactive/0.  
+- Never dogfood-grant on start.  
+- Optional: if sessions for email > 10, revoke oldest on mint.
 
 **Tests:**  
-- start → me shows inactive 0  
-- start → classify rejected  
-- start → checkout kind start_trial returns url (mock Stripe)  
-- webhook mismatch does not grant  
-- RL 429 on start burst  
-- return HTML contains expected strings (light)
+- inactive start → sess_ + remaining 0  
+- second start → new sess_, still inactive  
+- entitled email start → no sess_  
+- exchangeMagic unchanged; dogfood grant only when flag on  
 
-**Done when:** service tests green; prod gate still requires Stripe/Resend.
+**Done when:** store tests green.
 
 ---
 
-### U3 — Plugin client + device “awaiting checkout”
+### U2 — HTTP: start, RL, Stripe lock, return + exchange HTML
 
-**Goal:** Client can start + track payment wait without classifying as Plus-ready.
+**Goal:** Public start API; abuse RL; webhook mismatch matrix; restore HTML.
 
-**Files:**  
-- `src/platform/plusClient.ts`  
-- `src/platform/filingAuth.ts`  
-- `test/plusClient.test.ts`  
-- `test/filingAuth.test.ts`
+**Files:** `plus-service/src/server.mjs`, `stripe.mjs`, `ratelimit.mjs`, tests `security-meter`, `stripe`, new `http-onboarding.test.mjs`
 
 **Approach:**  
-- `startPlusAccount(cfg, email)` → `POST /v1/auth/start` → write session.  
-- Extend local storage: either fold `awaitingCheckout` into serialized session blob or sibling LS key `atoms-plus-awaiting-checkout`.  
-- Helpers: `setAwaitingCheckout`, `clearAwaitingCheckout`, `isAwaitingCheckout`.  
-- `resolveFilingAuth`: unchanged classify rules for inactive; export `hasPlusSetupSession` for UI (token present).
+1. `POST /v1/auth/start` — validate email; RL start budgets; map store result to JSON (session only if ok).  
+2. Magic-link RL `ml:{email}` + ip.  
+3. Checkout RL; `start_trial` → 409 if entitled (KTD-O11).  
+4. Webhook KTD-O4; matrix tests (a–d from review).  
+5. Return HTML + exchange HTML restore copy; magic form → magic-link handler; never embed sess_.  
+6. Mismatch/cancel copy: email must match plugin.
 
-**Tests:**  
-- start client parses session  
-- inactive + token ⇒ not `plusCanClassify`  
-- awaiting flag round-trip  
+**Tests:** AE2/3/4/6/7 server-side; checkout 429; return/exchange string smoke.
 
-**Done when:** unit tests green; no Settings UI yet required.
+**Done when:** service tests green; prod gate intact.
 
 ---
 
-### U4 — Settings + offer Modal UI (kill dogfood)
+### U3 — Plugin client + awaitingCheckout + shared refresh
 
-**Goal:** Primary UX = email → Start free trial; advanced paste optional.
+**Goal:** Client start + flags + `refreshPlusSession` extract.
 
-**Files:**  
-- `src/settings/settings.ts`  
-- `src/home/atomsHomeData.ts` (copy helpers if needed)  
-- optional small modal module under `src/settings/` or `src/home/`  
-- `test/atomsHomeData.test.ts` if copy keys change  
+**Files:** `src/platform/plusClient.ts`, `filingAuth.ts`, `test/plusClient.test.ts`, `test/filingAuth.test.ts`
 
 **Approach:**  
-1. Signed-out Plus section: Email field + single primary **Start free trial** → `startPlusAccount` → `createCheckout(..., "start_trial")` → `window.open` → set awaitingCheckout → Notice “Complete checkout, then return here.” (One primary after email — opens Checkout immediately.)  
-2. Soft signed-in inactive (**token + inactive**, even if not awaitingCheckout): show email + **Finish trial setup** + Sign out.  
-3. Active/trialing: existing quiet status + Manage billing + Refresh + Sign out.  
-4. Remove or collapse dogfood paste/magic under “Sign in on another device” / Advanced.  
-5. Privacy/Terms: `Setting` links if URL constants non-empty.  
-6. Replace dogfood strings.  
-7. Interaction states: disable CTA while in-flight; Notices for invalid email / network / HTTP 429; Checkout open failure; while polling show quiet “Updating subscription…” then ready or timeout + Refresh.
+- `startPlusAccount` → handle needsMagicLink vs session.  
+- LS awaitingCheckout helpers; clear on clearPlusSession.  
+- `refreshPlusSession(app, cfg)` writes entitlement from `getEntitlement`.  
+- `hasPlusSetupSession` for UI; classify rules unchanged for inactive.
 
-**Tests:** prefer pure helpers for button enablement/copy; full DOM optional.
+**Tests:** start parse; entitled/needsMagicLink; inactive !plusCanClassify; awaiting round-trip + clear on sign-out helper.
 
-**Done when:** build + unit tests; manual smoke path documented.
+**Done when:** units green.
 
 ---
 
-### U5 — Resume poll + plugin lifecycle
+### U4 — Settings + Modal UI
 
-**Goal:** Returning from Safari updates entitlement without paste.
+**Goal:** Primary Start free trial; F6 magic branch; kill dogfood primary.
 
-**Files:**  
-- `src/plugin/main.ts` (or small `src/platform/plusResume.ts`)  
-- `src/settings/settings.ts` (`refreshPlusEntitlement` reuse)
+**Files:** `src/settings/settings.ts`, shared modal module, `atomsHomeData.ts` as needed, tests for copy helpers
 
-**Approach:** While `isAwaitingCheckout()`, on `visibilitychange` (visible) and/or interval: call `getEntitlement` / `refreshPlusEntitlement`; on active|trialing|exhausted clear awaiting + Notice “Atoms Plus is ready”. Cap polls. Always keep manual Refresh.
+**Approach:**  
+1. Email + **Start free trial** → start → if needsMagicLink show Send sign-in link UI; else checkout start_trial → open → set awaiting.  
+2. Soft inactive: Finish trial setup + Sign out (uses refreshPlusSession).  
+3. Active: quiet status + portal + refresh + sign out.  
+4. Advanced: paste + magic collapsed.  
+5. Privacy/Terms if URLs set.  
+6. Interaction states (loading, 429, network, Updating subscription…).  
+7. BYOK copy: setup doesn’t remove own key path until entitled.
 
-**Tests:** unit-test poll controller with fake clock if extracted; else light integration via mock.
+**Done when:** build + units; smoke path in QA note.
 
-**Done when:** controller tested; wired once in `onload`.
+---
+
+### U5 — Resume poll lifecycle
+
+**Goal:** Cold start + visibility entitlement refresh.
+
+**Files:** `src/platform/plusResume.ts` (new) or `main.ts`, wire Settings to shared refresh
+
+**Approach:** If awaitingCheckout: immediate refresh on onload/layoutReady; interval + visibility; Notices; clear flag on entitled/sign-out/cap.
+
+**Tests:** poll controller fake clock.
+
+**Done when:** wired once; Settings uses same refresh.
 
 ---
 
 ### U6 — Home CTA
 
-**Goal:** **Try Atoms Plus** starts F1 without hunting Settings.
+**Goal:** Try Atoms Plus → shared Modal (Finish if inactive session).
 
-**Files:**  
-- `src/home/atomsHomeView.ts`  
-- `src/home/atomsHomeData.ts`  
-- `test/atomsHomeData.test.ts`
+**Files:** `atomsHomeView.ts`, `atomsHomeData.ts`, tests
 
-**Approach:** `open_plus` → open email/trial Modal (shared with Settings). If already awaitingCheckout, Modal shows Finish setup. `open_settings` still used for BYOK.
+**Approach:** `open_plus` → Modal; soft inactive shows Finish; BYOK secondary unchanged.
 
-**Tests:** hero still exposes `open_plus`; optional action enum if new action id.
-
-**Done when:** home path reaches same start function as Settings.
+**Done when:** same start function as Settings.
 
 ---
 
-### U7 — Verification, version, docs
+### U7 — Version, QA, runbook one-liner
 
-**Goal:** Ship readiness.
+**Goal:** Ship gate.
 
-**Files:**  
-- `manifest.json`, `package.json`, `versions.json`  
-- `docs/qa/` short note or amend launch checklist onboarding section  
-- `docs/runbooks/atoms-plus-prod.md` one paragraph on start vs magic  
-- optional `CONCEPTS.md` terms: soft account, awaiting checkout  
+**Files:** `manifest.json`, `package.json`, `versions.json`, `docs/qa/` note (onboarding + AE list), optional one paragraph in `docs/runbooks/atoms-plus-prod.md` (start vs magic; mismatch refund)
 
-**Commands:**  
-```bash
-npm test
-npm run build
-cd plus-service && npm test
-```
+**Commands:** `npm test` · `npm run build` · `cd plus-service && npm test`
 
-**Manual (test_vault / phone):** F1–F3 smoke; no Remote Vault.
+**Manual:** phone F1/F2/F3/F6; test_vault only.
 
-**Done when:** version bumped; PR test plan checkboxes real; screenshots optional (Settings/home CTA).
+**Done when:** version bumped; PR checkboxes real; Privacy waiver or URLs noted.
 
 ---
 
 ## Verification Contract
 
-| Layer | Command / action |
-|-------|------------------|
-| Plugin unit | `npm test` (plusClient, filingAuth, atomsHomeData, …) |
-| Plugin typecheck/build | `npm run build` |
+| Layer | Action |
+|-------|--------|
+| Plugin unit | `npm test` |
+| Build | `npm run build` |
 | plus-service | `cd plus-service && npm test` |
-| Security regression | existing security-meter + new start/mismatch cases |
-| Human | phone Try Plus → test Checkout → resume → Process on **test_vault** only |
-| Agent vault | CLI reload + Process only if session injectable; otherwise human phone |
+| Security | start entitled no sess_; webhook matrix; checkout RL |
+| Human phone | AE1, AE5, F6 |
+| No Remote Vault | constitution |
 
-**Execution direction:** test-first on U1–U3 pure store/client; UI U4–U6 after client green; characterization of `resolveFilingAuth` inactive behavior before changing it.
+**Execution direction:** test-first U1–U3; characterize `resolveFilingAuth` inactive before UI; U4–U6 after client green.
 
 ---
 
@@ -324,18 +301,20 @@ cd plus-service && npm test
 
 ### Global
 
-- [ ] Origin design §11 success criteria met or explicitly waived with reason  
-- [ ] No user-visible “dogfood” on primary path  
-- [ ] Soft account cannot classify (service + plugin)  
-- [ ] Webhook email mismatch cannot grant wrong account  
-- [ ] `npm test` + `plus-service` tests + `npm run build` green  
-- [ ] Version bump + BRAT release when merging user-visible change  
-- [ ] Claim Issue + STATUS + PR `Closes #N`  
-- [ ] Shipping tail: simplify → code-review → compound if durable learning → world-class-qa scoped to Plus onboarding  
+- [ ] AE1–AE7 covered by automated and/or phone evidence  
+- [ ] R-SESS / AE6–AE7 green (no entitled start sess_)  
+- [ ] No dogfood on primary path  
+- [ ] Soft account cannot classify  
+- [ ] Webhook mismatch matrix green  
+- [ ] `npm test` + plus-service tests + build green  
+- [ ] Version + BRAT on user-visible merge  
+- [ ] Claim Issue + STATUS + `Closes #N`  
+- [ ] Privacy URLs set or PR waiver  
+- [ ] Shipping tail: simplify → code-review → compound if needed → scoped QA  
 
 ### Per unit
 
-U1–U7 each: tests listed + behavior matches unit Goal.
+U1–U7 goals + tests.
 
 ---
 
@@ -343,21 +322,18 @@ U1–U7 each: tests listed + behavior matches unit Goal.
 
 | | |
 |--|--|
-| Suggested Issue title | `feat: Plus stripe-first onboarding (no paste sess happy path)` |
-| Hot files | `plus-service/src/server.mjs`, `store/*`, `stripe.mjs`, `src/platform/plusClient.ts`, `filingAuth.ts`, `settings/settings.ts`, `home/atomsHomeView.ts`, `plugin/main.ts` |
-| Conflict | Avoid parallel edits to Plus Settings with other Plus UI claims |
-| Parallel | #115 public launch secrets (ops only) |
+| Suggested Issue | `feat: Plus stripe-first onboarding (no paste sess happy path)` |
+| Hot files | `plus-service/src/server.mjs`, `store/*`, `stripe.mjs`, `src/platform/plusClient.ts`, `filingAuth.ts`, `plusResume.ts`, `settings/settings.ts`, `home/atomsHomeView.ts`, `plugin/main.ts` |
+| Parallel | #115 secrets only |
 
 ---
 
 ## Appendix — research breadcrumbs
 
-- Inactive today drops out of Plus mode in `resolveFilingAuth` (`src/platform/filingAuth.ts`) — must special-case **UI** not classify.  
-- Session mint only in `exchangeMagic` today — extract for start.  
-- Checkout already uses session email server-side; Stripe customer_email still editable in hosted page without harden.  
-- Rate limit exists; start/checkout not covered.  
-- No visibility resume hook yet; only `onLayoutReady` + intervals.  
-- Home `open_plus` only opens Settings today.  
-- Exchange HTML still instructs paste — demote when magic is restore-only.  
+- Inactive drops Plus mode in `resolveFilingAuth` — UI special-case only.  
+- Session mint was exchange-only — extract + gate.  
+- `refreshPlusEntitlement` is Settings-private — extract shared.  
+- Home `open_plus` only opened Settings.  
+- In-process RL multi-instance residual.
 
-**External research:** skipped — Stripe Checkout + existing local stripe.mjs patterns sufficient; payment surface already in-repo.
+**External research:** skipped — local Stripe patterns sufficient.
