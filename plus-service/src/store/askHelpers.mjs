@@ -79,8 +79,8 @@ export function extractLinkProseRegion(body) {
 }
 
 /**
- * Parse reason-bearing sentences from **link prose region only** (not capture text).
- * Bare wikilinks anywhere in body still add { note } without inventing reasons.
+ * Conservative body→links. Reasons prefer stored links_json from upsert.
+ * Body only: bare wikilinks as {note}; short Process one-liner in prose region.
  * @param {string} body
  * @returns {{ note: string, reason?: string }[]}
  */
@@ -89,44 +89,30 @@ export function linksFromAtomBody(body) {
   /** @type {Map<string, { note: string, reason?: string }>} */
   const byNote = new Map();
   const prose = extractLinkProseRegion(text);
-  const normalized = prose.replace(/\s+/g, " ").trim();
-  if (normalized) {
-    const segments = normalized
-      .split(/(?<=\.)\s+/)
-      .map((s) => s.trim())
-      .filter(Boolean);
-    const re = /\[\[([^\]|#]+)(?:\|[^\]]+)?\]\]/g;
-    for (const seg of segments) {
-      const reason = seg.replace(/\.$/, "").trim();
-      if (!reason) continue;
-      const titles = [];
-      re.lastIndex = 0;
-      let m;
-      while ((m = re.exec(reason)) !== null) {
-        const t = String(m[1] || "").trim();
-        if (t) titles.push(t);
-      }
-      if (!titles.length) continue;
-      const note = titles[titles.length - 1];
-      const key = note.toLowerCase();
-      // Only set reason if segment is "link-shaped" (not a multi-sentence dump):
-      // prefer segments that are short or start with relation verbs / end with ( [[note]] ).
-      const compact =
-        reason.length <= 280 ||
-        /^(continues|revises|contradicts|adds detail|related)/i.test(reason) ||
+  const re = /\[\[([^\]|#]+)(?:\|[^\]]+)?\]\]/g;
+  // Only short single-link Process-shaped one-liners become reasons
+  if (prose && prose.length <= 200 && !prose.includes("\n\n")) {
+    const titles = [];
+    re.lastIndex = 0;
+    let m;
+    while ((m = re.exec(prose)) !== null) {
+      const t = String(m[1] || "").trim();
+      if (t) titles.push(t);
+    }
+    if (titles.length === 1) {
+      const note = titles[0];
+      const reason = prose.replace(/\s+/g, " ").replace(/\.$/, "").trim();
+      const okShape =
+        reason.length <= 120 ||
+        /^(continues|revises|contradicts|adds detail|related|preference|durable)/i.test(
+          reason,
+        ) ||
         /\(\[\[/.test(reason);
-      if (!compact && titles.length === 1 && reason.length > 280) {
-        // Over-long segment: store note only, avoid whole-body reason
-        if (!byNote.has(key)) byNote.set(key, { note });
-        continue;
-      }
-      const prev = byNote.get(key);
-      if (!prev?.reason || (reason.length <= 280 && reason.length >= (prev.reason?.length ?? 0))) {
-        byNote.set(key, { note, reason });
+      if (okShape && reason.length <= 200) {
+        byNote.set(note.toLowerCase(), { note, reason });
       }
     }
   }
-  // Bare wikilinks in full body (including capture) → note only
   for (const note of extractWikilinks(text)) {
     const key = note.toLowerCase();
     if (!byNote.has(key)) byNote.set(key, { note });
@@ -135,10 +121,24 @@ export function linksFromAtomBody(body) {
 }
 
 /**
- * Merge stored links with body-derived links (reasons preferred).
+ * Stored links win. Strip over-long reasons (old parser garbage).
+ * Body fills missing notes only (and short Process one-liners).
  * @param {{ note: string, reason?: string }[]} links
  * @param {string} body
  */
+/** Typed relation enum from a stored reason string, or null. */
+export function relationFromReason(reason) {
+  const r = String(reason || "")
+    .trim()
+    .toLowerCase();
+  if (!r) return null;
+  if (r.startsWith("contradicts")) return "contradicts";
+  if (r.startsWith("revises")) return "revises";
+  if (r.startsWith("continues")) return "continues";
+  if (r.startsWith("adds detail")) return "adds_detail";
+  return null;
+}
+
 export function mergeLinksFromBody(links, body) {
   /** @type {Map<string, { note: string, reason?: string }>} */
   const byNote = new Map();
@@ -147,7 +147,11 @@ export function mergeLinksFromBody(links, body) {
     if (!note) continue;
     const key = note.toLowerCase();
     const reason = l?.reason ? String(l.reason).trim() : undefined;
-    byNote.set(key, reason ? { note, reason } : { note });
+    if (reason && reason.length > 280) {
+      byNote.set(key, { note });
+    } else {
+      byNote.set(key, reason ? { note, reason } : { note });
+    }
   }
   for (const l of linksFromAtomBody(body)) {
     const key = l.note.toLowerCase();
@@ -156,7 +160,7 @@ export function mergeLinksFromBody(links, body) {
       byNote.set(key, l);
       continue;
     }
-    if (!prev.reason && l.reason) {
+    if (!prev.reason && l.reason && l.reason.length <= 200) {
       byNote.set(key, { note: prev.note || l.note, reason: l.reason });
     }
   }

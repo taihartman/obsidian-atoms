@@ -6,6 +6,7 @@ import { checkRateLimit } from "../ratelimit.mjs";
 import {
   validateOutboxPayload,
   OUTBOX_RELATIONS,
+  relationFromReason,
 } from "../store/askHelpers.mjs";
 
 const EMPTY_HINT =
@@ -90,7 +91,7 @@ export function registerAskTools(mcp, ctx) {
     "fetch_atom",
     {
       description:
-        "Fetch one atom by title or path. Returns verbatim body, tags, and links (wikilinks from body). Notes outside Atoms/ are not in the mirror.",
+        "Fetch one atom by title or path. Returns verbatim body, tags, and structured links [{note, reason?}]. Reasons come from stored edge data (not whole-body parse). Notes outside Atoms/ are not in the mirror.",
       inputSchema: {
         id_or_title: z
           .string()
@@ -132,7 +133,12 @@ export function registerAskTools(mcp, ctx) {
                 path: atom.path,
                 text,
                 tags: atom.tags,
-                links: atom.links,
+                links: (atom.links || []).map((l) => ({
+                  note: l.note,
+                  reason: l.reason || null,
+                  // Typed relation when reason is a clean enum-shaped edge
+                  relation: relationFromReason(l.reason),
+                })),
               },
               null,
               2,

@@ -24,6 +24,7 @@ import {
   encryptOutboxPayload,
   decryptOutboxPayload,
   publicOutboxRow,
+  relationFromReason,
 } from "./askHelpers.mjs";
 
 export function createMemoryStore() {
@@ -346,9 +347,10 @@ export function createMemoryStore() {
     if (!keyTitle) return null;
     const keyLower = keyTitle.toLowerCase();
     const outgoing = center
-      ? mergeLinksFromBody(center.links || [], center.text || []).map((l) => ({
+      ? mergeLinksFromBody(center.links || [], center.text || "").map((l) => ({
           title: l.note,
           reason: l.reason || null,
+          relation: relationFromReason(l.reason),
           direction: "out",
         }))
       : [];
@@ -363,6 +365,7 @@ export function createMemoryStore() {
             title: pub.title,
             path: pub.path,
             reason: l.reason || null,
+            relation: relationFromReason(l.reason),
             direction: "in",
             snippet: makeSnippet(pub.text, keyTitle, 160),
           });
