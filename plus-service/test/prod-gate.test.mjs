@@ -99,6 +99,7 @@ describe("prodGate", () => {
     process.env.DATABASE_URL = "postgres://user:pass@localhost:5432/plus";
     process.env.ATOMS_PLUS_STORE = "postgres";
     process.env.RESEND_API_KEY = "re_test_x";
+    process.env.ATOMS_ASK_MIRROR_KEY = "a".repeat(64);
     const { checkProductionReady } = await loadGate();
     const r = checkProductionReady();
     assert.equal(r.ok, true, r.errors?.join("; "));

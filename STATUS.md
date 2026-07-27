@@ -7,6 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
+| In review | #112 | Tai | `feat/ask-brain-remote-mcp` | `docs/plans/2026-07-27-001-feat-ask-brain-remote-mcp-plan.md` | `plus-service/**`, `src/settings/settings.ts`, `src/platform/askMirror.ts`, `src/plugin/main.ts` | Ask remote MCP 0.6.32. Deploy live. P2: #119 ChatGPT, #120 DIY. PR #116. |
 | Blocked | #115 | Tai | — | `docs/qa/2026-07-27-plus-public-launch-checklist.md` | Fly secrets, Resend, Stripe live | Docs+0.6.31 shipped (#117). Waiting: Fly billing card, Resend domain+2nd email, Stripe live keys/prices/webhook |
 
 ## How to claim (copy)

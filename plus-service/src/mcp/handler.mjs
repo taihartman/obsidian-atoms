@@ -1,0 +1,85 @@
+/**
+ * Streamable HTTP /mcp — KTD20 per-request SDK transport.
+ */
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { ASK_MCP_INSTRUCTIONS } from "./instructions.mjs";
+import { registerAskTools } from "./tools.mjs";
+
+const PRM_PATH = "/.well-known/oauth-protected-resource";
+
+/**
+ * @param {import('node:http').IncomingMessage} req
+ * @param {import('node:http').ServerResponse} res
+ * @param {{ store: object, publicBaseUrl: string, readRawBody: Function }} opts
+ */
+export async function handleMcpRequest(req, res, opts) {
+  const { store, publicBaseUrl, readRawBody } = opts;
+  const resource = `${publicBaseUrl.replace(/\/$/, "")}/mcp`;
+
+  if (req.method === "GET" || req.method === "DELETE") {
+    res.writeHead(405, {
+      allow: "POST, OPTIONS",
+      "content-type": "application/json",
+    });
+    res.end(JSON.stringify({ message: "Method not allowed" }));
+    return;
+  }
+
+  if (req.method !== "POST") {
+    res.writeHead(405, { "content-type": "application/json" });
+    res.end(JSON.stringify({ message: "Method not allowed" }));
+    return;
+  }
+
+  const auth = req.headers.authorization || "";
+  const m = /^Bearer\s+(\S+)/i.exec(auth);
+  const token = m ? m[1] : "";
+
+  if (!token || token.startsWith("sess_")) {
+    const prm = `${publicBaseUrl.replace(/\/$/, "")}${PRM_PATH}`;
+    res.writeHead(401, {
+      "content-type": "application/json",
+      "www-authenticate": `Bearer resource_metadata="${prm}", scope="atoms:read"`,
+      "access-control-allow-origin": "*",
+    });
+    res.end(JSON.stringify({ message: "Unauthorized" }));
+    return;
+  }
+
+  const account = await store.accountFromMcpToken(token);
+  if (!account) {
+    const prm = `${publicBaseUrl.replace(/\/$/, "")}${PRM_PATH}`;
+    res.writeHead(401, {
+      "content-type": "application/json",
+      "www-authenticate": `Bearer resource_metadata="${prm}", scope="atoms:read"`,
+      "access-control-allow-origin": "*",
+    });
+    res.end(JSON.stringify({ message: "Unauthorized" }));
+    return;
+  }
+
+  let parsedBody;
+  try {
+    const raw = await readRawBody(req);
+    parsedBody = raw ? JSON.parse(raw) : {};
+  } catch {
+    res.writeHead(400, { "content-type": "application/json" });
+    res.end(JSON.stringify({ message: "invalid json" }));
+    return;
+  }
+
+  const mcp = new McpServer(
+    { name: "atoms-ask", version: "0.1.0" },
+    { instructions: ASK_MCP_INSTRUCTIONS },
+  );
+  registerAskTools(mcp, { email: account.email, store });
+
+  const transport = new StreamableHTTPServerTransport({
+    sessionIdGenerator: undefined,
+    enableJsonResponse: true,
+  });
+
+  await mcp.connect(transport);
+  await transport.handleRequest(req, res, parsedBody);
+}

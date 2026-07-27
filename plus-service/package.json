@@ -7,10 +7,13 @@
   "scripts": {
     "start": "node src/server.mjs",
     "dev": "node --watch src/server.mjs",
-    "test": "node --test test/*.test.mjs"
+    "test": "node --test test/*.test.mjs",
+    "ask:seed": "node scripts/ask-seed.mjs"
   },
   "dependencies": {
-    "pg": "^8.16.3"
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "pg": "^8.16.3",
+    "zod": "^4.4.3"
   },
   "engines": {
     "node": ">=20"

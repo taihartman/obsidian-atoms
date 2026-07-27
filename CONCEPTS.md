@@ -70,7 +70,19 @@ Calm Atoms home card (**Add {Name}?**) after Process/Update when a high-confiden
 ### Peer link (pre-hub)
 Plugin link-prose between generated atoms that share the same high-confidence missing person (or later project) label before a hub note exists. On invite accept, peers and soft bucket links **upgrade** to the new hub. Soft buckets are never identity peers.
 
+## Ask (pull recall)
+
+### Atoms Ask
+Product name for **pull recall** via remote MCP: the user chats in Claude or ChatGPT; Atoms exposes read-only tools over an optional cloud mirror of `Atoms/`. Not an in-plugin chat UI. Distinct from Local REST / dev MCP agent tooling.
+
+### Atom mirror
+Hosted, opt-in copy of flat `Atoms/*.md` (title, tags, link reasons, verbatim body) used only for Ask search/fetch. Vault remains source of truth. User can wipe. Not full-vault backup; not dailies.
+
+### Remote MCP (Ask)
+Public Streamable HTTP MCP endpoint (Plus host) that Anthropic/OpenAI clouds call. Tools are read-only. Connector auth is MCP OAuth bound to Plus identity, not the plugin’s device-local `sess_` token as the connector credential.
+
 ## Flagged ambiguities
 
 - “Linker” remains in some marker HTML comments (`<!--linker-->`) from early naming; product name is **Atoms**.
 - “Processed” means “has a plugin sentinel,” not “became an atom.”
+- Dev “Obsidian MCP” (Local REST) is agent tooling only — not Atoms Ask.

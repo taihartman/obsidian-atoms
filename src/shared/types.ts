@@ -133,6 +133,12 @@ export interface LinkerSettings {
    * Off by default until dogfood-ready.
    */
   enableReconsiderCapture: boolean;
+  /** Opt-in cloud mirror of Atoms/ for remote MCP Ask (Plus). */
+  askEnabled: boolean;
+  /** Privacy ack timestamp ISO — required before first Ask push. */
+  askPrivacyAckAt: string;
+  /** path → content hash for Ask push skip. */
+  askMirrorHashes: Record<string, string>;
 }
 
 export const DEFAULT_SETTINGS: LinkerSettings = {
@@ -159,6 +165,9 @@ export const DEFAULT_SETTINGS: LinkerSettings = {
   captureShortcutInstallUrl: "",
   plusBaseUrl: "",
   enableReconsiderCapture: false,
+  askEnabled: false,
+  askPrivacyAckAt: "",
+  askMirrorHashes: {},
 };
 
 /** SecretStorage / localStorage keys — lowercase-dashed (KTD5). */

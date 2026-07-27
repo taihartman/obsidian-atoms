@@ -41,6 +41,9 @@ import {
   createBillingPortal,
   getEntitlement,
   signOutPlus,
+  askMcpUrl,
+  askMirrorStatus,
+  askMirrorWipe,
 } from "../platform/plusClient";
 import { requestUrl } from "obsidian";
 import { plusFetchRequest } from "../platform/plusClient";
@@ -87,6 +90,7 @@ export class AtomsSettingTab extends PluginSettingTab {
     this.renderCaptureSection(containerEl);
     this.renderApiSection(containerEl);
     this.renderPlusSection(containerEl);
+    this.renderAskSection(containerEl);
     this.renderAutoRunSection(containerEl);
     this.renderModelSection(containerEl);
     this.renderVocabularySection(containerEl);
@@ -854,6 +858,148 @@ export class AtomsSettingTab extends PluginSettingTab {
           }),
         );
     }
+  }
+
+  /**
+   * Ask — remote MCP for Claude (Plus). No in-plugin chat.
+   */
+  private renderAskSection(containerEl: HTMLElement) {
+    settingHeading(containerEl, "Ask (Claude)");
+    const session = readPlusSession(this.app);
+    const base =
+      this.plugin.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL;
+    const mcpUrl = askMcpUrl(base);
+
+    containerEl.createEl("p", {
+      text: "Chat with your atoms in Claude (phone + desktop). Atoms only hosts a read-only cloud mirror of Atoms/ — no chat UI here.",
+      cls: "setting-item-description",
+    });
+
+    if (!session) {
+      containerEl.createEl("p", {
+        text: "Sign in to Atoms Plus above first.",
+        cls: "setting-item-description",
+      });
+      return;
+    }
+
+    const ack = Boolean(this.plugin.settings.askPrivacyAckAt);
+    new Setting(containerEl)
+      .setName("Privacy acknowledgment")
+      .setDesc(
+        "I understand: (1) only Atoms/ leaves this device; (2) bodies are stored on Atoms Plus servers; (3) the host can decrypt at rest in v1 (not zero-knowledge); (4) when I chat in Claude, Anthropic receives tool results (titles, snippets, bodies); (5) Wipe deletes the cloud mirror and revokes connector tokens; (6) turning Ask off does not wipe.",
+      )
+      .addToggle((tog) =>
+        tog.setValue(ack).onChange(async (on) => {
+          this.plugin.settings.askPrivacyAckAt = on
+            ? new Date().toISOString()
+            : "";
+          if (!on) this.plugin.settings.askEnabled = false;
+          await this.plugin.saveSettings();
+          this.display();
+        }),
+      );
+
+    new Setting(containerEl)
+      .setName("Enable Ask mirror")
+      .setDesc("Push Atoms/ to Plus after Process/Update so Claude can search them.")
+      .addToggle((tog) =>
+        tog
+          .setValue(this.plugin.settings.askEnabled)
+          .setDisabled(!ack)
+          .onChange(async (on) => {
+            if (on && !this.plugin.settings.askPrivacyAckAt) {
+              new Notice("Acknowledge privacy first");
+              this.display();
+              return;
+            }
+            this.plugin.settings.askEnabled = on;
+            await this.plugin.saveSettings();
+            this.display();
+          }),
+      );
+
+    new Setting(containerEl)
+      .setName("Claude connector URL")
+      .setDesc("Claude → Settings → Connectors → Add custom connector.")
+      .addText((text) => {
+        text.setValue(mcpUrl).setDisabled(true);
+        text.inputEl.style.width = "100%";
+      })
+      .addButton((btn) =>
+        btn.setButtonText("Copy").onClick(async () => {
+          await navigator.clipboard.writeText(mcpUrl);
+          new Notice("MCP URL copied");
+        }),
+      );
+
+    new Setting(containerEl)
+      .setName("Sync now")
+      .setDesc("Upload changed Atoms/ notes to the cloud mirror.")
+      .addButton((btn) =>
+        btn.setButtonText("Sync now").setCta().onClick(async () => {
+          const n = await this.plugin.syncAskMirror({ force: true });
+          if (n < 0) return;
+          new Notice(
+            n === 0
+              ? "Ask mirror up to date"
+              : `Ask mirror: uploaded ${n} atom(s)`,
+          );
+          this.display();
+        }),
+      );
+
+    new Setting(containerEl)
+      .setName("Cloud mirror status")
+      .setDesc("Count of atoms on Plus for this account.")
+      .addButton((btn) =>
+        btn.setButtonText("Refresh").onClick(async () => {
+          const r = await askMirrorStatus(
+            { baseUrl: base, request: plusFetchRequest },
+            session.sessionToken,
+          );
+          if (!r.ok) {
+            new Notice(`Ask: ${r.message}`);
+            return;
+          }
+          new Notice(`Ask mirror: ${r.count} atom(s)`);
+        }),
+      );
+
+    new Setting(containerEl)
+      .setName("Wipe cloud copy")
+      .setDesc("Delete mirrored atoms and revoke Claude Ask tokens for this account.")
+      .addButton((btn) =>
+        btn.setButtonText("Wipe").setWarning().onClick(async () => {
+          const ok = window.confirm(
+            "Wipe cloud atom mirror and revoke Ask connector access?",
+          );
+          if (!ok) return;
+          const r = await askMirrorWipe(
+            { baseUrl: base, request: plusFetchRequest },
+            session.sessionToken,
+          );
+          if (!r.ok) {
+            new Notice(`Ask: ${r.message}`);
+            return;
+          }
+          this.plugin.settings.askMirrorHashes = {};
+          await this.plugin.saveSettings();
+          new Notice("Ask mirror wiped");
+        }),
+      );
+
+    new Setting(containerEl)
+      .setName("Self-host Ask")
+      .setDesc("DIY docs are incomplete (P2). Opens repo stub.")
+      .addButton((btn) =>
+        btn.setButtonText("Docs").onClick(() => {
+          window.open(
+            "https://github.com/taihartman/obsidian-atoms/blob/master/docs/ask-self-host.md",
+            "_blank",
+          );
+        }),
+      );
   }
 
   private renderDevHints(containerEl: HTMLElement) {

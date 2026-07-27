@@ -363,6 +363,9 @@ export default class AtomsPlugin extends Plugin {
           ? `Atoms: couldn't update ${report.failed} note${report.failed === 1 ? "" : "s"} — check model id and API key`
           : `Atoms: polished ${polished}, updated ${report.updated}, renamed ${report.renamed}, failed ${report.failed}`,
       );
+      void this.syncAskMirror().catch(() => {
+        /* best-effort */
+      });
     } catch (e) {
       const msg = e instanceof Error ? e.message : "update failed";
       this.failHomeRun(msg);
@@ -812,6 +815,63 @@ export default class AtomsPlugin extends Plugin {
     await this.saveData(this.settings);
   }
 
+  /**
+   * Push Atoms/ to Plus Ask mirror (best-effort). Returns atoms uploaded, or -1 on hard fail notice.
+   */
+  async syncAskMirror(opts?: { force?: boolean }): Promise<number> {
+    if (!this.settings.askEnabled || !this.settings.askPrivacyAckAt) {
+      if (opts?.force) new Notice("Enable Ask and acknowledge privacy first");
+      return -1;
+    }
+    const { readPlusSession } = await import("../platform/filingAuth");
+    const session = readPlusSession(this.app);
+    if (!session) {
+      if (opts?.force) new Notice("Sign in to Atoms Plus first");
+      return -1;
+    }
+    const {
+      DEFAULT_PLUS_BASE_URL,
+      askMirrorUpsert,
+      plusFetchRequest,
+    } = await import("../platform/plusClient");
+    const { planAskMirrorUpsert } = await import("../platform/askMirror");
+    const folder = clampAtomFolder(this.settings.atomFolder);
+    const files = this.app.vault.getMarkdownFiles().filter((f) => {
+      const p = f.path;
+      return p === folder || p.startsWith(folder + "/");
+    });
+    const reads = await Promise.all(
+      files.map(async (f) => ({
+        path: f.path,
+        basename: f.basename,
+        content: await this.app.vault.read(f),
+      })),
+    );
+    const hashes = opts?.force ? {} : this.settings.askMirrorHashes || {};
+    const { atoms, nextHashes } = planAskMirrorUpsert(reads, folder, hashes);
+    if (atoms.length === 0) {
+      if (opts?.force) {
+        // still touch server with empty? skip
+      }
+      this.settings.askMirrorHashes = nextHashes;
+      await this.saveSettings();
+      return 0;
+    }
+    const base = this.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL;
+    const r = await askMirrorUpsert(
+      { baseUrl: base, request: plusFetchRequest },
+      session.sessionToken,
+      atoms,
+    );
+    if (!r.ok) {
+      new Notice(`Ask sync failed: ${r.message} — use Sync now in Settings`);
+      return -1;
+    }
+    this.settings.askMirrorHashes = nextHashes;
+    await this.saveSettings();
+    return r.upserted;
+  }
+
   getApiKey(): string | null {
     // Prefer configured secret id, then default id (users often store under the tip name
     // without saving the id field). Secret values are vault+device local — not data.json.
@@ -982,6 +1042,9 @@ export default class AtomsPlugin extends Plugin {
         }
         new Notice(notice);
       }
+      void this.syncAskMirror().catch(() => {
+        /* best-effort */
+      });
     } catch (e) {
       if (e instanceof DailyNotesDisabledError) {
         this.failHomeRun(e.message);
