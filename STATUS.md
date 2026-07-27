@@ -7,6 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
+| In progress | #112 | Tai | `feat/ask-brain-remote-mcp` | `docs/plans/2026-07-27-001-feat-ask-brain-remote-mcp-plan.md` | `plus-service/**` (P0); later `src/platform/plusClient.ts`, `src/settings/settings.ts` | Ask your brain — remote MCP. P0 = public MCP + OAuth + mobile Claude; P1 = plugin mirror push. No in-plugin chat. |
 
 ## How to claim (copy)
 
