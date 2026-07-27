@@ -265,9 +265,11 @@ export async function applyStripeEvent(store, event) {
   const obj = event.data?.object ?? {};
 
   if (type === "checkout.session.completed") {
+    // Payment Links put email on customer_details, not customer_email/metadata.
     const email = (
       obj.metadata?.email ||
       obj.customer_email ||
+      obj.customer_details?.email ||
       obj.client_reference_id ||
       ""
     )

@@ -416,4 +416,5 @@ export async function signOutPlus(
 }
 
 /** Default production base — override in settings for dogfood. */
-export const DEFAULT_PLUS_BASE_URL = "https://plus.tryatoms.app";
+/** Public Plus API. Override only for local dogfood via settings. */
+export const DEFAULT_PLUS_BASE_URL = "https://plus.taihartman.com";

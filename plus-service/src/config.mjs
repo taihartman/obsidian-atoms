@@ -54,6 +54,16 @@ export const config = {
   get anthropicModel() {
     return env("ATOMS_PLUS_MODEL", "claude-sonnet-5");
   },
+  /**
+   * Optional Messages API output_config.effort (low|medium|high|xhigh|max).
+   * Empty → omit (API defaults high on Sonnet/Opus 5).
+   */
+  get anthropicEffort() {
+    const raw = env("ATOMS_PLUS_EFFORT", "").toLowerCase().trim();
+    if (!raw) return "";
+    const allowed = new Set(["low", "medium", "high", "xhigh", "max"]);
+    return allowed.has(raw) ? raw : "";
+  },
   get anthropicUrl() {
     return env("ANTHROPIC_MESSAGES_URL", "https://api.anthropic.com/v1/messages");
   },

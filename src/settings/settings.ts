@@ -473,21 +473,6 @@ export class AtomsSettingTab extends PluginSettingTab {
       text: "When you use Plus, captures are sent securely to Anthropic under our account. We don’t train on your notes.",
       cls: "setting-item-description",
     });
-
-    new Setting(containerEl)
-      .setName("Plus service URL")
-      .setDesc(
-        `Dogfood: http://127.0.0.1:8787 — empty uses ${DEFAULT_PLUS_BASE_URL}.`,
-      )
-      .addText((text) =>
-        text
-          .setPlaceholder("http://127.0.0.1:8787")
-          .setValue(this.plugin.settings.plusBaseUrl)
-          .onChange(async (value) => {
-            this.plugin.settings.plusBaseUrl = value.trim();
-            await this.plugin.saveSettings();
-          }),
-      );
   }
 
   private renderCaptureSection(containerEl: HTMLElement) {
@@ -878,5 +863,21 @@ export class AtomsSettingTab extends PluginSettingTab {
       text: `Installed version: ${version}. After desktop install + Sync, confirm this matches on phone. ./scripts/install-to-vault.sh reloads via Obsidian CLI.`,
       cls: "setting-item-description",
     });
+
+    // Override only for local dogfood. Shipping builds leave this empty → DEFAULT_PLUS_BASE_URL.
+    new Setting(containerEl)
+      .setName("Plus service URL override")
+      .setDesc(
+        `Leave empty for production (${DEFAULT_PLUS_BASE_URL}). Local dogfood: http://127.0.0.1:8787`,
+      )
+      .addText((text) =>
+        text
+          .setPlaceholder(DEFAULT_PLUS_BASE_URL)
+          .setValue(this.plugin.settings.plusBaseUrl)
+          .onChange(async (value) => {
+            this.plugin.settings.plusBaseUrl = value.trim();
+            await this.plugin.saveSettings();
+          }),
+      );
   }
 }

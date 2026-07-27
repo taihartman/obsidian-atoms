@@ -110,6 +110,17 @@ export function buildClassifyPayload(body) {
   }
 
   const ctx = boundContext(body?.context);
+  /** @type {Record<string, unknown>} */
+  const outputConfig = {
+    format: {
+      type: "json_schema",
+      schema: CLASSIFICATION_SCHEMA,
+    },
+  };
+  // effort is optional; omit when unset so API keeps its model default (high).
+  if (config.anthropicEffort) {
+    outputConfig.effort = config.anthropicEffort;
+  }
   const payload = {
     model: config.anthropicModel,
     max_tokens: config.maxTokens,
@@ -135,12 +146,7 @@ export function buildClassifyPayload(body) {
         ],
       },
     ],
-    output_config: {
-      format: {
-        type: "json_schema",
-        schema: CLASSIFICATION_SCHEMA,
-      },
-    },
+    output_config: outputConfig,
   };
 
   return {

@@ -75,6 +75,25 @@ describe("U9 security meter regressions", () => {
     assert.equal(r.status, 413);
   });
 
+  it("P0-3b: ATOMS_PLUS_EFFORT optional on output_config", () => {
+    delete process.env.ATOMS_PLUS_EFFORT;
+    const bare = buildClassifyPayload({ capture: "walk fixed the block" });
+    assert.equal(bare.ok, true);
+    assert.equal(bare.payload.output_config.effort, undefined);
+
+    process.env.ATOMS_PLUS_EFFORT = "low";
+    const low = buildClassifyPayload({ capture: "walk fixed the block" });
+    assert.equal(low.ok, true);
+    assert.equal(low.payload.output_config.effort, "low");
+
+    process.env.ATOMS_PLUS_EFFORT = "not-a-level";
+    const bad = buildClassifyPayload({ capture: "walk fixed the block" });
+    assert.equal(bad.ok, true);
+    assert.equal(bad.payload.output_config.effort, undefined);
+
+    delete process.env.ATOMS_PLUS_EFFORT;
+  });
+
   it("P1-1: promo cannot re-mint same email", () => {
     process.env.ATOMS_PLUS_PROMOS = "FOUNDING=2";
     const store = createMemoryStore();
