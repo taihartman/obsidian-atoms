@@ -12,6 +12,10 @@ import {
   publicAccount,
   rowToAccount,
 } from "./shared.mjs";
+import {
+  ASK_PG_DDL,
+  createAskPostgresMethods,
+} from "./askPostgresMethods.mjs";
 
 const { Pool } = pg;
 
@@ -62,6 +66,7 @@ CREATE TABLE IF NOT EXISTS usage_events (
   remaining INTEGER,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+${ASK_PG_DDL}
 `;
 
 /**
@@ -125,6 +130,11 @@ export async function createPostgresStore(databaseUrl) {
     if (dirty) await saveAccount(a);
     return a;
   }
+
+  const ask = createAskPostgresMethods(pool, {
+    getAccount,
+    refreshAccountStatus,
+  });
 
   async function grantPeriod(email, opts = {}) {
     const a = await ensureAccount(email);
@@ -520,6 +530,7 @@ export async function createPostgresStore(databaseUrl) {
     async revokeSubscription(email) {
       const a = await ensureAccount(email);
       a.stripeSubscriptionId = undefined;
+      await ask.mcpRevokeForEmail(a.email);
       if (a.remaining > 0) a.status = "active";
       else {
         a.status = "inactive";
@@ -530,5 +541,6 @@ export async function createPostgresStore(databaseUrl) {
     async close() {
       await pool.end();
     },
+    ...ask,
   };
 }

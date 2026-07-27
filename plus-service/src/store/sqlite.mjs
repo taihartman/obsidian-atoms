@@ -13,6 +13,10 @@ import {
   publicAccount,
   rowToAccount,
 } from "./shared.mjs";
+import {
+  ASK_SQLITE_DDL,
+  createAskSqliteMethods,
+} from "./askSqliteMethods.mjs";
 
 function migrate(db) {
   db.exec(`
@@ -63,6 +67,7 @@ function migrate(db) {
       created_at TEXT NOT NULL
     );
   `);
+  db.exec(ASK_SQLITE_DDL);
 }
 
 export function createSqliteStore(dbPath = config.databasePath) {
@@ -120,6 +125,11 @@ export function createSqliteStore(dbPath = config.databasePath) {
     if (dirty) saveAccount(a);
     return a;
   }
+
+  const ask = createAskSqliteMethods(db, {
+    getAccount,
+    refreshAccountStatus,
+  });
 
   function grantPeriod(email, opts = {}) {
     const a = ensureAccount(email);
@@ -403,6 +413,7 @@ export function createSqliteStore(dbPath = config.databasePath) {
     revokeSubscription(email) {
       const a = ensureAccount(email);
       a.stripeSubscriptionId = undefined;
+      ask.mcpRevokeForEmail(a.email);
       if (a.remaining > 0) a.status = "active";
       else {
         a.status = "inactive";
@@ -413,5 +424,6 @@ export function createSqliteStore(dbPath = config.databasePath) {
     close() {
       db.close();
     },
+    ...ask,
   };
 }

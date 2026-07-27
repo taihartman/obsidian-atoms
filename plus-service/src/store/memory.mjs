@@ -9,6 +9,14 @@ import {
   periodEndFromNow,
   publicAccount,
 } from "./shared.mjs";
+import {
+  makeSnippet,
+  normEmail,
+  prepareMirrorRow,
+  rowToPublicAtom,
+  scoreSearch,
+  verifyPkce,
+} from "./askHelpers.mjs";
 
 export function createMemoryStore() {
   const accounts = new Map();
@@ -22,6 +30,18 @@ export function createMemoryStore() {
   const stripeCustomers = new Map();
   /** idempotency_key → { responseJson, remaining, status } */
   const usageByKey = new Map();
+  /** email → Map<path, row> */
+  const atomMirror = new Map();
+  /** pending_id → pending oauth */
+  const mcpPending = new Map();
+  /** code_hash → auth code row */
+  const mcpAuthCodes = new Map();
+  /** token_hash → access */
+  const mcpAccess = new Map();
+  /** token_hash → refresh */
+  const mcpRefresh = new Map();
+  /** client_id → client */
+  const mcpClients = new Map();
 
   const sessionTtlMs = () => config.sessionTtlDays * 24 * 60 * 60 * 1000;
 
@@ -205,6 +225,236 @@ export function createMemoryStore() {
     return { ok: true, account: a, months };
   }
 
+  function mirrorBucket(email) {
+    const e = normEmail(email);
+    let m = atomMirror.get(e);
+    if (!m) {
+      m = new Map();
+      atomMirror.set(e, m);
+    }
+    return m;
+  }
+
+  function mirrorUpsert(email, atoms) {
+    const list = Array.isArray(atoms) ? atoms : [];
+    let upserted = 0;
+    let skipped = 0;
+    for (const atom of list) {
+      const row = prepareMirrorRow(email, atom);
+      const bucket = mirrorBucket(row.email);
+      const prev = bucket.get(row.path);
+      if (prev && prev.contentHash === row.contentHash) {
+        skipped += 1;
+        continue;
+      }
+      bucket.set(row.path, row);
+      upserted += 1;
+    }
+    return { upserted, skipped };
+  }
+
+  function mirrorFetch(email, idOrTitle) {
+    const e = normEmail(email);
+    const key = String(idOrTitle || "").trim();
+    if (!key) return null;
+    const bucket = atomMirror.get(e);
+    if (!bucket) return null;
+    for (const row of bucket.values()) {
+      if (
+        row.path === key ||
+        row.atomId === key ||
+        row.title === key ||
+        row.title.toLowerCase() === key.toLowerCase()
+      ) {
+        return rowToPublicAtom(row, { includeBody: true });
+      }
+    }
+    return null;
+  }
+
+  function mirrorSearch(email, query, limit = 8) {
+    const e = normEmail(email);
+    const bucket = atomMirror.get(e);
+    if (!bucket) return [];
+    const lim = Math.min(Math.max(Number(limit) || 8, 1), 25);
+    const scored = [];
+    for (const row of bucket.values()) {
+      const pub = rowToPublicAtom(row, { includeBody: true });
+      const s = scoreSearch(
+        { title: pub.title, path: pub.path, tags: pub.tags, body: pub.text },
+        query,
+      );
+      if (s > 0) {
+        scored.push({
+          score: s,
+          hit: {
+            id: pub.id,
+            title: pub.title,
+            path: pub.path,
+            tags: pub.tags,
+            snippet: makeSnippet(pub.text, query),
+          },
+        });
+      }
+    }
+    scored.sort((a, b) => b.score - a.score || a.hit.title.localeCompare(b.hit.title));
+    return scored.slice(0, lim).map((x) => x.hit);
+  }
+
+  function mirrorWipe(email) {
+    const e = normEmail(email);
+    atomMirror.delete(e);
+    mcpRevokeForEmail(e);
+    return { ok: true };
+  }
+
+  function mirrorStatus(email) {
+    const e = normEmail(email);
+    const bucket = atomMirror.get(e);
+    let updatedAt = null;
+    if (bucket) {
+      for (const row of bucket.values()) {
+        if (!updatedAt || row.updatedAt > updatedAt) updatedAt = row.updatedAt;
+      }
+    }
+    return { count: bucket ? bucket.size : 0, updatedAt };
+  }
+
+  function mcpCreatePending(fields) {
+    const pendingId = id("pend");
+    mcpPending.set(pendingId, {
+      ...fields,
+      pendingId,
+      exp: Date.now() + 15 * 60 * 1000,
+    });
+    return pendingId;
+  }
+
+  function mcpGetPending(pendingId) {
+    const row = mcpPending.get(pendingId);
+    if (!row) return null;
+    if (Date.now() > row.exp) {
+      mcpPending.delete(pendingId);
+      return null;
+    }
+    return row;
+  }
+
+  function mcpDeletePending(pendingId) {
+    mcpPending.delete(pendingId);
+  }
+
+  function mcpCreateAuthCode(fields) {
+    const code = id("ac");
+    mcpAuthCodes.set(hashToken(code), {
+      ...fields,
+      exp: Date.now() + 5 * 60 * 1000,
+      used: false,
+    });
+    return code;
+  }
+
+  function mintMcpTokens(email, clientId, resource, scopes = ["atoms:read"]) {
+    const e = normEmail(email);
+    const access = id("mcp");
+    const refresh = id("mcpr");
+    const accessExp = Date.now() + 60 * 60 * 1000;
+    const refreshExp = Date.now() + 30 * 24 * 60 * 60 * 1000;
+    mcpAccess.set(hashToken(access), {
+      email: e,
+      clientId,
+      resource,
+      scopes,
+      exp: accessExp,
+      revoked: false,
+    });
+    mcpRefresh.set(hashToken(refresh), {
+      email: e,
+      clientId,
+      resource,
+      scopes,
+      exp: refreshExp,
+      revoked: false,
+    });
+    return {
+      accessToken: access,
+      refreshToken: refresh,
+      expiresIn: 3600,
+      tokenType: "Bearer",
+      scope: Array.isArray(scopes) ? scopes.join(" ") : String(scopes || ""),
+    };
+  }
+
+  function mcpExchangeCodeSync(opts) {
+    const h = hashToken(opts.code);
+    const row = mcpAuthCodes.get(h);
+    if (!row || row.used || Date.now() > row.exp) return null;
+    if (row.clientId !== opts.clientId) return null;
+    if (row.redirectUri !== opts.redirectUri) return null;
+    if (row.resource !== opts.resource) return null;
+    if (!verifyPkce(opts.codeVerifier, row.codeChallenge, row.codeChallengeMethod)) {
+      return null;
+    }
+    row.used = true;
+    return mintMcpTokens(row.email, row.clientId, row.resource, row.scopes);
+  }
+
+  function mcpRefreshTokens(refreshToken, { clientId, resource } = {}) {
+    const h = hashToken(refreshToken);
+    const row = mcpRefresh.get(h);
+    if (!row || row.revoked || Date.now() > row.exp) return null;
+    if (clientId && row.clientId !== clientId) return null;
+    if (resource && row.resource !== resource) return null;
+    row.revoked = true;
+    mcpRefresh.delete(h);
+    return mintMcpTokens(row.email, row.clientId, row.resource, row.scopes);
+  }
+
+  function accountFromMcpToken(accessToken) {
+    if (!accessToken) return null;
+    const row = mcpAccess.get(hashToken(accessToken));
+    if (!row || row.revoked || Date.now() > row.exp) return null;
+    const a = refreshAccountStatus(getAccount(row.email));
+    if (!a) return null;
+    if (a.status !== "active" && a.status !== "trialing") return null;
+    return a;
+  }
+
+  function mcpRevokeForEmail(email) {
+    const e = normEmail(email);
+    for (const [k, v] of mcpAccess) {
+      if (v.email === e) {
+        v.revoked = true;
+        mcpAccess.delete(k);
+      }
+    }
+    for (const [k, v] of mcpRefresh) {
+      if (v.email === e) {
+        v.revoked = true;
+        mcpRefresh.delete(k);
+      }
+    }
+  }
+
+  function mcpRegisterClient(meta) {
+    const clientId = meta.client_id || id("cli");
+    mcpClients.set(clientId, {
+      clientId,
+      redirectUris: meta.redirect_uris || [],
+      clientName: meta.client_name || "",
+      tokenEndpointAuthMethod: meta.token_endpoint_auth_method || "none",
+    });
+    return {
+      client_id: clientId,
+      redirect_uris: meta.redirect_uris || [],
+      token_endpoint_auth_method: "none",
+    };
+  }
+
+  function mcpGetClient(clientId) {
+    return mcpClients.get(clientId) || null;
+  }
+
   return {
     kind: "memory",
     createMagicToken,
@@ -220,6 +470,22 @@ export function createMemoryStore() {
     publicAccount,
     ensureAccount,
     getAccount,
+    mirrorUpsert,
+    mirrorFetch,
+    mirrorSearch,
+    mirrorWipe,
+    mirrorStatus,
+    mcpCreatePending,
+    mcpGetPending,
+    mcpDeletePending,
+    mcpCreateAuthCode,
+    mcpExchangeCode: mcpExchangeCodeSync,
+    mcpRefreshTokens,
+    accountFromMcpToken,
+    mcpRevokeForEmail,
+    mcpRegisterClient,
+    mcpGetClient,
+    mintMcpTokensForTest: mintMcpTokens,
     hasProcessedEvent: (id) => processedEvents.has(id),
     claimEvent(id) {
       if (!id || processedEvents.has(id)) return false;
@@ -242,6 +508,7 @@ export function createMemoryStore() {
     revokeSubscription(email) {
       const a = ensureAccount(email);
       a.stripeSubscriptionId = undefined;
+      mcpRevokeForEmail(a.email);
       if (a.remaining > 0) a.status = "active";
       else {
         a.status = "inactive";
