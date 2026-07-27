@@ -7,6 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
+| In progress | #115 | Tai | `ops/plus-public-launch` | `docs/qa/2026-07-27-plus-public-launch-checklist.md` | `docs/runbooks/atoms-plus-prod.md`, `docs/qa/2026-07-27-plus-public-launch-checklist.md`, `manifest.json`, `package.json`, `versions.json` | Public launch: docs + 0.6.31 release; secrets (Resend/Stripe live/Fly billing) = human |
 
 ## How to claim (copy)
 
