@@ -10,8 +10,11 @@ branch: feat/ask-write-path
 related:
   - 16
   - 112
+  - 119
+  - 120
   - 129
 deepened: 2026-07-27
+doc_review: 2026-07-27
 ---
 
 # Ask write path — create / continue atoms from Claude
@@ -26,7 +29,7 @@ deepened: 2026-07-27
 
 **Objective.** Plus users file **new** atoms and **continue** existing ones from Claude via remote MCP. Vault stays source of truth. Hosted path: **outbox → plugin apply → mirror upsert**.
 
-**Authority.** Constitution (body sacred, flat `Atoms/`, collision protect) > this plan > prior Ask plan read-only R3/R8 (superseded for write tools only).
+**Authority.** Constitution (body sacred, flat `Atoms/`, collision protect) > this plan > prior Ask read-path plan (`docs/plans/2026-07-27-001-feat-ask-brain-remote-mcp-plan.md` read-only tool surface — superseded **for write tools only**; do not confuse with this plan’s R3/R8).
 
 **Stop conditions.** Do not ship delete, body-replace, append-into-parent, Process/classify from chat, daily markers for chat atoms, or hub notes outside `Atoms/`. Do not merge #129 pagination into this PR.
 
@@ -61,7 +64,7 @@ Read tools work. Claude cannot author or record mind-change (e.g. HSM love vs jo
 | R7 | Auth split: enqueue with **mcp_**; pull/ack with **sess_**; Plus active\|trialing; tenant = token email |
 | R8 | Wipe clears outbox pending + mirror + MCP tokens |
 | R9 | Desktop + mobile apply (same plugin code; poll triggers) |
-| R10 | Settings copy: write tools → Plus outbox → vault on apply |
+| R10 | Settings copy: write tools → Plus outbox → vault on apply; **Allow filing** ack/toggle required before first enqueue and before plugin apply |
 | R11 | Not P0: body replace, append-into-parent, delete, meta-only retag, Process/markers, hubs outside Atoms/ |
 
 ### Key flows
@@ -98,7 +101,7 @@ Read tools work. Claude cannot author or record mind-change (e.g. HSM love vs jo
 
 | ID | Decision | Rationale |
 |---|---|---|
-| KTD1 | Table `ask_outbox`: id (`obx_…`), email, kind (`create`\|`continue`), payload_enc or structured cols, status (`pending`\|`claimed`\|`applied`\|`rejected`), client_request_id nullable unique per email, error, created_at, claimed_at, applied_at | Durable multi-device |
+| KTD1 | Table `ask_outbox`: id (`obx_…`), email, kind (`create`\|`continue`), **single `payload_enc`** (encrypted JSON blob — title, body, tags, links, parent_title, relation, client_request_id), status (`pending`\|`claimed`\|`applied`\|`rejected`), client_request_id nullable unique per email (plaintext index), error, created_at, claimed_at, applied_at. No plaintext body/title columns. | Durable multi-device + encrypt parity |
 | KTD2 | Routes under Ask HTTP (extend `handleMirrorRoutes` **or** sibling `handleOutboxRoutes` mounted beside it): `POST /v1/ask/outbox/pull`, `POST /v1/ask/outbox/ack` — **sess_ only**; reject **mcp_** | Mirror CORS/session pattern |
 | KTD3 | Poll: `onload`/`layout-ready`, Settings Ask open, after Process/Update success, interval **60s** while `askEnabled` + Plus session | No mobile push |
 | KTD4 | Atom FM: `created` (UTC date), `source: "[[Ask]]"`, `generated-by: ask-mcp`, tags, optional aliases; body = verbatim + `formatLinkProse` | Distinct from `linker` Process |
@@ -111,11 +114,11 @@ Read tools work. Claude cannot author or record mind-change (e.g. HSM love vs jo
 | KTD11 | **Lease claim on pull:** pull returns up to N pending, sets `claimed` + claimed_at + optional device id; ack → applied/rejected; **stale claim** (>15 min) returns to pending | Multi-device double-create |
 | KTD12 | After successful create: call existing `syncAskMirror` (or targeted upsert) so fetch works without manual Sync | Close loop |
 | KTD13 | Update `ASK_MCP_INSTRUCTIONS`: write = outbox; pending until Obsidian; body sacred; continue rules | Stops “cannot write” lie |
-| KTD14 | **No OAuth scope bump in P0** — keep `atoms:read` string; tools still not scope-gated (today). Document that write tools share connector. Optional later `atoms:write` + re-consent | Avoid Claude reconnect tax this ship |
+| KTD14 | **No OAuth scope string bump in P0** (keep `atoms:read` to avoid Claude reconnect). **Honest UX required:** OAuth consent HTML + Settings + MCP instructions state write-via-outbox. **`askWriteAckAt` (or “Allow filing” toggle)** must be set before MCP write tools succeed and before plugin outbox apply. Later optional `atoms:write` scope. | Consent without reconnect tax |
 | KTD15 | **Path at apply only** — outbox stores title + body + tags + links (+ parent/relation); plugin computes path with local `atomFolder` | Server must not assume `Atoms/` |
-| KTD16 | Encrypt outbox body (and full payload JSON) with `encryptMirrorField` / same key as mirror | Parity with KTD10b Ask plan |
+| KTD16 | `payload_enc` = `encryptMirrorField(JSON.stringify(payload))`; same key as atom_mirror (`ATOMS_ASK_MIRROR_KEY`); prodGate fail-closed if key missing (no enqueue/pull) | Same field encryption as atom_mirror bodies |
 | KTD17 | Relation → link prose templates on child only (e.g. `Revises [[Parent]].` / reason includes `[[Parent]]`) | #16 graph edge |
-| KTD18 | Settings: pending count via pull empty response `pending_count` or lightweight status field; one-line write privacy under Ask | R10 + stuck UX |
+| KTD18 | Settings: **Allow filing** ack/toggle + write privacy one-liner; optional pending_count on pull | R10 consent + stuck UX |
 | KTD19 | Rate-limit MCP enqueue (reuse ratelimit helper per email/token) | Abuse |
 | KTD20 | CONCEPTS: Ask tools are read **and** write-via-outbox; add short “Ask write / continue” term | Vocab SSOT |
 
@@ -139,14 +142,15 @@ Audience split unchanged: **mcp_** never hits outbox HTTP; **sess_** never hits 
 | Mirror HTTP auth | `plus-service/src/mirror/http.mjs` sess_ gate, reject mcp_ |
 | MCP tools | `plus-service/src/mcp/tools.mjs` registerTool + JSON content |
 | Plugin Plus HTTP | `askMirrorUpsert` shape in `plusClient.ts` |
-| Atom create | `applyWrite` create-if-missing; collision protect solutions |
+| Atom create | `vault.create` if missing + ensure folder; **never** call `applyWrite` (daily-marker coupling); collision protect = reject / no `vault.modify` |
 | Tests | `store-ask.test.mjs`, `http-ask-mirror.test.mjs`, `http-ask-mcp.test.mjs` |
 
 ### Assumptions
 
 - User opens Obsidian within minutes for dogfood; no email notify P0.
-- Library shows `generated-by: ask-mcp` atoms (no filter-out).
-- Quality stamps: omit `atoms-quality` or set minimal — **omit** Process quality stamps for Ask-origin (not linker-classified). Implementer: only KTD4 fields unless tests need more.
+- **Same system:** Ask-origin notes are first-class atoms (Library, home chips, graph/neighbors, mind-change when relation is revises|contradicts). Not a side channel.
+- **Library gate:** widen product-atom detection from `generated-by: linker` only to **`linker` \| `ask-mcp`** (shared helper / `isGeneratedAtomContent` + `atomsHomeData` and graph consumers). **Update notes** stays **linker-only** (never AI-refile Ask-origin).
+- Quality stamps: **omit** Process `atoms-quality` for Ask-origin (not linker-classified). Implementer: only KTD4 fields unless tests need more.
 
 ### Deferred open questions (non-blocking)
 
@@ -154,7 +158,7 @@ Audience split unchanged: **mcp_** never hits outbox HTTP; **sess_** never hits 
 |---|---|---|
 | Q1 | `outbox_status` MCP tool | No P0 |
 | Q2 | Pagination (#129) | Separate issue |
-| Q3 | Privacy re-ack checkbox | No; settings sentence only |
+| Q3 | Privacy re-ack / Allow filing | **Yes — dedicated Allow filing ack/toggle** (not full OAuth reconnect); settings + consent HTML updated |
 | Q4 | `source` string | `[[Ask]]` |
 | Q5 | Scope rename `atoms:write` | Post-P0 |
 
@@ -226,8 +230,10 @@ Audience split unchanged: **mcp_** never hits outbox HTTP; **sess_** never hits 
 3. continue with parent → payload includes parent + relation link fields
 4. empty title/body → validation error
 5. body > 100k → error
-6. instructions no longer say tools cannot write
+6. instructions no longer say tools cannot write; include pending≠filed + user-dictated body rules
 7. Existing search/fetch still pass
+8. Exceed enqueue rate → structured error, no extra outbox row
+9. Rate-limit key `ask-write:${email}` inside create/continue handlers
 
 **Verify:** plus-service ask MCP tests green
 
@@ -242,22 +248,28 @@ Audience split unchanged: **mcp_** never hits outbox HTTP; **sess_** never hits 
 - `src/platform/plusClient.ts` — `askOutboxPull`, `askOutboxAck`
 - `src/plugin/main.ts` — triggers + interval
 - `src/settings/settings.ts` — write/pending copy
+- `src/pipeline/atomQuality.ts` (or shared generated-by helper) — accept `ask-mcp` as product atom
+- `src/home/atomsHomeData.ts` (+ graph/resurface consumers if they re-check linker-only)
 - `src/shared/types.ts` — only if settings fields needed (prefer none)
 - `test/askOutbox.test.ts` (new)
 - `test/plusClient.test.ts` (extend)
+- library/home unit covering ask-mcp FM in list entries
 
 **Approach.**
-- Pure: payload → `{ path, content }` using render helpers; continue injects relation link into links list before `formatLinkProse`.
-- Apply: if `app.vault.getAbstractFileByPath(path)` exists → ack rejected `path_exists`; else `vault.create` (ensure folder); ack applied; then `syncAskMirror`.
+- Pure: `buildAskAtomMarkdown` (not `buildAtomMarkdown`): FM per KTD4; body = verbatim + `formatLinkProse`; reuse sanitize/path/link helpers only.
+- Apply: if path exists → if same body + ask-mcp FM → ack **applied** + ensure mirror (idempotent); else ack **rejected** `path_exists` (never modify). Else `vault.create` → **mirror upsert** → ack **applied** only if mirror ok; on mirror fail leave claimed/retry or `rejected` `mirror_upsert_failed`.
+- **Same system:** product-atom gate includes ask-mcp so Library/home/graph see landed files.
 - Triggers KTD3; Notice: `Ask: landed N atom(s)` / `Ask: N write(s) rejected`.
-- Settings sentence under Ask (not full re-ack).
+- Settings: write privacy + **Allow filing** ack/toggle (`askWriteAckAt`). **P0 gates:** plugin does not pull/apply without ack; OAuth consent HTML + MCP instructions + Settings no longer say read-only. Enqueue may still succeed from Claude (cloud queue); nothing lands in vault until Allow filing + Obsidian. (Server-side reject without flag = later if needed.)
 
 **Test scenarios:**
 1. Plan create → path under clamped folder + FM ask-mcp + body sacred
-2. Plan continue → child body includes `[[Parent]]` relation prose; parent not in content as rewrite
+2. Plan continue → child body includes locked relation prose; parent path never modified (byte-identical parent fixture)
 3. Sanitize title matches Process rules
-4. Collision path → reject decision without modify
-5. plusClient paths/headers match pull/ack contracts (mock)
+4. Collision foreign body → reject without modify
+5. Collision same body + ask-mcp → applied idempotent
+6. plusClient paths/headers match pull/ack contracts (mock)
+7. ask-mcp FM appears in library list helper; Update-notes eligibility still linker-only
 
 **Verify:** `npm test` (askOutbox + plusClient + no regressed askMirror)
 
@@ -307,8 +319,8 @@ Audience split unchanged: **mcp_** never hits outbox HTTP; **sess_** never hits 
 - [ ] Settings + MCP instructions updated
 - [ ] CONCEPTS updated
 - [ ] Version bump in shipping commit
-- [ ] PR #128 body `Closes #127`; STATUS cleared on merge
-- [ ] Fly deploy write routes before/with BRAT (human ops)
+- [ ] Draft PR for `feat/ask-write-path` body includes `Closes #127`; STATUS cleared on merge
+- [ ] Fly deploy write routes before/with BRAT (human ops); do not enable write tools in prod until plugin apply ships (or server feature-flag)
 - [ ] No #129 scope creep
 
 **Per unit**
@@ -332,10 +344,28 @@ Audience split unchanged: **mcp_** never hits outbox HTTP; **sess_** never hits 
 
 ### Origin session defaults (settled)
 
-create/continue P0 · outbox · no body replace · parent in mirror · no re-ack · no outbox_status tool · source `[[Ask]]` · pagination separate (#129)
+create/continue P0 · outbox · no body replace · parent in mirror · Allow filing ack (no OAuth reconnect) · no outbox_status tool · source `[[Ask]]` · pagination separate (#129) · same-system library gate · mirror before ack
 
 ### Implementation order
 
 1. U1 → 2. U2 → 3. U3 → 4. U4  
 
-Deploy Fly after U1–U2 green; plugin release with U3–U4.
+Deploy Fly after U1–U2 green; plugin release with U3–U4. Gate prod write tools until apply path is live (flag or coordinated BRAT).
+
+### Wire contracts (pull/ack) — doc-review
+
+| Route | Auth | Body | Response |
+|---|---|---|---|
+| `POST /v1/ask/outbox/pull` | sess_ | `{ limit?: number }` default **1** (P0 batch size 1) | `{ items: [{ id, kind, payload }], pending_count, claimed_count? }` — payload decrypted server-side for tenant only |
+| `POST /v1/ask/outbox/ack` | sess_ | `{ id, status: "applied"\|"rejected", error? }` | `{ ok: true }` or 404 if id not owned by session email |
+| Payload plaintext (inside enc) | — | `{ title, body, tags?, links?, parent_title?, relation?, client_request_id? }` | — |
+
+**Tenant:** every pull/ack `WHERE email = sessionEmail AND id = ?`. Cross-tenant id → 404, no leakage.
+
+**MCP create/continue out:** always echo **real** row `status` (`pending`\|`claimed`\|`applied`\|`rejected`), `outbox_id`, `error?`. Duplicate `client_request_id` returns current row state (never re-pending a terminal row).
+
+**Relation → reason (locked):** `continues` → `continues [[Parent]]`; `revises` → `revises [[Parent]]`; `contradicts` → `contradicts [[Parent]]`; `adds_detail` → `adds detail to [[Parent]]`. Unknown relation → validation error. Only revises\|contradicts feed mind-change surfaces today.
+
+### Doc-review residual (needs human route)
+
+See session doc-review 2026-07-27: Library `generated-by` gate, apply order (mirror before ack), privacy re-ack vs settings-only, OAuth scope honesty, body user-dictated rule, path_exists idempotent match, wipe-in-flight generation.
