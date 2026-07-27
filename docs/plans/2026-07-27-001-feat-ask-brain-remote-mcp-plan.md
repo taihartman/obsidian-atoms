@@ -21,11 +21,11 @@ deepened: 2026-07-27
 
 **Authority.** Issue #112 product contract → this plan → `CLAUDE.md` non-negotiables (body sacred, no vault writes from chat). Dev Local REST MCP (`docs/dev-obsidian-mcp.md`) is **not** this product.
 
-**P0 stop condition.** Dogfood user on **phone Claude** → custom connector → `https://plus.taihartman.com/mcp` → OAuth (Plus magic-link identity) → `search_atoms` / `fetch_atom` → answer with `[[title]]` citations and verbatim body quotes. Evidence under `docs/qa/`.
+**P0 stop condition (protocol spike).** Dogfood user on **phone Claude** → custom connector → `https://plus.taihartman.com/mcp` → OAuth (Plus magic-link identity) → `search_atoms` / `fetch_atom` → answer with `[[title]]` citations and verbatim body quotes. Evidence under `docs/qa/`. **Label as fixture/protocol proof**, not full product enable→Process→ask acceptance (that is P1).
 
-**P1 stop condition.** Plugin opt-in push, privacy ack, wipe, Settings; then full #112 acceptance. **One claim / draft PR #116 through P1** (do not `Closes #112` on P0-only merge).
+**P1 stop condition (hosted product path).** Plugin opt-in push (desktop **and** phone Process/Update), privacy ack (checklist below), wipe, Settings; AE1–AE4 on **hosted Claude** path. **Does not** require ChatGPT e2e or polished DIY (those are P2 follow-up issues opened before any `Closes #112`). Draft PR #116 may span P0–P1; never put `Closes #112` on P0-only merge.
 
-**Out of band.** Full public Stripe catalog polish is not a P0 blocker if Plus sessions already work for dogfood. ChatGPT + DIY self-host docs = P2.
+**Out of band.** Full public Stripe catalog polish is not a P0 blocker if Plus sessions already work for dogfood. ChatGPT + DIY self-host docs = **P2 tracked issues** (open before close).
 
 ---
 
@@ -54,10 +54,10 @@ Push recall (resurface) stays; Ask does not replace it.
 | ID | Requirement |
 |----|-------------|
 | R1 | Chat happens in Claude and/or ChatGPT — **not** inside Atoms UI |
-| R2 | One remote MCP (Streamable HTTP); Claude first; ChatGPT fast-follow |
+| R2 | One remote MCP (Streamable HTTP); Claude first; ChatGPT **fast-follow (P2 issue — not required to close #112)** |
 | R3 | Tools **read-only**: search atoms, fetch full atom (verbatim body + tags + link reasons), optional neighbors |
 | R4 | Hosted path: opt-in sync of **`Atoms/` only** with privacy ack (auto-run honesty bar) |
-| R5 | Plus gates hosted mirror + MCP; free users get DIY self-host documentation |
+| R5 | Plus gates hosted mirror + MCP; free users get DIY self-host documentation (**P2 issue** if not complete at P1; Settings may link stub that states incomplete) |
 | R6 | Answers cite `[[title]]` and prefer body quotes; if unknown, say so |
 | R7 | User can **wipe** cloud mirror and revoke connector access |
 | R8 | No Process / write / classify from chat in v1 |
@@ -125,16 +125,24 @@ Push recall (resurface) stays; Ask does not replace it.
 | KTD5 | Unauth `/mcp` → **401** + `WWW-Authenticate: Bearer resource_metadata="https://plus.taihartman.com/.well-known/oauth-protected-resource"` (+ optional scope) | Claude discovery; AE4 |
 | KTD6 | PRM `resource` **exactly** `https://plus.taihartman.com/mcp` (no trailing slash); AS issuer same host | Claude resource match |
 | KTD7 | OAuth: AS metadata with PKCE S256; prefer **CIMD flags** (`client_id_metadata_document_supported` + `token_endpoint_auth_methods_supported` includes `none`) **or** DCR `/register`; redirect allowlist includes `https://claude.ai/api/mcp/auth_callback` (+ Claude Code loopback port-agnostic) | Claude auth reference; DCR spam risk |
-| KTD8 | `/authorize`: require Plus identity via magic-link browser flow → consent “Atoms Ask (read-only)” → auth code bound to email + `resource` + PKCE challenge | Reuse Plus; no second account |
+| KTD8 | `/authorize`: require Plus identity via magic-link browser flow → consent “Atoms Ask (read-only)” → auth code bound to **email + resource + code_challenge + client_id + redirect_uri + expiry** | Reuse Plus; OAuth code interception defense |
+| KTD8b | **OAuth pending state machine:** before email, persist `mcp_oauth_pending` (client_id, redirect_uri, state, code_challenge, resource, exp). Magic-link URL carries `pending_id`. Exchange sets KTD17 cookie and **302** to `/authorize/continue?pending=…` (not paste-only HTML dead-end). Consent requires cookie + pending + matching `state`; then one-time auth code | Plus today has no cookie/return_to — load-bearing for Claude connector |
+| KTD8c | OAuth `state` required (CSRF); consent POST bound to same pending; reject missing/wrong/reused state | Prevents login CSRF / identity swap |
 | KTD9 | Token endpoint: `application/x-www-form-urlencoded`; access `mcp_…` ~1h; refresh ~30d rotate; hash at rest like `sess_` | Separate from plugin sessions; R7 revoke |
 | KTD10 | Mirror table: `(email, atom_id, title, path, body_text, tags_json, links_json, content_hash, updated_at)` unique `(email, path)` | Atoms-only; body sacred |
-| KTD11 | Upsert/wipe HTTP: Bearer **Plus session** + entitlement active\|trialing; MCP bearer never writes | R8 |
+| KTD10b | **AES-GCM required in prod** when mirror rows exist: `ATOMS_ASK_MIRROR_KEY` in prodGate (fail-closed). Encrypt at least `body_text` (prefer title/tags/links too). Memory tests may use plaintext. Not optional. | Aligns D1; removes optional-crypto fork |
+| KTD11 | Upsert/wipe HTTP: Bearer **Plus session** only; tenant email from `accountFromSession` **never** body; entitlement active\|trialing; MCP bearer never writes. Reject `mcp_` on Plus routes and `sess_` on `/mcp` | R8; multi-tenant write isolation |
+| KTD11b | `accountFromMcpToken` / tools middleware: require active\|trialing else 401; Stripe cancel → `mcpRevokeForEmail` (access **and** refresh) | R5 after cancel |
 | KTD12 | Cap fetch body / search snippets (snippet ≤240 chars; full body truncate soft cap ~100k chars toward 150k tool limit) | Claude tool result limit |
-| KTD13 | Rate limit search/fetch per token + IP | Abuse floor; metering P3 |
-| KTD14 | Prod refuses authless MCP; DIY local may use folder + optional static bearer | R5 |
-| KTD15 | Plugin P1: Settings near Plus — ack, enable, copy MCP URL, Sync now, Wipe; push via `plusFetchRequest` | CORS/fetch lessons from Plus dogfood |
+| KTD13 | Rate limit: tools per token+IP; also magic-link, `/authorize`, `/token`, DCR `/register` per IP/email | Abuse floor; metering P3 |
+| KTD14 | Prod refuses authless MCP (tested under prodGate); DIY local may use folder + optional static bearer **dev only** | R5 |
+| KTD15 | Plugin P1: Settings near Plus — ack checklist, enable, copy MCP URL, Sync now, Wipe via **`POST /v1/ask/mirror/wipe`** (not DELETE — CORS today is GET/POST/OPTIONS); push via `plusFetchRequest` | CORS/fetch lessons from Plus dogfood |
 | KTD16 | Deploy: same `atoms-plus` Fly app; keep `min_machines_running = 1` (OAuth discovery &lt;10s) | Cold-start risk |
-| KTD17 | OAuth `/authorize` uses a **short-lived HttpOnly browser cookie** set when magic-link exchange HTML succeeds (or after POST exchange with `Accept: text/html`). Plugin continues paste/`sess_` device-local storage — cookies are **only** for the MCP consent browser hop. Cookie binds email; not a substitute for `mcp_` access tokens | Plus today is paste-session only; Claude OAuth needs a browser identity step without inventing a second account |
+| KTD17 | OAuth browser cookie: `HttpOnly; Secure; SameSite=Lax`; short Max-Age; path limited to OAuth routes; value = opaque id mapped to `{email, pending_auth_id}` (**not** bare email). Set on magic-link exchange success then 302 continue. Never authorizes `/mcp` or mirror write APIs. Plugin `sess_` remains device-local paste storage | Plus paste-session + Claude browser hop |
+| KTD18 | Logging: never log Authorization, raw tokens, magic secrets, auth codes, refresh tokens, or atom `body_text` / tool payloads | Plus log-safety parity |
+| KTD19 | Privacy ack (U8) must state: (1) only `Atoms/` leaves device; (2) stored on Plus servers; (3) host can decrypt v1 — not ZK; (4) **Anthropic receives tool results** when chatting via Claude; (5) wipe deletes mirror + revokes MCP tokens; (6) disable ≠ wipe. Gate first upsert on ack timestamp | R4 honesty |
+| KTD20 | MCP SDK mount: each POST `/mcp` after Bearer resolve creates **new** `McpServer` + `StreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true })`; no shared stateful transport across Fly instances; GET `/mcp` → 405 | Multi-instance Fly |
+| KTD21 | Dependencies: `@modelcontextprotocol/sdk` + `zod` direct deps; commit `package-lock.json` | Docker `npm ci` |
 
 ### High-level technical design
 
@@ -163,19 +171,20 @@ sequenceDiagram
 
 ```text
 plus-service/src/
-  server.mjs          # route switch: existing + /mcp + well-known + /authorize + /token
+  server.mjs              # route switch: existing + /mcp + well-known + OAuth + mirror HTTP
+  store/{memory,sqlite,postgres}.mjs   # mirror* + mcp* methods (SSOT — not a separate store-api)
   mcp/
-    transport.mjs     # SDK Streamable HTTP wiring
-    tools.mjs         # search_atoms, fetch_atom
-    instructions.mjs  # server instructions string
+    transport.mjs         # per-request SDK Streamable HTTP (KTD20)
+    tools.mjs             # search_atoms, fetch_atom
+    instructions.mjs
   oauth/
-    metadata.mjs      # PRM + AS metadata
-    authorize.mjs     # magic-link bridge + consent
-    token.mjs         # code + refresh exchange
-    dcr.mjs           # optional /register
+    metadata.mjs          # PRM + AS metadata
+    authorize.mjs         # pending + magic-link bridge + consent (KTD8b/c)
+    token.mjs
+    dcr.mjs               # optional /register
   mirror/
-    store-api.mjs     # upsert/search/fetch/wipe (store methods)
-    crypto.mjs        # AES-GCM envelope (optional wrapper around body_text)
+    http.mjs              # upsert/wipe/status routes (Plus session)
+    crypto.mjs            # required AES-GCM envelope (KTD10b)
 ```
 
 ### Alternatives considered
@@ -216,18 +225,18 @@ plus-service/src/
 - `plus-service/src/store/postgres.mjs`
 - `plus-service/test/store-ask.test.mjs` (new)
 
-**Approach.** Add tables: `atom_mirror`; `mcp_oauth_clients` (if DCR); `mcp_auth_codes`; `mcp_access_tokens` / `mcp_refresh_tokens` (hash-only secrets). Methods: `mirrorUpsert`, `mirrorSearch`, `mirrorFetch`, `mirrorWipe(email)`, `mcpCreateAuthCode`, `mcpExchangeCode`, `mcpRefresh`, `mcpRevokeForEmail`, `accountFromMcpToken`. Match existing `hashToken` / `id("mcp")` patterns. Encryption wrapper can store ciphertext in `body_text` with version prefix or separate column — keep decrypt inside store fetch API.
+**Approach.** Add tables: `atom_mirror`; `mcp_oauth_pending`; `mcp_oauth_clients` (if DCR); `mcp_auth_codes`; `mcp_access_tokens` / `mcp_refresh_tokens` (hash-only secrets). Methods: `mirrorUpsert`, `mirrorSearch`, `mirrorFetch`, `mirrorWipe(email)`, `mcpCreatePending`, `mcpCreateAuthCode`, `mcpExchangeCode`, `mcpRefresh`, `mcpRevokeForEmail` (access **and** refresh), `accountFromMcpToken` (status active|trialing). Match `hashToken` / `id("mcp")`. **KTD10b:** encrypt `body_text` at rest in sqlite/postgres; decrypt inside fetch/search. Search = ILIKE + title/tag boost (defer true FTS). Await methods consistently on postgres.
 
 **Test scenarios.**
 - Upsert then fetch by path returns verbatim body for same email
 - User A cannot fetch user B’s path
 - Search ranks title hit above body-only hit for same query
-- Wipe removes all rows for email and revokes MCP tokens
-- Auth code is one-time and expires
+- Wipe removes all rows for email and revokes **access + refresh** (same bearer → 401)
+- Auth code is one-time, expires, binds client_id + redirect_uri
 - Refresh rotation invalidates old refresh token
-- Invalid/expired access token → null account
+- Invalid/expired/inactive entitlement access token → null account
 
-**Verification.** `cd plus-service && npm test` includes new store-ask suite on memory + sqlite.
+**Verification.** `cd plus-service && npm test` store-ask on **memory + sqlite**; when `DATABASE_URL` set, also postgres (document optional CI). Concrete DDL in all three migrate paths.
 
 ---
 
@@ -245,15 +254,16 @@ plus-service/src/
 - `plus-service/test/http-ask-mirror.test.mjs` (new; spawn pattern from `http-dogfood.test.mjs`)
 
 **Approach.**
-- `POST /v1/ask/mirror/upsert` Bearer Plus session; body `{ atoms: [{ path, title, body, tags?, links? }] }`; require status active|trialing
-- `DELETE /v1/ask/mirror` or `POST /v1/ask/mirror/wipe` → wipe + revoke MCP tokens
-- `GET /v1/ask/mirror/status` → `{ enabled hint, count, updatedAt }` (optional P0)
-- Size caps per atom and bulk batch; rate limit
+- `POST /v1/ask/mirror/upsert` Bearer **Plus `sess_` only**; body `{ atoms: [{ path, title, body, tags?, links? }] }`; **owner email from session only** (ignore forged body email); active|trialing
+- **Canonical wipe:** `POST /v1/ask/mirror/wipe` → wipe + `mcpRevokeForEmail` (CORS-safe; no DELETE)
+- `GET /v1/ask/mirror/status` → `{ count, updatedAt }` (optional P0)
+- Size caps; rate limit; KTD18 no body logging
 
 **Test scenarios.**
 - 401 without session; 403 inactive entitlement
-- Upsert then status count increments
-- Wipe empties count
+- Upsert then status count increments; forged body email ignored
+- Wipe empties count + prior mcp bearer 401
+- `mcp_` bearer on upsert → 401
 - Oversized body rejected with 413/400
 - Covers AE2 (wipe path at API layer)
 
@@ -270,25 +280,26 @@ plus-service/src/
 **Dependencies.** U1
 
 **Files.**
-- `plus-service/package.json` (add `@modelcontextprotocol/sdk`, `zod` if required)
+- `plus-service/package.json` + `package-lock.json` (`@modelcontextprotocol/sdk`, `zod` — KTD21)
 - `plus-service/src/mcp/transport.mjs`
 - `plus-service/src/mcp/tools.mjs`
 - `plus-service/src/mcp/instructions.mjs`
 - `plus-service/src/server.mjs` (mount `/mcp`)
 - `plus-service/test/http-ask-mcp.test.mjs`
 
-**Approach.** Wire SDK transport in JSON mode. Resolve user from `Authorization: Bearer mcp_…` (U1); if missing/invalid → **HTTP 401** before JSON-RPC (U4 completes PRM header). Tools return structured text optimized for citation. No write tools registered.
+**Approach.** KTD20 per-request SDK transport JSON mode. Resolve user from `Authorization: Bearer mcp_…` with entitlement check (KTD11b); missing/invalid/wrong-audience `sess_` → **HTTP 401** before JSON-RPC (U4 adds full `WWW-Authenticate`). Tools scoped by email; empty mirror returns empty results + stable “mirror empty—sync from Obsidian” hint. No write tools. KTD18 logging.
 
 **Execution note.** Start with failing HTTP tests for initialize + tools/call with a pre-inserted mirror row and a test-minted mcp token (helper), then implement.
 
 **Test scenarios.**
 - `initialize` returns server info + instructions mentioning cite/quote
 - `tools/list` exposes only read tools
-- `search_atoms` returns seeded title
+- `search_atoms` returns seeded title; user A token never sees user B atoms (incl. same path)
 - `fetch_atom` returns verbatim body including hedges/whitespace-significant content
 - Missing atom → tool error payload (not HTTP 500)
 - No tool named classify/write/delete
 - Result truncation when body exceeds soft cap
+- Zero rows → empty + admit-unknown friendly payload
 - Covers AE3 at tool registration level
 
 **Verification.** Node test suite + optional `npx @modelcontextprotocol/inspector` smoke noted in QA doc.
@@ -299,7 +310,7 @@ plus-service/src/
 
 **Goal.** Claude can complete custom connector OAuth against Plus identity.
 
-**Requirements.** R5, R7 · D3 · KTD5–KTD9 · AE4
+**Requirements.** R5, R7 · D3 · KTD5–KTD9, KTD8b, KTD8c, KTD17 · AE4
 
 **Dependencies.** U1, U3
 
@@ -313,22 +324,25 @@ plus-service/src/
 
 **Approach.**
 - Serve PRM + AS metadata under `/.well-known/…`
-- `/authorize`: unauthenticated → magic-link collect email (reuse createMagicToken / exchange UX) → **KTD17 browser cookie** → consent page → redirect `code` (PKCE). Do not require the user to paste `sess_` into Claude.
-- `/token`: form-urlencoded; PKCE S256 verify; mint mcp access+refresh; bind `aud`/`resource` to canonical MCP URL
-- CIMD metadata flags preferred; DCR optional fallback
-- Prod: reject authless tool access
+- **KTD8b pending machine:** `/authorize` persists full OAuth query + `state` → magic-link with `pending_id` → exchange sets **KTD17 cookie** + **302** to consent continue (not paste-`sess_` dead-end). Consent needs cookie + pending + matching state → code.
+- `/token`: form-urlencoded; PKCE S256; verify client_id + redirect_uri + challenge; mint mcp access+refresh; `aud` = canonical MCP URL
+- CIMD metadata flags preferred; DCR optional; redirect allowlist: `https://claude.ai/api/mcp/auth_callback` + Claude Code loopback **exact path patterns** from current docs (not arbitrary path)
+- **Phone risk:** same-browser instructions; if cookie hop fails on mobile, support resume via `pending_id` in magic-link alone (server-side pending) so cookie is belt-and-suspenders. Desktop OAuth green is **not** phone green (U6).
+- Prod: reject authless tool access (tested)
 
 **Test scenarios.**
 - Unauth POST `/mcp` → 401 + `WWW-Authenticate` contains resource_metadata URL
 - PRM `resource` exact match config public URL + `/mcp`
 - AS metadata advertises S256 PKCE
-- Full code+PKCE exchange yields token that authorizes tools/call
-- Bad code_verifier fails
+- Full code+PKCE exchange yields token that authorizes tools/call **without pasting sess_ into Claude**
+- Missing/wrong/reused `state` fails; cross-pending cookie mix fails
+- Bad code_verifier / wrong client_id / wrong redirect_uri fail
 - Refresh works once; reused old refresh fails after rotate
-- Redirect URI not in allowlist rejected
+- Expired pending rejects
+- Inactive entitlement cannot complete consent
 - Covers AE4
 
-**Verification.** Automated OAuth happy path in http tests; manual Claude Desktop connector once deployed.
+**Verification.** Automated OAuth happy path in http tests; manual Claude Desktop connector before phone (U6).
 
 ---
 
@@ -358,23 +372,24 @@ plus-service/src/
 
 ### U6. P0 dogfood — phone Claude
 
-**Goal.** Prove AE1 on real mobile Claude against public host.
+**Goal.** Prove **AE1-protocol** on real mobile Claude against public host (fixture seed — not product Process loop).
 
-**Requirements.** R1, R6, R9 · AE1 · F1
+**Requirements.** R1, R6, R9 · AE1-protocol · F1
 
-**Dependencies.** U3, U4, U5, U7 (or local tunnel only if public deploy delayed — prefer public)
+**Dependencies.** U3, U4, U5, **U7 first** (or local tunnel only if public deploy delayed — prefer public)
 
 **Files.**
 - `docs/qa/YYYY-MM-DD-ask-brain-p0-dogfood.md`
 - `docs/qa/screenshots/ask-brain/` (phone screenshots if available)
 
-**Approach.** Human/agent-assisted: seed → add connector URL → OAuth → phone question only answerable from fixtures → capture answer + tool trace notes. No personal Remote Vault required — fixtures only.
+**Approach.** **After U7.** Human/agent-assisted: seed → Desktop OAuth proof first → phone connector → OAuth (same-browser magic-link) → phone question only answerable from fixtures → capture answer + tool trace. Fixtures only — label QA as protocol spike. No personal Remote Vault.
 
 **Test scenarios.**
-- Covers AE1 end-to-end
-- Negative: disconnect connector / wipe → model cannot retrieve prior atoms
+- Covers AE1-protocol end-to-end on phone
+- Negative: wipe → tools empty; disconnect; empty mirror admits unknown
+- Record cookie/same-browser failure if phone OAuth breaks despite Desktop green
 
-**Verification.** QA doc checked into PR; STATUS notes P0 green.
+**Verification.** QA doc checked into PR; STATUS notes P0 protocol green (not product-complete).
 
 **Execution note.** Prefer smoke/runtime proof over unit coverage for this unit.
 
@@ -395,14 +410,14 @@ plus-service/src/
 - `docs/runbooks/atoms-plus-prod.md` (Ask section)
 - `plus-service/src/config.mjs` (`PUBLIC_BASE_URL`, MCP resource URL, crypto key)
 
-**Approach.** Deploy same app; set secrets (`ATOMS_ASK_MIRROR_KEY` if encryption); smoke: health, unauth mcp 401, OAuth metadata 200. Regression: `/v1/me` and classify still work.
+**Approach.** Deploy same app; **`ATOMS_ASK_MIRROR_KEY` required in production** (KTD10b / prodGate). Smoke: health, unauth mcp 401 + WWW-Authenticate, OAuth metadata 200, npm ci lockfile. Regression: `/v1/me` and classify still work. Ask routes always on; mirror empty until upsert.
 
 **Test scenarios.**
-- Prod gate still fails closed without existing required env
-- New optional Ask secrets documented; service starts if Ask disabled? **Decision:** Ask routes always on when code shipped; mirror empty until upsert — no separate feature flag required P0
+- Prod gate fails closed without existing required env **and** without `ATOMS_ASK_MIRROR_KEY`
+- Authless MCP impossible when prodGate true
 - Health check unchanged path `/health`
 
-**Verification.** Post-deploy curl checklist in runbook passes.
+**Verification.** Post-deploy curl checklist in runbook passes. **Ship U7 before U6.**
 
 ---
 
@@ -422,7 +437,7 @@ plus-service/src/
 - `test/plusClient-ask.test.ts` (or extend plusClient tests)
 - `manifest.json` / `package.json` / `versions.json` version bump
 
-**Approach.** Subsection under Atoms Plus. Require checkbox ack before enable. Copy `https://plus.taihartman.com/mcp`. Sync now scans configured atoms folder, hash-skips unchanged, upserts via `plusFetchRequest`. Wipe confirms then DELETE. No chat UI.
+**Approach.** Subsection under Atoms Plus. **KTD19 privacy ack checklist** (checkbox + stored ack timestamp) before enable/first upsert. Copy MCP URL. Sync now scans configured atoms folder, hash-skips, upserts via `plusFetchRequest`. Wipe confirms then **`POST /v1/ask/mirror/wipe`**. Link DIY stub that states **status=incomplete / P2**. No chat UI.
 
 **Test scenarios.**
 - plusClient wipe/upsert request shapes (mock fetch)
@@ -446,37 +461,39 @@ plus-service/src/
 - `src/platform/askMirror.ts` (new pure-ish push planner)
 - `test/askMirror.test.ts`
 
-**Approach.** Collect created/updated atom paths from write results; read files; build upsert payload; best-effort push (Notice on failure, never fail Process). Hash skip. Phone relies on Sync when desktop last processed — document; optional open-app catch-up later.
+**Approach.** Collect created/updated atom paths from write results on **desktop and mobile** (same hook); read files; upsert via `plusFetchRequest`; best-effort (Notice on failure points to Sync now; never fail Process). Hash skip. **P1 acceptance:** phone-only vault Processes an atom → automatic push or Sync now → phone Claude retrieves it. Desktop is not required for mirror freshness.
 
 **Test scenarios.**
 - Planner includes only Atoms/ paths
 - Hash equal → skip
-- Disabled Ask → no network
+- Disabled Ask / missing ack → no network
 - Failure does not throw into Process success path
+- Push planner invoked from Process path on both platforms (unit-level hook coverage)
 
-**Verification.** Unit tests + test_vault Process → mirror status count (service local or mock).
+**Verification.** Unit tests + test_vault Process → mirror status count; P1 QA phone Process → ask.
 
 ---
 
 ### U10. P1 shipping tail + acceptance
 
-**Goal.** Claim complete for #112 merge criteria (minus P2 ChatGPT/DIY polish if split — default include DIY stub link).
+**Goal.** Hosted Claude Ask path complete; open P2 issues for ChatGPT + DIY; then `Closes #112`.
 
-**Requirements.** All R1–R9 for hosted path · AE1–AE4
+**Requirements.** R1–R9 for **hosted Claude** path (R2/R5 ChatGPT+DIY carved to P2 issues) · AE1-product · AE2–AE4
 
 **Dependencies.** U6, U8, U9
 
 **Files.**
 - `docs/qa/YYYY-MM-DD-ask-brain-world-class-qa.md`
-- `docs/ask-self-host.md` (stub OK if full DIY is P2 — prefer short stub)
+- `docs/ask-self-host.md` (stub stating incomplete + link P2 issue)
 - `STATUS.md` (In review)
-- PR #116 body: `Closes #112` only when ready
+- PR #116 body: `Closes #112` only when ready; links P2 issues
 
-**Approach.** simplify → code-review → compound → world-class-qa + adversarial. PR evidence screenshots for Settings.
+**Approach.** Before close: open GitHub issues for ChatGPT client path and DIY self-host docs. simplify → code-review → compound → world-class-qa + adversarial. PR evidence screenshots for Settings. **AE1-product:** test_vault Process/Update → mirror → phone Claude question only answerable from processed atoms (not fixtures alone).
 
 **Test scenarios.**
-- Full acceptance checklist from #112
-- Covers AE1–AE4
+- Hosted acceptance checklist (Claude phone + Settings + wipe + privacy ack)
+- Covers AE1-product, AE2–AE4
+- P2 issues exist and are linked
 
 **Verification.** Shipping tail complete; human review on product-facing Settings.
 
@@ -486,12 +503,15 @@ plus-service/src/
 
 | Phase | Units | Ship gate |
 |-------|-------|-----------|
-| **P0** | U1–U7 | Phone Claude AE1 + public host |
-| **P1** | U8–U10 | Plugin enable/sync/wipe + `Closes #112` |
-| **P2** | (follow-up issue if needed) | ChatGPT + full DIY docs |
+| **P0a** | U1 → U2 → U5 | Mirror + seed green (Inspector/curl) |
+| **P0b** | U3 | Tools against test-minted mcp tokens |
+| **P0c** | U4 | OAuth + PRM (Desktop connector before phone) |
+| **P0d** | **U7 → U6** | Public deploy, then phone AE1-protocol |
+| **P1** | U8–U10 | Plugin enable/sync/wipe + AE1-product + `Closes #112` |
+| **P2** | follow-up issues | ChatGPT + full DIY docs |
 | **P3** | — | Metering / harden |
 
-**PR landing.** Keep draft #116 through P1. If P0 must deploy early: merge service-only with **no** `Closes` keyword, open follow-up issue for P1, update STATUS — prefer single PR Option A unless humans need P0 live faster.
+**PR landing.** Prefer **PR-A** service P0 (no `Closes`) when early deploy needed; **PR-B** plugin P1 with `Closes #112`. Single draft #116 OK if humans want one thread — still forbid Closes until U10.
 
 ---
 
@@ -513,12 +533,13 @@ plus-service/src/
 ## Definition of Done
 
 **Global**
-- [ ] All P0 units U1–U7 complete with tests/evidence
-- [ ] AE1 proven on phone Claude against public URL
+- [ ] P0a–P0d complete with tests/evidence (U7 before U6)
+- [ ] AE1-protocol proven on phone Claude (fixture); AE1-product on P1
 - [ ] AE2–AE4 covered by automated tests and/or QA doc
 - [ ] No write tools; no dailies/full-vault upload
-- [ ] P1 Settings + push + wipe shipped before `Closes #112`
-- [ ] Shipping tail (simplify, code-review, compound, world-class-qa) on merge-ready PR
+- [ ] P1 Settings + phone-capable push + wipe + KTD19 ack before `Closes #112`
+- [ ] P2 issues opened for ChatGPT + DIY before close
+- [ ] Shipping tail on merge-ready PR
 - [ ] STATUS cleared after merge
 
 **Per-unit.** Each U-ID verification section satisfied; feature-bearing units have green listed tests.
@@ -543,10 +564,12 @@ plus-service/src/
 
 | ID | Question | Default if unresolved |
 |----|----------|----------------------|
-| OQ1 | Privacy ack / Settings copy voice | Ship plain honest draft; voice pass later |
+| OQ1 | Privacy ack voice polish | **KTD19 checklist is blocking content**; voice pass later |
 | OQ2 | Soft caps: max atoms / max body bytes per account | 10k atoms / 100k chars body / 2MB bulk upsert |
-| OQ3 | Neighbors in P0? | **No** — P1+ if free |
-| OQ4 | Split P0 merge without Closes? | Prefer single PR; humans may choose early deploy |
+| OQ3 | Neighbors in P0? | **No** — deferred follow-up |
+| OQ4 | PR-A service vs single #116 | Prefer PR-A early deploy; single draft OK with Closes discipline |
+| OQ5 | Encrypt title/tags/links or body-only? | Prefer all sensitive columns; minimum body_text |
+| OQ6 | Exact Claude Code loopback URI pattern | Pin from Anthropic docs at implement time |
 
 ---
 
