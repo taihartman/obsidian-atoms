@@ -7,6 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
+| In progress | #127 | Tai | `feat/ask-write-path` | `docs/plans/2026-07-27-003-feat-ask-write-path-plan.md` | `plus-service/src/mcp/`, `plus-service/src/store/`, `plus-service/src/mirror/`, `src/platform/askMirror.ts`, `src/platform/plusClient.ts`, `src/plugin/main.ts`, `src/settings/settings.ts` | Ask write: outbox + create/continue; plan first — no impl until plan OK |
 | Blocked | #115 | Tai | — | `docs/qa/2026-07-27-plus-public-launch-checklist.md` | Fly secrets, Resend, Stripe live | Docs+0.6.31 shipped (#117). Waiting: Fly billing card, Resend domain+2nd email, Stripe live keys/prices/webhook |
 
 ## How to claim (copy)
