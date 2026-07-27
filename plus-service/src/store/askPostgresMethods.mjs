@@ -429,6 +429,84 @@ export function createAskPostgresMethods(pool, deps) {
     return outboxOpenCount(e);
   }
 
+  async function outboxCancel(email, outboxId) {
+    const e = normEmail(email);
+    const oid = String(outboxId || "").trim();
+    if (!oid) return { ok: false, error: "id required" };
+    const row = await pool.query(
+      `SELECT * FROM ask_outbox WHERE id = $1 AND email = $2`,
+      [oid, e],
+    );
+    if (!row.rows[0]) return { ok: false, error: "not_found" };
+    if (
+      row.rows[0].status === "applied" ||
+      row.rows[0].status === "rejected"
+    ) {
+      return {
+        ok: false,
+        error: "already_terminal",
+        status: row.rows[0].status,
+      };
+    }
+    const now = new Date().toISOString();
+    await pool.query(
+      `UPDATE ask_outbox SET status = 'rejected', error = 'cancelled', applied_at = $1
+       WHERE id = $2 AND email = $3`,
+      [now, oid, e],
+    );
+    const updated = await pool.query(
+      `SELECT * FROM ask_outbox WHERE id = $1 AND email = $2`,
+      [oid, e],
+    );
+    return { ok: true, ...outboxRowFromDb(updated.rows[0]) };
+  }
+
+  async function outboxHasOpenTitle(email, title) {
+    const e = normEmail(email);
+    const want = String(title || "").trim().toLowerCase();
+    if (!want) return false;
+    await outboxReclaimStale(e);
+    const rows = await pool.query(
+      `SELECT payload_enc FROM ask_outbox
+       WHERE email = $1 AND status IN ('pending','claimed')`,
+      [e],
+    );
+    for (const r of rows.rows) {
+      const p = decryptOutboxPayload(r.payload_enc);
+      if (String(p?.title || "").trim().toLowerCase() === want) return true;
+    }
+    return false;
+  }
+
+  async function mirrorList(email, opts = {}) {
+    const e = normEmail(email);
+    const limit = Math.min(Math.max(Number(opts.limit) || 25, 1), 50);
+    const offset = Math.max(Number(opts.offset) || 0, 0);
+    const rows = await pool.query(
+      `SELECT * FROM atom_mirror WHERE email = $1
+       ORDER BY lower(title) ASC, path ASC
+       LIMIT $2 OFFSET $3`,
+      [e, limit, offset],
+    );
+    const total = await pool.query(
+      `SELECT COUNT(*)::int AS n FROM atom_mirror WHERE email = $1`,
+      [e],
+    );
+    const items = rows.rows.map((r) => {
+      const pub = rowToPublicAtom(r, { includeBody: false });
+      return {
+        id: pub.id,
+        title: pub.title,
+        path: pub.path,
+        tags: pub.tags,
+      };
+    });
+    const count = total.rows[0]?.n ?? 0;
+    const next_offset =
+      offset + items.length < count ? offset + items.length : null;
+    return { items, total: count, offset, limit, next_offset };
+  }
+
   async function _forceOutboxClaimedAt(email, outboxId, iso) {
     const e = normEmail(email);
     await pool.query(
@@ -680,6 +758,9 @@ export function createAskPostgresMethods(pool, deps) {
     outboxAck,
     outboxGet,
     outboxPendingCount,
+    outboxCancel,
+    outboxHasOpenTitle,
+    mirrorList,
     _forceOutboxClaimedAt,
     mcpCreatePending,
     mcpGetPending,

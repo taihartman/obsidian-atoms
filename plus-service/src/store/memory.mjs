@@ -524,6 +524,65 @@ export function createMemoryStore() {
     return outboxOpenCount(email);
   }
 
+  function outboxCancel(email, outboxId) {
+    const e = normEmail(email);
+    const oid = String(outboxId || "").trim();
+    if (!oid) return { ok: false, error: "id required" };
+    const row = askOutbox.get(e)?.get(oid);
+    if (!row) return { ok: false, error: "not_found" };
+    if (row.status === "applied" || row.status === "rejected") {
+      return { ok: false, error: "already_terminal", status: row.status };
+    }
+    row.status = "rejected";
+    row.error = "cancelled";
+    row.applied_at = new Date().toISOString();
+    return { ok: true, ...outboxPublic(row) };
+  }
+
+  function outboxHasOpenTitle(email, title) {
+    const e = normEmail(email);
+    const want = String(title || "").trim().toLowerCase();
+    if (!want) return false;
+    outboxReclaimStale(e);
+    const bucket = askOutbox.get(e);
+    if (!bucket) return false;
+    for (const r of bucket.values()) {
+      if (r.status !== "pending" && r.status !== "claimed") continue;
+      const p = decryptOutboxPayload(r.payload_enc);
+      if (String(p?.title || "").trim().toLowerCase() === want) return true;
+    }
+    return false;
+  }
+
+  function mirrorList(email, opts = {}) {
+    const e = normEmail(email);
+    const limit = Math.min(Math.max(Number(opts.limit) || 25, 1), 50);
+    const offset = Math.max(Number(opts.offset) || 0, 0);
+    const bucket = atomMirror.get(e);
+    const all = bucket
+      ? [...bucket.values()].sort(
+          (a, b) =>
+            String(a.title).localeCompare(String(b.title), undefined, {
+              sensitivity: "base",
+            }) || String(a.path).localeCompare(String(b.path)),
+        )
+      : [];
+    const slice = all.slice(offset, offset + limit);
+    const items = slice.map((r) => {
+      const pub = rowToPublicAtom(r, { includeBody: false });
+      return {
+        id: pub.id,
+        title: pub.title,
+        path: pub.path,
+        tags: pub.tags,
+      };
+    });
+    const total = all.length;
+    const next_offset =
+      offset + items.length < total ? offset + items.length : null;
+    return { items, total, offset, limit, next_offset };
+  }
+
   function _forceOutboxClaimedAt(email, outboxId, iso) {
     const row = askOutbox.get(normEmail(email))?.get(outboxId);
     if (row) row.claimed_at = iso;
@@ -734,6 +793,9 @@ export function createMemoryStore() {
     outboxAck,
     outboxGet,
     outboxPendingCount,
+    outboxCancel,
+    outboxHasOpenTitle,
+    mirrorList,
     _forceOutboxClaimedAt,
     mcpCreatePending,
     mcpGetPending,

@@ -403,6 +403,93 @@ export function createAskSqliteMethods(db, deps) {
     return outboxOpenCount(e);
   }
 
+  /**
+   * Cancel pending or claimed outbox row (not applied/rejected).
+   */
+  function outboxCancel(email, outboxId) {
+    const e = normEmail(email);
+    const oid = String(outboxId || "").trim();
+    if (!oid) return { ok: false, error: "id required" };
+    const row = db
+      .prepare(`SELECT * FROM ask_outbox WHERE id = ? AND email = ?`)
+      .get(oid, e);
+    if (!row) return { ok: false, error: "not_found" };
+    if (row.status === "applied" || row.status === "rejected") {
+      return {
+        ok: false,
+        error: "already_terminal",
+        status: row.status,
+      };
+    }
+    const now = new Date().toISOString();
+    db.prepare(
+      `UPDATE ask_outbox SET status = 'rejected', error = 'cancelled', applied_at = ?
+       WHERE id = ? AND email = ?`,
+    ).run(now, oid, e);
+    return { ok: true, ...outboxRowFromDb(
+      db.prepare(`SELECT * FROM ask_outbox WHERE id = ?`).get(oid),
+    ) };
+  }
+
+  /**
+   * True if a pending/claimed create (or continue) targets this title.
+   */
+  function outboxHasOpenTitle(email, title) {
+    const e = normEmail(email);
+    const want = String(title || "").trim().toLowerCase();
+    if (!want) return false;
+    outboxReclaimStale(e);
+    const rows = db
+      .prepare(
+        `SELECT payload_enc, kind FROM ask_outbox
+         WHERE email = ? AND status IN ('pending','claimed')`,
+      )
+      .all(e);
+    for (const r of rows) {
+      const p = decryptOutboxPayload(r.payload_enc);
+      const t = String(p?.title || "").trim().toLowerCase();
+      if (t === want) return true;
+    }
+    return false;
+  }
+
+  /**
+   * List mirror atoms (title/path/tags), stable title order, offset pagination.
+   */
+  function mirrorList(email, opts = {}) {
+    const e = normEmail(email);
+    const limit = Math.min(Math.max(Number(opts.limit) || 25, 1), 50);
+    const offset = Math.max(Number(opts.offset) || 0, 0);
+    const rows = db
+      .prepare(
+        `SELECT * FROM atom_mirror WHERE email = ?
+         ORDER BY title COLLATE NOCASE ASC, path ASC
+         LIMIT ? OFFSET ?`,
+      )
+      .all(e, limit, offset);
+    const total = db
+      .prepare(`SELECT COUNT(*) AS n FROM atom_mirror WHERE email = ?`)
+      .get(e);
+    const items = rows.map((r) => {
+      const pub = rowToPublicAtom(r, { includeBody: false });
+      return {
+        id: pub.id,
+        title: pub.title,
+        path: pub.path,
+        tags: pub.tags,
+      };
+    });
+    const count = total?.n ?? 0;
+    const next_offset = offset + items.length < count ? offset + items.length : null;
+    return {
+      items,
+      total: count,
+      offset,
+      limit,
+      next_offset,
+    };
+  }
+
   /** Test-only: age a claimed row for stale-lease tests. */
   function _forceOutboxClaimedAt(email, outboxId, iso) {
     const e = normEmail(email);
@@ -632,6 +719,9 @@ export function createAskSqliteMethods(db, deps) {
     outboxAck,
     outboxGet,
     outboxPendingCount,
+    outboxCancel,
+    outboxHasOpenTitle,
+    mirrorList,
     _forceOutboxClaimedAt,
     mcpCreatePending,
     mcpGetPending,

@@ -186,6 +186,77 @@ describe("ask outbox store", () => {
           assert.equal(still.status, "pending");
         });
       });
+
+      it("cancel pending outbox", async () => {
+        await withStore(mode, async (store) => {
+          await seed(store, "z@ex.co");
+          const enq = await store.outboxEnqueue("z@ex.co", {
+            kind: "create",
+            payload: { title: "Oops", body: "typo" },
+          });
+          const c = await store.outboxCancel("z@ex.co", enq.id);
+          assert.equal(c.ok, true);
+          assert.equal(c.status, "rejected");
+          assert.equal(c.error, "cancelled");
+          const pull = await store.outboxPull("z@ex.co");
+          assert.equal(pull.items.length, 0);
+        });
+      });
+
+      it("outboxHasOpenTitle for pending parent", async () => {
+        await withStore(mode, async (store) => {
+          await seed(store, "p@ex.co");
+          assert.equal(
+            await store.outboxHasOpenTitle("p@ex.co", "Parent"),
+            false,
+          );
+          await store.outboxEnqueue("p@ex.co", {
+            kind: "create",
+            payload: { title: "Parent", body: "first" },
+          });
+          assert.equal(
+            await store.outboxHasOpenTitle("p@ex.co", "Parent"),
+            true,
+          );
+          assert.equal(
+            await store.outboxHasOpenTitle("p@ex.co", "Other"),
+            false,
+          );
+        });
+      });
+
+      it("mirrorList paginates", async () => {
+        await withStore(mode, async (store) => {
+          await seed(store, "l@ex.co");
+          const atoms = [];
+          for (let i = 0; i < 5; i++) {
+            atoms.push({
+              path: `Atoms/N${i}.md`,
+              title: `Note ${i}`,
+              body: `body ${i}`,
+            });
+          }
+          await store.mirrorUpsert("l@ex.co", atoms);
+          const p1 = await store.mirrorList("l@ex.co", {
+            limit: 2,
+            offset: 0,
+          });
+          assert.equal(p1.items.length, 2);
+          assert.equal(p1.total, 5);
+          assert.equal(p1.next_offset, 2);
+          const p2 = await store.mirrorList("l@ex.co", {
+            limit: 2,
+            offset: 2,
+          });
+          assert.equal(p2.items.length, 2);
+          const p3 = await store.mirrorList("l@ex.co", {
+            limit: 2,
+            offset: 4,
+          });
+          assert.equal(p3.items.length, 1);
+          assert.equal(p3.next_offset, null);
+        });
+      });
     });
   }
 });

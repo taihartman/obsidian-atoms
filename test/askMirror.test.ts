@@ -15,7 +15,7 @@ describe("askMirror", () => {
     expect(body).toContain("I prefer tea");
   });
 
-  it("extracts wikilinks into links on plan", () => {
+  it("extracts wikilinks and reason prose into links on plan", () => {
     expect(extractWikilinks("see ([[Nichita]]) and [[Foo|bar]]")).toEqual([
       "Nichita",
       "Foo",
@@ -26,9 +26,25 @@ describe("askMirror", () => {
         basename: "Peri",
         content: "Nichita likes ( [[Nichita]] ).\n",
       },
+      {
+        path: "Atoms/Child.md",
+        basename: "Child",
+        content:
+          "---\ntags: []\n---\nIt was a joke.\n\ncontradicts [[Parent claim]].\n",
+      },
     ];
     const { atoms } = planAskMirrorUpsert(files, "Atoms", {});
-    expect(atoms[0].links).toEqual([{ note: "Nichita" }]);
+    const peri = atoms.find((a) => a.title === "Peri");
+    expect(peri?.links.some((l) => l.note === "Nichita")).toBe(true);
+    const child = atoms.find((a) => a.title === "Child");
+    expect(child?.links).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          note: "Parent claim",
+          reason: expect.stringContaining("contradicts"),
+        }),
+      ]),
+    );
   });
 
   it("plans only Atoms/ and skips unchanged hash", () => {
