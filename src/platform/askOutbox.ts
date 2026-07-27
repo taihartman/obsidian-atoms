@@ -39,6 +39,9 @@ export function buildAskAtomMarkdown(opts: {
   tags?: string[];
   links?: { note: string; reason?: string }[];
   created?: string;
+  /** continue_atom parent title */
+  parent?: string;
+  relation?: string;
 }): { pathSegment: string; content: string; title: string } {
   const { filename, alias } = sanitizeFilename(opts.title);
   const title = filename;
@@ -60,6 +63,12 @@ export function buildAskAtomMarkdown(opts: {
   }
   fm.push(`source: "[[Ask]]"`);
   fm.push("generated-by: ask-mcp");
+  if (opts.parent?.trim()) {
+    fm.push(`parent: ${yamlQuote(opts.parent.trim())}`);
+  }
+  if (opts.relation?.trim()) {
+    fm.push(`relation: ${opts.relation.trim()}`);
+  }
   if (tags.length) {
     fm.push("tags:");
     for (const t of tags) fm.push(`  - ${t}`);
@@ -67,6 +76,8 @@ export function buildAskAtomMarkdown(opts: {
     fm.push("tags: []");
   }
   fm.push("---", "");
+  // Capture body only — link reasons live in FM parent/relation + structured
+  // mirror links; optional short prose for Obsidian graph (not mixed into capture).
   const body = String(opts.body ?? "").replace(/\s+$/, "");
   const prose = formatLinkProse(links);
   const fullBody = prose ? `${body}\n\n${prose}` : body;
@@ -102,6 +113,8 @@ export function planAskOutboxApply(
     body: payload.body,
     tags: payload.tags,
     links: payload.links,
+    parent: payload.parent_title,
+    relation: payload.relation,
   });
   const path = atomPathForTitle(atomFolder, built.title);
   const folder = clampAtomFolder(atomFolder);

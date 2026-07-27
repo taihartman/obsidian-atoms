@@ -30,7 +30,13 @@ describe("askMirror", () => {
         path: "Atoms/Child.md",
         basename: "Child",
         content:
-          "---\ntags: []\n---\nIt was a joke.\n\ncontradicts [[Parent claim]].\n",
+          "---\ntags: []\nparent: \"Parent claim\"\nrelation: contradicts\n---\nIt was a joke.\n\ncontradicts [[Parent claim]].\n",
+      },
+      {
+        path: "Atoms/HSM.md",
+        basename: "HSM",
+        content:
+          "---\ntags: []\n---\nAndrew loves High School Musical named work Andrew is a fan of.\n\ndurable taste fact about [[Andrew]] from this capture.\n",
       },
     ];
     const { atoms } = planAskMirrorUpsert(files, "Atoms", {});
@@ -45,6 +51,10 @@ describe("askMirror", () => {
         }),
       ]),
     );
+    const hsm = atoms.find((a) => a.title === "HSM");
+    const andrew = hsm?.links.find((l) => l.note === "Andrew");
+    expect(andrew?.reason).toMatch(/durable taste/);
+    expect(andrew?.reason).not.toMatch(/named work Andrew is a fan/);
   });
 
   it("plans only Atoms/ and skips unchanged hash", () => {
