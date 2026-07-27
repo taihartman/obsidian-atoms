@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| In progress | #115 | Tai | `ops/plus-public-launch` | `docs/qa/2026-07-27-plus-public-launch-checklist.md` | `docs/runbooks/atoms-plus-prod.md`, `docs/qa/2026-07-27-plus-public-launch-checklist.md`, `manifest.json`, `package.json`, `versions.json` | Public launch: docs + 0.6.31 release; secrets (Resend/Stripe live/Fly billing) = human |
+| Blocked | #115 | Tai | — | `docs/qa/2026-07-27-plus-public-launch-checklist.md` | Fly secrets, Resend, Stripe live | Docs+0.6.31 shipped (#117). Waiting: Fly billing card, Resend domain+2nd email, Stripe live keys/prices/webhook |
 
 ## How to claim (copy)
 
