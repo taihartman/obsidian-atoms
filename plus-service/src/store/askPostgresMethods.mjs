@@ -11,6 +11,11 @@ import {
   rowToPublicAtom,
   scoreSearch,
   verifyPkce,
+  OUTBOX_STALE_MS,
+  OUTBOX_MAX_OPEN,
+  encryptOutboxPayload,
+  decryptOutboxPayload,
+  publicOutboxRow,
 } from "./askHelpers.mjs";
 
 export const ASK_PG_DDL = `
@@ -73,6 +78,22 @@ CREATE TABLE IF NOT EXISTS mcp_browser_sessions (
   email TEXT NOT NULL,
   exp_ms BIGINT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS ask_outbox (
+  id TEXT PRIMARY KEY,
+  email TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  payload_enc TEXT NOT NULL,
+  status TEXT NOT NULL,
+  client_request_id TEXT,
+  error TEXT,
+  created_at TIMESTAMPTZ NOT NULL,
+  claimed_at TIMESTAMPTZ,
+  applied_at TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS idx_ask_outbox_email_status ON ask_outbox(email, status);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_ask_outbox_email_crid
+  ON ask_outbox(email, client_request_id)
+  WHERE client_request_id IS NOT NULL AND client_request_id != '';
 `;
 
 /**
@@ -226,8 +247,194 @@ export function createAskPostgresMethods(pool, deps) {
   async function mirrorWipe(email) {
     const e = normEmail(email);
     await pool.query("DELETE FROM atom_mirror WHERE email = $1", [e]);
+    await pool.query("DELETE FROM ask_outbox WHERE email = $1", [e]);
     await mcpRevokeForEmail(e);
     return { ok: true };
+  }
+
+  async function outboxOpenCount(email) {
+    const e = normEmail(email);
+    const r = await pool.query(
+      `SELECT COUNT(*)::int AS n FROM ask_outbox
+       WHERE email = $1 AND status IN ('pending','claimed')`,
+      [e],
+    );
+    return r.rows[0]?.n ?? 0;
+  }
+
+  function outboxRowFromDb(r) {
+    if (!r) return null;
+    return publicOutboxRow({
+      id: r.id,
+      kind: r.kind,
+      status: r.status,
+      payload: decryptOutboxPayload(r.payload_enc),
+      error: r.error,
+      client_request_id: r.client_request_id,
+      created_at: r.created_at
+        ? new Date(r.created_at).toISOString()
+        : null,
+      claimed_at: r.claimed_at
+        ? new Date(r.claimed_at).toISOString()
+        : null,
+      applied_at: r.applied_at
+        ? new Date(r.applied_at).toISOString()
+        : null,
+    });
+  }
+
+  async function outboxEnqueue(email, opts) {
+    const e = normEmail(email);
+    const kind = opts.kind === "continue" ? "continue" : "create";
+    const crid = opts.client_request_id
+      ? String(opts.client_request_id).trim().slice(0, 128)
+      : "";
+    if (crid) {
+      const existing = await pool.query(
+        `SELECT * FROM ask_outbox WHERE email = $1 AND client_request_id = $2`,
+        [e, crid],
+      );
+      if (existing.rows[0]) {
+        return {
+          ok: true,
+          ...outboxRowFromDb(existing.rows[0]),
+          duplicate: true,
+        };
+      }
+    }
+    if ((await outboxOpenCount(e)) >= OUTBOX_MAX_OPEN) {
+      return { ok: false, error: "outbox_full" };
+    }
+    const idRow = id("obx");
+    const now = new Date().toISOString();
+    const payload_enc = encryptOutboxPayload(opts.payload);
+    await pool.query(
+      `INSERT INTO ask_outbox
+       (id, email, kind, payload_enc, status, client_request_id, error, created_at, claimed_at, applied_at)
+       VALUES ($1, $2, $3, $4, 'pending', $5, NULL, $6, NULL, NULL)`,
+      [idRow, e, kind, payload_enc, crid || null, now],
+    );
+    const row = await pool.query(`SELECT * FROM ask_outbox WHERE id = $1`, [
+      idRow,
+    ]);
+    return { ok: true, ...outboxRowFromDb(row.rows[0]), duplicate: false };
+  }
+
+  async function outboxReclaimStale(email) {
+    const e = normEmail(email);
+    const cutoff = new Date(Date.now() - OUTBOX_STALE_MS).toISOString();
+    await pool.query(
+      `UPDATE ask_outbox SET status = 'pending', claimed_at = NULL
+       WHERE email = $1 AND status = 'claimed' AND claimed_at IS NOT NULL AND claimed_at < $2`,
+      [e, cutoff],
+    );
+  }
+
+  async function outboxPull(email, opts = {}) {
+    const e = normEmail(email);
+    await outboxReclaimStale(e);
+    const lim = Math.min(Math.max(Number(opts.limit) || 1, 1), 10);
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const pending = await client.query(
+        `SELECT * FROM ask_outbox WHERE email = $1 AND status = 'pending'
+         ORDER BY created_at ASC LIMIT $2 FOR UPDATE`,
+        [e, lim],
+      );
+      const now = new Date().toISOString();
+      const items = [];
+      for (const r of pending.rows) {
+        await client.query(
+          `UPDATE ask_outbox SET status = 'claimed', claimed_at = $1
+           WHERE id = $2 AND email = $3 AND status = 'pending'`,
+          [now, r.id, e],
+        );
+        const updated = await client.query(
+          `SELECT * FROM ask_outbox WHERE id = $1 AND email = $2`,
+          [r.id, e],
+        );
+        if (updated.rows[0]?.status === "claimed") {
+          items.push(outboxRowFromDb(updated.rows[0]));
+        }
+      }
+      await client.query("COMMIT");
+      const counts = await pool.query(
+        `SELECT
+           COALESCE(SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END),0)::int AS pending_count,
+           COALESCE(SUM(CASE WHEN status = 'claimed' THEN 1 ELSE 0 END),0)::int AS claimed_count
+         FROM ask_outbox WHERE email = $1`,
+        [e],
+      );
+      return {
+        items,
+        pending_count: counts.rows[0]?.pending_count ?? 0,
+        claimed_count: counts.rows[0]?.claimed_count ?? 0,
+      };
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+
+  async function outboxAck(email, opts) {
+    const e = normEmail(email);
+    const oid = String(opts.id || "").trim();
+    const st = opts.status === "rejected" ? "rejected" : "applied";
+    if (!oid) return { ok: false, error: "id required" };
+    const row = await pool.query(
+      `SELECT * FROM ask_outbox WHERE id = $1 AND email = $2`,
+      [oid, e],
+    );
+    if (!row.rows[0]) return { ok: false, error: "not_found" };
+    if (
+      row.rows[0].status === "applied" ||
+      row.rows[0].status === "rejected"
+    ) {
+      return { ok: true, ...outboxRowFromDb(row.rows[0]), already: true };
+    }
+    const now = new Date().toISOString();
+    await pool.query(
+      `UPDATE ask_outbox SET status = $1, error = $2, applied_at = $3
+       WHERE id = $4 AND email = $5`,
+      [
+        st,
+        opts.error ? String(opts.error).slice(0, 500) : null,
+        now,
+        oid,
+        e,
+      ],
+    );
+    const updated = await pool.query(
+      `SELECT * FROM ask_outbox WHERE id = $1 AND email = $2`,
+      [oid, e],
+    );
+    return { ok: true, ...outboxRowFromDb(updated.rows[0]) };
+  }
+
+  async function outboxGet(email, outboxId) {
+    const e = normEmail(email);
+    const r = await pool.query(
+      `SELECT * FROM ask_outbox WHERE id = $1 AND email = $2`,
+      [String(outboxId || ""), e],
+    );
+    return outboxRowFromDb(r.rows[0]);
+  }
+
+  async function outboxPendingCount(email) {
+    const e = normEmail(email);
+    await outboxReclaimStale(e);
+    return outboxOpenCount(e);
+  }
+
+  async function _forceOutboxClaimedAt(email, outboxId, iso) {
+    const e = normEmail(email);
+    await pool.query(
+      `UPDATE ask_outbox SET claimed_at = $1 WHERE id = $2 AND email = $3`,
+      [iso, outboxId, e],
+    );
   }
 
   async function mirrorStatus(email) {
@@ -468,6 +675,12 @@ export function createAskPostgresMethods(pool, deps) {
     mirrorNeighbors,
     mirrorWipe,
     mirrorStatus,
+    outboxEnqueue,
+    outboxPull,
+    outboxAck,
+    outboxGet,
+    outboxPendingCount,
+    _forceOutboxClaimedAt,
     mcpCreatePending,
     mcpGetPending,
     mcpDeletePending,

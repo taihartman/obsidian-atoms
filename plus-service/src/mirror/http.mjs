@@ -26,7 +26,9 @@ export async function handleMirrorRoutes({
   const isAsk =
     path === "/v1/ask/mirror/upsert" ||
     path === "/v1/ask/mirror/wipe" ||
-    path === "/v1/ask/mirror/status";
+    path === "/v1/ask/mirror/status" ||
+    path === "/v1/ask/outbox/pull" ||
+    path === "/v1/ask/outbox/ack";
   if (!isAsk) return false;
 
   const token = bearer(req);
@@ -69,6 +71,53 @@ export async function handleMirrorRoutes({
     }
     await store.mirrorWipe(a.email);
     json(res, 200, { ok: true, count: 0 });
+    return true;
+  }
+
+  if (req.method === "POST" && path === "/v1/ask/outbox/pull") {
+    if (!entitled(a)) {
+      json(res, 403, { message: "Plus entitlement required for Ask" });
+      return true;
+    }
+    let body = {};
+    try {
+      body = await readBody(req);
+    } catch {
+      json(res, 400, { message: "invalid json" });
+      return true;
+    }
+    const limit = body?.limit;
+    const result = await store.outboxPull(a.email, { limit });
+    json(res, 200, result);
+    return true;
+  }
+
+  if (req.method === "POST" && path === "/v1/ask/outbox/ack") {
+    if (!entitled(a)) {
+      json(res, 403, { message: "Plus entitlement required for Ask" });
+      return true;
+    }
+    let body;
+    try {
+      body = await readBody(req);
+    } catch {
+      json(res, 400, { message: "invalid json" });
+      return true;
+    }
+    const result = await store.outboxAck(a.email, {
+      id: body?.id,
+      status: body?.status,
+      error: body?.error,
+    });
+    if (!result.ok && result.error === "not_found") {
+      json(res, 404, { message: "not_found" });
+      return true;
+    }
+    if (!result.ok) {
+      json(res, 400, { message: result.error || "ack failed" });
+      return true;
+    }
+    json(res, 200, { ok: true, id: result.id, status: result.status });
     return true;
   }
 

@@ -52,7 +52,8 @@ export interface AtomFileInput {
 /** Max chips on a library row (home-v2). */
 export const HOME_CHIP_MAX = 2;
 
-const GENERATED_BY_RE = /^generated-by:\s*linker\s*$/m;
+/** Product atoms: Process (linker) or Ask MCP write (ask-mcp). */
+const GENERATED_BY_RE = /^generated-by:\s*(linker|ask-mcp)\s*$/m;
 const SOURCE_RE = /^source:\s*["']?\[\[([^\]]+)\]\]["']?\s*$/m;
 const WIKILINK_RE = /\[\[([^\]|#]+)(?:\|[^\]]+)?\]\]/g;
 const DATE_TITLE_RE = /^\d{4}-\d{2}-\d{2}/;

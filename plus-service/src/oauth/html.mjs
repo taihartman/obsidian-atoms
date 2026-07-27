@@ -26,7 +26,7 @@ export function consentForm(pendingId, email, clientLabel) {
     `<h1>Allow Atoms Ask?</h1>
 <p>Signed in as <strong>${esc(email)}</strong></p>
 <p>Client: <strong>${esc(clientLabel)}</strong></p>
-<p>Permissions: <strong>read-only</strong> search &amp; fetch of your cloud atom mirror.</p>
+<p>Permissions: search &amp; fetch of your cloud atom mirror; optional <strong>queue new atoms</strong> (outbox) when you enable Allow filing in Obsidian. Writes land only after your vault applies them.</p>
 <form method="POST" action="/oauth/consent">
   <input type="hidden" name="pending_id" value="${esc(pendingId)}" />
   <button type="submit" name="decision" value="allow" style="padding:8px 16px">Allow</button>
