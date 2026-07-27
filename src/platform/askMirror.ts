@@ -62,6 +62,23 @@ export function contentHash(parts: string[]): string {
   return (h >>> 0).toString(16);
 }
 
+/** Extract unique [[wikilink]] targets from markdown (display alias stripped). */
+export function extractWikilinks(text: string): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  const re = /\[\[([^\]|#]+)(?:[|#][^\]]*)?\]\]/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text || "")) !== null) {
+    const note = (m[1] ?? "").trim();
+    if (!note) continue;
+    const key = note.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(note);
+  }
+  return out;
+}
+
 /**
  * Build upsert payloads from vault files under atom folder.
  * @param lastHashes path → content hash from previous push
@@ -79,7 +96,13 @@ export function planAskMirrorUpsert(
     if (!f.path.endsWith(".md")) continue;
     const { body, tags } = splitAtomMarkdown(f.content);
     const title = f.basename.replace(/\.md$/i, "");
-    const hash = contentHash([title, body, JSON.stringify(tags)]);
+    const links = extractWikilinks(body).map((note) => ({ note }));
+    const hash = contentHash([
+      title,
+      body,
+      JSON.stringify(tags),
+      JSON.stringify(links),
+    ]);
     if (lastHashes[f.path] === hash) continue;
     nextHashes[f.path] = hash;
     atoms.push({
@@ -87,7 +110,7 @@ export function planAskMirrorUpsert(
       title,
       body,
       tags,
-      links: [],
+      links,
     });
   }
   return { atoms, nextHashes };
