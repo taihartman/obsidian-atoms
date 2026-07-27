@@ -7,7 +7,8 @@
   "scripts": {
     "start": "node src/server.mjs",
     "dev": "node --watch src/server.mjs",
-    "test": "node --test test/*.test.mjs"
+    "test": "node --test test/*.test.mjs",
+    "ask:seed": "node scripts/ask-seed.mjs"
   },
   "dependencies": {
     "pg": "^8.16.3"

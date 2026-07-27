@@ -26,6 +26,7 @@ import {
 } from "./prodGate.mjs";
 import { sendMagicLinkEmail } from "./email.mjs";
 import { checkRateLimit, clientIp } from "./ratelimit.mjs";
+import { handleMirrorRoutes } from "./mirror/http.mjs";
 
 try {
   assertProductionReady();
@@ -347,6 +348,21 @@ async function handler(req, res) {
         const msg = err instanceof Error ? err.message : "Portal failed";
         return json(res, 502, { message: msg });
       }
+    }
+
+    // Ask mirror (Plus session) — before classify
+    if (
+      await handleMirrorRoutes({
+        req,
+        res,
+        path,
+        store,
+        bearer,
+        json,
+        readBody,
+      })
+    ) {
+      return;
     }
 
     // POST /v1/classify
