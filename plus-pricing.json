@@ -1,0 +1,12 @@
+{
+  "$comment": "SSOT for Atoms Plus commercial numbers. Plugin + plus-service + docs must not invent prices elsewhere — change here only.",
+  "monthlyUsd": 6,
+  "yearlyUsd": 60,
+  "yearlyDiscountNote": "save two months",
+  "topUpUsd": 2,
+  "includedFilingsPerPeriod": 150,
+  "topUpFilings": 50,
+  "trialDays": 14,
+  "rollover": false,
+  "currency": "USD"
+}

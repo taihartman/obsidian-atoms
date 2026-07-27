@@ -1,4 +1,5 @@
 import { requestUrl } from "obsidian";
+import { plusFetchRequest } from "../platform/plusClient";
 import type {
   ClassificationResult,
   ClassifyOutcome,
@@ -363,6 +364,10 @@ export function buildDayBatchRequest(opts: {
 }
 
 export interface ClassifyDeps {
+  /**
+   * BYOK Anthropic key. Ignored when `plus` is set (proxy holds the key).
+   * Empty string allowed when classifying via Plus only.
+   */
   apiKey: string;
   model: string;
   /** Injected for tests; defaults to Obsidian requestUrl. */
@@ -375,6 +380,16 @@ export interface ClassifyDeps {
   sleep?: (ms: number) => Promise<void>;
   /** Called once on 401/403 so UI can Notice (KTD4). */
   onAuthFailure?: (message: string) => void;
+  /**
+   * Atoms Plus managed path (U3). When set, classify goes to Plus proxy
+   * with Bearer session — never sends Anthropic x-api-key.
+   */
+  plus?: {
+    baseUrl: string;
+    sessionToken: string;
+    /** Called after successful classify with updated remaining. */
+    onRemaining?: (remaining: number) => void;
+  };
 }
 
 const defaultSleep = (ms: number) =>
@@ -389,8 +404,9 @@ export async function classifyCapture(
   context: VaultContext,
   deps: ClassifyDeps,
 ): Promise<ClassifyOutcome> {
+  const plus = deps.plus;
   const apiKey = deps.apiKey?.trim();
-  if (!apiKey) {
+  if (!plus && !apiKey) {
     return {
       ok: false,
       reason: "missing_key",
@@ -404,47 +420,118 @@ export async function classifyCapture(
     context,
   });
 
-  const request = deps.request ?? requestUrl;
+  // Plus: fetch (localhost dogfood + CORS host). BYOK: requestUrl (no CORS to Anthropic).
+  const request = deps.request ?? (plus ? plusFetchRequest : requestUrl);
   const sleep = deps.sleep ?? defaultSleep;
   const maxAttempts = deps.maxAttempts ?? 3;
 
   let status = 0;
   let json: Record<string, unknown> = {};
   let lastTransient: ClassifyOutcome | null = null;
+  let plusErrorMessage: string | undefined;
+  let keyFingerprint = plus
+    ? "plus"
+    : fingerprintKey(apiKey ?? "");
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    plusErrorMessage = undefined;
     try {
-      const res = await request({
-        url: ANTHROPIC_MESSAGES_URL,
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "x-api-key": apiKey,
-          "anthropic-version": ANTHROPIC_VERSION,
-        },
-        body: JSON.stringify(body),
-        throw: false,
-      });
-      status = res.status;
-      json = (typeof res.json === "object" && res.json !== null
-        ? res.json
-        : {}) as Record<string, unknown>;
+      if (plus) {
+        const base = plus.baseUrl.replace(/\/+$/, "");
+        // One key per logical classify attempt; retries reuse attempt slot via outer loop
+        // only for transient failures — new UUID each attempt so transport refunds stay fair.
+        const idem = `cls_${Date.now().toString(36)}_${attempt}_${Math.random().toString(36).slice(2, 9)}`;
+        const res = await request({
+          url: `${base}/v1/classify`,
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            accept: "application/json",
+            authorization: `Bearer ${plus.sessionToken.trim()}`,
+            "Idempotency-Key": idem,
+          },
+          body: JSON.stringify({
+            capture,
+            context,
+            messagesRequest: body,
+          }),
+          throw: false,
+        });
+        status = res.status;
+        const outer =
+          typeof res.json === "object" && res.json !== null
+            ? (res.json as Record<string, unknown>)
+            : {};
+        // Keep proxy error text (session vs upstream key) before unwrapping result.
+        if (typeof outer.message === "string" && outer.message.trim()) {
+          plusErrorMessage = outer.message.trim().slice(0, 200);
+        }
+        // Proxy may wrap Anthropic response in { result, remaining } or return Anthropic shape.
+        if (
+          typeof outer.result === "object" &&
+          outer.result !== null &&
+          !Array.isArray(outer.result)
+        ) {
+          json = outer.result as Record<string, unknown>;
+        } else {
+          json = outer;
+        }
+        if (typeof outer.remaining === "number") {
+          plus.onRemaining?.(outer.remaining);
+        }
+      } else {
+        const res = await request({
+          url: ANTHROPIC_MESSAGES_URL,
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "x-api-key": apiKey!,
+            "anthropic-version": ANTHROPIC_VERSION,
+          },
+          body: JSON.stringify(body),
+          throw: false,
+        });
+        status = res.status;
+        json = (typeof res.json === "object" && res.json !== null
+          ? res.json
+          : {}) as Record<string, unknown>;
+      }
     } catch (err) {
       // Offline / network throw — never log full error objects (may carry headers).
       const name = err instanceof Error ? err.name : "Error";
       const msg = err instanceof Error ? err.message : "unknown";
       // Strip anything that looks like a key if a proxy embeds it.
-      const safe = msg.replace(/sk-ant-[a-zA-Z0-9_-]+/g, "[redacted]").slice(0, 160);
+      const safe = msg
+        .replace(/sk-ant-[a-zA-Z0-9_-]+/g, "[redacted]")
+        .replace(/Bearer\s+\S+/gi, "Bearer [redacted]")
+        .slice(0, 160);
       return {
         ok: false,
         reason: "offline",
-        message: `Network error calling Anthropic API (${name}: ${safe})`,
+        message: `Network error calling ${plus ? "Plus" : "Anthropic"} API (${name}: ${safe})`,
+      };
+    }
+
+    if (status === 402 && plus) {
+      return {
+        ok: false,
+        reason: "quota",
+        status,
+        message:
+          "Included filings used up this period. Wait for reset or buy a top-up.",
       };
     }
 
     if (status === 401 || status === 403) {
-      const message =
-        "API key rejected (401/403). Check the key in settings.";
+      const upstream = (plusErrorMessage ?? "").toLowerCase();
+      const message = !plus
+        ? "API key rejected (401/403). Check the key in settings."
+        : upstream.includes("upstream") || upstream.includes("model auth")
+          ? "Plus service cannot reach Anthropic (managed API key invalid). Operator: fix ANTHROPIC_API_KEY on the Plus server."
+          : upstream.includes("invalid session") || upstream.includes("expired")
+            ? "Plus session rejected. Sign in again from Settings → Atoms Plus."
+            : plusErrorMessage?.trim() ||
+              "Plus session rejected. Sign in again from Settings → Atoms Plus.";
       deps.onAuthFailure?.(message);
       return { ok: false, reason: "auth", status, message };
     }
@@ -540,7 +627,7 @@ export async function classifyCapture(
     ok: true,
     result,
     usage: parseUsage(json.usage),
-    keyFingerprint: fingerprintKey(apiKey),
+    keyFingerprint,
   };
 }
 

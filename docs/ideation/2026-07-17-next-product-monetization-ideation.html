@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Ideation — Atoms next product &amp; monetization</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #0f1219;
+    --surface: #171b26;
+    --surface-2: #1e2433;
+    --border: #2a3347;
+    --text: #e8ecf4;
+    --muted: #9aa6bd;
+    --accent: #7c9cff;
+    --accent-2: #5eead4;
+    --warn: #f0b429;
+    --danger: #f07178;
+    --good: #7fd99a;
+    --radius: 12px;
+    --font: "DM Sans", system-ui, -apple-system, sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.55;
+    font-size: 15.5px;
+  }
+  .wrap { max-width: 820px; margin: 0 auto; padding: 2.5rem 1.25rem 4rem; }
+  header.doc-header {
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 1.5rem;
+    margin-bottom: 2rem;
+  }
+  .eyebrow {
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent-2);
+    font-weight: 600;
+    margin: 0 0 0.5rem;
+  }
+  h1 { font-size: 1.75rem; line-height: 1.25; margin: 0 0 0.75rem; font-weight: 700; }
+  .meta {
+    display: flex; flex-wrap: wrap; gap: 0.5rem 1.25rem;
+    color: var(--muted); font-size: 0.88rem;
+  }
+  .meta strong { color: var(--text); font-weight: 500; }
+  nav.toc {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1rem 1.15rem;
+    margin-bottom: 2rem;
+  }
+  nav.toc h2 { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 0 0 0.6rem; }
+  nav.toc ol { margin: 0; padding-left: 1.2rem; }
+  nav.toc a { color: var(--accent); text-decoration: none; }
+  nav.toc a:hover { text-decoration: underline; }
+  section { margin-bottom: 2.5rem; }
+  h2.sec {
+    font-size: 1.15rem;
+    margin: 0 0 0.85rem;
+    padding-bottom: 0.4rem;
+    border-bottom: 1px solid var(--border);
+  }
+  p, li { color: var(--text); }
+  .muted { color: var(--muted); }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.25rem 1.35rem;
+    margin-bottom: 1.15rem;
+  }
+  .card h3 {
+    margin: 0 0 0.35rem;
+    font-size: 1.12rem;
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+  .rank {
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    color: var(--accent-2);
+    font-weight: 500;
+  }
+  .badges { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.5rem 0 0.85rem; }
+  .badge {
+    font-size: 0.72rem;
+    font-family: var(--mono);
+    padding: 0.2rem 0.5rem;
+    border-radius: 999px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--muted);
+  }
+  .badge.high { color: var(--good); border-color: #2d5a3f; }
+  .badge.med { color: var(--warn); border-color: #5a4a20; }
+  .badge.cx { color: var(--accent); border-color: #3a4a7a; }
+  .card h4 {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    margin: 0.9rem 0 0.35rem;
+  }
+  .card p { margin: 0 0 0.5rem; }
+  .basis {
+    font-size: 0.92rem;
+    background: var(--surface-2);
+    border-left: 3px solid var(--accent);
+    padding: 0.65rem 0.85rem;
+    border-radius: 0 8px 8px 0;
+    margin: 0.5rem 0;
+  }
+  .downsides { color: var(--muted); font-size: 0.92rem; }
+  .diagram {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1rem;
+    margin: 0.85rem 0 0.4rem;
+    overflow-x: auto;
+  }
+  .diagram svg { display: block; margin: 0 auto; max-width: 100%; }
+  table.reject {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+  }
+  table.reject th, table.reject td {
+    text-align: left;
+    padding: 0.55rem 0.65rem;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  table.reject th { color: var(--muted); font-weight: 500; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
+  table.reject td.cut { color: var(--danger); font-family: var(--mono); font-size: 0.82rem; white-space: nowrap; }
+  .axes-list { list-style: none; padding: 0; margin: 0; }
+  .axes-list li {
+    padding: 0.45rem 0.7rem;
+    margin-bottom: 0.35rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 0.95rem;
+  }
+  .axes-list strong { color: var(--accent-2); font-family: var(--mono); font-size: 0.8rem; margin-right: 0.4rem; }
+  footer.composition-signal {
+    margin-top: 3rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 0.8rem;
+  }
+  footer.composition-signal code { font-family: var(--mono); font-size: 0.78rem; color: var(--accent); }
+  .callout {
+    background: linear-gradient(135deg, #1a2238 0%, #17201f 100%);
+    border: 1px solid #2d3f5a;
+    border-radius: var(--radius);
+    padding: 1rem 1.15rem;
+    margin-bottom: 1.5rem;
+  }
+  .callout strong { color: var(--accent-2); }
+  ul.ground { margin: 0.4rem 0 0; padding-left: 1.2rem; }
+  ul.ground li { margin-bottom: 0.35rem; color: var(--muted); font-size: 0.92rem; }
+  ul.ground li strong { color: var(--text); font-weight: 500; }
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="doc-header">
+  <p class="eyebrow">ce-ideate · repo-grounded</p>
+  <h1>Next product &amp; monetization — Obsidian Atoms</h1>
+  <div class="meta">
+    <span><strong>Date</strong> <time datetime="2026-07-17">2026-07-17</time></span>
+    <span><strong>Topic</strong> next-product-monetization</span>
+    <span><strong>Focus</strong> managed keys · capture companion · where next</span>
+    <span><strong>Raw → kept</strong> ~48 → 6 survivors</span>
+    <span><strong>Product</strong> atoms 0.6.23</span>
+  </div>
+</header>
+
+<nav class="toc" aria-label="On this page">
+  <h2>On this page</h2>
+  <ol>
+    <li><a href="#grounding">Grounding context</a></li>
+    <li><a href="#axes">Topic axes</a></li>
+    <li><a href="#ranked">Ranked ideas</a></li>
+    <li><a href="#rejection">Rejection summary</a></li>
+  </ol>
+</nav>
+
+<div class="callout">
+  <strong>Read this first.</strong> Atoms already ships a real second-brain loop (dump → file → For you) as a free MIT plugin with BYOK Anthropic. The money path is not “add chat AI.” It is: remove phone key friction, own capture ingress outside Obsidian, and never paywall the vault habit. Prior open ideation (2026-07-16) covered auto-run / reconsider / graph — this run is product/business/platform only.
+</div>
+
+<section id="grounding">
+  <h2 class="sec">Grounding context</h2>
+  <p class="muted">What the product is today, and what is still missing for revenue.</p>
+  <ul class="ground">
+    <li><strong>Shape:</strong> Obsidian community plugin (<code>atoms</code> 0.6.23, <code>isDesktopOnly: false</code>). File+link + mobile home + resurface stream ship. Capture is constitutionally external (iOS Shortcut / daily bullets).</li>
+    <li><strong>Money today:</strong> Zero. Plugin free MIT; user pays Anthropic. SecretStorage keys are device-local (don’t Sync). No accounts, entitlements, or managed proxy.</li>
+    <li><strong>Pain already in product copy:</strong> home <code>need_key</code> hero — “Add an API key on this phone so Atoms can file them.” Free polish vs “Uses your Anthropic key” refile already splits cost language.</li>
+    <li><strong>Market:</strong> Copilot free BYOK + Plus managed AI; Smart Connections free local + Pro; Drafts owns capture surfaces; companions own ingress, plugins own vault truth. Obsidian culture punishes paywalled cores.</li>
+    <li><strong>Distribution:</strong> Pre-community harden largely done; public GitHub + Community scan still open. Privacy story is “titles + captures leave over TLS to Anthropic” — no on-device-AI claim.</li>
+    <li><strong>Not STRATEGY.md</strong> — north star lives in <code>docs/architecture.md</code> three legs: Capture | File+link | Resurface.</li>
+  </ul>
+</section>
+
+<section id="axes">
+  <h2 class="sec">Topic axes</h2>
+  <ul class="axes-list">
+    <li><strong>A1</strong> Monetization &amp; cost model — BYOK vs managed keys, pricing, margins, abuse</li>
+    <li><strong>A2</strong> Capture surface — shortcuts, widgets, quick-capture QoL</li>
+    <li><strong>A3</strong> Platform form — plugin-only vs companion / thin standalone</li>
+    <li><strong>A4</strong> Core loop depth — file/resurface quality as conversion fuel</li>
+    <li><strong>A5</strong> Distribution &amp; trust — Community publish, privacy, checkout sequencing</li>
+  </ul>
+</section>
+
+<section id="ranked">
+  <h2 class="sec">Ranked ideas</h2>
+  <nav class="toc" aria-label="Jump to idea" style="margin-bottom:1.25rem">
+    <h2>Jump to idea</h2>
+    <ol>
+      <li><a href="#i1">Atoms Plus — managed keys (phone-first)</a></li>
+      <li><a href="#i2">Capture companion — widgets &amp; share sheet</a></li>
+      <li><a href="#i3">Judgment-budget SKU line</a></li>
+      <li><a href="#i4">Paid product = filing uptime</a></li>
+      <li><a href="#i5">Community listing before checkout</a></li>
+      <li><a href="#i6">Core-loop depth as conversion fuel</a></li>
+    </ol>
+  </nav>
+
+  <!-- I1 -->
+  <article class="card" id="i1">
+    <h3><span class="rank">#1</span> Atoms Plus — managed keys (phone-first conversion)</h3>
+    <div class="badges">
+      <span class="badge">axis: monetization</span>
+      <span class="badge high">conf 85%</span>
+      <span class="badge cx">cx Medium</span>
+    </div>
+    <p>Keep free forever: full plugin + BYOK Anthropic on any device. Ship <strong>Atoms Plus</strong> (~$8–12/mo annual-friendly) as a managed Anthropic proxy with hard per-day / per-launch caps (reuse <code>PER_LAUNCH_CAP</code>, backfill estimate→confirm, update-notes batch 15). The conversion moment is already on home: phone users hit <code>need_key</code> because SecretStorage keys don’t Sync. Plus removes “paste <code>sk-ant-…</code> on this phone,” not “unlock For you.”</p>
+    <div class="diagram" aria-hidden="true">
+      <svg viewBox="0 0 520 160" width="520" height="160" xmlns="http://www.w3.org/2000/svg">
+        <rect x="10" y="40" width="140" height="70" rx="10" fill="#1e2433" stroke="#2a3347"/>
+        <text x="80" y="70" text-anchor="middle" fill="#e8ecf4" font-size="12" font-family="DM Sans,sans-serif">Free BYOK</text>
+        <text x="80" y="90" text-anchor="middle" fill="#9aa6bd" font-size="10" font-family="DM Sans,sans-serif">desktop / power</text>
+        <path d="M155 75 H200" stroke="#7c9cff" stroke-width="2" marker-end="url(#a)"/>
+        <rect x="205" y="25" width="160" height="100" rx="10" fill="#1a2830" stroke="#5eead4"/>
+        <text x="285" y="55" text-anchor="middle" fill="#5eead4" font-size="12" font-family="DM Sans,sans-serif">Atoms Plus</text>
+        <text x="285" y="75" text-anchor="middle" fill="#e8ecf4" font-size="11" font-family="DM Sans,sans-serif">managed key + caps</text>
+        <text x="285" y="95" text-anchor="middle" fill="#9aa6bd" font-size="10" font-family="DM Sans,sans-serif">phone conversion</text>
+        <path d="M370 75 H415" stroke="#7c9cff" stroke-width="2" marker-end="url(#a)"/>
+        <rect x="420" y="40" width="90" height="70" rx="10" fill="#1e2433" stroke="#2a3347"/>
+        <text x="465" y="70" text-anchor="middle" fill="#e8ecf4" font-size="11" font-family="DM Sans,sans-serif">Classify</text>
+        <text x="465" y="90" text-anchor="middle" fill="#9aa6bd" font-size="10" font-family="DM Sans,sans-serif">proxy</text>
+        <defs><marker id="a" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#7c9cff"/></marker></defs>
+      </svg>
+    </div>
+    <h4>Basis</h4>
+    <div class="basis"><strong>direct:</strong> home <code>need_key</code> hero + device-local key plane; cost gates and free-vs-paid work copy already ship.<br/><strong>external:</strong> Copilot free BYOK + Plus managed; Reflect ~$10/mo all-in AI.<br/><strong>reasoned:</strong> conversion is setup friction on the primary dogfood device, not feature envy.</div>
+    <h4>Why it matters</h4>
+    <p>Matches what you already said out loud (“few dollars so they use our key”) and attaches it to a real drop-off already in the UI — without inventing a new product loop.</p>
+    <h4>Downsides</h4>
+    <p class="downsides">COGS and abuse if caps are soft; privacy optics of “we hold the path to Anthropic”; needs auth + metering you don’t have yet; Community culture will punish if Plus feels like the real product.</p>
+  </article>
+
+  <!-- I2 -->
+  <article class="card" id="i2">
+    <h3><span class="rank">#2</span> Capture companion — widgets &amp; share sheet (plugin stays vault truth)</h3>
+    <div class="badges">
+      <span class="badge">axis: capture / platform</span>
+      <span class="badge high">conf 80%</span>
+      <span class="badge cx">cx High</span>
+    </div>
+    <p>Don’t build a second brain app. Build a <strong>thin capture shell</strong>: Home Screen widget, Share Sheet, Android intent later — only job is append <code>- thought</code> to today’s daily (or a Sync-friendly inbox note). Monetize the companion (Drafts Pro–style yearly) or bundle with Plus. The free MIT plugin remains file + link + home + For you. Capture stays out of the plugin constitution; the companion productizes the already-external leg.</p>
+    <div class="diagram" aria-hidden="true">
+      <svg viewBox="0 0 520 150" width="520" height="150" xmlns="http://www.w3.org/2000/svg">
+        <rect x="8" y="20" width="110" height="100" rx="10" fill="#1a2830" stroke="#5eead4"/>
+        <text x="63" y="50" text-anchor="middle" fill="#5eead4" font-size="11" font-family="DM Sans,sans-serif">Companion</text>
+        <text x="63" y="70" text-anchor="middle" fill="#e8ecf4" font-size="10" font-family="DM Sans,sans-serif">widget</text>
+        <text x="63" y="88" text-anchor="middle" fill="#e8ecf4" font-size="10" font-family="DM Sans,sans-serif">share</text>
+        <text x="63" y="106" text-anchor="middle" fill="#9aa6bd" font-size="9" font-family="DM Sans,sans-serif">paid QoL</text>
+        <path d="M122 70 H165" stroke="#7c9cff" stroke-width="2"/>
+        <rect x="170" y="35" width="120" height="70" rx="10" fill="#1e2433" stroke="#2a3347"/>
+        <text x="230" y="65" text-anchor="middle" fill="#e8ecf4" font-size="11" font-family="DM Sans,sans-serif">Daily note</text>
+        <text x="230" y="85" text-anchor="middle" fill="#9aa6bd" font-size="10" font-family="DM Sans,sans-serif">- bullet dump</text>
+        <path d="M295 70 H338" stroke="#7c9cff" stroke-width="2"/>
+        <rect x="343" y="20" width="165" height="100" rx="10" fill="#1e2433" stroke="#2a3347"/>
+        <text x="425" y="50" text-anchor="middle" fill="#7c9cff" font-size="11" font-family="DM Sans,sans-serif">Atoms plugin</text>
+        <text x="425" y="72" text-anchor="middle" fill="#e8ecf4" font-size="10" font-family="DM Sans,sans-serif">file · home</text>
+        <text x="425" y="92" text-anchor="middle" fill="#e8ecf4" font-size="10" font-family="DM Sans,sans-serif">For you</text>
+        <text x="425" y="110" text-anchor="middle" fill="#9aa6bd" font-size="9" font-family="DM Sans,sans-serif">free MIT vault truth</text>
+      </svg>
+    </div>
+    <h4>Basis</h4>
+    <div class="basis"><strong>direct:</strong> architecture Capture leg “still not owned”; shortcut versioning / unpushable iCloud links; full custom mobile app OOS as host.<br/><strong>external:</strong> Drafts capture surfaces; Nabu Casa / Zotero Connector pattern — thin ingress, local truth free.</div>
+    <h4>Why it matters</h4>
+    <p>Your “standalone app for widgets + better quick capture” lands cleanly here without forking the vault into a proprietary DB or fighting Community norms.</p>
+    <h4>Downsides</h4>
+    <p class="downsides">Two apps to install; App Store tax; Sync/URI reliability; Android/iOS dual ship cost; risk of companion scope creep into “mini Obsidian.”</p>
+  </article>
+
+  <!-- I3 -->
+  <article class="card" id="i3">
+    <h3><span class="rank">#3</span> Judgment-budget SKU line — never sell the habit</h3>
+    <div class="badges">
+      <span class="badge">axis: monetization</span>
+      <span class="badge high">conf 82%</span>
+      <span class="badge cx">cx Low</span>
+    </div>
+    <p>Productize the free/paid split already in the quality-refresh brief: <strong>local polish, library, For you, protect-existing stay free forever</strong>. Money only buys <em>judgment</em> — classify, Update refile, backfill — as a monthly quota or prepaid pack. Home can show a simple “judgment budget” meter that maps to copy users already see (“Free — no API key” vs “Uses your Anthropic key”).</p>
+    <h4>Basis</h4>
+    <div class="basis"><strong>direct:</strong> free polish vs API refile; “free work free, paid work rare / never auto-spend”; backfill cost-estimate modal.<br/><strong>external:</strong> Craft AI credits; Day One AI on Gold tier only.</div>
+    <h4>Why it matters</h4>
+    <p>This is the packaging rule for #1. Without it, Plus drifts into “pay to use your notes.” With it, Plus is anxiety insurance for Anthropic spend and key setup — not a second-brain tax.</p>
+    <h4>Downsides</h4>
+    <p class="downsides">Metering UX can feel like a video-game stamina bar if mis-tuned; prepaid packs need store plumbing; power users may still prefer raw BYOK (good — keep that path first-class).</p>
+  </article>
+
+  <!-- I4 -->
+  <article class="card" id="i4">
+    <h3><span class="rank">#4</span> Paid product = filing uptime (not richer For you)</h3>
+    <div class="badges">
+      <span class="badge">axis: monetization / core loop</span>
+      <span class="badge med">conf 70%</span>
+      <span class="badge cx">cx High</span>
+    </div>
+    <p>Invert “premium AI features.” Free product gets the full home library and For you stream forever. <strong>Paid sells unattended filing reliability</strong>: past dailies drain when Obsidian isn’t open (proxy worker + caps + same egress ack language), so the phone habit isn’t “open app → Process.” Resurface stays free so the brand never becomes a gated review queue.</p>
+    <h4>Basis</h4>
+    <div class="basis"><strong>direct:</strong> auto-run is device-local and silent; launch caps exist; resurface is free local multi-cue stream.<br/><strong>reasoned:</strong> COGS live on classify, not on showing an atom you already own; guilt-free recall is the brand.</div>
+    <h4>Why it matters</h4>
+    <p>Gives Plus a concrete value prop beyond “we hold the key”: <em>your backlog files overnight</em>. Aligns with “phone is the product, desktop is the workshop.”</p>
+    <h4>Downsides</h4>
+    <p class="downsides">Needs always-on infrastructure beyond the plugin; privacy and reliability bar is high; auto-run productization collides with “never process today” and offline phone realities.</p>
+  </article>
+
+  <!-- I5 -->
+  <article class="card" id="i5">
+    <h3><span class="rank">#5</span> Community listing before any checkout</h3>
+    <div class="badges">
+      <span class="badge">axis: distribution &amp; trust</span>
+      <span class="badge high">conf 88%</span>
+      <span class="badge cx">cx Medium</span>
+    </div>
+    <p>Sequence ruthlessly: finish public repo + Community preview scan + privacy narrative, get strangers installing free BYOK, <em>then</em> ship Plus or companion IAP. Hosted keys before directory listing multiplies “who holds my captures?” distrust. Optional-payments language already lives in the security learning — use it after trust, not as a substitute for distribution.</p>
+    <h4>Basis</h4>
+    <div class="basis"><strong>direct:</strong> pre-community review: harden done, public GitHub + Community scan still open; README MIT + optional paid Anthropic; protect-existing integrity work.<br/><strong>external:</strong> Obsidian plugins free-to-install; money lives in companions/cloud after adoption.</div>
+    <h4>Why it matters</h4>
+    <p>Without a funnel, Plus has no buyers. With a free Community install, every later monetization compounds.</p>
+    <h4>Downsides</h4>
+    <p class="downsides">Delays revenue; freemium users may never convert; public listing invites support load before paid ops exist.</p>
+  </article>
+
+  <!-- I6 -->
+  <article class="card" id="i6">
+    <h3><span class="rank">#6</span> Core-loop depth as conversion fuel (not a detour)</h3>
+    <div class="badges">
+      <span class="badge">axis: core loop</span>
+      <span class="badge med">conf 72%</span>
+      <span class="badge cx">cx Medium</span>
+    </div>
+    <p>Version gravity is already home polish, quality stamps, Update notes, and For you. Keep 1–2 cycles improving file quality and zero-guilt recall so that when Plus or the companion ships, the loop feels <em>worth a bill</em>. Don’t monetize a flaky Process path. Don’t confuse this with “never ship money surfaces” — depth is CAC for later conversion, not a permanent substitute for a SKU.</p>
+    <h4>Basis</h4>
+    <div class="basis"><strong>direct:</strong> 0.5–0.6.x shipping inventory (quality stamp, update strip, 4-cue resurface, land peak); past learnings: stream not Anki, user-gated refile, marker integrity = trust.<br/><strong>reasoned:</strong> paid users churn if filing feels wrong; free quality is the demo of Plus.</div>
+    <h4>Why it matters</h4>
+    <p>Prevents the classic indie trap: bill for infrastructure while the daily experience still feels like a science project.</p>
+    <h4>Downsides</h4>
+    <p class="downsides">Easy to use as an excuse to delay money forever; must pair with a hard sequence (#5 + #1/#2), not open-ended polish.</p>
+  </article>
+</section>
+
+<section id="rejection">
+  <h2 class="sec">Rejection summary</h2>
+  <p class="muted">~48 raw across five frames → ~28 after merge → 6 survivors. Cuts below (one-line reasons).</p>
+  <table class="reject">
+    <thead>
+      <tr><th>Cut</th><th>Why</th></tr>
+    </thead>
+    <tbody>
+      <tr><td class="cut">Standalone full second brain</td><td>Refuted by constitution / “not a separate app”; Obsidian is host; subject-replacement risk.</td></tr>
+      <tr><td class="cut">Resurface-as-subscription</td><td>For you is free local stream; no COGS; paywalling habit kills brand.</td></tr>
+      <tr><td class="cut">Prepaid credits only (no Plus)</td><td>Weak demand signal; useful as a <em>packaging variant</em> of #1/#3, not a standalone direction.</td></tr>
+      <tr><td class="cut">Android-first paid wedge</td><td>Platform-only product without explicit plan; iOS dogfood is primary today.</td></tr>
+      <tr><td class="cut">Multi-provider BYOK first</td><td>Stack is Anthropic end-to-end; activation win unproven vs managed keys.</td></tr>
+      <tr><td class="cut">Core loop “good enough” → only ops</td><td>Fights version gravity; Community still open; quality is conversion fuel (#6).</td></tr>
+      <tr><td class="cut">Plex Pass naming / packaging alone</td><td>External analogy only; substance covered by #1+#3+#5.</td></tr>
+      <tr><td class="cut">Dogfood paid pilot before Community</td><td>No paid tier exists yet; free listing is the demand path; pilot is a later tactic under #1.</td></tr>
+      <tr><td class="cut">Atoms Guarantee trust-only SKU</td><td>Interesting but secondary; integrity work is free hygiene, not the first dollar.</td></tr>
+      <tr><td class="cut">Readwise delivery plane</td><td>Scope overrun into notifications/email product; For you already ships in home.</td></tr>
+      <tr><td class="cut">Strava “athlete intelligence” as primary SKU</td><td>Collides with chat/RAG competitors; Atoms should own classify-daily, not generic insight dashboards.</td></tr>
+      <tr><td class="cut">Standalone capture shell ≠ companion</td><td>Duplicate of #2 with weaker naming; merged into companion direction.</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<footer class="composition-signal">
+  Composed 2026-07-17 by ce-ideate from Obsidian Atoms grounding (v0.6.23) · focus: next product &amp; monetization · prior: docs/ideation/2026-07-16-open-ideation.html (separate run) · scratch /tmp/compound-engineering/ce-ideate/933681fa
+</footer>
+</div>
+</body>
+</html>
