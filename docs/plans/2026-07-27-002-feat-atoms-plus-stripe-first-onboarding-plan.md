@@ -9,7 +9,7 @@ issue: null
 artifact_contract: ce-unified-plan/v1
 artifact_readiness: implementation-ready
 product_contract_source: ce-plan-bootstrap
-doc_review: null
+doc_review: 2026-07-27
 deepened: null
 ---
 
@@ -37,7 +37,7 @@ Ship the **stranger-grade** Plus signup path: **email in plugin → soft device 
 | R-TRIAL | Primary CTA opens Stripe Checkout `start_trial` (card + `trial_period_days` from pricing SSOT) |
 | R-LOCK | Checkout email **locked** to session account; webhook grants **only** that email |
 | R-GRANT | Filings only after successful Checkout webhook (not on soft start) |
-| R-RESUME | On app/vault focus after “awaiting payment”, auto `GET /v1/me` with short poll; no paste required |
+| R-RESUME | While `awaitingCheckout`, on focus/resume auto `GET /v1/me` with short poll; no paste required |
 | R-HOME | Home **Try Atoms Plus** and Settings both enter the same flow |
 | R-FINISH | Abandoned Checkout → **Finish trial setup** (reuse session + Checkout) |
 | R-DEVICE2 | Second device / lost session → magic link only (no second charge) |
@@ -100,7 +100,7 @@ Ship the **stranger-grade** Plus signup path: **email in plugin → soft device 
 |----|----------|-----------|
 | KTD-O1 | `POST /v1/auth/start` `{ email }` → `ensureAccount` + **mint session** (no filings). Idempotent for same email if already inactive. | Soft account without magic token; magic stays restore-only |
 | KTD-O2 | Plugin flag `awaitingCheckout: true` (device-local, next to session) set when Checkout URL opened; cleared when `/v1/me` is active/trialing/exhausted | Drives resume poll without treating inactive as classifiable |
-| KTD-O3 | `resolveFilingAuth`: keep **inactive** from classifying; allow Settings/home to show signed-in-soft UI when token + inactive + awaitingCheckout | Today inactive falls through to BYOK/none — breaks Finish setup unless we special-case UI |
+| KTD-O3 | `resolveFilingAuth`: keep **inactive** from classifying; Settings/home show signed-in-soft UI when **token + inactive** (Finish setup). `awaitingCheckout` drives **resume poll only**, not Finish-setup visibility | Today inactive falls through to BYOK/none — breaks Finish setup unless we special-case UI |
 | KTD-O4 | Stripe Checkout: pass `customer_email` + metadata + `client_reference_id`; prefer Stripe API options that **disable email edit** if available for account mode; webhook resolve order: `metadata.email` → `client_reference_id` **only** (drop free-form customer_details if mismatch) | Origin mismatch rule |
 | KTD-O5 | Resume: `document.visibilitychange` + `window focus` (desktop) + short `registerInterval` while `awaitingCheckout` (3–6 polls / ~30s) calling existing `refreshPlusEntitlement` | No Obsidian “app resume” API; visibility is portable |
 | KTD-O6 | Home `open_plus` opens Settings **or** a small Modal with email field (prefer **Modal** so mobile doesn’t bury CTA in Settings) | Design H3; less friction than settings-only |
@@ -127,7 +127,7 @@ Ship the **stranger-grade** Plus signup path: **email in plugin → soft device 
 
 ### Sequencing
 
-U1 store/session mint → U2 HTTP start + RL + Stripe lock → U3 plugin client + filingAuth flag → U4 Settings/Modal UI + kill dogfood → U5 resume poll + return HTML → U6 home CTA → U7 tests/QA/version → shipping tail.
+U1 store/session mint → U2 HTTP start + RL + Stripe lock + return HTML → U3 plugin client + filingAuth flag → U4 Settings/Modal UI + kill dogfood → U5 resume poll → U6 home CTA → U7 tests/QA/version → shipping tail.
 
 **Depends on:** plus-service already production-shaped (Postgres, webhook, portal) on master.
 
@@ -235,12 +235,13 @@ U1 store/session mint → U2 HTTP start + RL + Stripe lock → U3 plugin client 
 - `test/atomsHomeData.test.ts` if copy keys change  
 
 **Approach:**  
-1. Signed-out Plus section: Email field + **Continue / Start free trial** → `startPlusAccount` → `createCheckout(..., "start_trial")` → `window.open` → set awaitingCheckout → Notice “Complete checkout, then return here.”  
-2. Soft signed-in inactive: show email + **Finish trial setup** + Sign out.  
+1. Signed-out Plus section: Email field + single primary **Start free trial** → `startPlusAccount` → `createCheckout(..., "start_trial")` → `window.open` → set awaitingCheckout → Notice “Complete checkout, then return here.” (One primary after email — opens Checkout immediately.)  
+2. Soft signed-in inactive (**token + inactive**, even if not awaitingCheckout): show email + **Finish trial setup** + Sign out.  
 3. Active/trialing: existing quiet status + Manage billing + Refresh + Sign out.  
 4. Remove or collapse dogfood paste/magic under “Sign in on another device” / Advanced.  
 5. Privacy/Terms: `Setting` links if URL constants non-empty.  
-6. Replace dogfood strings.
+6. Replace dogfood strings.  
+7. Interaction states: disable CTA while in-flight; Notices for invalid email / network / HTTP 429; Checkout open failure; while polling show quiet “Updating subscription…” then ready or timeout + Refresh.
 
 **Tests:** prefer pure helpers for button enablement/copy; full DOM optional.
 
