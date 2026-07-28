@@ -174,3 +174,5 @@ DOGFOOD_AUTO_GRANT=0 ATOMS_PLUS_STORE=sqlite npm start
 stripe listen --forward-to localhost:8787/v1/billing/webhook
 # Magic links print to console / log when RESEND_API_KEY unset
 ```
+
+Personal DIY Ask (no hosted bill, development + dogfood, tunnel for phone): [`docs/ask-self-host.md`](../ask-self-host.md).

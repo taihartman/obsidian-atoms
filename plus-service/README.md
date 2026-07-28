@@ -145,3 +145,7 @@ npm test
 - Send real magic-link email (Resend/Postmark)
 - `DOGFOOD_AUTO_GRANT=0`; Stripe live keys + live prices
 - TLS reverse proxy; never log Authorization or Anthropic/Stripe secrets
+
+## Self-host Ask (DIY)
+
+Product Ask (Claude/ChatGPT remote MCP + atom mirror) on a service **you** run: plugin **Plus service URL override**, dogfood entitlement, OAuth MCP — not authless/static-bearer/live-folder. Guide: [`docs/ask-self-host.md`](../docs/ask-self-host.md).
