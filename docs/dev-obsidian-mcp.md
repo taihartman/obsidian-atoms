@@ -1,5 +1,7 @@
 # Dev: Obsidian MCP (Local REST API)
 
+**Not product Ask.** Atoms Ask (Claude/ChatGPT remote MCP + cloud mirror) is a different stack — see [`docs/ask-self-host.md`](ask-self-host.md) for DIY self-host and Settings → Ask for hosted Plus.
+
 Grok (and other agents) drive the **throwaway vault** via the [Local REST API](https://github.com/coddingtonbear/obsidian-local-rest-api) plugin’s **built-in MCP** server. No third-party `mcp-obsidian` bridge required.
 
 ## What you get

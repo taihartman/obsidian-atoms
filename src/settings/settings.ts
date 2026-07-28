@@ -1159,7 +1159,9 @@ export class AtomsSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("Self-host Ask")
-      .setDesc("DIY docs are incomplete (P2). Opens repo stub.")
+      .setDesc(
+        "Run plus-service yourself + Plus URL override + OAuth MCP. Opens DIY guide.",
+      )
       .addButton((btn) =>
         btn.setButtonText("Docs").onClick(() => {
           window.open(

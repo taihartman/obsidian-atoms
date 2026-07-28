@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| In progress | #120 | Tai | `docs/ask-self-host-120` | `docs/handoffs/2026-07-27-ask-self-host-120.md` | `docs/ask-self-host.md`, `src/settings/settings.ts` | DIY Ask self-host guide — research done, rewrite next |
+| In progress | #120 | Tai | `docs/ask-self-host-120` | `docs/handoffs/2026-07-27-ask-self-host-120.md` | `docs/ask-self-host.md`, `src/settings/settings.ts` | DIY Ask self-host guide — rewrite + draft PR |
 | Blocked | #115 | Tai | — | `docs/qa/2026-07-27-plus-public-launch-checklist.md` | Fly secrets, Resend, Stripe live | Docs+0.6.31 shipped (#117). Waiting: Fly billing card, Resend domain+2nd email, Stripe live keys/prices/webhook |
 
 ## How to claim (copy)
