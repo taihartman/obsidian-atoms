@@ -104,7 +104,7 @@ export function registerAskTools(mcp, ctx) {
     "fetch_atom",
     {
       description:
-        "Fetch one mirrored note by title or path (atoms under Atoms/ and hub notes linked from atoms). Returns verbatim body (authoritative), tags, kind (atom|hub), status (live|superseded|contradicted), inverse revision edges, and structured links. Hubs set revision_participant:false.",
+        "Fetch one mirrored note by title or path (atoms under Atoms/ and hub notes linked from atoms). Returns verbatim body (authoritative), tags, kind (atom|hub), synced_at (when this row was last pushed to the cloud mirror), status (live|superseded|contradicted), inverse revision edges, and structured links. Hubs set revision_participant:false.",
       inputSchema: {
         id_or_title: z
           .string()
@@ -417,7 +417,7 @@ export function registerAskTools(mcp, ctx) {
     "list_atoms",
     {
       description:
-        "List mirrored atoms (title, path, tags) with offset pagination. Use to enumerate the full mirror beyond search_atoms limit 25.",
+        "List mirrored atoms (title, path, tags, synced_at) with offset pagination. Includes server_count and last_synced_at for staleness. Use to enumerate the full mirror beyond search_atoms limit 25.",
       inputSchema: {
         limit: z.number().int().min(1).max(50).optional(),
         offset: z.number().int().min(0).optional(),
@@ -428,8 +428,21 @@ export function registerAskTools(mcp, ctx) {
         limit: limit ?? 25,
         offset: offset ?? 0,
       });
+      const st = await store.mirrorStatus(email);
+      let lastSynced = null;
+      if (st?.updatedAt != null) {
+        lastSynced =
+          st.updatedAt instanceof Date
+            ? st.updatedAt.toISOString()
+            : String(st.updatedAt);
+        // Normalize non-ISO sqlite/pg strings when parseable
+        const t = Date.parse(lastSynced);
+        if (Number.isFinite(t)) lastSynced = new Date(t).toISOString();
+      }
       return jsonTool({
         ...page,
+        server_count: st?.count ?? page.total,
+        last_synced_at: lastSynced,
         ...absenceMeta({ searched_fields: ["title", "path", "tags"] }),
         hint:
           page.next_offset != null

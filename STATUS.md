@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| In progress | [#159](https://github.com/taihartman/obsidian-atoms/issues/159) | Claude (Tai) | `claude/tryatoms-landing-page-e46194` | [2026-07-28-001](docs/plans/2026-07-28-001-feat-tryatoms-landing-page-plan.md) | `www/**` (new), `src/settings/settings.ts` (See Plans button only) | tryatoms.app landing page. Prices generated from `plus-pricing.json`. Pages **preview** deploy only — production + apex domain gated on human review |
+| In progress | [#56](https://github.com/taihartman/obsidian-atoms/issues/56) | taihartman | `feat/ios-capture-inbox-drain` | [plan](docs/plans/2026-07-28-002-feat-ios-capture-inbox-drain-plan.md) | `src/pipeline/inbox.ts` (new), `src/pipeline/daily.ts`, `src/plugin/main.ts`, `src/home/atomsHomeView.ts`, `docs/capture-shortcut.md` | iOS capture no longer needs today's daily to exist: bookmarked inbox note + drain into the capture's own daily. All units landed; [PR #167](https://github.com/taihartman/obsidian-atoms/pull/167) open (draft — awaiting the human phone smoke). Android follow-up [#166](https://github.com/taihartman/obsidian-atoms/issues/166). |
 
 ## How to claim (copy)
 
@@ -23,6 +23,8 @@ States: `Queued` · `In progress` · `Blocked` · `In review` · `Done` (then re
 
 | Merged | Issue / PR | Summary |
 |---|---|---|
+| 2026-07-28 | #174 / #175 | Community review lint (styles, confirm, types) · **0.6.47** |
+| 2026-07-28 | #172 / #173 | Ask mirror hub sync triggers + MCP `synced_at` · **0.6.46** |
 | 2026-07-28 | #169 / #170 | CI-built releases + artifact attestations · **0.6.45** |
 | 2026-07-28 | #163 / #164 | Plus auth criticals (soft-start fixation, idempotency tenant scope, exchange XSS, body cap) — Fly already deployed |
 | 2026-07-28 | #154 / #157 | Hub projection — managed generated block on person hubs · **0.6.44** |

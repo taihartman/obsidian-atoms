@@ -19,6 +19,18 @@ Past dailies are the normal process surface; **today is excluded by default** so
 ### Unprocessed
 A capture with no marker after its extent and non-empty body. Empty bullets (e.g. lone `- `) are not work items.
 
+### Capture inbox
+`Atoms System/Inbox.md` — the single append-target for external capture (iOS Shortcut today). Each line is a top-level bullet opening with an ISO 8601 stamp carrying its own offset, so a capture belongs to the day and time it was made, not the day it drains. The plugin creates the note and bookmarks it on load; it never deletes or rewrites a line.
+
+### Drain
+Move every pending inbox capture into **its own day's** daily as a `- HH:MM body` bullet, then mark it filed. Append-only and idempotent: a capture already present in its daily is re-marked, not duplicated; future-dated and unparseable lines are held and counted, never guessed at. Runs on layout-ready and via `atoms:drain-inbox`; concurrent callers join one in-flight pass.
+
+### Filed marker
+`<!--atoms:filed-->` after an inbox capture's extent — the inbox's own sentinel, distinct from daily `<!--linker:*-->` markers and unknown to `parse.ts`. Presence is a **region** property (scan to the next top-level bullet), so drifted whitespace never re-files a capture.
+
+### Held / unparseable
+Drain outcomes that are neither filed nor failed. **Held** = stamped ahead of the clock, so no daily exists to file into yet. **Unparseable** = no readable stamp. Both stay in place, counted and surfaced on home rather than dropped or guessed at.
+
 ## Classification
 
 ### Verdict

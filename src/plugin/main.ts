@@ -7,6 +7,18 @@ import {
   requestUrl,
 } from "obsidian";
 import { ATOMS_HOME_VIEW_TYPE, AtomsHomeView } from "../home/atomsHomeView";
+import {
+  drainInbox,
+  ensureInboxBookmark,
+  ensureInboxNote,
+  INBOX_NOTE_PATH,
+  type InboxBookmarkResult,
+  type InboxDrainResult,
+} from "../pipeline/inbox";
+import {
+  LS_INBOX_BOOKMARK_NOTICE_ACK,
+  shouldShowBookmarkSetupNotice,
+} from "./inboxBootstrap";
 import { clampAtomFolder } from "../pipeline/render";
 import { registerAtomsCommands } from "./commands";
 import { runOpenAtomGraph } from "../graph/openAtomGraph";
@@ -17,6 +29,7 @@ declare const ATOMS_DEV_COMMANDS: boolean;
 /** Dev-only console logging — silent in Community production builds. */
 function devLog(...args: unknown[]): void {
   if (typeof ATOMS_DEV_COMMANDS !== "undefined" && ATOMS_DEV_COMMANDS) {
+    // eslint-disable-next-line no-console -- gated dev diagnostics
     console.log(...args);
   }
 }
@@ -125,6 +138,10 @@ import {
 } from "../pipeline/refreshAtoms";
 import { isEligibleForUpdate } from "../pipeline/atomQuality";
 import { formatUpdateSummary } from "../home/runProgress";
+import {
+  isAskMirrorWatchPath,
+  readAskMirrorHashes,
+} from "../platform/askMirror";
 
 export default class AtomsPlugin extends Plugin {
   settings!: LinkerSettings;
@@ -149,6 +166,13 @@ export default class AtomsPlugin extends Plugin {
   private backfillInFlight = false;
   private askOutboxInFlight = false;
   private askMirrorInFlight = false;
+  /**
+   * Shared in-flight drain (F1). Both entry points — bootstrapInbox (unawaited
+   * from onLayoutReady) and runDrainInbox (command) — go through drainInboxOnce,
+   * so a concurrent caller JOINS the running pass instead of racing it into a
+   * duplicate append.
+   */
+  private drainInFlight: Promise<InboxDrainResult> | null = null;
   private askMirrorFollowUp = false;
   private askMirrorForceFollowUp = false;
   private askMirrorNoticeShown = false;
@@ -176,6 +200,12 @@ export default class AtomsPlugin extends Plugin {
     // enable and cold start — same pattern as core sidebar plugins.
     this.app.workspace.onLayoutReady(() => {
       void this.ensureAtomsHomeSidebar({ reveal: false });
+    });
+
+    // U5: ensure the capture inbox note + bookmark exist, then drain any
+    // pending captures into their dailies. Best-effort — never blocks launch.
+    this.app.workspace.onLayoutReady(() => {
+      void this.bootstrapInbox();
     });
 
     // U9: never block launch — schedule auto-run after layout + metadata.
@@ -206,56 +236,161 @@ export default class AtomsPlugin extends Plugin {
     );
   }
 
-  /** Debounced Atoms/-only vault watch for Claude mirror parity. */
+  /**
+   * Ensure the capture inbox note + bookmark exist, then drain pending captures
+   * into their dailies (U5). Every step is best-effort: a missing Bookmarks
+   * plugin, a daily-notes hiccup, or a drain error must never throw into load.
+   */
+  private async bootstrapInbox(): Promise<void> {
+    // Gate on the same signal cold-start auto-run uses (F2). onLayoutReady does
+    // not mean the vault is indexed: ensureInboxNote could create a fresh inbox
+    // before Sync delivers the real one, and ensureDailyForDate reads
+    // getAllDailyNotes() against a half-built index. Non-blocking — this whole
+    // method runs unawaited from onLayoutReady.
+    await waitForVaultIndexReady(this.app);
+
+    try {
+      await ensureInboxNote(this.app);
+    } catch (e) {
+      // best-effort — inbox capture degrades to a manual note create
+      devLog("[atoms] inbox ensure-note failed", {
+        message: e instanceof Error ? e.message : "error",
+      });
+    }
+    try {
+      const bookmark = await ensureInboxBookmark(this.app);
+      this.maybeShowBookmarkSetupNotice(bookmark);
+    } catch (e) {
+      // best-effort — user can bookmark the note by hand
+      devLog("[atoms] inbox ensure-bookmark failed", {
+        message: e instanceof Error ? e.message : "error",
+      });
+    }
+    try {
+      const r = await this.drainInboxOnce();
+      devLog("[atoms] inbox bootstrap drain", {
+        filed: r.filed,
+        held: r.held,
+        pending: r.pending,
+        unparseable: r.unparseable,
+      });
+      await this.refreshAtomsHomeLeaves();
+    } catch (e) {
+      // best-effort — pending captures wait for the next drain
+      devLog("[atoms] inbox bootstrap drain failed", {
+        message: e instanceof Error ? e.message : "error",
+      });
+    }
+  }
+
+  /**
+   * Serialize drains (F1): a concurrent caller joins the running pass rather
+   * than kicking off a second read-modify-write that would double-append the
+   * same capture. Cleared in finally so the next drain starts fresh.
+   */
+  private drainInboxOnce(): Promise<InboxDrainResult> {
+    if (this.drainInFlight) return this.drainInFlight;
+    const pass = drainInbox(this.app).finally(() => {
+      this.drainInFlight = null;
+    });
+    this.drainInFlight = pass;
+    return pass;
+  }
+
+  /**
+   * One-time setup notice (F3): when the Bookmarks core plugin is unavailable
+   * the bookmark is never created, so the iOS Shortcut has no target. Name the
+   * exact path to bookmark by hand, then ack so a permanently-disabled Bookmarks
+   * plugin does not nag on every load.
+   */
+  private maybeShowBookmarkSetupNotice(result: InboxBookmarkResult): void {
+    const acked =
+      this.app.loadLocalStorage(LS_INBOX_BOOKMARK_NOTICE_ACK) === true;
+    if (!shouldShowBookmarkSetupNotice(result, acked)) return;
+    new Notice(
+      `Atoms: bookmark "${INBOX_NOTE_PATH}" by hand — the Bookmarks core plugin is off, so iOS capture has no target until you do.`,
+      10000,
+    );
+    this.app.saveLocalStorage(LS_INBOX_BOOKMARK_NOTICE_ACK, true);
+  }
+
+  /** Manual drain (command). Surfaces a count so a stuck drain is visible. */
+  async runDrainInbox(): Promise<void> {
+    try {
+      const r = await this.drainInboxOnce();
+      const parts = [`${r.filed} filed`];
+      if (r.held) parts.push(`${r.held} held (future)`);
+      if (r.unparseable) parts.push(`${r.unparseable} unreadable`);
+      if (r.pending) parts.push(`${r.pending} pending`);
+      new Notice(`Atoms inbox: ${parts.join(", ")}`);
+      await this.refreshAtomsHomeLeaves();
+    } catch (e) {
+      new Notice(
+        `Atoms: inbox drain failed — ${e instanceof Error ? e.message.slice(0, 80) : "error"}`,
+      );
+    }
+  }
+
+  /**
+   * Debounced vault watch for Ask mirror parity.
+   * Flat Atoms/*.md + hubs already in this device's hash evidence
+   * (not every vault .md — dailies would storm-sync). New hubs seed via
+   * end-of-run Process/Update/invite push.
+   */
   private registerAskMirrorVaultEvents(): void {
-    const schedule = () => {
-      if (
-        !this.settings.askEnabled ||
-        !this.settings.askPrivacyAckAt
-      ) {
-        return;
-      }
-      this.askMirrorDirty = true;
-      if (this.askMirrorDebounceTimer != null) {
-        window.clearTimeout(this.askMirrorDebounceTimer);
-      }
-      this.askMirrorDebounceTimer = window.setTimeout(() => {
-        this.askMirrorDebounceTimer = null;
-        if (!this.askMirrorDirty) return;
-        this.askMirrorDirty = false;
-        void this.syncAskMirror({ force: false }).catch(() => {
-          /* best-effort */
-        });
-      }, 2000);
-    };
-    const isAtomMd = (path: string) => {
-      const p = path || "";
-      if (!p.endsWith(".md")) return false;
-      if (p.includes("..") || p.includes("\\")) return false;
-      if (!p.startsWith("Atoms/")) return false;
-      const rest = p.slice("Atoms/".length);
-      return Boolean(rest) && !rest.includes("/");
+    const schedule = () => this.scheduleAskMirrorSync();
+    const watch = (path: string) => {
+      const folder = this.settings.atomFolder || "Atoms";
+      const hashes = readAskMirrorHashes(
+        (k) => this.app.loadLocalStorage(k) as unknown,
+        this.settings.askMirrorHashes,
+      );
+      return isAskMirrorWatchPath(path, folder, hashes);
     };
     this.registerEvent(
       this.app.vault.on("create", (f) => {
-        if (isAtomMd(f.path)) schedule();
+        if (watch(f.path)) schedule();
       }),
     );
     this.registerEvent(
       this.app.vault.on("modify", (f) => {
-        if (isAtomMd(f.path)) schedule();
+        if (watch(f.path)) schedule();
       }),
     );
     this.registerEvent(
       this.app.vault.on("delete", (f) => {
-        if (isAtomMd(f.path)) schedule();
+        if (watch(f.path)) schedule();
       }),
     );
     this.registerEvent(
       this.app.vault.on("rename", (f, oldPath) => {
-        if (isAtomMd(f.path) || isAtomMd(oldPath)) schedule();
+        if (watch(f.path) || watch(oldPath)) schedule();
       }),
     );
+  }
+
+  /** Debounced best-effort push after vault or pipeline writes. */
+  scheduleAskMirrorSync(): void {
+    if (!this.settings.askEnabled || !this.settings.askPrivacyAckAt) {
+      return;
+    }
+    // Coalesce into the in-flight run instead of a second post-run debounce.
+    if (this.askMirrorInFlight) {
+      this.askMirrorFollowUp = true;
+      return;
+    }
+    this.askMirrorDirty = true;
+    if (this.askMirrorDebounceTimer != null) {
+      window.clearTimeout(this.askMirrorDebounceTimer);
+    }
+    this.askMirrorDebounceTimer = window.setTimeout(() => {
+      this.askMirrorDebounceTimer = null;
+      if (!this.askMirrorDirty) return;
+      this.askMirrorDirty = false;
+      void this.syncAskMirror({ force: false }).catch(() => {
+        /* best-effort */
+      });
+    }, 2000);
   }
 
   /**
@@ -447,8 +582,9 @@ export default class AtomsPlugin extends Plugin {
           ? `Atoms: couldn't update ${report.failed} note${report.failed === 1 ? "" : "s"} — check model id and API key`
           : `Atoms: polished ${polished}, updated ${report.updated}, renamed ${report.renamed}, failed ${report.failed}`,
       );
-      void this.syncAskMirror().catch(() => {
-        /* best-effort */
+      // After projection + atom writes settle — end-of-run push (hubs included).
+      void this.syncAskMirror({ force: false }).catch(() => {
+        /* best-effort — vault write already committed */
       });
       void this.applyAskOutbox().catch(() => {
         /* best-effort */
@@ -824,6 +960,9 @@ export default class AtomsPlugin extends Plugin {
       new Notice(
         `Atoms backfill: ${report.applied} applied, ${report.atomsCreated} atom(s), ${report.markersAppended} marker(s), ${report.failed} failed`,
       );
+      if (report.atomsCreated > 0 || report.applied > 0) {
+        this.scheduleAskMirrorSync();
+      }
     } catch (e) {
       devLog("[atoms] backfill execute failed", {
         name: e instanceof Error ? e.name : "Error",
@@ -1036,6 +1175,12 @@ export default class AtomsPlugin extends Plugin {
       if (opts?.force) this.askMirrorForceFollowUp = true;
       return 0;
     }
+    // Absorb pending debounce into this run (avoids Process + 2s double push).
+    if (this.askMirrorDebounceTimer != null) {
+      window.clearTimeout(this.askMirrorDebounceTimer);
+      this.askMirrorDebounceTimer = null;
+    }
+    this.askMirrorDirty = false;
     this.askMirrorInFlight = true;
     let uploaded = 0;
     try {
@@ -1159,12 +1304,18 @@ export default class AtomsPlugin extends Plugin {
 
     let workingHashes = { ...hashSnapshot };
     let uploaded = 0;
+    let deleted = 0;
 
     const fail = (msg: string) => {
       save(LS_ASK_MIRROR_LAST_ERROR, msg);
+      const snip = msg.replace(/\s+/g, " ").trim().slice(0, 72);
       if (!this.askMirrorNoticeShown) {
         this.askMirrorNoticeShown = true;
-        new Notice("Ask: last push failed · Sync now to retry");
+        new Notice(
+          snip
+            ? `Ask: push failed — ${snip} · Sync now to retry`
+            : "Ask: last push failed · Sync now to retry",
+        );
       }
       return -1 as const;
     };
@@ -1187,6 +1338,7 @@ export default class AtomsPlugin extends Plugin {
       const chunk = deletePaths.slice(i, i + 100);
       const r = await askMirrorDelete(cfg, token, chunk);
       if (!r.ok) return fail(r.message);
+      deleted += chunk.length;
       for (const p of chunk) delete workingHashes[p];
       writeAskMirrorHashes(save, workingHashes);
     }
@@ -1226,8 +1378,14 @@ export default class AtomsPlugin extends Plugin {
       writeAskMirrorHashes(save, workingHashes);
     }
 
+    // Success: clear error + refresh server count. Only stamp "last pushed"
+    // when this run mutated the mirror (or user forced Sync now).
     save(LS_ASK_MIRROR_LAST_ERROR, "");
-    save(LS_ASK_MIRROR_LAST_SUCCESS, new Date().toISOString());
+    this.askMirrorNoticeShown = false;
+    const mutated = uploaded > 0 || deleted > 0 || force;
+    if (mutated) {
+      save(LS_ASK_MIRROR_LAST_SUCCESS, new Date().toISOString());
+    }
     const st = await askMirrorStatus(cfg, token);
     if (st.ok) {
       save(LS_ASK_MIRROR_SERVER_COUNT, String(st.count));
@@ -1406,8 +1564,9 @@ export default class AtomsPlugin extends Plugin {
         }
         new Notice(notice);
       }
-      void this.syncAskMirror().catch(() => {
-        /* best-effort */
+      // After projection + atom writes settle — end-of-run push (hubs included).
+      void this.syncAskMirror({ force: false }).catch(() => {
+        /* best-effort — vault write already committed */
       });
       void this.applyAskOutbox().catch(() => {
         /* best-effort */
@@ -1506,6 +1665,7 @@ export default class AtomsPlugin extends Plugin {
       new Notice(
         `Atoms fixture: ${report.atomsCreated} atom(s), ${report.markersAppended} marker(s)`,
       );
+      this.scheduleAskMirrorSync();
     } catch (e) {
       if (e instanceof DailyNotesDisabledError) {
         this.failHomeRun(e.message);

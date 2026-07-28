@@ -27,7 +27,7 @@ Where an **active feature plan** and amendments conflict, **that plan wins**. Am
 ## Non-negotiables (bugs if violated)
 
 1. **Body is sacred** — capture text lands in the atom **verbatim** (whitespace / obvious typo only). Model output surface = title, tags, links only.
-2. **Never move files or choose folders** — atoms land flat in one configured folder (default `Atoms/`).
+2. **Never move files or choose folders** — atoms land flat in one configured folder (default `Atoms/`). Plugin-owned **non-atom** files live in the fixed `Atoms System/` folder (capture inbox; KTD7 of the 2026-07-28 inbox plan). This does not open folder intelligence: no atom ever leaves the flat folder, and the atom-folder allowlists are prefix-scoped with a trailing slash so the two cannot collide.
 3. **Default: do not process today's daily.** Pipeline excludes today so mid-day capture stays quiet. Explicit user force (Preview/Process today) is allowed; never rewrite existing daily lines — only *create* atom files and *append* markers.
 4. **Sentinel is the processed marker** for **all three** verdicts:
    - atom: `↳ [[title]] <!--linker-->`

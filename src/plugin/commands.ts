@@ -148,6 +148,14 @@ export function registerAtomsCommands(plugin: AtomsPlugin): void {
   });
 
   plugin.addCommand({
+    id: "drain-inbox",
+    name: "Drain capture inbox into dailies",
+    callback: () => {
+      void plugin.runDrainInbox();
+    },
+  });
+
+  plugin.addCommand({
     id: "open-atom-graph",
     name: "Open atom graph",
     callback: () => {

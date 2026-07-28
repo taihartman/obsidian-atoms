@@ -141,12 +141,12 @@ Link to a person note you already keep (e.g. `People/Jordan`). Backlinks surface
 
 ## Capture (phone)
 
-1. Dump a thought as a **bullet** in today’s daily (`- What's on your mind?`).
-2. Install shortcut from **Settings → Capture** (or Atoms home → Install).
-3. Shortcut should append a line like `- your text` (dash added for you).
-4. **Tomorrow** (or use **Preview today / Process today** to test): Atoms home → Preview → Process.
+1. Install the **Atoms Capture** shortcut from **Settings → Capture** (or Atoms home → Install).
+2. Run it (or share text to it) to append a stamped line to the inbox note `Atoms System/Inbox.md` — the plugin creates that note and its **Atoms Inbox** bookmark for you.
+3. When Obsidian next opens (or via the **Drain inbox** command), each line files into the daily for its stamp date, creating that daily if missing.
+4. **Preview / Process** past days from Atoms home as usual.
 
-See [docs/capture-shortcut.md](./docs/capture-shortcut.md).
+Uses Obsidian's **Capture to Bookmark**, which appends with the app force-quit — so a capture on a day with no daily still survives. See [docs/capture-shortcut.md](./docs/capture-shortcut.md).
 
 ---
 

@@ -608,6 +608,8 @@ export function createMemoryStore() {
         title: pub.title,
         path: pub.path,
         tags: pub.tags,
+        kind: pub.kind,
+        synced_at: pub.updatedAt ?? null,
       };
     });
     const total = all.length;

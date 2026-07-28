@@ -103,6 +103,6 @@ export function schedulePlusCheckoutResume(host: PlusResumeHost): void {
       }
       if (polls >= MAX_POLLS) return;
       tick();
-    }, INTERVAL_MS) as unknown as number,
+    }, INTERVAL_MS),
   );
 }
