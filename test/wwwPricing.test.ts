@@ -96,6 +96,9 @@ describe("www build output", () => {
     // One constellation per story, so the graph follows the switcher.
     const graphs = index.match(/class="graph-fig"/g) ?? [];
     expect(graphs).toHaveLength(3);
+    // Deep, not a demo star: a years-in library is mostly anonymous dots.
+    const soft = index.match(/graph-node--soft/g) ?? [];
+    expect(soft.length).toBeGreaterThan(60);
   });
 
   it("names the three scenarios in the story nav", () => {

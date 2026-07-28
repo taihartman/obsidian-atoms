@@ -511,6 +511,24 @@ main[data-story="self"] .hero-panel[data-s="self"] {
   stroke: color-mix(in srgb, var(--tint) 55%, transparent);
 }
 
+/* Secondary hubs (entities, themes): tinted, smaller than the person hub. */
+.graph-node--hub2 {
+  fill: color-mix(in srgb, var(--tint) 24%, var(--surface));
+  stroke: color-mix(in srgb, var(--tint) 70%, transparent);
+}
+
+/* The anonymous majority: a years-deep library is mostly quiet dots. */
+.graph-node--soft {
+  fill: var(--elev);
+  stroke: var(--sep-soft);
+  stroke-width: 0.75;
+}
+
+.graph-edge--bridge {
+  stroke: color-mix(in srgb, var(--tint) 35%, var(--sep));
+  stroke-dasharray: 3 4;
+}
+
 .graph-label {
   font-family: var(--font-ui);
   font-size: 10.5px;
@@ -523,10 +541,16 @@ main[data-story="self"] .hero-panel[data-s="self"] {
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .reveals-on .reveal.in .graph-edge {
+  .reveals-on .reveal.in .graph-edge:not(.graph-edge--bridge) {
     stroke-dasharray: 220;
     stroke-dashoffset: 220;
-    animation: edge-draw 900ms ease-out forwards;
+    animation: edge-draw 800ms ease-out forwards;
+  }
+
+  /* Bridges keep their dash pattern, so they fade in rather than draw. */
+  .reveals-on .reveal.in .graph-edge--bridge {
+    opacity: 0;
+    animation: rise 600ms ease-out forwards;
   }
 
   .reveals-on .reveal.in .graph-node,
@@ -535,20 +559,21 @@ main[data-story="self"] .hero-panel[data-s="self"] {
     animation: node-bloom 520ms cubic-bezier(0.22, 0.68, 0.36, 1) forwards;
   }
 
-  .reveals-on .reveal.in :is(.graph-node, .graph-label):nth-of-type(2) {
-    animation-delay: 120ms;
+  /* Draw-in delay buckets, assigned by the generator in www/build.mjs. */
+  .reveals-on .reveal.in .gd-2 {
+    animation-delay: 140ms;
   }
-  .reveals-on .reveal.in :is(.graph-node, .graph-label):nth-of-type(3) {
-    animation-delay: 240ms;
+  .reveals-on .reveal.in .gd-3 {
+    animation-delay: 280ms;
   }
-  .reveals-on .reveal.in :is(.graph-node, .graph-label):nth-of-type(4) {
-    animation-delay: 360ms;
+  .reveals-on .reveal.in .gd-4 {
+    animation-delay: 420ms;
   }
-  .reveals-on .reveal.in :is(.graph-node, .graph-label):nth-of-type(5) {
-    animation-delay: 480ms;
+  .reveals-on .reveal.in .gd-5 {
+    animation-delay: 560ms;
   }
-  .reveals-on .reveal.in :is(.graph-node, .graph-label):nth-of-type(6) {
-    animation-delay: 600ms;
+  .reveals-on .reveal.in .gd-6 {
+    animation-delay: 700ms;
   }
 }
 
@@ -1060,6 +1085,10 @@ main[data-story="self"] .s-people {
 }
 
 /* ---------- footer ---------- */
+
+.foot-note {
+  margin: 0;
+}
 
 .foot {
   padding: 32px 0 48px;
