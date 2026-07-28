@@ -155,12 +155,56 @@ export class MetadataContextProvider implements ContextProvider {
       vaultTags,
       activeVocabulary: this.getActiveVocabulary(),
       personHubs: personHubTitles(hubs),
-      personHubDetails: hubs.map((h) => ({
-        canonicalTitle: h.canonicalTitle,
-        matchKeys: h.matchKeys,
-      })),
+      personHubDetails: hubs.map((h) => {
+        const file = files.find((f) => f.path === h.path);
+        const cache = file
+          ? this.app.metadataCache.getFileCache(file)
+          : undefined;
+        return {
+          canonicalTitle: h.canonicalTitle,
+          matchKeys: h.matchKeys,
+          sections: sectionsFromCache(cache),
+        };
+      }),
     });
   }
+}
+
+/** H2 headings from Obsidian metadata cache. */
+export function sectionsFromCache(
+  cache: { headings?: { heading: string; level: number }[] } | null | undefined,
+): string[] {
+  const heads = cache?.headings ?? [];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const h of heads) {
+    if (h.level !== 2) continue;
+    const t = (h.heading ?? "").trim();
+    if (!t || seen.has(t)) continue;
+    seen.add(t);
+    out.push(t);
+  }
+  return out;
+}
+
+/** Shared person-hub list for stable prefix + classify user message. */
+export function formatPersonHubsForContext(context: VaultContext): string {
+  const details = context.personHubDetails ?? [];
+  if (details.length) {
+    return details
+      .map((d) => {
+        const name = d.canonicalTitle;
+        const secs = d.sections ?? [];
+        if (!secs.length) return `- ${name}`;
+        const sub = secs.map((s) => `  - ${s}`).join("\n");
+        return `- ${name}\n${sub}`;
+      })
+      .join("\n");
+  }
+  if (context.personHubs?.length) {
+    return context.personHubs.map((t) => `- ${t}`).join("\n");
+  }
+  return "(none)";
 }
 
 /** Stable rendered prefix bytes for cache-hit prerequisite (U4 verification). */
@@ -173,9 +217,7 @@ export function renderStablePrefix(context: VaultContext): string {
   const tags = context.tags.length
     ? context.tags.map((t) => `#${t}`).join(" ")
     : "(none)";
-  const personHubs = context.personHubs?.length
-    ? context.personHubs.map((t) => `- ${t}`).join("\n")
-    : "(none)";
+  const personHubs = formatPersonHubsForContext(context);
   const titles = context.titles.length
     ? context.titles.map((t) => `- ${t}`).join("\n")
     : "(empty vault)";

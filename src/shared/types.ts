@@ -18,6 +18,8 @@ export interface ClassificationResult {
   tags: string[];
   proposed_tags: string[];
   links: ClassificationLink[];
+  /** Optional hub H2 placement; written as atom FM hub-section. */
+  hub_section?: string;
 }
 
 export interface ClassifyUsage {
@@ -59,6 +61,8 @@ export type ClassifyOutcome = ClassifySuccess | ClassifyFailure;
 export interface PersonHubDetail {
   canonicalTitle: string;
   matchKeys: string[];
+  /** Existing ## headings on the hub (human taxonomy), document order. */
+  sections: string[];
 }
 
 export interface VaultContext {
@@ -133,6 +137,11 @@ export interface LinkerSettings {
    * Off by default until dogfood-ready.
    */
   enableReconsiderCapture: boolean;
+  /**
+   * Opt-in: write managed generated block into person hub notes.
+   * Off by default; discloses vault write in Settings.
+   */
+  enableHubProjection: boolean;
   /** Opt-in cloud mirror of Atoms/ for remote MCP Ask (Plus). */
   askEnabled: boolean;
   /** Privacy ack timestamp ISO — required before first Ask push. */
@@ -170,6 +179,7 @@ export const DEFAULT_SETTINGS: LinkerSettings = {
   captureShortcutInstallUrl: "",
   plusBaseUrl: "",
   enableReconsiderCapture: false,
+  enableHubProjection: false,
   askEnabled: false,
   askPrivacyAckAt: "",
   askWriteAckAt: "",

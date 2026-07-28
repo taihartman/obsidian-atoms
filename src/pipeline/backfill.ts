@@ -1,4 +1,4 @@
-import { requestUrl, type App, Modal, Setting } from "obsidian";
+import { Notice, requestUrl, TFile, type App, Modal, Setting } from "obsidian";
 import {
   ANTHROPIC_VERSION,
   applyClassificationQuality,
@@ -19,6 +19,10 @@ import type {
 } from "../shared/types";
 import type { PersonHub } from "./enrich/people";
 import { filterTagsToActive, mergeProposedTags } from "./vocabulary";
+import {
+  hubTitlesFromAtomContents,
+  runHubProjectionForHubs,
+} from "./runHubProjection";
 
 export const BATCHES_URL = "https://api.anthropic.com/v1/messages/batches";
 export const COUNT_TOKENS_URL = "https://api.anthropic.com/v1/messages/count_tokens";
@@ -460,7 +464,12 @@ export async function applyBackfillResults(opts: {
   atomFolder: string;
   activeVocabulary: string[];
   /** Optional hubs for post-batch people repair (same as live classify). */
-  personHubDetails?: Array<{ canonicalTitle: string; matchKeys: string[] }>;
+  personHubDetails?: Array<{
+    canonicalTitle: string;
+    matchKeys: string[];
+    sections?: string[];
+  }>;
+  enableHubProjection?: boolean;
 }): Promise<ApplyBackfillReport> {
   const byId = new Map(opts.work.map((w) => [w.customId, w]));
   const existingAtoms = listAtomPaths(opts.app, opts.atomFolder);
@@ -470,6 +479,7 @@ export async function applyBackfillResults(opts: {
   let atomsCreated = 0;
   let markersAppended = 0;
   const proposedIncoming: string[] = [];
+  const atomPathsTouched: string[] = [];
   const hubs: PersonHub[] = (opts.personHubDetails ?? []).map((d) => ({
     canonicalTitle: d.canonicalTitle,
     matchKeys: d.matchKeys,
@@ -535,6 +545,43 @@ export async function applyBackfillResults(opts: {
     applied += 1;
     if (wr.atomCreated) atomsCreated += 1;
     if (wr.markerAppended) markersAppended += 1;
+    if (wr.atomCreated) atomPathsTouched.push(wr.atomCreated);
+    else if (wr.atomUpdated) atomPathsTouched.push(wr.atomUpdated);
+    else if (wr.atomSkippedCollision) atomPathsTouched.push(wr.atomSkippedCollision);
+  }
+
+  if (opts.enableHubProjection && atomPathsTouched.length) {
+    const atomContents: string[] = [];
+    for (const path of atomPathsTouched) {
+      const f = opts.app.vault.getAbstractFileByPath(path);
+      if (!(f instanceof TFile)) continue;
+      try {
+        atomContents.push(await opts.app.vault.read(f));
+      } catch {
+        /* skip */
+      }
+    }
+    const hubTitles = (opts.personHubDetails ?? []).map((d) => d.canonicalTitle);
+    const touched = hubTitlesFromAtomContents(atomContents, hubTitles);
+    if (touched.length) {
+      const proj = await runHubProjectionForHubs({
+        app: opts.app,
+        enabled: true,
+        atomFolder: opts.atomFolder,
+        touchedHubTitles: touched,
+        personHubDetails: (opts.personHubDetails ?? []).map((d) => ({
+          canonicalTitle: d.canonicalTitle,
+          matchKeys: d.matchKeys,
+          sections: d.sections ?? [],
+        })),
+      });
+      for (const err of proj.errors.slice(0, 3)) {
+        new Notice(
+          `Atoms: hub projection skipped [[${err.hubTitle}]] — ${err.reason}`,
+          8000,
+        );
+      }
+    }
   }
 
   return {

@@ -17,7 +17,8 @@ export function parseLinkProse(prose: string): ClassificationLink[] {
   if (!raw) return [];
 
   const segments = raw
-    .split(/(?<=\.)\s+/)
+    .replace(/\.\s+/g, ".\n")
+    .split("\n")
     .map((s) => s.trim())
     .filter(Boolean);
 

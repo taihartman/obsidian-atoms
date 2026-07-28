@@ -70,6 +70,9 @@ Calm Atoms home card (**Add {Name}?**) after Process/Update when a high-confiden
 ### Peer link (pre-hub)
 Plugin link-prose between generated atoms that share the same high-confidence missing person (or later project) label before a hub note exists. On invite accept, peers and soft bucket links **upgrade** to the new hub. Soft buckets are never identity peers.
 
+### Managed hub block
+Plugin-owned region at the end of a **person hub** note, delimited by `<!-- atoms:generated v=1 -->` … `<!-- /atoms:generated -->`. Lists hard-linked atoms under H2 headings the user already wrote (or **Unsorted**). Human prose outside the delimiters is never rewritten. Membership comes from atom link-prose hard links to the hub, not a separate `hub:` field. Optional atom frontmatter `hub-section` places an atom under a matching H2 when that heading exists on that hub; invalid/missing → Unsorted. Opt-in via Settings (**Hub projection**, default off). Not Home citator chrome. If Ask mirror is enabled, updated hub bodies sync vault→cloud like other linked hubs.
+
 ## Ask (pull recall + optional write)
 
 ### Atoms Ask
