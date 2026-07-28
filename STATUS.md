@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| In progress | [#56](https://github.com/taihartman/obsidian-atoms/issues/56) | taihartman | `feat/ios-capture-inbox-drain` | [plan](docs/plans/2026-07-28-002-feat-ios-capture-inbox-drain-plan.md) | `src/pipeline/inbox.ts` (new), `src/pipeline/daily.ts`, `src/plugin/main.ts`, `src/home/atomsHomeView.ts`, `docs/capture-shortcut.md` | iOS capture no longer needs today's daily to exist: bookmarked inbox note + drain into the capture's own daily. Android follow-up [#166](https://github.com/taihartman/obsidian-atoms/issues/166). |
+| In progress | [#56](https://github.com/taihartman/obsidian-atoms/issues/56) | taihartman | `feat/ios-capture-inbox-drain` | [plan](docs/plans/2026-07-28-002-feat-ios-capture-inbox-drain-plan.md) | `src/pipeline/inbox.ts` (new), `src/pipeline/daily.ts`, `src/plugin/main.ts`, `src/home/atomsHomeView.ts`, `docs/capture-shortcut.md` | iOS capture no longer needs today's daily to exist: bookmarked inbox note + drain into the capture's own daily. All units landed; [PR #167](https://github.com/taihartman/obsidian-atoms/pull/167) open (draft — awaiting the human phone smoke). Android follow-up [#166](https://github.com/taihartman/obsidian-atoms/issues/166). |
 
 ## How to claim (copy)
 
