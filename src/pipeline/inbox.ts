@@ -1,6 +1,10 @@
 import { type App, TFile } from "obsidian";
 import { isEmptyCaptureText, parseCaptures } from "./parse";
-import { ensureDailyForDate, FutureDailyNoteError } from "./daily";
+import {
+  ensureDailyForDate,
+  formatLocalDate,
+  FutureDailyNoteError,
+} from "./daily";
 
 /**
  * Capture inbox — the phone's capture target.
@@ -202,14 +206,6 @@ export function unparseableInboxCaptures(
   return captures.filter((c) => c.unparseable && !c.filed);
 }
 
-/** Local YYYY-MM-DD, matching ensureDailyForDate's future-date cutoff. */
-function localDateString(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
-
 /** How many captures are still stuck in the inbox, and why. */
 export interface InboxCounts {
   /** Readable, unfiled, not future-dated — will file on the next drain. */
@@ -231,7 +227,7 @@ export interface InboxCounts {
  */
 export function inboxCounts(content: string, now: Date): InboxCounts {
   const captures = parseInboxCaptures(content);
-  const today = localDateString(now);
+  const today = formatLocalDate(now);
   let pending = 0;
   let held = 0;
   for (const c of pendingInboxCaptures(captures)) {

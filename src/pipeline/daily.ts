@@ -27,7 +27,12 @@ export class FutureDailyNoteError extends Error {
   }
 }
 
-function formatLocalDate(d: Date): string {
+/**
+ * Local YYYY-MM-DD. Exported because the inbox's held-capture cutoff has to
+ * agree with this module's future-date cutoff exactly — two copies that drift
+ * would count a capture as held while the drain still tried to file it.
+ */
+export function formatLocalDate(d: Date): string {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");

@@ -1807,3 +1807,20 @@
   gap: 8px;
   margin-top: 8px;
 }
+
+/* Inbox drain: captures the drain could not route. Silent when all counts are
+   zero — the card only renders when something is actually stuck. `is-repair`
+   marks the case that needs a human (an unreadable stamp) rather than one that
+   clears itself on the next drain. */
+.atoms-home-inbox-stuck > .atoms-home-card-eyebrow {
+  color: var(--text-muted);
+}
+
+.atoms-home-inbox-stuck.is-repair {
+  border-color: color-mix(in srgb, var(--text-warning, #d29922) 34%, transparent);
+  background: color-mix(in srgb, var(--text-warning, #d29922) 10%, var(--background-secondary));
+}
+
+.atoms-home-inbox-stuck.is-repair > .atoms-home-card-eyebrow {
+  color: var(--text-warning, #d29922);
+}
