@@ -159,8 +159,22 @@ describe("recall claims stay within what ships", () => {
     expect(index).toContain("It never overwrites you");
   });
 
-  it("scopes Ask to the atoms folder only", () => {
-    expect(index).toContain("Daily notes and the rest of your vault");
+  it("scopes Ask to the notes Atoms filed, never the whole vault", () => {
+    expect(index).toContain(
+      "Your daily notes and the rest of your vault are never sent",
+    );
+  });
+
+  it("frames the scope as the reason recall works, not as a shortfall", () => {
+    // Selling this as a limitation undersells the filing, which is the moat.
+    expect(index).toContain("It reads the library, not the pile");
+  });
+
+  it("promises the capture shortcut only where it ships", () => {
+    expect(index).toContain("shortcut on your iPhone");
+    // Android capture is "later" per the constitution. Do not promise it.
+    expect(index).not.toMatch(/Android[^<]{0,40}(shortcut|capture)/i);
+    expect(index).not.toMatch(/(shortcut|capture)[^<]{0,40}Android/i);
   });
 
   it("never promises notifications, reminders, or a review queue", () => {
