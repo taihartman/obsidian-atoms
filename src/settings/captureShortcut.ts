@@ -13,7 +13,7 @@ export const CAPTURE_SHORTCUT_VERSION = "2.0.0";
  * User settings override still wins — see resolveCaptureShortcutInstallUrl.
  */
 export const CAPTURE_SHORTCUT_INSTALL_URL =
-  "https://www.icloud.com/shortcuts/28a87317da06494896ef183ec846606f";
+  "https://www.icloud.com/shortcuts/b1a910ea39094d7b857a983529e3bf8b";
 
 /** Device-local (never data.json). */
 export const LS_CAPTURE_SHORTCUT_ACK = "atoms-capture-shortcut-acked-version";
