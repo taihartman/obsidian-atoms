@@ -7,6 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
+| In progress | [#159](https://github.com/taihartman/obsidian-atoms/issues/159) | Claude (Tai) | `claude/tryatoms-landing-page-e46194` | [2026-07-28-001](docs/plans/2026-07-28-001-feat-tryatoms-landing-page-plan.md) | `www/**` (new), `src/settings/settings.ts` (See Plans button only) | tryatoms.app landing page. Prices generated from `plus-pricing.json`. Pages **preview** deploy only — production + apex domain gated on human review |
 
 ## How to claim (copy)
 
