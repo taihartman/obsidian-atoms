@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| In progress | #144 | Tai | `feat/ask-mirror-hubs` | handoff hub mirror | askMirror, mcp/tools, askHelpers, main sync | hubs outside Atoms/ |
+| In progress | #150 | agent | `feat/ask-mcp-unmisreadable-shape` | handoff MCP shape | mcp/tools, askHelpers, store search/neighbors | revision status, snippet authority, scope meta |
 | Blocked | #115 | Tai | — | `docs/qa/2026-07-27-plus-public-launch-checklist.md` | Fly secrets, Resend, Stripe live | Docs+0.6.31 shipped (#117). Waiting: Fly billing card, Resend domain+2nd email, Stripe live keys/prices/webhook |
 
 ## How to claim (copy)

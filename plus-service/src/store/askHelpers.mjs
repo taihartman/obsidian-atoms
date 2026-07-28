@@ -346,6 +346,290 @@ export function makeSnippet(body, query, max = 240) {
   return snip.replace(/\s+/g, " ").trim();
 }
 
+/**
+ * What the Ask mirror covers. scope_complete is false: not the whole vault.
+ * Clients must not hardcode paths — read these fields from responses.
+ */
+export const MIRROR_SCOPE_META = {
+  mirror_scope: ["Atoms/", "hub notes linked from atoms"],
+  scope_complete: false,
+};
+
+/** Fields mirrorSearch scores against. */
+export const SEARCHED_FIELDS = ["title", "tags", "body"];
+
+/** Forward relation → inverse label on the target. */
+export const INVERSE_RELATION = {
+  continues: "continued_by",
+  revises: "revised_by",
+  contradicts: "contradicted_by",
+  adds_detail: "detailed_by",
+};
+
+/**
+ * Scope + search-field metadata for any response that could be read as absence.
+ * @param {{ searched_fields?: string[] }} [extra]
+ */
+export function absenceMeta(extra = {}) {
+  return {
+    ...MIRROR_SCOPE_META,
+    searched_fields: extra.searched_fields ?? SEARCHED_FIELDS,
+  };
+}
+
+/**
+ * @param {{ title: string, path?: string, kind?: string, links?: { note: string, reason?: string }[], text?: string }[]} pubs
+ * @returns {Map<string, { title: string, path: string, kind: string, reason: string|null, relation: string|null }[]>}
+ */
+export function buildInboundIndex(pubs) {
+  /** @type {Map<string, { title: string, path: string, kind: string, reason: string|null, relation: string|null }[]>} */
+  const idx = new Map();
+  for (const pub of pubs || []) {
+    const fromTitle = String(pub.title || "").trim();
+    if (!fromTitle) continue;
+    const links = mergeLinksFromBody(pub.links || [], pub.text || "");
+    for (const l of links) {
+      const target = String(l.note || "").trim();
+      if (!target) continue;
+      const key = target.toLowerCase();
+      const edge = {
+        title: fromTitle,
+        path: pub.path || "",
+        kind: pub.kind === "hub" ? "hub" : "atom",
+        reason: l.reason || null,
+        relation: relationFromReason(l.reason),
+      };
+      const list = idx.get(key);
+      if (list) list.push(edge);
+      else idx.set(key, [edge]);
+    }
+  }
+  return idx;
+}
+
+/**
+ * Materialize inverse revision edges + always-present status for one note.
+ * Precedence: contradicted > superseded > live.
+ * @param {string} centerTitle
+ * @param {Map<string, { title: string, path: string, kind: string, reason: string|null, relation: string|null }[]>} inboundIndex
+ */
+export function revisionStatusFor(centerTitle, inboundIndex) {
+  const key = String(centerTitle || "").trim().toLowerCase();
+  const inbound = key && inboundIndex ? inboundIndex.get(key) || [] : [];
+
+  /** @type {{ title: string, relation: string, path: string }[]} */
+  const superseded_by = [];
+  /** @type {{ title: string, relation: string, path: string }[]} */
+  const contradicted_by = [];
+  /** @type {{ title: string, relation: string, path: string }[]} */
+  const continued_by = [];
+  /** @type {{ title: string, relation: string, path: string }[]} */
+  const detailed_by = [];
+
+  for (const e of inbound) {
+    if (!e.relation) continue;
+    const inv = INVERSE_RELATION[e.relation];
+    if (!inv) continue;
+    const row = { title: e.title, relation: inv, path: e.path || "" };
+    if (e.relation === "revises") superseded_by.push(row);
+    else if (e.relation === "contradicts") contradicted_by.push(row);
+    else if (e.relation === "continues") continued_by.push(row);
+    else if (e.relation === "adds_detail") detailed_by.push(row);
+  }
+
+  /** @type {"live"|"superseded"|"contradicted"} */
+  let status = "live";
+  if (contradicted_by.length) status = "contradicted";
+  else if (superseded_by.length) status = "superseded";
+
+  return {
+    status,
+    superseded_by,
+    contradicted_by,
+    continued_by,
+    detailed_by,
+  };
+}
+
+/**
+ * Score + rank public atoms into search hits with status + non-authoritative snippets.
+ * @param {{ id?: string, title: string, path: string, kind?: string, tags?: string[], text?: string, links?: {note:string,reason?:string}[] }[]} pubs
+ * @param {string} query
+ * @param {number} limit
+ * @param {{ tags?: string[], snippets?: boolean }} [opts]
+ */
+export function buildSearchHits(pubs, query, limit = 8, opts = {}) {
+  const lim = Math.min(Math.max(Number(limit) || 8, 1), 25);
+  const tagFilter = opts.tags;
+  const includeSnippets = opts.snippets !== false;
+  const inboundIndex = buildInboundIndex(pubs);
+  const scored = [];
+  for (const pub of pubs || []) {
+    if (!matchesTagFilter(pub.tags, tagFilter)) continue;
+    const s = scoreSearch(
+      { title: pub.title, path: pub.path, tags: pub.tags, body: pub.text },
+      query,
+    );
+    if (s <= 0) continue;
+    const rev = revisionStatusFor(pub.title, inboundIndex);
+    /** @type {Record<string, unknown>} */
+    const hit = {
+      id: pub.id,
+      title: pub.title,
+      path: pub.path,
+      kind: pub.kind === "hub" ? "hub" : "atom",
+      tags: pub.tags,
+      score: s,
+      status: rev.status,
+      authoritative: false,
+    };
+    if (includeSnippets) {
+      hit.snippet = makeSnippet(pub.text, query);
+      hit.snippet_truncated = true;
+    }
+    if (rev.status === "superseded") hit.superseded_by = rev.superseded_by;
+    if (rev.status === "contradicted") hit.contradicted_by = rev.contradicted_by;
+    scored.push({ score: s, hit });
+  }
+  scored.sort(
+    (a, b) => b.score - a.score || String(a.hit.title).localeCompare(String(b.hit.title)),
+  );
+  return scored.slice(0, lim).map((x) => x.hit);
+}
+
+/**
+ * Build neighbors graph with center status + per-backlink status.
+ * @param {{ title: string, path?: string, kind?: string, links?: object[], text?: string } | null} center
+ * @param {string} idOrTitle
+ * @param {{ title: string, path: string, kind?: string, links?: object[], text?: string }[]} pubs
+ */
+export function buildNeighborsGraph(center, idOrTitle, pubs) {
+  const keyTitle = center?.title || String(idOrTitle || "").trim();
+  if (!keyTitle) return null;
+  const keyLower = keyTitle.toLowerCase();
+  const inboundIndex = buildInboundIndex(pubs);
+
+  const outgoing = center
+    ? mergeLinksFromBody(center.links || [], center.text || "").map((l) => ({
+        title: l.note,
+        reason: l.reason || null,
+        relation: relationFromReason(l.reason),
+        direction: "out",
+      }))
+    : [];
+
+  const backlinks = [];
+  for (const pub of pubs || []) {
+    if (String(pub.title || "").toLowerCase() === keyLower) continue;
+    const links = mergeLinksFromBody(pub.links || [], pub.text || "");
+    for (const l of links) {
+      if (String(l.note || "").toLowerCase() !== keyLower) continue;
+      const rev = revisionStatusFor(pub.title, inboundIndex);
+      backlinks.push({
+        title: pub.title,
+        path: pub.path,
+        reason: l.reason || null,
+        relation: relationFromReason(l.reason),
+        direction: "in",
+        status: rev.status,
+        snippet: makeSnippet(pub.text, keyTitle, 160),
+        snippet_truncated: true,
+        authoritative: false,
+      });
+      break;
+    }
+  }
+
+  const found = Boolean(center);
+  const hasBacklinks = backlinks.length > 0;
+  const centerRev = revisionStatusFor(keyTitle, inboundIndex);
+  /** @type {Record<string, unknown>} */
+  const out = {
+    title: keyTitle,
+    path: center?.path || null,
+    kind: center?.kind || null,
+    found,
+    exists_outside_mirror: !found && hasBacklinks,
+    reason: found ? null : hasBacklinks ? "hub_not_synced" : "not_in_mirror",
+    outgoing,
+    backlinks,
+    ...absenceMeta(),
+  };
+  if (found) {
+    out.status = centerRev.status;
+    if (centerRev.superseded_by.length) out.superseded_by = centerRev.superseded_by;
+    if (centerRev.contradicted_by.length) out.contradicted_by = centerRev.contradicted_by;
+  }
+  return out;
+}
+
+/**
+ * Shape fetch_atom success payload (status always present; hubs outside revision graph).
+ * Uses neighbors graph backlinks for inverse edges (and per-source status on hubs).
+ * @param {object} atom - public atom with body
+ * @param {{ backlinks?: { title: string, path?: string, reason?: string|null, relation?: string|null, status?: string }[] } | null} neighborsGraph
+ * @param {{ softCap?: number }} [opts]
+ */
+export function shapeFetchAtom(atom, neighborsGraph, opts = {}) {
+  const softCap = opts.softCap ?? 100_000;
+  let text = atom.text || "";
+  if (text.length > softCap) {
+    text = text.slice(0, softCap) + "\n…[truncated]";
+  }
+  const kind = atom.kind === "hub" ? "hub" : "atom";
+  const links = (atom.links || []).map((l) => ({
+    note: l.note,
+    reason: l.reason || null,
+    relation: relationFromReason(l.reason),
+  }));
+  const backlinks = neighborsGraph?.backlinks || [];
+  const inboundEdges = backlinks.map((b) => ({
+    title: b.title,
+    path: b.path || "",
+    kind: "atom",
+    reason: b.reason || null,
+    relation: b.relation ?? relationFromReason(b.reason),
+  }));
+  const inboundIndex = new Map([
+    [String(atom.title || "").toLowerCase(), inboundEdges],
+  ]);
+
+  /** @type {Record<string, unknown>} */
+  const base = {
+    id: atom.id,
+    title: atom.title,
+    path: atom.path,
+    kind,
+    text,
+    tags: atom.tags,
+    links,
+    authoritative: true,
+  };
+
+  if (kind === "hub") {
+    base.revision_participant = false;
+    base.status = "live";
+    base.related_atoms = backlinks.map((b) => ({
+      title: b.title,
+      path: b.path || "",
+      reason: b.reason || null,
+      relation: b.relation ?? relationFromReason(b.reason),
+      status: b.status || "live",
+      direction: "in",
+    }));
+    return base;
+  }
+
+  const rev = revisionStatusFor(atom.title, inboundIndex);
+  base.revision_participant = true;
+  base.status = rev.status;
+  base.superseded_by = rev.superseded_by;
+  base.contradicted_by = rev.contradicted_by;
+  base.continued_by = rev.continued_by;
+  base.detailed_by = rev.detailed_by;
+  return base;
+}
+
 /** Ask outbox (write path) */
 export const OUTBOX_STALE_MS = 15 * 60 * 1000;
 export const OUTBOX_MAX_OPEN = 50;

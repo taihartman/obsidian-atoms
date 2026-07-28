@@ -7,7 +7,7 @@ import {
   encryptMirrorField,
 } from "../src/mirror/crypto.mjs";
 
-const RESOURCE = "https://plus.taihartman.com/mcp";
+const RESOURCE = "https://plus.tryatoms.app/mcp";
 
 async function withStore(mode, fn) {
   const opts =

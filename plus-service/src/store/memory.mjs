@@ -11,20 +11,17 @@ import {
   publicAccount,
 } from "./shared.mjs";
 import {
-  makeSnippet,
-  matchesTagFilter,
-  mergeLinksFromBody,
+  buildNeighborsGraph,
+  buildSearchHits,
   normEmail,
   prepareMirrorRow,
   rowToPublicAtom,
-  scoreSearch,
   verifyPkce,
   OUTBOX_STALE_MS,
   OUTBOX_MAX_OPEN,
   encryptOutboxPayload,
   decryptOutboxPayload,
   publicOutboxRow,
-  relationFromReason,
   assertMirrorPath,
 } from "./askHelpers.mjs";
 
@@ -309,32 +306,10 @@ export function createMemoryStore() {
     const e = normEmail(email);
     const bucket = atomMirror.get(e);
     if (!bucket) return [];
-    const lim = Math.min(Math.max(Number(limit) || 8, 1), 25);
-    const tagFilter = opts.tags;
-    const scored = [];
-    for (const row of bucket.values()) {
-      const pub = rowToPublicAtom(row, { includeBody: true });
-      if (!matchesTagFilter(pub.tags, tagFilter)) continue;
-      const s = scoreSearch(
-        { title: pub.title, path: pub.path, tags: pub.tags, body: pub.text },
-        query,
-      );
-      if (s > 0) {
-        scored.push({
-          score: s,
-          hit: {
-            id: pub.id,
-            title: pub.title,
-            path: pub.path,
-            tags: pub.tags,
-            score: s,
-            snippet: makeSnippet(pub.text, query),
-          },
-        });
-      }
-    }
-    scored.sort((a, b) => b.score - a.score || a.hit.title.localeCompare(b.hit.title));
-    return scored.slice(0, lim).map((x) => x.hit);
+    const pubs = [...bucket.values()].map((row) =>
+      rowToPublicAtom(row, { includeBody: true }),
+    );
+    return buildSearchHits(pubs, query, limit, opts);
   }
 
   /** Outgoing links + atoms that link to this title (backlinks). */
@@ -343,53 +318,10 @@ export function createMemoryStore() {
     const bucket = atomMirror.get(e);
     if (!bucket) return null;
     const center = mirrorFetch(email, idOrTitle);
-    // Even without a hub note, treat query string as the join key for backlinks
-    const keyTitle = center?.title || String(idOrTitle || "").trim();
-    if (!keyTitle) return null;
-    const keyLower = keyTitle.toLowerCase();
-    const outgoing = center
-      ? mergeLinksFromBody(center.links || [], center.text || "").map((l) => ({
-          title: l.note,
-          reason: l.reason || null,
-          relation: relationFromReason(l.reason),
-          direction: "out",
-        }))
-      : [];
-    const backlinks = [];
-    for (const row of bucket.values()) {
-      const pub = rowToPublicAtom(row, { includeBody: true });
-      if (pub.title.toLowerCase() === keyLower) continue;
-      const links = mergeLinksFromBody(pub.links || [], pub.text || "");
-      for (const l of links) {
-        if (String(l.note || "").toLowerCase() === keyLower) {
-          backlinks.push({
-            title: pub.title,
-            path: pub.path,
-            reason: l.reason || null,
-            relation: relationFromReason(l.reason),
-            direction: "in",
-            snippet: makeSnippet(pub.text, keyTitle, 160),
-          });
-          break;
-        }
-      }
-    }
-    const found = Boolean(center);
-    const hasBacklinks = backlinks.length > 0;
-    return {
-      title: keyTitle,
-      path: center?.path || null,
-      kind: center?.kind || null,
-      found,
-      exists_outside_mirror: !found && hasBacklinks,
-      reason: found
-        ? null
-        : hasBacklinks
-          ? "hub_not_synced"
-          : "not_in_mirror",
-      outgoing,
-      backlinks,
-    };
+    const pubs = [...bucket.values()].map((row) =>
+      rowToPublicAtom(row, { includeBody: true }),
+    );
+    return buildNeighborsGraph(center, idOrTitle, pubs);
   }
 
   function mirrorWipe(email) {
