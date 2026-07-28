@@ -683,7 +683,7 @@ export async function askOutboxAck(
 
 /** Default production base — override in settings for dogfood. */
 /** Public Plus API. Override only for local dogfood via settings. */
-export const DEFAULT_PLUS_BASE_URL = "https://plus.taihartman.com";
+export const DEFAULT_PLUS_BASE_URL = "https://plus.tryatoms.app";
 
 /** Claude custom connector MCP URL for this Plus host. */
 export function askMcpUrl(plusBaseUrl: string): string {
