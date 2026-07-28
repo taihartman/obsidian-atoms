@@ -148,9 +148,14 @@ cd plus-service && npm test
 | MCP URL | `https://plus.tryatoms.app/mcp` (or `PUBLIC_BASE_URL/mcp`) |
 | OAuth authorize | `/oauth/authorize` |
 | Claude callback | `https://claude.ai/api/mcp/auth_callback` |
+| ChatGPT callbacks | `https://chatgpt.com/connector/oauth/{id}` + legacy `https://chatgpt.com/connector_platform_oauth_redirect` |
 | Secret | `ATOMS_ASK_MIRROR_KEY` (AES-GCM at rest; rotate = re-encrypt not automated) |
 
-Claude: Settings → Connectors → Add custom connector → paste MCP URL → complete magic-link OAuth in browser.
+**Claude:** Settings → Connectors → Add custom connector → paste MCP URL → complete magic-link OAuth in browser.
+
+**ChatGPT:** Enable Developer mode → Apps & connectors → add the same MCP URL → complete OAuth (Plus email magic link + Allow). Re-check OpenAI redirect docs if authorize fails on `redirect_uri`.
+
+Dogfood: `docs/qa/2026-07-27-ask-chatgpt-connector-dogfood.md`
 
 Public readiness: [`docs/qa/2026-07-27-plus-public-launch-checklist.md`](../qa/2026-07-27-plus-public-launch-checklist.md)  
 Security checklist: `docs/qa/2026-07-22-atoms-plus-meter-security-review.md`

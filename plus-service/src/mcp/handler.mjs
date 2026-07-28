@@ -74,6 +74,9 @@ export async function handleMcpRequest(req, res, opts) {
     { instructions: ASK_MCP_INSTRUCTIONS },
   );
   registerAskTools(mcp, { email: account.email, store });
+  // ChatGPT OAuth UI: top-level securitySchemes on tools/list (OpenAI plugin auth).
+  // Stock MCP SDK only serializes _meta; wrap list handler to inject schemes.
+  injectToolSecuritySchemes(mcp);
 
   const transport = new StreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
@@ -82,4 +85,32 @@ export async function handleMcpRequest(req, res, opts) {
 
   await mcp.connect(transport);
   await transport.handleRequest(req, res, parsedBody);
+}
+
+const OAUTH2_SCHEMES = [{ type: "oauth2", scopes: ["atoms:read"] }];
+
+/**
+ * @param {import('@modelcontextprotocol/sdk/server/mcp.js').McpServer} mcp
+ */
+function injectToolSecuritySchemes(mcp) {
+  const server = mcp.server;
+  const handlers = server._requestHandlers;
+  if (!handlers || typeof handlers.get !== "function") return;
+  const method = "tools/list";
+  const prev = handlers.get(method);
+  if (!prev) return;
+  handlers.set(method, async (request, extra) => {
+    const result = await prev(request, extra);
+    if (result && Array.isArray(result.tools)) {
+      result.tools = result.tools.map((t) => ({
+        ...t,
+        securitySchemes: OAUTH2_SCHEMES,
+        _meta: {
+          ...(t._meta && typeof t._meta === "object" ? t._meta : {}),
+          securitySchemes: OAUTH2_SCHEMES,
+        },
+      }));
+    }
+    return result;
+  });
 }

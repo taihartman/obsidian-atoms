@@ -6,6 +6,7 @@ import { sendMagicLinkEmail } from "../email.mjs";
 import { checkRateLimit, clientIp } from "../ratelimit.mjs";
 import {
   isAllowedRedirectUri,
+  oauthClientLabel,
   mcpResourceUrl,
   SCOPE_DEFAULT,
 } from "./constants.mjs";
@@ -170,7 +171,7 @@ export async function handleOauthRoutes({
       await store.mcpRegisterClient({
         client_id: clientId,
         redirect_uris: [redirectUri],
-        client_name: clientId.startsWith("http") ? "Claude" : clientId,
+        client_name: oauthClientLabel(clientId, redirectUri),
         token_endpoint_auth_method: "none",
       });
       client = await store.mcpGetClient(clientId);
@@ -216,7 +217,11 @@ export async function handleOauthRoutes({
       .toLowerCase();
     const pending = await store.mcpGetPending(pendingId);
     if (!pending) {
-      writeHtml(res, 400, simpleMessage("Expired", "Start connect again from Claude."));
+      writeHtml(
+        res,
+        400,
+        simpleMessage("Expired", "Start connect again from your AI app."),
+      );
       return true;
     }
     if (!email || !email.includes("@")) {
@@ -255,7 +260,11 @@ export async function handleOauthRoutes({
     const pendingId = url.searchParams.get("pending") || "";
     const pending = await store.mcpGetPending(pendingId);
     if (!pending) {
-      writeHtml(res, 400, simpleMessage("Expired", "Start connect again from Claude."));
+      writeHtml(
+        res,
+        400,
+        simpleMessage("Expired", "Start connect again from your AI app."),
+      );
       return true;
     }
     const bsId = getBrowserSessionId(req);
@@ -280,7 +289,11 @@ export async function handleOauthRoutes({
     writeHtml(
       res,
       200,
-      consentForm(pendingId, email, pending.clientId || "Claude"),
+      consentForm(
+        pendingId,
+        email,
+        oauthClientLabel(pending.clientId || "", pending.redirectUri || ""),
+      ),
     );
     return true;
   }
@@ -293,14 +306,22 @@ export async function handleOauthRoutes({
     const decision = form.decision || "";
     const pending = await store.mcpGetPending(pendingId);
     if (!pending) {
-      writeHtml(res, 400, simpleMessage("Expired", "Start connect again from Claude."));
+      writeHtml(
+        res,
+        400,
+        simpleMessage("Expired", "Start connect again from your AI app."),
+      );
       return true;
     }
     const bsId = getBrowserSessionId(req);
     const bs = bsId ? await store.mcpGetBrowserSession(bsId) : null;
     const email = pending.email || bs?.email;
     if (!email || (bs && pending.email && bs.email !== pending.email)) {
-      writeHtml(res, 400, simpleMessage("Session mismatch", "Restart from Claude."));
+      writeHtml(
+        res,
+        400,
+        simpleMessage("Session mismatch", "Restart connect from your AI app."),
+      );
       return true;
     }
     if (decision !== "allow") {

@@ -9,7 +9,7 @@ export function authorizeEmailForm(pendingId, error = "") {
   return htmlPage(
     "Atoms Ask — Sign in",
     `<h1>Atoms Ask</h1>
-<p>Sign in with your Atoms Plus email to allow Claude to <strong>read</strong> your mirrored atoms.</p>
+<p>Sign in with your Atoms Plus email to allow Claude or ChatGPT to <strong>read</strong> your mirrored atoms.</p>
 ${error ? `<p style="color:#b91c1c">${error}</p>` : ""}
 <form method="POST" action="/oauth/authorize">
   <input type="hidden" name="pending_id" value="${esc(pendingId)}" />

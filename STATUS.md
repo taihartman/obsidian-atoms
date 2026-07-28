@@ -7,6 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
+| In review | #119 | Tai | `feat/ask-chatgpt-mcp` | `docs/plans/2026-07-27-006-feat-ask-chatgpt-mcp-plan.md` | `plus-service/src/oauth/*`, `plus-service/src/mcp/*`, `src/settings/settings.ts` | ChatGPT connector · **0.6.41** · needs Fly + human AE5 |
 | Blocked | #115 | Tai | — | `docs/qa/2026-07-27-plus-public-launch-checklist.md` | Fly secrets, Resend, Stripe live | Docs+0.6.31 shipped (#117). Waiting: Fly billing card, Resend domain+2nd email, Stripe live keys/prices/webhook |
 
 ## How to claim (copy)
