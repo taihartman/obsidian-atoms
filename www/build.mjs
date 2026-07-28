@@ -57,7 +57,8 @@ export function render(template, values = tokens) {
   return out;
 }
 
-const PAGES = ["index", "privacy", "terms"];
+const PAGES = ["index", "privacy", "terms", "404"];
+const ASSETS = ["styles.css", "_headers", "favicon.svg", "og.png", "robots.txt"];
 
 function build() {
   rmSync(distDir, { recursive: true, force: true });
@@ -68,8 +69,9 @@ function build() {
     writeFileSync(join(distDir, `${page}.html`), render(template), "utf8");
   }
 
-  copyFileSync(join(srcDir, "styles.css"), join(distDir, "styles.css"));
-  copyFileSync(join(srcDir, "_headers"), join(distDir, "_headers"));
+  for (const asset of ASSETS) {
+    copyFileSync(join(srcDir, asset), join(distDir, asset));
+  }
 
   console.log(
     `[www] built ${PAGES.length} pages -> www/dist  ($${pricing.monthlyUsd}/mo, ${pricing.includedFilingsPerPeriod} filings, ${pricing.trialDays}d trial)`,
