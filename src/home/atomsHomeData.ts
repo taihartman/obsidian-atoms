@@ -442,6 +442,51 @@ export function shouldShowWaitCard(unprocessedCount: number): boolean {
   return unprocessedCount > 0;
 }
 
+export interface InboxStuckSummary {
+  /** Calm one-liner naming each stuck state, load-bearing states first. */
+  text: string;
+  /** A capture the drain cannot route on its own — needs a human. */
+  needsRepair: boolean;
+}
+
+/**
+ * What to surface in Atoms home for captures stuck in the inbox. Returns null
+ * when nothing is stuck — silence is the healthy state. Held (future-dated) and
+ * unparseable (unreadable) are named distinctly from pending and from each
+ * other: pending clears itself on the next drain, but the other two stay stuck
+ * until their day arrives or a human steps in.
+ */
+export function inboxStuckSummary(counts: {
+  pending: number;
+  held: number;
+  unparseable: number;
+}): InboxStuckSummary | null {
+  const pending = Math.max(0, counts.pending);
+  const held = Math.max(0, counts.held);
+  const unparseable = Math.max(0, counts.unparseable);
+  if (pending + held + unparseable === 0) return null;
+
+  const parts: string[] = [];
+  if (unparseable > 0) {
+    parts.push(
+      unparseable === 1
+        ? "1 capture needs a fix"
+        : `${unparseable} captures need a fix`,
+    );
+  }
+  if (held > 0) {
+    parts.push(
+      held === 1 ? "1 held for a future day" : `${held} held for a future day`,
+    );
+  }
+  if (pending > 0) {
+    parts.push(
+      pending === 1 ? "1 waiting to file" : `${pending} waiting to file`,
+    );
+  }
+  return { text: parts.join(" · "), needsRepair: unparseable > 0 };
+}
+
 /** Count linker atoms with atoms-quality missing or below CURRENT (batch cap separate). */
 export function countEligibleUpdateNotes(
   contents: string[],

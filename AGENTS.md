@@ -25,7 +25,7 @@ If hot files overlap an `In progress` claim → **stop** and re-scope or wait. D
 ## Product guardrails (short)
 
 - **Body sacred** — never rewrite capture body into the atom.  
-- Flat `Atoms/` only — no folder intelligence.  
+- Flat `Atoms/` only — no folder intelligence. Plugin-owned *non-atom* files (the capture inbox) live in `Atoms System/`; atoms themselves never leave the flat folder.  
 - Default: do not process **today’s** daily (explicit force only).  
 - Sentinel markers = processed; never lossy.  
 - Second brain, **not** a task app.  
