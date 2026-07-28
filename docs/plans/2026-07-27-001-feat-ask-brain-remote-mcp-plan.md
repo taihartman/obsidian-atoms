@@ -21,7 +21,7 @@ deepened: 2026-07-27
 
 **Authority.** Issue #112 product contract → this plan → `CLAUDE.md` non-negotiables (body sacred, no vault writes from chat). Dev Local REST MCP (`docs/dev-obsidian-mcp.md`) is **not** this product.
 
-**P0 stop condition (protocol spike).** Dogfood user on **phone Claude** → custom connector → `https://plus.taihartman.com/mcp` → OAuth (Plus magic-link identity) → `search_atoms` / `fetch_atom` → answer with `[[title]]` citations and verbatim body quotes. Evidence under `docs/qa/`. **Label as fixture/protocol proof**, not full product enable→Process→ask acceptance (that is P1).
+**P0 stop condition (protocol spike).** Dogfood user on **phone Claude** → custom connector → `https://plus.tryatoms.app/mcp` → OAuth (Plus magic-link identity) → `search_atoms` / `fetch_atom` → answer with `[[title]]` citations and verbatim body quotes. Evidence under `docs/qa/`. **Label as fixture/protocol proof**, not full product enable→Process→ask acceptance (that is P1).
 
 **P1 stop condition (hosted product path).** Plugin opt-in push (desktop **and** phone Process/Update), privacy ack (checklist below), wipe, Settings; AE1–AE4 on **hosted Claude** path. **Does not** require ChatGPT e2e or polished DIY (those are P2 follow-up issues opened before any `Closes #112`). Draft PR #116 may span P0–P1; never put `Closes #112` on P0-only merge.
 
@@ -96,7 +96,7 @@ Push recall (resurface) stays; Ask does not replace it.
 
 ### Assumptions
 
-- `https://plus.taihartman.com` remains the production Plus host (health verified 2026-07-27).
+- `https://plus.tryatoms.app` remains the production Plus host (health verified 2026-07-27).
 - Dogfood Plus sessions (magic-link + entitlement active/trialing) are available for P0 without new Stripe products.
 - Claude custom connectors support Streamable HTTP + OAuth on mobile once account-linked (Anthropic docs 2026).
 - Host can decrypt mirrored atoms at rest in v1 (documented in privacy ack) — not zero-knowledge.
@@ -122,8 +122,8 @@ Push recall (resurface) stays; Ask does not replace it.
 | KTD2 | Prefer `@modelcontextprotocol/sdk` (`McpServer` + `StreamableHTTPServerTransport`, `enableJsonResponse`) for protocol; **hand-roll OAuth AS** in existing `node:http` server | Avoid protocol drift; keep identity bridge on Plus patterns |
 | KTD3 | Tools: `search_atoms`, `fetch_atom`; `neighbors` deferred unless free | R3; timebox P0 |
 | KTD4 | Server MCP instructions: answer only from tools; quote bodies; cite `[[titles]]`; admit unknown | R6 |
-| KTD5 | Unauth `/mcp` → **401** + `WWW-Authenticate: Bearer resource_metadata="https://plus.taihartman.com/.well-known/oauth-protected-resource"` (+ optional scope) | Claude discovery; AE4 |
-| KTD6 | PRM `resource` **exactly** `https://plus.taihartman.com/mcp` (no trailing slash); AS issuer same host | Claude resource match |
+| KTD5 | Unauth `/mcp` → **401** + `WWW-Authenticate: Bearer resource_metadata="https://plus.tryatoms.app/.well-known/oauth-protected-resource"` (+ optional scope) | Claude discovery; AE4 |
+| KTD6 | PRM `resource` **exactly** `https://plus.tryatoms.app/mcp` (no trailing slash); AS issuer same host | Claude resource match |
 | KTD7 | OAuth: AS metadata with PKCE S256; prefer **CIMD flags** (`client_id_metadata_document_supported` + `token_endpoint_auth_methods_supported` includes `none`) **or** DCR `/register`; redirect allowlist includes `https://claude.ai/api/mcp/auth_callback` (+ Claude Code loopback port-agnostic) | Claude auth reference; DCR spam risk |
 | KTD8 | `/authorize`: require Plus identity via magic-link browser flow → consent “Atoms Ask (read-only)” → auth code bound to **email + resource + code_challenge + client_id + redirect_uri + expiry** | Reuse Plus; OAuth code interception defense |
 | KTD8b | **OAuth pending state machine:** before email, persist `mcp_oauth_pending` (client_id, redirect_uri, state, code_challenge, resource, exp). Magic-link URL carries `pending_id`. Exchange sets KTD17 cookie and **302** to `/authorize/continue?pending=…` (not paste-only HTML dead-end). Consent requires cookie + pending + matching `state`; then one-time auth code | Plus today has no cookie/return_to — load-bearing for Claude connector |
@@ -592,4 +592,4 @@ plus-service/src/
 - `docs/dev-obsidian-mcp.md` (non-product)  
 - Claude: [connectors building](https://claude.com/docs/connectors/building), [authentication](https://claude.com/docs/connectors/building/authentication)  
 - MCP: [Streamable HTTP transports](https://modelcontextprotocol.io/docs/concepts/transports)  
-- Live gate: `GET https://plus.taihartman.com/health` → `{"ok":true,"service":"atoms-plus"}` (2026-07-27)
+- Live gate: `GET https://plus.tryatoms.app/health` → `{"ok":true,"service":"atoms-plus"}` (2026-07-27)

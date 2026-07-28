@@ -14,7 +14,7 @@ Run the same MCP binary against a local `Atoms/` folder (or synced copy) with a 
 
 ## Meanwhile
 
-- Hosted: Atoms Plus + Settings → Ask (when shipped) → Claude connector to `https://plus.taihartman.com/mcp`  
+- Hosted: Atoms Plus + Settings → Ask (when shipped) → Claude connector to `https://plus.tryatoms.app/mcp`  
 - Track full DIY: open GitHub issue from the #112 P2 split  
 
 ## Dev-only

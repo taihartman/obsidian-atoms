@@ -4,7 +4,7 @@
 **Fly app:** `atoms-plus` · **DB:** Neon via `DATABASE_URL`  
 **Public launch checklist / go-no-go:** [`docs/qa/2026-07-27-plus-public-launch-checklist.md`](../qa/2026-07-27-plus-public-launch-checklist.md)
 
-> Product domain **tryatoms.app** (2026-07-28). Legacy host `plus.taihartman.com` may remain until cutover is proven. Cutover steps: `docs/runbooks/tryatoms-domain-cutover.md`.
+> Product domain **tryatoms.app** only. Mail: `plus@mail.tryatoms.app` (Resend verified 2026-07-28). No `mail.taihartman.com` / `onboarding@resend.dev`. Cutover: `docs/runbooks/tryatoms-domain-cutover.md`.
 
 ## Prerequisites
 
@@ -45,7 +45,7 @@ Boot **exits 1** if gates fail (dogfood on, missing Stripe/DB/Resend/Anthropic, 
 |------|----------------------|----------|
 | `PUBLIC_BASE_URL` | `https://plus.tryatoms.app` | ✅ |
 | `STRIPE_SECRET_KEY` | `sk_live_…` | ❌ still `sk_test_…` |
-| `ATOMS_PLUS_EMAIL_FROM` | domain you verified | ❌ `onboarding@resend.dev` |
+| `ATOMS_PLUS_EMAIL_FROM` | `Atoms Plus <plus@mail.tryatoms.app>` | ✅ verified |
 | Live Stripe webhook | enabled on host | ❌ none (test webhook only) |
 
 ## Stripe webhook
