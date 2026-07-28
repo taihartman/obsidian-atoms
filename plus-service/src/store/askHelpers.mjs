@@ -21,36 +21,57 @@ export function normEmail(email) {
     .toLowerCase();
 }
 
-/** P0: flat Atoms/*.md only (constitution). */
+/** Default atom folder (flat captures). */
 export const MIRROR_ATOM_FOLDER = "Atoms";
-const MIRROR_PATH_RE = /^Atoms\/[^/\\]+\.md$/;
+const MIRROR_ATOM_PATH_RE = /^Atoms\/[^/\\]+\.md$/;
+/** Hub notes: vault .md up to 4 segments (e.g. Social/People/Name.md). */
+const MIRROR_HUB_PATH_RE = /^(?!Atoms\/)(?:[^/\\]+\/){0,3}[^/\\]+\.md$/;
 
 /**
  * Fail-closed path allowlist for mirror upsert/delete/reconcile.
+ * Atoms/*.md always; other vault notes only when kind=hub (link targets).
  * @param {string} path
- * @returns {{ ok: true, path: string } | { ok: false, error: string }}
+ * @param {{ kind?: string }} [opts]
+ * @returns {{ ok: true, path: string, kind: "atom"|"hub" } | { ok: false, error: string }}
  */
-export function assertMirrorPath(path) {
+export function assertMirrorPath(path, opts = {}) {
   const p = String(path || "").trim();
+  const kindRaw = String(opts.kind || "atom").toLowerCase();
   if (!p) return { ok: false, error: "path required" };
   if (p.includes("\0") || p.includes("\\") || p.startsWith("/")) {
     return { ok: false, error: "invalid path" };
   }
   if (p.includes("..")) return { ok: false, error: "invalid path" };
-  if (!MIRROR_PATH_RE.test(p)) {
-    return { ok: false, error: "path must be flat Atoms/*.md" };
+  if (MIRROR_ATOM_PATH_RE.test(p)) {
+    return { ok: true, path: p, kind: "atom" };
   }
-  return { ok: true, path: p };
+  if (MIRROR_HUB_PATH_RE.test(p)) {
+    // Explicit kind=atom rejects non-Atoms paths
+    if (opts.kind === "atom") {
+      return { ok: false, error: "path must be flat Atoms/*.md" };
+    }
+    // kind=hub or omitted (delete/reconcile)
+    return { ok: true, path: p, kind: "hub" };
+  }
+  return {
+    ok: false,
+    error:
+      kindRaw === "hub"
+        ? "invalid hub path"
+        : "path must be flat Atoms/*.md (or kind=hub)",
+  };
 }
 
 /**
- * @param {{ path: string, title?: string, body?: string, tags?: string[], links?: {note:string,reason?:string}[], atomId?: string }} atom
+ * @param {{ path: string, title?: string, body?: string, tags?: string[], links?: {note:string,reason?:string}[], atomId?: string, kind?: string }} atom
  */
 export function prepareMirrorRow(email, atom) {
-  const checked = assertMirrorPath(atom.path);
+  const kindIn = String(atom.kind || "atom").toLowerCase() === "hub" ? "hub" : "atom";
+  const checked = assertMirrorPath(atom.path, { kind: kindIn });
   if (!checked.ok) throw new Error(checked.error);
   const path = checked.path;
-  const title = String(atom.title || path.replace(/\.md$/i, "")).trim();
+  const kind = checked.kind;
+  const title = String(atom.title || path.replace(/\.md$/i, "").split("/").pop()).trim();
   const body = String(atom.body ?? "");
   const tags = Array.isArray(atom.tags) ? atom.tags.map(String) : [];
   const links = mergeLinksFromBody(
@@ -59,12 +80,13 @@ export function prepareMirrorRow(email, atom) {
   );
   const tagsJson = JSON.stringify(tags);
   const linksJson = JSON.stringify(links);
-  const hash = contentHash([title, body, tagsJson, linksJson]);
+  const hash = contentHash([title, body, tagsJson, linksJson, kind]);
   return {
     email: normEmail(email),
     atomId: atom.atomId || path,
     title,
     path,
+    kind,
     bodyEnc: encryptMirrorField(body),
     tagsJson,
     linksJson,
@@ -200,10 +222,19 @@ export function rowToPublicAtom(row, { includeBody = true } = {}) {
     text = decryptMirrorField(enc);
     links = mergeLinksFromBody(links, text);
   }
+  const path = row.path;
+  const kindStored = row.kind || row.note_kind || row.noteKind;
+  const kind =
+    kindStored === "hub" || kindStored === "atom"
+      ? kindStored
+      : String(path || "").startsWith("Atoms/")
+        ? "atom"
+        : "hub";
   const out = {
     id: row.atom_id ?? row.atomId,
     title: row.title,
-    path: row.path,
+    path,
+    kind,
     tags,
     links,
     contentHash: row.content_hash ?? row.contentHash,

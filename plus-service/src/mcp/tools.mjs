@@ -12,7 +12,9 @@ import {
 const EMPTY_HINT =
   "mirror empty—sync from Obsidian (Settings → Atoms → Ask → Sync now)";
 const MISSING_HINT =
-  "no atom with that title/path in the mirror (hub notes outside Atoms/ are not synced; use neighbors to find atoms that link to this name)";
+  "no note with that title/path in the mirror";
+const HUB_NOT_SYNCED_HINT =
+  "This name has backlinks from atoms but the hub note is not in the mirror yet. Open Obsidian with Ask on and Sync now (hubs linked from Atoms/ are included). Do not create a duplicate hub.";
 const PENDING_HINT =
   "Queued for your vault—open Obsidian (Ask enabled + Allow filing). Usually lands within a minute when the app is open. Do not claim it is filed until fetch_atom returns it.";
 
@@ -91,17 +93,22 @@ export function registerAskTools(mcp, ctx) {
     "fetch_atom",
     {
       description:
-        "Fetch one atom by title or path. Returns verbatim body, tags, and structured links [{note, reason?}]. Reasons come from stored edge data (not whole-body parse). Notes outside Atoms/ are not in the mirror.",
+        "Fetch one mirrored note by title or path (atoms under Atoms/ and hub notes linked from atoms). Returns verbatim body, tags, kind (atom|hub), and structured links.",
       inputSchema: {
         id_or_title: z
           .string()
-          .describe("Atom title, path (Atoms/….md), or id"),
+          .describe("Title, path (Atoms/….md or hub path), or id"),
       },
     },
     async ({ id_or_title }) => {
       const atom = await store.mirrorFetch(email, id_or_title);
       if (!atom) {
         const st = await store.mirrorStatus(email);
+        const graph =
+          typeof store.mirrorNeighbors === "function"
+            ? await store.mirrorNeighbors(email, id_or_title)
+            : null;
+        const hubNotSynced = Boolean(graph?.exists_outside_mirror);
         return {
           content: [
             {
@@ -110,7 +117,19 @@ export function registerAskTools(mcp, ctx) {
                 error: "not_found",
                 id_or_title,
                 mirror_count: st.count,
-                hint: st.count === 0 ? EMPTY_HINT : MISSING_HINT,
+                exists_outside_mirror: hubNotSynced,
+                reason: hubNotSynced
+                  ? "hub_not_synced"
+                  : st.count === 0
+                    ? "mirror_empty"
+                    : "not_in_mirror",
+                backlink_count: graph?.backlinks?.length ?? 0,
+                hint:
+                  st.count === 0
+                    ? EMPTY_HINT
+                    : hubNotSynced
+                      ? HUB_NOT_SYNCED_HINT
+                      : MISSING_HINT,
               }),
             },
           ],
@@ -131,12 +150,12 @@ export function registerAskTools(mcp, ctx) {
                 id: atom.id,
                 title: atom.title,
                 path: atom.path,
+                kind: atom.kind || "atom",
                 text,
                 tags: atom.tags,
                 links: (atom.links || []).map((l) => ({
                   note: l.note,
                   reason: l.reason || null,
-                  // Typed relation when reason is a clean enum-shaped edge
                   relation: relationFromReason(l.reason),
                 })),
               },
@@ -303,6 +322,18 @@ export function registerAskTools(mcp, ctx) {
             mirror_count: st.count,
             hint:
               "Parent must be in the Ask mirror or still pending in the outbox (create_atom first). Otherwise Sync Ask after Process.",
+          },
+          true,
+        );
+      }
+      if (parent?.kind === "hub") {
+        return jsonTool(
+          {
+            error: "parent_is_hub",
+            parent_title: parentTitle,
+            path: parent.path,
+            hint:
+              "Hub notes are read-only in Ask. continue_atom only against atoms under Atoms/.",
           },
           true,
         );
