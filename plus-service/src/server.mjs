@@ -60,14 +60,40 @@ function json(res, status, body) {
   res.end(data);
 }
 
-function readRawBody(req) {
+/** Default JSON/API body cap (H2). Stripe webhooks stay under this. */
+const MAX_BODY_BYTES = 2 * 1024 * 1024;
+
+/**
+ * @param {import('node:http').IncomingMessage} req
+ * @param {number} [maxBytes]
+ */
+function readRawBody(req, maxBytes = MAX_BODY_BYTES) {
   return new Promise((resolve, reject) => {
     const chunks = [];
-    req.on("data", (c) => chunks.push(c));
+    let size = 0;
+    let settled = false;
+    const fail = (err) => {
+      if (settled) return;
+      settled = true;
+      reject(err);
+      req.destroy();
+    };
+    req.on("data", (c) => {
+      size += c.length;
+      if (size > maxBytes) {
+        const err = new Error("body_too_large");
+        err.status = 413;
+        fail(err);
+        return;
+      }
+      chunks.push(c);
+    });
     req.on("end", () => {
+      if (settled) return;
+      settled = true;
       resolve(Buffer.concat(chunks).toString("utf8"));
     });
-    req.on("error", reject);
+    req.on("error", (e) => fail(e));
   });
 }
 
@@ -88,10 +114,23 @@ function bearer(req) {
   return m ? m[1] : "";
 }
 
+function escHtml(s) {
+  return String(s ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
 /** Browser landing after magic-link email (or dogfood dev-exchange). */
 function renderExchangeHtml(res, out) {
   if (!out) {
-    res.writeHead(400, { "content-type": "text/html; charset=utf-8" });
+    res.writeHead(400, {
+      "content-type": "text/html; charset=utf-8",
+      "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'",
+      "referrer-policy": "no-referrer",
+      "x-content-type-options": "nosniff",
+    });
     res.end(`<!doctype html><meta charset=utf-8><title>Atoms Plus</title>
 <body style="font-family:system-ui;max-width:32rem;margin:2rem auto;padding:0 1rem">
 <h1>Link expired</h1>
@@ -99,16 +138,25 @@ function renderExchangeHtml(res, out) {
 </body>`);
     return;
   }
-  res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+  const email = escHtml(out.account.email);
+  const status = escHtml(out.account.status);
+  const remaining = escHtml(String(out.account.remaining));
+  const session = escHtml(out.session);
+  res.writeHead(200, {
+    "content-type": "text/html; charset=utf-8",
+    "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'",
+    "referrer-policy": "no-referrer",
+    "x-content-type-options": "nosniff",
+  });
   res.end(`<!doctype html><meta charset=utf-8><title>Atoms Plus</title>
 <body style="font-family:system-ui;max-width:32rem;margin:2rem auto;padding:0 1rem">
 <h1>Signed in</h1>
-<p>Email: <strong>${out.account.email}</strong></p>
-<p>Status: <strong>${out.account.status}</strong> · remaining ${out.account.remaining}</p>
+<p>Email: <strong>${email}</strong></p>
+<p>Status: <strong>${status}</strong> · remaining ${remaining}</p>
 <p><strong>Switch back to Obsidian</strong> → Settings → Atoms Plus → <strong>Refresh status</strong>.</p>
 <p style="color:#666;font-size:0.9rem">If Refresh does not pick up this device, advanced: paste session below once.</p>
 <details style="margin-top:1rem"><summary style="cursor:pointer;color:#666">Advanced: session token</summary>
-<pre style="background:#f4f4f5;padding:12px;border-radius:8px;word-break:break-all">${out.session}</pre>
+<pre style="background:#f4f4f5;padding:12px;border-radius:8px;word-break:break-all">${session}</pre>
 </details>
 </body>`);
 }
@@ -324,11 +372,17 @@ ${
       return json(res, 200, store.publicAccount(a));
     }
 
-    // POST /v1/promo
+    // POST /v1/promo — email-proof required (no soft-start promo theft)
     if (req.method === "POST" && path === "/v1/promo") {
       const session = bearer(req);
-      const a = await store.accountFromSession(session);
-      if (!a) return json(res, 401, { message: "Invalid session" });
+      const a = await store.accountFromSession(session, {
+        requireVerified: true,
+      });
+      if (!a) {
+        return json(res, 401, {
+          message: "Sign in with a magic link to redeem a promo",
+        });
+      }
       const body = await readBody(req);
       const result = await store.redeemPromo(a.email, String(body.code || ""));
       if (!result.ok) return json(res, 400, { message: result.message });
@@ -340,6 +394,7 @@ ${
     }
 
     // POST /v1/billing/checkout — Stripe when configured; dogfood grants only off-prod
+    // Soft (unverified) sessions allowed so stripe-first onboarding works.
     if (req.method === "POST" && path === "/v1/billing/checkout") {
       const session = bearer(req);
       const a = await store.accountFromSession(session);
@@ -398,6 +453,9 @@ ${
 
       if (kind === "topup_50") {
         await store.addTopUp(a.email, config.topUpFilings);
+        if (typeof store.markSessionVerified === "function") {
+          await store.markSessionVerified(session);
+        }
         return json(res, 200, {
           url: `${config.publicBaseUrl}/v1/billing/return?ok=1&dogfood=topup`,
           message: "Dogfood: top-up applied without Stripe",
@@ -425,6 +483,10 @@ ${
                 : 30,
           remaining: config.includedFilings,
         });
+        // grantPeriod revokes soft sessions; re-verify the checkout caller.
+        if (typeof store.markSessionVerified === "function") {
+          await store.markSessionVerified(session);
+        }
         return json(res, 200, {
           url: `${config.publicBaseUrl}/v1/billing/return?ok=1&dogfood=subscribe`,
           message: "Dogfood: subscription granted without Stripe",
@@ -434,11 +496,17 @@ ${
       return json(res, 400, { message: `Unknown checkout kind: ${kind}` });
     }
 
-    // POST /v1/billing/portal
+    // POST /v1/billing/portal — verified session only
     if (req.method === "POST" && path === "/v1/billing/portal") {
       const session = bearer(req);
-      const a = await store.accountFromSession(session);
-      if (!a) return json(res, 401, { message: "Invalid session" });
+      const a = await store.accountFromSession(session, {
+        requireVerified: true,
+      });
+      if (!a) {
+        return json(res, 401, {
+          message: "Sign in with a magic link to manage billing",
+        });
+      }
       const cust = a.stripeCustomerId;
       if (!cust || !stripeConfigured()) {
         return json(res, 400, {
@@ -526,7 +594,15 @@ ${
       const consume = await store.tryConsumeFiling(session, idem || undefined);
       if (!consume.ok) {
         if (consume.code === "auth") {
-          return json(res, 401, { message: "Invalid session" });
+          return json(res, 401, {
+            message:
+              "Invalid session — sign in with a magic link after checkout if status shows active",
+          });
+        }
+        if (consume.code === "idempotency_conflict") {
+          return json(res, 409, {
+            message: "Idempotency-Key already used by another account",
+          });
         }
         if (consume.code === "in_flight") {
           return json(res, 409, {
@@ -583,6 +659,9 @@ ${
 
     return json(res, 404, { message: "Not found" });
   } catch (err) {
+    if (err && err.status === 413) {
+      return json(res, 413, { message: "Request body too large" });
+    }
     const msg = err instanceof Error ? err.message : "error";
     console.error("[plus] error", msg);
     return json(res, 500, { message: "Internal error" });

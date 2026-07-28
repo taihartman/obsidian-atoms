@@ -7,6 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
+| In progress | [#163](https://github.com/taihartman/obsidian-atoms/issues/163) | taihartman | `fix/plus-auth-criticals-c1-c2` | `docs/security/2026-07-28-public-repo-fanout-review.md` | `plus-service/src/server.mjs`, `plus-service/src/store/{memory,postgres,sqlite}.mjs`, `plus-service/test/*` | C1 soft-start fixation · C2 idempotency tenant scope · H1 exchange XSS · H2 body cap |
 
 ## How to claim (copy)
 

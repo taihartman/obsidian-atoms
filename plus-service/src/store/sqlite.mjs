@@ -40,7 +40,8 @@ function migrate(db) {
       token_hash TEXT PRIMARY KEY,
       email TEXT NOT NULL,
       exp_ms INTEGER NOT NULL,
-      revoked INTEGER NOT NULL DEFAULT 0
+      revoked INTEGER NOT NULL DEFAULT 0,
+      verified INTEGER NOT NULL DEFAULT 1
     );
     CREATE TABLE IF NOT EXISTS promo_global (
       code TEXT PRIMARY KEY,
@@ -69,6 +70,12 @@ function migrate(db) {
     );
   `);
   db.exec(ASK_SQLITE_DDL);
+  const sessCols = db.prepare("PRAGMA table_info(sessions)").all();
+  if (!sessCols.some((c) => c.name === "verified")) {
+    db.exec(
+      "ALTER TABLE sessions ADD COLUMN verified INTEGER NOT NULL DEFAULT 1",
+    );
+  }
 }
 
 export function createSqliteStore(dbPath = config.databasePath) {
@@ -138,7 +145,9 @@ export function createSqliteStore(dbPath = config.databasePath) {
     a.plan = opts.plan ?? "monthly";
     a.remaining = opts.remaining ?? config.includedFilings;
     a.periodEnd = periodEndFromNow(opts.days ?? 30);
-    return saveAccount(a);
+    const saved = saveAccount(a);
+    revokeUnverifiedSessionsForEmail(saved.email);
+    return saved;
   }
 
   function createMagicToken(email) {
@@ -149,13 +158,43 @@ export function createSqliteStore(dbPath = config.databasePath) {
     return token;
   }
 
-  function createSession(email) {
+  /**
+   * @param {string} email
+   * @param {{ verified?: boolean }} [opts]
+   */
+  function createSession(email, opts = {}) {
     const key = email.trim().toLowerCase();
     const session = id("sess");
+    const verified = opts.verified !== false ? 1 : 0;
     db.prepare(
-      "INSERT INTO sessions (token_hash, email, exp_ms, revoked) VALUES (?, ?, ?, 0)",
-    ).run(hashToken(session), key, Date.now() + sessionTtlMs());
+      "INSERT INTO sessions (token_hash, email, exp_ms, revoked, verified) VALUES (?, ?, ?, 0, ?)",
+    ).run(hashToken(session), key, Date.now() + sessionTtlMs(), verified);
     return session;
+  }
+
+  function revokeAllSessionsForEmail(email) {
+    db.prepare("UPDATE sessions SET revoked = 1 WHERE email = ?").run(
+      email.trim().toLowerCase(),
+    );
+  }
+
+  function revokeUnverifiedSessionsForEmail(email) {
+    db.prepare(
+      "UPDATE sessions SET revoked = 1 WHERE email = ? AND verified = 0",
+    ).run(email.trim().toLowerCase());
+  }
+
+  /** Promote soft session after checkout; clears revoke from grantPeriod. */
+  function markSessionVerified(sessionToken) {
+    if (!sessionToken) return false;
+    const r = db
+      .prepare(
+        `UPDATE sessions SET verified = 1, revoked = 0
+         WHERE token_hash = ? AND exp_ms > ?
+         RETURNING token_hash`,
+      )
+      .get(hashToken(sessionToken), Date.now());
+    return Boolean(r);
   }
 
   function startWithEmail(email) {
@@ -163,7 +202,7 @@ export function createSqliteStore(dbPath = config.databasePath) {
     if (isEntitledAccount(a)) {
       return { ok: false, needsMagicLink: true, account: a };
     }
-    const session = createSession(a.email);
+    const session = createSession(a.email, { verified: false });
     return { ok: true, session, account: a };
   }
 
@@ -189,16 +228,22 @@ export function createSqliteStore(dbPath = config.databasePath) {
       });
     }
     a = refreshAccountStatus(a);
-    const session = createSession(row.email);
+    revokeAllSessionsForEmail(row.email);
+    const session = createSession(row.email, { verified: true });
     return { session, account: a };
   }
 
-  function accountFromSession(sessionToken) {
+  /**
+   * @param {string} sessionToken
+   * @param {{ requireVerified?: boolean }} [opts]
+   */
+  function accountFromSession(sessionToken, opts = {}) {
     if (!sessionToken) return null;
     const row = db
       .prepare("SELECT * FROM sessions WHERE token_hash = ?")
       .get(hashToken(sessionToken));
     if (!row || row.revoked || Date.now() > row.exp_ms) return null;
+    if (opts.requireVerified && !row.verified) return null;
     return refreshAccountStatus(getAccount(row.email));
   }
 
@@ -209,7 +254,7 @@ export function createSqliteStore(dbPath = config.databasePath) {
   }
 
   function tryConsumeFiling(sessionToken, idempotencyKey) {
-    const a = accountFromSession(sessionToken);
+    const a = accountFromSession(sessionToken, { requireVerified: true });
     if (!a) return { ok: false, code: "auth" };
     if (a.status === "inactive") return { ok: false, code: "auth" };
 
@@ -220,12 +265,16 @@ export function createSqliteStore(dbPath = config.databasePath) {
         const prev = db
           .prepare("SELECT * FROM usage_events WHERE idempotency_key = ?")
           .get(idempotencyKey);
+        if (prev && prev.email && prev.email !== a.email) {
+          db.exec("COMMIT");
+          return { ok: false, code: "idempotency_conflict" };
+        }
         if (prev && prev.status === "ok" && prev.response_json) {
           db.exec("COMMIT");
           return {
             ok: true,
             replay: true,
-            account: accountFromSession(sessionToken),
+            account: accountFromSession(sessionToken, { requireVerified: true }),
             cached: {
               responseJson: JSON.parse(prev.response_json),
               remaining: prev.remaining,
@@ -307,7 +356,7 @@ export function createSqliteStore(dbPath = config.databasePath) {
   }
 
   function refundFiling(sessionToken, idempotencyKey) {
-    const a = accountFromSession(sessionToken);
+    const a = accountFromSession(sessionToken, { requireVerified: true });
     if (!a) return;
     db.prepare(
       `UPDATE accounts SET remaining = remaining + 1,
@@ -377,6 +426,9 @@ export function createSqliteStore(dbPath = config.databasePath) {
     exchangeMagic,
     accountFromSession,
     revokeSession,
+    revokeAllSessionsForEmail,
+    revokeUnverifiedSessionsForEmail,
+    markSessionVerified,
     tryConsumeFiling,
     completeUsage,
     refundFiling,
