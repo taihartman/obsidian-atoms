@@ -36,7 +36,8 @@ deepened: 2026-07-27
 
 **Stop conditions.** No CRDT, no bidirectional body sync, no MCP delete-atom, no full-vault/dailies mirror, no conflict UI, no desktop-only watcher, no background sync while Obsidian is killed.
 
-**Product Contract preservation.** Defaults approved 2026-07-27 (session): hybrid C; path-only wire reconcile; 2s event debounce; no extra mirror interval; wipe on valid sess_ even if not entitled; server path allowlist.
+**Product Contract preservation.** Defaults approved 2026-07-27 (session): hybrid C; path-only wire reconcile; 2s event debounce; no extra mirror interval; wipe on valid sess_ even if not entitled; server path allowlist.  
+**Doc-review 2026-07-27 (user choice 1):** confirmEmpty + accumulate reconcile + Atoms/-only allowlist + device-local hashes + honest promise locked; **no interval heal (5B)** — Sync now is the self-heal for missed events; **connectivity-restore deferred P1 (6)**; Sync now multi-device warning copy only (7).
 
 ---
 
@@ -88,7 +89,7 @@ When Ask is on and Obsidian has been open online, Claude’s copy of `Atoms/` st
 
 **In:** delete + reconcile APIs, planner prune, vault watch, sync mutex, settings copy/status, tests, version.
 
-**Out:** CRDT, bidirectional, conflict UI, MCP delete-atom, full vault/dailies, websocket, OS background sync, hubs outside Atoms/, hash-on-wire SSOT, ChatGPT/DIY (#119/#120).
+**Out:** CRDT, bidirectional, conflict UI, MCP delete-atom, full vault/dailies, websocket, OS background sync, hubs outside Atoms/, hash-on-wire SSOT, ChatGPT/DIY (#119/#120), **mirror interval heal**, **connectivity-restore catch-up (P1)**.
 
 ---
 
@@ -102,7 +103,7 @@ When Ask is on and Obsidian has been open online, Claude’s copy of `Atoms/` st
 | Wire hash | **No** cross-side hash compare; path presence only |
 | Reconcile API | `POST /mirror/reconcile { keepPaths, done }` |
 | Event debounce | **2s** coalesce |
-| Extra mirror interval | **None** (outbox already 60s; events + open catch-up enough) |
+| Extra mirror interval | **None** (session 5B: Sync now is self-heal for missed events; layout-ready + events + Process/outbox cover happy path) |
 | Wipe entitlement | Allow wipe on valid `sess_` even if not entitled |
 | Server path allowlist | Reject non-flat `{folder}/*.md` on upsert/delete/reconcile |
 
@@ -126,6 +127,9 @@ When Ask is on and Obsidian has been open online, Claude’s copy of `Atoms/` st
 | KTD14 | No new mirror interval — layout-ready one-shot `syncAskMirror({ force:false })` + events | Outbox already 60s; arch 004 15s/15min scheduler **superseded** by this plan |
 | KTD15 | Settings copy toward “Claude’s copy”; status line count + last success/fail. **Sync now** copy must warn: uses **this device’s** Atoms/ as truth (multi-device incomplete vault can orphan cloud rows). | Product verdict |
 | KTD16 | `askMirrorLastSuccessAt` / `askMirrorLastError` device-local (same localStorage lane as hashes). N on status line = **server** `GET /mirror/status` count after last successful sync/status fetch — never label local vault count as “Claude sees N”. | Status line honesty |
+| KTD20 | **Missed-event heal = Sync now** (no 15m interval). Layout-ready delta + vault events + Process/Update/outbox are the automatic paths. Document residual: long open session with dropped events may ghost until Sync now or next Process. | Doc-review 5B |
+| KTD21 | **Connectivity-restore catch-up = P1** (not this PR). Open/layout-ready still runs force:false delta. | Doc-review 6 |
+| KTD22 | **`askMirrorHashes` + stamps in device `localStorage`** (migrate from settings/data.json on first run). Prevents Obsidian Sync from copying evidence maps across devices (F5). | Doc-review 3 |
 | KTD17 | Quiet background failures; one Notice pointing at Sync now (dedupe per session) | Mobile spam |
 | KTD18 | Outbox apply unchanged pull/ack; after land still calls sync (hash skip + delete prune) | No outbox rewrite |
 | KTD19 | Wipe remains nuclear (mirror+outbox+tokens); allowed when sess_ valid even if not entitled | Security + exit path |
@@ -352,11 +356,29 @@ Pure functions; no I/O. Planner + event filter + keepPaths builder all use `isFl
 |---|---|
 | Architecture | Hybrid C |
 | Wire hash | Path presence only |
-| Reconcile | `{ keepPaths, done }` |
+| Reconcile | `{ keepPaths, done }` + accumulate if chunked; `confirmEmpty` for empty |
 | Debounce | 2s |
-| Mirror interval | None |
+| Mirror interval | None — Sync now heals missed events |
+| Connectivity restore | P1 |
 | Wipe | sess_ valid enough |
-| Path allowlist | flat `{folder}/*.md` |
+| Path allowlist | flat `Atoms/*.md` only (custom folder out of scope) |
+| Hash evidence map | Device localStorage (not synced data.json) |
+| Promise | Best-effort current copy; multi-device lag OK; Sync now for full orphans |
+
+## Appendix — doc-review disposition (2026-07-27)
+
+| Finding | Disposition |
+|---|---|
+| Chunk accumulate / last-chunk wipe | **Applied** — KTD11 |
+| confirmEmpty empty keepPaths | **Applied** — KTD2 |
+| askMirrorHashes device-local | **Applied** — KTD8/KTD22 |
+| Honest promise | **Applied** — Goal + Promise |
+| No interval heal (5B) | **Applied** — KTD20 |
+| Connectivity restore (6) | **Deferred P1** — KTD21 |
+| Sync now multi-device warning (7) | **Applied** — KTD15 copy |
+| U5 no early-return / chunk 100 / prune after ack | **Applied** — U5 |
+| Status N = server count | **Applied** — KTD16 |
+| Arch U-map / AE5 wording | **Applied** |
 
 ## Appendix — authority docs
 
