@@ -82,6 +82,7 @@ processInbox(dryRun)
 | `pipeline/refreshAtoms.ts` | Update notes: free local polish + ranked Process-parity refile |
 | `pipeline/parseLinkProse.ts` | Link-prose → structured links (offline polish) |
 | `pipeline/daily.ts` | Past dailies / today open helpers |
+| `pipeline/inbox.ts` | Capture inbox parse + drain into dailies (own parser, KTD9) |
 | `pipeline/vocabulary.ts` | Active / vault / proposed tags |
 | `pipeline/enrich/*` | Post-classify repair: people, media, entityLinks, linkQuality, ideaRescue |
 | `pipeline/softKeys.ts` | Soft entity denylist (orbits + connected resurface) |
