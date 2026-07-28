@@ -125,7 +125,10 @@ import {
 } from "../pipeline/refreshAtoms";
 import { isEligibleForUpdate } from "../pipeline/atomQuality";
 import { formatUpdateSummary } from "../home/runProgress";
-import { isAskMirrorWatchPath } from "../platform/askMirror";
+import {
+  isAskMirrorWatchPath,
+  readAskMirrorHashes,
+} from "../platform/askMirror";
 
 export default class AtomsPlugin extends Plugin {
   settings!: LinkerSettings;
@@ -209,12 +212,20 @@ export default class AtomsPlugin extends Plugin {
 
   /**
    * Debounced vault watch for Ask mirror parity.
-   * Flat Atoms/*.md + hub-shaped paths (projection write targets).
+   * Flat Atoms/*.md + hubs already in this device's hash evidence
+   * (not every vault .md — dailies would storm-sync). New hubs seed via
+   * end-of-run Process/Update/invite push.
    */
   private registerAskMirrorVaultEvents(): void {
     const schedule = () => this.scheduleAskMirrorSync();
-    const watch = (path: string) =>
-      isAskMirrorWatchPath(path, this.settings.atomFolder || "Atoms");
+    const watch = (path: string) => {
+      const folder = this.settings.atomFolder || "Atoms";
+      const hashes = readAskMirrorHashes(
+        (k) => this.app.loadLocalStorage(k) as unknown,
+        this.settings.askMirrorHashes,
+      );
+      return isAskMirrorWatchPath(path, folder, hashes);
+    };
     this.registerEvent(
       this.app.vault.on("create", (f) => {
         if (watch(f.path)) schedule();

@@ -292,18 +292,24 @@ export function isHubMirrorPath(path: string, atomFolder = "Atoms"): boolean {
 
 /**
  * Paths that should schedule a mirror sync when the vault changes.
- * Flat atoms + hub-shaped notes (hub projection write targets).
+ * Flat atoms always. Hub-shaped notes only when already in this device's
+ * mirror evidence map (or when no map is passed — pure allowlist checks).
+ * New hubs from Process/Update land via end-of-run push, which seeds hashes.
  * Upsert still filters hubs to linked titles only.
  */
 export function isAskMirrorWatchPath(
   path: string,
   atomFolder = "Atoms",
+  mirroredPaths?: ReadonlySet<string> | Readonly<Record<string, unknown>>,
 ): boolean {
   const p = String(path || "").trim();
   if (!p.endsWith(".md")) return false;
   if (p.includes("..") || p.includes("\\") || p.includes("\0")) return false;
   if (isFlatAtomPath(atomFolder, p)) return true;
-  return isHubMirrorPath(p, atomFolder);
+  if (!isHubMirrorPath(p, atomFolder)) return false;
+  if (mirroredPaths == null) return true;
+  if (mirroredPaths instanceof Set) return mirroredPaths.has(p);
+  return Object.prototype.hasOwnProperty.call(mirroredPaths, p);
 }
 
 export function planAskMirrorUpsert(

@@ -144,13 +144,24 @@ durable taste fact about [[Andrew]] from this capture.
     expect(andrew?.reason ?? "").not.toMatch(/named work Andrew is a fan/);
   });
 
-  it("watch path covers flat atoms and hub-shaped notes", async () => {
+  it("watch path covers flat atoms and mirrored hubs only", async () => {
     const { isAskMirrorWatchPath } = await import("../src/platform/askMirror");
     expect(isAskMirrorWatchPath("Atoms/Tea.md")).toBe(true);
     expect(isAskMirrorWatchPath("Atoms/sub/nested.md")).toBe(false);
+    // Without evidence map: hub-shaped paths allowed (unit allowlist)
     expect(isAskMirrorWatchPath("Personal notes/Social/Nichita.md")).toBe(true);
     expect(isAskMirrorWatchPath("Social/People/Nichita.md")).toBe(true);
-    expect(isAskMirrorWatchPath("Daily/2026-07-28.md")).toBe(true); // hub-shaped; upsert filters
+    // With evidence map: only hubs this device has mirrored
+    const hashes = { "Social/People/Nichita.md": "abc" };
+    expect(
+      isAskMirrorWatchPath("Social/People/Nichita.md", "Atoms", hashes),
+    ).toBe(true);
+    expect(isAskMirrorWatchPath("Daily/2026-07-28.md", "Atoms", hashes)).toBe(
+      false,
+    );
+    expect(
+      isAskMirrorWatchPath("Personal notes/Social/Other.md", "Atoms", hashes),
+    ).toBe(false);
     expect(isAskMirrorWatchPath("not-md.txt")).toBe(false);
     expect(isAskMirrorWatchPath("Atoms/../secret.md")).toBe(false);
     expect(isAskMirrorWatchPath("Social\\evil.md")).toBe(false);
