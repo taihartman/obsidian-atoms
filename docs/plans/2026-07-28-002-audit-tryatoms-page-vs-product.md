@@ -148,3 +148,24 @@ mind-change pair view (old claim, "later revised/contradicted" connector, new cl
 dates); person invite "Add {Name}?" with Add / Not now; Ask write path returns
 pending → lands when Obsidian opens. Mock content stays in the Sam storyline,
 placeholder people only.
+
+---
+
+# R4 (Tai, 2026-07-28 14:28) — the gift storyline; show the graph inferring
+
+1. Elevator example not relatable. **New storyline: Sam loves yellow tulips.**
+   Hero asks "gift ideas for Sam?" — the question never mentions flowers; the answer
+   finds them by walking links through Sam. That is the graph selling itself.
+2. **"remember:" is banned as a chat trigger** — reads as a reminders app, which the
+   page itself denies. Write-back mock uses "note this:" and captures a *preference*,
+   never a todo. Test-blocked.
+3. The write-back note (poetry section) is deliberately the second gift signal: caption
+   closes the loop — the next gift answer knows it too.
+4. Mind-change pair leaves the apartment world: night-owl → morning-brain (relatable to
+   the note-taking audience, still first-person claims).
+5. "Follow the thread" bullet names the mechanism plainly: notes form a graph; the gift
+   question finds the tulip note because both point at Sam.
+
+Honesty check: this flow is exactly what the MCP tools do — keyword search on the
+person, then neighbors/link-walking, then the model synthesizes. No semantic-search
+implication added; the tool chip shows "followed links from Sam", not magic.

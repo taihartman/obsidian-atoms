@@ -180,6 +180,20 @@ describe("recall claims stay within what ships", () => {
     expect(index.toLowerCase()).not.toContain("overnight");
   });
 
+  it("never uses reminder language as a chat trigger", () => {
+    // The write-back mock must read as note-taking. "remember:" or "remind"
+    // as a trigger contradicts the page's own not-a-reminders-app position.
+    expect(index.toLowerCase()).not.toContain("remember:");
+    expect(index.toLowerCase()).not.toContain("remind me");
+  });
+
+  it("shows the graph inferring, not just matching", () => {
+    // The hero question never mentions flowers; the link walk finds them.
+    expect(index).toContain("gift ideas for Sam?");
+    expect(index).toContain("followed links from Sam");
+    expect(index).toContain("because both point at Sam");
+  });
+
   it("shows the person hub invite with a placeholder name", () => {
     expect(index).toContain("Add Sam?");
     expect(index).toContain("stays quiet for two weeks");
