@@ -129,7 +129,7 @@ Atom frontmatter: `created`, `source` (wikilink), `generated-by`, `tags`, plus q
 
 ## Ask mirror sync (hybrid C — load-bearing)
 
-**Promise.** When Ask is on and Obsidian has been open online, Claude’s copy of flat `Atoms/*.md` stays current (hand-edits, deletes, renames). Multi-device lag is OK until Obsidian Sync converges. Full orphan cleanup is **Sync now**. Not a second library the user maintains by hand.
+**Promise.** When Ask is on and Obsidian has been open online, the cloud copy of flat `Atoms/*.md` (Claude **and** ChatGPT connectors, same MCP URL) stays current (hand-edits, deletes, renames). Multi-device lag is OK until Obsidian Sync converges. Full orphan cleanup is **Sync now**. Not a second library the user maintains by hand.
 
 **Authority.** Product/arch: `docs/plans/2026-07-27-004-feat-ask-mirror-parity-product.md`, `docs/plans/2026-07-27-004-arch-ask-mirror-sync.md`. Impl: `docs/plans/2026-07-27-005-feat-ask-mirror-parity-plan.md`. Learning: `docs/solutions/architecture-patterns/ask-mirror-parity.md`.
 
@@ -149,7 +149,7 @@ Atom frontmatter: `created`, `source` (wikilink), `generated-by`, `tags`, plus q
 5. Wipe allowed on valid `sess_` even if not entitled (exit path); still nuclear (mirror + outbox + MCP tokens).
 6. Same code path desktop + iOS + Android — no desktop-only watcher.
 7. Mirror failures never fail Process/Update/outbox apply (except outbox ack waits for successful land+mirror of that item).
-8. Status line N = **server** count after last successful status/sync — never label local vault count as “Claude sees N”.
+8. Status line N = **server** count after last successful status/sync — never label local vault count as N (“Ask mirror: N”).
 
 **Anti-patterns:**
 

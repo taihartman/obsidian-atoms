@@ -948,17 +948,17 @@ export class AtomsSettingTab extends PluginSettingTab {
   }
 
   /**
-   * Ask — remote MCP for Claude (Plus). No in-plugin chat.
+   * Ask — remote MCP for Claude / ChatGPT (Plus). No in-plugin chat.
    */
   private renderAskSection(containerEl: HTMLElement) {
-    settingHeading(containerEl, "Ask (Claude)");
+    settingHeading(containerEl, "Ask (Claude + ChatGPT)");
     const session = readPlusSession(this.app);
     const base =
       this.plugin.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL;
     const mcpUrl = askMcpUrl(base);
 
     containerEl.createEl("p", {
-      text: "Claude’s copy of Atoms/ on Plus — for chat search on phone and desktop. When Obsidian is open online, hand-edits and deletes push automatically. Full orphan cleanup is Sync now. Not a second library you maintain by hand.",
+      text: "Cloud copy of Atoms/ on Plus — for chat search in Claude or ChatGPT. When Obsidian is open online, hand-edits and deletes push automatically. Full orphan cleanup is Sync now. Not a second library you maintain by hand.",
       cls: "setting-item-description",
     });
 
@@ -974,7 +974,7 @@ export class AtomsSettingTab extends PluginSettingTab {
     new Setting(containerEl)
       .setName("Privacy acknowledgment")
       .setDesc(
-        "I understand: (1) only Atoms/ leaves this device; (2) bodies are stored on Atoms Plus servers; (3) the host can decrypt at rest in v1 (not zero-knowledge); (4) when I chat in Claude, Anthropic receives tool results (titles, snippets, bodies); (5) with Allow filing, Claude can queue new atom bodies to Plus until Obsidian writes them under Atoms/; (6) Wipe deletes the cloud mirror, pending outbox writes, and connector tokens; (7) turning Ask off does not wipe.",
+        "I understand: (1) only Atoms/ leaves this device; (2) bodies are stored on Atoms Plus servers; (3) the host can decrypt at rest in v1 (not zero-knowledge); (4) when I chat in Claude, Anthropic receives tool results (titles, snippets, bodies); when I chat in ChatGPT, OpenAI receives them; (5) with Allow filing, Claude or ChatGPT can queue new atom bodies to Plus until Obsidian writes them under Atoms/; (6) Wipe deletes the cloud mirror, pending outbox writes, and connector tokens; (7) turning Ask off does not wipe.",
       )
       .addToggle((tog) =>
         tog.setValue(ack).onChange(async (on) => {
@@ -990,7 +990,7 @@ export class AtomsSettingTab extends PluginSettingTab {
     new Setting(containerEl)
       .setName("Enable Ask mirror")
       .setDesc(
-        "Keep Claude’s Atoms/ copy current while Obsidian is open (vault events + Process/Update).",
+        "Keep the cloud Atoms/ copy current while Obsidian is open (vault events + Process/Update).",
       )
       .addToggle((tog) =>
         tog
@@ -1016,9 +1016,9 @@ export class AtomsSettingTab extends PluginSettingTab {
 
     const writeAck = Boolean(this.plugin.settings.askWriteAckAt);
     new Setting(containerEl)
-      .setName("Allow filing from Claude")
+      .setName("Allow filing from Claude or ChatGPT")
       .setDesc(
-        "When on, this vault applies Claude create/continue outbox items under your Atoms folder (new files only; never rewrites existing bodies). Requires Ask mirror enabled.",
+        "When on, this vault applies create/continue outbox items under your Atoms folder (new files only; never rewrites existing bodies). Requires Ask mirror enabled.",
       )
       .addToggle((tog) =>
         tog
@@ -1044,8 +1044,10 @@ export class AtomsSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName("Claude connector URL")
-      .setDesc("Claude → Settings → Connectors → Add custom connector.")
+      .setName("MCP connector URL")
+      .setDesc(
+        "Same URL for both. Claude → Settings → Connectors → Add custom connector. ChatGPT → Settings → Apps & connectors (Developer mode) → add this URL → complete OAuth.",
+      )
       .addText((text) => {
         text.setValue(mcpUrl).setDisabled(true);
         text.inputEl.style.width = "100%";
@@ -1080,8 +1082,8 @@ export class AtomsSettingTab extends PluginSettingTab {
       return `${Math.floor(sec / 86400)}d ago`;
     };
     const statusLine = lastErr
-      ? `Claude sees ${serverCount} · last push failed · Sync now to retry`
-      : `Claude sees ${serverCount} · last pushed ${relative(lastOk)}`;
+      ? `Ask mirror: ${serverCount} · last push failed · Sync now to retry`
+      : `Ask mirror: ${serverCount} · last pushed ${relative(lastOk)}`;
     containerEl.createEl("p", {
       text: statusLine,
       cls: "setting-item-description",
@@ -1107,7 +1109,7 @@ export class AtomsSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("Cloud mirror status")
-      .setDesc("Refresh server atom count (what Claude can see).")
+      .setDesc("Refresh server atom count (what Claude/ChatGPT can see).")
       .addButton((btn) =>
         btn.setButtonText("Refresh").onClick(async () => {
           const r = await askMirrorStatus(
@@ -1119,7 +1121,7 @@ export class AtomsSettingTab extends PluginSettingTab {
             return;
           }
           this.app.saveLocalStorage(LS_ASK_MIRROR_SERVER_COUNT, String(r.count));
-          new Notice(`Claude sees ${r.count} atom(s)`);
+          new Notice(`Ask mirror: ${r.count} atom(s)`);
           this.display();
         }),
       );
@@ -1127,12 +1129,12 @@ export class AtomsSettingTab extends PluginSettingTab {
     new Setting(containerEl)
       .setName("Wipe cloud copy")
       .setDesc(
-        "Delete mirrored atoms, pending Ask writes (outbox), and revoke Claude Ask tokens for this account. Does not delete vault files.",
+        "Delete mirrored atoms, pending Ask writes (outbox), and revoke Ask connector tokens for this account. Does not delete vault files.",
       )
       .addButton((btn) =>
         btn.setButtonText("Wipe").setWarning().onClick(async () => {
           const ok = window.confirm(
-            "Wipe cloud atom mirror, pending Ask writes, and revoke Ask connector access? Local vault files are kept.",
+            "Wipe cloud atom mirror, pending Ask writes, and revoke Ask connector access (Claude + ChatGPT)? Local vault files are kept.",
           );
           if (!ok) return;
           const r = await askMirrorWipe(

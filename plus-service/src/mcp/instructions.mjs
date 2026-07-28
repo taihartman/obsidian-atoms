@@ -12,4 +12,4 @@ Write rules:
 - Parent for continue may be mirrored OR still pending from create_atom in this session.
 - Cite sources as [[title]]. Prefer quoting bodies. If tools return nothing relevant, say you don't know.
 
-Privacy: create/continue bodies are stored encrypted on Atoms Plus outbox until applied, then mirrored like other atoms. Anthropic receives tool arguments/results in chat.`;
+Privacy: create/continue bodies are stored encrypted on Atoms Plus outbox until applied, then mirrored like other atoms. The host model provider (Anthropic for Claude, OpenAI for ChatGPT) receives tool arguments/results in chat.`;

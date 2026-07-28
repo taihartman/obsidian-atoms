@@ -8,7 +8,10 @@ import { setTimeout as sleep } from "node:timers/promises";
 import { createHash } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { CLAUDE_CALLBACK } from "../src/oauth/constants.mjs";
+import {
+  CLAUDE_CALLBACK,
+  CHATGPT_LEGACY_CALLBACK,
+} from "../src/oauth/constants.mjs";
 
 const root = path.dirname(fileURLToPath(import.meta.url)) + "/..";
 const PORT = 19200 + Math.floor(Math.random() * 500);
@@ -243,6 +246,27 @@ describe("OAuth Ask AS", () => {
     assert.equal(call.status, 200, await call.clone().text());
     const callBody = await call.text();
     assert.match(callBody, /OAuth proof|zebra-xyz/);
+
+    // tools/list includes ChatGPT-facing securitySchemes
+    const listed = await fetch(`${BASE}/mcp`, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${tokens.access_token}`,
+        "content-type": "application/json",
+        accept: "application/json, text/event-stream",
+      },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 3,
+        method: "tools/list",
+        params: {},
+      }),
+    });
+    assert.equal(listed.status, 200, await listed.clone().text());
+    const listText = await listed.text();
+    assert.match(listText, /securitySchemes/);
+    assert.match(listText, /atoms:read/);
+    assert.match(listText, /search_atoms/);
   });
 
   it("bad redirect_uri rejected", async () => {
@@ -258,4 +282,27 @@ describe("OAuth Ask AS", () => {
     const r = await fetch(authUrl);
     assert.equal(r.status, 400);
   });
+
+  it("ChatGPT redirect_uri accepted on authorize page", async () => {
+    const { challenge } = pkce();
+    for (const redirect of [
+      CHATGPT_LEGACY_CALLBACK,
+      "https://chatgpt.com/connector/oauth/testcb1",
+    ]) {
+      const authUrl = new URL(`${BASE}/oauth/authorize`);
+      authUrl.searchParams.set("response_type", "code");
+      authUrl.searchParams.set("client_id", "https://chatgpt.com/oauth/test/client.json");
+      authUrl.searchParams.set("redirect_uri", redirect);
+      authUrl.searchParams.set("state", "st_cgpt");
+      authUrl.searchParams.set("code_challenge", challenge);
+      authUrl.searchParams.set("code_challenge_method", "S256");
+      authUrl.searchParams.set("resource", RESOURCE);
+      const r = await fetch(authUrl);
+      assert.equal(r.status, 200, redirect);
+      const html = await r.text();
+      assert.match(html, /pending_id/);
+      assert.match(html, /Claude or ChatGPT|mirrored atoms/i);
+    }
+  });
+
 });
