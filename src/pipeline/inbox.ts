@@ -85,6 +85,29 @@ function isContinuationLine(line: string): boolean {
   return true;
 }
 
+/**
+ * Line of the filed marker in the region after a capture's extent, or null.
+ *
+ * Scans from `endLine + 1` forward and stops at the next top-level bullet or a
+ * non-indented non-blank line, so a blank line that drifts between a capture
+ * and its marker (a sync merge, a hand edit) still reads as filed rather than
+ * re-filing and stacking a second marker. Mirrors `captureAlreadyHasMarker` in
+ * render.ts — the inbox owns its own sentinel and never teaches parse.ts about
+ * it (KTD9).
+ */
+function inboxMarkerLineInRegion(
+  lines: string[],
+  endLine: number,
+): number | null {
+  for (let j = endLine + 1; j < lines.length; j++) {
+    const line = lines[j]!;
+    if (isTopLevelBullet(line)) break;
+    if (isInboxFiledMarkerLine(line)) return j;
+    if (line.trim() !== "" && !/^[ \t]/.test(line)) break; // non-indented prose
+  }
+  return null;
+}
+
 function isRealCalendarDate(y: number, m: number, d: number): boolean {
   const probe = new Date(Date.UTC(y, m - 1, d));
   return (
@@ -163,13 +186,11 @@ export function parseInboxCaptures(content: string): InboxCapture[] {
 
     const endLine = i - 1;
 
-    let filed = false;
-    let markerLine: number | null = null;
-    if (i < lines.length && isInboxFiledMarkerLine(lines[i]!)) {
-      filed = true;
-      markerLine = i;
-      i += 1;
-    }
+    // Region scan, not adjacency: a blank line drifting between the capture and
+    // its marker must still read as filed (F4).
+    const markerLine = inboxMarkerLineInRegion(lines, endLine);
+    const filed = markerLine !== null;
+    if (markerLine !== null) i = markerLine + 1;
 
     const text = bodyParts.join("\n");
     // A stampless-but-empty bullet is not work — it matches the daily's
@@ -305,10 +326,30 @@ export async function ensureInboxNote(app: App): Promise<TFile> {
  * no supported way to add a bookmark — so every access is probed and guarded.
  * A shape change upstream must degrade to "no bookmark", never break load.
  */
+interface BookmarkItem {
+  type?: string;
+  path?: string;
+  /** Group items nest their children here; addItem only ever adds top-level. */
+  items?: BookmarkItem[];
+}
+
 interface BookmarksInstance {
-  items?: Array<{ type?: string; path?: string }>;
+  items?: BookmarkItem[];
   addItem?: (item: { type: string; path: string; title?: string }) => void;
   saveData?: () => void;
+}
+
+/**
+ * True if the inbox is bookmarked anywhere in the tree, including nested inside
+ * a group. A flat top-level check misses a bookmark the user filed into a group
+ * and adds a duplicate on every load, propagated by settings sync (F6).
+ */
+function bookmarksInbox(items: BookmarkItem[] | undefined): boolean {
+  for (const item of items ?? []) {
+    if (item?.type === "file" && item?.path === INBOX_NOTE_PATH) return true;
+    if (item?.items && bookmarksInbox(item.items)) return true;
+  }
+  return false;
 }
 
 function bookmarksInstance(app: App): BookmarksInstance | null {
@@ -348,10 +389,7 @@ export async function ensureInboxBookmark(
   if (!instance) return "unavailable";
 
   try {
-    const already = (instance.items ?? []).some(
-      (item) => item?.type === "file" && item?.path === INBOX_NOTE_PATH,
-    );
-    if (already) return "already-present";
+    if (bookmarksInbox(instance.items)) return "already-present";
 
     instance.addItem!({
       type: "file",
@@ -442,12 +480,22 @@ function appendBulletLines(content: string, bulletLines: string[]): string {
  * docs/solutions/logic-errors/marker-line-drift-batch-process.md).
  */
 function appendFiledMarkers(content: string, captures: InboxCapture[]): string {
+  // Preserve the file's dominant terminator: rewriting CRLF to LF turns a
+  // two-line insert into a whole-file rewrite on a Windows-synced vault (F2).
+  const term = content.includes("\r\n") ? "\r\n" : "\n";
   const lines = content.split(/\r?\n/);
-  const bottomUp = [...captures].sort((a, b) => b.endLine - a.endLine);
+  const bottomUp = [...captures]
+    // Region already marked (drifted marker) — never stack a second one (F4).
+    .filter((c) => inboxMarkerLineInRegion(lines, c.endLine) === null)
+    .sort((a, b) => b.endLine - a.endLine);
   for (const c of bottomUp) {
     lines.splice(c.endLine + 1, 0, `\t${INBOX_FILED_MARKER}`);
   }
-  return lines.join("\n");
+  let out = lines.join(term);
+  // Restore the EOF terminator the Shortcut appends against — without it the
+  // next capture fuses onto the marker line and is lost (F1).
+  if (!out.endsWith(term)) out += term;
+  return out;
 }
 
 /**
@@ -538,46 +586,53 @@ export async function drainInbox(
   let stillPending = 0;
 
   for (const [date, group] of byDate) {
-    let daily: TFile;
+    // Best-effort per date: the whole read/write is inside the try so an
+    // unreadable or unwritable daily leaves that date pending without aborting
+    // the drain — later dates and the marker-write pass still run (F3).
     try {
-      daily = await ensureDaily(app, date);
+      const daily = await ensureDaily(app, date);
+
+      // Read once; dedupe each capture against the daily as it stood before
+      // this pass. Two genuine same-second captures both file — dropping one is
+      // the failure to avoid, filing twice is recoverable (Q2).
+      const dailyContent = await vault.read(daily);
+      const additions: string[] = [];
+      for (const c of group) {
+        if (!dailyHasCapture(dailyContent, c.time!, c.text)) {
+          additions.push(...inboxDailyBulletLines(c.time!, c.text));
+        }
+      }
+      if (additions.length > 0) {
+        await vault.modify(daily, appendBulletLines(dailyContent, additions));
+      }
+      // Only after the daily is written do these captures count as filed.
+      filedCaptures.push(...group);
     } catch (e) {
       if (e instanceof FutureDailyNoteError) held += group.length;
       else stillPending += group.length;
       continue;
     }
-
-    // Read once; dedupe each capture against the daily as it stood before this
-    // pass. Two genuine same-second captures both file — dropping one is the
-    // failure to avoid, filing twice is recoverable (Q2).
-    const dailyContent = await vault.read(daily);
-    const additions: string[] = [];
-    for (const c of group) {
-      if (!dailyHasCapture(dailyContent, c.time!, c.text)) {
-        additions.push(...inboxDailyBulletLines(c.time!, c.text));
-      }
-      filedCaptures.push(c);
-    }
-    if (additions.length > 0) {
-      await vault.modify(daily, appendBulletLines(dailyContent, additions));
-    }
   }
 
+  let matched: InboxCapture[] = [];
   if (filedCaptures.length > 0) {
     // Re-read rather than marking the opening snapshot: the loop above awaited
     // daily creation and writes, and the Shortcut or Sync can append into that
     // window. Writing the stale content back would silently discard whatever
     // landed — the exact capture loss this whole path exists to prevent.
     const fresh = await vault.read(inbox);
-    const matched = relocateFiledCaptures(parseInboxCaptures(fresh), filedCaptures);
+    matched = relocateFiledCaptures(parseInboxCaptures(fresh), filedCaptures);
     if (matched.length > 0) {
       await vault.modify(inbox, appendFiledMarkers(fresh, matched));
     }
   }
 
   return {
-    filed: filedCaptures.length,
-    pending: stillPending,
+    // `filed` counts markers actually written, not captures attempted: an
+    // unmatched capture (its inbox line reflowed by a merge) is written to the
+    // daily but re-surfaces as pending until the next drain marks it (F5).
+    filed: matched.length,
+    pending: stillPending + (filedCaptures.length - matched.length),
     held,
     unparseable,
   };

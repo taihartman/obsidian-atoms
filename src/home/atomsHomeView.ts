@@ -656,10 +656,18 @@ export class AtomsHomeView extends ItemView {
    * captures ever made) is silent, matching inboxCounts on empty content.
    */
   private async loadInboxStuck(): Promise<InboxStuckSummary | null> {
-    const file = this.app.vault.getAbstractFileByPath(INBOX_NOTE_PATH);
-    if (!(file instanceof TFile)) return null;
-    const content = await this.app.vault.cachedRead(file);
-    return inboxStuckSummary(inboxCounts(content, new Date()));
+    try {
+      const file = this.app.vault.getAbstractFileByPath(INBOX_NOTE_PATH);
+      if (!(file instanceof TFile)) return null;
+      const content = await this.app.vault.cachedRead(file);
+      return inboxStuckSummary(inboxCounts(content, new Date()));
+    } catch {
+      // F5: silence is the documented healthy state for this card. cachedRead
+      // can reject when the inbox is deleted between the lookup and the read
+      // (home refreshes on every vault delete, including the inbox itself); that
+      // race must not throw out of loadData and blank the entire home render.
+      return null;
+    }
   }
 
   private visibleEntries(): AtomLibraryEntry[] {

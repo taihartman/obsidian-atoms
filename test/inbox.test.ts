@@ -1,5 +1,6 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { TFile } from "obsidian";
+import * as dni from "obsidian-daily-notes-interface";
 import {
   ATOMS_SYSTEM_FOLDER,
   drainInbox,
@@ -7,6 +8,7 @@ import {
   ensureInboxNote,
   INBOX_FILED_MARKER,
   INBOX_NOTE_PATH,
+  INBOX_NOTE_TEMPLATE,
   isInboxFiledMarkerLine,
   parseInboxCaptures,
   pendingInboxCaptures,
@@ -17,6 +19,8 @@ import {
   FutureDailyNoteError,
 } from "../src/pipeline/daily";
 import { parseCaptures } from "../src/pipeline/parse";
+
+afterEach(() => vi.restoreAllMocks());
 
 describe("parseInboxCaptures — capture shape", () => {
   it("parses a single-line stamped capture", () => {
@@ -171,6 +175,21 @@ describe("parseInboxCaptures — filed markers", () => {
     expect(caps[0]!.filed).toBe(true);
     expect(caps[1]!.filed).toBe(false);
   });
+
+  it("reads a capture as filed when a blank line drifted before its marker (F4)", () => {
+    // A sync merge (or a hand edit) can drop a blank line between a capture and
+    // its filed marker. Marker detection must scan the region, not only the
+    // adjacent line, or the capture re-files and gets a second marker.
+    const md = [
+      "- 2026-07-27T09:14-04:00 buy milk",
+      "",
+      `\t${INBOX_FILED_MARKER}`,
+      "",
+    ].join("\n");
+    const caps = parseInboxCaptures(md);
+    expect(caps).toHaveLength(1);
+    expect(caps[0]!.filed).toBe(true);
+  });
 });
 
 describe("parseInboxCaptures — unparseable lines", () => {
@@ -199,6 +218,15 @@ describe("parseInboxCaptures — unparseable lines", () => {
     expect(caps[0]!.unparseable).toBe(true);
     expect(caps[1]!.unparseable).toBe(false);
     expect(caps[1]!.text).toBe("good one");
+  });
+
+  it("treats an out-of-range hour as unparseable (T4)", () => {
+    // The stamp shape matches (25:00 fits (\d{2}):(\d{2})), so only the
+    // h > 23 guard keeps this from being read as a real 25 o'clock capture.
+    const caps = parseInboxCaptures("- 2026-07-27T25:00-04:00 x\n");
+    expect(caps).toHaveLength(1);
+    expect(caps[0]!.unparseable).toBe(true);
+    expect(caps[0]!.date).toBeNull();
   });
 });
 
@@ -371,6 +399,31 @@ describe("ensureInboxBookmark", () => {
 
   it("reports unavailable when internalPlugins is absent entirely", async () => {
     await expect(ensureInboxBookmark({} as never)).resolves.toBe("unavailable");
+  });
+
+  it("does not duplicate a bookmark nested inside a group (F6)", async () => {
+    // Bookmarks nest: a user can file the inbox bookmark into a group, but
+    // addItem only ever inserts at the top level. A flat presence check misses
+    // the nested one and adds a duplicate on every load.
+    const addItem = vi.fn();
+    const { app } = fakeApp({
+      bookmarks: {
+        enabled: true,
+        instance: {
+          items: [
+            {
+              type: "group",
+              title: "Captures",
+              items: [{ type: "file", path: INBOX_NOTE_PATH }],
+            },
+          ],
+          addItem,
+        },
+      },
+    });
+
+    await expect(ensureInboxBookmark(app)).resolves.toBe("already-present");
+    expect(addItem).not.toHaveBeenCalled();
   });
 });
 
@@ -648,5 +701,170 @@ describe("drainInbox", () => {
       held: 0,
       unparseable: 0,
     });
+  });
+
+  it("keeps a trailing newline on the inbox after marking (F1)", async () => {
+    // The iOS Shortcut appends at EOF relying on the terminator. Drop it and
+    // the next capture fuses onto the marker line and is lost.
+    const h = drainHarness("- 2026-07-27T09:14-04:00 buy milk");
+
+    await drainInbox(h.app, { ensureDaily: h.ensureDaily });
+
+    expect(h.inboxContent().endsWith("\n")).toBe(true);
+    // A capture appended at EOF stays its own parseable, unfiled capture.
+    h.appendToInbox("- 2026-07-28T10:00-04:00 next one");
+    const after = parseInboxCaptures(h.inboxContent());
+    const next = after.find((c) => c.text === "next one");
+    expect(next).toBeDefined();
+    expect(next!.filed).toBe(false);
+  });
+
+  it("preserves CRLF terminators when marking the inbox (F2)", async () => {
+    const h = drainHarness("- 2026-07-27T09:14-04:00 buy milk\r\n");
+
+    await drainInbox(h.app, { ensureDaily: h.ensureDaily });
+
+    const inbox = h.inboxContent();
+    expect(inbox).toContain("\r\n");
+    // No line was rewritten to a lone LF — every LF stays part of a CRLF.
+    expect(inbox.replace(/\r\n/g, "").includes("\n")).toBe(false);
+  });
+
+  it("keeps draining later dates when one daily write fails (F3)", async () => {
+    const h = drainHarness(
+      [
+        "- 2026-07-27T09:14-04:00 monday one",
+        "- 2026-07-28T10:00-04:00 tuesday one",
+        "",
+      ].join("\n"),
+    );
+    const vault = (h.app as unknown as { vault: { modify: unknown } }).vault;
+    const realModify = vault.modify as (
+      f: { path: string },
+      data: string,
+    ) => Promise<void>;
+    vault.modify = async (f: { path: string }, data: string) => {
+      if (f.path === "Quick Notes/2026-07-27.md") throw new Error("disk full");
+      return realModify(f, data);
+    };
+
+    const r = await drainInbox(h.app, { ensureDaily: h.ensureDaily });
+
+    // Tuesday still files despite Monday's write throwing.
+    expect(h.dailyContent("2026-07-28")).toContain("- 10:00 tuesday one");
+    const after = parseInboxCaptures(h.inboxContent());
+    expect(after.find((c) => c.text === "tuesday one")!.filed).toBe(true);
+    // Monday failed: held pending, unmarked — never lost.
+    expect(after.find((c) => c.text === "monday one")!.filed).toBe(false);
+    expect(r.filed).toBe(1);
+    expect(r.pending).toBe(1);
+  });
+
+  it("does not splice a second marker when one drifted below a blank line (F4)", async () => {
+    const h = drainHarness(
+      [
+        "- 2026-07-27T09:14-04:00 buy milk",
+        "",
+        `\t${INBOX_FILED_MARKER}`,
+        "",
+      ].join("\n"),
+      { dailies: { "2026-07-27": "- 09:14 buy milk\n" } },
+    );
+
+    await drainInbox(h.app, { ensureDaily: h.ensureDaily });
+
+    const markerCount = h.inboxContent().split(INBOX_FILED_MARKER).length - 1;
+    expect(markerCount).toBe(1);
+  });
+
+  it("reports filed as markers written, not captures attempted (F5)", async () => {
+    const h = drainHarness("- 2026-07-27T09:14-04:00 monday one\n");
+    // Between the daily write and the inbox re-read, the inbox line is edited
+    // (a sync merge reflows it), so the filed capture cannot be relocated and
+    // no marker lands. `filed` must count markers written, not attempts.
+    const ensureDaily = async (app: unknown, date: string) => {
+      const daily = await h.ensureDaily(app, date);
+      await (
+        h.app as unknown as {
+          vault: { modify: (f: TFile, d: string) => Promise<void> };
+        }
+      ).vault.modify(
+        new TFile(INBOX_NOTE_PATH),
+        "- 2026-07-27T09:14-04:00 edited text\n",
+      );
+      return daily;
+    };
+
+    const r = await drainInbox(h.app, { ensureDaily });
+
+    expect(r.filed).toBe(0);
+    expect(r.pending).toBe(1);
+  });
+
+  it("files both of two captures with identical stamp and text (T3)", async () => {
+    const h = drainHarness(
+      [
+        "- 2026-07-27T09:14:03-04:00 same text",
+        "- 2026-07-27T09:14:03-04:00 same text",
+        "",
+      ].join("\n"),
+    );
+
+    const r = await drainInbox(h.app, { ensureDaily: h.ensureDaily });
+
+    expect(r.filed).toBe(2);
+    const after = parseInboxCaptures(h.inboxContent());
+    expect(after).toHaveLength(2);
+    expect(after.every((c) => c.filed)).toBe(true);
+  });
+
+  it("never drops or reorders any pre-drain inbox line (T2, append-only)", async () => {
+    const before = [
+      ...INBOX_NOTE_TEMPLATE.split("\n"),
+      "- 2026-07-27T09:14-04:00 first capture",
+      "- 2026-07-28T10:00-04:00 second capture",
+      "a stray human line with no stamp and no bullet",
+      "",
+    ];
+    const h = drainHarness(before.join("\n"));
+
+    await drainInbox(h.app, { ensureDaily: h.ensureDaily });
+
+    const after = h.inboxContent().split(/\r?\n/);
+    // Every original line still appears, in its original relative order.
+    let idx = 0;
+    for (const line of before) {
+      const found = after.indexOf(line, idx);
+      expect(found).toBeGreaterThanOrEqual(0);
+      idx = found + 1;
+    }
+  });
+
+  it("drains through the real ensureDailyForDate default when no deps are passed (T1)", async () => {
+    vi.spyOn(dni, "appHasDailyNotesPluginLoaded").mockReturnValue(true);
+    vi.spyOn(dni, "getAllDailyNotes").mockReturnValue({} as never);
+    const daily = new TFile("Quick Notes/2026-07-27.md");
+    vi.spyOn(dni, "getDailyNote").mockReturnValue(null as never);
+    vi.spyOn(dni, "createDailyNote").mockResolvedValue(daily as never);
+
+    const files = new Map<string, string>();
+    files.set(INBOX_NOTE_PATH, "- 2026-07-27T09:14-04:00 real default path\n");
+    files.set(daily.path, "");
+    const app = {
+      vault: {
+        getAbstractFileByPath: (p: string) =>
+          files.has(p) ? new TFile(p) : null,
+        read: async (f: { path: string }) => files.get(f.path) ?? "",
+        modify: async (f: { path: string }, data: string) => {
+          files.set(f.path, data);
+        },
+      },
+    } as never;
+
+    const r = await drainInbox(app);
+
+    expect(r.filed).toBe(1);
+    expect(files.get(daily.path)).toContain("- 09:14 real default path");
+    expect(parseInboxCaptures(files.get(INBOX_NOTE_PATH)!)[0]!.filed).toBe(true);
   });
 });

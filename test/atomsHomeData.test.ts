@@ -30,6 +30,7 @@ import {
   updateNotesStripCopy,
 } from "../src/home/atomsHomeData";
 import { inboxCounts } from "../src/pipeline/inbox";
+import { shouldShowBookmarkSetupNotice } from "../src/plugin/inboxBootstrap";
 
 const atomMd = (opts: {
   title?: string;
@@ -560,5 +561,20 @@ describe("inbox stuck-drain indicator", () => {
       unparseable: 0,
     });
     expect(inboxStuckSummary(inboxCounts(after, now))).toBeNull();
+  });
+});
+
+describe("shouldShowBookmarkSetupNotice", () => {
+  it("fires once when the bookmark is unavailable and not yet acked", () => {
+    expect(shouldShowBookmarkSetupNotice("unavailable", false)).toBe(true);
+  });
+
+  it("stays silent once the notice has been acked (no nag every load)", () => {
+    expect(shouldShowBookmarkSetupNotice("unavailable", true)).toBe(false);
+  });
+
+  it("never fires when the bookmark was created or already present", () => {
+    expect(shouldShowBookmarkSetupNotice("created", false)).toBe(false);
+    expect(shouldShowBookmarkSetupNotice("already-present", false)).toBe(false);
   });
 });

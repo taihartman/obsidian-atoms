@@ -11,7 +11,14 @@ import {
   drainInbox,
   ensureInboxBookmark,
   ensureInboxNote,
+  INBOX_NOTE_PATH,
+  type InboxBookmarkResult,
+  type InboxDrainResult,
 } from "../pipeline/inbox";
+import {
+  LS_INBOX_BOOKMARK_NOTICE_ACK,
+  shouldShowBookmarkSetupNotice,
+} from "./inboxBootstrap";
 import { clampAtomFolder } from "../pipeline/render";
 import { registerAtomsCommands } from "./commands";
 import { runOpenAtomGraph } from "../graph/openAtomGraph";
@@ -154,6 +161,13 @@ export default class AtomsPlugin extends Plugin {
   private backfillInFlight = false;
   private askOutboxInFlight = false;
   private askMirrorInFlight = false;
+  /**
+   * Shared in-flight drain (F1). Both entry points — bootstrapInbox (unawaited
+   * from onLayoutReady) and runDrainInbox (command) — go through drainInboxOnce,
+   * so a concurrent caller JOINS the running pass instead of racing it into a
+   * duplicate append.
+   */
+  private drainInFlight: Promise<InboxDrainResult> | null = null;
   private askMirrorFollowUp = false;
   private askMirrorForceFollowUp = false;
   private askMirrorNoticeShown = false;
@@ -223,28 +237,82 @@ export default class AtomsPlugin extends Plugin {
    * plugin, a daily-notes hiccup, or a drain error must never throw into load.
    */
   private async bootstrapInbox(): Promise<void> {
+    // Gate on the same signal cold-start auto-run uses (F2). onLayoutReady does
+    // not mean the vault is indexed: ensureInboxNote could create a fresh inbox
+    // before Sync delivers the real one, and ensureDailyForDate reads
+    // getAllDailyNotes() against a half-built index. Non-blocking — this whole
+    // method runs unawaited from onLayoutReady.
+    await waitForVaultIndexReady(this.app);
+
     try {
       await ensureInboxNote(this.app);
-    } catch {
-      /* best-effort — inbox capture degrades to a manual note create */
+    } catch (e) {
+      // best-effort — inbox capture degrades to a manual note create
+      devLog("[atoms] inbox ensure-note failed", {
+        message: e instanceof Error ? e.message : "error",
+      });
     }
     try {
-      await ensureInboxBookmark(this.app);
-    } catch {
-      /* best-effort — user can bookmark the note by hand */
+      const bookmark = await ensureInboxBookmark(this.app);
+      this.maybeShowBookmarkSetupNotice(bookmark);
+    } catch (e) {
+      // best-effort — user can bookmark the note by hand
+      devLog("[atoms] inbox ensure-bookmark failed", {
+        message: e instanceof Error ? e.message : "error",
+      });
     }
     try {
-      await drainInbox(this.app);
+      const r = await this.drainInboxOnce();
+      devLog("[atoms] inbox bootstrap drain", {
+        filed: r.filed,
+        held: r.held,
+        pending: r.pending,
+        unparseable: r.unparseable,
+      });
       await this.refreshAtomsHomeLeaves();
-    } catch {
-      /* best-effort — pending captures wait for the next drain */
+    } catch (e) {
+      // best-effort — pending captures wait for the next drain
+      devLog("[atoms] inbox bootstrap drain failed", {
+        message: e instanceof Error ? e.message : "error",
+      });
     }
+  }
+
+  /**
+   * Serialize drains (F1): a concurrent caller joins the running pass rather
+   * than kicking off a second read-modify-write that would double-append the
+   * same capture. Cleared in finally so the next drain starts fresh.
+   */
+  private drainInboxOnce(): Promise<InboxDrainResult> {
+    if (this.drainInFlight) return this.drainInFlight;
+    const pass = drainInbox(this.app).finally(() => {
+      this.drainInFlight = null;
+    });
+    this.drainInFlight = pass;
+    return pass;
+  }
+
+  /**
+   * One-time setup notice (F3): when the Bookmarks core plugin is unavailable
+   * the bookmark is never created, so the iOS Shortcut has no target. Name the
+   * exact path to bookmark by hand, then ack so a permanently-disabled Bookmarks
+   * plugin does not nag on every load.
+   */
+  private maybeShowBookmarkSetupNotice(result: InboxBookmarkResult): void {
+    const acked =
+      this.app.loadLocalStorage(LS_INBOX_BOOKMARK_NOTICE_ACK) === true;
+    if (!shouldShowBookmarkSetupNotice(result, acked)) return;
+    new Notice(
+      `Atoms: bookmark "${INBOX_NOTE_PATH}" by hand — the Bookmarks core plugin is off, so iOS capture has no target until you do.`,
+      10000,
+    );
+    this.app.saveLocalStorage(LS_INBOX_BOOKMARK_NOTICE_ACK, true);
   }
 
   /** Manual drain (command). Surfaces a count so a stuck drain is visible. */
   async runDrainInbox(): Promise<void> {
     try {
-      const r = await drainInbox(this.app);
+      const r = await this.drainInboxOnce();
       const parts = [`${r.filed} filed`];
       if (r.held) parts.push(`${r.held} held (future)`);
       if (r.unparseable) parts.push(`${r.unparseable} unreadable`);
