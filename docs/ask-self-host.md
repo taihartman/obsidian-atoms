@@ -70,8 +70,9 @@ Claude / ChatGPT connector
 
 ## Prerequisites
 
-- Node.js (same major as repo / `plus-service` package)
-- Obsidian + Atoms plugin build that includes Ask + Plus URL override
+- **Node.js ≥ 20** (`plus-service/package.json` engines)
+- Clone of this repo (or at least `plus-service/`) and `npm install` inside `plus-service`
+- Obsidian + Atoms plugin build that includes Ask + **Development → Plus service URL override**
 - For desktop-only Claude/ChatGPT with loopback OAuth: local `http://127.0.0.1:8787` can work
 - For **phone** Claude (or any non-loopback client): a public **HTTPS** URL (Cloudflare Tunnel, ngrok, etc.) that reaches your service
 
@@ -81,11 +82,12 @@ Claude / ChatGPT connector
 
 ```bash
 cd plus-service
+npm install
 export DOGFOOD_AUTO_GRANT=1
 export PUBLIC_BASE_URL=http://127.0.0.1:8787
-# optional durable store:
-# export ATOMS_PLUS_STORE=sqlite
-# export ATOMS_PLUS_DATABASE_PATH=./data/plus.sqlite
+# Prefer sqlite so sessions + mirror survive restart (memory is default / ephemeral):
+export ATOMS_PLUS_STORE=sqlite
+export ATOMS_PLUS_DATABASE_PATH=./data/plus.sqlite
 # optional at-rest encryption for mirror bodies:
 # export ATOMS_ASK_MIRROR_KEY="$(openssl rand -hex 32)"
 npm start
@@ -100,41 +102,55 @@ npm start
 |----------|---------|--------|
 | `PORT` | `8787` | Listen port |
 | `PUBLIC_BASE_URL` | `http://127.0.0.1:$PORT` | OAuth issuer + magic links + MCP resource. **Must match** the URL clients use (tunnel HTTPS on phone). |
-| `DOGFOOD_AUTO_GRANT` | on (unless `"0"`) | First magic-link exchange grants `trialing` so Ask/MCP work |
-| `DOGFOOD_GRANT_STATUS` | `trialing` | Status written by dogfood grant |
-| `ATOMS_PLUS_STORE` | `memory` | `memory` \| `sqlite` \| `postgres` |
+| `DOGFOOD_AUTO_GRANT` | on (unless `"0"`) | Magic-link exchange can grant `trialing` when account was inactive |
+| `DOGFOOD_GRANT_STATUS` | `trialing` | Status written by that grant |
+| `ATOMS_PLUS_STORE` | `memory` | Use **`sqlite`** for real DIY; `memory` wipes on process exit |
 | `ATOMS_PLUS_DATABASE_PATH` | `plus-service/data/plus.sqlite` | When store is sqlite |
 | `DATABASE_URL` | — | Postgres (required if store is postgres / real prod) |
 | `ATOMS_ASK_MIRROR_KEY` | empty → `plain:` bodies | 64-hex or passphrase; AES-GCM `v1:` when set. Required in production gate. |
 
 Copy-paste template: `plus-service/.env.example`. Full Plus dogfood (classify, Stripe): `plus-service/README.md`.
 
-### Dogfood sign-in (no Resend)
-
-1. From plugin Settings → Atoms Plus, request magic link **or**:
-   ```bash
-   curl -s -X POST http://127.0.0.1:8787/v1/auth/magic-link \
-     -H 'content-type: application/json' \
-     -d '{"email":"you@example.com"}'
-   ```
-2. Copy the magic link from the **server console** (when `RESEND_API_KEY` is unset).
-3. Open link → copy `sess_…` → paste in Settings → Save Session.
-
 ---
 
 ## Plugin wiring
 
-1. **Development → Plus service URL override**  
-   Set to your base, e.g. `http://127.0.0.1:8787` or `https://your-tunnel.example`.  
-   Leave empty for hosted production (`https://plus.tryatoms.app`).
-2. **Atoms Plus** — magic-link sign-in → valid `sess_`.
-3. **Ask (Claude + ChatGPT)**  
+Do this **in order**. Set the URL override **before** any sign-in so the plugin never hits production by mistake.
+
+### 1. Point the plugin at your service
+
+**Development → Plus service URL override** = your base, e.g. `http://127.0.0.1:8787` or `https://your-tunnel.example`.  
+Leave empty for hosted production (`https://plus.tryatoms.app`).
+
+### 2. Get a Plus session with entitlement (`active` or `trialing`)
+
+Hosted UI is Stripe-first. On a **local dogfood** service (no Stripe keys, default dogfood checkout allowed), either path works:
+
+**A — Start free trial (simplest local)**
+
+1. Settings → **Atoms Plus** → email → **Start free trial**
+2. Plugin opens checkout; without Stripe the service **instant-grants** trial and returns a browser “You’re set” page
+3. Back in Obsidian → **Refresh status** until status is trial/active (not inactive)
+
+**B — Magic link (no Resend)**
+
+1. **Sign in on another device** → email → **Send sign-in link**  
+   Or: `curl -s -X POST http://127.0.0.1:8787/v1/auth/magic-link -H 'content-type: application/json' -d '{"email":"you@example.com"}'`
+2. Copy the link from the **server console** (printed when `RESEND_API_KEY` is unset)
+3. Open it → page says signed in; return to Obsidian → **Refresh status**
+4. Only if Refresh fails: landing page **Advanced: session token** → Settings → **Advanced: paste session** → **Save session**
+
+`DOGFOOD_AUTO_GRANT=1` grants `trialing` on magic exchange when the account was inactive. Ask/MCP refuse accounts that stay `inactive`.
+
+### 3. Enable Ask and sync
+
+1. **Ask (Claude + ChatGPT)**  
    - Privacy acknowledgment  
    - **Enable Ask mirror**  
    - Optional: **Allow filing from Claude or ChatGPT** (outbox create/continue)  
-4. **Sync now** — push flat `Atoms/*.md` into the mirror DB.  
-5. **MCP connector URL** → **Copy** (value is `{plusBase}/mcp`).  
-6. In Claude or ChatGPT, add a connector / custom MCP pointing at that URL and complete **OAuth** (email + magic link + consent). Do **not** paste `sess_` into the connector.
+2. **Sync now** — push flat `Atoms/*.md` into the mirror DB  
+3. **MCP connector URL** → **Copy** (`{plusBase}/mcp`)  
+4. In Claude or ChatGPT, add a connector / custom MCP to that URL and complete **OAuth** (email + magic link + consent). Do **not** paste `sess_` into the connector.
 
 Status / wipe / cloud mirror refresh stay on the same Settings section as hosted Ask.
 
@@ -200,16 +216,16 @@ Personal DIY Ask does **not** need that shape: run development + dogfood + sqlit
 
 ---
 
-## NOT supported checklist
+## NOT supported
 
-- [ ] Authless MCP  
-- [ ] Static bearer / long-lived shared API key for connectors  
-- [ ] Pointing tools at a live `Atoms/` folder on disk  
-- [ ] Using plugin `sess_` as the Claude/ChatGPT connector secret  
-- [ ] Free hosted `plus.tryatoms.app` Ask without Plus trial/paid  
-- [ ] Expecting hubs outside `Atoms/` or daily notes in the mirror  
-- [ ] Mirror → vault reverse body sync  
-- [ ] In-plugin chat UI  
+- Authless MCP  
+- Static bearer / long-lived shared API key for connectors  
+- Pointing tools at a live `Atoms/` folder on disk  
+- Using plugin `sess_` as the Claude/ChatGPT connector secret  
+- Free hosted `plus.tryatoms.app` Ask without Plus trial/paid  
+- Hubs outside `Atoms/` or daily notes in the mirror  
+- Mirror → vault reverse body sync  
+- In-plugin chat UI  
 
 ---
 
@@ -223,11 +239,14 @@ Personal DIY Ask does **not** need that shape: run development + dogfood + sqlit
 | OAuth “Plus required” | Same entitlement gate at consent |
 | OAuth resource / redirect errors | `PUBLIC_BASE_URL` ≠ URL client uses; or redirect not allowlisted |
 | Tool says mirror empty | Never synced — Enable Ask + **Sync now** |
+| Lost session/mirror after restart | Default `memory` store — use `ATOMS_PLUS_STORE=sqlite` |
+| Status stuck inactive after trial click | Dogfood grant needs **Refresh status**; confirm override URL hits your service |
 | Phone cannot connect | Still on localhost; need HTTPS tunnel + matching override + restart |
 | Decrypt errors after restart | Rows encrypted with a key you no longer set (`ATOMS_ASK_MIRROR_KEY`) |
 | Prod boot exits immediately | Production gate — see runbook; DIY should not set `ATOMS_PLUS_ENV=production` without full secrets |
 | `outbox_full` / pending never files | Open Obsidian with **Allow filing**; ack path needs plugin online |
 | Rate limited | ~30/min on mirror and write tools |
+| `npm start` module errors | Run `npm install` in `plus-service/` first; Node ≥ 20 |
 
 Sanity checks:
 
