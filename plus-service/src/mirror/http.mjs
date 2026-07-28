@@ -54,9 +54,13 @@ export async function handleMirrorRoutes({
     return true;
   }
 
-  const a = await store.accountFromSession(token);
+  // Soft-start (unverified) sessions must not read/write the cloud brain (C1).
+  const a = await store.accountFromSession(token, { requireVerified: true });
   if (!a) {
-    json(res, 401, { message: "Invalid session" });
+    json(res, 401, {
+      message:
+        "Invalid session — sign in with a magic link to use Ask mirror",
+    });
     return true;
   }
 

@@ -28,7 +28,11 @@ import {
   applyPersonPeerLinksToContents,
   resolvePersonInviteName,
 } from "./personInvite";
-import { TFile } from "obsidian";
+import { Notice, TFile } from "obsidian";
+import {
+  hubTitlesFromAtomContents,
+  runHubProjectionForHubs,
+} from "./runHubProjection";
 
 export interface WritePathEntry {
   dailyPath: string;
@@ -84,6 +88,7 @@ export interface RunWritePathOptions {
   fixtureResults?: ClassificationResult[];
   /** Manual force: include today's daily. Default false (never for auto-run). */
   includeToday?: boolean;
+  enableHubProjection?: boolean;
 }
 
 /**
@@ -273,6 +278,43 @@ export async function runWritePath(
 
   // Pre-hub peer links among same-name atoms created this run (R14).
   await applyPersonPeersForNewAtoms(opts.app, entries, hubs);
+
+  if (opts.enableHubProjection) {
+    const atomContents: string[] = [];
+    for (const e of entries) {
+      const path =
+        e.write.atomCreated ??
+        e.write.atomUpdated ??
+        e.write.atomSkippedCollision;
+      if (!path) continue;
+      const f = opts.app.vault.getAbstractFileByPath(path);
+      if (!(f instanceof TFile)) continue;
+      try {
+        atomContents.push(await opts.app.vault.read(f));
+      } catch {
+        /* skip */
+      }
+    }
+    const touched = hubTitlesFromAtomContents(
+      atomContents,
+      ctx.personHubs ?? [],
+    );
+    if (touched.length) {
+      const proj = await runHubProjectionForHubs({
+        app: opts.app,
+        enabled: true,
+        atomFolder: opts.atomFolder,
+        touchedHubTitles: touched,
+        personHubDetails: ctx.personHubDetails,
+      });
+      for (const err of proj.errors.slice(0, 3)) {
+        new Notice(
+          `Atoms: hub projection skipped [[${err.hubTitle}]] — ${err.reason}`,
+          8000,
+        );
+      }
+    }
+  }
 
   return {
     entries,

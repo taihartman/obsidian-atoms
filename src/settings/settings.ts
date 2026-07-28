@@ -830,6 +830,20 @@ export class AtomsSettingTab extends PluginSettingTab {
             await this.plugin.saveSettings();
           }),
       );
+
+    new Setting(containerEl)
+      .setName("Hub projection")
+      .setDesc(
+        "When on, Process / Update / backfill write a managed section at the end of person hub notes listing linked atoms under your existing headings. Your text outside the markers is never changed. If Ask mirror is on, updated hub notes sync vault→cloud like other linked hubs. Off by default.",
+      )
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.enableHubProjection === true)
+          .onChange(async (on) => {
+            this.plugin.settings.enableHubProjection = on;
+            await this.plugin.saveSettings();
+          }),
+      );
   }
 
   private renderVocabularySection(containerEl: HTMLElement) {

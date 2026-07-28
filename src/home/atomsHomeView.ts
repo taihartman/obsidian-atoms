@@ -43,6 +43,7 @@ import {
   formatEntityHubMarkdown,
   type EntityInviteCandidate,
 } from "../pipeline/entityInvite";
+import { runHubProjectionForHubs } from "../pipeline/runHubProjection";
 import {
   applyHardLinkToAtomContent,
   applyPersonPeerLinksToContents,
@@ -1128,6 +1129,15 @@ export class AtomsHomeView extends ItemView {
         await this.applyPeersForPaths([...paths]);
       }
 
+      if (this.plugin.settings.enableHubProjection === true) {
+        await runHubProjectionForHubs({
+          app: this.app,
+          enabled: true,
+          atomFolder: this.plugin.settings.atomFolder,
+          touchedHubTitles: [name],
+        });
+      }
+
       new Notice(
         created ? `Atoms: added ${name}` : `Atoms: linked to ${name}`,
       );
@@ -1321,7 +1331,7 @@ export class AtomsHomeView extends ItemView {
       this.entityInvite = null;
       await this.loadData();
       this.render();
-    } catch (e) {
+    } catch {
       new Notice("Atoms: could not create list note");
     }
   }

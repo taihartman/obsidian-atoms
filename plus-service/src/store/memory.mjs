@@ -88,6 +88,8 @@ export function createMemoryStore() {
     a.plan = opts.plan ?? "monthly";
     a.remaining = opts.remaining ?? config.includedFilings;
     a.periodEnd = periodEndFromNow(opts.days ?? 30);
+    // Soft-start sessions must not survive privilege upgrade (C1).
+    revokeUnverifiedSessionsForEmail(a.email);
     return a;
   }
 
@@ -100,19 +102,48 @@ export function createMemoryStore() {
     return token;
   }
 
-  function createSession(email) {
+  /**
+   * @param {string} email
+   * @param {{ verified?: boolean }} [opts] verified=false for soft-start (no email proof)
+   */
+  function createSession(email, opts = {}) {
     const key = email.trim().toLowerCase();
     const session = id("sess");
     sessions.set(hashToken(session), {
       email: key,
       exp: Date.now() + sessionTtlMs(),
       revoked: false,
+      verified: opts.verified !== false,
     });
     return session;
   }
 
+  function revokeAllSessionsForEmail(email) {
+    const key = email.trim().toLowerCase();
+    for (const row of sessions.values()) {
+      if (row.email === key) row.revoked = true;
+    }
+  }
+
+  function revokeUnverifiedSessionsForEmail(email) {
+    const key = email.trim().toLowerCase();
+    for (const row of sessions.values()) {
+      if (row.email === key && !row.verified) row.revoked = true;
+    }
+  }
+
+  /** Promote soft session after checkout; clears revoke from grantPeriod. */
+  function markSessionVerified(sessionToken) {
+    if (!sessionToken) return false;
+    const row = sessions.get(hashToken(sessionToken));
+    if (!row || Date.now() > row.exp) return false;
+    row.verified = true;
+    row.revoked = false;
+    return true;
+  }
+
   /**
-   * Soft start: mint sess_ only for non-entitled inactive accounts.
+   * Soft start: mint unverified sess_ only for non-entitled inactive accounts.
    * @returns {{ ok: true, session: string, account: object } | { ok: false, needsMagicLink: true, account: object }}
    */
   function startWithEmail(email) {
@@ -120,7 +151,7 @@ export function createMemoryStore() {
     if (isEntitledAccount(a)) {
       return { ok: false, needsMagicLink: true, account: a };
     }
-    const session = createSession(a.email);
+    const session = createSession(a.email, { verified: false });
     return { ok: true, session, account: a };
   }
 
@@ -147,14 +178,20 @@ export function createMemoryStore() {
       });
     }
     refreshAccountStatus(a);
-    const session = createSession(row.email);
+    revokeAllSessionsForEmail(row.email);
+    const session = createSession(row.email, { verified: true });
     return { session, account: a };
   }
 
-  function accountFromSession(sessionToken) {
+  /**
+   * @param {string} sessionToken
+   * @param {{ requireVerified?: boolean }} [opts]
+   */
+  function accountFromSession(sessionToken, opts = {}) {
     if (!sessionToken) return null;
     const row = sessions.get(hashToken(sessionToken));
     if (!row || row.revoked || Date.now() > row.exp) return null;
+    if (opts.requireVerified && !row.verified) return null;
     return refreshAccountStatus(getAccount(row.email));
   }
 
@@ -165,13 +202,20 @@ export function createMemoryStore() {
   }
 
   function tryConsumeFiling(sessionToken, idempotencyKey) {
+    const a = accountFromSession(sessionToken, { requireVerified: true });
+    if (!a) return { ok: false, code: "auth" };
+    if (a.status === "inactive") return { ok: false, code: "auth" };
+
     if (idempotencyKey && usageByKey.has(idempotencyKey)) {
       const prev = usageByKey.get(idempotencyKey);
+      if (prev?.email && prev.email !== a.email) {
+        return { ok: false, code: "idempotency_conflict" };
+      }
       if (prev?.status === "ok" && prev.responseJson) {
         return {
           ok: true,
           replay: true,
-          account: accountFromSession(sessionToken),
+          account: a,
           cached: prev,
         };
       }
@@ -181,13 +225,10 @@ export function createMemoryStore() {
         return {
           ok: false,
           code: "in_flight",
-          account: accountFromSession(sessionToken),
+          account: a,
         };
       }
     }
-    const a = accountFromSession(sessionToken);
-    if (!a) return { ok: false, code: "auth" };
-    if (a.status === "inactive") return { ok: false, code: "auth" };
     if (a.status === "exhausted" || a.remaining <= 0) {
       a.status = "exhausted";
       a.remaining = 0;
@@ -199,18 +240,21 @@ export function createMemoryStore() {
       a.remaining = 0;
     }
     if (idempotencyKey) {
-      usageByKey.set(idempotencyKey, { status: "reserved" });
+      usageByKey.set(idempotencyKey, { status: "reserved", email: a.email });
     }
     return { ok: true, account: a, replay: false };
   }
 
   function completeUsage(idempotencyKey, payload) {
     if (!idempotencyKey) return;
-    usageByKey.set(idempotencyKey, payload);
+    usageByKey.set(idempotencyKey, {
+      ...payload,
+      email: payload.email ?? usageByKey.get(idempotencyKey)?.email,
+    });
   }
 
   function refundFiling(sessionToken, idempotencyKey) {
-    const a = accountFromSession(sessionToken);
+    const a = accountFromSession(sessionToken, { requireVerified: true });
     if (!a) return;
     a.remaining += 1;
     if (a.status === "exhausted" && a.remaining > 0) {
@@ -219,7 +263,10 @@ export function createMemoryStore() {
     if (idempotencyKey && usageByKey.has(idempotencyKey)) {
       const prev = usageByKey.get(idempotencyKey);
       if (prev?.status !== "ok") {
-        usageByKey.set(idempotencyKey, { status: "refunded" });
+        usageByKey.set(idempotencyKey, {
+          status: "refunded",
+          email: prev?.email ?? a.email,
+        });
       }
     }
   }
@@ -759,6 +806,9 @@ export function createMemoryStore() {
     exchangeMagic,
     accountFromSession,
     revokeSession,
+    revokeAllSessionsForEmail,
+    revokeUnverifiedSessionsForEmail,
+    markSessionVerified,
     tryConsumeFiling,
     completeUsage,
     refundFiling,

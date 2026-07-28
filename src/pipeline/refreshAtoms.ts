@@ -1,4 +1,8 @@
-import { TFile, type App } from "obsidian";
+import { Notice, TFile, type App } from "obsidian";
+import {
+  hubTitlesFromAtomContents,
+  runHubProjectionForHubs,
+} from "./runHubProjection";
 import {
   applyClassificationQuality,
   classifyCapture,
@@ -172,9 +176,30 @@ export function buildRefreshedAtomMarkdown(opts: {
   } else {
     fm.push("tags: []");
   }
+  const hubSec =
+    (result.hub_section ?? "").trim() ||
+    parseHubSectionFromFrontmatter(opts.oldContent);
+  if (hubSec) fm.push(`hub-section: ${JSON.stringify(hubSec)}`);
   fm.push("---", "");
   const body = formatAtomBody(opts.captureText, result);
   return fm.join("\n") + body + (body.endsWith("\n") ? "" : "\n");
+}
+
+function parseHubSectionFromFrontmatter(content: string): string {
+  const m = content.match(/^hub-section:\s*(.+)$/m);
+  if (!m) return "";
+  let v = m[1]!.trim();
+  if (
+    (v.startsWith('"') && v.endsWith('"')) ||
+    (v.startsWith("'") && v.endsWith("'"))
+  ) {
+    try {
+      v = JSON.parse(v.replace(/^'/, '"').replace(/'$/, '"')) as string;
+    } catch {
+      v = v.slice(1, -1);
+    }
+  }
+  return String(v).trim();
 }
 
 /**
@@ -351,6 +376,10 @@ export function buildPolishedAtomMarkdown(opts: {
   } else {
     fm.push("tags: []");
   }
+  const hubSec2 =
+    (result.hub_section ?? "").trim() ||
+    parseHubSectionFromFrontmatter(opts.oldContent);
+  if (hubSec2) fm.push(`hub-section: ${JSON.stringify(hubSec2)}`);
   fm.push("---", "");
   const body = formatAtomBody(opts.captureText, result);
   return fm.join("\n") + body + (body.endsWith("\n") ? "" : "\n");
@@ -594,6 +623,7 @@ export type RunRefreshOptions = {
   skipPolish?: boolean;
   /** Skip Phase B (tests). */
   skipRefile?: boolean;
+  enableHubProjection?: boolean;
 };
 
 /**
@@ -687,6 +717,7 @@ export async function runRefreshEligibleAtoms(
   }
 
   if (!refileList.length) {
+    await maybeProjectHubsAfterRefresh(opts, report);
     opts.onProgress?.(totalSteps, totalSteps || 1);
     return report;
   }
@@ -811,8 +842,48 @@ export async function runRefreshEligibleAtoms(
     done += 1;
   }
 
+  await maybeProjectHubsAfterRefresh(opts, report);
+
   opts.onProgress?.(totalSteps, totalSteps || 1);
   return report;
+}
+
+async function maybeProjectHubsAfterRefresh(
+  opts: RunRefreshOptions,
+  report: RefreshReport,
+): Promise<void> {
+  if (!opts.enableHubProjection) return;
+  const paths = [
+    ...report.updatedItems.map((i) => i.path),
+    ...report.polishedItems.map((i) => i.path),
+  ];
+  if (!paths.length) return;
+  const ctx = opts.contextProvider.buildContext();
+  const atomContents: string[] = [];
+  for (const path of paths) {
+    const f = opts.app.vault.getAbstractFileByPath(path);
+    if (!(f instanceof TFile)) continue;
+    try {
+      atomContents.push(await opts.app.vault.read(f));
+    } catch {
+      /* skip */
+    }
+  }
+  const touched = hubTitlesFromAtomContents(atomContents, ctx.personHubs ?? []);
+  if (!touched.length) return;
+  const proj = await runHubProjectionForHubs({
+    app: opts.app,
+    enabled: true,
+    atomFolder: opts.atomFolder,
+    touchedHubTitles: touched,
+    personHubDetails: ctx.personHubDetails,
+  });
+  for (const err of proj.errors.slice(0, 3)) {
+    new Notice(
+      `Atoms: hub projection skipped [[${err.hubTitle}]] — ${err.reason}`,
+      8000,
+    );
+  }
 }
 
 function findDailyFile(app: App, basename: string): TFile | null {

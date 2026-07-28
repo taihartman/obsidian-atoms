@@ -70,6 +70,13 @@ It’s a **second brain inside your vault**, not a separate app and not a CRM. P
 2. Put them in `<Vault>/.obsidian/plugins/atoms/`.
 3. Settings → Community plugins → refresh → enable **Atoms**.
 
+Optional integrity check (after a CI-built release): download `SHA256SUMS.txt` from the same release, then:
+
+```bash
+shasum -a 256 -c SHA256SUMS.txt
+gh attestation verify main.js -R taihartman/obsidian-atoms
+```
+
 ### First-run setup
 
 1. Settings → **Atoms** → set your Anthropic API key (SecretStorage).
@@ -187,7 +194,16 @@ README screenshots use **`docs/media/demo-vault/`** with fictional sample notes 
 
 **[taihartman/obsidian-atoms](https://github.com/taihartman/obsidian-atoms)**
 
-Releases ship `main.js`, `manifest.json`, and `styles.css` for manual install and for the Community directory once listed.
+Releases ship `main.js`, `manifest.json`, and `styles.css` (plus `SHA256SUMS.txt`) for manual install and for the Community directory once listed. Assets are built in GitHub Actions on version tags with [artifact attestations](https://docs.github.com/en/actions/security-for-github-actions/using-artifact-attestations/using-artifact-attestations-to-establish-provenance-for-builds).
+
+**Cut a release (maintainers):** bump `manifest.json` + `package.json` (+ `versions.json` via `npm version` / `version-bump.mjs`) on `master`, then:
+
+```bash
+git tag 0.6.x
+git push origin 0.6.x
+```
+
+The [Release](https://github.com/taihartman/obsidian-atoms/actions/workflows/release.yml) workflow builds, attests, and attaches assets. Do not upload laptop-built `main.js` for production tags.
 
 (Previously `obsidian-ai-linker`; renamed with the product.)
 

@@ -205,6 +205,10 @@ export function buildAtomMarkdown(opts: {
   } else {
     fm.push("tags: []");
   }
+  const hubSection = (result.hub_section ?? "").trim();
+  if (hubSection) {
+    fm.push(`hub-section: ${JSON.stringify(hubSection)}`);
+  }
   fm.push("---", "");
 
   const body = formatAtomBody(captureText, result);

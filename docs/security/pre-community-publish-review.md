@@ -281,7 +281,7 @@ Settings and auto-run ack describe this. Manual Process does not re-show a block
 | `data.json` / `.env` gitignored | Good |
 | `LICENSE` file | **Missing** (package.json claims MIT) — required for open-source + Community |
 | Repo visibility | Private — must be public for new Community submissions |
-| Release attestation | Not set up — add checksums / pinned release workflow before list |
+| Release attestation | **Done** — `.github/workflows/release.yml` (CI build + `SHA256SUMS.txt` + `actions/attest-build-provenance`) |
 
 ---
 
