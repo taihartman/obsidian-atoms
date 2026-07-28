@@ -106,9 +106,9 @@
 
 ### H9 — BRAT/Release path: manual unsigned assets, no published checksums
 
-- **Evidence:** Releases ship `main.js` from maintainer laptop; no SHA256SUMS in UX; no cosign.
+- **Evidence (was):** Releases shipped `main.js` from maintainer laptop; no SHA256SUMS; no cosign.
 - **Impact:** Account/release hijack → malicious plugin to all BRAT users.
-- **Fix:** CI-built artifacts only; publish checksums; optional signing; protect tags/releases.
+- **Fix (landed #169):** `.github/workflows/release.yml` — tag push CI-builds assets, publishes `SHA256SUMS.txt`, and records GitHub artifact attestations (`actions/attest-build-provenance`). Still protect tags/releases at org level.
 
 ---
 

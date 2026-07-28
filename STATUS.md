@@ -7,6 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
+| In progress | #169 | tai | chore/release-attestations | docs/plans/2026-07-28-chore-release-attestations-plan.md | `.github/workflows/release.yml`, README, security review | CI-built releases + attestations |
 
 ## How to claim (copy)
 
