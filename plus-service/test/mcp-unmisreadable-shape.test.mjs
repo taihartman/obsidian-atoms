@@ -181,6 +181,10 @@ describe("mcp unmisreadable shape store", () => {
           assert.equal(shaped.revision_participant, true);
           assert.equal(shaped.authoritative, true);
           assert.ok(
+            shaped.synced_at,
+            "fetch_atom must expose synced_at for staleness",
+          );
+          assert.ok(
             shaped.superseded_by.some(
               (s) =>
                 s.title ===

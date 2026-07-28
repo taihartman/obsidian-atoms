@@ -290,6 +290,22 @@ export function isHubMirrorPath(path: string, atomFolder = "Atoms"): boolean {
   return true;
 }
 
+/**
+ * Paths that should schedule a mirror sync when the vault changes.
+ * Flat atoms + hub-shaped notes (hub projection write targets).
+ * Upsert still filters hubs to linked titles only.
+ */
+export function isAskMirrorWatchPath(
+  path: string,
+  atomFolder = "Atoms",
+): boolean {
+  const p = String(path || "").trim();
+  if (!p.endsWith(".md")) return false;
+  if (p.includes("..") || p.includes("\\") || p.includes("\0")) return false;
+  if (isFlatAtomPath(atomFolder, p)) return true;
+  return isHubMirrorPath(p, atomFolder);
+}
+
 export function planAskMirrorUpsert(
   files: VaultFileRead[],
   atomFolder: string,

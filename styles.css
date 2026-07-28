@@ -1807,3 +1807,8 @@
   gap: 8px;
   margin-top: 8px;
 }
+
+/* Ask mirror push failure in Settings */
+.atoms-ask-mirror-error {
+  color: var(--text-error);
+}

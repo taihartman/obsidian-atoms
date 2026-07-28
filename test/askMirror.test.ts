@@ -144,6 +144,19 @@ durable taste fact about [[Andrew]] from this capture.
     expect(andrew?.reason ?? "").not.toMatch(/named work Andrew is a fan/);
   });
 
+  it("watch path covers flat atoms and hub-shaped notes", async () => {
+    const { isAskMirrorWatchPath } = await import("../src/platform/askMirror");
+    expect(isAskMirrorWatchPath("Atoms/Tea.md")).toBe(true);
+    expect(isAskMirrorWatchPath("Atoms/sub/nested.md")).toBe(false);
+    expect(isAskMirrorWatchPath("Personal notes/Social/Nichita.md")).toBe(true);
+    expect(isAskMirrorWatchPath("Social/People/Nichita.md")).toBe(true);
+    expect(isAskMirrorWatchPath("Daily/2026-07-28.md")).toBe(true); // hub-shaped; upsert filters
+    expect(isAskMirrorWatchPath("not-md.txt")).toBe(false);
+    expect(isAskMirrorWatchPath("Atoms/../secret.md")).toBe(false);
+    expect(isAskMirrorWatchPath("Social\\evil.md")).toBe(false);
+    expect(isAskMirrorWatchPath("a/b/c/d/e.md")).toBe(false); // >4 segments
+  });
+
   it("plans hub notes with kind hub", async () => {
     const { planAskMirrorUpsert, isHubMirrorPath, collectHubLinkTitles } =
       await import("../src/platform/askMirror");
