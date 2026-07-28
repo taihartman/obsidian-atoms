@@ -10,6 +10,7 @@
  */
 
 import { readFileSync, writeFileSync, mkdirSync, rmSync, copyFileSync } from "fs";
+import { createHash } from "crypto";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 
@@ -58,15 +59,38 @@ export function render(template, values = tokens) {
 }
 
 const PAGES = ["index", "privacy", "terms", "404"];
-const ASSETS = ["styles.css", "_headers", "favicon.svg", "og.png", "robots.txt"];
+const ASSETS = ["_headers", "favicon.svg", "og.png", "robots.txt"];
+
+/**
+ * CSS and JS ship content-fingerprinted under /a/ with immutable caching, so
+ * a deploy can never serve new HTML with a stale stylesheet again (that
+ * exact mix is what broke the story switcher on 2026-07-28).
+ */
+const FINGERPRINTED = ["styles.css", "app.js"];
+
+function fingerprint(name) {
+  const content = readFileSync(join(srcDir, name));
+  const hash = createHash("sha256").update(content).digest("hex").slice(0, 8);
+  const [base, ext] = [name.slice(0, name.lastIndexOf(".")), name.split(".").pop()];
+  return { name, hashedName: `${base}.${hash}.${ext}`, content };
+}
 
 function build() {
   rmSync(distDir, { recursive: true, force: true });
-  mkdirSync(distDir, { recursive: true });
+  mkdirSync(join(distDir, "a"), { recursive: true });
+
+  const hashed = FINGERPRINTED.map(fingerprint);
+  for (const f of hashed) {
+    writeFileSync(join(distDir, "a", f.hashedName), f.content);
+  }
+  const paths = Object.fromEntries(
+    hashed.map((f) => [f.name.replace(".", "_"), `/a/${f.hashedName}`]),
+  );
+  const values = { ...tokens, cssPath: paths.styles_css, jsPath: paths.app_js };
 
   for (const page of PAGES) {
     const template = readFileSync(join(srcDir, `${page}.html.tmpl`), "utf8");
-    writeFileSync(join(distDir, `${page}.html`), render(template), "utf8");
+    writeFileSync(join(distDir, `${page}.html`), render(template, values), "utf8");
   }
 
   for (const asset of ASSETS) {

@@ -7,7 +7,8 @@
   Copy rules for this page:
   - The hero shows NO markdown syntax. No [[wikilinks]], no HTML comments, no
     frontmatter. Syntax is earned later, once someone knows what this is.
-  - One running example (Sam and the apartment) carries the whole page.
+  - Three coordinated storylines (Relationships/Sam, Work/Priya,
+    Journaling/self); each carries its arc through every swapped surface.
   - Claims discipline: Ask search is literal keyword and tag matching, not
     semantic. Writes from chat are queued. Resurfacing only happens with the
     app open. Never soften any of those.
@@ -36,18 +37,16 @@
     <meta name="twitter:image" content="https://tryatoms.app/og.png" />
     <link rel="canonical" href="https://tryatoms.app" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="{{cssPath}}" />
+    <script src="{{jsPath}}" defer></script>
   </head>
   <body>
-    <main>
-      <!--
-        Story switcher state. CSS-only: these radios must stay the FIRST
-        children of <main>: every .s-life / .s-work block downpage is
-        shown or hidden via sibling selectors in styles.css. No script.
-      -->
-      <input type="radio" name="story" id="story-life" class="story-radio" checked />
-      <input type="radio" name="story" id="story-work" class="story-radio" />
-
+    <!--
+      Story carousel: <main data-story> decides which storyline the CSS
+      shows (.s-rel / .s-work / .s-self; .s-people is shared by rel+work).
+      app.js moves the attribute; without JS the default story renders.
+    -->
+    <main data-story="rel">
       <!-- Hero: understandable in three seconds, no syntax anywhere -->
       <header class="hero">
         <div class="wrap">
@@ -57,12 +56,22 @@
             Atoms turns the notes you already take into something you can ask.
           </p>
 
-          <div class="story-switch" role="radiogroup" aria-label="Choose an example story">
-            <label for="story-life">Life</label>
-            <label for="story-work">Work</label>
+          <div class="story-nav" aria-label="Choose an example story">
+            <button class="story-arrow" type="button" data-dir="-1"
+              aria-label="Previous story">&#8249;</button>
+            <div class="story-labels">
+              <button type="button" data-story="rel" class="is-active"
+                aria-pressed="true">Relationships</button>
+              <button type="button" data-story="work"
+                aria-pressed="false">Work</button>
+              <button type="button" data-story="self"
+                aria-pressed="false">Journaling</button>
+            </div>
+            <button class="story-arrow" type="button" data-dir="1"
+              aria-label="Next story">&#8250;</button>
           </div>
 
-          <div class="s-life">
+          <div class="s-rel">
             <div class="claude" role="img"
               aria-label="A Claude chat answering a question from your own notes">
               <div class="claude-bar">
@@ -107,6 +116,30 @@
                 <p class="claude-cite">
                   <span class="sentinel">↳</span>
                   Priya's budget freezes in November · March 12
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div class="s-self">
+            <div class="claude" role="img"
+              aria-label="A Claude chat answering a question about yourself from your own notes">
+              <div class="claude-bar">
+                <span class="claude-star" aria-hidden="true">✱</span> Claude
+              </div>
+              <div class="claude-body">
+                <p class="claude-you">why do my afternoons keep falling apart?</p>
+                <p class="claude-tool">⌕ searched your atoms · followed links from Energy</p>
+                <div class="claude-ans">
+                  You answered this yourself in April:
+                  <blockquote>
+                    skipped lunch again and the 3pm meeting still went sideways
+                  </blockquote>
+                  It is the lunch, not the meetings.
+                </div>
+                <p class="claude-cite">
+                  <span class="sentinel">↳</span>
+                  Skipping lunch wrecks my afternoons · April 9
                 </p>
               </div>
             </div>
@@ -177,7 +210,7 @@
           </ol>
 
           <div class="specimen specimen--inline">
-            <div class="s-life">
+            <div class="s-rel">
               <p class="stage">Your daily note</p>
               <div class="file">
                 <pre class="file-body"><span class="verbatim">- sam stopped at the tulip stand again, she loves the yellow ones</span>
@@ -222,6 +255,29 @@ Linked to <span class="wl">Priya</span> and <span class="wl">Acme pitch</span>.<
                 and out of your library.
               </p>
             </div>
+
+            <div class="s-self">
+              <p class="stage">Your daily note</p>
+              <div class="file">
+                <pre class="file-body"><span class="verbatim">- skipped lunch again and the 3pm meeting still went sideways</span>
+<span class="verbatim">- call the dentist</span></pre>
+              </div>
+
+              <p class="stage">What Atoms makes</p>
+              <div class="file">
+                <span class="file-name">Skipping lunch wrecks my afternoons</span>
+                <pre class="file-body"><span class="verbatim">skipped lunch again and the 3pm meeting still went sideways</span>
+
+Linked to <span class="wl">Energy</span> and <span class="wl">Meetings</span>.</pre>
+              </div>
+
+              <p class="caption">
+                Your original line is never touched, and the text is copied
+                across word for word. The dentist? It becomes nothing. Atoms is
+                not a task manager, so to-dos stay in your daily note and out of
+                your library.
+              </p>
+            </div>
           </div>
         </div>
       </section>
@@ -247,7 +303,7 @@ Linked to <span class="wl">Priya</span> and <span class="wl">Acme pitch</span>.<
               <strong>Ask for it.</strong> It finds your notes by title, tags,
               and text, then quotes them back with a link to the original.
             </li>
-            <li class="s-life">
+            <li class="s-rel">
               <strong>Follow the thread.</strong> Your notes form a graph, and
               it walks the links. The gift question finds the tulip note because
               both point at Sam.
@@ -256,6 +312,11 @@ Linked to <span class="wl">Priya</span> and <span class="wl">Acme pitch</span>.<
               <strong>Follow the thread.</strong> Your notes form a graph, and
               it walks the links. The pitch question finds the budget note
               because both point at Priya.
+            </li>
+            <li class="s-self">
+              <strong>Follow the thread.</strong> Your notes form a graph, and
+              it walks the links. The afternoon question finds the lunch note
+              because both point at Energy.
             </li>
             <li>
               <strong>Add without leaving chat.</strong> Tell it to remember
@@ -268,7 +329,7 @@ Linked to <span class="wl">Priya</span> and <span class="wl">Acme pitch</span>.<
             </li>
           </ul>
 
-          <div class="s-life">
+          <div class="s-rel">
             <div class="claude" role="img"
               aria-label="Telling Claude to note something, which queues a note for your vault">
               <div class="claude-bar">
@@ -323,6 +384,33 @@ Linked to <span class="wl">Priya</span> and <span class="wl">Acme pitch</span>.<
             </p>
           </div>
 
+          <div class="s-self">
+            <div class="claude" role="img"
+              aria-label="Telling Claude to note something, which queues a note for your vault">
+              <div class="claude-bar">
+                <span class="claude-star" aria-hidden="true">✱</span> Claude
+              </div>
+              <div class="claude-body">
+                <p class="claude-you">
+                  note this: mornings after a run, drafts come out clean in one
+                  pass
+                </p>
+                <p class="claude-tool">+ created atom · pending</p>
+                <div class="claude-ans">
+                  Queued for your vault. It lands next time Obsidian is open.
+                </div>
+                <p class="claude-cite">
+                  <span class="sentinel">↳</span>
+                  Mornings after a run mean clean drafts
+                </p>
+              </div>
+            </div>
+
+            <p class="caption">
+              And the next time you ask when to do deep work, it knows.
+            </p>
+          </div>
+
           <p class="fineprint">
             Matching is on the words you actually wrote, not a semantic model.
             Your daily notes and the rest of your vault are never sent, only the
@@ -344,7 +432,7 @@ Linked to <span class="wl">Priya</span> and <span class="wl">Acme pitch</span>.<
               <strong>Mind change.</strong> Two notes where you came to disagree
               with yourself, side by side, with the dates.
             </li>
-            <li class="s-life">
+            <li class="s-rel">
               <!-- Placeholder names only. Never ship a real person from a vault. -->
               <strong>Also about Sam.</strong> Write something new about someone
               and an older note about them comes back.
@@ -352,6 +440,10 @@ Linked to <span class="wl">Priya</span> and <span class="wl">Acme pitch</span>.<
             <li class="s-work">
               <strong>Also about Priya.</strong> Write something new about
               someone and an older note about them comes back.
+            </li>
+            <li class="s-self">
+              <strong>Also about Energy.</strong> Write something new on a
+              theme and an older note about it comes back.
             </li>
             <li>
               <strong>On this day.</strong> Something you wrote on this date a
@@ -396,9 +488,31 @@ Linked to <span class="wl">Priya</span> and <span class="wl">Acme pitch</span>.<
       <!-- People -->
       <section class="band" id="people">
         <div class="wrap">
-          <p class="eyebrow">People</p>
-          <h2>It notices who matters</h2>
-          <div class="s-life">
+          <div class="s-people">
+            <p class="eyebrow">People</p>
+            <h2>It notices who matters</h2>
+          </div>
+          <div class="s-self">
+            <p class="eyebrow">Patterns</p>
+            <h2>It notices what repeats</h2>
+            <p>
+              <!-- Grounded: Together card + entity hubs ship (orbits T0-T3). -->
+              Keep writing about the same thing and Atoms gathers the thread
+              without being asked. No folder was ever created for it, and no
+              tag was ever typed.
+            </p>
+
+            <div class="appcard" role="img"
+              aria-label="An Atoms card gathering your notes about running">
+              <p class="appcard-kicker appcard-kicker--person">Together</p>
+              <h4>Six notes about Running</h4>
+              <p class="appcard-sub">Linked over several nights.</p>
+              <div class="appcard-actions">
+                <span class="btn btn--mini btn--secondary">Open</span>
+              </div>
+            </div>
+          </div>
+          <div class="s-rel">
             <p>
               <!-- Grounded: person invite card + retroactive link upgrade + 14d snooze. -->
               Write about Sam a few times and Atoms offers to make a page where

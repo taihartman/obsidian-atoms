@@ -188,3 +188,32 @@ downpage follows. Constraints:
 - Work story keeps every honesty rule: verbatim body, noise line ("reply to the invoice
   email") becomes nothing, write-back is a preference (deck-on-phone), pending state
   shown, "note this:" trigger.
+
+---
+
+# R6 (Tai, 2026-07-28 14:46) — labeled story carousel, JS allowed, cache bug
+
+Two failures surfaced by Tai's screenshot + questions:
+
+1. **Stylesheet cache bug (P0).** `_headers` cached `/styles.css` for an hour, so a
+   deploy could serve new HTML with old CSS — which is exactly what Tai saw (both
+   stories stacked, unstyled "Life Work" text). Fix: content-fingerprinted asset
+   filenames under `/a/` (`styles.<hash>.css`, `app.<hash>.js`) with immutable
+   caching; HTML revalidates. A deploy can never again mix old CSS with new HTML.
+2. **The no-JS rule was self-imposed and over-applied.** The CSP header is ours;
+   loosened one notch to `script-src 'self'`. No inline script, no third-party.
+
+New design (Tai's): stories get **named scenario labels** above the hero mock —
+**Relationships (Sam) · Work (Priya) · Journaling (self)** — with ‹ › arrows cycling
+and clickable labels. Whole page still coordinates via `data-story` on `<main>`;
+default Relationships works with JS disabled.
+
+Third story (Journaling): skipped-lunch afternoons capture; hero asks "why do my
+afternoons keep falling apart?"; write-back is the clean-drafts-after-a-run
+observation; the People section swaps to Patterns with a Together card ("Six notes
+about Running" — grounded: Together card + entity hubs ship). Noise line: "call the
+dentist" becomes nothing.
+
+Class scheme: `.s-rel` / `.s-work` / `.s-self` (story-specific) + `.s-people`
+(shared by rel+work, hidden in self). Tests updated: exactly one same-origin script
+tag; all three arcs complete; default story present without JS.

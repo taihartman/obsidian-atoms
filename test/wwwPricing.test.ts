@@ -42,34 +42,57 @@ describe("www build output", () => {
     }
   });
 
-  it("ships no inline or external script", () => {
-    for (const page of ["index.html", "privacy.html", "terms.html"]) {
+  it("ships exactly one same-origin script, fingerprinted, nothing inline", () => {
+    // The story carousel is the only script on the site. Same origin, no
+    // third parties, and the CSP in _headers allows only 'self'.
+    const scripts = index.match(/<script[^>]*>/gi) ?? [];
+    expect(scripts).toHaveLength(1);
+    expect(scripts[0]).toMatch(/src="\/a\/app\.[0-9a-f]{8}\.js"/);
+    expect(index).not.toMatch(/<script[^>]*>[^<]/);
+    for (const page of ["privacy.html", "terms.html"]) {
       expect(dist(page)).not.toMatch(/<script/i);
     }
   });
 
-  it("story switcher is CSS-only with Life as the default", () => {
-    expect(index).toContain('id="story-life"');
-    expect(index).toContain('id="story-work"');
-    expect(index).toMatch(/id="story-life"[^>]*checked/);
+  it("assets are content-fingerprinted so deploys cannot serve stale CSS", () => {
+    // Regression guard: on 2026-07-28 a deploy served new HTML with an
+    // hour-cached old stylesheet and the story switcher fell apart.
+    expect(index).toMatch(/href="\/a\/styles\.[0-9a-f]{8}\.css"/);
+    expect(index).not.toContain('href="/styles.css"');
   });
 
-  it("both storylines carry the full coordinated arc", () => {
-    // Every swapped surface exists in each story, so a toggle never
+  it("renders the default story without JavaScript", () => {
+    expect(index).toContain('data-story="rel"');
+  });
+
+  it("all three storylines carry the full coordinated arc", () => {
+    // Every swapped surface exists in each story, so switching never
     // strands a section in the wrong world.
-    const life = ["gift ideas for Sam?", "Sam loves yellow tulips", "Add Sam?"];
+    const rel = ["gift ideas for Sam?", "Sam loves yellow tulips", "Add Sam?"];
     const work = [
       "before the Priya pitch?",
       "Priya's budget freezes in November",
       "Add Priya?",
       "Also about Priya",
       "keep the slides big",
+      "The invoice email? It becomes nothing",
     ];
-    for (const s of [...life, ...work]) {
+    const self = [
+      "why do my afternoons keep falling apart?",
+      "Skipping lunch wrecks my afternoons",
+      "Also about Energy",
+      "Six notes about Running",
+      "The dentist? It becomes nothing",
+    ];
+    for (const s of [...rel, ...work, ...self]) {
       expect(index).toContain(s);
     }
-    // The work story's noise line follows the same not-a-task-app rule.
-    expect(index).toContain("The invoice email? It becomes nothing");
+  });
+
+  it("names the three scenarios in the story nav", () => {
+    for (const label of ["Relationships", "Work", "Journaling"]) {
+      expect(index).toContain(`>${label}</button>`);
+    }
   });
 });
 
