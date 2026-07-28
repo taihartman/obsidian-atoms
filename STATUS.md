@@ -7,7 +7,6 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| In progress | #169 | tai | chore/release-attestations | docs/plans/2026-07-28-chore-release-attestations-plan.md | `.github/workflows/release.yml`, README, security review | CI-built releases + attestations |
 
 ## How to claim (copy)
 
@@ -23,6 +22,7 @@ States: `Queued` · `In progress` · `Blocked` · `In review` · `Done` (then re
 
 | Merged | Issue / PR | Summary |
 |---|---|---|
+| 2026-07-28 | #169 / #170 | CI-built releases + artifact attestations · **0.6.45** |
 | 2026-07-28 | #163 / #164 | Plus auth criticals (soft-start fixation, idempotency tenant scope, exchange XSS, body cap) — Fly already deployed |
 | 2026-07-28 | #154 / #157 | Hub projection — managed generated block on person hubs · **0.6.44** |
 | 2026-07-28 | #115 | Plus public launch ops — tryatoms domain, Resend, Stripe **live** on Fly |
