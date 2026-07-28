@@ -7,6 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
+| In progress | #174 | taihartman | fix/community-review-lint-2 | light lane (lint) | `src/settings/settings.ts`, `src/shared/plusPricing.ts`, `src/platform/plusClient.ts`, `src/pipeline/classify.ts`, `src/home/atomsHomeView.ts`, `styles.css` | Community review lint — styles/confirm/types; defer getSettingDefinitions + intentional fetch |
 
 ## How to claim (copy)
 

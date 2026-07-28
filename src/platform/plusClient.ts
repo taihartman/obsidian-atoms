@@ -14,10 +14,14 @@ export type RequestFn = (params: RequestUrlParam) => Promise<RequestUrlResponse>
 /**
  * Fetch-backed request matching the subset of requestUrl we use (status/json/text).
  * Does not throw on HTTP 4xx/5xx (like requestUrl with throw:false).
+ *
+ * Intentional `fetch` (not requestUrl): desktop requestUrl often fails to localhost
+ * (`net::ERR_FAILED`) while renderer fetch works; production Plus is CORS-enabled.
  */
 export async function plusFetchRequest(
   params: RequestUrlParam,
 ): Promise<RequestUrlResponse> {
+  // Community review: prefer requestUrl — see docstring (localhost + CORS).
   const res = await fetch(params.url, {
     method: params.method ?? "GET",
     headers: params.headers,
@@ -40,13 +44,17 @@ export async function plusFetchRequest(
   res.headers.forEach((value, key) => {
     headers[key] = value;
   });
-  return {
+  const out: RequestUrlResponse = {
     status: res.status,
     headers,
     text,
     json,
-    arrayBuffer: bytes.buffer,
-  } as RequestUrlResponse;
+    arrayBuffer: bytes.buffer.slice(
+      bytes.byteOffset,
+      bytes.byteOffset + bytes.byteLength,
+    ),
+  };
+  return out;
 }
 
 export type PlusCheckoutKind =
