@@ -7,7 +7,6 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| In review | #137 | Tai | `feat/ask-mirror-parity` | `docs/plans/2026-07-27-005-feat-ask-mirror-parity-plan.md` | `plus-service/src/mirror/http.mjs`, `plus-service/src/store/ask*Methods.mjs`, `plus-service/src/store/memory.mjs`, `src/platform/askMirror.ts`, `src/platform/plusClient.ts`, `src/plugin/main.ts`, `src/settings/settings.ts` | U1–U8 impl · **0.6.39** · needs dogfood AE1–AE5 + Fly deploy before release |
 | Blocked | #115 | Tai | — | `docs/qa/2026-07-27-plus-public-launch-checklist.md` | Fly secrets, Resend, Stripe live | Docs+0.6.31 shipped (#117). Waiting: Fly billing card, Resend domain+2nd email, Stripe live keys/prices/webhook |
 
 ## How to claim (copy)
@@ -24,6 +23,7 @@ States: `Queued` · `In progress` · `Blocked` · `In review` · `Done` (then re
 
 | Merged | Issue / PR | Summary |
 |---|---|---|
+| 2026-07-27 | #137 / #138 | Ask mirror parity (events + delete + reconcile) · **0.6.39** — Fly deploy + dogfood before BRAT release |
 | 2026-07-27 | #131 #129 / #132 | Ask dogfood follow-ups · **0.6.36** |
 | 2026-07-27 | #127 / #128 | Ask write path create/continue · **0.6.35** |
 | 2026-07-27 | #123 / #124 | Plus stripe-first onboarding (0.6.33) |
