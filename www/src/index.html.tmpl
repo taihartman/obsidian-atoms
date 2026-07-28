@@ -596,6 +596,48 @@ Linked to <span class="wl">Energy</span> and <span class="wl">Meetings</span>.</
         </div>
       </section>
 
+      <!--
+        Backfill is BYOK-only today: runBackfillFlow() calls requireApiKey()
+        and submits to Anthropic's Batch API with the user's own key. Do NOT
+        imply Plus does this until issue #168 (one-time vault catch-up) ships.
+        When it does, this section gains a line; it does not need a rewrite.
+      -->
+      <section class="band" id="backfill">
+        <div class="wrap">
+          <p class="eyebrow">Starting out</p>
+          <h2>Bring the notes you already have</h2>
+          <p>
+            You do not have to wait a year to get there. Atoms can read every
+            past daily note in one pass and build the library out of the
+            history you already wrote.
+          </p>
+
+          <ul class="facts">
+            <li>
+              <strong>One pass, bulk rate.</strong> A catch-up runs as a batch
+              job at about half the usual cost, on a cheaper model chosen for
+              volume.
+            </li>
+            <li>
+              <strong>You see the bill first.</strong> It counts the real
+              tokens in your vault and shows you the range. Nothing is spent
+              until you confirm.
+            </li>
+            <li>
+              <strong>Safe to re-run.</strong> Anything already filed is
+              skipped, so a catch-up can be stopped and started again without
+              doing the work, or the spending, twice.
+            </li>
+          </ul>
+
+          <p class="fineprint">
+            Catch-up runs on your own Anthropic API key, which you can add in
+            Settings whether or not you are on Plus. The figure shown is an
+            estimate from public rates, not a quote.
+          </p>
+        </div>
+      </section>
+
       <!-- Trust -->
       <section class="band">
         <div class="wrap">
@@ -617,8 +659,10 @@ Linked to <span class="wl">Energy</span> and <span class="wl">Meetings</span>.</
               somewhere you have to remember.
             </li>
             <li>
-              <strong>Plain files you own.</strong> Uninstall tomorrow and every
-              note is still there, still readable.
+              <strong>Leaving is easy.</strong> Cancel Plus or uninstall the
+              plugin entirely and every atom is still there, still linked,
+              still searchable. They were always just markdown in your vault.
+              With your own key, filing keeps working for free.
             </li>
             <li>
               <strong>Not a task app.</strong> No due dates, no checklists, no

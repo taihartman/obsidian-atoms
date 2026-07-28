@@ -35,6 +35,9 @@ function flatten(html: string): string {
 const index = flatten(dist("index.html"));
 const terms = flatten(dist("terms.html"));
 
+/** Copy as a visitor sees it: no HTML comments, no note-to-self text. */
+const visible = index.replace(/<!--[\s\S]*?-->/g, " ");
+
 describe("www build output", () => {
   it("has no unsubstituted template tokens", () => {
     for (const page of ["index.html", "privacy.html", "terms.html"]) {
@@ -99,6 +102,20 @@ describe("www build output", () => {
     // Deep, not a demo star: a years-in library is mostly anonymous dots.
     const soft = index.match(/graph-node--soft/g) ?? [];
     expect(soft.length).toBeGreaterThan(60);
+  });
+
+  it("answers what happens when you stop paying", () => {
+    expect(index).toContain("Leaving is easy");
+    expect(index).toContain("Cancel Plus or uninstall the plugin");
+  });
+
+  it("scopes catch-up to BYOK until Plus supports it", () => {
+    // Backfill calls requireApiKey(); Plus catch-up is issue #168. Until it
+    // ships, the page must not imply a subscription covers a catch-up.
+    expect(index).toContain("Bring the notes you already have");
+    expect(index).toContain("runs on your own Anthropic API key");
+    expect(visible).not.toMatch(/Plus[^.<]{0,60}catch-up/i);
+    expect(visible).not.toMatch(/catch-up[^.<]{0,60}included with Plus/i);
   });
 
   it("names the three scenarios in the story nav", () => {
