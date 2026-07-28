@@ -170,9 +170,25 @@ describe("honesty floor", () => {
     expect(terms.toLowerCase()).toContain("do not carry over");
   });
 
-  it("names the free path and who you pay on it", () => {
-    expect(index).toContain("Free");
-    expect(index).toContain("You pay Anthropic directly");
+  it("names the BYOK path without calling it free", () => {
+    // BYOK costs nothing to us, but Anthropic bills for usage. Saying "free"
+    // next to an API key misleads, so the page never does.
+    expect(index).toContain("$0");
+    expect(index).toContain("to us, ever");
+    expect(index).toContain("You pay Anthropic for what you use");
+    expect(index).toContain("No subscription needed");
+  });
+
+  it("never calls the bring-your-own-key path free", () => {
+    // "free" is only allowed where it is literally true: the trial.
+    const claims = visible.match(/[^.<>]{0,70}\bfree\b[^.<>]{0,70}/gi) ?? [];
+    expect(claims.length).toBeGreaterThan(0);
+    for (const c of claims) {
+      const trialClaim = /trial/i.test(c) || /\d+ days? free/i.test(c);
+      expect(trialClaim, `"free" used outside the trial: ${c.trim()}`).toBe(
+        true,
+      );
+    }
   });
 
   it("says Atoms is an Obsidian plugin above the fold", () => {
