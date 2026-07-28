@@ -1,3 +1,4 @@
+import type { App, TFile } from "obsidian";
 import { isEmptyCaptureText } from "./parse";
 
 /**
@@ -194,4 +195,128 @@ export function unparseableInboxCaptures(
   captures: InboxCapture[],
 ): InboxCapture[] {
   return captures.filter((c) => c.unparseable && !c.filed);
+}
+
+/**
+ * Header written into a freshly created inbox note.
+ *
+ * Someone who stumbles across this file months from now should not have to
+ * guess what it is or whether editing it is safe.
+ */
+export const INBOX_NOTE_TEMPLATE = [
+  "---",
+  "atoms-inbox: true",
+  "---",
+  "",
+  "Capture inbox. Your phone shortcut appends here, and Atoms files each line",
+  "into the daily note for the day it was captured.",
+  "",
+  "Lines are marked once filed and are never deleted by Atoms.",
+  "",
+  "Do not move or rename this note — the capture shortcut points at this exact",
+  "path and stops working until you re-point it.",
+  "",
+  "",
+].join("\n");
+
+/** Minimal vault surface the bootstrap needs, kept narrow for testability. */
+interface InboxVault {
+  getAbstractFileByPath(path: string): unknown;
+  createFolder(path: string): Promise<unknown>;
+  create(path: string, data: string): Promise<TFile>;
+}
+
+function vaultOf(app: App): InboxVault {
+  return (app as unknown as { vault: InboxVault }).vault;
+}
+
+/**
+ * Ensure the inbox note exists at its canonical path, creating the folder and
+ * the note when either is missing.
+ *
+ * Runs on every load because the bookmark and note must exist on whichever
+ * device the shortcut fires from, and Obsidian only syncs settings — including
+ * bookmarks — when the user has settings sync switched on.
+ *
+ * Idempotent: an existing note is returned untouched, never rewritten.
+ */
+export async function ensureInboxNote(app: App): Promise<TFile> {
+  const vault = vaultOf(app);
+  const existing = vault.getAbstractFileByPath(INBOX_NOTE_PATH);
+  if (existing) return existing as TFile;
+
+  if (!vault.getAbstractFileByPath(ATOMS_SYSTEM_FOLDER)) {
+    try {
+      await vault.createFolder(ATOMS_SYSTEM_FOLDER);
+    } catch {
+      // A concurrent create (or a sync race) is fine — the create below is
+      // what actually has to succeed.
+    }
+  }
+  return vault.create(INBOX_NOTE_PATH, INBOX_NOTE_TEMPLATE);
+}
+
+/**
+ * Bookmarks plugin surface. Not part of Obsidian's public plugin API — there is
+ * no supported way to add a bookmark — so every access is probed and guarded.
+ * A shape change upstream must degrade to "no bookmark", never break load.
+ */
+interface BookmarksInstance {
+  items?: Array<{ type?: string; path?: string }>;
+  addItem?: (item: { type: string; path: string; title?: string }) => void;
+  saveData?: () => void;
+}
+
+function bookmarksInstance(app: App): BookmarksInstance | null {
+  try {
+    const internal = (
+      app as unknown as {
+        internalPlugins?: {
+          plugins?: Record<string, { enabled?: boolean; instance?: unknown }>;
+        };
+      }
+    ).internalPlugins;
+    const plugin = internal?.plugins?.["bookmarks"];
+    if (!plugin?.enabled) return null;
+    const instance = plugin.instance as BookmarksInstance | undefined;
+    if (!instance || typeof instance.addItem !== "function") return null;
+    return instance;
+  } catch {
+    return null;
+  }
+}
+
+export type InboxBookmarkResult = "created" | "already-present" | "unavailable";
+
+/**
+ * Ensure the inbox note is bookmarked so the iOS "Capture to Bookmark" action
+ * can target it.
+ *
+ * Returns "unavailable" rather than throwing when the Bookmarks plugin is off
+ * or its internal shape is unrecognized; the caller surfaces a one-time setup
+ * notice and the user bookmarks the note by hand. Capture still works — it just
+ * needs one manual step.
+ */
+export async function ensureInboxBookmark(
+  app: App,
+): Promise<InboxBookmarkResult> {
+  const instance = bookmarksInstance(app);
+  if (!instance) return "unavailable";
+
+  try {
+    const already = (instance.items ?? []).some(
+      (item) => item?.type === "file" && item?.path === INBOX_NOTE_PATH,
+    );
+    if (already) return "already-present";
+
+    instance.addItem!({
+      type: "file",
+      path: INBOX_NOTE_PATH,
+      title: INBOX_BOOKMARK_TITLE,
+    });
+    instance.saveData?.();
+    return "created";
+  } catch {
+    return "unavailable";
+  }
 }

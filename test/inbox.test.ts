@@ -1,6 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
+  ATOMS_SYSTEM_FOLDER,
+  ensureInboxBookmark,
+  ensureInboxNote,
   INBOX_FILED_MARKER,
+  INBOX_NOTE_PATH,
   isInboxFiledMarkerLine,
   parseInboxCaptures,
   pendingInboxCaptures,
@@ -208,5 +212,155 @@ describe("inbox capture selectors", () => {
     const bad = unparseableInboxCaptures(parseInboxCaptures(md));
     expect(bad).toHaveLength(1);
     expect(bad[0]!.text).toBe("broken");
+  });
+});
+
+function fakeApp(opts: {
+  existing?: Set<string>;
+  bookmarks?: unknown;
+} = {}) {
+  const existing = opts.existing ?? new Set<string>();
+  const created: Array<{ path: string; data: string }> = [];
+  const folders: string[] = [];
+  const app = {
+    vault: {
+      getAbstractFileByPath: (p: string) =>
+        existing.has(p) ? { path: p } : null,
+      createFolder: async (p: string) => {
+        folders.push(p);
+        existing.add(p);
+      },
+      create: async (p: string, data: string) => {
+        created.push({ path: p, data });
+        existing.add(p);
+        return { path: p };
+      },
+    },
+    internalPlugins: { plugins: { bookmarks: opts.bookmarks } },
+  };
+  return { app: app as never, created, folders };
+}
+
+describe("ensureInboxNote", () => {
+  it("creates the folder and note when neither exists", async () => {
+    const { app, created, folders } = fakeApp();
+    const file = await ensureInboxNote(app);
+
+    expect(folders).toEqual([ATOMS_SYSTEM_FOLDER]);
+    expect(created).toHaveLength(1);
+    expect(created[0]!.path).toBe(INBOX_NOTE_PATH);
+    expect((file as { path: string }).path).toBe(INBOX_NOTE_PATH);
+  });
+
+  it("writes a header that explains the file and warns against renaming", async () => {
+    const { app, created } = fakeApp();
+    await ensureInboxNote(app);
+
+    const body = created[0]!.data;
+    expect(body).toContain("atoms-inbox: true");
+    expect(body).toMatch(/do not move or rename/i);
+  });
+
+  it("leaves an existing note untouched", async () => {
+    const { app, created, folders } = fakeApp({
+      existing: new Set([ATOMS_SYSTEM_FOLDER, INBOX_NOTE_PATH]),
+    });
+    await ensureInboxNote(app);
+
+    expect(created).toHaveLength(0);
+    expect(folders).toHaveLength(0);
+  });
+
+  it("does not recreate the folder when it already exists", async () => {
+    const { app, created, folders } = fakeApp({
+      existing: new Set([ATOMS_SYSTEM_FOLDER]),
+    });
+    await ensureInboxNote(app);
+
+    expect(folders).toHaveLength(0);
+    expect(created).toHaveLength(1);
+  });
+
+  it("is a no-op on a second call", async () => {
+    const { app, created } = fakeApp();
+    await ensureInboxNote(app);
+    await ensureInboxNote(app);
+
+    expect(created).toHaveLength(1);
+  });
+
+  it("still creates the note when folder creation fails", async () => {
+    const { app, created } = fakeApp();
+    (app as unknown as { vault: { createFolder: unknown } }).vault.createFolder =
+      async () => {
+        throw new Error("already exists");
+      };
+
+    await expect(ensureInboxNote(app)).resolves.toBeTruthy();
+    expect(created).toHaveLength(1);
+  });
+});
+
+describe("ensureInboxBookmark", () => {
+  it("adds a bookmark for the canonical inbox path", async () => {
+    const addItem = vi.fn();
+    const saveData = vi.fn();
+    const { app } = fakeApp({
+      bookmarks: { enabled: true, instance: { items: [], addItem, saveData } },
+    });
+
+    await expect(ensureInboxBookmark(app)).resolves.toBe("created");
+    expect(addItem).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "file", path: INBOX_NOTE_PATH }),
+    );
+    expect(saveData).toHaveBeenCalled();
+  });
+
+  it("does not duplicate an existing bookmark", async () => {
+    const addItem = vi.fn();
+    const { app } = fakeApp({
+      bookmarks: {
+        enabled: true,
+        instance: {
+          items: [{ type: "file", path: INBOX_NOTE_PATH }],
+          addItem,
+        },
+      },
+    });
+
+    await expect(ensureInboxBookmark(app)).resolves.toBe("already-present");
+    expect(addItem).not.toHaveBeenCalled();
+  });
+
+  it("reports unavailable when the Bookmarks plugin is disabled", async () => {
+    const { app } = fakeApp({
+      bookmarks: { enabled: false, instance: { addItem: vi.fn() } },
+    });
+    await expect(ensureInboxBookmark(app)).resolves.toBe("unavailable");
+  });
+
+  it("reports unavailable when the internal shape is unrecognized", async () => {
+    const { app } = fakeApp({ bookmarks: { enabled: true, instance: {} } });
+    await expect(ensureInboxBookmark(app)).resolves.toBe("unavailable");
+  });
+
+  it("reports unavailable rather than throwing when addItem blows up", async () => {
+    const { app } = fakeApp({
+      bookmarks: {
+        enabled: true,
+        instance: {
+          items: [],
+          addItem: () => {
+            throw new Error("internal API changed");
+          },
+        },
+      },
+    });
+
+    await expect(ensureInboxBookmark(app)).resolves.toBe("unavailable");
+  });
+
+  it("reports unavailable when internalPlugins is absent entirely", async () => {
+    await expect(ensureInboxBookmark({} as never)).resolves.toBe("unavailable");
   });
 });
