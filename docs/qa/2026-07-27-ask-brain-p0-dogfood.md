@@ -17,7 +17,7 @@ OAuth e2e proves: PRM/AS metadata → authorize → magic-link → consent → t
 
 1. Deploy plus-service with `ATOMS_ASK_MIRROR_KEY` + public `PUBLIC_BASE_URL`.
 2. Seed fixtures: `PLUS_SESSION=sess_… npm run ask:seed` (or Settings Sync after P1).
-3. Claude mobile → Connectors → custom URL `https://plus.taihartman.com/mcp`.
+3. Claude mobile → Connectors → custom URL `https://plus.tryatoms.app/mcp`.
 4. Complete OAuth (same browser for magic-link).
 5. Ask a question only answerable from seeded bodies (e.g. tea preference).
 6. Expect `[[title]]` citations + body quotes.

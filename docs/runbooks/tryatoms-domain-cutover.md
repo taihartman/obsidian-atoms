@@ -61,4 +61,4 @@ curl -sS -X POST https://plus.tryatoms.app/v1/auth/magic-link \
   -d '{"email":"SECOND@inbox.com"}'
 ```
 
-Legacy `plus.taihartman.com` can stay until cutover proven, then drop cert optional.
+Legacy: remove `plus.taihartman.com` Fly cert when unused. **Mail:** only `mail.tryatoms.app` on Resend (taihartman mail domain deleted 2026-07-28).
