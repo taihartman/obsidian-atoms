@@ -7,7 +7,6 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| In progress | #174 | taihartman | fix/community-review-lint-2 | light lane (lint) | `src/settings/settings.ts`, `src/shared/plusPricing.ts`, `src/platform/plusClient.ts`, `src/pipeline/classify.ts`, `src/home/atomsHomeView.ts`, `styles.css` | Community review lint — styles/confirm/types; defer getSettingDefinitions + intentional fetch |
 
 ## How to claim (copy)
 
@@ -23,6 +22,7 @@ States: `Queued` · `In progress` · `Blocked` · `In review` · `Done` (then re
 
 | Merged | Issue / PR | Summary |
 |---|---|---|
+| 2026-07-28 | #174 / #175 | Community review lint (styles, confirm, types) · **0.6.47** |
 | 2026-07-28 | #172 / #173 | Ask mirror hub sync triggers + MCP `synced_at` · **0.6.46** |
 | 2026-07-28 | #169 / #170 | CI-built releases + artifact attestations · **0.6.45** |
 | 2026-07-28 | #163 / #164 | Plus auth criticals (soft-start fixation, idempotency tenant scope, exchange XSS, body cap) — Fly already deployed |
