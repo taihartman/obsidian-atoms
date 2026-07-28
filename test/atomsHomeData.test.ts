@@ -14,6 +14,7 @@ import {
   filingPathFromAuth,
   filterLinkedOnly,
   formatRelativeTime,
+  inboxStuckSummary,
   isAutomaticFilingReady,
   isGeneratedAtomContent,
   isDayOnlyCreated,
@@ -28,6 +29,7 @@ import {
   updateNotesConfirmCopy,
   updateNotesStripCopy,
 } from "../src/home/atomsHomeData";
+import { inboxCounts } from "../src/pipeline/inbox";
 
 const atomMd = (opts: {
   title?: string;
@@ -494,5 +496,69 @@ describe("updateNotesConfirmCopy", () => {
   it("refile mentions key", () => {
     const t = updateNotesConfirmCopy({ refileBatch: 15, polishable: 0 });
     expect(t).toMatch(/Anthropic/i);
+  });
+});
+
+describe("inbox stuck-drain indicator", () => {
+  // Fixed clock so future-dated captures classify deterministically.
+  const now = new Date(2026, 6, 28, 12, 0, 0); // 2026-07-28 local
+
+  it("surfaces nothing when the inbox is clear", () => {
+    const filed = "- 2026-07-20T09:14-04:00 already gone\n\t<!--atoms:filed-->\n";
+    expect(inboxCounts(filed, now)).toEqual({
+      pending: 0,
+      held: 0,
+      unparseable: 0,
+    });
+    expect(inboxStuckSummary(inboxCounts("", now))).toBeNull();
+    expect(inboxStuckSummary(inboxCounts(filed, now))).toBeNull();
+  });
+
+  it("shows a pending count when captures only wait to file", () => {
+    const counts = inboxCounts("- 2026-07-20T09:14-04:00 buy milk\n", now);
+    expect(counts).toEqual({ pending: 1, held: 0, unparseable: 0 });
+    const s = inboxStuckSummary(counts);
+    expect(s?.text).toBe("1 waiting to file");
+    expect(s?.needsRepair).toBe(false);
+  });
+
+  it("names unparseable captures distinctly, flagged for repair", () => {
+    const content = ["- no stamp here", "- 2026-07-20T09:14-04:00 buy milk", ""].join(
+      "\n",
+    );
+    const counts = inboxCounts(content, now);
+    expect(counts).toEqual({ pending: 1, held: 0, unparseable: 1 });
+    const s = inboxStuckSummary(counts);
+    expect(s?.needsRepair).toBe(true);
+    expect(s?.text).toContain("needs a fix");
+    // Distinct from the pending wording, and ahead of it.
+    expect(s?.text).toBe("1 capture needs a fix · 1 waiting to file");
+  });
+
+  it("names future-dated held captures distinctly from unparseable", () => {
+    const content = ["- no stamp here", "- 2026-08-01T08:00-04:00 next month", ""].join(
+      "\n",
+    );
+    const counts = inboxCounts(content, now);
+    expect(counts).toEqual({ pending: 0, held: 1, unparseable: 1 });
+    const s = inboxStuckSummary(counts);
+    expect(s?.text).toBe("1 capture needs a fix · 1 held for a future day");
+    expect(s?.text).not.toContain("waiting to file");
+  });
+
+  it("clears the indicator once a pending capture is filed", () => {
+    const before = "- 2026-07-20T09:14-04:00 buy milk\n";
+    expect(inboxStuckSummary(inboxCounts(before, now))?.text).toBe(
+      "1 waiting to file",
+    );
+    // The drain appends a filed marker; the count recomputes to zero from
+    // content alone, no cache to invalidate.
+    const after = "- 2026-07-20T09:14-04:00 buy milk\n\t<!--atoms:filed-->\n";
+    expect(inboxCounts(after, now)).toEqual({
+      pending: 0,
+      held: 0,
+      unparseable: 0,
+    });
+    expect(inboxStuckSummary(inboxCounts(after, now))).toBeNull();
   });
 });

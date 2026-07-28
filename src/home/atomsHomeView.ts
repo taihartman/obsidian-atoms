@@ -18,6 +18,7 @@ import {
   filingPathFromAuth,
   filterLinkedOnly,
   formatRelativeTime,
+  inboxStuckSummary,
   isAutomaticFilingReady,
   isDayOnlyCreated,
   isGeneratedAtomContent,
@@ -30,6 +31,7 @@ import {
   updateNotesStripCopy,
   type AtomLibraryEntry,
   type FilingHeroCopy,
+  type InboxStuckSummary,
 } from "./atomsHomeData";
 import { buildOrbits } from "../pipeline/entityOrbitIndex";
 import {
@@ -130,6 +132,7 @@ import {
   getPastDailyNotesWithUnmarkedCaptures,
   openTodaysDaily,
 } from "../pipeline/daily";
+import { INBOX_NOTE_PATH, inboxCounts } from "../pipeline/inbox";
 import {
   appHasDailyNotesPluginLoaded,
   getAllDailyNotes,
@@ -180,6 +183,8 @@ export class AtomsHomeView extends ItemView {
   private filter: FilterMode = "all";
   private entries: AtomLibraryEntry[] = [];
   private unprocessedCount = 0;
+  /** Captures stuck in the capture inbox (drain health), null when clear. */
+  private inboxStuck: InboxStuckSummary | null = null;
   /** Update work remaining: refile debt + polishable (for strip). */
   private eligibleUpdateCount = 0;
   private updateRefileCount = 0;
@@ -618,6 +623,8 @@ export class AtomsHomeView extends ItemView {
 
     this.shortcutAcked = readShortcutAck((k) => this.app.loadLocalStorage(k));
 
+    this.inboxStuck = await this.loadInboxStuck();
+
     try {
       const past = await getPastDailyNotesWithUnmarkedCaptures(this.app);
       this.unprocessedCount = past.totalUnprocessed;
@@ -642,6 +649,17 @@ export class AtomsHomeView extends ItemView {
         throw e;
       }
     }
+  }
+
+  /**
+   * Read the inbox note fresh and classify what is stuck. A missing note (no
+   * captures ever made) is silent, matching inboxCounts on empty content.
+   */
+  private async loadInboxStuck(): Promise<InboxStuckSummary | null> {
+    const file = this.app.vault.getAbstractFileByPath(INBOX_NOTE_PATH);
+    if (!(file instanceof TFile)) return null;
+    const content = await this.app.vault.cachedRead(file);
+    return inboxStuckSummary(inboxCounts(content, new Date()));
   }
 
   private visibleEntries(): AtomLibraryEntry[] {
@@ -1828,6 +1846,21 @@ export class AtomsHomeView extends ItemView {
           row.createEl("em", { text: p.date });
         }
       }
+    }
+
+    // Drain health: a capture the drain could not route stays invisible until
+    // someone opens the inbox note — surface it here instead. Silent when clear.
+    if (this.inboxStuck && this.runPhase === "idle" && !this.landPeak) {
+      const stuck = flatCard(scroll, {
+        className:
+          "atoms-home-inbox-stuck" +
+          (this.inboxStuck.needsRepair ? " is-repair" : ""),
+      });
+      stuck.createEl("p", {
+        cls: "atoms-home-card-eyebrow",
+        text: "Inbox",
+      });
+      stuck.createEl("p", { text: this.inboxStuck.text });
     }
 
     // One hero: Ready when pending; person invite > packing Make > Together / resurface
