@@ -1,0 +1,245 @@
+- generic [active] [ref=f6e1]:
+  - main [ref=f6e2]:
+    - generic [ref=f6e4]:
+      - paragraph [ref=f6e5]: Atoms · An Obsidian plugin
+      - heading "You wrote it down. You never found it again." [level=1] [ref=f6e6]: You wrote it down.You never found it again.
+      - paragraph [ref=f6e7]: Atoms turns the notes you already take into something you can ask.
+      - generic "Choose an example story" [ref=f6e8]:
+        - button "Previous story" [ref=f6e9] [cursor=pointer]: ‹
+        - generic [ref=f6e10]:
+          - button "Relationships" [pressed] [ref=f6e11] [cursor=pointer]
+          - button "Work" [ref=f6e12] [cursor=pointer]
+          - button "Journaling" [ref=f6e13] [cursor=pointer]
+        - button "Next story" [ref=f6e14] [cursor=pointer]: ›
+      - img "A Claude chat answering a question from your own notes" [ref=f6e17]:
+        - generic [ref=f6e18]:
+          - generic [ref=f6e19]: ✱
+          - text: Claude
+        - generic [ref=f6e20]:
+          - paragraph [ref=f6e21]: gift ideas for Sam?
+          - paragraph [ref=f6e22]: ⌕ searched your atoms · followed links from Sam
+          - generic [ref=f6e23]:
+            - text: "From March, in your own words:"
+            - blockquote [ref=f6e24]: sam stopped at the tulip stand again, she loves the yellow ones
+            - text: Yellow tulips would be an easy win.
+          - paragraph [ref=f6e25]: ↳ Sam loves yellow tulips · March 12
+      - generic [ref=f6e26]:
+        - link "Get Atoms" [ref=f6e27] [cursor=pointer]:
+          - /url: "#install"
+        - link "See How It Works" [ref=f6e28] [cursor=pointer]:
+          - /url: "#how"
+      - paragraph [ref=f6e29]: Free with your own Anthropic key.
+    - generic [ref=f6e31]:
+      - paragraph [ref=f6e32]: A note you cannot find again is a note you did not take.
+      - paragraph [ref=f6e33]: "Atoms is the whole loop: a thought goes in, in five seconds, and comes back the moment it matters."
+    - generic [ref=f6e35]:
+      - paragraph [ref=f6e36]: How it works
+      - heading "You only do the first step." [level=2] [ref=f6e37]
+      - list [ref=f6e38]:
+        - listitem [ref=f6e39]:
+          - generic [ref=f6e40]: ↳
+          - generic [ref=f6e41]:
+            - heading "Catch it in five seconds" [level=3] [ref=f6e42]
+            - paragraph [ref=f6e43]: Atoms installs a shortcut on your iPhone. Run it from your home screen, the share sheet, or Siri, and say the thought out loud instead of typing it. It lands in today's daily note before you have put your phone down.
+            - paragraph [ref=f6e44]: On a desktop, type a line. Either way, nothing new to learn and nowhere new to put it.
+        - listitem [ref=f6e45]:
+          - generic [ref=f6e46]: ↳
+          - generic [ref=f6e47]:
+            - heading "Come back and it is sorted" [level=3] [ref=f6e48]
+            - paragraph [ref=f6e49]: Yesterday's captures become notes with a real title and links to what they relate to. Let it happen on its own each time you open Obsidian, or keep it to one tap.
+        - listitem [ref=f6e50]:
+          - generic [ref=f6e51]: ↳
+          - generic [ref=f6e52]:
+            - heading "Now you can find it" [level=3] [ref=f6e53]
+            - paragraph [ref=f6e54]: Ask for it, or let it come back to you. Both are below.
+      - generic [ref=f6e56]:
+        - paragraph [ref=f6e57]: Your daily note
+        - generic [ref=f6e58]: "- sam stopped at the tulip stand again, she loves the yellow ones - pick up milk"
+        - paragraph [ref=f6e60]: What Atoms makes
+        - generic [ref=f6e61]:
+          - generic [ref=f6e62]: Sam loves yellow tulips
+          - generic [ref=f6e63]: sam stopped at the tulip stand again, she loves the yellow ones Linked to Sam and Gift ideas.
+        - paragraph [ref=f6e64]: Your original line is never touched, and the text is copied across word for word. The milk? It becomes nothing. Atoms is not a reminders app, so errands stay in your daily note and out of your library.
+    - generic [ref=f6e66]:
+      - paragraph [ref=f6e67]: When you go looking
+      - heading "Ask from Claude or ChatGPT" [level=2] [ref=f6e68]
+      - paragraph [ref=f6e69]: Atoms plugs into the chat window you already have open, so your own notes become something you can question.
+      - list [ref=f6e70]:
+        - listitem [ref=f6e71]:
+          - text: ↳
+          - strong [ref=f6e72]: It reads the library, not the pile.
+          - text: Every note it looks at already has a real title, tags, and links. That is why the answers are any good. Pointing a chatbot at raw daily pages does not work.
+        - listitem [ref=f6e73]:
+          - text: ↳
+          - strong [ref=f6e74]: Ask for it.
+          - text: It finds your notes by title, tags, and text, then quotes them back with a link to the original.
+        - listitem [ref=f6e75]:
+          - text: ↳
+          - strong [ref=f6e76]: Follow the thread.
+          - text: Your notes form a graph, and it walks the links. The gift question finds the tulip note because both point at Sam.
+        - text: ↳ ↳
+        - listitem [ref=f6e77]:
+          - text: ↳
+          - strong [ref=f6e78]: Add without leaving chat.
+          - text: Tell it to remember something and it queues a new note for your vault. It lands next time Obsidian is open.
+        - listitem [ref=f6e79]:
+          - text: ↳
+          - strong [ref=f6e80]: Change your mind safely.
+          - text: A revision becomes a new note linked to the old one. It never overwrites you.
+      - generic [ref=f6e81]:
+        - img "Telling Claude to note something, which queues a note for your vault" [ref=f6e82]:
+          - generic [ref=f6e83]:
+            - generic [ref=f6e84]: ✱
+            - text: Claude
+          - generic [ref=f6e85]:
+            - paragraph [ref=f6e86]: "note this: sam lingered in the poetry section at the bookshop on 9th"
+            - paragraph [ref=f6e87]: + created atom · pending
+            - generic [ref=f6e88]: Queued for your vault. It lands next time Obsidian is open.
+            - paragraph [ref=f6e89]: ↳ Sam lingered in the poetry section
+        - paragraph [ref=f6e90]: And the next time you ask for gift ideas, it knows about the poetry section too.
+      - paragraph [ref=f6e91]: "Matching is on the words you actually wrote, not a semantic model. Your daily notes and the rest of your vault are never sent, only the notes Atoms filed. Connector URL for Plus: https://plus.tryatoms.app/mcp"
+    - generic [ref=f6e93]:
+      - paragraph [ref=f6e94]: When you are not looking
+      - heading "Sometimes it finds you" [level=2] [ref=f6e95]
+      - paragraph [ref=f6e96]: Open Atoms and it may hand you one thing you had forgotten.
+      - list [ref=f6e97]:
+        - listitem [ref=f6e98]:
+          - text: ↳
+          - strong [ref=f6e99]: Mind change.
+          - text: Two notes where you came to disagree with yourself, side by side, with the dates.
+        - listitem [ref=f6e100]:
+          - text: ↳
+          - strong [ref=f6e101]: Also about Sam.
+          - text: Write something new about someone and an older note about them comes back.
+        - text: ↳ ↳
+        - listitem [ref=f6e102]:
+          - text: ↳
+          - strong [ref=f6e103]: On this day.
+          - text: Something you wrote on this date a year ago.
+        - listitem [ref=f6e104]:
+          - text: ↳
+          - strong [ref=f6e105]: One card, then done.
+          - text: Tap to open it, or ask for another. The same memory will not return for a week.
+      - img "An Atoms mind-change card showing two of your claims with dates" [ref=f6e106]:
+        - paragraph [ref=f6e107]: Mind change
+        - paragraph [ref=f6e108]: “i do my best thinking after midnight”
+        - paragraph [ref=f6e109]: March 4
+        - paragraph [ref=f6e110]: later contradicted
+        - paragraph [ref=f6e111]: “my brain is only honest before nine”
+        - paragraph [ref=f6e112]: July 21 · 139 days later
+        - generic [ref=f6e113]:
+          - generic [ref=f6e114] [cursor=pointer]: Open
+          - generic [ref=f6e115] [cursor=pointer]: Not a mind-change
+      - paragraph [ref=f6e116]: It is the second brain that shows you when you changed your mind.
+      - paragraph [ref=f6e117]: Only while you have Atoms open. No notifications, no reminders, no review queue, and nothing is ever due. If you do not open Atoms, nothing happens.
+    - generic [ref=f6e119]:
+      - generic [ref=f6e120]:
+        - paragraph [ref=f6e121]: People
+        - heading "It notices who matters" [level=2] [ref=f6e122]
+      - generic [ref=f6e123]:
+        - paragraph [ref=f6e124]: Write about Sam a few times and Atoms offers to make a page where everything about Sam lives. One tap, and every note that mentioned Sam gets linked to it, including the ones from months ago. Say no and it stays quiet for two weeks.
+        - img "An Atoms invite card offering to create a page for Sam" [ref=f6e125]:
+          - paragraph [ref=f6e126]: People
+          - heading "Add Sam?" [level=4] [ref=f6e127]
+          - paragraph [ref=f6e128]: Sam shows up in 4 of your notes.
+          - generic [ref=f6e129]:
+            - generic [ref=f6e130] [cursor=pointer]: Add
+            - generic [ref=f6e131] [cursor=pointer]: Not now
+    - generic [ref=f6e133]:
+      - paragraph [ref=f6e134]: What stays true
+      - list [ref=f6e135]:
+        - listitem [ref=f6e136]:
+          - text: ↳
+          - strong [ref=f6e137]: See it before it writes.
+          - text: Preview shows the exact notes, links, and markers Process would create. Nothing touches your vault until you say so.
+        - listitem [ref=f6e138]:
+          - text: ↳
+          - strong [ref=f6e139]: Your words, unchanged.
+          - text: Only the title, tags, and links are written for you. A half-formed hunch stays half-formed instead of becoming confident-sounding prose.
+        - listitem [ref=f6e140]:
+          - text: ↳
+          - strong [ref=f6e141]: Links, not folders.
+          - text: Nothing gets filed away somewhere you have to remember.
+        - listitem [ref=f6e142]:
+          - text: ↳
+          - strong [ref=f6e143]: Plain files you own.
+          - text: Uninstall tomorrow and every note is still there, still readable.
+        - listitem [ref=f6e144]:
+          - text: ↳
+          - strong [ref=f6e145]: Not a task app.
+          - text: No due dates, no checklists, no backlog filling up behind you.
+    - generic [ref=f6e147]:
+      - paragraph [ref=f6e148]: Pricing
+      - heading "$6 a month, or free with your own key." [level=2] [ref=f6e149]
+      - generic [ref=f6e150]:
+        - generic [ref=f6e151]:
+          - heading "Atoms Plus" [level=3] [ref=f6e152]
+          - paragraph [ref=f6e153]:
+            - generic [ref=f6e154]: $6
+            - generic [ref=f6e155]: per month
+          - paragraph [ref=f6e156]: $60 per year · save two months
+          - paragraph [ref=f6e157]: No API key to set up, on any device. Asking from Claude and ChatGPT is included. 14 day free trial.
+        - generic [ref=f6e158]:
+          - heading "Your Own Key" [level=3] [ref=f6e159]
+          - paragraph [ref=f6e160]:
+            - generic [ref=f6e161]: Free
+            - generic [ref=f6e162]: forever
+          - paragraph [ref=f6e163]: You pay Anthropic directly for usage.
+          - paragraph [ref=f6e164]: Add your Anthropic API key in Settings and Atoms works. Asking from chat is hosted, so it is Plus, or self host it yourself.
+      - paragraph [ref=f6e165]: Plus includes 150 notes filed each month. Unused ones do not roll over. Extra filings are $2 for 50, one time. 14 days free, then $6/month. Cancel anytime. Card required for trial. You cancel from Settings inside the plugin. Prices in USD.
+    - generic [ref=f6e167]:
+      - paragraph [ref=f6e168]: Install
+      - heading "Get Atoms" [level=2] [ref=f6e169]
+      - paragraph [ref=f6e170]: Atoms is not in the plugin directory yet, so it goes through BRAT.
+      - list [ref=f6e171]:
+        - listitem [ref=f6e172]:
+          - text: Install
+          - link "BRAT" [ref=f6e173] [cursor=pointer]:
+            - /url: https://obsidian.md/plugins?id=obsidian42-brat
+          - text: from Obsidian's community plugins.
+        - listitem [ref=f6e174]: Add the beta plugin taihartman/obsidian-atoms.
+        - listitem [ref=f6e175]:
+          - text: Enable
+          - strong [ref=f6e176]: Atoms
+          - text: .
+        - listitem [ref=f6e177]:
+          - text: Open
+          - strong [ref=f6e178]: Settings → Atoms
+          - text: and add your key, or start a trial.
+      - paragraph [ref=f6e179]:
+        - text: Rather read the code first? It is all on
+        - link "GitHub" [ref=f6e180] [cursor=pointer]:
+          - /url: https://github.com/taihartman/obsidian-atoms
+        - text: .
+    - generic [ref=f6e182]:
+      - paragraph [ref=f6e183]: Privacy
+      - heading "Where your notes go" [level=2] [ref=f6e184]
+      - list [ref=f6e185]:
+        - listitem [ref=f6e186]:
+          - text: ↳
+          - strong [ref=f6e187]: Processing sends capture text to Anthropic.
+          - text: That is how the sorting works. On Plus it goes under our account, on your own key it goes under yours.
+        - listitem [ref=f6e188]:
+          - text: ↳
+          - strong [ref=f6e189]: We do not train on your notes.
+        - listitem [ref=f6e190]:
+          - text: ↳
+          - strong [ref=f6e191]: Asking from chat is opt in.
+          - text: Nothing leaves your vault until you turn it on, and then only your atoms folder. It goes one direction only, and never writes back over a note.
+      - paragraph [ref=f6e192]:
+        - text: The whole story is on the
+        - link "Privacy" [ref=f6e193] [cursor=pointer]:
+          - /url: /privacy
+        - text: page.
+  - contentinfo [ref=f6e194]:
+    - generic [ref=f6e195]:
+      - navigation [ref=f6e196]:
+        - link "Privacy" [ref=f6e197] [cursor=pointer]:
+          - /url: /privacy
+        - link "Terms" [ref=f6e198] [cursor=pointer]:
+          - /url: /terms
+        - link "GitHub" [ref=f6e199] [cursor=pointer]:
+          - /url: https://github.com/taihartman/obsidian-atoms
+        - link "Support" [ref=f6e200] [cursor=pointer]:
+          - /url: https://github.com/taihartman/obsidian-atoms/issues
+      - paragraph [ref=f6e201]: Atoms is an independent Obsidian plugin. Obsidian is a trademark of Dynalist Inc., which is not affiliated with this project.

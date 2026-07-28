@@ -330,13 +330,129 @@ p {
   color: var(--tint-ink);
 }
 
-/* The answer lands a beat after the question. */
+/* The answer lands a beat after the question (Ask-section windows). */
 @media (prefers-reduced-motion: no-preference) {
   .claude-tool,
   .claude-ans,
   .claude-cite {
     animation: rise 460ms cubic-bezier(0.22, 0.68, 0.36, 1) both;
     animation-delay: 300ms;
+  }
+}
+
+/*
+ * Hero stage. The three story panels share one grid cell; the active one is
+ * chosen by <main data-story>. For everyone, inactive panels are hidden.
+ * With motion allowed, a switch cross-fades the windows and then replays
+ * the conversation: question, search chip, answer, citation, in sequence.
+ */
+.hero-stories {
+  display: grid;
+  margin: 30px 0 26px;
+}
+
+.hero-panel {
+  grid-area: 1 / 1;
+  visibility: hidden;
+}
+
+main[data-story="rel"] .hero-panel[data-s="rel"],
+main[data-story="work"] .hero-panel[data-s="work"],
+main[data-story="self"] .hero-panel[data-s="self"] {
+  visibility: visible;
+}
+
+.hero-panel .claude {
+  margin: 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .hero-panel {
+    opacity: 0;
+    transform: translateX(26px) scale(0.985);
+    transition:
+      opacity 340ms ease,
+      transform 520ms cubic-bezier(0.32, 0.72, 0, 1),
+      visibility 0s linear 340ms;
+    pointer-events: none;
+  }
+
+  main[data-story="rel"] .hero-panel[data-s="rel"],
+  main[data-story="work"] .hero-panel[data-s="work"],
+  main[data-story="self"] .hero-panel[data-s="self"] {
+    opacity: 1;
+    transform: none;
+    transition-delay: 60ms, 60ms, 0s;
+    pointer-events: auto;
+  }
+
+  /*
+   * The cascade. `cascade` is a distinct animation-name from `rise` on
+   * purpose: when a panel becomes active this rule newly applies, the
+   * name changes, and the animation restarts, replaying the exchange.
+   */
+  .hero-panel .claude-you,
+  .hero-panel .claude-tool,
+  .hero-panel .claude-ans,
+  .hero-panel .claude-cite {
+    animation: none;
+    opacity: 0;
+  }
+
+  :is(
+      main[data-story="rel"] .hero-panel[data-s="rel"],
+      main[data-story="work"] .hero-panel[data-s="work"],
+      main[data-story="self"] .hero-panel[data-s="self"]
+    )
+    :is(.claude-you, .claude-tool, .claude-ans, .claude-cite) {
+    animation: cascade 480ms cubic-bezier(0.22, 0.68, 0.36, 1) both;
+  }
+
+  :is(
+      main[data-story="rel"] .hero-panel[data-s="rel"],
+      main[data-story="work"] .hero-panel[data-s="work"],
+      main[data-story="self"] .hero-panel[data-s="self"]
+    )
+    .claude-you {
+    animation-delay: 140ms;
+  }
+
+  :is(
+      main[data-story="rel"] .hero-panel[data-s="rel"],
+      main[data-story="work"] .hero-panel[data-s="work"],
+      main[data-story="self"] .hero-panel[data-s="self"]
+    )
+    .claude-tool {
+    animation-delay: 420ms;
+  }
+
+  :is(
+      main[data-story="rel"] .hero-panel[data-s="rel"],
+      main[data-story="work"] .hero-panel[data-s="work"],
+      main[data-story="self"] .hero-panel[data-s="self"]
+    )
+    .claude-ans {
+    animation-delay: 700ms;
+  }
+
+  :is(
+      main[data-story="rel"] .hero-panel[data-s="rel"],
+      main[data-story="work"] .hero-panel[data-s="work"],
+      main[data-story="self"] .hero-panel[data-s="self"]
+    )
+    .claude-cite {
+    animation-delay: 980ms;
+  }
+}
+
+@keyframes cascade {
+  from {
+    opacity: 0;
+    transform: translateY(9px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
   }
 }
 
@@ -475,6 +591,17 @@ main[data-story="self"] .s-people {
   font-size: 1.25rem;
   line-height: 1;
   cursor: pointer;
+  transition: color 160ms ease, background 160ms ease;
+}
+
+.story-arrow:hover {
+  color: var(--label);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .story-arrow:active {
+    transform: scale(0.9);
+  }
 }
 
 .story-labels {
@@ -495,6 +622,7 @@ main[data-story="self"] .s-people {
   font-weight: 600;
   color: var(--muted);
   cursor: pointer;
+  transition: color 220ms ease, background 260ms ease, box-shadow 260ms ease;
 }
 
 .story-labels button.is-active {
