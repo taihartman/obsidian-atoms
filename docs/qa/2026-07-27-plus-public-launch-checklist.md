@@ -1,9 +1,10 @@
 # Atoms Plus — public launch checklist + go/no-go
 
-**Date:** 2026-07-27  
+**Date:** 2026-07-27 (domain cutover 2026-07-28)
+> **2026-07-28 cutover:** product domain `tryatoms.app` — host `plus.tryatoms.app`, mail `plus@mail.tryatoms.app`. Keep `plus.taihartman.com` as legacy until DNS/cert green.  
 **Issue:** #115  
-**Host:** https://plus.taihartman.com (Fly app `atoms-plus`)  
-**Plugin default (empty URL):** `https://plus.taihartman.com`  
+**Host:** https://plus.tryatoms.app (Fly app `atoms-plus`)  
+**Plugin default (empty URL):** `https://plus.tryatoms.app`  
 **Pricing SSOT:** `plus-pricing.json` ($6/mo · $60/yr · $2 top-up · 150 filings · 14-day trial)
 
 ---
@@ -12,9 +13,9 @@
 
 | Gate | Status | Evidence |
 |------|--------|----------|
-| API health | ✅ | `curl https://plus.taihartman.com/health` → `{"ok":true,"service":"atoms-plus"}` |
-| Prod boot (Postgres, no dogfood) | ✅ | Fly logs: `env=production dogfoodAutoGrant=false stripe=true anthropic=true` · `publicBase=https://plus.taihartman.com` |
-| DNS | ✅ | `plus.taihartman.com` → CNAME `atoms-plus.fly.dev` |
+| API health | ✅ | `curl https://plus.tryatoms.app/health` → `{"ok":true,"service":"atoms-plus"}` |
+| Prod boot (Postgres, no dogfood) | ✅ | Fly logs: `env=production dogfoodAutoGrant=false stripe=true anthropic=true` · `publicBase=https://plus.tryatoms.app` |
+| DNS | ✅ | `plus.tryatoms.app` → CNAME `atoms-plus.fly.dev` |
 | Plugin code on master | ✅ | PR #92 merged; `DEFAULT_PLUS_BASE_URL` = taihartman host |
 | BRAT / GitHub Release ships Plus | ❌ → fix with **0.6.31** | Release **0.6.30** tag = pre-#92 (person-hub only); `main.js` has **no** Plus default host |
 | Resend → non-owner email | ❌ | `ATOMS_PLUS_EMAIL_FROM` = `Atoms Plus <onboarding@resend.dev>` (test-from; owner-only) |
@@ -40,11 +41,11 @@ Do in order. Do **not** paste secrets into chat/PRs.
 
 1. Open https://fly.io/dashboard/personal/billing  
 2. Add payment method so trial limits cannot stop `atoms-plus`  
-3. Confirm app still healthy: `curl -sS https://plus.taihartman.com/health`
+3. Confirm app still healthy: `curl -sS https://plus.tryatoms.app/health`
 
 ### 2. Resend — custom domain
 
-1. Resend dashboard → Domains → add e.g. `taihartman.com` (or a subdomain you control)  
+1. Resend dashboard → Domains → add e.g. `tryatoms.app` (or a subdomain you control)  
 2. Add DNS records Resend shows (SPF/DKIM)  
 3. Wait until domain **Verified**  
 4. Create a **full** API key (send + domain read if you want CLI checks) — current Fly key is **send-only restricted**  
@@ -52,14 +53,14 @@ Do in order. Do **not** paste secrets into chat/PRs.
 
 ```bash
 fly secrets set -a atoms-plus \
-  ATOMS_PLUS_EMAIL_FROM='Atoms Plus <plus@taihartman.com>' \
+  ATOMS_PLUS_EMAIL_FROM='Atoms Plus <plus@mail.tryatoms.app>' \
   RESEND_API_KEY='re_…'
 ```
 
 6. **Prove second email:**
 
 ```bash
-curl -sS -X POST https://plus.taihartman.com/v1/auth/magic-link \
+curl -sS -X POST https://plus.tryatoms.app/v1/auth/magic-link \
   -H 'content-type: application/json' \
   -d '{"email":"SECOND_INBOX@example.com"}'
 ```
@@ -87,7 +88,7 @@ Test-mode reference prices (already exist; do not use on live Fly):
 **Live webhook** (none exist yet):
 
 ```text
-URL: https://plus.taihartman.com/v1/billing/webhook
+URL: https://plus.tryatoms.app/v1/billing/webhook
 Events:
   checkout.session.completed
   invoice.paid
@@ -118,7 +119,7 @@ After **0.6.31** is on GitHub Releases (this PR):
 
 1. Desktop: BRAT → `taihartman/obsidian-atoms` → Check for updates  
 2. **Settings → Atoms → Version 0.6.31**  
-3. Plus URL empty → uses `https://plus.taihartman.com`  
+3. Plus URL empty → uses `https://plus.tryatoms.app`  
 4. Phone: Sync after desktop BRAT update (or BRAT on mobile if used)
 
 ### 5. Process smoke (test_vault only)
@@ -131,7 +132,7 @@ Agents/humans: **not** Remote Vault.
 4. Refresh Plus status → remaining decremented  
 
 ```bash
-curl -sS https://plus.taihartman.com/health
+curl -sS https://plus.tryatoms.app/health
 ```
 
 ---
@@ -142,8 +143,8 @@ curl -sS https://plus.taihartman.com/health
 fly secrets: RESEND, STRIPE_*, DATABASE_URL, ANTHROPIC, PUBLIC_BASE_URL, ATOMS_PLUS_* present
 STRIPE_SECRET_KEY prefix on machine: sk_test_
 ATOMS_PLUS_EMAIL_FROM: Atoms Plus <onboarding@resend.dev>
-PUBLIC_BASE_URL: https://plus.taihartman.com
-stripe webhook (test): https://plus.taihartman.com/v1/billing/webhook  enabled
+PUBLIC_BASE_URL: https://plus.tryatoms.app
+stripe webhook (test): https://plus.tryatoms.app/v1/billing/webhook  enabled
 stripe webhook (live): (none)
 Release 0.6.30 tag commit: 9b3ac23 (person hub) — Plus merge a88a21d is AFTER tag
 ```
