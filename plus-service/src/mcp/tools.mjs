@@ -6,13 +6,14 @@ import { checkRateLimit } from "../ratelimit.mjs";
 import {
   validateOutboxPayload,
   OUTBOX_RELATIONS,
-  relationFromReason,
+  absenceMeta,
+  shapeFetchAtom,
 } from "../store/askHelpers.mjs";
 
 const EMPTY_HINT =
   "mirror empty—sync from Obsidian (Settings → Atoms → Ask → Sync now)";
 const MISSING_HINT =
-  "no note with that title/path in the mirror";
+  "no note with that title/path in the mirror (not the whole vault—see mirror_scope)";
 const HUB_NOT_SYNCED_HINT =
   "This name has backlinks from atoms but the hub note is not in the mirror yet. Open Obsidian with Ask on and Sync now (hubs linked from Atoms/ are included). Do not create a duplicate hub.";
 const PENDING_HINT =
@@ -40,7 +41,7 @@ export function registerAskTools(mcp, ctx) {
     "search_atoms",
     {
       description:
-        "Search mirrored atoms by title, tags, and body. Higher score = better match. Optional tags filter (all must match).",
+        "Search mirrored atoms by title, tags, and body. Higher score = better match. Optional tags filter (all must match). Snippets are truncated and non-authoritative—use fetch_atom before claiming what a note contains. Results include status (live|superseded|contradicted).",
       inputSchema: {
         query: z.string().describe("Search query"),
         limit: z.number().int().min(1).max(25).optional(),
@@ -48,13 +49,21 @@ export function registerAskTools(mcp, ctx) {
           .array(z.string())
           .optional()
           .describe("Only atoms that have all of these tags"),
+        snippets: z
+          .boolean()
+          .optional()
+          .describe(
+            "If false, omit snippet fields (forces fetch_atom for content questions). Default true.",
+          ),
       },
     },
-    async ({ query, limit, tags }) => {
+    async ({ query, limit, tags, snippets }) => {
       const st = await store.mirrorStatus(email);
       const hits = await store.mirrorSearch(email, query, limit ?? 8, {
         tags,
+        snippets,
       });
+      const scope = absenceMeta();
       if (!hits.length) {
         return {
           content: [
@@ -63,7 +72,8 @@ export function registerAskTools(mcp, ctx) {
               text: JSON.stringify({
                 results: [],
                 mirror_count: st.count,
-                hint: st.count === 0 ? EMPTY_HINT : "no matches for this query",
+                ...scope,
+                hint: st.count === 0 ? EMPTY_HINT : "no matches for this query in mirror_scope",
               }),
             },
           ],
@@ -79,6 +89,7 @@ export function registerAskTools(mcp, ctx) {
                 mirror_count: st.count,
                 returned: hits.length,
                 limit: limit ?? 8,
+                ...scope,
               },
               null,
               2,
@@ -93,7 +104,7 @@ export function registerAskTools(mcp, ctx) {
     "fetch_atom",
     {
       description:
-        "Fetch one mirrored note by title or path (atoms under Atoms/ and hub notes linked from atoms). Returns verbatim body, tags, kind (atom|hub), and structured links.",
+        "Fetch one mirrored note by title or path (atoms under Atoms/ and hub notes linked from atoms). Returns verbatim body (authoritative), tags, kind (atom|hub), status (live|superseded|contradicted), inverse revision edges, and structured links. Hubs set revision_participant:false.",
       inputSchema: {
         id_or_title: z
           .string()
@@ -124,6 +135,7 @@ export function registerAskTools(mcp, ctx) {
                     ? "mirror_empty"
                     : "not_in_mirror",
                 backlink_count: graph?.backlinks?.length ?? 0,
+                ...absenceMeta(),
                 hint:
                   st.count === 0
                     ? EMPTY_HINT
@@ -136,32 +148,15 @@ export function registerAskTools(mcp, ctx) {
           isError: true,
         };
       }
-      let text = atom.text || "";
-      const softCap = 100_000;
-      if (text.length > softCap) {
-        text = text.slice(0, softCap) + "\n…[truncated]";
-      }
+      const graph =
+        typeof store.mirrorNeighbors === "function"
+          ? await store.mirrorNeighbors(email, atom.title)
+          : null;
       return {
         content: [
           {
             type: "text",
-            text: JSON.stringify(
-              {
-                id: atom.id,
-                title: atom.title,
-                path: atom.path,
-                kind: atom.kind || "atom",
-                text,
-                tags: atom.tags,
-                links: (atom.links || []).map((l) => ({
-                  note: l.note,
-                  reason: l.reason || null,
-                  relation: relationFromReason(l.reason),
-                })),
-              },
-              null,
-              2,
-            ),
+            text: JSON.stringify(shapeFetchAtom(atom, graph), null, 2),
           },
         ],
       };
@@ -172,7 +167,7 @@ export function registerAskTools(mcp, ctx) {
     "neighbors",
     {
       description:
-        "Graph around a title: outgoing [[links]] from that atom (if mirrored) plus backlinks (other mirrored atoms that link to this name). Works even when the hub note is not in Atoms/ — backlinks still list atoms that mention [[Name]].",
+        "Graph around a title: outgoing [[links]] from that atom (if mirrored) plus backlinks (other mirrored atoms that link to this name). Includes status on the center (when found) and on each backlink. Works even when the hub note is not in Atoms/.",
       inputSchema: {
         title: z
           .string()
@@ -190,6 +185,7 @@ export function registerAskTools(mcp, ctx) {
               text: JSON.stringify({
                 error: "empty",
                 mirror_count: st.count,
+                ...absenceMeta(),
                 hint: st.count === 0 ? EMPTY_HINT : "invalid title",
               }),
             },
@@ -320,6 +316,7 @@ export function registerAskTools(mcp, ctx) {
             error: "parent_not_found",
             parent_title: parentTitle,
             mirror_count: st.count,
+            ...absenceMeta(),
             hint:
               "Parent must be in the Ask mirror or still pending in the outbox (create_atom first). Otherwise Sync Ask after Process.",
           },
@@ -433,6 +430,7 @@ export function registerAskTools(mcp, ctx) {
       });
       return jsonTool({
         ...page,
+        ...absenceMeta({ searched_fields: ["title", "path", "tags"] }),
         hint:
           page.next_offset != null
             ? `More results: call list_atoms with offset=${page.next_offset}`
