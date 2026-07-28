@@ -1,111 +1,75 @@
-# Capture shortcut — Mac + iCloud
+# Capture shortcut — Capture to Bookmark
 
-## Mac right now (works without iCloud)
+Capture on the phone appends one line to the inbox note. The plugin files that
+line into the right daily when Obsidian next opens. This recipe is the whole
+capture path — there is no filing UI on the phone.
 
-A Mac capture helper lives in the repo:
+## What the plugin owns
 
-| Path | What |
+The plugin creates both of these on load, so you never make them by hand:
+
+| Thing | Value |
 |---|---|
-| `scripts/Atoms Capture.app` | Double-click → dialog → appends `- your text` to today’s daily |
-| `scripts/atoms-capture.sh` | CLI: `./scripts/atoms-capture.sh "thought"` |
-| `scripts/atoms-capture-shortcut.sh` | For Shortcuts **Run Shell Script** (see below) |
+| Inbox note | `Atoms System/Inbox.md` |
+| Bookmark | **Atoms Inbox** (points at that note) |
 
-Defaults: vault `~/Documents/Remote Vault`, folder `Quick Notes` (your Daily Notes settings).
+The Shortcut appends to the **Atoms Inbox** bookmark. On the next Obsidian launch
+(or the **Drain capture inbox into dailies** command) each line is routed into the daily note for the
+date in its stamp — creating that daily if missing — and marked, never deleted.
 
-**Dock it:** drag `Atoms Capture.app` to the Dock, or Spotlight “Atoms Capture”.
+## The recipe
 
-That is **enough for Mac capture**. iCloud is only needed so **phone** can install the same idea via a share link.
-
-### “Unknown Action” on Mac
-
-If **Capture to Daily Note** shows *This action could not be found in this version of Shortcuts*, it used an **Obsidian iOS-only** action. Delete that action (or the whole shortcut) and rebuild:
-
-1. Shortcuts → **+** → name **Atoms Capture**  
-2. **Ask for Input** → Text, prompt `Capture`  
-3. **Run Shell Script** → Shell `/bin/bash` · Pass Input **as arguments** · body:
-
-```bash
-/Users/a515138832/StudioProjects/obsidian_plugin/scripts/atoms-capture-shortcut.sh "$@"
-```
-
-4. Run once with ▶ to verify a bullet appears in today’s daily  
-5. Share → **Copy iCloud Link** → paste into Settings → Atoms → Capture  
-
-A copy of these steps is also on your Desktop: `Atoms-Capture-Shortcut-Setup.txt`.
-
-## iCloud link (phone install)
-
-**Neither this agent nor the plugin can mint `icloud.com/shortcuts/…` links.**  
-Apple only issues those when **you** share from Shortcuts.app.
-
-You already have a shortcut named **Capture to Daily Note** on this Mac (`shortcuts list`). Open it with:
-
-```bash
-shortcuts view "Capture to Daily Note"
-```
-
-Then: ensure it appends a **bullet** to today’s daily → Share → **Copy iCloud Link** → paste into **Settings → Atoms → Capture → iCloud shortcut link**.
-
----
-
-## Build a new Shortcuts.app recipe (if you prefer)
-
-On **iPhone** (or Mac with Shortcuts):
-
-1. Open **Shortcuts** → **+** → name it **Atoms Capture**.
-2. Add actions in order:
+On **iPhone**: Shortcuts → **+** → name it **Atoms Capture**. Add these actions
+in order:
 
 | # | Action | Config |
 |---|---|---|
-| 1 | **Ask for Input** (or **Receive** Text from Share Sheet — enable in shortcut details) | Prompt: `Capture` · Input type: Text |
-| 2 | **Text** | `- ` then insert the **Provided Input** / Ask for Input variable (so the line is a markdown bullet) |
-| 3 | **Append to Note** (Obsidian) *or* open Obsidian via URL* | See options below |
+| 1 | **Ask for Input** (or **Receive** Text from the share sheet — set in shortcut details) | Prompt `Capture` · type **Text** |
+| 2 | **Replace Text** | Find `\n` · Replace with `\n\t` · **Regular Expression** on. Turns dictated line breaks into indented continuation lines the parser keeps. |
+| 3 | **Format Date** | Date **Current Date** · Format **Custom** · format string `yyyy-MM-dd'T'HH:mm:ssZZZZZ`. Produces `2026-07-28T09:14:03-04:00` — seconds and UTC offset both matter. |
+| 4 | **Text** | `- ` then the **Formatted Date** (step 3), a space, then the **Updated Text** (step 2). One bullet: `- <stamp> <capture>`. |
+| 5 | **Capture to Bookmark** (Obsidian) | Bookmark **Atoms Inbox** · **Append** · Text = the **Text** from step 4. |
 
-### Option A — Obsidian app action (if available)
+Run it once with ▶ and confirm a new line lands in `Atoms System/Inbox.md`.
 
-If you see **Obsidian** actions:
+Why each step is shaped this way:
 
-- **Append to Daily Note** / **Append to Note**  
-- Vault: **Remote Vault** (your vault name)  
-- Note: **Daily Note** / today  
-- Text: the bullet line from step 2  
+- **Seconds are required** (step 3). Two captures in the same minute would
+  otherwise share a stamp; the seconds keep them distinct.
+- **Capture to Bookmark adds its own newline and no bullet**, so step 4 builds
+  the whole `- ` bullet itself and step 5 supplies no trailing newline.
 
-### Option B — Advanced URI (common)
+## Three things to know
 
-1. Install community plugin **Advanced URI** in Obsidian (desktop + mobile).  
-2. Shortcut ends with **Open URLs**:
+**Renaming the inbox note breaks the Shortcut.** The Capture to Bookmark action
+binds its bookmark reference at setup time, so moving or renaming
+`Atoms System/Inbox.md` makes the Shortcut prompt for the bookmark on every run
+until you edit the shortcut and re-select it. This is why the path is a fixed
+constant, not a setting.
 
-```text
-obsidian://advanced-uri?vault=Remote%20Vault&daily=true&mode=append&data=<bullet text URL-encoded>
-```
+**With Obsidian closed, a capture is on disk immediately but not yet synced.**
+The line is written to the local inbox note at once; it reaches your other
+devices only after Obsidian is opened on the phone. Nothing is lost — that is
+Obsidian Sync behavior, not the plugin's.
 
-Use **URL Encode** on the bullet text, then insert into `data=`.
+**The old daily-note recipe is superseded on purpose.** Obsidian's
+**Capture to Daily Note** action fails with *File not found* when today's daily
+does not yet exist, because the daily is only created when Obsidian opens —
+exactly the force-quit case capture has to survive. Reported against iOS 1.11.5,
+promised for 1.11.6, still reproducing on 1.12.7 as of June 2026. Capture to
+Bookmark writes to a note that already exists, so it never hits that bug.
 
-Exact query params depend on Advanced URI version — check its docs for “append to daily”.
+## Install and update from the plugin
 
-### Option C — Files (fallback)
+The plugin can open a shared iCloud link for this recipe:
 
-Append to  
-`iCloud Drive/Obsidian/Remote Vault/Quick Notes/<today YYYY-MM-DD>.md`  
-only if that path matches Sync on your phone.
+1. Build the shortcut above, then Share → **Copy iCloud Link**
+   (`https://www.icloud.com/shortcuts/…`). Apple only mints these from
+   Shortcuts.app on your device — neither the plugin nor an agent can.
+2. Obsidian → **Settings → Atoms → Capture** → paste the link.
+3. On the phone after Sync, Atoms home → **Install capture shortcut** opens it.
 
-## Share the iCloud link
-
-1. Open the shortcut → **⋯** or share sheet.  
-2. **Share Shortcut** → **Copy iCloud Link**.  
-3. Link looks like: `https://www.icloud.com/shortcuts/abc123…`  
-4. In Obsidian: **Settings → Atoms → Capture → iCloud shortcut link** → paste → done.  
-5. On phone after Sync: Atoms home → **Install capture shortcut** opens that link.
-
-## Update later
-
-1. Edit the shortcut.  
-2. Share → **Copy iCloud Link** again (new link if Apple reissues).  
-3. Paste into Settings (or bump `CAPTURE_SHORTCUT_VERSION` in code if you ship a default URL).  
-4. Users with an old ack see **Update**.
-
-## Version constant
-
-`CAPTURE_SHORTCUT_VERSION` in `src/captureShortcut.ts` is the “shipped recipe” id.  
-Ack is device-local (`atoms-capture-shortcut-acked-version`).  
-Install URL prefers **settings** (synced), then the empty built-in constant.
+`CAPTURE_SHORTCUT_VERSION` in `src/settings/captureShortcut.ts` is the
+shipped-recipe id; the ack is device-local
+(`atoms-capture-shortcut-acked-version`). Bump it when the recipe changes and
+users with an old ack see **Update capture shortcut**.
