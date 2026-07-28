@@ -1,0 +1,654 @@
+/*
+ * tryatoms.app — Atoms landing page
+ *
+ * Palette, type scale, radii and spacing are the Atoms product tokens
+ * (docs/design-handoff/tokens/, docs/design-handoff/atoms-plus/index.html).
+ * Dark is the default because the product is dark-canonical; light is a real
+ * variant, not an afterthought.
+ */
+
+:root {
+  --bg: #000;
+  --surface: #1c1c1e;
+  --elev: #2c2c2e;
+  --sep: rgba(84, 84, 88, 0.55);
+  --sep-soft: rgba(84, 84, 88, 0.35);
+  --label: #fff;
+  --muted: rgba(235, 235, 245, 0.6);
+  --faint: rgba(235, 235, 245, 0.32);
+  --tint: #0a84ff;
+  --tint-ink: #0a84ff;
+  --ok: #30d158;
+  --person: #ff9f0a;
+
+  --font-ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display",
+    system-ui, sans-serif;
+  --font-serif: "New York", ui-serif, Georgia, serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 16px;
+  --r-pill: 980px;
+
+  --measure: 34rem;
+  --gutter: 20px;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #f2f2f7;
+    --surface: #fff;
+    --elev: #e9e9ee;
+    --sep: rgba(60, 60, 67, 0.29);
+    --sep-soft: rgba(60, 60, 67, 0.16);
+    --label: #000;
+    --muted: rgba(60, 60, 67, 0.6);
+    --faint: rgba(60, 60, 67, 0.33);
+    --tint-ink: color-mix(in srgb, #0a84ff 82%, black);
+    --ok: color-mix(in srgb, #30d158 72%, black);
+    --person: #a35200;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--label);
+  font-family: var(--font-ui);
+  font-size: 17px;
+  line-height: 1.42;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: var(--tint-ink);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+:focus-visible {
+  outline: 2px solid var(--tint);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+/* ---------- layout ---------- */
+
+.wrap {
+  width: 100%;
+  max-width: var(--measure);
+  margin: 0 auto;
+  padding: 0 var(--gutter);
+}
+
+.band {
+  padding: 56px 0;
+  border-top: 1px solid var(--sep-soft);
+}
+
+.band:first-of-type {
+  border-top: 0;
+}
+
+.eyebrow {
+  margin: 0 0 10px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+h1,
+h2,
+h3 {
+  margin: 0;
+  letter-spacing: -0.03em;
+  font-weight: 700;
+}
+
+h1 {
+  font-size: 2.6rem;
+  line-height: 1.05;
+}
+
+h2 {
+  font-size: 1.5rem;
+  letter-spacing: -0.028em;
+}
+
+h3 {
+  font-size: 1.06rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+p {
+  margin: 12px 0 0;
+  color: var(--muted);
+}
+
+.lead {
+  font-size: 1.12rem;
+  line-height: 1.38;
+  color: var(--muted);
+  margin-top: 14px;
+}
+
+.band > .wrap > h2 + p {
+  margin-top: 10px;
+}
+
+/* ---------- hero ---------- */
+
+.hero {
+  padding: 72px 0 56px;
+}
+
+.hero h1 {
+  letter-spacing: -0.045em;
+}
+
+.hero .lead {
+  max-width: 30rem;
+}
+
+/*
+ * Signature: the sentinel glyph the plugin actually writes into your daily
+ * note. It marks every "this became that" relationship on the page.
+ */
+.sentinel {
+  color: var(--tint-ink);
+  font-family: var(--font-mono);
+}
+
+/* ---------- specimen (hero thesis) ---------- */
+
+.specimen {
+  margin: 32px 0 28px;
+}
+
+.file {
+  background: var(--surface);
+  border: 1px solid var(--sep);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+}
+
+.file + .file {
+  margin-top: 10px;
+}
+
+.file-name {
+  display: block;
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--sep-soft);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0;
+  color: var(--faint);
+}
+
+.file-body {
+  margin: 0;
+  padding: 14px;
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  line-height: 1.66;
+  color: var(--muted);
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+
+/* The sentinel sits indented under its capture, as the plugin writes it. */
+.file-body .indent {
+  display: block;
+  padding-left: 1.2em;
+}
+
+@media (min-width: 620px) {
+  .file-body {
+    font-size: 0.8rem;
+  }
+}
+
+.file-body .verbatim {
+  color: var(--label);
+}
+
+.file-body .wl {
+  color: var(--tint-ink);
+}
+
+.file-body .marker {
+  color: var(--faint);
+}
+
+/* Chat panels: the recall payoff, shown as the artifact it actually is. */
+.file--chat .file-body {
+  color: var(--muted);
+}
+
+/* Inline so the source newline supplies the break, not an extra blank line. */
+.file-body .who {
+  color: var(--faint);
+  font-family: var(--font-ui);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+
+.file-body .quoted {
+  display: block;
+  padding-left: 0.9em;
+  border-left: 2px solid var(--sep);
+  color: var(--label);
+}
+
+.file--queued .file-body .marker {
+  color: var(--person);
+}
+
+/* The reply arrives a beat after the question, enacting the exchange. */
+@media (prefers-reduced-motion: no-preference) {
+  .file--queued {
+    animation: rise 520ms cubic-bezier(0.22, 0.68, 0.36, 1) both;
+    animation-delay: 320ms;
+  }
+}
+
+/* Before / after panels inside a step. */
+.specimen--inline {
+  margin: 16px 0 0;
+}
+
+.stage {
+  margin: 14px 2px 6px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.specimen--inline .file + .file {
+  margin-top: 10px;
+}
+
+.caption {
+  margin-top: 12px;
+  font-size: 0.85rem;
+  color: var(--faint);
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(7px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---------- buttons ---------- */
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 24px;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 18px;
+  border: 1px solid transparent;
+  border-radius: var(--r-md);
+  font-family: inherit;
+  font-size: 0.97rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  text-align: center;
+  cursor: pointer;
+  transition: opacity 130ms ease, transform 130ms ease;
+}
+
+.btn:hover {
+  text-decoration: none;
+}
+
+.btn:active {
+  transform: scale(0.98);
+  opacity: 0.92;
+}
+
+.btn--primary {
+  background: var(--tint);
+  color: #fff;
+}
+
+.btn--secondary {
+  background: var(--elev);
+  color: var(--label);
+  border-color: var(--sep-soft);
+}
+
+.note {
+  margin-top: 14px;
+  font-size: 0.85rem;
+  color: var(--faint);
+}
+
+@media (min-width: 620px) {
+  .actions {
+    flex-direction: row;
+  }
+
+  .btn {
+    min-width: 168px;
+  }
+}
+
+/* ---------- steps ---------- */
+
+.steps {
+  margin: 24px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.steps li {
+  display: grid;
+  grid-template-columns: 1.4rem 1fr;
+  gap: 12px;
+  padding: 18px 0;
+  border-top: 1px solid var(--sep-soft);
+}
+
+.steps li:first-child {
+  border-top: 0;
+  padding-top: 6px;
+}
+
+.steps .sentinel {
+  font-size: 1.05rem;
+  line-height: 1.5;
+}
+
+.steps p {
+  margin-top: 6px;
+  font-size: 0.94rem;
+}
+
+/* ---------- claim ---------- */
+
+.claim {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: 1.42rem;
+  font-weight: 400;
+  line-height: 1.34;
+  letter-spacing: -0.01em;
+  color: var(--label);
+}
+
+.claim + p {
+  margin-top: 14px;
+}
+
+/* ---------- plain lists ---------- */
+
+.facts {
+  margin: 20px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.facts li {
+  position: relative;
+  padding: 0 0 0 1.5rem;
+  margin-top: 12px;
+  font-size: 0.94rem;
+  color: var(--muted);
+}
+
+.facts li::before {
+  content: "↳";
+  position: absolute;
+  left: 0;
+  color: var(--tint-ink);
+  font-family: var(--font-mono);
+}
+
+.facts strong {
+  color: var(--label);
+  font-weight: 600;
+}
+
+/* ---------- cards ---------- */
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--sep);
+  border-radius: var(--r-lg);
+  padding: 18px 16px 16px;
+}
+
+.card + .card {
+  margin-top: 12px;
+}
+
+.card h3 {
+  margin-bottom: 2px;
+}
+
+.card p {
+  font-size: 0.9rem;
+}
+
+.card--plus {
+  background: color-mix(in srgb, var(--tint) 9%, var(--surface));
+  border-color: color-mix(in srgb, var(--tint) 28%, transparent);
+}
+
+.price {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin: 0;
+}
+
+.price .amount {
+  font-size: 1.85rem;
+  font-weight: 700;
+  letter-spacing: -0.035em;
+  color: var(--label);
+}
+
+.price .period {
+  font-size: 0.95rem;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.alt {
+  margin-top: 6px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.fineprint {
+  margin: 16px 2px 0;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--faint);
+}
+
+/*
+ * Terms a buyer needs before paying (the card requirement above all) must not
+ * be the least readable text on the page. Small is fine, faint is not.
+ */
+.fineprint--legible {
+  font-size: 0.86rem;
+  color: var(--muted);
+}
+
+.fineprint a {
+  color: inherit;
+  text-decoration: underline;
+}
+
+@media (min-width: 620px) {
+  .cards-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    align-items: start;
+  }
+
+  .cards-2 .card + .card {
+    margin-top: 0;
+  }
+}
+
+/*
+ * The reading measure suits prose but squeezes two side-by-side cards. Give
+ * the pricing band alone a little more room rather than widening the page.
+ */
+@media (min-width: 760px) {
+  #pricing .wrap {
+    max-width: 42rem;
+  }
+}
+
+/* ---------- code chip ---------- */
+
+.mono {
+  font-family: var(--font-mono);
+  font-size: 0.86em;
+  padding: 2px 6px;
+  border-radius: var(--r-sm);
+  background: var(--elev);
+  color: var(--label);
+  word-break: break-all;
+}
+
+/* ---------- install ---------- */
+
+.install {
+  margin: 22px 0 0;
+  padding: 0 0 0 1.2rem;
+  color: var(--muted);
+}
+
+.install li {
+  margin-top: 10px;
+  padding-left: 4px;
+  font-size: 0.94rem;
+}
+
+.install strong {
+  color: var(--label);
+  font-weight: 600;
+}
+
+/* ---------- footer ---------- */
+
+.foot {
+  padding: 32px 0 48px;
+  border-top: 1px solid var(--sep-soft);
+  font-size: 0.85rem;
+  color: var(--faint);
+}
+
+.foot nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin-bottom: 14px;
+}
+
+.foot nav a {
+  color: var(--muted);
+}
+
+/* ---------- legal pages ---------- */
+
+.legal {
+  padding: 48px 0 64px;
+}
+
+.legal h1 {
+  font-size: 1.9rem;
+}
+
+.legal h2 {
+  margin-top: 34px;
+  font-size: 1.12rem;
+  font-weight: 650;
+}
+
+.legal p,
+.legal li {
+  font-size: 0.95rem;
+  color: var(--muted);
+}
+
+.legal ul {
+  margin: 12px 0 0;
+  padding-left: 1.2rem;
+}
+
+.legal li {
+  margin-top: 8px;
+}
+
+.legal .updated {
+  margin-top: 8px;
+  font-size: 0.82rem;
+  color: var(--faint);
+}
+
+.back {
+  display: inline-block;
+  margin-bottom: 24px;
+  font-size: 0.9rem;
+}
+
+@media (min-width: 620px) {
+  :root {
+    --gutter: 24px;
+  }
+
+  .hero {
+    padding: 96px 0 64px;
+  }
+
+  .hero h1 {
+    font-size: 3.1rem;
+  }
+
+  .band {
+    padding: 64px 0;
+  }
+}

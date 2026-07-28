@@ -1,6 +1,6 @@
 {
   "name": "obsidian-atoms",
-  "version": "0.6.43",
+  "version": "0.6.44",
   "description": "Classify past daily-note captures into atomic notes via Anthropic API",
   "main": "main.js",
   "type": "module",
@@ -13,7 +13,8 @@
     "seed:demo": "node scripts/seed-demo-vault.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc -noEmit -skipLibCheck"
+    "typecheck": "tsc -noEmit -skipLibCheck",
+    "build:www": "node www/build.mjs"
   },
   "keywords": [
     "obsidian",

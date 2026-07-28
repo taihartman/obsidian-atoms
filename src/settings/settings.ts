@@ -32,10 +32,7 @@ import {
   setAwaitingCheckout,
   writePlusSession,
 } from "../platform/filingAuth";
-import {
-  atomsPlusOfferCopy,
-  atomsPlusTopUpCopy,
-} from "../home/atomsHomeData";
+import { atomsPlusTopUpCopy } from "../home/atomsHomeData";
 import {
   DEFAULT_PLUS_BASE_URL,
   requestMagicLink,
@@ -64,6 +61,9 @@ import {
   removeActiveTag,
   tagCountsSorted,
 } from "../pipeline/vocabulary";
+
+/** Public marketing + pricing page. Source lives in `www/` in this repo. */
+export const ATOMS_SITE_URL = "https://tryatoms.app";
 
 function settingHeading(containerEl: HTMLElement, name: string): void {
   new Setting(containerEl).setName(name).setHeading();
@@ -191,7 +191,6 @@ export class AtomsSettingTab extends PluginSettingTab {
 
     const auth = this.plugin.resolveFilingAuth();
     const session = readPlusSession(this.app);
-    const offer = atomsPlusOfferCopy();
     const topUp = atomsPlusTopUpCopy();
 
     if (auth.mode === "plus" && auth.status === "exhausted") {
@@ -393,16 +392,7 @@ export class AtomsSettingTab extends PluginSettingTab {
       )
       .addButton((btn) =>
         btn.setButtonText("See Plans").onClick(() => {
-          const lines = [
-            offer.title,
-            offer.priceMonthly,
-            offer.priceYearly,
-            ...offer.bullets,
-            offer.costReason,
-            offer.freePath,
-            offer.finePrint,
-          ];
-          new Notice(lines.join(" · ").slice(0, 450), 12000);
+          window.open(ATOMS_SITE_URL, "_blank");
         }),
       );
 

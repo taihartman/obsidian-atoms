@@ -48,11 +48,17 @@ The handoff allows hardcoding with a `keep in sync` comment. Rejected: a comment
 gate, and a stale price on a public page is the single worst failure this page can have.
 
 `www/build.mjs` reads `plus-pricing.json` and substitutes `{{monthlyUsd}}`-style tokens into
-`index.html.tmpl` → `www/dist/index.html`. `npm run build:www`. A vitest case renders the
-template and asserts every price string in the output matches the SSOT, so a price change in
-the JSON without a rebuild fails CI, not a customer.
+`index.html.tmpl` → `www/dist/index.html`. `npm run build:www`. Dependency-free — Node's `fs`
+plus a replace pass. No Astro, no Vite, no framework tax.
 
-Dependency-free — Node's `fs` + a replace pass. No Astro, no Vite, no framework tax.
+**Two-way gate.** `test/wwwPricing.test.ts` imports the *plugin's own*
+`src/shared/plusPricing.ts` helpers and asserts the built HTML carries the same numbers and
+the same locked sentences (notably `trialFinePrint()`, which already says "Card required for
+trial"). So the page cannot drift from the SSOT *or* from what the plugin tells users. An
+unrebuilt page fails the test, not a customer.
+
+Marketing prose is allowed to differ from in-app settings copy; **numbers and locked
+sentences are not**.
 
 ### KTD2 — Dark-first, using the real Atoms token palette
 
@@ -74,10 +80,28 @@ Locked rules carried onto the page:
 
 - Free BYOK path is named without pressure, never as a downgrade
 - "Why it costs" appears **exactly once**
-- Approved button vocabulary, title case: Try Atoms Plus · Use My Own Key · Start Free Trial
 - **No em dashes** in app-authored copy
 - Never claim the website files notes for you without the plugin
 - Not a task app; body text is verbatim; desktop + iOS + Android
+
+**Button vocabulary.** The mock's approved list (Try Atoms Plus · Use My Own Key · Start Free
+Trial · Get More · Not Now · Continue / Cancel) covers in-app actions. A landing page needs two
+actions the app does not have, so the list is **deliberately extended** with `Get Atoms` and
+`How It Works`, both title case per the same rule. No sentence-case variants anywhere.
+
+**Honesty floor — the page must say all of these, or it overclaims (doc-review, 2026-07-28):**
+
+| Must say | Where | Why |
+|---|---|---|
+| Atoms is an **Obsidian plugin**, not a standalone app | Hero, section 1 | Highest misunderstanding risk. Section 7 is too late |
+| You capture **however you already do** — Atoms does not capture for you | Section 2 | Capture UI is constitution Out of scope |
+| Processing runs on **past** days, not the day you are writing | Section 2 | Non-negotiable 3 |
+| A "filing" = **one capture classified**, not one note | Sections 4, 5 | "150 filings" is meaningless to a stranger |
+| Trial is **card upfront** | Beside every Start Free Trial | Locked rule; omitting it is the dark pattern the tone rules ban |
+| Unused filings **do not roll over**; allotment resets on the billing date | Sections 4, 5 | `rollover: false` |
+| BYOK is free of *Atoms* charges — **you pay Anthropic directly** | Section 5 fine print | "Free forever" alone misleads |
+| Ask mirrors **vault → cloud only**, opt-in, flat `Atoms/` | Sections 6, 8 | Non-negotiable 12; otherwise Ask reads as cloud storage |
+| A contact path | Footer | Card-upfront paid product |
 
 ### KTD4 — No JS on the page
 
@@ -90,15 +114,15 @@ only and gated on `prefers-reduced-motion`. The page is HTML + one stylesheet.
 
 | # | Section | Content |
 |---|---|---|
-| 1 | Hero | "Atoms" + one sentence + `Get Atoms` (BRAT / GitHub) primary, `See how it works` secondary |
-| 2 | How it works | Capture → Process → Resurface, three steps, no more |
+| 1 | Hero | "Atoms" + one sentence + **"An Obsidian plugin"** stated plainly. `Get Atoms` primary, `How It Works` secondary |
+| 2 | How it works | Capture (however you already do) → Process (past days) → Resurface. Three steps, no more |
 | 3 | What you get | Verbatim bodies, links not folders, flat library, desktop + phone |
-| 4 | Plus | 150 filings/period, managed key, 14-day trial, Ask optional. "Why it costs" lives here |
-| 5 | Pricing | Monthly / yearly / top-up from SSOT. Fine print: cancel anytime, BYOK free forever |
-| 6 | Ask | Short. Connector URL `https://plus.tryatoms.app/mcp`, stated once |
-| 7 | Install | BRAT `taihartman/obsidian-atoms` → Settings → Atoms → Start free trial |
-| 8 | Privacy summary | Mirror is opt-in; Process sends captures to Anthropic; we don't train on notes |
-| 9 | Footer | Privacy, Terms, GitHub |
+| 4 | Plus | What a filing is, 150 per month, no rollover, managed key, card-upfront trial. "Why it costs" lives here and only here |
+| 5 | Pricing | Monthly / yearly / top-up from SSOT. Fine print: card upfront, cancel anytime, no rollover, BYOK free of Atoms charges (you pay Anthropic) |
+| 6 | Ask | Short. Opt-in, vault → cloud only, flat `Atoms/`. Connector URL `https://plus.tryatoms.app/mcp` stated once |
+| 7 | Install | BRAT `taihartman/obsidian-atoms` → Settings → Atoms → Start Free Trial |
+| 8 | Privacy summary | Mirror is opt-in and one-way; Process sends captures to Anthropic (Plus = our key, BYOK = yours); we don't train on notes |
+| 9 | Footer | Privacy, Terms, GitHub, contact |
 
 `privacy.html` and `terms.html` are separate short pages sharing the stylesheet.
 
@@ -112,7 +136,8 @@ only and gated on `prefers-reduced-motion`. The page is HTML + one stylesheet.
 | U2 | `styles.css` — token palette, type scale, dark + light, mobile-first | Renders at 390px and 1440px without horizontal scroll |
 | U3 | `index.html.tmpl` — all nine sections with locked copy | Copy audit against §KTD3 rules, incl. em-dash grep |
 | U4 | `privacy.html` + `terms.html` | Reachable from footer; claims match plugin honesty |
-| U5 | Price-drift vitest | Mutate SSOT in-test → assertion fails |
+| U5 | `test/wwwPricing.test.ts` — numbers + locked sentences vs `src/shared/plusPricing.ts` | Built HTML must contain `trialFinePrint()` verbatim and every SSOT number |
+| U5b | Secret scan of `www/` before PR | `git diff` grep for key-shaped strings; no `.env`, no tokens committed |
 | U6 | Plugin See Plans → `window.open` + version bump | `npm run build`, CLI smoke in test vault |
 | U7 | Cloudflare Pages **preview** deploy | Preview URL loads; screenshots at both widths |
 | U8 | Production + custom domain | **Gated on Tai reviewing the U7 preview.** Verify `plus.tryatoms.app` and mail DNS still resolve after |
