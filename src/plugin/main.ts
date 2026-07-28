@@ -253,6 +253,11 @@ export default class AtomsPlugin extends Plugin {
     if (!this.settings.askEnabled || !this.settings.askPrivacyAckAt) {
       return;
     }
+    // Coalesce into the in-flight run instead of a second post-run debounce.
+    if (this.askMirrorInFlight) {
+      this.askMirrorFollowUp = true;
+      return;
+    }
     this.askMirrorDirty = true;
     if (this.askMirrorDebounceTimer != null) {
       window.clearTimeout(this.askMirrorDebounceTimer);
@@ -1049,6 +1054,12 @@ export default class AtomsPlugin extends Plugin {
       if (opts?.force) this.askMirrorForceFollowUp = true;
       return 0;
     }
+    // Absorb pending debounce into this run (avoids Process + 2s double push).
+    if (this.askMirrorDebounceTimer != null) {
+      window.clearTimeout(this.askMirrorDebounceTimer);
+      this.askMirrorDebounceTimer = null;
+    }
+    this.askMirrorDirty = false;
     this.askMirrorInFlight = true;
     let uploaded = 0;
     try {
@@ -1172,6 +1183,7 @@ export default class AtomsPlugin extends Plugin {
 
     let workingHashes = { ...hashSnapshot };
     let uploaded = 0;
+    let deleted = 0;
 
     const fail = (msg: string) => {
       save(LS_ASK_MIRROR_LAST_ERROR, msg);
@@ -1205,6 +1217,7 @@ export default class AtomsPlugin extends Plugin {
       const chunk = deletePaths.slice(i, i + 100);
       const r = await askMirrorDelete(cfg, token, chunk);
       if (!r.ok) return fail(r.message);
+      deleted += chunk.length;
       for (const p of chunk) delete workingHashes[p];
       writeAskMirrorHashes(save, workingHashes);
     }
@@ -1244,9 +1257,14 @@ export default class AtomsPlugin extends Plugin {
       writeAskMirrorHashes(save, workingHashes);
     }
 
+    // Success: clear error + refresh server count. Only stamp "last pushed"
+    // when this run mutated the mirror (or user forced Sync now).
     save(LS_ASK_MIRROR_LAST_ERROR, "");
-    save(LS_ASK_MIRROR_LAST_SUCCESS, new Date().toISOString());
     this.askMirrorNoticeShown = false;
+    const mutated = uploaded > 0 || deleted > 0 || force;
+    if (mutated) {
+      save(LS_ASK_MIRROR_LAST_SUCCESS, new Date().toISOString());
+    }
     const st = await askMirrorStatus(cfg, token);
     if (st.ok) {
       save(LS_ASK_MIRROR_SERVER_COUNT, String(st.count));

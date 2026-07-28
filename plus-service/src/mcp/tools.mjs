@@ -429,12 +429,16 @@ export function registerAskTools(mcp, ctx) {
         offset: offset ?? 0,
       });
       const st = await store.mirrorStatus(email);
-      const lastSynced =
-        st?.updatedAt != null
-          ? st.updatedAt instanceof Date
+      let lastSynced = null;
+      if (st?.updatedAt != null) {
+        lastSynced =
+          st.updatedAt instanceof Date
             ? st.updatedAt.toISOString()
-            : String(st.updatedAt)
-          : null;
+            : String(st.updatedAt);
+        // Normalize non-ISO sqlite/pg strings when parseable
+        const t = Date.parse(lastSynced);
+        if (Number.isFinite(t)) lastSynced = new Date(t).toISOString();
+      }
       return jsonTool({
         ...page,
         server_count: st?.count ?? page.total,

@@ -184,6 +184,15 @@ describe("mcp unmisreadable shape store", () => {
             shaped.synced_at,
             "fetch_atom must expose synced_at for staleness",
           );
+          const page = await store.mirrorList("a@ex.co", { limit: 10, offset: 0 });
+          assert.ok(page.items.length >= 1);
+          assert.ok(
+            page.items.every((i) => i.synced_at),
+            "list_atoms items need synced_at",
+          );
+          const st = await store.mirrorStatus("a@ex.co");
+          assert.ok(st.updatedAt, "feeds list_atoms last_synced_at");
+          assert.equal(st.count, page.total);
           assert.ok(
             shaped.superseded_by.some(
               (s) =>
