@@ -1,0 +1,50 @@
+- generic [active] [ref=f3e1]:
+  - banner [ref=f3e2]:
+    - navigation [ref=f3e3]:
+      - link "Tai Hartman" [ref=f3e4] [cursor=pointer]:
+        - /url: /
+      - list [ref=f3e7]:
+        - listitem [ref=f3e8]:
+          - link "01 home" [ref=f3e9] [cursor=pointer]:
+            - /url: /
+            - generic [ref=f3e10]: "01"
+            - generic [ref=f3e11]: home
+        - listitem [ref=f3e12]:
+          - link "02 work" [ref=f3e13] [cursor=pointer]:
+            - /url: /#work
+            - generic [ref=f3e14]: "02"
+            - generic [ref=f3e15]: work
+        - listitem [ref=f3e16]:
+          - link "03 about" [ref=f3e17] [cursor=pointer]:
+            - /url: /about/
+            - generic [ref=f3e18]: "03"
+            - generic [ref=f3e19]: about
+        - listitem [ref=f3e20]:
+          - link "04 card" [ref=f3e21] [cursor=pointer]:
+            - /url: /me/
+            - generic [ref=f3e22]: "04"
+            - generic [ref=f3e23]: card
+  - main [ref=f3e24]:
+    - generic [ref=f3e25]:
+      - heading "About" [level=1] [ref=f3e26]
+      - paragraph [ref=f3e27]: I'm Tai Hartman. I grew up in upstate New York, where I started climbing as a teenager and started writing code shortly after. Today I build apps and climb rocks, sometimes in that order, usually both.
+      - paragraph [ref=f3e28]:
+        - text: Right now I'm building
+        - link "Aploma" [ref=f3e29] [cursor=pointer]:
+          - /url: https://aploma.app
+        - text: ", a group trip expense app that splits the bill in the fewest possible payments, and"
+        - link "Human Nature" [ref=f3e30] [cursor=pointer]:
+          - /url: /human-nature/
+        - text: ", a voice-based habit tracker now in beta, and"
+        - link "Atoms" [ref=f3e31] [cursor=pointer]:
+          - /url: https://tryatoms.app
+        - text: ", an Obsidian plugin that files the notes you already take so you can ask them questions later."
+      - paragraph [ref=f3e32]: The best way to reach me is on Instagram or GitHub, both linked in the footer.
+  - contentinfo [ref=f3e33]:
+    - generic [ref=f3e34]:
+      - paragraph [ref=f3e35]: © 2026 Tai Hartman
+      - generic [ref=f3e36]:
+        - link "Instagram" [ref=f3e37] [cursor=pointer]:
+          - /url: https://www.instagram.com/taitopia_tech/
+        - link "GitHub" [ref=f3e38] [cursor=pointer]:
+          - /url: https://github.com/taihartman

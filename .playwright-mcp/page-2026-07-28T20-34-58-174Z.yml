@@ -1,0 +1,70 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - navigation [ref=e3]:
+      - link "Tai Hartman" [ref=e4] [cursor=pointer]:
+        - /url: /
+      - list [ref=e7]:
+        - listitem [ref=e8]:
+          - link "01 home" [ref=e9] [cursor=pointer]:
+            - /url: /
+            - generic [ref=e10]: "01"
+            - generic [ref=e11]: home
+        - listitem [ref=e12]:
+          - link "02 work" [ref=e13] [cursor=pointer]:
+            - /url: /#work
+            - generic [ref=e14]: "02"
+            - generic [ref=e15]: work
+        - listitem [ref=e16]:
+          - link "03 about" [ref=e17] [cursor=pointer]:
+            - /url: /about/
+            - generic [ref=e18]: "03"
+            - generic [ref=e19]: about
+        - listitem [ref=e20]:
+          - link "04 card" [ref=e21] [cursor=pointer]:
+            - /url: /me/
+            - generic [ref=e22]: "04"
+            - generic [ref=e23]: card
+  - main [ref=e24]:
+    - generic [ref=e25]:
+      - paragraph [ref=e26]: Hello, my name is Tai
+      - heading "I build apps and climb rocks." [level=1] [ref=e27]: I build appsand climb rocks.
+      - paragraph [ref=e28]:
+        - text: I'm an app developer and climber from upstate New York. I'm building
+        - link "Aploma" [ref=e29] [cursor=pointer]:
+          - /url: https://aploma.app
+        - text: ", a group trip expense app;"
+        - link "Human Nature" [ref=e30] [cursor=pointer]:
+          - /url: /human-nature/
+        - text: ", a voice-based habit tracker; and"
+        - link "Atoms" [ref=e31] [cursor=pointer]:
+          - /url: https://tryatoms.app
+        - text: ", an Obsidian plugin that turns your notes into something you can ask."
+    - generic [ref=e32]:
+      - heading "Featured Work" [level=2] [ref=e33]
+      - generic [ref=e34]:
+        - link "App · live Aploma Trip expenses, split & settled. Mobile + web." [ref=e35] [cursor=pointer]:
+          - /url: https://aploma.app
+          - generic [ref=e36]: App · live
+          - generic [ref=e37]:
+            - paragraph [ref=e38]: Aploma
+            - paragraph [ref=e39]: Trip expenses, split & settled. Mobile + web.
+        - link "App · beta Human Nature Voice-based habit tracker." [ref=e40] [cursor=pointer]:
+          - /url: /human-nature/
+          - generic [ref=e41]: App · beta
+          - generic [ref=e42]:
+            - paragraph [ref=e43]: Human Nature
+            - paragraph [ref=e44]: Voice-based habit tracker.
+        - link "Obsidian plugin · live Atoms Turns your notes into something you can ask." [ref=e45] [cursor=pointer]:
+          - /url: https://tryatoms.app
+          - generic [ref=e46]: Obsidian plugin · live
+          - generic [ref=e47]:
+            - paragraph [ref=e48]: Atoms
+            - paragraph [ref=e49]: Turns your notes into something you can ask.
+  - contentinfo [ref=e50]:
+    - generic [ref=e51]:
+      - paragraph [ref=e52]: © 2026 Tai Hartman
+      - generic [ref=e53]:
+        - link "Instagram" [ref=e54] [cursor=pointer]:
+          - /url: https://www.instagram.com/taitopia_tech/
+        - link "GitHub" [ref=e55] [cursor=pointer]:
+          - /url: https://github.com/taihartman

@@ -57,6 +57,15 @@ describe("www build output", () => {
     }
   });
 
+  it("uses no inline style attributes, which the CSP silently drops", () => {
+    // style-src 'self' has no 'unsafe-inline', so an inline style attribute
+    // is not a shortcut, it is dead code: the rule never applies and the only
+    // symptom is a console violation nobody reads.
+    for (const page of ["index.html", "privacy.html", "terms.html", "404.html"]) {
+      expect(dist(page), `inline style in ${page}`).not.toMatch(/<[^>]+\sstyle="/);
+    }
+  });
+
   it("assets are content-fingerprinted so deploys cannot serve stale CSS", () => {
     // Regression guard: on 2026-07-28 a deploy served new HTML with an
     // hour-cached old stylesheet and the story switcher fell apart.

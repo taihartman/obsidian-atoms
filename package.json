@@ -11,6 +11,7 @@
     "spike:api": "node scripts/spike-api.mjs",
     "seed:vault": "node scripts/seed-test-vault.mjs",
     "seed:demo": "node scripts/seed-demo-vault.mjs",
+    "pretest": "npm run build:www",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc -noEmit -skipLibCheck",

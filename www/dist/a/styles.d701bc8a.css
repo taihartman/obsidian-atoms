@@ -14,8 +14,14 @@
   --sep: rgba(84, 84, 88, 0.55);
   --sep-soft: rgba(84, 84, 88, 0.35);
   --label: #fff;
+  /*
+   * Text tiers are separated by size and weight, not by fading toward the
+   * background. Both of these clear 4.5:1 on their surfaces; the old --faint
+   * sat at 2.4:1 in dark and 1.8:1 in light, which put disclosure copy below
+   * the readability floor.
+   */
   --muted: rgba(235, 235, 245, 0.6);
-  --faint: rgba(235, 235, 245, 0.32);
+  --faint: rgba(235, 235, 245, 0.5);
   --tint: #0a84ff;
   --tint-ink: #0a84ff;
   --ok: #30d158;
@@ -43,8 +49,8 @@
     --sep: rgba(60, 60, 67, 0.29);
     --sep-soft: rgba(60, 60, 67, 0.16);
     --label: #000;
-    --muted: rgba(60, 60, 67, 0.6);
-    --faint: rgba(60, 60, 67, 0.33);
+    --muted: rgba(60, 60, 67, 0.78);
+    --faint: rgba(60, 60, 67, 0.74);
     --tint-ink: color-mix(in srgb, #0a84ff 82%, black);
     --ok: color-mix(in srgb, #30d158 72%, black);
     --person: #a35200;
@@ -454,6 +460,13 @@ p {
 .hero-stories {
   display: grid;
   margin: 30px 0 26px;
+  /*
+   * The inactive panels sit in the same grid cell under a transform, and at
+   * narrow widths their rect ran a few px past the viewport, so the whole page
+   * scrolled sideways. `clip` rather than `hidden`: it does not create a
+   * scroll container, so it cannot interfere with the sticky bar.
+   */
+  overflow-x: clip;
 }
 
 .hero-panel {
@@ -1250,6 +1263,11 @@ main[data-story="self"] .s-people {
   margin-top: 8px;
   font-size: 0.82rem;
   color: var(--faint);
+}
+
+/* Was an inline style attribute, which the page's own style-src 'self' drops. */
+.back-wrap {
+  margin-top: 20px;
 }
 
 .back {
