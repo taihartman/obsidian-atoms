@@ -318,3 +318,13 @@ Two write types, one marker shape, three verdicts. The safety model is airtight 
 `append` is gone and the marker is a sentinel rather than "any wikilink." The one addition
 pulled forward for rot: `links[].reason` must name supersession when it applies, so an
 append-only vault can still show a belief changing instead of fossilizing both versions.
+
+---
+
+## Later amendments (post-v1)
+
+### Managed hub block (person hubs only)
+
+**Problem.** §B correctly cut unbounded `append` into hand-authored notes. Person hubs then stayed write-never after invite create, so accumulating list facts lived only as atoms while hub notes went stale.
+
+**Decision.** Narrow carve-out: an **opt-in** plugin-owned region on **person hubs only**, delimited by `<!-- atoms:generated v=1 -->` / `<!-- /atoms:generated -->`. Regenerated wholesale from hard-linked atoms. Human bytes outside delimiters are sacred. Open without close (or close without open) aborts that hub write. Capture bodies and daily notes remain absolute write-never for this feature. Classify may emit optional `hub_section` for placement under the user's existing H2s; never invent taxonomy. See CONCEPTS **Managed hub block** and plan `docs/plans/2026-07-28-001-feat-hub-projection-plan.md`.

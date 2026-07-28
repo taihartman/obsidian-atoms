@@ -43,6 +43,7 @@ import {
   formatEntityHubMarkdown,
   type EntityInviteCandidate,
 } from "../pipeline/entityInvite";
+import { runHubProjectionForHubs } from "../pipeline/runHubProjection";
 import {
   applyHardLinkToAtomContent,
   applyPersonPeerLinksToContents,
@@ -1126,6 +1127,15 @@ export class AtomsHomeView extends ItemView {
       // Multi-member same-name group: ensure peers if still no hard hub (edge)
       if (paths.size >= 2 && created) {
         await this.applyPeersForPaths([...paths]);
+      }
+
+      if (this.plugin.settings.enableHubProjection === true) {
+        await runHubProjectionForHubs({
+          app: this.app,
+          enabled: true,
+          atomFolder: this.plugin.settings.atomFolder,
+          touchedHubTitles: [name],
+        });
       }
 
       new Notice(

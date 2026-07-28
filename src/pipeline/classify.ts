@@ -19,6 +19,7 @@ import {
 } from "./enrich/linkQuality";
 import { rescueKeepableIdea } from "./enrich/ideaRescue";
 import { filterTagsToActive } from "./vocabulary";
+import { formatPersonHubsForContext } from "./context";
 
 /** Injected by esbuild: true in watch/dev, false in production Community builds. */
 declare const ATOMS_DEV_COMMANDS: boolean;
@@ -71,6 +72,11 @@ export const CLASSIFICATION_SCHEMA = {
         additionalProperties: false,
       },
     },
+    hub_section: {
+      type: "string",
+      description:
+        "Optional. Exact ## heading from a linked Person hub's section list for accumulating-list placement. Empty string when unsure or no fit. Never invent a section name.",
+    },
   },
   required: ["verdict", "title", "tags", "proposed_tags", "links"],
   additionalProperties: false,
@@ -79,7 +85,7 @@ export const CLASSIFICATION_SCHEMA = {
 export const SYSTEM_PROMPT = `You classify fleeting captures from a daily-note inbox into a personal knowledge graph (second brain). This product is NOT a task app — the user has Reminders/Things for chores.
 
 ## Output surface (hard rules)
-- You output ONLY: verdict, title, tags, proposed_tags, links.
+- You output ONLY: verdict, title, tags, proposed_tags, links, and optional hub_section.
 - You never rewrite, paraphrase, expand, or "improve" the capture body. The body is sacred and is written elsewhere, verbatim.
 - You never choose folders or move files. Placement is not your job. One capture → at most one atom (never append into a Movies/list note).
 - Titles (when atom) are **short declarative claims** (~8–12 words / under ~80 characters when possible), not topics and not a paste of the whole capture.
@@ -123,6 +129,7 @@ export const SYSTEM_PROMPT = `You classify fleeting captures from a daily-note i
 - One atom can carry a person link, a work link, and preference/media tags together.
 - Pure logistics that merely mention a name stay **noise** — do not force person atoms for chores.
 - Do not invent entity links from speech typos (e.g. "Kloe") unless that exact title exists in Note titles.
+- **hub_section (optional):** when the capture is an accumulating list/fact about a person and Person hubs list indented ## section names under that hub, set hub_section to one **exact** section string from that list. Omit or use "" when unsure, no fit, or the hub has no sections. Never invent a section name that is not listed.
 
 ## Links + supersession (reason quality is load-bearing)
 - Link to existing notes when the capture relates, revises, or contradicts them.
@@ -158,10 +165,7 @@ export function buildContextUserMessage(context: VaultContext): string {
     : "(none)";
   // Deterministic ordering is the caller's job; we render as given so the
   // cached prefix stays byte-stable within a run (KTD3 / U4).
-  const personHubs =
-    context.personHubs && context.personHubs.length
-      ? context.personHubs.map((t) => `- ${t}`).join("\n")
-      : "(none)";
+  const personHubs = formatPersonHubsForContext(context);
   const titles = context.titles.length
     ? context.titles.map((t) => `- ${t}`).join("\n")
     : "(empty vault)";
@@ -241,6 +245,34 @@ export function parseUsage(raw: unknown): ClassifyUsage {
  * Post-parse business invariants (KTD4 layer 2).
  * Schema well-formedness is trusted; conditional-required is not.
  */
+export function normalizeHubSection(
+  result: ClassificationResult,
+  context: VaultContext,
+): ClassificationResult {
+  const raw = (result.hub_section ?? "").trim();
+  if (!raw) {
+    if (result.hub_section !== undefined) {
+      const { hub_section: _drop, ...rest } = result;
+      return rest as ClassificationResult;
+    }
+    return result;
+  }
+  if (result.verdict !== "atom") {
+    const { hub_section: _drop, ...rest } = result;
+    return rest as ClassificationResult;
+  }
+  const details = context.personHubDetails ?? [];
+  const allowed = new Set<string>();
+  for (const d of details) {
+    for (const sec of d.sections ?? []) allowed.add(sec);
+  }
+  if (!allowed.has(raw)) {
+    const { hub_section: _drop, ...rest } = result;
+    return rest as ClassificationResult;
+  }
+  return { ...result, hub_section: raw };
+}
+
 export function checkInvariants(
   result: ClassificationResult,
 ): { ok: true } | { ok: false; message: string } {
@@ -599,6 +631,8 @@ export async function classifyCapture(
   if (!inv.ok) {
     return { ok: false, reason: "invariant", message: inv.message };
   }
+
+  parsed = normalizeHubSection(parsed, context);
 
   // R11 — never apply non-Active tags; proposed_tags stay for approval.
   if (deps.activeVocabulary) {

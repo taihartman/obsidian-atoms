@@ -411,6 +411,7 @@ export default class AtomsPlugin extends Plugin {
         atomFolder: this.settings.atomFolder,
         limit: opts?.limit,
         fixtureResults: opts?.fixtureResults,
+        enableHubProjection: this.settings.enableHubProjection === true,
         classifyDeps: {
           maxAttempts: 2,
           plus: plusDeps,
@@ -606,6 +607,7 @@ export default class AtomsPlugin extends Plugin {
         activeVocabulary: this.settings.activeVocabulary,
         atomFolder: this.settings.atomFolder,
         maxCaptures: PER_LAUNCH_CAP,
+        enableHubProjection: this.settings.enableHubProjection === true,
         // never includeToday on auto-run
         classifyDeps: {
           maxAttempts: 2,
@@ -805,6 +807,7 @@ export default class AtomsPlugin extends Plugin {
         atomFolder: this.settings.atomFolder,
         activeVocabulary: this.settings.activeVocabulary,
         personHubDetails: hubCtx.personHubDetails,
+        enableHubProjection: this.settings.enableHubProjection === true,
       });
       this.lastBackfillReport = report;
 
@@ -1355,6 +1358,7 @@ export default class AtomsPlugin extends Plugin {
         atomFolder: this.settings.atomFolder,
         maxCaptures: 15,
         includeToday: opts?.includeToday,
+        enableHubProjection: this.settings.enableHubProjection === true,
         classifyDeps: {
           maxAttempts: 2,
           plus: classifyAuth.plus,
@@ -1477,6 +1481,7 @@ export default class AtomsPlugin extends Plugin {
         atomFolder: this.settings.atomFolder,
         maxCaptures: fixtures.length,
         fixtureResults: fixtures,
+        enableHubProjection: this.settings.enableHubProjection === true,
         onProgress: (done, total, meta) => {
           this.updateHomeProgress(done, total, meta?.captureText);
         },

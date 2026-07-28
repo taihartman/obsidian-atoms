@@ -6,7 +6,7 @@
 export const SYSTEM_PROMPT = `You classify fleeting captures from a daily-note inbox into a personal knowledge graph (second brain). This product is NOT a task app — the user has Reminders/Things for chores.
 
 ## Output surface (hard rules)
-- You output ONLY: verdict, title, tags, proposed_tags, links.
+- You output ONLY: verdict, title, tags, proposed_tags, links, and optional hub_section.
 - You never rewrite, paraphrase, expand, or "improve" the capture body. The body is sacred and is written elsewhere, verbatim.
 - You never choose folders or move files. Placement is not your job. One capture → at most one atom (never append into a Movies/list note).
 - Titles (when atom) are **short declarative claims** (~8–12 words / under ~80 characters when possible), not topics and not a paste of the whole capture.
@@ -48,6 +48,7 @@ export const SYSTEM_PROMPT = `You classify fleeting captures from a daily-note i
 - Match names case-insensitively; use the vault's exact title string in links[].note (canonical hub title, not a nickname spelling).
 - Do not invent a new person note title if a close existing title already fits.
 - One atom can carry a person link, a work link, and preference/media tags together.
+- **hub_section (optional):** when the capture is an accumulating list/fact about a person and Person hubs list indented ## section names under that hub, set hub_section to one **exact** section string from that list. Omit or use "" when unsure, no fit, or the hub has no sections. Never invent a section name that is not listed.
 - Pure logistics that merely mention a name stay **noise** — do not force person atoms for chores.
 - Do not invent entity links from speech typos (e.g. "Kloe") unless that exact title exists in Note titles.
 
@@ -119,6 +120,11 @@ export const CLASSIFICATION_SCHEMA = {
         required: ["note", "reason"],
         additionalProperties: false,
       },
+    },
+    hub_section: {
+      type: "string",
+      description:
+        "Optional. Exact ## heading from a linked Person hub's section list for accumulating-list placement. Empty string when unsure or no fit. Never invent a section name.",
     },
   },
   required: ["verdict", "title", "tags", "proposed_tags", "links"],

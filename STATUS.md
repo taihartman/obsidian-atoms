@@ -7,6 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
+| In progress | #154 | Tai | `feat/hub-projection` | `docs/plans/2026-07-28-001-feat-hub-projection-plan.md` | `src/pipeline/hubProjection.ts`, `hubSections.ts`, `runHubProjection.ts`, `classify.ts`, `context.ts`, `write.ts`, `refreshAtoms.ts`, `settings.ts`, `types.ts`, CONCEPTS/architecture | Managed hub block; constitution + impl |
 
 ## How to claim (copy)
 
