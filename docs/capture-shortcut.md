@@ -19,25 +19,61 @@ date in its stamp — creating that daily if missing — and marked, never delet
 
 ## The recipe
 
+Built and verified on device 2026-07-28 (iOS Shortcuts, Obsidian 1.12.7).
+
 On **iPhone**: Shortcuts → **+** → name it **Atoms Capture**. Add these actions
 in order:
 
 | # | Action | Config |
 |---|---|---|
-| 1 | **Ask for Input** (or **Receive** Text from the share sheet — set in shortcut details) | Prompt `Capture` · type **Text** |
-| 2 | **Replace Text** | Find `\n` · Replace with `\n\t` · **Regular Expression** on. Turns dictated line breaks into indented continuation lines the parser keeps. |
-| 3 | **Format Date** | Date **Current Date** · Format **Custom** · format string `yyyy-MM-dd'T'HH:mm:ssZZZZZ`. Produces `2026-07-28T09:14:03-04:00` — seconds and UTC offset both matter. |
-| 4 | **Text** | `- ` then the **Formatted Date** (step 3), a space, then the **Updated Text** (step 2). One bullet: `- <stamp> <capture>`. |
-| 5 | **Capture to Bookmark** (Obsidian) | Bookmark **Atoms Inbox** · **Append** · Text = the **Text** from step 4. |
+| 1 | **Choose from Menu** | Two items: `Type` and `Voice`. Lets one shortcut serve both keyboard and dictation. |
+| 2 | *(Type branch)* **Ask for Input** | Prompt `What's on your mind?` · type **Text** |
+| 3 | *(Type branch)* **Set Variable** | Name `Capture` · value **Provided Input** |
+| 4 | *(Voice branch)* **Dictate Text** | Defaults are fine |
+| 5 | *(Voice branch)* **Set Variable** | Name `Capture` · value **Dictated Text** |
+| 6 | **Replace Text** | Find `\n` · Replace with `\n\t` · **Regular Expression** on · Input **`Capture`**. Turns dictated line breaks into indented continuation lines the parser keeps. |
+| 7 | **Format Date** | Date **Current Date** · then open the *action's own* options: Date Format **Custom**, Format String `yyyy-MM-dd'T'HH:mm:ssZZZZZ`, Locale **Default**. |
+| 8 | **Text** | `- ` then **Formatted Date** (step 7), one space, then **Updated Text** (step 6). All on one line: `- <stamp> <capture>`. |
+| 9 | **Append to Bookmark** (Obsidian) | Bookmark **Atoms Inbox** · **Append** · Text = the **Text** from step 8. |
 
-Run it once with ▶ and confirm a new line lands in `Atoms System/Inbox.md`.
+Run it with ▶ and confirm one new line lands in `Atoms System/Inbox.md`, shaped
+exactly like:
 
-Why each step is shaped this way:
+```
+- 2026-07-28T17:23:34-04:00 Test
+```
 
-- **Seconds are required** (step 3). Two captures in the same minute would
-  otherwise share a stamp; the seconds keep them distinct.
-- **Capture to Bookmark adds its own newline and no bullet**, so step 4 builds
-  the whole `- ` bullet itself and step 5 supplies no trailing newline.
+### Two traps that cost real time
+
+Both were hit while building this on device. The symptom in each case is a line
+that reaches the inbox but never files.
+
+**Set the format string on the Format Date *action*, not on the `Current Date`
+variable.** Tapping the blue `Current Date` chip opens the magic-variable panel
+(it has *Clear Variable* / *Return* buttons and Date/Time/Name rows). Setting a
+custom format there does **not** change what the action outputs — the action
+keeps its own default and emits Short style, `7/28/26, 12:00 PM`. The field you
+want is behind the action's own disclosure arrow, labelled **Format String**,
+next to **Date Format** and **Locale**.
+
+**Use `ZZZZZ`, not `Z`.** A single `Z` renders the offset as `-0400`; the parser
+requires `-04:00`. The default custom format Shortcuts offers
+(`EEE, dd MMM yyyy HH:mm:ss Z`) is wrong on both counts.
+
+A related tell: if the stamp's time is always `12:00:00`, the `Current Date`
+variable is set to the **Date** component only, so the time was truncated to
+noon. Clear the variable and re-insert it without picking a component.
+
+Why the rest is shaped this way:
+
+- **Seconds are required** (step 7). Two captures in the same minute would
+  otherwise share a stamp, and the drain's duplicate protection compares the
+  daily line's time against the inbox capture's — matching on `HH:MM` alone
+  would collapse them.
+- **Set an explicit `Capture` variable** (steps 3 and 5) rather than relying on
+  a menu-result variable, which does not reliably carry the chosen branch's text.
+- **Append to Bookmark adds its own newline and no bullet**, so step 8 builds
+  the whole `- ` bullet itself and step 9 supplies no trailing newline.
 
 ## Three things to know
 
