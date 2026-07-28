@@ -20,6 +20,13 @@ export class DailyNotesDisabledError extends Error {
   }
 }
 
+export class FutureDailyNoteError extends Error {
+  constructor(date: string) {
+    super(`Refusing to create a daily note for a future date (${date}).`);
+    this.name = "FutureDailyNoteError";
+  }
+}
+
 function formatLocalDate(d: Date): string {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
@@ -75,6 +82,47 @@ export async function getPastDailyNotesWithUnmarkedCaptures(
     notes: result,
     totalUnprocessed: result.reduce((n, x) => n + x.unprocessed.length, 0),
   };
+}
+
+/**
+ * Resolve the daily note for a given local date (create if missing).
+ *
+ * The drain needs this for arbitrary past dates: a capture made on Monday
+ * belongs in Monday's daily even when it reaches the vault on Thursday, and
+ * that file often does not exist yet. Never opens a workspace leaf — unlike
+ * openTodaysDaily, whose callers want the note in front of the user.
+ *
+ * Future dates are refused rather than created: a stamp ahead of the local
+ * clock means device skew, not a real capture day.
+ */
+export async function ensureDailyForDate(
+  app: App,
+  date: string,
+): Promise<TFile> {
+  if (!appHasDailyNotesPluginLoaded()) {
+    throw new DailyNotesDisabledError();
+  }
+  if (date > formatLocalDate(new Date())) {
+    throw new FutureDailyNoteError(date);
+  }
+
+  const target = moment(date) as Parameters<typeof getDailyNote>[0];
+  const all = getAllDailyNotes();
+  let file: TFile | undefined;
+  try {
+    file = getDailyNote(target, all) ?? undefined;
+  } catch {
+    file = undefined;
+  }
+  if (file) return file;
+
+  const created = await createDailyNote(target);
+  if (!created) {
+    throw new Error(
+      `Could not create the daily note for ${date}. Check Daily Notes folder settings.`,
+    );
+  }
+  return created;
 }
 
 /**

@@ -38,14 +38,17 @@ export class TFile {
     this.path = path;
   }
 }
-export const moment = () => ({
+export const moment = (input?: string) => ({
   format: (f: string) => {
+    if (input) return input;
     const d = new Date();
     const y = d.getFullYear();
     const mo = String(d.getMonth() + 1).padStart(2, "0");
     const day = String(d.getDate()).padStart(2, "0");
     return f === "YYYY-MM-DD" ? `${y}-${mo}-${day}` : `${y}-${mo}-${day}`;
   },
+  // Carried so callers can recover the requested date from a moment-like value.
+  _input: input ?? null,
 });
 export class SecretComponent {}
 export class Modal {
