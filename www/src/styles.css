@@ -438,6 +438,12 @@ p {
   margin-top: 14px;
 }
 
+/* A section's closing thought: same serif voice, sized to sit under a list. */
+.claim--minor {
+  margin-top: 22px;
+  font-size: 1.18rem;
+}
+
 /* ---------- plain lists ---------- */
 
 .facts {

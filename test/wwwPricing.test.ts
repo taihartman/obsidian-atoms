@@ -170,6 +170,38 @@ describe("recall claims stay within what ships", () => {
     expect(index).toContain("It reads the library, not the pile");
   });
 
+  it("qualifies automatic filing as a choice, never a default", () => {
+    // Auto-run is opt-in, device-local, past days only. The heading avoids
+    // time-of-day claims and the body carries the "let it" qualifier.
+    expect(index).toContain("Come back and it is sorted");
+    expect(index).toContain("Let it happen on its own");
+    expect(index.toLowerCase()).not.toContain("files itself");
+    expect(index.toLowerCase()).not.toContain("while you sleep");
+    expect(index.toLowerCase()).not.toContain("overnight");
+  });
+
+  it("shows the person hub invite with a placeholder name", () => {
+    expect(index).toContain("Add Sam?");
+    expect(index).toContain("stays quiet for two weeks");
+  });
+
+  it("claims mind change in the product's own words", () => {
+    expect(index).toContain(
+      "It is the second brain that shows you when you changed your mind.",
+    );
+  });
+
+  it("sells preview before write", () => {
+    expect(index).toContain("See it before it writes");
+    expect(index).toContain("Nothing touches your vault until you say so");
+  });
+
+  it("never ships engineering vocabulary", () => {
+    for (const page of ["index.html", "privacy.html", "terms.html"]) {
+      expect(flatten(dist(page)).toLowerCase()).not.toContain("constellation");
+    }
+  });
+
   it("promises the capture shortcut only where it ships", () => {
     expect(index).toContain("shortcut on your iPhone");
     // Android capture is "later" per the constitution. Do not promise it.
