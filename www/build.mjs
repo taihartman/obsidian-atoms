@@ -58,105 +58,178 @@ export function render(template, values = tokens) {
   return out;
 }
 
-/**
- * Graph constellations — the "little web of your life" band. Generated here
- * (seeded, deterministic: same build in, same SVG out, stable fingerprints)
- * so a years-deep library is drawable without hand-placing sixty nodes.
- * Only the story's anchor notes get labels; satellites stay anonymous dots.
- * gd-1..gd-6 classes bucket the draw-in animation delays (see styles.css).
- */
-function genGraph(story) {
-  let s = story.seed >>> 0;
-  const rand = () => ((s = (s * 1664525 + 1013904223) >>> 0) / 2 ** 32);
-  const bucket = (i) => `gd-${(i % 6) + 1}`;
-  const E = [], N = [], L = [];
+/* ------------------------------------------------------------------ *
+ * Graph constellations, the "little web of your life" band.
+ *
+ * This emits SVG carrying the node/link DATA, seeded so every build is
+ * identical (stable fingerprints). At runtime app.js reads the data straight
+ * out of this SVG, hides it, and re-renders the same graph on canvas with a
+ * real force simulation, the way Obsidian's graph view actually behaves.
+ * Positions here are only a sensible starting layout for that simulation and
+ * the no-JS fallback.
+ * ------------------------------------------------------------------ */
 
-  story.clusters.forEach((c, ci) => {
-    const pts = [];
-    for (let k = 0; k < c.sats; k++) {
-      const a = rand() * Math.PI * 2;
-      const rr = c.spread * (0.45 + rand() * 0.55);
-      pts.push([
-        +(c.x + Math.cos(a) * rr).toFixed(1),
-        +(c.y + Math.sin(a) * rr * 0.85).toFixed(1),
-      ]);
-    }
-    pts.forEach(([x, y], k) => {
-      E.push(`<line class="graph-edge ${bucket(ci + 1 + (k % 3))}" x1="${c.x}" y1="${c.y}" x2="${x}" y2="${y}"/>`);
-      if (k % 3 === 2) {
-        const [px, py] = pts[k - 1];
-        E.push(`<line class="graph-edge ${bucket(ci + 3)}" x1="${px}" y1="${py}" x2="${x}" y2="${y}"/>`);
-      }
-      N.push(`<circle class="graph-node graph-node--soft ${bucket(ci + k)}" cx="${x}" cy="${y}" r="${(2.2 + rand() * 1.7).toFixed(1)}"/>`);
+const W = 360;
+const H = 300;
+
+function buildGraph(spec) {
+  let s = spec.seed >>> 0;
+  const rnd = () => ((s = (s * 1664525 + 1013904223) >>> 0) / 2 ** 32);
+  const jitter = (n) => (rnd() - 0.5) * n;
+
+  const nodes = [];
+  const links = [];
+  const add = (n) => (nodes.push(n), nodes.length - 1);
+
+  // Hubs sit on a loose ring, which the simulation then relaxes.
+  const hubs = spec.hubs.map((h, i) => {
+    const a = (i / spec.hubs.length) * Math.PI * 2 - Math.PI / 2;
+    return add({
+      label: h.label,
+      g: h.kind === "person" ? "person" : "hub",
+      x: W / 2 + Math.cos(a) * 78 + jitter(14),
+      y: H / 2 + Math.sin(a) * 66 + jitter(12),
     });
   });
 
-  story.bridges.forEach(([a, b], i) => {
-    const A = story.clusters[a], B = story.clusters[b];
-    E.push(`<line class="graph-edge graph-edge--bridge ${bucket(3 + i)}" x1="${A.x}" y1="${A.y}" x2="${B.x}" y2="${B.y}"/>`);
+  for (let i = 0; i < hubs.length; i++) {
+    links.push([hubs[i], hubs[(i + 1) % hubs.length]]);
+  }
+  links.push([hubs[0], hubs[2 % hubs.length]]);
+
+  // Story anchor notes: the ones the page actually talks about.
+  const atoms = spec.atoms.map((at) => {
+    const h = nodes[hubs[at.hub]];
+    const a = rnd() * Math.PI * 2;
+    const i = add({
+      label: at.label,
+      g: "atom",
+      x: h.x + Math.cos(a) * 32,
+      y: h.y + Math.sin(a) * 28,
+    });
+    links.push([i, hubs[at.hub]]);
+    if (at.also != null) links.push([i, hubs[at.also]]);
+    return i;
   });
 
-  story.atoms.forEach((at, i) => {
-    const c = story.clusters[0];
-    E.push(`<line class="graph-edge ${bucket(1 + i)}" x1="${c.x}" y1="${c.y}" x2="${at.x}" y2="${at.y}"/>`);
-    N.push(`<circle class="graph-node graph-node--atom ${bucket(2 + i)}" cx="${at.x}" cy="${at.y}" r="6"/>`);
-    L.push(`<text class="graph-label ${bucket(3 + i)}" x="${at.x}" y="${at.y - 11}" text-anchor="middle">${at.label}</text>`);
-  });
-
-  story.clusters.forEach((c, ci) => {
-    if (!c.label) {
-      N.push(`<circle class="graph-node graph-node--soft ${bucket(ci)}" cx="${c.x}" cy="${c.y}" r="4.5"/>`);
-      return;
+  // The quiet majority. A years-deep vault is mostly notes you do not
+  // remember writing, which is the whole point of the section.
+  const anchors = [...hubs, ...hubs, ...atoms];
+  for (let k = 0; k < spec.soft; k++) {
+    const anchor = anchors[Math.floor(rnd() * anchors.length)];
+    const p = nodes[anchor];
+    const a = rnd() * Math.PI * 2;
+    const rr = 20 + rnd() * 34;
+    const i = add({
+      g: "soft",
+      x: p.x + Math.cos(a) * rr,
+      y: p.y + Math.sin(a) * rr * 0.85,
+    });
+    links.push([i, anchor]);
+    // A few notes bridge two worlds, which is where the graph gets its shape.
+    if (rnd() < 0.18) {
+      links.push([i, anchors[Math.floor(rnd() * anchors.length)]]);
     }
-    const cls = c.kind === "person" ? "graph-node--hub" : "graph-node--hub2";
-    N.push(`<circle class="graph-node ${cls} ${bucket(ci)}" cx="${c.x}" cy="${c.y}" r="${c.r}"/>`);
-    L.push(`<text class="graph-label graph-label--hub ${bucket(ci + 1)}" x="${c.x}" y="${c.y + c.r + 14}" text-anchor="middle">${c.label}</text>`);
-  });
+  }
 
-  return `<svg viewBox="0 0 360 300" xmlns="http://www.w3.org/2000/svg" role="img">${E.join("")}${N.join("")}${L.join("")}</svg>`;
+  const degree = nodes.map(() => 0);
+  for (const [a, b] of links) {
+    degree[a]++;
+    degree[b]++;
+  }
+
+  const radius = (i) => {
+    const g = nodes[i].g;
+    const base = g === "person" || g === "hub" ? 5.5 : g === "atom" ? 4.2 : 2.6;
+    return +(base + Math.min(degree[i], 12) * 0.42).toFixed(2);
+  };
+
+  const cls = {
+    person: "graph-node--hub",
+    hub: "graph-node--hub2",
+    atom: "graph-node--atom",
+    soft: "graph-node--soft",
+  };
+
+  const esc = (t) =>
+    String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
+
+  const svgLinks = links
+    .map(([a, b]) => {
+      const A = nodes[a];
+      const B = nodes[b];
+      return `<line class="graph-edge" data-a="${a}" data-b="${b}" x1="${A.x.toFixed(1)}" y1="${A.y.toFixed(1)}" x2="${B.x.toFixed(1)}" y2="${B.y.toFixed(1)}"/>`;
+    })
+    .join("");
+
+  const svgNodes = nodes
+    .map((n, i) => {
+      const label = n.label ? ` data-label="${esc(n.label)}"` : "";
+      return `<circle class="graph-node ${cls[n.g]}" data-g="${n.g}"${label} cx="${n.x.toFixed(1)}" cy="${n.y.toFixed(1)}" r="${radius(i)}"/>`;
+    })
+    .join("");
+
+  const svgLabels = nodes
+    .map((n) =>
+      n.label
+        ? `<text class="graph-label${n.g === "soft" ? "" : " graph-label--hub"}" x="${n.x.toFixed(1)}" y="${(n.y + 14).toFixed(1)}" text-anchor="middle">${esc(n.label)}</text>`
+        : "",
+    )
+    .join("");
+
+  return `<svg class="graph-svg" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" role="img">${svgLinks}${svgNodes}${svgLabels}</svg>`;
 }
 
 const GRAPHS = {
   graphRel: {
     seed: 7,
-    clusters: [
-      { x: 150, y: 158, label: "Sam", kind: "person", r: 13, sats: 12, spread: 62 },
-      { x: 282, y: 78, label: "Gift ideas", kind: "hub", r: 9, sats: 8, spread: 44 },
-      { x: 296, y: 232, label: "Coast trip", kind: "hub", r: 9, sats: 7, spread: 40 },
-      { x: 56, y: 58, label: "", sats: 5, spread: 30 },
+    soft: 30,
+    hubs: [
+      { label: "Sam", kind: "person" },
+      { label: "Gift ideas", kind: "hub" },
+      { label: "Coast trip", kind: "hub" },
+      { label: "Anna", kind: "person" },
+      { label: "Books", kind: "hub" },
     ],
-    bridges: [[0, 1], [0, 2], [1, 2], [0, 3]],
     atoms: [
-      { x: 96, y: 108, label: "Yellow tulips" },
-      { x: 200, y: 122, label: "Poetry section" },
+      { label: "Yellow tulips", hub: 0, also: 1 },
+      { label: "Poetry section", hub: 0, also: 4 },
+      { label: "Anna's wedding", hub: 3 },
+      { label: "Coast playlist", hub: 2 },
     ],
   },
   graphWork: {
     seed: 11,
-    clusters: [
-      { x: 150, y: 158, label: "Priya", kind: "person", r: 13, sats: 12, spread: 62 },
-      { x: 285, y: 80, label: "Acme pitch", kind: "hub", r: 9, sats: 8, spread: 44 },
-      { x: 288, y: 235, label: "Q3 pricing", kind: "hub", r: 9, sats: 7, spread: 40 },
-      { x: 58, y: 62, label: "", sats: 5, spread: 30 },
+    soft: 30,
+    hubs: [
+      { label: "Priya", kind: "person" },
+      { label: "Acme pitch", kind: "hub" },
+      { label: "Q3 pricing", kind: "hub" },
+      { label: "Dev team", kind: "hub" },
+      { label: "Roadmap", kind: "hub" },
     ],
-    bridges: [[0, 1], [0, 2], [1, 2], [0, 3]],
     atoms: [
-      { x: 95, y: 105, label: "Budget freeze" },
-      { x: 202, y: 120, label: "Decks on phone" },
+      { label: "Budget freeze", hub: 0, also: 1 },
+      { label: "Decks on phone", hub: 0 },
+      { label: "Pilot scope", hub: 1, also: 4 },
+      { label: "Renewal date", hub: 2 },
     ],
   },
   graphSelf: {
     seed: 23,
-    clusters: [
-      { x: 150, y: 158, label: "Energy", kind: "hub", r: 13, sats: 12, spread: 62 },
-      { x: 283, y: 82, label: "Running", kind: "hub", r: 9, sats: 8, spread: 44 },
-      { x: 290, y: 232, label: "Meetings", kind: "hub", r: 9, sats: 7, spread: 40 },
-      { x: 58, y: 60, label: "", sats: 5, spread: 30 },
+    soft: 30,
+    hubs: [
+      { label: "Energy", kind: "hub" },
+      { label: "Running", kind: "hub" },
+      { label: "Meetings", kind: "hub" },
+      { label: "Sleep", kind: "hub" },
+      { label: "Writing", kind: "hub" },
     ],
-    bridges: [[0, 1], [0, 2], [1, 2], [0, 3]],
     atoms: [
-      { x: 93, y: 107, label: "Skipping lunch" },
-      { x: 201, y: 121, label: "Clean drafts" },
+      { label: "Skipping lunch", hub: 0, also: 2 },
+      { label: "Clean drafts", hub: 1, also: 4 },
+      { label: "Midnight thinking", hub: 3, also: 4 },
+      { label: "Morning brain", hub: 3 },
     ],
   },
 };
@@ -193,9 +266,9 @@ function build() {
     ...tokens,
     cssPath: paths.styles_css,
     jsPath: paths.app_js,
-    graphRel: genGraph(GRAPHS.graphRel),
-    graphWork: genGraph(GRAPHS.graphWork),
-    graphSelf: genGraph(GRAPHS.graphSelf),
+    graphRel: buildGraph(GRAPHS.graphRel),
+    graphWork: buildGraph(GRAPHS.graphWork),
+    graphSelf: buildGraph(GRAPHS.graphSelf),
   };
 
   for (const page of PAGES) {
@@ -217,4 +290,4 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   build();
 }
 
-export { tokens, trialFinePrint, PAGES };
+export { tokens, trialFinePrint, PAGES, buildGraph, GRAPHS };

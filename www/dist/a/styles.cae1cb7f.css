@@ -540,59 +540,42 @@ main[data-story="self"] .hero-panel[data-s="self"] {
   fill: var(--label);
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  .reveals-on .reveal.in .graph-edge:not(.graph-edge--bridge) {
-    stroke-dasharray: 220;
-    stroke-dashoffset: 220;
-    animation: edge-draw 800ms ease-out forwards;
-  }
-
-  /* Bridges keep their dash pattern, so they fade in rather than draw. */
-  .reveals-on .reveal.in .graph-edge--bridge {
-    opacity: 0;
-    animation: rise 600ms ease-out forwards;
-  }
-
-  .reveals-on .reveal.in .graph-node,
-  .reveals-on .reveal.in .graph-label {
-    opacity: 0;
-    animation: node-bloom 520ms cubic-bezier(0.22, 0.68, 0.36, 1) forwards;
-  }
-
-  /* Draw-in delay buckets, assigned by the generator in www/build.mjs. */
-  .reveals-on .reveal.in .gd-2 {
-    animation-delay: 140ms;
-  }
-  .reveals-on .reveal.in .gd-3 {
-    animation-delay: 280ms;
-  }
-  .reveals-on .reveal.in .gd-4 {
-    animation-delay: 420ms;
-  }
-  .reveals-on .reveal.in .gd-5 {
-    animation-delay: 560ms;
-  }
-  .reveals-on .reveal.in .gd-6 {
-    animation-delay: 700ms;
-  }
+/*
+ * Canvas takes over from the SVG once app.js runs the force simulation. The
+ * SVG stays in the DOM as the no-JS fallback and as the data source.
+ */
+.graph-canvas {
+  display: block;
+  width: 100%;
+  pointer-events: none;
 }
 
-@keyframes edge-draw {
-  to {
-    stroke-dashoffset: 0;
-  }
+.graph-canvas.is-interactive {
+  pointer-events: auto;
 }
 
-@keyframes node-bloom {
-  from {
-    opacity: 0;
-    transform: scale(0.85);
-    transform-origin: center;
-    transform-box: fill-box;
-  }
-  to {
-    opacity: 1;
-    transform: none;
+.graph-canvas.is-over {
+  cursor: grab;
+}
+
+.graph-canvas.is-grabbing {
+  cursor: grabbing;
+}
+
+.has-canvas .graph-svg {
+  display: none;
+}
+
+.graph-hint {
+  margin: 6px 2px 0;
+  font-size: 0.72rem;
+  color: var(--faint);
+}
+
+/* The hint only makes sense where dragging is actually wired up. */
+@media (pointer: coarse) {
+  .graph-hint {
+    display: none;
   }
 }
 
@@ -685,11 +668,16 @@ main[data-story="self"] .hero-panel[data-s="self"] {
 
 :root {
   --mind: #bf5af2;
+  /* Graph palette: person hubs warm, the quiet majority low-contrast. */
+  --graph-person: #ff9f0a;
+  --graph-soft: rgba(235, 235, 245, 0.34);
 }
 
 @media (prefers-color-scheme: light) {
   :root {
     --mind: #8944ab;
+    --graph-person: #e08600;
+    --graph-soft: rgba(60, 60, 67, 0.34);
   }
 }
 
