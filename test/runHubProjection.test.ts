@@ -4,7 +4,10 @@ import {
   planHubProjection,
 } from "../src/pipeline/runHubProjection";
 import { GENERATED_CLOSE, GENERATED_OPEN } from "../src/pipeline/hubSections";
-import { normalizeHubSection } from "../src/pipeline/classify";
+import {
+  normalizeHubSection,
+  repairHubSection,
+} from "../src/pipeline/classify";
 import type { ClassificationResult, VaultContext } from "../src/shared/types";
 
 describe("planHubProjection", () => {
@@ -172,5 +175,73 @@ describe("normalizeHubSection", () => {
       hub_section: "Made Up",
     };
     expect(normalizeHubSection(r, ctx).hub_section).toBeUndefined();
+  });
+
+  it("case-insensitive canonicalizes model section", () => {
+    const r: ClassificationResult = {
+      verdict: "atom",
+      title: "t",
+      tags: [],
+      proposed_tags: [],
+      links: [],
+      hub_section: "gift ideas",
+    };
+    expect(normalizeHubSection(r, ctx).hub_section).toBe("Gift Ideas");
+  });
+});
+
+describe("repairHubSection", () => {
+  const ctx: VaultContext = {
+    titles: [],
+    tags: [],
+    vocabulary: [],
+    personHubs: ["Nichita"],
+    personHubDetails: [
+      {
+        canonicalTitle: "Nichita",
+        matchKeys: ["Nichita"],
+        sections: ["Gift Ideas", "Personality"],
+      },
+    ],
+  };
+
+  it("fills Gift Ideas from want/gift cue when person linked", () => {
+    const r: ClassificationResult = {
+      verdict: "atom",
+      title: "Nichita wants a big PC case for his next build",
+      tags: ["person"],
+      proposed_tags: [],
+      links: [{ note: "Nichita", reason: "gift want" }],
+    };
+    const out = repairHubSection(
+      "Nichita wants a big PC case for his next build",
+      r,
+      ctx,
+    );
+    expect(out.hub_section).toBe("Gift Ideas");
+  });
+
+  it("does not guess when no cue", () => {
+    const r: ClassificationResult = {
+      verdict: "atom",
+      title: "Nichita likes teal",
+      tags: ["person"],
+      proposed_tags: [],
+      links: [{ note: "Nichita", reason: "preference" }],
+    };
+    const out = repairHubSection("Nichita likes teal and soft light", r, ctx);
+    expect(out.hub_section).toBeUndefined();
+  });
+
+  it("does not invent sections not on hub", () => {
+    const r: ClassificationResult = {
+      verdict: "atom",
+      title: "wants a trip",
+      tags: [],
+      proposed_tags: [],
+      links: [{ note: "Nichita", reason: "x" }],
+    };
+    const out = repairHubSection("wants a trip to Japan", r, ctx);
+    expect(out.hub_section).toBeUndefined();
   });
 });

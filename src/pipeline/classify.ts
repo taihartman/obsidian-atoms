@@ -129,7 +129,7 @@ export const SYSTEM_PROMPT = `You classify fleeting captures from a daily-note i
 - One atom can carry a person link, a work link, and preference/media tags together.
 - Pure logistics that merely mention a name stay **noise** — do not force person atoms for chores.
 - Do not invent entity links from speech typos (e.g. "Kloe") unless that exact title exists in Note titles.
-- **hub_section (optional):** when the capture is an accumulating list/fact about a person and Person hubs list indented ## section names under that hub, set hub_section to one **exact** section string from that list. Omit or use "" when unsure, no fit, or the hub has no sections. Never invent a section name that is not listed.
+- **hub_section (optional but important for list/gift/date facts):** when the capture is an accumulating list or want about a person and Person hubs list indented ## section names under that hub, set hub_section to one **exact** section string from that list (e.g. Gift Ideas when they want a physical gift). Prefer a real section over leaving empty. Omit or use "" only when unsure or no section fits. Never invent a section name that is not listed.
 
 ## Links + supersession (reason quality is load-bearing)
 - Link to existing notes when the capture relates, revises, or contradicts them.
@@ -262,15 +262,105 @@ export function normalizeHubSection(
     return rest as ClassificationResult;
   }
   const details = context.personHubDetails ?? [];
-  const allowed = new Set<string>();
+  const allowedExact = new Map<string, string>(); // lower → canonical
   for (const d of details) {
-    for (const sec of d.sections ?? []) allowed.add(sec);
+    for (const sec of d.sections ?? []) {
+      const t = sec.trim();
+      if (t) allowedExact.set(t.toLowerCase(), t);
+    }
   }
-  if (!allowed.has(raw)) {
+  const canon = allowedExact.get(raw.toLowerCase());
+  if (!canon) {
     const { hub_section: _drop, ...rest } = result;
     return rest as ClassificationResult;
   }
-  return { ...result, hub_section: raw };
+  return { ...result, hub_section: canon };
+}
+
+/**
+ * After person-link enrich: if hub_section still empty, place only when a
+ * linked person hub's existing H2 is an unambiguous match (exact name in
+ * text, or unique keyword cue). Never invent section names.
+ */
+export function repairHubSection(
+  capture: string,
+  result: ClassificationResult,
+  context: VaultContext,
+): ClassificationResult {
+  if (result.verdict !== "atom") return result;
+  let r = normalizeHubSection(result, context);
+  if ((r.hub_section ?? "").trim()) return r;
+
+  const details = context.personHubDetails ?? [];
+  if (!details.length) return r;
+
+  const linkNotes = new Set(
+    (r.links ?? [])
+      .map((l) => (l.note ?? "").trim().toLowerCase())
+      .filter(Boolean),
+  );
+  if (!linkNotes.size) return r;
+
+  const candidates: string[] = [];
+  const seen = new Set<string>();
+  for (const d of details) {
+    const keys = [
+      d.canonicalTitle,
+      ...(d.matchKeys ?? []),
+    ].map((k) => k.trim().toLowerCase());
+    if (!keys.some((k) => k && linkNotes.has(k))) continue;
+    for (const sec of d.sections ?? []) {
+      const t = sec.trim();
+      if (!t || seen.has(t)) continue;
+      seen.add(t);
+      candidates.push(t);
+    }
+  }
+  if (!candidates.length) return r;
+
+  const hay = `${capture ?? ""}\n${r.title ?? ""}`.toLowerCase();
+
+  // Exact section title in capture/title (longest first).
+  const byLen = [...candidates].sort((a, b) => b.length - a.length);
+  for (const sec of byLen) {
+    if (hay.includes(sec.toLowerCase())) {
+      return { ...r, hub_section: sec };
+    }
+  }
+
+  // Keyword cues → sections whose names share the cue token; unique only.
+  const cueHits = new Set<string>();
+  const rules: Array<{ re: RegExp; tokens: string[] }> = [
+    {
+      re: /\b(gift|presents?|wishlist|want(?:s|ed)?\b.*\b(?:case|pc|phone|bag|shoes?|clothes?))\b/i,
+      tokens: ["gift"],
+    },
+    { re: /\b(date night|date idea|dinner date)\b/i, tokens: ["date"] },
+    {
+      re: /\b(travel|trip|vacation|flight|hotel)\b/i,
+      tokens: ["travel", "trip"],
+    },
+    {
+      re: /\b(movie|watchlist|show to watch|book to read)\b/i,
+      tokens: ["movie", "show", "book", "watch", "experience"],
+    },
+    {
+      re: /\b(mentioned wanting|things? (?:she|he|they)'?s? mentioned)\b/i,
+      tokens: ["mention", "wanting"],
+    },
+  ];
+  for (const rule of rules) {
+    if (!rule.re.test(hay)) continue;
+    for (const sec of candidates) {
+      const low = sec.toLowerCase();
+      if (rule.tokens.some((t) => low.includes(t))) cueHits.add(sec);
+    }
+  }
+  if (cueHits.size === 1) {
+    return { ...r, hub_section: [...cueHits][0]! };
+  }
+
+  return r;
 }
 
 export function checkInvariants(
@@ -656,6 +746,8 @@ export async function classifyCapture(
   result = improveClassificationLinks(capture, result);
   // Never self-link / self-duplicate the atom title in graph prose.
   result = stripSelfReferentialLinks(result);
+  // Placement after links exist: fill hub_section when unambiguous.
+  result = repairHubSection(capture, result, context);
 
   return {
     ok: true,
@@ -676,6 +768,7 @@ export function applyClassificationQuality(
     titles?: string[];
     personHubs?: PersonHub[];
     personHubTitles?: string[];
+    personHubDetails?: VaultContext["personHubDetails"];
   } = {},
 ): ClassificationResult {
   const titles = opts.titles ?? [];
@@ -692,6 +785,16 @@ export function applyClassificationQuality(
   r = enrichEntityLinks(capture, r, titles);
   r = improveClassificationLinks(capture, r);
   r = stripSelfReferentialLinks(r);
+  const details = opts.personHubDetails;
+  if (details?.length) {
+    r = repairHubSection(capture, r, {
+      titles,
+      tags: [],
+      vocabulary: [],
+      personHubs: opts.personHubTitles ?? hubs.map((h) => h.canonicalTitle),
+      personHubDetails: details,
+    });
+  }
   return r;
 }
 
