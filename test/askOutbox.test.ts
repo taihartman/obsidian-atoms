@@ -29,6 +29,22 @@ describe("askOutbox", () => {
     expect(isGeneratedAtomContent(content)).toBe(true);
   });
 
+  it("defaults created to local wall clock (not day-only)", () => {
+    const { content } = buildAskAtomMarkdown({
+      title: "Timed ask",
+      body: "just now",
+    });
+    expect(content).toMatch(
+      /^created: \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/m,
+    );
+    const stamped = buildAskAtomMarkdown({
+      title: "Timed ask",
+      body: "just now",
+      created: "2026-07-27T10:29:05",
+    });
+    expect(stamped.content).toMatch(/^created: 2026-07-27T10:29:05$/m);
+  });
+
   it("plans create when path free", () => {
     const plan = planAskOutboxApply(
       { title: "New thought", body: "hello" },

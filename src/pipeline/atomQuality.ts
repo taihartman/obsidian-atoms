@@ -17,6 +17,17 @@ export function localDateYmd(d: Date = new Date()): string {
   return `${y}-${m}-${day}`;
 }
 
+/** Local wall clock `YYYY-MM-DDTHH:mm:ss` (library Recents / parseCreatedMs). */
+export function localDateTimeStamp(d: Date = new Date()): string {
+  const y = d.getFullYear();
+  const mo = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  const h = String(d.getHours()).padStart(2, "0");
+  const mi = String(d.getMinutes()).padStart(2, "0");
+  const s = String(d.getSeconds()).padStart(2, "0");
+  return `${y}-${mo}-${day}T${h}:${mi}:${s}`;
+}
+
 /** Frontmatter block only (includes opening ---). */
 export function frontmatterBlock(content: string): string {
   if (!content.startsWith("---")) return "";

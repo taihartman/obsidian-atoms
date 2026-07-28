@@ -8,7 +8,7 @@ import {
   normalizeCaptureText,
   sanitizeFilename,
 } from "../pipeline/render";
-import { localDateYmd } from "../pipeline/atomQuality";
+import { localDateTimeStamp } from "../pipeline/atomQuality";
 
 export type AskOutboxPayload = {
   title: string;
@@ -46,7 +46,7 @@ export function buildAskAtomMarkdown(opts: {
 }): { pathSegment: string; content: string; title: string } {
   const { filename, alias } = sanitizeFilename(opts.title);
   const title = filename;
-  const created = opts.created ?? localDateYmd();
+  const created = opts.created ?? localDateTimeStamp();
   const tags = (opts.tags ?? [])
     .map((t) => String(t).replace(/^#/, "").replace(/[\r\n]/g, "").trim())
     .filter(Boolean)
