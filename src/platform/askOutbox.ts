@@ -5,10 +5,11 @@ import type { ClassificationLink } from "../shared/types";
 import {
   atomPathForTitle,
   clampAtomFolder,
+  formatLinkProse,
   normalizeCaptureText,
   sanitizeFilename,
 } from "../pipeline/render";
-import { localDateYmd } from "../pipeline/atomQuality";
+import { localDateTimeStamp } from "../pipeline/atomQuality";
 
 export type AskOutboxPayload = {
   title: string;
@@ -30,10 +31,9 @@ function yamlQuote(s: string): string {
 }
 
 /**
- * Build Ask-origin atom markdown.
- * Capture body is sacred/verbatim — NO reason prose flattened into body.
- * Structured links + parent/relation live in frontmatter; bare [[wikilinks]]
- * at end keep Obsidian graph edges without duplicating reason text.
+ * Build Ask-origin atom markdown (Process parity for the note the user reads).
+ * Capture body is sacred/verbatim. Links = formatLinkProse after a blank line.
+ * Mirror recovers structured links from that prose (no FM atom-links).
  */
 export function buildAskAtomMarkdown(opts: {
   title: string;
@@ -46,7 +46,7 @@ export function buildAskAtomMarkdown(opts: {
 }): { pathSegment: string; content: string; title: string } {
   const { filename, alias } = sanitizeFilename(opts.title);
   const title = filename;
-  const created = opts.created ?? localDateYmd();
+  const created = opts.created ?? localDateTimeStamp();
   const tags = (opts.tags ?? [])
     .map((t) => String(t).replace(/^#/, "").replace(/[\r\n]/g, "").trim())
     .filter(Boolean)
@@ -58,7 +58,7 @@ export function buildAskAtomMarkdown(opts: {
       reason: (l.reason || "").trim(),
     }));
 
-  // continue: ensure parent edge in structured links
+  // continue: ensure parent edge in link prose
   if (opts.parent?.trim()) {
     const p = sanitizeFilename(opts.parent.trim()).filename;
     const rel = (opts.relation || "continues").trim();
@@ -97,24 +97,11 @@ export function buildAskAtomMarkdown(opts: {
   } else {
     fm.push("tags: []");
   }
-  // Structured edge data (MCP reads this via mirror push — not body parse)
-  if (links.length) {
-    fm.push("atom-links:");
-    for (const l of links) {
-      fm.push(`  - note: ${yamlQuote(l.note)}`);
-      if (l.reason) fm.push(`    reason: ${yamlQuote(l.reason)}`);
-    }
-  }
   fm.push("---", "");
 
   const body = String(opts.body ?? "").replace(/\s+$/, "");
-  // Bare wikilinks only (graph); reasons stay in FM atom-links
-  const wikiLines = links.map((l) => `[[${l.note}]]`);
-  const uniqueWiki = [...new Set(wikiLines)];
-  const fullBody =
-    uniqueWiki.length > 0
-      ? `${body}\n\n${uniqueWiki.join("\n")}`
-      : body;
+  const prose = formatLinkProse(links);
+  const fullBody = prose ? `${body}\n\n${prose}` : body;
   const content =
     fm.join("\n") + fullBody + (fullBody.endsWith("\n") ? "" : "\n");
   return { pathSegment: title, content, title };

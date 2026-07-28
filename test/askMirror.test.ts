@@ -19,6 +19,60 @@ describe("askMirror", () => {
     expect(body).toContain("I prefer tea");
   });
 
+  it("recovers reasons from Process-style link prose without atom-links", () => {
+    const files = [
+      {
+        path: "Atoms/Shop.md",
+        basename: "Shop",
+        content: `---
+tags:
+  - person
+---
+We went shopping together.
+
+shopping trip with Nichita ([[Nichita]]). the planned trip happened ([[Plan to shop]]).
+`,
+      },
+    ];
+    const { atoms } = planAskMirrorUpsert(files, "Atoms", {});
+    const shop = atoms.find((a) => a.title === "Shop");
+    expect(shop?.links.find((l) => l.note === "Nichita")?.reason).toMatch(
+      /shopping trip with Nichita/,
+    );
+    expect(shop?.links.find((l) => l.note === "Plan to shop")?.reason).toMatch(
+      /planned trip happened/,
+    );
+  });
+
+  it("Ask outbox markdown mirrors with structured reasons", async () => {
+    const { buildAskAtomMarkdown } = await import("../src/platform/askOutbox");
+    const { content, title } = buildAskAtomMarkdown({
+      title: "Went shopping",
+      body: "We went shopping at Aaron's Alley together.",
+      links: [
+        { note: "Nichita", reason: "shopping trip with Nichita" },
+        {
+          note: "Plan to shop for rave outfits",
+          reason: "the planned trip happened",
+        },
+      ],
+      created: "2026-07-27T10:29:05",
+    });
+    expect(content).not.toContain("atom-links:");
+    const { atoms } = planAskMirrorUpsert(
+      [{ path: `Atoms/${title}.md`, basename: title, content }],
+      "Atoms",
+      {},
+    );
+    const a = atoms[0]!;
+    expect(a.links.find((l) => l.note === "Nichita")?.reason).toMatch(
+      /shopping trip/,
+    );
+    expect(
+      a.links.find((l) => l.note === "Plan to shop for rave outfits")?.reason,
+    ).toMatch(/planned trip/);
+  });
+
   it("prefers FM atom-links; does not swallow capture as reason", () => {
     expect(extractWikilinks("see ([[Nichita]]) and [[Foo|bar]]")).toEqual([
       "Nichita",

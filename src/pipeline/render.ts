@@ -49,9 +49,11 @@ export function formatLinkProse(links: ClassificationLink[]): string {
         return reason.endsWith(".") ? reason : `${reason}.`;
       const note = (l.note || "").trim();
       if (!note) return reason;
-      return reason
-        ? `${reason} ([[${note}]])`.replace(/\.\s*\(/, " (")
-        : `Related to [[${note}]].`;
+      if (!reason) return `Related to [[${note}]].`;
+      // One sentence per link so parseLinkProse can split multi-edge prose.
+      let s = `${reason} ([[${note}]])`.replace(/\.\s*\(/, " (");
+      if (!/[.!?]$/.test(s)) s += ".";
+      return s;
     })
     .join(" ");
 }

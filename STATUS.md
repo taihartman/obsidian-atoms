@@ -7,6 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
+| In progress | #147 #149 | agent | `fix/ask-mcp-created-wall-clock` | amend | askOutbox, atomQuality | wall-clock created + Process link prose (no atom-links FM) |
 | In progress | #144 | Tai | `feat/ask-mirror-hubs` | handoff hub mirror | askMirror, mcp/tools, askHelpers, main sync | hubs outside Atoms/ |
 | Blocked | #115 | Tai | — | `docs/qa/2026-07-27-plus-public-launch-checklist.md` | Fly secrets, Resend, Stripe live | Docs+0.6.31 shipped (#117). Waiting: Fly billing card, Resend domain+2nd email, Stripe live keys/prices/webhook |
 
