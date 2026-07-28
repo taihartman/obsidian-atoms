@@ -1,0 +1,1295 @@
+/*
+ * tryatoms.app — Atoms landing page
+ *
+ * Palette, type scale, radii and spacing are the Atoms product tokens
+ * (docs/design-handoff/tokens/, docs/design-handoff/atoms-plus/index.html).
+ * Dark is the default because the product is dark-canonical; light is a real
+ * variant, not an afterthought.
+ */
+
+:root {
+  --bg: #000;
+  --surface: #1c1c1e;
+  --elev: #2c2c2e;
+  --sep: rgba(84, 84, 88, 0.55);
+  --sep-soft: rgba(84, 84, 88, 0.35);
+  --label: #fff;
+  /*
+   * Text tiers are separated by size and weight, not by fading toward the
+   * background. Both of these clear 4.5:1 on their surfaces; the old --faint
+   * sat at 2.4:1 in dark and 1.8:1 in light, which put disclosure copy below
+   * the readability floor.
+   */
+  --muted: rgba(235, 235, 245, 0.6);
+  --faint: rgba(235, 235, 245, 0.5);
+  --tint: #0a84ff;
+  --tint-ink: #0a84ff;
+  --ok: #30d158;
+  --person: #ff9f0a;
+
+  --font-ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display",
+    system-ui, sans-serif;
+  --font-serif: "New York", ui-serif, Georgia, serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 16px;
+  --r-pill: 980px;
+
+  --measure: 34rem;
+  --gutter: 20px;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #f2f2f7;
+    --surface: #fff;
+    --elev: #e9e9ee;
+    --sep: rgba(60, 60, 67, 0.29);
+    --sep-soft: rgba(60, 60, 67, 0.16);
+    --label: #000;
+    --muted: rgba(60, 60, 67, 0.78);
+    --faint: rgba(60, 60, 67, 0.74);
+    --tint-ink: color-mix(in srgb, #0a84ff 82%, black);
+    --ok: color-mix(in srgb, #30d158 72%, black);
+    --person: #a35200;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--label);
+  font-family: var(--font-ui);
+  font-size: 17px;
+  line-height: 1.42;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: var(--tint-ink);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+:focus-visible {
+  outline: 2px solid var(--tint);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+/* ---------- layout ---------- */
+
+.wrap {
+  width: 100%;
+  max-width: var(--measure);
+  margin: 0 auto;
+  padding: 0 var(--gutter);
+}
+
+.band {
+  padding: 56px 0;
+  border-top: 1px solid var(--sep-soft);
+}
+
+.band:first-of-type {
+  border-top: 0;
+}
+
+/* Anchors must clear the sticky bar instead of tucking under it. */
+.band,
+.hero {
+  scroll-margin-top: 68px;
+}
+
+/* ---------- sticky top bar ---------- */
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: var(--bg);
+  border-bottom: 1px solid transparent;
+  transition: background 160ms ease, border-color 160ms ease;
+}
+
+/*
+ * Translucency only where the blur exists to back it up; otherwise page
+ * content would show through the bar as unreadable ghosting.
+ */
+@supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
+  .topbar {
+    background: color-mix(in srgb, var(--bg) 70%, transparent);
+    -webkit-backdrop-filter: saturate(180%) blur(14px);
+    backdrop-filter: saturate(180%) blur(14px);
+  }
+}
+
+/* Set by app.js past the first scroll, so the bar stays invisible over the hero. */
+.topbar.is-stuck {
+  border-bottom-color: var(--sep-soft);
+}
+
+@supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
+  .topbar.is-stuck {
+    background: color-mix(in srgb, var(--bg) 86%, transparent);
+  }
+}
+
+.topbar-in {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+  max-width: 40rem;
+  min-height: 56px;
+  margin: 0 auto;
+  padding: 0 var(--gutter);
+}
+
+.topbar-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--label);
+  font-size: 0.95rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.topbar-mark:hover {
+  text-decoration: none;
+}
+
+/* Under 720px the four anchors would crowd out the button, which matters more. */
+.topbar-links {
+  display: none;
+  gap: 18px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.86rem;
+}
+
+@media (min-width: 720px) {
+  .topbar-links {
+    display: flex;
+  }
+}
+
+.topbar-links a {
+  color: var(--muted);
+  font-weight: 550;
+  white-space: nowrap;
+  transition: color 130ms ease;
+}
+
+.topbar-links a:hover {
+  color: var(--label);
+  text-decoration: none;
+}
+
+/* Answers "where am I" without a progress bar. Set by app.js. */
+.topbar-links a.is-current {
+  color: var(--label);
+}
+
+.eyebrow {
+  margin: 0 0 10px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+h1,
+h2,
+h3 {
+  margin: 0;
+  letter-spacing: -0.03em;
+  font-weight: 700;
+}
+
+h1 {
+  font-size: 2.6rem;
+  line-height: 1.05;
+}
+
+h2 {
+  font-size: 1.5rem;
+  letter-spacing: -0.028em;
+}
+
+h3 {
+  font-size: 1.06rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+p {
+  margin: 12px 0 0;
+  color: var(--muted);
+}
+
+.lead {
+  font-size: 1.12rem;
+  line-height: 1.38;
+  color: var(--muted);
+  margin-top: 14px;
+}
+
+.band > .wrap > h2 + p {
+  margin-top: 10px;
+}
+
+/* ---------- hero ---------- */
+
+.hero {
+  padding: 72px 0 56px;
+}
+
+.hero h1 {
+  letter-spacing: -0.045em;
+}
+
+.hero .lead {
+  max-width: 30rem;
+}
+
+/*
+ * Signature: the sentinel glyph the plugin actually writes into your daily
+ * note. It marks every "this became that" relationship on the page.
+ */
+.sentinel {
+  color: var(--tint-ink);
+  font-family: var(--font-mono);
+}
+
+/* ---------- specimen (hero thesis) ---------- */
+
+.specimen {
+  margin: 32px 0 28px;
+}
+
+.file {
+  background: var(--surface);
+  border: 1px solid var(--sep);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+}
+
+.file + .file {
+  margin-top: 10px;
+}
+
+.file-name {
+  display: block;
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--sep-soft);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0;
+  color: var(--faint);
+}
+
+.file-body {
+  margin: 0;
+  padding: 14px;
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  line-height: 1.66;
+  color: var(--muted);
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+
+/* The sentinel sits indented under its capture, as the plugin writes it. */
+.file-body .indent {
+  display: block;
+  padding-left: 1.2em;
+}
+
+@media (min-width: 620px) {
+  .file-body {
+    font-size: 0.8rem;
+  }
+}
+
+.file-body .verbatim {
+  color: var(--label);
+}
+
+.file-body .wl {
+  color: var(--tint-ink);
+}
+
+.file-body .marker {
+  color: var(--faint);
+}
+
+/*
+ * Assistant window mock. Reads as Claude — warm dark chrome, ✱ mark, tool-use
+ * chip, serif answer — not as a text-message thread. Free of markdown syntax:
+ * syntax is earned further down the page.
+ */
+.claude {
+  margin: 30px 0 26px;
+  background: #262624;
+  border: 1px solid var(--sep);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+}
+
+@media (prefers-color-scheme: light) {
+  .claude {
+    background: #faf9f5;
+  }
+}
+
+.claude-bar {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--sep-soft);
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.claude-star {
+  color: #d97757;
+  font-size: 0.95rem;
+}
+
+.claude-body {
+  padding: 14px;
+}
+
+.claude-you {
+  max-width: 92%;
+  width: fit-content;
+  margin: 0 0 0 auto;
+  padding: 10px 14px;
+  border-radius: var(--r-md);
+  background: var(--elev);
+  color: var(--label);
+  font-size: 0.94rem;
+  line-height: 1.4;
+}
+
+/* Tool-use chip: the visible seam where Claude reaches into your notes. */
+.claude-tool {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 12px 0 0;
+  padding: 4px 10px;
+  border: 1px solid var(--sep-soft);
+  border-radius: var(--r-pill);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--faint);
+}
+
+/* The answer voice is serif, as Claude's is. */
+.claude-ans {
+  margin: 12px 2px 0;
+  font-family: var(--font-serif);
+  font-size: 0.98rem;
+  line-height: 1.45;
+  color: var(--label);
+}
+
+.claude-ans blockquote {
+  margin: 8px 0;
+  padding: 2px 0 2px 12px;
+  border-left: 2px solid #d97757;
+  color: var(--label);
+}
+
+.claude-cite {
+  margin: 8px 2px 0;
+  font-family: var(--font-ui);
+  font-size: 0.76rem;
+  color: var(--faint);
+}
+
+.claude-cite .sentinel {
+  color: var(--tint-ink);
+}
+
+/* The answer lands a beat after the question (Ask-section windows). */
+@media (prefers-reduced-motion: no-preference) {
+  .claude-tool,
+  .claude-ans,
+  .claude-cite {
+    animation: rise 460ms cubic-bezier(0.22, 0.68, 0.36, 1) both;
+    animation-delay: 300ms;
+  }
+}
+
+/*
+ * Hero stage. The three story panels share one grid cell; the active one is
+ * chosen by <main data-story>. For everyone, inactive panels are hidden.
+ * With motion allowed, a switch cross-fades the windows and then replays
+ * the conversation: question, search chip, answer, citation, in sequence.
+ */
+.hero-stories {
+  display: grid;
+  margin: 30px 0 26px;
+  /*
+   * The inactive panels sit in the same grid cell under a transform, and at
+   * narrow widths their rect ran a few px past the viewport, so the whole page
+   * scrolled sideways. `clip` rather than `hidden`: it does not create a
+   * scroll container, so it cannot interfere with the sticky bar.
+   */
+  overflow-x: clip;
+}
+
+.hero-panel {
+  grid-area: 1 / 1;
+  visibility: hidden;
+}
+
+main[data-story="rel"] .hero-panel[data-s="rel"],
+main[data-story="work"] .hero-panel[data-s="work"],
+main[data-story="self"] .hero-panel[data-s="self"] {
+  visibility: visible;
+}
+
+.hero-panel .claude {
+  margin: 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .hero-panel {
+    opacity: 0;
+    transform: translateX(26px) scale(0.985);
+    transition:
+      opacity 340ms ease,
+      transform 520ms cubic-bezier(0.32, 0.72, 0, 1),
+      visibility 0s linear 340ms;
+    pointer-events: none;
+  }
+
+  main[data-story="rel"] .hero-panel[data-s="rel"],
+  main[data-story="work"] .hero-panel[data-s="work"],
+  main[data-story="self"] .hero-panel[data-s="self"] {
+    opacity: 1;
+    transform: none;
+    transition-delay: 60ms, 60ms, 0s;
+    pointer-events: auto;
+  }
+
+  /*
+   * The cascade. `cascade` is a distinct animation-name from `rise` on
+   * purpose: when a panel becomes active this rule newly applies, the
+   * name changes, and the animation restarts, replaying the exchange.
+   */
+  .hero-panel .claude-you,
+  .hero-panel .claude-tool,
+  .hero-panel .claude-ans,
+  .hero-panel .claude-cite {
+    animation: none;
+    opacity: 0;
+  }
+
+  :is(
+      main[data-story="rel"] .hero-panel[data-s="rel"],
+      main[data-story="work"] .hero-panel[data-s="work"],
+      main[data-story="self"] .hero-panel[data-s="self"]
+    )
+    :is(.claude-you, .claude-tool, .claude-ans, .claude-cite) {
+    animation: cascade 480ms cubic-bezier(0.22, 0.68, 0.36, 1) both;
+  }
+
+  :is(
+      main[data-story="rel"] .hero-panel[data-s="rel"],
+      main[data-story="work"] .hero-panel[data-s="work"],
+      main[data-story="self"] .hero-panel[data-s="self"]
+    )
+    .claude-you {
+    animation-delay: 140ms;
+  }
+
+  :is(
+      main[data-story="rel"] .hero-panel[data-s="rel"],
+      main[data-story="work"] .hero-panel[data-s="work"],
+      main[data-story="self"] .hero-panel[data-s="self"]
+    )
+    .claude-tool {
+    animation-delay: 420ms;
+  }
+
+  :is(
+      main[data-story="rel"] .hero-panel[data-s="rel"],
+      main[data-story="work"] .hero-panel[data-s="work"],
+      main[data-story="self"] .hero-panel[data-s="self"]
+    )
+    .claude-ans {
+    animation-delay: 700ms;
+  }
+
+  :is(
+      main[data-story="rel"] .hero-panel[data-s="rel"],
+      main[data-story="work"] .hero-panel[data-s="work"],
+      main[data-story="self"] .hero-panel[data-s="self"]
+    )
+    .claude-cite {
+    animation-delay: 980ms;
+  }
+}
+
+@keyframes cascade {
+  from {
+    opacity: 0;
+    transform: translateY(9px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/*
+ * Scroll reveals. app.js tags targets with .reveal, then sets .reveals-on on
+ * the root in the same frame it marks everything already on screen as .in,
+ * so nothing visible ever blanks. Without JS (or with reduced motion) the
+ * root class never lands and everything is simply visible.
+ */
+.reveals-on .reveal {
+  opacity: 0;
+  transform: translateY(14px);
+  transition:
+    opacity 550ms ease,
+    transform 620ms cubic-bezier(0.22, 0.68, 0.36, 1);
+}
+
+.reveals-on .reveal.in {
+  opacity: 1;
+  transform: none;
+}
+
+/*
+ * The graph band. An inline SVG constellation of the CURRENT story's notes;
+ * edges draw themselves and nodes bloom when the section reveals. Swapping
+ * stories restarts the drawing because display toggling restarts animations.
+ */
+.graph-fig {
+  margin: 24px 0 0;
+}
+
+.graph-fig svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.graph-edge {
+  stroke: var(--sep);
+  stroke-width: 1;
+}
+
+.graph-node {
+  fill: var(--elev);
+  stroke: var(--sep);
+  stroke-width: 1;
+}
+
+.graph-node--hub {
+  fill: color-mix(in srgb, var(--person) 22%, var(--surface));
+  stroke: var(--person);
+}
+
+.graph-node--atom {
+  fill: color-mix(in srgb, var(--tint) 16%, var(--surface));
+  stroke: color-mix(in srgb, var(--tint) 55%, transparent);
+}
+
+/* Secondary hubs (entities, themes): tinted, smaller than the person hub. */
+.graph-node--hub2 {
+  fill: color-mix(in srgb, var(--tint) 24%, var(--surface));
+  stroke: color-mix(in srgb, var(--tint) 70%, transparent);
+}
+
+/* The anonymous majority: a years-deep library is mostly quiet dots. */
+.graph-node--soft {
+  fill: var(--elev);
+  stroke: var(--sep-soft);
+  stroke-width: 0.75;
+}
+
+.graph-edge--bridge {
+  stroke: color-mix(in srgb, var(--tint) 35%, var(--sep));
+  stroke-dasharray: 3 4;
+}
+
+.graph-label {
+  font-family: var(--font-ui);
+  font-size: 10.5px;
+  fill: var(--muted);
+}
+
+.graph-label--hub {
+  font-weight: 650;
+  fill: var(--label);
+}
+
+/*
+ * Canvas takes over from the SVG once app.js runs the force simulation. The
+ * SVG stays in the DOM as the no-JS fallback and as the data source.
+ */
+.graph-canvas {
+  display: block;
+  width: 100%;
+  pointer-events: none;
+}
+
+.graph-canvas.is-interactive {
+  pointer-events: auto;
+}
+
+.graph-canvas.is-over {
+  cursor: grab;
+}
+
+.graph-canvas.is-grabbing {
+  cursor: grabbing;
+}
+
+.has-canvas .graph-svg {
+  display: none;
+}
+
+.graph-hint {
+  margin: 6px 2px 0;
+  font-size: 0.72rem;
+  color: var(--faint);
+}
+
+/* The hint only makes sense where dragging is actually wired up. */
+@media (pointer: coarse) {
+  .graph-hint {
+    display: none;
+  }
+}
+
+/*
+ * App-card mocks: the product's own chrome (design-handoff tokens — surface
+ * card, radius 16, kicker eyebrow, quiet buttons). Illustrative, but every
+ * element corresponds to shipped UI.
+ */
+.appcard {
+  max-width: 400px;
+  margin: 22px 0 0;
+  padding: 16px 16px 14px;
+  background: var(--surface);
+  border: 1px solid var(--sep);
+  border-radius: var(--r-lg);
+}
+
+.appcard-kicker {
+  margin: 0 0 8px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+
+.appcard-kicker--mind {
+  color: var(--mind, #bf5af2);
+}
+
+.appcard-kicker--person {
+  color: var(--person);
+}
+
+.appcard h4 {
+  margin: 0;
+  font-size: 1.06rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  color: var(--label);
+}
+
+.appcard-sub {
+  margin: 4px 0 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+/* Mind-change pair: then / connector / now, quoted in the serif. */
+.pair-quote {
+  margin: 10px 0 0;
+  font-family: var(--font-serif);
+  font-size: 0.98rem;
+  line-height: 1.38;
+  color: var(--label);
+}
+
+.pair-date {
+  margin: 3px 0 0;
+  font-size: 0.74rem;
+  color: var(--faint);
+}
+
+.pair-link {
+  margin: 12px 0 0;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--mind, #bf5af2);
+}
+
+.appcard-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.btn--mini {
+  min-height: 34px;
+  padding: 0 14px;
+  border-radius: 10px;
+  font-size: 0.85rem;
+}
+
+.btn--quiet {
+  background: transparent;
+  color: var(--tint-ink);
+  font-weight: 500;
+}
+
+:root {
+  --mind: #bf5af2;
+  /* Graph palette: person hubs warm, the quiet majority low-contrast. */
+  --graph-person: #ff9f0a;
+  --graph-soft: rgba(235, 235, 245, 0.34);
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --mind: #8944ab;
+    --graph-person: #e08600;
+    --graph-soft: rgba(60, 60, 67, 0.34);
+  }
+}
+
+/*
+ * Story carousel. <main data-story="rel|work|self"> decides the visible
+ * storyline; app.js only ever moves that attribute. .s-people is the block
+ * shared by the two people-centric stories. Because hiding uses display,
+ * a story change replays the reveal animations of the incoming blocks.
+ */
+main[data-story="rel"] .s-work,
+main[data-story="rel"] .s-self,
+main[data-story="work"] .s-rel,
+main[data-story="work"] .s-self,
+main[data-story="self"] .s-rel,
+main[data-story="self"] .s-work,
+main[data-story="self"] .s-people {
+  display: none;
+}
+
+.story-nav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 22px;
+}
+
+.story-arrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0 0 3px;
+  border: 1px solid var(--sep-soft);
+  border-radius: var(--r-pill);
+  background: var(--elev);
+  color: var(--muted);
+  font-family: inherit;
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: color 160ms ease, background 160ms ease;
+}
+
+.story-arrow:hover {
+  color: var(--label);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .story-arrow:active {
+    transform: scale(0.9);
+  }
+}
+
+.story-labels {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  background: var(--elev);
+  border-radius: var(--r-pill);
+}
+
+.story-labels button {
+  border: 0;
+  padding: 6px 14px;
+  border-radius: var(--r-pill);
+  background: transparent;
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 220ms ease, background 260ms ease, box-shadow 260ms ease;
+}
+
+.story-labels button.is-active {
+  background: var(--surface);
+  color: var(--label);
+  box-shadow: 0 0.5px 1.5px rgba(0, 0, 0, 0.4);
+}
+
+@media (max-width: 420px) {
+  .story-labels button {
+    padding: 6px 10px;
+    font-size: 0.78rem;
+  }
+}
+
+/* Before / after panels inside a step. */
+.specimen--inline {
+  margin: 16px 0 0;
+}
+
+.stage {
+  margin: 14px 2px 6px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.specimen--inline .file + .file {
+  margin-top: 10px;
+}
+
+.caption {
+  margin-top: 12px;
+  font-size: 0.85rem;
+  color: var(--faint);
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(7px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---------- buttons ---------- */
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 24px;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 18px;
+  border: 1px solid transparent;
+  border-radius: var(--r-md);
+  font-family: inherit;
+  font-size: 0.97rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  text-align: center;
+  cursor: pointer;
+  transition: opacity 130ms ease, transform 130ms ease;
+}
+
+.btn:hover {
+  text-decoration: none;
+}
+
+.btn:active {
+  transform: scale(0.98);
+  opacity: 0.92;
+}
+
+.btn--primary {
+  background: var(--tint);
+  color: #fff;
+}
+
+.btn--secondary {
+  background: var(--elev);
+  color: var(--label);
+  border-color: var(--sep-soft);
+}
+
+.note {
+  margin-top: 14px;
+  font-size: 0.85rem;
+  color: var(--faint);
+}
+
+@media (min-width: 620px) {
+  .actions {
+    flex-direction: row;
+  }
+
+  .btn {
+    min-width: 168px;
+  }
+}
+
+/*
+ * The bar's own button. Declared after .btn (and after the 620px min-width
+ * rule) so it actually wins: same specificity, so source order decides.
+ * Shorter than the 44px page buttons because it lives in a 56px bar, but not
+ * so short it stops being a comfortable tap target.
+ */
+.btn--bar {
+  min-width: 0;
+  min-height: 40px;
+  padding: 0 15px;
+  font-size: 0.88rem;
+  border-radius: var(--r-sm);
+}
+
+/* ---------- steps ---------- */
+
+.steps {
+  margin: 24px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.steps li {
+  display: grid;
+  grid-template-columns: 1.4rem 1fr;
+  gap: 12px;
+  padding: 18px 0;
+  border-top: 1px solid var(--sep-soft);
+}
+
+.steps li:first-child {
+  border-top: 0;
+  padding-top: 6px;
+}
+
+.steps .sentinel {
+  font-size: 1.05rem;
+  line-height: 1.5;
+}
+
+.steps p {
+  margin-top: 6px;
+  font-size: 0.94rem;
+}
+
+/* ---------- claim ---------- */
+
+.claim {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: 1.42rem;
+  font-weight: 400;
+  line-height: 1.34;
+  letter-spacing: -0.01em;
+  color: var(--label);
+}
+
+.claim + p {
+  margin-top: 14px;
+}
+
+/* A section's closing thought: same serif voice, sized to sit under a list. */
+.claim--minor {
+  margin-top: 22px;
+  font-size: 1.18rem;
+}
+
+/* ---------- plain lists ---------- */
+
+.facts {
+  margin: 20px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.facts li {
+  position: relative;
+  padding: 0 0 0 1.5rem;
+  margin-top: 12px;
+  font-size: 0.94rem;
+  color: var(--muted);
+}
+
+.facts li::before {
+  content: "↳";
+  position: absolute;
+  left: 0;
+  color: var(--tint-ink);
+  font-family: var(--font-mono);
+}
+
+.facts strong {
+  color: var(--label);
+  font-weight: 600;
+}
+
+/* ---------- cards ---------- */
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--sep);
+  border-radius: var(--r-lg);
+  padding: 18px 16px 16px;
+}
+
+.card + .card {
+  margin-top: 12px;
+}
+
+.card h3 {
+  margin-bottom: 2px;
+}
+
+.card p {
+  font-size: 0.9rem;
+}
+
+.card--plus {
+  background: color-mix(in srgb, var(--tint) 9%, var(--surface));
+  border-color: color-mix(in srgb, var(--tint) 28%, transparent);
+}
+
+.price {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin: 0;
+}
+
+.price .amount {
+  font-size: 1.85rem;
+  font-weight: 700;
+  letter-spacing: -0.035em;
+  color: var(--label);
+}
+
+.price .period {
+  font-size: 0.95rem;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.alt {
+  margin-top: 6px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.fineprint {
+  margin: 16px 2px 0;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--faint);
+}
+
+/*
+ * Terms a buyer needs before paying (the card requirement above all) must not
+ * be the least readable text on the page. Small is fine, faint is not.
+ */
+.fineprint--legible {
+  font-size: 0.86rem;
+  color: var(--muted);
+}
+
+.fineprint a {
+  color: inherit;
+  text-decoration: underline;
+}
+
+@media (min-width: 620px) {
+  .cards-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    align-items: start;
+  }
+
+  .cards-2 .card + .card {
+    margin-top: 0;
+  }
+}
+
+/*
+ * The reading measure suits prose but squeezes two side-by-side cards. Give
+ * the pricing band alone a little more room rather than widening the page.
+ */
+@media (min-width: 760px) {
+  #pricing .wrap {
+    max-width: 42rem;
+  }
+}
+
+/* ---------- code chip ---------- */
+
+.mono {
+  font-family: var(--font-mono);
+  font-size: 0.86em;
+  padding: 2px 6px;
+  border-radius: var(--r-sm);
+  background: var(--elev);
+  color: var(--label);
+  word-break: break-all;
+}
+
+/* ---------- install ---------- */
+
+.install {
+  margin: 22px 0 0;
+  padding: 0 0 0 1.2rem;
+  color: var(--muted);
+}
+
+.install li {
+  margin-top: 10px;
+  padding-left: 4px;
+  font-size: 0.94rem;
+}
+
+.install strong {
+  color: var(--label);
+  font-weight: 600;
+}
+
+/* ---------- footer ---------- */
+
+.foot-note {
+  margin: 0;
+}
+
+.foot {
+  padding: 32px 0 48px;
+  border-top: 1px solid var(--sep-soft);
+  font-size: 0.85rem;
+  color: var(--faint);
+}
+
+.foot nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin-bottom: 14px;
+}
+
+.foot nav a {
+  color: var(--muted);
+}
+
+/* ---------- legal pages ---------- */
+
+.legal {
+  padding: 48px 0 64px;
+}
+
+.legal h1 {
+  font-size: 1.9rem;
+}
+
+.legal h2 {
+  margin-top: 34px;
+  font-size: 1.12rem;
+  font-weight: 650;
+}
+
+.legal p,
+.legal li {
+  font-size: 0.95rem;
+  color: var(--muted);
+}
+
+.legal ul {
+  margin: 12px 0 0;
+  padding-left: 1.2rem;
+}
+
+.legal li {
+  margin-top: 8px;
+}
+
+.legal .updated {
+  margin-top: 8px;
+  font-size: 0.82rem;
+  color: var(--faint);
+}
+
+/* Was an inline style attribute, which the page's own style-src 'self' drops. */
+.back-wrap {
+  margin-top: 20px;
+}
+
+.back {
+  display: inline-block;
+  margin-bottom: 24px;
+  font-size: 0.9rem;
+}
+
+@media (min-width: 620px) {
+  :root {
+    --gutter: 24px;
+  }
+
+  .hero {
+    padding: 96px 0 64px;
+  }
+
+  .hero h1 {
+    font-size: 3.1rem;
+  }
+
+  .band {
+    padding: 64px 0;
+  }
+}

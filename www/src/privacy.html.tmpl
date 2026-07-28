@@ -1,0 +1,133 @@
+<!doctype html>
+<!-- Template. Do not edit www/dist/privacy.html by hand. See www/build.mjs. -->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Privacy · Atoms</title>
+    <meta
+      name="description"
+      content="What Atoms sends where, and what it never sends."
+    />
+    <meta name="color-scheme" content="dark light" />
+    <link rel="canonical" href="https://tryatoms.app/privacy" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="stylesheet" href="{{cssPath}}" />
+  </head>
+  <body>
+    <main class="legal">
+      <div class="wrap">
+        <a class="back" href="/">↳ Atoms</a>
+
+        <h1>Privacy</h1>
+        <p class="updated">Last updated 28 July 2026.</p>
+
+        <p>
+          Atoms is an Obsidian plugin. Your notes are markdown files in your own
+          vault, on your own devices. This page describes the only cases where
+          text leaves your device, and who holds what.
+        </p>
+
+        <h2>Your vault</h2>
+        <p>
+          Atoms reads your daily notes and writes atom files into one folder you
+          choose. It does not move your files, does not rewrite existing lines
+          in your daily notes, and does not upload your vault anywhere as part
+          of normal use.
+        </p>
+
+        <h2>Processing captures</h2>
+        <p>
+          Classification uses an Anthropic model, so the text of the captures
+          being processed is sent to Anthropic. There are two cases:
+        </p>
+        <ul>
+          <li>
+            <strong>Your own API key.</strong> Requests go directly from your
+            device to Anthropic under your key. We never see them and never
+            receive your key. The key is stored in your operating system's
+            secret storage, not in the plugin's settings file.
+          </li>
+          <li>
+            <strong>Atoms Plus.</strong> Requests go through our service under
+            our Anthropic account so you do not need a key. Capture text passes
+            through our service in order to be classified.
+          </li>
+        </ul>
+        <p>
+          We do not use your notes to train models, and our Anthropic usage is
+          under terms that do not permit training on submitted content.
+        </p>
+
+        <h2>Ask, if you turn it on</h2>
+        <p>
+          Ask is off by default. When you enable it, Atoms mirrors your flat
+          atoms folder to our service so an assistant such as Claude or ChatGPT
+          can search and cite it through MCP. Specifically:
+        </p>
+        <ul>
+          <li>
+            Only flat markdown files in your configured atoms folder are
+            mirrored. Daily notes and the rest of your vault are not.
+          </li>
+          <li>
+            The mirror is one directional. Note bodies are never written back
+            into your vault from the cloud copy.
+          </li>
+          <li>
+            Deleting an atom in your vault removes it from the mirror on the
+            next sync. Turning Ask off and clearing the mirror removes the cloud
+            copy.
+          </li>
+          <li>
+            When you use Ask from an assistant, that assistant's provider
+            (Anthropic for Claude, OpenAI for ChatGPT) receives the note content
+            returned to answer your question. That is their surface, under their
+            privacy policy, not ours.
+          </li>
+        </ul>
+
+        <h2>Account and billing</h2>
+        <p>
+          A Plus subscription requires an email address, used to identify your
+          subscription and to send sign in links and billing notices. Payment is
+          handled by Stripe. We do not receive or store your card number.
+        </p>
+
+        <h2>What we do not do</h2>
+        <ul>
+          <li>No analytics, trackers, or advertising on this website.</li>
+          <li>No cookies set by this website.</li>
+          <li>No selling or sharing of your notes or your email address.</li>
+          <li>No training on your notes.</li>
+        </ul>
+
+        <h2>Deleting your data</h2>
+        <p>
+          Cancel from Settings inside the plugin. To have the cloud mirror and
+          your account record removed, open an issue or contact us through
+          <a href="https://github.com/taihartman/obsidian-atoms/issues">GitHub</a
+          >. Your vault files are yours and are unaffected either way.
+        </p>
+
+        <h2>Questions</h2>
+        <p>
+          Atoms is an independent project. Reach us through
+          <a href="https://github.com/taihartman/obsidian-atoms/issues"
+            >GitHub Issues</a
+          >.
+        </p>
+      </div>
+    </main>
+
+    <footer class="foot">
+      <div class="wrap">
+        <nav>
+          <a href="/">Atoms</a>
+          <a href="/terms">Terms</a>
+          <a href="https://github.com/taihartman/obsidian-atoms">GitHub</a>
+        </nav>
+      </div>
+    </footer>
+  </body>
+</html>

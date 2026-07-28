@@ -1,0 +1,830 @@
+<!doctype html>
+<!--
+  Template. Do not edit www/dist/index.html by hand.
+  Double-brace tokens come from repo-root plus-pricing.json via www/build.mjs.
+  An unsubstituted token is a build failure.
+
+  Copy rules for this page:
+  - The hero shows NO markdown syntax. No [[wikilinks]], no HTML comments, no
+    frontmatter. Syntax is earned later, once someone knows what this is.
+  - Three coordinated storylines (Relationships/Sam, Work/Priya,
+    Journaling/self); each carries its arc through every swapped surface.
+  - Claims discipline: Ask search is literal keyword and tag matching, not
+    semantic. Writes from chat are queued. Resurfacing only happens with the
+    app open. Never soften any of those.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Atoms · Notes you can ask</title>
+    <meta
+      name="description"
+      content="Atoms turns the notes you already take in Obsidian into something you can ask. Your words stay exactly as you wrote them."
+    />
+    <meta name="color-scheme" content="dark light" />
+    <meta property="og:title" content="Atoms · Notes you can ask" />
+    <meta
+      property="og:description"
+      content="You wrote it down. Atoms helps you find it again."
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://tryatoms.app" />
+    <meta property="og:image" content="https://tryatoms.app/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image" content="https://tryatoms.app/og.png" />
+    <link rel="canonical" href="https://tryatoms.app" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="stylesheet" href="{{cssPath}}" />
+    <script src="{{jsPath}}" defer></script>
+  </head>
+  <body>
+    <!--
+      Sticky bar. Four anchors, no more: a section index with ten links reads
+      as documentation and nobody uses it. The button is the point, so that
+      "buy" is one click away from wherever someone loses interest. It aims at
+      #pricing, not #install, because a visitor must see the price before the
+      install steps. Every href here is asserted against a real section id by
+      test/wwwPricing.test.ts.
+    -->
+    <nav class="topbar" aria-label="Sections">
+      <div class="topbar-in">
+        <a class="topbar-mark" href="#top">
+          <span class="sentinel" aria-hidden="true">↳</span> Atoms
+        </a>
+        <ul class="topbar-links">
+          <li><a href="#how">How it works</a></li>
+          <li><a href="#ask">Ask</a></li>
+          <li><a href="#backfill">Catch up</a></li>
+          <li><a href="#pricing">Pricing</a></li>
+        </ul>
+        <a class="btn btn--primary btn--bar" href="#pricing">Get Atoms</a>
+      </div>
+    </nav>
+
+    <!--
+      Story carousel: <main data-story> decides which storyline the CSS
+      shows (.s-rel / .s-work / .s-self; .s-people is shared by rel+work).
+      app.js moves the attribute; without JS the default story renders.
+    -->
+    <main data-story="rel">
+      <!-- Hero: understandable in three seconds, no syntax anywhere -->
+      <header class="hero" id="top">
+        <div class="wrap">
+          <p class="eyebrow">Atoms · An Obsidian plugin</p>
+          <h1>You wrote it down.<br />You never found it again.</h1>
+          <p class="lead">
+            Atoms turns the notes you already take into something you can ask.
+          </p>
+
+          <div class="story-nav" aria-label="Choose an example story">
+            <button class="story-arrow" type="button" data-dir="-1"
+              aria-label="Previous story">&#8249;</button>
+            <div class="story-labels">
+              <button type="button" data-story="rel" class="is-active"
+                aria-pressed="true">Relationships</button>
+              <button type="button" data-story="work"
+                aria-pressed="false">Work</button>
+              <button type="button" data-story="self"
+                aria-pressed="false">Journaling</button>
+            </div>
+            <button class="story-arrow" type="button" data-dir="1"
+              aria-label="Next story">&#8250;</button>
+          </div>
+
+          <!--
+            Hero stage: panels stack in one grid cell and cross-fade/drift on
+            story change (they do NOT use the .s-* display rules, which would
+            collapse the stage). The message cascade replays on each switch.
+          -->
+          <div class="hero-stories">
+          <div class="hero-panel" data-s="rel">
+            <div class="claude" role="img"
+              aria-label="A Claude chat answering a question from your own notes">
+              <div class="claude-bar">
+                <span class="claude-star" aria-hidden="true">✱</span> Claude
+              </div>
+              <div class="claude-body">
+                <p class="claude-you">gift ideas for Sam?</p>
+                <p class="claude-tool">⌕ searched your atoms · followed links from Sam</p>
+                <div class="claude-ans">
+                  From March, in your own words:
+                  <blockquote>
+                    sam stopped at the tulip stand again, she loves the yellow
+                    ones
+                  </blockquote>
+                  Yellow tulips would be an easy win.
+                </div>
+                <p class="claude-cite">
+                  <span class="sentinel">↳</span>
+                  Sam loves yellow tulips · March 12
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div class="hero-panel" data-s="work">
+            <div class="claude" role="img"
+              aria-label="A Claude chat answering a work question from your own notes">
+              <div class="claude-bar">
+                <span class="claude-star" aria-hidden="true">✱</span> Claude
+              </div>
+              <div class="claude-body">
+                <p class="claude-you">anything I should know before the Priya pitch?</p>
+                <p class="claude-tool">⌕ searched your atoms · followed links from Priya</p>
+                <div class="claude-ans">
+                  From March, in your own words:
+                  <blockquote>
+                    priya said budget approvals freeze after their fiscal year
+                    closes in november
+                  </blockquote>
+                  Pitch before November.
+                </div>
+                <p class="claude-cite">
+                  <span class="sentinel">↳</span>
+                  Priya's budget freezes in November · March 12
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div class="hero-panel" data-s="self">
+            <div class="claude" role="img"
+              aria-label="A Claude chat answering a question about yourself from your own notes">
+              <div class="claude-bar">
+                <span class="claude-star" aria-hidden="true">✱</span> Claude
+              </div>
+              <div class="claude-body">
+                <p class="claude-you">why do my afternoons keep falling apart?</p>
+                <p class="claude-tool">⌕ searched your atoms · followed links from Energy</p>
+                <div class="claude-ans">
+                  You answered this yourself in April:
+                  <blockquote>
+                    skipped lunch again and the 3pm meeting still went sideways
+                  </blockquote>
+                  It is the lunch, not the meetings.
+                </div>
+                <p class="claude-cite">
+                  <span class="sentinel">↳</span>
+                  Skipping lunch wrecks my afternoons · April 9
+                </p>
+              </div>
+            </div>
+          </div>
+          </div>
+
+          <div class="actions">
+            <a class="btn btn--primary" href="#pricing">Get Atoms</a>
+            <a class="btn btn--secondary" href="#how">See How It Works</a>
+          </div>
+          <p class="note">
+            No subscription needed. Bring your own Anthropic key and pay only
+            for what you use.
+          </p>
+        </div>
+      </header>
+
+      <!-- The turn -->
+      <section class="band">
+        <div class="wrap">
+          <p class="claim">
+            A note you cannot find again is a note you did not take.
+          </p>
+          <p>
+            Atoms is the whole loop: a thought goes in, in five seconds, and
+            comes back the moment it matters.
+          </p>
+        </div>
+      </section>
+
+      <!-- How it works -->
+      <section class="band" id="how">
+        <div class="wrap">
+          <p class="eyebrow">How it works</p>
+          <h2>You only do the first step.</h2>
+
+          <ol class="steps">
+            <li>
+              <span class="sentinel" aria-hidden="true">↳</span>
+              <div>
+                <h3>Catch it in five seconds</h3>
+                <p>
+                  Atoms installs a shortcut on your iPhone. Run it from your
+                  home screen, the share sheet, or Siri, and say the thought out
+                  loud instead of typing it. It lands in today's daily note
+                  before you have put your phone down.
+                </p>
+                <p>
+                  On a desktop, type a line. Either way, nothing new to learn
+                  and nowhere new to put it.
+                </p>
+              </div>
+            </li>
+            <li>
+              <span class="sentinel" aria-hidden="true">↳</span>
+              <div>
+                <h3>Come back and it is sorted</h3>
+                <p>
+                  Yesterday's captures become notes with a real title and links
+                  to what they relate to. Let it happen on its own each time you
+                  open Obsidian, or keep it to one tap.
+                </p>
+              </div>
+            </li>
+            <li>
+              <span class="sentinel" aria-hidden="true">↳</span>
+              <div>
+                <h3>Now you can find it</h3>
+                <p>Ask for it, or let it come back to you. Both are below.</p>
+              </div>
+            </li>
+          </ol>
+
+          <div class="specimen specimen--inline">
+            <div class="s-rel">
+              <p class="stage">Your daily note</p>
+              <div class="file">
+                <pre class="file-body"><span class="verbatim">- sam stopped at the tulip stand again, she loves the yellow ones</span>
+<span class="verbatim">- pick up milk</span></pre>
+              </div>
+
+              <p class="stage">What Atoms makes</p>
+              <div class="file">
+                <span class="file-name">Sam loves yellow tulips</span>
+                <pre class="file-body"><span class="verbatim">sam stopped at the tulip stand again, she loves the yellow ones</span>
+
+Linked to <span class="wl">Sam</span> and <span class="wl">Gift ideas</span>.</pre>
+              </div>
+
+              <p class="caption">
+                Your original line is never touched, and the text is copied
+                across word for word. The milk? It becomes nothing. Atoms is not
+                a reminders app, so errands stay in your daily note and out of
+                your library.
+              </p>
+            </div>
+
+            <div class="s-work">
+              <p class="stage">Your daily note</p>
+              <div class="file">
+                <pre class="file-body"><span class="verbatim">- priya said budget approvals freeze after their fiscal year closes in november</span>
+<span class="verbatim">- reply to the invoice email</span></pre>
+              </div>
+
+              <p class="stage">What Atoms makes</p>
+              <div class="file">
+                <span class="file-name">Priya's budget freezes in November</span>
+                <pre class="file-body"><span class="verbatim">priya said budget approvals freeze after their fiscal year closes in november</span>
+
+Linked to <span class="wl">Priya</span> and <span class="wl">Acme pitch</span>.</pre>
+              </div>
+
+              <p class="caption">
+                Your original line is never touched, and the text is copied
+                across word for word. The invoice email? It becomes nothing.
+                Atoms is not a task manager, so to-dos stay in your daily note
+                and out of your library.
+              </p>
+            </div>
+
+            <div class="s-self">
+              <p class="stage">Your daily note</p>
+              <div class="file">
+                <pre class="file-body"><span class="verbatim">- skipped lunch again and the 3pm meeting still went sideways</span>
+<span class="verbatim">- call the dentist</span></pre>
+              </div>
+
+              <p class="stage">What Atoms makes</p>
+              <div class="file">
+                <span class="file-name">Skipping lunch wrecks my afternoons</span>
+                <pre class="file-body"><span class="verbatim">skipped lunch again and the 3pm meeting still went sideways</span>
+
+Linked to <span class="wl">Energy</span> and <span class="wl">Meetings</span>.</pre>
+              </div>
+
+              <p class="caption">
+                Your original line is never touched, and the text is copied
+                across word for word. The dentist? It becomes nothing. Atoms is
+                not a task manager, so to-dos stay in your daily note and out of
+                your library.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Recall: pull -->
+      <section class="band" id="ask">
+        <div class="wrap">
+          <p class="eyebrow">When you go looking</p>
+          <h2>Ask from Claude or ChatGPT</h2>
+          <p>
+            Atoms plugs into the chat window you already have open, so your own
+            notes become something you can question.
+          </p>
+
+          <ul class="facts">
+            <li>
+              <strong>It reads the library, not the pile.</strong> Every note it
+              looks at already has a real title, tags, and links. That is why
+              the answers are any good. Pointing a chatbot at raw daily pages
+              does not work.
+            </li>
+            <li>
+              <strong>Ask for it.</strong> It finds your notes by title, tags,
+              and text, then quotes them back with a link to the original.
+            </li>
+            <li class="s-rel">
+              <strong>Follow the thread.</strong> Your notes form a graph, and
+              it walks the links. The gift question finds the tulip note because
+              both point at Sam.
+            </li>
+            <li class="s-work">
+              <strong>Follow the thread.</strong> Your notes form a graph, and
+              it walks the links. The pitch question finds the budget note
+              because both point at Priya.
+            </li>
+            <li class="s-self">
+              <strong>Follow the thread.</strong> Your notes form a graph, and
+              it walks the links. The afternoon question finds the lunch note
+              because both point at Energy.
+            </li>
+            <li>
+              <strong>Add without leaving chat.</strong> Tell it to remember
+              something and it queues a new note for your vault. It lands next
+              time Obsidian is open.
+            </li>
+            <li>
+              <strong>Change your mind safely.</strong> A revision becomes a new
+              note linked to the old one. It never overwrites you.
+            </li>
+          </ul>
+
+          <div class="s-rel">
+            <div class="claude" role="img"
+              aria-label="Telling Claude to note something, which queues a note for your vault">
+              <div class="claude-bar">
+                <span class="claude-star" aria-hidden="true">✱</span> Claude
+              </div>
+              <div class="claude-body">
+                <p class="claude-you">
+                  note this: sam lingered in the poetry section at the bookshop
+                  on 9th
+                </p>
+                <p class="claude-tool">+ created atom · pending</p>
+                <div class="claude-ans">
+                  Queued for your vault. It lands next time Obsidian is open.
+                </div>
+                <p class="claude-cite">
+                  <span class="sentinel">↳</span>
+                  Sam lingered in the poetry section
+                </p>
+              </div>
+            </div>
+
+            <p class="caption">
+              And the next time you ask for gift ideas, it knows about the
+              poetry section too.
+            </p>
+          </div>
+
+          <div class="s-work">
+            <div class="claude" role="img"
+              aria-label="Telling Claude to note something, which queues a note for your vault">
+              <div class="claude-bar">
+                <span class="claude-star" aria-hidden="true">✱</span> Claude
+              </div>
+              <div class="claude-body">
+                <p class="claude-you">
+                  note this: priya reads every deck on her phone, keep the
+                  slides big
+                </p>
+                <p class="claude-tool">+ created atom · pending</p>
+                <div class="claude-ans">
+                  Queued for your vault. It lands next time Obsidian is open.
+                </div>
+                <p class="claude-cite">
+                  <span class="sentinel">↳</span>
+                  Priya reads decks on her phone
+                </p>
+              </div>
+            </div>
+
+            <p class="caption">
+              And the next pitch answer knows to keep the slides big.
+            </p>
+          </div>
+
+          <div class="s-self">
+            <div class="claude" role="img"
+              aria-label="Telling Claude to note something, which queues a note for your vault">
+              <div class="claude-bar">
+                <span class="claude-star" aria-hidden="true">✱</span> Claude
+              </div>
+              <div class="claude-body">
+                <p class="claude-you">
+                  note this: mornings after a run, drafts come out clean in one
+                  pass
+                </p>
+                <p class="claude-tool">+ created atom · pending</p>
+                <div class="claude-ans">
+                  Queued for your vault. It lands next time Obsidian is open.
+                </div>
+                <p class="claude-cite">
+                  <span class="sentinel">↳</span>
+                  Mornings after a run mean clean drafts
+                </p>
+              </div>
+            </div>
+
+            <p class="caption">
+              And the next time you ask when to do deep work, it knows.
+            </p>
+          </div>
+
+          <p class="fineprint">
+            Matching is on the words you actually wrote, not a semantic model.
+            Your daily notes and the rest of your vault are never sent, only the
+            notes Atoms filed. Connector URL for Plus:
+            <span class="mono">https://plus.tryatoms.app/mcp</span>
+          </p>
+        </div>
+      </section>
+
+      <!-- Recall: push -->
+      <section class="band" id="resurface">
+        <div class="wrap">
+          <p class="eyebrow">When you are not looking</p>
+          <h2>Sometimes it finds you</h2>
+          <p>Open Atoms and it may hand you one thing you had forgotten.</p>
+
+          <ul class="facts">
+            <li>
+              <strong>Mind change.</strong> Two notes where you came to disagree
+              with yourself, side by side, with the dates.
+            </li>
+            <li class="s-rel">
+              <!-- Placeholder names only. Never ship a real person from a vault. -->
+              <strong>Also about Sam.</strong> Write something new about someone
+              and an older note about them comes back.
+            </li>
+            <li class="s-work">
+              <strong>Also about Priya.</strong> Write something new about
+              someone and an older note about them comes back.
+            </li>
+            <li class="s-self">
+              <strong>Also about Energy.</strong> Write something new on a
+              theme and an older note about it comes back.
+            </li>
+            <li>
+              <strong>On this day.</strong> Something you wrote on this date a
+              year ago.
+            </li>
+            <li>
+              <strong>One card, then done.</strong> Tap to open it, or ask for
+              another. The same memory will not return for a week.
+            </li>
+          </ul>
+
+          <div class="appcard" role="img"
+            aria-label="An Atoms mind-change card showing two of your claims with dates">
+            <p class="appcard-kicker appcard-kicker--mind">Mind change</p>
+            <p class="pair-quote">
+              &ldquo;i do my best thinking after midnight&rdquo;
+            </p>
+            <p class="pair-date">March 4</p>
+            <p class="pair-link">later contradicted</p>
+            <p class="pair-quote">
+              &ldquo;my brain is only honest before nine&rdquo;
+            </p>
+            <p class="pair-date">July 21 · 139 days later</p>
+            <div class="appcard-actions">
+              <span class="btn btn--mini btn--secondary">Open</span>
+              <span class="btn btn--mini btn--quiet">Not a mind-change</span>
+            </div>
+          </div>
+
+          <p class="claim claim--minor">
+            It is the second brain that shows you when you changed your mind.
+          </p>
+
+          <p class="fineprint fineprint--legible">
+            Only while you have Atoms open. No notifications, no reminders, no
+            review queue, and nothing is ever due. If you do not open Atoms,
+            nothing happens.
+          </p>
+        </div>
+      </section>
+
+      <!-- People -->
+      <section class="band" id="people">
+        <div class="wrap">
+          <div class="s-people">
+            <p class="eyebrow">People</p>
+            <h2>It notices who matters</h2>
+          </div>
+          <div class="s-self">
+            <p class="eyebrow">Patterns</p>
+            <h2>It notices what repeats</h2>
+            <p>
+              <!-- Grounded: Together card + entity hubs ship (orbits T0-T3). -->
+              Keep writing about the same thing and Atoms gathers the thread
+              without being asked. No folder was ever created for it, and no
+              tag was ever typed.
+            </p>
+
+            <div class="appcard" role="img"
+              aria-label="An Atoms card gathering your notes about running">
+              <p class="appcard-kicker appcard-kicker--person">Together</p>
+              <h4>Six notes about Running</h4>
+              <p class="appcard-sub">Linked over several nights.</p>
+              <div class="appcard-actions">
+                <span class="btn btn--mini btn--secondary">Open</span>
+              </div>
+            </div>
+          </div>
+          <div class="s-rel">
+            <p>
+              <!-- Grounded: person invite card + retroactive link upgrade + 14d snooze. -->
+              Write about Sam a few times and Atoms offers to make a page where
+              everything about Sam lives. One tap, and every note that mentioned
+              Sam gets linked to it, including the ones from months ago. Say no
+              and it stays quiet for two weeks.
+            </p>
+
+            <div class="appcard" role="img"
+              aria-label="An Atoms invite card offering to create a page for Sam">
+              <p class="appcard-kicker appcard-kicker--person">People</p>
+              <h4>Add Sam?</h4>
+              <p class="appcard-sub">Sam shows up in 4 of your notes.</p>
+              <div class="appcard-actions">
+                <span class="btn btn--mini btn--primary">Add</span>
+                <span class="btn btn--mini btn--quiet">Not now</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="s-work">
+            <p>
+              Write about Priya a few times and Atoms offers to make a page
+              where everything about Priya lives. One tap, and every note that
+              mentioned Priya gets linked to it, including the ones from months
+              ago. Say no and it stays quiet for two weeks.
+            </p>
+
+            <div class="appcard" role="img"
+              aria-label="An Atoms invite card offering to create a page for Priya">
+              <p class="appcard-kicker appcard-kicker--person">People</p>
+              <h4>Add Priya?</h4>
+              <p class="appcard-sub">Priya shows up in 6 of your notes.</p>
+              <div class="appcard-actions">
+                <span class="btn btn--mini btn--primary">Add</span>
+                <span class="btn btn--mini btn--quiet">Not now</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- The graph -->
+      <section class="band" id="graph">
+        <div class="wrap">
+          <p class="eyebrow">The shape of it</p>
+          <h2>A little web of your life</h2>
+          <p>
+            Every link above is real structure. Atoms can open your library as
+            a graph: your notes and what they point at, not the whole vault
+            hairball.
+          </p>
+
+          <div class="s-rel">
+            <figure class="graph-fig" aria-label="A graph of notes around Sam">
+                {{graphRel}}
+              </figure>
+              <p class="graph-hint">Drag a node to pull the web around.</p>
+          </div>
+
+          <div class="s-work">
+            <figure class="graph-fig" aria-label="A graph of notes around Priya">
+                {{graphWork}}
+              </figure>
+              <p class="graph-hint">Drag a node to pull the web around.</p>
+          </div>
+
+          <div class="s-self">
+            <figure class="graph-fig" aria-label="A graph of notes around Energy">
+                {{graphSelf}}
+              </figure>
+              <p class="graph-hint">Drag a node to pull the web around.</p>
+          </div>
+        </div>
+      </section>
+
+      <!--
+        Backfill is BYOK-only today: runBackfillFlow() calls requireApiKey()
+        and submits to Anthropic's Batch API with the user's own key. Do NOT
+        imply Plus does this until issue #168 (one-time vault catch-up) ships.
+        When it does, this section gains a line; it does not need a rewrite.
+      -->
+      <section class="band" id="backfill">
+        <div class="wrap">
+          <p class="eyebrow">Starting out</p>
+          <h2>Bring the notes you already have</h2>
+          <p>
+            You do not have to wait a year to get there. Atoms can read every
+            past daily note in one pass and build the library out of the
+            history you already wrote.
+          </p>
+
+          <ul class="facts">
+            <li>
+              <strong>One pass, bulk rate.</strong> A catch-up runs as a batch
+              job at about half the usual cost, on a cheaper model chosen for
+              volume.
+            </li>
+            <li>
+              <strong>You see the bill first.</strong> It counts the real
+              tokens in your vault and shows you the range. Nothing is spent
+              until you confirm.
+            </li>
+            <li>
+              <strong>Safe to re-run.</strong> Anything already filed is
+              skipped, so a catch-up can be stopped and started again without
+              doing the work, or the spending, twice.
+            </li>
+          </ul>
+
+          <p class="fineprint">
+            Catch-up runs on your own Anthropic API key, which you can add in
+            Settings whether or not you are on Plus. The figure shown is an
+            estimate from public rates, not a quote.
+          </p>
+        </div>
+      </section>
+
+      <!-- Trust -->
+      <section class="band">
+        <div class="wrap">
+          <p class="eyebrow">What stays true</p>
+
+          <ul class="facts">
+            <li>
+              <strong>See it before it writes.</strong> Preview shows the exact
+              notes, links, and markers Process would create. Nothing touches
+              your vault until you say so.
+            </li>
+            <li>
+              <strong>Your words, unchanged.</strong> Only the title, tags, and
+              links are written for you. A half-formed hunch stays half-formed
+              instead of becoming confident-sounding prose.
+            </li>
+            <li>
+              <strong>Links, not folders.</strong> Nothing gets filed away
+              somewhere you have to remember.
+            </li>
+            <li>
+              <strong>Leaving is easy.</strong> Cancel Plus or uninstall the
+              plugin entirely and every atom is still there, still linked,
+              still searchable. They were always just markdown in your vault.
+              With your own key, filing keeps working, at Anthropic's usage
+              cost and nothing to us.
+            </li>
+            <li>
+              <strong>Not a task app.</strong> No due dates, no checklists, no
+              backlog filling up behind you.
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- Pricing -->
+      <section class="band" id="pricing">
+        <div class="wrap">
+          <p class="eyebrow">Pricing</p>
+          <h2>${{monthlyUsd}} a month, or bring your own key.</h2>
+
+          <div class="cards-2">
+            <div class="card card--plus">
+              <h3>Atoms Plus</h3>
+              <p class="price">
+                <span class="amount">${{monthlyUsd}}</span>
+                <span class="period">per month</span>
+              </p>
+              <p class="alt">
+                ${{yearlyUsd}} per year · {{yearlyDiscountNote}}
+              </p>
+              <p>
+                No API key to set up, on any device. Asking from Claude and
+                ChatGPT is included. {{trialDays}} day free trial.
+              </p>
+            </div>
+
+            <div class="card">
+              <h3>Your Own Key</h3>
+              <p class="price">
+                <span class="amount">$0</span>
+                <span class="period">to us, ever</span>
+              </p>
+              <p class="alt">You pay Anthropic for what you use.</p>
+              <p>
+                Add your Anthropic API key in Settings and Atoms works. You are
+                billed by Anthropic for the filing you actually do. Asking from
+                chat is hosted, so it is Plus, or self host it yourself.
+              </p>
+            </div>
+          </div>
+
+          <p class="fineprint fineprint--legible">
+            Plus includes {{includedFilingsPerPeriod}} notes filed each month.
+            Unused ones do not roll over. Extra filings are ${{topUpUsd}} for
+            {{topUpFilings}}, one time. {{trialFinePrint}} You cancel from
+            Settings inside the plugin. Prices in USD.
+          </p>
+        </div>
+      </section>
+
+      <!-- Install -->
+      <section class="band" id="install">
+        <div class="wrap">
+          <p class="eyebrow">Install</p>
+          <h2>Get Atoms</h2>
+          <p>Atoms is not in the plugin directory yet, so it goes through BRAT.</p>
+
+          <ol class="install">
+            <li>
+              Install
+              <a href="https://obsidian.md/plugins?id=obsidian42-brat">BRAT</a>
+              from Obsidian's community plugins.
+            </li>
+            <li>
+              Add the beta plugin
+              <span class="mono">taihartman/obsidian-atoms</span>.
+            </li>
+            <li>Enable <strong>Atoms</strong>.</li>
+            <li>
+              Open <strong>Settings → Atoms</strong> and add your key, or start
+              a trial.
+            </li>
+          </ol>
+
+          <p class="fineprint">
+            Rather read the code first? It is all on
+            <a href="https://github.com/taihartman/obsidian-atoms">GitHub</a>.
+          </p>
+        </div>
+      </section>
+
+      <!-- Privacy -->
+      <section class="band" id="privacy-summary">
+        <div class="wrap">
+          <p class="eyebrow">Privacy</p>
+          <h2>Where your notes go</h2>
+
+          <ul class="facts">
+            <li>
+              <strong>Processing sends capture text to Anthropic.</strong> That
+              is how the sorting works. On Plus it goes under our account, on
+              your own key it goes under yours.
+            </li>
+            <li>
+              <strong>We do not train on your notes.</strong>
+            </li>
+            <li>
+              <strong>Asking from chat is opt in.</strong> Nothing leaves your
+              vault until you turn it on, and then only your atoms folder. It
+              goes one direction only, and never writes back over a note.
+            </li>
+          </ul>
+
+          <p class="fineprint">
+            The whole story is on the <a href="/privacy">Privacy</a> page.
+          </p>
+        </div>
+      </section>
+    </main>
+
+    <footer class="foot">
+      <div class="wrap">
+        <nav>
+          <a href="/privacy">Privacy</a>
+          <a href="/terms">Terms</a>
+          <a href="https://github.com/taihartman/obsidian-atoms">GitHub</a>
+          <!--
+            Support goes to GitHub Issues because no support mailbox exists yet.
+            Resend on mail.tryatoms.app is send-only. If a real inbox is set up,
+            swap this for a mailto: and update privacy.html + terms.html too.
+          -->
+          <a href="https://github.com/taihartman/obsidian-atoms/issues"
+            >Support</a
+          >
+        </nav>
+        <p class="foot-note">
+          Atoms is an independent Obsidian plugin. Obsidian is a trademark of
+          Dynalist Inc., which is not affiliated with this project.
+        </p>
+      </div>
+    </footer>
+  </body>
+</html>

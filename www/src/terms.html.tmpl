@@ -1,0 +1,126 @@
+<!doctype html>
+<!-- Template. Do not edit www/dist/terms.html by hand. See www/build.mjs. -->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Terms · Atoms</title>
+    <meta name="description" content="Plain language terms for Atoms Plus." />
+    <meta name="color-scheme" content="dark light" />
+    <link rel="canonical" href="https://tryatoms.app/terms" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="stylesheet" href="{{cssPath}}" />
+  </head>
+  <body>
+    <main class="legal">
+      <div class="wrap">
+        <a class="back" href="/">↳ Atoms</a>
+
+        <h1>Terms</h1>
+        <p class="updated">Last updated 28 July 2026.</p>
+
+        <p>
+          These terms cover the Atoms Plus subscription and this website. The
+          Atoms plugin itself is open source and covered by its own licence in
+          the
+          <a href="https://github.com/taihartman/obsidian-atoms">repository</a>.
+        </p>
+
+        <h2>The service</h2>
+        <p>
+          Atoms Plus provides managed AI filing, so you can classify captures
+          without supplying your own Anthropic API key, and optional Ask access
+          over a cloud mirror of your atoms folder. Atoms is an independent
+          project and is not affiliated with Obsidian, Anthropic, or OpenAI.
+        </p>
+
+        <h2>Subscription, trial, and billing</h2>
+        <ul>
+          <li>
+            Plus is ${{monthlyUsd}} per month or ${{yearlyUsd}} per year.
+          </li>
+          <li>
+            New subscriptions start with a {{trialDays}} day free trial. A
+            payment method is required to begin the trial. If you do not cancel
+            before the trial ends, the subscription begins and the card is
+            charged.
+          </li>
+          <li>
+            Each billing period includes {{includedFilingsPerPeriod}} AI
+            filings. Unused filings do not carry over to the next period.
+          </li>
+          <li>
+            Additional filings are available as a one time purchase of
+            {{topUpFilings}} filings for ${{topUpUsd}}. A top up applies to the
+            current period only, does not renew, and does not change your
+            subscription.
+          </li>
+          <li>
+            Payments are processed by Stripe. Prices are in USD and exclude any
+            taxes that may apply.
+          </li>
+        </ul>
+
+        <h2>Cancelling and refunds</h2>
+        <p>
+          You can cancel at any time from Settings inside the plugin. Cancelling
+          stops future charges and Plus remains active until the end of the
+          period you have paid for. We do not automatically refund partial
+          periods. If something went wrong on our side, contact us and we will
+          sort it out.
+        </p>
+
+        <h2>Your content</h2>
+        <p>
+          Your notes are yours. You keep all rights to them. You grant us only
+          the permission needed to run the service you asked for: passing
+          capture text to Anthropic for classification, and, if you enable Ask,
+          storing a mirror of your atoms folder so an assistant can search it.
+          We do not train on your notes. See the
+          <a href="/privacy">Privacy</a> page.
+        </p>
+
+        <h2>Acceptable use</h2>
+        <p>
+          Do not use Plus to process content you do not have the right to
+          process, and do not attempt to disrupt, overload, or reverse the
+          service for others. We may suspend an account that does.
+        </p>
+
+        <h2>Availability and liability</h2>
+        <p>
+          Plus is provided as is, without warranty. We aim to keep it running
+          but cannot promise uninterrupted availability. To the extent permitted
+          by law, our total liability is limited to the amount you paid us in
+          the twelve months before the claim. Nothing here limits liability that
+          cannot be limited by law.
+        </p>
+
+        <h2>Changes</h2>
+        <p>
+          If these terms or the price change, we will give notice by email
+          before the change takes effect for your subscription. Continuing to
+          use Plus after that means you accept the change.
+        </p>
+
+        <h2>Contact</h2>
+        <p>
+          Reach us through
+          <a href="https://github.com/taihartman/obsidian-atoms/issues"
+            >GitHub Issues</a
+          >.
+        </p>
+      </div>
+    </main>
+
+    <footer class="foot">
+      <div class="wrap">
+        <nav>
+          <a href="/">Atoms</a>
+          <a href="/privacy">Privacy</a>
+          <a href="https://github.com/taihartman/obsidian-atoms">GitHub</a>
+        </nav>
+      </div>
+    </footer>
+  </body>
+</html>

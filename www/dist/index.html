@@ -1,0 +1,830 @@
+<!doctype html>
+<!--
+  Template. Do not edit www/dist/index.html by hand.
+  Double-brace tokens come from repo-root plus-pricing.json via www/build.mjs.
+  An unsubstituted token is a build failure.
+
+  Copy rules for this page:
+  - The hero shows NO markdown syntax. No [[wikilinks]], no HTML comments, no
+    frontmatter. Syntax is earned later, once someone knows what this is.
+  - Three coordinated storylines (Relationships/Sam, Work/Priya,
+    Journaling/self); each carries its arc through every swapped surface.
+  - Claims discipline: Ask search is literal keyword and tag matching, not
+    semantic. Writes from chat are queued. Resurfacing only happens with the
+    app open. Never soften any of those.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Atoms · Notes you can ask</title>
+    <meta
+      name="description"
+      content="Atoms turns the notes you already take in Obsidian into something you can ask. Your words stay exactly as you wrote them."
+    />
+    <meta name="color-scheme" content="dark light" />
+    <meta property="og:title" content="Atoms · Notes you can ask" />
+    <meta
+      property="og:description"
+      content="You wrote it down. Atoms helps you find it again."
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://tryatoms.app" />
+    <meta property="og:image" content="https://tryatoms.app/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image" content="https://tryatoms.app/og.png" />
+    <link rel="canonical" href="https://tryatoms.app" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="stylesheet" href="/a/styles.d701bc8a.css" />
+    <script src="/a/app.b4a72796.js" defer></script>
+  </head>
+  <body>
+    <!--
+      Sticky bar. Four anchors, no more: a section index with ten links reads
+      as documentation and nobody uses it. The button is the point, so that
+      "buy" is one click away from wherever someone loses interest. It aims at
+      #pricing, not #install, because a visitor must see the price before the
+      install steps. Every href here is asserted against a real section id by
+      test/wwwPricing.test.ts.
+    -->
+    <nav class="topbar" aria-label="Sections">
+      <div class="topbar-in">
+        <a class="topbar-mark" href="#top">
+          <span class="sentinel" aria-hidden="true">↳</span> Atoms
+        </a>
+        <ul class="topbar-links">
+          <li><a href="#how">How it works</a></li>
+          <li><a href="#ask">Ask</a></li>
+          <li><a href="#backfill">Catch up</a></li>
+          <li><a href="#pricing">Pricing</a></li>
+        </ul>
+        <a class="btn btn--primary btn--bar" href="#pricing">Get Atoms</a>
+      </div>
+    </nav>
+
+    <!--
+      Story carousel: <main data-story> decides which storyline the CSS
+      shows (.s-rel / .s-work / .s-self; .s-people is shared by rel+work).
+      app.js moves the attribute; without JS the default story renders.
+    -->
+    <main data-story="rel">
+      <!-- Hero: understandable in three seconds, no syntax anywhere -->
+      <header class="hero" id="top">
+        <div class="wrap">
+          <p class="eyebrow">Atoms · An Obsidian plugin</p>
+          <h1>You wrote it down.<br />You never found it again.</h1>
+          <p class="lead">
+            Atoms turns the notes you already take into something you can ask.
+          </p>
+
+          <div class="story-nav" aria-label="Choose an example story">
+            <button class="story-arrow" type="button" data-dir="-1"
+              aria-label="Previous story">&#8249;</button>
+            <div class="story-labels">
+              <button type="button" data-story="rel" class="is-active"
+                aria-pressed="true">Relationships</button>
+              <button type="button" data-story="work"
+                aria-pressed="false">Work</button>
+              <button type="button" data-story="self"
+                aria-pressed="false">Journaling</button>
+            </div>
+            <button class="story-arrow" type="button" data-dir="1"
+              aria-label="Next story">&#8250;</button>
+          </div>
+
+          <!--
+            Hero stage: panels stack in one grid cell and cross-fade/drift on
+            story change (they do NOT use the .s-* display rules, which would
+            collapse the stage). The message cascade replays on each switch.
+          -->
+          <div class="hero-stories">
+          <div class="hero-panel" data-s="rel">
+            <div class="claude" role="img"
+              aria-label="A Claude chat answering a question from your own notes">
+              <div class="claude-bar">
+                <span class="claude-star" aria-hidden="true">✱</span> Claude
+              </div>
+              <div class="claude-body">
+                <p class="claude-you">gift ideas for Sam?</p>
+                <p class="claude-tool">⌕ searched your atoms · followed links from Sam</p>
+                <div class="claude-ans">
+                  From March, in your own words:
+                  <blockquote>
+                    sam stopped at the tulip stand again, she loves the yellow
+                    ones
+                  </blockquote>
+                  Yellow tulips would be an easy win.
+                </div>
+                <p class="claude-cite">
+                  <span class="sentinel">↳</span>
+                  Sam loves yellow tulips · March 12
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div class="hero-panel" data-s="work">
+            <div class="claude" role="img"
+              aria-label="A Claude chat answering a work question from your own notes">
+              <div class="claude-bar">
+                <span class="claude-star" aria-hidden="true">✱</span> Claude
+              </div>
+              <div class="claude-body">
+                <p class="claude-you">anything I should know before the Priya pitch?</p>
+                <p class="claude-tool">⌕ searched your atoms · followed links from Priya</p>
+                <div class="claude-ans">
+                  From March, in your own words:
+                  <blockquote>
+                    priya said budget approvals freeze after their fiscal year
+                    closes in november
+                  </blockquote>
+                  Pitch before November.
+                </div>
+                <p class="claude-cite">
+                  <span class="sentinel">↳</span>
+                  Priya's budget freezes in November · March 12
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div class="hero-panel" data-s="self">
+            <div class="claude" role="img"
+              aria-label="A Claude chat answering a question about yourself from your own notes">
+              <div class="claude-bar">
+                <span class="claude-star" aria-hidden="true">✱</span> Claude
+              </div>
+              <div class="claude-body">
+                <p class="claude-you">why do my afternoons keep falling apart?</p>
+                <p class="claude-tool">⌕ searched your atoms · followed links from Energy</p>
+                <div class="claude-ans">
+                  You answered this yourself in April:
+                  <blockquote>
+                    skipped lunch again and the 3pm meeting still went sideways
+                  </blockquote>
+                  It is the lunch, not the meetings.
+                </div>
+                <p class="claude-cite">
+                  <span class="sentinel">↳</span>
+                  Skipping lunch wrecks my afternoons · April 9
+                </p>
+              </div>
+            </div>
+          </div>
+          </div>
+
+          <div class="actions">
+            <a class="btn btn--primary" href="#pricing">Get Atoms</a>
+            <a class="btn btn--secondary" href="#how">See How It Works</a>
+          </div>
+          <p class="note">
+            No subscription needed. Bring your own Anthropic key and pay only
+            for what you use.
+          </p>
+        </div>
+      </header>
+
+      <!-- The turn -->
+      <section class="band">
+        <div class="wrap">
+          <p class="claim">
+            A note you cannot find again is a note you did not take.
+          </p>
+          <p>
+            Atoms is the whole loop: a thought goes in, in five seconds, and
+            comes back the moment it matters.
+          </p>
+        </div>
+      </section>
+
+      <!-- How it works -->
+      <section class="band" id="how">
+        <div class="wrap">
+          <p class="eyebrow">How it works</p>
+          <h2>You only do the first step.</h2>
+
+          <ol class="steps">
+            <li>
+              <span class="sentinel" aria-hidden="true">↳</span>
+              <div>
+                <h3>Catch it in five seconds</h3>
+                <p>
+                  Atoms installs a shortcut on your iPhone. Run it from your
+                  home screen, the share sheet, or Siri, and say the thought out
+                  loud instead of typing it. It lands in today's daily note
+                  before you have put your phone down.
+                </p>
+                <p>
+                  On a desktop, type a line. Either way, nothing new to learn
+                  and nowhere new to put it.
+                </p>
+              </div>
+            </li>
+            <li>
+              <span class="sentinel" aria-hidden="true">↳</span>
+              <div>
+                <h3>Come back and it is sorted</h3>
+                <p>
+                  Yesterday's captures become notes with a real title and links
+                  to what they relate to. Let it happen on its own each time you
+                  open Obsidian, or keep it to one tap.
+                </p>
+              </div>
+            </li>
+            <li>
+              <span class="sentinel" aria-hidden="true">↳</span>
+              <div>
+                <h3>Now you can find it</h3>
+                <p>Ask for it, or let it come back to you. Both are below.</p>
+              </div>
+            </li>
+          </ol>
+
+          <div class="specimen specimen--inline">
+            <div class="s-rel">
+              <p class="stage">Your daily note</p>
+              <div class="file">
+                <pre class="file-body"><span class="verbatim">- sam stopped at the tulip stand again, she loves the yellow ones</span>
+<span class="verbatim">- pick up milk</span></pre>
+              </div>
+
+              <p class="stage">What Atoms makes</p>
+              <div class="file">
+                <span class="file-name">Sam loves yellow tulips</span>
+                <pre class="file-body"><span class="verbatim">sam stopped at the tulip stand again, she loves the yellow ones</span>
+
+Linked to <span class="wl">Sam</span> and <span class="wl">Gift ideas</span>.</pre>
+              </div>
+
+              <p class="caption">
+                Your original line is never touched, and the text is copied
+                across word for word. The milk? It becomes nothing. Atoms is not
+                a reminders app, so errands stay in your daily note and out of
+                your library.
+              </p>
+            </div>
+
+            <div class="s-work">
+              <p class="stage">Your daily note</p>
+              <div class="file">
+                <pre class="file-body"><span class="verbatim">- priya said budget approvals freeze after their fiscal year closes in november</span>
+<span class="verbatim">- reply to the invoice email</span></pre>
+              </div>
+
+              <p class="stage">What Atoms makes</p>
+              <div class="file">
+                <span class="file-name">Priya's budget freezes in November</span>
+                <pre class="file-body"><span class="verbatim">priya said budget approvals freeze after their fiscal year closes in november</span>
+
+Linked to <span class="wl">Priya</span> and <span class="wl">Acme pitch</span>.</pre>
+              </div>
+
+              <p class="caption">
+                Your original line is never touched, and the text is copied
+                across word for word. The invoice email? It becomes nothing.
+                Atoms is not a task manager, so to-dos stay in your daily note
+                and out of your library.
+              </p>
+            </div>
+
+            <div class="s-self">
+              <p class="stage">Your daily note</p>
+              <div class="file">
+                <pre class="file-body"><span class="verbatim">- skipped lunch again and the 3pm meeting still went sideways</span>
+<span class="verbatim">- call the dentist</span></pre>
+              </div>
+
+              <p class="stage">What Atoms makes</p>
+              <div class="file">
+                <span class="file-name">Skipping lunch wrecks my afternoons</span>
+                <pre class="file-body"><span class="verbatim">skipped lunch again and the 3pm meeting still went sideways</span>
+
+Linked to <span class="wl">Energy</span> and <span class="wl">Meetings</span>.</pre>
+              </div>
+
+              <p class="caption">
+                Your original line is never touched, and the text is copied
+                across word for word. The dentist? It becomes nothing. Atoms is
+                not a task manager, so to-dos stay in your daily note and out of
+                your library.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Recall: pull -->
+      <section class="band" id="ask">
+        <div class="wrap">
+          <p class="eyebrow">When you go looking</p>
+          <h2>Ask from Claude or ChatGPT</h2>
+          <p>
+            Atoms plugs into the chat window you already have open, so your own
+            notes become something you can question.
+          </p>
+
+          <ul class="facts">
+            <li>
+              <strong>It reads the library, not the pile.</strong> Every note it
+              looks at already has a real title, tags, and links. That is why
+              the answers are any good. Pointing a chatbot at raw daily pages
+              does not work.
+            </li>
+            <li>
+              <strong>Ask for it.</strong> It finds your notes by title, tags,
+              and text, then quotes them back with a link to the original.
+            </li>
+            <li class="s-rel">
+              <strong>Follow the thread.</strong> Your notes form a graph, and
+              it walks the links. The gift question finds the tulip note because
+              both point at Sam.
+            </li>
+            <li class="s-work">
+              <strong>Follow the thread.</strong> Your notes form a graph, and
+              it walks the links. The pitch question finds the budget note
+              because both point at Priya.
+            </li>
+            <li class="s-self">
+              <strong>Follow the thread.</strong> Your notes form a graph, and
+              it walks the links. The afternoon question finds the lunch note
+              because both point at Energy.
+            </li>
+            <li>
+              <strong>Add without leaving chat.</strong> Tell it to remember
+              something and it queues a new note for your vault. It lands next
+              time Obsidian is open.
+            </li>
+            <li>
+              <strong>Change your mind safely.</strong> A revision becomes a new
+              note linked to the old one. It never overwrites you.
+            </li>
+          </ul>
+
+          <div class="s-rel">
+            <div class="claude" role="img"
+              aria-label="Telling Claude to note something, which queues a note for your vault">
+              <div class="claude-bar">
+                <span class="claude-star" aria-hidden="true">✱</span> Claude
+              </div>
+              <div class="claude-body">
+                <p class="claude-you">
+                  note this: sam lingered in the poetry section at the bookshop
+                  on 9th
+                </p>
+                <p class="claude-tool">+ created atom · pending</p>
+                <div class="claude-ans">
+                  Queued for your vault. It lands next time Obsidian is open.
+                </div>
+                <p class="claude-cite">
+                  <span class="sentinel">↳</span>
+                  Sam lingered in the poetry section
+                </p>
+              </div>
+            </div>
+
+            <p class="caption">
+              And the next time you ask for gift ideas, it knows about the
+              poetry section too.
+            </p>
+          </div>
+
+          <div class="s-work">
+            <div class="claude" role="img"
+              aria-label="Telling Claude to note something, which queues a note for your vault">
+              <div class="claude-bar">
+                <span class="claude-star" aria-hidden="true">✱</span> Claude
+              </div>
+              <div class="claude-body">
+                <p class="claude-you">
+                  note this: priya reads every deck on her phone, keep the
+                  slides big
+                </p>
+                <p class="claude-tool">+ created atom · pending</p>
+                <div class="claude-ans">
+                  Queued for your vault. It lands next time Obsidian is open.
+                </div>
+                <p class="claude-cite">
+                  <span class="sentinel">↳</span>
+                  Priya reads decks on her phone
+                </p>
+              </div>
+            </div>
+
+            <p class="caption">
+              And the next pitch answer knows to keep the slides big.
+            </p>
+          </div>
+
+          <div class="s-self">
+            <div class="claude" role="img"
+              aria-label="Telling Claude to note something, which queues a note for your vault">
+              <div class="claude-bar">
+                <span class="claude-star" aria-hidden="true">✱</span> Claude
+              </div>
+              <div class="claude-body">
+                <p class="claude-you">
+                  note this: mornings after a run, drafts come out clean in one
+                  pass
+                </p>
+                <p class="claude-tool">+ created atom · pending</p>
+                <div class="claude-ans">
+                  Queued for your vault. It lands next time Obsidian is open.
+                </div>
+                <p class="claude-cite">
+                  <span class="sentinel">↳</span>
+                  Mornings after a run mean clean drafts
+                </p>
+              </div>
+            </div>
+
+            <p class="caption">
+              And the next time you ask when to do deep work, it knows.
+            </p>
+          </div>
+
+          <p class="fineprint">
+            Matching is on the words you actually wrote, not a semantic model.
+            Your daily notes and the rest of your vault are never sent, only the
+            notes Atoms filed. Connector URL for Plus:
+            <span class="mono">https://plus.tryatoms.app/mcp</span>
+          </p>
+        </div>
+      </section>
+
+      <!-- Recall: push -->
+      <section class="band" id="resurface">
+        <div class="wrap">
+          <p class="eyebrow">When you are not looking</p>
+          <h2>Sometimes it finds you</h2>
+          <p>Open Atoms and it may hand you one thing you had forgotten.</p>
+
+          <ul class="facts">
+            <li>
+              <strong>Mind change.</strong> Two notes where you came to disagree
+              with yourself, side by side, with the dates.
+            </li>
+            <li class="s-rel">
+              <!-- Placeholder names only. Never ship a real person from a vault. -->
+              <strong>Also about Sam.</strong> Write something new about someone
+              and an older note about them comes back.
+            </li>
+            <li class="s-work">
+              <strong>Also about Priya.</strong> Write something new about
+              someone and an older note about them comes back.
+            </li>
+            <li class="s-self">
+              <strong>Also about Energy.</strong> Write something new on a
+              theme and an older note about it comes back.
+            </li>
+            <li>
+              <strong>On this day.</strong> Something you wrote on this date a
+              year ago.
+            </li>
+            <li>
+              <strong>One card, then done.</strong> Tap to open it, or ask for
+              another. The same memory will not return for a week.
+            </li>
+          </ul>
+
+          <div class="appcard" role="img"
+            aria-label="An Atoms mind-change card showing two of your claims with dates">
+            <p class="appcard-kicker appcard-kicker--mind">Mind change</p>
+            <p class="pair-quote">
+              &ldquo;i do my best thinking after midnight&rdquo;
+            </p>
+            <p class="pair-date">March 4</p>
+            <p class="pair-link">later contradicted</p>
+            <p class="pair-quote">
+              &ldquo;my brain is only honest before nine&rdquo;
+            </p>
+            <p class="pair-date">July 21 · 139 days later</p>
+            <div class="appcard-actions">
+              <span class="btn btn--mini btn--secondary">Open</span>
+              <span class="btn btn--mini btn--quiet">Not a mind-change</span>
+            </div>
+          </div>
+
+          <p class="claim claim--minor">
+            It is the second brain that shows you when you changed your mind.
+          </p>
+
+          <p class="fineprint fineprint--legible">
+            Only while you have Atoms open. No notifications, no reminders, no
+            review queue, and nothing is ever due. If you do not open Atoms,
+            nothing happens.
+          </p>
+        </div>
+      </section>
+
+      <!-- People -->
+      <section class="band" id="people">
+        <div class="wrap">
+          <div class="s-people">
+            <p class="eyebrow">People</p>
+            <h2>It notices who matters</h2>
+          </div>
+          <div class="s-self">
+            <p class="eyebrow">Patterns</p>
+            <h2>It notices what repeats</h2>
+            <p>
+              <!-- Grounded: Together card + entity hubs ship (orbits T0-T3). -->
+              Keep writing about the same thing and Atoms gathers the thread
+              without being asked. No folder was ever created for it, and no
+              tag was ever typed.
+            </p>
+
+            <div class="appcard" role="img"
+              aria-label="An Atoms card gathering your notes about running">
+              <p class="appcard-kicker appcard-kicker--person">Together</p>
+              <h4>Six notes about Running</h4>
+              <p class="appcard-sub">Linked over several nights.</p>
+              <div class="appcard-actions">
+                <span class="btn btn--mini btn--secondary">Open</span>
+              </div>
+            </div>
+          </div>
+          <div class="s-rel">
+            <p>
+              <!-- Grounded: person invite card + retroactive link upgrade + 14d snooze. -->
+              Write about Sam a few times and Atoms offers to make a page where
+              everything about Sam lives. One tap, and every note that mentioned
+              Sam gets linked to it, including the ones from months ago. Say no
+              and it stays quiet for two weeks.
+            </p>
+
+            <div class="appcard" role="img"
+              aria-label="An Atoms invite card offering to create a page for Sam">
+              <p class="appcard-kicker appcard-kicker--person">People</p>
+              <h4>Add Sam?</h4>
+              <p class="appcard-sub">Sam shows up in 4 of your notes.</p>
+              <div class="appcard-actions">
+                <span class="btn btn--mini btn--primary">Add</span>
+                <span class="btn btn--mini btn--quiet">Not now</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="s-work">
+            <p>
+              Write about Priya a few times and Atoms offers to make a page
+              where everything about Priya lives. One tap, and every note that
+              mentioned Priya gets linked to it, including the ones from months
+              ago. Say no and it stays quiet for two weeks.
+            </p>
+
+            <div class="appcard" role="img"
+              aria-label="An Atoms invite card offering to create a page for Priya">
+              <p class="appcard-kicker appcard-kicker--person">People</p>
+              <h4>Add Priya?</h4>
+              <p class="appcard-sub">Priya shows up in 6 of your notes.</p>
+              <div class="appcard-actions">
+                <span class="btn btn--mini btn--primary">Add</span>
+                <span class="btn btn--mini btn--quiet">Not now</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- The graph -->
+      <section class="band" id="graph">
+        <div class="wrap">
+          <p class="eyebrow">The shape of it</p>
+          <h2>A little web of your life</h2>
+          <p>
+            Every link above is real structure. Atoms can open your library as
+            a graph: your notes and what they point at, not the whole vault
+            hairball.
+          </p>
+
+          <div class="s-rel">
+            <figure class="graph-fig" aria-label="A graph of notes around Sam">
+                <svg class="graph-svg" viewBox="0 0 360 300" xmlns="http://www.w3.org/2000/svg" role="img"><line class="graph-edge" data-a="0" data-b="1" x1="176.3" y1="89.0" x2="255.8" y2="134.7"/><line class="graph-edge" data-a="1" data-b="2" x1="255.8" y1="134.7" x2="219.5" y2="207.7"/><line class="graph-edge" data-a="2" data-b="3" x1="219.5" y1="207.7" x2="132.2" y2="198.0"/><line class="graph-edge" data-a="3" data-b="4" x1="132.2" y1="198.0" x2="99.8" y2="135.4"/><line class="graph-edge" data-a="4" data-b="0" x1="99.8" y1="135.4" x2="176.3" y2="89.0"/><line class="graph-edge" data-a="0" data-b="2" x1="176.3" y1="89.0" x2="219.5" y2="207.7"/><line class="graph-edge" data-a="5" data-b="0" x1="207.9" y1="84.2" x2="176.3" y2="89.0"/><line class="graph-edge" data-a="5" data-b="1" x1="207.9" y1="84.2" x2="255.8" y2="134.7"/><line class="graph-edge" data-a="6" data-b="0" x1="145.0" y1="83.5" x2="176.3" y2="89.0"/><line class="graph-edge" data-a="6" data-b="4" x1="145.0" y1="83.5" x2="99.8" y2="135.4"/><line class="graph-edge" data-a="7" data-b="3" x1="101.7" y1="206.4" x2="132.2" y2="198.0"/><line class="graph-edge" data-a="8" data-b="2" x1="189.0" y1="199.4" x2="219.5" y2="207.7"/><line class="graph-edge" data-a="9" data-b="3" x1="140.2" y1="159.1" x2="132.2" y2="198.0"/><line class="graph-edge" data-a="10" data-b="1" x1="275.1" y1="112.7" x2="255.8" y2="134.7"/><line class="graph-edge" data-a="11" data-b="1" x1="255.5" y1="93.6" x2="255.8" y2="134.7"/><line class="graph-edge" data-a="12" data-b="2" x1="243.5" y1="205.3" x2="219.5" y2="207.7"/><line class="graph-edge" data-a="13" data-b="1" x1="274.3" y1="147.5" x2="255.8" y2="134.7"/><line class="graph-edge" data-a="14" data-b="5" x1="242.9" y1="101.7" x2="207.9" y2="84.2"/><line class="graph-edge" data-a="15" data-b="3" x1="105.2" y1="183.4" x2="132.2" y2="198.0"/><line class="graph-edge" data-a="16" data-b="2" x1="212.3" y1="182.5" x2="219.5" y2="207.7"/><line class="graph-edge" data-a="16" data-b="7" x1="212.3" y1="182.5" x2="101.7" y2="206.4"/><line class="graph-edge" data-a="17" data-b="3" x1="93.1" y1="229.5" x2="132.2" y2="198.0"/><line class="graph-edge" data-a="18" data-b="2" x1="218.3" y1="251.3" x2="219.5" y2="207.7"/><line class="graph-edge" data-a="19" data-b="1" x1="271.6" y1="161.0" x2="255.8" y2="134.7"/><line class="graph-edge" data-a="19" data-b="0" x1="271.6" y1="161.0" x2="176.3" y2="89.0"/><line class="graph-edge" data-a="20" data-b="4" x1="101.4" y1="114.3" x2="99.8" y2="135.4"/><line class="graph-edge" data-a="21" data-b="5" x1="232.1" y1="65.6" x2="207.9" y2="84.2"/><line class="graph-edge" data-a="22" data-b="3" x1="149.8" y1="170.2" x2="132.2" y2="198.0"/><line class="graph-edge" data-a="23" data-b="5" x1="237.8" y1="77.2" x2="207.9" y2="84.2"/><line class="graph-edge" data-a="24" data-b="2" x1="210.6" y1="251.5" x2="219.5" y2="207.7"/><line class="graph-edge" data-a="25" data-b="2" x1="247.9" y1="215.9" x2="219.5" y2="207.7"/><line class="graph-edge" data-a="26" data-b="5" x1="217.0" y1="115.0" x2="207.9" y2="84.2"/><line class="graph-edge" data-a="27" data-b="0" x1="161.0" y1="112.8" x2="176.3" y2="89.0"/><line class="graph-edge" data-a="28" data-b="7" x1="113.8" y1="241.5" x2="101.7" y2="206.4"/><line class="graph-edge" data-a="29" data-b="1" x1="251.4" y1="166.6" x2="255.8" y2="134.7"/><line class="graph-edge" data-a="30" data-b="1" x1="228.7" y1="154.7" x2="255.8" y2="134.7"/><line class="graph-edge" data-a="31" data-b="7" x1="105.8" y1="182.9" x2="101.7" y2="206.4"/><line class="graph-edge" data-a="32" data-b="3" x1="172.4" y1="215.7" x2="132.2" y2="198.0"/><line class="graph-edge" data-a="33" data-b="2" x1="232.7" y1="192.7" x2="219.5" y2="207.7"/><line class="graph-edge" data-a="34" data-b="1" x1="306.7" y1="133.4" x2="255.8" y2="134.7"/><line class="graph-edge" data-a="35" data-b="3" x1="159.6" y1="165.0" x2="132.2" y2="198.0"/><line class="graph-edge" data-a="36" data-b="8" x1="238.2" y1="207.2" x2="189.0" y2="199.4"/><line class="graph-edge" data-a="37" data-b="8" x1="191.9" y1="243.0" x2="189.0" y2="199.4"/><line class="graph-edge" data-a="38" data-b="4" x1="69.6" y1="124.8" x2="99.8" y2="135.4"/><circle class="graph-node graph-node--hub" data-g="person" data-label="Sam" cx="176.3" cy="89.0" r="8.44"/><circle class="graph-node graph-node--hub2" data-g="hub" data-label="Gift ideas" cx="255.8" cy="134.7" r="9.7"/><circle class="graph-node graph-node--hub2" data-g="hub" data-label="Coast trip" cx="219.5" cy="207.7" r="9.7"/><circle class="graph-node graph-node--hub" data-g="person" data-label="Anna" cx="132.2" cy="198.0" r="9.28"/><circle class="graph-node graph-node--hub2" data-g="hub" data-label="Books" cx="99.8" cy="135.4" r="7.6"/><circle class="graph-node graph-node--atom" data-g="atom" data-label="Yellow tulips" cx="207.9" cy="84.2" r="6.72"/><circle class="graph-node graph-node--atom" data-g="atom" data-label="Poetry section" cx="145.0" cy="83.5" r="5.04"/><circle class="graph-node graph-node--atom" data-g="atom" data-label="Anna's wedding" cx="101.7" cy="206.4" r="5.88"/><circle class="graph-node graph-node--atom" data-g="atom" data-label="Coast playlist" cx="189.0" cy="199.4" r="5.46"/><circle class="graph-node graph-node--soft" data-g="soft" cx="140.2" cy="159.1" r="3.02"/><circle class="graph-node graph-node--soft" data-g="soft" cx="275.1" cy="112.7" r="3.02"/><circle class="graph-node graph-node--soft" data-g="soft" cx="255.5" cy="93.6" r="3.02"/><circle class="graph-node graph-node--soft" data-g="soft" cx="243.5" cy="205.3" r="3.02"/><circle class="graph-node graph-node--soft" data-g="soft" cx="274.3" cy="147.5" r="3.02"/><circle class="graph-node graph-node--soft" data-g="soft" cx="242.9" cy="101.7" r="3.02"/><circle class="graph-node graph-node--soft" data-g="soft" cx="105.2" cy="183.4" r="3.02"/><circle class="graph-node graph-node--soft" data-g="soft" cx="212.3" cy="182.5" r="3.44"/><circle class="graph-node graph-node--soft" data-g="soft" cx="93.1" cy="229.5" r="3.02"/><circle class="graph-node graph-node--soft" data-g="soft" cx="218.3" cy="251.3" r="3.02"/><circle class="graph-node graph-node--soft" data-g="soft" cx="271.6" cy="161.0" r="3.44"/><circle class="graph-node graph-node--soft" data-g="soft" cx="101.4" cy="114.3" r="3.02"/><circle class="graph-node graph-node--soft" data-g="soft" cx="232.1" cy="65.6" r="3.02"/><circle class="graph-node graph-node--soft" data-g="soft" cx="149.8" cy="170.2" r="3.02"/><circle class="graph-node graph-node--soft" data-g="soft" cx="237.8" cy="77.2" r="3.02"/><circle class="graph-node graph-node--soft" data-g="soft" cx="210.6" cy="251.5" r="3.02"/><circle class="graph-node graph-node--soft" data-g="soft" cx="247.9" cy="215.9" r="3.02"/><circle class="graph-node graph-node--soft" data-g="soft" cx="217.0" cy="115.0" r="3.02"/><circle class="graph-node graph-node--soft" data-g="soft" cx="161.0" cy="112.8" r="3.02"/><circle class="graph-node graph-node--soft" data-g="soft" cx="113.8" cy="241.5" r="3.02"/><circle class="graph-node graph-node--soft" data-g="soft" cx="251.4" cy="166.6" r="3.02"/><circle class="graph-node graph-node--soft" data-g="soft" cx="228.7" cy="154.7" r="3.02"/><circle class="graph-node graph-node--soft" data-g="soft" cx="105.8" cy="182.9" r="3.02"/><circle class="graph-node graph-node--soft" data-g="soft" cx="172.4" cy="215.7" r="3.02"/><circle class="graph-node graph-node--soft" data-g="soft" cx="232.7" cy="192.7" r="3.02"/><circle class="graph-node graph-node--soft" data-g="soft" cx="306.7" cy="133.4" r="3.02"/><circle class="graph-node graph-node--soft" data-g="soft" cx="159.6" cy="165.0" r="3.02"/><circle class="graph-node graph-node--soft" data-g="soft" cx="238.2" cy="207.2" r="3.02"/><circle class="graph-node graph-node--soft" data-g="soft" cx="191.9" cy="243.0" r="3.02"/><circle class="graph-node graph-node--soft" data-g="soft" cx="69.6" cy="124.8" r="3.02"/><text class="graph-label graph-label--hub" x="176.3" y="103.0" text-anchor="middle">Sam</text><text class="graph-label graph-label--hub" x="255.8" y="148.7" text-anchor="middle">Gift ideas</text><text class="graph-label graph-label--hub" x="219.5" y="221.7" text-anchor="middle">Coast trip</text><text class="graph-label graph-label--hub" x="132.2" y="212.0" text-anchor="middle">Anna</text><text class="graph-label graph-label--hub" x="99.8" y="149.4" text-anchor="middle">Books</text><text class="graph-label graph-label--hub" x="207.9" y="98.2" text-anchor="middle">Yellow tulips</text><text class="graph-label graph-label--hub" x="145.0" y="97.5" text-anchor="middle">Poetry section</text><text class="graph-label graph-label--hub" x="101.7" y="220.4" text-anchor="middle">Anna's wedding</text><text class="graph-label graph-label--hub" x="189.0" y="213.4" text-anchor="middle">Coast playlist</text></svg>
+              </figure>
+              <p class="graph-hint">Drag a node to pull the web around.</p>
+          </div>
+
+          <div class="s-work">
+            <figure class="graph-fig" aria-label="A graph of notes around Priya">
+                <svg class="graph-svg" viewBox="0 0 360 300" xmlns="http://www.w3.org/2000/svg" role="img"><line class="graph-edge" data-a="0" data-b="1" x1="176.4" y1="81.3" x2="252.1" y2="124.5"/><line class="graph-edge" data-a="1" data-b="2" x1="252.1" y1="124.5" x2="228.9" y2="207.6"/><line class="graph-edge" data-a="2" data-b="3" x1="228.9" y1="207.6" x2="128.3" y2="206.0"/><line class="graph-edge" data-a="3" data-b="4" x1="128.3" y1="206.0" x2="100.3" y2="126.2"/><line class="graph-edge" data-a="4" data-b="0" x1="100.3" y1="126.2" x2="176.4" y2="81.3"/><line class="graph-edge" data-a="0" data-b="2" x1="176.4" y1="81.3" x2="228.9" y2="207.6"/><line class="graph-edge" data-a="5" data-b="0" x1="183.9" y1="54.1" x2="176.4" y2="81.3"/><line class="graph-edge" data-a="5" data-b="1" x1="183.9" y1="54.1" x2="252.1" y2="124.5"/><line class="graph-edge" data-a="6" data-b="0" x1="172.3" y1="109.1" x2="176.4" y2="81.3"/><line class="graph-edge" data-a="7" data-b="1" x1="231.8" y1="146.2" x2="252.1" y2="124.5"/><line class="graph-edge" data-a="7" data-b="4" x1="231.8" y1="146.2" x2="100.3" y2="126.2"/><line class="graph-edge" data-a="8" data-b="2" x1="209.2" y1="229.7" x2="228.9" y2="207.6"/><line class="graph-edge" data-a="9" data-b="2" x1="207.9" y1="185.5" x2="228.9" y2="207.6"/><line class="graph-edge" data-a="10" data-b="4" x1="80.7" y1="138.4" x2="100.3" y2="126.2"/><line class="graph-edge" data-a="11" data-b="5" x1="213.4" y1="59.9" x2="183.9" y2="54.1"/><line class="graph-edge" data-a="11" data-b="3" x1="213.4" y1="59.9" x2="128.3" y2="206.0"/><line class="graph-edge" data-a="12" data-b="0" x1="143.2" y1="114.7" x2="176.4" y2="81.3"/><line class="graph-edge" data-a="13" data-b="5" x1="205.0" y1="50.3" x2="183.9" y2="54.1"/><line class="graph-edge" data-a="14" data-b="5" x1="210.6" y1="58.7" x2="183.9" y2="54.1"/><line class="graph-edge" data-a="15" data-b="2" x1="218.7" y1="248.8" x2="228.9" y2="207.6"/><line class="graph-edge" data-a="16" data-b="8" x1="205.4" y1="208.5" x2="209.2" y2="229.7"/><line class="graph-edge" data-a="17" data-b="3" x1="97.6" y1="193.6" x2="128.3" y2="206.0"/><line class="graph-edge" data-a="18" data-b="3" x1="107.6" y1="211.1" x2="128.3" y2="206.0"/><line class="graph-edge" data-a="19" data-b="1" x1="294.5" y1="132.7" x2="252.1" y2="124.5"/><line class="graph-edge" data-a="20" data-b="3" x1="118.4" y1="251.0" x2="128.3" y2="206.0"/><line class="graph-edge" data-a="20" data-b="2" x1="118.4" y1="251.0" x2="228.9" y2="207.6"/><line class="graph-edge" data-a="21" data-b="0" x1="147.1" y1="78.8" x2="176.4" y2="81.3"/><line class="graph-edge" data-a="22" data-b="5" x1="157.1" y1="52.4" x2="183.9" y2="54.1"/><line class="graph-edge" data-a="23" data-b="2" x1="204.5" y1="188.5" x2="228.9" y2="207.6"/><line class="graph-edge" data-a="23" data-b="0" x1="204.5" y1="188.5" x2="176.4" y2="81.3"/><line class="graph-edge" data-a="24" data-b="4" x1="121.0" y1="124.1" x2="100.3" y2="126.2"/><line class="graph-edge" data-a="25" data-b="0" x1="185.6" y1="55.6" x2="176.4" y2="81.3"/><line class="graph-edge" data-a="26" data-b="8" x1="167.6" y1="217.9" x2="209.2" y2="229.7"/><line class="graph-edge" data-a="27" data-b="0" x1="156.4" y1="59.0" x2="176.4" y2="81.3"/><line class="graph-edge" data-a="27" data-b="0" x1="156.4" y1="59.0" x2="176.4" y2="81.3"/><line class="graph-edge" data-a="28" data-b="7" x1="179.4" y1="150.2" x2="231.8" y2="146.2"/><line class="graph-edge" data-a="29" data-b="7" x1="237.4" y1="180.4" x2="231.8" y2="146.2"/><line class="graph-edge" data-a="30" data-b="1" x1="239.5" y1="100.3" x2="252.1" y2="124.5"/><line class="graph-edge" data-a="31" data-b="2" x1="210.6" y1="180.9" x2="228.9" y2="207.6"/><line class="graph-edge" data-a="32" data-b="7" x1="204.9" y1="122.4" x2="231.8" y2="146.2"/><line class="graph-edge" data-a="32" data-b="5" x1="204.9" y1="122.4" x2="183.9" y2="54.1"/><line class="graph-edge" data-a="33" data-b="4" x1="97.8" y1="104.1" x2="100.3" y2="126.2"/><line class="graph-edge" data-a="34" data-b="0" x1="194.5" y1="88.5" x2="176.4" y2="81.3"/><line class="graph-edge" data-a="34" data-b="1" x1="194.5" y1="88.5" x2="252.1" y2="124.5"/><line class="graph-edge" data-a="35" data-b="3" x1="158.7" y1="191.8" x2="128.3" y2="206.0"/><line class="graph-edge" data-a="36" data-b="7" x1="187.6" y1="167.4" x2="231.8" y2="146.2"/><line class="graph-edge" data-a="37" data-b="0" x1="201.1" y1="110.3" x2="176.4" y2="81.3"/><line class="graph-edge" data-a="38" data-b="0" x1="195.5" y1="102.1" x2="176.4" y2="81.3"/><circle class="graph-node graph-node--hub" data-g="person" data-label="Priya" cx="176.4" cy="81.3" r="10.54"/><circle class="graph-node graph-node--hub2" data-g="hub" data-label="Acme pitch" cx="252.1" cy="124.5" r="8.44"/><circle class="graph-node graph-node--hub2" data-g="hub" data-label="Q3 pricing" cx="228.9" cy="207.6" r="9.28"/><circle class="graph-node graph-node--hub2" data-g="hub" data-label="Dev team" cx="128.3" cy="206.0" r="8.44"/><circle class="graph-node graph-node--hub2" data-g="hub" data-label="Roadmap" cx="100.3" cy="126.2" r="8.02"/><circle class="graph-node graph-node--atom" data-g="atom" data-label="Budget freeze" cx="183.9" cy="54.1" r="7.14"/><circle class="graph-node graph-node--atom" data-g="atom" data-label="Decks on phone" cx="172.3" cy="109.1" r="4.62"/><circle class="graph-node graph-node--atom" data-g="atom" data-label="Pilot scope" cx="231.8" cy="146.2" r="6.72"/><circle class="graph-node graph-node--atom" data-g="atom" data-label="Renewal date" cx="209.2" cy="229.7" r="5.46"/><circle class="graph-node graph-node--soft" data-g="soft" cx="207.9" cy="185.5" r="3.02"/><circle class="graph-node graph-node--soft" data-g="soft" cx="80.7" cy="138.4" r="3.02"/><circle class="graph-node graph-node--soft" data-g="soft" cx="213.4" cy="59.9" r="3.44"/><circle class="graph-node graph-node--soft" data-g="soft" cx="143.2" cy="114.7" r="3.02"/><circle class="graph-node graph-node--soft" data-g="soft" cx="205.0" cy="50.3" r="3.02"/><circle class="graph-node graph-node--soft" data-g="soft" cx="210.6" cy="58.7" r="3.02"/><circle class="graph-node graph-node--soft" data-g="soft" cx="218.7" cy="248.8" r="3.02"/><circle class="graph-node graph-node--soft" data-g="soft" cx="205.4" cy="208.5" r="3.02"/><circle class="graph-node graph-node--soft" data-g="soft" cx="97.6" cy="193.6" r="3.02"/><circle class="graph-node graph-node--soft" data-g="soft" cx="107.6" cy="211.1" r="3.02"/><circle class="graph-node graph-node--soft" data-g="soft" cx="294.5" cy="132.7" r="3.02"/><circle class="graph-node graph-node--soft" data-g="soft" cx="118.4" cy="251.0" r="3.44"/><circle class="graph-node graph-node--soft" data-g="soft" cx="147.1" cy="78.8" r="3.02"/><circle class="graph-node graph-node--soft" data-g="soft" cx="157.1" cy="52.4" r="3.02"/><circle class="graph-node graph-node--soft" data-g="soft" cx="204.5" cy="188.5" r="3.44"/><circle class="graph-node graph-node--soft" data-g="soft" cx="121.0" cy="124.1" r="3.02"/><circle class="graph-node graph-node--soft" data-g="soft" cx="185.6" cy="55.6" r="3.02"/><circle class="graph-node graph-node--soft" data-g="soft" cx="167.6" cy="217.9" r="3.02"/><circle class="graph-node graph-node--soft" data-g="soft" cx="156.4" cy="59.0" r="3.44"/><circle class="graph-node graph-node--soft" data-g="soft" cx="179.4" cy="150.2" r="3.02"/><circle class="graph-node graph-node--soft" data-g="soft" cx="237.4" cy="180.4" r="3.02"/><circle class="graph-node graph-node--soft" data-g="soft" cx="239.5" cy="100.3" r="3.02"/><circle class="graph-node graph-node--soft" data-g="soft" cx="210.6" cy="180.9" r="3.02"/><circle class="graph-node graph-node--soft" data-g="soft" cx="204.9" cy="122.4" r="3.44"/><circle class="graph-node graph-node--soft" data-g="soft" cx="97.8" cy="104.1" r="3.02"/><circle class="graph-node graph-node--soft" data-g="soft" cx="194.5" cy="88.5" r="3.44"/><circle class="graph-node graph-node--soft" data-g="soft" cx="158.7" cy="191.8" r="3.02"/><circle class="graph-node graph-node--soft" data-g="soft" cx="187.6" cy="167.4" r="3.02"/><circle class="graph-node graph-node--soft" data-g="soft" cx="201.1" cy="110.3" r="3.02"/><circle class="graph-node graph-node--soft" data-g="soft" cx="195.5" cy="102.1" r="3.02"/><text class="graph-label graph-label--hub" x="176.4" y="95.3" text-anchor="middle">Priya</text><text class="graph-label graph-label--hub" x="252.1" y="138.5" text-anchor="middle">Acme pitch</text><text class="graph-label graph-label--hub" x="228.9" y="221.6" text-anchor="middle">Q3 pricing</text><text class="graph-label graph-label--hub" x="128.3" y="220.0" text-anchor="middle">Dev team</text><text class="graph-label graph-label--hub" x="100.3" y="140.2" text-anchor="middle">Roadmap</text><text class="graph-label graph-label--hub" x="183.9" y="68.1" text-anchor="middle">Budget freeze</text><text class="graph-label graph-label--hub" x="172.3" y="123.1" text-anchor="middle">Decks on phone</text><text class="graph-label graph-label--hub" x="231.8" y="160.2" text-anchor="middle">Pilot scope</text><text class="graph-label graph-label--hub" x="209.2" y="243.7" text-anchor="middle">Renewal date</text></svg>
+              </figure>
+              <p class="graph-hint">Drag a node to pull the web around.</p>
+          </div>
+
+          <div class="s-self">
+            <figure class="graph-fig" aria-label="A graph of notes around Energy">
+                <svg class="graph-svg" viewBox="0 0 360 300" xmlns="http://www.w3.org/2000/svg" role="img"><line class="graph-edge" data-a="0" data-b="1" x1="176.4" y1="82.4" x2="255.1" y2="129.8"/><line class="graph-edge" data-a="1" data-b="2" x1="255.1" y1="129.8" x2="228.8" y2="207.2"/><line class="graph-edge" data-a="2" data-b="3" x1="228.8" y1="207.2" x2="130.8" y2="205.9"/><line class="graph-edge" data-a="3" data-b="4" x1="130.8" y1="205.9" x2="101.7" y2="134.4"/><line class="graph-edge" data-a="4" data-b="0" x1="101.7" y1="134.4" x2="176.4" y2="82.4"/><line class="graph-edge" data-a="0" data-b="2" x1="176.4" y1="82.4" x2="228.8" y2="207.2"/><line class="graph-edge" data-a="5" data-b="0" x1="180.0" y1="110.2" x2="176.4" y2="82.4"/><line class="graph-edge" data-a="5" data-b="2" x1="180.0" y1="110.2" x2="228.8" y2="207.2"/><line class="graph-edge" data-a="6" data-b="1" x1="223.2" y1="131.9" x2="255.1" y2="129.8"/><line class="graph-edge" data-a="6" data-b="4" x1="223.2" y1="131.9" x2="101.7" y2="134.4"/><line class="graph-edge" data-a="7" data-b="3" x1="158.6" y1="219.7" x2="130.8" y2="205.9"/><line class="graph-edge" data-a="7" data-b="4" x1="158.6" y1="219.7" x2="101.7" y2="134.4"/><line class="graph-edge" data-a="8" data-b="3" x1="136.1" y1="178.3" x2="130.8" y2="205.9"/><line class="graph-edge" data-a="9" data-b="3" x1="133.4" y1="229.5" x2="130.8" y2="205.9"/><line class="graph-edge" data-a="10" data-b="3" x1="163.9" y1="213.3" x2="130.8" y2="205.9"/><line class="graph-edge" data-a="11" data-b="6" x1="258.4" y1="109.1" x2="223.2" y2="131.9"/><line class="graph-edge" data-a="12" data-b="5" x1="179.2" y1="129.5" x2="180.0" y2="110.2"/><line class="graph-edge" data-a="13" data-b="7" x1="126.6" y1="202.4" x2="158.6" y2="219.7"/><line class="graph-edge" data-a="14" data-b="1" x1="272.9" y1="108.7" x2="255.1" y2="129.8"/><line class="graph-edge" data-a="14" data-b="3" x1="272.9" y1="108.7" x2="130.8" y2="205.9"/><line class="graph-edge" data-a="15" data-b="8" x1="170.8" y1="192.8" x2="136.1" y2="178.3"/><line class="graph-edge" data-a="16" data-b="3" x1="155.3" y1="202.3" x2="130.8" y2="205.9"/><line class="graph-edge" data-a="17" data-b="1" x1="281.1" y1="158.4" x2="255.1" y2="129.8"/><line class="graph-edge" data-a="18" data-b="8" x1="168.2" y1="189.3" x2="136.1" y2="178.3"/><line class="graph-edge" data-a="19" data-b="0" x1="149.9" y1="61.8" x2="176.4" y2="82.4"/><line class="graph-edge" data-a="19" data-b="4" x1="149.9" y1="61.8" x2="101.7" y2="134.4"/><line class="graph-edge" data-a="20" data-b="0" x1="168.7" y1="62.5" x2="176.4" y2="82.4"/><line class="graph-edge" data-a="20" data-b="8" x1="168.7" y1="62.5" x2="136.1" y2="178.3"/><line class="graph-edge" data-a="21" data-b="0" x1="199.0" y1="82.2" x2="176.4" y2="82.4"/><line class="graph-edge" data-a="21" data-b="2" x1="199.0" y1="82.2" x2="228.8" y2="207.2"/><line class="graph-edge" data-a="22" data-b="4" x1="95.9" y1="105.6" x2="101.7" y2="134.4"/><line class="graph-edge" data-a="23" data-b="2" x1="268.2" y1="194.5" x2="228.8" y2="207.2"/><line class="graph-edge" data-a="24" data-b="1" x1="287.9" y1="123.2" x2="255.1" y2="129.8"/><line class="graph-edge" data-a="25" data-b="4" x1="143.1" y1="105.1" x2="101.7" y2="134.4"/><line class="graph-edge" data-a="26" data-b="4" x1="78.4" y1="128.9" x2="101.7" y2="134.4"/><line class="graph-edge" data-a="26" data-b="2" x1="78.4" y1="128.9" x2="228.8" y2="207.2"/><line class="graph-edge" data-a="27" data-b="7" x1="208.6" y1="230.8" x2="158.6" y2="219.7"/><line class="graph-edge" data-a="28" data-b="6" x1="181.2" y1="128.5" x2="223.2" y2="131.9"/><line class="graph-edge" data-a="28" data-b="7" x1="181.2" y1="128.5" x2="158.6" y2="219.7"/><line class="graph-edge" data-a="29" data-b="1" x1="244.0" y1="114.4" x2="255.1" y2="129.8"/><line class="graph-edge" data-a="30" data-b="5" x1="155.8" y1="90.5" x2="180.0" y2="110.2"/><line class="graph-edge" data-a="31" data-b="2" x1="235.3" y1="234.8" x2="228.8" y2="207.2"/><line class="graph-edge" data-a="31" data-b="2" x1="235.3" y1="234.8" x2="228.8" y2="207.2"/><line class="graph-edge" data-a="32" data-b="6" x1="260.2" y1="117.3" x2="223.2" y2="131.9"/><line class="graph-edge" data-a="33" data-b="5" x1="228.9" y1="110.4" x2="180.0" y2="110.2"/><line class="graph-edge" data-a="34" data-b="1" x1="266.8" y1="102.6" x2="255.1" y2="129.8"/><line class="graph-edge" data-a="35" data-b="3" x1="173.8" y1="224.3" x2="130.8" y2="205.9"/><line class="graph-edge" data-a="36" data-b="8" x1="157.9" y1="151.3" x2="136.1" y2="178.3"/><line class="graph-edge" data-a="37" data-b="7" x1="125.6" y1="221.6" x2="158.6" y2="219.7"/><line class="graph-edge" data-a="38" data-b="2" x1="265.5" y1="183.4" x2="228.8" y2="207.2"/><circle class="graph-node graph-node--hub2" data-g="hub" data-label="Energy" cx="176.4" cy="82.4" r="8.44"/><circle class="graph-node graph-node--hub2" data-g="hub" data-label="Running" cx="255.1" cy="129.8" r="8.86"/><circle class="graph-node graph-node--hub2" data-g="hub" data-label="Meetings" cx="228.8" cy="207.2" r="9.7"/><circle class="graph-node graph-node--hub2" data-g="hub" data-label="Sleep" cx="130.8" cy="205.9" r="9.28"/><circle class="graph-node graph-node--hub2" data-g="hub" data-label="Writing" cx="101.7" cy="134.4" r="8.86"/><circle class="graph-node graph-node--atom" data-g="atom" data-label="Skipping lunch" cx="180.0" cy="110.2" r="6.3"/><circle class="graph-node graph-node--atom" data-g="atom" data-label="Clean drafts" cx="223.2" cy="131.9" r="6.3"/><circle class="graph-node graph-node--atom" data-g="atom" data-label="Midnight thinking" cx="158.6" cy="219.7" r="6.72"/><circle class="graph-node graph-node--atom" data-g="atom" data-label="Morning brain" cx="136.1" cy="178.3" r="6.3"/><circle class="graph-node graph-node--soft" data-g="soft" cx="133.4" cy="229.5" r="3.02"/><circle class="graph-node graph-node--soft" data-g="soft" cx="163.9" cy="213.3" r="3.02"/><circle class="graph-node graph-node--soft" data-g="soft" cx="258.4" cy="109.1" r="3.02"/><circle class="graph-node graph-node--soft" data-g="soft" cx="179.2" cy="129.5" r="3.02"/><circle class="graph-node graph-node--soft" data-g="soft" cx="126.6" cy="202.4" r="3.02"/><circle class="graph-node graph-node--soft" data-g="soft" cx="272.9" cy="108.7" r="3.44"/><circle class="graph-node graph-node--soft" data-g="soft" cx="170.8" cy="192.8" r="3.02"/><circle class="graph-node graph-node--soft" data-g="soft" cx="155.3" cy="202.3" r="3.02"/><circle class="graph-node graph-node--soft" data-g="soft" cx="281.1" cy="158.4" r="3.02"/><circle class="graph-node graph-node--soft" data-g="soft" cx="168.2" cy="189.3" r="3.02"/><circle class="graph-node graph-node--soft" data-g="soft" cx="149.9" cy="61.8" r="3.44"/><circle class="graph-node graph-node--soft" data-g="soft" cx="168.7" cy="62.5" r="3.44"/><circle class="graph-node graph-node--soft" data-g="soft" cx="199.0" cy="82.2" r="3.44"/><circle class="graph-node graph-node--soft" data-g="soft" cx="95.9" cy="105.6" r="3.02"/><circle class="graph-node graph-node--soft" data-g="soft" cx="268.2" cy="194.5" r="3.02"/><circle class="graph-node graph-node--soft" data-g="soft" cx="287.9" cy="123.2" r="3.02"/><circle class="graph-node graph-node--soft" data-g="soft" cx="143.1" cy="105.1" r="3.02"/><circle class="graph-node graph-node--soft" data-g="soft" cx="78.4" cy="128.9" r="3.44"/><circle class="graph-node graph-node--soft" data-g="soft" cx="208.6" cy="230.8" r="3.02"/><circle class="graph-node graph-node--soft" data-g="soft" cx="181.2" cy="128.5" r="3.44"/><circle class="graph-node graph-node--soft" data-g="soft" cx="244.0" cy="114.4" r="3.02"/><circle class="graph-node graph-node--soft" data-g="soft" cx="155.8" cy="90.5" r="3.02"/><circle class="graph-node graph-node--soft" data-g="soft" cx="235.3" cy="234.8" r="3.44"/><circle class="graph-node graph-node--soft" data-g="soft" cx="260.2" cy="117.3" r="3.02"/><circle class="graph-node graph-node--soft" data-g="soft" cx="228.9" cy="110.4" r="3.02"/><circle class="graph-node graph-node--soft" data-g="soft" cx="266.8" cy="102.6" r="3.02"/><circle class="graph-node graph-node--soft" data-g="soft" cx="173.8" cy="224.3" r="3.02"/><circle class="graph-node graph-node--soft" data-g="soft" cx="157.9" cy="151.3" r="3.02"/><circle class="graph-node graph-node--soft" data-g="soft" cx="125.6" cy="221.6" r="3.02"/><circle class="graph-node graph-node--soft" data-g="soft" cx="265.5" cy="183.4" r="3.02"/><text class="graph-label graph-label--hub" x="176.4" y="96.4" text-anchor="middle">Energy</text><text class="graph-label graph-label--hub" x="255.1" y="143.8" text-anchor="middle">Running</text><text class="graph-label graph-label--hub" x="228.8" y="221.2" text-anchor="middle">Meetings</text><text class="graph-label graph-label--hub" x="130.8" y="219.9" text-anchor="middle">Sleep</text><text class="graph-label graph-label--hub" x="101.7" y="148.4" text-anchor="middle">Writing</text><text class="graph-label graph-label--hub" x="180.0" y="124.2" text-anchor="middle">Skipping lunch</text><text class="graph-label graph-label--hub" x="223.2" y="145.9" text-anchor="middle">Clean drafts</text><text class="graph-label graph-label--hub" x="158.6" y="233.7" text-anchor="middle">Midnight thinking</text><text class="graph-label graph-label--hub" x="136.1" y="192.3" text-anchor="middle">Morning brain</text></svg>
+              </figure>
+              <p class="graph-hint">Drag a node to pull the web around.</p>
+          </div>
+        </div>
+      </section>
+
+      <!--
+        Backfill is BYOK-only today: runBackfillFlow() calls requireApiKey()
+        and submits to Anthropic's Batch API with the user's own key. Do NOT
+        imply Plus does this until issue #168 (one-time vault catch-up) ships.
+        When it does, this section gains a line; it does not need a rewrite.
+      -->
+      <section class="band" id="backfill">
+        <div class="wrap">
+          <p class="eyebrow">Starting out</p>
+          <h2>Bring the notes you already have</h2>
+          <p>
+            You do not have to wait a year to get there. Atoms can read every
+            past daily note in one pass and build the library out of the
+            history you already wrote.
+          </p>
+
+          <ul class="facts">
+            <li>
+              <strong>One pass, bulk rate.</strong> A catch-up runs as a batch
+              job at about half the usual cost, on a cheaper model chosen for
+              volume.
+            </li>
+            <li>
+              <strong>You see the bill first.</strong> It counts the real
+              tokens in your vault and shows you the range. Nothing is spent
+              until you confirm.
+            </li>
+            <li>
+              <strong>Safe to re-run.</strong> Anything already filed is
+              skipped, so a catch-up can be stopped and started again without
+              doing the work, or the spending, twice.
+            </li>
+          </ul>
+
+          <p class="fineprint">
+            Catch-up runs on your own Anthropic API key, which you can add in
+            Settings whether or not you are on Plus. The figure shown is an
+            estimate from public rates, not a quote.
+          </p>
+        </div>
+      </section>
+
+      <!-- Trust -->
+      <section class="band">
+        <div class="wrap">
+          <p class="eyebrow">What stays true</p>
+
+          <ul class="facts">
+            <li>
+              <strong>See it before it writes.</strong> Preview shows the exact
+              notes, links, and markers Process would create. Nothing touches
+              your vault until you say so.
+            </li>
+            <li>
+              <strong>Your words, unchanged.</strong> Only the title, tags, and
+              links are written for you. A half-formed hunch stays half-formed
+              instead of becoming confident-sounding prose.
+            </li>
+            <li>
+              <strong>Links, not folders.</strong> Nothing gets filed away
+              somewhere you have to remember.
+            </li>
+            <li>
+              <strong>Leaving is easy.</strong> Cancel Plus or uninstall the
+              plugin entirely and every atom is still there, still linked,
+              still searchable. They were always just markdown in your vault.
+              With your own key, filing keeps working, at Anthropic's usage
+              cost and nothing to us.
+            </li>
+            <li>
+              <strong>Not a task app.</strong> No due dates, no checklists, no
+              backlog filling up behind you.
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- Pricing -->
+      <section class="band" id="pricing">
+        <div class="wrap">
+          <p class="eyebrow">Pricing</p>
+          <h2>$6 a month, or bring your own key.</h2>
+
+          <div class="cards-2">
+            <div class="card card--plus">
+              <h3>Atoms Plus</h3>
+              <p class="price">
+                <span class="amount">$6</span>
+                <span class="period">per month</span>
+              </p>
+              <p class="alt">
+                $60 per year · save two months
+              </p>
+              <p>
+                No API key to set up, on any device. Asking from Claude and
+                ChatGPT is included. 14 day free trial.
+              </p>
+            </div>
+
+            <div class="card">
+              <h3>Your Own Key</h3>
+              <p class="price">
+                <span class="amount">$0</span>
+                <span class="period">to us, ever</span>
+              </p>
+              <p class="alt">You pay Anthropic for what you use.</p>
+              <p>
+                Add your Anthropic API key in Settings and Atoms works. You are
+                billed by Anthropic for the filing you actually do. Asking from
+                chat is hosted, so it is Plus, or self host it yourself.
+              </p>
+            </div>
+          </div>
+
+          <p class="fineprint fineprint--legible">
+            Plus includes 150 notes filed each month.
+            Unused ones do not roll over. Extra filings are $2 for
+            50, one time. 14 days free, then $6/month. Cancel anytime. Card required for trial. You cancel from
+            Settings inside the plugin. Prices in USD.
+          </p>
+        </div>
+      </section>
+
+      <!-- Install -->
+      <section class="band" id="install">
+        <div class="wrap">
+          <p class="eyebrow">Install</p>
+          <h2>Get Atoms</h2>
+          <p>Atoms is not in the plugin directory yet, so it goes through BRAT.</p>
+
+          <ol class="install">
+            <li>
+              Install
+              <a href="https://obsidian.md/plugins?id=obsidian42-brat">BRAT</a>
+              from Obsidian's community plugins.
+            </li>
+            <li>
+              Add the beta plugin
+              <span class="mono">taihartman/obsidian-atoms</span>.
+            </li>
+            <li>Enable <strong>Atoms</strong>.</li>
+            <li>
+              Open <strong>Settings → Atoms</strong> and add your key, or start
+              a trial.
+            </li>
+          </ol>
+
+          <p class="fineprint">
+            Rather read the code first? It is all on
+            <a href="https://github.com/taihartman/obsidian-atoms">GitHub</a>.
+          </p>
+        </div>
+      </section>
+
+      <!-- Privacy -->
+      <section class="band" id="privacy-summary">
+        <div class="wrap">
+          <p class="eyebrow">Privacy</p>
+          <h2>Where your notes go</h2>
+
+          <ul class="facts">
+            <li>
+              <strong>Processing sends capture text to Anthropic.</strong> That
+              is how the sorting works. On Plus it goes under our account, on
+              your own key it goes under yours.
+            </li>
+            <li>
+              <strong>We do not train on your notes.</strong>
+            </li>
+            <li>
+              <strong>Asking from chat is opt in.</strong> Nothing leaves your
+              vault until you turn it on, and then only your atoms folder. It
+              goes one direction only, and never writes back over a note.
+            </li>
+          </ul>
+
+          <p class="fineprint">
+            The whole story is on the <a href="/privacy">Privacy</a> page.
+          </p>
+        </div>
+      </section>
+    </main>
+
+    <footer class="foot">
+      <div class="wrap">
+        <nav>
+          <a href="/privacy">Privacy</a>
+          <a href="/terms">Terms</a>
+          <a href="https://github.com/taihartman/obsidian-atoms">GitHub</a>
+          <!--
+            Support goes to GitHub Issues because no support mailbox exists yet.
+            Resend on mail.tryatoms.app is send-only. If a real inbox is set up,
+            swap this for a mailto: and update privacy.html + terms.html too.
+          -->
+          <a href="https://github.com/taihartman/obsidian-atoms/issues"
+            >Support</a
+          >
+        </nav>
+        <p class="foot-note">
+          Atoms is an independent Obsidian plugin. Obsidian is a trademark of
+          Dynalist Inc., which is not affiliated with this project.
+        </p>
+      </div>
+    </footer>
+  </body>
+</html>
