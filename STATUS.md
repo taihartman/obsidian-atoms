@@ -7,7 +7,6 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| In review | #119 | Tai | `feat/ask-chatgpt-mcp` | `docs/plans/2026-07-27-006-feat-ask-chatgpt-mcp-plan.md` | `plus-service/src/oauth/*`, `plus-service/src/mcp/*`, `src/settings/settings.ts` | ChatGPT connector · **0.6.41** · needs Fly + human AE5 |
 | Blocked | #115 | Tai | — | `docs/qa/2026-07-27-plus-public-launch-checklist.md` | Fly secrets, Resend, Stripe live | Docs+0.6.31 shipped (#117). Waiting: Fly billing card, Resend domain+2nd email, Stripe live keys/prices/webhook |
 
 ## How to claim (copy)
@@ -24,6 +23,7 @@ States: `Queued` · `In progress` · `Blocked` · `In review` · `Done` (then re
 
 | Merged | Issue / PR | Summary |
 |---|---|---|
+| 2026-07-27 | #119 / #141 | Ask ChatGPT MCP connector · **0.6.41** — Fly deploy + AE5 dogfood before BRAT |
 | 2026-07-27 | #137 / #138 | Ask mirror parity (events + delete + reconcile) · **0.6.39** — Fly deploy + dogfood before BRAT release |
 | 2026-07-27 | #131 #129 / #132 | Ask dogfood follow-ups · **0.6.36** |
 | 2026-07-27 | #127 / #128 | Ask write path create/continue · **0.6.35** |
