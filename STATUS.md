@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| In progress | #120 | Tai | `docs/ask-self-host-120` | `docs/handoffs/2026-07-27-ask-self-host-120.md` | `docs/ask-self-host.md`, `src/settings/settings.ts` | DIY Ask self-host guide — rewrite + draft PR |
+| In progress | #144 | Tai | `feat/ask-mirror-hubs` | handoff hub mirror | askMirror, mcp/tools, askHelpers, main sync | hubs outside Atoms/ |
 | Blocked | #115 | Tai | — | `docs/qa/2026-07-27-plus-public-launch-checklist.md` | Fly secrets, Resend, Stripe live | Docs+0.6.31 shipped (#117). Waiting: Fly billing card, Resend domain+2nd email, Stripe live keys/prices/webhook |
 
 ## How to claim (copy)
@@ -24,6 +24,7 @@ States: `Queued` · `In progress` · `Blocked` · `In review` · `Done` (then re
 
 | Merged | Issue / PR | Summary |
 |---|---|---|
+| 2026-07-27 | #120 / #146 | DIY Ask self-host guide (`docs/ask-self-host.md`) |
 | 2026-07-27 | #119 / #141 | Ask ChatGPT MCP connector · **0.6.41** — Fly deploy + AE5 dogfood before BRAT |
 | 2026-07-27 | #137 / #138 | Ask mirror parity (events + delete + reconcile) · **0.6.39** — Fly deploy + dogfood before BRAT release |
 | 2026-07-27 | #131 #129 / #132 | Ask dogfood follow-ups · **0.6.36** |

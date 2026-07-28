@@ -208,15 +208,15 @@ describe("HTTP ask mirror", () => {
     assert.equal(j.deleted, 1);
     assert.equal(j.count, 2);
 
-    // invalid path
+    // invalid path (nested Atoms)
     r = await fetch(`${BASE}/v1/ask/mirror/delete`, {
       method: "POST",
       headers,
-      body: JSON.stringify({ paths: ["Daily/foo.md"] }),
+      body: JSON.stringify({ paths: ["Atoms/sub/x.md"] }),
     });
     assert.equal(r.status, 400);
 
-    // upsert rejects nested / daily
+    // upsert rejects daily without kind=hub
     r = await fetch(`${BASE}/v1/ask/mirror/upsert`, {
       method: "POST",
       headers,
@@ -225,6 +225,23 @@ describe("HTTP ask mirror", () => {
       }),
     });
     assert.equal(r.status, 400);
+
+    // hub upsert ok
+    r = await fetch(`${BASE}/v1/ask/mirror/upsert`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        atoms: [
+          {
+            path: "Social/People/Nichita.md",
+            title: "Nichita",
+            body: "hub body",
+            kind: "hub",
+          },
+        ],
+      }),
+    });
+    assert.equal(r.status, 200);
 
     r = await fetch(`${BASE}/v1/ask/mirror/upsert`, {
       method: "POST",
@@ -235,7 +252,7 @@ describe("HTTP ask mirror", () => {
     });
     assert.equal(r.status, 400);
 
-    // reconcile keep B only
+    // reconcile keep B only (drops C + hub)
     r = await fetch(`${BASE}/v1/ask/mirror/reconcile`, {
       method: "POST",
       headers,
@@ -246,7 +263,7 @@ describe("HTTP ask mirror", () => {
     });
     assert.equal(r.status, 200);
     j = await r.json();
-    assert.equal(j.deleted, 1);
+    assert.equal(j.deleted, 2);
     assert.equal(j.count, 1);
 
     // empty without confirmEmpty

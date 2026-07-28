@@ -1070,6 +1070,8 @@ export default class AtomsPlugin extends Plugin {
       planAskMirrorUpsert,
       planAskMirrorDeletes,
       isFlatAtomPath,
+      isHubMirrorPath,
+      collectHubLinkTitles,
       readAskMirrorHashes,
       writeAskMirrorHashes,
       LS_ASK_MIRROR_LAST_SUCCESS,
@@ -1077,13 +1079,12 @@ export default class AtomsPlugin extends Plugin {
       LS_ASK_MIRROR_SERVER_COUNT,
     } = await import("../platform/askMirror");
 
-    const folder = "Atoms"; // P0 server allowlist
-    const files = this.app.vault
+    const folder = "Atoms";
+    const atomFiles = this.app.vault
       .getMarkdownFiles()
       .filter((f) => isFlatAtomPath(folder, f.path));
-    const vaultPaths = new Set(files.map((f) => f.path));
-    const reads = await Promise.all(
-      files.map(async (f) => ({
+    const atomReads = await Promise.all(
+      atomFiles.map(async (f) => ({
         path: f.path,
         basename: f.basename,
         content: await this.app.vault.read(f),
@@ -1096,7 +1097,6 @@ export default class AtomsPlugin extends Plugin {
       load,
       this.settings.askMirrorHashes,
     );
-    // Migrate evidence map off synced settings → device localStorage
     if (
       this.settings.askMirrorHashes &&
       Object.keys(this.settings.askMirrorHashes).length > 0
@@ -1107,11 +1107,47 @@ export default class AtomsPlugin extends Plugin {
     }
 
     const hashesForUpsert = force ? {} : hashSnapshot;
-    const { atoms, nextHashes: upsertNext } = planAskMirrorUpsert(
-      reads,
+    const { atoms: atomPayloads, nextHashes: atomNext } = planAskMirrorUpsert(
+      atomReads,
       folder,
       hashesForUpsert,
+      { kind: "atom" },
     );
+
+    // Hubs: vault notes outside Atoms/ that atoms wikilink to
+    const allAtomLinks = planAskMirrorUpsert(atomReads, folder, {}, {
+      kind: "atom",
+    }).atoms;
+    const hubFiles = [] as typeof atomFiles;
+    const seenHub = new Set<string>();
+    for (const title of collectHubLinkTitles(allAtomLinks)) {
+      const dest = this.app.metadataCache.getFirstLinkpathDest(title, "");
+      if (!dest || dest.extension !== "md") continue;
+      if (!isHubMirrorPath(dest.path, folder)) continue;
+      if (seenHub.has(dest.path)) continue;
+      seenHub.add(dest.path);
+      hubFiles.push(dest);
+    }
+    const hubReads = await Promise.all(
+      hubFiles.map(async (f) => ({
+        path: f.path,
+        basename: f.basename,
+        content: await this.app.vault.read(f),
+      })),
+    );
+    const { atoms: hubPayloads, nextHashes: hubNext } = planAskMirrorUpsert(
+      hubReads,
+      folder,
+      hashesForUpsert,
+      { kind: "hub" },
+    );
+
+    const atoms = [...atomPayloads, ...hubPayloads];
+    const upsertNext = { ...atomNext, ...hubNext };
+    const vaultPaths = new Set([
+      ...atomFiles.map((f) => f.path),
+      ...hubFiles.map((f) => f.path),
+    ]);
     const { deletePaths } = planAskMirrorDeletes(vaultPaths, hashSnapshot);
 
     const base = this.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL;
