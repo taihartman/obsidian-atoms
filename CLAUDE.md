@@ -40,6 +40,7 @@ Where an **active feature plan** and amendments conflict, **that plan wins**. Am
 9. **Product dogfood honesty (agents):** Prove product claims with the **user loop** — append capture bullets to dailies → **Process** / force Process today → observe atoms, markers, home. Do **not** seed hub notes, pre-linked atoms, or hand-authored graphs to force a green feature screenshot, then call that day-one product proof. Scripted seeds (`npm run seed:vault`, `seed:demo`, unit fixtures, `process-fixture-sample`) are for **deterministic plumbing** only — label them as such in QA. Silence, noise, or missing UI without a hub is often the real product; document it. See `docs/qa/README.md` § Product dogfood honesty.
 10. **Second brain, not a task app** — no due-date/checklist gravity; `task` verdict is soft-retired.
 11. **No platform-only product** without an explicit plan note (desktop/iOS/Android consumers).
+12. **Ask mirror is vault→cloud only** — flat `Atoms/*.md` allowlist; device-local hash evidence (not `data.json`); delta deletes only what this device hashed; full orphans = Sync now. Never reverse-sync body, never background wipe from incomplete vault. Shape: `docs/architecture.md` § Ask mirror sync.
 
 ## Versioning
 

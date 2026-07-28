@@ -164,4 +164,161 @@ describe("HTTP ask mirror", () => {
     });
     assert.equal(r.status, 413);
   });
+
+  it("delete + reconcile + allowlist + wipe without entitle", async () => {
+    const session = await sessionFor("ask-sync@atoms.test");
+    const headers = {
+      authorization: `Bearer ${session}`,
+      "content-type": "application/json",
+    };
+
+    // seed two atoms
+    let r = await fetch(`${BASE}/v1/ask/mirror/upsert`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        atoms: [
+          { path: "Atoms/A.md", title: "A", body: "a" },
+          { path: "Atoms/B.md", title: "B", body: "b" },
+          { path: "Atoms/C.md", title: "C", body: "c" },
+        ],
+      }),
+    });
+    assert.equal(r.status, 200);
+
+    // mcp_ rejected on delete
+    r = await fetch(`${BASE}/v1/ask/mirror/delete`, {
+      method: "POST",
+      headers: {
+        authorization: "Bearer mcp_faketoken",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ paths: ["Atoms/A.md"] }),
+    });
+    assert.equal(r.status, 401);
+
+    // delete one
+    r = await fetch(`${BASE}/v1/ask/mirror/delete`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ paths: ["Atoms/A.md"] }),
+    });
+    assert.equal(r.status, 200);
+    let j = await r.json();
+    assert.equal(j.deleted, 1);
+    assert.equal(j.count, 2);
+
+    // invalid path
+    r = await fetch(`${BASE}/v1/ask/mirror/delete`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ paths: ["Daily/foo.md"] }),
+    });
+    assert.equal(r.status, 400);
+
+    // upsert rejects nested / daily
+    r = await fetch(`${BASE}/v1/ask/mirror/upsert`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        atoms: [{ path: "Daily/foo.md", title: "F", body: "x" }],
+      }),
+    });
+    assert.equal(r.status, 400);
+
+    r = await fetch(`${BASE}/v1/ask/mirror/upsert`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        atoms: [{ path: "Atoms/sub/x.md", title: "X", body: "x" }],
+      }),
+    });
+    assert.equal(r.status, 400);
+
+    // reconcile keep B only
+    r = await fetch(`${BASE}/v1/ask/mirror/reconcile`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        keepPaths: ["Atoms/B.md"],
+        done: true,
+      }),
+    });
+    assert.equal(r.status, 200);
+    j = await r.json();
+    assert.equal(j.deleted, 1);
+    assert.equal(j.count, 1);
+
+    // empty without confirmEmpty
+    r = await fetch(`${BASE}/v1/ask/mirror/reconcile`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ keepPaths: [], done: true }),
+    });
+    assert.equal(r.status, 400);
+
+    // empty with confirmEmpty
+    r = await fetch(`${BASE}/v1/ask/mirror/reconcile`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        keepPaths: [],
+        done: true,
+        confirmEmpty: true,
+      }),
+    });
+    assert.equal(r.status, 200);
+    j = await r.json();
+    assert.equal(j.count, 0);
+
+    // multi-chunk accumulate
+    r = await fetch(`${BASE}/v1/ask/mirror/upsert`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        atoms: [
+          { path: "Atoms/A.md", title: "A", body: "a" },
+          { path: "Atoms/B.md", title: "B", body: "b" },
+          { path: "Atoms/C.md", title: "C", body: "c" },
+        ],
+      }),
+    });
+    assert.equal(r.status, 200);
+
+    const sid = "rec-test-1";
+    r = await fetch(`${BASE}/v1/ask/mirror/reconcile`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        keepPaths: ["Atoms/A.md"],
+        done: false,
+        reconcileSessionId: sid,
+      }),
+    });
+    assert.equal(r.status, 200);
+
+    r = await fetch(`${BASE}/v1/ask/mirror/reconcile`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        keepPaths: ["Atoms/B.md"],
+        done: true,
+        reconcileSessionId: sid,
+      }),
+    });
+    assert.equal(r.status, 200);
+    j = await r.json();
+    assert.equal(j.count, 2); // A and B kept, C gone
+
+    // mcp_ on reconcile
+    r = await fetch(`${BASE}/v1/ask/mirror/reconcile`, {
+      method: "POST",
+      headers: {
+        authorization: "Bearer mcp_faketoken",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ keepPaths: ["Atoms/A.md"], done: true }),
+    });
+    assert.equal(r.status, 401);
+  });
 });

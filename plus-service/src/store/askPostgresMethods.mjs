@@ -17,6 +17,7 @@ import {
   decryptOutboxPayload,
   publicOutboxRow,
   relationFromReason,
+  assertMirrorPath,
 } from "./askHelpers.mjs";
 
 export const ASK_PG_DDL = `
@@ -253,6 +254,57 @@ export function createAskPostgresMethods(pool, deps) {
     await pool.query("DELETE FROM ask_outbox WHERE email = $1", [e]);
     await mcpRevokeForEmail(e);
     return { ok: true };
+  }
+
+  async function mirrorDelete(email, paths) {
+    const e = normEmail(email);
+    const list = Array.isArray(paths) ? paths : [];
+    let deleted = 0;
+    let missing = 0;
+    for (const raw of list) {
+      const checked = assertMirrorPath(raw);
+      if (!checked.ok) continue;
+      const hit = await pool.query(
+        "SELECT 1 AS x FROM atom_mirror WHERE email = $1 AND path = $2",
+        [e, checked.path],
+      );
+      if (!hit.rows[0]) {
+        missing += 1;
+        continue;
+      }
+      await pool.query(
+        "DELETE FROM atom_mirror WHERE email = $1 AND path = $2",
+        [e, checked.path],
+      );
+      deleted += 1;
+    }
+    const st = await mirrorStatus(e);
+    return { deleted, missing, ...st };
+  }
+
+  async function mirrorReconcileKeep(email, keepPaths) {
+    const e = normEmail(email);
+    const keep = new Set();
+    for (const raw of Array.isArray(keepPaths) ? keepPaths : []) {
+      const checked = assertMirrorPath(raw);
+      if (checked.ok) keep.add(checked.path);
+    }
+    const { rows } = await pool.query(
+      "SELECT path FROM atom_mirror WHERE email = $1",
+      [e],
+    );
+    let deleted = 0;
+    for (const r of rows) {
+      if (!keep.has(r.path)) {
+        await pool.query(
+          "DELETE FROM atom_mirror WHERE email = $1 AND path = $2",
+          [e, r.path],
+        );
+        deleted += 1;
+      }
+    }
+    const st = await mirrorStatus(e);
+    return { deleted, ...st };
   }
 
   async function outboxOpenCount(email) {
@@ -756,6 +808,8 @@ export function createAskPostgresMethods(pool, deps) {
     mirrorNeighbors,
     mirrorWipe,
     mirrorStatus,
+    mirrorDelete,
+    mirrorReconcileKeep,
     outboxEnqueue,
     outboxPull,
     outboxAck,

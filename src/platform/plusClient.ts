@@ -542,6 +542,68 @@ export async function askMirrorStatus(
   };
 }
 
+export async function askMirrorDelete(
+  cfg: PlusClientConfig,
+  sessionToken: string,
+  paths: string[],
+): Promise<
+  | { ok: true; deleted: number; missing: number; count: number }
+  | PlusApiError
+> {
+  const res = await plusRequest(cfg, {
+    path: "/v1/ask/mirror/delete",
+    method: "POST",
+    sessionToken,
+    body: { paths },
+  });
+  if (!res.ok) return res;
+  if (res.status < 200 || res.status >= 300) {
+    return mapError(res.status, res.json);
+  }
+  return {
+    ok: true,
+    deleted: typeof res.json.deleted === "number" ? res.json.deleted : 0,
+    missing: typeof res.json.missing === "number" ? res.json.missing : 0,
+    count: typeof res.json.count === "number" ? res.json.count : 0,
+  };
+}
+
+export async function askMirrorReconcile(
+  cfg: PlusClientConfig,
+  sessionToken: string,
+  opts: {
+    keepPaths: string[];
+    done?: boolean;
+    reconcileSessionId?: string;
+    confirmEmpty?: boolean;
+  },
+): Promise<
+  | { ok: true; deleted: number; count: number; staged?: number }
+  | PlusApiError
+> {
+  const res = await plusRequest(cfg, {
+    path: "/v1/ask/mirror/reconcile",
+    method: "POST",
+    sessionToken,
+    body: {
+      keepPaths: opts.keepPaths,
+      done: opts.done ?? true,
+      reconcileSessionId: opts.reconcileSessionId,
+      confirmEmpty: opts.confirmEmpty,
+    },
+  });
+  if (!res.ok) return res;
+  if (res.status < 200 || res.status >= 300) {
+    return mapError(res.status, res.json);
+  }
+  return {
+    ok: true,
+    deleted: typeof res.json.deleted === "number" ? res.json.deleted : 0,
+    count: typeof res.json.count === "number" ? res.json.count : 0,
+    staged: typeof res.json.staged === "number" ? res.json.staged : undefined,
+  };
+}
+
 export type AskOutboxItem = {
   id: string;
   kind: string;

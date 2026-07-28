@@ -25,6 +25,7 @@ import {
   decryptOutboxPayload,
   publicOutboxRow,
   relationFromReason,
+  assertMirrorPath,
 } from "./askHelpers.mjs";
 
 export function createMemoryStore() {
@@ -388,6 +389,47 @@ export function createMemoryStore() {
     askOutbox.delete(e);
     mcpRevokeForEmail(e);
     return { ok: true };
+  }
+
+  function mirrorDelete(email, paths) {
+    const e = normEmail(email);
+    const list = Array.isArray(paths) ? paths : [];
+    const bucket = atomMirror.get(e);
+    let deleted = 0;
+    let missing = 0;
+    for (const raw of list) {
+      const checked = assertMirrorPath(raw);
+      if (!checked.ok) continue;
+      if (!bucket || !bucket.has(checked.path)) {
+        missing += 1;
+        continue;
+      }
+      bucket.delete(checked.path);
+      deleted += 1;
+    }
+    const st = mirrorStatus(e);
+    return { deleted, missing, ...st };
+  }
+
+  function mirrorReconcileKeep(email, keepPaths) {
+    const e = normEmail(email);
+    const keep = new Set();
+    for (const raw of Array.isArray(keepPaths) ? keepPaths : []) {
+      const checked = assertMirrorPath(raw);
+      if (checked.ok) keep.add(checked.path);
+    }
+    const bucket = atomMirror.get(e);
+    let deleted = 0;
+    if (bucket) {
+      for (const path of [...bucket.keys()]) {
+        if (!keep.has(path)) {
+          bucket.delete(path);
+          deleted += 1;
+        }
+      }
+    }
+    const st = mirrorStatus(e);
+    return { deleted, ...st };
   }
 
   function outboxBucket(email) {
@@ -791,6 +833,8 @@ export function createMemoryStore() {
     mirrorNeighbors,
     mirrorWipe,
     mirrorStatus,
+    mirrorDelete,
+    mirrorReconcileKeep,
     outboxEnqueue,
     outboxPull,
     outboxAck,

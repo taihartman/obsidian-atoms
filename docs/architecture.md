@@ -26,8 +26,9 @@ World-class here means: **trust the body**, **intelligence in the graph**, **zer
 2. **Three write types** — (a) new files in flat `Atoms/`, (b) append-only marker lines on past dailies, (c) **user-initiated** in-place refresh of existing linker atoms (Update notes: model surfaces only; body sacred). No rewriting user capture prose, no folder intelligence.
 3. **Sentinel idempotency** — processed state is a plugin-owned HTML comment line, not “any wikilink.” Covers atom **and** task/noise (cost + correctness).
 4. **Conservative triage** — when in doubt, `noise`. Dry-run is the only human gate before writes.
-5. **Device-local control plane** — API key and auto-run flag do not sync; vocabulary and atoms do.
+5. **Device-local control plane** — API key, auto-run flag, and Ask mirror evidence map/stamps do not sync; vocabulary and atoms do.
 6. **Seams over premature scale** — `ContextProvider` is one function so BM25/shortlist is a swap, not a rewrite.
+7. **Ask mirror is a copy, not a second vault** — vault `Atoms/` is SSOT; cloud mirror is vault→cloud only; never reverse-sync body; never full-vault/dailies.
 
 ## Runtime pipeline
 
@@ -118,11 +119,45 @@ processInbox(dryRun)
 |---|---|---|
 | API key | SecretStorage (fallback: device localStorage) | no |
 | Auto-run flag + last-run day | `saveLocalStorage` | no |
+| Ask mirror hashes + last success/error + server count | `saveLocalStorage` (`atoms-ask-mirror-*`) | **no** (multi-device safety) |
 | Active vocabulary, model, atom folder | `data.json` | yes |
 | Atoms | `Atoms/*.md` | yes (vault) |
 | Markers | under captures in daily notes | yes (vault) |
+| Ask cloud mirror / outbox | Plus host (encrypted at rest v1) | n/a — wipeable copy |
 
 Atom frontmatter: `created`, `source` (wikilink), `generated-by`, `tags`, plus quality stamps `atoms-quality` (int) and `quality-updated` (YYYY-MM-DD) on Process-created and Update-refreshed atoms. Optional `aliases` when sanitization changes the title (KTD8) or title rename needs a back-compat alias.
+
+## Ask mirror sync (hybrid C — load-bearing)
+
+**Promise.** When Ask is on and Obsidian has been open online, Claude’s copy of flat `Atoms/*.md` stays current (hand-edits, deletes, renames). Multi-device lag is OK until Obsidian Sync converges. Full orphan cleanup is **Sync now**. Not a second library the user maintains by hand.
+
+**Authority.** Product/arch: `docs/plans/2026-07-27-004-feat-ask-mirror-parity-product.md`, `docs/plans/2026-07-27-004-arch-ask-mirror-sync.md`. Impl: `docs/plans/2026-07-27-005-feat-ask-mirror-parity-plan.md`. Learning: `docs/solutions/architecture-patterns/ask-mirror-parity.md`.
+
+| Path | Behavior |
+|---|---|
+| **Delta** (events, layout-ready, Process/Update, outbox) | Upsert dirty + delete only paths in **local hash evidence** missing from vault. Never full remote inventory delete. |
+| **Force / Sync now** | Upsert dirty + `POST /mirror/reconcile` `{ keepPaths: all vault flat atoms, done: true }`. Empty vault requires `confirmEmpty: true`. |
+| **Vault events** | create/modify/delete/rename on flat `Atoms/*.md`, debounce **2s**, single-flight `askMirrorInFlight`. |
+| **Interval heal** | **None.** Missed events → Sync now (connectivity-restore catch-up = P1). |
+
+**Invariants (bugs if violated):**
+
+1. Vault SSOT — never mirror→vault body; no CRDT; no conflict UI.
+2. Server path allowlist: flat `Atoms/*.md` only (`assertMirrorPath`) on upsert/delete/reconcile — no folder from request body.
+3. Hash evidence + status stamps are **device-local** — never put `askMirrorHashes` in synced `data.json` (legacy migrate-off once).
+4. Auth split: `sess_` mutates mirror/outbox apply; `mcp_` read + outbox enqueue only.
+5. Wipe allowed on valid `sess_` even if not entitled (exit path); still nuclear (mirror + outbox + MCP tokens).
+6. Same code path desktop + iOS + Android — no desktop-only watcher.
+7. Mirror failures never fail Process/Update/outbox apply (except outbox ack waits for successful land+mirror of that item).
+8. Status line N = **server** count after last successful status/sync — never label local vault count as “Claude sees N”.
+
+**Anti-patterns:**
+
+- Early-return when dirty upsert list is empty (skips deletes/reconcile)
+- Background delete of paths this device never hashed
+- Reconcile delete against a partial chunk without accumulate session
+- Comparing client FNV hash to server content hash on the wire (path presence only in P0)
+- Extra mirror poll interval “just in case”
 
 ## Safety envelope
 

@@ -47,9 +47,16 @@ import {
   askMcpUrl,
   askMirrorStatus,
   askMirrorWipe,
+  plusFetchRequest,
 } from "../platform/plusClient";
+import {
+  LS_ASK_MIRROR_HASHES,
+  LS_ASK_MIRROR_LAST_ERROR,
+  LS_ASK_MIRROR_LAST_SUCCESS,
+  LS_ASK_MIRROR_SERVER_COUNT,
+  writeAskMirrorHashes,
+} from "../platform/askMirror";
 import { requestUrl } from "obsidian";
-import { plusFetchRequest } from "../platform/plusClient";
 import {
   addCustomActiveTag,
   approveProposedTag,
@@ -951,7 +958,7 @@ export class AtomsSettingTab extends PluginSettingTab {
     const mcpUrl = askMcpUrl(base);
 
     containerEl.createEl("p", {
-      text: "Chat with your atoms in Claude (phone + desktop). Plus hosts an Atoms/ mirror for search, and can queue new atoms from Claude until this vault applies them — no chat UI here.",
+      text: "Claude’s copy of Atoms/ on Plus — for chat search on phone and desktop. When Obsidian is open online, hand-edits and deletes push automatically. Full orphan cleanup is Sync now. Not a second library you maintain by hand.",
       cls: "setting-item-description",
     });
 
@@ -982,7 +989,9 @@ export class AtomsSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("Enable Ask mirror")
-      .setDesc("Push Atoms/ to Plus after Process/Update so Claude can search them.")
+      .setDesc(
+        "Keep Claude’s Atoms/ copy current while Obsidian is open (vault events + Process/Update).",
+      )
       .addToggle((tog) =>
         tog
           .setValue(this.plugin.settings.askEnabled)
@@ -996,6 +1005,11 @@ export class AtomsSettingTab extends PluginSettingTab {
             this.plugin.settings.askEnabled = on;
             if (!on) this.plugin.settings.askWriteAckAt = "";
             await this.plugin.saveSettings();
+            if (on) {
+              void this.plugin.syncAskMirror({ force: false }).catch(() => {
+                /* */
+              });
+            }
             this.display();
           }),
       );
@@ -1043,16 +1057,48 @@ export class AtomsSettingTab extends PluginSettingTab {
         }),
       );
 
+    // Status line from device-local stamps (N = last known server count)
+    const lastOk = String(
+      this.app.loadLocalStorage(LS_ASK_MIRROR_LAST_SUCCESS) ?? "",
+    );
+    const lastErr = String(
+      this.app.loadLocalStorage(LS_ASK_MIRROR_LAST_ERROR) ?? "",
+    ).trim();
+    const serverCountRaw = this.app.loadLocalStorage(LS_ASK_MIRROR_SERVER_COUNT);
+    const serverCount =
+      serverCountRaw != null && String(serverCountRaw).trim() !== ""
+        ? String(serverCountRaw)
+        : "—";
+    const relative = (iso: string) => {
+      if (!iso) return "never";
+      const t = Date.parse(iso);
+      if (!Number.isFinite(t)) return "never";
+      const sec = Math.round((Date.now() - t) / 1000);
+      if (sec < 60) return "just now";
+      if (sec < 3600) return `${Math.floor(sec / 60)}m ago`;
+      if (sec < 86400) return `${Math.floor(sec / 3600)}h ago`;
+      return `${Math.floor(sec / 86400)}d ago`;
+    };
+    const statusLine = lastErr
+      ? `Claude sees ${serverCount} · last push failed · Sync now to retry`
+      : `Claude sees ${serverCount} · last pushed ${relative(lastOk)}`;
+    containerEl.createEl("p", {
+      text: statusLine,
+      cls: "setting-item-description",
+    });
+
     new Setting(containerEl)
       .setName("Sync now")
-      .setDesc("Upload changed Atoms/ notes to the cloud mirror.")
+      .setDesc(
+        "Full refresh from this device’s Atoms/ (orphans removed on Plus). Multi-device: incomplete vault here can delete cloud rows for atoms only on another device until Obsidian Sync catches up.",
+      )
       .addButton((btn) =>
         btn.setButtonText("Sync now").setCta().onClick(async () => {
           const n = await this.plugin.syncAskMirror({ force: true });
           if (n < 0) return;
           new Notice(
             n === 0
-              ? "Ask mirror up to date"
+              ? "Ask mirror reconciled"
               : `Ask mirror: uploaded ${n} atom(s)`,
           );
           this.display();
@@ -1061,7 +1107,7 @@ export class AtomsSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("Cloud mirror status")
-      .setDesc("Count of atoms on Plus for this account.")
+      .setDesc("Refresh server atom count (what Claude can see).")
       .addButton((btn) =>
         btn.setButtonText("Refresh").onClick(async () => {
           const r = await askMirrorStatus(
@@ -1072,7 +1118,9 @@ export class AtomsSettingTab extends PluginSettingTab {
             new Notice(`Ask: ${r.message}`);
             return;
           }
-          new Notice(`Ask mirror: ${r.count} atom(s)`);
+          this.app.saveLocalStorage(LS_ASK_MIRROR_SERVER_COUNT, String(r.count));
+          new Notice(`Claude sees ${r.count} atom(s)`);
+          this.display();
         }),
       );
 
@@ -1096,8 +1144,14 @@ export class AtomsSettingTab extends PluginSettingTab {
             return;
           }
           this.plugin.settings.askMirrorHashes = {};
+          writeAskMirrorHashes((k, v) => this.app.saveLocalStorage(k, v), {});
+          this.app.saveLocalStorage(LS_ASK_MIRROR_LAST_ERROR, "");
+          this.app.saveLocalStorage(LS_ASK_MIRROR_LAST_SUCCESS, "");
+          this.app.saveLocalStorage(LS_ASK_MIRROR_SERVER_COUNT, "0");
+          this.app.saveLocalStorage(LS_ASK_MIRROR_HASHES, "{}");
           await this.plugin.saveSettings();
           new Notice("Ask mirror wiped");
+          this.display();
         }),
       );
 

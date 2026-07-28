@@ -21,12 +21,35 @@ export function normEmail(email) {
     .toLowerCase();
 }
 
+/** P0: flat Atoms/*.md only (constitution). */
+export const MIRROR_ATOM_FOLDER = "Atoms";
+const MIRROR_PATH_RE = /^Atoms\/[^/\\]+\.md$/;
+
+/**
+ * Fail-closed path allowlist for mirror upsert/delete/reconcile.
+ * @param {string} path
+ * @returns {{ ok: true, path: string } | { ok: false, error: string }}
+ */
+export function assertMirrorPath(path) {
+  const p = String(path || "").trim();
+  if (!p) return { ok: false, error: "path required" };
+  if (p.includes("\0") || p.includes("\\") || p.startsWith("/")) {
+    return { ok: false, error: "invalid path" };
+  }
+  if (p.includes("..")) return { ok: false, error: "invalid path" };
+  if (!MIRROR_PATH_RE.test(p)) {
+    return { ok: false, error: "path must be flat Atoms/*.md" };
+  }
+  return { ok: true, path: p };
+}
+
 /**
  * @param {{ path: string, title?: string, body?: string, tags?: string[], links?: {note:string,reason?:string}[], atomId?: string }} atom
  */
 export function prepareMirrorRow(email, atom) {
-  const path = String(atom.path || "").trim();
-  if (!path) throw new Error("path required");
+  const checked = assertMirrorPath(atom.path);
+  if (!checked.ok) throw new Error(checked.error);
+  const path = checked.path;
   const title = String(atom.title || path.replace(/\.md$/i, "")).trim();
   const body = String(atom.body ?? "");
   const tags = Array.isArray(atom.tags) ? atom.tags.map(String) : [];
