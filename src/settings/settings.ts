@@ -82,6 +82,30 @@ export class AtomsSettingTab extends PluginSettingTab {
     this.plugin = plugin;
   }
 
+  /** Scroll parent for Settings tab content (Obsidian vertical tabs). */
+  private settingsScrollEl(): HTMLElement | null {
+    return (
+      (this.containerEl.closest(".vertical-tab-content") as HTMLElement | null) ??
+      (this.containerEl.parentElement as HTMLElement | null)
+    );
+  }
+
+  /**
+   * Full re-render while keeping scroll position (toggles/buttons must not jump to top).
+   */
+  private redisplay(): void {
+    const scroller = this.settingsScrollEl();
+    const top = scroller?.scrollTop ?? 0;
+    this.display();
+    const restore = () => {
+      const el = this.settingsScrollEl();
+      if (el) el.scrollTop = top;
+    };
+    restore();
+    requestAnimationFrame(restore);
+    window.setTimeout(restore, 0);
+  }
+
   display(): void {
     const { containerEl } = this;
     containerEl.empty();
@@ -89,20 +113,17 @@ export class AtomsSettingTab extends PluginSettingTab {
     const version = this.plugin.manifest.version ?? "?";
     settingHeading(containerEl, "Atoms");
     containerEl.createEl("p", {
-      text: `Second brain: files keepable captures (ideas, preferences, lists, media) as flat Atoms/ notes. Not a to-do app — pure logistics are marked noise. Capture itself is handled by your iOS Shortcut.`,
-      cls: "setting-item-description",
-    });
-    containerEl.createEl("p", {
-      text: `Version ${version}`,
+      text: `Version ${version} · Capture with your shortcut; Process turns past bullets into linked atoms.`,
       cls: "setting-item-description",
     });
 
+    // Everyday use first → billing → AI features → advanced
     this.renderCaptureSection(containerEl);
-    this.renderApiSection(containerEl);
+    this.renderModelSection(containerEl);
+    this.renderAutoRunSection(containerEl);
     this.renderPlusSection(containerEl);
     this.renderAskSection(containerEl);
-    this.renderAutoRunSection(containerEl);
-    this.renderModelSection(containerEl);
+    this.renderApiSection(containerEl);
     this.renderVocabularySection(containerEl);
     this.renderDevHints(containerEl);
   }
@@ -153,7 +174,7 @@ export class AtomsSettingTab extends PluginSettingTab {
         btn.setDisabled(true);
         try {
           await this.refreshPlusEntitlement();
-          this.display();
+          this.redisplay();
         } finally {
           btn.setDisabled(false);
         }
@@ -209,7 +230,7 @@ export class AtomsSettingTab extends PluginSettingTab {
                 6000,
               );
             }
-            this.display();
+            this.redisplay();
           }),
         )
         .addButton((btn) =>
@@ -249,7 +270,7 @@ export class AtomsSettingTab extends PluginSettingTab {
           btn.setButtonText("Sign Out").onClick(() => {
             clearPlusSession(this.app);
             new Notice("Atoms Plus signed out on this device");
-            this.display();
+            this.redisplay();
           }),
         );
       return;
@@ -314,7 +335,7 @@ export class AtomsSettingTab extends PluginSettingTab {
             }
             clearPlusSession(this.app);
             new Notice("Atoms Plus signed out on this device");
-            this.display();
+            this.redisplay();
           }),
         );
       containerEl.createEl("p", {
@@ -338,7 +359,7 @@ export class AtomsSettingTab extends PluginSettingTab {
               await this.openTrialCheckout(session);
             } finally {
               btn.setDisabled(false);
-              this.display();
+              this.redisplay();
             }
           }),
         );
@@ -354,7 +375,7 @@ export class AtomsSettingTab extends PluginSettingTab {
           btn.setButtonText("Sign Out").onClick(() => {
             clearPlusSession(this.app);
             new Notice("Atoms Plus signed out on this device");
-            this.display();
+            this.redisplay();
           }),
         );
       containerEl.createEl("p", {
@@ -426,7 +447,7 @@ export class AtomsSettingTab extends PluginSettingTab {
             await this.openTrialCheckout(started.session);
           } finally {
             btn.setDisabled(false);
-            this.display();
+            this.redisplay();
           }
         }),
       );
@@ -524,7 +545,7 @@ export class AtomsSettingTab extends PluginSettingTab {
               refreshedAt: Date.now(),
             });
             new Notice("Atoms Plus session saved on this device");
-            this.display();
+            this.redisplay();
           } catch (e) {
             const msg = e instanceof Error ? e.message : "network error";
             new Notice(`Could not reach Plus service (${msg})`, 8000);
@@ -628,7 +649,7 @@ export class AtomsSettingTab extends PluginSettingTab {
             new Notice(
               `Opened capture shortcut v${CAPTURE_SHORTCUT_VERSION} — add it in Shortcuts`,
             );
-            this.display();
+            this.redisplay();
           }),
       );
 
@@ -643,13 +664,11 @@ export class AtomsSettingTab extends PluginSettingTab {
   }
 
   private renderApiSection(containerEl: HTMLElement) {
-    settingHeading(containerEl, "API & privacy");
-
-    new Setting(containerEl)
-      .setName("Privacy")
-      .setDesc(
-        "Every run sends your vault's note titles, tags, a derived person-hub title list (titles only — never folder paths or hub body content), and each capture to the Anthropic API over TLS (your API key = optional paid usage). The model never rewrites your hand-authored notes — only new files in the atom folder and marker lines under captures. Existing atoms are never overwritten on title collision.",
-      );
+    settingHeading(containerEl, "Your API key (optional)");
+    containerEl.createEl("p", {
+      text: "Only if you are not using Atoms Plus. Process sends titles, tags, and capture text to Anthropic over TLS. Your notes are never rewritten — only new atom files and markers.",
+      cls: "setting-item-description",
+    });
 
     new Setting(containerEl)
       .setName("Anthropic API key")
@@ -690,7 +709,7 @@ export class AtomsSettingTab extends PluginSettingTab {
               this.app.saveLocalStorage(LOCAL_STORAGE_API_KEY, null);
             }
             await this.plugin.saveSettings();
-            this.display();
+            this.redisplay();
           }),
       );
 
@@ -743,7 +762,7 @@ export class AtomsSettingTab extends PluginSettingTab {
           if (!on) {
             writeAutoRunEnabled(save, false);
           }
-          this.display();
+          this.redisplay();
         }),
       );
 
@@ -761,11 +780,11 @@ export class AtomsSettingTab extends PluginSettingTab {
           .onChange((on) => {
             if (on && !state.egressAcked) {
               writeAutoRunEnabled(save, false);
-              this.display();
+              this.redisplay();
               return;
             }
             writeAutoRunEnabled(save, on);
-            this.display();
+            this.redisplay();
           }),
       );
 
@@ -846,7 +865,7 @@ export class AtomsSettingTab extends PluginSettingTab {
                 this.plugin.settings.activeVocabulary,
               );
               await this.plugin.saveSettings();
-              this.display();
+              this.redisplay();
             }
           }),
         );
@@ -873,7 +892,7 @@ export class AtomsSettingTab extends PluginSettingTab {
           );
           this.customTagDraft = "";
           await this.plugin.saveSettings();
-          this.display();
+          this.redisplay();
         }),
       );
 
@@ -895,7 +914,7 @@ export class AtomsSettingTab extends PluginSettingTab {
               this.plugin.settings.activeVocabulary = next.activeVocabulary;
               this.plugin.settings.proposedTags = next.proposedTags;
               await this.plugin.saveSettings();
-              this.display();
+              this.redisplay();
             }),
           )
           .addButton((btn) =>
@@ -905,7 +924,7 @@ export class AtomsSettingTab extends PluginSettingTab {
                   (t) => normalizeTag(t) !== normalizeTag(tag),
                 );
               await this.plugin.saveSettings();
-              this.display();
+              this.redisplay();
             }),
           );
       }
@@ -941,7 +960,7 @@ export class AtomsSettingTab extends PluginSettingTab {
               this.plugin.settings.activeVocabulary,
             );
             await this.plugin.saveSettings();
-            this.display();
+            this.redisplay();
           }),
         );
     }
@@ -983,7 +1002,7 @@ export class AtomsSettingTab extends PluginSettingTab {
             : "";
           if (!on) this.plugin.settings.askEnabled = false;
           await this.plugin.saveSettings();
-          this.display();
+          this.redisplay();
         }),
       );
 
@@ -999,7 +1018,7 @@ export class AtomsSettingTab extends PluginSettingTab {
           .onChange(async (on) => {
             if (on && !this.plugin.settings.askPrivacyAckAt) {
               new Notice("Acknowledge privacy first");
-              this.display();
+              this.redisplay();
               return;
             }
             this.plugin.settings.askEnabled = on;
@@ -1010,7 +1029,7 @@ export class AtomsSettingTab extends PluginSettingTab {
                 /* */
               });
             }
-            this.display();
+            this.redisplay();
           }),
       );
 
@@ -1027,7 +1046,7 @@ export class AtomsSettingTab extends PluginSettingTab {
           .onChange(async (on) => {
             if (on && !this.plugin.settings.askEnabled) {
               new Notice("Enable Ask mirror first");
-              this.display();
+              this.redisplay();
               return;
             }
             this.plugin.settings.askWriteAckAt = on
@@ -1039,7 +1058,7 @@ export class AtomsSettingTab extends PluginSettingTab {
                 /* */
               });
             }
-            this.display();
+            this.redisplay();
           }),
       );
 
@@ -1103,7 +1122,7 @@ export class AtomsSettingTab extends PluginSettingTab {
               ? "Ask mirror reconciled"
               : `Ask mirror: uploaded ${n} atom(s)`,
           );
-          this.display();
+          this.redisplay();
         }),
       );
 
@@ -1122,7 +1141,7 @@ export class AtomsSettingTab extends PluginSettingTab {
           }
           this.app.saveLocalStorage(LS_ASK_MIRROR_SERVER_COUNT, String(r.count));
           new Notice(`Ask mirror: ${r.count} atom(s)`);
-          this.display();
+          this.redisplay();
         }),
       );
 
@@ -1153,7 +1172,7 @@ export class AtomsSettingTab extends PluginSettingTab {
           this.app.saveLocalStorage(LS_ASK_MIRROR_HASHES, "{}");
           await this.plugin.saveSettings();
           new Notice("Ask mirror wiped");
-          this.display();
+          this.redisplay();
         }),
       );
 
@@ -1173,10 +1192,9 @@ export class AtomsSettingTab extends PluginSettingTab {
   }
 
   private renderDevHints(containerEl: HTMLElement) {
-    settingHeading(containerEl, "Development");
-    const version = this.plugin.manifest.version ?? "?";
+    settingHeading(containerEl, "Advanced");
     containerEl.createEl("p", {
-      text: `Installed version: ${version}. After desktop install + Sync, confirm this matches on phone. ./scripts/install-to-vault.sh reloads via Obsidian CLI.`,
+      text: "Leave these alone unless you self-host or dogfood a local Plus server.",
       cls: "setting-item-description",
     });
 
@@ -1184,7 +1202,7 @@ export class AtomsSettingTab extends PluginSettingTab {
     new Setting(containerEl)
       .setName("Plus service URL override")
       .setDesc(
-        `Leave empty for production (${DEFAULT_PLUS_BASE_URL}). Local dogfood: http://127.0.0.1:8787`,
+        `Empty = production (${DEFAULT_PLUS_BASE_URL}). Local: http://127.0.0.1:8787`,
       )
       .addText((text) =>
         text
