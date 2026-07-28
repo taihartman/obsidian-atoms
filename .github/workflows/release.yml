@@ -1,0 +1,78 @@
+# CI-built plugin release assets + SLSA provenance attestations.
+# Trigger: push a version tag matching manifest/package (e.g. 0.6.45).
+# Do not upload laptop-built main.js for production tags.
+
+name: Release
+
+on:
+  push:
+    tags:
+      - "[0-9]+.[0-9]+.[0-9]+"
+      - "[0-9]+.[0-9]+.[0-9]+-*"
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Tag matches package version
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          PKG="$(node -p "require('./package.json').version")"
+          MANIFEST="$(node -p "require('./manifest.json').version")"
+          echo "tag=$TAG package=$PKG manifest=$MANIFEST"
+          test "$TAG" = "$PKG"
+          test "$TAG" = "$MANIFEST"
+
+      - name: Test
+        run: npm test
+
+      - name: Production build
+        run: npm run build
+
+      - name: Require release assets
+        run: |
+          test -f main.js
+          test -f manifest.json
+          test -f styles.css
+
+      - name: SHA256SUMS
+        run: shasum -a 256 main.js manifest.json styles.css | tee SHA256SUMS.txt
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            main.js
+            manifest.json
+            styles.css
+            SHA256SUMS.txt
+
+      - name: GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            main.js
+            manifest.json
+            styles.css
+            SHA256SUMS.txt
+          fail_on_unmatched_files: true
+          generate_release_notes: true
