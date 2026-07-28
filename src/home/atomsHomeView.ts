@@ -1331,7 +1331,7 @@ export class AtomsHomeView extends ItemView {
       this.entityInvite = null;
       await this.loadData();
       this.render();
-    } catch (e) {
+    } catch {
       new Notice("Atoms: could not create list note");
     }
   }
