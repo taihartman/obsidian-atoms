@@ -257,6 +257,43 @@ describe("ask outbox store", () => {
           assert.equal(p3.next_offset, null);
         });
       });
+
+      it("mirrorList items expose synced_at + kind; status has last update", async () => {
+        await withStore(mode, async (store) => {
+          await seed(store, "s@ex.co");
+          await store.mirrorUpsert("s@ex.co", [
+            {
+              path: "Atoms/Tea.md",
+              title: "Tea",
+              body: "I prefer tea.",
+              tags: ["drink"],
+            },
+            {
+              path: "Social/People/Nichita.md",
+              title: "Nichita",
+              body: "# Nichita\n",
+              kind: "hub",
+            },
+          ]);
+          const page = await store.mirrorList("s@ex.co", {
+            limit: 10,
+            offset: 0,
+          });
+          assert.equal(page.total, 2);
+          for (const item of page.items) {
+            assert.ok(item.synced_at, "each list item needs synced_at");
+            assert.ok(
+              typeof item.synced_at === "string" && item.synced_at.length > 0,
+            );
+            assert.ok(item.kind === "atom" || item.kind === "hub");
+          }
+          const hub = page.items.find((i) => i.title === "Nichita");
+          assert.equal(hub?.kind, "hub");
+          const st = await store.mirrorStatus("s@ex.co");
+          assert.equal(st.count, 2);
+          assert.ok(st.updatedAt, "mirrorStatus.updatedAt feeds last_synced_at");
+        });
+      });
     });
   }
 });

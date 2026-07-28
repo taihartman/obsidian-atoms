@@ -125,6 +125,10 @@ import {
 } from "../pipeline/refreshAtoms";
 import { isEligibleForUpdate } from "../pipeline/atomQuality";
 import { formatUpdateSummary } from "../home/runProgress";
+import {
+  isAskMirrorWatchPath,
+  readAskMirrorHashes,
+} from "../platform/askMirror";
 
 export default class AtomsPlugin extends Plugin {
   settings!: LinkerSettings;
@@ -206,56 +210,66 @@ export default class AtomsPlugin extends Plugin {
     );
   }
 
-  /** Debounced Atoms/-only vault watch for Claude mirror parity. */
+  /**
+   * Debounced vault watch for Ask mirror parity.
+   * Flat Atoms/*.md + hubs already in this device's hash evidence
+   * (not every vault .md — dailies would storm-sync). New hubs seed via
+   * end-of-run Process/Update/invite push.
+   */
   private registerAskMirrorVaultEvents(): void {
-    const schedule = () => {
-      if (
-        !this.settings.askEnabled ||
-        !this.settings.askPrivacyAckAt
-      ) {
-        return;
-      }
-      this.askMirrorDirty = true;
-      if (this.askMirrorDebounceTimer != null) {
-        window.clearTimeout(this.askMirrorDebounceTimer);
-      }
-      this.askMirrorDebounceTimer = window.setTimeout(() => {
-        this.askMirrorDebounceTimer = null;
-        if (!this.askMirrorDirty) return;
-        this.askMirrorDirty = false;
-        void this.syncAskMirror({ force: false }).catch(() => {
-          /* best-effort */
-        });
-      }, 2000);
-    };
-    const isAtomMd = (path: string) => {
-      const p = path || "";
-      if (!p.endsWith(".md")) return false;
-      if (p.includes("..") || p.includes("\\")) return false;
-      if (!p.startsWith("Atoms/")) return false;
-      const rest = p.slice("Atoms/".length);
-      return Boolean(rest) && !rest.includes("/");
+    const schedule = () => this.scheduleAskMirrorSync();
+    const watch = (path: string) => {
+      const folder = this.settings.atomFolder || "Atoms";
+      const hashes = readAskMirrorHashes(
+        (k) => this.app.loadLocalStorage(k) as unknown,
+        this.settings.askMirrorHashes,
+      );
+      return isAskMirrorWatchPath(path, folder, hashes);
     };
     this.registerEvent(
       this.app.vault.on("create", (f) => {
-        if (isAtomMd(f.path)) schedule();
+        if (watch(f.path)) schedule();
       }),
     );
     this.registerEvent(
       this.app.vault.on("modify", (f) => {
-        if (isAtomMd(f.path)) schedule();
+        if (watch(f.path)) schedule();
       }),
     );
     this.registerEvent(
       this.app.vault.on("delete", (f) => {
-        if (isAtomMd(f.path)) schedule();
+        if (watch(f.path)) schedule();
       }),
     );
     this.registerEvent(
       this.app.vault.on("rename", (f, oldPath) => {
-        if (isAtomMd(f.path) || isAtomMd(oldPath)) schedule();
+        if (watch(f.path) || watch(oldPath)) schedule();
       }),
     );
+  }
+
+  /** Debounced best-effort push after vault or pipeline writes. */
+  scheduleAskMirrorSync(): void {
+    if (!this.settings.askEnabled || !this.settings.askPrivacyAckAt) {
+      return;
+    }
+    // Coalesce into the in-flight run instead of a second post-run debounce.
+    if (this.askMirrorInFlight) {
+      this.askMirrorFollowUp = true;
+      return;
+    }
+    this.askMirrorDirty = true;
+    if (this.askMirrorDebounceTimer != null) {
+      window.clearTimeout(this.askMirrorDebounceTimer);
+    }
+    this.askMirrorDebounceTimer = window.setTimeout(() => {
+      this.askMirrorDebounceTimer = null;
+      if (!this.askMirrorDirty) return;
+      this.askMirrorDirty = false;
+      void this.syncAskMirror({ force: false }).catch(() => {
+        /* best-effort */
+      });
+    }, 2000);
   }
 
   /**
@@ -447,8 +461,9 @@ export default class AtomsPlugin extends Plugin {
           ? `Atoms: couldn't update ${report.failed} note${report.failed === 1 ? "" : "s"} — check model id and API key`
           : `Atoms: polished ${polished}, updated ${report.updated}, renamed ${report.renamed}, failed ${report.failed}`,
       );
-      void this.syncAskMirror().catch(() => {
-        /* best-effort */
+      // After projection + atom writes settle — end-of-run push (hubs included).
+      void this.syncAskMirror({ force: false }).catch(() => {
+        /* best-effort — vault write already committed */
       });
       void this.applyAskOutbox().catch(() => {
         /* best-effort */
@@ -824,6 +839,9 @@ export default class AtomsPlugin extends Plugin {
       new Notice(
         `Atoms backfill: ${report.applied} applied, ${report.atomsCreated} atom(s), ${report.markersAppended} marker(s), ${report.failed} failed`,
       );
+      if (report.atomsCreated > 0 || report.applied > 0) {
+        this.scheduleAskMirrorSync();
+      }
     } catch (e) {
       devLog("[atoms] backfill execute failed", {
         name: e instanceof Error ? e.name : "Error",
@@ -1036,6 +1054,12 @@ export default class AtomsPlugin extends Plugin {
       if (opts?.force) this.askMirrorForceFollowUp = true;
       return 0;
     }
+    // Absorb pending debounce into this run (avoids Process + 2s double push).
+    if (this.askMirrorDebounceTimer != null) {
+      window.clearTimeout(this.askMirrorDebounceTimer);
+      this.askMirrorDebounceTimer = null;
+    }
+    this.askMirrorDirty = false;
     this.askMirrorInFlight = true;
     let uploaded = 0;
     try {
@@ -1159,12 +1183,18 @@ export default class AtomsPlugin extends Plugin {
 
     let workingHashes = { ...hashSnapshot };
     let uploaded = 0;
+    let deleted = 0;
 
     const fail = (msg: string) => {
       save(LS_ASK_MIRROR_LAST_ERROR, msg);
+      const snip = msg.replace(/\s+/g, " ").trim().slice(0, 72);
       if (!this.askMirrorNoticeShown) {
         this.askMirrorNoticeShown = true;
-        new Notice("Ask: last push failed · Sync now to retry");
+        new Notice(
+          snip
+            ? `Ask: push failed — ${snip} · Sync now to retry`
+            : "Ask: last push failed · Sync now to retry",
+        );
       }
       return -1 as const;
     };
@@ -1187,6 +1217,7 @@ export default class AtomsPlugin extends Plugin {
       const chunk = deletePaths.slice(i, i + 100);
       const r = await askMirrorDelete(cfg, token, chunk);
       if (!r.ok) return fail(r.message);
+      deleted += chunk.length;
       for (const p of chunk) delete workingHashes[p];
       writeAskMirrorHashes(save, workingHashes);
     }
@@ -1226,8 +1257,14 @@ export default class AtomsPlugin extends Plugin {
       writeAskMirrorHashes(save, workingHashes);
     }
 
+    // Success: clear error + refresh server count. Only stamp "last pushed"
+    // when this run mutated the mirror (or user forced Sync now).
     save(LS_ASK_MIRROR_LAST_ERROR, "");
-    save(LS_ASK_MIRROR_LAST_SUCCESS, new Date().toISOString());
+    this.askMirrorNoticeShown = false;
+    const mutated = uploaded > 0 || deleted > 0 || force;
+    if (mutated) {
+      save(LS_ASK_MIRROR_LAST_SUCCESS, new Date().toISOString());
+    }
     const st = await askMirrorStatus(cfg, token);
     if (st.ok) {
       save(LS_ASK_MIRROR_SERVER_COUNT, String(st.count));
@@ -1406,8 +1443,9 @@ export default class AtomsPlugin extends Plugin {
         }
         new Notice(notice);
       }
-      void this.syncAskMirror().catch(() => {
-        /* best-effort */
+      // After projection + atom writes settle — end-of-run push (hubs included).
+      void this.syncAskMirror({ force: false }).catch(() => {
+        /* best-effort — vault write already committed */
       });
       void this.applyAskOutbox().catch(() => {
         /* best-effort */
@@ -1506,6 +1544,7 @@ export default class AtomsPlugin extends Plugin {
       new Notice(
         `Atoms fixture: ${report.atomsCreated} atom(s), ${report.markersAppended} marker(s)`,
       );
+      this.scheduleAskMirrorSync();
     } catch (e) {
       if (e instanceof DailyNotesDisabledError) {
         this.failHomeRun(e.message);

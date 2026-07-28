@@ -1080,6 +1080,7 @@ export class AtomsHomeView extends ItemView {
       this.snoozePersonInvite(inv.displayName);
       this.personInvite = null;
       new Notice(`Atoms: linked to ${linkName}`);
+      this.plugin.scheduleAskMirrorSync();
       await this.loadData();
       this.render();
     } catch {
@@ -1142,6 +1143,7 @@ export class AtomsHomeView extends ItemView {
         created ? `Atoms: added ${name}` : `Atoms: linked to ${name}`,
       );
       this.personInvite = null;
+      this.plugin.scheduleAskMirrorSync();
       await this.loadData();
       this.render();
     } catch {
@@ -1329,6 +1331,7 @@ export class AtomsHomeView extends ItemView {
       }
       new Notice(`Atoms: created ${label}`);
       this.entityInvite = null;
+      this.plugin.scheduleAskMirrorSync();
       await this.loadData();
       this.render();
     } catch {

@@ -1114,12 +1114,15 @@ export class AtomsSettingTab extends PluginSettingTab {
       if (sec < 86400) return `${Math.floor(sec / 3600)}h ago`;
       return `${Math.floor(sec / 86400)}d ago`;
     };
+    const errSnip = lastErr.replace(/\s+/g, " ").trim().slice(0, 96);
     const statusLine = lastErr
-      ? `Ask mirror: ${serverCount} · last push failed · Sync now to retry`
+      ? `Ask mirror: ${serverCount} · push failed${errSnip ? ` — ${errSnip}` : ""} · Sync now to retry`
       : `Ask mirror: ${serverCount} · last pushed ${relative(lastOk)}`;
     containerEl.createEl("p", {
       text: statusLine,
-      cls: "setting-item-description",
+      cls: lastErr
+        ? "setting-item-description atoms-ask-mirror-error"
+        : "setting-item-description",
     });
 
     new Setting(containerEl)

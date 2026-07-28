@@ -11,7 +11,8 @@ Mirror scope:
 
 Read rules:
 - search_atoms snippets are truncated and non-authoritative (snippet_truncated: true, authoritative: false). Do not claim what a note contains or does not contain from a snippet. Call fetch_atom for body quotes and content claims.
-- fetch_atom text is authoritative for that note's body.
+- fetch_atom text is authoritative for that note's body. synced_at is when the cloud mirror last received that row—if it is hours old, vault may have newer content not yet pushed.
+- list_atoms includes last_synced_at + server_count for mirror-level staleness.
 - Every atom has status: live | superseded | contradicted (always present; never treat missing status as live).
 - If status is superseded or contradicted, do not present the parent as a current uncontested fact. Prefer the child named in superseded_by / contradicted_by (relation revised_by / contradicted_by).
 - Hubs (kind: hub) set revision_participant: false—they are hand-maintained prose and do not participate in revises chains. related_atoms lists backlinked atoms with their status.

@@ -594,6 +594,9 @@ export function shapeFetchAtom(atom, neighborsGraph, opts = {}) {
     [String(atom.title || "").toLowerCase(), inboundEdges],
   ]);
 
+  const syncedAt =
+    atom.updatedAt || atom.updated_at || atom.synced_at || null;
+
   /** @type {Record<string, unknown>} */
   const base = {
     id: atom.id,
@@ -604,6 +607,8 @@ export function shapeFetchAtom(atom, neighborsGraph, opts = {}) {
     tags: atom.tags,
     links,
     authoritative: true,
+    /** When this row was last written to the cloud mirror (ISO). */
+    synced_at: syncedAt,
   };
 
   if (kind === "hub") {
