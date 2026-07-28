@@ -1,14 +1,15 @@
 /*
- * The only script on the site. Three jobs:
+ * The only script on the site. Four jobs:
  *
  * 1. Story carousel: <main data-story> decides which storyline the CSS shows.
- * 2. Scroll reveals: section content rises in once as it enters the viewport.
- * 3. Graph: a real force-directed simulation on canvas, the way Obsidian's
+ * 2. Top bar: stuck state past the hero, plus the current-section highlight.
+ * 3. Scroll reveals: section content rises in once as it enters the viewport.
+ * 4. Graph: a real force-directed simulation on canvas, the way Obsidian's
  *    graph view behaves. Node/link data is read out of the server-rendered
  *    SVG, which stays as the no-JS fallback.
  *
- * With JS disabled everything is still readable: default story, no reveal
- * animation, static SVG graph.
+ * With JS disabled everything is still readable: default story, plain bar
+ * whose anchors still work, no reveal animation, static SVG graph.
  */
 (() => {
   const main = document.querySelector("main");
@@ -40,6 +41,37 @@
       const n = order.length;
       set(order[(i + Number(arrow.dataset.dir) + n) % n]);
     });
+  }
+
+  /* ---------------- top bar ---------------- */
+
+  const topbar = document.querySelector(".topbar");
+  if (topbar) {
+    // Keep the bar seamless over the hero; give it an edge once it overlaps content.
+    const onScroll = () => topbar.classList.toggle("is-stuck", scrollY > 24);
+    addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+
+    const navLinks = new Map();
+    for (const a of topbar.querySelectorAll(".topbar-links a")) {
+      const section = document.querySelector(a.getAttribute("href"));
+      if (section) navLinks.set(section, a);
+    }
+
+    // Highlight whichever section owns the band just below the bar.
+    if (navLinks.size && "IntersectionObserver" in window) {
+      const spy = new IntersectionObserver(
+        (entries) => {
+          for (const e of entries) {
+            if (!e.isIntersecting) continue;
+            for (const a of navLinks.values()) a.classList.remove("is-current");
+            navLinks.get(e.target).classList.add("is-current");
+          }
+        },
+        { rootMargin: "-56px 0px -72% 0px" },
+      );
+      for (const section of navLinks.keys()) spy.observe(section);
+    }
   }
 
   /* ---------------- graph ---------------- */

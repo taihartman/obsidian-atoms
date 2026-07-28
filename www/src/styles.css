@@ -61,6 +61,12 @@ html {
   -webkit-text-size-adjust: 100%;
 }
 
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
 body {
   margin: 0;
   background: var(--bg);
@@ -102,6 +108,105 @@ a:hover {
 
 .band:first-of-type {
   border-top: 0;
+}
+
+/* Anchors must clear the sticky bar instead of tucking under it. */
+.band,
+.hero {
+  scroll-margin-top: 68px;
+}
+
+/* ---------- sticky top bar ---------- */
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: var(--bg);
+  border-bottom: 1px solid transparent;
+  transition: background 160ms ease, border-color 160ms ease;
+}
+
+/*
+ * Translucency only where the blur exists to back it up; otherwise page
+ * content would show through the bar as unreadable ghosting.
+ */
+@supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
+  .topbar {
+    background: color-mix(in srgb, var(--bg) 70%, transparent);
+    -webkit-backdrop-filter: saturate(180%) blur(14px);
+    backdrop-filter: saturate(180%) blur(14px);
+  }
+}
+
+/* Set by app.js past the first scroll, so the bar stays invisible over the hero. */
+.topbar.is-stuck {
+  border-bottom-color: var(--sep-soft);
+}
+
+@supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
+  .topbar.is-stuck {
+    background: color-mix(in srgb, var(--bg) 86%, transparent);
+  }
+}
+
+.topbar-in {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+  max-width: 40rem;
+  min-height: 56px;
+  margin: 0 auto;
+  padding: 0 var(--gutter);
+}
+
+.topbar-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--label);
+  font-size: 0.95rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.topbar-mark:hover {
+  text-decoration: none;
+}
+
+/* Under 720px the four anchors would crowd out the button, which matters more. */
+.topbar-links {
+  display: none;
+  gap: 18px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.86rem;
+}
+
+@media (min-width: 720px) {
+  .topbar-links {
+    display: flex;
+  }
+}
+
+.topbar-links a {
+  color: var(--muted);
+  font-weight: 550;
+  white-space: nowrap;
+  transition: color 130ms ease;
+}
+
+.topbar-links a:hover {
+  color: var(--label);
+  text-decoration: none;
+}
+
+/* Answers "where am I" without a progress bar. Set by app.js. */
+.topbar-links a.is-current {
+  color: var(--label);
 }
 
 .eyebrow {
@@ -861,6 +966,20 @@ main[data-story="self"] .s-people {
   .btn {
     min-width: 168px;
   }
+}
+
+/*
+ * The bar's own button. Declared after .btn (and after the 620px min-width
+ * rule) so it actually wins: same specificity, so source order decides.
+ * Shorter than the 44px page buttons because it lives in a 56px bar, but not
+ * so short it stops being a comfortable tap target.
+ */
+.btn--bar {
+  min-width: 0;
+  min-height: 40px;
+  padding: 0 15px;
+  font-size: 0.88rem;
+  border-radius: var(--r-sm);
 }
 
 /* ---------- steps ---------- */

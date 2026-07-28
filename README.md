@@ -10,14 +10,17 @@ The loop is simple:
 
 It’s a **second brain inside your vault**, not a separate app and not a CRM. Person hubs you already keep get real links and backlinks.
 
-**Plugin id:** `atoms` · **Version:** see `manifest.json` · **Requires:** Obsidian ≥ 1.11.4, core **Daily Notes**, Anthropic API key
+> **Paid services notice.** Atoms needs a paid AI service to file anything. Pick one:
+> **bring your own [Anthropic](https://console.anthropic.com) API key** and Anthropic bills you directly for your usage, or subscribe to **Atoms Plus** (hosted, no key to set up, and the only way to ask from Claude or ChatGPT) from Settings inside the plugin. Pricing and a free trial are at [tryatoms.app](https://tryatoms.app). The plugin code itself is MIT and free.
+
+**Plugin id:** `atoms` · **Version:** see `manifest.json` · **Requires:** Obsidian ≥ 1.11.4, core **Daily Notes**, and either an Anthropic API key or Atoms Plus
 
 **Coding agents:** start at [`AGENTS.md`](AGENTS.md) (claim rules + constitution). Humans do not need to memorize process — agents must.
 
 ### Privacy & cost
 
 - Each classify run sends **vault note titles**, tags, person-hub **titles**, and the **capture text** to the Anthropic API over TLS.
-- You supply your own API key (SecretStorage). That usage is **optional paid** Anthropic billing — the plugin itself is free (MIT).
+- Filing costs money either way. With your own key (stored in SecretStorage, never `data.json`) **Anthropic bills you** for the usage. With **Atoms Plus** you pay a monthly or yearly subscription instead, and requests go through the Atoms service. The plugin code is free (MIT); the AI behind it is not.
 - The model never rewrites your hand-authored daily bullets. It creates flat atom files, appends markers, and (only when you choose **Update notes**) refreshes titles/links/tags on existing linker atoms — **never** the capture body.
 - On Process title collision, **existing atom files are not overwritten** (protect-existing).
 - Auto-run (device-local, default off) requires a one-time egress acknowledgment.

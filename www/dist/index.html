@@ -37,10 +37,33 @@
     <meta name="twitter:image" content="https://tryatoms.app/og.png" />
     <link rel="canonical" href="https://tryatoms.app" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="stylesheet" href="/a/styles.cae1cb7f.css" />
-    <script src="/a/app.09a1faa2.js" defer></script>
+    <link rel="stylesheet" href="/a/styles.63e5c90b.css" />
+    <script src="/a/app.b4a72796.js" defer></script>
   </head>
   <body>
+    <!--
+      Sticky bar. Four anchors, no more: a section index with ten links reads
+      as documentation and nobody uses it. The button is the point, so that
+      "buy" is one click away from wherever someone loses interest. It aims at
+      #pricing, not #install, because a visitor must see the price before the
+      install steps. Every href here is asserted against a real section id by
+      test/wwwPricing.test.ts.
+    -->
+    <nav class="topbar" aria-label="Sections">
+      <div class="topbar-in">
+        <a class="topbar-mark" href="#top">
+          <span class="sentinel" aria-hidden="true">↳</span> Atoms
+        </a>
+        <ul class="topbar-links">
+          <li><a href="#how">How it works</a></li>
+          <li><a href="#ask">Ask</a></li>
+          <li><a href="#backfill">Catch up</a></li>
+          <li><a href="#pricing">Pricing</a></li>
+        </ul>
+        <a class="btn btn--primary btn--bar" href="#pricing">Get Atoms</a>
+      </div>
+    </nav>
+
     <!--
       Story carousel: <main data-story> decides which storyline the CSS
       shows (.s-rel / .s-work / .s-self; .s-people is shared by rel+work).
@@ -48,7 +71,7 @@
     -->
     <main data-story="rel">
       <!-- Hero: understandable in three seconds, no syntax anywhere -->
-      <header class="hero">
+      <header class="hero" id="top">
         <div class="wrap">
           <p class="eyebrow">Atoms · An Obsidian plugin</p>
           <h1>You wrote it down.<br />You never found it again.</h1>
@@ -153,7 +176,7 @@
           </div>
 
           <div class="actions">
-            <a class="btn btn--primary" href="#install">Get Atoms</a>
+            <a class="btn btn--primary" href="#pricing">Get Atoms</a>
             <a class="btn btn--secondary" href="#how">See How It Works</a>
           </div>
           <p class="note">

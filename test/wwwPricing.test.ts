@@ -125,6 +125,41 @@ describe("www build output", () => {
   });
 });
 
+describe("navigation", () => {
+  it("every in-page anchor points at a section that exists", () => {
+    // A nav link to a renamed section fails silently in a browser: the click
+    // just does nothing. This is the only thing that catches it.
+    const hrefs = [...index.matchAll(/href="#([\w-]+)"/g)].map((m) => m[1]);
+    expect(hrefs.length).toBeGreaterThan(0);
+    for (const id of new Set(hrefs)) {
+      expect(index, `no section with id="${id}"`).toContain(`id="${id}"`);
+    }
+  });
+
+  it("the top bar keeps the buy path one click away from anywhere", () => {
+    const bar = index.slice(index.indexOf("<nav"), index.indexOf("</nav>"));
+    expect(bar).toContain('href="#pricing"');
+    // Catch-up is easy to scroll past on the way to pricing; the bar is its
+    // second entrance until it earns a higher position on the page.
+    expect(bar).toContain('href="#backfill"');
+    expect(bar).toContain("Catch up");
+  });
+
+  it("sends the primary call to action to the price, not past it", () => {
+    // Regression guard: "Get Atoms" used to jump straight to #install, so the
+    // most-clicked link on the page skipped pricing entirely.
+    const cta = index.match(/<a class="btn btn--primary" href="#(\w+)">Get Atoms<\/a>/);
+    expect(cta?.[1]).toBe("pricing");
+  });
+
+  it("puts pricing immediately before install so the price is read first", () => {
+    const pricing = index.indexOf('id="pricing"');
+    const install = index.indexOf('id="install"');
+    expect(pricing).toBeGreaterThan(-1);
+    expect(install).toBeGreaterThan(pricing);
+  });
+});
+
 describe("pricing matches the SSOT", () => {
   it("states the monthly price on the pricing page", () => {
     expect(index).toContain(`$${PLUS_PRICING.monthlyUsd}`);
