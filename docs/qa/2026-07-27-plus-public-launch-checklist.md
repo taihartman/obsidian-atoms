@@ -22,13 +22,13 @@
 | Resend domain | ✅ | `mail.tryatoms.app` **verified**; only domain on account |
 | Magic link API | ✅ | `POST /v1/auth/magic-link` → `{"ok":true}` from `plus@mail.tryatoms.app` |
 | Second-inbox open | ⬜ human | Confirm mail landed (e.g. tai.piplup@gmail.com) |
-| Stripe live | ❌ | Fly still `sk_test_`; no live webhook |
-| Fly billing card | ⬜ human | https://fly.io/dashboard/personal/billing |
+| Stripe live | ✅ | Fly `sk_live_`; live webhook tryatoms |
+| Fly billing card | ✅ | human confirmed |
 | Live Checkout + Process | ⬜ | blocked on Stripe live |
 
 ### Go / no-go
 
-**NO-GO for strangers paying** until Stripe **live** + Fly billing.  
+**Infra GO (2026-07-28):** Stripe live + Resend + tryatoms + Fly billing set. Human: one live Checkout + Process smoke; then close #115.  
 **Partial GO:** install + magic-link email on tryatoms brand works once second-inbox confirmed.
 
 ---
