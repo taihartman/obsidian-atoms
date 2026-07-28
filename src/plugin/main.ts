@@ -7,6 +7,11 @@ import {
   requestUrl,
 } from "obsidian";
 import { ATOMS_HOME_VIEW_TYPE, AtomsHomeView } from "../home/atomsHomeView";
+import {
+  drainInbox,
+  ensureInboxBookmark,
+  ensureInboxNote,
+} from "../pipeline/inbox";
 import { clampAtomFolder } from "../pipeline/render";
 import { registerAtomsCommands } from "./commands";
 import { runOpenAtomGraph } from "../graph/openAtomGraph";
@@ -178,6 +183,12 @@ export default class AtomsPlugin extends Plugin {
       void this.ensureAtomsHomeSidebar({ reveal: false });
     });
 
+    // U5: ensure the capture inbox note + bookmark exist, then drain any
+    // pending captures into their dailies. Best-effort — never blocks launch.
+    this.app.workspace.onLayoutReady(() => {
+      void this.bootstrapInbox();
+    });
+
     // U9: never block launch — schedule auto-run after layout + metadata.
     void this.scheduleAutoRunLifecycle();
 
@@ -204,6 +215,47 @@ export default class AtomsPlugin extends Plugin {
         });
       }, 60_000),
     );
+  }
+
+  /**
+   * Ensure the capture inbox note + bookmark exist, then drain pending captures
+   * into their dailies (U5). Every step is best-effort: a missing Bookmarks
+   * plugin, a daily-notes hiccup, or a drain error must never throw into load.
+   */
+  private async bootstrapInbox(): Promise<void> {
+    try {
+      await ensureInboxNote(this.app);
+    } catch {
+      /* best-effort — inbox capture degrades to a manual note create */
+    }
+    try {
+      await ensureInboxBookmark(this.app);
+    } catch {
+      /* best-effort — user can bookmark the note by hand */
+    }
+    try {
+      await drainInbox(this.app);
+      await this.refreshAtomsHomeLeaves();
+    } catch {
+      /* best-effort — pending captures wait for the next drain */
+    }
+  }
+
+  /** Manual drain (command). Surfaces a count so a stuck drain is visible. */
+  async runDrainInbox(): Promise<void> {
+    try {
+      const r = await drainInbox(this.app);
+      const parts = [`${r.filed} filed`];
+      if (r.held) parts.push(`${r.held} held (future)`);
+      if (r.unparseable) parts.push(`${r.unparseable} unreadable`);
+      if (r.pending) parts.push(`${r.pending} pending`);
+      new Notice(`Atoms inbox: ${parts.join(", ")}`);
+      await this.refreshAtomsHomeLeaves();
+    } catch (e) {
+      new Notice(
+        `Atoms: inbox drain failed — ${e instanceof Error ? e.message.slice(0, 80) : "error"}`,
+      );
+    }
   }
 
   /** Debounced Atoms/-only vault watch for Claude mirror parity. */

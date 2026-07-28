@@ -1,5 +1,6 @@
-import type { App, TFile } from "obsidian";
-import { isEmptyCaptureText } from "./parse";
+import { type App, TFile } from "obsidian";
+import { isEmptyCaptureText, parseCaptures } from "./parse";
+import { ensureDailyForDate, FutureDailyNoteError } from "./daily";
 
 /**
  * Capture inbox — the phone's capture target.
@@ -44,7 +45,11 @@ export interface InboxCapture {
   stamp: string | null;
   /** Local calendar date (YYYY-MM-DD) the capture was made on. */
   date: string | null;
-  /** Local time of day (HH:MM) the capture was made at. */
+  /**
+   * Local time of day the capture was made at — HH:MM:SS when the stamp
+   * carries seconds, HH:MM when it does not. Seconds are kept so two captures
+   * made in the same minute stay distinct (drain dedupe key, Q2).
+   */
   time: string | null;
   /** Body text; continuations joined with newlines, indentation stripped. */
   text: string;
@@ -118,7 +123,7 @@ function parseStamp(firstLineBody: string): ParsedStamp | null {
   return {
     stamp: stamp!,
     date: `${yy}-${mm}-${dd}`,
-    time: `${hh}:${min}`,
+    time: ss === undefined ? `${hh}:${min}` : `${hh}:${min}:${ss}`,
     text: text!,
   };
 }
@@ -195,6 +200,49 @@ export function unparseableInboxCaptures(
   captures: InboxCapture[],
 ): InboxCapture[] {
   return captures.filter((c) => c.unparseable && !c.filed);
+}
+
+/** Local YYYY-MM-DD, matching ensureDailyForDate's future-date cutoff. */
+function localDateString(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+/** How many captures are still stuck in the inbox, and why. */
+export interface InboxCounts {
+  /** Readable, unfiled, not future-dated — will file on the next drain. */
+  pending: number;
+  /** Future-dated — held until their day arrives, never filed ahead of the clock. */
+  held: number;
+  /** No readable stamp — held in place until a human repairs the line. */
+  unparseable: number;
+}
+
+/**
+ * Count the captures still stuck in the inbox, split by why.
+ *
+ * Computed from the note content at read time rather than cached off the last
+ * drain, so the count stays honest when Atoms home is opened long after a drain
+ * ran and clears on its own once the captures are filed. `now` fixes the
+ * future-date cutoff: a capture dated ahead of the local clock is held, mirroring
+ * ensureDailyForDate's refusal. Empty content (or a missing note) is all zeros.
+ */
+export function inboxCounts(content: string, now: Date): InboxCounts {
+  const captures = parseInboxCaptures(content);
+  const today = localDateString(now);
+  let pending = 0;
+  let held = 0;
+  for (const c of pendingInboxCaptures(captures)) {
+    if (c.date! > today) held += 1;
+    else pending += 1;
+  }
+  return {
+    pending,
+    held,
+    unparseable: unparseableInboxCaptures(captures).length,
+  };
 }
 
 /**
@@ -319,4 +367,222 @@ export async function ensureInboxBookmark(
   } catch {
     return "unavailable";
   }
+}
+
+/**
+ * Outcome of a drain pass. U6 surfaces these next to the unprocessed-capture
+ * count in Atoms home, so the shape stays flat and cheap to read.
+ *
+ * `filed` is progress; `held`, `unparseable`, and `pending` are the states a
+ * capture can get stuck in — held (future-dated, retries once the day arrives),
+ * unparseable (unreadable stamp, needs a human), and pending (a daily could not
+ * be resolved this pass, e.g. Daily Notes disabled).
+ */
+export interface InboxDrainResult {
+  /** Captures marked filed this pass — appended, or already present and re-marked. */
+  filed: number;
+  /** Readable captures left unfiled because their daily could not be resolved. */
+  pending: number;
+  /** Future-dated captures held rather than filed into a note ahead of the clock. */
+  held: number;
+  /** Lines with no readable stamp, held in place and counted (never guessed at). */
+  unparseable: number;
+}
+
+/** Vault surface the drain reads and writes. */
+interface DrainVault {
+  getAbstractFileByPath(path: string): unknown;
+  read(file: TFile): Promise<string>;
+  modify(file: TFile, data: string): Promise<void>;
+}
+
+function drainVaultOf(app: App): DrainVault {
+  return (app as unknown as { vault: DrainVault }).vault;
+}
+
+export interface DrainInboxDeps {
+  /**
+   * Resolve or create the daily for a local date. Defaults to
+   * ensureDailyForDate; injected in tests to run the drain against an
+   * in-memory vault. Throws FutureDailyNoteError for a date ahead of the clock.
+   */
+  ensureDaily?: (app: App, date: string) => Promise<TFile>;
+}
+
+/** Daily-note bullet for a capture: `- HH:MM body`, continuations tab-indented (KTD8, KTD10). */
+function inboxDailyBulletLines(time: string, body: string): string[] {
+  const [first, ...rest] = body.split("\n");
+  const lines = [`- ${time} ${first ?? ""}`];
+  for (const cont of rest) lines.push(`\t${cont}`);
+  return lines;
+}
+
+/**
+ * Dedupe backstop: does the daily already hold this capture? Compares against
+ * the daily's own parse so a line whose inbox marker was lost to a sync merge
+ * is re-marked rather than duplicated. Keyed on (time, body) per Q2.
+ */
+function dailyHasCapture(
+  dailyContent: string,
+  time: string,
+  body: string,
+): boolean {
+  return parseCaptures(dailyContent).some(
+    (c) => c.timestamp === time && c.text === body,
+  );
+}
+
+/** Append bullet lines to a daily, keeping a newline off the previous line. */
+function appendBulletLines(content: string, bulletLines: string[]): string {
+  const block = bulletLines.join("\n");
+  if (content === "") return `${block}\n`;
+  const sep = content.endsWith("\n") ? "" : "\n";
+  return `${content}${sep}${block}\n`;
+}
+
+/**
+ * Insert filed markers after each capture's extent, highest line first so an
+ * earlier insertion does not shift a later capture's indices (KTD11 —
+ * docs/solutions/logic-errors/marker-line-drift-batch-process.md).
+ */
+function appendFiledMarkers(content: string, captures: InboxCapture[]): string {
+  const lines = content.split(/\r?\n/);
+  const bottomUp = [...captures].sort((a, b) => b.endLine - a.endLine);
+  for (const c of bottomUp) {
+    lines.splice(c.endLine + 1, 0, `\t${INBOX_FILED_MARKER}`);
+  }
+  return lines.join("\n");
+}
+
+/**
+ * Identity of a capture across two reads of the inbox: the stamp plus the body.
+ * Line numbers cannot be used — an append that lands mid-drain shifts nothing
+ * above it, but a merge that reflows the file shifts everything.
+ */
+function captureKey(c: InboxCapture): string {
+  return `${c.stamp ?? ""}\n${c.text}`;
+}
+
+/**
+ * Re-locate the captures we filed in a freshly read inbox.
+ *
+ * The drain awaits daily resolution and writes between reading the inbox and
+ * marking it, and the phone can append into that window. Marking the stale
+ * snapshot would drop those captures, so markers are placed against a re-read
+ * instead. Matching is greedy per key so two genuine same-second, same-text
+ * captures each get their own marker rather than one collecting both.
+ */
+function relocateFiledCaptures(
+  freshCaptures: InboxCapture[],
+  filed: InboxCapture[],
+): InboxCapture[] {
+  const remaining = new Map<string, number>();
+  for (const c of filed) {
+    remaining.set(captureKey(c), (remaining.get(captureKey(c)) ?? 0) + 1);
+  }
+
+  const matched: InboxCapture[] = [];
+  for (const c of freshCaptures) {
+    if (c.filed || c.unparseable) continue;
+    const key = captureKey(c);
+    const left = remaining.get(key) ?? 0;
+    if (left === 0) continue;
+    remaining.set(key, left - 1);
+    matched.push(c);
+  }
+  return matched;
+}
+
+const EMPTY_DRAIN_RESULT: InboxDrainResult = {
+  filed: 0,
+  pending: 0,
+  held: 0,
+  unparseable: 0,
+};
+
+/**
+ * Drain every pending inbox capture into its own day's daily and mark it filed.
+ *
+ * Idempotent and append-only (KTD2): nothing in the inbox is ever deleted or
+ * rewritten — the drain only appends daily bullets and inbox markers. A capture
+ * already present in its daily (marker lost to sync) is re-marked, not
+ * duplicated. Future-dated and unparseable captures are held and counted, never
+ * guessed at. Best-effort per date: one daily failing to resolve leaves that
+ * date's captures pending without blocking the rest.
+ */
+export async function drainInbox(
+  app: App,
+  deps?: DrainInboxDeps,
+): Promise<InboxDrainResult> {
+  const vault = drainVaultOf(app);
+  const inbox = vault.getAbstractFileByPath(INBOX_NOTE_PATH);
+  if (!(inbox instanceof TFile)) return { ...EMPTY_DRAIN_RESULT };
+
+  const content = await vault.read(inbox);
+  const captures = parseInboxCaptures(content);
+  const unparseable = unparseableInboxCaptures(captures).length;
+  const pending = pendingInboxCaptures(captures);
+  if (pending.length === 0) {
+    return { ...EMPTY_DRAIN_RESULT, unparseable };
+  }
+
+  const ensureDaily = deps?.ensureDaily ?? ensureDailyForDate;
+
+  // Group by capture date, one daily resolved per date. Map preserves the
+  // first-seen date order, so dailies are written in the order they appear.
+  const byDate = new Map<string, InboxCapture[]>();
+  for (const c of pending) {
+    const group = byDate.get(c.date!) ?? [];
+    group.push(c);
+    byDate.set(c.date!, group);
+  }
+
+  const filedCaptures: InboxCapture[] = [];
+  let held = 0;
+  let stillPending = 0;
+
+  for (const [date, group] of byDate) {
+    let daily: TFile;
+    try {
+      daily = await ensureDaily(app, date);
+    } catch (e) {
+      if (e instanceof FutureDailyNoteError) held += group.length;
+      else stillPending += group.length;
+      continue;
+    }
+
+    // Read once; dedupe each capture against the daily as it stood before this
+    // pass. Two genuine same-second captures both file — dropping one is the
+    // failure to avoid, filing twice is recoverable (Q2).
+    const dailyContent = await vault.read(daily);
+    const additions: string[] = [];
+    for (const c of group) {
+      if (!dailyHasCapture(dailyContent, c.time!, c.text)) {
+        additions.push(...inboxDailyBulletLines(c.time!, c.text));
+      }
+      filedCaptures.push(c);
+    }
+    if (additions.length > 0) {
+      await vault.modify(daily, appendBulletLines(dailyContent, additions));
+    }
+  }
+
+  if (filedCaptures.length > 0) {
+    // Re-read rather than marking the opening snapshot: the loop above awaited
+    // daily creation and writes, and the Shortcut or Sync can append into that
+    // window. Writing the stale content back would silently discard whatever
+    // landed — the exact capture loss this whole path exists to prevent.
+    const fresh = await vault.read(inbox);
+    const matched = relocateFiledCaptures(parseInboxCaptures(fresh), filedCaptures);
+    if (matched.length > 0) {
+      await vault.modify(inbox, appendFiledMarkers(fresh, matched));
+    }
+  }
+
+  return {
+    filed: filedCaptures.length,
+    pending: stillPending,
+    held,
+    unparseable,
+  };
 }
