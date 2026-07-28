@@ -23,6 +23,9 @@ States: `Queued` · `In progress` · `Blocked` · `In review` · `Done` (then re
 
 | Merged | Issue / PR | Summary |
 |---|---|---|
+| 2026-07-28 | #174 / #175 | Community review lint (styles, confirm, types) · **0.6.47** |
+| 2026-07-28 | #172 / #173 | Ask mirror hub sync triggers + MCP `synced_at` · **0.6.46** |
+| 2026-07-28 | #169 / #170 | CI-built releases + artifact attestations · **0.6.45** |
 | 2026-07-28 | #163 / #164 | Plus auth criticals (soft-start fixation, idempotency tenant scope, exchange XSS, body cap) — Fly already deployed |
 | 2026-07-28 | #154 / #157 | Hub projection — managed generated block on person hubs · **0.6.44** |
 | 2026-07-28 | #115 | Plus public launch ops — tryatoms domain, Resend, Stripe **live** on Fly |

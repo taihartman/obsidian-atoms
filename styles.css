@@ -1824,3 +1824,13 @@
 .atoms-home-inbox-stuck.is-repair > .atoms-home-card-eyebrow {
   color: var(--text-warning, #d29922);
 }
+
+/* Settings → Ask: full-width disabled MCP connector URL field */
+.atoms-settings-mcp-url-input {
+  width: 100%;
+}
+
+/* Ask mirror push failure in Settings */
+.atoms-ask-mirror-error {
+  color: var(--text-error);
+}

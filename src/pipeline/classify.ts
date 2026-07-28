@@ -241,6 +241,13 @@ export function parseUsage(raw: unknown): ClassifyUsage {
   };
 }
 
+function dropHubSection(result: ClassificationResult): ClassificationResult {
+  if (result.hub_section === undefined) return result;
+  const next: ClassificationResult = { ...result };
+  delete next.hub_section;
+  return next;
+}
+
 /**
  * Post-parse business invariants (KTD4 layer 2).
  * Schema well-formedness is trusted; conditional-required is not.
@@ -251,15 +258,10 @@ export function normalizeHubSection(
 ): ClassificationResult {
   const raw = (result.hub_section ?? "").trim();
   if (!raw) {
-    if (result.hub_section !== undefined) {
-      const { hub_section: _drop, ...rest } = result;
-      return rest as ClassificationResult;
-    }
-    return result;
+    return result.hub_section !== undefined ? dropHubSection(result) : result;
   }
   if (result.verdict !== "atom") {
-    const { hub_section: _drop, ...rest } = result;
-    return rest as ClassificationResult;
+    return dropHubSection(result);
   }
   const details = context.personHubDetails ?? [];
   const allowedExact = new Map<string, string>(); // lower → canonical
@@ -271,8 +273,7 @@ export function normalizeHubSection(
   }
   const canon = allowedExact.get(raw.toLowerCase());
   if (!canon) {
-    const { hub_section: _drop, ...rest } = result;
-    return rest as ClassificationResult;
+    return dropHubSection(result);
   }
   return { ...result, hub_section: canon };
 }
@@ -602,12 +603,19 @@ export async function classifyCapture(
           plus.onRemaining?.(outer.remaining);
         }
       } else {
+        if (!apiKey) {
+          return {
+            ok: false,
+            reason: "missing_key",
+            message: "Set your API key in settings",
+          };
+        }
         const res = await request({
           url: ANTHROPIC_MESSAGES_URL,
           method: "POST",
           headers: {
             "content-type": "application/json",
-            "x-api-key": apiKey!,
+            "x-api-key": apiKey,
             "anthropic-version": ANTHROPIC_VERSION,
           },
           body: JSON.stringify(body),
@@ -804,7 +812,9 @@ export function applyClassificationQuality(
  */
 export function logClassifyOutcome(label: string, outcome: ClassifyOutcome): void {
   if (typeof ATOMS_DEV_COMMANDS === "undefined" || !ATOMS_DEV_COMMANDS) return;
+  // Dev-only (ATOMS_DEV_COMMANDS); silent in Community production builds.
   if (outcome.ok) {
+    // eslint-disable-next-line no-console -- gated dev diagnostics
     console.log(`[atoms] ${label}`, {
       verdict: outcome.result.verdict,
       title: outcome.result.title,
@@ -815,6 +825,7 @@ export function logClassifyOutcome(label: string, outcome: ClassifyOutcome): voi
       key: outcome.keyFingerprint,
     });
   } else {
+    // eslint-disable-next-line no-console -- gated dev diagnostics
     console.log(`[atoms] ${label} FAILED`, {
       reason: outcome.reason,
       status: outcome.status,

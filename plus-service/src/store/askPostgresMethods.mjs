@@ -492,6 +492,8 @@ export function createAskPostgresMethods(pool, deps) {
         title: pub.title,
         path: pub.path,
         tags: pub.tags,
+        kind: pub.kind,
+        synced_at: pub.updatedAt ?? null,
       };
     });
     const count = total.rows[0]?.n ?? 0;

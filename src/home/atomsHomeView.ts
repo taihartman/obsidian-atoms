@@ -30,6 +30,7 @@ import {
   updateNotesConfirmCopy,
   updateNotesStripCopy,
   type AtomLibraryEntry,
+  type FilingHeroAction,
   type FilingHeroCopy,
   type InboxStuckSummary,
 } from "./atomsHomeData";
@@ -1106,6 +1107,7 @@ export class AtomsHomeView extends ItemView {
       this.snoozePersonInvite(inv.displayName);
       this.personInvite = null;
       new Notice(`Atoms: linked to ${linkName}`);
+      this.plugin.scheduleAskMirrorSync();
       await this.loadData();
       this.render();
     } catch {
@@ -1168,6 +1170,7 @@ export class AtomsHomeView extends ItemView {
         created ? `Atoms: added ${name}` : `Atoms: linked to ${name}`,
       );
       this.personInvite = null;
+      this.plugin.scheduleAskMirrorSync();
       await this.loadData();
       this.render();
     } catch {
@@ -1355,6 +1358,7 @@ export class AtomsHomeView extends ItemView {
       }
       new Notice(`Atoms: created ${label}`);
       this.entityInvite = null;
+      this.plugin.scheduleAskMirrorSync();
       await this.loadData();
       this.render();
     } catch {
@@ -1786,7 +1790,7 @@ export class AtomsHomeView extends ItemView {
 
       const bindAction = (
         label: string | null,
-        action: FilingHeroCopy["primaryAction"] | FilingHeroCopy["secondaryAction"],
+        action: FilingHeroAction,
         primary: boolean,
         quiet?: boolean,
       ) => {
@@ -2096,7 +2100,9 @@ export class AtomsHomeView extends ItemView {
   }
 
   private dismissedUpdateQuality(): number {
-    const raw = this.app.loadLocalStorage(LS_UPDATE_NOTES_DISMISSED_Q);
+    const raw: unknown = this.app.loadLocalStorage(
+      LS_UPDATE_NOTES_DISMISSED_Q,
+    ) as unknown;
     if (typeof raw === "string" && /^\d+$/.test(raw)) {
       return Number.parseInt(raw, 10);
     }

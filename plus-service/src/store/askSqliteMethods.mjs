@@ -469,6 +469,8 @@ export function createAskSqliteMethods(db, deps) {
         title: pub.title,
         path: pub.path,
         tags: pub.tags,
+        kind: pub.kind,
+        synced_at: pub.updatedAt ?? null,
       };
     });
     const count = total?.n ?? 0;

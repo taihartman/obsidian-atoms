@@ -3,7 +3,7 @@
  * Do not hardcode $ amounts in UI copy; format via helpers below.
  */
 
-import pricing from "../../plus-pricing.json";
+import pricingJson from "../../plus-pricing.json";
 
 export type PlusPricing = {
   monthlyUsd: number;
@@ -17,17 +17,46 @@ export type PlusPricing = {
   currency: string;
 };
 
-export const PLUS_PRICING: PlusPricing = {
-  monthlyUsd: pricing.monthlyUsd,
-  yearlyUsd: pricing.yearlyUsd,
-  yearlyDiscountNote: pricing.yearlyDiscountNote,
-  topUpUsd: pricing.topUpUsd,
-  includedFilingsPerPeriod: pricing.includedFilingsPerPeriod,
-  topUpFilings: pricing.topUpFilings,
-  trialDays: pricing.trialDays,
-  rollover: pricing.rollover,
-  currency: pricing.currency,
-};
+function readPlusPricing(raw: unknown): PlusPricing {
+  if (typeof raw !== "object" || raw === null) {
+    throw new Error("plus-pricing.json: expected object");
+  }
+  const o = raw as Record<string, unknown>;
+  const num = (k: string): number => {
+    const v = o[k];
+    if (typeof v !== "number" || !Number.isFinite(v)) {
+      throw new Error(`plus-pricing.json: ${k} must be a number`);
+    }
+    return v;
+  };
+  const str = (k: string): string => {
+    const v = o[k];
+    if (typeof v !== "string") {
+      throw new Error(`plus-pricing.json: ${k} must be a string`);
+    }
+    return v;
+  };
+  const bool = (k: string): boolean => {
+    const v = o[k];
+    if (typeof v !== "boolean") {
+      throw new Error(`plus-pricing.json: ${k} must be a boolean`);
+    }
+    return v;
+  };
+  return {
+    monthlyUsd: num("monthlyUsd"),
+    yearlyUsd: num("yearlyUsd"),
+    yearlyDiscountNote: str("yearlyDiscountNote"),
+    topUpUsd: num("topUpUsd"),
+    includedFilingsPerPeriod: num("includedFilingsPerPeriod"),
+    topUpFilings: num("topUpFilings"),
+    trialDays: num("trialDays"),
+    rollover: bool("rollover"),
+    currency: str("currency"),
+  };
+}
+
+export const PLUS_PRICING: PlusPricing = readPlusPricing(pricingJson);
 
 export function formatUsd(n: number): string {
   return `$${n}`;
