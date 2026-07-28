@@ -457,6 +457,121 @@ main[data-story="self"] .hero-panel[data-s="self"] {
 }
 
 /*
+ * Scroll reveals. app.js tags targets with .reveal, then sets .reveals-on on
+ * the root in the same frame it marks everything already on screen as .in,
+ * so nothing visible ever blanks. Without JS (or with reduced motion) the
+ * root class never lands and everything is simply visible.
+ */
+.reveals-on .reveal {
+  opacity: 0;
+  transform: translateY(14px);
+  transition:
+    opacity 550ms ease,
+    transform 620ms cubic-bezier(0.22, 0.68, 0.36, 1);
+}
+
+.reveals-on .reveal.in {
+  opacity: 1;
+  transform: none;
+}
+
+/*
+ * The graph band. An inline SVG constellation of the CURRENT story's notes;
+ * edges draw themselves and nodes bloom when the section reveals. Swapping
+ * stories restarts the drawing because display toggling restarts animations.
+ */
+.graph-fig {
+  margin: 24px 0 0;
+}
+
+.graph-fig svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.graph-edge {
+  stroke: var(--sep);
+  stroke-width: 1;
+}
+
+.graph-node {
+  fill: var(--elev);
+  stroke: var(--sep);
+  stroke-width: 1;
+}
+
+.graph-node--hub {
+  fill: color-mix(in srgb, var(--person) 22%, var(--surface));
+  stroke: var(--person);
+}
+
+.graph-node--atom {
+  fill: color-mix(in srgb, var(--tint) 16%, var(--surface));
+  stroke: color-mix(in srgb, var(--tint) 55%, transparent);
+}
+
+.graph-label {
+  font-family: var(--font-ui);
+  font-size: 10.5px;
+  fill: var(--muted);
+}
+
+.graph-label--hub {
+  font-weight: 650;
+  fill: var(--label);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .reveals-on .reveal.in .graph-edge {
+    stroke-dasharray: 220;
+    stroke-dashoffset: 220;
+    animation: edge-draw 900ms ease-out forwards;
+  }
+
+  .reveals-on .reveal.in .graph-node,
+  .reveals-on .reveal.in .graph-label {
+    opacity: 0;
+    animation: node-bloom 520ms cubic-bezier(0.22, 0.68, 0.36, 1) forwards;
+  }
+
+  .reveals-on .reveal.in :is(.graph-node, .graph-label):nth-of-type(2) {
+    animation-delay: 120ms;
+  }
+  .reveals-on .reveal.in :is(.graph-node, .graph-label):nth-of-type(3) {
+    animation-delay: 240ms;
+  }
+  .reveals-on .reveal.in :is(.graph-node, .graph-label):nth-of-type(4) {
+    animation-delay: 360ms;
+  }
+  .reveals-on .reveal.in :is(.graph-node, .graph-label):nth-of-type(5) {
+    animation-delay: 480ms;
+  }
+  .reveals-on .reveal.in :is(.graph-node, .graph-label):nth-of-type(6) {
+    animation-delay: 600ms;
+  }
+}
+
+@keyframes edge-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes node-bloom {
+  from {
+    opacity: 0;
+    transform: scale(0.85);
+    transform-origin: center;
+    transform-box: fill-box;
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/*
  * App-card mocks: the product's own chrome (design-handoff tokens — surface
  * card, radius 16, kicker eyebrow, quiet buttons). Illustrative, but every
  * element corresponds to shipped UI.

@@ -89,6 +89,15 @@ describe("www build output", () => {
     }
   });
 
+  it("teases the graph honestly, in the product's own words", () => {
+    // "Open atom graph" ships; the section may show it but not oversell it.
+    expect(index).toContain("A little web of your life");
+    expect(index).toContain("not the whole vault");
+    // One constellation per story, so the graph follows the switcher.
+    const graphs = index.match(/class="graph-fig"/g) ?? [];
+    expect(graphs).toHaveLength(3);
+  });
+
   it("names the three scenarios in the story nav", () => {
     for (const label of ["Relationships", "Work", "Journaling"]) {
       expect(index).toContain(`>${label}</button>`);
