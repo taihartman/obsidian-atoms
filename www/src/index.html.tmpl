@@ -40,6 +40,14 @@
   </head>
   <body>
     <main>
+      <!--
+        Story switcher state. CSS-only: these radios must stay the FIRST
+        children of <main>: every .s-life / .s-work block downpage is
+        shown or hidden via sibling selectors in styles.css. No script.
+      -->
+      <input type="radio" name="story" id="story-life" class="story-radio" checked />
+      <input type="radio" name="story" id="story-work" class="story-radio" />
+
       <!-- Hero: understandable in three seconds, no syntax anywhere -->
       <header class="hero">
         <div class="wrap">
@@ -49,26 +57,58 @@
             Atoms turns the notes you already take into something you can ask.
           </p>
 
-          <div class="claude" role="img"
-            aria-label="A Claude chat answering a question from your own notes">
-            <div class="claude-bar">
-              <span class="claude-star" aria-hidden="true">✱</span> Claude
-            </div>
-            <div class="claude-body">
-              <p class="claude-you">gift ideas for Sam?</p>
-              <p class="claude-tool">⌕ searched your atoms · followed links from Sam</p>
-              <div class="claude-ans">
-                From March, in your own words:
-                <blockquote>
-                  sam stopped at the tulip stand again, she loves the yellow
-                  ones
-                </blockquote>
-                Yellow tulips would be an easy win.
+          <div class="story-switch" role="radiogroup" aria-label="Choose an example story">
+            <label for="story-life">Life</label>
+            <label for="story-work">Work</label>
+          </div>
+
+          <div class="s-life">
+            <div class="claude" role="img"
+              aria-label="A Claude chat answering a question from your own notes">
+              <div class="claude-bar">
+                <span class="claude-star" aria-hidden="true">✱</span> Claude
               </div>
-              <p class="claude-cite">
-                <span class="sentinel">↳</span>
-                Sam loves yellow tulips · March 12
-              </p>
+              <div class="claude-body">
+                <p class="claude-you">gift ideas for Sam?</p>
+                <p class="claude-tool">⌕ searched your atoms · followed links from Sam</p>
+                <div class="claude-ans">
+                  From March, in your own words:
+                  <blockquote>
+                    sam stopped at the tulip stand again, she loves the yellow
+                    ones
+                  </blockquote>
+                  Yellow tulips would be an easy win.
+                </div>
+                <p class="claude-cite">
+                  <span class="sentinel">↳</span>
+                  Sam loves yellow tulips · March 12
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div class="s-work">
+            <div class="claude" role="img"
+              aria-label="A Claude chat answering a work question from your own notes">
+              <div class="claude-bar">
+                <span class="claude-star" aria-hidden="true">✱</span> Claude
+              </div>
+              <div class="claude-body">
+                <p class="claude-you">anything I should know before the Priya pitch?</p>
+                <p class="claude-tool">⌕ searched your atoms · followed links from Priya</p>
+                <div class="claude-ans">
+                  From March, in your own words:
+                  <blockquote>
+                    priya said budget approvals freeze after their fiscal year
+                    closes in november
+                  </blockquote>
+                  Pitch before November.
+                </div>
+                <p class="claude-cite">
+                  <span class="sentinel">↳</span>
+                  Priya's budget freezes in November · March 12
+                </p>
+              </div>
             </div>
           </div>
 
@@ -137,26 +177,51 @@
           </ol>
 
           <div class="specimen specimen--inline">
-            <p class="stage">Your daily note</p>
-            <div class="file">
-              <pre class="file-body"><span class="verbatim">- sam stopped at the tulip stand again, she loves the yellow ones</span>
+            <div class="s-life">
+              <p class="stage">Your daily note</p>
+              <div class="file">
+                <pre class="file-body"><span class="verbatim">- sam stopped at the tulip stand again, she loves the yellow ones</span>
 <span class="verbatim">- pick up milk</span></pre>
-            </div>
+              </div>
 
-            <p class="stage">What Atoms makes</p>
-            <div class="file">
-              <span class="file-name">Sam loves yellow tulips</span>
-              <pre class="file-body"><span class="verbatim">sam stopped at the tulip stand again, she loves the yellow ones</span>
+              <p class="stage">What Atoms makes</p>
+              <div class="file">
+                <span class="file-name">Sam loves yellow tulips</span>
+                <pre class="file-body"><span class="verbatim">sam stopped at the tulip stand again, she loves the yellow ones</span>
 
 Linked to <span class="wl">Sam</span> and <span class="wl">Gift ideas</span>.</pre>
+              </div>
+
+              <p class="caption">
+                Your original line is never touched, and the text is copied
+                across word for word. The milk? It becomes nothing. Atoms is not
+                a reminders app, so errands stay in your daily note and out of
+                your library.
+              </p>
             </div>
 
-            <p class="caption">
-              Your original line is never touched, and the text is copied across
-              word for word. The milk? It becomes nothing. Atoms is not a
-              reminders app, so errands stay in your daily note and out of your
-              library.
-            </p>
+            <div class="s-work">
+              <p class="stage">Your daily note</p>
+              <div class="file">
+                <pre class="file-body"><span class="verbatim">- priya said budget approvals freeze after their fiscal year closes in november</span>
+<span class="verbatim">- reply to the invoice email</span></pre>
+              </div>
+
+              <p class="stage">What Atoms makes</p>
+              <div class="file">
+                <span class="file-name">Priya's budget freezes in November</span>
+                <pre class="file-body"><span class="verbatim">priya said budget approvals freeze after their fiscal year closes in november</span>
+
+Linked to <span class="wl">Priya</span> and <span class="wl">Acme pitch</span>.</pre>
+              </div>
+
+              <p class="caption">
+                Your original line is never touched, and the text is copied
+                across word for word. The invoice email? It becomes nothing.
+                Atoms is not a task manager, so to-dos stay in your daily note
+                and out of your library.
+              </p>
+            </div>
           </div>
         </div>
       </section>
@@ -182,10 +247,15 @@ Linked to <span class="wl">Sam</span> and <span class="wl">Gift ideas</span>.</p
               <strong>Ask for it.</strong> It finds your notes by title, tags,
               and text, then quotes them back with a link to the original.
             </li>
-            <li>
+            <li class="s-life">
               <strong>Follow the thread.</strong> Your notes form a graph, and
               it walks the links. The gift question finds the tulip note because
               both point at Sam.
+            </li>
+            <li class="s-work">
+              <strong>Follow the thread.</strong> Your notes form a graph, and
+              it walks the links. The pitch question finds the budget note
+              because both point at Priya.
             </li>
             <li>
               <strong>Add without leaving chat.</strong> Tell it to remember
@@ -198,31 +268,60 @@ Linked to <span class="wl">Sam</span> and <span class="wl">Gift ideas</span>.</p
             </li>
           </ul>
 
-          <div class="claude" role="img"
-            aria-label="Telling Claude to remember something, which queues a note for your vault">
-            <div class="claude-bar">
-              <span class="claude-star" aria-hidden="true">✱</span> Claude
-            </div>
-            <div class="claude-body">
-              <p class="claude-you">
-                note this: sam lingered in the poetry section at the bookshop
-                on 9th
-              </p>
-              <p class="claude-tool">+ created atom · pending</p>
-              <div class="claude-ans">
-                Queued for your vault. It lands next time Obsidian is open.
+          <div class="s-life">
+            <div class="claude" role="img"
+              aria-label="Telling Claude to note something, which queues a note for your vault">
+              <div class="claude-bar">
+                <span class="claude-star" aria-hidden="true">✱</span> Claude
               </div>
-              <p class="claude-cite">
-                <span class="sentinel">↳</span>
-                Sam lingered in the poetry section
-              </p>
+              <div class="claude-body">
+                <p class="claude-you">
+                  note this: sam lingered in the poetry section at the bookshop
+                  on 9th
+                </p>
+                <p class="claude-tool">+ created atom · pending</p>
+                <div class="claude-ans">
+                  Queued for your vault. It lands next time Obsidian is open.
+                </div>
+                <p class="claude-cite">
+                  <span class="sentinel">↳</span>
+                  Sam lingered in the poetry section
+                </p>
+              </div>
             </div>
+
+            <p class="caption">
+              And the next time you ask for gift ideas, it knows about the
+              poetry section too.
+            </p>
           </div>
 
-          <p class="caption">
-            And the next time you ask for gift ideas, it knows about the poetry
-            section too.
-          </p>
+          <div class="s-work">
+            <div class="claude" role="img"
+              aria-label="Telling Claude to note something, which queues a note for your vault">
+              <div class="claude-bar">
+                <span class="claude-star" aria-hidden="true">✱</span> Claude
+              </div>
+              <div class="claude-body">
+                <p class="claude-you">
+                  note this: priya reads every deck on her phone, keep the
+                  slides big
+                </p>
+                <p class="claude-tool">+ created atom · pending</p>
+                <div class="claude-ans">
+                  Queued for your vault. It lands next time Obsidian is open.
+                </div>
+                <p class="claude-cite">
+                  <span class="sentinel">↳</span>
+                  Priya reads decks on her phone
+                </p>
+              </div>
+            </div>
+
+            <p class="caption">
+              And the next pitch answer knows to keep the slides big.
+            </p>
+          </div>
 
           <p class="fineprint">
             Matching is on the words you actually wrote, not a semantic model.
@@ -245,10 +344,14 @@ Linked to <span class="wl">Sam</span> and <span class="wl">Gift ideas</span>.</p
               <strong>Mind change.</strong> Two notes where you came to disagree
               with yourself, side by side, with the dates.
             </li>
-            <li>
-              <!-- Placeholder name only. Never ship a real person from a vault. -->
+            <li class="s-life">
+              <!-- Placeholder names only. Never ship a real person from a vault. -->
               <strong>Also about Sam.</strong> Write something new about someone
               and an older note about them comes back.
+            </li>
+            <li class="s-work">
+              <strong>Also about Priya.</strong> Write something new about
+              someone and an older note about them comes back.
             </li>
             <li>
               <strong>On this day.</strong> Something you wrote on this date a
@@ -295,22 +398,44 @@ Linked to <span class="wl">Sam</span> and <span class="wl">Gift ideas</span>.</p
         <div class="wrap">
           <p class="eyebrow">People</p>
           <h2>It notices who matters</h2>
-          <p>
-            <!-- Grounded: person invite card + retroactive link upgrade + 14d snooze. -->
-            Write about Sam a few times and Atoms offers to make a page where
-            everything about Sam lives. One tap, and every note that mentioned
-            Sam gets linked to it, including the ones from months ago. Say no
-            and it stays quiet for two weeks.
-          </p>
+          <div class="s-life">
+            <p>
+              <!-- Grounded: person invite card + retroactive link upgrade + 14d snooze. -->
+              Write about Sam a few times and Atoms offers to make a page where
+              everything about Sam lives. One tap, and every note that mentioned
+              Sam gets linked to it, including the ones from months ago. Say no
+              and it stays quiet for two weeks.
+            </p>
 
-          <div class="appcard" role="img"
-            aria-label="An Atoms invite card offering to create a page for Sam">
-            <p class="appcard-kicker appcard-kicker--person">People</p>
-            <h4>Add Sam?</h4>
-            <p class="appcard-sub">Sam shows up in 4 of your notes.</p>
-            <div class="appcard-actions">
-              <span class="btn btn--mini btn--primary">Add</span>
-              <span class="btn btn--mini btn--quiet">Not now</span>
+            <div class="appcard" role="img"
+              aria-label="An Atoms invite card offering to create a page for Sam">
+              <p class="appcard-kicker appcard-kicker--person">People</p>
+              <h4>Add Sam?</h4>
+              <p class="appcard-sub">Sam shows up in 4 of your notes.</p>
+              <div class="appcard-actions">
+                <span class="btn btn--mini btn--primary">Add</span>
+                <span class="btn btn--mini btn--quiet">Not now</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="s-work">
+            <p>
+              Write about Priya a few times and Atoms offers to make a page
+              where everything about Priya lives. One tap, and every note that
+              mentioned Priya gets linked to it, including the ones from months
+              ago. Say no and it stays quiet for two weeks.
+            </p>
+
+            <div class="appcard" role="img"
+              aria-label="An Atoms invite card offering to create a page for Priya">
+              <p class="appcard-kicker appcard-kicker--person">People</p>
+              <h4>Add Priya?</h4>
+              <p class="appcard-sub">Priya shows up in 6 of your notes.</p>
+              <div class="appcard-actions">
+                <span class="btn btn--mini btn--primary">Add</span>
+                <span class="btn btn--mini btn--quiet">Not now</span>
+              </div>
             </div>
           </div>
         </div>

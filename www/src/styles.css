@@ -437,6 +437,59 @@ p {
   }
 }
 
+/*
+ * Story switcher — CSS only, no script. Two visually-hidden radios sit as
+ * the first children of <main>; every story-specific block downpage carries
+ * .s-life or .s-work, and the unchecked story is hidden via the general
+ * sibling combinator. Toggling replays the reveal animations for free.
+ */
+.story-radio {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  clip-path: inset(50%);
+  overflow: hidden;
+}
+
+#story-life:checked ~ * .s-work {
+  display: none;
+}
+
+#story-work:checked ~ * .s-life {
+  display: none;
+}
+
+.story-switch {
+  display: inline-flex;
+  gap: 2px;
+  margin-top: 22px;
+  padding: 3px;
+  background: var(--elev);
+  border-radius: var(--r-pill);
+}
+
+.story-switch label {
+  padding: 6px 18px;
+  border-radius: var(--r-pill);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+#story-life:checked ~ * label[for="story-life"],
+#story-work:checked ~ * label[for="story-work"] {
+  background: var(--surface);
+  color: var(--label);
+  box-shadow: 0 0.5px 1.5px rgba(0, 0, 0, 0.4);
+}
+
+#story-life:focus-visible ~ * label[for="story-life"],
+#story-work:focus-visible ~ * label[for="story-work"] {
+  outline: 2px solid var(--tint);
+  outline-offset: 2px;
+}
+
 /* Before / after panels inside a step. */
 .specimen--inline {
   margin: 16px 0 0;

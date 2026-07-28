@@ -47,6 +47,30 @@ describe("www build output", () => {
       expect(dist(page)).not.toMatch(/<script/i);
     }
   });
+
+  it("story switcher is CSS-only with Life as the default", () => {
+    expect(index).toContain('id="story-life"');
+    expect(index).toContain('id="story-work"');
+    expect(index).toMatch(/id="story-life"[^>]*checked/);
+  });
+
+  it("both storylines carry the full coordinated arc", () => {
+    // Every swapped surface exists in each story, so a toggle never
+    // strands a section in the wrong world.
+    const life = ["gift ideas for Sam?", "Sam loves yellow tulips", "Add Sam?"];
+    const work = [
+      "before the Priya pitch?",
+      "Priya's budget freezes in November",
+      "Add Priya?",
+      "Also about Priya",
+      "keep the slides big",
+    ];
+    for (const s of [...life, ...work]) {
+      expect(index).toContain(s);
+    }
+    // The work story's noise line follows the same not-a-task-app rule.
+    expect(index).toContain("The invoice email? It becomes nothing");
+  });
 });
 
 describe("pricing matches the SSOT", () => {

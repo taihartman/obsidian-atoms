@@ -169,3 +169,22 @@ placeholder people only.
 Honesty check: this flow is exactly what the MCP tools do — keyword search on the
 person, then neighbors/link-walking, then the model synthesizes. No semantic-search
 implication added; the tool chip shows "followed links from Sam", not magic.
+
+---
+
+# R5 (Tai, 2026-07-28 14:38) — switchable coordinated storylines
+
+One segmented control in the hero switches the WHOLE page's example world; every mock
+downpage follows. Constraints:
+
+- **CSS-only** (radio inputs + `:checked` general-sibling selectors). The page ships no
+  JS and its CSP blocks scripts; that stays true, and the no-script test keeps guarding.
+- **Two stories:** Life (Sam, tulips — default) · Work (Priya, a client whose budget
+  freezes in November). A third is one HTML block later if wanted.
+- **Swapped surfaces (5):** hero Q&A, specimen daily→atom, "Follow the thread" bullet,
+  write-back mock + loop caption, "Also about" cue, Add-person card + People paragraph.
+- **Shared:** headline, lead, mind-change pair (midnight vs morning is universal),
+  trust, pricing, install, privacy.
+- Work story keeps every honesty rule: verbatim body, noise line ("reply to the invoice
+  email") becomes nothing, write-back is a preference (deck-on-phone), pending state
+  shown, "note this:" trigger.
