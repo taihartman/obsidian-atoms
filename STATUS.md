@@ -7,6 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
+| In progress | #182 | taihartman | `fix/csp-allow-web-analytics` | — (amend lane) | `www/src/_headers`, `www/src/privacy.html.tmpl`, `test/wwwPricing.test.ts`, `docs/plans/2026-07-28-001-feat-tryatoms-landing-page-plan.md`, `docs/security/2026-07-28-public-repo-fanout-review.md` | Widen CSP for Cloudflare Web Analytics + correct the "no analytics" claims. **Preview deploys only**, draft PR only. Privacy wording pending owner sign-off. |
 
 ## How to claim (copy)
 
