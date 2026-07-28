@@ -239,58 +239,201 @@ p {
 }
 
 /*
- * Hero chat. Deliberately NOT monospace and deliberately free of syntax: it is
- * the first thing a stranger sees, so it has to read as a conversation rather
- * than as a file. Markdown syntax is earned further down the page.
+ * Assistant window mock. Reads as Claude — warm dark chrome, ✱ mark, tool-use
+ * chip, serif answer — not as a text-message thread. Free of markdown syntax:
+ * syntax is earned further down the page.
  */
-.chat {
+.claude {
   margin: 30px 0 26px;
+  background: #262624;
+  border: 1px solid var(--sep);
+  border-radius: var(--r-lg);
+  overflow: hidden;
 }
 
-.chat-line {
-  margin: 0;
-  border-radius: var(--r-lg);
-  padding: 13px 16px;
-  font-size: 0.98rem;
+@media (prefers-color-scheme: light) {
+  .claude {
+    background: #faf9f5;
+  }
+}
+
+.claude-bar {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--sep-soft);
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.claude-star {
+  color: #d97757;
+  font-size: 0.95rem;
+}
+
+.claude-body {
+  padding: 14px;
+}
+
+.claude-you {
+  max-width: 92%;
+  width: fit-content;
+  margin: 0 0 0 auto;
+  padding: 10px 14px;
+  border-radius: var(--r-md);
+  background: var(--elev);
+  color: var(--label);
+  font-size: 0.94rem;
   line-height: 1.4;
 }
 
-.chat-line--you {
-  max-width: 88%;
-  margin-left: auto;
-  background: var(--tint);
-  color: #fff;
-  border-bottom-right-radius: 5px;
-}
-
-.chat-line--them {
-  max-width: 92%;
-  margin-top: 10px;
-  background: var(--surface);
-  border: 1px solid var(--sep);
-  border-bottom-left-radius: 5px;
-}
-
-.chat-from {
-  margin: 0 0 6px;
-  font-size: 0.74rem;
+/* Tool-use chip: the visible seam where Claude reaches into your notes. */
+.claude-tool {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 12px 0 0;
+  padding: 4px 10px;
+  border: 1px solid var(--sep-soft);
+  border-radius: var(--r-pill);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
   color: var(--faint);
 }
 
-/* Their own words, set apart. The one place the page leans on the serif. */
-.chat-quote {
-  margin: 0;
+/* The answer voice is serif, as Claude's is. */
+.claude-ans {
+  margin: 12px 2px 0;
   font-family: var(--font-serif);
-  font-size: 1.06rem;
-  line-height: 1.34;
+  font-size: 0.98rem;
+  line-height: 1.45;
   color: var(--label);
+}
+
+.claude-ans blockquote {
+  margin: 8px 0;
+  padding: 2px 0 2px 12px;
+  border-left: 2px solid #d97757;
+  color: var(--label);
+}
+
+.claude-cite {
+  margin: 8px 2px 0;
+  font-family: var(--font-ui);
+  font-size: 0.76rem;
+  color: var(--faint);
+}
+
+.claude-cite .sentinel {
+  color: var(--tint-ink);
 }
 
 /* The answer lands a beat after the question. */
 @media (prefers-reduced-motion: no-preference) {
-  .chat-line--them {
+  .claude-tool,
+  .claude-ans,
+  .claude-cite {
     animation: rise 460ms cubic-bezier(0.22, 0.68, 0.36, 1) both;
     animation-delay: 300ms;
+  }
+}
+
+/*
+ * App-card mocks: the product's own chrome (design-handoff tokens — surface
+ * card, radius 16, kicker eyebrow, quiet buttons). Illustrative, but every
+ * element corresponds to shipped UI.
+ */
+.appcard {
+  max-width: 400px;
+  margin: 22px 0 0;
+  padding: 16px 16px 14px;
+  background: var(--surface);
+  border: 1px solid var(--sep);
+  border-radius: var(--r-lg);
+}
+
+.appcard-kicker {
+  margin: 0 0 8px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+
+.appcard-kicker--mind {
+  color: var(--mind, #bf5af2);
+}
+
+.appcard-kicker--person {
+  color: var(--person);
+}
+
+.appcard h4 {
+  margin: 0;
+  font-size: 1.06rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  color: var(--label);
+}
+
+.appcard-sub {
+  margin: 4px 0 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+/* Mind-change pair: then / connector / now, quoted in the serif. */
+.pair-quote {
+  margin: 10px 0 0;
+  font-family: var(--font-serif);
+  font-size: 0.98rem;
+  line-height: 1.38;
+  color: var(--label);
+}
+
+.pair-date {
+  margin: 3px 0 0;
+  font-size: 0.74rem;
+  color: var(--faint);
+}
+
+.pair-link {
+  margin: 12px 0 0;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--mind, #bf5af2);
+}
+
+.appcard-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.btn--mini {
+  min-height: 34px;
+  padding: 0 14px;
+  border-radius: 10px;
+  font-size: 0.85rem;
+}
+
+.btn--quiet {
+  background: transparent;
+  color: var(--tint-ink);
+  font-weight: 500;
+}
+
+:root {
+  --mind: #bf5af2;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --mind: #8944ab;
   }
 }
 

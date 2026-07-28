@@ -126,3 +126,25 @@ at 375/1280 both schemes · redeploy `--branch=preview` · verify live copy stri
 
 **Explicitly not doing:** restructuring sections again, promo codes (no UI ships), Android
 capture promises, "semantic" anything, apex domain.
+
+---
+
+# R3 (Tai, 2026-07-28 13:13) — mockups, not text
+
+Direct feedback on the R2 preview:
+
+1. Hero chat read as an Apple text message. It must read as **Claude** — window
+   chrome, ✱ mark, tool-use chip ("searched your atoms"), serif answer, citation line.
+2. "Atoms is built for the other half" implied we did not build capture. Atoms is the
+   whole system; reword to own both halves.
+3. The milk line's fate was unclear. Say it plainly: it becomes nothing; Atoms is not a
+   reminders or task app.
+4. Sections need to SHOW the product: app-card mockups (product chrome from
+   design-handoff tokens: #1c1c1e / radius 16 / kickers / real button vocabulary) for
+   Ask write-back, the mind-change pair, and the Add Sam? invite.
+
+Grounding for the mocks (shipped UI): resurface card kickers + quiet Another button;
+mind-change pair view (old claim, "later revised/contradicted" connector, new claim,
+dates); person invite "Add {Name}?" with Add / Not now; Ask write path returns
+pending → lands when Obsidian opens. Mock content stays in the Sam storyline,
+placeholder people only.

@@ -49,16 +49,23 @@
             Atoms turns the notes you already take into something you can ask.
           </p>
 
-          <div class="chat">
-            <p class="chat-line chat-line--you">
-              what did Sam say about the apartment?
-            </p>
-            <div class="chat-line chat-line--them">
-              <p class="chat-from">
-                From <em>Sam regrets the building with no elevator</em> · March 4
-              </p>
-              <p class="chat-quote">
-                sam says the building has no elevator and he regrets it
+          <div class="claude" role="img"
+            aria-label="A Claude chat answering a question from your own notes">
+            <div class="claude-bar">
+              <span class="claude-star" aria-hidden="true">✱</span> Claude
+            </div>
+            <div class="claude-body">
+              <p class="claude-you">what did Sam say about the apartment?</p>
+              <p class="claude-tool">⌕ searched your atoms · 2 matches</p>
+              <div class="claude-ans">
+                You noted this in March:
+                <blockquote>
+                  sam says the building has no elevator and he regrets it
+                </blockquote>
+              </div>
+              <p class="claude-cite">
+                <span class="sentinel">↳</span>
+                Sam regrets the building with no elevator · March 4
               </p>
             </div>
           </div>
@@ -78,8 +85,8 @@
             A note you cannot find again is a note you did not take.
           </p>
           <p>
-            Capture was never the hard part. You have years of it. Atoms is
-            built for the other half.
+            Atoms is the whole loop: a thought goes in, in five seconds, and
+            comes back the moment it matters.
           </p>
         </div>
       </section>
@@ -145,8 +152,10 @@ Linked to <span class="wl">Sam</span> and <span class="wl">Apartment hunting</sp
             </div>
 
             <p class="caption">
-              Your original line is never touched. The text is copied across
-              word for word, and the milk stays milk.
+              Your original line is never touched, and the text is copied across
+              word for word. The milk? It becomes nothing. Atoms is not a
+              reminders app, so errands stay in your daily note and out of your
+              library.
             </p>
           </div>
         </div>
@@ -188,6 +197,26 @@ Linked to <span class="wl">Sam</span> and <span class="wl">Apartment hunting</sp
             </li>
           </ul>
 
+          <div class="claude" role="img"
+            aria-label="Telling Claude to remember something, which queues a note for your vault">
+            <div class="claude-bar">
+              <span class="claude-star" aria-hidden="true">✱</span> Claude
+            </div>
+            <div class="claude-body">
+              <p class="claude-you">
+                remember: ask the landlord about the elevator before signing
+              </p>
+              <p class="claude-tool">+ created atom · pending</p>
+              <div class="claude-ans">
+                Queued for your vault. It lands next time Obsidian is open.
+              </div>
+              <p class="claude-cite">
+                <span class="sentinel">↳</span>
+                Ask the landlord about the elevator before signing
+              </p>
+            </div>
+          </div>
+
           <p class="fineprint">
             Matching is on the words you actually wrote, not a semantic model.
             Your daily notes and the rest of your vault are never sent, only the
@@ -224,6 +253,24 @@ Linked to <span class="wl">Sam</span> and <span class="wl">Apartment hunting</sp
             </li>
           </ul>
 
+          <div class="appcard" role="img"
+            aria-label="An Atoms mind-change card showing two of your claims with dates">
+            <p class="appcard-kicker appcard-kicker--mind">Mind change</p>
+            <p class="pair-quote">
+              &ldquo;a walk-up is fine, stairs are free exercise&rdquo;
+            </p>
+            <p class="pair-date">March 4</p>
+            <p class="pair-link">later contradicted</p>
+            <p class="pair-quote">
+              &ldquo;never again a building without an elevator&rdquo;
+            </p>
+            <p class="pair-date">July 21 · 139 days later</p>
+            <div class="appcard-actions">
+              <span class="btn btn--mini btn--secondary">Open</span>
+              <span class="btn btn--mini btn--quiet">Not a mind-change</span>
+            </div>
+          </div>
+
           <p class="claim claim--minor">
             It is the second brain that shows you when you changed your mind.
           </p>
@@ -243,11 +290,22 @@ Linked to <span class="wl">Sam</span> and <span class="wl">Apartment hunting</sp
           <h2>It notices who matters</h2>
           <p>
             <!-- Grounded: person invite card + retroactive link upgrade + 14d snooze. -->
-            Write about Sam a few times and Atoms offers: <strong>Add Sam?</strong>
-            One tap makes a page where everything about Sam lives, and every
-            note that mentioned Sam gets linked to it, including the ones from
-            months ago. Say no and it stays quiet for two weeks.
+            Write about Sam a few times and Atoms offers to make a page where
+            everything about Sam lives. One tap, and every note that mentioned
+            Sam gets linked to it, including the ones from months ago. Say no
+            and it stays quiet for two weeks.
           </p>
+
+          <div class="appcard" role="img"
+            aria-label="An Atoms invite card offering to create a page for Sam">
+            <p class="appcard-kicker appcard-kicker--person">People</p>
+            <h4>Add Sam?</h4>
+            <p class="appcard-sub">Sam shows up in 4 of your notes.</p>
+            <div class="appcard-actions">
+              <span class="btn btn--mini btn--primary">Add</span>
+              <span class="btn btn--mini btn--quiet">Not now</span>
+            </div>
+          </div>
         </div>
       </section>
 
