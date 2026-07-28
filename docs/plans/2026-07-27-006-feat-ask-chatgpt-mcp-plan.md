@@ -54,6 +54,7 @@ If Ask is on and the vault has mirrored, ChatGPT can use the same connector URL 
 | R7 | Runbook + short dogfood checklist for ChatGPT connect path on test account |
 | R8 | Existing Claude path regression: Claude callback + loopback still pass OAuth tests |
 | R9 | No new MCP tools; existing `search_atoms` / `fetch_atom` / write tools unchanged |
+| R10 | MCP tools advertise OAuth need so ChatGPT can show linking UI: per-tool `securitySchemes` (oauth2 + scopes) and unauth/`insufficient_scope` paths carry `WWW-Authenticate` / `_meta["mcp/www_authenticate"]` per OpenAI plugin auth docs |
 
 ### Flows
 
@@ -89,13 +90,14 @@ If Ask is on and the vault has mirrored, ChatGPT can use the same connector URL 
 | ID | Decision | Why |
 |---|---|---|
 | KTD1 | **One MCP URL** — no `/mcp/chatgpt` fork | Issue + plan 001 R2 |
-| KTD2 | **Redirect allowlist** add: (a) exact legacy `https://chatgpt.com/connector_platform_oauth_redirect`; (b) prefix `https://chatgpt.com/connector/oauth/` (callback_id varies per OpenAI docs). Optional HTTPS `http://localhost` already covered via loopback path rules | OpenAI plugin auth “Redirect URL” |
+| KTD2 | **Redirect allowlist** add: (a) exact legacy `https://chatgpt.com/connector_platform_oauth_redirect`; (b) `https://chatgpt.com/connector/oauth/{callback_id}` where `callback_id` is one path segment (`[A-Za-z0-9_-]+`, non-empty; reject `..`, `//`, `@`, query-only tricks). Loopback `http(s)://127.0.0.1|localhost|[::1]/callback` already covered | OpenAI plugin auth “Redirect URL” |
 | KTD3 | **Do not** allowlist all of `chatgpt.com` or open HTTPS | Security — prefix path only |
 | KTD4 | Keep `token_endpoint_auth_methods_supported: ["none"]`; CIMD already advertised. If live ChatGPT requires `private_key_jwt` only, open follow-up — do not block ship on speculation | Docs: ChatGPT prefers stronger method when both supported; falls back to `none` |
 | KTD5 | CIMD auto-register path: when `client_id` is HTTPS URL and redirect allowlisted, register as today; set `client_name` from host (`ChatGPT` if chatgpt.com, else Claude/other) | routes.mjs already auto-registers |
 | KTD6 | Privacy ack: add OpenAI receives tool results when chatting in ChatGPT (parallel to Anthropic/Claude). Re-ack not forced if already acked — show updated text; optional one-line “updated” in Settings only if product wants (default: update text, no re-gate) | Honesty; avoid lockout |
 | KTD7 | Settings heading may stay “Ask” with subcopy for both clients; connector field: “MCP connector URL” + steps for Claude and ChatGPT | Less Claude-only product |
 | KTD8 | Transport unchanged (stateless Streamable HTTP POST, JSON). If ChatGPT dogfood fails on transport, document and follow-up — not in P0 code speculation | Claude-proven path |
+| KTD11 | **P0:** Register tools with `securitySchemes: [{ type: "oauth2", scopes: ["atoms:read"] }]` (write tools same scope until scope split exists). Unauthenticated `/mcp` already returns 401 + `WWW-Authenticate` resource_metadata — keep. Tool-level error path: when Bearer missing/invalid inside a tools/call, include `_meta["mcp/www_authenticate"]` with `error` + `error_description` so ChatGPT can re-link. Do not invent anonymous `noauth` tools — mirror is always entitled. | OpenAI plugin auth “Triggering authentication UI”; doc-review |
 | KTD9 | Live ChatGPT dogfood is **human** evidence (AE5); automated tests cover allowlist + OAuth unit shapes without ChatGPT cloud | Agents cannot drive ChatGPT reliably |
 | KTD10 | Version bump when Settings copy ships (user-visible) | CLAUDE.md versioning |
 
@@ -119,7 +121,6 @@ If Ask is on and the vault has mirrored, ChatGPT can use the same connector URL 
 - `private_key_jwt` / JWKS if `none` insufficient
 - #120 DIY self-host
 - Anthropic/OpenAI directory listing
-- securitySchemes per-tool metadata polish for ChatGPT linking UI (if dogfood shows missing link prompt)
 
 ---
 
@@ -136,7 +137,7 @@ If Ask is on and the vault has mirrored, ChatGPT can use the same connector URL 
 - `plus-service/test/http-ask-oauth.test.mjs`  
 - `plus-service/test/oauth-redirect.test.mjs` (new pure unit if cleaner)
 
-**Approach.** Extend `isAllowedRedirectUri`: exact legacy ChatGPT URI; pathname prefix under `https://chatgpt.com/connector/oauth/` (reject query tricks / open redirects — require https host chatgpt.com, path starts with `/connector/oauth/`, no `..`). Keep Claude exact + loopback. Auto-register client_name: detect chatgpt host → `"ChatGPT"`.
+**Approach.** Extend `isAllowedRedirectUri` per KTD2 (legacy exact + single-segment callback_id). Keep Claude exact + loopback. Auto-register client_name: detect chatgpt host → `"ChatGPT"`.
 
 **Test scenarios:**  
 1. Claude callback → true  
@@ -146,10 +147,34 @@ If Ask is on and the vault has mirrored, ChatGPT can use the same connector URL 
 5. `https://chatgpt.com/evil` → false  
 6. `https://evil.com/connector/oauth/x` → false  
 7. `https://chatgpt.com/connector/oauth/../admin` → false  
-8. Full OAuth happy path with ChatGPT redirect URI (in-process, existing magic-link pattern) → code issued  
-9. Claude full path still green  
+8. `https://chatgpt.com/connector/oauth/` (empty id) → false  
+9. `https://chatgpt.com/connector/oauth/a/b` (extra segment) → false  
+10. Full OAuth happy path with ChatGPT redirect URI (in-process, existing magic-link pattern) → code issued  
+11. Claude full path still green  
 
 **Verification.** `plus-service` oauth tests pass.
+
+---
+
+### U1.5. MCP securitySchemes + www_authenticate meta (ChatGPT OAuth UI)
+
+**Goal.** ChatGPT can discover that tools need OAuth and surface the linking UI (not only Claude’s connector flow).  
+**Requirements.** R10, F1, AE1  
+**Dependencies.** None (parallel U1)  
+**Files:**  
+- `plus-service/src/mcp/tools.mjs` (or wherever tools register)  
+- `plus-service/src/mcp/handler.mjs`  
+- `plus-service/test/http-ask-mcp.test.mjs`
+
+**Approach.** Per KTD11: on tool registration, set oauth2 securitySchemes with `atoms:read`. Ensure tools/list JSON exposes schemes (SDK-supported field). On tools/call without valid mcp token, return MCP error result with `_meta["mcp/www_authenticate"]` array string matching Bearer challenge (resource_metadata URL + error + error_description). Keep existing HTTP 401 on bare POST without Authorization. Do not weaken entitlement checks.
+
+**Test scenarios:**  
+1. tools/list includes securitySchemes oauth2 for search_atoms (or document SDK serialization shape)  
+2. tools/call without token → error + www_authenticate meta present  
+3. tools/call with valid mcp_ → success unchanged  
+4. HTTP 401 without Authorization still has WWW-Authenticate header  
+
+**Verification.** MCP HTTP tests green; Claude path still works.
 
 ---
 
@@ -186,7 +211,7 @@ If Ask is on and the vault has mirrored, ChatGPT can use the same connector URL 
 - Connector: “MCP connector URL” — Claude connectors + ChatGPT Developer mode / Plugins steps (short).  
 - Privacy ack bullet (4): Claude → Anthropic; ChatGPT → OpenAI.  
 - Filing toggle: “from Claude or ChatGPT” if write tools available to both.  
-- Status “Claude sees N” may become “Cloud mirror: N atoms” or “Ask mirror: N” (honest for both clients).  
+- Status line: keep server-count honesty (architecture KTD16). Prefer **“Ask mirror: N · last pushed …”** (client-neutral); never label local vault count as N.
 - Dogfood checklist AE5 human-only.  
 - Version patch bump.
 
@@ -240,9 +265,10 @@ If Ask is on and the vault has mirrored, ChatGPT can use the same connector URL 
 ## Implementation order
 
 1. U1 allowlist + tests  
-2. U2 OAuth HTML  
-3. U3 Settings + runbook + version  
-4. U4 docs pointers  
+2. U1.5 securitySchemes + www_authenticate  
+3. U2 OAuth HTML  
+4. U3 Settings + runbook + version  
+5. U4 docs pointers  
 
 ---
 
