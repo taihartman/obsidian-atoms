@@ -1,13 +1,16 @@
 <!doctype html>
 <!--
   Template. Do not edit www/dist/index.html by hand.
-  Double-brace tokens are substituted from repo-root plus-pricing.json
-  by www/build.mjs. An unsubstituted token is a build failure.
+  Double-brace tokens come from repo-root plus-pricing.json via www/build.mjs.
+  An unsubstituted token is a build failure.
 
-  Claims discipline: every capability shown here is grounded in shipped code.
-  Ask search is literal keyword/tag scoring, not semantic. Writes from chat are
-  queued, not instant. Resurfacing happens when you open the app, never as a
-  push. Do not soften any of those into something they are not.
+  Copy rules for this page:
+  - The hero shows NO markdown syntax. No [[wikilinks]], no HTML comments, no
+    frontmatter. Syntax is earned later, once someone knows what this is.
+  - One running example (Sam and the apartment) carries the whole page.
+  - Claims discipline: Ask search is literal keyword and tag matching, not
+    semantic. Writes from chat are queued. Resurfacing only happens with the
+    app open. Never soften any of those.
 -->
 <html lang="en">
   <head>
@@ -16,13 +19,13 @@
     <title>Atoms · Notes you can ask</title>
     <meta
       name="description"
-      content="Atoms turns the captures in your Obsidian daily notes into a connected library, then lets you ask it from Claude or ChatGPT. Your words stay verbatim."
+      content="Atoms turns the notes you already take in Obsidian into something you can ask. Your words stay exactly as you wrote them."
     />
     <meta name="color-scheme" content="dark light" />
     <meta property="og:title" content="Atoms · Notes you can ask" />
     <meta
       property="og:description"
-      content="You already wrote it down. Atoms makes it findable again."
+      content="You wrote it down. Atoms helps you find it again."
     />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://tryatoms.app" />
@@ -31,320 +34,207 @@
   </head>
   <body>
     <main>
-      <!-- 1. Hero: lead with the payoff, not the plumbing -->
+      <!-- Hero: understandable in three seconds, no syntax anywhere -->
       <header class="hero">
         <div class="wrap">
           <p class="eyebrow">Atoms · An Obsidian plugin</p>
-          <h1>You already wrote it down.<br />Now you can ask it.</h1>
+          <h1>You wrote it down.<br />You never found it again.</h1>
           <p class="lead">
-            Atoms turns the captures sitting in your daily notes into a
-            connected library, then lets you search it, quote it, and add to it
-            from Claude or ChatGPT.
+            Atoms turns the notes you already take into something you can ask.
           </p>
 
-          <div class="specimen">
-            <div class="file file--chat">
-              <span class="file-name">Claude</span>
-              <pre class="file-body"><span class="who">You</span>
-<span class="verbatim">what did I land on for trial length?</span>
-
-<span class="who">Claude</span>
-From your notes:
-
-<span class="quoted">"people ask how long the trial is before
-they ask what it costs"</span>
-<span class="indent"><span class="sentinel">↳</span> <span class="wl">[[Trial length is the first pricing question]]</span></span>
-
-A later atom revises it. You settled on 14 days.
-<span class="indent"><span class="sentinel">↳</span> <span class="wl">[[14 days is long enough to form the habit]]</span></span></pre>
-            </div>
-
-            <div class="file file--chat file--queued">
-              <pre class="file-body"><span class="who">You</span>
-<span class="verbatim">add: trial should start at first filing, not install</span>
-
-<span class="who">Claude</span>
-Queued for your vault. It lands next time Obsidian
-is open.
-<span class="indent"><span class="sentinel">↳</span> <span class="wl">[[Trial starts at first filing, not install]]</span> <span class="marker">pending</span></span></pre>
+          <div class="chat">
+            <p class="chat-line chat-line--you">
+              what did Sam say about the apartment?
+            </p>
+            <div class="chat-line chat-line--them">
+              <p class="chat-from">From your note on March 4</p>
+              <p class="chat-quote">
+                sam says the building has no elevator and he regrets it
+              </p>
             </div>
           </div>
 
           <div class="actions">
             <a class="btn btn--primary" href="#install">Get Atoms</a>
-            <a class="btn btn--secondary" href="#how">How It Works</a>
+            <a class="btn btn--secondary" href="#how">See How It Works</a>
           </div>
-          <p class="note">
-            Free with your own Anthropic key. Plus is optional.
-          </p>
+          <p class="note">Free with your own Anthropic key.</p>
         </div>
       </header>
 
-      <!-- 2. The problem -->
+      <!-- The turn -->
       <section class="band">
         <div class="wrap">
           <p class="claim">
             A note you cannot find again is a note you did not take.
           </p>
           <p>
-            Capture was never the hard part. You have years of it. The hard part
-            is that none of it comes back to you at the moment it would have
-            been useful. Atoms is built around that second half.
+            Capture was never the hard part. You have years of it. Atoms is
+            built for the other half.
           </p>
         </div>
       </section>
 
-      <!-- 3. How it works -->
+      <!-- How it works -->
       <section class="band" id="how">
         <div class="wrap">
           <p class="eyebrow">How it works</p>
-          <h2>Three steps, and you only do the first one.</h2>
+          <h2>You only do the first step.</h2>
 
           <ol class="steps">
             <li>
               <span class="sentinel" aria-hidden="true">↳</span>
               <div>
-                <h3>You capture, however you already do</h3>
+                <h3>Write like you always have</h3>
+                <p>A line in your daily note. Nothing new to learn.</p>
+              </div>
+            </li>
+            <li>
+              <span class="sentinel" aria-hidden="true">↳</span>
+              <div>
+                <h3>Atoms sorts out yesterday</h3>
                 <p>
-                  A bullet in today's daily note, a shortcut on your phone,
-                  anything that drops text into Obsidian. Atoms does not give
-                  you a capture box and does not ask you to change how you
-                  write.
+                  It reads past days and gives each thought its own note, with a
+                  real title and links to what it relates to.
                 </p>
               </div>
             </li>
             <li>
               <span class="sentinel" aria-hidden="true">↳</span>
               <div>
-                <h3>Atoms files past days into linked notes</h3>
-                <p>
-                  Run Process and Atoms reads captures from previous days,
-                  giving each one a declarative title, tags, and links to
-                  related notes. Today is skipped by default, so writing in the
-                  moment stays quiet.
-                </p>
-
-                <div class="specimen specimen--inline">
-                  <p class="stage">Before</p>
-                  <div class="file">
-                    <span class="file-name">Daily/2026-07-24.md</span>
-                    <pre class="file-body"><span class="verbatim">- people ask how long the trial is before they ask what it costs</span>
-<span class="verbatim">- pick up milk</span></pre>
-                  </div>
-
-                  <p class="stage">After Process</p>
-                  <div class="file">
-                    <span class="file-name">Daily/2026-07-24.md</span>
-                    <pre class="file-body"><span class="verbatim">- people ask how long the trial is before they ask what it costs</span>
-<span class="indent"><span class="sentinel">↳</span> <span class="wl">[[Trial length is the first pricing question]]</span> <span class="marker">&lt;!--linker--&gt;</span></span>
-<span class="verbatim">- pick up milk</span>
-<span class="indent"><span class="marker">&lt;!--linker:noise--&gt;</span></span></pre>
-                  </div>
-
-                  <div class="file">
-                    <span class="file-name"
-                      >Atoms/Trial length is the first pricing question.md</span
-                    >
-                    <pre class="file-body"><span class="marker">created: 2026-07-24
-source: "[[2026-07-24]]"
-tags: [pricing]</span>
-
-<span class="verbatim">people ask how long the trial is before they ask what it costs</span>
-
-The trial question lands before the price question (<span class="wl">[[Pricing]]</span>).</pre>
-                  </div>
-
-                  <p class="caption">
-                    Your original line is never rewritten. Atoms appends a
-                    marker under it and copies the text into the new note
-                    unchanged, word for word.
-                  </p>
-                </div>
-              </div>
-            </li>
-            <li>
-              <span class="sentinel" aria-hidden="true">↳</span>
-              <div>
-                <h3>Then you can actually use it</h3>
-                <p>
-                  Ask it directly from Claude or ChatGPT, or let it bring things
-                  back to you on its own. Both are below.
-                </p>
+                <h3>Now you can find it</h3>
+                <p>Ask for it, or let it come back to you. Both are below.</p>
               </div>
             </li>
           </ol>
+
+          <div class="specimen specimen--inline">
+            <p class="stage">Your daily note</p>
+            <div class="file">
+              <pre class="file-body"><span class="verbatim">- sam says the building has no elevator and he regrets it</span>
+<span class="verbatim">- pick up milk</span></pre>
+            </div>
+
+            <p class="stage">What Atoms makes</p>
+            <div class="file">
+              <span class="file-name"
+                >Sam regrets the building with no elevator</span
+              >
+              <pre class="file-body"><span class="verbatim">sam says the building has no elevator and he regrets it</span>
+
+Linked to <span class="wl">Sam</span> and <span class="wl">Apartment hunting</span>.</pre>
+            </div>
+
+            <p class="caption">
+              Your original line is never touched. The text is copied across
+              word for word, and the milk stays milk.
+            </p>
+          </div>
         </div>
       </section>
 
-      <!-- 4. Recall, pull -->
+      <!-- Recall: pull -->
       <section class="band" id="ask">
         <div class="wrap">
-          <p class="eyebrow">Recall, when you go looking</p>
-          <h2>Ask your notes from Claude or ChatGPT</h2>
+          <p class="eyebrow">When you go looking</p>
+          <h2>Ask from Claude or ChatGPT</h2>
           <p>
-            Atoms runs a connector your assistant can use. Turn it on and your
-            atoms become something you can interrogate in the chat window you
-            already have open.
+            Atoms plugs into the chat window you already have open, so your own
+            notes become something you can question.
           </p>
 
           <ul class="facts">
             <li>
-              <strong>It searches your atoms</strong> by title, tags, and text,
-              and pulls the full note before quoting it. Answers cite the atom
-              they came from, so you can open the original.
+              <strong>Ask for it.</strong> It finds your notes by title, tags,
+              and text, then quotes them back with a link to the original.
             </li>
             <li>
-              <strong>It follows your links.</strong> Ask what connects to
-              something and it walks the links and backlinks around it, which is
-              the part a plain file search cannot do.
+              <strong>Follow the thread.</strong> Ask what connects to something
+              and it walks the links between your notes.
             </li>
             <li>
-              <strong>It can add to your library.</strong> Tell it to capture a
-              thought and it queues a new atom for your vault. It lands next
-              time Obsidian is open, usually within a minute.
+              <strong>Add without leaving chat.</strong> Tell it to remember
+              something and it queues a new note for your vault. It lands next
+              time Obsidian is open.
             </li>
             <li>
-              <strong>It never overwrites you.</strong> Revising a note creates a
-              new atom linked to the original as a revision. Your earlier
-              thinking stays intact and you can see that you changed your mind.
-            </li>
-            <li>
-              <strong>Connector URL:</strong>
-              <span class="mono">https://plus.tryatoms.app/mcp</span>
+              <strong>Change your mind safely.</strong> A revision becomes a new
+              note linked to the old one. It never overwrites you.
             </li>
           </ul>
 
           <p class="fineprint">
-            Search is keyword and tag matching over your atoms, not a semantic
-            model, so it finds the words you actually wrote. Only your flat
-            atoms folder is reachable. Daily notes and the rest of your vault
-            are not.
+            Matching is on the words you actually wrote, not a semantic model.
+            Only your atoms folder is reachable. Daily notes and the rest of
+            your vault are not. Connector URL for Plus:
+            <span class="mono">https://plus.tryatoms.app/mcp</span>
           </p>
         </div>
       </section>
 
-      <!-- 5. Recall, push -->
+      <!-- Recall: push -->
       <section class="band" id="resurface">
         <div class="wrap">
-          <p class="eyebrow">Recall, when you are not looking</p>
-          <h2>Sometimes it comes back on its own</h2>
-          <p>
-            Open Atoms and it may hand you one thing you had forgotten. Not a
-            feed. One card.
-          </p>
+          <p class="eyebrow">When you are not looking</p>
+          <h2>Sometimes it finds you</h2>
+          <p>Open Atoms and it may hand you one thing you had forgotten.</p>
 
           <ul class="facts">
             <li>
               <!-- Placeholder name only. Never ship a real person from a vault. -->
-              <strong>"Also about Sam."</strong> You file something new that
-              links to a person, and an older note about the same person comes
-              back the next time you open Atoms.
+              <strong>Also about Sam.</strong> Write something new about someone
+              and an older note about them comes back.
             </li>
             <li>
-              <strong>"On this day."</strong> Something you wrote on this date in
-              a previous year.
+              <strong>On this day.</strong> Something you wrote on this date a
+              year ago.
             </li>
             <li>
-              <strong>"Mind change."</strong> Two notes where you came to
-              disagree with yourself, shown side by side.
-            </li>
-            <li>
-              <strong>One at a time.</strong> Tap to open the note, or press
-              Another to see something else. The same memory will not come back
-              for a week.
+              <strong>One card, then done.</strong> Tap to open it, or ask for
+              another. The same memory will not return for a week.
             </li>
           </ul>
 
           <p class="fineprint fineprint--legible">
-            This only happens while you have Atoms open. There are no
-            notifications, no reminders, no review queue, and nothing is ever
-            due. If you do not open Atoms, nothing happens.
+            Only while you have Atoms open. No notifications, no reminders, no
+            review queue, and nothing is ever due. If you do not open Atoms,
+            nothing happens.
           </p>
         </div>
       </section>
 
-      <!-- 6. What stays true -->
+      <!-- Trust -->
       <section class="band">
         <div class="wrap">
           <p class="eyebrow">What stays true</p>
 
           <ul class="facts">
             <li>
-              <strong>Your words are the record.</strong> Capture text is copied
-              into the atom unchanged. Titles, tags, and links are the only
-              things generated.
+              <strong>Your words, unchanged.</strong> Only the title, tags, and
+              links are written for you.
             </li>
             <li>
-              <strong>Links, not folders.</strong> Nothing is filed into a
-              hierarchy. Atoms land flat and find each other through
-              reason-bearing links.
+              <strong>Links, not folders.</strong> Nothing gets filed away
+              somewhere you have to remember.
             </li>
             <li>
-              <strong>Nothing destroyed.</strong> Processing is idempotent and
-              re-runnable. Your daily notes are only ever appended to.
-            </li>
-            <li>
-              <strong>Plain files you own.</strong> Markdown in your own vault.
-              Uninstall the plugin and every note is still there and still
-              readable.
-            </li>
-            <li>
-              <strong>Desktop, iOS, and Android.</strong> A normal Obsidian
-              plugin on all three.
+              <strong>Plain files you own.</strong> Uninstall tomorrow and every
+              note is still there, still readable.
             </li>
             <li>
               <strong>Not a task app.</strong> No due dates, no checklists, no
-              backlog quietly filling up behind you.
+              backlog filling up behind you.
             </li>
           </ul>
         </div>
       </section>
 
-      <!-- 7. Plus -->
-      <section class="band" id="plus">
-        <div class="wrap">
-          <p class="eyebrow">Optional</p>
-          <h2>Atoms Plus</h2>
-          <p>
-            Filing and Ask both run on an AI model, which needs an API key. Plus
-            is the version where you do not have to deal with that.
-          </p>
-
-          <ul class="facts">
-            <li>
-              <strong>No API key setup</strong> on phone or desktop. Filing runs
-              through our key instead of yours.
-            </li>
-            <li>
-              <strong>Ask is included.</strong> The Claude and ChatGPT connector
-              is part of Plus.
-            </li>
-            <li>
-              <strong>150 AI filings each month.</strong>
-              One filing is one capture classified, not one note. Unused filings
-              do not roll over, and your allotment starts over on your billing
-              date.
-            </li>
-            <li>
-              <strong>Need more before then?</strong> A one time top up adds
-              50 filings for $2. It does not change or
-              renew your subscription.
-            </li>
-          </ul>
-
-          <p class="fineprint">
-            AI usage has a real cost. Your subscription helps cover that and
-            supports ongoing development. Your library stays free either way:
-            the rest of Atoms does not require a subscription.
-          </p>
-        </div>
-      </section>
-
-      <!-- 8. Pricing -->
+      <!-- Pricing -->
       <section class="band" id="pricing">
         <div class="wrap">
           <p class="eyebrow">Pricing</p>
-          <h2>$6 a month, or use your own key for free.</h2>
+          <h2>$6 a month, or free with your own key.</h2>
 
           <div class="cards-2">
             <div class="card card--plus">
@@ -357,8 +247,8 @@ The trial question lands before the price question (<span class="wl">[[Pricing]]
                 $60 per year · save two months
               </p>
               <p>
-                150 AI filings each month, plus Ask. No
-                API key to manage. 14 day free trial.
+                No API key to set up, on any device. Asking from Claude and
+                ChatGPT is included. 14 day free trial.
               </p>
             </div>
 
@@ -370,91 +260,76 @@ The trial question lands before the price question (<span class="wl">[[Pricing]]
               </p>
               <p class="alt">You pay Anthropic directly for usage.</p>
               <p>
-                Add your Anthropic API key in Settings and filing works. Ask is
-                a hosted service, so it is Plus only, or you can self host it
-                from the repo.
+                Add your Anthropic API key in Settings and Atoms works. Asking
+                from chat is hosted, so it is Plus, or self host it yourself.
               </p>
             </div>
           </div>
 
           <p class="fineprint fineprint--legible">
-            14 days free, then $6/month. Cancel anytime. Card required for trial. You cancel from Settings inside the plugin.
-            Unused filings do not roll over. Top up is $2 for
-            50 filings, one time, and does not renew. Prices in
-            USD.
+            Plus includes 150 notes filed each month.
+            Unused ones do not roll over. Extra filings are $2 for
+            50, one time. 14 days free, then $6/month. Cancel anytime. Card required for trial. You cancel from
+            Settings inside the plugin. Prices in USD.
           </p>
         </div>
       </section>
 
-      <!-- 9. Install -->
+      <!-- Install -->
       <section class="band" id="install">
         <div class="wrap">
           <p class="eyebrow">Install</p>
           <h2>Get Atoms</h2>
-          <p>
-            Atoms is not in the community plugin directory yet, so installation
-            goes through BRAT.
-          </p>
+          <p>Atoms is not in the plugin directory yet, so it goes through BRAT.</p>
 
           <ol class="install">
             <li>
               Install
               <a href="https://obsidian.md/plugins?id=obsidian42-brat">BRAT</a>
-              from the Obsidian community plugins directory.
+              from Obsidian's community plugins.
             </li>
             <li>
-              In BRAT, add the beta plugin
+              Add the beta plugin
               <span class="mono">taihartman/obsidian-atoms</span>.
             </li>
-            <li>Enable <strong>Atoms</strong> in Community plugins.</li>
+            <li>Enable <strong>Atoms</strong>.</li>
             <li>
-              Open <strong>Settings → Atoms</strong>. Add your own Anthropic API
-              key, or enter your email and choose
-              <strong>Start Free Trial</strong> for Plus.
+              Open <strong>Settings → Atoms</strong> and add your key, or start
+              a trial.
             </li>
           </ol>
 
           <p class="fineprint">
-            Prefer to read the code first? Everything is on
+            Rather read the code first? It is all on
             <a href="https://github.com/taihartman/obsidian-atoms">GitHub</a>.
           </p>
         </div>
       </section>
 
-      <!-- 10. Privacy -->
+      <!-- Privacy -->
       <section class="band" id="privacy-summary">
         <div class="wrap">
           <p class="eyebrow">Privacy</p>
-          <h2>Where your notes actually go</h2>
+          <h2>Where your notes go</h2>
 
           <ul class="facts">
             <li>
-              <strong>Your vault stays yours.</strong> Atoms are plain markdown
-              files on your own devices. No account is needed to use the plugin
-              with your own key.
-            </li>
-            <li>
               <strong>Processing sends capture text to Anthropic.</strong> That
-              is how classification works. On Plus it goes under our account, on
+              is how the sorting works. On Plus it goes under our account, on
               your own key it goes under yours.
             </li>
             <li>
               <strong>We do not train on your notes.</strong>
             </li>
             <li>
-              <strong>Ask is opt in.</strong> Nothing is mirrored to the cloud
-              unless you turn Ask on, and only the flat
-              <span class="mono">Atoms/</span> folder is included.
-            </li>
-            <li>
-              <strong>One direction only.</strong> The mirror goes from your
-              vault to the cloud. Nothing is ever written back over an existing
-              note body.
+              <strong>Asking from chat is opt in.</strong> Nothing leaves your
+              vault until you turn it on, and then only your atoms folder. It
+              goes one direction only, and never writes back over a note.
             </li>
           </ul>
 
           <p class="fineprint">
-            Full detail in the <a href="/privacy">Privacy</a> page.
+            The whole story is on the <a href="/privacy">Privacy</a> page.
           </p>
         </div>
       </section>

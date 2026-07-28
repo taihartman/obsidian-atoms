@@ -238,37 +238,59 @@ p {
   color: var(--faint);
 }
 
-/* Chat panels: the recall payoff, shown as the artifact it actually is. */
-.file--chat .file-body {
-  color: var(--muted);
+/*
+ * Hero chat. Deliberately NOT monospace and deliberately free of syntax: it is
+ * the first thing a stranger sees, so it has to read as a conversation rather
+ * than as a file. Markdown syntax is earned further down the page.
+ */
+.chat {
+  margin: 30px 0 26px;
 }
 
-/* Inline so the source newline supplies the break, not an extra blank line. */
-.file-body .who {
+.chat-line {
+  margin: 0;
+  border-radius: var(--r-lg);
+  padding: 13px 16px;
+  font-size: 0.98rem;
+  line-height: 1.4;
+}
+
+.chat-line--you {
+  max-width: 88%;
+  margin-left: auto;
+  background: var(--tint);
+  color: #fff;
+  border-bottom-right-radius: 5px;
+}
+
+.chat-line--them {
+  max-width: 92%;
+  margin-top: 10px;
+  background: var(--surface);
+  border: 1px solid var(--sep);
+  border-bottom-left-radius: 5px;
+}
+
+.chat-from {
+  margin: 0 0 6px;
+  font-size: 0.74rem;
   color: var(--faint);
-  font-family: var(--font-ui);
-  font-size: 0.68rem;
-  font-weight: 600;
-  letter-spacing: 0.11em;
-  text-transform: uppercase;
 }
 
-.file-body .quoted {
-  display: block;
-  padding-left: 0.9em;
-  border-left: 2px solid var(--sep);
+/* Their own words, set apart. The one place the page leans on the serif. */
+.chat-quote {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: 1.06rem;
+  line-height: 1.34;
   color: var(--label);
 }
 
-.file--queued .file-body .marker {
-  color: var(--person);
-}
-
-/* The reply arrives a beat after the question, enacting the exchange. */
+/* The answer lands a beat after the question. */
 @media (prefers-reduced-motion: no-preference) {
-  .file--queued {
-    animation: rise 520ms cubic-bezier(0.22, 0.68, 0.36, 1) both;
-    animation-delay: 320ms;
+  .chat-line--them {
+    animation: rise 460ms cubic-bezier(0.22, 0.68, 0.36, 1) both;
+    animation-delay: 300ms;
   }
 }
 

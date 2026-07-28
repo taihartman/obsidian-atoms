@@ -151,7 +151,7 @@ describe("recall claims stay within what ships", () => {
   });
 
   it("discloses that writes from chat are queued, not instant", () => {
-    expect(index).toContain("queues a new atom");
+    expect(index).toContain("queues a new note");
     expect(index).toContain("next time Obsidian is open");
   });
 
