@@ -7,6 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
+| In progress | #172 | taihartman | fix/mirror-sync-triggers | handoff (bug) | `src/plugin/main.ts`, `src/platform/askMirror.ts`, `src/pipeline/write.ts`, `src/pipeline/refreshAtoms.ts`, `src/platform/askOutbox.ts`, `plus-service/src/mcp/tools.mjs`, `plus-service/src/mirror/http.mjs` | Hub-only writes never trigger Ask mirror; end-of-run push + MCP `synced_at` |
 
 ## How to claim (copy)
 
