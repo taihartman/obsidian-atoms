@@ -148,6 +148,12 @@ export default class AtomsPlugin extends Plugin {
   private autoRunInFlight = false;
   private backfillInFlight = false;
   private askOutboxInFlight = false;
+  private askMirrorInFlight = false;
+  private askMirrorFollowUp = false;
+  private askMirrorForceFollowUp = false;
+  private askMirrorNoticeShown = false;
+  private askMirrorDebounceTimer: number | null = null;
+  private askMirrorDirty = false;
   /** Set true only after waitForVaultIndexReady (U9 cold-start gate). */
   private vaultIndexReady = false;
 
@@ -181,9 +187,13 @@ export default class AtomsPlugin extends Plugin {
     );
     schedulePlusCheckoutResume(this);
 
-    // Ask outbox: apply Claude writes when vault is open.
+    // Ask outbox + mirror catch-up when vault is open.
     this.app.workspace.onLayoutReady(() => {
+      this.registerAskMirrorVaultEvents();
       void this.applyAskOutbox().catch(() => {
+        /* best-effort */
+      });
+      void this.syncAskMirror({ force: false }).catch(() => {
         /* best-effort */
       });
     });
@@ -193,6 +203,58 @@ export default class AtomsPlugin extends Plugin {
           /* best-effort */
         });
       }, 60_000),
+    );
+  }
+
+  /** Debounced Atoms/-only vault watch for Claude mirror parity. */
+  private registerAskMirrorVaultEvents(): void {
+    const schedule = () => {
+      if (
+        !this.settings.askEnabled ||
+        !this.settings.askPrivacyAckAt
+      ) {
+        return;
+      }
+      this.askMirrorDirty = true;
+      if (this.askMirrorDebounceTimer != null) {
+        window.clearTimeout(this.askMirrorDebounceTimer);
+      }
+      this.askMirrorDebounceTimer = window.setTimeout(() => {
+        this.askMirrorDebounceTimer = null;
+        if (!this.askMirrorDirty) return;
+        this.askMirrorDirty = false;
+        void this.syncAskMirror({ force: false }).catch(() => {
+          /* best-effort */
+        });
+      }, 2000);
+    };
+    const isAtomMd = (path: string) => {
+      const p = path || "";
+      if (!p.endsWith(".md")) return false;
+      if (p.includes("..") || p.includes("\\")) return false;
+      if (!p.startsWith("Atoms/")) return false;
+      const rest = p.slice("Atoms/".length);
+      return Boolean(rest) && !rest.includes("/");
+    };
+    this.registerEvent(
+      this.app.vault.on("create", (f) => {
+        if (isAtomMd(f.path)) schedule();
+      }),
+    );
+    this.registerEvent(
+      this.app.vault.on("modify", (f) => {
+        if (isAtomMd(f.path)) schedule();
+      }),
+    );
+    this.registerEvent(
+      this.app.vault.on("delete", (f) => {
+        if (isAtomMd(f.path)) schedule();
+      }),
+    );
+    this.registerEvent(
+      this.app.vault.on("rename", (f, oldPath) => {
+        if (isAtomMd(f.path) || isAtomMd(oldPath)) schedule();
+      }),
     );
   }
 
@@ -958,30 +1020,68 @@ export default class AtomsPlugin extends Plugin {
   }
 
   /**
-   * Push Atoms/ to Plus Ask mirror (best-effort). Returns atoms uploaded, or -1 on hard fail notice.
+   * Push Atoms/ to Plus Ask mirror (best-effort). Returns atoms uploaded, or -1 on hard fail.
+   * force: full reconcile (keepPaths orphan delete). Never early-return before delete/reconcile.
    */
   async syncAskMirror(opts?: { force?: boolean }): Promise<number> {
     if (!this.settings.askEnabled || !this.settings.askPrivacyAckAt) {
       if (opts?.force) new Notice("Enable Ask and acknowledge privacy first");
       return -1;
     }
+    if (this.askMirrorInFlight) {
+      this.askMirrorFollowUp = true;
+      if (opts?.force) this.askMirrorForceFollowUp = true;
+      return 0;
+    }
+    this.askMirrorInFlight = true;
+    let uploaded = 0;
+    try {
+      const force = Boolean(opts?.force);
+      do {
+        this.askMirrorFollowUp = false;
+        const runForce = force || this.askMirrorForceFollowUp;
+        this.askMirrorForceFollowUp = false;
+        const n = await this.runAskMirrorSyncOnce(runForce);
+        if (n < 0) return -1;
+        uploaded += n;
+      } while (this.askMirrorFollowUp);
+      return uploaded;
+    } finally {
+      this.askMirrorInFlight = false;
+    }
+  }
+
+  private async runAskMirrorSyncOnce(force: boolean): Promise<number> {
     const { readPlusSession } = await import("../platform/filingAuth");
     const session = readPlusSession(this.app);
     if (!session) {
-      if (opts?.force) new Notice("Sign in to Atoms Plus first");
+      if (force) new Notice("Sign in to Atoms Plus first");
       return -1;
     }
     const {
       DEFAULT_PLUS_BASE_URL,
       askMirrorUpsert,
+      askMirrorDelete,
+      askMirrorReconcile,
+      askMirrorStatus,
       plusFetchRequest,
     } = await import("../platform/plusClient");
-    const { planAskMirrorUpsert } = await import("../platform/askMirror");
-    const folder = clampAtomFolder(this.settings.atomFolder);
-    const files = this.app.vault.getMarkdownFiles().filter((f) => {
-      const p = f.path;
-      return p === folder || p.startsWith(folder + "/");
-    });
+    const {
+      planAskMirrorUpsert,
+      planAskMirrorDeletes,
+      isFlatAtomPath,
+      readAskMirrorHashes,
+      writeAskMirrorHashes,
+      LS_ASK_MIRROR_LAST_SUCCESS,
+      LS_ASK_MIRROR_LAST_ERROR,
+      LS_ASK_MIRROR_SERVER_COUNT,
+    } = await import("../platform/askMirror");
+
+    const folder = "Atoms"; // P0 server allowlist
+    const files = this.app.vault
+      .getMarkdownFiles()
+      .filter((f) => isFlatAtomPath(folder, f.path));
+    const vaultPaths = new Set(files.map((f) => f.path));
     const reads = await Promise.all(
       files.map(async (f) => ({
         path: f.path,
@@ -989,29 +1089,111 @@ export default class AtomsPlugin extends Plugin {
         content: await this.app.vault.read(f),
       })),
     );
-    const hashes = opts?.force ? {} : this.settings.askMirrorHashes || {};
-    const { atoms, nextHashes } = planAskMirrorUpsert(reads, folder, hashes);
-    if (atoms.length === 0) {
-      if (opts?.force) {
-        // still touch server with empty? skip
-      }
-      this.settings.askMirrorHashes = nextHashes;
-      await this.saveSettings();
-      return 0;
-    }
-    const base = this.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL;
-    const r = await askMirrorUpsert(
-      { baseUrl: base, request: plusFetchRequest },
-      session.sessionToken,
-      atoms,
+
+    const load = (k: string) => this.app.loadLocalStorage(k) as unknown;
+    const save = (k: string, v: string) => this.app.saveLocalStorage(k, v);
+    const hashSnapshot = readAskMirrorHashes(
+      load,
+      this.settings.askMirrorHashes,
     );
-    if (!r.ok) {
-      new Notice(`Ask sync failed: ${r.message} — use Sync now in Settings`);
-      return -1;
+    // Migrate evidence map off synced settings → device localStorage
+    if (
+      this.settings.askMirrorHashes &&
+      Object.keys(this.settings.askMirrorHashes).length > 0
+    ) {
+      writeAskMirrorHashes(save, hashSnapshot);
+      this.settings.askMirrorHashes = {};
+      await this.saveSettings();
     }
-    this.settings.askMirrorHashes = nextHashes;
-    await this.saveSettings();
-    return r.upserted;
+
+    const hashesForUpsert = force ? {} : hashSnapshot;
+    const { atoms, nextHashes: upsertNext } = planAskMirrorUpsert(
+      reads,
+      folder,
+      hashesForUpsert,
+    );
+    const { deletePaths } = planAskMirrorDeletes(vaultPaths, hashSnapshot);
+
+    const base = this.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL;
+    const cfg = { baseUrl: base, request: plusFetchRequest };
+    const token = session.sessionToken;
+
+    let workingHashes = { ...hashSnapshot };
+    let uploaded = 0;
+
+    const fail = (msg: string) => {
+      save(LS_ASK_MIRROR_LAST_ERROR, msg);
+      if (!this.askMirrorNoticeShown) {
+        this.askMirrorNoticeShown = true;
+        new Notice("Ask: last push failed · Sync now to retry");
+      }
+      return -1 as const;
+    };
+
+    // Upsert dirty (chunk 100) — never skip solely because atoms is empty
+    for (let i = 0; i < atoms.length; i += 100) {
+      const chunk = atoms.slice(i, i + 100);
+      const r = await askMirrorUpsert(cfg, token, chunk);
+      if (!r.ok) return fail(r.message);
+      uploaded += r.upserted;
+      for (const a of chunk) {
+        const h = upsertNext[a.path];
+        if (h) workingHashes[a.path] = h;
+      }
+      writeAskMirrorHashes(save, workingHashes);
+    }
+
+    // Delete hash-evidence missing paths (chunk 100)
+    for (let i = 0; i < deletePaths.length; i += 100) {
+      const chunk = deletePaths.slice(i, i + 100);
+      const r = await askMirrorDelete(cfg, token, chunk);
+      if (!r.ok) return fail(r.message);
+      for (const p of chunk) delete workingHashes[p];
+      writeAskMirrorHashes(save, workingHashes);
+    }
+
+    // Force: full keepPaths reconcile (orphan delete)
+    if (force) {
+      const keepPaths = [...vaultPaths];
+      const confirmEmpty = keepPaths.length === 0;
+      if (keepPaths.length <= 500) {
+        const r = await askMirrorReconcile(cfg, token, {
+          keepPaths,
+          done: true,
+          confirmEmpty,
+        });
+        if (!r.ok) return fail(r.message);
+      } else {
+        const sid = `rec-${Date.now()}`;
+        for (let i = 0; i < keepPaths.length; i += 500) {
+          const chunk = keepPaths.slice(i, i + 500);
+          const last = i + 500 >= keepPaths.length;
+          const r = await askMirrorReconcile(cfg, token, {
+            keepPaths: chunk,
+            done: last,
+            reconcileSessionId: sid,
+            confirmEmpty: last ? confirmEmpty : false,
+          });
+          if (!r.ok) return fail(r.message);
+        }
+      }
+      // After force, evidence map = exact vault set (upsertNext has all when force)
+      const rebuilt: Record<string, string> = {};
+      for (const p of keepPaths) {
+        const h = upsertNext[p] ?? workingHashes[p] ?? hashSnapshot[p];
+        if (h) rebuilt[p] = h;
+      }
+      workingHashes = rebuilt;
+      writeAskMirrorHashes(save, workingHashes);
+    }
+
+    save(LS_ASK_MIRROR_LAST_ERROR, "");
+    save(LS_ASK_MIRROR_LAST_SUCCESS, new Date().toISOString());
+    const st = await askMirrorStatus(cfg, token);
+    if (st.ok) {
+      save(LS_ASK_MIRROR_SERVER_COUNT, String(st.count));
+    }
+    return uploaded;
   }
 
   getApiKey(): string | null {

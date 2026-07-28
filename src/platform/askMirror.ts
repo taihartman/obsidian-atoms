@@ -4,6 +4,40 @@
  */
 import { parseLinkProse } from "../pipeline/parseLinkProse";
 
+/** Device-local (not data.json) — multi-device safe evidence map. */
+export const LS_ASK_MIRROR_HASHES = "atoms-ask-mirror-hashes-v1";
+export const LS_ASK_MIRROR_LAST_SUCCESS = "atoms-ask-mirror-last-success-v1";
+export const LS_ASK_MIRROR_LAST_ERROR = "atoms-ask-mirror-last-error-v1";
+export const LS_ASK_MIRROR_SERVER_COUNT = "atoms-ask-mirror-server-count-v1";
+
+export function readAskMirrorHashes(
+  load: (k: string) => unknown,
+  legacySettingsHashes?: Record<string, string>,
+): Record<string, string> {
+  const raw = load(LS_ASK_MIRROR_HASHES);
+  if (raw && typeof raw === "string" && raw.trim()) {
+    try {
+      const o = JSON.parse(raw) as unknown;
+      if (o && typeof o === "object" && !Array.isArray(o)) {
+        return o as Record<string, string>;
+      }
+    } catch {
+      /* fall through */
+    }
+  }
+  if (legacySettingsHashes && typeof legacySettingsHashes === "object") {
+    return { ...legacySettingsHashes };
+  }
+  return {};
+}
+
+export function writeAskMirrorHashes(
+  save: (k: string, v: string) => void,
+  hashes: Record<string, string>,
+): void {
+  save(LS_ASK_MIRROR_HASHES, JSON.stringify(hashes));
+}
+
 export type AskMirrorAtomPayload = {
   path: string;
   title: string;
@@ -210,6 +244,36 @@ export function linksFromAtomBody(
   return linksFromAtomFile({ body });
 }
 
+/** Flat `{folder}/{name}.md` only — no nested segments. */
+export function isFlatAtomPath(folder: string, path: string): boolean {
+  const f = folder.replace(/\/$/, "") || "Atoms";
+  const p = String(path || "").trim();
+  if (!p.endsWith(".md")) return false;
+  if (p.includes("..") || p.includes("\\") || p.includes("\0")) return false;
+  if (!p.startsWith(f + "/")) return false;
+  const rest = p.slice(f.length + 1);
+  if (!rest || rest.includes("/")) return false;
+  return true;
+}
+
+/**
+ * Paths in lastHashes missing from vault → candidates for mirror delete.
+ */
+export function planAskMirrorDeletes(
+  vaultPaths: Set<string>,
+  lastHashes: Record<string, string>,
+): { deletePaths: string[]; nextHashes: Record<string, string> } {
+  const deletePaths: string[] = [];
+  const nextHashes = { ...lastHashes };
+  for (const p of Object.keys(lastHashes)) {
+    if (!vaultPaths.has(p)) {
+      deletePaths.push(p);
+      delete nextHashes[p];
+    }
+  }
+  return { deletePaths, nextHashes };
+}
+
 export function planAskMirrorUpsert(
   files: VaultFileRead[],
   atomFolder: string,
@@ -219,8 +283,7 @@ export function planAskMirrorUpsert(
   const atoms: AskMirrorAtomPayload[] = [];
   const nextHashes = { ...lastHashes };
   for (const f of files) {
-    if (!f.path.startsWith(folder + "/") && f.path !== folder) continue;
-    if (!f.path.endsWith(".md")) continue;
+    if (!isFlatAtomPath(folder, f.path)) continue;
     const { body, tags, parent, relation, fmLinks } = splitAtomMarkdown(
       f.content,
     );

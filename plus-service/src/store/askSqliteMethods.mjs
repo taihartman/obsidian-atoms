@@ -17,6 +17,7 @@ import {
   decryptOutboxPayload,
   publicOutboxRow,
   relationFromReason,
+  assertMirrorPath,
 } from "./askHelpers.mjs";
 
 export const ASK_SQLITE_DDL = `
@@ -250,6 +251,56 @@ export function createAskSqliteMethods(db, deps) {
     db.prepare("DELETE FROM ask_outbox WHERE email = ?").run(e);
     mcpRevokeForEmail(e);
     return { ok: true };
+  }
+
+  function mirrorDelete(email, paths) {
+    const e = normEmail(email);
+    const list = Array.isArray(paths) ? paths : [];
+    let deleted = 0;
+    let missing = 0;
+    const del = db.prepare(
+      "DELETE FROM atom_mirror WHERE email = ? AND path = ?",
+    );
+    const exists = db.prepare(
+      "SELECT 1 AS x FROM atom_mirror WHERE email = ? AND path = ?",
+    );
+    for (const raw of list) {
+      const checked = assertMirrorPath(raw);
+      if (!checked.ok) continue;
+      const hit = exists.get(e, checked.path);
+      if (!hit) {
+        missing += 1;
+        continue;
+      }
+      del.run(e, checked.path);
+      deleted += 1;
+    }
+    const st = mirrorStatus(e);
+    return { deleted, missing, ...st };
+  }
+
+  function mirrorReconcileKeep(email, keepPaths) {
+    const e = normEmail(email);
+    const keep = new Set();
+    for (const raw of Array.isArray(keepPaths) ? keepPaths : []) {
+      const checked = assertMirrorPath(raw);
+      if (checked.ok) keep.add(checked.path);
+    }
+    const rows = db
+      .prepare("SELECT path FROM atom_mirror WHERE email = ?")
+      .all(e);
+    let deleted = 0;
+    const del = db.prepare(
+      "DELETE FROM atom_mirror WHERE email = ? AND path = ?",
+    );
+    for (const r of rows) {
+      if (!keep.has(r.path)) {
+        del.run(e, r.path);
+        deleted += 1;
+      }
+    }
+    const st = mirrorStatus(e);
+    return { deleted, ...st };
   }
 
   function outboxOpenCount(email) {
@@ -717,6 +768,8 @@ export function createAskSqliteMethods(db, deps) {
     mirrorNeighbors,
     mirrorWipe,
     mirrorStatus,
+    mirrorDelete,
+    mirrorReconcileKeep,
     outboxEnqueue,
     outboxPull,
     outboxAck,

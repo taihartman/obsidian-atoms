@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import type { RequestUrlParam, RequestUrlResponse } from "obsidian";
 import {
+  askMirrorDelete,
+  askMirrorReconcile,
   classifyViaProxy,
   createCheckout,
   exchangeMagicToken,
@@ -159,5 +161,40 @@ describe("plusClient", () => {
     const r = await getEntitlement({ baseUrl: base, request }, "sess");
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.code).toBe("network");
+  });
+
+  it("askMirrorDelete posts paths", async () => {
+    const request = mockRequest((p) => {
+      expect(p.url).toBe("https://plus.test/v1/ask/mirror/delete");
+      expect(p.method).toBe("POST");
+      expect(JSON.parse(String(p.body))).toEqual({
+        paths: ["Atoms/A.md"],
+      });
+      return { status: 200, json: { ok: true, deleted: 1, missing: 0, count: 0 } };
+    });
+    const r = await askMirrorDelete(
+      { baseUrl: base, request },
+      "sess",
+      ["Atoms/A.md"],
+    );
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.deleted).toBe(1);
+  });
+
+  it("askMirrorReconcile posts keepPaths", async () => {
+    const request = mockRequest((p) => {
+      expect(p.url).toBe("https://plus.test/v1/ask/mirror/reconcile");
+      const body = JSON.parse(String(p.body)) as Record<string, unknown>;
+      expect(body.keepPaths).toEqual(["Atoms/A.md"]);
+      expect(body.done).toBe(true);
+      return { status: 200, json: { ok: true, deleted: 0, count: 1 } };
+    });
+    const r = await askMirrorReconcile(
+      { baseUrl: base, request },
+      "sess",
+      { keepPaths: ["Atoms/A.md"], done: true },
+    );
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.count).toBe(1);
   });
 });

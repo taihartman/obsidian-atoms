@@ -2,8 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
   contentHash,
   extractWikilinks,
+  isFlatAtomPath,
+  planAskMirrorDeletes,
   planAskMirrorUpsert,
+  readAskMirrorHashes,
   splitAtomMarkdown,
+  writeAskMirrorHashes,
 } from "../src/platform/askMirror";
 
 describe("askMirror", () => {
@@ -98,6 +102,11 @@ durable taste fact about [[Andrew]] from this capture.
         basename: "x",
         content: "not an atom",
       },
+      {
+        path: "Atoms/sub/nested.md",
+        basename: "nested",
+        content: "nested",
+      },
     ];
     const first = planAskMirrorUpsert(files, "Atoms", {});
     expect(first.atoms).toHaveLength(1);
@@ -107,5 +116,38 @@ durable taste fact about [[Andrew]] from this capture.
     const second = planAskMirrorUpsert(files, "Atoms", first.nextHashes);
     expect(second.atoms).toHaveLength(0);
     expect(contentHash(["a", "b"])).not.toBe(contentHash(["a", "c"]));
+  });
+
+  it("isFlatAtomPath rejects nested", () => {
+    expect(isFlatAtomPath("Atoms", "Atoms/Tea.md")).toBe(true);
+    expect(isFlatAtomPath("Atoms", "Atoms/sub/x.md")).toBe(false);
+    expect(isFlatAtomPath("Atoms", "Daily/x.md")).toBe(false);
+  });
+
+  it("planAskMirrorDeletes prunes missing vault paths", () => {
+    const vault = new Set(["Atoms/A.md"]);
+    const hashes = { "Atoms/A.md": "h1", "Atoms/B.md": "h2" };
+    const { deletePaths, nextHashes } = planAskMirrorDeletes(vault, hashes);
+    expect(deletePaths).toEqual(["Atoms/B.md"]);
+    expect(nextHashes).toEqual({ "Atoms/A.md": "h1" });
+  });
+
+  it("readAskMirrorHashes prefers localStorage over legacy settings", () => {
+    const store: Record<string, string> = {};
+    writeAskMirrorHashes((k, v) => {
+      store[k] = v;
+    }, { "Atoms/A.md": "ls" });
+    const hashes = readAskMirrorHashes(
+      (k) => store[k],
+      { "Atoms/A.md": "settings" },
+    );
+    expect(hashes).toEqual({ "Atoms/A.md": "ls" });
+  });
+
+  it("readAskMirrorHashes migrates from legacy when LS empty", () => {
+    const hashes = readAskMirrorHashes(() => null, {
+      "Atoms/B.md": "legacy",
+    });
+    expect(hashes).toEqual({ "Atoms/B.md": "legacy" });
   });
 });

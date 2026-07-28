@@ -2,13 +2,27 @@
  * Ask mirror HTTP routes (Plus session auth).
  */
 import { checkRateLimit, clientIp } from "../ratelimit.mjs";
+import { assertMirrorPath } from "../store/askHelpers.mjs";
 
 const MAX_ATOMS_PER_UPSERT = 100;
 const MAX_BODY_CHARS = 100_000;
 const MAX_BULK_CHARS = 2_000_000;
+const MAX_DELETE_PATHS = 100;
+const MAX_KEEP_PATHS = 500;
+
+/** @type {Map<string, { paths: Set<string>, exp: number }>} */
+const reconcileSessions = new Map();
+const RECONCILE_TTL_MS = 10 * 60 * 1000;
 
 function entitled(a) {
   return a && (a.status === "active" || a.status === "trialing");
+}
+
+function purgeReconcileSessions() {
+  const now = Date.now();
+  for (const [k, v] of reconcileSessions) {
+    if (v.exp < now) reconcileSessions.delete(k);
+  }
 }
 
 /**
@@ -27,6 +41,8 @@ export async function handleMirrorRoutes({
     path === "/v1/ask/mirror/upsert" ||
     path === "/v1/ask/mirror/wipe" ||
     path === "/v1/ask/mirror/status" ||
+    path === "/v1/ask/mirror/delete" ||
+    path === "/v1/ask/mirror/reconcile" ||
     path === "/v1/ask/outbox/pull" ||
     path === "/v1/ask/outbox/ack";
   if (!isAsk) return false;
@@ -64,11 +80,8 @@ export async function handleMirrorRoutes({
     return true;
   }
 
+  // Wipe: valid sess_ enough (exit path even when not entitled)
   if (req.method === "POST" && path === "/v1/ask/mirror/wipe") {
-    if (!entitled(a)) {
-      json(res, 403, { message: "Plus entitlement required for Ask mirror" });
-      return true;
-    }
     await store.mirrorWipe(a.email);
     json(res, 200, { ok: true, count: 0 });
     return true;
@@ -121,6 +134,127 @@ export async function handleMirrorRoutes({
     return true;
   }
 
+  if (req.method === "POST" && path === "/v1/ask/mirror/delete") {
+    if (!entitled(a)) {
+      json(res, 403, { message: "Plus entitlement required for Ask mirror" });
+      return true;
+    }
+    let body;
+    try {
+      body = await readBody(req);
+    } catch {
+      json(res, 400, { message: "invalid json" });
+      return true;
+    }
+    const paths = Array.isArray(body.paths) ? body.paths : null;
+    if (!paths) {
+      json(res, 400, { message: "paths array required" });
+      return true;
+    }
+    if (paths.length > MAX_DELETE_PATHS) {
+      json(res, 400, {
+        message: `at most ${MAX_DELETE_PATHS} paths per delete`,
+      });
+      return true;
+    }
+    for (const p of paths) {
+      const checked = assertMirrorPath(p);
+      if (!checked.ok) {
+        json(res, 400, { message: checked.error, path: p });
+        return true;
+      }
+    }
+    const result = await store.mirrorDelete(a.email, paths);
+    json(res, 200, { ok: true, ...result });
+    return true;
+  }
+
+  if (req.method === "POST" && path === "/v1/ask/mirror/reconcile") {
+    if (!entitled(a)) {
+      json(res, 403, { message: "Plus entitlement required for Ask mirror" });
+      return true;
+    }
+    let body;
+    try {
+      body = await readBody(req);
+    } catch {
+      json(res, 400, { message: "invalid json" });
+      return true;
+    }
+    const keepPaths = Array.isArray(body.keepPaths) ? body.keepPaths : null;
+    if (!keepPaths) {
+      json(res, 400, { message: "keepPaths array required" });
+      return true;
+    }
+    if (keepPaths.length > MAX_KEEP_PATHS) {
+      json(res, 400, {
+        message: `at most ${MAX_KEEP_PATHS} keepPaths per request`,
+      });
+      return true;
+    }
+    for (const p of keepPaths) {
+      const checked = assertMirrorPath(p);
+      if (!checked.ok) {
+        json(res, 400, { message: checked.error, path: p });
+        return true;
+      }
+    }
+
+    const done = body.done === true;
+    const confirmEmpty = body.confirmEmpty === true;
+    const sessionId = body.reconcileSessionId
+      ? String(body.reconcileSessionId).slice(0, 80)
+      : null;
+
+    purgeReconcileSessions();
+
+    if (!done) {
+      if (!sessionId) {
+        json(res, 400, {
+          message: "reconcileSessionId required when done is false",
+        });
+        return true;
+      }
+      const sk = `${a.email}::${sessionId}`;
+      let sess = reconcileSessions.get(sk);
+      if (!sess) {
+        sess = { paths: new Set(), exp: Date.now() + RECONCILE_TTL_MS };
+        reconcileSessions.set(sk, sess);
+      }
+      sess.exp = Date.now() + RECONCILE_TTL_MS;
+      for (const p of keepPaths) sess.paths.add(String(p).trim());
+      json(res, 200, {
+        ok: true,
+        staged: sess.paths.size,
+        deleted: 0,
+      });
+      return true;
+    }
+
+    // done:true — commit
+    let keep = keepPaths.map((p) => String(p).trim());
+    if (sessionId) {
+      const sk = `${a.email}::${sessionId}`;
+      const sess = reconcileSessions.get(sk);
+      if (sess) {
+        for (const p of keep) sess.paths.add(p);
+        keep = [...sess.paths];
+        reconcileSessions.delete(sk);
+      }
+    }
+
+    if (keep.length === 0 && !confirmEmpty) {
+      json(res, 400, {
+        message: "empty keepPaths requires confirmEmpty:true",
+      });
+      return true;
+    }
+
+    const result = await store.mirrorReconcileKeep(a.email, keep);
+    json(res, 200, { ok: true, ...result });
+    return true;
+  }
+
   if (req.method === "POST" && path === "/v1/ask/mirror/upsert") {
     if (!entitled(a)) {
       json(res, 403, { message: "Plus entitlement required for Ask mirror" });
@@ -150,8 +284,9 @@ export async function handleMirrorRoutes({
       const pathStr = String(raw?.path || "").trim();
       const title = String(raw?.title || "").trim();
       const text = String(raw?.body ?? raw?.text ?? "");
-      if (!pathStr) {
-        json(res, 400, { message: "each atom needs path" });
+      const checked = assertMirrorPath(pathStr);
+      if (!checked.ok) {
+        json(res, 400, { message: checked.error, path: pathStr });
         return true;
       }
       if (text.length > MAX_BODY_CHARS) {
@@ -167,7 +302,7 @@ export async function handleMirrorRoutes({
         return true;
       }
       cleaned.push({
-        path: pathStr,
+        path: checked.path,
         title: title || pathStr,
         body: text,
         tags: raw?.tags,
@@ -176,9 +311,15 @@ export async function handleMirrorRoutes({
       });
     }
     // Tenant email from session only — ignore body.email
-    const result = await store.mirrorUpsert(a.email, cleaned);
-    const st = await store.mirrorStatus(a.email);
-    json(res, 200, { ok: true, ...result, ...st });
+    try {
+      const result = await store.mirrorUpsert(a.email, cleaned);
+      const st = await store.mirrorStatus(a.email);
+      json(res, 200, { ok: true, ...result, ...st });
+    } catch (err) {
+      json(res, 400, {
+        message: err instanceof Error ? err.message : "upsert failed",
+      });
+    }
     return true;
   }
 
