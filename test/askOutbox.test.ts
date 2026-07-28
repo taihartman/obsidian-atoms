@@ -8,7 +8,7 @@ import {
 import { isGeneratedAtomContent } from "../src/home/atomsHomeData";
 
 describe("askOutbox", () => {
-  it("builds ask-mcp FM structured links; no reason prose in body", () => {
+  it("builds Process-parity body: capture + link prose; no atom-links FM", () => {
     const { content, title } = buildAskAtomMarkdown({
       title: "Periwinkle still",
       body: "Nichita likes periwinkle",
@@ -17,14 +17,13 @@ describe("askOutbox", () => {
     });
     expect(title).toBe("Periwinkle still");
     expect(content).toContain("generated-by: ask-mcp");
-    expect(content).toContain("atom-links:");
-    expect(content).toContain("shared favorite seasoning");
+    expect(content).not.toContain("atom-links:");
     expect(content).not.toContain("atoms-quality:");
-    // Body: capture + bare wikilink only — not "reason ([[Note]])" flattener
     const body = bodyAfterFrontmatter(content);
     expect(body).toContain("Nichita likes periwinkle");
-    expect(body).toContain("[[Nichita]]");
-    expect(body).not.toMatch(/shared favorite seasoning/);
+    expect(body).toMatch(/shared favorite seasoning \(\[\[Nichita\]\]\)/);
+    // no bare-wikilink dump after prose
+    expect(body.trimEnd()).not.toMatch(/\n\[\[Nichita\]\]\s*$/);
     expect(isAskMcpContent(content)).toBe(true);
     expect(isGeneratedAtomContent(content)).toBe(true);
   });
@@ -101,6 +100,6 @@ other body
     });
     const body = bodyAfterFrontmatter(content);
     expect(body).toContain("It was a joke");
-    expect(body).toContain("[[Andrew loves High School Musical]]");
+    expect(body).toMatch(/revises \[\[Andrew loves High School Musical\]\]/);
   });
 });
