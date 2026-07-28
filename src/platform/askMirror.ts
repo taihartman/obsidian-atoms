@@ -44,6 +44,8 @@ export type AskMirrorAtomPayload = {
   body: string;
   tags: string[];
   links: { note: string; reason?: string }[];
+  /** atom = Atoms/*.md; hub = vault note linked from atoms (outside Atoms/). */
+  kind?: "atom" | "hub";
 };
 
 export type VaultFileRead = {
@@ -274,16 +276,33 @@ export function planAskMirrorDeletes(
   return { deletePaths, nextHashes };
 }
 
+/** Hub path: vault .md not under Atoms/, max 4 segments, no traversal. */
+export function isHubMirrorPath(path: string, atomFolder = "Atoms"): boolean {
+  const p = String(path || "").trim();
+  const f = atomFolder.replace(/\/$/, "") || "Atoms";
+  if (!p.endsWith(".md")) return false;
+  if (p.includes("..") || p.includes("\\") || p.includes("\0")) return false;
+  if (p.startsWith("/")) return false;
+  if (p.startsWith(f + "/")) return false;
+  const parts = p.split("/");
+  if (parts.length < 1 || parts.length > 4) return false;
+  if (parts.some((s) => !s || s === "." || s === "..")) return false;
+  return true;
+}
+
 export function planAskMirrorUpsert(
   files: VaultFileRead[],
   atomFolder: string,
   lastHashes: Record<string, string> = {},
+  opts?: { kind?: "atom" | "hub" },
 ): { atoms: AskMirrorAtomPayload[]; nextHashes: Record<string, string> } {
   const folder = atomFolder.replace(/\/$/, "");
+  const kind = opts?.kind === "hub" ? "hub" : "atom";
   const atoms: AskMirrorAtomPayload[] = [];
   const nextHashes = { ...lastHashes };
   for (const f of files) {
-    if (!isFlatAtomPath(folder, f.path)) continue;
+    if (kind === "atom" && !isFlatAtomPath(folder, f.path)) continue;
+    if (kind === "hub" && !isHubMirrorPath(f.path, folder)) continue;
     const { body, tags, parent, relation, fmLinks } = splitAtomMarkdown(
       f.content,
     );
@@ -294,6 +313,7 @@ export function planAskMirrorUpsert(
       body,
       JSON.stringify(tags),
       JSON.stringify(links),
+      kind,
     ]);
     if (lastHashes[f.path] === hash) continue;
     nextHashes[f.path] = hash;
@@ -303,7 +323,29 @@ export function planAskMirrorUpsert(
       body,
       tags,
       links,
+      kind,
     });
   }
   return { atoms, nextHashes };
+}
+
+/**
+ * Titles referenced from atom payloads that should be resolved to hub notes.
+ */
+export function collectHubLinkTitles(
+  atomPayloads: AskMirrorAtomPayload[],
+): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const a of atomPayloads) {
+    for (const l of a.links || []) {
+      const t = String(l.note || "").trim();
+      if (!t) continue;
+      const k = t.toLowerCase();
+      if (seen.has(k)) continue;
+      seen.add(k);
+      out.push(t);
+    }
+  }
+  return out;
 }

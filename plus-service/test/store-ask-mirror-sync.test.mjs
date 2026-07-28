@@ -25,9 +25,12 @@ function seed(store, email) {
 }
 
 describe("assertMirrorPath", () => {
-  it("allows flat Atoms/*.md only", () => {
+  it("allows flat Atoms/*.md and hub paths", () => {
     assert.equal(assertMirrorPath("Atoms/Tea.md").ok, true);
-    assert.equal(assertMirrorPath("Daily/foo.md").ok, false);
+    assert.equal(assertMirrorPath("Atoms/Tea.md", { kind: "atom" }).ok, true);
+    assert.equal(assertMirrorPath("Daily/foo.md", { kind: "atom" }).ok, false);
+    assert.equal(assertMirrorPath("Daily/foo.md", { kind: "hub" }).ok, true);
+    assert.equal(assertMirrorPath("Social/People/N.md", { kind: "hub" }).ok, true);
     assert.equal(assertMirrorPath("Atoms/sub/x.md").ok, false);
     assert.equal(assertMirrorPath("Atoms/../x.md").ok, false);
     assert.equal(assertMirrorPath("/Atoms/x.md").ok, false);

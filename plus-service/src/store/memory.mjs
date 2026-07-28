@@ -374,10 +374,19 @@ export function createMemoryStore() {
         }
       }
     }
+    const found = Boolean(center);
+    const hasBacklinks = backlinks.length > 0;
     return {
       title: keyTitle,
       path: center?.path || null,
-      found: Boolean(center),
+      kind: center?.kind || null,
+      found,
+      exists_outside_mirror: !found && hasBacklinks,
+      reason: found
+        ? null
+        : hasBacklinks
+          ? "hub_not_synced"
+          : "not_in_mirror",
       outgoing,
       backlinks,
     };

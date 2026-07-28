@@ -284,7 +284,9 @@ export async function handleMirrorRoutes({
       const pathStr = String(raw?.path || "").trim();
       const title = String(raw?.title || "").trim();
       const text = String(raw?.body ?? raw?.text ?? "");
-      const checked = assertMirrorPath(pathStr);
+      const kind =
+        String(raw?.kind || "").toLowerCase() === "hub" ? "hub" : "atom";
+      const checked = assertMirrorPath(pathStr, { kind });
       if (!checked.ok) {
         json(res, 400, { message: checked.error, path: pathStr });
         return true;
@@ -308,6 +310,7 @@ export async function handleMirrorRoutes({
         tags: raw?.tags,
         links: raw?.links,
         atomId: raw?.id || raw?.atomId,
+        kind: checked.kind,
       });
     }
     // Tenant email from session only — ignore body.email

@@ -90,6 +90,39 @@ durable taste fact about [[Andrew]] from this capture.
     expect(andrew?.reason ?? "").not.toMatch(/named work Andrew is a fan/);
   });
 
+  it("plans hub notes with kind hub", async () => {
+    const { planAskMirrorUpsert, isHubMirrorPath, collectHubLinkTitles } =
+      await import("../src/platform/askMirror");
+    expect(isHubMirrorPath("Social/People/Nichita.md")).toBe(true);
+    expect(isHubMirrorPath("Atoms/Nichita.md")).toBe(false);
+    const { atoms } = planAskMirrorUpsert(
+      [
+        {
+          path: "Social/People/Nichita.md",
+          basename: "Nichita",
+          content: "---\ntags: [person]\n---\n# Nichita\n",
+        },
+      ],
+      "Atoms",
+      {},
+      { kind: "hub" },
+    );
+    expect(atoms).toHaveLength(1);
+    expect(atoms[0]!.kind).toBe("hub");
+    expect(atoms[0]!.title).toBe("Nichita");
+    expect(
+      collectHubLinkTitles([
+        {
+          path: "Atoms/A.md",
+          title: "A",
+          body: "",
+          tags: [],
+          links: [{ note: "Nichita" }],
+        },
+      ]),
+    ).toEqual(["Nichita"]);
+  });
+
   it("plans only Atoms/ and skips unchanged hash", () => {
     const files = [
       {
