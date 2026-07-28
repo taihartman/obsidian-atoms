@@ -40,7 +40,8 @@ CREATE TABLE IF NOT EXISTS sessions (
   token_hash TEXT PRIMARY KEY,
   email TEXT NOT NULL,
   exp_ms BIGINT NOT NULL,
-  revoked BOOLEAN NOT NULL DEFAULT FALSE
+  revoked BOOLEAN NOT NULL DEFAULT FALSE,
+  verified BOOLEAN NOT NULL DEFAULT TRUE
 );
 CREATE TABLE IF NOT EXISTS promo_global (
   code TEXT PRIMARY KEY,
@@ -79,6 +80,10 @@ export async function createPostgresStore(databaseUrl) {
   }
   const pool = new Pool({ connectionString: databaseUrl });
   await pool.query(MIGRATE_SQL);
+  // Existing DBs created before verified column
+  await pool.query(
+    `ALTER TABLE sessions ADD COLUMN IF NOT EXISTS verified BOOLEAN NOT NULL DEFAULT TRUE`,
+  );
 
   const sessionTtlMs = () => config.sessionTtlDays * 24 * 60 * 60 * 1000;
 
@@ -143,7 +148,9 @@ export async function createPostgresStore(databaseUrl) {
     a.plan = opts.plan ?? "monthly";
     a.remaining = opts.remaining ?? config.includedFilings;
     a.periodEnd = periodEndFromNow(opts.days ?? 30);
-    return saveAccount(a);
+    const saved = await saveAccount(a);
+    await revokeUnverifiedSessionsForEmail(saved.email);
+    return saved;
   }
 
   /** Atomic top-up — avoids lost updates under concurrent webhooks. */
@@ -172,14 +179,45 @@ export async function createPostgresStore(databaseUrl) {
     return token;
   }
 
-  async function createSession(email) {
+  /**
+   * @param {string} email
+   * @param {{ verified?: boolean }} [opts]
+   */
+  async function createSession(email, opts = {}) {
     const key = email.trim().toLowerCase();
     const session = id("sess");
+    const verified = opts.verified !== false;
     await pool.query(
-      "INSERT INTO sessions (token_hash, email, exp_ms, revoked) VALUES ($1, $2, $3, FALSE)",
-      [hashToken(session), key, Date.now() + sessionTtlMs()],
+      "INSERT INTO sessions (token_hash, email, exp_ms, revoked, verified) VALUES ($1, $2, $3, FALSE, $4)",
+      [hashToken(session), key, Date.now() + sessionTtlMs(), verified],
     );
     return session;
+  }
+
+  async function revokeAllSessionsForEmail(email) {
+    await pool.query(
+      "UPDATE sessions SET revoked = TRUE WHERE email = $1",
+      [email.trim().toLowerCase()],
+    );
+  }
+
+  async function revokeUnverifiedSessionsForEmail(email) {
+    await pool.query(
+      "UPDATE sessions SET revoked = TRUE WHERE email = $1 AND verified = FALSE",
+      [email.trim().toLowerCase()],
+    );
+  }
+
+  /** Promote soft session after checkout; clears revoke from grantPeriod. */
+  async function markSessionVerified(sessionToken) {
+    if (!sessionToken) return false;
+    const r = await pool.query(
+      `UPDATE sessions SET verified = TRUE, revoked = FALSE
+       WHERE token_hash = $1 AND exp_ms > $2
+       RETURNING token_hash`,
+      [hashToken(sessionToken), Date.now()],
+    );
+    return Boolean(r.rows[0]);
   }
 
   async function startWithEmail(email) {
@@ -188,7 +226,7 @@ export async function createPostgresStore(databaseUrl) {
     if (isEntitledAccount(a)) {
       return { ok: false, needsMagicLink: true, account: a };
     }
-    const session = await createSession(a.email);
+    const session = await createSession(a.email, { verified: false });
     return { ok: true, session, account: a };
   }
 
@@ -235,11 +273,16 @@ export async function createPostgresStore(databaseUrl) {
       });
     }
     a = await refreshAccountStatus(a);
-    const session = await createSession(email);
+    await revokeAllSessionsForEmail(email);
+    const session = await createSession(email, { verified: true });
     return { session, account: a };
   }
 
-  async function accountFromSession(sessionToken) {
+  /**
+   * @param {string} sessionToken
+   * @param {{ requireVerified?: boolean }} [opts]
+   */
+  async function accountFromSession(sessionToken, opts = {}) {
     if (!sessionToken) return null;
     const { rows } = await pool.query(
       "SELECT * FROM sessions WHERE token_hash = $1",
@@ -247,6 +290,7 @@ export async function createPostgresStore(databaseUrl) {
     );
     const row = rows[0];
     if (!row || row.revoked || Date.now() > Number(row.exp_ms)) return null;
+    if (opts.requireVerified && row.verified === false) return null;
     return refreshAccountStatus(await getAccount(row.email));
   }
 
@@ -263,9 +307,10 @@ export async function createPostgresStore(databaseUrl) {
    * 2) INSERT reserved row; on conflict reserved → treat as in-flight / fail safe
    * 3) UPDATE remaining WHERE remaining > 0 RETURNING
    * 4) On 0 rows → delete reserved, exhausted
+   * Tenant: never replay another email's idempotency row (C2).
    */
   async function tryConsumeFiling(sessionToken, idempotencyKey) {
-    const a0 = await accountFromSession(sessionToken);
+    const a0 = await accountFromSession(sessionToken, { requireVerified: true });
     if (!a0) return { ok: false, code: "auth" };
     if (a0.status === "inactive") return { ok: false, code: "auth" };
 
@@ -279,6 +324,10 @@ export async function createPostgresStore(databaseUrl) {
           [idempotencyKey],
         );
         const row = prev.rows[0];
+        if (row && row.email && row.email !== a0.email) {
+          await client.query("COMMIT");
+          return { ok: false, code: "idempotency_conflict" };
+        }
         if (row && row.status === "ok" && row.response_json != null) {
           await client.query("COMMIT");
           const responseJson =
@@ -288,7 +337,9 @@ export async function createPostgresStore(databaseUrl) {
           return {
             ok: true,
             replay: true,
-            account: await accountFromSession(sessionToken),
+            account: await accountFromSession(sessionToken, {
+              requireVerified: true,
+            }),
             cached: {
               responseJson,
               remaining: row.remaining,
@@ -390,7 +441,7 @@ export async function createPostgresStore(databaseUrl) {
    * @param {string} [idempotencyKey]
    */
   async function refundFiling(sessionToken, idempotencyKey) {
-    const a = await accountFromSession(sessionToken);
+    const a = await accountFromSession(sessionToken, { requireVerified: true });
     if (!a) return;
     const client = await pool.connect();
     try {
@@ -485,6 +536,9 @@ export async function createPostgresStore(databaseUrl) {
     exchangeMagic,
     accountFromSession,
     revokeSession,
+    revokeAllSessionsForEmail,
+    revokeUnverifiedSessionsForEmail,
+    markSessionVerified,
     tryConsumeFiling,
     completeUsage,
     refundFiling,
