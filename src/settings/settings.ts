@@ -1,5 +1,6 @@
 import {
   App,
+  Modal,
   Notice,
   PluginSettingTab,
   SecretComponent,
@@ -84,10 +85,10 @@ export class AtomsSettingTab extends PluginSettingTab {
 
   /** Scroll parent for Settings tab content (Obsidian vertical tabs). */
   private settingsScrollEl(): HTMLElement | null {
-    return (
-      (this.containerEl.closest(".vertical-tab-content") as HTMLElement | null) ??
-      (this.containerEl.parentElement as HTMLElement | null)
-    );
+    const vertical = this.containerEl.closest(".vertical-tab-content");
+    if (vertical instanceof HTMLElement) return vertical;
+    const parent = this.containerEl.parentElement;
+    return parent instanceof HTMLElement ? parent : null;
   }
 
   /**
@@ -102,10 +103,14 @@ export class AtomsSettingTab extends PluginSettingTab {
       if (el) el.scrollTop = top;
     };
     restore();
-    requestAnimationFrame(restore);
+    window.requestAnimationFrame(restore);
     window.setTimeout(restore, 0);
   }
 
+  /**
+   * Imperative settings UI. Declarative PluginSettingTab.getSettingDefinitions
+   * (Obsidian 1.13+ settings search) is a separate migration — not this claim.
+   */
   display(): void {
     const { containerEl } = this;
     containerEl.empty();
@@ -416,10 +421,9 @@ export class AtomsSettingTab extends PluginSettingTab {
       })
       .addButton((btn) =>
         btn.setButtonText("Start free trial").setCta().onClick(async () => {
-          const input = containerEl.querySelector(
-            "input[data-plus-email]",
-          ) as HTMLInputElement | null;
-          const email = input?.value?.trim() || "";
+          const input = containerEl.querySelector("input[data-plus-email]");
+          const email =
+            input instanceof HTMLInputElement ? input.value.trim() : "";
           if (!email.includes("@")) {
             new Notice("Enter a valid email first");
             return;
@@ -465,8 +469,9 @@ export class AtomsSettingTab extends PluginSettingTab {
         btn.setButtonText("Send sign-in link").onClick(async () => {
           const input = containerEl.querySelector(
             "input[data-plus-magic-email]",
-          ) as HTMLInputElement | null;
-          const email = input?.value?.trim() || "";
+          );
+          const email =
+            input instanceof HTMLInputElement ? input.value.trim() : "";
           if (!email.includes("@")) {
             new Notice("Enter a valid email first");
             return;
@@ -497,10 +502,9 @@ export class AtomsSettingTab extends PluginSettingTab {
       })
       .addButton((btn) =>
         btn.setButtonText("Save session").onClick(async () => {
-          const input = containerEl.querySelector(
-            "input[data-plus-session]",
-          ) as HTMLInputElement | null;
-          const sessionToken = input?.value?.trim() || "";
+          const input = containerEl.querySelector("input[data-plus-session]");
+          const sessionToken =
+            input instanceof HTMLInputElement ? input.value.trim() : "";
           if (!sessionToken.startsWith("sess_")) {
             new Notice("Session should look like sess_…");
             return;
@@ -1083,7 +1087,7 @@ export class AtomsSettingTab extends PluginSettingTab {
       )
       .addText((text) => {
         text.setValue(mcpUrl).setDisabled(true);
-        text.inputEl.style.width = "100%";
+        text.inputEl.addClass("atoms-settings-mcp-url-input");
       })
       .addButton((btn) =>
         btn.setButtonText("Copy").onClick(async () => {
@@ -1094,12 +1098,14 @@ export class AtomsSettingTab extends PluginSettingTab {
 
     // Status line from device-local stamps (N = last known server count)
     const lastOk = String(
-      this.app.loadLocalStorage(LS_ASK_MIRROR_LAST_SUCCESS) ?? "",
+      (this.app.loadLocalStorage(LS_ASK_MIRROR_LAST_SUCCESS) as unknown) ?? "",
     );
     const lastErr = String(
-      this.app.loadLocalStorage(LS_ASK_MIRROR_LAST_ERROR) ?? "",
+      (this.app.loadLocalStorage(LS_ASK_MIRROR_LAST_ERROR) as unknown) ?? "",
     ).trim();
-    const serverCountRaw = this.app.loadLocalStorage(LS_ASK_MIRROR_SERVER_COUNT);
+    const serverCountRaw: unknown = this.app.loadLocalStorage(
+      LS_ASK_MIRROR_SERVER_COUNT,
+    ) as unknown;
     const serverCount =
       serverCountRaw != null && String(serverCountRaw).trim() !== ""
         ? String(serverCountRaw)
@@ -1168,29 +1174,52 @@ export class AtomsSettingTab extends PluginSettingTab {
         "Delete mirrored atoms, pending Ask writes (outbox), and revoke Ask connector tokens for this account. Does not delete vault files.",
       )
       .addButton((btn) =>
-        btn.setButtonText("Wipe").setWarning().onClick(async () => {
-          const ok = window.confirm(
-            "Wipe cloud atom mirror, pending Ask writes, and revoke Ask connector access (Claude + ChatGPT)? Local vault files are kept.",
-          );
-          if (!ok) return;
-          const r = await askMirrorWipe(
-            { baseUrl: base, request: plusFetchRequest },
-            session.sessionToken,
-          );
-          if (!r.ok) {
-            new Notice(`Ask: ${r.message}`);
-            return;
-          }
-          this.plugin.settings.askMirrorHashes = {};
-          writeAskMirrorHashes((k, v) => this.app.saveLocalStorage(k, v), {});
-          this.app.saveLocalStorage(LS_ASK_MIRROR_LAST_ERROR, "");
-          this.app.saveLocalStorage(LS_ASK_MIRROR_LAST_SUCCESS, "");
-          this.app.saveLocalStorage(LS_ASK_MIRROR_SERVER_COUNT, "0");
-          this.app.saveLocalStorage(LS_ASK_MIRROR_HASHES, "{}");
-          await this.plugin.saveSettings();
-          new Notice("Ask mirror wiped");
-          this.redisplay();
-        }),
+        btn
+          .setButtonText("Wipe")
+          .setDestructive()
+          .onClick(() => {
+            const modal = new Modal(this.app);
+            modal.titleEl.setText("Wipe cloud copy?");
+            modal.contentEl.createEl("p", {
+              text: "Wipe cloud atom mirror, pending Ask writes, and revoke Ask connector access (Claude + ChatGPT)? Local vault files are kept.",
+            });
+            new Setting(modal.contentEl)
+              .addButton((b) =>
+                b.setButtonText("Cancel").onClick(() => modal.close()),
+              )
+              .addButton((b) =>
+                b
+                  .setButtonText("Wipe")
+                  .setDestructive()
+                  .setCta()
+                  .onClick(() => {
+                    modal.close();
+                    void (async () => {
+                      const r = await askMirrorWipe(
+                        { baseUrl: base, request: plusFetchRequest },
+                        session.sessionToken,
+                      );
+                      if (!r.ok) {
+                        new Notice(`Ask: ${r.message}`);
+                        return;
+                      }
+                      this.plugin.settings.askMirrorHashes = {};
+                      writeAskMirrorHashes(
+                        (k, v) => this.app.saveLocalStorage(k, v),
+                        {},
+                      );
+                      this.app.saveLocalStorage(LS_ASK_MIRROR_LAST_ERROR, "");
+                      this.app.saveLocalStorage(LS_ASK_MIRROR_LAST_SUCCESS, "");
+                      this.app.saveLocalStorage(LS_ASK_MIRROR_SERVER_COUNT, "0");
+                      this.app.saveLocalStorage(LS_ASK_MIRROR_HASHES, "{}");
+                      await this.plugin.saveSettings();
+                      new Notice("Ask mirror wiped");
+                      this.redisplay();
+                    })();
+                  }),
+              );
+            modal.open();
+          }),
       );
 
     new Setting(containerEl)

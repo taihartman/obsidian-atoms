@@ -17,6 +17,7 @@ declare const ATOMS_DEV_COMMANDS: boolean;
 /** Dev-only console logging — silent in Community production builds. */
 function devLog(...args: unknown[]): void {
   if (typeof ATOMS_DEV_COMMANDS !== "undefined" && ATOMS_DEV_COMMANDS) {
+    // eslint-disable-next-line no-console -- gated dev diagnostics
     console.log(...args);
   }
 }
