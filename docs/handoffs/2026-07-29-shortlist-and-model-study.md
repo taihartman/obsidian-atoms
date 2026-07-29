@@ -107,11 +107,14 @@ changed.** Everything lives in `scripts/` and `docs/`.
 
 ### Corrections to earlier findings in this same branch
 
-- **The 200-char body truncation is not established.** Its recall advantage (97% vs 93%) rests on
-  **one link out of 30** on the real-vault run — inside the noise floor. Mean body is 1,943 chars, so
-  truncating discards ~90% of the text, and since misses are *zero-score* discarding text can only
-  reduce the chance of a term match. The memory case that motivated it is also weak now: 23.7MB for
-  full bodies sits inside a 300–450MB page budget. **Revisit and index more, not less.**
+- **The 200-char body truncation is not established, and is close to a non-question.** Its recall
+  advantage (97% vs 93%) rests on **one link out of 30** on the real-vault run — inside the noise
+  floor. ~~Mean body is 1,943 chars~~ — **corrected 2026-07-29b: that figure averaged all 373 notes,
+  where non-atom notes are read with a 2,000-char slice and dominate. Mean *atom capture* is 123
+  chars (median 97); only 5 of 37 atoms exceed 200 chars at all,** so the truncation discards almost
+  nothing at this body-length distribution. The memory case that motivated it is also weak: 23.7MB
+  for full bodies sits inside a 300–450MB page budget. **Decide it on memory, not recall.**
+  See `docs/research/2026-07-29-real-vault-check.md`.
 - **The noise floor is ~5 points at n=80 probes.** Every selector and model comparison closer than
   that — 86% vs 88%, 84% vs 85% — is indistinguishable. Grow the probe set (specifically on
   zero-score queries) before building anything on a small gap.
@@ -152,9 +155,17 @@ because the pipeline run is the one that reflects shipped behaviour.
   The bake-off harness must omit the field on that arm.
 - **`classify.ts` sends no `temperature`/`top_p`**, so it is already Sonnet-5/Opus-5 clean (both
   reject non-default sampling params). Prefills are also absent.
-- **BLOCKED: every real-vault measurement.** `analyze-vault-shortlist.mjs --hops` is written and
-  read-only, but the sandbox permission classifier refuses to read `~/Documents/Remote Vault`.
-  That blocks the hop cross-check, the tags-as-expansion test, and the 200-char body question.
+- **The real vault ran (permission granted) and settles none of the three questions it was meant
+  to** — `docs/research/2026-07-29-real-vault-check.md`. It holds **37 atoms and 30 links**, of which
+  exactly **one** scores zero, and k=400 exceeds the whole 373-note vault so every selector reads
+  100%. It did fix two things: the 1,943-char body figure was measuring non-atom notes (real atom
+  captures average **123 chars**), and **tags contribute more indexable tokens than the captures
+  themselves** (714 vs 650; +158% with link prose), which makes tags-as-expansion the largest
+  untested lever on the board. Alphabetical-40 scoring **0%** is the one robust real-vault result.
+- **The binding constraint is now the corpus, not permissions.** Every remaining question — hop
+  distance on a real graph, tags as expansion, recall@400 — needs a corpus with more links and
+  enough notes for k=400 to bite. The synthetic chrono corpus is the only instrument with the
+  resolution, and it has no tags.
 
 ## Not established — the actual work
 
