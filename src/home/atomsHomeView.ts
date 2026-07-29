@@ -1914,7 +1914,10 @@ export class AtomsHomeView extends ItemView {
       if (this.inboxStuck.inferredDates > 0) {
         stuck.createEl("p", {
           cls: "atoms-home-inbox-cause",
-          text: "Your capture shortcut is sending a timestamp Atoms can't read, so these took the date of the captures around them.",
+          text:
+            this.inboxStuck.inferredDates === 1
+              ? "Your capture shortcut is sending a timestamp Atoms can't read, so this one took the date of the captures around it."
+              : "Your capture shortcut is sending a timestamp Atoms can't read, so these took the date of the captures around them.",
         });
         stuck.createEl("p", {
           cls: "atoms-home-inbox-fix",
@@ -1929,8 +1932,10 @@ export class AtomsHomeView extends ItemView {
           onClick: () => openPluginSettingsTab(this.app, "atoms"),
         });
         // Only when a link exists — a permanently-dead button is exactly what
-        // made the old card a dead end.
-        if (this.installUrl()) {
+        // made the old card a dead end. And not when the shortcut banner is
+        // already on screen: it renders the same action a few pixels below, and
+        // two adjacent buttons for one action just muddy which is authoritative.
+        if (this.installUrl() && !this.showShortcutBanner()) {
           button(actions, {
             grade: "secondary",
             label: labelInstallOrUpdate(this.shortcutAcked),
