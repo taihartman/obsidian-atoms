@@ -201,11 +201,60 @@ it, and for those it cannot. G01 argues for a rename/alias record rather than a 
 - k=40 already buys 90%; k=400 buys the last five points. If prompt size ever needs to shrink again,
   40 is a defensible floor.
 
-### Caveat — this is a ceiling, not a verdict
+## Results — step 4 (paid model-side check), run 2026-07-28
 
-Recall here means *the note reached the shortlist*. It does not mean the model emitted the link.
-Step 4 of the protocol — the paid model-side check against the `full` ceiling — has **not been run**.
-Until it has, 95% is the best any model could do with this selector, not what it will do.
+84 probes × 4 configs = 336 real classify calls at a 3,000-note vault, Sonnet 5, **$11.76**.
+`npm run measure:links -- --spend`. Raw:
+[`data/2026-07-28-link-quality.json`](../research/data/2026-07-28-link-quality.json).
+
+| Config | Target linked | Ceiling (in shortlist) | **Converted** | Invented links |
+|---|---|---|---|---|
+| `full` — uncapped | **90%** | 100% | 90% | 2 |
+| `bodyPlusTitle:400` | **86%** | 95% | **91%** | 2 |
+| `bodyPlusTitle:40` | **85%** | 90% | **94%** | 2 |
+| `alphabetical:40` — shipped | **0%** | 0% | — | 0 |
+
+*Converted* = of the targets the selector did surface, how many the model actually linked.
+
+**Finding 5 — capping is not the dominant error source; the model is.** Given a perfect shortlist,
+`full` still only links **90%**. Ten points are lost *after* the note is in front of the model. So
+the gap between uncapped and `bodyPlusTitle:400` is **4 points**, against an 80% cut in prompt size.
+
+**Finding 6 — a smaller shortlist converts better.** Conversion rises as k falls: 90% → 91% → 94%.
+A shorter list is a less noisy one, and the model picks from it more reliably. The capped configs are
+*better* at using what they are given; they simply have less. That is why k=40 lands within a point
+of k=400 despite a much lower ceiling.
+
+**Finding 7 — capping does not make the model invent links.** Two invented links on the cold-start
+probes, identically, at every k. The worry that a thin list would push the model to force a
+connection is not borne out. (`alphabetical:40` invents none because it links nothing at all.)
+
+**Finding 8 — the shipped Plus selector links nothing.** `alphabetical:40` produced **72 regressions
+against `full`** and a 0% link rate. Not degraded — inert.
+
+**The 7 regressions at k=400, split by cause:**
+
+| Cause | Probes | Fix |
+|---|---|---|
+| Not in shortlist | C05, E01, E05, G01 | the honest limits from step 3 — world knowledge, a rename with no shared text, two abstract restatements |
+| In shortlist, model skipped it | B05, D10, E10 | prompt work, not selector work — the note was right there |
+
+### Recommendation (updated)
+
+- **Backfill: `bodyPlusTitle` at k=400.** 86% against an uncapped 90%, flat **$3.65 per 1,000
+  captures at any vault size** versus $5.33–$13.32 uncapped. Four points is the price of a single
+  honest published price, and three of the seven losses are prompt bugs we can chase separately.
+- **plus-service: replace `alphabetical:40`.** 0% → 85% at the same 40 titles, same cost, same
+  latency. At 5,000 notes k=40 slips to an 88% ceiling against k=400's 94%, so prefer 400 there too —
+  10,095 tokens is ~0.3¢ on a warm realtime call.
+- **Chase the conversion gap separately.** Ten points sit in the prompt, not the context, and that is
+  the largest remaining pool — bigger than everything capping costs.
+
+### What is still owed
+
+Step 5 — owner review of the disagreements. The numbers above score against *planted* targets and
+against what `full` linked. Neither can tell you whether a link a capped run found *instead* was
+worse. The per-probe links are in the raw JSON for exactly that pass.
 
 ## Explicitly out of scope
 
