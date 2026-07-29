@@ -29,9 +29,24 @@ directions.
 
 Uncapped does not scale, and the cost is not a rounding error: a 3,000-capture catch-up runs $3.23
 per thousand at a 200-note vault and $13.32 at 5,000, so no single honest price exists. Measured on
-the real prompt, input grows at roughly **11 tokens per vault title** — vault size, not capture
-length, is the cost driver. Capped at 400 titles the price is flat at $3.65 per thousand at any
-vault size.
+the real prompt, input grows at **16.47 tokens per atom title** (13.83 across all vault files) —
+vault size, not capture length, is the cost driver. Both rates are hardcoded in
+`scripts/analyze-vault-shortlist.mjs:121` and `scripts/measure-link-quality.mjs:192` as
+`3507 + n * 16.47`. Capped at 400 titles the price is flat at $3.65 per thousand at any vault size.
+
+**Correction, 2026-07-29 (implementation).** This paragraph previously said "roughly 11 tokens per
+vault title". That figure has no source in this repo and understates the measured rate by 26–50%.
+
+**Correction, 2026-07-29 (implementation).** The `$3.23`/`$13.32`/`$3.65` figures above are
+**cache-read** prices — `docs/research/2026-07-28-classify-prompt-cost-measurement.md` §0.9 heads
+that column "Warmed $/1,000", and its uncached column for the same rows reads $34.79 and $333.52.
+They therefore price a **frozen** 400-title prefix that every capture re-reads from cache. A
+per-capture shortlist changes bytes inside that cached block (`classify.ts:185` renders
+`### Note titles` inside the `cache_control` breakpoint at `:413`), so nothing is ever read back and
+the cap does **not** hold the price. Measured at the repo's own token prices, k=400 per-capture
+costs ~$11.09 per thousand with the breakpoint split, ~$29.40 with `cache_control` left in place
+(a write premium on an entry never read), against $5.30 for today's uncapped-but-cached behaviour at
+a 1,200-note vault. See U5 for how the catch-up path resolves this.
 
 Alphabetical-40 is worse than a cap — it is an *accidental* cap. Scored against the owner's real
 vault links it retrieves **0%** of them. A Plus subscriber today cannot link to most of their vault,

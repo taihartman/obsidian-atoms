@@ -28,8 +28,11 @@ vault:
 - `plus-service` shows the model the **alphabetically-first 40** titles. Scored against the owner's
   real vault links it retrieves **0%** of them. Plus is the revenue path; the owner called this the
   most important part.
-- Uncapped context does not scale — input grows ~11 tokens per vault title, so a catch-up runs
-  $3.23/thousand at a 200-note vault and $13.32 at 5,000. Capped at 400 it is flat at $3.65.
+- Uncapped context does not scale — input grows 16.47 tokens per atom title (13.83 across all vault
+  files), so a catch-up runs $3.23/thousand at a 200-note vault and $13.32 at 5,000. Capped at 400
+  it is flat at $3.65. **Corrected 2026-07-29:** this previously said "~11 tokens per vault title",
+  which has no source in the repo; and those dollar figures are **cache-read** prices for a *frozen*
+  prefix, so they do not survive a per-capture shortlist. See the plan's Problem Frame corrections.
 - `write.ts:120` (the everyday **Process** path) and `backfill.ts:268` both build context **once,
   before the loop over captures**, so an atom created early in a run is invisible to every capture
   after it.
