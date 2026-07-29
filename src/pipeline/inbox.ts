@@ -140,9 +140,24 @@ const DEGENERATE_DASH_RE = /^\s*-\s*$/;
  * The inbox is appended to by every device, which makes it the note in the
  * vault most likely to receive a conflict. Absorbing the scaffolding writes
  * text the user never typed into a capture body, so it is left unabsorbed and
- * uncounted. Exactly the three seven-character markers, optionally labelled.
+ * uncounted. Exactly the four seven-character markers, optionally labelled —
+ * `|||||||` is the base section `merge.conflictStyle = diff3`/`zdiff3` writes.
+ * Anchored at column 0 with no leading-whitespace tolerance: git writes markers
+ * there, and the failure this file reasons about is indentation being *lost*.
  */
-const CONFLICT_MARKER_RE = /^(?:<{7}|={7}|>{7})(?:\s.*)?$/;
+const CONFLICT_MARKER_RE = /^(?:<{7}|\|{7}|={7}|>{7})(?:\s.*)?$/;
+
+/**
+ * A line the parser refuses to absorb: scaffolding, not capture text.
+ *
+ * Noise is invisible in both directions — it neither folds into the body above
+ * it nor terminates the region scan below it. Letting it terminate the scan
+ * would hide a filed marker sitting under it and silently reassign a capture's
+ * filed state, stacking a second marker that the append-only inbox never cleans.
+ */
+function isNoiseLine(line: string): boolean {
+  return DEGENERATE_DASH_RE.test(line) || CONFLICT_MARKER_RE.test(line);
+}
 
 /** Either of the inbox's own sentinels, which never fold into a body. */
 function isInboxMarkerLine(line: string): boolean {
@@ -168,8 +183,7 @@ function isAbsorbableLine(line: string): boolean {
   if (line.trim() === "" && isColumnZero(line)) return false;
   if (isTopLevelBullet(line)) return false;
   if (isInboxMarkerLine(line)) return false;
-  if (DEGENERATE_DASH_RE.test(line)) return false;
-  if (CONFLICT_MARKER_RE.test(line)) return false;
+  if (isNoiseLine(line)) return false;
   return true;
 }
 
@@ -190,7 +204,8 @@ interface InboxRegionMarkers {
  * re-filing and stacking a second marker. Neither marker terminates the scan
  * and neither is required to be indented: the pair reads in either order, and a
  * merge that strips the tab off one would otherwise read as prose and hide the
- * other below it. Mirrors `captureAlreadyHasMarker` in render.ts — the inbox
+ * other below it. Noise the parser refused to absorb is skipped for the same
+ * reason — see `isNoiseLine`. Mirrors `captureAlreadyHasMarker` in render.ts — the inbox
  * owns its own sentinels and never teaches parse.ts about them (KTD9).
  */
 function inboxMarkersInRegion(
@@ -211,6 +226,7 @@ function inboxMarkersInRegion(
       if (filedLine === null) filedLine = j;
       continue;
     }
+    if (isNoiseLine(line)) continue; // scaffolding never hides a marker below it
     if (line.trim() !== "" && isColumnZero(line)) break; // non-indented prose
   }
   return { filedLine, inferredDate };

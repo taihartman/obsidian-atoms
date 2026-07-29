@@ -224,6 +224,35 @@ describe("parseInboxCaptures — filed markers", () => {
     expect(caps).toHaveLength(1);
     expect(caps[0]!.filed).toBe(true);
   });
+
+  it("reads a capture as filed through a conflict block above its marker (F4)", () => {
+    // A line the parser refuses to absorb is noise, and noise must be invisible
+    // to the region scan in both directions: terminating on it would hide the
+    // marker below and stack a second one on the next drain.
+    const md = [
+      "- 2026-07-27T09:14-04:00 buy milk",
+      "<<<<<<< HEAD",
+      "=======",
+      ">>>>>>> other",
+      `\t${INBOX_FILED_MARKER}`,
+      "",
+    ].join("\n");
+    const caps = parseInboxCaptures(md);
+    expect(caps).toHaveLength(1);
+    expect(caps[0]!.filed).toBe(true);
+  });
+
+  it("reads a capture as filed through a degenerate dash above its marker (F4)", () => {
+    const md = [
+      "- 2026-07-27T09:14-04:00 buy milk",
+      "-",
+      `\t${INBOX_FILED_MARKER}`,
+      "",
+    ].join("\n");
+    const caps = parseInboxCaptures(md);
+    expect(caps).toHaveLength(1);
+    expect(caps[0]!.filed).toBe(true);
+  });
 });
 
 describe("parseInboxCaptures — orphan column-0 lines (KTD4)", () => {
@@ -273,6 +302,23 @@ describe("parseInboxCaptures — orphan column-0 lines (KTD4)", () => {
     const md = [
       "- 2026-07-27T09:14-04:00 buy milk",
       "<<<<<<< HEAD",
+      "=======",
+      ">>>>>>> other",
+      "",
+    ].join("\n");
+    const caps = parseInboxCaptures(md);
+    expect(caps).toHaveLength(1);
+    expect(caps[0]!.text).toBe("buy milk");
+  });
+
+  it("never folds a diff3 conflict block into the body above it", () => {
+    // `merge.conflictStyle = diff3` (and zdiff3) adds a `|||||||` base section.
+    // It is never legitimate capture text. A capture sitting last in the "ours"
+    // section puts `|||||||` directly below it, where it would be absorbed.
+    const md = [
+      "<<<<<<< HEAD",
+      "- 2026-07-27T09:14-04:00 buy milk",
+      "||||||| base",
       "=======",
       ">>>>>>> other",
       "",
@@ -1269,6 +1315,51 @@ describe("drainInbox", () => {
 
     const markerCount = h.inboxContent().split(INBOX_FILED_MARKER).length - 1;
     expect(markerCount).toBe(1);
+  });
+
+  it("does not splice a second marker when noise drifted below it (F4)", async () => {
+    // The inbox is append-only and never cleaned, so a stacked marker is
+    // permanent. Noise between a capture and its marker must not hide it.
+    const h = drainHarness(
+      [
+        "- 2026-07-27T09:14-04:00 buy milk",
+        "-",
+        "<<<<<<< HEAD",
+        "=======",
+        ">>>>>>> other",
+        `\t${INBOX_FILED_MARKER}`,
+        "",
+      ].join("\n"),
+      { dailies: { "2026-07-27": "- 09:14 buy milk\n" } },
+    );
+
+    await drainInbox(h.app, { ensureDaily: h.ensureDaily });
+    await drainInbox(h.app, { ensureDaily: h.ensureDaily });
+
+    const markerCount = h.inboxContent().split(INBOX_FILED_MARKER).length - 1;
+    expect(markerCount).toBe(1);
+  });
+
+  it("keeps a diff3 conflict block out of the daily", async () => {
+    const h = drainHarness(
+      [
+        "<<<<<<< HEAD",
+        "- 2026-07-27T09:14-04:00 buy milk",
+        "||||||| base",
+        "=======",
+        ">>>>>>> other",
+        "",
+      ].join("\n"),
+    );
+
+    await drainInbox(h.app, { ensureDaily: h.ensureDaily });
+
+    const daily = h.dailyContent("2026-07-27")!;
+    expect(daily).toContain("- 09:14 buy milk");
+    expect(daily).not.toContain("<<<<<<<");
+    expect(daily).not.toContain("|||||||");
+    expect(daily).not.toContain("=======");
+    expect(daily).not.toContain(">>>>>>>");
   });
 
   it("reports filed as markers written, not captures attempted (F5)", async () => {
