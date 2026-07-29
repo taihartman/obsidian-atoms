@@ -1,4 +1,4 @@
-# Capture shortcut — Capture to Bookmark
+# Capture Atom — the iOS capture Shortcut
 
 Capture on the phone appends one line to the inbox note. The plugin files that
 line into the right daily when Obsidian next opens. This recipe is the whole
@@ -21,7 +21,7 @@ date in its stamp — creating that daily if missing — and marked, never delet
 
 Built and verified on device 2026-07-28 (iOS Shortcuts, Obsidian 1.12.7).
 
-On **iPhone**: Shortcuts → **+** → name it **Atoms Capture**. Add these actions
+On **iPhone**: Shortcuts → **+** → name it **Capture Atom**. Add these actions
 in order:
 
 | # | Action | Config |
@@ -103,9 +103,9 @@ The plugin can open a shared iCloud link for this recipe:
    (`https://www.icloud.com/shortcuts/…`). Apple only mints these from
    Shortcuts.app on your device — neither the plugin nor an agent can.
 2. Obsidian → **Settings → Atoms → Capture** → paste the link.
-3. On the phone after Sync, Atoms home → **Install capture shortcut** opens it.
+3. On the phone after Sync, Atoms home → **Install Capture Atom** opens it.
 
 `CAPTURE_SHORTCUT_VERSION` in `src/settings/captureShortcut.ts` is the
 shipped-recipe id; the ack is device-local
 (`atoms-capture-shortcut-acked-version`). Bump it when the recipe changes and
-users with an old ack see **Update capture shortcut**.
+users with an old ack see **Update Capture Atom**.
