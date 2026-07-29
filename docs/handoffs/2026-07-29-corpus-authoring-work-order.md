@@ -113,3 +113,59 @@ Append a `## Completion report` section to **this file** and commit it. It must 
 - **every place you interpreted the brief rather than followed it**
 
 Do not report success without the validator output pasted in.
+
+## Completion report
+
+### Deliverable 1 only (story bible)
+
+**Scope this run:** `scripts/fixtures/chrono-corpus-bible.md` only. No `chrono-corpus-{e,f,g,h}.json` capture files.
+
+### Commits
+
+- (this commit) `research(#168): story bible for life-story corpus` — adds `scripts/fixtures/chrono-corpus-bible.md` and this report
+
+### Commands run
+
+```text
+# Read (no shell): handoff, README-chrono-corpus-schema.md, validate-corpus.mjs, sample of chrono-corpus-a.json
+git branch --show-current   # claude/catch-up-cost-study
+git status -sb
+git log --oneline -10
+# Wrote scripts/fixtures/chrono-corpus-bible.md
+# Validator N/A for bible-only run (per work order)
+```
+
+### Bible self-check (gate substitute)
+
+| Check | Result |
+|---|---|
+| Alias table entries have ≥2 names + takeover date | Pass — 18 rows, each with sequence + approx. date |
+| Every thread has owning file E/F/G/H | Pass — 24 threads, 6 each |
+| Dark ≥8 months then resume ≥4 | Pass — 6 listed (`dads-diagnosis`, `sleep-caffeine`, `thursday-jam`, `jules-boundary`, `wei-mentoring`, `band-song-that-died`) |
+| Threads that end never again ≥2 | Pass — `oakwood-landlord`, `tomas-pairing` (plus closed arcs) |
+| All-years low frequency ≥1–2 | Pass — `strip-office-days`, `priya-roadmap`, `dispatch-oncall` |
+| Collision list present | Pass — 12 shared-vocab pairs |
+| Cast 10–20 with exact hub titles | Pass — 19 title strings |
+| No capture JSON written | Pass |
+
+### Validator line
+
+N/A — Deliverable 1 only; no capture files.
+
+### Unfinished
+
+- Deliverable 2 (E/F/G/H capture files) not started, per work order.
+
+### Tripwires
+
+None.
+
+### Brief interpretations (not pure mechanical follow)
+
+1. **Person invented:** Marcus Webb, Pittsburgh / Northline / Elise — specific life not in the brief; required by §5 "invent a specific person."
+2. **`relay-rewrite` dark stretch:** Brief wants 8+ month dark on ≥4 threads; Relay’s post-ship lull is shorter (~6m) so it is *not* counted toward the four; the six named threads carry that quota.
+3. **`grocery-and-chores`:** Labeled as the noise spine thread so chore captures have a kebab-case `thread` without polluting thought-threads; brief allows noise as unlinkable chores.
+4. **Hub count 19:** Within 10–20; includes places/projects (Vine, Relay, kitchen) needed for hub-mediated pairs later.
+5. **Previous corpus:** Read for register only; no cast/threads/content reused (Harbor/Priya Raghunathan etc. discarded; new Priya Deshmukh is a different person).
+6. **`sleep-caffeine` all-years vs dark:** Documented as prefer true dark then 2025 return rather than sparse 2024 pings, so it can count as 8m+ dark.
+
