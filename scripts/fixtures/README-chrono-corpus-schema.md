@@ -1,25 +1,244 @@
-# chrono-corpus-*.json — capture schema
+# Life-story corpus — authoring brief
 
-The brief the corpus-authoring agents were given, kept so the corpus can be extended
-consistently. Used by scripts/measure-chrono-linking.mjs.
+You are writing **three years of one person's phone captures**, in order, as they actually happened.
+Not a dataset. A life. The realism is the point: this corpus gets run through the real Atoms
+pipeline, and everything we conclude about whether a note can find its earlier self depends on the
+captures being as hard to link as real ones are.
 
-Each capture is an object:
+Output is JSON in the schema at the bottom. Read the whole brief before writing anything.
 
+---
+
+## 1. Why this exists (read this or you will write the wrong thing)
+
+We are testing one question: **when a note is created, can the system find the earlier notes it
+belongs with?**
+
+To test that honestly, *you* must declare which captures belong together — `linksToEarlier` — and you
+must do it **before any model sees the corpus**. That field is the answer key. If a model wrote the
+links and we scored retrieval against them, we would be grading the search against its own output;
+the answer comes out 100% and means nothing.
+
+So the job is not "write plausible notes." It is: write notes that genuinely belong together, and
+make finding that out **hard in the specific ways real life is hard**. A corpus where every linked
+pair repeats the same nouns is a corpus that proves nothing — we already know keyword search finds
+those.
+
+The previous corpus (720 captures, 811 links) had **23.4%** of its linked pairs sharing *no* content
+word at all. That is the number that matters, and it is roughly the real-vault rate. Hold it or
+beat it. Everything in §4 exists to produce it honestly rather than by sprinkling in synonyms.
+
+---
+
+## 2. The register bar — how a real capture reads
+
+Measured against the owner's real vault (37 atoms) and the previous corpus:
+
+| Property | Target | Hard limit |
+|---|---|---|
+| Mean capture length | **95–125 chars** | — |
+| Median | **~100 chars** | — |
+| Over 200 chars | **≤ 3%** | none over 260 |
+| Under 50 chars | **≥ 15%** | — |
+| Noise verdict | **20%** | 18–22% |
+
+Real captures are thumbed into a phone one-handed, usually while doing something else. They are:
+
+- lowercase-dominant; capitalisation is accidental, not consistent
+- fragments — no subject, trailing off, two half-thoughts jammed together
+- occasionally typo'd or autocorrect-mangled, and left that way
+- written **in** the moment, not **about** the moment
+
+**The tell to avoid.** Models asked to write messy notes write tidy prose *about* messiness. These
+are all rejects:
+
+- `had an interesting thought today about how my relationship with work has shifted` — self-narrating
+- `Realized that the constraint isn't time, it's attention.` — an aphorism, capitalised, punctuated
+- `just wanted to note that the thing with mom felt different this time` — "just wanted to note"
+- anything with an em dash, a semicolon, or a colon used rhetorically
+
+These are the shape we want:
+
+- `sleep thing again. 3 nights now. its the coffee after 2pm i think`
+- `she was right about the deposit`
+- `cant keep doing tuesdays like this`
+- `bought the wrong gauge wire ugh`
+- `whole point of the rewrite was to delete code and its now bigger than before`
+
+Never prefix a capture with "remember:", "note:", "thought:", or "TIL".
+
+---
+
+## 3. Structure of the story
+
+**Scale.** Target is set per run — assume **~1,200 atoms** unless told otherwise, plus 20% noise on
+top. Split across authoring agents (§6).
+
+**Span.** 2023-01-01 → 2025-12-31. Captures appear in **ascending date order** within each file.
+Real capture rhythm is bursty: 4 captures on a Tuesday, then nine days of nothing. Do not spread
+them evenly. Some weeks have none.
+
+**Threads.** 20–30 running threads, interleaved. A thread is a strand of the person's life, not a
+topic label — `kitchen-renovation`, `dads-diagnosis`, `the-rewrite`, `running-again`,
+`sarah-and-the-move`. Consecutive captures should almost never be from the same thread; the person's
+day jumps.
+
+**Life shape.** Threads must start, run, go quiet, and resume — or end. At least four threads go
+dark for **8+ months** and come back. At least two end and are never mentioned again. One or two
+run the entire three years at low frequency. This is where long reach-back links come from, and
+they are the hardest and most valuable links in the corpus.
+
+**Reach-back distribution** for `linksToEarlier`, measured in days between the two captures:
+
+| Span | Share of links |
+|---|---|
+| under 30 days | ~25% |
+| 1–6 months | ~35% |
+| 6–18 months | ~30% |
+| over 18 months | ~10% |
+
+Median around 100 days. A corpus of last-week links tests nothing — recency alone would win it.
+
+---
+
+## 4. The failure modes the story must contain
+
+This is the core of the brief. Each of these is a distinct reason a real link is hard to find.
+Hit every quota. Quotas are shares of your **linked pairs**, not of captures.
+
+**A. Vocabulary drift — ≥ 20% of pairs, and this is the headline number.**
+The same referent, named differently months apart, with **zero shared content words** between the
+two captures. Not synonyms — *renaming*. The new apartment becomes "the place on vine" becomes
+"home" becomes "upstairs". A person is "sarah's brother", then "mike", then "he". A project is
+"the rewrite", then "v2", then "the thing i've been on since spring". Write the drift into the
+timeline: the name changes *because something happened*, not to be tricky.
+
+**B. Deixis-only reference — ≥ 8%.**
+A capture that refers back with a pronoun or a bare demonstrative and names nothing:
+`she was right`, `same thing again`, `this keeps happening`. Meaningful to the person, invisible to
+keyword search. Every one of these must have a real, declared earlier partner.
+
+**C. Term collision / false friends — ≥ 10% of captures (not pairs).**
+Two unrelated threads sharing vocabulary, so that a term match pulls the wrong one. `run` the
+half-marathon vs `run` the migration. `the deposit` on the flat vs `the deposit` at the bank.
+`mom's place` vs `the place on vine`. These captures must **not** be linked to each other — they
+are the precision test. Getting them wrong should look wrong.
+
+**D. Contradiction and revision — ≥ 10% of pairs.**
+A later capture reverses, doubts, or complicates an earlier one. `turns out i was wrong about the
+tuesdays thing`. The link is semantic, not additive — the two captures may share almost nothing
+lexically because one is a claim and the other is its retraction. These are the links a naive
+"more of the same topic" search misses entirely.
+
+**E. Very short captures — ≥ 15% under 50 chars, and at least half of those carry a link.**
+`he did it again`. `not the coffee`. `finally`. Almost no signal to retrieve on. If every short
+capture is noise, the corpus is easy in a way real vaults are not.
+
+**F. Hub-mediated vs orphan pairs — roughly half and half.**
+Some linked pairs both mention a shared recurring name (a person, a place, a project) — these are
+reachable by following the graph. The other half share **no** recurring name at all; the only route
+to them is the words in the capture. Keep the split near 50/50. If everything is hub-mediated the
+corpus overstates what graph expansion can do; if nothing is, it understates it.
+
+**G. Genuine noise — 20% of captures, linking to nothing.**
+`milk oat not almond`. `dentist moved to the 14th`. `pin is 4402`. `park on the odd side after 6`.
+Real chores, real one-offs, real fragments with no thought in them. Both link arrays empty. Noise
+must be genuinely unlinkable — not a thought in disguise. This is what measures false links.
+
+**H. Near-duplicates that are not the same thought — ≥ 5% of captures.**
+Two captures that look almost identical lexically but are about different things, months apart, and
+are **not** linked. `bad night again` about sleep vs `bad night again` about the bar shift. If the
+system links these it is wrong, and we want to be able to see that.
+
+---
+
+## 5. The story bible — write this first, before any captures
+
+Before anyone writes a capture, one shared bible is authored and every agent works from it:
+
+1. **Cast** — 10–20 recurring people, places and projects, each with the **exact title string** used
+   in `linksToExisting`. Reuse the strings byte-for-byte; a hub that is spelled two ways is two hubs.
+2. **Alias table** — for each cast member subject to drift (A above), the sequence of names and the
+   approximate date each takes over. This is what makes drift consistent across threads and agents.
+3. **Timeline skeleton** — the 20–30 threads, their start/quiet/resume/end dates, and which agent
+   owns each.
+4. **The collision list** — the shared-vocabulary pairs from C, and which two threads carry them.
+
+The bible goes in `scripts/fixtures/chrono-corpus-bible.md` and is committed with the corpus.
+
+---
+
+## 6. Splitting across authoring agents
+
+Each agent gets its own file and its own **id prefix** and owns a disjoint set of threads.
+
+- Links (`linksToEarlier`) are **within your own file only** — you cannot see another agent's ids.
+- Hubs (`linksToExisting`) are **shared** — that is what the bible is for, and it is how cross-file
+  structure appears without cross-file ids.
+- Ids ascend within a file. Dates ascend within a file.
+- Every agent covers the full 2023–2025 span; do not divide the story by time period, or the corpus
+  loses its interleaving.
+
+Authoring is deliberately delegated to a **different model family** than the one that classifies.
+If the same model writes and classifies, the vocabulary drift under test is artificially easy —
+the classifier recognises its own phrasings. That is a methodological requirement, not a preference.
+
+---
+
+## 7. Acceptance gate
+
+Run `node scripts/validate-corpus.mjs scripts/fixtures/chrono-corpus-*.json` before anything is
+spent on the corpus. It checks the schema, the §2 length distribution, the §3 reach-back
+distribution, and the §4 quotas including the zero-overlap rate, and it fails loudly.
+
+A corpus that passes the schema but comes back at 200 chars in tidy complete sentences is
+**rejected and re-briefed**, not patched. Validation is cheap; a paid pipeline run over a bad
+corpus is not.
+
+---
+
+## 8. Schema
+
+```json
 {
-  "id": "A0042",
+  "id": "E0042",
   "date": "2024-03-17",
   "thread": "kitchen-renovation",
-  "capture": "rough thumb-typed note, lowercase, fragments, typos fine",
+  "capture": "bought the wrong gauge wire ugh",
   "verdict": "atom",
-  "linksToEarlier": ["A0018", "A0031"],
-  "linksToExisting": ["A pre-run note title"]
+  "linksToEarlier": ["E0018", "E0031"],
+  "linksToExisting": ["Sarah", "The flat on Vine"]
 }
+```
 
-Rules:
-- `id`: your assigned prefix + 4 digits, ascending.
-- `date`: ISO, between 2023-01-01 and 2025-12-31. Captures must appear in ASCENDING date order in the file.
-- `capture`: how a real person thumbs a note into their phone — lowercase, fragments, typos fine. Never prefix with "remember:".
-- `verdict`: "atom" for a real thought worth keeping, "noise" for chores/one-offs. Make ~20% noise.
-- `linksToEarlier`: ids of EARLIER captures in THIS corpus that this capture genuinely belongs with — a thought it continues, contradicts, or refers back to. Only ids with an earlier date. Empty array when there is nothing. THIS IS THE MOST IMPORTANT FIELD — it is the ground truth for whether notes created during a catch-up can find each other.
-- `linksToExisting`: titles of notes that already existed before the run (people, places, projects). Keep to a handful of recurring titles per thread; reuse the same strings exactly.
-- `noise` captures link to nothing: both arrays empty.
+| Field | Rule |
+|---|---|
+| `id` | your assigned prefix + 4 digits, ascending within the file |
+| `date` | ISO, 2023-01-01 → 2025-12-31, **ascending** within the file |
+| `thread` | kebab-case strand name from the bible |
+| `capture` | the note, per §2. Never prefixed with "remember:" / "note:" / "TIL" |
+| `verdict` | `"atom"` for a real thought worth keeping, `"noise"` for chores and one-offs. 20% noise |
+| `linksToEarlier` | ids of **earlier** captures in **this file** that this one genuinely belongs with — a thought it continues, contradicts, or refers back to. Empty when there is nothing. **This is the answer key.** |
+| `linksToExisting` | exact title strings from the bible's cast, for notes that existed before the run |
+| — | `noise` captures link to nothing: both arrays empty |
+
+A file is a JSON array of these objects.
+
+---
+
+## Appendix — what the previous corpus measured
+
+Kept as the baseline the new one must match or beat. `scripts/fixtures/chrono-corpus-{a,b,c,d}.json`,
+720 captures / 576 atoms / 811 links / 21 threads:
+
+| | Value |
+|---|---|
+| Capture length mean / median | 113 / 113 chars |
+| Over 200 chars | 18 of 720 (2.5%) |
+| Noise | 20.0% |
+| Link span median / p90 / max | 98 / 511 / 1,084 days |
+| **Zero-shared-term linked pairs** | **190 of 811 (23.4%)** |
+
+Its weakness was never the register — it was that it never went through the pipeline, so it has no
+model-written titles, no tags, and no reason-bearing link prose. The new corpus fixes that by being
+*processed*, which is why the authoring bar has to be at least this high going in.
