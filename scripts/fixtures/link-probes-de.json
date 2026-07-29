@@ -1,0 +1,369 @@
+{
+  "probes": [
+    {
+      "id": "D01",
+      "archetype": "D",
+      "failureMode": 2,
+      "capture": "knees been grumpy on the sunday long one again, outside edge mostly, totally fine midweek",
+      "targetTitle": "IT band flares past 10k, never on shorter efforts",
+      "targetAgeDays": 410,
+      "supportingTitles": [
+        "Foam rolling before a run does nothing for me",
+        "New shoes take three runs before they stop pinching",
+        "Sunday long run is the only session I never skip",
+        "Calf tightness clears up after two rest days"
+      ],
+      "why": "Not one content word is shared between the capture and the target, and the target is over a year old, so keyword and recency selectors both miss it."
+    },
+    {
+      "id": "D02",
+      "archetype": "D",
+      "failureMode": 1,
+      "capture": "up til 2am three nights straight, nothing different except it going dark at 5 now",
+      "targetTitle": "Sleep collapses the week after the clocks change",
+      "targetAgeDays": 520,
+      "supportingTitles": [
+        "Reading in bed gets me under faster than any app",
+        "A late espresso costs me about an hour of sleep",
+        "Blackout blinds fixed the summer early waking",
+        "Winter mornings are the only ones I need an alarm for"
+      ],
+      "why": "The pattern only recurs once a year, so the one note that explains it sits outside any recency window a cheap selector would use."
+    },
+    {
+      "id": "D03",
+      "archetype": "D",
+      "failureMode": 2,
+      "capture": "keep raiding the kitchen mid afternoon, always the days i just have coffee til lunch",
+      "targetTitle": "Skipping breakfast makes me snack badly by 4pm",
+      "targetAgeDays": 210,
+      "supportingTitles": [
+        "Cooking on Sunday is what keeps the week honest",
+        "Eating out twice a week is the sustainable number",
+        "Coffee on an empty stomach makes me jittery not alert",
+        "Protein at lunch keeps the 3pm slump smaller"
+      ],
+      "why": "The capture says raiding the kitchen and the target says snack, so token overlap is essentially zero despite them being the same observation."
+    },
+    {
+      "id": "D04",
+      "archetype": "D",
+      "failureMode": 2,
+      "capture": "everything felt grey and pointless again, then realised i havent been outside the door since thursday",
+      "targetTitle": "Two days without leaving the flat tanks my mood",
+      "targetAgeDays": 275,
+      "supportingTitles": [
+        "Morning light does more for me than the vitamin D pills",
+        "Working from the cafe is worth the worse chair",
+        "Cancelling plans feels great and then it doesn't",
+        "Rain days are when the slump actually starts"
+      ],
+      "why": "The capture never names mood or the flat, and the one word it shares with nearby notes is outside, which points at the wrong cluster."
+    },
+    {
+      "id": "D05",
+      "archetype": "D",
+      "failureMode": 1,
+      "capture": "brain like soup til about 11 every day this week, oh right the hayfever tablets started back up",
+      "targetTitle": "Antihistamines leave me foggy until mid morning",
+      "targetAgeDays": 365,
+      "supportingTitles": [
+        "Pollen season starts a fortnight earlier than I expect",
+        "The nasal spray works but I always forget it",
+        "Two coffees does not cancel out a bad night",
+        "Afternoon focus is better than morning focus lately"
+      ],
+      "why": "The target is exactly one allergy season old, so it falls off a recency shortlist in the very week it becomes relevant again."
+    },
+    {
+      "id": "D06",
+      "archetype": "D",
+      "failureMode": 2,
+      "capture": "dead at 3 again. had a proper lunch so its not that. pint of water and twenty mins later im fine",
+      "targetTitle": "Afternoon crash is dehydration, not low blood sugar",
+      "targetAgeDays": 190,
+      "supportingTitles": [
+        "A big lunch is not what makes me sleepy after all",
+        "The desk bottle only gets refilled if it's in view",
+        "Walking after eating helps more than caffeine does",
+        "Meetings back to back are when I forget to drink"
+      ],
+      "why": "The capture describes the mechanism in body language and never uses dehydration or blood sugar, so keyword scoring ranks unrelated lunch notes higher."
+    },
+    {
+      "id": "D07",
+      "archetype": "D",
+      "failureMode": 1,
+      "capture": "third quality day this week and my legs were rubbish the whole way, felt like wading through it",
+      "targetTitle": "Three hard sessions a week is one too many",
+      "targetAgeDays": 400,
+      "supportingTitles": [
+        "Easy days have to actually be easy or nothing works",
+        "Racing well needs a down week ten days out",
+        "Hill reps are the session I dread and need most",
+        "Two hard days plus a long run is the sustainable shape"
+      ],
+      "why": "The lesson was learned in a previous training block over a year ago and is being relearned now, so recency selectors surface only this block's notes."
+    },
+    {
+      "id": "D08",
+      "archetype": "D",
+      "failureMode": 2,
+      "capture": "guts in bits again after the thai place last night and i didnt even touch the bread this time",
+      "targetTitle": "Onions, not gluten, are what wreck my stomach",
+      "targetAgeDays": 245,
+      "supportingTitles": [
+        "Cutting bread for a month changed nothing at all",
+        "Restaurant food is the only reliable trigger",
+        "Dairy is fine in coffee and not fine in a bowl",
+        "Keeping a food note for a week beats guessing"
+      ],
+      "why": "The capture rules out the wrong culprit by name, which pulls keyword selectors toward the gluten notes and away from the one that names onions."
+    },
+    {
+      "id": "D09",
+      "archetype": "D",
+      "failureMode": 2,
+      "capture": "arms all angry and itchy again, and its been a weirdly calm week so thats not the usual excuse",
+      "targetTitle": "Eczema flares track laundry detergent, not stress",
+      "targetAgeDays": 320,
+      "supportingTitles": [
+        "The thick ointment works, I just stop using it early",
+        "Hot showers make the itching worse within an hour",
+        "Deadline weeks are when everything else falls apart",
+        "New bedding week is worth writing down"
+      ],
+      "why": "Angry and itchy arms shares no vocabulary with eczema, and the capture's only strong token, calm week, points at the stress notes the target explicitly rejects."
+    },
+    {
+      "id": "D10",
+      "archetype": "D",
+      "failureMode": 8,
+      "capture": "legs were shot so i binned the session and just walked the block, and the pricing page thing untangled itself on the way round",
+      "targetTitle": "Design blocks break on a walk, not at the desk",
+      "targetAgeDays": 180,
+      "supportingTitles": [
+        "Rest days are when the training actually lands",
+        "Pricing page has been stuck for three weeks now",
+        "The best ideas arrive when I'm not at a keyboard",
+        "Skipping a session guilt free is a skill I lack"
+      ],
+      "why": "The capture is filed as a body note but the note it belongs with lives in the work domain, so any selector that clusters or quotas by domain drops the bridge."
+    },
+    {
+      "id": "D11",
+      "archetype": "D",
+      "failureMode": 11,
+      "capture": "odd metallic taste in my mouth the last two mornings, never had this before, nothing new that i can think of",
+      "targetTitle": null,
+      "targetAgeDays": null,
+      "supportingTitles": [
+        "Antihistamines leave me foggy until mid morning",
+        "Onions, not gluten, are what wreck my stomach",
+        "Dentist says the grinding is stress and not the bite",
+        "Sleep collapses the week after the clocks change"
+      ],
+      "why": "Nothing in the vault explains this, so the correct behaviour is no link; the surrounding health notes are close enough in domain that a selector will happily hand the model a plausible wrong one."
+    },
+    {
+      "id": "D12",
+      "archetype": "D",
+      "failureMode": 12,
+      "capture": "shoulder is grumbling again, same side, same as when the pool was shut over christmas",
+      "targetTitle": "Shoulder ache follows weeks with no swimming",
+      "targetAgeDays": 0,
+      "supportingTitles": [
+        "The pool closure in December broke a two year streak",
+        "Desk posture is worse on days with no gym",
+        "Physio exercises only get done if they live by the kettle",
+        "Swimming is the only cardio my knees never object to"
+      ],
+      "why": "The target atom does not exist at the start of the catch-up run; it is filed from a much earlier daily in the same run, so a frozen title prefix makes the link structurally impossible."
+    },
+    {
+      "id": "E01",
+      "archetype": "E",
+      "failureMode": 6,
+      "capture": "the thing that actually broke this quarter wasnt anyone being slow. it was three fast people with no judgement shipping confidently. i had this the wrong way round",
+      "targetTitle": "Hiring for raw speed beats hiring for taste",
+      "targetAgeDays": 280,
+      "supportingTitles": [
+        "Interviews measure how well people interview",
+        "A slow hire is cheaper than a fast mistake",
+        "Taste is the thing you cannot train in a quarter",
+        "Velocity is a team property and not a person one"
+      ],
+      "why": "The capture overturns the old belief rather than restating it, so unless that exact atom is in the shortlist the run files a contradictory duplicate instead of a supersession."
+    },
+    {
+      "id": "E02",
+      "archetype": "E",
+      "failureMode": 6,
+      "capture": "did the maths properly this time with maintenance and the interest and staying put is cheaper for another five years at least. mildly annoyed at past me",
+      "targetTitle": "Renting is money thrown away versus owning",
+      "targetAgeDays": 610,
+      "supportingTitles": [
+        "A deposit is the only savings goal I have ever kept",
+        "Owning means every weekend has a job attached",
+        "Rent going up every year is the argument I keep making",
+        "Mortgage rates changed the whole calculation this year"
+      ],
+      "why": "The superseded belief is nearly two years old and the capture uses spreadsheet language rather than the belief's moral framing, so it fails both the recency and the keyword route at once."
+    },
+    {
+      "id": "E03",
+      "archetype": "E",
+      "failureMode": 6,
+      "capture": "the meltdown wasnt the ipad, theyd been up since five. tired is the whole story and i keep pinning it on the screen because thats easier",
+      "targetTitle": "Screen time is the main thing to control",
+      "targetAgeDays": 240,
+      "supportingTitles": [
+        "Bedtime slips by ten minutes a night if nobody watches",
+        "Saying no to the tablet costs more than it saves",
+        "Weekend routine falls apart and Monday pays for it",
+        "Nursery days end in tears more often than home days"
+      ],
+      "why": "Supersession of a parenting belief where the capture's strongest token, screen, matches the old atom's surface but the reasoning inverts it; a selector that finds it by keyword can still be beaten by this month's dozens of bedtime notes."
+    },
+    {
+      "id": "E04",
+      "archetype": "E",
+      "failureMode": 6,
+      "capture": "spent an hour poking round the fediverse thing and every single server has one exhausted volunteer doing the same job badly. moving the servers about doesnt move the work",
+      "targetTitle": "Decentralised networks solve moderation problems",
+      "targetAgeDays": 330,
+      "supportingTitles": [
+        "Platform rules are labour policy wearing a product costume",
+        "Nobody wants to be the one who decides what stays up",
+        "Small communities self police until they get big",
+        "Account portability is a real win and the only one"
+      ],
+      "why": "The overturned belief is nearly a year old and the capture argues from a concrete observation without naming decentralisation or moderation, so the contradiction is invisible to both cheap selectors."
+    },
+    {
+      "id": "E05",
+      "archetype": "E",
+      "failureMode": 7,
+      "capture": "the outline thing again. two days on structure and the writing came out stiff as anything, same as last time and the time before",
+      "targetTitle": "First drafts get worse the more I plan them",
+      "targetAgeDays": 430,
+      "supportingTitles": [
+        "Writing in the morning is worth being worse at everything else",
+        "Editing is where the thinking actually happens",
+        "Deadlines produce prose that planning never does",
+        "Notes on index cards beat notes in an app for me"
+      ],
+      "why": "A thread the person has picked up every few months for over a year; the capture assumes the reader remembers it, so the referent again carries all the meaning and none of the searchable words."
+    },
+    {
+      "id": "E06",
+      "archetype": "E",
+      "failureMode": 7,
+      "capture": "the funeral thing keeps coming back to me. nobody stood up in that room and cared what he built at work, not one person",
+      "targetTitle": "Being known by five people beats being known widely",
+      "targetAgeDays": 340,
+      "supportingTitles": [
+        "Ambition without a deadline is just anxiety",
+        "Legacy is a word people use to avoid saying scared",
+        "I check the follower count more than I would admit",
+        "Old friendships need booking and new ones just happen"
+      ],
+      "why": "A recurring reflection revisited over almost a year in different words each time, and its target has no vocabulary in common with the funeral framing of this instance."
+    },
+    {
+      "id": "E07",
+      "archetype": "E",
+      "failureMode": 9,
+      "capture": "cut back to two newsletters and i can suddenly hold an argument again. its the pruning doing it not the reading",
+      "targetTitle": "Reading fewer sources made my opinions sharper",
+      "targetAgeDays": 150,
+      "supportingTitles": [
+        "The house move has eaten every spare thought for a month",
+        "Survey day was worse than the offer day",
+        "Packing is an inventory of decisions I avoided",
+        "Solicitor emails arrive in threes and say nothing",
+        "Second viewing changed my mind about the kitchen",
+        "Removals quotes vary by a factor of three",
+        "Mortgage paperwork took four evenings this week"
+      ],
+      "why": "Five weeks of near-duplicate house-move atoms dominate any recency or frequency shortlist, crowding out the single older note this capture actually continues."
+    },
+    {
+      "id": "E08",
+      "archetype": "E",
+      "failureMode": 9,
+      "capture": "told them it was fine when it really wasnt and now im keeping two versions of the story straight in my head. exhausting",
+      "targetTitle": "Small lies to spare feelings still cost trust",
+      "targetAgeDays": 260,
+      "supportingTitles": [
+        "Reorg rumours are worse than the reorg",
+        "Standup has become a status report nobody reads",
+        "The new manager asks good questions and acts on none",
+        "Three months of firefighting and no roadmap moved",
+        "Every one to one this quarter has been about headcount",
+        "Working late is a habit and not a workload"
+      ],
+      "why": "The journal is saturated with this quarter's work-stress atoms which look superficially similar, so the rare ethics note that actually matches loses on both frequency and recency."
+    },
+    {
+      "id": "E09",
+      "archetype": "E",
+      "failureMode": 1,
+      "capture": "still telling people im going to write the book someday. its been someday for two years and it just sits there making me twitchy",
+      "targetTitle": "Ambition without a deadline is just anxiety",
+      "targetAgeDays": 720,
+      "supportingTitles": [
+        "Wanting a thing is not the same as choosing it",
+        "The projects I finished all had someone waiting",
+        "Saying a goal out loud makes it harder to drop quietly",
+        "Half-started ideas cost more attention than they look like"
+      ],
+      "why": "The target is two years old and the capture is the first time the person has returned to it, so any recency-bounded shortlist has long since dropped it."
+    },
+    {
+      "id": "E10",
+      "archetype": "E",
+      "failureMode": 8,
+      "capture": "the junior got twice as much done the week i stopped doing the daily check in. exactly the same as the piano practice thing at home",
+      "targetTitle": "Kids learn faster when nobody is watching them",
+      "targetAgeDays": 190,
+      "supportingTitles": [
+        "Practice happens when the instrument is already out",
+        "Delegating badly is just supervising with extra steps",
+        "Standups make juniors perform progress not make it",
+        "Praise for effort lands better than praise for results"
+      ],
+      "why": "The insight arrives in a work capture but its match is a parenting note, so a selector that quotas the shortlist by domain or tag will never put the two in the same window."
+    },
+    {
+      "id": "E11",
+      "archetype": "E",
+      "failureMode": 2,
+      "capture": "walked out of that room and not one of us could say what we agreed. everyone nodding at everything is how nothing ends up owned",
+      "targetTitle": "Consensus decisions are nobody's decisions",
+      "targetAgeDays": 210,
+      "supportingTitles": [
+        "A meeting without a named owner is a status update",
+        "Disagreement in the room is cheaper than in the build",
+        "Writing the decision down is most of deciding it",
+        "Big meetings make small decisions and vice versa"
+      ],
+      "why": "The capture describes the failure entirely in scene language and never uses consensus, decision, or owner, so token overlap with the target is effectively nil."
+    },
+    {
+      "id": "E12",
+      "archetype": "E",
+      "failureMode": 6,
+      "capture": "changed my mind on the drafting thing. the machine gets me to the bad first version faster and the real work was always the rewrite anyway",
+      "targetTitle": "Using a model to draft is cheating myself",
+      "targetAgeDays": 120,
+      "supportingTitles": [
+        "First drafts get worse the more I plan them",
+        "Editing is where the thinking actually happens",
+        "Writing is how I find out what I think",
+        "Tools change the work and then change the standard"
+      ],
+      "why": "A recent belief being reversed rather than restated; the capture's own vocabulary points at the drafting and rewriting notes, so the atom it supersedes can be ranked below its own supporting cluster."
+    }
+  ]
+}

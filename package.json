@@ -16,7 +16,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc -noEmit -skipLibCheck",
-    "build:www": "node www/build.mjs"
+    "build:www": "node www/build.mjs",
+    "measure:recall": "node scripts/measure-shortlist-recall.mjs"
   },
   "keywords": [
     "obsidian",
