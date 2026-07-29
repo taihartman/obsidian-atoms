@@ -159,8 +159,24 @@ export const config = {
   get maxCaptureChars() {
     return Number(env("ATOMS_PLUS_MAX_CAPTURE_CHARS", "8000"));
   },
+  /**
+   * Ceiling on a ranked shortlist from the device (KTD6 k=400). The device decides
+   * *which* titles; this only bounds how many the service forwards.
+   */
   get maxContextTitles() {
-    return Number(env("ATOMS_PLUS_MAX_CONTEXT_TITLES", "40"));
+    return Number(env("ATOMS_PLUS_MAX_CONTEXT_TITLES", "400"));
+  },
+  /**
+   * Cap for older clients that send the whole vault alphabetically. Held at the
+   * historical 40 so a build already in the wild keeps its cost profile — 400
+   * alphabetically-chosen titles would cost 10x and retrieve nothing better.
+   */
+  get maxLegacyContextTitles() {
+    return Number(env("ATOMS_PLUS_MAX_LEGACY_CONTEXT_TITLES", "40"));
+  },
+  /** Classify body ceiling — must fit a 400-title shortlist plus the capture (U7). */
+  get maxClassifyBytes() {
+    return Number(env("ATOMS_PLUS_MAX_CLASSIFY_BYTES", "300000"));
   },
   get maxTokens() {
     return Number(env("ATOMS_PLUS_MAX_TOKENS", "2048"));

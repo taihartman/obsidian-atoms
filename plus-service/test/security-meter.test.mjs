@@ -7,6 +7,7 @@ import {
   checkProductionReady,
 } from "../src/prodGate.mjs";
 import { buildClassifyPayload } from "../src/anthropic.mjs";
+import { config } from "../src/config.mjs";
 import { applyStripeEvent, constructEvent } from "../src/stripe.mjs";
 import { CLASSIFICATION_SCHEMA, SYSTEM_PROMPT } from "../src/classifyTemplate.mjs";
 import { checkRateLimit } from "../src/ratelimit.mjs";
@@ -34,7 +35,9 @@ describe("U9 security meter regressions", () => {
   });
 
   it("P0-3: oversized body rejected; client messagesRequest ignored", () => {
-    const huge = "x".repeat(250_000);
+    // Ceiling moved with U7 (a 400-title shortlist is legitimately large) — assert
+    // against the configured cap so this stays a real guard rather than a stale number.
+    const huge = "x".repeat(config.maxClassifyBytes + 10_000);
     const r = buildClassifyPayload({
       capture: "ok",
       messagesRequest: {

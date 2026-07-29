@@ -25,6 +25,78 @@ function asStringList(raw, maxItems, maxLen) {
   return out;
 }
 
+/**
+ * Longest string that can still be a note title. Obsidian titles come from filenames,
+ * which the filesystem caps at 255 bytes; anything longer is prose, not a title.
+ */
+const MAX_TITLE_CHARS = 255;
+
+/** Context keys that would carry note text. Titles-only is the contract (R6). */
+const BODY_BEARING_KEYS = [
+  "body",
+  "bodies",
+  "noteBody",
+  "noteBodies",
+  "content",
+  "contents",
+  "text",
+  "texts",
+  "excerpt",
+  "excerpts",
+  "snippet",
+  "snippets",
+  "documents",
+];
+
+/**
+ * Refuse a context that carries note text. Vault→cloud is a titles-only allowlist, and the
+ * service asserts that rather than trusting whatever client is on the other end.
+ *
+ * Two rules, both chosen to be things a real title cannot be:
+ *  - a body-bearing key with content in it (catches the honest mistake), and
+ *  - a title-list entry with a line break, or longer than a filename can be (catches the
+ *    same text renamed into `titles`).
+ *
+ * @returns {string|null} reason, or null when the context is clean. Never echoes content.
+ */
+function findBodyLeak(context) {
+  for (const key of BODY_BEARING_KEYS) {
+    const v = context[key];
+    if (typeof v === "string" ? v.trim() : Array.isArray(v) ? v.length : false) {
+      return `context.${key}`;
+    }
+  }
+  for (const key of ["titles", "personHubs", "tags", "vocabulary"]) {
+    const list = context[key];
+    if (!Array.isArray(list)) continue;
+    for (const item of list) {
+      const s = typeof item === "string" ? item : "";
+      if (/[\r\n]/.test(s)) return `context.${key} (line break)`;
+      if (s.length > MAX_TITLE_CHARS) return `context.${key} (too long for a title)`;
+    }
+  }
+  return null;
+}
+
+/**
+ * How many titles this request may forward.
+ *
+ * A ranked request said so explicitly (`ranked: true`, or it sent its `shortlist`), and its
+ * order is the device's BM25 score order — the whole point of the shortlist. An unranked
+ * request is an older build sending the vault alphabetically; it keeps the legacy cap,
+ * because raising it would only buy more alphabet.
+ */
+function titleCap(context) {
+  const ranked =
+    context.ranked === true || Array.isArray(context.shortlist);
+  if (!ranked) return { ranked, cap: config.maxLegacyContextTitles };
+  const ceiling = config.maxContextTitles;
+  const asked = Number(context.k ?? context.stats?.k);
+  const cap =
+    Number.isFinite(asked) && asked > 0 ? Math.min(asked, ceiling) : ceiling;
+  return { ranked, cap };
+}
+
 function hashTags(list) {
   return list.length
     ? list.map((t) => `#${String(t).replace(/^#/, "")}`).join(" ")
@@ -37,6 +109,11 @@ function bulletList(list, empty) {
 
 /**
  * Bound vault context from client (titles / tags / vocabulary / person hubs).
+ *
+ * `titles` arrive best-first from the device's scorer and are **never re-sorted here**:
+ * every reordering the service does is a note the subscriber silently loses the ability
+ * to link to. Truncation takes the first `cap` by received rank, nothing else.
+ *
  * @param {unknown} context
  */
 export function boundContext(context) {
@@ -44,12 +121,14 @@ export function boundContext(context) {
     context && typeof context === "object"
       ? /** @type {Record<string, unknown>} */ (context)
       : {};
-  const maxTitles = config.maxContextTitles;
+  const { ranked, cap } = titleCap(c);
   return {
-    titles: asStringList(c.titles, maxTitles, 200),
+    titles: asStringList(c.titles, cap, MAX_TITLE_CHARS),
     tags: asStringList(c.tags, 80, 64),
     vocabulary: asStringList(c.vocabulary, 80, 64),
     personHubs: asStringList(c.personHubs, 40, 120),
+    ranked,
+    bodyLeak: findBodyLeak(c),
   };
 }
 
@@ -91,7 +170,7 @@ function reject(status, message) {
  * @param {{ messagesRequest?: object, capture?: string, context?: unknown }} body
  */
 export function buildClassifyPayload(body) {
-  const maxBytes = 100_000;
+  const maxBytes = config.maxClassifyBytes;
   try {
     if (JSON.stringify(body ?? {}).length > maxBytes) {
       return reject(413, "Classify request too large");
@@ -110,6 +189,13 @@ export function buildClassifyPayload(body) {
   }
 
   const ctx = boundContext(body?.context);
+  if (ctx.bodyLeak) {
+    // Name the field, never its content (log safety).
+    return reject(
+      400,
+      `Plus receives note titles only — ${ctx.bodyLeak} looks like note text`,
+    );
+  }
   /** @type {Record<string, unknown>} */
   const outputConfig = {
     format: {
