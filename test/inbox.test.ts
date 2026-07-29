@@ -96,6 +96,15 @@ describe("parseInboxCaptures — capture shape", () => {
     );
   });
 
+  it("drops the empty first body part of a bare stamp with a continuation", () => {
+    // Trailing text is optional (KTD3), so the bullet's own body is "". Keeping
+    // it would render an empty first bullet line in the daily.
+    const caps = parseInboxCaptures("- 2026-07-28T12:00:00-04:00\n\tbuy milk\n");
+    expect(caps).toHaveLength(1);
+    expect(caps[0]!.text).toBe("buy milk");
+    expect(caps[0]!.time).toBe("12:00:00");
+  });
+
   it("ignores frontmatter and prose above the first bullet", () => {
     const md = [
       "---",
@@ -320,9 +329,74 @@ describe("parseInboxCaptures — unreadable stamps heal (KTD1, KTD2)", () => {
   });
 
   it("leaves a genuine capture that merely looks date-ish alone", () => {
-    // Three date components are required precisely so this survives intact.
+    // Only three named stamp shapes strip, and none of them match this.
     const caps = parseInboxCaptures("- 7/28 3:00 PM meeting with Bob\n", now);
     expect(caps[0]!.text).toBe("7/28 3:00 PM meeting with Bob");
+  });
+
+  // The three junk-stamp shapes documented in docs/capture-shortcut.md, and the
+  // body text that must survive them. Stripping is the dangerous direction: a
+  // junk stamp left in the body is visible and lossless, stripped user text is
+  // gone silently and forever (non-negotiable #1).
+  it.each([
+    ["2026-13-45T99:99-04:00 impossible date", "impossible date"],
+    ["2026-07-27T12:00 missing offset", "missing offset"],
+    ["7/28/26, 12:00 PM shortcuts short style", "shortcuts short style"],
+    ["Fri, 28 Jul 2026 12:00:00 -0400 default custom format", "default custom format"],
+  ])("strips the junk stamp off %s", (bullet, text) => {
+    const caps = parseInboxCaptures(`- ${bullet}\n`, now);
+    expect(caps).toHaveLength(1);
+    expect(caps[0]!.stamp).toBeNull();
+    expect(caps[0]!.text).toBe(text);
+  });
+
+  it.each([
+    "2026-13-45T99:99-04:00",
+    "2026-07-27T12:00",
+    "7/28/26, 12:00 PM",
+    "Fri, 28 Jul 2026 12:00:00 -0400",
+  ])("drops a bare junk stamp with no body: %s", (bullet) => {
+    expect(parseInboxCaptures(`- ${bullet}\n`, now)).toHaveLength(0);
+  });
+
+  it.each([
+    "12/25/26 10:00 dentist appointment",
+    "1/2/3 4:56 remember this",
+    "2-1-1 3:45 game highlights",
+    "7/28 3:00 PM meeting with Bob",
+  ])("leaves real capture text untouched: %s", (bullet) => {
+    const caps = parseInboxCaptures(`- ${bullet}\n`, now);
+    expect(caps).toHaveLength(1);
+    expect(caps[0]!.text).toBe(bullet);
+  });
+
+  it("clamps a future date restored from an inferred-date marker", () => {
+    // A marker that survived a sync merge while the filed marker did not would
+    // otherwise re-supply the bad date on every parse, so the capture could
+    // never heal — worse than the stranding KTD1 exists to prevent.
+    const md = [
+      "- no stamp here",
+      `\t${inboxInferredDateMarker("2099-01-01")}`,
+      "",
+    ].join("\n");
+    const caps = parseInboxCaptures(md, now);
+    expect(caps[0]!.inferredDate).toBe("2099-01-01");
+    expect(caps[0]!.date).toBe("2026-07-30");
+  });
+
+  it("finds a filed marker below a column-0 inferred-date marker", () => {
+    // A merge or hand edit stripped the marker's indentation. Reading it as
+    // non-indented prose would stop the scan and re-file the capture.
+    const md = [
+      "- no stamp here",
+      inboxInferredDateMarker("2026-07-20"),
+      `\t${INBOX_FILED_MARKER}`,
+      "",
+    ].join("\n");
+    const caps = parseInboxCaptures(md, now);
+    expect(caps).toHaveLength(1);
+    expect(caps[0]!.filed).toBe(true);
+    expect(caps[0]!.inferredDate).toBe("2026-07-20");
   });
 
   it("keeps parsing valid captures after an unreadable one", () => {
@@ -896,6 +970,40 @@ describe("drainInbox", () => {
     // next drain picks it up.
     expect(after[0]!.filed).toBe(true);
     expect(after[1]!.filed).toBe(false);
+  });
+
+  it("records the day the bullet was filed to, not a re-inferred one", async () => {
+    // The mid-drain append changes the neighbour anchors, so the re-read infers
+    // a different day than the bullet actually landed under. Marking that day
+    // makes a duplicate file the moment the filed marker is lost.
+    const h = drainHarness("- no stamp here\n");
+    const now = new Date(2026, 6, 30, 12, 0, 0); // 2026-07-30 local
+
+    const ensureDaily = async (app: unknown, date: string) => {
+      h.appendToInbox("- 2026-07-26T09:00-04:00 arrived mid-drain");
+      return h.ensureDaily(app, date);
+    };
+
+    const r = await drainInbox(h.app, { ensureDaily, now });
+
+    expect(r.filed).toBe(1);
+    expect(h.dailyContent("2026-07-30")).toContain("- no stamp here");
+    const healed = parseInboxCaptures(h.inboxContent(), now).find(
+      (c) => c.text === "no stamp here",
+    )!;
+    expect(healed.inferredDate).toBe("2026-07-30");
+  });
+
+  it("writes no empty first bullet line for a bare stamp with a continuation", async () => {
+    const h = drainHarness("- 2026-07-28T12:00:00-04:00\n\tbuy milk\n");
+
+    await drainInbox(h.app, { ensureDaily: h.ensureDaily });
+
+    const daily = h.dailyContent("2026-07-28")!;
+    expect(daily).toContain("- 12:00:00 buy milk");
+    const caps = parseCaptures(daily);
+    expect(caps).toHaveLength(1);
+    expect(caps[0]!.text).toBe("buy milk");
   });
 
   it("counts captures as pending when their daily cannot be resolved", async () => {

@@ -59,14 +59,27 @@ const STAMP_RE =
 
 /**
  * A leading token that is *shaped* like a routing stamp but does not read as
- * one — a misconfigured shortcut's `7/28/26, 12:00 PM`, or an ISO stamp whose
- * calendar date is impossible. The body is sacred (non-negotiable #1); a junk
- * routing stamp is not body, and letting it through lands verbatim in the daily
- * and in the atom. Three date components are required deliberately, so a
- * genuine capture like `7/28 3:00 PM meeting with Bob` is left alone.
+ * one. The body is sacred (non-negotiable #1); a junk routing stamp is not
+ * body, and letting it through lands verbatim in the daily and in the atom.
+ *
+ * The asymmetry decides how tight this is: a junk stamp left in the body is
+ * ugly but visible and lossless, while stripped user text is gone silently and
+ * forever. So this matches exactly three *named* shapes — every one a real
+ * misconfiguration documented in docs/capture-shortcut.md — and nothing else:
+ *
+ * 1. ISO-shaped but not a real instant (impossible calendar date, out-of-range
+ *    time, or a missing offset). Only reachable once parseStamp has refused it.
+ * 2. Shortcuts "Short" date style, `7/28/26, 12:00 PM` — the format string set
+ *    on the Current Date variable instead of the Format Date action. The comma
+ *    is required: Short style always emits one, and requiring it is what keeps
+ *    a genuine `12/25/26 10:00 dentist appointment` intact.
+ * 3. `EEE, dd MMM yyyy HH:mm:ss Z`, e.g. `Fri, 28 Jul 2026 12:00:00 -0400` —
+ *    Shortcuts' default custom format, wrong because of `Z` vs `ZZZZZ`.
+ *
+ * Tighten this, never widen it.
  */
 const UNREADABLE_STAMP_RE =
-  /^\d{1,4}[-/]\d{1,2}[-/]\d{1,4},?[T\s]\s*\d{1,2}:\d{2}(?::\d{2})?(?:\s*[AaPp]\.?[Mm]\.?)?(?:\s*(?:Z|[+-]\d{2}:?\d{2}))?(?:\s+(.*))?$/;
+  /^(?:\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?(?:Z|[+-]\d{2}:?\d{2})?|\d{1,4}[-/]\d{1,2}[-/]\d{1,4},\s*\d{1,2}:\d{2}(?::\d{2})?(?:\s*[AaPp]\.?[Mm]\.?)?|[A-Z][a-z]{2},\s\d{1,2}\s[A-Z][a-z]{2}\s\d{4}\s\d{2}:\d{2}:\d{2}\s[+-]\d{4})(?:\s+(.*))?$/;
 
 export interface InboxCapture {
   /** Raw stamp as written by the Shortcut, or null when unreadable. */
@@ -132,9 +145,11 @@ function isAbsorbableLine(line: string): boolean {
  * Scans from `endLine + 1` forward and stops at the next top-level bullet or a
  * non-indented non-blank line, so a blank line that drifts between a capture
  * and its marker (a sync merge, a hand edit) still reads as filed rather than
- * re-filing and stacking a second marker. Mirrors `captureAlreadyHasMarker` in
- * render.ts — the inbox owns its own sentinel and never teaches parse.ts about
- * it (KTD9).
+ * re-filing and stacking a second marker. The inbox's own markers are skipped
+ * whatever their indentation: a merge that strips the tab off an inferred-date
+ * marker would otherwise read as prose and hide the filed marker below it.
+ * Mirrors `captureAlreadyHasMarker` in render.ts — the inbox owns its own
+ * sentinel and never teaches parse.ts about it (KTD9).
  */
 function inboxMarkerLineInRegion(
   lines: string[],
@@ -144,6 +159,7 @@ function inboxMarkerLineInRegion(
     const line = lines[j]!;
     if (isTopLevelBullet(line)) break;
     if (isInboxFiledMarkerLine(line)) return j;
+    if (isInboxMarkerLine(line)) continue; // inferred-date, any indentation
     if (line.trim() !== "" && !/^[ \t]/.test(line)) break; // non-indented prose
   }
   return null;
@@ -261,6 +277,10 @@ export function parseInboxCaptures(
       i += 1;
     }
 
+    // A bare stamp carries no body of its own (KTD3), so a continuation behind
+    // it would otherwise render as an empty first bullet line in the daily.
+    if (bodyParts.length > 1 && bodyParts[0] === "") bodyParts.shift();
+
     const endLine = i - 1;
 
     // Region scan, not adjacency: a blank line drifting between the capture and
@@ -298,7 +318,7 @@ export function parseInboxCaptures(
  * drains. Otherwise the inbox's append order is the evidence: the capture takes
  * the day of the nearest preceding *stamped* capture, then the nearest
  * following one, then today (KTD2). Anchoring only on stamped captures keeps a
- * run of orphans from drifting off one guess. The result is clamped to today —
+ * run of orphans from drifting off one guess. Every path clamps to today —
  * a date ahead of the clock raises FutureDailyNoteError and strands the capture
  * forever, which is the outcome this whole path exists to prevent.
  *
@@ -311,7 +331,10 @@ function inheritMissingDates(captures: InboxCapture[], now: Date): void {
     if (c.date !== null) continue;
 
     if (c.inferredDate !== null) {
-      c.date = c.inferredDate;
+      // Clamped like a fresh guess: a future-dated marker that survived a merge
+      // while the filed marker did not would re-supply the bad date on every
+      // parse, so the capture could never heal.
+      c.date = c.inferredDate > today ? today : c.inferredDate;
       continue;
     }
 
@@ -647,24 +670,31 @@ function captureKey(c: InboxCapture): string {
  * snapshot would drop those captures, so markers are placed against a re-read
  * instead. Matching is greedy per key so two genuine same-second, same-text
  * captures each get their own marker rather than one collecting both.
+ *
+ * Each match keeps the *fresh* capture's line numbers — what the marker splice
+ * needs — but the *original's* date: the re-read re-infers dates from whatever
+ * the file looks like now, and a drain that straddles midnight or an append
+ * that moves the neighbour anchors would otherwise record an inferred-date
+ * marker pinning a different day than the daily bullet actually landed under.
  */
 function relocateFiledCaptures(
   freshCaptures: InboxCapture[],
   filed: InboxCapture[],
 ): InboxCapture[] {
-  const remaining = new Map<string, number>();
+  const remaining = new Map<string, InboxCapture[]>();
   for (const c of filed) {
-    remaining.set(captureKey(c), (remaining.get(captureKey(c)) ?? 0) + 1);
+    const key = captureKey(c);
+    const queue = remaining.get(key);
+    if (queue) queue.push(c);
+    else remaining.set(key, [c]);
   }
 
   const matched: InboxCapture[] = [];
   for (const c of freshCaptures) {
     if (c.filed) continue;
-    const key = captureKey(c);
-    const left = remaining.get(key) ?? 0;
-    if (left === 0) continue;
-    remaining.set(key, left - 1);
-    matched.push(c);
+    const original = remaining.get(captureKey(c))?.shift();
+    if (original === undefined) continue;
+    matched.push({ ...c, date: original.date });
   }
   return matched;
 }
