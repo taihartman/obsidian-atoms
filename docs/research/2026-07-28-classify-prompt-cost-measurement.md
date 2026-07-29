@@ -201,6 +201,59 @@ So the honest range for a 3,000-capture catch-up at an uncapped 3,000-title vaul
 and the spread is one measurable thing: duplicate cache writes at the head of the job. §0.8 tests the
 obvious mitigation.
 
+### 0.8 Warming the prefix first removes the problem entirely
+
+Same 100 requests, same prefix, but a single realtime call sent first and allowed to return before
+the batch was submitted. Job `msgbatch_015jNb8txvRbTNc5DQhuVmm5`, ended in **3.0 minutes**:
+
+| | No warm-up | **Warmed** |
+|---|---|---|
+| Cache hits | 83 / 100 | **100 / 100** |
+| Cache writes | 17 | **0** |
+| Cost | $3.57 | **$1.03** |
+| vs uncached ($8.16) | 56% saved | **87% saved** |
+
+**Caveat on this run.** The warm-up call read an already-warm prefix (`cache_creation 0`,
+`cache_read 52,868`) because the unwarmed job had run 20 minutes earlier inside the same 1h TTL. So
+what is directly proven is *a batch against a warm prefix gets 100% hits and writes nothing*. That a
+**cold** warm-up call achieves the same warmth follows from phase B — a cold realtime call writes the
+entire 52,868-token prefix in one go — but the cold-warm-up-then-cold-batch sequence has not been run
+end to end. Worth one more run before this is load-bearing in a plan.
+
+The shippable recipe is two lines: send one realtime classify, wait for it to return, then submit the
+batch. It costs $0.32 and it is the difference between $33 and $107.
+
+### 0.9 The number to price from
+
+Cost scales with the vault size at the **start** of the run, because the prefix is frozen once. A
+3-year daily-note vault starts at roughly 1,200 notes (about 1,100 daily notes plus whatever atoms
+exist), not the 3,000 it ends at. Using the all-files token rate of 13.83 tokens/title and the pooled
+output mean of 291.5 across both 200-request batch samples:
+
+| Notes in vault at start | Tokens/request | **Warmed batch** | Unwarmed | Uncached | Warmed $/1,000 |
+|---|---|---|---|---|---|
+| 200 | 6,273 | **$9.69** | $9.96 | $34.79 | $3.23 |
+| 500 | 10,422 | **$11.59** | $12.02 | $53.46 | $3.86 |
+| **1,200 — the typical 3-year vault** | 20,103 | **$16.00** | $16.85 | $97.02 | **$5.33** |
+| 3,000 | 44,997 | **$27.35** | $29.26 | $209.05 | $9.12 |
+| 5,000 | 72,657 | **$39.96** | $43.04 | $333.52 | $13.32 |
+
+All rows are 3,000 captures. Output alone is $6.56 of every row — the floor no context strategy gets
+under.
+
+**What that means for the per-thousand price.** At the typical 1,200-note start the cost is
+**$5.33 per 1,000 captures**, so $10 leaves roughly half and $15 leaves two-thirds. But the same
+$10 is close to break-even for a user starting at 3,000 notes and loses money above 5,000 — and
+those are exactly the power users most likely to buy. Two ways out, and they are not exclusive:
+
+1. **Cap the context.** At a 400-title cap the cost is flat at **$3.65 per 1,000 regardless of vault
+   size**, because the prefix stops growing. That makes a single published price honest.
+2. **Price the block off the user's actual vault size** at quote time — defensible, but it means the
+   number on the pricing page is a range, and it is harder to explain.
+
+Capping also fixes the estimator's blast radius: an uncapped run at 5,000 notes is 4× the cost of one
+at 1,200 for identical work.
+
 ---
 
 ## 1. The code that assembles the prompt

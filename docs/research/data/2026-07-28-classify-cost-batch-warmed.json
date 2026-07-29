@@ -1,0 +1,126 @@
+{
+  "measuredAt": "2026-07-29T01:42:21.334Z",
+  "model": "claude-sonnet-5",
+  "corpus": {
+    "atomCount": 93,
+    "atomMeanChars": 42.13,
+    "allCount": 139,
+    "allMeanChars": 31.57
+  },
+  "assumedOutputTokens": 250,
+  "defaultBackfillModel": "claude-haiku-4-5-20251001",
+  "phaseA": {
+    "rows": [
+      {
+        "pool": "atomTitles",
+        "poolLabel": "atom titles only (mean 42.1 chars)",
+        "titles": 0,
+        "inputTokens": 2666,
+        "inputTokensWithSchema": 3507,
+        "schemaDelta": 841,
+        "tokensPerTitle": null,
+        "batchUsdNoCache": 0.0071355
+      },
+      {
+        "pool": "atomTitles",
+        "poolLabel": "atom titles only (mean 42.1 chars)",
+        "titles": 40,
+        "inputTokens": 3335,
+        "inputTokensWithSchema": 4176,
+        "schemaDelta": 841,
+        "tokensPerTitle": 16.73,
+        "batchUsdNoCache": 0.008139
+      },
+      {
+        "pool": "atomTitles",
+        "poolLabel": "atom titles only (mean 42.1 chars)",
+        "titles": 500,
+        "inputTokens": 10907,
+        "inputTokensWithSchema": 11748,
+        "schemaDelta": 841,
+        "tokensPerTitle": 16.48,
+        "batchUsdNoCache": 0.019497
+      },
+      {
+        "pool": "atomTitles",
+        "poolLabel": "atom titles only (mean 42.1 chars)",
+        "titles": 1500,
+        "inputTokens": 27371,
+        "inputTokensWithSchema": 28212,
+        "schemaDelta": 841,
+        "tokensPerTitle": 16.47,
+        "batchUsdNoCache": 0.044193
+      },
+      {
+        "pool": "atomTitles",
+        "poolLabel": "atom titles only (mean 42.1 chars)",
+        "titles": 3000,
+        "inputTokens": 52089,
+        "inputTokensWithSchema": 52930,
+        "schemaDelta": 841,
+        "tokensPerTitle": 16.47,
+        "batchUsdNoCache": 0.08127
+      },
+      {
+        "pool": "atomTitles",
+        "poolLabel": "atom titles only (mean 42.1 chars)",
+        "titles": 5000,
+        "inputTokens": 85069,
+        "inputTokensWithSchema": 85910,
+        "schemaDelta": 841,
+        "tokensPerTitle": 16.48,
+        "batchUsdNoCache": 0.13074
+      },
+      {
+        "pool": "allTitles",
+        "poolLabel": "all markdown files incl. dailies (mean 31.6)",
+        "titles": 0,
+        "inputTokens": 2666,
+        "inputTokensWithSchema": 3507,
+        "schemaDelta": 841,
+        "tokensPerTitle": null,
+        "batchUsdNoCache": 0.0071355
+      },
+      {
+        "pool": "allTitles",
+        "poolLabel": "all markdown files incl. dailies (mean 31.6)",
+        "titles": 3000,
+        "inputTokens": 44143,
+        "inputTokensWithSchema": 44984,
+        "schemaDelta": 841,
+        "tokensPerTitle": 13.83,
+        "batchUsdNoCache": 0.069351
+      }
+    ],
+    "countTokensAcceptsOutputConfig": true
+  },
+  "phaseD": {
+    "batchId": "msgbatch_015jNb8txvRbTNc5DQhuVmm5",
+    "batchSize": 100,
+    "warmUp": {
+      "input_tokens": 62,
+      "output_tokens": 272,
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 52868
+    },
+    "durationMinutes": 3,
+    "results": 100,
+    "cacheHits": 100,
+    "cacheHitRate": 1,
+    "cacheWrites": 0,
+    "duplicateWriteTokens": 0,
+    "outputTokens": {
+      "n": 100,
+      "min": 37,
+      "median": 281,
+      "mean": 304.2,
+      "p90": 652,
+      "max": 918
+    },
+    "actualUsd": 1.0290600000000005,
+    "uncachedUsd": 8.16768,
+    "per3000CapturesUsd": 30.871800000000018
+  },
+  "paidCallsSent": 2,
+  "actualSpendUsd": 1.0290600000000005
+}
