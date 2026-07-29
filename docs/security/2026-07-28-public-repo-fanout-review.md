@@ -154,7 +154,8 @@
 - PKCE compare not constant-time.
 - Operator-controlled `ANTHROPIC_MESSAGES_URL` (env SSRF if env compromised).
 - Preview cache stores classification **results** (not full captures) in localStorage.
-- No product telemetry (privacy-positive).
+- No product telemetry in the plugin (privacy-positive). The marketing site counts visits with
+  Cloudflare Web Analytics; nothing from the vault or the plugin is involved. See the egress map.
 - Ask encryption is host-decryptable, not ZK (by design).
 
 ---
@@ -174,8 +175,21 @@ Ask mirror (opt-in ack)
 Ask outbox (separate write ack)
   → remote enqueue → plugin creates new Atoms/*.md only (no overwrite)
 
-No analytics / Sentry / crash reporters found.
+Marketing site only (www → tryatoms.app, not the plugin)
+  → Cloudflare Web Analytics, auto-injected at the edge by Cloudflare Pages
+  → beacon.min.js from static.cloudflareinsights.com; page-view + timing metrics
+     POSTed to the site's own /cdn-cgi/rum
+  → no cookies, no localStorage, no cross-site tracking of end users
+  NOT: anything from the vault, the plugin, or a signed-in account
+
+No analytics / Sentry / crash reporters in the plugin or plus-service.
 ```
+
+**Corrected 2026-07-28 (#182).** The original review read "No analytics / Sentry / crash
+reporters found" across the whole repo. That was true of the plugin and `plus-service`, and it
+remains true of both, but it missed `www/`: `tryatoms.app` runs Cloudflare Web Analytics.
+Until #182 the site CSP blocked it, so it collected nothing; #182 widens the CSP to admit it
+and corrects the privacy page. The vault-egress rows above are unaffected.
 
 **Prompt injection residual:** integrity/phishing (junk atoms, malicious link prose URLs), not arbitrary vault path RCE — path clamps + no-overwrite + create-only outbox hold.
 

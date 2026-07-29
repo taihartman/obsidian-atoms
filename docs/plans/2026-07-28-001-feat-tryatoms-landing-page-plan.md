@@ -108,6 +108,21 @@ actions the app does not have, so the list is **deliberately extended** with `Ge
 No framework, no analytics, no cookie banner, therefore no consent surface. Motion is CSS
 only and gated on `prefers-reduced-motion`. The page is HTML + one stylesheet.
 
+> **Superseded 2026-07-28 (#182).** Both halves of this KTD drifted after the page shipped.
+> The site now serves one same-origin script (`/a/app.<hash>.js`, the story carousel), and it
+> runs **Cloudflare Web Analytics**, auto-injected at the edge by Cloudflare Pages rather than
+> written into the built HTML.
+>
+> **The "no consent surface" conclusion still holds, for a different reason.** It no longer
+> follows from "no analytics"; it follows from *which* analytics. Cloudflare Web Analytics
+> uses no client-side state — no cookies and no `localStorage` — so the ePrivacy cookie
+> consent requirement does not attach, and Cloudflare does not track end users across its
+> customers' sites. No cookie banner is still correct; the reasoning behind it changed.
+>
+> The CSP in `www/src/_headers` admits exactly this and nothing more:
+> `script-src 'self' https://static.cloudflareinsights.com` plus `connect-src 'self'` for the
+> beacon's same-origin `/cdn-cgi/rum` POST. It is locked by test in `test/wwwPricing.test.ts`.
+
 ---
 
 ## Page structure
