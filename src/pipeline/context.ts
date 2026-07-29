@@ -186,6 +186,17 @@ export class ContextRun implements ContextProvider {
     this.corpus = corpus;
   }
 
+  /**
+   * The run's static context — tags, vocabulary, person hubs, and the *full* title list.
+   *
+   * Callers need it for the run-level work that is not per-capture: deriving the person hubs a
+   * whole run enriches against, and projecting hubs at the end. Never pass it to classify; that is
+   * what `getCandidates()` is for.
+   */
+  get vaultContext(): VaultContext {
+    return this.staticContext;
+  }
+
   /** Scoreable entries currently in the corpus, including atoms appended mid-run. */
   get corpusSize(): number {
     return this.corpus?.notes.length ?? 0;
@@ -208,11 +219,12 @@ export class ContextRun implements ContextProvider {
 
     const seen = new Set<string>();
     const shortlist: ShortlistCandidate[] = [];
+    // Cap checked before the push, not after, so k=0 returns nothing rather than one.
     for (const n of ranked) {
+      if (shortlist.length >= this.k) break;
       if (seen.has(n.path)) continue;
       seen.add(n.path);
       shortlist.push({ path: n.path, title: n.title, score: n.score });
-      if (shortlist.length >= this.k) break;
     }
 
     return {
@@ -350,20 +362,25 @@ export function formatPersonHubsForContext(context: VaultContext): string {
   return "(none)";
 }
 
-/** Stable rendered prefix bytes for cache-hit prerequisite (U4 verification). */
-export function renderStablePrefix(context: VaultContext): string {
-  // Same layout as classify.buildContextUserMessage — keep in sync intentionally
-  // via importing that function in callers that need the exact API string.
+/** Joins the two context blocks back into one message. Part of block A's bytes when split. */
+export const CONTEXT_BLOCK_SEPARATOR = "\n\n";
+
+/**
+ * Block A — vocabulary, vault tags, person hubs. Genuinely byte-stable within a run, so this is
+ * the block that carries `cache_control`.
+ *
+ * The note titles deliberately live in block B: they are this capture's shortlist, they change on
+ * every capture, and a cache breakpoint drawn after them would be written once per capture and read
+ * back never — strictly worse than no breakpoint at all, since cache writes cost a premium.
+ */
+export function buildContextPrefixBlock(context: VaultContext): string {
   const vocab = context.vocabulary.length
-    ? context.vocabulary.map((t) => `#${t}`).join(" ")
+    ? context.vocabulary.map((t) => `#${t.replace(/^#/, "")}`).join(" ")
     : "(none)";
   const tags = context.tags.length
-    ? context.tags.map((t) => `#${t}`).join(" ")
+    ? context.tags.map((t) => `#${t.replace(/^#/, "")}`).join(" ")
     : "(none)";
   const personHubs = formatPersonHubsForContext(context);
-  const titles = context.titles.length
-    ? context.titles.map((t) => `- ${t}`).join("\n")
-    : "(empty vault)";
   return [
     "## Vault context (stable prefix — do not include timestamps or run IDs)",
     "",
@@ -375,8 +392,21 @@ export function renderStablePrefix(context: VaultContext): string {
     "",
     "### Person hubs (from your vault — prefer linking these exact titles)",
     personHubs,
-    "",
-    "### Note titles",
-    titles,
   ].join("\n");
+}
+
+/** Block B — the capture's shortlisted titles, in score order. Volatile; never cached. */
+export function buildTitlesBlock(context: VaultContext): string {
+  const titles = context.titles.length
+    ? context.titles.map((t) => `- ${t}`).join("\n")
+    : "(empty vault)";
+  return ["### Note titles", titles].join("\n");
+}
+
+/**
+ * The bytes that must stay identical across the captures of one run for a cache read to happen —
+ * block A, and only block A. Same renderer `buildMessagesRequest` uses, not a parallel copy.
+ */
+export function renderStablePrefix(context: VaultContext): string {
+  return buildContextPrefixBlock(context);
 }

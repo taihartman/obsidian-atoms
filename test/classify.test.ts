@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  buildContextUserMessage,
   buildMessagesRequest,
   checkInvariants,
   classifyCapture,
@@ -95,6 +96,44 @@ describe("request shape (KTD3)", () => {
     expect(prefix).not.toMatch(/\d{4}-\d{2}-\d{2}T/);
   });
 
+  it("caches block A only; the per-capture titles ride in an uncached block B", () => {
+    // The whole point of the split: a shortlist changes the title bytes on every
+    // capture, so a breakpoint drawn after them would be written every call and read
+    // back never — a cache-write premium bought for nothing.
+    const wide = { ...ctx, titles: ["Note one", "Note two"] };
+    const narrow = { ...ctx, titles: ["Note two"] };
+
+    const a = buildMessagesRequest({
+      model: "claude-sonnet-5",
+      capture: "one",
+      context: wide,
+    });
+    const b = buildMessagesRequest({
+      model: "claude-sonnet-5",
+      capture: "two",
+      context: narrow,
+    });
+    type Block = { text?: string; cache_control?: unknown };
+    const ca = (a.messages as Array<{ content: Block[] }>)[0]!.content;
+    const cb = (b.messages as Array<{ content: Block[] }>)[0]!.content;
+
+    expect(ca).toHaveLength(2);
+    expect(ca[0]!.cache_control).toEqual({ type: "ephemeral", ttl: "5m" });
+    expect(ca[1]!.cache_control).toBeUndefined();
+
+    // Block A identical across two captures with different shortlists; block B differs.
+    expect(ca[0]!.text).toBe(cb[0]!.text);
+    expect(ca[1]!.text).not.toBe(cb[1]!.text);
+
+    // No titles leak into the cached block, and the titles are all in block B.
+    expect(ca[0]!.text).not.toContain("### Note titles");
+    expect(ca[1]!.text).toContain("### Note titles");
+    expect(ca[1]!.text).toContain("- Note one");
+
+    // The two blocks still read as the one message the model used to get.
+    expect(ca.map((c) => c.text).join("")).toBe(buildContextUserMessage(wide));
+  });
+
   it("stable prefix bytes for two captures differ only after breakpoint", () => {
     const a = buildMessagesRequest({
       model: "claude-sonnet-5",
@@ -161,6 +200,47 @@ describe("invariants (KTD4 layer 2)", () => {
 });
 
 describe("classifyCapture request layer", () => {
+  it("does not send Plus a second copy of the rendered prompt", async () => {
+    // Plus builds the Anthropic request server-side and ignores anything the device
+    // renders, so shipping messagesRequest doubled every Plus request for nothing.
+    let sent: Record<string, unknown> = {};
+    const request = vi.fn(async (opts: { body?: string }) => {
+      sent = JSON.parse(opts.body ?? "{}") as Record<string, unknown>;
+      return {
+        status: 200,
+        json: {
+          result: {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify({
+                  verdict: "noise",
+                  title: "",
+                  tags: [],
+                  proposed_tags: [],
+                  links: [],
+                }),
+              },
+            ],
+            usage: {},
+          },
+          remaining: 4,
+        },
+      };
+    });
+
+    const outcome = await classifyCapture("buy milk", ctx, {
+      apiKey: "",
+      model: "claude-sonnet-5",
+      request: request as never,
+      plus: { baseUrl: "https://plus.test", sessionToken: "sess" },
+    });
+
+    expect(outcome.ok).toBe(true);
+    expect(Object.keys(sent).sort()).toEqual(["capture", "context"]);
+    expect(sent).not.toHaveProperty("messagesRequest");
+  });
+
   it("parses schema-valid response without try/catch issues", async () => {
     const request = mockResponse({
       status: 200,

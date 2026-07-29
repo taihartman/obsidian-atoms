@@ -2,9 +2,12 @@ import { describe, expect, it } from "vitest";
 import type { App } from "obsidian";
 import {
   aggregateTagsFromFileCaches,
+  buildContextPrefixBlock,
+  buildTitlesBlock,
   buildVaultContext,
   collectLinkTargets,
   collectTitles,
+  CONTEXT_BLOCK_SEPARATOR,
   DEFAULT_SHORTLIST_K,
   MetadataContextProvider,
   renderStablePrefix,
@@ -142,18 +145,33 @@ describe("buildVaultContext + stable prefix", () => {
     ]);
   });
 
-  it("rendered prefix is byte-identical across two captures (cache prerequisite)", () => {
-    const ctx = buildVaultContext({
-      titles: ["Note one", "Note two"],
+  it("cached block A survives two different captures; the titles block does not", () => {
+    // The old version of this test rendered the *same* context twice and asserted the
+    // bytes matched — true by construction, and green even once a per-capture shortlist
+    // made the title list volatile. The property the cache actually needs is that the
+    // cached block is stable across two captures whose shortlists differ.
+    const base = {
       vaultTags: ["idea"],
       activeVocabulary: ["idea", "question"],
       personHubs: ["Alex"],
-    });
-    const a = buildContextUserMessage(ctx);
-    const b = buildContextUserMessage(ctx);
-    const c = renderStablePrefix(ctx);
-    expect(a).toBe(b);
-    expect(a).toBe(c);
+    };
+    const first = buildVaultContext({ ...base, titles: ["Note one"] });
+    const second = buildVaultContext({ ...base, titles: ["Note two"] });
+
+    expect(buildContextPrefixBlock(first)).toBe(buildContextPrefixBlock(second));
+    expect(buildTitlesBlock(first)).not.toBe(buildTitlesBlock(second));
+    // renderStablePrefix means block A and nothing else — no title list rides along.
+    expect(renderStablePrefix(first)).toBe(buildContextPrefixBlock(first));
+    expect(renderStablePrefix(first)).not.toContain("### Note titles");
+
+    // The two blocks still concatenate to exactly the one-string message.
+    expect(
+      buildContextPrefixBlock(first) +
+        CONTEXT_BLOCK_SEPARATOR +
+        buildTitlesBlock(first),
+    ).toBe(buildContextUserMessage(first));
+
+    const a = buildContextUserMessage(first);
     expect(a).toContain("### Person hubs");
     expect(a).toContain("- Alex");
     expect(a).not.toMatch(/\d{4}-\d{2}-\d{2}/); // no dates embedded as data

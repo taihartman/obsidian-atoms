@@ -8,6 +8,7 @@ import type { MetadataContextProvider } from "./context";
 import { getPastDailyNotesWithUnmarkedCaptures } from "./daily";
 import {
   applyWrite,
+  formatLinkProse,
   listAtomPaths,
   planWrite,
   type ApplyWriteResult,
@@ -89,6 +90,8 @@ export interface RunWritePathOptions {
   /** Manual force: include today's daily. Default false (never for auto-run). */
   includeToday?: boolean;
   enableHubProjection?: boolean;
+  /** Shortlist size per capture. Defaults to DEFAULT_SHORTLIST_K; U8 wires the setting. */
+  shortlistK?: number;
 }
 
 /**
@@ -117,7 +120,13 @@ export async function runWritePath(
 
   const max = opts.maxCaptures ?? work.length;
   const slice = work.slice(0, max);
-  const ctx = opts.contextProvider.buildContext();
+  // One run, one vault read. Only the scoring repeats per capture (KTD4a).
+  const run = await opts.contextProvider.beginRun({
+    atomFolder: opts.atomFolder,
+    k: opts.shortlistK,
+  });
+  // Tags, vocabulary and hubs are the run's, not the capture's — a shortlist never narrows them.
+  const staticCtx = run.vaultContext;
   const existingAtoms = listAtomPaths(opts.app, opts.atomFolder);
 
   const entries: WritePathEntry[] = [];
@@ -128,7 +137,7 @@ export async function runWritePath(
   let failed = 0;
   let personHubMisses = 0;
   const proposedIncoming: string[] = [];
-  const hubs: PersonHub[] = (ctx.personHubDetails ?? []).map((d) => ({
+  const hubs: PersonHub[] = (staticCtx.personHubDetails ?? []).map((d) => ({
     canonicalTitle: d.canonicalTitle,
     matchKeys: d.matchKeys,
     path: "",
@@ -153,121 +162,141 @@ export async function runWritePath(
     });
   };
 
-  for (let i = 0; i < slice.length; i++) {
-    const { note, capture } = slice[i]!;
-    opts.onProgress?.(i + 1, slice.length, { captureText: capture.text });
+  try {
+    for (let i = 0; i < slice.length; i++) {
+      const { note, capture } = slice[i]!;
+      opts.onProgress?.(i + 1, slice.length, { captureText: capture.text });
 
-    let result: ClassificationResult | null = null;
-    if (opts.fixtureResults && opts.fixtureResults[i]) {
-      // Fixtures skip live classify — same quality pass as classifyCapture.
-      result = applyClassificationQuality(
+      // Scored against this capture, including atoms this run already wrote (R4).
+      const ctx = await run.getCandidates(capture);
+
+      let result: ClassificationResult | null = null;
+      if (opts.fixtureResults && opts.fixtureResults[i]) {
+        // Fixtures skip live classify — same quality pass as classifyCapture.
+        result = applyClassificationQuality(
+          capture.text,
+          opts.fixtureResults[i]!,
+          {
+            titles: ctx.titles ?? [],
+            personHubs: hubs,
+            personHubTitles: ctx.personHubs ?? [],
+          },
+        );
+      } else {
+        const outcome = await classifyCapture(capture.text, ctx, {
+          apiKey: opts.apiKey,
+          model: opts.model,
+          activeVocabulary: opts.activeVocabulary,
+          ...opts.classifyDeps,
+        });
+        if (!outcome.ok) {
+          pushFail(
+            note,
+            capture,
+            outcome.reason,
+            outcome.message || outcome.reason,
+          );
+          continue;
+        }
+        result = outcome.result;
+        if (result.proposed_tags?.length) {
+          proposedIncoming.push(...result.proposed_tags);
+        }
+      }
+
+      const personHubMiss = personHubMissAfterEnrich(
         capture.text,
-        opts.fixtureResults[i]!,
-        {
-          titles: ctx.titles ?? [],
-          personHubs: hubs,
-          personHubTitles: ctx.personHubs ?? [],
-        },
+        result,
+        hubs,
       );
-    } else {
-      const outcome = await classifyCapture(capture.text, ctx, {
-        apiKey: opts.apiKey,
-        model: opts.model,
-        activeVocabulary: opts.activeVocabulary,
-        ...opts.classifyDeps,
-      });
-      if (!outcome.ok) {
-        pushFail(
-          note,
-          capture,
-          outcome.reason,
-          outcome.message || outcome.reason,
-        );
-        continue;
-      }
-      result = outcome.result;
-      if (result.proposed_tags?.length) {
-        proposedIncoming.push(...result.proposed_tags);
-      }
-    }
+      if (personHubMiss) personHubMisses += 1;
 
-    const personHubMiss = personHubMissAfterEnrich(
-      capture.text,
-      result,
-      hubs,
-    );
-    if (personHubMiss) personHubMisses += 1;
-
-    const plan = planWrite({
-      result,
-      capture,
-      dailyPath: note.path,
-      dailyDate: note.date,
-      atomFolder: opts.atomFolder,
-      existingAtomPaths: existingAtoms,
-    });
-
-    if (
-      plan.action.kind === "create_atom" ||
-      plan.action.kind === "skip_existing_atom"
-    ) {
-      existingAtoms.add(plan.action.path);
-    }
-
-    let content = dailyCache.get(note.path);
-    if (content === undefined) {
-      const file = opts.app.vault.getAbstractFileByPath(note.path);
-      if (!file || !("extension" in file)) {
-        pushFail(
-          note,
-          capture,
-          "missing_daily",
-          `Daily note missing or unreadable: ${note.path}`,
-        );
-        continue;
-      }
-      content = await opts.app.vault.read(
-        file as import("obsidian").TFile,
-      );
-    }
-
-    const { result: writeResult, newDailyContent } = await applyWrite(
-      opts.app,
-      plan,
-      content,
-      { extractCaptureBody },
-    );
-
-    if (writeResult.collisionBodyMismatch) {
-      const title =
-        plan.action.kind === "skip_existing_atom"
-          ? plan.action.title
-          : (result.title || "").trim() || "atom";
-      pushFail(
-        note,
+      const plan = planWrite({
+        result,
         capture,
-        "collision_mismatch",
-        `Title "${title}" already exists with a different body — left unprocessed`,
+        dailyPath: note.path,
+        dailyDate: note.date,
+        atomFolder: opts.atomFolder,
+        existingAtomPaths: existingAtoms,
+      });
+
+      if (
+        plan.action.kind === "create_atom" ||
+        plan.action.kind === "skip_existing_atom"
+      ) {
+        existingAtoms.add(plan.action.path);
+      }
+
+      let content = dailyCache.get(note.path);
+      if (content === undefined) {
+        const file = opts.app.vault.getAbstractFileByPath(note.path);
+        if (!file || !("extension" in file)) {
+          pushFail(
+            note,
+            capture,
+            "missing_daily",
+            `Daily note missing or unreadable: ${note.path}`,
+          );
+          continue;
+        }
+        content = await opts.app.vault.read(
+          file as import("obsidian").TFile,
+        );
+      }
+
+      const { result: writeResult, newDailyContent } = await applyWrite(
+        opts.app,
+        plan,
+        content,
+        { extractCaptureBody },
       );
-      continue;
+
+      if (writeResult.collisionBodyMismatch) {
+        const title =
+          plan.action.kind === "skip_existing_atom"
+            ? plan.action.title
+            : (result.title || "").trim() || "atom";
+        pushFail(
+          note,
+          capture,
+          "collision_mismatch",
+          `Title "${title}" already exists with a different body — left unprocessed`,
+        );
+        continue;
+      }
+
+      dailyCache.set(note.path, newDailyContent);
+
+      if (writeResult.atomCreated) atomsCreated += 1;
+      if (writeResult.atomSkippedCollision) collisions += 1;
+      if (writeResult.markerAppended) markersAppended += 1;
+
+      // Make it scoreable for the captures still to come. Only newly created atoms:
+      // a collision skip means the file was already in the corpus at seed time.
+      if (writeResult.atomCreated) {
+        const prose = formatLinkProse(result.links ?? []);
+        run.addAtom({
+          path: writeResult.atomCreated,
+          title: result.title,
+          body: capture.text,
+          tags: result.tags ?? [],
+          links: prose ? [prose] : [],
+        });
+      }
+
+      entries.push({
+        dailyPath: note.path,
+        date: note.date,
+        captureText: capture.text.slice(0, 80),
+        verdict: result.verdict,
+        title: result.title,
+        write: writeResult,
+        planned: plan,
+        personHubMiss,
+      });
     }
-
-    dailyCache.set(note.path, newDailyContent);
-
-    if (writeResult.atomCreated) atomsCreated += 1;
-    if (writeResult.atomSkippedCollision) collisions += 1;
-    if (writeResult.markerAppended) markersAppended += 1;
-
-    entries.push({
-      dailyPath: note.path,
-      date: note.date,
-      captureText: capture.text.slice(0, 80),
-      verdict: result.verdict,
-      title: result.title,
-      write: writeResult,
-      planned: plan,
-      personHubMiss,
-    });
+  } finally {
+    run.end();
   }
 
   const proposedTagsMerged = mergeProposedTags(
@@ -297,7 +326,7 @@ export async function runWritePath(
     }
     const touched = hubTitlesFromAtomContents(
       atomContents,
-      ctx.personHubs ?? [],
+      staticCtx.personHubs ?? [],
     );
     if (touched.length) {
       const proj = await runHubProjectionForHubs({
@@ -305,7 +334,7 @@ export async function runWritePath(
         enabled: true,
         atomFolder: opts.atomFolder,
         touchedHubTitles: touched,
-        personHubDetails: ctx.personHubDetails,
+        personHubDetails: staticCtx.personHubDetails,
       });
       for (const err of proj.errors.slice(0, 3)) {
         new Notice(

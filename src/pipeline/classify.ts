@@ -19,7 +19,11 @@ import {
 } from "./enrich/linkQuality";
 import { rescueKeepableIdea } from "./enrich/ideaRescue";
 import { filterTagsToActive } from "./vocabulary";
-import { formatPersonHubsForContext } from "./context";
+import {
+  buildContextPrefixBlock,
+  buildTitlesBlock,
+  CONTEXT_BLOCK_SEPARATOR,
+} from "./context";
 
 /** Injected by esbuild: true in watch/dev, false in production Community builds. */
 declare const ATOMS_DEV_COMMANDS: boolean;
@@ -156,35 +160,18 @@ export const SYSTEM_PROMPT = `You classify fleeting captures from a daily-note i
 - Empty string for task and noise.
 - Prefer short claims; never use the entire capture as the title when it is long.`;
 
+/**
+ * The whole vault-context message as one string: block A, then the note titles.
+ *
+ * `buildMessagesRequest` sends the same bytes as two content blocks so the cache breakpoint can sit
+ * between them; the day-batch fork and the diagnostics still want the single string.
+ */
 export function buildContextUserMessage(context: VaultContext): string {
-  const vocab = context.vocabulary.length
-    ? context.vocabulary.map((t) => `#${t.replace(/^#/, "")}`).join(" ")
-    : "(none)";
-  const tags = context.tags.length
-    ? context.tags.map((t) => `#${t.replace(/^#/, "")}`).join(" ")
-    : "(none)";
-  // Deterministic ordering is the caller's job; we render as given so the
-  // cached prefix stays byte-stable within a run (KTD3 / U4).
-  const personHubs = formatPersonHubsForContext(context);
-  const titles = context.titles.length
-    ? context.titles.map((t) => `- ${t}`).join("\n")
-    : "(empty vault)";
-
-  return [
-    "## Vault context (stable prefix — do not include timestamps or run IDs)",
-    "",
-    "### Active vocabulary",
-    vocab,
-    "",
-    "### Tags present in vault",
-    tags,
-    "",
-    "### Person hubs (from your vault — prefer linking these exact titles)",
-    personHubs,
-    "",
-    "### Note titles",
-    titles,
-  ].join("\n");
+  return (
+    buildContextPrefixBlock(context) +
+    CONTEXT_BLOCK_SEPARATOR +
+    buildTitlesBlock(context)
+  );
 }
 
 function hubsForEnrich(context: VaultContext): PersonHub[] {
@@ -392,11 +379,17 @@ export interface BuildRequestOptions {
 
 /**
  * Request body per KTD3:
- * system (stable) → user context (stable, cache breakpoint) → user capture (volatile).
+ * system (stable) → user context (stable block + volatile titles) → user capture (volatile).
+ *
+ * The context message is **two** blocks. Block A — vocabulary, tags, person hubs — is identical for
+ * every capture of a run, so it is the only thing `cache_control` is attached to. Block B is the
+ * capture's shortlisted titles and changes every capture; caching it would buy a write premium on
+ * an entry that is never read back.
  */
 export function buildMessagesRequest(opts: BuildRequestOptions): Record<string, unknown> {
   const cacheTtl = opts.cacheTtl ?? "5m";
-  const contextText = buildContextUserMessage(opts.context);
+  const stableText = buildContextPrefixBlock(opts.context) + CONTEXT_BLOCK_SEPARATOR;
+  const titlesText = buildTitlesBlock(opts.context);
   const captureText = buildCaptureUserMessage(opts.capture);
 
   return {
@@ -407,10 +400,16 @@ export function buildMessagesRequest(opts: BuildRequestOptions): Record<string, 
       {
         role: "user",
         content: [
+          // Index 0 is load-bearing: backfill's assertBatchUsesHourCache gates on
+          // messages[0].content[0].cache_control.ttl.
           {
             type: "text",
-            text: contextText,
+            text: stableText,
             cache_control: { type: "ephemeral", ttl: cacheTtl },
+          },
+          {
+            type: "text",
+            text: titlesText,
           },
         ],
       },
@@ -537,11 +536,16 @@ export async function classifyCapture(
     };
   }
 
-  const body = buildMessagesRequest({
-    model: deps.model,
-    capture,
-    context,
-  });
+  // Plus builds its own Anthropic request server-side (KTD-B3), so the device does not
+  // render one at all — sending it duplicated the whole context for a field the proxy
+  // explicitly ignores.
+  const body = plus
+    ? null
+    : buildMessagesRequest({
+        model: deps.model,
+        capture,
+        context,
+      });
 
   // Plus: fetch (localhost dogfood + CORS host). BYOK: requestUrl (no CORS to Anthropic).
   const request = deps.request ?? (plus ? plusFetchRequest : requestUrl);
@@ -573,11 +577,7 @@ export async function classifyCapture(
             authorization: `Bearer ${plus.sessionToken.trim()}`,
             "Idempotency-Key": idem,
           },
-          body: JSON.stringify({
-            capture,
-            context,
-            messagesRequest: body,
-          }),
+          body: JSON.stringify({ capture, context }),
           throw: false,
         });
         status = res.status;

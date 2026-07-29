@@ -222,6 +222,8 @@ export interface RunDryRunOptions {
    * hits skip network. Omit to disable cache.
    */
   previewCacheQualityStamp?: string | number;
+  /** Shortlist size per capture. Defaults to DEFAULT_SHORTLIST_K; U8 wires the setting. */
+  shortlistK?: number;
 }
 
 /**
@@ -244,8 +246,13 @@ export async function runDryRun(
 
   const max = opts.maxCaptures ?? work.length;
   const slice = work.slice(0, max);
-  const ctx: VaultContext = opts.contextProvider.buildContext();
-  const hubs: PersonHub[] = (ctx.personHubDetails ?? []).map((d) => ({
+  // Preview reads the vault exactly like Process does, so what it shows is what Process would see.
+  const run = await opts.contextProvider.beginRun({
+    atomFolder: opts.atomFolder,
+    k: opts.shortlistK,
+  });
+  const staticCtx: VaultContext = run.vaultContext;
+  const hubs: PersonHub[] = (staticCtx.personHubDetails ?? []).map((d) => ({
     canonicalTitle: d.canonicalTitle,
     matchKeys: d.matchKeys,
     path: `${d.canonicalTitle}.md`,
@@ -256,30 +263,50 @@ export async function runDryRun(
     ? parsePreviewCache(opts.app.loadLocalStorage(LS_PREVIEW_CACHE))
     : null;
 
-  for (let i = 0; i < slice.length; i++) {
-    const { note, capture } = slice[i]!;
-    opts.onProgress?.(i + 1, slice.length, { captureText: capture.text });
+  try {
+    for (let i = 0; i < slice.length; i++) {
+      const { note, capture } = slice[i]!;
+      opts.onProgress?.(i + 1, slice.length, { captureText: capture.text });
 
-    let outcome: ClassifyOutcome;
-    if (useCache && cacheStore) {
-      const key = fingerprintPreviewKey(
-        capture.text,
-        opts.model,
-        opts.previewCacheQualityStamp!,
-      );
-      const hit = lookupPreviewCache(cacheStore, key);
-      if (hit) {
-        outcome = {
-          ok: true,
-          result: hit,
-          usage: {
-            input_tokens: 0,
-            output_tokens: 0,
-            cache_creation_input_tokens: 0,
-            cache_read_input_tokens: 0,
-          },
-          keyFingerprint: "preview-cache",
-        };
+      // Scored against this capture. Preview writes nothing, so no atom joins the
+      // corpus mid-run — a previewed capture sees exactly the vault as it stands.
+      const ctx = await run.getCandidates(capture);
+
+      let outcome: ClassifyOutcome;
+      if (useCache && cacheStore) {
+        const key = fingerprintPreviewKey(
+          capture.text,
+          opts.model,
+          opts.previewCacheQualityStamp!,
+        );
+        const hit = lookupPreviewCache(cacheStore, key);
+        if (hit) {
+          outcome = {
+            ok: true,
+            result: hit,
+            usage: {
+              input_tokens: 0,
+              output_tokens: 0,
+              cache_creation_input_tokens: 0,
+              cache_read_input_tokens: 0,
+            },
+            keyFingerprint: "preview-cache",
+          };
+        } else {
+          outcome = await classifyCapture(capture.text, ctx, {
+            apiKey: opts.apiKey,
+            model: opts.model,
+            activeVocabulary: opts.activeVocabulary,
+            ...opts.classifyDeps,
+          });
+          if (outcome.ok) {
+            cacheStore = putPreviewCache(cacheStore, key, outcome.result);
+            opts.app.saveLocalStorage(
+              LS_PREVIEW_CACHE,
+              serializePreviewCache(cacheStore),
+            );
+          }
+        }
       } else {
         outcome = await classifyCapture(capture.text, ctx, {
           apiKey: opts.apiKey,
@@ -287,32 +314,20 @@ export async function runDryRun(
           activeVocabulary: opts.activeVocabulary,
           ...opts.classifyDeps,
         });
-        if (outcome.ok) {
-          cacheStore = putPreviewCache(cacheStore, key, outcome.result);
-          opts.app.saveLocalStorage(
-            LS_PREVIEW_CACHE,
-            serializePreviewCache(cacheStore),
-          );
-        }
       }
-    } else {
-      outcome = await classifyCapture(capture.text, ctx, {
-        apiKey: opts.apiKey,
-        model: opts.model,
-        activeVocabulary: opts.activeVocabulary,
-        ...opts.classifyDeps,
-      });
-    }
 
-    entries.push(
-      buildPreviewEntry({
-        note,
-        capture,
-        outcome,
-        atomFolder: opts.atomFolder,
-        hubs,
-      }),
-    );
+      entries.push(
+        buildPreviewEntry({
+          note,
+          capture,
+          outcome,
+          atomFolder: opts.atomFolder,
+          hubs,
+        }),
+      );
+    }
+  } finally {
+    run.end();
   }
 
   const classified = entries.filter((e) => e.outcome.ok).length;
