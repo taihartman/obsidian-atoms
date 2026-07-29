@@ -138,6 +138,75 @@ Sweep k ∈ {40, 100, 200, 400, 800} against vault sizes {200, 1200, 3000, 5000}
 - If `hybrid-400` matches `full` on link recall, cap at 400 and ship the same selector to
   `plus-service` to replace alphabetical-40.
 
+## Results — step 3 (free selector sweep), run 2026-07-28
+
+84 probes, 80 with a target. `npm run measure:recall`. Raw:
+[`data/2026-07-28-shortlist-recall.json`](../research/data/2026-07-28-shortlist-recall.json).
+
+Recall at a 3,000-note vault, by shortlist size:
+
+| Selector | 40 | 100 | 200 | 400 | 800 |
+|---|---|---|---|---|---|
+| `alphabetical` — **what plus-service ships** | 0% | 0% | 0% | 0% | 13% |
+| `recency` | 8% | 8% | 8% | 16% | 55% |
+| `keyword` — BM25 over titles | 68% | 69% | 69% | 69% | 74% |
+| `bodyKeyword` — BM25 over bodies | 76% | 76% | 83% | 84% | 89% |
+| **`bodyPlusTitle` — BM25 over title + body** | **90%** | **91%** | **93%** | **95%** | **96%** |
+| `hybridBody` — same, with hub and recency quotas | 88% | 91% | 93% | 95% | 95% |
+| `full` — uncapped | | | | | 100% |
+
+At 5,000 notes the picture is unchanged: `bodyPlusTitle` holds 88–95% while every title-only
+selector decays.
+
+**Finding 1 — title-only shortlists plateau at 69%, and budget does not fix it.** Going from 100 to
+800 titles buys five points. The entire gap is one failure mode: vocabulary mismatch, at **10%**
+recall. Every other mode scored 70–100%. The captures being lost share no words at all with their
+target — *"knees been grumpy on the sunday long one"* against *"IT band flares past 10k, never on
+shorter efforts"*. No shortlist size can recover a note that is invisible to word-matching.
+
+**Finding 2 — scoring against note bodies fixes it, at zero cost.** An atom's body is the user's
+**original capture, verbatim**. People phrase things consistently over time, so matching a user's
+words against their own past words is a far easier problem than matching them against the model's
+paraphrase. Vocabulary mismatch goes **10% → 100%** at k=400. Crucially the *prompt is unchanged* —
+only titles are ever sent — so every figure in the cost measurement still holds.
+
+**Finding 3 — the owner's year-ago case is not an age problem.** `recency` scores **0%** on
+temporal-distance probes at every k below 800, confirming the instinct that killed it as a selector.
+But BM25 ignores age entirely and `bodyPlusTitle` reaches **100%** on those probes at k=400. Age was
+never the mechanism; wording was.
+
+**Finding 4 — the shipped Plus cap is not merely weak, it is ~0%.** `alphabetical-40` never surfaces
+the target in a vault of any realistic size. Replacing it with `bodyPlusTitle-40` moves Plus from
+**0% → 90%** with no change to prompt size, cost, or latency.
+
+**What is still lost at k=400 (4 of 80), and why each is honest:**
+
+| Probe | Mode | Why no text-matching selector can win |
+|---|---|---|
+| C05 | hub plus specific | needs to know *The Goldfinch* is by Donna Tartt — world knowledge, not overlap |
+| G01 | entity drift | the project was renamed Ledgerly → Tallyroom; no shared text exists to match |
+| E01 | supersession | the capture restates an abstract belief in wholly different terms |
+| E05 | thread continuation | same |
+
+C05 and E01/E05 are what the model itself is for; the shortlist only has to get the note in front of
+it, and for those it cannot. G01 argues for a rename/alias record rather than a better selector.
+
+### Recommendation
+
+- **Backfill: `bodyPlusTitle` at k=400.** 95% recall, flat **$3.65 per 1,000 captures at any vault
+  size** — versus $5.33 at a 1,200-note vault and $13.32 at 5,000 uncapped. It makes one published
+  price honest.
+- **plus-service: replace `alphabetical-40` with the same selector at k=40.** 0% → 90%, mean rank
+  3.3, no cost change. This is a bug fix, not a feature.
+- k=40 already buys 90%; k=400 buys the last five points. If prompt size ever needs to shrink again,
+  40 is a defensible floor.
+
+### Caveat — this is a ceiling, not a verdict
+
+Recall here means *the note reached the shortlist*. It does not mean the model emitted the link.
+Step 4 of the protocol — the paid model-side check against the `full` ceiling — has **not been run**.
+Until it has, 95% is the best any model could do with this selector, not what it will do.
+
 ## Explicitly out of scope
 
 Embeddings and semantic search (`CLAUDE.md` out-of-scope list). Any change to what lands in the vault

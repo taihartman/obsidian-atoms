@@ -6,6 +6,7 @@
       "failureMode": 2,
       "capture": "knees been grumpy on the sunday long one again, outside edge mostly, totally fine midweek",
       "targetTitle": "IT band flares past 10k, never on shorter efforts",
+      "targetBody": "knee playing up again on the long run, outside edge of it. only ever on the big ones, never the short midweek stuff",
       "targetAgeDays": 410,
       "supportingTitles": [
         "Foam rolling before a run does nothing for me",
@@ -21,6 +22,7 @@
       "failureMode": 1,
       "capture": "up til 2am three nights straight, nothing different except it going dark at 5 now",
       "targetTitle": "Sleep collapses the week after the clocks change",
+      "targetBody": "not slept right since the clocks went back. dark by teatime and my whole body reckons its two hours later than it is",
       "targetAgeDays": 520,
       "supportingTitles": [
         "Reading in bed gets me under faster than any app",
@@ -36,6 +38,7 @@
       "failureMode": 2,
       "capture": "keep raiding the kitchen mid afternoon, always the days i just have coffee til lunch",
       "targetTitle": "Skipping breakfast makes me snack badly by 4pm",
+      "targetBody": "in the biscuits by four again. only had coffee this morning. every time i skip the first thing i end up eating rubbish later on",
       "targetAgeDays": 210,
       "supportingTitles": [
         "Cooking on Sunday is what keeps the week honest",
@@ -51,6 +54,7 @@
       "failureMode": 2,
       "capture": "everything felt grey and pointless again, then realised i havent been outside the door since thursday",
       "targetTitle": "Two days without leaving the flat tanks my mood",
+      "targetBody": "felt flat and horrible all weekend then clocked i hadnt been out the front door since friday. two days in and im a different person",
       "targetAgeDays": 275,
       "supportingTitles": [
         "Morning light does more for me than the vitamin D pills",
@@ -66,6 +70,7 @@
       "failureMode": 1,
       "capture": "brain like soup til about 11 every day this week, oh right the hayfever tablets started back up",
       "targetTitle": "Antihistamines leave me foggy until mid morning",
+      "targetBody": "head full of cotton wool til about 11 every day. started the hayfever tablets monday. same thing every year and i forget every year",
       "targetAgeDays": 365,
       "supportingTitles": [
         "Pollen season starts a fortnight earlier than I expect",
@@ -81,6 +86,7 @@
       "failureMode": 2,
       "capture": "dead at 3 again. had a proper lunch so its not that. pint of water and twenty mins later im fine",
       "targetTitle": "Afternoon crash is dehydration, not low blood sugar",
+      "targetBody": "wiped out at 3 again. had a big lunch so its not that. drank a pint of water and twenty minutes later i was fine. i just dont drink anything all day",
       "targetAgeDays": 190,
       "supportingTitles": [
         "A big lunch is not what makes me sleepy after all",
@@ -96,6 +102,7 @@
       "failureMode": 1,
       "capture": "third quality day this week and my legs were rubbish the whole way, felt like wading through it",
       "targetTitle": "Three hard sessions a week is one too many",
+      "targetBody": "did three hard ones this week and by the last my legs were dead. two and i feel great, three and the whole thing falls apart",
       "targetAgeDays": 400,
       "supportingTitles": [
         "Easy days have to actually be easy or nothing works",
@@ -111,6 +118,7 @@
       "failureMode": 2,
       "capture": "guts in bits again after the thai place last night and i didnt even touch the bread this time",
       "targetTitle": "Onions, not gluten, are what wreck my stomach",
+      "targetBody": "stomach in bits again. had no bread all week so its not that. the only thing all the bad days have in common is a load of onion",
       "targetAgeDays": 245,
       "supportingTitles": [
         "Cutting bread for a month changed nothing at all",
@@ -126,6 +134,7 @@
       "failureMode": 2,
       "capture": "arms all angry and itchy again, and its been a weirdly calm week so thats not the usual excuse",
       "targetTitle": "Eczema flares track laundry detergent, not stress",
+      "targetBody": "arms all angry again. works been quiet so the stress thing doesnt hold up. only thing thats changed is we ran out and used the other washing powder",
       "targetAgeDays": 320,
       "supportingTitles": [
         "The thick ointment works, I just stop using it early",
@@ -141,6 +150,7 @@
       "failureMode": 8,
       "capture": "legs were shot so i binned the session and just walked the block, and the pricing page thing untangled itself on the way round",
       "targetTitle": "Design blocks break on a walk, not at the desk",
+      "targetBody": "sat staring at that layout for two hours and got nowhere. went round the block and had it sorted before i got back in. never happens at the desk",
       "targetAgeDays": 180,
       "supportingTitles": [
         "Rest days are when the training actually lands",
@@ -171,6 +181,7 @@
       "failureMode": 12,
       "capture": "shoulder is grumbling again, same side, same as when the pool was shut over christmas",
       "targetTitle": "Shoulder ache follows weeks with no swimming",
+      "targetBody": "shoulders been aching all week. havent been in the pool since it shut, thats the only thing different. always the same side",
       "targetAgeDays": 0,
       "supportingTitles": [
         "The pool closure in December broke a two year streak",
@@ -186,6 +197,7 @@
       "failureMode": 6,
       "capture": "the thing that actually broke this quarter wasnt anyone being slow. it was three fast people with no judgement shipping confidently. i had this the wrong way round",
       "targetTitle": "Hiring for raw speed beats hiring for taste",
+      "targetBody": "the ones who just get stuff out are worth more than the careful ones. you can tidy it up after, you cant teach someone to move",
       "targetAgeDays": 280,
       "supportingTitles": [
         "Interviews measure how well people interview",
@@ -201,6 +213,7 @@
       "failureMode": 6,
       "capture": "did the maths properly this time with maintenance and the interest and staying put is cheaper for another five years at least. mildly annoyed at past me",
       "targetTitle": "Renting is money thrown away versus owning",
+      "targetBody": "handed over another months rent for nothing. at least with a mortgage some of it stays yours, this just goes",
       "targetAgeDays": 610,
       "supportingTitles": [
         "A deposit is the only savings goal I have ever kept",
@@ -216,6 +229,7 @@
       "failureMode": 6,
       "capture": "the meltdown wasnt the ipad, theyd been up since five. tired is the whole story and i keep pinning it on the screen because thats easier",
       "targetTitle": "Screen time is the main thing to control",
+      "targetBody": "another meltdown when the ipad went off. if i get the screen stuff under control i reckon most of the bad evenings sort themselves out",
       "targetAgeDays": 240,
       "supportingTitles": [
         "Bedtime slips by ten minutes a night if nobody watches",
@@ -231,6 +245,7 @@
       "failureMode": 6,
       "capture": "spent an hour poking round the fediverse thing and every single server has one exhausted volunteer doing the same job badly. moving the servers about doesnt move the work",
       "targetTitle": "Decentralised networks solve moderation problems",
+      "targetBody": "the whole problem is one company deciding what everyone gets to see. spread the servers out so nobody holds that switch and it sorts itself",
       "targetAgeDays": 330,
       "supportingTitles": [
         "Platform rules are labour policy wearing a product costume",
@@ -246,6 +261,7 @@
       "failureMode": 7,
       "capture": "the outline thing again. two days on structure and the writing came out stiff as anything, same as last time and the time before",
       "targetTitle": "First drafts get worse the more I plan them",
+      "targetBody": "planned the whole piece out properly and it came out dead on the page. the ones i just started and worked out as i went read miles better",
       "targetAgeDays": 430,
       "supportingTitles": [
         "Writing in the morning is worth being worse at everything else",
@@ -261,6 +277,7 @@
       "failureMode": 7,
       "capture": "the funeral thing keeps coming back to me. nobody stood up in that room and cared what he built at work, not one person",
       "targetTitle": "Being known by five people beats being known widely",
+      "targetBody": "nobody in that room mentioned his job once. it was all the small stuff and the handful of people who actually sat with him. thats the bit that counts",
       "targetAgeDays": 340,
       "supportingTitles": [
         "Ambition without a deadline is just anxiety",
@@ -276,6 +293,7 @@
       "failureMode": 9,
       "capture": "cut back to two newsletters and i can suddenly hold an argument again. its the pruning doing it not the reading",
       "targetTitle": "Reading fewer sources made my opinions sharper",
+      "targetBody": "unsubscribed from nearly all of it and weirdly i can hold a view again. was taking in loads and thinking less and less",
       "targetAgeDays": 150,
       "supportingTitles": [
         "The house move has eaten every spare thought for a month",
@@ -294,6 +312,7 @@
       "failureMode": 9,
       "capture": "told them it was fine when it really wasnt and now im keeping two versions of the story straight in my head. exhausting",
       "targetTitle": "Small lies to spare feelings still cost trust",
+      "targetBody": "said it was fine to save the awkwardness and now i cant look at her straight. its not even a big lie but somethings gone off between us",
       "targetAgeDays": 260,
       "supportingTitles": [
         "Reorg rumours are worse than the reorg",
@@ -311,6 +330,7 @@
       "failureMode": 1,
       "capture": "still telling people im going to write the book someday. its been someday for two years and it just sits there making me twitchy",
       "targetTitle": "Ambition without a deadline is just anxiety",
+      "targetBody": "keep saying ill do it someday. someday isnt a plan, its just a thing sat at the back of my head making me feel bad",
       "targetAgeDays": 720,
       "supportingTitles": [
         "Wanting a thing is not the same as choosing it",
@@ -326,6 +346,7 @@
       "failureMode": 8,
       "capture": "the junior got twice as much done the week i stopped doing the daily check in. exactly the same as the piano practice thing at home",
       "targetTitle": "Kids learn faster when nobody is watching them",
+      "targetBody": "left her to the piano and didnt hover for once and she got more done in an hour than the whole month of me sat there correcting her",
       "targetAgeDays": 190,
       "supportingTitles": [
         "Practice happens when the instrument is already out",
@@ -341,6 +362,7 @@
       "failureMode": 2,
       "capture": "walked out of that room and not one of us could say what we agreed. everyone nodding at everything is how nothing ends up owned",
       "targetTitle": "Consensus decisions are nobody's decisions",
+      "targetBody": "everyone agreed and then nothing happened. when the whole room says yes theres nobody actually on the hook for it",
       "targetAgeDays": 210,
       "supportingTitles": [
         "A meeting without a named owner is a status update",
@@ -356,6 +378,7 @@
       "failureMode": 6,
       "capture": "changed my mind on the drafting thing. the machine gets me to the bad first version faster and the real work was always the rewrite anyway",
       "targetTitle": "Using a model to draft is cheating myself",
+      "targetBody": "let it write the first pass and it felt like skipping the bit where you do the thinking. if im not fighting the blank page im not really doing the work",
       "targetAgeDays": 120,
       "supportingTitles": [
         "First drafts get worse the more I plan them",

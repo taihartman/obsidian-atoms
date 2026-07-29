@@ -6,6 +6,7 @@
       "failureMode": 4,
       "capture": "bluebird churn tab still double counting the annual plans, nobody has fixed it since the rebrand",
       "targetTitle": "Northstar counts annual renewals twice as losses",
+      "targetBody": "churn number on the dash looks mental again. someone renews the annual and it logs a drop then a new sale, so we count them as lost. thats not real churn",
       "targetAgeDays": 210,
       "supportingTitles": [
         "Bluebird was renamed Northstar after the rebrand review",
@@ -20,6 +21,7 @@
       "failureMode": 6,
       "capture": "legal came back, we cant keep the recordings in frankfurt after all. back to the vendor, ugh",
       "targetTitle": "Self hosting transcripts in Frankfurt beats the vendor",
+      "targetBody": "priced up keeping the call recordings on our own box in the frankfurt dc. cheaper than what the vendor charges and we stop handing audio to someone else. doing that",
       "targetAgeDays": 320,
       "supportingTitles": [
         "Vendor transcript pricing scales badly past 500 seats",
@@ -34,6 +36,7 @@
       "failureMode": 10,
       "capture": "she said the migration window wont work for her team, something about the close. need to move it",
       "targetTitle": "Priya's team cannot take downtime at month end",
+      "targetBody": "priya says never put anything with downtime in the last week of the month. thats when her lot are closing the books and it just cant happen",
       "targetAgeDays": 95,
       "supportingTitles": [
         "Priya Raghunathan runs the billing platform team",
@@ -49,6 +52,7 @@
       "failureMode": 4,
       "capture": "growth pod standup is useless now that its 14 people, someone should just split it",
       "targetTitle": "Acquisition guild standup broke past nine people",
+      "targetBody": "standup was fine when it was six of us. its ten now and nobody says anything real, everyone just waits their turn. it stopped working somewhere around nine",
       "targetAgeDays": 260,
       "supportingTitles": [
         "Growth pod became the Acquisition guild in the reorg",
@@ -63,6 +67,7 @@
       "failureMode": 6,
       "capture": "were killing the four hour exercise. three candidates walked last month over it, cant keep paying that",
       "targetTitle": "The take home exercise is the best signal in our loop",
+      "targetBody": "went back over who we hired and who actually worked out. the only bit of the loop that lined up was the take home. the interviews told us basically nothing",
       "targetAgeDays": 430,
       "supportingTitles": [
         "Candidate drop off happens between screen and onsite",
@@ -77,6 +82,7 @@
       "failureMode": 10,
       "capture": "he wants the audit stuff closed before board week which is just not going to happen",
       "targetTitle": "The CFO wants audit findings closed before board week",
+      "targetBody": "cfo cornered me about the audit stuff, wants every finding closed off before the board meets. said it cant roll into the next one",
       "targetAgeDays": 140,
       "supportingTitles": [
         "Tomas Errazuriz took over as CFO in the spring",
@@ -92,6 +98,7 @@
       "failureMode": 4,
       "capture": "sendgrid bounce rate creeping again, pretty sure its the shared ip pool not our list",
       "targetTitle": "Twilio Email shared pools wreck our deliverability",
+      "targetBody": "moved a chunk off the shared ips and the bounces halved overnight. its the pool were sat in, everyone elses junk drags our sending down with it",
       "targetAgeDays": 330,
       "supportingTitles": [
         "SendGrid is now billed under the Twilio Email contract",
@@ -106,6 +113,7 @@
       "failureMode": 2,
       "capture": "meetings where nobody has looked at anything beforehand are just expensive group reading",
       "targetTitle": "Pre reads fail unless the meeting starts in silence",
+      "targetBody": "tried it where we all sit and read the doc in silence for ten mins at the start. actually worked, everyone had read it for once. sending it round the night before never does",
       "targetAgeDays": 275,
       "supportingTitles": [
         "Six pagers were tried in the leadership sync",
@@ -120,6 +128,7 @@
       "failureMode": 8,
       "capture": "the onboarding doc problem is the same as sofia and the recipes, nobody needs the whole manual first",
       "targetTitle": "Sofia learns a recipe faster by cooking than reading",
+      "targetBody": "sofia doesnt read the recipe through first, she just starts and looks at the next line when she gets to it. ends up done before me doing it properly",
       "targetAgeDays": 190,
       "supportingTitles": [
         "New engineer onboarding doc is 40 pages and unread",
@@ -134,6 +143,7 @@
       "failureMode": 12,
       "capture": "the escalation thing from monday applies here too, ops carries the pager not whoever wrote the service",
       "targetTitle": "Ops owns the pager rotation not the feature author",
+      "targetBody": "had the on call row again. landed on the ops lot holding the phone, not whoever shipped the thing. cant have the person who wrote it getting woken at 3am forever",
       "targetAgeDays": 4,
       "supportingTitles": [
         "Paging the author of a service does not scale past ten",
@@ -162,6 +172,7 @@
       "failureMode": 9,
       "capture": "pricing page bounce is a trust problem not a number problem, we keep testing the wrong thing",
       "targetTitle": "Trust signals move conversion more than price does",
+      "targetBody": "stuck the logos and the refund line above the fold and it moved more than any of the price tests did. people arent stuck on the number, theyre deciding if were real",
       "targetAgeDays": 380,
       "supportingTitles": [
         "Pricing experiment week one results were flat",
@@ -178,6 +189,7 @@
       "failureMode": 1,
       "capture": "call yusuf. its nearly a year and everyone shows up for the funeral and nobody shows up for this bit",
       "targetTitle": "Yusuf takes the anniversary harder than the funeral",
+      "targetBody": "yusuf was fine at the service, held it together all day. its the date coming round that flattens him, and by then everyone else has moved on",
       "targetAgeDays": 355,
       "supportingTitles": [
         "Yusuf Demirci moved back to Ankara after the funeral",
@@ -192,6 +204,7 @@
       "failureMode": 3,
       "capture": "bex is pregnant. dont say anything in the group chat, she will tell people herself",
       "targetTitle": "Rebecca Iwu wants her news shared on her own timing",
+      "targetBody": "bex was properly upset that it got passed round before she said anything. she wants to be the one who tells people, when shes ready",
       "targetAgeDays": 240,
       "supportingTitles": [
         "Rebecca Iwu and Tomas got married in the autumn",
@@ -206,6 +219,7 @@
       "failureMode": 10,
       "capture": "she is upset about christmas again, says nobody asked her where she wanted it this year",
       "targetTitle": "Aunt Marisol hosts Christmas only when asked first",
+      "targetBody": "marisol will do christmas happily, she just wants asking first instead of it landing on her. the year we assumed she was fine with it went down badly",
       "targetAgeDays": 310,
       "supportingTitles": [
         "Mum stopped hosting Christmas after the hip surgery",
@@ -221,6 +235,7 @@
       "failureMode": 1,
       "capture": "that thing gran said about not saving things for later, it keeps coming back to me",
       "targetTitle": "Gran used the good china on ordinary Tuesdays",
+      "targetBody": "gran got the good cups out for a random tuesday brew. said whats the point of them sat in a cupboard waiting for a day that never comes",
       "targetAgeDays": 690,
       "supportingTitles": [
         "Gran's house was sold two summers ago",
@@ -235,6 +250,7 @@
       "failureMode": 3,
       "capture": "brother in law wants to borrow the van for the move. say yes but pin a date this time",
       "targetTitle": "Kwame agrees to favours and forgets to fix a date",
+      "targetBody": "kwame said yes to the shelves straight away and then nothing for a month. hes not being off, he just never puts an actual day on it",
       "targetAgeDays": 200,
       "supportingTitles": [
         "Kwame Mensah married my sister three years ago",
@@ -249,6 +265,7 @@
       "failureMode": 10,
       "capture": "he texted saying hes moving back. i think thats the third time hes said that in two years",
       "targetTitle": "Emeka says he is moving home whenever a job ends",
+      "targetBody": "emeka on about coming back again. its always right after a contract finishes, then he picks something else up and it goes quiet",
       "targetAgeDays": 165,
       "supportingTitles": [
         "Emeka Balogun has changed cities four times in six years",
@@ -264,6 +281,7 @@
       "failureMode": 3,
       "capture": "pickle turns 7 next month and she wants the dinosaur cake again obviously",
       "targetTitle": "Nour asks for the same dinosaur cake every year",
+      "targetBody": "nour wants the dinosaur cake. again. offered her anything else she fancied and no, has to be that one",
       "targetAgeDays": 370,
       "supportingTitles": [
         "Nour is my goddaughter and calls herself Pickle",
@@ -278,6 +296,7 @@
       "failureMode": 1,
       "capture": "havent spoken to priti since the wedding. that whole thing never actually got sorted out",
       "targetTitle": "The row with Priti was about money not the seating",
+      "targetBody": "everyone thinks me and priti fell out over where she was sat. it was never that. it was the money she lent us and nobody will say it out loud",
       "targetAgeDays": 520,
       "supportingTitles": [
         "Priti Shah was my flatmate through university",
@@ -292,6 +311,7 @@
       "failureMode": 6,
       "capture": "actually dad does want people around, he asked twice where everyone had got to",
       "targetTitle": "Dad prefers to be left alone when he is unwell",
+      "targetBody": "dad went quiet the whole time he was poorly, barely answered the phone. hes not sulking, he just wants leaving alone til hes right again",
       "targetAgeDays": 290,
       "supportingTitles": [
         "Dad's second hip operation is booked for spring",
@@ -306,6 +326,7 @@
       "failureMode": 2,
       "capture": "every time i tell her how to fix it she goes quiet for two days and i never learn",
       "targetTitle": "Advice lands as criticism when nobody asked for it",
+      "targetBody": "told her how id have done it and she went off me for the rest of the night. she wasnt asking, she was just saying it out loud",
       "targetAgeDays": 285,
       "supportingTitles": [
         "Leila Haddad started the new job in February",
@@ -334,6 +355,7 @@
       "failureMode": 8,
       "capture": "the way i do one on ones at work is exactly the thing im not doing with my sister",
       "targetTitle": "One on ones work when I ask the second question",
+      "targetBody": "the good catch ups are the ones where i shut up and ask again after their first answer. the first answer is always the polite one",
       "targetAgeDays": 240,
       "supportingTitles": [
         "Weekly one on ones were cut to fortnightly",
@@ -348,6 +370,7 @@
       "failureMode": 5,
       "capture": "finally watched la cienaga. two hours of people lying by a filthy pool doing nothing and its unbearable in the best way",
       "targetTitle": "La Cienaga makes stillness feel like dread",
+      "targetBody": "la cienaga. nothing happens for two hours and i couldnt look away, felt like something awful was about to go off the entire time",
       "targetAgeDays": 120,
       "supportingTitles": [
         "Films",
@@ -362,6 +385,7 @@
       "failureMode": 7,
       "capture": "the bread thing again. left it in the fridge 18 hours instead of 12 and the crumb finally opened up",
       "targetTitle": "My sourdough needs a longer cold retard than the recipe",
+      "targetBody": "left the dough in the fridge overnight and then most of the morning, way past what the book says, and it came out miles better. the timing in the recipe is too short for my kitchen",
       "targetAgeDays": 310,
       "supportingTitles": [
         "Recipes",
@@ -376,6 +400,7 @@
       "failureMode": 5,
       "capture": "elden ring dlc bosses are the whole difficulty as authorship argument again, people are missing it",
       "targetTitle": "Elden Ring uses difficulty as an authored statement",
+      "targetBody": "the hard bits in elden ring arent there to be hard, theyre the thing its saying. an easy mode would be like cutting half the film out",
       "targetAgeDays": 420,
       "supportingTitles": [
         "Games",
@@ -390,6 +415,7 @@
       "failureMode": 7,
       "capture": "tomato bed again, third year running, gone brown by august. im now sure its how im watering not the variety",
       "targetTitle": "Blight in my tomato bed is a watering problem",
+      "targetBody": "tomatoes went brown again. read up on it and its the splashing when i water from above, throws it up off the soil. nothing to do with the variety",
       "targetAgeDays": 400,
       "supportingTitles": [
         "Garden notes",
@@ -404,6 +430,7 @@
       "failureMode": 5,
       "capture": "done with the goldfinch. she pulls the same trick as the first one, a death and then years of the wreckage",
       "targetTitle": "Donna Tartt writes aftermath better than the event",
+      "targetBody": "finished the secret history. the killing is over early and the rest is them rotting from it. shes better on the after than the thing itself",
       "targetAgeDays": 260,
       "supportingTitles": [
         "Books",
@@ -418,6 +445,7 @@
       "failureMode": 7,
       "capture": "wheel again on thursday. centering is fine now, im still rushing the walls up before its ready",
       "targetTitle": "I pull the pot walls before the clay is ready",
+      "targetBody": "collapsed two more at the same point. im going up too soon, the clay hasnt firmed off yet and i get impatient about halfway",
       "targetAgeDays": 330,
       "supportingTitles": [
         "Pottery class runs on Thursday evenings",
@@ -432,6 +460,7 @@
       "failureMode": 5,
       "capture": "firecrest at the reservoir this morning, tiny thing, first one ive ever had here",
       "targetTitle": "Firecrests turn up at the reservoir in cold snaps",
+      "targetBody": "two firecrests down by the water this morning, proper freezing. seems to be the pattern, they only show up when it turns properly cold",
       "targetAgeDays": 385,
       "supportingTitles": [
         "Birding log",
@@ -446,6 +475,7 @@
       "failureMode": 7,
       "capture": "stuck at the same grade eight months now. forearms give out well before my fingers do",
       "targetTitle": "My climbing plateau is endurance not finger strength",
+      "targetBody": "same grade for months. its not that i cant hold the holds, im cooked by move six. i need to last longer not pull harder",
       "targetAgeDays": 210,
       "supportingTitles": [
         "Bouldering sessions moved to twice a week",
@@ -460,6 +490,7 @@
       "failureMode": 6,
       "capture": "i was wrong about brisket. twelve hours naked just dries it out, wrapping through the stall was the fix",
       "targetTitle": "Brisket only works with an unwrapped twelve hour cook",
+      "targetBody": "did the brisket with no foil the whole way, twelve hours straight. bark was unreal. wrapping it just steams the outside off",
       "targetAgeDays": 340,
       "supportingTitles": [
         "Recipes",
@@ -474,6 +505,7 @@
       "failureMode": 2,
       "capture": "the ones where everyone talks over each other and one person quietly wins are the best kind",
       "targetTitle": "Negotiation games reward the player who stays quiet",
+      "targetBody": "won it again by barely opening my mouth. everyone else is busy making offers over each other and you just sit there and take the last one",
       "targetAgeDays": 230,
       "supportingTitles": [
         "Board games",
@@ -488,6 +520,7 @@
       "failureMode": 9,
       "capture": "silksong hype aside, the reason these games work is the map filling in, not the combat",
       "targetTitle": "Maps are the real reward loop in a metroidvania",
+      "targetBody": "its the map filling in that keeps me going, not the fighting. every time a bit of black turns into a room i want one more",
       "targetAgeDays": 460,
       "supportingTitles": [
         "Silksong first hour impressions",
@@ -504,6 +537,7 @@
       "failureMode": 12,
       "capture": "same as the espresso thing from earlier this week, its the grinder drifting not the beans",
       "targetTitle": "My shots vary because the grinder drifts not the beans",
+      "targetBody": "shots all over the place again. same bag, same dose. only sorts itself out when i redial it, so its the grinder wandering not the beans going off",
       "targetAgeDays": 3,
       "supportingTitles": [
         "New burr grinder arrived in the spring",

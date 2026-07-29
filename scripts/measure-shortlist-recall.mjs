@@ -66,19 +66,28 @@ function hash01(s) {
 function buildVault(probe, size) {
   const seen = new Set();
   const notes = [];
-  const add = (title, ageDays) => {
+  // Every note gets a capture-style body, not just the target — otherwise a body-scoring
+  // selector would win trivially by being the only thing with text to match against.
+  // Bodies are drawn from the other probes' real bodies so length and register match.
+  const bodyPool = probes
+    .filter((p) => p.id !== probe.id && p.targetBody)
+    .map((p) => p.targetBody);
+  const filler = (title, i) =>
+    bodyPool.length ? bodyPool[Math.floor(hash01(title + i) * bodyPool.length)] : "";
+
+  const add = (title, ageDays, body) => {
     if (!title || seen.has(title)) return;
     seen.add(title);
-    notes.push({ title, ageDays });
+    notes.push({ title, ageDays, body: body ?? filler(title, notes.length) });
   };
 
-  if (probe.targetTitle) add(probe.targetTitle, probe.targetAgeDays ?? 30);
+  if (probe.targetTitle) add(probe.targetTitle, probe.targetAgeDays ?? 30, probe.targetBody ?? "");
   for (const t of probe.supportingTitles ?? []) {
     add(t, Math.round(hash01(t) * 900) + 1);
   }
   for (const other of probes) {
     if (other.id === probe.id) continue;
-    add(other.targetTitle, Math.round(hash01(other.id + "t") * 900) + 1);
+    add(other.targetTitle, Math.round(hash01(other.id + "t") * 900) + 1, other.targetBody);
     for (const t of other.supportingTitles ?? []) {
       add(t, Math.round(hash01(t) * 900) + 1);
     }
@@ -116,10 +125,19 @@ function isPersonHub(title) {
   return w.length <= 3 && w.every((x) => /^[A-Z][a-zà-ÿA-Z'’-]*$/.test(x));
 }
 
-/** BM25 over titles — the shortlist stage `context.ts` already contemplates. */
-function bm25Rank(capture, notes) {
+/**
+ * BM25 — the shortlist stage `context.ts` already contemplates.
+ *
+ * `field` picks what each note is scored on. Titles are the model's polished declarative claim;
+ * bodies are the user's own verbatim capture. Matching a user's words against their own past
+ * words is a different, and much easier, problem than matching them against a paraphrase.
+ * Either way only the *title* is ever sent in the prompt, so the cost model is unaffected.
+ */
+function bm25Rank(capture, notes, field = "title") {
   const q = tokens(capture);
-  const docs = notes.map((n) => tokens(n.title));
+  const docs = notes.map((n) =>
+    tokens(field === "title" ? n.title : field === "body" ? n.body ?? "" : `${n.title} ${n.body ?? ""}`),
+  );
   const avgdl = docs.reduce((s, d) => s + d.length, 0) / (docs.length || 1);
   const df = new Map();
   for (const d of docs) for (const t of new Set(d)) df.set(t, (df.get(t) ?? 0) + 1);
@@ -148,7 +166,32 @@ const SELECTORS = {
   /** Cheapest plausible selector, and the one the owner's year-ago case is aimed at. */
   recency: (capture, notes, k) => [...notes].sort((a, b) => a.ageDays - b.ageDays).slice(0, k),
 
-  keyword: (capture, notes, k) => bm25Rank(capture, notes).slice(0, k),
+  keyword: (capture, notes, k) => bm25Rank(capture, notes, "title").slice(0, k),
+
+  /** Score the user's words against their own past words; still send only titles. */
+  bodyKeyword: (capture, notes, k) => bm25Rank(capture, notes, "body").slice(0, k),
+
+  bodyPlusTitle: (capture, notes, k) => bm25Rank(capture, notes, "both").slice(0, k),
+
+  /** Body-scored, with person hubs protected and a recency quota for what's top of mind. */
+  hybridBody: (capture, notes, k) => {
+    const out = [];
+    const taken = new Set();
+    const take = (list, n) => {
+      for (const item of list) {
+        if (out.length >= k || n <= 0) break;
+        if (taken.has(item.title)) continue;
+        taken.add(item.title);
+        out.push(item);
+        n--;
+      }
+    };
+    take(notes.filter((n) => isPersonHub(n.title)), Math.ceil(k * 0.1));
+    take(bm25Rank(capture, notes, "both"), Math.ceil(k * 0.7));
+    take([...notes].sort((a, b) => a.ageDays - b.ageDays), Math.ceil(k * 0.2));
+    take(bm25Rank(capture, notes, "both"), k);
+    return out.slice(0, k);
+  },
 
   /** Person hubs always survive, then keyword fills the rest. */
   personFirst: (capture, notes, k) => {
