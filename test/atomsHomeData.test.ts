@@ -510,6 +510,7 @@ describe("inbox stuck-drain indicator", () => {
       pending: 0,
       held: 0,
       unparseable: 0,
+      inferredDates: 0,
     });
     expect(inboxStuckSummary(inboxCounts("", now))).toBeNull();
     expect(inboxStuckSummary(inboxCounts(filed, now))).toBeNull();
@@ -517,7 +518,12 @@ describe("inbox stuck-drain indicator", () => {
 
   it("shows a pending count when captures only wait to file", () => {
     const counts = inboxCounts("- 2026-07-20T09:14-04:00 buy milk\n", now);
-    expect(counts).toEqual({ pending: 1, held: 0, unparseable: 0 });
+    expect(counts).toEqual({
+      pending: 1,
+      held: 0,
+      unparseable: 0,
+      inferredDates: 0,
+    });
     const s = inboxStuckSummary(counts);
     expect(s?.text).toBe("1 waiting to file");
     expect(s?.needsRepair).toBe(false);
@@ -527,8 +533,16 @@ describe("inbox stuck-drain indicator", () => {
     const content = ["- no stamp here", "- 2026-07-20T09:14-04:00 buy milk", ""].join(
       "\n",
     );
-    const counts = inboxCounts(content, now);
-    expect(counts).toEqual({ pending: 1, held: 0, unparseable: 1 });
+    // A stampless capture now heals into a pending one, so inboxCounts no
+    // longer produces `unparseable`. The summary wording for it is still under
+    // test, fed directly.
+    expect(inboxCounts(content, now)).toEqual({
+      pending: 2,
+      held: 0,
+      unparseable: 0,
+      inferredDates: 0,
+    });
+    const counts = { pending: 1, held: 0, unparseable: 1 };
     const s = inboxStuckSummary(counts);
     expect(s?.needsRepair).toBe(true);
     expect(s?.text).toContain("needs a fix");
@@ -540,8 +554,15 @@ describe("inbox stuck-drain indicator", () => {
     const content = ["- no stamp here", "- 2026-08-01T08:00-04:00 next month", ""].join(
       "\n",
     );
-    const counts = inboxCounts(content, now);
-    expect(counts).toEqual({ pending: 0, held: 1, unparseable: 1 });
+    // The stampless line inherits the future stamp's date, clamped to today,
+    // so it files rather than stranding; only the future capture is held.
+    expect(inboxCounts(content, now)).toEqual({
+      pending: 1,
+      held: 1,
+      unparseable: 0,
+      inferredDates: 0,
+    });
+    const counts = { pending: 0, held: 1, unparseable: 1 };
     const s = inboxStuckSummary(counts);
     expect(s?.text).toBe("1 capture needs a fix · 1 held for a future day");
     expect(s?.text).not.toContain("waiting to file");
@@ -559,6 +580,7 @@ describe("inbox stuck-drain indicator", () => {
       pending: 0,
       held: 0,
       unparseable: 0,
+      inferredDates: 0,
     });
     expect(inboxStuckSummary(inboxCounts(after, now))).toBeNull();
   });

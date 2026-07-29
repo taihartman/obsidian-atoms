@@ -34,6 +34,19 @@ export const INBOX_FILED_MARKER = "<!--atoms:filed-->";
 
 const INBOX_FILED_RE = /^\s*<!--atoms:filed-->\s*$/;
 
+/** Recorded when the drain had to infer a capture's day — makes the guess auditable. */
+export function inboxInferredDateMarker(date: string): string {
+  return `<!--atoms:inferred-date:${date}-->`;
+}
+
+const INBOX_INFERRED_DATE_RE =
+  /^\s*<!--atoms:inferred-date:(\d{4}-\d{2}-\d{2})-->\s*$/;
+
+/** The date an inferred-date marker line records, or null for any other line. */
+export function inboxInferredDateFromLine(line: string): string | null {
+  return line.match(INBOX_INFERRED_DATE_RE)?.[1] ?? null;
+}
+
 /** Top-level bullet at column 0 (capture start), mirroring parse.ts. */
 const TOP_LEVEL_BULLET_RE = /^- (.*)$/;
 
@@ -42,7 +55,18 @@ const TOP_LEVEL_BULLET_RE = /^- (.*)$/;
  * Shortcut at capture time. Seconds optional; `Z` accepted.
  */
 const STAMP_RE =
-  /^((\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?(?:Z|[+-]\d{2}:\d{2}))\s+(.*)$/;
+  /^((\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?(?:Z|[+-]\d{2}:\d{2}))(?:\s+(.*))?$/;
+
+/**
+ * A leading token that is *shaped* like a routing stamp but does not read as
+ * one — a misconfigured shortcut's `7/28/26, 12:00 PM`, or an ISO stamp whose
+ * calendar date is impossible. The body is sacred (non-negotiable #1); a junk
+ * routing stamp is not body, and letting it through lands verbatim in the daily
+ * and in the atom. Three date components are required deliberately, so a
+ * genuine capture like `7/28 3:00 PM meeting with Bob` is left alone.
+ */
+const UNREADABLE_STAMP_RE =
+  /^\d{1,4}[-/]\d{1,2}[-/]\d{1,4},?[T\s]\s*\d{1,2}:\d{2}(?::\d{2})?(?:\s*[AaPp]\.?[Mm]\.?)?(?:\s*(?:Z|[+-]\d{2}:?\d{2}))?(?:\s+(.*))?$/;
 
 export interface InboxCapture {
   /** Raw stamp as written by the Shortcut, or null when unreadable. */
@@ -58,8 +82,13 @@ export interface InboxCapture {
   /** Body text; continuations joined with newlines, indentation stripped. */
   text: string;
   filed: boolean;
-  /** True when the line carries no readable stamp — held, never guessed at. */
-  unparseable: boolean;
+  /**
+   * Date recorded by this region's inferred-date marker, or null when there is
+   * none. Durable record only: a capture whose date was inferred in memory this
+   * pass but not yet marked reads back as `inferredDate === null` with a null
+   * `stamp` (KTD1).
+   */
+  inferredDate: string | null;
   startLine: number;
   endLine: number;
   markerLine: number | null;
@@ -73,15 +102,27 @@ function isTopLevelBullet(line: string): boolean {
   return TOP_LEVEL_BULLET_RE.test(line);
 }
 
+/** Either of the inbox's own sentinels, which never fold into a body. */
+function isInboxMarkerLine(line: string): boolean {
+  return (
+    isInboxFiledMarkerLine(line) || inboxInferredDateFromLine(line) !== null
+  );
+}
+
 /**
- * Indented continuation of a capture: leading whitespace, non-empty, not a
- * top-level bullet, not the filed marker. Mirrors parse.ts isContinuationLine.
+ * Line that folds into the preceding capture's body.
+ *
+ * Same shape as parse.ts's continuation rule plus **column-0 orphans** — a
+ * continuation that lost its indentation to a sync merge or an editor (KTD4).
+ * The inbox is plugin-owned machinery, so reporting an orphan only tells the
+ * user about a file they will never open; absorbing it keeps the capture whole.
+ * A truly blank line still terminates the extent, and a whitespace-only line is
+ * absorbed and stripped to "" exactly as before.
  */
-function isContinuationLine(line: string): boolean {
-  if (line.length === 0) return false;
+function isAbsorbableLine(line: string): boolean {
+  if (!(line.trim() !== "" || /^[ \t]/.test(line))) return false;
   if (isTopLevelBullet(line)) return false;
-  if (!/^[ \t]/.test(line)) return false;
-  if (isInboxFiledMarkerLine(line)) return false;
+  if (isInboxMarkerLine(line)) return false;
   return true;
 }
 
@@ -103,6 +144,26 @@ function inboxMarkerLineInRegion(
     const line = lines[j]!;
     if (isTopLevelBullet(line)) break;
     if (isInboxFiledMarkerLine(line)) return j;
+    if (line.trim() !== "" && !/^[ \t]/.test(line)) break; // non-indented prose
+  }
+  return null;
+}
+
+/**
+ * Date recorded by the inferred-date marker in the region after a capture's
+ * extent, or null. Scans like inboxMarkerLineInRegion but skips *past* a filed
+ * marker rather than stopping there, so the pair reads in either order.
+ */
+function inboxInferredDateInRegion(
+  lines: string[],
+  endLine: number,
+): string | null {
+  for (let j = endLine + 1; j < lines.length; j++) {
+    const line = lines[j]!;
+    if (isTopLevelBullet(line)) break;
+    const date = inboxInferredDateFromLine(line);
+    if (date !== null) return date;
+    if (isInboxFiledMarkerLine(line)) continue;
     if (line.trim() !== "" && !/^[ \t]/.test(line)) break; // non-indented prose
   }
   return null;
@@ -151,8 +212,19 @@ function parseStamp(firstLineBody: string): ParsedStamp | null {
     stamp: stamp!,
     date: `${yy}-${mm}-${dd}`,
     time: ss === undefined ? `${hh}:${min}` : `${hh}:${min}:${ss}`,
-    text: text!,
+    // A bullet that is only a stamp carries no content — empty, not unreadable
+    // (KTD3). The empty skip below drops it rather than reporting a false alarm.
+    text: text ?? "",
   };
+}
+
+/**
+ * Body of a bullet whose stamp did not read: the junk routing stamp stripped
+ * off when there is one, otherwise the bullet unchanged.
+ */
+function bodyWithoutUnreadableStamp(firstLineBody: string): string {
+  const m = firstLineBody.match(UNREADABLE_STAMP_RE);
+  return m ? (m[1] ?? "") : firstLineBody;
 }
 
 /**
@@ -162,7 +234,10 @@ function parseStamp(firstLineBody: string): ParsedStamp | null {
  * next top-level bullet, the filed marker, or EOF — the same shape parse.ts
  * uses for dailies, so a drained capture reads back as exactly one capture.
  */
-export function parseInboxCaptures(content: string): InboxCapture[] {
+export function parseInboxCaptures(
+  content: string,
+  now: Date = new Date(),
+): InboxCapture[] {
   const lines = content.split(/\r?\n/);
   const captures: InboxCapture[] = [];
   let i = 0;
@@ -176,10 +251,12 @@ export function parseInboxCaptures(content: string): InboxCapture[] {
 
     const startLine = i;
     const parsed = parseStamp(bullet[1]!);
-    const bodyParts: string[] = [parsed ? parsed.text : bullet[1]!];
+    const bodyParts: string[] = [
+      parsed ? parsed.text : bodyWithoutUnreadableStamp(bullet[1]!),
+    ];
 
     i += 1;
-    while (i < lines.length && isContinuationLine(lines[i]!)) {
+    while (i < lines.length && isAbsorbableLine(lines[i]!)) {
       bodyParts.push(lines[i]!.replace(/^[ \t]+/, ""));
       i += 1;
     }
@@ -193,9 +270,9 @@ export function parseInboxCaptures(content: string): InboxCapture[] {
     if (markerLine !== null) i = markerLine + 1;
 
     const text = bodyParts.join("\n");
-    // A stampless-but-empty bullet is not work — it matches the daily's
-    // "lone dash" case rather than a capture we failed to read.
-    if (!parsed && isEmptyCaptureText(text)) continue;
+    // An empty bullet is not work, whether or not the stamp read — it matches
+    // the daily's "lone dash" case rather than a capture we failed to read.
+    if (isEmptyCaptureText(text)) continue;
 
     captures.push({
       stamp: parsed?.stamp ?? null,
@@ -203,28 +280,64 @@ export function parseInboxCaptures(content: string): InboxCapture[] {
       time: parsed?.time ?? null,
       text,
       filed,
-      unparseable: parsed === null,
+      inferredDate: inboxInferredDateInRegion(lines, endLine),
       startLine,
       endLine,
       markerLine,
     });
   }
 
+  inheritMissingDates(captures, now);
   return captures;
 }
 
-/** Captures waiting to be filed: stamped, readable, not yet marked. */
-export function pendingInboxCaptures(captures: InboxCapture[]): InboxCapture[] {
-  return captures.filter(
-    (c) => !c.filed && !c.unparseable && !isEmptyCaptureText(c.text),
-  );
+/**
+ * Give every capture whose stamp did not read a date to file against (KTD1).
+ *
+ * A recorded inferred-date marker wins, so the guess stays stable across
+ * drains. Otherwise the inbox's append order is the evidence: the capture takes
+ * the day of the nearest preceding *stamped* capture, then the nearest
+ * following one, then today (KTD2). Anchoring only on stamped captures keeps a
+ * run of orphans from drifting off one guess. The result is clamped to today —
+ * a date ahead of the clock raises FutureDailyNoteError and strands the capture
+ * forever, which is the outcome this whole path exists to prevent.
+ *
+ * `stamp` and `time` stay null. The day is inferable; the moment is not.
+ */
+function inheritMissingDates(captures: InboxCapture[], now: Date): void {
+  const today = formatLocalDate(now);
+  for (let i = 0; i < captures.length; i++) {
+    const c = captures[i]!;
+    if (c.date !== null) continue;
+
+    if (c.inferredDate !== null) {
+      c.date = c.inferredDate;
+      continue;
+    }
+
+    let inherited: string | null = null;
+    for (let j = i - 1; j >= 0 && inherited === null; j--) {
+      if (captures[j]!.stamp !== null) inherited = captures[j]!.date;
+    }
+    for (let j = i + 1; j < captures.length && inherited === null; j++) {
+      if (captures[j]!.stamp !== null) inherited = captures[j]!.date;
+    }
+
+    c.date = inherited === null || inherited > today ? today : inherited;
+  }
 }
 
-/** Captures the drain cannot route — held in place and surfaced, never dropped. */
-export function unparseableInboxCaptures(
+/** A capture the drain can route: it knows which day it belongs to. */
+export type DatedInboxCapture = InboxCapture & { date: string };
+
+/** Captures waiting to be filed: dated (read or inherited), not yet marked. */
+export function pendingInboxCaptures(
   captures: InboxCapture[],
-): InboxCapture[] {
-  return captures.filter((c) => c.unparseable && !c.filed);
+): DatedInboxCapture[] {
+  return captures.filter(
+    (c): c is DatedInboxCapture =>
+      !c.filed && c.date !== null && !isEmptyCaptureText(c.text),
+  );
 }
 
 /** How many captures are still stuck in the inbox, and why. */
@@ -233,8 +346,13 @@ export interface InboxCounts {
   pending: number;
   /** Future-dated — held until their day arrives, never filed ahead of the clock. */
   held: number;
-  /** No readable stamp — held in place until a human repairs the line. */
+  /**
+   * @deprecated Permanently 0 — an unreadable stamp now heals instead of being
+   * held (KTD1). Kept so src/home keeps compiling; a later unit removes it.
+   */
   unparseable: number;
+  /** Captures whose day the drain had to infer, filed or not — the audit trail. */
+  inferredDates: number;
 }
 
 /**
@@ -247,18 +365,19 @@ export interface InboxCounts {
  * ensureDailyForDate's refusal. Empty content (or a missing note) is all zeros.
  */
 export function inboxCounts(content: string, now: Date): InboxCounts {
-  const captures = parseInboxCaptures(content);
+  const captures = parseInboxCaptures(content, now);
   const today = formatLocalDate(now);
   let pending = 0;
   let held = 0;
   for (const c of pendingInboxCaptures(captures)) {
-    if (c.date! > today) held += 1;
+    if (c.date > today) held += 1;
     else pending += 1;
   }
   return {
     pending,
     held,
-    unparseable: unparseableInboxCaptures(captures).length,
+    unparseable: 0,
+    inferredDates: captures.filter((c) => c.inferredDate !== null).length,
   };
 }
 
@@ -407,20 +526,26 @@ export async function ensureInboxBookmark(
  * Outcome of a drain pass. U6 surfaces these next to the unprocessed-capture
  * count in Atoms home, so the shape stays flat and cheap to read.
  *
- * `filed` is progress; `held`, `unparseable`, and `pending` are the states a
- * capture can get stuck in — held (future-dated, retries once the day arrives),
- * unparseable (unreadable stamp, needs a human), and pending (a daily could not
- * be resolved this pass, e.g. Daily Notes disabled).
+ * `filed` is progress; `held` and `pending` are the two states a capture can
+ * still get stuck in — held (future-dated, retries once the day arrives) and
+ * pending (a daily could not be resolved this pass, e.g. Daily Notes disabled).
+ * An unreadable stamp is no longer one of them: the capture inherits a day and
+ * files, counted under `inferred` (KTD1).
  */
 export interface InboxDrainResult {
   /** Captures marked filed this pass — appended, or already present and re-marked. */
   filed: number;
-  /** Readable captures left unfiled because their daily could not be resolved. */
+  /** Captures left unfiled because their daily could not be resolved. */
   pending: number;
   /** Future-dated captures held rather than filed into a note ahead of the clock. */
   held: number;
-  /** Lines with no readable stamp, held in place and counted (never guessed at). */
+  /**
+   * @deprecated Permanently 0 — an unreadable stamp now heals instead of being
+   * held (KTD1). Kept so src/plugin keeps compiling; a later unit removes it.
+   */
   unparseable: number;
+  /** Captures filed this pass whose day had to be inferred from a neighbour. */
+  inferred: number;
 }
 
 /** Vault surface the drain reads and writes. */
@@ -443,10 +568,16 @@ export interface DrainInboxDeps {
   ensureDaily?: (app: App, date: string) => Promise<TFile>;
 }
 
-/** Daily-note bullet for a capture: `- HH:MM body`, continuations tab-indented (KTD8, KTD10). */
-function inboxDailyBulletLines(time: string, body: string): string[] {
+/**
+ * Daily-note bullet for a capture: `- HH:MM body`, continuations tab-indented
+ * (KTD8, KTD10). A null time writes `- body`: an untimed bullet is already a
+ * normal daily shape (parse.ts carries `timestamp: string | null`), and it
+ * reads honestly as "we did not know when" rather than fabricating a moment.
+ */
+function inboxDailyBulletLines(time: string | null, body: string): string[] {
   const [first, ...rest] = body.split("\n");
-  const lines = [`- ${time} ${first ?? ""}`];
+  const head = first ?? "";
+  const lines = [time === null ? `- ${head}` : `- ${time} ${head}`];
   for (const cont of rest) lines.push(`\t${cont}`);
   return lines;
 }
@@ -458,7 +589,7 @@ function inboxDailyBulletLines(time: string, body: string): string[] {
  */
 function dailyHasCapture(
   dailyContent: string,
-  time: string,
+  time: string | null,
   body: string,
 ): boolean {
   return parseCaptures(dailyContent).some(
@@ -489,7 +620,13 @@ function appendFiledMarkers(content: string, captures: InboxCapture[]): string {
     .filter((c) => inboxMarkerLineInRegion(lines, c.endLine) === null)
     .sort((a, b) => b.endLine - a.endLine);
   for (const c of bottomUp) {
-    lines.splice(c.endLine + 1, 0, `\t${INBOX_FILED_MARKER}`);
+    // A capture whose day we had to guess records the guess alongside the filed
+    // marker, so the next read reuses it instead of guessing again (KTD1).
+    const inserted =
+      c.stamp === null && c.date !== null && c.inferredDate === null
+        ? [`\t${inboxInferredDateMarker(c.date)}`, `\t${INBOX_FILED_MARKER}`]
+        : [`\t${INBOX_FILED_MARKER}`];
+    lines.splice(c.endLine + 1, 0, ...inserted);
   }
   let out = lines.join(term);
   // Restore the EOF terminator the Shortcut appends against — without it the
@@ -527,7 +664,7 @@ function relocateFiledCaptures(
 
   const matched: InboxCapture[] = [];
   for (const c of freshCaptures) {
-    if (c.filed || c.unparseable) continue;
+    if (c.filed) continue;
     const key = captureKey(c);
     const left = remaining.get(key) ?? 0;
     if (left === 0) continue;
@@ -542,6 +679,7 @@ const EMPTY_DRAIN_RESULT: InboxDrainResult = {
   pending: 0,
   held: 0,
   unparseable: 0,
+  inferred: 0,
 };
 
 /**
@@ -550,9 +688,12 @@ const EMPTY_DRAIN_RESULT: InboxDrainResult = {
  * Idempotent and append-only (KTD2): nothing in the inbox is ever deleted or
  * rewritten — the drain only appends daily bullets and inbox markers. A capture
  * already present in its daily (marker lost to sync) is re-marked, not
- * duplicated. Future-dated and unparseable captures are held and counted, never
- * guessed at. Best-effort per date: one daily failing to resolve leaves that
- * date's captures pending without blocking the rest.
+ * duplicated. Future-dated captures are held until their day arrives. A capture
+ * whose stamp did not read is *not* held: the inbox is plugin-owned machinery
+ * the user never opens, so holding it means it never arrives. It inherits its
+ * neighbour's day, files, and records the guess (KTD1, KTD2). Best-effort per
+ * date: one daily failing to resolve leaves that date's captures pending
+ * without blocking the rest.
  */
 export async function drainInbox(
   app: App,
@@ -564,24 +705,21 @@ export async function drainInbox(
 
   const content = await vault.read(inbox);
   const captures = parseInboxCaptures(content);
-  const unparseable = unparseableInboxCaptures(captures).length;
   const pending = pendingInboxCaptures(captures);
-  if (pending.length === 0) {
-    return { ...EMPTY_DRAIN_RESULT, unparseable };
-  }
+  if (pending.length === 0) return { ...EMPTY_DRAIN_RESULT };
 
   const ensureDaily = deps?.ensureDaily ?? ensureDailyForDate;
 
   // Group by capture date, one daily resolved per date. Map preserves the
   // first-seen date order, so dailies are written in the order they appear.
-  const byDate = new Map<string, InboxCapture[]>();
+  const byDate = new Map<string, DatedInboxCapture[]>();
   for (const c of pending) {
-    const group = byDate.get(c.date!) ?? [];
+    const group = byDate.get(c.date) ?? [];
     group.push(c);
-    byDate.set(c.date!, group);
+    byDate.set(c.date, group);
   }
 
-  const filedCaptures: InboxCapture[] = [];
+  const filedCaptures: DatedInboxCapture[] = [];
   let held = 0;
   let stillPending = 0;
 
@@ -598,8 +736,8 @@ export async function drainInbox(
       const dailyContent = await vault.read(daily);
       const additions: string[] = [];
       for (const c of group) {
-        if (!dailyHasCapture(dailyContent, c.time!, c.text)) {
-          additions.push(...inboxDailyBulletLines(c.time!, c.text));
+        if (!dailyHasCapture(dailyContent, c.time, c.text)) {
+          additions.push(...inboxDailyBulletLines(c.time, c.text));
         }
       }
       if (additions.length > 0) {
@@ -634,6 +772,7 @@ export async function drainInbox(
     filed: matched.length,
     pending: stillPending + (filedCaptures.length - matched.length),
     held,
-    unparseable,
+    unparseable: 0,
+    inferred: matched.filter((c) => c.stamp === null).length,
   };
 }
