@@ -31,14 +31,37 @@ export function resolveCaptureShortcutInstallUrl(
   return (CAPTURE_SHORTCUT_INSTALL_URL ?? "").trim();
 }
 
+/**
+ * Ack version stored under `key`, or null when nothing usable is stored.
+ *
+ * Shared by the two acks below; each keeps its own key and its own meaning —
+ * acking the shortcut says nothing about the inferred-date signal.
+ */
+function readAckVersion(
+  load: (key: string) => unknown,
+  key: string,
+): string | null {
+  const v = load(key);
+  if (typeof v === "string" && v.trim()) return v.trim();
+  return null;
+}
+
+/** Never acked, or acked against an older shipped version. */
+function ackIsStale(
+  acked: string | null | undefined,
+  shipped: string,
+): boolean {
+  if (acked == null || acked === "") return true;
+  return acked !== shipped;
+}
+
 /** True when user should see Install or Update CTA. */
 export function needsShortcutCta(
   acked: string | null | undefined,
   shipped: string = CAPTURE_SHORTCUT_VERSION,
 ): boolean {
   if (!shipped) return false;
-  if (acked == null || acked === "") return true;
-  return acked !== shipped;
+  return ackIsStale(acked, shipped);
 }
 
 /** CTA text names the Shortcut itself, so the button matches what Shortcuts.app shows. */
@@ -52,9 +75,7 @@ export function labelInstallOrUpdate(
 export function readShortcutAck(
   load: (key: string) => unknown,
 ): string | null {
-  const v = load(LS_CAPTURE_SHORTCUT_ACK);
-  if (typeof v === "string" && v.trim()) return v.trim();
-  return null;
+  return readAckVersion(load, LS_CAPTURE_SHORTCUT_ACK);
 }
 
 export function writeShortcutAck(
@@ -67,9 +88,7 @@ export function writeShortcutAck(
 export function readInferredDateAck(
   load: (key: string) => unknown,
 ): string | null {
-  const v = load(LS_INBOX_INFERRED_DATE_ACK);
-  if (typeof v === "string" && v.trim()) return v.trim();
-  return null;
+  return readAckVersion(load, LS_INBOX_INFERRED_DATE_ACK);
 }
 
 export function writeInferredDateAck(
@@ -93,8 +112,7 @@ export function needsInferredDateSignal(
   shipped: string = CAPTURE_SHORTCUT_VERSION,
 ): boolean {
   if (inferredDates <= 0) return false;
-  if (acked == null || acked === "") return true;
-  return acked !== shipped;
+  return ackIsStale(acked, shipped);
 }
 
 /** Only iCloud Shortcuts share links may be opened from the plugin. */

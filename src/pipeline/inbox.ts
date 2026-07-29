@@ -115,6 +115,11 @@ function isTopLevelBullet(line: string): boolean {
   return TOP_LEVEL_BULLET_RE.test(line);
 }
 
+/** Written at column 0 — no leading space or tab. */
+function isColumnZero(line: string): boolean {
+  return !/^[ \t]/.test(line);
+}
+
 /** Either of the inbox's own sentinels, which never fold into a body. */
 function isInboxMarkerLine(line: string): boolean {
   return (
@@ -129,60 +134,57 @@ function isInboxMarkerLine(line: string): boolean {
  * continuation that lost its indentation to a sync merge or an editor (KTD4).
  * The inbox is plugin-owned machinery, so reporting an orphan only tells the
  * user about a file they will never open; absorbing it keeps the capture whole.
- * A truly blank line still terminates the extent, and a whitespace-only line is
- * absorbed and stripped to "" exactly as before.
+ * A truly blank line still terminates the extent; a whitespace-only line is
+ * indented, so it is absorbed and stripped to "".
  */
 function isAbsorbableLine(line: string): boolean {
-  if (!(line.trim() !== "" || /^[ \t]/.test(line))) return false;
+  if (line.trim() === "" && isColumnZero(line)) return false;
   if (isTopLevelBullet(line)) return false;
   if (isInboxMarkerLine(line)) return false;
   return true;
 }
 
+/** The inbox's own markers sitting in the region after a capture's extent. */
+interface InboxRegionMarkers {
+  /** Line of the filed marker, or null when this capture is not marked filed. */
+  filedLine: number | null;
+  /** Date the inferred-date marker records, or null when there is none. */
+  inferredDate: string | null;
+}
+
 /**
- * Line of the filed marker in the region after a capture's extent, or null.
+ * Find the inbox's markers in the region after a capture's extent.
  *
  * Scans from `endLine + 1` forward and stops at the next top-level bullet or a
  * non-indented non-blank line, so a blank line that drifts between a capture
  * and its marker (a sync merge, a hand edit) still reads as filed rather than
- * re-filing and stacking a second marker. The inbox's own markers are skipped
- * whatever their indentation: a merge that strips the tab off an inferred-date
- * marker would otherwise read as prose and hide the filed marker below it.
- * Mirrors `captureAlreadyHasMarker` in render.ts — the inbox owns its own
- * sentinel and never teaches parse.ts about it (KTD9).
+ * re-filing and stacking a second marker. Neither marker terminates the scan
+ * and neither is required to be indented: the pair reads in either order, and a
+ * merge that strips the tab off one would otherwise read as prose and hide the
+ * other below it. Mirrors `captureAlreadyHasMarker` in render.ts — the inbox
+ * owns its own sentinels and never teaches parse.ts about them (KTD9).
  */
-function inboxMarkerLineInRegion(
+function inboxMarkersInRegion(
   lines: string[],
   endLine: number,
-): number | null {
-  for (let j = endLine + 1; j < lines.length; j++) {
-    const line = lines[j]!;
-    if (isTopLevelBullet(line)) break;
-    if (isInboxFiledMarkerLine(line)) return j;
-    if (isInboxMarkerLine(line)) continue; // inferred-date, any indentation
-    if (line.trim() !== "" && !/^[ \t]/.test(line)) break; // non-indented prose
-  }
-  return null;
-}
-
-/**
- * Date recorded by the inferred-date marker in the region after a capture's
- * extent, or null. Scans like inboxMarkerLineInRegion but skips *past* a filed
- * marker rather than stopping there, so the pair reads in either order.
- */
-function inboxInferredDateInRegion(
-  lines: string[],
-  endLine: number,
-): string | null {
+): InboxRegionMarkers {
+  let filedLine: number | null = null;
+  let inferredDate: string | null = null;
   for (let j = endLine + 1; j < lines.length; j++) {
     const line = lines[j]!;
     if (isTopLevelBullet(line)) break;
     const date = inboxInferredDateFromLine(line);
-    if (date !== null) return date;
-    if (isInboxFiledMarkerLine(line)) continue;
-    if (line.trim() !== "" && !/^[ \t]/.test(line)) break; // non-indented prose
+    if (date !== null) {
+      if (inferredDate === null) inferredDate = date;
+      continue;
+    }
+    if (isInboxFiledMarkerLine(line)) {
+      if (filedLine === null) filedLine = j;
+      continue;
+    }
+    if (line.trim() !== "" && isColumnZero(line)) break; // non-indented prose
   }
-  return null;
+  return { filedLine, inferredDate };
 }
 
 function isRealCalendarDate(y: number, m: number, d: number): boolean {
@@ -285,9 +287,9 @@ export function parseInboxCaptures(
 
     // Region scan, not adjacency: a blank line drifting between the capture and
     // its marker must still read as filed (F4).
-    const markerLine = inboxMarkerLineInRegion(lines, endLine);
-    const filed = markerLine !== null;
-    if (markerLine !== null) i = markerLine + 1;
+    const { filedLine, inferredDate } = inboxMarkersInRegion(lines, endLine);
+    const filed = filedLine !== null;
+    if (filedLine !== null) i = filedLine + 1;
 
     const text = bodyParts.join("\n");
     // An empty bullet is not work, whether or not the stamp read — it matches
@@ -300,10 +302,10 @@ export function parseInboxCaptures(
       time: parsed?.time ?? null,
       text,
       filed,
-      inferredDate: inboxInferredDateInRegion(lines, endLine),
+      inferredDate,
       startLine,
       endLine,
-      markerLine,
+      markerLine: filedLine,
     });
   }
 
@@ -628,20 +630,23 @@ function appendBulletLines(content: string, bulletLines: string[]): string {
  * earlier insertion does not shift a later capture's indices (KTD11 —
  * docs/solutions/logic-errors/marker-line-drift-batch-process.md).
  */
-function appendFiledMarkers(content: string, captures: InboxCapture[]): string {
+function appendFiledMarkers(
+  content: string,
+  captures: DatedInboxCapture[],
+): string {
   // Preserve the file's dominant terminator: rewriting CRLF to LF turns a
   // two-line insert into a whole-file rewrite on a Windows-synced vault (F2).
   const term = content.includes("\r\n") ? "\r\n" : "\n";
   const lines = content.split(/\r?\n/);
   const bottomUp = [...captures]
     // Region already marked (drifted marker) — never stack a second one (F4).
-    .filter((c) => inboxMarkerLineInRegion(lines, c.endLine) === null)
+    .filter((c) => inboxMarkersInRegion(lines, c.endLine).filedLine === null)
     .sort((a, b) => b.endLine - a.endLine);
   for (const c of bottomUp) {
     // A capture whose day we had to guess records the guess alongside the filed
     // marker, so the next read reuses it instead of guessing again (KTD1).
     const inserted =
-      c.stamp === null && c.date !== null && c.inferredDate === null
+      c.stamp === null && c.inferredDate === null
         ? [`\t${inboxInferredDateMarker(c.date)}`, `\t${INBOX_FILED_MARKER}`]
         : [`\t${INBOX_FILED_MARKER}`];
     lines.splice(c.endLine + 1, 0, ...inserted);
@@ -679,17 +684,17 @@ function captureKey(c: InboxCapture): string {
  */
 function relocateFiledCaptures(
   freshCaptures: InboxCapture[],
-  filed: InboxCapture[],
-): InboxCapture[] {
-  const remaining = new Map<string, InboxCapture[]>();
+  filed: DatedInboxCapture[],
+): DatedInboxCapture[] {
+  const remaining = new Map<string, DatedInboxCapture[]>();
   for (const c of filed) {
     const key = captureKey(c);
-    const queue = remaining.get(key);
-    if (queue) queue.push(c);
-    else remaining.set(key, [c]);
+    const queue = remaining.get(key) ?? [];
+    queue.push(c);
+    remaining.set(key, queue);
   }
 
-  const matched: InboxCapture[] = [];
+  const matched: DatedInboxCapture[] = [];
   for (const c of freshCaptures) {
     if (c.filed) continue;
     const original = remaining.get(captureKey(c))?.shift();
@@ -777,7 +782,7 @@ export async function drainInbox(
     }
   }
 
-  let matched: InboxCapture[] = [];
+  let matched: DatedInboxCapture[] = [];
   if (filedCaptures.length > 0) {
     // Re-read rather than marking the opening snapshot: the loop above awaited
     // daily creation and writes, and the Shortcut or Sync can append into that
