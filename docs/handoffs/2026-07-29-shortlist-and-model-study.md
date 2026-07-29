@@ -133,6 +133,29 @@ sections, and in commits `2155f06` / `15c1278`. **What is gone:** the raw-API ru
 detail. Re-running costs ~$12 if it is ever needed; it is not needed for any current conclusion,
 because the pipeline run is the one that reflects shipped behaviour.
 
+## Session 2026-07-29b — what changed since this doc was written
+
+- **Next step 1 is done.** `docs/research/2026-07-29-hop-distance.md` +
+  `scripts/measure-hop-distance.mjs` (`npm run measure:hops`). Graph expansion **survives**:
+  hub-blocked 2-hop reaches 47% of the zero-score misses at 25 seeds (+11 points of recall@400),
+  for ~85 extra shortlist slots. But **only for daily filing** — in a graph-blind catch-up the only
+  edges are atom→hub, so every recovery is hub-mediated and hub-blocked reach is 0% by
+  construction. ~40–50% of misses are in another component and unreachable at any depth.
+- **Next step 3, the best free lever, is done.** `docs/research/2026-07-29-doc-expansion.md` +
+  `scripts/measure-doc-expansion.mjs` (`npm run measure:expansion`). Indexing the model's link
+  prose is **+16 links won / 0 lost** at k=400 (p<0.0001) — strictly dominant, +2 points at k=400
+  and +5 at k=40 with the link field weighted ×3. It is a **floor**: the corpus's link prose is
+  only hub titles, not the real reason-bearing sentences plus tags.
+- **Item 3 below is resolved.** Sonnet 5 is $3/$15 with an introductory $2/$10 **through
+  2026-08-31** — the secondary source was right. Opus 5 is $5/$25, Haiku 4.5 $1/$5.
+- **Haiku 4.5 does *not* accept `output_config.effort`** — it errors, as it does on Sonnet 4.5.
+  The bake-off harness must omit the field on that arm.
+- **`classify.ts` sends no `temperature`/`top_p`**, so it is already Sonnet-5/Opus-5 clean (both
+  reject non-default sampling params). Prefills are also absent.
+- **BLOCKED: every real-vault measurement.** `analyze-vault-shortlist.mjs --hops` is written and
+  read-only, but the sandbox permission classifier refuses to read `~/Documents/Remote Vault`.
+  That blocks the hop cross-check, the tags-as-expansion test, and the 200-char body question.
+
 ## Not established — the actual work
 
 1. **Model and effort.** Blocked on a fresh API key. See Next steps 2.
