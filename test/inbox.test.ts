@@ -24,6 +24,16 @@ import { parseCaptures } from "../src/pipeline/parse";
 
 afterEach(() => vi.restoreAllMocks());
 
+/**
+ * Independent check that a YYYY-MM-DD string names a day that exists — the
+ * property `ensureDailyForDate` needs and that produced `Daily/Invalid date.md`
+ * when it was missing. Round-trips through Date rather than reusing the
+ * plugin's own guard, so a broken guard cannot make its own tests pass.
+ */
+function isRealDateString(date: string): boolean {
+  return new Date(`${date}T00:00:00Z`).toISOString().slice(0, 10) === date;
+}
+
 describe("parseInboxCaptures — capture shape", () => {
   it("parses a single-line stamped capture", () => {
     const caps = parseInboxCaptures("- 2026-07-27T09:14-04:00 buy milk\n");
@@ -243,6 +253,34 @@ describe("parseInboxCaptures — orphan column-0 lines (KTD4)", () => {
     expect(caps[0]!.text).toBe("buy milk");
     expect(caps[0]!.filed).toBe(true);
   });
+
+  it.each(["-", "\t-", "-   "])(
+    "never folds a content-free dash line %j into the body above it",
+    (dash) => {
+      // TOP_LEVEL_BULLET_RE needs the trailing space, so a bare dash is not a
+      // bullet — absorbing it would append a stray "-" to a sacred body.
+      const md = ["- 2026-07-27T09:14-04:00 buy milk", dash, ""].join("\n");
+      const caps = parseInboxCaptures(md);
+      expect(caps).toHaveLength(1);
+      expect(caps[0]!.text).toBe("buy milk");
+    },
+  );
+
+  it("never folds a sync-conflict block into the body above it", () => {
+    // The inbox is appended to by every device, so it is the note in the vault
+    // most likely to receive a conflict. Absorbing the scaffolding writes text
+    // the user never typed into their capture.
+    const md = [
+      "- 2026-07-27T09:14-04:00 buy milk",
+      "<<<<<<< HEAD",
+      "=======",
+      ">>>>>>> other",
+      "",
+    ].join("\n");
+    const caps = parseInboxCaptures(md);
+    expect(caps).toHaveLength(1);
+    expect(caps[0]!.text).toBe("buy milk");
+  });
 });
 
 describe("parseInboxCaptures — unreadable stamps heal (KTD1, KTD2)", () => {
@@ -403,6 +441,43 @@ describe("parseInboxCaptures — unreadable stamps heal (KTD1, KTD2)", () => {
     ].join("\n");
     const caps = parseInboxCaptures(md, now);
     expect(caps[0]!.inferredDate).toBe("2099-01-01");
+    expect(caps[0]!.date).toBe("2026-07-30");
+  });
+
+  it.each(["2026-02-30", "0000-00-00", "2026-11-31"])(
+    "ignores a calendar-invalid inferred-date marker (%s) and re-inherits",
+    (bad) => {
+      // The marker regex is shape-only. A corrupt date sailed through to
+      // ensureDailyForDate, which formatted an invalid moment and created a
+      // literal `Daily/Invalid date.md` every corrupt capture collided into.
+      const md = [
+        "- 2026-07-27T09:14-04:00 anchor",
+        "- no stamp here",
+        `\t${inboxInferredDateMarker(bad)}`,
+        "",
+      ].join("\n");
+      const caps = parseInboxCaptures(md, now);
+      expect(caps[1]!.date).toBe("2026-07-27");
+      expect(isRealDateString(caps[1]!.date!)).toBe(true);
+    },
+  );
+
+  it("still trusts a marker naming a real calendar date", () => {
+    const md = [
+      "- 2026-07-27T09:14-04:00 anchor",
+      "- no stamp here",
+      `\t${inboxInferredDateMarker("2026-02-28")}`,
+      "",
+    ].join("\n");
+    const caps = parseInboxCaptures(md, now);
+    expect(caps[1]!.date).toBe("2026-02-28");
+  });
+
+  it("falls back to today when a corrupt marker has no stamped neighbour", () => {
+    const md = ["- no stamp here", `\t${inboxInferredDateMarker("2026-02-30")}`, ""].join(
+      "\n",
+    );
+    const caps = parseInboxCaptures(md, now);
     expect(caps[0]!.date).toBe("2026-07-30");
   });
 
@@ -1127,6 +1202,56 @@ describe("drainInbox", () => {
     expect(after.find((c) => c.text === "monday one")!.filed).toBe(false);
     expect(r.filed).toBe(1);
     expect(r.pending).toBe(1);
+  });
+
+  it("never asks for a daily on a calendar-invalid date", async () => {
+    // Live repro: a `2026-02-30` marker reached ensureDailyForDate, which
+    // formatted an invalid moment and wrote a real `Daily/Invalid date.md`.
+    const h = drainHarness(
+      [
+        "- 2026-07-27T09:14-04:00 anchor",
+        "- feb thirty capture",
+        `\t${inboxInferredDateMarker("2026-02-30")}`,
+        "",
+      ].join("\n"),
+    );
+    const asked: string[] = [];
+    const ensureDaily = async (app: unknown, date: string) => {
+      asked.push(date);
+      return h.ensureDaily(app, date);
+    };
+
+    const r = await drainInbox(h.app, { ensureDaily });
+
+    expect(asked).toEqual(["2026-07-27"]);
+    for (const date of asked) expect(isRealDateString(date)).toBe(true);
+    expect(r.filed).toBe(2);
+    expect(h.dailyContent("2026-07-27")).toContain("- feb thirty capture");
+  });
+
+  it("keeps a degenerate dash and a conflict block out of the daily", async () => {
+    const h = drainHarness(
+      [
+        "- 2026-07-27T09:14-04:00 buy milk",
+        "-",
+        "<<<<<<< HEAD",
+        "=======",
+        ">>>>>>> other",
+        "",
+      ].join("\n"),
+    );
+
+    const r = await drainInbox(h.app, { ensureDaily: h.ensureDaily });
+
+    const daily = h.dailyContent("2026-07-27")!;
+    expect(daily).toContain("- 09:14 buy milk");
+    expect(daily).not.toContain("- -");
+    expect(daily).not.toContain("<<<<<<<");
+    expect(daily).not.toContain("=======");
+    expect(daily).not.toContain(">>>>>>>");
+    // Content-free scaffolding is not work: only the one real capture files.
+    expect(r.filed).toBe(1);
+    expect(r.pending).toBe(0);
   });
 
   it("does not splice a second marker when one drifted below a blank line (F4)", async () => {

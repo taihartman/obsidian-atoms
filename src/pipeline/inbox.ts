@@ -125,6 +125,25 @@ function isColumnZero(line: string): boolean {
   return !/^[ \t]/.test(line);
 }
 
+/**
+ * A dash carrying no content — `-` alone, or trailed only by whitespace.
+ *
+ * TOP_LEVEL_BULLET_RE requires the space, so this is not a bullet; absorbing it
+ * would append a stray `- ` line to the preceding capture's body and write `- -`
+ * into the daily. The body is sacred (non-negotiable #1), so it stays put.
+ */
+const DEGENERATE_DASH_RE = /^\s*-\s*$/;
+
+/**
+ * A sync-conflict marker git (or Obsidian Sync) left behind.
+ *
+ * The inbox is appended to by every device, which makes it the note in the
+ * vault most likely to receive a conflict. Absorbing the scaffolding writes
+ * text the user never typed into a capture body, so it is left unabsorbed and
+ * uncounted. Exactly the three seven-character markers, optionally labelled.
+ */
+const CONFLICT_MARKER_RE = /^(?:<{7}|={7}|>{7})(?:\s.*)?$/;
+
 /** Either of the inbox's own sentinels, which never fold into a body. */
 function isInboxMarkerLine(line: string): boolean {
   return (
@@ -141,11 +160,16 @@ function isInboxMarkerLine(line: string): boolean {
  * user about a file they will never open; absorbing it keeps the capture whole.
  * A truly blank line still terminates the extent; a whitespace-only line is
  * indented, so it is absorbed and stripped to "".
+ *
+ * Two shapes are content-free scaffolding rather than a lost continuation and
+ * are left where they are: a degenerate dash, and a sync-conflict marker.
  */
 function isAbsorbableLine(line: string): boolean {
   if (line.trim() === "" && isColumnZero(line)) return false;
   if (isTopLevelBullet(line)) return false;
   if (isInboxMarkerLine(line)) return false;
+  if (DEGENERATE_DASH_RE.test(line)) return false;
+  if (CONFLICT_MARKER_RE.test(line)) return false;
   return true;
 }
 
@@ -199,6 +223,12 @@ function isRealCalendarDate(y: number, m: number, d: number): boolean {
     probe.getUTCMonth() === m - 1 &&
     probe.getUTCDate() === d
   );
+}
+
+/** True when a `YYYY-MM-DD` string names a day that actually exists. */
+function isRealDateString(date: string): boolean {
+  const [y, m, d] = date.split("-").map(Number);
+  return isRealCalendarDate(y!, m!, d!);
 }
 
 interface ParsedStamp {
@@ -337,7 +367,13 @@ function inheritMissingDates(captures: InboxCapture[], now: Date): void {
     const c = captures[i]!;
     if (c.date !== null) continue;
 
-    if (c.inferredDate !== null) {
+    // A marker naming a day that does not exist is no evidence at all: the
+    // marker regex is shape-only, and `2026-02-30` formats as an invalid moment
+    // that files every corrupt capture into a literal `Daily/Invalid date.md`.
+    // Fall through to a fresh guess rather than trusting it — same argument as
+    // the clamp below, since a bad recorded date is re-supplied on every parse
+    // and the capture could otherwise never heal.
+    if (c.inferredDate !== null && isRealDateString(c.inferredDate)) {
       // Clamped like a fresh guess: a future-dated marker that survived a merge
       // while the filed marker did not would re-supply the bad date on every
       // parse, so the capture could never heal.
