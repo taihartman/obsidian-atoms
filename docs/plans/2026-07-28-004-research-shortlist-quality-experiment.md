@@ -307,6 +307,63 @@ normalisation penalises them. So the mobile cost is ~2MB and ~0.1s of phone CPU 
 order of magnitude; index cost is dominated by vocabulary size. The table above cycles real vault
 bodies.)*
 
+## The cache tradeoff, measured — and why blocks are dead
+
+Prompt caching works on a **prefix**. The title list sits inside it, so a title list that changes
+per capture never hits the cache. That is the whole tension: shortlisting is per capture, caching
+wants the opposite.
+
+**Blocks were the obvious compromise and they do not work.** Measured union of per-capture top-400
+shortlists across a block of B diverse captures:
+
+| Block size | Union |
+|---|---|
+| 1 | 400 |
+| 5 | 1,477 |
+| 10 | 2,166 |
+| 20 | 2,697 |
+| 40 | 2,952 |
+| 80 | 3,000 — the entire vault |
+
+Growth exponent ~0.46. Diverse captures barely overlap, so **by a block of ~40 the union is the whole
+vault** and a "block shortlist" is just the full list with extra steps. Blocks price at $31–$34
+against the frozen list's $31: no saving, at the cost of real complexity.
+
+**So the actual choice is per-capture versus one frozen list.** 3,000 captures, 3,000-note vault,
+batch pricing:
+
+| Strategy | Prefix | Cost | In-run linking | Quality |
+|---|---|---|---|---|
+| per-capture, top 40 | 4,166 | **$25.58** | full | 84% |
+| per-capture, top 100 | 5,154 | **$30.02** | full | ~85% |
+| per-capture, top 200 | 6,801 | $37.43 | full | ~86% |
+| per-capture, top 400 | 10,095 | $52.26 | full | 88% |
+| **frozen full list (today)** | 52,917 | **$30.79** | **none** | 86% |
+| per-capture 400, cache header left on | 10,095 | **$97.68** | full | 88% |
+
+**Break-even is ~110 titles.** Below that a per-capture shortlist is cheaper than sending the whole
+vault with caching; above it, the cache wins.
+
+**The trap in the last row is a real implementation hazard.** `buildMessagesRequest` always sets
+`cache_control`. With a per-capture prefix that pays the 2× write premium on every request and never
+reads — **worse than no caching at all**, and it nearly doubles the bill. Any per-capture shortlist
+must drop the cache header (or the design must keep a stable prefix). This is a one-line mistake
+that costs $45 on a single catch-up.
+
+**Realtime daily filing has no such tension.** Calls arrive minutes or hours apart, so the 5-minute
+cache has usually expired and there is no batch discount either way. Capping is simply cheaper and
+better: **1.25¢ per capture at 40 titles, 3.03¢ at 400, against 15.88¢ uncapped.**
+
+### The decision this leaves
+
+For backfill, cost and in-run linking now point the same way *if* the shortlist is small: at 40–100
+titles, per-capture is **both cheaper than today and lets atoms link to atoms filed earlier in the
+same run**, which the frozen list makes structurally impossible. At 400 it costs $21 more than the
+frozen list for ~2 points of quality that sit inside measurement noise.
+
+The open question is therefore no longer "blocks of what size" but **how much is in-run linking
+worth** — because that is what the frozen list gives up, and it is a product judgement, not a number.
+
 ### What is still owed
 
 Step 5 — owner review of the disagreements. The numbers above score against *planted* targets and
