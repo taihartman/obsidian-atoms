@@ -120,6 +120,48 @@ check(over260 === 0, 'nothing over 260 chars', over260 ? `${over260} captures` :
 check(pct(under50, all.length) >= 15, 'at least 15% under 50 chars (§4E)', `${under50}/${all.length} = ${fmt(pct(under50, all.length))}`);
 check(pct(noise, all.length) >= 18 && pct(noise, all.length) <= 22, 'noise share 18–22%', fmt(pct(noise, all.length)));
 
+// Exact duplicates are always a generation artefact, never a life.
+const seenText = new Map();
+for (const c of all) seenText.set(c.capture, (seenText.get(c.capture) ?? 0) + 1);
+const dupText = [...seenText.entries()].filter(([, n]) => n > 1);
+check(dupText.length === 0, 'no exact duplicate captures',
+  dupText.length ? `${dupText.length} repeated, e.g. "${dupText[0][0].slice(0, 50)}" ×${dupText[0][1]}` : 'none');
+
+// Filler tails. A model told to hit a mean length pads short captures with a stock closing phrase
+// ("...and that is the whole mess i guess"). That is not just ugly: it puts the same tokens in
+// every capture, which inflates BM25 similarity between unrelated notes and skews the pool's
+// average document length — the exact artefact that already invalidated one round of measurements.
+// Padding does not use ONE stock phrase, it uses a dozen — so checking the single worst offender
+// misses it. Two metrics separate a padded corpus from an honest one cleanly (measured: 32.7% vs
+// 0.0%, and 28.7% vs 0.6%).
+const tails = new Map();
+for (const c of all) {
+  const t = tokens(c.capture);
+  if (t.length < 8) continue;
+  const key = t.slice(-4).join(' ');
+  tails.set(key, (tails.get(key) ?? 0) + 1);
+}
+const recurring = [...tails.entries()].filter(([, n]) => n >= 3).sort((a, b) => b[1] - a[1]);
+const recurCount = recurring.reduce((s, [, n]) => s + n, 0);
+check(pct(recurCount, all.length) <= 5, 'captures sharing a recurring closing phrase at most 5%',
+  `${recurCount}/${all.length} = ${fmt(pct(recurCount, all.length))}` +
+  (recurring.length ? ` — worst: ${recurring.slice(0, 3).map(([k, n]) => `"${k}" ×${n}`).join(', ')}` : ''));
+
+// A capture whose last six tokens are all corpus-common words ends in filler, not content. This is
+// what padding a short thought up to a target length actually looks like.
+const df = new Map();
+for (const c of all) for (const t of new Set(tokens(c.capture))) df.set(t, (df.get(t) ?? 0) + 1);
+const isGeneric = (t) => (df.get(t) ?? 0) / all.length > 0.02;
+let deadTail = 0, longEnough = 0;
+for (const c of all) {
+  const t = tokens(c.capture);
+  if (t.length < 10) continue;
+  longEnough++;
+  if (t.slice(-6).every(isGeneric)) deadTail++;
+}
+check(pct(deadTail, Math.max(longEnough, 1)) <= 5, 'captures ending in six generic tokens at most 5%',
+  `${deadTail}/${longEnough} = ${fmt(pct(deadTail, Math.max(longEnough, 1)))} — padding to hit a length target`);
+
 // Register tells: the shapes a model produces when it writes *about* messiness (§2).
 const tells = [
   [/—/, 'em dash'],
@@ -165,9 +207,13 @@ const shares = ([c, e]) => {
   const b = termSet(e);
   return [...termSet(c)].some((t) => b.has(t));
 };
+// Banded, not floored. Too low and the corpus proves nothing keyword search cannot already do;
+// too high and it is adversarially harder than any real vault, so recall measured on it is a
+// pessimistic fiction. The real vault's own rate is far lower, but n=30 there settles nothing.
 const zeroOverlap = pairs.filter((p) => !shares(p)).length;
-check(pct(zeroOverlap, pairs.length) >= 20, 'zero-shared-term pairs at least 20% (§4A)',
-  `${zeroOverlap}/${pairs.length} = ${fmt(pct(zeroOverlap, pairs.length))} — baseline 23.4%`);
+const zeroPct = pct(zeroOverlap, pairs.length);
+check(zeroPct >= 20 && zeroPct <= 35, 'zero-shared-term pairs 20–35% (§4A)',
+  `${zeroOverlap}/${pairs.length} = ${fmt(zeroPct)} — baseline 23.4%`);
 
 // §4F hub-mediated vs orphan split. A pair is hub-mediated when both ends name the same hub.
 const hubShared = pairs.filter(([c, e]) => {
@@ -191,15 +237,18 @@ const deictic = pairs.filter(([c]) =>
 advise(pct(deictic, pairs.length) >= 8, 'deixis-only pairs at least 8% (§4B)',
   `${deictic}/${pairs.length} = ${fmt(pct(deictic, pairs.length))} — approximation, spot-read`);
 
-// §4E short captures must carry links, not all be noise.
+// §4E short captures must carry links — but not ALL of them. A corpus where every short capture is
+// meaningful is as unrealistic as one where none are, and it is what maxing this gate looks like.
 const shortLinked = all.filter((c) => c.capture.length < 50 && (c.linksToEarlier ?? []).length > 0).length;
-advise(pct(shortLinked, Math.max(under50, 1)) >= 40, 'at least 40% of short captures carry a link (§4E)',
-  `${shortLinked}/${under50} = ${fmt(pct(shortLinked, Math.max(under50, 1)))}`);
+const shortPct = pct(shortLinked, Math.max(under50, 1));
+check(shortPct >= 40 && shortPct <= 75, 'short captures carrying a link 40–75% (§4E)',
+  `${shortLinked}/${under50} = ${fmt(shortPct)}`);
 
 // §4H near-duplicate unlinked pairs — high Jaccard, no declared link. Precision test material.
 const linkedKey = new Set(pairs.map(([c, e]) => `${e.id}>${c.id}`));
 const vecs = all.map((c) => ({ c, t: termSet(c) }));
 let nearDupes = 0;
+let qualityDupes = 0; // cross-thread AND far apart — the only kind that tests precision
 for (let i = 0; i < vecs.length; i++) {
   for (let j = i + 1; j < vecs.length; j++) {
     const a = vecs[i], b = vecs[j];
@@ -207,11 +256,16 @@ for (let i = 0; i < vecs.length; i++) {
     let inter = 0;
     for (const t of a.t) if (b.t.has(t)) inter++;
     const jac = inter / (a.t.size + b.t.size - inter);
-    if (jac >= 0.6 && !linkedKey.has(`${a.c.id}>${b.c.id}`) && !linkedKey.has(`${b.c.id}>${a.c.id}`)) nearDupes++;
+    if (jac < 0.6) continue;
+    if (linkedKey.has(`${a.c.id}>${b.c.id}`) || linkedKey.has(`${b.c.id}>${a.c.id}`)) continue;
+    nearDupes++;
+    const apart = Math.abs(new Date(a.c.date) - new Date(b.c.date)) / 86400000;
+    if (a.c.thread !== b.c.thread && apart >= 90) qualityDupes++;
   }
 }
-advise(pct(nearDupes, all.length) >= 5, 'near-duplicate unlinked pairs at least 5% of captures (§4H)',
-  `${nearDupes} pairs vs ${all.length} captures = ${fmt(pct(nearDupes, all.length))}`);
+check(pct(qualityDupes, all.length) >= 4, 'near-duplicate pairs that are cross-thread and 90+ days apart (§4H)',
+  `${qualityDupes} of ${nearDupes} near-dupes qualify = ${fmt(pct(qualityDupes, all.length))} of captures` +
+  (nearDupes > qualityDupes ? ` — ${nearDupes - qualityDupes} are same-thread or adjacent, which is repetition, not a precision test` : ''));
 
 // §3 threads and interleaving
 const threads = new Set(all.map((c) => c.thread));
@@ -220,6 +274,17 @@ let sameThreadRun = 0;
 for (let i = 1; i < all.length; i++) if (all[i].thread === all[i - 1].thread) sameThreadRun++;
 advise(pct(sameThreadRun, all.length) <= 35, 'consecutive same-thread captures at most 35% (§3)',
   fmt(pct(sameThreadRun, all.length)));
+
+// A run of 3+ consecutive captures from one thread means the day was written thread-by-thread
+// rather than lived. Real days jump between strands.
+let runs3 = 0, run = 1;
+for (let i = 1; i < all.length; i++) {
+  if (all[i].thread === all[i - 1].thread) run++;
+  else { if (run >= 3) runs3 += run; run = 1; }
+}
+if (run >= 3) runs3 += run;
+check(pct(runs3, all.length) <= 8, 'captures inside a 3+ same-thread run at most 8% (§3)',
+  `${runs3}/${all.length} = ${fmt(pct(runs3, all.length))}`);
 
 // ---------------------------------------------------------------- report
 

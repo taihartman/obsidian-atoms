@@ -67,6 +67,25 @@ These are the shape we want:
 
 Never prefix a capture with "remember:", "note:", "thought:", or "TIL".
 
+**Never pad a capture to hit the length target.** This is the failure that killed the first attempt.
+Told to average ~110 characters, a model writes 60 characters of real thought and bolts on a stock
+closing phrase — `and that is the whole mess i guess`, `for what that is worth right now`, `which is
+on me honestly and for real`. It reads fine one capture at a time and is fatal in bulk: the same
+filler tokens land in hundreds of captures, which inflates the measured similarity between unrelated
+notes and shifts the pool's average document length. That artefact has already invalidated one round
+of measurements on this branch.
+
+The mean is a **description of a real distribution**, not a quota to hit per capture. Let short
+thoughts be short. If your captures average 70 characters because that is how the person writes,
+the corpus is better, not worse — and the gate that matters is the one below, not the mean.
+
+Two checks enforce this and both are cheap to fail:
+
+- **Recurring closing phrases** — captures sharing a trailing 4-gram with two or more others: **≤5%**.
+  A padded corpus measures 33%; an honest one measures 0%.
+- **Contentless tails** — captures whose last six words are all corpus-common: **≤5%**. Padded: 29%.
+  Honest: 0.6%.
+
 ---
 
 ## 3. Structure of the story
@@ -81,7 +100,9 @@ them evenly. Some weeks have none.
 **Threads.** 20–30 running threads, interleaved. A thread is a strand of the person's life, not a
 topic label — `kitchen-renovation`, `dads-diagnosis`, `the-rewrite`, `running-again`,
 `sarah-and-the-move`. Consecutive captures should almost never be from the same thread; the person's
-day jumps.
+day jumps. **At most 8% of captures may sit inside a run of three or more consecutive same-thread
+captures** — a longer run means the file was written thread-by-thread rather than lived, and it
+destroys the interleaving the whole corpus depends on. Write chronologically, not thread-first.
 
 **Life shape.** Threads must start, run, go quiet, and resume — or end. At least four threads go
 dark for **8+ months** and come back. At least two end and are never mentioned again. One or two
@@ -106,7 +127,12 @@ Median around 100 days. A corpus of last-week links tests nothing — recency al
 This is the core of the brief. Each of these is a distinct reason a real link is hard to find.
 Hit every quota. Quotas are shares of your **linked pairs**, not of captures.
 
-**A. Vocabulary drift — ≥ 20% of pairs, and this is the headline number.**
+**A. Vocabulary drift — 20–35% of pairs, and this is the headline number.**
+Banded, not floored: below 20% the corpus proves nothing keyword search cannot already do, and above
+35% it is harder than any real vault, so every recall figure measured on it is a pessimistic fiction.
+Do not manufacture the rate by making every second capture a two-word stub — that inflates the
+number without adding a single realistic hard case.
+
 The same referent, named differently months apart, with **zero shared content words** between the
 two captures. Not synonyms — *renaming*. The new apartment becomes "the place on vine" becomes
 "home" becomes "upstairs". A person is "sarah's brother", then "mike", then "he". A project is
@@ -130,9 +156,11 @@ tuesdays thing`. The link is semantic, not additive — the two captures may sha
 lexically because one is a claim and the other is its retraction. These are the links a naive
 "more of the same topic" search misses entirely.
 
-**E. Very short captures — ≥ 15% under 50 chars, and at least half of those carry a link.**
+**E. Very short captures — ≥ 15% under 50 chars, and 40–75% of those carry a link.**
 `he did it again`. `not the coffee`. `finally`. Almost no signal to retrieve on. If every short
-capture is noise, the corpus is easy in a way real vaults are not.
+capture is noise, the corpus is easy in a way real vaults are not — but if *every* short capture is
+meaningful, that is just as fake, and it is what maxing this gate looks like. The band is two-sided
+on purpose. Some short captures lead nowhere, because some short thoughts do.
 
 **F. Hub-mediated vs orphan pairs — roughly half and half.**
 Some linked pairs both mention a shared recurring name (a person, a place, a project) — these are
@@ -145,10 +173,15 @@ corpus overstates what graph expansion can do; if nothing is, it understates it.
 Real chores, real one-offs, real fragments with no thought in them. Both link arrays empty. Noise
 must be genuinely unlinkable — not a thought in disguise. This is what measures false links.
 
-**H. Near-duplicates that are not the same thought — ≥ 5% of captures.**
-Two captures that look almost identical lexically but are about different things, months apart, and
-are **not** linked. `bad night again` about sleep vs `bad night again` about the bar shift. If the
-system links these it is wrong, and we want to be able to see that.
+**H. Near-duplicates that are not the same thought — ≥ 4% of captures, cross-thread and 90+ days
+apart.** Two captures that look almost identical lexically but are about different things, and are
+**not** linked. `bad night again` about sleep vs `bad night again` about the bar shift.
+
+The qualifiers are the whole test. Two near-identical captures **in the same thread on adjacent
+days** are not a precision test — they are the same person saying the same thing twice, and a system
+that links them is *right*. Repeating yesterday's capture verbatim satisfies nothing and the gate
+counts only pairs that are in **different threads** and at least **90 days apart**. Exact duplicate
+capture text anywhere in the corpus is an automatic reject.
 
 ---
 
