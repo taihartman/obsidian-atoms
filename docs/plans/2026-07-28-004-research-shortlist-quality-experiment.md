@@ -250,6 +250,63 @@ against `full`** and a 0% link rate. Not degraded — inert.
 - **Chase the conversion gap separately.** Ten points sit in the prompt, not the context, and that is
   the largest remaining pool — bigger than everything capping costs.
 
+## Results — step 4b, through the real `classifyCapture`, run 2026-07-28
+
+The step-4 run above posted the request body directly and read `links` off the response. That is
+not what ships: `classifyCapture` then runs `rescueKeepableIdea`, `enrichPersonLinks`,
+`enrichMediaLinks`, `maybeLinkPeopleIndex`, `enrichEntityLinks`, `improveClassificationLinks` and
+`stripSelfReferentialLinks`. Every one of those repairs over `context.titles`, so the shortlist
+bounds the repair stage too. Re-run with `--via-pipeline`, same 336 calls, **$11.38**. Person hubs
+are now passed uncapped, as the real provider does.
+
+| Config | Linked (raw) | **Linked (real pipeline)** | Ceiling | Converted (real) |
+|---|---|---|---|---|
+| `full` | 90% | **86%** | 100% | 86% |
+| `bodyPlusTitle:400` | 86% | **88%** | 95% | **93%** |
+| `bodyPlusTitle:40` | 85% | **84%** | 90% | 93% |
+| `alphabetical:40` | 0% | **0%** | 0% | — |
+
+**Finding 9 — the "capping costs 4 points" claim does not survive.** Through the real pipeline the
+400-title shortlist scores *above* uncapped, and its regressions against `full` drop from 7 to 4.
+
+**Finding 10 — but do not read that as "capping is better."** These are two runs of a
+non-deterministic model at n=80 per config. A 4-point swing is three probes. `full` moved 90 → 86
+and `bodyPlusTitle:400` moved 86 → 88 in opposite directions, which is what noise looks like. The
+defensible statement is: **at this sample size a 400-title shortlist and an uncapped list are
+indistinguishable, and there is certainly no large capping penalty.** Anything sharper needs
+repeated runs.
+
+**Finding 11 — enrichment rescues real cases.** C05 (*The Goldfinch* → Donna Tartt) and D10 were
+regressions on the raw path and are not regressions through the pipeline: `enrichMediaLinks` and
+`enrichEntityLinks` recover them from the shortlist the model was given. This is why measuring the
+raw response understates the shipped product.
+
+**Finding 12 — `alphabetical:40` scores 0% on both paths.** 68 regressions here, 72 on the raw
+path. Enrichment cannot rescue it, because enrichment also works from `context.titles` and those
+titles are the wrong ones. The shipped Plus cap is not a tuning problem.
+
+### Feasibility — can a phone do this? (spike, 2026-07-28)
+
+`node --expose-gc scripts/spike-index-feasibility.mjs --vault <path>`. Read-only. Desktop
+measurements; phone figures extrapolate at 4× CPU and 6× I/O and are assumptions, not measurements.
+
+At 3,000 notes:
+
+| Indexed text | Build | Index memory | Distinct terms | Recall @k=40 (real vault) |
+|---|---|---|---|---|
+| first 200 chars | **21ms** | **1.8MB** | 1,805 | **97%** |
+| first 500 chars | 37ms | 4.6MB | 2,818 | 97% |
+| full bodies | 165ms | 23.7MB | 7,679 | 93% |
+
+Query time is sub-millisecond at every size to 10,000 notes. **Truncating to the first ~200
+characters is both cheaper and slightly better** — long bodies add noise and BM25 length
+normalisation penalises them. So the mobile cost is ~2MB and ~0.1s of phone CPU per run, and
+`isDesktopOnly: false` is not threatened.
+
+*(A first pass used a ~46-word invented vocabulary and understated index size and query cost by an
+order of magnitude; index cost is dominated by vocabulary size. The table above cycles real vault
+bodies.)*
+
 ### What is still owed
 
 Step 5 — owner review of the disagreements. The numbers above score against *planted* targets and
