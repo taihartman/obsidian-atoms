@@ -72,14 +72,19 @@ const STAMP_RE =
  * 2. Shortcuts "Short" date style, `7/28/26, 12:00 PM` — the format string set
  *    on the Current Date variable instead of the Format Date action. The comma
  *    is required: Short style always emits one, and requiring it is what keeps
- *    a genuine `12/25/26 10:00 dentist appointment` intact.
+ *    a genuine `12/25/26 10:00 dentist appointment` intact. The AM/PM marker is
+ *    required too, which is a deliberate trade: it pins the alternation to the
+ *    US-locale trap documented in docs/capture-shortcut.md, and gives up
+ *    stripping a 24-hour-locale Shortcut's `28/07/2026, 12:00` so that a
+ *    hand-written `3/15/26, 14:30 finally finished the report` survives whole.
+ *    Per the asymmetry above, that is the right way round.
  * 3. `EEE, dd MMM yyyy HH:mm:ss Z`, e.g. `Fri, 28 Jul 2026 12:00:00 -0400` —
  *    Shortcuts' default custom format, wrong because of `Z` vs `ZZZZZ`.
  *
  * Tighten this, never widen it.
  */
 const UNREADABLE_STAMP_RE =
-  /^(?:\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?(?:Z|[+-]\d{2}:?\d{2})?|\d{1,4}[-/]\d{1,2}[-/]\d{1,4},\s*\d{1,2}:\d{2}(?::\d{2})?(?:\s*[AaPp]\.?[Mm]\.?)?|[A-Z][a-z]{2},\s\d{1,2}\s[A-Z][a-z]{2}\s\d{4}\s\d{2}:\d{2}:\d{2}\s[+-]\d{4})(?:\s+(.*))?$/;
+  /^(?:\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?(?:Z|[+-]\d{2}:?\d{2})?|\d{1,4}[-/]\d{1,2}[-/]\d{1,4},\s*\d{1,2}:\d{2}(?::\d{2})?\s*[AaPp]\.?[Mm]\.?|[A-Z][a-z]{2},\s\d{1,2}\s[A-Z][a-z]{2}\s\d{4}\s\d{2}:\d{2}:\d{2}\s[+-]\d{4})(?:\s+(.*))?$/;
 
 export interface InboxCapture {
   /** Raw stamp as written by the Shortcut, or null when unreadable. */
@@ -686,8 +691,13 @@ function relocateFiledCaptures(
   freshCaptures: InboxCapture[],
   filed: DatedInboxCapture[],
 ): DatedInboxCapture[] {
+  // Document order, not the caller's: the drain groups by date, so two
+  // same-key captures can arrive with the later one first. Matching walks the
+  // re-read in document order, so a per-key queue built out of document order
+  // hands each duplicate the *other* one's date — one marker each, both naming
+  // the wrong day, and inheritMissingDates trusts that marker forever after.
   const remaining = new Map<string, DatedInboxCapture[]>();
-  for (const c of filed) {
+  for (const c of [...filed].sort((a, b) => a.startLine - b.startLine)) {
     const key = captureKey(c);
     const queue = remaining.get(key) ?? [];
     queue.push(c);

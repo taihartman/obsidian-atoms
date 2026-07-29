@@ -370,6 +370,28 @@ describe("parseInboxCaptures — unreadable stamps heal (KTD1, KTD2)", () => {
     expect(caps[0]!.text).toBe(bullet);
   });
 
+  it("leaves a 24-hour comma time in the body — the Shortcut never emits one", () => {
+    // Alternation 2 requires the AM/PM marker, so a hand-written 24-hour
+    // shorthand reads as body rather than as a junk stamp.
+    const bullet = "3/15/26, 14:30 finally finished the report";
+    const caps = parseInboxCaptures(`- ${bullet}\n`, now);
+    expect(caps).toHaveLength(1);
+    expect(caps[0]!.text).toBe(bullet);
+  });
+
+  it("accepted limitation: strips a pasted chat export's leading timestamp", () => {
+    // A chat export's leading token is indistinguishable from the Shortcut's
+    // Short-style junk stamp, so it strips. Only reachable when the Shortcut is
+    // simultaneously misconfigured — the strip runs only on a bullet with no
+    // valid leading ISO stamp — and pinned here so the tradeoff stays visible.
+    const caps = parseInboxCaptures(
+      "- 7/29/26, 3:45 PM - Alice: are you free tonight?\n",
+      now,
+    );
+    expect(caps).toHaveLength(1);
+    expect(caps[0]!.text).toBe("- Alice: are you free tonight?");
+  });
+
   it("clamps a future date restored from an inferred-date marker", () => {
     // A marker that survived a sync merge while the filed marker did not would
     // otherwise re-supply the bad date on every parse, so the capture could
@@ -1163,6 +1185,41 @@ describe("drainInbox", () => {
     const after = parseInboxCaptures(h.inboxContent());
     expect(after).toHaveLength(2);
     expect(after.every((c) => c.filed)).toBe(true);
+  });
+
+  it("pairs each same-key stampless duplicate with its own day (T3)", async () => {
+    // Two stampless `ping` captures share a capture key but inherit different
+    // days, and the drain groups by date — so the filed list reaches the
+    // relocation pass with the second `ping` ahead of the first. Each inbox
+    // line's inferred-date marker must still name the daily its bullet landed
+    // in, not the other duplicate's.
+    const h = drainHarness(
+      [
+        // Anchors the 2026-07-10 group ahead of the 2026-07-25 one without
+        // acting as a stamped neighbour for the ping below it.
+        "- gamma",
+        `\t${inboxInferredDateMarker("2026-07-10")}`,
+        "- ping", // no stamped predecessor — inherits 2026-07-25 forwards
+        "- 2026-07-25T09:00-04:00 alpha",
+        "- 2026-07-10T08:00-04:00 beta",
+        "- ping", // inherits 2026-07-10 backwards
+        "",
+      ].join("\n"),
+    );
+
+    const r = await drainInbox(h.app, { ensureDaily: h.ensureDaily });
+
+    expect(r.filed).toBe(5);
+    expect(h.dailyContent("2026-07-25")).toContain("- ping");
+    expect(h.dailyContent("2026-07-10")).toContain("- ping");
+
+    const pings = parseInboxCaptures(h.inboxContent()).filter(
+      (c) => c.text === "ping",
+    );
+    expect(pings.map((c) => c.inferredDate)).toEqual([
+      "2026-07-25",
+      "2026-07-10",
+    ]);
   });
 
   it("never drops or reorders any pre-drain inbox line (T2, append-only)", async () => {
