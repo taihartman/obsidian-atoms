@@ -701,7 +701,14 @@ export function createAskPostgresMethods(pool, deps) {
     const a = await deps.refreshAccountStatus(await deps.getAccount(r.email));
     if (!a) return null;
     if (a.status !== "active" && a.status !== "trialing") return null;
-    return a;
+    let mcpScopes = ["atoms:read"];
+    try {
+      const parsed = JSON.parse(r.scopes_json || "[]");
+      if (Array.isArray(parsed) && parsed.length) mcpScopes = parsed;
+    } catch {
+      /* keep default */
+    }
+    return { ...a, mcpScopes };
   }
 
   async function mcpRegisterClient(meta) {

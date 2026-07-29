@@ -16,6 +16,7 @@ Issue: [#120](https://github.com/taihartman/obsidian-atoms/issues/120).
 | Entitlement | Stripe trial / paid | Local dogfood grant (`DOGFOOD_AUTO_GRANT=1`) or your own Stripe |
 | Plugin URL | empty override → production | **Development → Plus service URL override** |
 | MCP auth | OAuth magic-link → `mcp_*` | Same code path against your base URL |
+| MCP scopes | `atoms:read` + `atoms:write` (consent Allow grants both) | Same |
 | Mirror data | Plus DB | Your store (memory / sqlite / postgres) |
 | Phone Claude | Works on public host | Needs **public HTTPS** tunnel + matching `PUBLIC_BASE_URL` |
 

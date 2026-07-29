@@ -12,7 +12,50 @@ export const LOOPBACK_PATH = "/callback";
 const CHATGPT_CALLBACK_ID = /^[A-Za-z0-9_-]+$/;
 
 export const COOKIE_NAME = "atoms_oauth_bs";
-export const SCOPE_DEFAULT = "atoms:read";
+/** Read tools: search, fetch, neighbors, list */
+export const SCOPE_READ = "atoms:read";
+/** Write tools: create_atom, continue_atom, cancel_pending (outbox queue) */
+export const SCOPE_WRITE = "atoms:write";
+/** @deprecated use SCOPE_READ — kept for call sites */
+export const SCOPE_DEFAULT = SCOPE_READ;
+/** Full Ask grant on consent Allow (directory + custom connector honesty) */
+export const SCOPES_ASK_FULL = [SCOPE_READ, SCOPE_WRITE];
+
+/**
+ * Normalize OAuth scope query into recognized Ask scopes.
+ * Empty / unknown → full Ask (read + write) so connectors that omit scope still get write tools.
+ * @param {string} [scopeParam]
+ * @returns {string[]}
+ */
+export function parseRequestedScopes(scopeParam) {
+  const parts = String(scopeParam || "")
+    .split(/[\s+]+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const out = new Set();
+  for (const p of parts) {
+    if (p === SCOPE_READ || p === SCOPE_WRITE) out.add(p);
+  }
+  if (out.size === 0) return [...SCOPES_ASK_FULL];
+  if (out.has(SCOPE_WRITE)) out.add(SCOPE_READ);
+  return [...out];
+}
+
+/**
+ * Scopes minted after user clicks Allow on consent.
+ * Always full Ask grant so listing/write tools match consent copy (KTD15).
+ * @param {string[]} [_requested]
+ */
+export function scopesOnConsentAllow(_requested) {
+  return [...SCOPES_ASK_FULL];
+}
+
+/**
+ * @param {string[]|undefined|null} scopes
+ */
+export function hasWriteScope(scopes) {
+  return Array.isArray(scopes) && scopes.includes(SCOPE_WRITE);
+}
 
 /**
  * @param {string} uri

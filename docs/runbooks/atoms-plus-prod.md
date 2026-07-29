@@ -147,7 +147,9 @@ cd plus-service && npm test
 |------|--------|
 | MCP URL | `https://plus.tryatoms.app/mcp` (or `PUBLIC_BASE_URL/mcp`) |
 | Protocol | Dual-era: legacy initialize (`2025-03-26`) + modern `2026-07-28` (no initialize; `createMcpHandler`) |
+| OAuth scopes | `atoms:read` (search/fetch) + `atoms:write` (outbox create/continue/cancel); consent Allow grants both |
 | OAuth authorize | `/oauth/authorize` (RFC 9207 `iss` on client redirects) |
+| Directory pack | [`atoms-ask-connectors-directory.md`](atoms-ask-connectors-directory.md) |
 | Claude callback | `https://claude.ai/api/mcp/auth_callback` |
 | ChatGPT callbacks | `https://chatgpt.com/connector/oauth/{id}` + legacy `https://chatgpt.com/connector_platform_oauth_redirect` |
 | Secret | `ATOMS_ASK_MIRROR_KEY` (AES-GCM at rest; rotate = re-encrypt not automated) |

@@ -762,7 +762,10 @@ export function createMemoryStore() {
     const a = refreshAccountStatus(getAccount(row.email));
     if (!a) return null;
     if (a.status !== "active" && a.status !== "trialing") return null;
-    return a;
+    const mcpScopes = Array.isArray(row.scopes)
+      ? row.scopes
+      : ["atoms:read"];
+    return { ...a, mcpScopes };
   }
 
   function mcpRevokeForEmail(email) {
