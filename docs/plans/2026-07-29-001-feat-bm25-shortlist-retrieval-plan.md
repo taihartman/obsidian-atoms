@@ -120,6 +120,15 @@ index is a new stateful subsystem that can go stale, corrupt, or disagree with t
 blast radius of a shared substrate is paid in tests. Build the corpus once per run and score every
 capture against it in memory — the read is amortised across the whole run, not paid per capture.
 
+**KTD4a — The corpus is append-during-run, and this is load-bearing.**
+KTD4 and R4 pull against each other: a corpus built once cannot contain an atom created after it was
+built, which is exactly the linking loss R4 exists to fix. Resolve it in one direction — the corpus
+is seeded once from the vault at run start, and every atom the run creates is **appended to the
+in-memory corpus as it is written**. No re-read is needed: the run already holds that atom's title,
+tags, capture text and links, because it just produced them. A corpus that is only ever seeded, or a
+provider that caches for the plugin's lifetime rather than the run's, reintroduces the bug this plan
+is fixing. The corpus lifetime is the run, not the session.
+
 **KTD5 — Port `scripts/lib/shortlist.mjs` rather than reimplement.**
 Every finding on this branch was measured with that tokeniser and BM25. A fresh implementation risks
 shipping behaviour that does not match what was proven. Port it to TypeScript with a parity test
@@ -277,8 +286,10 @@ is added, decide it on memory rather than recall.
 **Files.** `src/pipeline/context.ts`, `test/context.test.ts`.
 
 **Approach.** Implement `MetadataContextProvider.getCandidates` to score the capture against the U2
-corpus and return the top `k`. Keep `buildContext()` for the hub and diagnostic callers in
-`main.ts` that are not classify paths — this unit does not touch those.
+corpus and return the top `k`. The provider owns the corpus for the lifetime of a **run**: seeded on
+first use, appended to as atoms land (KTD4a), released at run end. Expose the append explicitly
+rather than letting callers mutate it. Keep `buildContext()` for the hub and diagnostic callers in
+`main.ts` that are not classify paths — this unit does not touch or delete those.
 
 **Test scenarios.**
 - Two different captures against the same corpus return different shortlists (the argument is
@@ -287,6 +298,8 @@ corpus and return the top `k`. Keep `buildContext()` for the hub and diagnostic 
 - A capture matching nothing returns a shortlist that is empty or title-only rather than throwing.
 - Person hubs remain linkable — hub titles and frontmatter aliases survive selection.
 - Ordering is by score descending, not alphabetical.
+- **Corpus lifetime:** an atom appended mid-run is scoreable by a subsequent `getCandidates` call,
+  and a new run re-seeds rather than reusing the previous run's corpus.
 
 **Verification.** `npm test`; `obsidian command id=atoms:dry-run-preview` shows a capture-specific
 shortlist rather than the full title list.
@@ -458,6 +471,18 @@ identifiable per the repo's versioning rule.
 
 CLI verification runs against the **throwaway vault** (`test_vault/test vault/`) with Obsidian open.
 Never against a personal vault — `CLAUDE.md` vault lanes.
+
+## Before any code — the multiplayer claim
+
+`CLAUDE.md` and `docs/collab.md` require a hard claim before implementation, and this plan does not
+exempt itself from it:
+
+1. Assign the GitHub Issue (#168, or a child issue scoped to this plan).
+2. Add a `STATUS.md` row: state, issue, owner, branch, this plan, hot files
+   (`src/pipeline/context.ts`, `write.ts`, `preview.ts`, `backfill.ts`, `refreshAtoms.ts`,
+   `plus-service/src/anthropic.mjs`).
+3. Open a **draft** PR.
+4. Only then start U1.
 
 ## Definition of Done
 
