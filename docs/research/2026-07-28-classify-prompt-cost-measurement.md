@@ -6,9 +6,158 @@
 `docs/handoff-168` branch that carries the plan (`git diff --stat master docs/handoff-168 -- src/pipeline/`
 returned empty).
 
-**Verdict up front:** the reviewer is right and the plan is wrong by roughly 10x. At a 3,000-title
-vault the classify request is **~38,000 input tokens**, not ~2,950. The plan's 0.63¢ is arithmetically
-the cost of classifying into an **empty vault**.
+**Verdict up front:** the reviewer is right and the plan is wrong. At a 3,000-title vault the classify
+request is **52,930 input tokens**, not ~2,950. The plan's 0.63¢ is arithmetically the cost of
+classifying into an **empty vault**.
+
+> **Superseded in part.** Sections 1–3 (how the prompt is assembled, the title corpus, the method)
+> still hold. Sections 4–6 were built on characters ÷ 4 and are **~39% too low**; section 0 below
+> replaces them with exact figures from Anthropic's tokenizer and real API usage. Read section 0
+> first and treat 4–6 as the working that got us there.
+
+---
+
+## 0. Measured against the API — 2026-07-28
+
+Run with `npm run measure:cost` ([`scripts/measure-classify-cost.mjs`](../../scripts/measure-classify-cost.mjs)),
+which bundles the plugin's own `buildMessagesRequest` / `buildVaultContext` with esbuild and sends
+the real request body. Model **claude-sonnet-5** throughout — catch-up must match filing quality.
+Raw output: [`data/2026-07-28-classify-cost-measured.json`](data/2026-07-28-classify-cost-measured.json).
+Title corpus frozen as a committed fixture (`scripts/fixtures/vault-title-corpus.json`, 93 real atom
+titles, mean 42.13 chars) so the run reproduces from a clean checkout.
+
+**Method note that changes the numbers:** synthetic vaults are built by cycling the corpus with
+**exact repeats, no uniquifying suffix**. BPE tokenisation is position-independent, so a repeated
+title costs exactly what the original did. The earlier pass appended a numeric suffix and inflated
+every figure by ~6%; uniqueness matters for what the model *decides*, not for what the request
+*costs*, and these phases only measure cost.
+
+### 0.1 Exact input tokens by vault size (phase A — free, `/count_tokens`)
+
+| Note titles | Tokens, repo estimator's payload | Tokens, **as actually billed** | vs old chars÷4 estimate |
+|---|---|---|---|
+| 0 (empty vault) | 2,666 | **3,507** | 2,320 → +51% |
+| 40 (today's Plus proxy cap) | 3,335 | **4,176** | — |
+| 500 | 10,907 | **11,748** | 8,158 → +44% |
+| 1,500 | 27,371 | **28,212** | 20,092 → +40% |
+| 3,000 | 52,089 | **52,930** | 38,139 → **+39%** |
+| 5,000 | 85,069 | **85,910** | 62,204 → +38% |
+| 3,000, counting daily notes too (mean 31.6 chars) | 44,143 | **44,984** | — |
+
+**A note title costs 16.47 tokens.** At a 42.13-char mean that is **2.56 chars per token** — the
+chars÷4 assumption was 56% optimistic on the title block, because a `- Sentence-shaped title\n` list
+tokenises far worse than prose. Every estimate in sections 4–6 inherits that error.
+
+**The structured-output schema is billed, and the plugin's own estimator does not count it.**
+`countTokensForClassifyRequest` (`backfill.ts:140`) builds the real request and then strips
+`output_config` before counting. The schema is a flat **841 tokens** at every vault size (the old
+estimate guessed 396), so the cost gate the user sees undercounts by 841 tokens on every request —
+`52,089` shown against `52,930` actually billed. Phase B confirms the billing: call 1 was charged
+62 fresh + 52,868 cached = **52,930**, matching the with-schema count exactly.
+
+### 0.2 Caching holds at a 52,868-token prefix (phase B — paid)
+
+Three back-to-back realtime calls sharing one `cache_control` context block, 1h TTL:
+
+| Call | Fresh input | Cache write | Cache read | Output |
+|---|---|---|---|---|
+| 1 | 62 | **52,868** | 0 | 538 |
+| 2 | 59 | 0 | **52,868** | 308 |
+| 3 | 43 | 0 | **52,868** | 37 |
+
+All seven phase-C calls read the same 52,868 back. The prior cache evidence was a 1,586-token
+prefix; **caching is not a small-prefix effect** — it holds at 33× that size, in full, with no
+partial-prefix degradation.
+
+Prices that follow, per realtime classification at a 3,000-title vault:
+
+- **cold** (writes the prefix at 1h TTL, 2× input rate): 52,868 × $3 × 2 ÷ 1M = **$0.317**
+- **warm** (reads it, 0.1× input rate): 52,868 × $3 × 0.1 ÷ 1M = $0.0159 + output ≈ **2.0¢**
+
+A 1h TTL doubles the write; a 5m TTL costs 1.25× ($0.198). The write is paid once per prefix, so on
+a long run the TTL choice is noise — it matters only if the prefix keeps changing.
+
+### 0.3 Output tokens run high on atoms, not on noise (phase C — paid)
+
+`ASSUMED_OUTPUT_TOKENS = 250` (`backfill.ts:50`), measured across ten real classifications:
+
+| Verdict | n | min | median | mean | p90 | max |
+|---|---|---|---|---|---|---|
+| `atom` | 7 | 213 | 308 | **355** | 464 | 538 |
+| `noise` | 3 | 37 | 37 | 37 | 37 | 37 |
+| all ten | 10 | 37 | 276 | **259** | 464 | 538 |
+
+Sonnet 5 reasons by default and plus-service deliberately omits `output_config.effort`, so reasoning
+tokens are in these figures. **250 is about right for a mixed daily-note corpus and ~40% low for an
+atom-heavy one.** Output is not where the money is at any vault size above ~200 titles — at 3,000
+titles the input side is 200× the output side — so this is a correctness fix to the gate, not a
+pricing lever.
+
+### 0.4 What this does to a 3,000-capture catch-up
+
+Batch API (50% off), 3,000-title vault, 52,930 tokens per request, 260 output tokens per capture:
+
+| Shape | Cost | Per capture |
+|---|---|---|
+| **Frozen prefix, cache credited** — write once, 2,999 reads | **$30.06** | 1.0¢ |
+| **No cache credit** — what `estimateBatchCost` assumes today | **$244.04** | 8.1¢ |
+
+The whole of #168 sits between those two numbers. Phase D (below) settles which one is real.
+
+For contrast, the same 3,000 captures with the title list capped:
+
+| Context cap | Uncached batch | Cached batch |
+|---|---|---|
+| 40 titles (today's Plus cap) | $24.6 | $6.4 |
+| 400 titles | $51.3 | $10.4 |
+| 3,000 titles (uncapped, today's backfill) | $244.0 | $30.1 |
+
+**Capping the context is worth more than any cache strategy**, and it is the one lever that works
+whether or not batch caching holds.
+
+### 0.5 The two paths already differ by 12.7×
+
+Backfill talks to Anthropic directly with a raw `x-api-key` and **no Plus path exists in that module**
+— so it sends the full, uncapped title list. Realtime filing through Plus goes to
+`plus-service/src/anthropic.mjs`, whose `boundContext` truncates titles to
+`ATOMS_PLUS_MAX_CONTEXT_TITLES`, **default 40**, with no override configured anywhere in the repo.
+
+| Path | Titles sent | Billed input tokens |
+|---|---|---|
+| Plus realtime filing (`/v1/classify`) | first 40 | 4,176 |
+| BYOK backfill (`/v1/messages/batches`) | all of them | 52,930 at 3,000 titles |
+
+**This answers the open question about Plus margin: it holds, because of the cap.** A warm Plus
+filing costs ~0.5¢ and a cold one ~2¢ regardless of how large the user's vault gets. The 1.26¢
+assumption behind the existing Plus plan is sound.
+
+It also lands two problems that are not about #168 at all — see section 0.6.
+
+### 0.6 Two live defects found while measuring
+
+**(a) Plus filing hard-fails above 984 notes.** `buildClassifyPayload` rejects any body over
+**100,000 bytes** with a 400 (`plus-service/src/anthropic.mjs:94`). The plugin sends the full
+`context` *and* the fully rendered `messagesRequest` (`classify.ts:573-581`), so the title list
+travels twice. Measured against the real builders:
+
+| Vault notes | Request body bytes | Result |
+|---|---|---|
+| 750 | 78,450 | ok |
+| **984** | **99,910** | **ok — last size that fits** |
+| **985** | **100,003** | **400 Invalid classify body** |
+| 3,000 | 283,650 | 400 |
+
+A Plus subscriber whose vault passes ~985 notes gets a hard failure on every filing. The `context`
+field is the only one the proxy reads — `messagesRequest` is explicitly ignored — so the fix is for
+the client to stop sending it, or to send a shortlist. **Not yet confirmed against the live service**
+(that needs a session token); the code path is unambiguous but a live 400 should be reproduced
+before this is treated as closed.
+
+**(b) Plus sees the alphabetically-first 40 titles.** `buildVaultContext` sorts titles with
+`localeCompare` (`context.ts:114`) and `asStringList` takes the first N. So the 40 titles a Plus user
+can link to are whatever sorts first — an arbitrary and stably-biased slice, not the relevant ones.
+This is not a cost problem; it is the shortlist question in step 5 of the handoff, already shipped
+and answered badly. Any candidate selector built for backfill should replace this too.
 
 ---
 
@@ -133,7 +282,7 @@ is 396 tokens — irrelevant at any vault size above ~200 titles.
 
 ---
 
-## 4. Vault size → request size → cost per capture
+## 4. Vault size → request size → cost per capture — superseded by §0.1
 
 Model `claude-sonnet-5` ($3 in / $15 out per Mtok), 50% batch discount, no cache credit — exactly the
 `estimateBatchCost` worst case the plan invokes.
@@ -163,7 +312,7 @@ Sonnet's window, but a 20,000-note vault would be ~250,000 tokens and would star
 
 ---
 
-## 5. Output tokens
+## 5. Output tokens — superseded by §0.3
 
 `ASSUMED_OUTPUT_TOKENS = 250` and `max_tokens` defaults to 1,024, so 250 is a plausible cap-respecting
 assumption for the JSON verdict itself. But `buildMessagesRequest` sets `output_config` with no
@@ -176,7 +325,7 @@ a live call.
 
 ---
 
-## 6. What a real 3,000-capture catch-up costs
+## 6. What a real 3,000-capture catch-up costs — superseded by §0.4
 
 Catch-up grows the vault while it runs, so one flat per-capture number is wrong in both directions.
 Integrated numerically (body rebuilt every 25 captures), 250 output tokens, batch, no cache credit:
