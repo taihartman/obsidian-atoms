@@ -1,0 +1,1624 @@
+{
+  "captures": [
+    {
+      "id": "A0001",
+      "date": "2023-01-09",
+      "thread": "product-launch",
+      "capture": "kickoff for harbor. six months to ship. priya says the date is the date. i already dont believe the date",
+      "verdict": "atom",
+      "linksToEarlier": [],
+      "linksToExisting": ["Project Harbor", "Priya Raghunathan"]
+    },
+    {
+      "id": "A0002",
+      "date": "2023-01-11",
+      "thread": "process-gripe",
+      "capture": "standup ran 25 min again. its a status report for tomás not a standup. we should just write it down and get the half hour back",
+      "verdict": "atom",
+      "linksToEarlier": [],
+      "linksToExisting": ["Standup", "Tomás Lindqvist"]
+    },
+    {
+      "id": "A0003",
+      "date": "2023-01-17",
+      "thread": "noise",
+      "capture": "book the dentist. the one on eastgate not the other one",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "A0004",
+      "date": "2023-01-19",
+      "thread": "product-launch",
+      "capture": "scoped harbor v1 down to just the import path. everything else is v2. wei-lin agrees which is the only signoff i actually care about",
+      "verdict": "atom",
+      "linksToEarlier": ["A0001"],
+      "linksToExisting": ["Project Harbor", "Wei-Lin Chao"]
+    },
+    {
+      "id": "A0005",
+      "date": "2023-01-26",
+      "thread": "product-launch",
+      "capture": "the real risk on harbor isnt the code its that nobody owns the migration story. put it in the risk doc. nobody read the risk doc",
+      "verdict": "atom",
+      "linksToEarlier": ["A0001", "A0004"],
+      "linksToExisting": ["Project Harbor"]
+    },
+    {
+      "id": "A0006",
+      "date": "2023-02-02",
+      "thread": "product-launch",
+      "capture": "all day on the importer spec. every edge case is a customer with a weird csv. this is going to be the whole project isnt it",
+      "verdict": "atom",
+      "linksToEarlier": ["A0004"],
+      "linksToExisting": ["Project Harbor"]
+    },
+    {
+      "id": "A0007",
+      "date": "2023-02-09",
+      "thread": "noise",
+      "capture": "car insurance renews 3rd of march, shop around before that",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "A0008",
+      "date": "2023-02-15",
+      "thread": "product-launch",
+      "capture": "priya wants a demo at the march all hands. we have nothing end to end. said yes anyway which was stupid",
+      "verdict": "atom",
+      "linksToEarlier": ["A0001"],
+      "linksToExisting": ["Project Harbor", "Priya Raghunathan"]
+    },
+    {
+      "id": "A0009",
+      "date": "2023-02-23",
+      "thread": "product-launch",
+      "capture": "importer works on the happy path. felt great for about an hour then wei-lin found the encoding thing",
+      "verdict": "atom",
+      "linksToEarlier": ["A0006"],
+      "linksToExisting": ["Project Harbor", "Wei-Lin Chao"]
+    },
+    {
+      "id": "A0010",
+      "date": "2023-03-03",
+      "thread": "product-launch",
+      "capture": "demo went fine because i faked the second half. nobody noticed. not sure if thats a win or a warning",
+      "verdict": "atom",
+      "linksToEarlier": ["A0008"],
+      "linksToExisting": ["Project Harbor"]
+    },
+    {
+      "id": "A0011",
+      "date": "2023-03-08",
+      "thread": "process-gripe",
+      "capture": "pitched written standup instead of the meeting. tomás said async loses the human bit. i think thats sentimental and expensive",
+      "verdict": "atom",
+      "linksToEarlier": ["A0002"],
+      "linksToExisting": ["Standup", "Tomás Lindqvist"]
+    },
+    {
+      "id": "A0012",
+      "date": "2023-03-14",
+      "thread": "noise",
+      "capture": "need new running shoes, the left one is splitting at the toe",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "A0013",
+      "date": "2023-03-21",
+      "thread": "product-launch",
+      "capture": "encoding rabbit hole is two weeks deep. i keep telling myself its almost done. it is not almost done",
+      "verdict": "atom",
+      "linksToEarlier": ["A0009"],
+      "linksToExisting": ["Project Harbor"]
+    },
+    {
+      "id": "A0014",
+      "date": "2023-03-29",
+      "thread": "product-launch",
+      "capture": "asked for one more engineer on harbor. got half of one, two days a week. thats not help thats onboarding",
+      "verdict": "atom",
+      "linksToEarlier": ["A0005", "A0013"],
+      "linksToExisting": ["Project Harbor"]
+    },
+    {
+      "id": "A0015",
+      "date": "2023-04-05",
+      "thread": "product-launch",
+      "capture": "cut bulk edit from harbor. felt like defeat. it was the right call, we were never going to test it properly",
+      "verdict": "atom",
+      "linksToEarlier": ["A0004"],
+      "linksToExisting": ["Project Harbor"]
+    },
+    {
+      "id": "A0016",
+      "date": "2023-04-12",
+      "thread": "product-launch",
+      "capture": "priya asked point blank if august is real. said yes. it is not real and i knew it was not real while i was saying it",
+      "verdict": "atom",
+      "linksToEarlier": ["A0001", "A0008"],
+      "linksToExisting": ["Project Harbor", "Priya Raghunathan"]
+    },
+    {
+      "id": "A0017",
+      "date": "2023-04-18",
+      "thread": "noise",
+      "capture": "cancel the storage unit, its 40 a month for a broken bike",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "A0018",
+      "date": "2023-04-21",
+      "thread": "product-launch",
+      "capture": "wrote the migration runbook nobody asked for. if this thing ships thats the doc that saves us",
+      "verdict": "atom",
+      "linksToEarlier": ["A0005"],
+      "linksToExisting": ["Project Harbor"]
+    },
+    {
+      "id": "A0019",
+      "date": "2023-04-27",
+      "thread": "product-launch",
+      "capture": "we are treating qa as a phase at the end. its going to eat the whole buffer. flagging it here so future me can say i told you so",
+      "verdict": "atom",
+      "linksToEarlier": ["A0016"],
+      "linksToExisting": ["Project Harbor"]
+    },
+    {
+      "id": "A0020",
+      "date": "2023-05-04",
+      "thread": "product-launch",
+      "capture": "first real customer data through the importer. 60% failure rate. the csvs in the wild are worse than any test i wrote",
+      "verdict": "atom",
+      "linksToEarlier": ["A0006", "A0009"],
+      "linksToExisting": ["Project Harbor"]
+    },
+    {
+      "id": "A0021",
+      "date": "2023-05-10",
+      "thread": "process-gripe",
+      "capture": "sprint planning is three hours to estimate things we will re-estimate in two weeks. the estimates are theatre and everyone knows",
+      "verdict": "atom",
+      "linksToEarlier": [],
+      "linksToExisting": ["Sprint planning"]
+    },
+    {
+      "id": "A0022",
+      "date": "2023-05-16",
+      "thread": "noise",
+      "capture": "return the blue jacket, receipt is in the kitchen drawer",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "A0023",
+      "date": "2023-05-23",
+      "thread": "product-launch",
+      "capture": "told priya august slips. she took it much better than i expected. i should have said it in april when i knew",
+      "verdict": "atom",
+      "linksToEarlier": ["A0016"],
+      "linksToExisting": ["Project Harbor", "Priya Raghunathan"]
+    },
+    {
+      "id": "A0024",
+      "date": "2023-05-30",
+      "thread": "product-launch",
+      "capture": "new date is october. i believe october about 70%. writing the number down so i can check myself later",
+      "verdict": "atom",
+      "linksToEarlier": ["A0023"],
+      "linksToExisting": ["Project Harbor"]
+    },
+    {
+      "id": "A0025",
+      "date": "2023-06-06",
+      "thread": "difficult-colleague",
+      "capture": "gareth joined the harbor review rotation. first pr came back with 40 comments, half of them about naming",
+      "verdict": "atom",
+      "linksToEarlier": [],
+      "linksToExisting": ["Gareth Ellery", "Code review"]
+    },
+    {
+      "id": "A0026",
+      "date": "2023-06-09",
+      "thread": "product-launch",
+      "capture": "failure rate down to 12% by being more forgiving on parse. we were being correct instead of useful",
+      "verdict": "atom",
+      "linksToEarlier": ["A0020"],
+      "linksToExisting": ["Project Harbor"]
+    },
+    {
+      "id": "A0027",
+      "date": "2023-06-14",
+      "thread": "noise",
+      "capture": "dads birthday the 28th, get the thing with the boat on it",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "A0028",
+      "date": "2023-06-20",
+      "thread": "difficult-colleague",
+      "capture": "second round with gareth. he blocked on a pattern he approved in someone elses pr last week. its not the standard its who wrote it",
+      "verdict": "atom",
+      "linksToEarlier": ["A0025"],
+      "linksToExisting": ["Gareth Ellery", "Code review"]
+    },
+    {
+      "id": "A0029",
+      "date": "2023-06-23",
+      "thread": "product-launch",
+      "capture": "qa started early because wei-lin just started doing it. best process change of the project and nobody decided it",
+      "verdict": "atom",
+      "linksToEarlier": ["A0019"],
+      "linksToExisting": ["Project Harbor", "Wei-Lin Chao"]
+    },
+    {
+      "id": "A0030",
+      "date": "2023-06-29",
+      "thread": "product-launch",
+      "capture": "harbor is boring now. boring is the good part of a project and i never remember that while its happening",
+      "verdict": "atom",
+      "linksToEarlier": ["A0013", "A0026"],
+      "linksToExisting": ["Project Harbor"]
+    },
+    {
+      "id": "A0031",
+      "date": "2023-07-05",
+      "thread": "difficult-colleague",
+      "capture": "timed my pr for when gareth is at lunch so someone else picks it up. that is a stupid way to work and i did it deliberately",
+      "verdict": "atom",
+      "linksToEarlier": ["A0028"],
+      "linksToExisting": ["Gareth Ellery", "Code review"]
+    },
+    {
+      "id": "A0032",
+      "date": "2023-07-07",
+      "thread": "process-gripe",
+      "capture": "the pre-read culture is fake. nobody reads the pre-read. we read it in the meeting in silence for ten minutes then argue",
+      "verdict": "atom",
+      "linksToEarlier": [],
+      "linksToExisting": ["Sprint planning"]
+    },
+    {
+      "id": "A0033",
+      "date": "2023-07-12",
+      "thread": "product-launch",
+      "capture": "cut scope again, admin panel goes to v2. third cut. each one hurts less which worries me more than the cutting does",
+      "verdict": "atom",
+      "linksToEarlier": ["A0015"],
+      "linksToExisting": ["Project Harbor"]
+    },
+    {
+      "id": "A0034",
+      "date": "2023-07-14",
+      "thread": "noise",
+      "capture": "flat inspection thursday, sort out the extension cord situation",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "A0035",
+      "date": "2023-07-19",
+      "thread": "product-launch",
+      "capture": "priya is doing all the customer comms herself. shes better at it than anyone here and it will not survive past this launch",
+      "verdict": "atom",
+      "linksToEarlier": ["A0023"],
+      "linksToExisting": ["Project Harbor", "Priya Raghunathan"]
+    },
+    {
+      "id": "A0036",
+      "date": "2023-07-21",
+      "thread": "difficult-colleague",
+      "capture": "asked around. two other people find gareth exhausting on reviews. so its not me. weirdly that made me angrier not calmer",
+      "verdict": "atom",
+      "linksToEarlier": ["A0028", "A0031"],
+      "linksToExisting": ["Gareth Ellery"]
+    },
+    {
+      "id": "A0037",
+      "date": "2023-07-26",
+      "thread": "product-launch",
+      "capture": "dry run of the migration on a copy of prod. runbook held. the one doc nobody wanted is the thing carrying us",
+      "verdict": "atom",
+      "linksToEarlier": ["A0018"],
+      "linksToExisting": ["Project Harbor"]
+    },
+    {
+      "id": "A0038",
+      "date": "2023-07-28",
+      "thread": "product-launch",
+      "capture": "we are shipping in october and it feels calm and i do not trust calm at this stage of anything",
+      "verdict": "atom",
+      "linksToEarlier": ["A0024", "A0030"],
+      "linksToExisting": ["Project Harbor"]
+    },
+    {
+      "id": "A0039",
+      "date": "2023-08-02",
+      "thread": "product-launch",
+      "capture": "found a data loss path in the importer. two rows in a million. three days on it. worth it, that one would have ended us",
+      "verdict": "atom",
+      "linksToEarlier": ["A0020", "A0026"],
+      "linksToExisting": ["Project Harbor"]
+    },
+    {
+      "id": "A0040",
+      "date": "2023-08-04",
+      "thread": "noise",
+      "capture": "renew passport, appointment slots open at 8am apparently",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "A0041",
+      "date": "2023-08-09",
+      "thread": "difficult-colleague",
+      "capture": "tried talking to gareth directly. said the reviews land personal. he looked genuinely surprised. maybe he has no idea what it reads like",
+      "verdict": "atom",
+      "linksToEarlier": ["A0036"],
+      "linksToExisting": ["Gareth Ellery", "Code review"]
+    },
+    {
+      "id": "A0042",
+      "date": "2023-08-11",
+      "thread": "product-launch",
+      "capture": "october is real now. writing that down against the 70% i gave it in may",
+      "verdict": "atom",
+      "linksToEarlier": ["A0024", "A0038"],
+      "linksToExisting": ["Project Harbor"]
+    },
+    {
+      "id": "A0043",
+      "date": "2023-08-17",
+      "thread": "difficult-colleague",
+      "capture": "review after that conversation was 12 comments not 40 and two were compliments. so it does move. it just needed saying out loud",
+      "verdict": "atom",
+      "linksToEarlier": ["A0041"],
+      "linksToExisting": ["Gareth Ellery", "Code review"]
+    },
+    {
+      "id": "A0044",
+      "date": "2023-08-22",
+      "thread": "product-launch",
+      "capture": "wrote the launch comms draft. priya rewrote it entirely and it was much better. i should just hand her bullets from now on",
+      "verdict": "atom",
+      "linksToEarlier": ["A0035"],
+      "linksToExisting": ["Project Harbor", "Priya Raghunathan"]
+    },
+    {
+      "id": "A0045",
+      "date": "2023-08-25",
+      "thread": "noise",
+      "capture": "the kitchen tap drips at night, washer or the whole thing, look it up",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "A0046",
+      "date": "2023-08-30",
+      "thread": "product-launch",
+      "capture": "freeze starts monday. the last week before a freeze is when people do their worst work, me included",
+      "verdict": "atom",
+      "linksToEarlier": ["A0038"],
+      "linksToExisting": ["Project Harbor"]
+    },
+    {
+      "id": "A0047",
+      "date": "2023-09-05",
+      "thread": "product-launch",
+      "capture": "beta with four customers. two loved it, one never opened it, one found a bug in nine minutes. that ratio feels about normal",
+      "verdict": "atom",
+      "linksToEarlier": ["A0042"],
+      "linksToExisting": ["Project Harbor"]
+    },
+    {
+      "id": "A0048",
+      "date": "2023-09-08",
+      "thread": "difficult-colleague",
+      "capture": "gareth back to form on the big pr. so one conversation isnt a fix, its a reset that decays over about three weeks",
+      "verdict": "atom",
+      "linksToEarlier": ["A0043"],
+      "linksToExisting": ["Gareth Ellery", "Code review"]
+    },
+    {
+      "id": "A0049",
+      "date": "2023-09-13",
+      "thread": "process-gripe",
+      "capture": "asked to kill sprint planning for harbors last month. tomás said no. we did it anyway by making it 20 minutes and nothing broke",
+      "verdict": "atom",
+      "linksToEarlier": ["A0021"],
+      "linksToExisting": ["Sprint planning", "Tomás Lindqvist"]
+    },
+    {
+      "id": "A0050",
+      "date": "2023-09-15",
+      "thread": "noise",
+      "capture": "swap the winter tyres before the 1st, garage on ferndale",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "A0051",
+      "date": "2023-09-20",
+      "thread": "product-launch",
+      "capture": "the nine minute bug was in the exact code gareth flagged in june and i dismissed. i owe him one and i hate that",
+      "verdict": "atom",
+      "linksToEarlier": ["A0025", "A0047"],
+      "linksToExisting": ["Project Harbor", "Gareth Ellery"]
+    },
+    {
+      "id": "A0052",
+      "date": "2023-09-25",
+      "thread": "product-launch",
+      "capture": "the customer who never opened the beta is the one i should have chased. silence in a beta is the loudest signal and i keep filing it as neutral",
+      "verdict": "atom",
+      "linksToEarlier": ["A0047"],
+      "linksToExisting": ["Project Harbor"]
+    },
+    {
+      "id": "A0053",
+      "date": "2023-09-28",
+      "thread": "product-launch",
+      "capture": "go no go set for the 10th. everything is green which means we are not looking hard enough",
+      "verdict": "atom",
+      "linksToEarlier": ["A0046"],
+      "linksToExisting": ["Project Harbor"]
+    },
+    {
+      "id": "A0054",
+      "date": "2023-10-04",
+      "thread": "difficult-colleague",
+      "capture": "reframing gareth. he reviews like the code is about to hurt someone. thats not malice thats scar tissue from somewhere i wasnt",
+      "verdict": "atom",
+      "linksToEarlier": ["A0048", "A0051"],
+      "linksToExisting": ["Gareth Ellery", "Code review"]
+    },
+    {
+      "id": "A0055",
+      "date": "2023-10-10",
+      "thread": "product-launch",
+      "capture": "harbor shipped. nine months. the room clapped and i felt almost nothing, which is not what i expected at all",
+      "verdict": "atom",
+      "linksToEarlier": ["A0001", "A0053"],
+      "linksToExisting": ["Project Harbor"]
+    },
+    {
+      "id": "A0056",
+      "date": "2023-10-12",
+      "thread": "noise",
+      "capture": "the router needs restarting weekly, put a note on the fridge",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "A0057",
+      "date": "2023-10-17",
+      "thread": "product-launch",
+      "capture": "week one numbers. 300 imports, 9 support tickets, zero data loss. those three days in august paid for themselves",
+      "verdict": "atom",
+      "linksToEarlier": ["A0039", "A0055"],
+      "linksToExisting": ["Project Harbor"]
+    },
+    {
+      "id": "A0058",
+      "date": "2023-10-24",
+      "thread": "difficult-colleague",
+      "capture": "gareths review on the hotfix caught a real one under launch pressure. the thing that annoys me is the thing that works",
+      "verdict": "atom",
+      "linksToEarlier": ["A0054"],
+      "linksToExisting": ["Gareth Ellery", "Code review"]
+    },
+    {
+      "id": "A0059",
+      "date": "2023-10-31",
+      "thread": "product-launch",
+      "capture": "the migration runbook got picked up by two other teams. the doc nobody asked for is the most reused thing i made this year",
+      "verdict": "atom",
+      "linksToEarlier": ["A0018", "A0037"],
+      "linksToExisting": ["Project Harbor"]
+    },
+    {
+      "id": "A0060",
+      "date": "2023-11-06",
+      "thread": "product-launch",
+      "capture": "retro. everyone said communication. nobody said we started qa at the end and got lucky. the retro found nothing real",
+      "verdict": "atom",
+      "linksToEarlier": ["A0019", "A0029"],
+      "linksToExisting": ["Project Harbor"]
+    },
+    {
+      "id": "A0061",
+      "date": "2023-11-09",
+      "thread": "process-gripe",
+      "capture": "changing my mind on standup. the 25 minute one in january was bad but the two weeks we skipped it entirely were worse. its the only slot where wei-lin says anything",
+      "verdict": "atom",
+      "linksToEarlier": ["A0002", "A0011"],
+      "linksToExisting": ["Standup", "Wei-Lin Chao"]
+    },
+    {
+      "id": "A0062",
+      "date": "2023-11-14",
+      "thread": "noise",
+      "capture": "gift list for december, start it now or its the 22nd again",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "A0063",
+      "date": "2023-11-16",
+      "thread": "difficult-colleague",
+      "capture": "gareth made tech lead of the platform group. so i am in his review path indefinitely now",
+      "verdict": "atom",
+      "linksToEarlier": ["A0054"],
+      "linksToExisting": ["Gareth Ellery"]
+    },
+    {
+      "id": "A0064",
+      "date": "2023-11-21",
+      "thread": "product-launch",
+      "capture": "what i actually learned from harbor: the date was never the problem, the unowned migration story was, and i spotted that in january and did nothing structural about it",
+      "verdict": "atom",
+      "linksToEarlier": ["A0005", "A0055"],
+      "linksToExisting": ["Project Harbor"]
+    },
+    {
+      "id": "A0065",
+      "date": "2023-11-27",
+      "thread": "difficult-colleague",
+      "capture": "coffee with gareth, first non work conversation in six months. hes been on call every other week since march. that explains a lot of the tone",
+      "verdict": "atom",
+      "linksToEarlier": ["A0041", "A0063"],
+      "linksToExisting": ["Gareth Ellery"]
+    },
+    {
+      "id": "A0066",
+      "date": "2023-11-30",
+      "thread": "noise",
+      "capture": "annual leave expires march, book something or lose 6 days",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "A0067",
+      "date": "2023-12-06",
+      "thread": "product-launch",
+      "capture": "harbor v2 got shelved. all three things i cut are now permanently cut. cutting scope isnt deferring, its deciding, and i keep letting myself pretend otherwise",
+      "verdict": "atom",
+      "linksToEarlier": ["A0015", "A0033"],
+      "linksToExisting": ["Project Harbor"]
+    },
+    {
+      "id": "A0068",
+      "date": "2023-12-12",
+      "thread": "difficult-colleague",
+      "capture": "caught myself writing a defensive pr description aimed at gareth before hed even opened it. im now doing the thing i accused him of",
+      "verdict": "atom",
+      "linksToEarlier": ["A0031", "A0065"],
+      "linksToExisting": ["Gareth Ellery", "Code review"]
+    },
+    {
+      "id": "A0069",
+      "date": "2023-12-15",
+      "thread": "noise",
+      "capture": "office closed 23rd to the 2nd, tell the contractor",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "A0070",
+      "date": "2023-12-20",
+      "thread": "product-launch",
+      "capture": "year end. shipped one thing. the only part id redo is telling priya about the slip five weeks after i knew",
+      "verdict": "atom",
+      "linksToEarlier": ["A0023", "A0055"],
+      "linksToExisting": ["Project Harbor", "Priya Raghunathan"]
+    },
+    {
+      "id": "A0071",
+      "date": "2024-01-09",
+      "thread": "process-gripe",
+      "capture": "new year new ritual. now we do quarterly okrs AND sprints. we added a layer instead of removing one, which is the only move this org knows",
+      "verdict": "atom",
+      "linksToEarlier": ["A0021", "A0049"],
+      "linksToExisting": ["Sprint planning"]
+    },
+    {
+      "id": "A0072",
+      "date": "2024-01-11",
+      "thread": "difficult-colleague",
+      "capture": "gareth as tech lead is a different person. pushed back on scope for us in planning today. hes better with power than without it",
+      "verdict": "atom",
+      "linksToEarlier": ["A0063"],
+      "linksToExisting": ["Gareth Ellery"]
+    },
+    {
+      "id": "A0073",
+      "date": "2024-01-16",
+      "thread": "noise",
+      "capture": "gym contract auto renews the 30th, decide before then",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "A0074",
+      "date": "2024-01-23",
+      "thread": "product-launch",
+      "capture": "harbor postmortem got cited in the platform review. three months on, the only artifacts anyone remembers are the runbook and the risk doc nobody read at the time",
+      "verdict": "atom",
+      "linksToEarlier": ["A0005", "A0059"],
+      "linksToExisting": ["Project Harbor"]
+    },
+    {
+      "id": "A0075",
+      "date": "2024-01-30",
+      "thread": "difficult-colleague",
+      "capture": "asked gareth to review a design doc instead of a pr. completely different person on it. hes bad at the last 5% and genuinely great at the first",
+      "verdict": "atom",
+      "linksToEarlier": ["A0072", "A0058"],
+      "linksToExisting": ["Gareth Ellery", "Code review"]
+    },
+    {
+      "id": "A0076",
+      "date": "2024-02-06",
+      "thread": "difficult-colleague",
+      "capture": "the pattern is he's fine when he has context and brutal when he doesnt. i have been handing him zero context for eight months",
+      "verdict": "atom",
+      "linksToEarlier": ["A0075", "A0025"],
+      "linksToExisting": ["Gareth Ellery", "Code review"]
+    },
+    {
+      "id": "A0077",
+      "date": "2024-02-14",
+      "thread": "noise",
+      "capture": "dishwasher making the noise again, check the filter before calling anyone",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "A0078",
+      "date": "2024-02-22",
+      "thread": "difficult-colleague",
+      "capture": "started putting two paragraphs of why this pr exists at the top. comments halved. it took me eight months to try the obvious thing",
+      "verdict": "atom",
+      "linksToEarlier": ["A0076", "A0068"],
+      "linksToExisting": ["Gareth Ellery", "Code review"]
+    },
+    {
+      "id": "A0079",
+      "date": "2024-03-05",
+      "thread": "mentoring",
+      "capture": "picked up ines as a mentee. first session they asked what i wanted out of it, which nobody has ever asked me",
+      "verdict": "atom",
+      "linksToEarlier": [],
+      "linksToExisting": ["Ines Cardoso", "Mentoring"]
+    },
+    {
+      "id": "A0080",
+      "date": "2024-03-08",
+      "thread": "process-gripe",
+      "capture": "wrote the standup complaint out properly and realised i dont want standup gone, i want it to not be for the manager. thats a completely different fix",
+      "verdict": "atom",
+      "linksToEarlier": ["A0061", "A0002"],
+      "linksToExisting": ["Standup"]
+    },
+    {
+      "id": "A0081",
+      "date": "2024-03-13",
+      "thread": "noise",
+      "capture": "passport photos rejected, ears have to be visible apparently",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "A0082",
+      "date": "2024-03-19",
+      "thread": "mentoring",
+      "capture": "ines wrote a 400 line pr for a 20 line problem. told them to delete it and start again. felt harsh, was correct",
+      "verdict": "atom",
+      "linksToEarlier": ["A0079"],
+      "linksToExisting": ["Ines Cardoso", "Mentoring"]
+    },
+    {
+      "id": "A0083",
+      "date": "2024-03-22",
+      "thread": "difficult-colleague",
+      "capture": "gareth was a peer reviewer on my perf cycle. wrote something genuinely generous. i have been carrying a grudge for a year that he apparently never had",
+      "verdict": "atom",
+      "linksToEarlier": ["A0025", "A0078"],
+      "linksToExisting": ["Gareth Ellery"]
+    },
+    {
+      "id": "A0084",
+      "date": "2024-03-28",
+      "thread": "mentoring",
+      "capture": "hardest thing to teach ines is when to stop. everything i know about stopping came from cutting harbor scope three times and hating it each time",
+      "verdict": "atom",
+      "linksToEarlier": ["A0082", "A0067"],
+      "linksToExisting": ["Ines Cardoso", "Mentoring", "Project Harbor"]
+    },
+    {
+      "id": "A0085",
+      "date": "2024-04-04",
+      "thread": "mentoring",
+      "capture": "ines asked how you know a project is going badly. said when the dates stop moving but nothing gets easier. that came straight out of spring 23",
+      "verdict": "atom",
+      "linksToEarlier": ["A0084", "A0013"],
+      "linksToExisting": ["Ines Cardoso", "Mentoring", "Project Harbor"]
+    },
+    {
+      "id": "A0086",
+      "date": "2024-04-11",
+      "thread": "difficult-colleague",
+      "capture": "gareth is doing to a new grad exactly what he did to me last june. said something. small, in dm. first genuinely senior thing ive done",
+      "verdict": "atom",
+      "linksToEarlier": ["A0025", "A0083"],
+      "linksToExisting": ["Gareth Ellery", "Code review"]
+    },
+    {
+      "id": "A0087",
+      "date": "2024-04-17",
+      "thread": "noise",
+      "capture": "bins moved to tuesday, the green one is fortnightly",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "A0088",
+      "date": "2024-04-23",
+      "thread": "mentoring",
+      "capture": "stopped handing ines answers. counting to five before i speak. the silence is unbearable and they solve it about half the time",
+      "verdict": "atom",
+      "linksToEarlier": ["A0079", "A0082"],
+      "linksToExisting": ["Ines Cardoso", "Mentoring"]
+    },
+    {
+      "id": "A0089",
+      "date": "2024-04-30",
+      "thread": "difficult-colleague",
+      "capture": "gareth thanked me for the dm. did not expect that. spent a year certain he was the problem and about six weeks finding out he was mostly just unmanaged",
+      "verdict": "atom",
+      "linksToEarlier": ["A0086", "A0065"],
+      "linksToExisting": ["Gareth Ellery"]
+    },
+    {
+      "id": "A0090",
+      "date": "2024-05-07",
+      "thread": "process-gripe",
+      "capture": "pre-read experiment. sent it 24h ahead with three questions at the top. people actually read it. so pre-reads arent broken, unspecified pre-reads are",
+      "verdict": "atom",
+      "linksToEarlier": ["A0032"],
+      "linksToExisting": ["Sprint planning"]
+    },
+    {
+      "id": "A0091",
+      "date": "2024-05-10",
+      "thread": "mentoring",
+      "capture": "ines got their first solo feature. reviewed it and had to physically stop myself leaving 40 comments. now i know what that impulse feels like from the inside",
+      "verdict": "atom",
+      "linksToEarlier": ["A0088", "A0025"],
+      "linksToExisting": ["Ines Cardoso", "Mentoring", "Gareth Ellery", "Code review"]
+    },
+    {
+      "id": "A0092",
+      "date": "2024-05-15",
+      "thread": "noise",
+      "capture": "eye test two years overdue, the place on rowan street does evenings",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "A0093",
+      "date": "2024-05-21",
+      "thread": "difficult-colleague",
+      "capture": "gareths group is being reorged under a new director. he asked me whether he should stay. a year ago id have paid money for him to leave",
+      "verdict": "atom",
+      "linksToEarlier": ["A0089"],
+      "linksToExisting": ["Gareth Ellery"]
+    },
+    {
+      "id": "A0094",
+      "date": "2024-05-24",
+      "thread": "mentoring",
+      "capture": "ines is faster than i was at their stage and much worse at asking for help. those are the same trait wearing different clothes",
+      "verdict": "atom",
+      "linksToEarlier": ["A0091"],
+      "linksToExisting": ["Ines Cardoso", "Mentoring"]
+    },
+    {
+      "id": "A0095",
+      "date": "2024-05-31",
+      "thread": "process-gripe",
+      "capture": "the okr layer we added in january has already been quietly dropped. nobody announced it. rituals die by evaporation here, never by decision",
+      "verdict": "atom",
+      "linksToEarlier": ["A0071"],
+      "linksToExisting": ["Sprint planning"]
+    },
+    {
+      "id": "A0096",
+      "date": "2024-06-05",
+      "thread": "mentoring",
+      "capture": "told ines about the harbor slip and how i sat on it for five weeks. their face. worth more than any advice ive given them",
+      "verdict": "atom",
+      "linksToEarlier": ["A0070", "A0023"],
+      "linksToExisting": ["Ines Cardoso", "Mentoring", "Project Harbor"]
+    },
+    {
+      "id": "A0097",
+      "date": "2024-06-12",
+      "thread": "noise",
+      "capture": "hotel for the wedding, they release the block rate end of the month",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "A0098",
+      "date": "2024-06-18",
+      "thread": "difficult-colleague",
+      "capture": "gareth stayed. new director gave him actual headcount. reviews are the mildest theyve been in twelve months. it was never about the code",
+      "verdict": "atom",
+      "linksToEarlier": ["A0093", "A0028"],
+      "linksToExisting": ["Gareth Ellery", "Code review"]
+    },
+    {
+      "id": "A0099",
+      "date": "2024-06-21",
+      "thread": "noise",
+      "capture": "chase the deposit from the old flat, its been 11 weeks",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "A0100",
+      "date": "2024-06-26",
+      "thread": "mentoring",
+      "capture": "ines asked to be mentored by someone else as well. felt a flash of something ugly. thats mine to deal with, not theirs",
+      "verdict": "atom",
+      "linksToEarlier": ["A0094"],
+      "linksToExisting": ["Ines Cardoso", "Mentoring"]
+    },
+    {
+      "id": "A0101",
+      "date": "2024-07-03",
+      "thread": "process-gripe",
+      "capture": "reread my january 23 note about standup being a status report. it was, and now it isnt, and the fix was tomás leaving the room once a week. one person, not a process",
+      "verdict": "atom",
+      "linksToEarlier": ["A0002", "A0080"],
+      "linksToExisting": ["Standup", "Tomás Lindqvist"]
+    },
+    {
+      "id": "A0102",
+      "date": "2024-07-10",
+      "thread": "mentoring",
+      "capture": "ines having two mentors is better for ines. obviously. took me two weeks to get there and i should not have needed two weeks",
+      "verdict": "atom",
+      "linksToEarlier": ["A0100"],
+      "linksToExisting": ["Ines Cardoso", "Mentoring"]
+    },
+    {
+      "id": "A0103",
+      "date": "2024-07-16",
+      "thread": "noise",
+      "capture": "loud neighbour moving out on the 30th apparently, verify before celebrating",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "A0104",
+      "date": "2024-07-19",
+      "thread": "difficult-colleague",
+      "capture": "gareth put me forward for the platform staff role. said no. good relationship, wrong ladder",
+      "verdict": "atom",
+      "linksToEarlier": ["A0098"],
+      "linksToExisting": ["Gareth Ellery"]
+    },
+    {
+      "id": "A0105",
+      "date": "2024-07-25",
+      "thread": "mentoring",
+      "capture": "what i keep giving ines is permission, not information. they already know what to do, they want someone senior to say its allowed",
+      "verdict": "atom",
+      "linksToEarlier": ["A0088", "A0084"],
+      "linksToExisting": ["Ines Cardoso", "Mentoring"]
+    },
+    {
+      "id": "A0106",
+      "date": "2024-08-06",
+      "thread": "mentoring",
+      "capture": "ines led a design review. i sat at the back and said nothing for 50 minutes. best hour of my quarter",
+      "verdict": "atom",
+      "linksToEarlier": ["A0091", "A0105"],
+      "linksToExisting": ["Ines Cardoso", "Mentoring"]
+    },
+    {
+      "id": "A0107",
+      "date": "2024-08-14",
+      "thread": "noise",
+      "capture": "boiler service due, the sticker says august, its on the pipe",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "A0108",
+      "date": "2024-08-20",
+      "thread": "difficult-colleague",
+      "capture": "eighteen months of gareth and the honest summary is i needed him to be a bad person because that was cheaper than changing how i write prs",
+      "verdict": "atom",
+      "linksToEarlier": ["A0025", "A0078"],
+      "linksToExisting": ["Gareth Ellery", "Code review"]
+    },
+    {
+      "id": "A0109",
+      "date": "2024-08-28",
+      "thread": "mentoring",
+      "capture": "ines is talking about leaving. my honest advice would be go, and my job here makes that awkward to say",
+      "verdict": "atom",
+      "linksToEarlier": ["A0106"],
+      "linksToExisting": ["Ines Cardoso", "Mentoring"]
+    },
+    {
+      "id": "A0110",
+      "date": "2024-09-03",
+      "thread": "job-change",
+      "capture": "saying no to the platform role in july was the actual decision. everything since has been me pretending im still deciding",
+      "verdict": "atom",
+      "linksToEarlier": ["A0104"],
+      "linksToExisting": ["Job search 2024"]
+    },
+    {
+      "id": "A0111",
+      "date": "2024-09-06",
+      "thread": "process-gripe",
+      "capture": "planning has been fine for two quarters and i have nothing to complain about, which is unsettling. maybe i was the ritual",
+      "verdict": "atom",
+      "linksToEarlier": ["A0095", "A0021"],
+      "linksToExisting": ["Sprint planning"]
+    },
+    {
+      "id": "A0112",
+      "date": "2024-09-11",
+      "thread": "job-change",
+      "capture": "cv is two years stale. harbor is one line on it. nine months, one line",
+      "verdict": "atom",
+      "linksToEarlier": ["A0055"],
+      "linksToExisting": ["Job search 2024", "Project Harbor"]
+    },
+    {
+      "id": "A0113",
+      "date": "2024-09-13",
+      "thread": "noise",
+      "capture": "the good pen ran out, refills are the 0.5 not the 0.7",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "A0114",
+      "date": "2024-09-17",
+      "thread": "mentoring",
+      "capture": "told ines to go if they want to go. said the loyal thing costs you two years. i think that was right and it cost me something to say it",
+      "verdict": "atom",
+      "linksToEarlier": ["A0109"],
+      "linksToExisting": ["Ines Cardoso", "Mentoring"]
+    },
+    {
+      "id": "A0115",
+      "date": "2024-09-19",
+      "thread": "job-change",
+      "capture": "first call with ana sotelo, recruiter. she asked what i want to be doing in two years and i genuinely could not answer her",
+      "verdict": "atom",
+      "linksToEarlier": ["A0110"],
+      "linksToExisting": ["Job search 2024", "Ana Sotelo"]
+    },
+    {
+      "id": "A0116",
+      "date": "2024-09-24",
+      "thread": "mentoring",
+      "capture": "ines asked why im updating my cv. said housekeeping. lied to my mentee about the exact thing i just told them to do",
+      "verdict": "atom",
+      "linksToEarlier": ["A0114", "A0112"],
+      "linksToExisting": ["Ines Cardoso", "Mentoring", "Job search 2024"]
+    },
+    {
+      "id": "A0117",
+      "date": "2024-09-30",
+      "thread": "job-change",
+      "capture": "three applications out, all bigger companies. i think i want bigger but i might just want different and be mislabelling it",
+      "verdict": "atom",
+      "linksToEarlier": ["A0115"],
+      "linksToExisting": ["Job search 2024"]
+    },
+    {
+      "id": "A0118",
+      "date": "2024-10-02",
+      "thread": "job-change",
+      "capture": "first onsite. asked about a project that slipped and i told the harbor story straight, five weeks of silence included. went better than any polished answer ive given",
+      "verdict": "atom",
+      "linksToEarlier": ["A0070", "A0023"],
+      "linksToExisting": ["Job search 2024", "Project Harbor"]
+    },
+    {
+      "id": "A0119",
+      "date": "2024-10-08",
+      "thread": "mentoring",
+      "capture": "ines shipped the migration piece alone and wrote a runbook without being told to. i never taught that. they just watched",
+      "verdict": "atom",
+      "linksToEarlier": ["A0059", "A0106"],
+      "linksToExisting": ["Ines Cardoso", "Mentoring", "Project Harbor"]
+    },
+    {
+      "id": "A0120",
+      "date": "2024-10-10",
+      "thread": "job-change",
+      "capture": "rejected by the big one. feedback was not enough scale experience. accurate and still annoying",
+      "verdict": "atom",
+      "linksToEarlier": ["A0117"],
+      "linksToExisting": ["Job search 2024"]
+    },
+    {
+      "id": "A0121",
+      "date": "2024-10-15",
+      "thread": "difficult-colleague",
+      "capture": "told gareth im interviewing. he offered to be a reference. the person i spent a year avoiding is my best reference in this building",
+      "verdict": "atom",
+      "linksToEarlier": ["A0104", "A0108"],
+      "linksToExisting": ["Gareth Ellery", "Job search 2024"]
+    },
+    {
+      "id": "A0122",
+      "date": "2024-10-18",
+      "thread": "noise",
+      "capture": "clocks change the 27th, the oven one has to be done by hand",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "A0123",
+      "date": "2024-10-22",
+      "thread": "job-change",
+      "capture": "northlane came in via ana. 40 people, doing the unglamorous data plumbing thing. i keep being drawn back to importers apparently",
+      "verdict": "atom",
+      "linksToEarlier": ["A0115", "A0006"],
+      "linksToExisting": ["Job search 2024", "Northlane", "Ana Sotelo", "Project Harbor"]
+    },
+    {
+      "id": "A0124",
+      "date": "2024-10-25",
+      "thread": "mentoring",
+      "capture": "ines is staying. said the design review in august changed how they see themselves here. so sitting at the back saying nothing was the whole intervention",
+      "verdict": "atom",
+      "linksToEarlier": ["A0106", "A0114"],
+      "linksToExisting": ["Ines Cardoso", "Mentoring"]
+    },
+    {
+      "id": "A0125",
+      "date": "2024-10-31",
+      "thread": "job-change",
+      "capture": "northlane final round with kwame. he described their planning and it sounded exactly like ours in 2022. red flag or just honest, cant tell",
+      "verdict": "atom",
+      "linksToEarlier": ["A0123"],
+      "linksToExisting": ["Job search 2024", "Northlane", "Kwame Boateng"]
+    },
+    {
+      "id": "A0126",
+      "date": "2024-11-05",
+      "thread": "job-change",
+      "capture": "offer from northlane. 8% less money. spent two weeks pretending the money isnt the thing im stuck on",
+      "verdict": "atom",
+      "linksToEarlier": ["A0125"],
+      "linksToExisting": ["Job search 2024", "Northlane"]
+    },
+    {
+      "id": "A0127",
+      "date": "2024-11-07",
+      "thread": "process-gripe",
+      "capture": "asked kwame about standups on the offer call. they dont have one. in january 23 that was my dream and now it reads as a warning",
+      "verdict": "atom",
+      "linksToEarlier": ["A0002", "A0101"],
+      "linksToExisting": ["Standup", "Northlane", "Kwame Boateng"]
+    },
+    {
+      "id": "A0128",
+      "date": "2024-11-12",
+      "thread": "job-change",
+      "capture": "took the northlane offer. the deciding bit was that in the interview they argued with me about a design and nobody deferred to anyone",
+      "verdict": "atom",
+      "linksToEarlier": ["A0126"],
+      "linksToExisting": ["Job search 2024", "Northlane"]
+    },
+    {
+      "id": "A0129",
+      "date": "2024-11-14",
+      "thread": "noise",
+      "capture": "book the van for the 14th of december, the small one is enough",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "A0130",
+      "date": "2024-11-19",
+      "thread": "difficult-colleague",
+      "capture": "resigned. gareth was the second person i told and the only one who asked a real question about it",
+      "verdict": "atom",
+      "linksToEarlier": ["A0121", "A0128"],
+      "linksToExisting": ["Gareth Ellery", "Job search 2024"]
+    },
+    {
+      "id": "A0131",
+      "date": "2024-11-22",
+      "thread": "mentoring",
+      "capture": "told ines im leaving. they said you told me to go in september. fair. handed over my half of the mentoring properly, wrote it all down",
+      "verdict": "atom",
+      "linksToEarlier": ["A0114", "A0116"],
+      "linksToExisting": ["Ines Cardoso", "Mentoring"]
+    },
+    {
+      "id": "A0132",
+      "date": "2024-11-26",
+      "thread": "job-change",
+      "capture": "handover doc for four years of work is nine pages. that is either very efficient or quite damning",
+      "verdict": "atom",
+      "linksToEarlier": ["A0059", "A0128"],
+      "linksToExisting": ["Job search 2024", "Project Harbor"]
+    },
+    {
+      "id": "A0133",
+      "date": "2024-11-29",
+      "thread": "job-change",
+      "capture": "last two weeks and everyone is suddenly warm. leaving is the only reliable way to find out what people actually thought of you",
+      "verdict": "atom",
+      "linksToEarlier": ["A0130"],
+      "linksToExisting": ["Job search 2024"]
+    },
+    {
+      "id": "A0134",
+      "date": "2024-12-04",
+      "thread": "difficult-colleague",
+      "capture": "last review from gareth. approved with this is much clearer than your 2023 prs. eighteen months and the thing that changed was me",
+      "verdict": "atom",
+      "linksToEarlier": ["A0025", "A0108"],
+      "linksToExisting": ["Gareth Ellery", "Code review"]
+    },
+    {
+      "id": "A0135",
+      "date": "2024-12-06",
+      "thread": "noise",
+      "capture": "leaving drinks the 12th, book the back room at the anchor",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "A0136",
+      "date": "2024-12-11",
+      "thread": "job-change",
+      "capture": "last day. the only things im taking are the runbook habit and the ines sessions",
+      "verdict": "atom",
+      "linksToEarlier": ["A0059", "A0131"],
+      "linksToExisting": ["Job search 2024", "Project Harbor", "Ines Cardoso"]
+    },
+    {
+      "id": "A0137",
+      "date": "2024-12-13",
+      "thread": "noise",
+      "capture": "van hire wants licence photos both sides emailed 48h before",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "A0138",
+      "date": "2024-12-16",
+      "thread": "mentoring",
+      "capture": "ines sent a note. said the harshest thing i ever did was tell them to delete the 400 line pr. and the most useful",
+      "verdict": "atom",
+      "linksToEarlier": ["A0082", "A0131"],
+      "linksToExisting": ["Ines Cardoso", "Mentoring"]
+    },
+    {
+      "id": "A0139",
+      "date": "2024-12-18",
+      "thread": "job-change",
+      "capture": "two weeks off before northlane. genuinely no idea who i am when im not mid project. slightly alarming",
+      "verdict": "atom",
+      "linksToEarlier": ["A0136"],
+      "linksToExisting": ["Job search 2024", "Northlane"]
+    },
+    {
+      "id": "A0140",
+      "date": "2024-12-27",
+      "thread": "job-change",
+      "capture": "read my january 2023 kickoff note. i already dont believe the date. i was right and being right did nothing for me. seeing it early isnt the skill, saying it early is",
+      "verdict": "atom",
+      "linksToEarlier": ["A0001", "A0023", "A0064"],
+      "linksToExisting": ["Project Harbor"]
+    },
+    {
+      "id": "A0141",
+      "date": "2024-12-30",
+      "thread": "job-change",
+      "capture": "plan for northlane: shut up for six weeks. i say that every time and last time it lasted about nine days",
+      "verdict": "atom",
+      "linksToEarlier": ["A0128"],
+      "linksToExisting": ["Northlane"]
+    },
+    {
+      "id": "A0142",
+      "date": "2025-01-06",
+      "thread": "job-change",
+      "capture": "day one at northlane. no laptop, no accounts, spent the day reading code over someone elses shoulder. learned more than i would have with access",
+      "verdict": "atom",
+      "linksToEarlier": ["A0141"],
+      "linksToExisting": ["Northlane"]
+    },
+    {
+      "id": "A0143",
+      "date": "2025-01-09",
+      "thread": "process-gripe",
+      "capture": "northlane has no standup and the cost is real. found out on day three that two people were building the same thing. i owe january 23 me an apology",
+      "verdict": "atom",
+      "linksToEarlier": ["A0002", "A0127"],
+      "linksToExisting": ["Standup", "Northlane"]
+    },
+    {
+      "id": "A0144",
+      "date": "2025-01-15",
+      "thread": "noise",
+      "capture": "new dentist near the office, they need the old records requested by me not them",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "A0145",
+      "date": "2025-01-21",
+      "thread": "job-change",
+      "capture": "shut up for six weeks lasted eleven days. said the loud thing in a design review. kwame agreed with me which is somehow worse",
+      "verdict": "atom",
+      "linksToEarlier": ["A0141"],
+      "linksToExisting": ["Northlane", "Kwame Boateng"]
+    },
+    {
+      "id": "A0146",
+      "date": "2025-01-28",
+      "thread": "mentoring",
+      "capture": "ines messaged for advice on a promo case. still mentoring, just unofficially and across two companies now. probably better this way",
+      "verdict": "atom",
+      "linksToEarlier": ["A0131", "A0102"],
+      "linksToExisting": ["Ines Cardoso", "Mentoring"]
+    },
+    {
+      "id": "A0147",
+      "date": "2025-02-04",
+      "thread": "job-change",
+      "capture": "northlanes importer has the same csv encoding bug i lost two weeks to in march 23. fixed it in an afternoon. thats what the last four years bought",
+      "verdict": "atom",
+      "linksToEarlier": ["A0013", "A0009"],
+      "linksToExisting": ["Northlane", "Project Harbor"]
+    },
+    {
+      "id": "A0148",
+      "date": "2025-02-12",
+      "thread": "noise",
+      "capture": "office coffee is bad, bring the small grinder in",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "A0149",
+      "date": "2025-02-19",
+      "thread": "job-change",
+      "capture": "40 people means i know what everyone is doing and its exhausting in a way i did not predict. small isnt lighter, its just closer",
+      "verdict": "atom",
+      "linksToEarlier": ["A0123"],
+      "linksToExisting": ["Northlane"]
+    },
+    {
+      "id": "A0150",
+      "date": "2025-02-25",
+      "thread": "mentoring",
+      "capture": "ines got the promo. i had nothing to do with it and i keep wanting to claim a piece. thats the ugly part of mentoring nobody writes down",
+      "verdict": "atom",
+      "linksToEarlier": ["A0146", "A0100"],
+      "linksToExisting": ["Ines Cardoso", "Mentoring"]
+    },
+    {
+      "id": "A0151",
+      "date": "2025-03-05",
+      "thread": "process-gripe",
+      "capture": "started a weekly written check-in here. it is a standup. i have reinvented the exact thing i complained about for two years, in writing, and im pleased with myself about it",
+      "verdict": "atom",
+      "linksToEarlier": ["A0011", "A0143"],
+      "linksToExisting": ["Standup", "Northlane"]
+    },
+    {
+      "id": "A0152",
+      "date": "2025-03-11",
+      "thread": "job-change",
+      "capture": "kwames planning really is 2022-us. but at 40 people it works, because everyone fits in the room. the process was never the problem at the old place, the scale was",
+      "verdict": "atom",
+      "linksToEarlier": ["A0125", "A0021"],
+      "linksToExisting": ["Northlane", "Kwame Boateng", "Sprint planning"]
+    },
+    {
+      "id": "A0153",
+      "date": "2025-03-18",
+      "thread": "mentoring",
+      "capture": "kwame asked me to mentor someone here. said yes without thinking, then remembered how much of the ines year was me talking too much early on",
+      "verdict": "atom",
+      "linksToEarlier": ["A0088", "A0105"],
+      "linksToExisting": ["Northlane", "Mentoring", "Kwame Boateng"]
+    },
+    {
+      "id": "A0154",
+      "date": "2025-03-24",
+      "thread": "job-change",
+      "capture": "three months in. the 8% is invisible and the arguing-in-design-reviews thing is still true. i picked the right signal by accident",
+      "verdict": "atom",
+      "linksToEarlier": ["A0126", "A0128"],
+      "linksToExisting": ["Northlane"]
+    },
+    {
+      "id": "A0155",
+      "date": "2025-03-31",
+      "thread": "mentoring",
+      "capture": "new mentee here is totally different. wants structure, hates the socratic silence thing. the ines method is a method not the method",
+      "verdict": "atom",
+      "linksToEarlier": ["A0153", "A0088"],
+      "linksToExisting": ["Northlane", "Mentoring"]
+    },
+    {
+      "id": "A0156",
+      "date": "2025-04-08",
+      "thread": "job-change",
+      "capture": "shipped my first real thing at northlane. wrote a runbook. kwame asked who told me to and the honest answer is a project from 2023",
+      "verdict": "atom",
+      "linksToEarlier": ["A0018", "A0037"],
+      "linksToExisting": ["Northlane", "Project Harbor", "Kwame Boateng"]
+    },
+    {
+      "id": "A0157",
+      "date": "2025-04-15",
+      "thread": "process-gripe",
+      "capture": "written check-in at 40% participation after five weeks. async rituals decay silently, sync ones decay loudly. thats the real difference and its an argument for meetings",
+      "verdict": "atom",
+      "linksToEarlier": ["A0151", "A0011"],
+      "linksToExisting": ["Standup", "Northlane"]
+    },
+    {
+      "id": "A0158",
+      "date": "2025-04-22",
+      "thread": "noise",
+      "capture": "cycle to work scheme closes the 30th, need the frame size first",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "A0159",
+      "date": "2025-04-29",
+      "thread": "job-change",
+      "capture": "asked kwame for a date on the q3 thing and heard myself turn into priya. the date is the date. now i know why she said it like that",
+      "verdict": "atom",
+      "linksToEarlier": ["A0001", "A0016"],
+      "linksToExisting": ["Northlane", "Priya Raghunathan", "Kwame Boateng"]
+    },
+    {
+      "id": "A0160",
+      "date": "2025-05-07",
+      "thread": "process-gripe",
+      "capture": "killed the written check-in, replaced it with a ten minute call on tuesdays. two and a half years of arguing and i landed one meeting away from where i started",
+      "verdict": "atom",
+      "linksToEarlier": ["A0157", "A0002"],
+      "linksToExisting": ["Standup", "Northlane"]
+    },
+    {
+      "id": "A0161",
+      "date": "2025-05-16",
+      "thread": "job-change",
+      "capture": "northlanes first slip and its mine. told kwame within a week of knowing. five weeks in 2023, five days now. thats the only thing i can measure improving",
+      "verdict": "atom",
+      "linksToEarlier": ["A0023", "A0070"],
+      "linksToExisting": ["Northlane", "Project Harbor", "Kwame Boateng"]
+    },
+    {
+      "id": "A0162",
+      "date": "2025-05-27",
+      "thread": "job-change",
+      "capture": "the thing i miss is having a gareth. nobody here reviews hard enough and ive started making mistakes that would have been caught",
+      "verdict": "atom",
+      "linksToEarlier": ["A0108", "A0058"],
+      "linksToExisting": ["Northlane", "Gareth Ellery", "Code review"]
+    },
+    {
+      "id": "A0163",
+      "date": "2025-06-04",
+      "thread": "process-gripe",
+      "capture": "tuesday call works. the difference from the old standup isnt format, its that nobody reports upward in it. i spent 2023 blaming a meeting for a hierarchy problem",
+      "verdict": "atom",
+      "linksToEarlier": ["A0080", "A0101"],
+      "linksToExisting": ["Standup", "Northlane"]
+    },
+    {
+      "id": "A0164",
+      "date": "2025-06-12",
+      "thread": "noise",
+      "capture": "fridge shelf cracked, model number is inside the door",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "A0165",
+      "date": "2025-06-24",
+      "thread": "job-change",
+      "capture": "kwame says im the person people are nervous about sending prs to now. i have become a small gareth in six months without noticing",
+      "verdict": "atom",
+      "linksToEarlier": ["A0162", "A0086"],
+      "linksToExisting": ["Northlane", "Gareth Ellery", "Code review", "Kwame Boateng"]
+    },
+    {
+      "id": "A0166",
+      "date": "2025-07-02",
+      "thread": "job-change",
+      "capture": "wrote the two paragraph why this pr exists rule into our contributing doc. stole it from myself, feb 2024, which i only wrote because i was annoyed at someone",
+      "verdict": "atom",
+      "linksToEarlier": ["A0078", "A0165"],
+      "linksToExisting": ["Northlane", "Code review"]
+    },
+    {
+      "id": "A0167",
+      "date": "2025-07-10",
+      "thread": "process-gripe",
+      "capture": "pre-reads here: three questions at the top, same trick as 2024, works again. the trick was never async vs sync, it was giving people a job inside the doc",
+      "verdict": "atom",
+      "linksToEarlier": ["A0090", "A0032"],
+      "linksToExisting": ["Sprint planning", "Northlane"]
+    },
+    {
+      "id": "A0168",
+      "date": "2025-07-19",
+      "thread": "noise",
+      "capture": "renew the parking permit, needs the v5c and a utility bill",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "A0169",
+      "date": "2025-07-28",
+      "thread": "job-change",
+      "capture": "six months of northlane and the honest read is i changed companies to avoid changing how i work, and then had to change how i work anyway",
+      "verdict": "atom",
+      "linksToEarlier": ["A0128", "A0154"],
+      "linksToExisting": ["Northlane"]
+    },
+    {
+      "id": "A0170",
+      "date": "2025-08-06",
+      "thread": "process-gripe",
+      "capture": "we are adding a quarterly planning layer and i argued for it. january 2024 me would not recognise this person",
+      "verdict": "atom",
+      "linksToEarlier": ["A0071", "A0095"],
+      "linksToExisting": ["Sprint planning", "Northlane"]
+    },
+    {
+      "id": "A0171",
+      "date": "2025-08-20",
+      "thread": "job-change",
+      "capture": "priya messaged, she left too. asked if the harbor slip conversation stuck with me. it defined how i do dates now and she had no idea",
+      "verdict": "atom",
+      "linksToEarlier": ["A0023", "A0161"],
+      "linksToExisting": ["Priya Raghunathan", "Project Harbor", "Northlane"]
+    },
+    {
+      "id": "A0172",
+      "date": "2025-09-03",
+      "thread": "process-gripe",
+      "capture": "the quarterly layer i argued for is already generating a status doc nobody reads. i knew this. i knew this in 2023 and argued for it anyway",
+      "verdict": "atom",
+      "linksToEarlier": ["A0032", "A0170"],
+      "linksToExisting": ["Sprint planning", "Northlane"]
+    },
+    {
+      "id": "A0173",
+      "date": "2025-09-15",
+      "thread": "noise",
+      "capture": "flu jab at the pharmacy, walk-ins after 2pm weekdays",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "A0174",
+      "date": "2025-09-26",
+      "thread": "job-change",
+      "capture": "a year since the northlane final round. the red flag i clocked in kwames planning answer was real and it was also completely fine. both things",
+      "verdict": "atom",
+      "linksToEarlier": ["A0125", "A0152"],
+      "linksToExisting": ["Northlane", "Kwame Boateng"]
+    },
+    {
+      "id": "A0175",
+      "date": "2025-10-07",
+      "thread": "process-gripe",
+      "capture": "rule i actually believe now: no ritual survives without one person who wants it. every process argument i had in 2023 was really about who was willing to carry the thing",
+      "verdict": "atom",
+      "linksToEarlier": ["A0095", "A0163"],
+      "linksToExisting": ["Standup", "Sprint planning"]
+    },
+    {
+      "id": "A0176",
+      "date": "2025-10-16",
+      "thread": "noise",
+      "capture": "car mot due the 3rd of november, book the ferndale garage",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "A0177",
+      "date": "2025-10-28",
+      "thread": "job-change",
+      "capture": "ines is interviewing at northlane. did not engineer this and cannot pretend im neutral about it either",
+      "verdict": "atom",
+      "linksToEarlier": ["A0146", "A0150"],
+      "linksToExisting": ["Ines Cardoso", "Northlane"]
+    },
+    {
+      "id": "A0178",
+      "date": "2025-11-11",
+      "thread": "process-gripe",
+      "capture": "read all my standup notes end to end. wrong in 2023, right by accident in 2024, and in 2025 im defending meetings. the position moved because the rooms moved, not because i learned anything general",
+      "verdict": "atom",
+      "linksToEarlier": ["A0002", "A0061", "A0143", "A0160"],
+      "linksToExisting": ["Standup"]
+    },
+    {
+      "id": "A0179",
+      "date": "2025-11-24",
+      "thread": "job-change",
+      "capture": "one year at northlane on the 6th of january. only thing id tell 2024 me: the offer wasnt the decision, saying no to the staff ladder in july was",
+      "verdict": "atom",
+      "linksToEarlier": ["A0110", "A0104"],
+      "linksToExisting": ["Northlane", "Job search 2024"]
+    },
+    {
+      "id": "A0180",
+      "date": "2025-12-09",
+      "thread": "noise",
+      "capture": "office closes the 19th, secret santa thing has to be under 15",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    }
+  ]
+}

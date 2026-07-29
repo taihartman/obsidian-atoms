@@ -18,7 +18,8 @@
     "typecheck": "tsc -noEmit -skipLibCheck",
     "build:www": "node www/build.mjs",
     "measure:recall": "node scripts/measure-shortlist-recall.mjs",
-    "measure:links": "node scripts/measure-link-quality.mjs"
+    "measure:links": "node scripts/measure-link-quality.mjs",
+    "measure:chrono": "node scripts/measure-chrono-linking.mjs"
   },
   "keywords": [
     "obsidian",

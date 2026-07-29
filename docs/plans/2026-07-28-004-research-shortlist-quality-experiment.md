@@ -364,6 +364,56 @@ frozen list for ~2 points of quality that sit inside measurement noise.
 The open question is therefore no longer "blocks of what size" but **how much is in-run linking
 worth** — because that is what the frozen list gives up, and it is a product judgement, not a number.
 
+## Results — chronological simulation, 2026-07-28. Blocks are not dead; I measured them wrong.
+
+`npm run measure:chrono`. Free. Corpus: **720 dated captures (576 atoms) over three years**, twenty
+interleaving life threads — projects that run for months then go quiet, people who recur, beliefs
+that get overturned. Fixtures `scripts/fixtures/chrono-corpus-{a,b,c,d}.json`; each capture declares
+which *earlier* captures it belongs with, which is the ground truth a frozen list cannot serve.
+
+**Correction.** The section above concluded blocks were dead because shortlist unions saturated to
+the whole vault by ~40 captures. That measurement used the 84-probe corpus, which was deliberately
+built with no topical clustering — an adversarial floor, not a realistic one. On dated captures that
+cluster the way a life does, a weekly union is **897 titles, not 3,000**. The conclusion was an
+artefact of my corpus design.
+
+**What the frozen list costs: 811 in-run links** across 576 atoms — 1.4 per atom. Median reach-back
+**98 days**, 278 of them over 200 days, longest **1,084 days**. Every one is unreachable today.
+
+| Chunk | atoms/chunk | Reachable | Recovered | Union | Cacheable |
+|---|---|---|---|---|---|
+| per capture | 1 | 100% | **79%** | 400 | **no** |
+| 1 week | 4 | 99% | **79%** | 619 | yes, 156 lists |
+| 1 month | 16 | 87% | 71% | 897 | yes, 37 lists |
+| 1 quarter | 44 | 68% | 56% | 1,104 | yes, 13 lists |
+| 1 year | 192 | 34% | 29% | 1,188 | yes, 3 lists |
+| **whole run (today)** | 576 | **0%** | **0%** | 1,028 | yes |
+
+Two independent levers, which is why calendar chunks are the right unit:
+**reachability** is set by chunk *duration* against link gap in days, so it is density-independent;
+**union size** is set by *atoms per chunk*, so it scales with vault density. Counting captures
+conflates them.
+
+Costed at real catch-up density (3,000 captures over 3 years ≈ 19 atoms/week, so union read off the
+comparable atoms-per-chunk row):
+
+| Strategy | Prefix | Cost | In-run links recovered |
+|---|---|---|---|
+| **monthly chunks, k=400** | 21,690 | **$18.81** | 71% |
+| weekly chunks, k=400 | 18,281 | **$23.18** | **79%** |
+| quarterly chunks, k=400 | 22,975 | $17.95 | 56% |
+| per capture, k=400 | 10,095 | $52.26 | 79% |
+| **frozen full (today)** | 52,917 | **$30.79** | **0%** |
+
+**Chronological chunking wins on both axes at once.** Monthly is **39% cheaper than today** and
+recovers 71% of the links today loses entirely; weekly costs $4 more for 8 more points. Per-capture
+shortlisting — the thing I was steering toward — is the worst option costed, because it forfeits the
+cache for no recovery advantage over weekly.
+
+**The 21% that is still lost is selector loss, not chunking loss.** At weekly chunks, 99% of targets
+had already been written; the shortlist simply failed to surface some. That is the same ceiling as
+the link-quality runs and it moves with selector work, not with chunk size.
+
 ### What is still owed
 
 Step 5 — owner review of the disagreements. The numbers above score against *planted* targets and

@@ -1,0 +1,93 @@
+{
+  "k": 400,
+  "captures": 720,
+  "atoms": 576,
+  "inRunLinks": 811,
+  "medianGapDays": 98,
+  "rows": [
+    {
+      "period": "per capture",
+      "days": 0,
+      "reachable": 811,
+      "inShortlist": 639,
+      "reachableRate": 1,
+      "recall": 0.788,
+      "avgUnion": 400,
+      "chunkCount": 576,
+      "avgChunkSize": 1,
+      "sharedRecall": 0.788
+    },
+    {
+      "period": "1 week",
+      "days": 7,
+      "reachable": 806,
+      "inShortlist": 637,
+      "reachableRate": 0.994,
+      "recall": 0.785,
+      "avgUnion": 619,
+      "chunkCount": 156,
+      "avgChunkSize": 4,
+      "sharedRecall": 0.91
+    },
+    {
+      "period": "1 month",
+      "days": 30,
+      "reachable": 705,
+      "inShortlist": 572,
+      "reachableRate": 0.869,
+      "recall": 0.705,
+      "avgUnion": 897,
+      "chunkCount": 37,
+      "avgChunkSize": 16,
+      "sharedRecall": 0.861
+    },
+    {
+      "period": "1 quarter",
+      "days": 91,
+      "reachable": 551,
+      "inShortlist": 452,
+      "reachableRate": 0.679,
+      "recall": 0.557,
+      "avgUnion": 1104,
+      "chunkCount": 13,
+      "avgChunkSize": 44,
+      "sharedRecall": 0.674
+    },
+    {
+      "period": "6 months",
+      "days": 182,
+      "reachable": 428,
+      "inShortlist": 355,
+      "reachableRate": 0.528,
+      "recall": 0.438,
+      "avgUnion": 1182,
+      "chunkCount": 7,
+      "avgChunkSize": 82,
+      "sharedRecall": 0.527
+    },
+    {
+      "period": "1 year",
+      "days": 365,
+      "reachable": 279,
+      "inShortlist": 237,
+      "reachableRate": 0.344,
+      "recall": 0.292,
+      "avgUnion": 1188,
+      "chunkCount": 3,
+      "avgChunkSize": 192,
+      "sharedRecall": 0.344
+    },
+    {
+      "period": "whole run",
+      "days": null,
+      "reachable": 0,
+      "inShortlist": 0,
+      "reachableRate": 0,
+      "recall": 0,
+      "avgUnion": 1028,
+      "chunkCount": 1,
+      "avgChunkSize": 576,
+      "sharedRecall": 0
+    }
+  ]
+}

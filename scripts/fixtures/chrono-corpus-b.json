@@ -1,0 +1,1624 @@
+{
+  "captures": [
+    {
+      "id": "B0001",
+      "date": "2023-01-04",
+      "thread": "house-move",
+      "capture": "ok we are actually doing this. set up alerts on three sites last night, nat says stop refreshing before bed. the thing i keep coming back to is i want a place where the kitchen isnt a corridor",
+      "verdict": "atom",
+      "linksToEarlier": [],
+      "linksToExisting": ["Nadia", "House move"]
+    },
+    {
+      "id": "B0002",
+      "date": "2023-01-09",
+      "thread": "friendships",
+      "capture": "omars birthday at the thai place. eight of us, felt like the old days for about an hour and then everyone checked their phones at the same time. still. glad i went",
+      "verdict": "atom",
+      "linksToEarlier": [],
+      "linksToExisting": ["Omar"]
+    },
+    {
+      "id": "B0003",
+      "date": "2023-01-12",
+      "thread": "ageing-parent",
+      "capture": "dad told me the story about the van breaking down at rhyl twice in the same call. didnt say anything. not sure if thats kindness or cowardice",
+      "verdict": "atom",
+      "linksToEarlier": [],
+      "linksToExisting": ["Dad"]
+    },
+    {
+      "id": "B0004",
+      "date": "2023-01-15",
+      "thread": "noise",
+      "capture": "return the grey jumper before the 30 days runs out, receipt is in the kitchen drawer",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "B0005",
+      "date": "2023-01-21",
+      "thread": "house-move",
+      "capture": "first viewing. the flat above the chip shop. smelled exactly like you think and the agent kept calling it characterful. nat did the polite face the whole way round",
+      "verdict": "atom",
+      "linksToEarlier": ["B0001"],
+      "linksToExisting": ["Nadia", "House move"]
+    },
+    {
+      "id": "B0006",
+      "date": "2023-01-28",
+      "thread": "house-move",
+      "capture": "settled something on the walk back. garden not balcony. i thought i didnt care and it turns out i care a lot, i want somewhere to stand outside in my socks",
+      "verdict": "atom",
+      "linksToEarlier": ["B0001", "B0005"],
+      "linksToExisting": ["House move"]
+    },
+    {
+      "id": "B0007",
+      "date": "2023-02-03",
+      "thread": "friendships",
+      "capture": "priya is moving to leeds. announced it in the group chat with a train emoji like it was nothing. i think ive been assuming everyone stays put by default and thats just not how it works",
+      "verdict": "atom",
+      "linksToEarlier": [],
+      "linksToExisting": ["Priya"]
+    },
+    {
+      "id": "B0008",
+      "date": "2023-02-06",
+      "thread": "noise",
+      "capture": "dentist moved me to the 27th at 4.20, put it in the calendar",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "B0009",
+      "date": "2023-02-11",
+      "thread": "house-move",
+      "capture": "mortgage in principle came through. the number is bigger than i expected and somehow that made me feel worse not better. it is a very long time to owe someone something",
+      "verdict": "atom",
+      "linksToEarlier": ["B0001"],
+      "linksToExisting": ["House move"]
+    },
+    {
+      "id": "B0010",
+      "date": "2023-02-14",
+      "thread": "ageing-parent",
+      "capture": "dad still hasnt taken the new phone out of the box. said the old one works fine. it does not work fine, half his texts arrive as three separate messages",
+      "verdict": "atom",
+      "linksToEarlier": ["B0003"],
+      "linksToExisting": ["Dad"]
+    },
+    {
+      "id": "B0011",
+      "date": "2023-02-19",
+      "thread": "house-move",
+      "capture": "rowan street. small back garden with a mad apple tree in it, sloping floor upstairs, kitchen you can turn round in. we didnt say anything to each other until we were two streets away and then we both said it at once",
+      "verdict": "atom",
+      "linksToEarlier": ["B0006"],
+      "linksToExisting": ["Rowan Street house", "Nadia"]
+    },
+    {
+      "id": "B0012",
+      "date": "2023-02-25",
+      "thread": "friendships",
+      "capture": "dinner at tomek and kirstens. tomek cooked the pork thing again, four hours, worth it. kirsten was quiet in a way i didnt ask about",
+      "verdict": "atom",
+      "linksToEarlier": [],
+      "linksToExisting": ["Tomek", "Kirsten"]
+    },
+    {
+      "id": "B0013",
+      "date": "2023-03-02",
+      "thread": "house-move",
+      "capture": "offer on rowan street rejected. denise said sealed bids which i think means someone else wants it more than we can afford to. gutted in a way that surprised me for a house ive stood in once",
+      "verdict": "atom",
+      "linksToEarlier": ["B0011"],
+      "linksToExisting": ["Rowan Street house", "House move"]
+    },
+    {
+      "id": "B0014",
+      "date": "2023-03-05",
+      "thread": "noise",
+      "capture": "bins go out sunday night not monday now apparently, council changed it",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "B0015",
+      "date": "2023-03-09",
+      "thread": "ageing-parent",
+      "capture": "bex says dads doing his shop online now and getting eight tins of the same soup. she said it as a funny story. i laughed and then thought about it for the rest of the evening",
+      "verdict": "atom",
+      "linksToEarlier": ["B0003", "B0010"],
+      "linksToExisting": ["Dad", "Bex"]
+    },
+    {
+      "id": "B0016",
+      "date": "2023-03-15",
+      "thread": "house-move",
+      "capture": "booked a viewing for a top floor flat with a roof terrace. so much for garden not balcony. i said it like a principle six weeks ago and it turns out it was a preference with good lighting",
+      "verdict": "atom",
+      "linksToEarlier": ["B0006"],
+      "linksToExisting": ["House move"]
+    },
+    {
+      "id": "B0017",
+      "date": "2023-03-22",
+      "thread": "house-move",
+      "capture": "the other buyer pulled out. rowan street is ours, offer accepted, second time lucky. nat cried in the car park of a b and q which is very on brand for us",
+      "verdict": "atom",
+      "linksToEarlier": ["B0013"],
+      "linksToExisting": ["Rowan Street house", "Nadia"]
+    },
+    {
+      "id": "B0018",
+      "date": "2023-03-26",
+      "thread": "friendships",
+      "capture": "omar cancelled again, two hours before. thats four in a row now. im not angry im just recalibrating what omar means when he says yes",
+      "verdict": "atom",
+      "linksToEarlier": ["B0002"],
+      "linksToExisting": ["Omar"]
+    },
+    {
+      "id": "B0019",
+      "date": "2023-04-02",
+      "thread": "house-move",
+      "capture": "survey booked for the 12th, went for the full one not the cheap one. everyone tells you to and then you look at the price and understand why people dont",
+      "verdict": "atom",
+      "linksToEarlier": ["B0017"],
+      "linksToExisting": ["Rowan Street house", "House move"]
+    },
+    {
+      "id": "B0020",
+      "date": "2023-04-05",
+      "thread": "noise",
+      "capture": "book the car in for its mot, garage on mill lane, they said any weekday before 9",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "B0021",
+      "date": "2023-04-11",
+      "thread": "ageing-parent",
+      "capture": "took dad to the eye appointment. he was chatty with the nurse and completely silent with me on the drive back. i think being looked after by your kid is its own kind of insult",
+      "verdict": "atom",
+      "linksToEarlier": ["B0015"],
+      "linksToExisting": ["Dad"]
+    },
+    {
+      "id": "B0022",
+      "date": "2023-04-14",
+      "thread": "house-move",
+      "capture": "survey back. damp along the back wall of the small bedroom, and the boiler is described as beyond its serviceable life which is a beautiful way of saying it is a museum piece",
+      "verdict": "atom",
+      "linksToEarlier": ["B0019"],
+      "linksToExisting": ["Rowan Street house"]
+    },
+    {
+      "id": "B0023",
+      "date": "2023-04-20",
+      "thread": "friendships",
+      "capture": "video call with priya. leeds is actually good for them, cheaper flat, walks to work, made a friend at a pottery thing. i was braced for homesick and got happy instead",
+      "verdict": "atom",
+      "linksToEarlier": ["B0007"],
+      "linksToExisting": ["Priya"]
+    },
+    {
+      "id": "B0024",
+      "date": "2023-04-27",
+      "thread": "house-move",
+      "capture": "sat at the kitchen table with nat and genuinely nearly pulled out over the boiler. it is not the boiler. it is that the boiler is the first thing after the survey and there will be a hundred more of them",
+      "verdict": "atom",
+      "linksToEarlier": ["B0022"],
+      "linksToExisting": ["Rowan Street house", "Nadia"]
+    },
+    {
+      "id": "B0025",
+      "date": "2023-05-03",
+      "thread": "house-move",
+      "capture": "asked for 6k off citing the survey and got 4. felt bad for about ten minutes and then didnt. denise was fine about it, she has clearly done this a thousand times",
+      "verdict": "atom",
+      "linksToEarlier": ["B0024", "B0022"],
+      "linksToExisting": ["Rowan Street house", "House move"]
+    },
+    {
+      "id": "B0026",
+      "date": "2023-05-08",
+      "thread": "noise",
+      "capture": "chase the payslip thing with hr, third time",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "B0027",
+      "date": "2023-05-12",
+      "thread": "ageing-parent",
+      "capture": "dads garden is getting away from him. the beds he was so precise about are just green now. he kept saying hell get to it. he built that garden over twenty years and cannot say the sentence out loud",
+      "verdict": "atom",
+      "linksToEarlier": ["B0021"],
+      "linksToExisting": ["Dad"]
+    },
+    {
+      "id": "B0028",
+      "date": "2023-05-17",
+      "thread": "friendships",
+      "capture": "kirsten got the job at the museum. thats what the quiet was in february, they were waiting and didnt want to jinx it. told me over a pint like it was a small thing",
+      "verdict": "atom",
+      "linksToEarlier": ["B0012"],
+      "linksToExisting": ["Kirsten"]
+    },
+    {
+      "id": "B0029",
+      "date": "2023-05-24",
+      "thread": "house-move",
+      "capture": "the solicitor has gone quiet again. two weeks on a question about a drainage plan. i have started to understand that this whole process is just waiting punctuated by forms",
+      "verdict": "atom",
+      "linksToEarlier": ["B0025"],
+      "linksToExisting": ["House move"]
+    },
+    {
+      "id": "B0030",
+      "date": "2023-05-30",
+      "thread": "noise",
+      "capture": "milk, coffee, the good bread, bin bags",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "B0031",
+      "date": "2023-06-05",
+      "thread": "house-move",
+      "capture": "chain wobbled today. the family two above us threatened to walk. spent the afternoon refreshing an email inbox like a lunatic and then it resolved itself and nobody told us why",
+      "verdict": "atom",
+      "linksToEarlier": ["B0029"],
+      "linksToExisting": ["House move"]
+    },
+    {
+      "id": "B0032",
+      "date": "2023-06-09",
+      "thread": "friendships",
+      "capture": "tomek made a joke about nat being the one who wears the trousers on the house thing and everyone laughed and i didnt. it wasnt the joke it was the third time. said nothing again",
+      "verdict": "atom",
+      "linksToEarlier": ["B0012"],
+      "linksToExisting": ["Tomek", "Nadia"]
+    },
+    {
+      "id": "B0033",
+      "date": "2023-06-15",
+      "thread": "ageing-parent",
+      "capture": "floated a cleaner once a fortnight and dad shut it down flat. said hes not having a stranger going through his things. so thats the shape of it, its not about the dust",
+      "verdict": "atom",
+      "linksToEarlier": ["B0027"],
+      "linksToExisting": ["Dad"]
+    },
+    {
+      "id": "B0034",
+      "date": "2023-06-21",
+      "thread": "house-move",
+      "capture": "EXCHANGED. completion the 6th. i thought id feel triumphant and mostly i feel like ive signed something i cant read",
+      "verdict": "atom",
+      "linksToEarlier": ["B0031", "B0017"],
+      "linksToExisting": ["Rowan Street house", "House move"]
+    },
+    {
+      "id": "B0035",
+      "date": "2023-06-24",
+      "thread": "noise",
+      "capture": "order more of the packing tape, the cheap stuff splits",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "B0036",
+      "date": "2023-06-29",
+      "thread": "house-move",
+      "capture": "packing is an audit you didnt ask for. four boxes to the charity shop and a shoebox of things i cannot throw away and cannot explain to anyone",
+      "verdict": "atom",
+      "linksToEarlier": ["B0034"],
+      "linksToExisting": ["House move"]
+    },
+    {
+      "id": "B0037",
+      "date": "2023-07-06",
+      "thread": "house-move",
+      "capture": "keys. sat on the floor of the empty front room with a bag of chips and no chairs. six months from setting up the alerts to this. it is ours, sloping floor and all",
+      "verdict": "atom",
+      "linksToEarlier": ["B0034", "B0001"],
+      "linksToExisting": ["Rowan Street house", "House move"]
+    },
+    {
+      "id": "B0038",
+      "date": "2023-07-08",
+      "thread": "house-move",
+      "capture": "no hot water on night two. the boiler makes a noise like a man clearing his throat and then does nothing. the survey said this and i still somehow expected it to hold",
+      "verdict": "atom",
+      "linksToEarlier": ["B0022"],
+      "linksToExisting": ["Rowan Street house"]
+    },
+    {
+      "id": "B0039",
+      "date": "2023-07-12",
+      "thread": "noise",
+      "capture": "change address on the car insurance and the bank, deadline is the end of the month",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "B0040",
+      "date": "2023-07-15",
+      "thread": "friendships",
+      "capture": "housewarming for the 5th of august. wrote the list and realised the list is shorter than it would have been three years ago and thats not a tragedy, just a fact worth noticing",
+      "verdict": "atom",
+      "linksToEarlier": ["B0037"],
+      "linksToExisting": ["Rowan Street house"]
+    },
+    {
+      "id": "B0041",
+      "date": "2023-07-19",
+      "thread": "ageing-parent",
+      "capture": "dad came to see the house. went round the outside first, checked the pointing, tapped the window frames, said the apple tree needs a hard prune in the winter. happiest ive seen him in a year",
+      "verdict": "atom",
+      "linksToEarlier": ["B0037", "B0033"],
+      "linksToExisting": ["Dad", "Rowan Street house"]
+    },
+    {
+      "id": "B0042",
+      "date": "2023-07-25",
+      "thread": "house-move",
+      "capture": "the neighbour on the left introduced himself over the fence, sunday, been here 22 years. gave us a bag of runner beans and the entire political history of the street. think we got lucky",
+      "verdict": "atom",
+      "linksToEarlier": ["B0037"],
+      "linksToExisting": ["Sunday next door", "Rowan Street house"]
+    },
+    {
+      "id": "B0043",
+      "date": "2023-08-02",
+      "thread": "house-move",
+      "capture": "kev the boiler man. 90 quid to be told it is 24 years old and he can keep it going but he wouldnt want to be relying on it in january. wrote that sentence down because it is clearly a prophecy",
+      "verdict": "atom",
+      "linksToEarlier": ["B0038"],
+      "linksToExisting": ["Rowan Street house"]
+    },
+    {
+      "id": "B0044",
+      "date": "2023-08-06",
+      "thread": "friendships",
+      "capture": "housewarming was lovely and omar didnt come. no message until the next afternoon. i think im done doing the maths on it, im just going to stop expecting him and see how that feels",
+      "verdict": "atom",
+      "linksToEarlier": ["B0040", "B0018"],
+      "linksToExisting": ["Omar"]
+    },
+    {
+      "id": "B0045",
+      "date": "2023-08-11",
+      "thread": "noise",
+      "capture": "curtain pole for the front room, 180cm, the bracket kind not the tension kind",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "B0046",
+      "date": "2023-08-17",
+      "thread": "house-move",
+      "capture": "the little back room is going to be a study. desk under the window, shelves on the damp wall once thats sorted. i can see it completely, which is usually where i get into trouble",
+      "verdict": "atom",
+      "linksToEarlier": ["B0037"],
+      "linksToExisting": ["Rowan Street house"]
+    },
+    {
+      "id": "B0047",
+      "date": "2023-08-23",
+      "thread": "ageing-parent",
+      "capture": "dads neighbour rang me. hob left on, not the first time apparently, she just hadnt wanted to say. the fact she has been quietly watching him for months is the bit that got me",
+      "verdict": "atom",
+      "linksToEarlier": ["B0033"],
+      "linksToExisting": ["Dad"]
+    },
+    {
+      "id": "B0048",
+      "date": "2023-08-29",
+      "thread": "friendships",
+      "capture": "priya came down for the weekend. slept on the sofa bed, we did nothing, it was perfect. distance has actually made us better at seeing each other properly",
+      "verdict": "atom",
+      "linksToEarlier": ["B0023"],
+      "linksToExisting": ["Priya"]
+    },
+    {
+      "id": "B0049",
+      "date": "2023-09-04",
+      "thread": "house-move",
+      "capture": "revising my view on sunday. angle grinder at 7.40 on a sunday morning, three weekends running, hes building something enormous out the back. the runner beans were a down payment",
+      "verdict": "atom",
+      "linksToEarlier": ["B0042"],
+      "linksToExisting": ["Sunday next door"]
+    },
+    {
+      "id": "B0050",
+      "date": "2023-09-09",
+      "thread": "noise",
+      "capture": "flu jab, pharmacy does walk in on wednesdays",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "B0051",
+      "date": "2023-09-14",
+      "thread": "ageing-parent",
+      "capture": "told bex about the hob and she said i was catastrophising, that hes 76 not 96. maybe. but she talks to him on the phone and i sit in his kitchen",
+      "verdict": "atom",
+      "linksToEarlier": ["B0047", "B0015"],
+      "linksToExisting": ["Dad", "Bex"]
+    },
+    {
+      "id": "B0052",
+      "date": "2023-09-20",
+      "thread": "house-move",
+      "capture": "the study has three paint samples on the wall and nothing else has happened for a month. the samples have been up so long theyve stopped looking like a decision and started looking like decor",
+      "verdict": "atom",
+      "linksToEarlier": ["B0046"],
+      "linksToExisting": ["Rowan Street house"]
+    },
+    {
+      "id": "B0053",
+      "date": "2023-09-27",
+      "thread": "friendships",
+      "capture": "tomek did the closest thing he does to an apology, which is buying the round and being unusually kind about my job. ill take it. dont think he knows what its for",
+      "verdict": "atom",
+      "linksToEarlier": ["B0032"],
+      "linksToExisting": ["Tomek"]
+    },
+    {
+      "id": "B0054",
+      "date": "2023-10-03",
+      "thread": "noise",
+      "capture": "cancel the old broadband, they charge you til you ring them",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "B0055",
+      "date": "2023-10-09",
+      "thread": "house-move",
+      "capture": "first properly cold morning and i stood by the boiler listening to it like a nervous parent. kevs january line is living in my head rent free",
+      "verdict": "atom",
+      "linksToEarlier": ["B0043", "B0038"],
+      "linksToExisting": ["Rowan Street house"]
+    },
+    {
+      "id": "B0056",
+      "date": "2023-10-15",
+      "thread": "ageing-parent",
+      "capture": "dads birthday. he was sharp as anything, took the mick out of my driving for a solid ten minutes, remembered the name of nats old boss. so what am i actually worried about. maybe im building a story out of three bad days",
+      "verdict": "atom",
+      "linksToEarlier": ["B0051", "B0047"],
+      "linksToExisting": ["Dad"]
+    },
+    {
+      "id": "B0057",
+      "date": "2023-10-22",
+      "thread": "friendships",
+      "capture": "kirstens first month at the museum and theyre lit up about it. hadnt realised how flat theyd got in the old job until i saw the difference",
+      "verdict": "atom",
+      "linksToEarlier": ["B0028"],
+      "linksToExisting": ["Kirsten"]
+    },
+    {
+      "id": "B0058",
+      "date": "2023-10-28",
+      "thread": "house-move",
+      "capture": "raked the apple leaves in the dark after work and was completely happy. i nearly talked myself into a roof terrace in march. glad the balcony version of us lost",
+      "verdict": "atom",
+      "linksToEarlier": ["B0016", "B0006"],
+      "linksToExisting": ["Rowan Street house"]
+    },
+    {
+      "id": "B0059",
+      "date": "2023-11-04",
+      "thread": "noise",
+      "capture": "buy a proper draught excluder for the front door, the towel is not a long term plan",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "B0060",
+      "date": "2023-11-08",
+      "thread": "ageing-parent",
+      "capture": "tried to bring up the will and the house and dad changed the subject to the football so smoothly it was almost impressive. hes not avoiding paperwork hes avoiding the tense the sentence is in",
+      "verdict": "atom",
+      "linksToEarlier": ["B0056"],
+      "linksToExisting": ["Dad"]
+    },
+    {
+      "id": "B0061",
+      "date": "2023-11-15",
+      "thread": "house-move",
+      "capture": "boiler is dead. properly, not the throat clearing thing. four days off work between us, kettles on the hob, showering at the gym. november not january, kev was optimistic",
+      "verdict": "atom",
+      "linksToEarlier": ["B0055"],
+      "linksToExisting": ["Rowan Street house"]
+    },
+    {
+      "id": "B0062",
+      "date": "2023-11-19",
+      "thread": "friendships",
+      "capture": "the group chat has been dead for eleven days. nobody fell out, it just ran out of momentum. i keep thinking someone else will start it and so does everyone else presumably",
+      "verdict": "atom",
+      "linksToEarlier": ["B0044"],
+      "linksToExisting": ["Omar", "Tomek", "Kirsten"]
+    },
+    {
+      "id": "B0063",
+      "date": "2023-11-26",
+      "thread": "house-move",
+      "capture": "three quotes, 2.8k to 4.1k. this is the exact number i nearly walked away over in the spring. i didnt walk away and now im paying it anyway which is somehow both the worst and the right outcome",
+      "verdict": "atom",
+      "linksToEarlier": ["B0061", "B0024"],
+      "linksToExisting": ["Rowan Street house", "House move"]
+    },
+    {
+      "id": "B0064",
+      "date": "2023-12-02",
+      "thread": "noise",
+      "capture": "post the parcel to bex before the last posting date, it is the 20th this year",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "B0065",
+      "date": "2023-12-07",
+      "thread": "ageing-parent",
+      "capture": "dads coming to us for christmas, first time ever. hes always hosted. he agreed on the phone in about four seconds which tells me hed been hoping id ask",
+      "verdict": "atom",
+      "linksToEarlier": ["B0041"],
+      "linksToExisting": ["Dad"]
+    },
+    {
+      "id": "B0066",
+      "date": "2023-12-13",
+      "thread": "house-move",
+      "capture": "new boiler in, two days, the fitters were lovely and left the floor cleaner than they found it. house is warm everywhere at once for the first time since july. weirdly emotional about a radiator",
+      "verdict": "atom",
+      "linksToEarlier": ["B0063"],
+      "linksToExisting": ["Rowan Street house"]
+    },
+    {
+      "id": "B0067",
+      "date": "2023-12-19",
+      "thread": "friendships",
+      "capture": "omar messaged out of nowhere. long one, said hes been in a hole since the summer and knows hes been rubbish. i had built a whole theory about him not caring and it was wrong in the most obvious direction",
+      "verdict": "atom",
+      "linksToEarlier": ["B0062", "B0044"],
+      "linksToExisting": ["Omar"]
+    },
+    {
+      "id": "B0068",
+      "date": "2023-12-25",
+      "thread": "noise",
+      "capture": "turkey out of the fridge at 9, oven on at 11",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "B0069",
+      "date": "2023-12-28",
+      "thread": "ageing-parent",
+      "capture": "dad went to bed at half eight both nights and was fine but small in a way i havent seen before. october version of him and christmas version of him are different people and i dont know which is the real baseline",
+      "verdict": "atom",
+      "linksToEarlier": ["B0065", "B0056"],
+      "linksToExisting": ["Dad"]
+    },
+    {
+      "id": "B0070",
+      "date": "2023-12-31",
+      "thread": "house-move",
+      "capture": "a year ago i was refreshing property alerts in bed. now theres a boiler i chose and leaves i raked and a sloping floor i can walk in the dark. it cost more than money but not in a way i regret",
+      "verdict": "atom",
+      "linksToEarlier": ["B0001", "B0037"],
+      "linksToExisting": ["Rowan Street house", "House move"]
+    },
+    {
+      "id": "B0071",
+      "date": "2024-01-06",
+      "thread": "friendships",
+      "capture": "coffee with omar, three hours, first real conversation weve had in maybe two years. all that cancelling was him going under and me reading it as indifference",
+      "verdict": "atom",
+      "linksToEarlier": ["B0067"],
+      "linksToExisting": ["Omar"]
+    },
+    {
+      "id": "B0072",
+      "date": "2024-01-11",
+      "thread": "noise",
+      "capture": "gym membership renews on the 20th, decide before then",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "B0073",
+      "date": "2024-01-18",
+      "thread": "house-move",
+      "capture": "the study is still three paint samples and a stack of boxes we havent opened since we moved in. six months. at some point unopened boxes stop being a to do and start being an answer",
+      "verdict": "atom",
+      "linksToEarlier": ["B0052", "B0046"],
+      "linksToExisting": ["Rowan Street house"]
+    },
+    {
+      "id": "B0074",
+      "date": "2024-01-24",
+      "thread": "ageing-parent",
+      "capture": "dad mentioned in passing that the gp wants him back for something and then wouldnt say what. i have decided not to push and i dont know if thats respect or avoidance",
+      "verdict": "atom",
+      "linksToEarlier": ["B0069"],
+      "linksToExisting": ["Dad"]
+    },
+    {
+      "id": "B0075",
+      "date": "2024-01-30",
+      "thread": "partner-health",
+      "capture": "nat has been knackered since before christmas. not busy tired, asleep on the sofa at half seven tired, cold all the time, hands like ice. keeps saying its january",
+      "verdict": "atom",
+      "linksToEarlier": [],
+      "linksToExisting": ["Nadia"]
+    },
+    {
+      "id": "B0076",
+      "date": "2024-02-05",
+      "thread": "partner-health",
+      "capture": "nat booked the gp. took six weeks of me not nagging and then one bad morning of not being able to get up the stairs without stopping",
+      "verdict": "atom",
+      "linksToEarlier": ["B0075"],
+      "linksToExisting": ["Nadia"]
+    },
+    {
+      "id": "B0077",
+      "date": "2024-02-09",
+      "thread": "noise",
+      "capture": "pick up the dry cleaning, ticket is in my coat",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "B0078",
+      "date": "2024-02-13",
+      "thread": "friendships",
+      "capture": "tomek says hes thinking about going back to krakow for a couple of years. said it lightly and then didnt look at me. i think hes already decided",
+      "verdict": "atom",
+      "linksToEarlier": ["B0053"],
+      "linksToExisting": ["Tomek"]
+    },
+    {
+      "id": "B0079",
+      "date": "2024-02-16",
+      "thread": "partner-health",
+      "capture": "bloods taken. dr halloran said the words probably nothing twice which i notice is a phrase people only say when it might be something",
+      "verdict": "atom",
+      "linksToEarlier": ["B0076"],
+      "linksToExisting": ["Nadia", "Dr Halloran"]
+    },
+    {
+      "id": "B0080",
+      "date": "2024-02-22",
+      "thread": "house-move",
+      "capture": "sunday came round with a pot of soup because he saw nat looking rough getting out of the car. i wrote him off over an angle grinder. the noisy neighbour and the man who notices are the same man",
+      "verdict": "atom",
+      "linksToEarlier": ["B0049"],
+      "linksToExisting": ["Sunday next door", "Nadia"]
+    },
+    {
+      "id": "B0081",
+      "date": "2024-02-27",
+      "thread": "ageing-parent",
+      "capture": "dad forgot bexs birthday. he has never once forgotten it. rang her the day after full of apologies and she was fine about it and i was not fine about it at all",
+      "verdict": "atom",
+      "linksToEarlier": ["B0074", "B0015"],
+      "linksToExisting": ["Dad", "Bex"]
+    },
+    {
+      "id": "B0082",
+      "date": "2024-03-04",
+      "thread": "partner-health",
+      "capture": "bloods came back with something off in them and now theres a referral. nobody will say the word for what they think it might be, they just say we want to have a proper look",
+      "verdict": "atom",
+      "linksToEarlier": ["B0079"],
+      "linksToExisting": ["Nadia", "Dr Halloran"]
+    },
+    {
+      "id": "B0083",
+      "date": "2024-03-08",
+      "thread": "noise",
+      "capture": "water bill is on a different account now, set up the direct debit",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "B0084",
+      "date": "2024-03-14",
+      "thread": "partner-health",
+      "capture": "the waiting is its own separate thing. nothing has happened and nothing will happen for weeks and you cant do anything with that time, you just carry it around like a bag",
+      "verdict": "atom",
+      "linksToEarlier": ["B0082"],
+      "linksToExisting": ["Nadia"]
+    },
+    {
+      "id": "B0085",
+      "date": "2024-03-19",
+      "thread": "friendships",
+      "capture": "priya is moving back south in the summer. i had properly made my peace with them being a leeds person and now i have to unmake it, which is a nice problem",
+      "verdict": "atom",
+      "linksToEarlier": ["B0048"],
+      "linksToExisting": ["Priya"]
+    },
+    {
+      "id": "B0086",
+      "date": "2024-03-26",
+      "thread": "house-move",
+      "capture": "the damp patch is back in the back room, same wall the survey flagged before we even owned the place. you dont fix a house, you just take turns with it",
+      "verdict": "atom",
+      "linksToEarlier": ["B0022", "B0073"],
+      "linksToExisting": ["Rowan Street house"]
+    },
+    {
+      "id": "B0087",
+      "date": "2024-03-30",
+      "thread": "partner-health",
+      "capture": "nat doesnt want to talk about it and i want to talk about it constantly. had to work out that asking how are you feeling eleven times a day is for me not for them",
+      "verdict": "atom",
+      "linksToEarlier": ["B0084"],
+      "linksToExisting": ["Nadia"]
+    },
+    {
+      "id": "B0088",
+      "date": "2024-04-05",
+      "thread": "noise",
+      "capture": "hoover bags, the ones with the blue stripe not the green",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "B0089",
+      "date": "2024-04-10",
+      "thread": "ageing-parent",
+      "capture": "the gp offered dad a memory clinic referral and he said no. bex thinks we should let him. hes allowed to refuse and i still went and sat in the car for twenty minutes",
+      "verdict": "atom",
+      "linksToEarlier": ["B0081", "B0060"],
+      "linksToExisting": ["Dad", "Bex"]
+    },
+    {
+      "id": "B0090",
+      "date": "2024-04-16",
+      "thread": "partner-health",
+      "capture": "appointment came through for the 27th. six weeks of waiting collapsed into a date on a letter and immediately i wanted the waiting back",
+      "verdict": "atom",
+      "linksToEarlier": ["B0084"],
+      "linksToExisting": ["Nadia"]
+    },
+    {
+      "id": "B0091",
+      "date": "2024-04-22",
+      "thread": "friendships",
+      "capture": "dinner at kirstens. tomek did the trousers joke about nat again, in front of everyone, with nat five days from a hospital appointment he knows about. i went off at him properly. room went silent",
+      "verdict": "atom",
+      "linksToEarlier": ["B0032", "B0053"],
+      "linksToExisting": ["Tomek", "Kirsten", "Nadia"]
+    },
+    {
+      "id": "B0092",
+      "date": "2024-04-27",
+      "thread": "partner-health",
+      "capture": "waiting room. nat did the crossword. i read the same poster about hand hygiene about forty times. they are so much better at this than me and i dont think thats calm, i think its containment",
+      "verdict": "atom",
+      "linksToEarlier": ["B0090"],
+      "linksToExisting": ["Nadia"]
+    },
+    {
+      "id": "B0093",
+      "date": "2024-05-02",
+      "thread": "noise",
+      "capture": "book the car in, tyre pressure light again",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "B0094",
+      "date": "2024-05-07",
+      "thread": "partner-health",
+      "capture": "ultrasound on the neck and more bloods. the consultant said thyroid out loud for the first time, in a bored voice, which was the most reassuring thing that has happened in three months",
+      "verdict": "atom",
+      "linksToEarlier": ["B0092"],
+      "linksToExisting": ["Nadia"]
+    },
+    {
+      "id": "B0095",
+      "date": "2024-05-12",
+      "thread": "friendships",
+      "capture": "nothing from tomek in three weeks. kirsten says hes embarrassed. i am not going first on this one and im aware that thats a decision im making, not a thing thats happening to me",
+      "verdict": "atom",
+      "linksToEarlier": ["B0091"],
+      "linksToExisting": ["Tomek", "Kirsten"]
+    },
+    {
+      "id": "B0096",
+      "date": "2024-05-18",
+      "thread": "house-move",
+      "capture": "quote for the back room, damp work plus plastering plus the shelves, 3.2k. filed under one day. i notice one day arrived very fast for the boiler and has not arrived at all for this",
+      "verdict": "atom",
+      "linksToEarlier": ["B0086"],
+      "linksToExisting": ["Rowan Street house"]
+    },
+    {
+      "id": "B0097",
+      "date": "2024-05-23",
+      "thread": "ageing-parent",
+      "capture": "bex rang me in tears about dad leaving the car unlocked all week. she told me i was catastrophising in september. now shes ahead of me and i found myself doing her old lines back at her",
+      "verdict": "atom",
+      "linksToEarlier": ["B0051", "B0089"],
+      "linksToExisting": ["Dad", "Bex"]
+    },
+    {
+      "id": "B0098",
+      "date": "2024-05-29",
+      "thread": "partner-health",
+      "capture": "googling at 1am again. every search takes you to the worst version within four clicks. deleted the app off my phone which will last about two days",
+      "verdict": "atom",
+      "linksToEarlier": ["B0094"],
+      "linksToExisting": ["Nadia"]
+    },
+    {
+      "id": "B0099",
+      "date": "2024-06-04",
+      "thread": "noise",
+      "capture": "passport photos for the renewal, the shop by the station does them",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "B0100",
+      "date": "2024-06-08",
+      "thread": "partner-health",
+      "capture": "hashimotos. underactive thyroid, autoimmune, tablets every morning for the rest of their life and thats it, thats the whole thing. four months of carrying that bag around for a diagnosis with a treatment",
+      "verdict": "atom",
+      "linksToEarlier": ["B0094", "B0075"],
+      "linksToExisting": ["Nadia", "Dr Halloran"]
+    },
+    {
+      "id": "B0101",
+      "date": "2024-06-13",
+      "thread": "friendships",
+      "capture": "omar has texted every few days through all of this. the one i decided last august to stop expecting anything from is the one who actually turned up. i was so confident about that and so wrong",
+      "verdict": "atom",
+      "linksToEarlier": ["B0044", "B0067"],
+      "linksToExisting": ["Omar", "Nadia"]
+    },
+    {
+      "id": "B0102",
+      "date": "2024-06-19",
+      "thread": "partner-health",
+      "capture": "relief is a stranger emotion than fear. nat cried at an advert for garden furniture on tuesday. i keep laughing at nothing. we are both letting go of something we never admitted we were holding",
+      "verdict": "atom",
+      "linksToEarlier": ["B0100"],
+      "linksToExisting": ["Nadia"]
+    },
+    {
+      "id": "B0103",
+      "date": "2024-06-25",
+      "thread": "ageing-parent",
+      "capture": "dad raised selling the house himself. i didnt bring it up, he did, over the washing up. said it like a hypothetical and watched me for a reaction. i think he wanted permission",
+      "verdict": "atom",
+      "linksToEarlier": ["B0097"],
+      "linksToExisting": ["Dad"]
+    },
+    {
+      "id": "B0104",
+      "date": "2024-06-30",
+      "thread": "house-move",
+      "capture": "ate outside four nights this week under the apple tree. the garden is the single best decision in the whole miserable buying process and it wasnt even a decision, it was a preference i got lucky on",
+      "verdict": "atom",
+      "linksToEarlier": ["B0058"],
+      "linksToExisting": ["Rowan Street house"]
+    },
+    {
+      "id": "B0105",
+      "date": "2024-07-05",
+      "thread": "noise",
+      "capture": "chase the parcel, tracking says delivered and it is not here",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "B0106",
+      "date": "2024-07-11",
+      "thread": "partner-health",
+      "capture": "levothyroxine started. six weeks til the next bloods to see if the dose is right. nat has put the tablets next to the kettle which is the most nat solution possible",
+      "verdict": "atom",
+      "linksToEarlier": ["B0100"],
+      "linksToExisting": ["Nadia"]
+    },
+    {
+      "id": "B0107",
+      "date": "2024-07-16",
+      "thread": "friendships",
+      "capture": "priya is back. pub on thursday, picked up mid sentence from something we were talking about in 2022. some friendships dont decay they just pause",
+      "verdict": "atom",
+      "linksToEarlier": ["B0085"],
+      "linksToExisting": ["Priya"]
+    },
+    {
+      "id": "B0108",
+      "date": "2024-07-22",
+      "thread": "house-move",
+      "capture": "boiler serviced, engineer said its in great shape, twelve minutes and gone. best 3k weve ever spent and i argued about it for a fortnight",
+      "verdict": "atom",
+      "linksToEarlier": ["B0066"],
+      "linksToExisting": ["Rowan Street house"]
+    },
+    {
+      "id": "B0109",
+      "date": "2024-07-28",
+      "thread": "ageing-parent",
+      "capture": "did dads garden. cut back the beds hes been saying hell get to for over a year. he stood at the kitchen window and watched the whole time and didnt come out. said thanks twice at the door",
+      "verdict": "atom",
+      "linksToEarlier": ["B0027", "B0103"],
+      "linksToExisting": ["Dad"]
+    },
+    {
+      "id": "B0110",
+      "date": "2024-08-03",
+      "thread": "noise",
+      "capture": "sun cream and a card for the thing on saturday",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "B0111",
+      "date": "2024-08-09",
+      "thread": "partner-health",
+      "capture": "nat walked up the hill by the reservoir without stopping and then talked about it all evening. six weeks on the tablets. i had forgotten what their normal energy even looked like",
+      "verdict": "atom",
+      "linksToEarlier": ["B0106"],
+      "linksToExisting": ["Nadia"]
+    },
+    {
+      "id": "B0112",
+      "date": "2024-08-15",
+      "thread": "friendships",
+      "capture": "priya asked straight out what happened with tomek and i told the story and heard myself being unfair in about two places. hes not a villain hes a man who doesnt know when to stop a joke",
+      "verdict": "atom",
+      "linksToEarlier": ["B0095", "B0107"],
+      "linksToExisting": ["Priya", "Tomek"]
+    },
+    {
+      "id": "B0113",
+      "date": "2024-08-21",
+      "thread": "house-move",
+      "capture": "calling it. the back room is not a study, it is where the airer and the spare duvet and the boxes live. a year of calling it a study was a year of feeling bad about a cupboard",
+      "verdict": "atom",
+      "linksToEarlier": ["B0046", "B0096"],
+      "linksToExisting": ["Rowan Street house"]
+    },
+    {
+      "id": "B0114",
+      "date": "2024-08-27",
+      "thread": "noise",
+      "capture": "renew the parking permit online, expires end of sept",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "B0115",
+      "date": "2024-09-03",
+      "thread": "ageing-parent",
+      "capture": "dad has a cleaner. fortnightly, a woman from his old church, he arranged it himself and mentioned it like it was nothing. fifteen months after telling me hes not having a stranger in the house. it had to be his idea",
+      "verdict": "atom",
+      "linksToEarlier": ["B0033"],
+      "linksToExisting": ["Dad"]
+    },
+    {
+      "id": "B0116",
+      "date": "2024-09-09",
+      "thread": "partner-health",
+      "capture": "three month bloods, dose is right, back in six months. thats the whole appointment. eleven minutes to close a thing that ate most of a year",
+      "verdict": "atom",
+      "linksToEarlier": ["B0111"],
+      "linksToExisting": ["Nadia", "Dr Halloran"]
+    },
+    {
+      "id": "B0117",
+      "date": "2024-09-14",
+      "thread": "friendships",
+      "capture": "wrote tomek a long message and didnt send it. read it back in the morning and it was 80 percent about being right. deleted it. the version worth sending is much shorter and much harder",
+      "verdict": "atom",
+      "linksToEarlier": ["B0091"],
+      "linksToExisting": ["Tomek"]
+    },
+    {
+      "id": "B0118",
+      "date": "2024-09-21",
+      "thread": "noise",
+      "capture": "batteries for the smoke alarm, the square 9v ones",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "B0119",
+      "date": "2024-09-27",
+      "thread": "house-move",
+      "capture": "sundays extension got approved, ten months of drawings and objections from number 14. he came round to tell us in person before the letters went out, which is more than the council managed",
+      "verdict": "atom",
+      "linksToEarlier": ["B0080", "B0049"],
+      "linksToExisting": ["Sunday next door"]
+    },
+    {
+      "id": "B0120",
+      "date": "2024-10-04",
+      "thread": "ageing-parent",
+      "capture": "dads 77th. six of us in his kitchen. quieter than last year, he let bex do the talking, laughed in the right places but a beat behind. last october i decided i was making it up. im not making it up",
+      "verdict": "atom",
+      "linksToEarlier": ["B0056"],
+      "linksToExisting": ["Dad", "Bex"]
+    },
+    {
+      "id": "B0121",
+      "date": "2024-10-10",
+      "thread": "noise",
+      "capture": "return the library book, its already 3 days over",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "B0122",
+      "date": "2024-10-17",
+      "thread": "partner-health",
+      "capture": "nat told me tonight they were terrified the whole spring and didnt say because they thought id fall apart and then theyd have two people to hold up. months of me thinking they were coping",
+      "verdict": "atom",
+      "linksToEarlier": ["B0087", "B0102"],
+      "linksToExisting": ["Nadia"]
+    },
+    {
+      "id": "B0123",
+      "date": "2024-10-23",
+      "thread": "friendships",
+      "capture": "a year at the museum for kirsten and theyre now the one organising everything. the person who was too flat to make plans in 2022 runs the calendar for six people",
+      "verdict": "atom",
+      "linksToEarlier": ["B0057"],
+      "linksToExisting": ["Kirsten"]
+    },
+    {
+      "id": "B0124",
+      "date": "2024-10-29",
+      "thread": "house-move",
+      "capture": "cold snap and the upstairs radiator is stone cold at the top. bled it with the little key, black water everywhere, sorted in four minutes. last year this would have ruined my week",
+      "verdict": "atom",
+      "linksToEarlier": ["B0108"],
+      "linksToExisting": ["Rowan Street house"]
+    },
+    {
+      "id": "B0125",
+      "date": "2024-11-05",
+      "thread": "noise",
+      "capture": "flu jab again, and ask about the shingles one for dad",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "B0126",
+      "date": "2024-11-12",
+      "thread": "ageing-parent",
+      "capture": "bex and i actually made a plan instead of taking turns being worried. she does the money and the paperwork, i do the appointments and the house. first useful conversation weve had about him in two years",
+      "verdict": "atom",
+      "linksToEarlier": ["B0097", "B0115"],
+      "linksToExisting": ["Dad", "Bex"]
+    },
+    {
+      "id": "B0127",
+      "date": "2024-11-18",
+      "thread": "friendships",
+      "capture": "tomek went first. two lines, no excuses, said he was out of order and hes sorry and can he buy me dinner. i had decided i wouldnt be the one to move and then he moved and i felt nothing but relief",
+      "verdict": "atom",
+      "linksToEarlier": ["B0117"],
+      "linksToExisting": ["Tomek"]
+    },
+    {
+      "id": "B0128",
+      "date": "2024-11-24",
+      "thread": "partner-health",
+      "capture": "nearly a year since i first wrote down that nat was tired and blamed january. the tiredness was real, the january was a story, and it took us five months to stop believing the story",
+      "verdict": "atom",
+      "linksToEarlier": ["B0075"],
+      "linksToExisting": ["Nadia"]
+    },
+    {
+      "id": "B0129",
+      "date": "2024-11-29",
+      "thread": "noise",
+      "capture": "order the tree for the 14th, the 6ft one not the 7",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "B0130",
+      "date": "2024-12-05",
+      "thread": "friendships",
+      "capture": "dinner with tomek. he apologised properly and then told me hes been unhappy for about three years and the jokes are what comes out instead. seven months of silence over something that was never about nat at all",
+      "verdict": "atom",
+      "linksToEarlier": ["B0127", "B0091"],
+      "linksToExisting": ["Tomek"]
+    },
+    {
+      "id": "B0131",
+      "date": "2024-12-11",
+      "thread": "house-move",
+      "capture": "painted one wall of the back room on a saturday for no reason. the good green from the samples. sixteen months to move one decision an inch",
+      "verdict": "atom",
+      "linksToEarlier": ["B0113"],
+      "linksToExisting": ["Rowan Street house"]
+    },
+    {
+      "id": "B0132",
+      "date": "2024-12-18",
+      "thread": "ageing-parent",
+      "capture": "dad here for christmas again, stayed up til eleven, told the rhyl van story and knew hed told it. better than last year. it does not only go one direction and i keep forgetting that",
+      "verdict": "atom",
+      "linksToEarlier": ["B0069"],
+      "linksToExisting": ["Dad"]
+    },
+    {
+      "id": "B0133",
+      "date": "2024-12-24",
+      "thread": "noise",
+      "capture": "carrots and the brandy for the sauce, shop shuts at 4",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "B0134",
+      "date": "2024-12-30",
+      "thread": "friendships",
+      "capture": "the group chat came back to life in november and nobody mentioned the year it was dead. omar, priya, kirsten, tomek. i spent a whole autumn writing eulogies for friendships that were just having a quiet patch",
+      "verdict": "atom",
+      "linksToEarlier": ["B0062", "B0130"],
+      "linksToExisting": ["Omar", "Priya", "Kirsten", "Tomek"]
+    },
+    {
+      "id": "B0135",
+      "date": "2025-01-07",
+      "thread": "wedding",
+      "capture": "bex rang. her and ines are getting married, september, the barn place near dads. she did the whole announcement in one breath like she was worried id interrupt",
+      "verdict": "atom",
+      "linksToEarlier": [],
+      "linksToExisting": ["Bex", "Ines"]
+    },
+    {
+      "id": "B0136",
+      "date": "2025-01-13",
+      "thread": "noise",
+      "capture": "self assessment deadline is the 31st, get the receipts out of the drawer",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "B0137",
+      "date": "2025-01-19",
+      "thread": "ageing-parent",
+      "capture": "told dad about the wedding and he went quiet and then said good, thats good, and had to go. rang back an hour later to ask what the date was again. he wants to be pleased and hes checking he can hold it",
+      "verdict": "atom",
+      "linksToEarlier": ["B0135", "B0132"],
+      "linksToExisting": ["Dad", "Bex"]
+    },
+    {
+      "id": "B0138",
+      "date": "2025-01-26",
+      "thread": "house-move",
+      "capture": "outside pipe froze and split, minus seven for three nights. thirty quid of foam lagging that i have known about since the first winter. cheap things you dont do become expensive things you do",
+      "verdict": "atom",
+      "linksToEarlier": ["B0124"],
+      "linksToExisting": ["Rowan Street house"]
+    },
+    {
+      "id": "B0139",
+      "date": "2025-02-02",
+      "thread": "friendships",
+      "capture": "tomeks leaving do. krakow in april, so he had decided, a year ago, when he told me he was thinking about it. we got two good months back before he goes and im weirdly ok with that",
+      "verdict": "atom",
+      "linksToEarlier": ["B0078", "B0130"],
+      "linksToExisting": ["Tomek"]
+    },
+    {
+      "id": "B0140",
+      "date": "2025-02-09",
+      "thread": "noise",
+      "capture": "shoes resoled, the place on the high street, cash only",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "B0141",
+      "date": "2025-02-15",
+      "thread": "partner-health",
+      "capture": "nats bloods, all fine, next lot in the autumn. it has become a diary entry rather than an event, which is the whole thing you want and nobody tells you it feels like nothing",
+      "verdict": "atom",
+      "linksToEarlier": ["B0116"],
+      "linksToExisting": ["Nadia", "Dr Halloran"]
+    },
+    {
+      "id": "B0142",
+      "date": "2025-02-22",
+      "thread": "wedding",
+      "capture": "bex asked me to do a reading. not a speech, a reading, she was very clear about the difference. said she wanted my voice in it somewhere. said yes before i thought about standing up in front of 90 people",
+      "verdict": "atom",
+      "linksToEarlier": ["B0135"],
+      "linksToExisting": ["Bex"]
+    },
+    {
+      "id": "B0143",
+      "date": "2025-03-02",
+      "thread": "wedding",
+      "capture": "the barn double booked them and then unbooked the other people, three days of chaos over an email nobody sent. bex was calm on the phone and then ines rang me separately to say she absolutely was not",
+      "verdict": "atom",
+      "linksToEarlier": ["B0142"],
+      "linksToExisting": ["Bex", "Ines"]
+    },
+    {
+      "id": "B0144",
+      "date": "2025-03-08",
+      "thread": "noise",
+      "capture": "book the dog sitter for september while theres still availability",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "B0145",
+      "date": "2025-03-15",
+      "thread": "ageing-parent",
+      "capture": "dad wants to do a speech. bex looked at me across the table like i was supposed to solve it. hes been quietly writing it since january apparently. of course he has",
+      "verdict": "atom",
+      "linksToEarlier": ["B0137"],
+      "linksToExisting": ["Dad", "Bex"]
+    },
+    {
+      "id": "B0146",
+      "date": "2025-03-21",
+      "thread": "friendships",
+      "capture": "priya and omar came for dinner and it was easy in a way it hasnt been since about 2019. the group didnt survive intact, it got smaller and denser, and i think thats the actual shape of your thirties",
+      "verdict": "atom",
+      "linksToEarlier": ["B0107", "B0101"],
+      "linksToExisting": ["Priya", "Omar"]
+    },
+    {
+      "id": "B0147",
+      "date": "2025-03-28",
+      "thread": "wedding",
+      "capture": "guest list rows, mums side, people bex has met twice. she keeps saying its fine and then sending me screenshots at midnight. a wedding is a family telling you what it thinks it is",
+      "verdict": "atom",
+      "linksToEarlier": ["B0143"],
+      "linksToExisting": ["Bex"]
+    },
+    {
+      "id": "B0148",
+      "date": "2025-04-04",
+      "thread": "house-move",
+      "capture": "damp work started in the back room. plasterer in for three days. two years almost to the week since the survey told us about that wall and we finally believed it",
+      "verdict": "atom",
+      "linksToEarlier": ["B0131", "B0046"],
+      "linksToExisting": ["Rowan Street house"]
+    },
+    {
+      "id": "B0149",
+      "date": "2025-04-10",
+      "thread": "noise",
+      "capture": "hire car for the weekend of the 20th, book before prices go up",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "B0150",
+      "date": "2025-04-16",
+      "thread": "wedding",
+      "capture": "suit shopping with ines, four hours, no suit. she is much funnier than she lets herself be around the family and i think ive spent two years being polite to her instead of knowing her",
+      "verdict": "atom",
+      "linksToEarlier": ["B0135"],
+      "linksToExisting": ["Ines", "Bex"]
+    },
+    {
+      "id": "B0151",
+      "date": "2025-04-22",
+      "thread": "ageing-parent",
+      "capture": "the barn is gravel, a field and no handrail anywhere. dad wont hear of being dropped at the door. worked out with bex that ill just happen to be walking the same way as him all day",
+      "verdict": "atom",
+      "linksToEarlier": ["B0145", "B0109"],
+      "linksToExisting": ["Dad", "Bex"]
+    },
+    {
+      "id": "B0152",
+      "date": "2025-04-29",
+      "thread": "wedding",
+      "capture": "reading options. everything good about love is either too sad or a hymn. bex vetoed the neruda instantly. looking for something that sounds like her rather than like a wedding",
+      "verdict": "atom",
+      "linksToEarlier": ["B0142"],
+      "linksToExisting": ["Bex"]
+    },
+    {
+      "id": "B0153",
+      "date": "2025-05-06",
+      "thread": "noise",
+      "capture": "cut the lawn before it rains thursday",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "B0154",
+      "date": "2025-05-12",
+      "thread": "wedding",
+      "capture": "hen weekend is a cottage in the peaks in august, twelve people, ines organising. bex has requested no games and no sash and i have never loved my sister more",
+      "verdict": "atom",
+      "linksToEarlier": ["B0150"],
+      "linksToExisting": ["Bex", "Ines"]
+    },
+    {
+      "id": "B0155",
+      "date": "2025-05-18",
+      "thread": "friendships",
+      "capture": "kirsten is coming to the wedding, bex invited them off her own bat because they got on at my 30th. my friends and my family have started overlapping without me arranging it, which feels like a milestone of some kind",
+      "verdict": "atom",
+      "linksToEarlier": ["B0123"],
+      "linksToExisting": ["Kirsten", "Bex"]
+    },
+    {
+      "id": "B0156",
+      "date": "2025-05-24",
+      "thread": "house-move",
+      "capture": "back room finished and its a spare room. bed, lamp, the good green wall, no desk. i mourned the study for a year and the thing we actually needed was somewhere for dad to sleep",
+      "verdict": "atom",
+      "linksToEarlier": ["B0113", "B0148"],
+      "linksToExisting": ["Rowan Street house", "Dad"]
+    },
+    {
+      "id": "B0157",
+      "date": "2025-05-30",
+      "thread": "wedding",
+      "capture": "bex snapped at me about the flowers, which are not my job and not her problem. rang back to apologise within the hour. shes carrying the guest list rows and pretending she isnt",
+      "verdict": "atom",
+      "linksToEarlier": ["B0147"],
+      "linksToExisting": ["Bex"]
+    },
+    {
+      "id": "B0158",
+      "date": "2025-06-05",
+      "thread": "noise",
+      "capture": "chase the plumber for the invoice, hes not sent it",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "B0159",
+      "date": "2025-06-11",
+      "thread": "partner-health",
+      "capture": "nat has started running. actual running, three mornings a week, with the app and everything. the person who couldnt get up our stairs 16 months ago did 5k before work",
+      "verdict": "atom",
+      "linksToEarlier": ["B0111"],
+      "linksToExisting": ["Nadia"]
+    },
+    {
+      "id": "B0160",
+      "date": "2025-06-17",
+      "thread": "wedding",
+      "capture": "seating plan. dad on the top table with a clear route to the door and the loo, which took bex and me two evenings to engineer and will look like nothing to anyone else",
+      "verdict": "atom",
+      "linksToEarlier": ["B0151", "B0157"],
+      "linksToExisting": ["Dad", "Bex"]
+    },
+    {
+      "id": "B0161",
+      "date": "2025-06-23",
+      "thread": "ageing-parent",
+      "capture": "dad finally got hearing aids. two years of us all shouting and him saying everyone mumbles. he wore them for an afternoon and said the birds were showing off. some of what i read as fog was just volume",
+      "verdict": "atom",
+      "linksToEarlier": ["B0120"],
+      "linksToExisting": ["Dad"]
+    },
+    {
+      "id": "B0162",
+      "date": "2025-06-29",
+      "thread": "noise",
+      "capture": "sort the recycling out, the green bin is jammed",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "B0163",
+      "date": "2025-07-05",
+      "thread": "wedding",
+      "capture": "rehearsal is the friday, 4pm at the barn. found the reading in the end, a bit of a raymond carver poem about being called beloved. read it to nat and got about six lines in",
+      "verdict": "atom",
+      "linksToEarlier": ["B0152"],
+      "linksToExisting": ["Bex", "Nadia"]
+    },
+    {
+      "id": "B0164",
+      "date": "2025-07-12",
+      "thread": "friendships",
+      "capture": "tomek cant make the wedding, flights and his mums operation the same week. six months ago i thought the repair meant we were back. it meant we were on good terms, which is a different smaller thing",
+      "verdict": "atom",
+      "linksToEarlier": ["B0139"],
+      "linksToExisting": ["Tomek"]
+    },
+    {
+      "id": "B0165",
+      "date": "2025-07-18",
+      "thread": "house-move",
+      "capture": "two years today since the chips on the floor of the empty front room. every single thing i was scared about that week happened, boiler, damp, money, and none of it was the disaster i had it down as",
+      "verdict": "atom",
+      "linksToEarlier": ["B0037", "B0070"],
+      "linksToExisting": ["Rowan Street house", "House move"]
+    },
+    {
+      "id": "B0166",
+      "date": "2025-07-25",
+      "thread": "wedding",
+      "capture": "money conversation. dad wants to pay for more than he can and bex wont let him and neither will say the real sentence. offered to quietly split the difference with bex and not tell him",
+      "verdict": "atom",
+      "linksToEarlier": ["B0147"],
+      "linksToExisting": ["Dad", "Bex"]
+    },
+    {
+      "id": "B0167",
+      "date": "2025-07-31",
+      "thread": "noise",
+      "capture": "shirt to the dry cleaners, and the trousers need taking up an inch",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "B0168",
+      "date": "2025-08-06",
+      "thread": "ageing-parent",
+      "capture": "dad read me his speech down the phone. four minutes, no notes on the phone version, a bit about bex aged six refusing to come out of a hedge. he has been carrying it around since january and it is very very good",
+      "verdict": "atom",
+      "linksToEarlier": ["B0145"],
+      "linksToExisting": ["Dad", "Bex"]
+    },
+    {
+      "id": "B0169",
+      "date": "2025-08-13",
+      "thread": "wedding",
+      "capture": "hen weekend. no sash, no games, a lot of cheese and one very long walk. bex sat on a wall on the sunday and said she has never been less worried about anything in her life",
+      "verdict": "atom",
+      "linksToEarlier": ["B0154"],
+      "linksToExisting": ["Bex", "Ines"]
+    },
+    {
+      "id": "B0170",
+      "date": "2025-08-19",
+      "thread": "house-move",
+      "capture": "sundays extension is done and its a room for his daughter and the grandkids when they visit. two years of angle grinders. i had him down as a lovely man, then a nuisance, and he was building a room for his family the whole time",
+      "verdict": "atom",
+      "linksToEarlier": ["B0119", "B0042"],
+      "linksToExisting": ["Sunday next door"]
+    },
+    {
+      "id": "B0171",
+      "date": "2025-08-26",
+      "thread": "wedding",
+      "capture": "genuinely nervous about the reading now. its not the 90 people. its that i will look at bex halfway through and thats where it goes",
+      "verdict": "atom",
+      "linksToEarlier": ["B0163", "B0152"],
+      "linksToExisting": ["Bex"]
+    },
+    {
+      "id": "B0172",
+      "date": "2025-09-02",
+      "thread": "noise",
+      "capture": "cash for the taxi and the buttonholes need collecting friday morning",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "B0173",
+      "date": "2025-09-06",
+      "thread": "wedding",
+      "capture": "night before and bex is completely serene, eating chips in a dressing gown, sorting out someone elses lift. the person who was sending me flower screenshots at midnight in may has left the building",
+      "verdict": "atom",
+      "linksToEarlier": ["B0157"],
+      "linksToExisting": ["Bex"]
+    },
+    {
+      "id": "B0174",
+      "date": "2025-09-07",
+      "thread": "wedding",
+      "capture": "they got married. ines cried before bex did, which everyone had bet against. i got through the reading with one wobble on the beloved line. eight months from a phone call in january to a field full of people",
+      "verdict": "atom",
+      "linksToEarlier": ["B0135", "B0173"],
+      "linksToExisting": ["Bex", "Ines"]
+    },
+    {
+      "id": "B0175",
+      "date": "2025-09-08",
+      "thread": "wedding",
+      "capture": "dad did the speech. stood up without the stick, four minutes, the hedge story, landed every beat and sat down to the whole room. all that engineering of routes and handrails and the thing he needed was to be asked",
+      "verdict": "atom",
+      "linksToEarlier": ["B0168", "B0174"],
+      "linksToExisting": ["Dad", "Bex"]
+    },
+    {
+      "id": "B0176",
+      "date": "2025-09-15",
+      "thread": "friendships",
+      "capture": "who i actually sat with at the wedding, once the formal bit was done. omar, priya, kirsten. the three i spent 2023 quietly writing off in various ways",
+      "verdict": "atom",
+      "linksToEarlier": ["B0134", "B0146"],
+      "linksToExisting": ["Omar", "Priya", "Kirsten"]
+    },
+    {
+      "id": "B0177",
+      "date": "2025-10-11",
+      "thread": "ageing-parent",
+      "capture": "dad has been flat since the wedding. slept a lot, cancelled twice. i think he was holding himself together for september and now hes allowed to put it down. bex says give him til november",
+      "verdict": "atom",
+      "linksToEarlier": ["B0175", "B0161"],
+      "linksToExisting": ["Dad", "Bex"]
+    },
+    {
+      "id": "B0178",
+      "date": "2025-11-08",
+      "thread": "house-move",
+      "capture": "bled the radiators in twenty minutes flat, lagged the outside pipe, boiler serviced. the house that used to happen to me is now a house i maintain. dads had the spare room twice since september",
+      "verdict": "atom",
+      "linksToEarlier": ["B0156", "B0108"],
+      "linksToExisting": ["Rowan Street house", "Dad"]
+    },
+    {
+      "id": "B0179",
+      "date": "2025-12-06",
+      "thread": "noise",
+      "capture": "tree on the 13th again, and the lights need testing before we put them up",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "B0180",
+      "date": "2025-12-28",
+      "thread": "friendships",
+      "capture": "three years. i started this at omars birthday in a thai restaurant thinking everyone was drifting off. some did. mostly i was wrong about who, and wrong about why, and wrong about it being over",
+      "verdict": "atom",
+      "linksToEarlier": ["B0176", "B0002"],
+      "linksToExisting": ["Omar", "Priya", "Kirsten", "Tomek"]
+    }
+  ]
+}
