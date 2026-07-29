@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| In progress | #194 / #195 | agent | `feat/ask-mcp-directory-bar-b` | `docs/plans/2026-07-28-002-feat-ask-mcp-2026-07-28-protocol-directory-plan.md` (Bar B U6–U7) | `plus-service/src/oauth/*`, `plus-service/src/mcp/*`, `docs/runbooks/*` | Fly live; reconnect Claude for write scope; portal submit human |
+| _(nothing in flight)_ | | | | | | |
 
 ## How to claim (copy)
 
@@ -23,6 +23,7 @@ States: `Queued` · `In progress` · `Blocked` · `In review` · `Done` (then re
 
 | Merged | Issue / PR | Summary |
 |---|---|---|
+| 2026-07-29 | #194 / #195 | Ask MCP Bar B — `atoms:write` scope + Claude directory pack (Fly already live) |
 | 2026-07-29 | #188 / #189 | Ask MCP dual-era 2026-07-28 + OAuth `iss` + Claude JSON Accept fix (Fly already live) |
 | 2026-07-29 | #184 | Capture Shortcut link refreshed + renamed **Capture Atom** everywhere · **0.6.51** |
 | 2026-07-29 | #182 / #183 | Cloudflare Web Analytics through the tryatoms.app CSP + corrected privacy claims |
