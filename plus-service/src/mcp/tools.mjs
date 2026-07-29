@@ -2,6 +2,7 @@
  * Register Ask tools on an McpServer (read + write-via-outbox).
  */
 import { z } from "zod";
+import { hasWriteScope } from "../oauth/constants.mjs";
 import { checkRateLimit } from "../ratelimit.mjs";
 import {
   validateOutboxPayload,
@@ -28,13 +29,26 @@ function jsonTool(obj, isError = false) {
 
 /**
  * @param {import('@modelcontextprotocol/server').McpServer} mcp
- * @param {{ email: string, store: object }} ctx
+ * @param {{ email: string, store: object, scopes?: string[] }} ctx
  */
 export function registerAskTools(mcp, ctx) {
-  const { email, store } = ctx;
+  const { email, store, scopes = ["atoms:read"] } = ctx;
 
   function writeRateOk() {
     return checkRateLimit(`ask-write:${email}`, 30);
+  }
+
+  function requireWrite() {
+    if (hasWriteScope(scopes)) return null;
+    return jsonTool(
+      {
+        error: "insufficient_scope",
+        required_scope: "atoms:write",
+        granted_scopes: scopes,
+        hint: "Reconnect Atoms Ask and Allow access (atoms:write) to queue atoms.",
+      },
+      true,
+    );
   }
 
   mcp.registerTool(
@@ -236,6 +250,8 @@ export function registerAskTools(mcp, ctx) {
       },
     },
     async (args) => {
+      const denied = requireWrite();
+      if (denied) return denied;
       const rl = writeRateOk();
       if (!rl.ok) {
         return jsonTool(
@@ -303,6 +319,8 @@ export function registerAskTools(mcp, ctx) {
       },
     },
     async (args) => {
+      const denied = requireWrite();
+      if (denied) return denied;
       const rl = writeRateOk();
       if (!rl.ok) {
         return jsonTool(
@@ -399,6 +417,8 @@ export function registerAskTools(mcp, ctx) {
       },
     },
     async ({ outbox_id }) => {
+      const denied = requireWrite();
+      if (denied) return denied;
       const rl = writeRateOk();
       if (!rl.ok) {
         return jsonTool(

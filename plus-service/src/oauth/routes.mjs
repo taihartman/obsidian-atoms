@@ -9,6 +9,8 @@ import {
   issuerUrl,
   oauthClientLabel,
   mcpResourceUrl,
+  parseRequestedScopes,
+  scopesOnConsentAllow,
   SCOPE_DEFAULT,
 } from "./constants.mjs";
 import {
@@ -159,7 +161,8 @@ export async function handleOauthRoutes({
       url.searchParams.get("code_challenge_method") || "S256";
     const resource =
       url.searchParams.get("resource") || mcpResourceUrl(base);
-    const scope = url.searchParams.get("scope") || SCOPE_DEFAULT;
+    const scopeRaw = url.searchParams.get("scope") || "";
+    const scopes = parseRequestedScopes(scopeRaw);
 
     if (responseType !== "code") {
       writeHtml(res, 400, simpleMessage("Error", "response_type must be code"));
@@ -211,7 +214,8 @@ export async function handleOauthRoutes({
       codeChallenge,
       codeChallengeMethod,
       resource,
-      scope,
+      scope: scopes.join(" "),
+      scopes,
     });
 
     const bsId = getBrowserSessionId(req);
@@ -364,6 +368,9 @@ export async function handleOauthRoutes({
       writeHtml(res, 403, simpleMessage("Plus required", "Active Plus needed."));
       return true;
     }
+    const granted = scopesOnConsentAllow(
+      pending.scopes || parseRequestedScopes(pending.scope || ""),
+    );
     const code = await store.mcpCreateAuthCode({
       email,
       clientId: pending.clientId,
@@ -371,7 +378,7 @@ export async function handleOauthRoutes({
       resource: pending.resource,
       codeChallenge: pending.codeChallenge,
       codeChallengeMethod: pending.codeChallengeMethod || "S256",
-      scopes: [SCOPE_DEFAULT],
+      scopes: granted,
     });
     await store.mcpDeletePending(pendingId);
     redirectToClient(res, pending.redirectUri, {

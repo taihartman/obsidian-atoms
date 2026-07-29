@@ -1,4 +1,11 @@
-import { issuerUrl, mcpResourceUrl, SCOPE_DEFAULT } from "./constants.mjs";
+import {
+  issuerUrl,
+  mcpResourceUrl,
+  SCOPE_READ,
+  SCOPE_WRITE,
+} from "./constants.mjs";
+
+const SCOPES_META = [SCOPE_READ, SCOPE_WRITE, "offline_access"];
 
 /**
  * @param {string} publicBaseUrl
@@ -9,7 +16,7 @@ export function protectedResourceMetadata(publicBaseUrl) {
   return {
     resource,
     authorization_servers: [issuer],
-    scopes_supported: [SCOPE_DEFAULT, "offline_access"],
+    scopes_supported: SCOPES_META,
     bearer_methods_supported: ["header"],
   };
 }
@@ -30,6 +37,6 @@ export function authorizationServerMetadata(publicBaseUrl) {
     token_endpoint_auth_methods_supported: ["none"],
     client_id_metadata_document_supported: true,
     authorization_response_iss_parameter_supported: true,
-    scopes_supported: [SCOPE_DEFAULT, "offline_access"],
+    scopes_supported: SCOPES_META,
   };
 }

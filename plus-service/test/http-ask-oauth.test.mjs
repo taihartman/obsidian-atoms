@@ -81,6 +81,7 @@ describe("OAuth Ask AS", () => {
     assert.ok(as.token_endpoint_auth_methods_supported.includes("none"));
     assert.equal(as.client_id_metadata_document_supported, true);
     assert.equal(as.authorization_response_iss_parameter_supported, true);
+    assert.ok(as.scopes_supported.includes("atoms:write"));
   });
 
   it("full code+PKCE → MCP tools/call", async () => {
@@ -172,6 +173,8 @@ describe("OAuth Ask AS", () => {
     const tokens = await tokRes.json();
     assert.ok(tokens.access_token?.startsWith("mcp_"));
     assert.ok(tokens.refresh_token);
+    assert.match(String(tokens.scope || ""), /atoms:read/);
+    assert.match(String(tokens.scope || ""), /atoms:write/);
 
     // seed mirror via Plus session from same email
     const ml = await fetch(`${BASE}/v1/auth/magic-link`, {
@@ -268,6 +271,7 @@ describe("OAuth Ask AS", () => {
     const listText = await listed.text();
     assert.match(listText, /securitySchemes/);
     assert.match(listText, /atoms:read/);
+    assert.match(listText, /atoms:write/);
     assert.match(listText, /search_atoms/);
     assert.match(listText, /"title"\s*:\s*"Search atoms"|Search atoms/);
     // structural: every tool has schemes when JSON-parseable
@@ -276,12 +280,15 @@ describe("OAuth Ask AS", () => {
       const tools = parsed.result?.tools || parsed.tools;
       if (Array.isArray(tools)) {
         for (const t of tools) {
-          assert.ok(
-            t.securitySchemes || t._meta?.securitySchemes,
-            `missing schemes on ${t.name}`,
-          );
+          const schemes = t.securitySchemes || t._meta?.securitySchemes;
+          assert.ok(schemes, `missing schemes on ${t.name}`);
+          const sc = schemes[0]?.scopes || [];
           if (t.name === "create_atom") {
             assert.equal(t.annotations?.destructiveHint, true);
+            assert.ok(sc.includes("atoms:write"), JSON.stringify(schemes));
+          }
+          if (t.name === "search_atoms") {
+            assert.ok(sc.includes("atoms:read"), JSON.stringify(schemes));
           }
         }
       }

@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| _(nothing in flight)_ | | | | | | |
+| In progress | #194 / #195 | agent | `feat/ask-mcp-directory-bar-b` | `docs/plans/2026-07-28-002-feat-ask-mcp-2026-07-28-protocol-directory-plan.md` (Bar B U6–U7) | `plus-service/src/oauth/*`, `plus-service/src/mcp/*`, `docs/runbooks/*` | Fly live; reconnect Claude for write scope; portal submit human |
 
 ## How to claim (copy)
 

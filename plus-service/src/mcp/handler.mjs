@@ -11,6 +11,7 @@ import {
   WebStandardStreamableHTTPServerTransport,
 } from "@modelcontextprotocol/server";
 import { toNodeHandler, toWebRequest } from "@modelcontextprotocol/node";
+import { SCOPE_READ, SCOPE_WRITE } from "../oauth/constants.mjs";
 import { ASK_MCP_INSTRUCTIONS } from "./instructions.mjs";
 import { registerAskTools } from "./tools.mjs";
 
@@ -31,8 +32,9 @@ let boundStore = null;
 /**
  * @param {object} store
  * @param {string} email
+ * @param {string[]} scopes
  */
-function buildServer(store, email) {
+function buildServer(store, email, scopes = [SCOPE_READ]) {
   const mcp = new McpServer(
     { name: "atoms-ask", version: "0.2.0" },
     {
@@ -41,7 +43,7 @@ function buildServer(store, email) {
     },
   );
   if (email) {
-    registerAskTools(mcp, { email, store });
+    registerAskTools(mcp, { email, store, scopes });
     injectToolSecuritySchemes(mcp);
   }
   return mcp;
@@ -59,7 +61,10 @@ function ensureModern(store) {
         ctx.authInfo?.extra && typeof ctx.authInfo.extra.email === "string"
           ? ctx.authInfo.extra.email
           : "";
-      return buildServer(store, email);
+      const scopes = Array.isArray(ctx.authInfo?.scopes)
+        ? ctx.authInfo.scopes
+        : [SCOPE_READ];
+      return buildServer(store, email, scopes);
     },
     {
       legacy: "reject",
@@ -125,13 +130,17 @@ export async function handleMcpRequest(req, res, opts) {
     return;
   }
 
+  const scopes = Array.isArray(account.mcpScopes)
+    ? account.mcpScopes
+    : [SCOPE_READ];
+
   /** @type {import('@modelcontextprotocol/server').AuthInfo} */
   const authInfo = {
     token,
     clientId: "atoms-mcp",
-    scopes: ["atoms:read"],
+    scopes,
     resource: new URL(resource),
-    extra: { email: account.email },
+    extra: { email: account.email, scopes },
   };
 
   /** @type {any} */
@@ -144,7 +153,15 @@ export async function handleMcpRequest(req, res, opts) {
   const legacy = await isLegacyRequest(webReq, parsedBody);
 
   if (legacy) {
-    await handleLegacyJson(req, res, parsedBody, store, account.email, authInfo);
+    await handleLegacyJson(
+      req,
+      res,
+      parsedBody,
+      store,
+      account.email,
+      authInfo,
+      scopes,
+    );
     return;
   }
 
@@ -163,9 +180,18 @@ export async function handleMcpRequest(req, res, opts) {
  * @param {object} store
  * @param {string} email
  * @param {import('@modelcontextprotocol/server').AuthInfo} authInfo
+ * @param {string[]} scopes
  */
-async function handleLegacyJson(req, res, parsedBody, store, email, authInfo) {
-  const mcp = buildServer(store, email);
+async function handleLegacyJson(
+  req,
+  res,
+  parsedBody,
+  store,
+  email,
+  authInfo,
+  scopes,
+) {
+  const mcp = buildServer(store, email, scopes);
   const transport = new WebStandardStreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
     enableJsonResponse: true,
@@ -236,16 +262,21 @@ function writeUnauthorized(res, publicBaseUrl) {
   const prm = `${publicBaseUrl.replace(/\/$/, "")}${PRM_PATH}`;
   res.writeHead(401, {
     "content-type": "application/json",
-    "www-authenticate": `Bearer resource_metadata="${prm}", scope="atoms:read"`,
+    "www-authenticate": `Bearer resource_metadata="${prm}", scope="atoms:read atoms:write"`,
     "access-control-allow-origin": "*",
     "cache-control": "private, no-store",
   });
   res.end(JSON.stringify({ message: "Unauthorized" }));
 }
 
-const OAUTH2_SCHEMES = [{ type: "oauth2", scopes: ["atoms:read"] }];
+const WRITE_TOOL_NAMES = new Set([
+  "create_atom",
+  "continue_atom",
+  "cancel_pending",
+]);
 
 /**
+ * ChatGPT / directory: per-tool OAuth schemes (read vs write).
  * @param {import('@modelcontextprotocol/server').McpServer} mcp
  */
 function injectToolSecuritySchemes(mcp) {
@@ -259,14 +290,20 @@ function injectToolSecuritySchemes(mcp) {
   handlers.set(method, async (request, extra) => {
     const result = await prev(request, extra);
     if (result && Array.isArray(result.tools)) {
-      result.tools = result.tools.map((t) => ({
-        ...t,
-        securitySchemes: OAUTH2_SCHEMES,
-        _meta: {
-          ...(t._meta && typeof t._meta === "object" ? t._meta : {}),
-          securitySchemes: OAUTH2_SCHEMES,
-        },
-      }));
+      result.tools = result.tools.map((t) => {
+        const scopes = WRITE_TOOL_NAMES.has(t.name)
+          ? [SCOPE_WRITE]
+          : [SCOPE_READ];
+        const schemes = [{ type: "oauth2", scopes }];
+        return {
+          ...t,
+          securitySchemes: schemes,
+          _meta: {
+            ...(t._meta && typeof t._meta === "object" ? t._meta : {}),
+            securitySchemes: schemes,
+          },
+        };
+      });
     }
     return result;
   });
