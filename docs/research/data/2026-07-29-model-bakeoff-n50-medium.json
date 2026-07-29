@@ -1,0 +1,2696 @@
+{
+  "generatedAt": "2026-07-29T15:51:09.091Z",
+  "corpus": {
+    "captures": 720,
+    "atoms": 576,
+    "goldInRunLinks": 811,
+    "hubTitles": 50
+  },
+  "options": {
+    "models": [
+      "gpt-5.6-terra",
+      "gpt-5.6-luna"
+    ],
+    "limit": 50,
+    "confirm": true,
+    "parallel": false,
+    "reasoning": "medium",
+    "preRun": 0,
+    "out": "docs/research/data/2026-07-29-model-bakeoff-n50-medium.json",
+    "replay": "",
+    "cacheTtl": "5m"
+  },
+  "prices": {
+    "claude-sonnet-5": {
+      "provider": "anthropic",
+      "input": 3,
+      "output": 15
+    },
+    "claude-haiku-4-5": {
+      "provider": "anthropic",
+      "input": 1,
+      "output": 5
+    },
+    "claude-haiku-4-5-20251001": {
+      "provider": "anthropic",
+      "input": 1,
+      "output": 5
+    },
+    "gpt-5.6-sol": {
+      "provider": "openai",
+      "input": 5,
+      "output": 30
+    },
+    "gpt-5.6-terra": {
+      "provider": "openai",
+      "input": 2.5,
+      "output": 15
+    },
+    "gpt-5.6-luna": {
+      "provider": "openai",
+      "input": 1,
+      "output": 6
+    },
+    "gpt-5.6": {
+      "provider": "openai",
+      "input": 5,
+      "output": 30
+    }
+  },
+  "arms": [
+    {
+      "model": "gpt-5.6-terra",
+      "usageTotal": {
+        "inputFresh": 45203,
+        "inputCacheWrite": 0,
+        "inputCacheRead": 94368,
+        "output": 6270
+      },
+      "reasoningTokens": 2310,
+      "failures": 0,
+      "score": {
+        "captures": 50,
+        "parsed": 50,
+        "unparseable": 0,
+        "verdict": {
+          "accuracy": 0.98,
+          "correct": 49,
+          "total": 50,
+          "confusion": {
+            "atom->atom": 40,
+            "noise->noise": 9,
+            "noise->atom": 1
+          }
+        },
+        "links": {
+          "goldInScope": 29,
+          "predicted": 18,
+          "unresolved": 0,
+          "truePositives": 15,
+          "precisionStrict": 0.8333,
+          "precisionLenient": 0.8333,
+          "recall": 0.5172,
+          "f1": 0.6383
+        },
+        "hubLinks": {
+          "goldInScope": 53,
+          "predicted": 43,
+          "truePositives": 37,
+          "precision": 0.8605,
+          "recall": 0.6981
+        },
+        "latencyMs": {
+          "n": 50,
+          "median": 2164,
+          "mean": 2392,
+          "p90": 3700,
+          "max": 16851
+        }
+      },
+      "records": [
+        {
+          "id": "D0001",
+          "ms": 2188,
+          "error": null,
+          "usage": {
+            "inputFresh": 2554,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 0,
+            "output": 88
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "September Lisbon trip motivates serious Portuguese learning",
+            "links": [
+              {
+                "note": "Lisbon",
+                "reason": "September trip provides the context and motivation for learning Portuguese beyond tourist phrases."
+              },
+              {
+                "note": "Portuguese",
+                "reason": "commits to learning practical Portuguese rather than relying on tourist phrases."
+              }
+            ],
+            "tags": [
+              "#decision"
+            ],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "B0001",
+          "ms": 3700,
+          "error": null,
+          "usage": {
+            "inputFresh": 621,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 167
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "A non-corridor kitchen is a core housing requirement",
+            "links": [
+              {
+                "note": "House move",
+                "reason": "defines a central layout requirement for the home search"
+              },
+              {
+                "note": "Renting vs owning",
+                "reason": "adds a concrete housing preference that may shape the renting-versus-owning decision"
+              }
+            ],
+            "tags": [
+              "decision",
+              "preferences"
+            ],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "C0001",
+          "ms": 1408,
+          "error": null,
+          "usage": {
+            "inputFresh": 611,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 45
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "Sleep quality has been poor for three nights",
+            "links": [],
+            "tags": [
+              "observation"
+            ],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "D0002",
+          "ms": 1540,
+          "error": null,
+          "usage": {
+            "inputFresh": 623,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 77
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "Starting the year with Le Guin's political novel",
+            "links": [
+              {
+                "note": "Ursula K. Le Guin",
+                "reason": "The reading choice returns to Le Guin, framed as her notably political novel."
+              }
+            ],
+            "tags": [
+              "#media",
+              "#reference"
+            ],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "A0001",
+          "ms": 2606,
+          "error": null,
+          "usage": {
+            "inputFresh": 639,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 190
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "Project Harbor's six-month deadline already seems implausible",
+            "links": [
+              {
+                "note": "Project Harbor",
+                "reason": "records early skepticism that the six-month shipping deadline is achievable"
+              },
+              {
+                "note": "Priya",
+                "reason": "Priya insists the Project Harbor deadline is fixed despite doubts about its feasibility"
+              }
+            ],
+            "tags": [
+              "observation"
+            ],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "B0002",
+          "ms": 3042,
+          "error": null,
+          "usage": {
+            "inputFresh": 664,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 131
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "Omar's birthday briefly felt like the old days",
+            "links": [
+              {
+                "note": "Omar",
+                "reason": "records a birthday gathering that briefly revived the group's former closeness before everyone retreated to their phones"
+              }
+            ],
+            "tags": [
+              "person",
+              "relationship",
+              "observation"
+            ],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "D0003",
+          "ms": 1721,
+          "error": null,
+          "usage": {
+            "inputFresh": 657,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 109
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "Duolingo day six adds a basic Portuguese sentence",
+            "links": [
+              {
+                "note": "Duolingo",
+                "reason": "records progress in the language-learning habit on day six"
+              },
+              {
+                "note": "Lisbon",
+                "reason": "connects basic Portuguese practice to the anticipated Lisbon trip"
+              },
+              {
+                "note": "September Lisbon trip motivates serious Portuguese learning",
+                "reason": "adds an early milestone to the trip-driven Portuguese learning goal"
+              }
+            ],
+            "tags": [
+              "observation"
+            ],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "A0002",
+          "ms": 2197,
+          "error": null,
+          "usage": {
+            "inputFresh": 682,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 167
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "Standup should become an asynchronous status report",
+            "links": [
+              {
+                "note": "Standup",
+                "reason": "observes that the recurring 25-minute meeting functions as a status report rather than a standup."
+              },
+              {
+                "note": "Tomás Lindqvist",
+                "reason": "the status report is primarily intended to keep Tomás informed."
+              }
+            ],
+            "tags": [
+              "decision",
+              "observation"
+            ],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "D0004",
+          "ms": 889,
+          "error": null,
+          "usage": {
+            "inputFresh": 669,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 33
+          },
+          "result": {
+            "verdict": "noise",
+            "title": "",
+            "links": [],
+            "tags": [],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "B0003",
+          "ms": 2562,
+          "error": null,
+          "usage": {
+            "inputFresh": 691,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 173
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "Not correcting Dad's repeated story felt morally ambiguous",
+            "links": [
+              {
+                "note": "Dad",
+                "reason": "records a moment where Dad repeated the Rhyl breakdown story and silence raised a kindness-versus-cowardice question."
+              }
+            ],
+            "tags": [
+              "#person",
+              "#relationship",
+              "#observation",
+              "#question"
+            ],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "B0004",
+          "ms": 742,
+          "error": null,
+          "usage": {
+            "inputFresh": 689,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 33
+          },
+          "result": {
+            "verdict": "noise",
+            "title": "",
+            "links": [],
+            "tags": [],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "D0005",
+          "ms": 2264,
+          "error": null,
+          "usage": {
+            "inputFresh": 692,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 153
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "A Jules starter is fed 1:1:1 twice daily",
+            "links": [
+              {
+                "note": "Jules",
+                "reason": "Jules supplied the sourdough starter now being maintained."
+              },
+              {
+                "note": "Sourdough",
+                "reason": "records the feeding routine for the active sourdough starter."
+              }
+            ],
+            "tags": [
+              "observation"
+            ],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "A0003",
+          "ms": 666,
+          "error": null,
+          "usage": {
+            "inputFresh": 699,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 33
+          },
+          "result": {
+            "verdict": "noise",
+            "title": "",
+            "links": [],
+            "tags": [],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "A0004",
+          "ms": 2007,
+          "error": null,
+          "usage": {
+            "inputFresh": 718,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 157
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "Project Harbor v1 is limited to the import path",
+            "links": [
+              {
+                "note": "Project Harbor",
+                "reason": "sets the v1 scope to the import path and defers all other work to v2"
+              },
+              {
+                "note": "Wei-Lin Chao",
+                "reason": "Wei-Lin's agreement is the decisive signoff for the narrowed v1 scope"
+              }
+            ],
+            "tags": [
+              "decision",
+              "idea"
+            ],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "C0002",
+          "ms": 1354,
+          "error": null,
+          "usage": {
+            "inputFresh": 717,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 75
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "Sleep-hour calculations while awake are counterproductive",
+            "links": [
+              {
+                "note": "Sleep quality has been poor for three nights",
+                "reason": "identifies an anxious bedtime habit that may perpetuate the recent poor sleep."
+              }
+            ],
+            "tags": [
+              "observation"
+            ],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "D0006",
+          "ms": 2996,
+          "error": null,
+          "usage": {
+            "inputFresh": 733,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 109
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "Duolingo mostly teaches Brazilian rather than European Portuguese",
+            "links": [
+              {
+                "note": "Duolingo day six adds a basic Portuguese sentence",
+                "reason": "revises the earlier positive learning note: by day fifteen, the course appears oriented toward Brazilian rather than European Portuguese."
+              },
+              {
+                "note": "Portuguese",
+                "reason": "European Portuguese learning is constrained by the app's Brazilian Portuguese emphasis."
+              }
+            ],
+            "tags": [
+              "observation"
+            ],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "B0005",
+          "ms": 2651,
+          "error": null,
+          "usage": {
+            "inputFresh": 753,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 155
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "The chip-shop flat's character was mostly its smell",
+            "links": [
+              {
+                "note": "House move",
+                "reason": "records a memorable negative impression from a property viewing during the house move."
+              }
+            ],
+            "tags": [
+              "observation"
+            ],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "D0007",
+          "ms": 2218,
+          "error": null,
+          "usage": {
+            "inputFresh": 748,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 133
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "The first loaf was flat, dense, and gummy",
+            "links": [
+              {
+                "note": "Sourdough",
+                "reason": "records the disappointing first-loaf outcome for the sourdough project"
+              },
+              {
+                "note": "A Jules starter is fed 1:1:1 twice daily",
+                "reason": "the loaf result may help assess whether the starter or baking process needs adjustment"
+              }
+            ],
+            "tags": [
+              "observation"
+            ],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "C0003",
+          "ms": 720,
+          "error": null,
+          "usage": {
+            "inputFresh": 754,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 33
+          },
+          "result": {
+            "verdict": "noise",
+            "title": "",
+            "links": [],
+            "tags": [],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "A0005",
+          "ms": 2164,
+          "error": null,
+          "usage": {
+            "inputFresh": 2738,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 0,
+            "output": 146
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "Project Harbor's migration risk lacks a clear owner",
+            "links": [
+              {
+                "note": "Project Harbor",
+                "reason": "identifies unclear ownership of the migration story as Harbor's primary risk rather than code quality"
+              }
+            ],
+            "tags": [
+              "observation"
+            ],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "B0006",
+          "ms": 2680,
+          "error": null,
+          "usage": {
+            "inputFresh": 790,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 212
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "A garden matters more than a balcony at home",
+            "links": [
+              {
+                "note": "House move",
+                "reason": "sets a home-search criterion: a garden is needed for comfortable outdoor space, not merely a balcony"
+              }
+            ],
+            "tags": [
+              "decision",
+              "preferences"
+            ],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "D0008",
+          "ms": 3874,
+          "error": null,
+          "usage": {
+            "inputFresh": 791,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 269
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "Anarres shows non-ownership can sustain a society",
+            "links": [
+              {
+                "note": "Ursula K. Le Guin",
+                "reason": "reflects on Anarres as Le Guin's model of a society organized without private ownership"
+              }
+            ],
+            "tags": [
+              "observation",
+              "media"
+            ],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "D0009",
+          "ms": 1666,
+          "error": null,
+          "usage": {
+            "inputFresh": 803,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 105
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "Spoken Portuguese swallows vowels and changes familiar words",
+            "links": [
+              {
+                "note": "Portuguese",
+                "reason": "spoken Portuguese elides vowels enough that familiar written words sound like a different language"
+              }
+            ],
+            "tags": [
+              "observation"
+            ],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "A0006",
+          "ms": 2083,
+          "error": null,
+          "usage": {
+            "inputFresh": 818,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 148
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "Importer edge cases may consume the entire project",
+            "links": [
+              {
+                "note": "Project Harbor v1 is limited to the import path",
+                "reason": "suggests the import path's customer CSV edge cases may dominate Project Harbor's scope"
+              },
+              {
+                "note": "Project Harbor",
+                "reason": "observes that importer specification work is becoming the project's central burden"
+              }
+            ],
+            "tags": [
+              "observation"
+            ],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "B0007",
+          "ms": 2432,
+          "error": null,
+          "usage": {
+            "inputFresh": 841,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 154
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "People moving away challenges my assumption that everyone stays",
+            "links": [
+              {
+                "note": "Priya",
+                "reason": "Priya's move to Leeds prompted a reflection on assuming friends remain nearby."
+              }
+            ],
+            "tags": [
+              "#observation",
+              "#person",
+              "#relationship"
+            ],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "D0010",
+          "ms": 1801,
+          "error": null,
+          "usage": {
+            "inputFresh": 835,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 134
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "Higher hydration may improve sourdough loaves",
+            "links": [
+              {
+                "note": "Sourdough",
+                "reason": "plans to raise dough hydration to 80% because wet doughs appear to produce better loaves"
+              }
+            ],
+            "tags": [
+              "observation",
+              "decision"
+            ],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "B0008",
+          "ms": 1025,
+          "error": null,
+          "usage": {
+            "inputFresh": 843,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 34
+          },
+          "result": {
+            "verdict": "noise",
+            "title": "",
+            "links": [],
+            "tags": [],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "C0004",
+          "ms": 954,
+          "error": null,
+          "usage": {
+            "inputFresh": 833,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 49
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "Avoiding coffee after 2pm is a one-week trial",
+            "links": [],
+            "tags": [
+              "#decision"
+            ],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "D0011",
+          "ms": 2184,
+          "error": null,
+          "usage": {
+            "inputFresh": 856,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 78
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "Rent increase strengthens the case for buying",
+            "links": [
+              {
+                "note": "Renting vs owning",
+                "reason": "A six-percent rent increase makes continued renting feel like funding someone else's mortgage and strengthens the case for buying."
+              }
+            ],
+            "tags": [
+              "decision",
+              "observation"
+            ],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "A0007",
+          "ms": 708,
+          "error": null,
+          "usage": {
+            "inputFresh": 860,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 33
+          },
+          "result": {
+            "verdict": "noise",
+            "title": "",
+            "links": [],
+            "tags": [],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "B0009",
+          "ms": 2595,
+          "error": null,
+          "usage": {
+            "inputFresh": 880,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 180
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "A larger mortgage offer made debt feel more daunting",
+            "links": [
+              {
+                "note": "Renting vs owning",
+                "reason": "mortgage approval adds emotional weight to the decision between buying and continuing to rent"
+              },
+              {
+                "note": "Money",
+                "reason": "the unexpectedly large borrowing amount made long-term debt feel unsettling"
+              }
+            ],
+            "tags": [
+              "decision",
+              "observation"
+            ],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "C0005",
+          "ms": 2146,
+          "error": null,
+          "usage": {
+            "inputFresh": 878,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 105
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "Being wound up makes me withdraw from Sam",
+            "links": [
+              {
+                "note": "Sam",
+                "reason": "records a repeated shutdown pattern when Sam checks in about distress"
+              }
+            ],
+            "tags": [
+              "#observation",
+              "#person",
+              "#relationship"
+            ],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "B0010",
+          "ms": 1324,
+          "error": null,
+          "usage": {
+            "inputFresh": 901,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 64
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "Dad resists replacing a failing phone",
+            "links": [
+              {
+                "note": "Dad",
+                "reason": "Dad prefers keeping his old phone despite message delivery failures."
+              }
+            ],
+            "tags": [
+              "person",
+              "preferences"
+            ],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "D0012",
+          "ms": 2621,
+          "error": null,
+          "usage": {
+            "inputFresh": 891,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 166
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "Thirty-day Duolingo streak hasn't enabled spontaneous sentences",
+            "links": [
+              {
+                "note": "Duolingo",
+                "reason": "The streak suggests card-based practice has not yet transferred to independently forming sentences."
+              }
+            ],
+            "tags": [
+              "observation"
+            ],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "A0008",
+          "ms": 16851,
+          "error": null,
+          "usage": {
+            "inputFresh": 912,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 154
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "Priya's March demo commitment lacks an end-to-end product",
+            "links": [
+              {
+                "note": "Priya",
+                "reason": "Priya requested a March all-hands demo despite no end-to-end product being ready."
+              }
+            ],
+            "tags": [
+              "decision",
+              "observation",
+              "person"
+            ],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "D0013",
+          "ms": 815,
+          "error": null,
+          "usage": {
+            "inputFresh": 915,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 34
+          },
+          "result": {
+            "verdict": "noise",
+            "title": "",
+            "links": [],
+            "tags": [],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "B0011",
+          "ms": 3916,
+          "error": null,
+          "usage": {
+            "inputFresh": 950,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 284
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "Rowan Street's flaws made its rejection immediately mutual",
+            "links": [
+              {
+                "note": "Rowan Street house",
+                "reason": "records the cramped kitchen, sloping upstairs floor, and overgrown garden that made this viewing an immediate shared rejection"
+              },
+              {
+                "note": "A garden matters more than a balcony at home",
+                "reason": "shows that even a back garden did not compensate for the house's other drawbacks"
+              },
+              {
+                "note": "A non-corridor kitchen is a core housing requirement",
+                "reason": "the kitchen was too cramped to turn around in, reinforcing this housing requirement"
+              }
+            ],
+            "tags": [
+              "observation"
+            ],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "D0014",
+          "ms": 1724,
+          "error": null,
+          "usage": {
+            "inputFresh": 935,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 105
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "Eighty-percent dough hydration is too slack to shape",
+            "links": [
+              {
+                "note": "Higher hydration may improve sourdough loaves",
+                "reason": "qualifies the hydration experiment: at eighty percent, the dough becomes too slack to shape or transfer."
+              },
+              {
+                "note": "Sourdough",
+                "reason": "records a practical dough-handling limit during sourdough baking."
+              }
+            ],
+            "tags": [
+              "observation"
+            ],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "C0006",
+          "ms": 1817,
+          "error": null,
+          "usage": {
+            "inputFresh": 950,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 106
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "Avoiding coffee after 2pm fixed my sleep",
+            "links": [
+              {
+                "note": "Avoiding coffee after 2pm is a one-week trial",
+                "reason": "confirms the caffeine-cutoff trial improved sleep after two weeks."
+              },
+              {
+                "note": "Sleep quality has been poor for three nights",
+                "reason": "offers caffeine timing as the likely explanation for the earlier poor sleep."
+              }
+            ],
+            "tags": [
+              "observation"
+            ],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "A0009",
+          "ms": 3367,
+          "error": null,
+          "usage": {
+            "inputFresh": 959,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 285
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "An encoding issue undermined importer happy-path confidence",
+            "links": [
+              {
+                "note": "Project Harbor v1 is limited to the import path",
+                "reason": "The importer’s happy path briefly worked, but an encoding issue immediately exposed risk in Harbor’s sole v1 path."
+              },
+              {
+                "note": "Importer edge cases may consume the entire project",
+                "reason": "The encoding failure is a concrete edge case discovered immediately after happy-path validation."
+              },
+              {
+                "note": "Wei-Lin Chao",
+                "reason": "Wei-Lin identified the encoding issue that qualified the importer’s apparent success."
+              }
+            ],
+            "tags": [
+              "#observation"
+            ],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "B0012",
+          "ms": 3973,
+          "error": null,
+          "usage": {
+            "inputFresh": 984,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 276
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "Kirsten was unusually quiet at dinner with Tomek",
+            "links": [
+              {
+                "note": "Kirsten",
+                "reason": "Kirsten was unusually quiet at dinner, raising an unasked-about concern."
+              },
+              {
+                "note": "Tomek",
+                "reason": "Dinner at Tomek's included a repeated four-hour pork dish that was worth the effort."
+              }
+            ],
+            "tags": [
+              "person",
+              "relationship",
+              "observation"
+            ],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "D0015",
+          "ms": 1295,
+          "error": null,
+          "usage": {
+            "inputFresh": 976,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 71
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "The Magic Mountain's middle has a difficult reputation",
+            "links": [
+              {
+                "note": "The Magic Mountain",
+                "reason": "reading progress and expectation that the novel's middle section is notoriously difficult"
+              }
+            ],
+            "tags": [
+              "#media",
+              "#preferences"
+            ],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "D0016",
+          "ms": 1628,
+          "error": null,
+          "usage": {
+            "inputFresh": 991,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 75
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "Streaks measure showing up rather than learning",
+            "links": [
+              {
+                "note": "Thirty-day Duolingo streak hasn't enabled spontaneous sentences",
+                "reason": "generalizes the distinction between consistent attendance and actual learning progress."
+              }
+            ],
+            "tags": [
+              "observation"
+            ],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "C0007",
+          "ms": 745,
+          "error": null,
+          "usage": {
+            "inputFresh": 990,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 33
+          },
+          "result": {
+            "verdict": "noise",
+            "title": "",
+            "links": [],
+            "tags": [],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "B0013",
+          "ms": 2896,
+          "error": null,
+          "usage": {
+            "inputFresh": 1024,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 203
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "Rowan Street rejection revealed unexpected attachment to the house",
+            "links": [
+              {
+                "note": "Rowan Street house",
+                "reason": "sealed-bid rejection ended the house bid and exposed stronger-than-expected disappointment after a single viewing"
+              },
+              {
+                "note": "Rowan Street's flaws made its rejection immediately mutual",
+                "reason": "revises the earlier mutual rejection: losing the house now feels unexpectedly painful"
+              }
+            ],
+            "tags": [
+              "observation"
+            ],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "D0017",
+          "ms": 3453,
+          "error": null,
+          "usage": {
+            "inputFresh": 1000,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 44
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "WiFi password is taped under the router",
+            "links": [],
+            "tags": [
+              "reference"
+            ],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "A0010",
+          "ms": 3613,
+          "error": null,
+          "usage": {
+            "inputFresh": 1026,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 244
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "A faked demo concealed unfinished product work",
+            "links": [
+              {
+                "note": "Priya's March demo commitment lacks an end-to-end product",
+                "reason": "shows how a demo can appear successful despite the missing end-to-end product, reinforcing the delivery risk."
+              }
+            ],
+            "tags": [
+              "observation",
+              "question"
+            ],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "D0018",
+          "ms": 2914,
+          "error": null,
+          "usage": {
+            "inputFresh": 1033,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 242
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "Lower hydration yielded a taller but still tight loaf",
+            "links": [
+              {
+                "note": "Higher hydration may improve sourdough loaves",
+                "reason": "revises the hydration hypothesis: reducing to seventy improved loaf height but did not open the crumb"
+              },
+              {
+                "note": "Eighty-percent dough hydration is too slack to shape",
+                "reason": "extends the hydration comparison by showing that lower water improves structure without resolving the tight crumb"
+              }
+            ],
+            "tags": [
+              "#observation"
+            ],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "B0014",
+          "ms": 758,
+          "error": null,
+          "usage": {
+            "inputFresh": 1037,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 34
+          },
+          "result": {
+            "verdict": "noise",
+            "title": "",
+            "links": [],
+            "tags": [],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "A0011",
+          "ms": 2094,
+          "error": null,
+          "usage": {
+            "inputFresh": 1049,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 142
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "Written standups trade sentiment for lower coordination costs",
+            "links": [
+              {
+                "note": "Standup",
+                "reason": "argues that replacing the meeting with written updates cuts expensive coordination despite concerns about losing human connection"
+              },
+              {
+                "note": "Standup should become an asynchronous status report",
+                "reason": "revises the case for asynchronous standups by recording Tomás's objection and judging the lost human element as sentimental rather than operationally necessary"
+              },
+              {
+                "note": "Tomás Lindqvist",
+                "reason": "records Tomás's view that asynchronous standups lose an important human element"
+              }
+            ],
+            "tags": [
+              "decision",
+              "observation"
+            ],
+            "hub_section": ""
+          }
+        }
+      ]
+    },
+    {
+      "model": "gpt-5.6-luna",
+      "usageTotal": {
+        "inputFresh": 45995,
+        "inputCacheWrite": 0,
+        "inputCacheRead": 94368,
+        "output": 8226
+      },
+      "reasoningTokens": 4665,
+      "failures": 0,
+      "score": {
+        "captures": 50,
+        "parsed": 50,
+        "unparseable": 0,
+        "verdict": {
+          "accuracy": 1,
+          "correct": 50,
+          "total": 50,
+          "confusion": {
+            "atom->atom": 40,
+            "noise->noise": 10
+          }
+        },
+        "links": {
+          "goldInScope": 29,
+          "predicted": 8,
+          "unresolved": 0,
+          "truePositives": 8,
+          "precisionStrict": 1,
+          "precisionLenient": 1,
+          "recall": 0.2759,
+          "f1": 0.4325
+        },
+        "hubLinks": {
+          "goldInScope": 53,
+          "predicted": 41,
+          "truePositives": 36,
+          "precision": 0.878,
+          "recall": 0.6792
+        },
+        "latencyMs": {
+          "n": 50,
+          "median": 2311,
+          "mean": 2500,
+          "p90": 3706,
+          "max": 17808
+        }
+      },
+      "records": [
+        {
+          "id": "D0001",
+          "ms": 4267,
+          "error": null,
+          "usage": {
+            "inputFresh": 2554,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 0,
+            "output": 225
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "September Lisbon trip will include genuinely learning Portuguese",
+            "links": [
+              {
+                "note": "Lisbon",
+                "reason": "planned September trip destination"
+              },
+              {
+                "note": "Portuguese",
+                "reason": "language-learning goal goes beyond memorizing tourist phrases"
+              }
+            ],
+            "tags": [
+              "#decision",
+              "#idea"
+            ],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "B0001",
+          "ms": 17808,
+          "error": null,
+          "usage": {
+            "inputFresh": 622,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 262
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "A future home should not have a corridor kitchen",
+            "links": [
+              {
+                "note": "House move",
+                "reason": "concrete home-layout preference: the kitchen should not function as a corridor"
+              }
+            ],
+            "tags": [
+              "#preferences",
+              "#observation"
+            ],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "C0001",
+          "ms": 1849,
+          "error": null,
+          "usage": {
+            "inputFresh": 610,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 123
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "Poor sleep has lasted three nights, possibly because it's January",
+            "links": [],
+            "tags": [
+              "#observation"
+            ],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "D0002",
+          "ms": 4952,
+          "error": null,
+          "usage": {
+            "inputFresh": 625,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 430
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "The Dispossessed starts the year’s Le Guin reading",
+            "links": [
+              {
+                "note": "Ursula K. Le Guin",
+                "reason": "returns to Le Guin through The Dispossessed, widely regarded as her political novel"
+              },
+              {
+                "note": "Reading log",
+                "reason": "adds The Dispossessed as the year's first reading"
+              }
+            ],
+            "tags": [
+              "#media"
+            ],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "A0001",
+          "ms": 2585,
+          "error": null,
+          "usage": {
+            "inputFresh": 643,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 219
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "Harbor has a six-month ship date I don't trust",
+            "links": [
+              {
+                "note": "Project Harbor",
+                "reason": "records the Harbor kickoff and skepticism about its six-month shipping deadline"
+              },
+              {
+                "note": "Priya",
+                "reason": "attributes the firm ship-date stance to Priya"
+              }
+            ],
+            "tags": [
+              "#observation",
+              "#decision"
+            ],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "B0002",
+          "ms": 3537,
+          "error": null,
+          "usage": {
+            "inputFresh": 667,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 172
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "Omar's birthday briefly recreated the old days",
+            "links": [
+              {
+                "note": "Omar",
+                "reason": "captures a warm but fleeting group dynamic at Omar's birthday celebration"
+              }
+            ],
+            "tags": [
+              "#person",
+              "#relationship",
+              "#observation"
+            ],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "D0003",
+          "ms": 3854,
+          "error": null,
+          "usage": {
+            "inputFresh": 659,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 234
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "Duolingo day six can produce a simple Portuguese sentence",
+            "links": [
+              {
+                "note": "Duolingo",
+                "reason": "records day-six progress in the language-learning app"
+              },
+              {
+                "note": "Lisbon",
+                "reason": "connects Portuguese learning progress with the upcoming Lisbon context"
+              },
+              {
+                "note": "Portuguese",
+                "reason": "demonstrates an early Portuguese sentence learned through practice"
+              }
+            ],
+            "tags": [
+              "#observation",
+              "#language"
+            ],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "A0002",
+          "ms": 3271,
+          "error": null,
+          "usage": {
+            "inputFresh": 685,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 331
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "Standup meetings are 25-minute status reports for Tomás",
+            "links": [
+              {
+                "note": "Tomás Lindqvist",
+                "reason": "identifies Tomás as the primary recipient of the meeting's status report"
+              },
+              {
+                "note": "Standup",
+                "reason": "reframes the meeting as a recurring status-report process rather than a standup"
+              }
+            ],
+            "tags": [
+              "#observation",
+              "#relationship"
+            ],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "D0004",
+          "ms": 1299,
+          "error": null,
+          "usage": {
+            "inputFresh": 676,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 33
+          },
+          "result": {
+            "verdict": "noise",
+            "title": "",
+            "links": [],
+            "tags": [],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "B0003",
+          "ms": 2341,
+          "error": null,
+          "usage": {
+            "inputFresh": 698,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 188
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "Dad repeated the Rhyl van story, and I stayed silent",
+            "links": [
+              {
+                "note": "Dad",
+                "reason": "records a repeated family story and uncertainty about whether staying silent was kind or cowardly"
+              }
+            ],
+            "tags": [
+              "#person",
+              "#observation",
+              "#relationship",
+              "#question"
+            ],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "B0004",
+          "ms": 911,
+          "error": null,
+          "usage": {
+            "inputFresh": 699,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 33
+          },
+          "result": {
+            "verdict": "noise",
+            "title": "",
+            "links": [],
+            "tags": [],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "D0005",
+          "ms": 2088,
+          "error": null,
+          "usage": {
+            "inputFresh": 702,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 177
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "Jules gave me a sourdough starter I'm feeding twice daily",
+            "links": [
+              {
+                "note": "Jules",
+                "reason": "Jules gave me a sourdough starter that I am feeding twice daily."
+              }
+            ],
+            "tags": [
+              "#observation",
+              "#person"
+            ],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "A0003",
+          "ms": 1046,
+          "error": null,
+          "usage": {
+            "inputFresh": 708,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 33
+          },
+          "result": {
+            "verdict": "noise",
+            "title": "",
+            "links": [],
+            "tags": [],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "A0004",
+          "ms": 2483,
+          "error": null,
+          "usage": {
+            "inputFresh": 727,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 203
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "Harbor v1 is limited to the import path",
+            "links": [
+              {
+                "note": "Project Harbor",
+                "reason": "records the v1 scope decision: only the import path ships initially"
+              },
+              {
+                "note": "Wei-Lin Chao",
+                "reason": "records Wei-Lin's approval as the decisive signoff for Harbor's narrowed scope"
+              }
+            ],
+            "tags": [
+              "#decision"
+            ],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "C0002",
+          "ms": 1186,
+          "error": null,
+          "usage": {
+            "inputFresh": 725,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 45
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "Calculating available sleep makes falling asleep harder",
+            "links": [],
+            "tags": [
+              "observation"
+            ],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "D0006",
+          "ms": 2527,
+          "error": null,
+          "usage": {
+            "inputFresh": 741,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 223
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "Duolingo mostly teaches Brazilian rather than European Portuguese",
+            "links": [
+              {
+                "note": "Duolingo",
+                "reason": "documents that the app mostly teaches Brazilian Portuguese, discovered on day fifteen"
+              },
+              {
+                "note": "Portuguese",
+                "reason": "distinguishes European Portuguese from the Brazilian variety taught by the app"
+              }
+            ],
+            "tags": [
+              "#observation",
+              "#reference"
+            ],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "B0005",
+          "ms": 2729,
+          "error": null,
+          "usage": {
+            "inputFresh": 761,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 224
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "Nat politely endured the chip-shop flat viewing",
+            "links": [
+              {
+                "note": "House move",
+                "reason": "records an early house-viewing reaction to a flat above a chip shop"
+              }
+            ],
+            "tags": [
+              "#observation"
+            ],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "D0007",
+          "ms": 1889,
+          "error": null,
+          "usage": {
+            "inputFresh": 754,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 155
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "The first sourdough loaf was flat, dense, and gummy",
+            "links": [
+              {
+                "note": "Sourdough",
+                "reason": "records the disappointing texture and result of the first loaf"
+              }
+            ],
+            "tags": [
+              "#observation"
+            ],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "C0003",
+          "ms": 845,
+          "error": null,
+          "usage": {
+            "inputFresh": 763,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 33
+          },
+          "result": {
+            "verdict": "noise",
+            "title": "",
+            "links": [],
+            "tags": [],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "A0005",
+          "ms": 3062,
+          "error": null,
+          "usage": {
+            "inputFresh": 781,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 280
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "Harbor's migration risk is unowned and poorly surfaced",
+            "links": [
+              {
+                "note": "Project Harbor",
+                "reason": "identifies unowned migration work and ineffective risk communication as the project's main risk"
+              }
+            ],
+            "tags": [
+              "#observation"
+            ],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "B0006",
+          "ms": 1535,
+          "error": null,
+          "usage": {
+            "inputFresh": 800,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 78
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "A future home should have a garden, not a balcony",
+            "links": [
+              {
+                "note": "A future home should not have a corridor kitchen",
+                "reason": "adds a second concrete requirement for the design of a future home"
+              }
+            ],
+            "tags": [
+              "#decision",
+              "#preferences"
+            ],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "D0008",
+          "ms": 2826,
+          "error": null,
+          "usage": {
+            "inputFresh": 803,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 272
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "Anarres shows how society can hold together without ownership",
+            "links": [
+              {
+                "note": "The Dispossessed starts the year’s Le Guin reading",
+                "reason": "reflects on Anarres and develops the book’s central premise about collective ownership"
+              }
+            ],
+            "tags": [
+              "#observation",
+              "#media"
+            ],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "D0009",
+          "ms": 1887,
+          "error": null,
+          "usage": {
+            "inputFresh": 815,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 123
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "Spoken language can feel unlike its written form",
+            "links": [],
+            "tags": [
+              "#observation"
+            ],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "A0006",
+          "ms": 2967,
+          "error": null,
+          "usage": {
+            "inputFresh": 829,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 271
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "Every importer edge case threatens to consume the whole project",
+            "links": [
+              {
+                "note": "Project Harbor",
+                "reason": "captures growing scope anxiety around the importer work in Harbor"
+              },
+              {
+                "note": "Harbor v1 is limited to the import path",
+                "reason": "echoes the concern that Harbor's first version may be dominated by import complexity"
+              }
+            ],
+            "tags": [
+              "#observation"
+            ],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "B0007",
+          "ms": 2559,
+          "error": null,
+          "usage": {
+            "inputFresh": 853,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 235
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "Priya's move to Leeds challenged my assumption about staying put",
+            "links": [
+              {
+                "note": "Priya",
+                "reason": "Priya's move to Leeds prompted a realization that people do not necessarily stay put by default."
+              }
+            ],
+            "tags": [
+              "#person",
+              "#observation",
+              "#relationship"
+            ],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "D0010",
+          "ms": 1405,
+          "error": null,
+          "usage": {
+            "inputFresh": 850,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 76
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "Higher hydration may be the key to better sourdough loaves",
+            "links": [
+              {
+                "note": "Sourdough",
+                "reason": "records a decision to increase dough hydration in pursuit of better loaves"
+              }
+            ],
+            "tags": [
+              "#observation",
+              "#decision"
+            ],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "B0008",
+          "ms": 935,
+          "error": null,
+          "usage": {
+            "inputFresh": 862,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 33
+          },
+          "result": {
+            "verdict": "noise",
+            "title": "",
+            "links": [],
+            "tags": [],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "C0004",
+          "ms": 1161,
+          "error": null,
+          "usage": {
+            "inputFresh": 852,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 51
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "Avoiding coffee after 2pm may improve sleep",
+            "links": [],
+            "tags": [
+              "#observation",
+              " #decision"
+            ],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "D0011",
+          "ms": 1170,
+          "error": null,
+          "usage": {
+            "inputFresh": 873,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 73
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "Rising rent strengthens the case for buying",
+            "links": [
+              {
+                "note": "Renting vs owning",
+                "reason": "adds a rent-increase argument to the renting-versus-owning decision"
+              }
+            ],
+            "tags": [
+              "#observation",
+              "#decision"
+            ],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "A0007",
+          "ms": 877,
+          "error": null,
+          "usage": {
+            "inputFresh": 877,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 33
+          },
+          "result": {
+            "verdict": "noise",
+            "title": "",
+            "links": [],
+            "tags": [],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "B0009",
+          "ms": 2565,
+          "error": null,
+          "usage": {
+            "inputFresh": 897,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 214
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "A larger mortgage made the future feel heavier",
+            "links": [
+              {
+                "note": "Renting vs owning",
+                "reason": "adds an emotional counterweight to the financial case for buying"
+              }
+            ],
+            "tags": [
+              "#observation",
+              "#decision"
+            ],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "C0005",
+          "ms": 2194,
+          "error": null,
+          "usage": {
+            "inputFresh": 894,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 177
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "Wound-up states make me go silent despite being asked",
+            "links": [
+              {
+                "note": "Sam",
+                "reason": "reveals a recurring communication pattern between me and Sam when I am emotionally wound up"
+              }
+            ],
+            "tags": [
+              "#observation",
+              "#relationship"
+            ],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "B0010",
+          "ms": 1119,
+          "error": null,
+          "usage": {
+            "inputFresh": 920,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 71
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "Dad's old phone breaks texts into separate messages",
+            "links": [
+              {
+                "note": "Dad",
+                "reason": "observes Dad resisting a new phone despite the old one fragmenting texts"
+              }
+            ],
+            "tags": [
+              "#person",
+              "#observation"
+            ],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "D0012",
+          "ms": 3105,
+          "error": null,
+          "usage": {
+            "inputFresh": 912,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 308
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "A thirty-day Duolingo streak still hasn't enabled original sentences",
+            "links": [
+              {
+                "note": "Duolingo",
+                "reason": "records a limitation observed after thirty days of language practice"
+              }
+            ],
+            "tags": [
+              "#observation"
+            ],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "A0008",
+          "ms": 2842,
+          "error": null,
+          "usage": {
+            "inputFresh": 935,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 274
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "I agreed to Priya's March demo despite having no end-to-end product",
+            "links": [
+              {
+                "note": "Priya",
+                "reason": "Priya requested the March all-hands demo, creating pressure behind the decision"
+              },
+              {
+                "note": "Project Harbor",
+                "reason": "The demo commitment exposes that Harbor currently lacks an end-to-end implementation"
+              }
+            ],
+            "tags": [
+              "#decision",
+              "#person",
+              "#relationship"
+            ],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "D0013",
+          "ms": 826,
+          "error": null,
+          "usage": {
+            "inputFresh": 941,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 33
+          },
+          "result": {
+            "verdict": "noise",
+            "title": "",
+            "links": [],
+            "tags": [],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "B0011",
+          "ms": 3343,
+          "error": null,
+          "usage": {
+            "inputFresh": 976,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 310
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "Rowan Street's garden and roomy kitchen impressed us both",
+            "links": [
+              {
+                "note": "Rowan Street house",
+                "reason": "records the house's small garden, unusual apple tree, sloping upstairs floor, and roomy kitchen"
+              }
+            ],
+            "tags": [
+              "#observation",
+              "#preferences",
+              "#relationship"
+            ],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "D0014",
+          "ms": 1321,
+          "error": null,
+          "usage": {
+            "inputFresh": 962,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 66
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "Eighty percent dough spreads too much to shape",
+            "links": [
+              {
+                "note": "Sourdough",
+                "reason": "records a sourdough hydration and shaping problem"
+              }
+            ],
+            "tags": [
+              "#observation"
+            ],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "C0006",
+          "ms": 1622,
+          "error": null,
+          "usage": {
+            "inputFresh": 976,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 82
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "Avoiding caffeine after 2pm reliably enables sleep by 11",
+            "links": [
+              {
+                "note": "Avoiding coffee after 2pm may improve sleep",
+                "reason": "confirms the earlier observation that avoiding caffeine after 2pm improves sleep"
+              }
+            ],
+            "tags": [
+              "#observation"
+            ],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "A0009",
+          "ms": 3706,
+          "error": null,
+          "usage": {
+            "inputFresh": 988,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 268
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "The importer happy path failed on an encoding edge case",
+            "links": [
+              {
+                "note": "Wei-Lin Chao",
+                "reason": "Wei-Lin identified the encoding failure in the importer"
+              },
+              {
+                "note": "Every importer edge case threatens to consume the whole project",
+                "reason": "concrete example of an importer edge case undermining the happy path"
+              }
+            ],
+            "tags": [
+              "#observation"
+            ],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "B0012",
+          "ms": 2115,
+          "error": null,
+          "usage": {
+            "inputFresh": 1014,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 182
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "Tomek's four-hour pork was worth it; Kirsten seemed unusually quiet",
+            "links": [
+              {
+                "note": "Tomek",
+                "reason": "records Tomek's recurring four-hour pork dish and that the effort was worthwhile"
+              },
+              {
+                "note": "Kirsten",
+                "reason": "observes Kirsten being unusually quiet without asking what was wrong"
+              }
+            ],
+            "tags": [
+              "#person",
+              "#relationship",
+              "#observation"
+            ],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "D0015",
+          "ms": 2690,
+          "error": null,
+          "usage": {
+            "inputFresh": 1011,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 206
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "The Magic Mountain's length makes its middle daunting",
+            "links": [
+              {
+                "note": "The Magic Mountain",
+                "reason": "records starting the book despite warnings that its long middle may drag"
+              }
+            ],
+            "tags": [
+              "#media",
+              "#observation"
+            ],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "D0016",
+          "ms": 1374,
+          "error": null,
+          "usage": {
+            "inputFresh": 1026,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 46
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "A streak measures showing up, not learning",
+            "links": [],
+            "tags": [
+              "#observation"
+            ],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "C0007",
+          "ms": 1016,
+          "error": null,
+          "usage": {
+            "inputFresh": 1024,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 34
+          },
+          "result": {
+            "verdict": "noise",
+            "title": "",
+            "links": [],
+            "tags": [],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "B0013",
+          "ms": 2652,
+          "error": null,
+          "usage": {
+            "inputFresh": 1058,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 209
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "The rejected Rowan Street offer hurt more than expected",
+            "links": [
+              {
+                "note": "Rowan Street house",
+                "reason": "captures unexpected grief after the offer on the house was rejected"
+              }
+            ],
+            "tags": [
+              "#observation"
+            ],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "D0017",
+          "ms": 998,
+          "error": null,
+          "usage": {
+            "inputFresh": 3000,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 0,
+            "output": 33
+          },
+          "result": {
+            "verdict": "noise",
+            "title": "",
+            "links": [],
+            "tags": [],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "A0010",
+          "ms": 2311,
+          "error": null,
+          "usage": {
+            "inputFresh": 1050,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 216
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "A successful demo concealed an unfinished second half",
+            "links": [
+              {
+                "note": "I agreed to Priya's March demo despite having no end-to-end product",
+                "reason": "reveals that the demo's apparent success depended on concealing the unfinished product"
+              }
+            ],
+            "tags": [
+              "#observation"
+            ],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "D0018",
+          "ms": 3035,
+          "error": null,
+          "usage": {
+            "inputFresh": 1057,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 282
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "Seventy percent hydration made a taller but tight-crumb loaf",
+            "links": [
+              {
+                "note": "Sourdough",
+                "reason": "records a new loaf result and narrows the troubleshooting focus beyond hydration"
+              },
+              {
+                "note": "Higher hydration may be the key to better sourdough loaves",
+                "reason": "revises the hypothesis that higher hydration is the main route to better loaves"
+              }
+            ],
+            "tags": [
+              "#observation"
+            ],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "B0014",
+          "ms": 1144,
+          "error": null,
+          "usage": {
+            "inputFresh": 1064,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 33
+          },
+          "result": {
+            "verdict": "noise",
+            "title": "",
+            "links": [],
+            "tags": [],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "A0011",
+          "ms": 3195,
+          "error": null,
+          "usage": {
+            "inputFresh": 1076,
+            "inputCacheWrite": 0,
+            "inputCacheRead": 1966,
+            "output": 314
+          },
+          "result": {
+            "verdict": "atom",
+            "title": "Async standups may sacrifice humanity at unnecessary cost",
+            "links": [
+              {
+                "note": "Tomás Lindqvist",
+                "reason": "records Tomás's preference for preserving the human element in standups despite the cost"
+              },
+              {
+                "note": "Standup meetings are 25-minute status reports for Tomás",
+                "reason": "extends the existing observation about Tomás's standup expectations with a disagreement over async alternatives"
+              }
+            ],
+            "tags": [
+              "#observation",
+              "#relationship"
+            ],
+            "hub_section": ""
+          }
+        }
+      ]
+    }
+  ]
+}

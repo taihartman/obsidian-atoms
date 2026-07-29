@@ -6,6 +6,7 @@ import {
   personHubTitles,
   type PersonHub,
 } from "./enrich/people";
+import { buildLinkGraph, expandFromSeeds, type LinkGraph } from "./expand";
 import { rankShortlist } from "./shortlist";
 import {
   eligibleTags,
@@ -16,6 +17,15 @@ import {
 
 /** Shortlist size when nothing configures it (KTD6). U8 wires the setting. */
 export const DEFAULT_SHORTLIST_K = 400;
+
+/**
+ * Graph expansion when nothing configures it (R7). U8 wires the setting.
+ *
+ * On, because the default caller is daily filing, which is the only path it helps. A catch-up
+ * routes through the same provider and must pass `expandGraph: false`: its reach is 0% by
+ * construction (KTD7), so leaving it on there would spend a walk to add nothing.
+ */
+export const DEFAULT_GRAPH_EXPANSION = true;
 
 /** One selected note, with the score it earned against this capture. */
 export interface ShortlistCandidate {
@@ -34,9 +44,21 @@ export interface ShortlistStats {
   matched: number;
   /** Entries that scored an absolute zero. */
   zeroScoring: number;
-  /** Distinct notes actually returned. */
+  /** Distinct notes actually returned, expansion slots included. */
   returned: number;
   k: number;
+  /**
+   * Notes appended by graph expansion. **Absent** when expansion is off — a run with the setting
+   * disabled returns exactly the bytes it returned before expansion existed.
+   */
+  expanded?: number;
+}
+
+/** What a run needs to walk the vault graph. Built once per run, alongside the corpus. */
+export interface GraphExpansion {
+  graph: LinkGraph;
+  /** Person-hub paths — reachable, never traversed through. One definition, from `enrich/people`. */
+  hubPaths: ReadonlySet<string>;
 }
 
 /**
@@ -182,6 +204,8 @@ export class ContextRun implements ContextProvider {
     private readonly staticContext: VaultContext,
     corpus: CandidateCorpus,
     readonly k: number,
+    /** Graph reach for this run, or null when the setting is off (R7). */
+    private readonly expansion: GraphExpansion | null = null,
   ) {
     this.corpus = corpus;
   }
@@ -227,6 +251,8 @@ export class ContextRun implements ContextProvider {
       shortlist.push({ path: n.path, title: n.title, score: n.score });
     }
 
+    const expanded = this.expand(corpus, shortlist);
+
     return {
       ...this.staticContext,
       // Deliberately not re-sorted: score order is the product of this unit, and U7 exists because
@@ -239,8 +265,39 @@ export class ContextRun implements ContextProvider {
         zeroScoring: corpus.notes.length - ranked.length,
         returned: shortlist.length,
         k: this.k,
+        ...(expanded === null ? {} : { expanded }),
       },
     };
+  }
+
+  /**
+   * Append the hub-blocked 2-hop neighbours of the top seeds, in place. Returns how many were
+   * added, or null when expansion is off — which is what keeps the off case byte-identical.
+   *
+   * Expansion slots sit **on top of** `k`, not inside it. `k` caps what BM25 scored; a reached note
+   * scored zero by definition, so charging it against the scored budget would evict a real match to
+   * make room for a guess. The slot count is what bounds the cost instead.
+   */
+  private expand(corpus: CandidateCorpus, shortlist: ShortlistCandidate[]): number | null {
+    if (!this.expansion) return null;
+
+    const corpusPaths = new Set(corpus.notes.map((n) => n.path));
+    const reached = expandFromSeeds(
+      shortlist.map((c) => c.path),
+      {
+        graph: this.expansion.graph,
+        hubPaths: this.expansion.hubPaths,
+        // `resolvedLinks` also points at attachments and at notes this run could not read; only a
+        // note in the corpus is a link target the model can safely be offered.
+        accept: (path) => corpusPaths.has(path),
+      },
+    );
+
+    for (const path of reached) {
+      // Basename, never an alias: it is the one title every corpus entry for a path carries.
+      shortlist.push({ path, title: titleFromPath(path), score: 0 });
+    }
+    return reached.length;
   }
 
   /**
@@ -287,15 +344,37 @@ export class MetadataContextProvider {
    * Open a run: read the vault once, build the static context once, and hand back the only handle
    * to both. The provider itself keeps nothing, which is what makes the run boundary real.
    */
-  async beginRun(opts?: { atomFolder?: string; k?: number }): Promise<ContextRun> {
+  async beginRun(opts?: {
+    atomFolder?: string;
+    k?: number;
+    /** Graph expansion (R7). Daily filing wants it on; a catch-up must pass false — see KTD7. */
+    expandGraph?: boolean;
+  }): Promise<ContextRun> {
     const corpus = await buildCandidateCorpus(this.app, {
       atomFolder: opts?.atomFolder ?? "",
     });
     const k = opts?.k ?? DEFAULT_SHORTLIST_K;
-    return new ContextRun(this.buildContext(), corpus, k);
+    const { context, hubs } = this.buildContextAndHubs();
+    const expansion = (opts?.expandGraph ?? DEFAULT_GRAPH_EXPANSION)
+      ? {
+          graph: buildLinkGraph(this.app.metadataCache.resolvedLinks),
+          hubPaths: new Set(hubs.map((h) => h.path)),
+        }
+      : null;
+    return new ContextRun(context, corpus, k, expansion);
   }
 
   buildContext(): VaultContext {
+    return this.buildContextAndHubs().context;
+  }
+
+  /**
+   * The static context plus the hubs it was derived from.
+   *
+   * Expansion needs hub *paths* and the context keeps only titles, and discovery is a full pass
+   * over every file cache — so a run reads it once and both callers share that pass.
+   */
+  private buildContextAndHubs(): { context: VaultContext; hubs: PersonHub[] } {
     const files = this.app.vault.getMarkdownFiles();
     const caches = files.map((f: TFile) => ({
       path: f.path,
@@ -305,7 +384,7 @@ export class MetadataContextProvider {
     const counts = aggregateTagsFromFileCaches(caches);
     const vaultTags = sortTags([...counts.keys()]);
     const hubs: PersonHub[] = discoverPersonHubs(caches);
-    return buildVaultContext({
+    const context = buildVaultContext({
       titles,
       vaultTags,
       activeVocabulary: this.getActiveVocabulary(),
@@ -322,6 +401,7 @@ export class MetadataContextProvider {
         };
       }),
     });
+    return { context, hubs };
   }
 }
 
