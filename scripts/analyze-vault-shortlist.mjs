@@ -17,7 +17,7 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import { SELECTORS } from "./lib/shortlist.mjs";
+import { SELECTORS, bm25Rank } from "./lib/shortlist.mjs";
 
 const argv = process.argv.slice(2);
 const valueOf = (name, fallback) => {
@@ -178,6 +178,117 @@ if (showExamples) {
     console.log(`\n  atom: "${atom.title}"`);
     console.log(`  capture: "${atom.capture.replace(/\s+/g, " ").slice(0, 90)}…"`);
     console.log(`  link found by body scoring, missed by alphabetical: ${rescued.map((r) => `"${r}"`).join(", ")}`);
+  }
+}
+
+// ------------------------------------------------------- hop distance (--hops)
+
+/**
+ * Can a graph expansion reach the links body-scored BM25 misses, on a REAL link graph?
+ *
+ * Non-circular by construction: when atom A is under test, every edge A owns is removed from the
+ * graph. A does not exist yet at classify time, so none of its links may inform its own retrieval.
+ *
+ * "Hub" is measured, not guessed: the top `--hub-pct` of nodes by degree. A hub touches everything,
+ * so a path through one says the hub exists, not that the two notes are related — which is why the
+ * hub-blocked row is the one to believe.
+ */
+if (argv.includes("--hops")) {
+  const SEEDS = Number(valueOf("seeds", "10"));
+  const HUB_PCT = Number(valueOf("hub-pct", "5"));
+
+  const degree = new Map();
+  const bump = (t) => degree.set(t, (degree.get(t) ?? 0) + 1);
+  for (const a of atoms) for (const l of a.targets ?? a.links) if (titleSet.has(l)) { bump(a.title); bump(l); }
+  const degrees = [...degree.values()].sort((x, y) => y - x);
+  const hubCut = degrees[Math.floor((degrees.length * HUB_PCT) / 100)] ?? Infinity;
+  const isHub = (t) => (degree.get(t) ?? 0) >= hubCut;
+
+  const buildGraph = (excludeAtom) => {
+    const g = new Map();
+    const edge = (a, b) => {
+      if (!g.has(a)) g.set(a, new Set());
+      if (!g.has(b)) g.set(b, new Set());
+      g.get(a).add(b);
+      g.get(b).add(a);
+    };
+    for (const a of atoms) {
+      if (a.title === excludeAtom) continue; // the note being classified does not exist yet
+      for (const l of a.links) if (titleSet.has(l) && l !== a.title) edge(a.title, l);
+    }
+    return g;
+  };
+
+  const hopDistance = (g, seeds, target, blockHubs) => {
+    const seen = new Set();
+    let frontier = [];
+    for (const s of seeds) {
+      if (s === target) return 0;
+      if (g.has(s) && !seen.has(s)) { seen.add(s); frontier.push(s); }
+    }
+    for (let d = 1; d <= 4 && frontier.length; d++) {
+      const next = [];
+      for (const node of frontier) {
+        if (blockHubs && isHub(node)) continue;
+        for (const nb of g.get(node) ?? []) {
+          if (seen.has(nb)) continue;
+          if (nb === target) return d;
+          seen.add(nb);
+          next.push(nb);
+        }
+      }
+      frontier = next;
+    }
+    return Infinity;
+  };
+
+  const buckets = {
+    traversable: { ranked: new Map(), zeroScore: new Map() },
+    blocked: { ranked: new Map(), zeroScore: new Map() },
+  };
+  const counts = { inSeeds: 0, ranked: 0, zeroScore: 0 };
+  const add = (m, d) => m.set(d, (m.get(d) ?? 0) + 1);
+
+  for (const atom of graded) {
+    const candidates = notes.filter((n) => n.title !== atom.title);
+    const ranked = bm25Rank(atom.capture, candidates, "both");
+    const rankOf = new Map(ranked.map((n, i) => [n.title, i]));
+    const scoreOf = new Map(ranked.map((n) => [n.title, n.score]));
+    const seeds = ranked.slice(0, SEEDS).map((n) => n.title);
+    const g = buildGraph(atom.title);
+
+    for (const t of atom.targets) {
+      const rank = rankOf.get(t) ?? Infinity;
+      if (rank < SEEDS) { counts.inSeeds++; continue; }
+      const pop = (scoreOf.get(t) ?? 0) > 0 ? "ranked" : "zeroScore";
+      counts[pop]++;
+      add(buckets.traversable[pop], hopDistance(g, seeds, t, false));
+      add(buckets.blocked[pop], hopDistance(g, seeds, t, true));
+    }
+  }
+
+  const totalLinks = counts.inSeeds + counts.ranked + counts.zeroScore;
+  const p = (a, b) => (b ? `${((a / b) * 100).toFixed(0)}%` : "—");
+  console.log(
+    `\n— hop distance · seeds = bodyPlusTitle top ${SEEDS} · hub = degree ≥ ${hubCut} (top ${HUB_PCT}%) —`,
+  );
+  console.log(
+    `${totalLinks} links: ${counts.inSeeds} (${p(counts.inSeeds, totalLinks)}) already in the seeds, ` +
+      `${counts.ranked} (${p(counts.ranked, totalLinks)}) scored but ranked below, ` +
+      `${counts.zeroScore} (${p(counts.zeroScore, totalLinks)}) zero score`,
+  );
+  console.log("graph".padEnd(14) + "population".padEnd(12) + "n".padStart(6) + "1 hop".padStart(9) +
+    "2 hops".padStart(9) + "≤2 hops".padStart(10) + "unreachable".padStart(13));
+  for (const [gname, gset] of Object.entries(buckets)) {
+    for (const [pop, m] of Object.entries(gset)) {
+      const n = counts[pop];
+      const h = (d) => m.get(d) ?? 0;
+      console.log(
+        gname.padEnd(14) + pop.padEnd(12) + String(n).padStart(6) + p(h(1), n).padStart(9) +
+          p(h(2), n).padStart(9) + p(h(1) + h(2), n).padStart(10) +
+          p(m.get(Infinity) ?? 0, n).padStart(13),
+      );
+    }
   }
 }
 

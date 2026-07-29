@@ -19,7 +19,8 @@
     "build:www": "node www/build.mjs",
     "measure:recall": "node scripts/measure-shortlist-recall.mjs",
     "measure:links": "node scripts/measure-link-quality.mjs",
-    "measure:chrono": "node scripts/measure-chrono-linking.mjs"
+    "measure:chrono": "node scripts/measure-chrono-linking.mjs",
+    "measure:hops": "node scripts/measure-hop-distance.mjs"
   },
   "keywords": [
     "obsidian",

@@ -1,0 +1,113 @@
+{
+  "seeds": 10,
+  "k": 400,
+  "maxHops": 4,
+  "preRunVault": 1200,
+  "goldLinks": 811,
+  "insideK": 639,
+  "populations": {
+    "inSeeds": 359,
+    "ranked": 262,
+    "zeroScore": 190
+  },
+  "settings": {
+    "full": {
+      "inSeeds": {
+        "n": 359,
+        "hops": {
+          "0": 359
+        }
+      },
+      "ranked": {
+        "n": 262,
+        "hops": {
+          "1": 146,
+          "2": 66,
+          "3": 10,
+          "4": 3,
+          "unreachable": 37
+        }
+      },
+      "zeroScore": {
+        "n": 190,
+        "hops": {
+          "1": 51,
+          "2": 49,
+          "3": 9,
+          "4": 5,
+          "unreachable": 76
+        }
+      }
+    },
+    "hubBlocked": {
+      "inSeeds": {
+        "n": 359,
+        "hops": {
+          "0": 359
+        }
+      },
+      "ranked": {
+        "n": 262,
+        "hops": {
+          "1": 109,
+          "2": 46,
+          "3": 22,
+          "4": 10,
+          "unreachable": 75
+        }
+      },
+      "zeroScore": {
+        "n": 190,
+        "hops": {
+          "1": 39,
+          "2": 25,
+          "3": 17,
+          "4": 6,
+          "unreachable": 103
+        }
+      }
+    },
+    "catchUp": {
+      "inSeeds": {
+        "n": 359,
+        "hops": {
+          "0": 359
+        }
+      },
+      "ranked": {
+        "n": 262,
+        "hops": {
+          "1": 72,
+          "2": 127,
+          "3": 4,
+          "4": 5,
+          "unreachable": 54
+        }
+      },
+      "zeroScore": {
+        "n": 190,
+        "hops": {
+          "1": 21,
+          "2": 57,
+          "3": 2,
+          "4": 5,
+          "unreachable": 105
+        }
+      }
+    }
+  },
+  "frontier": {
+    "full": {
+      "meanOneHop": 23,
+      "meanTwoHop": 67
+    },
+    "hubBlocked": {
+      "meanOneHop": 21,
+      "meanTwoHop": 22
+    },
+    "catchUp": {
+      "meanOneHop": 9,
+      "meanTwoHop": 70
+    }
+  }
+}
