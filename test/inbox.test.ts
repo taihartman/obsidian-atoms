@@ -404,7 +404,6 @@ describe("inboxCounts — inferred dates", () => {
     expect(inboxCounts("- 2026-07-27T09:14-04:00 buy milk\n", now)).toEqual({
       pending: 1,
       held: 0,
-      unparseable: 0,
       inferredDates: 0,
     });
   });
@@ -426,7 +425,6 @@ describe("inboxCounts — inferred dates", () => {
     expect(inboxCounts(filed, now)).toEqual({
       pending: 0,
       held: 0,
-      unparseable: 0,
       inferredDates: 1,
     });
   });
@@ -796,6 +794,22 @@ describe("drainInbox", () => {
     expect(parseCaptures(h.dailyContent("2026-07-27")!)).toHaveLength(2);
   });
 
+  it("falls back to the injected clock's today when nothing anchors the date", async () => {
+    // No readable stamp anywhere, so there is no neighbour to inherit from and
+    // the capture takes today. `now` is injected so the destination daily does
+    // not depend on the machine date.
+    const h = drainHarness("- no stamp at all\n", { today: "2026-03-05" });
+
+    const r = await drainInbox(h.app, {
+      ensureDaily: h.ensureDaily,
+      now: new Date(2026, 2, 5, 9, 0, 0),
+    });
+
+    expect(r.filed).toBe(1);
+    expect(r.inferred).toBe(1);
+    expect(h.dailyContent("2026-03-05")).toContain("- no stamp at all");
+  });
+
   it("does not join onto a daily that lacks a trailing newline", async () => {
     const h = drainHarness("- 2026-07-27T09:14-04:00 new capture\n", {
       dailies: { "2026-07-27": "- existing note" },
@@ -903,7 +917,6 @@ describe("drainInbox", () => {
       filed: 0,
       pending: 2,
       held: 0,
-      unparseable: 0,
       inferred: 0,
     });
     // Nothing filed means nothing marked — the lines stay exactly as they were.
@@ -925,7 +938,6 @@ describe("drainInbox", () => {
       filed: 0,
       pending: 0,
       held: 0,
-      unparseable: 0,
       inferred: 0,
     });
   });

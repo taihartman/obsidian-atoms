@@ -122,10 +122,13 @@ import {
 import {
   CAPTURE_SHORTCUT_VERSION,
   labelInstallOrUpdate,
+  needsInferredDateSignal,
   needsShortcutCta,
   openShortcutInstallUrl,
+  readInferredDateAck,
   readShortcutAck,
   resolveCaptureShortcutInstallUrl,
+  writeInferredDateAck,
   writeShortcutAck,
 } from "../settings/captureShortcut";
 import {
@@ -133,7 +136,11 @@ import {
   getPastDailyNotesWithUnmarkedCaptures,
   openTodaysDaily,
 } from "../pipeline/daily";
-import { INBOX_NOTE_PATH, inboxCounts } from "../pipeline/inbox";
+import {
+  INBOX_NOTE_PATH,
+  inboxCounts,
+  type InboxCounts,
+} from "../pipeline/inbox";
 import {
   appHasDailyNotesPluginLoaded,
   getAllDailyNotes,
@@ -186,6 +193,8 @@ export class AtomsHomeView extends ItemView {
   private unprocessedCount = 0;
   /** Captures stuck in the capture inbox (drain health), null when clear. */
   private inboxStuck: InboxStuckSummary | null = null;
+  /** Raw counts behind inboxStuck, kept so Dismiss can re-summarize without a re-read. */
+  private inboxStuckCounts: InboxCounts | null = null;
   /** Update work remaining: refile debt + polishable (for strip). */
   private eligibleUpdateCount = 0;
   private updateRefileCount = 0;
@@ -196,6 +205,8 @@ export class AtomsHomeView extends ItemView {
   private busy = false;
   private rootEl: HTMLElement | null = null;
   private shortcutAcked: string | null = null;
+  /** Ack for the "filed without a time" signal, keyed to the shortcut version. */
+  private inferredDateAcked: string | null = null;
   private refreshTimer: number | null = null;
   /** Session-only skips for From-the-brain Next (not durable). */
   private resurfaceSkipPaths = new Set<string>();
@@ -623,6 +634,9 @@ export class AtomsHomeView extends ItemView {
     this.refreshResurfacePick(folder);
 
     this.shortcutAcked = readShortcutAck((k) => this.app.loadLocalStorage(k));
+    this.inferredDateAcked = readInferredDateAck((k) =>
+      this.app.loadLocalStorage(k),
+    );
 
     this.inboxStuck = await this.loadInboxStuck();
 
@@ -658,10 +672,12 @@ export class AtomsHomeView extends ItemView {
    */
   private async loadInboxStuck(): Promise<InboxStuckSummary | null> {
     try {
+      this.inboxStuckCounts = null;
       const file = this.app.vault.getAbstractFileByPath(INBOX_NOTE_PATH);
       if (!(file instanceof TFile)) return null;
       const content = await this.app.vault.cachedRead(file);
-      return inboxStuckSummary(inboxCounts(content, new Date()));
+      this.inboxStuckCounts = inboxCounts(content, new Date());
+      return this.summarizeInboxStuck();
     } catch {
       // F5: silence is the documented healthy state for this card. cachedRead
       // can reject when the inbox is deleted between the lookup and the read
@@ -669,6 +685,25 @@ export class AtomsHomeView extends ItemView {
       // race must not throw out of loadData and blank the entire home render.
       return null;
     }
+  }
+
+  /**
+   * Summarize the last-read counts, honouring the inferred-date ack.
+   *
+   * The inbox is append-only, so that count never falls on its own — zeroing it
+   * here is what makes Dismiss stick, while keeping inboxStuckSummary a pure
+   * function of counts. Recomputed rather than re-read so Dismiss is instant.
+   */
+  private summarizeInboxStuck(): InboxStuckSummary | null {
+    const counts = this.inboxStuckCounts;
+    if (!counts) return null;
+    const silenced = !needsInferredDateSignal(
+      counts.inferredDates,
+      this.inferredDateAcked,
+    );
+    return inboxStuckSummary(
+      silenced ? { ...counts, inferredDates: 0 } : counts,
+    );
   }
 
   private visibleEntries(): AtomLibraryEntry[] {
@@ -1864,15 +1899,58 @@ export class AtomsHomeView extends ItemView {
     // someone opens the inbox note — surface it here instead. Silent when clear.
     if (this.inboxStuck && this.runPhase === "idle" && !this.landPeak) {
       const stuck = flatCard(scroll, {
-        className:
-          "atoms-home-inbox-stuck" +
-          (this.inboxStuck.needsRepair ? " is-repair" : ""),
+        className: "atoms-home-inbox-stuck",
       });
       stuck.createEl("p", {
         cls: "atoms-home-card-eyebrow",
         text: "Inbox",
       });
       stuck.createEl("p", { text: this.inboxStuck.text });
+
+      // Name the repair, not the button: reinstalling the shortcut re-opens the
+      // user's own iCloud link and brings the same misconfiguration back. Scoped
+      // to "these" on purpose — the Date-component-only trap emits a valid
+      // 12:00:00 stamp and never reaches this card.
+      if (this.inboxStuck.inferredDates > 0) {
+        stuck.createEl("p", {
+          cls: "atoms-home-inbox-cause",
+          text: "Your capture shortcut is sending a timestamp Atoms can't read, so these took the date of the captures around them.",
+        });
+        stuck.createEl("p", {
+          cls: "atoms-home-inbox-fix",
+          text: "Set Format String on the Format Date action — not on the Current Date variable.",
+        });
+        const actions = actionRow(stuck, {
+          className: "atoms-home-inbox-actions",
+        });
+        button(actions, {
+          grade: "primary",
+          label: "Open capture settings",
+          onClick: () => openPluginSettingsTab(this.app, "atoms"),
+        });
+        // Only when a link exists — a permanently-dead button is exactly what
+        // made the old card a dead end.
+        if (this.installUrl()) {
+          button(actions, {
+            grade: "secondary",
+            label: labelInstallOrUpdate(this.shortcutAcked),
+            onClick: () => this.onInstallShortcut(),
+          });
+        }
+        button(actions, {
+          grade: "quiet",
+          label: "Dismiss",
+          onClick: () => {
+            writeInferredDateAck(
+              (k, v) => this.app.saveLocalStorage(k, v),
+              CAPTURE_SHORTCUT_VERSION,
+            );
+            this.inferredDateAcked = CAPTURE_SHORTCUT_VERSION;
+            this.inboxStuck = this.summarizeInboxStuck();
+            this.render();
+          },
+        });
+      }
     }
 
     // One hero: Ready when pending; person invite > packing Make > Together / resurface

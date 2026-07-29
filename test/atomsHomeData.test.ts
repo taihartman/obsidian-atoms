@@ -509,7 +509,6 @@ describe("inbox stuck-drain indicator", () => {
     expect(inboxCounts(filed, now)).toEqual({
       pending: 0,
       held: 0,
-      unparseable: 0,
       inferredDates: 0,
     });
     expect(inboxStuckSummary(inboxCounts("", now))).toBeNull();
@@ -521,36 +520,38 @@ describe("inbox stuck-drain indicator", () => {
     expect(counts).toEqual({
       pending: 1,
       held: 0,
-      unparseable: 0,
       inferredDates: 0,
     });
     const s = inboxStuckSummary(counts);
     expect(s?.text).toBe("1 waiting to file");
-    expect(s?.needsRepair).toBe(false);
+    expect(s?.inferredDates).toBe(0);
   });
 
-  it("names unparseable captures distinctly, flagged for repair", () => {
+  it("carries no unparseable count at all — that state healed away", () => {
     const content = ["- no stamp here", "- 2026-07-20T09:14-04:00 buy milk", ""].join(
       "\n",
     );
-    // A stampless capture now heals into a pending one, so inboxCounts no
-    // longer produces `unparseable`. The summary wording for it is still under
-    // test, fed directly.
-    expect(inboxCounts(content, now)).toEqual({
-      pending: 2,
-      held: 0,
-      unparseable: 0,
-      inferredDates: 0,
-    });
-    const counts = { pending: 1, held: 0, unparseable: 1 };
-    const s = inboxStuckSummary(counts);
-    expect(s?.needsRepair).toBe(true);
-    expect(s?.text).toContain("needs a fix");
-    // Distinct from the pending wording, and ahead of it.
-    expect(s?.text).toBe("1 capture needs a fix · 1 waiting to file");
+    // A stampless capture heals into a pending one; there is no third bucket.
+    const counts = inboxCounts(content, now);
+    expect(counts).toEqual({ pending: 2, held: 0, inferredDates: 0 });
+    expect("unparseable" in counts).toBe(false);
   });
 
-  it("names future-dated held captures distinctly from unparseable", () => {
+  it("names inferred-date captures, ahead of held and pending", () => {
+    const s = inboxStuckSummary({ pending: 2, held: 1, inferredDates: 3 });
+    expect(s?.text).toBe(
+      "3 filed without times · 1 held for a future day · 2 waiting to file",
+    );
+    expect(s?.inferredDates).toBe(3);
+  });
+
+  it("uses the singular for a single inferred-date capture", () => {
+    const s = inboxStuckSummary({ pending: 0, held: 0, inferredDates: 1 });
+    expect(s?.text).toBe("1 filed without a time");
+    expect(s?.inferredDates).toBe(1);
+  });
+
+  it("names future-dated held captures distinctly from inferred dates", () => {
     const content = ["- no stamp here", "- 2026-08-01T08:00-04:00 next month", ""].join(
       "\n",
     );
@@ -559,13 +560,17 @@ describe("inbox stuck-drain indicator", () => {
     expect(inboxCounts(content, now)).toEqual({
       pending: 1,
       held: 1,
-      unparseable: 0,
       inferredDates: 0,
     });
-    const counts = { pending: 0, held: 1, unparseable: 1 };
-    const s = inboxStuckSummary(counts);
-    expect(s?.text).toBe("1 capture needs a fix · 1 held for a future day");
+    const s = inboxStuckSummary({ pending: 0, held: 1, inferredDates: 1 });
+    expect(s?.text).toBe("1 filed without a time · 1 held for a future day");
     expect(s?.text).not.toContain("waiting to file");
+  });
+
+  it("stays silent when all three counts are zero", () => {
+    expect(
+      inboxStuckSummary({ pending: 0, held: 0, inferredDates: 0 }),
+    ).toBeNull();
   });
 
   it("clears the indicator once a pending capture is filed", () => {
@@ -579,7 +584,6 @@ describe("inbox stuck-drain indicator", () => {
     expect(inboxCounts(after, now)).toEqual({
       pending: 0,
       held: 0,
-      unparseable: 0,
       inferredDates: 0,
     });
     expect(inboxStuckSummary(inboxCounts(after, now))).toBeNull();

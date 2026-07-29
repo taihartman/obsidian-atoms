@@ -445,33 +445,34 @@ export function shouldShowWaitCard(unprocessedCount: number): boolean {
 export interface InboxStuckSummary {
   /** Calm one-liner naming each stuck state, load-bearing states first. */
   text: string;
-  /** A capture the drain cannot route on its own — needs a human. */
-  needsRepair: boolean;
+  /** Captures the drain had to date from their neighbours; drives the shortcut signal. */
+  inferredDates: number;
 }
 
 /**
  * What to surface in Atoms home for captures stuck in the inbox. Returns null
  * when nothing is stuck — silence is the healthy state. Held (future-dated) and
- * unparseable (unreadable) are named distinctly from pending and from each
- * other: pending clears itself on the next drain, but the other two stay stuck
- * until their day arrives or a human steps in.
+ * inferred-date captures are named distinctly from pending and from each other:
+ * pending clears itself on the next drain, held waits for its day, and an
+ * inferred date means the drain guessed the day and dropped the time — the one
+ * state pointing at a repair the user can actually make, so it leads.
  */
 export function inboxStuckSummary(counts: {
   pending: number;
   held: number;
-  unparseable: number;
+  inferredDates: number;
 }): InboxStuckSummary | null {
   const pending = Math.max(0, counts.pending);
   const held = Math.max(0, counts.held);
-  const unparseable = Math.max(0, counts.unparseable);
-  if (pending + held + unparseable === 0) return null;
+  const inferredDates = Math.max(0, counts.inferredDates);
+  if (pending + held + inferredDates === 0) return null;
 
   const parts: string[] = [];
-  if (unparseable > 0) {
+  if (inferredDates > 0) {
     parts.push(
-      unparseable === 1
-        ? "1 capture needs a fix"
-        : `${unparseable} captures need a fix`,
+      inferredDates === 1
+        ? "1 filed without a time"
+        : `${inferredDates} filed without times`,
     );
   }
   if (held > 0) {
@@ -484,7 +485,7 @@ export function inboxStuckSummary(counts: {
       pending === 1 ? "1 waiting to file" : `${pending} waiting to file`,
     );
   }
-  return { text: parts.join(" · "), needsRepair: unparseable > 0 };
+  return { text: parts.join(" · "), inferredDates };
 }
 
 /** Count linker atoms with atoms-quality missing or below CURRENT (batch cap separate). */

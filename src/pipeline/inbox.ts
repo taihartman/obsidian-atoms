@@ -346,11 +346,6 @@ export interface InboxCounts {
   pending: number;
   /** Future-dated — held until their day arrives, never filed ahead of the clock. */
   held: number;
-  /**
-   * @deprecated Permanently 0 — an unreadable stamp now heals instead of being
-   * held (KTD1). Kept so src/home keeps compiling; a later unit removes it.
-   */
-  unparseable: number;
   /** Captures whose day the drain had to infer, filed or not — the audit trail. */
   inferredDates: number;
 }
@@ -376,7 +371,6 @@ export function inboxCounts(content: string, now: Date): InboxCounts {
   return {
     pending,
     held,
-    unparseable: 0,
     inferredDates: captures.filter((c) => c.inferredDate !== null).length,
   };
 }
@@ -539,11 +533,6 @@ export interface InboxDrainResult {
   pending: number;
   /** Future-dated captures held rather than filed into a note ahead of the clock. */
   held: number;
-  /**
-   * @deprecated Permanently 0 — an unreadable stamp now heals instead of being
-   * held (KTD1). Kept so src/plugin keeps compiling; a later unit removes it.
-   */
-  unparseable: number;
   /** Captures filed this pass whose day had to be inferred from a neighbour. */
   inferred: number;
 }
@@ -566,6 +555,12 @@ export interface DrainInboxDeps {
    * in-memory vault. Throws FutureDailyNoteError for a date ahead of the clock.
    */
   ensureDaily?: (app: App, date: string) => Promise<TFile>;
+  /**
+   * Clock for date inheritance. Defaults to the real one; injected in tests so
+   * a capture that falls back to the today-anchor lands on a fixed date rather
+   * than the machine's.
+   */
+  now?: Date;
 }
 
 /**
@@ -678,7 +673,6 @@ const EMPTY_DRAIN_RESULT: InboxDrainResult = {
   filed: 0,
   pending: 0,
   held: 0,
-  unparseable: 0,
   inferred: 0,
 };
 
@@ -703,8 +697,9 @@ export async function drainInbox(
   const inbox = vault.getAbstractFileByPath(INBOX_NOTE_PATH);
   if (!(inbox instanceof TFile)) return { ...EMPTY_DRAIN_RESULT };
 
+  const now = deps?.now ?? new Date();
   const content = await vault.read(inbox);
-  const captures = parseInboxCaptures(content);
+  const captures = parseInboxCaptures(content, now);
   const pending = pendingInboxCaptures(captures);
   if (pending.length === 0) return { ...EMPTY_DRAIN_RESULT };
 
@@ -759,7 +754,10 @@ export async function drainInbox(
     // window. Writing the stale content back would silently discard whatever
     // landed — the exact capture loss this whole path exists to prevent.
     const fresh = await vault.read(inbox);
-    matched = relocateFiledCaptures(parseInboxCaptures(fresh), filedCaptures);
+    matched = relocateFiledCaptures(
+      parseInboxCaptures(fresh, now),
+      filedCaptures,
+    );
     if (matched.length > 0) {
       await vault.modify(inbox, appendFiledMarkers(fresh, matched));
     }
@@ -772,7 +770,6 @@ export async function drainInbox(
     filed: matched.length,
     pending: stillPending + (filedCaptures.length - matched.length),
     held,
-    unparseable: 0,
     inferred: matched.filter((c) => c.stamp === null).length,
   };
 }

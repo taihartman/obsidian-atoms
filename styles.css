@@ -1810,10 +1810,10 @@
   margin-top: 8px;
 }
 
-/* Inbox drain: captures the drain could not route. Silent when all counts are
-   zero — the card only renders when something is actually stuck. `is-repair`
-   marks the case that needs a human (an unreadable stamp) rather than one that
-   clears itself on the next drain. */
+/* Inbox drain: captures still waiting, held for a future day, or filed with a
+   date the drain had to guess. Silent when all counts are zero — the card only
+   renders when something is actually stuck. Deliberately untinted: nothing here
+   is an alarm, and the inferred-date line names a repair the user can make. */
 /* .atoms-ui-flat-card carries no margin — every home card supplies its own
    (wait 16px, resurface 18px, also-about 14px). This one never got one, so it
    fused with whatever card followed it. */
@@ -1825,13 +1825,19 @@
   color: var(--text-muted);
 }
 
-.atoms-home-inbox-stuck.is-repair {
-  border-color: color-mix(in srgb, var(--text-warning, #d29922) 34%, transparent);
-  background: color-mix(in srgb, var(--text-warning, #d29922) 10%, var(--background-secondary));
+.atoms-home-inbox-cause {
+  margin: 6px 0 0;
+  color: var(--text-muted);
 }
 
-.atoms-home-inbox-stuck.is-repair > .atoms-home-card-eyebrow {
-  color: var(--text-warning, #d29922);
+.atoms-home-inbox-fix {
+  margin: 4px 0 0;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.atoms-home-inbox-actions {
+  margin-top: 10px;
 }
 
 /* Settings → Ask: full-width disabled MCP connector URL field */
