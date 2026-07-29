@@ -13,7 +13,7 @@ export const CAPTURE_SHORTCUT_VERSION = "2.0.0";
  * User settings override still wins — see resolveCaptureShortcutInstallUrl.
  */
 export const CAPTURE_SHORTCUT_INSTALL_URL =
-  "https://www.icloud.com/shortcuts/b1a910ea39094d7b857a983529e3bf8b";
+  "https://www.icloud.com/shortcuts/e8bfe486b2bc458cb37af87c107771a2";
 
 /** Device-local (never data.json). */
 export const LS_CAPTURE_SHORTCUT_ACK = "atoms-capture-shortcut-acked-version";
@@ -37,11 +37,12 @@ export function needsShortcutCta(
   return acked !== shipped;
 }
 
+/** CTA text names the Shortcut itself, so the button matches what Shortcuts.app shows. */
 export function labelInstallOrUpdate(
   acked: string | null | undefined,
-): "Install capture shortcut" | "Update capture shortcut" {
-  if (acked == null || acked === "") return "Install capture shortcut";
-  return "Update capture shortcut";
+): "Install Capture Atom" | "Update Capture Atom" {
+  if (acked == null || acked === "") return "Install Capture Atom";
+  return "Update Capture Atom";
 }
 
 export function readShortcutAck(

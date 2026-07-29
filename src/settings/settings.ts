@@ -612,10 +612,10 @@ export class AtomsSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName("Capture shortcut")
+      .setName("Capture Atom shortcut")
       .setDesc(
         urlSet
-          ? `Install or update the iOS shortcut (v${CAPTURE_SHORTCUT_VERSION}). Opens your iCloud link — Shortcuts.app still needs confirm. Acked: ${acked ?? "never"}.`
+          ? `Install or update Capture Atom, the iOS shortcut (v${CAPTURE_SHORTCUT_VERSION}). Opens your iCloud link — Shortcuts.app still needs confirm. Acked: ${acked ?? "never"}.`
           : `No link yet — paste an iCloud URL above (or create the shortcut on your phone, then paste). Version tag: ${CAPTURE_SHORTCUT_VERSION}.`,
       )
       .addButton((btn) =>

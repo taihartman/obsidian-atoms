@@ -13,7 +13,7 @@ describe("needsShortcutCta / labels", () => {
   it("needs install when never acked", () => {
     expect(needsShortcutCta(null)).toBe(true);
     expect(needsShortcutCta("")).toBe(true);
-    expect(labelInstallOrUpdate(null)).toBe("Install capture shortcut");
+    expect(labelInstallOrUpdate(null)).toBe("Install Capture Atom");
   });
 
   it("no CTA when acked matches shipped", () => {
@@ -22,7 +22,7 @@ describe("needsShortcutCta / labels", () => {
 
   it("needs update when acked differs from shipped", () => {
     expect(needsShortcutCta("0.9.0", "1.0.0")).toBe(true);
-    expect(labelInstallOrUpdate("0.9.0")).toBe("Update capture shortcut");
+    expect(labelInstallOrUpdate("0.9.0")).toBe("Update Capture Atom");
   });
 });
 
