@@ -146,10 +146,12 @@ cd plus-service && npm test
 | Item | Value |
 |------|--------|
 | MCP URL | `https://plus.tryatoms.app/mcp` (or `PUBLIC_BASE_URL/mcp`) |
-| OAuth authorize | `/oauth/authorize` |
+| Protocol | Dual-era: legacy initialize (`2025-03-26`) + modern `2026-07-28` (no initialize; `createMcpHandler`) |
+| OAuth authorize | `/oauth/authorize` (RFC 9207 `iss` on client redirects) |
 | Claude callback | `https://claude.ai/api/mcp/auth_callback` |
 | ChatGPT callbacks | `https://chatgpt.com/connector/oauth/{id}` + legacy `https://chatgpt.com/connector_platform_oauth_redirect` |
 | Secret | `ATOMS_ASK_MIRROR_KEY` (AES-GCM at rest; rotate = re-encrypt not automated) |
+| SDK | `@modelcontextprotocol/server` + `@modelcontextprotocol/node` v2 |
 
 **Claude:** Settings → Connectors → Add custom connector → paste MCP URL → complete magic-link OAuth in browser.
 
@@ -162,9 +164,18 @@ Security checklist: `docs/qa/2026-07-22-atoms-plus-meter-security-review.md`
 
 ## Rollback
 
-- `fly releases` / `fly deploy --image <previous>`  
+```bash
+# List prior releases (note image digest of last-known-good Ask MCP)
+fly releases -a atoms-plus
+
+# Redeploy previous image immediately if dual-era MCP or OAuth breaks connectors
+fly deploy -a atoms-plus --image <previous-image-ref> \
+  --config plus-service/fly.toml
+```
+
 - Stripe: disable webhook endpoint if minting incorrectly  
 - Rotate `ANTHROPIC_API_KEY` / Stripe / Resend if leaked  
+
 
 ## Local dogfood (not production)
 

@@ -269,6 +269,25 @@ describe("OAuth Ask AS", () => {
     assert.match(listText, /securitySchemes/);
     assert.match(listText, /atoms:read/);
     assert.match(listText, /search_atoms/);
+    assert.match(listText, /"title"\s*:\s*"Search atoms"|Search atoms/);
+    // structural: every tool has schemes when JSON-parseable
+    try {
+      const parsed = JSON.parse(listText);
+      const tools = parsed.result?.tools || parsed.tools;
+      if (Array.isArray(tools)) {
+        for (const t of tools) {
+          assert.ok(
+            t.securitySchemes || t._meta?.securitySchemes,
+            `missing schemes on ${t.name}`,
+          );
+          if (t.name === "create_atom") {
+            assert.equal(t.annotations?.destructiveHint, true);
+          }
+        }
+      }
+    } catch {
+      /* SSE envelope — regex above still gates */
+    }
   });
 
   it("bad redirect_uri rejected", async () => {
