@@ -79,19 +79,21 @@ a long run the TTL choice is noise — it matters only if the prefix keeps chang
 
 ### 0.3 Output tokens run high on atoms, not on noise (phase C — paid)
 
-`ASSUMED_OUTPUT_TOKENS = 250` (`backfill.ts:50`), measured across ten real classifications:
+`ASSUMED_OUTPUT_TOKENS = 250` (`backfill.ts:50`), measured across ten realtime classifications and
+the 100-request batch job in §0.7:
 
-| Verdict | n | min | median | mean | p90 | max |
+| Sample | n | min | median | mean | p90 | max |
 |---|---|---|---|---|---|---|
-| `atom` | 7 | 213 | 308 | **355** | 464 | 538 |
-| `noise` | 3 | 37 | 37 | 37 | 37 | 37 |
-| all ten | 10 | 37 | 276 | **259** | 464 | 538 |
+| realtime, `atom` verdicts | 7 | 213 | 308 | **355** | 464 | 538 |
+| realtime, `noise` verdicts | 3 | 37 | 37 | 37 | 37 | 37 |
+| realtime, all | 10 | 37 | 276 | 259 | 464 | 538 |
+| **batch, all — the authoritative sample** | **100** | 37 | 274 | **278.8** | 549 | 800 |
 
 Sonnet 5 reasons by default and plus-service deliberately omits `output_config.effort`, so reasoning
-tokens are in these figures. **250 is about right for a mixed daily-note corpus and ~40% low for an
-atom-heavy one.** Output is not where the money is at any vault size above ~200 titles — at 3,000
-titles the input side is 200× the output side — so this is a correctness fix to the gate, not a
-pricing lever.
+tokens are in these figures. **250 is 12% low against the 100-request batch mean of 278.8** and ~40%
+low for an atom-heavy corpus. Output is not where the money is at any vault size above ~200 titles —
+at 3,000 titles the input side is 200× the output side — so this is a correctness fix to the gate,
+not a pricing lever. Use **280** for a mixed daily-note corpus.
 
 ### 0.4 What this does to a 3,000-capture catch-up
 
@@ -99,21 +101,22 @@ Batch API (50% off), 3,000-title vault, 52,930 tokens per request, 260 output to
 
 | Shape | Cost | Per capture |
 |---|---|---|
-| **Frozen prefix, cache credited** — write once, 2,999 reads | **$30.06** | 1.0¢ |
-| **No cache credit** — what `estimateBatchCost` assumes today | **$244.04** | 8.1¢ |
+| **Frozen prefix, cache credited** — write once, 2,999 reads | **$30.09** | 1.00¢ |
+| **No cache credit** — what `estimateBatchCost` assumes today | **$244.03** | 8.13¢ |
 
 The whole of #168 sits between those two numbers. Phase D (below) settles which one is real.
 
 For contrast, the same 3,000 captures with the title list capped:
 
-| Context cap | Uncached batch | Cached batch |
-|---|---|---|
-| 40 titles (today's Plus cap) | $24.6 | $6.4 |
-| 400 titles | $51.3 | $10.4 |
-| 3,000 titles (uncapped, today's backfill) | $244.0 | $30.1 |
+| Context cap | Tokens/request | Uncached batch | Cached batch |
+|---|---|---|---|
+| 40 titles (today's Plus cap) | 4,176 | $24.64 | **$8.01** (0.27¢/cap) |
+| 400 titles | 10,095 | $51.28 | **$10.69** (0.36¢/cap) |
+| 3,000 titles (uncapped, today's backfill) | 52,930 | $244.03 | **$30.09** (1.00¢/cap) |
 
 **Capping the context is worth more than any cache strategy**, and it is the one lever that works
-whether or not batch caching holds.
+whether or not batch caching holds. Note the floor: output alone is **$5.85** per 3,000 captures
+(3,000 × 260 × $15 ÷ 1M, batch), so no context strategy gets a catch-up below roughly $6.
 
 ### 0.5 The two paths already differ by 12.7×
 
@@ -158,6 +161,45 @@ before this is treated as closed.
 can link to are whatever sorts first — an arbitrary and stably-biased slice, not the relevant ones.
 This is not a cost problem; it is the shortlist question in step 5 of the handoff, already shipped
 and answered badly. Any candidate selector built for backfill should replace this too.
+
+### 0.7 Batch caching works — but the first wave of requests all miss (phase D — paid)
+
+100 real Batch API requests sharing one 52,868-token prefix, 1h TTL, no warm-up — i.e. exactly what
+today's backfill would send. Job `msgbatch_01PN4M6K27RKyxttKiejjm94`, ended in **6.0 minutes**.
+
+| | |
+|---|---|
+| Cache hits | **83 / 100** |
+| Cache writes | **17** (898,756 duplicate tokens) |
+| Actual cost | **$3.57** |
+| Same job with no cache credit | $8.15 |
+
+**The cache survives the Batch API.** `estimateBatchCost`'s `creditsCacheReads: false` is too
+pessimistic and the "$244 for 3,000 captures" worst case is not the real world.
+
+But the saving was 56%, not the 86% a clean single-write model predicts, and the reason is entirely
+the first wave. Batch requests start in parallel, so the 17 that began before any prefix existed each
+**wrote** it — and a 1h write bills at 2× the input rate. Where the money actually went:
+
+| | Cost | Share |
+|---|---|---|
+| 17 duplicate cache writes | **$2.696** | **75%** |
+| 83 cache reads | $0.658 | 18% |
+| Output (100 × 278.8) | $0.209 | 6% |
+| Fresh capture tokens | $0.009 | <1% |
+
+Extrapolating to the 3,000-capture catch-up #168 sells turns on one unknown — whether that write
+count is a fixed startup race or scales with job size:
+
+| Assumption | 3,000-capture cost |
+|---|---|
+| Writes stay ~17 (concurrency-bound startup) | **$32.90** (1.10¢/cap) |
+| Writes stay 17% of requests (510 writes) | **$107.14** (3.57¢/cap) |
+| No cache credit at all — today's stated assumption | $244.03 (8.13¢/cap) |
+
+So the honest range for a 3,000-capture catch-up at an uncapped 3,000-title vault is **$33–$107**,
+and the spread is one measurable thing: duplicate cache writes at the head of the job. §0.8 tests the
+obvious mitigation.
 
 ---
 

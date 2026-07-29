@@ -485,6 +485,26 @@ async function phaseD(pipeline, phaseARows) {
       `$${best.toFixed(2)} if the cache holds, $${worst.toFixed(2)} if it does not`,
   );
 
+  // Batch requests start in parallel, so without a warm-up the first wave all miss and
+  // each writes the prefix — at a 2x write rate that is the dominant cost. One cheap
+  // realtime call first should collapse those duplicate writes to nothing.
+  let warmUp = null;
+  if (has("--warm-up")) {
+    chargeOne("phase D warm-up");
+    const { status, json } = await post(
+      MESSAGES_URL,
+      requestOf(pipeline, ctx, OUTPUT_CAPTURES[0]),
+    );
+    if (status >= 200 && status < 300) {
+      warmUp = usageOf(json);
+      console.log(
+        `[measure:D] warm-up wrote ${warmUp.cache_creation_input_tokens} tokens ($${usdFor(warmUp, { ttl: "1h" }).toFixed(3)})`,
+      );
+    } else {
+      console.error("[measure:D] warm-up failed", status, json?.error?.type);
+    }
+  }
+
   const requests = Array.from({ length: size }, (_, i) => ({
     custom_id: `measure-${String(i).padStart(4, "0")}`,
     params: requestOf(pipeline, ctx, `${OUTPUT_CAPTURES[i % OUTPUT_CAPTURES.length]} (${i})`),
@@ -553,6 +573,7 @@ async function phaseD(pipeline, phaseARows) {
   return {
     batchId,
     batchSize: size,
+    warmUp,
     durationMinutes: +durationMin.toFixed(1),
     results: usages.length,
     cacheHits: hits.length,
