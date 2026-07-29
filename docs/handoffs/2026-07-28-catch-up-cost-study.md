@@ -150,7 +150,7 @@ session ended. It does not exist. Writing it is step 1.
 - Branch `claude/catch-up-cost-study` (base `master`), pushed to `origin`.
 - Last real commit before this handoff: `d4d30c1 docs(handoff): #168 Plus vault catch-up, then the
   power-user story`
-- WIP snapshot commit: `95b3bfe` — `wip: handoff snapshot — catch-up-cost-study`
+- WIP snapshot: the head of `claude/catch-up-cost-study` (`wip: handoff snapshot — catch-up-cost-study`). Everything below is in that one commit.
 - Contents: the #168 requirements plan, the seven-persona doc review, the cost measurement, the code
   grounding dossier, the growth brief, and two rescued QA reports (dark-mode contrast, adversarial +
   accessibility) that the owner deferred but which contain real measured defects.
