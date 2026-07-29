@@ -43,7 +43,10 @@ import {
   ANTHROPIC_MESSAGES_URL,
   ANTHROPIC_VERSION,
 } from "../pipeline/classify";
-import { MetadataContextProvider } from "../pipeline/context";
+import {
+  MetadataContextProvider,
+  shortlistOptionsFromSettings,
+} from "../pipeline/context";
 import {
   DailyNotesDisabledError,
   getPastDailyNotesWithUnmarkedCaptures,
@@ -742,6 +745,7 @@ export default class AtomsPlugin extends Plugin {
         model: this.settings.model,
         activeVocabulary: this.settings.activeVocabulary,
         atomFolder: this.settings.atomFolder,
+        ...shortlistOptionsFromSettings(this.settings),
         maxCaptures: PER_LAUNCH_CAP,
         enableHubProjection: this.settings.enableHubProjection === true,
         // never includeToday on auto-run
@@ -1514,6 +1518,7 @@ export default class AtomsPlugin extends Plugin {
         model: this.settings.model,
         activeVocabulary: this.settings.activeVocabulary,
         atomFolder: this.settings.atomFolder,
+        ...shortlistOptionsFromSettings(this.settings),
         maxCaptures: 15,
         includeToday: opts?.includeToday,
         enableHubProjection: this.settings.enableHubProjection === true,
@@ -1638,6 +1643,7 @@ export default class AtomsPlugin extends Plugin {
         model: this.settings.model,
         activeVocabulary: this.settings.activeVocabulary,
         atomFolder: this.settings.atomFolder,
+        ...shortlistOptionsFromSettings(this.settings),
         maxCaptures: fixtures.length,
         fixtureResults: fixtures,
         enableHubProjection: this.settings.enableHubProjection === true,
@@ -1703,6 +1709,7 @@ export default class AtomsPlugin extends Plugin {
         model: this.settings.model,
         activeVocabulary: this.settings.activeVocabulary,
         atomFolder: this.settings.atomFolder,
+        ...shortlistOptionsFromSettings(this.settings),
         // Bound work for interactive use; remainder stays unmarked for next run.
         maxCaptures: 15,
         includeToday: opts?.includeToday,

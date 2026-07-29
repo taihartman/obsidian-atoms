@@ -1,7 +1,7 @@
 import type { App } from "obsidian";
 import { Modal, Notice } from "obsidian";
 import { classifyCapture, type ClassifyDeps } from "./classify";
-import type { MetadataContextProvider } from "./context";
+import { logShortlistDiagnostics, type MetadataContextProvider } from "./context";
 import {
   getPastDailyNotesWithUnmarkedCaptures,
   type PastDailyNotesResult,
@@ -222,8 +222,10 @@ export interface RunDryRunOptions {
    * hits skip network. Omit to disable cache.
    */
   previewCacheQualityStamp?: string | number;
-  /** Shortlist size per capture. Defaults to DEFAULT_SHORTLIST_K; U8 wires the setting. */
+  /** Shortlist size per capture. Defaults to DEFAULT_SHORTLIST_K. */
   shortlistK?: number;
+  /** Offer notes linked from the ones a capture matched. Defaults to DEFAULT_GRAPH_EXPANSION. */
+  expandGraph?: boolean;
 }
 
 /**
@@ -250,6 +252,7 @@ export async function runDryRun(
   const run = await opts.contextProvider.beginRun({
     atomFolder: opts.atomFolder,
     k: opts.shortlistK,
+    expandGraph: opts.expandGraph,
   });
   const staticCtx: VaultContext = run.vaultContext;
   const hubs: PersonHub[] = (staticCtx.personHubDetails ?? []).map((d) => ({
@@ -271,6 +274,7 @@ export async function runDryRun(
       // Scored against this capture. Preview writes nothing, so no atom joins the
       // corpus mid-run — a previewed capture sees exactly the vault as it stands.
       const ctx = await run.getCandidates(capture);
+      logShortlistDiagnostics("preview shortlist", ctx.stats);
 
       let outcome: ClassifyOutcome;
       if (useCache && cacheStore) {

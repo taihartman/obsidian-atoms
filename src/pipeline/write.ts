@@ -4,7 +4,7 @@ import {
   classifyCapture,
   type ClassifyDeps,
 } from "./classify";
-import type { MetadataContextProvider } from "./context";
+import { logShortlistDiagnostics, type MetadataContextProvider } from "./context";
 import { getPastDailyNotesWithUnmarkedCaptures } from "./daily";
 import {
   applyWrite,
@@ -90,8 +90,10 @@ export interface RunWritePathOptions {
   /** Manual force: include today's daily. Default false (never for auto-run). */
   includeToday?: boolean;
   enableHubProjection?: boolean;
-  /** Shortlist size per capture. Defaults to DEFAULT_SHORTLIST_K; U8 wires the setting. */
+  /** Shortlist size per capture. Defaults to DEFAULT_SHORTLIST_K. */
   shortlistK?: number;
+  /** Offer notes linked from the ones a capture matched. Defaults to DEFAULT_GRAPH_EXPANSION. */
+  expandGraph?: boolean;
 }
 
 /**
@@ -124,6 +126,7 @@ export async function runWritePath(
   const run = await opts.contextProvider.beginRun({
     atomFolder: opts.atomFolder,
     k: opts.shortlistK,
+    expandGraph: opts.expandGraph,
   });
   // Tags, vocabulary and hubs are the run's, not the capture's — a shortlist never narrows them.
   const staticCtx = run.vaultContext;
@@ -169,6 +172,7 @@ export async function runWritePath(
 
       // Scored against this capture, including atoms this run already wrote (R4).
       const ctx = await run.getCandidates(capture);
+      logShortlistDiagnostics("process shortlist", ctx.stats);
 
       let result: ClassificationResult | null = null;
       if (opts.fixtureResults && opts.fixtureResults[i]) {

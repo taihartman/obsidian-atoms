@@ -1,12 +1,18 @@
 import type { App, TFile } from "obsidian";
-import type { Capture, VaultContext } from "../shared/types";
+import type { Capture, LinkerSettings, VaultContext } from "../shared/types";
 import { buildCandidateCorpus, type CandidateCorpus, type CandidateNote } from "./candidates";
 import {
   discoverPersonHubs,
   personHubTitles,
   type PersonHub,
 } from "./enrich/people";
-import { buildLinkGraph, expandFromSeeds, type LinkGraph } from "./expand";
+import {
+  buildLinkGraph,
+  expandFromSeeds,
+  EXPANSION_SEEDS,
+  EXPANSION_SLOTS,
+  type LinkGraph,
+} from "./expand";
 import { rankShortlist } from "./shortlist";
 import {
   eligibleTags,
@@ -15,17 +21,58 @@ import {
   unionTags,
 } from "./vocabulary";
 
-/** Shortlist size when nothing configures it (KTD6). U8 wires the setting. */
+/** Shortlist size when nothing configures it (KTD6). */
 export const DEFAULT_SHORTLIST_K = 400;
 
+/** Smallest shortlist a *setting* may ask for. Zero is reachable in code, never from Settings. */
+export const MIN_SHORTLIST_K = 1;
+
 /**
- * Graph expansion when nothing configures it (R7). U8 wires the setting.
+ * The only way a configured shortlist size reaches the pipeline (R8).
+ *
+ * Nothing at all — blank field, letters, `NaN`, a `data.json` synced from a version that never
+ * had the setting — resolves to the default rather than to zero, because a silent zero would hand
+ * classify an empty note list and look exactly like a vault with nothing in it. A number below the
+ * floor (0, negative) clamps up instead; fractions round down. There is no ceiling: a large value
+ * simply scores the whole corpus, which is where this pipeline started.
+ */
+export function clampShortlistSize(raw: unknown): number {
+  const text = typeof raw === "number" ? String(raw) : String(raw ?? "").trim();
+  if (!text) return DEFAULT_SHORTLIST_K;
+  const n = Number(text);
+  if (!Number.isFinite(n)) return DEFAULT_SHORTLIST_K;
+  return Math.max(MIN_SHORTLIST_K, Math.floor(n));
+}
+
+/**
+ * Graph expansion when nothing configures it (R7).
  *
  * On, because the default caller is daily filing, which is the only path it helps. A catch-up
  * routes through the same provider and must pass `expandGraph: false`: its reach is 0% by
  * construction (KTD7), so leaving it on there would spend a walk to add nothing.
  */
 export const DEFAULT_GRAPH_EXPANSION = true;
+
+/** What the two retrieval settings mean to a run. One mapping, so no call site invents its own. */
+export interface ShortlistRunOptions {
+  shortlistK: number;
+  expandGraph: boolean;
+}
+
+/**
+ * Translate stored settings into run options (R7, R8).
+ *
+ * Absent fields fall back to the studied defaults, so a vault whose `data.json` predates this
+ * version behaves exactly as it did before the settings existed.
+ */
+export function shortlistOptionsFromSettings(
+  settings?: Partial<Pick<LinkerSettings, "shortlistSize" | "expandLinkedNotes">>,
+): ShortlistRunOptions {
+  return {
+    shortlistK: clampShortlistSize(settings?.shortlistSize),
+    expandGraph: settings?.expandLinkedNotes ?? DEFAULT_GRAPH_EXPANSION,
+  };
+}
 
 /** One selected note, with the score it earned against this capture. */
 export interface ShortlistCandidate {
@@ -52,6 +99,71 @@ export interface ShortlistStats {
    * disabled returns exactly the bytes it returned before expansion existed.
    */
   expanded?: number;
+}
+
+/** Dev-only console logging — silent in Community production builds. */
+declare const ATOMS_DEV_COMMANDS: boolean;
+
+/**
+ * The whole diagnostic payload: numbers and one on/off word. No field can hold a string the user
+ * wrote (R6). Every value here is derived arithmetic — nothing is copied from a capture or a note.
+ */
+export interface ShortlistDiagnostics {
+  /** Configured shortlist size for this run. */
+  k: number;
+  /** Scoreable entries in the corpus. */
+  corpusSize: number;
+  /** Entries that shared at least one term with the capture. */
+  matched: number;
+  /** Entries BM25 could never reach — the number graph expansion exists to dent. */
+  zeroScoring: number;
+  /** Notes handed to classify, expansion slots included. */
+  returned: number;
+  /** Scored notes only — `returned` minus whatever expansion appended. */
+  scored: number;
+  expansion: "on" | "off";
+  /** Shortlist entries the walk started from. 0 when expansion is off. */
+  seeds: number;
+  /** Expansion slots filled. 0 when expansion is off. */
+  slotsUsed: number;
+  /** Expansion slots available. 0 when expansion is off. */
+  slotLimit: number;
+}
+
+/**
+ * Counts a run can safely emit (R6).
+ *
+ * Built from `ShortlistStats` alone, which is a bag of numbers — so this function has no path to
+ * capture text or note titles even if a future caller wanted one. That is the point: the redaction
+ * is structural, not a discipline anyone has to remember at the log line.
+ */
+export function shortlistDiagnostics(stats: ShortlistStats): ShortlistDiagnostics {
+  const on = stats.expanded !== undefined;
+  const slotsUsed = stats.expanded ?? 0;
+  const scored = stats.returned - slotsUsed;
+  return {
+    k: stats.k,
+    corpusSize: stats.corpusSize,
+    matched: stats.matched,
+    zeroScoring: stats.zeroScoring,
+    returned: stats.returned,
+    scored,
+    expansion: on ? "on" : "off",
+    seeds: on ? Math.min(scored, EXPANSION_SEEDS) : 0,
+    slotsUsed,
+    slotLimit: on ? EXPANSION_SLOTS : 0,
+  };
+}
+
+/**
+ * Emit the counts. No-ops in production Community builds, exactly like `logClassifyOutcome`.
+ *
+ * Takes `stats`, not the `ShortlistContext` that carries them, so the titles are not even in scope.
+ */
+export function logShortlistDiagnostics(label: string, stats: ShortlistStats): void {
+  if (typeof ATOMS_DEV_COMMANDS === "undefined" || !ATOMS_DEV_COMMANDS) return;
+  // eslint-disable-next-line no-console -- gated dev diagnostics
+  console.log(`[atoms] ${label}`, shortlistDiagnostics(stats));
 }
 
 /** What a run needs to walk the vault graph. Built once per run, alongside the corpus. */
