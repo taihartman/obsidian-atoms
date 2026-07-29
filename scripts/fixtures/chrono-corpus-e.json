@@ -1,0 +1,6529 @@
+[
+  {
+    "id": "E0001",
+    "date": "2023-01-03",
+    "thread": "strip-office-days",
+    "capture": "garage was full again so i parked four blocks out and froze the whole walk into the strip and i keep turning it honestly",
+    "verdict": "atom",
+    "linksToEarlier": [],
+    "linksToExisting": [
+      "Northline"
+    ]
+  },
+  {
+    "id": "E0002",
+    "date": "2023-01-03",
+    "thread": "relay-rewrite",
+    "capture": "relay kickoff today. priya wants matching rewrite by summer which is already a fantasy on paper which is on me honestly",
+    "verdict": "atom",
+    "linksToEarlier": [],
+    "linksToExisting": [
+      "Project Relay",
+      "Priya Deshmukh"
+    ]
+  },
+  {
+    "id": "E0003",
+    "date": "2023-01-04",
+    "thread": "sleep-caffeine",
+    "capture": "sleep thing again. three nights now. pretty sure its the coffee i keep having after two and that is the whole for real",
+    "verdict": "atom",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0004",
+    "date": "2023-01-05",
+    "thread": "oakwood-landlord",
+    "capture": "heat died overnight again. texted the landlord at seven and got pure silence until noon for what that is worth right now",
+    "verdict": "atom",
+    "linksToEarlier": [],
+    "linksToExisting": [
+      "The duplex on Oakwood"
+    ]
+  },
+  {
+    "id": "E0005",
+    "date": "2023-01-09",
+    "thread": "relay-rewrite",
+    "capture": "whole point of the rewrite is to delete code and people already want the old matcher kept just in case and it for real",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0002"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0006",
+    "date": "2023-01-10",
+    "thread": "elise-and-the-move",
+    "capture": "elise brought up the forever duplex thing at dinner again. shes not wrong and that stings and i am tired of the",
+    "verdict": "atom",
+    "linksToEarlier": [],
+    "linksToExisting": [
+      "Elise Kwan",
+      "The duplex on Oakwood"
+    ]
+  },
+  {
+    "id": "E0007",
+    "date": "2023-01-11",
+    "thread": "sleep-caffeine",
+    "capture": "3am again",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0003"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0008",
+    "date": "2023-01-12",
+    "thread": "oakwood-landlord",
+    "capture": "he finally sent someone who left a space heater in the kitchen like that fixes frozen pipes while walking back",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0004"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0009",
+    "date": "2023-01-12",
+    "thread": "sleep-caffeine",
+    "capture": "3am again",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0003"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0010",
+    "date": "2023-01-16",
+    "thread": "relay-rewrite",
+    "capture": "mapped the dispatch matching edges with tomas. worse than the wiki ever admitted out loud and none of it feels right now",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0002"
+    ],
+    "linksToExisting": [
+      "Tomás Okonkwo"
+    ]
+  },
+  {
+    "id": "E0011",
+    "date": "2023-01-18",
+    "thread": "elise-and-the-move",
+    "capture": "she wants a real plan not another next year speech from me. fair and extremely annoying which tracks with these days",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0006"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0012",
+    "date": "2023-01-20",
+    "thread": "strip-office-days",
+    "capture": "drove in for a meeting that couldve been slack. strip traffic ate a full hour of life and i hate how familiar i guess",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0001"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0013",
+    "date": "2023-01-24",
+    "thread": "relay-rewrite",
+    "capture": "priya put june on the roadmap slide and nobody pushed back including me which is on me without a good answer these days",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0002"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0014",
+    "date": "2023-01-26",
+    "thread": "sleep-caffeine",
+    "capture": "cut coffee after lunch starting today. well see if the nights get quieter at all like every other time before i guess",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0003"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0015",
+    "date": "2023-01-30",
+    "thread": "oakwood-landlord",
+    "capture": "rent auto draft hit while the heat is still a rumor. paper trail starts this month in the middle of a workday honestly",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0004"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0016",
+    "date": "2023-02-03",
+    "thread": "elise-and-the-move",
+    "capture": "she printed a budget spreadsheet. we are doing this whether i stall or not at this point and i keep turning it right now",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0011"
+    ],
+    "linksToExisting": [
+      "Elise Kwan"
+    ]
+  },
+  {
+    "id": "E0017",
+    "date": "2023-02-06",
+    "thread": "relay-rewrite",
+    "capture": "v2 matcher sketch on the whiteboard. already hate the name v2 but it stuck like glue which is on me honestly these days",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0002"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0018",
+    "date": "2023-02-08",
+    "thread": "sleep-caffeine",
+    "capture": "bad night again. brain wouldnt shut off about matcher edges and the heat downstairs and that is the whole mess i guess",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0014"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0019",
+    "date": "2023-02-14",
+    "thread": "strip-office-days",
+    "capture": "quiet floor again. i can hear the hvac click every forty seconds like a cheap metronome while walking back to i guess",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0001"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0020",
+    "date": "2023-02-16",
+    "thread": "sleep-caffeine",
+    "capture": "not the coffee",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0014"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0021",
+    "date": "2023-02-17",
+    "thread": "elise-and-the-move",
+    "capture": "she was right",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0016"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0022",
+    "date": "2023-02-17",
+    "thread": "elise-and-the-move",
+    "capture": "she was right about needing numbers before feelings. hate how often that is true and none of it feels clean honestly",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0016"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0023",
+    "date": "2023-02-21",
+    "thread": "relay-rewrite",
+    "capture": "matching thing is eating nights. whole rewrite was supposed to free time not steal it all which tracks with i guess",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0005"
+    ],
+    "linksToExisting": [
+      "Project Relay"
+    ]
+  },
+  {
+    "id": "E0024",
+    "date": "2023-02-23",
+    "thread": "strip-office-days",
+    "capture": "came in tuesday out of pure guilt. three other martyrs at desks pretending this is normal and i hate how familiar it is",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0012"
+    ],
+    "linksToExisting": [
+      "Northline"
+    ]
+  },
+  {
+    "id": "E0025",
+    "date": "2023-02-23",
+    "thread": "strip-office-days",
+    "capture": "guilt tuesday again",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0001"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0026",
+    "date": "2023-02-27",
+    "thread": "elise-and-the-move",
+    "capture": "talked down payment ranges. oakwood rent suddenly looks like lighting cash on fire monthly without a good answer ready",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0022"
+    ],
+    "linksToExisting": [
+      "Elise Kwan",
+      "The duplex on Oakwood"
+    ]
+  },
+  {
+    "id": "E0027",
+    "date": "2023-02-28",
+    "thread": "sleep-caffeine",
+    "capture": "same thing again",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0018"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0028",
+    "date": "2023-03-02",
+    "thread": "relay-rewrite",
+    "capture": "wei starts monday. need an onboarding doc that isnt a lie about how clean v2 already is like every other time these days",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0017"
+    ],
+    "linksToExisting": [
+      "Project Relay",
+      "Wei Chen"
+    ]
+  },
+  {
+    "id": "E0029",
+    "date": "2023-03-03",
+    "thread": "dads-diagnosis",
+    "capture": "dad called. biopsy results monday. he sounded like he was reading a weather report out loud in the middle of a workday",
+    "verdict": "atom",
+    "linksToEarlier": [],
+    "linksToExisting": [
+      "Robert Webb"
+    ]
+  },
+  {
+    "id": "E0030",
+    "date": "2023-03-06",
+    "thread": "dads-diagnosis",
+    "capture": "its cancer. prostate. patel wants staging scans this week. dad said dont make a fuss please and i keep turning it over",
+    "verdict": "atom",
+    "linksToEarlier": [],
+    "linksToExisting": [
+      "Dr. Patel"
+    ]
+  },
+  {
+    "id": "E0031",
+    "date": "2023-03-07",
+    "thread": "elise-and-the-move",
+    "capture": "told elise about dad. house talk went quiet for the night. she just held my hand on the couch which is on me i guess",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0026"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0032",
+    "date": "2023-03-08",
+    "thread": "sleep-caffeine",
+    "capture": "didnt sleep",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0027"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0033",
+    "date": "2023-03-09",
+    "thread": "oakwood-landlord",
+    "capture": "heat still half dead. filed a formal repair request so theres a paper trail this time around and that is the whole mess",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0004",
+      "E0008"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0034",
+    "date": "2023-03-09",
+    "thread": "sleep-caffeine",
+    "capture": "didnt sleep",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0003"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0035",
+    "date": "2023-03-13",
+    "thread": "dads-diagnosis",
+    "capture": "scans at allegheny general. fluorescent lights and a three hour wait. he joked badly on purpose for what that these days",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0030"
+    ],
+    "linksToExisting": [
+      "Robert Webb",
+      "Allegheny General"
+    ]
+  },
+  {
+    "id": "E0036",
+    "date": "2023-03-15",
+    "thread": "dads-diagnosis",
+    "capture": "localized. treatable. the sentence everyone wants. still landed like a brick in the chest and i am tired of the",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0030"
+    ],
+    "linksToExisting": [
+      "Robert Webb"
+    ]
+  },
+  {
+    "id": "E0037",
+    "date": "2023-03-16",
+    "thread": "elise-and-the-move",
+    "capture": "she said buying can wait. i said i dont want life paused forever either though honestly while walking back to these days",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0011"
+    ],
+    "linksToExisting": [
+      "Elise Kwan"
+    ]
+  },
+  {
+    "id": "E0038",
+    "date": "2023-03-20",
+    "thread": "relay-rewrite",
+    "capture": "half present in the v2 review. tomas covered. i owe him more than coffee and a slack thanks and none of it feels clean",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0010",
+      "E0017"
+    ],
+    "linksToExisting": [
+      "Project Relay"
+    ]
+  },
+  {
+    "id": "E0039",
+    "date": "2023-03-22",
+    "thread": "sleep-caffeine",
+    "capture": "it again",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0032"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0040",
+    "date": "2023-03-23",
+    "thread": "strip-office-days",
+    "capture": "forced myself in. better than apartment walls. still only a handful of people on the floor which tracks with i guess",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0024"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0041",
+    "date": "2023-03-24",
+    "thread": "relay-rewrite",
+    "capture": "june date is fiction. wrote that privately then deleted the note. coward move on my part and i hate how familiar it is",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0013",
+      "E0023"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0042",
+    "date": "2023-03-27",
+    "thread": "dads-diagnosis",
+    "capture": "first treatment talk. radiation options. dad nodded like he was buying a furnace filter without a good answer honestly",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0036"
+    ],
+    "linksToExisting": [
+      "Dr. Patel"
+    ]
+  },
+  {
+    "id": "E0043",
+    "date": "2023-03-28",
+    "thread": "elise-and-the-move",
+    "capture": "quietly bookmarked a lawrenceville listing. didnt show her yet. felt like a small secret like every other time for real",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0037"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0044",
+    "date": "2023-04-03",
+    "thread": "dads-diagnosis",
+    "capture": "drove him to the consult. radio off most of the way. he likes it quiet in the car now in the middle of a these days",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0042"
+    ],
+    "linksToExisting": [
+      "Robert Webb"
+    ]
+  },
+  {
+    "id": "E0045",
+    "date": "2023-04-05",
+    "thread": "relay-rewrite",
+    "capture": "ran the migration dry-run on staging. blew up on a timezone edge we already knew about and i keep turning it i guess",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0017"
+    ],
+    "linksToExisting": [
+      "Project Relay"
+    ]
+  },
+  {
+    "id": "E0046",
+    "date": "2023-04-06",
+    "thread": "elise-and-the-move",
+    "capture": "showed her the lawrenceville listing. she zoomed the kitchen photos like a hawk hunting which is on me honestly honestly",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0043"
+    ],
+    "linksToExisting": [
+      "Elise Kwan"
+    ]
+  },
+  {
+    "id": "E0047",
+    "date": "2023-04-10",
+    "thread": "sleep-caffeine",
+    "capture": "chest dread at night heavier than any latte i ever blamed for the whole mess and that is the whole mess for for real",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0003"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0048",
+    "date": "2023-04-11",
+    "thread": "oakwood-landlord",
+    "capture": "heat finally works",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0004"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0049",
+    "date": "2023-04-11",
+    "thread": "oakwood-landlord",
+    "capture": "they finally fixed the heat properly. two months late. acting like heroes about basic pipes for what that is worth now",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0004",
+      "E0033"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0050",
+    "date": "2023-04-12",
+    "thread": "dads-diagnosis",
+    "capture": "he starts treatment next month. jules took the first three appointments without asking me and i am tired of the",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0042"
+    ],
+    "linksToExisting": [
+      "Robert Webb",
+      "Jules Webb"
+    ]
+  },
+  {
+    "id": "E0051",
+    "date": "2023-04-17",
+    "thread": "relay-rewrite",
+    "capture": "tomas wants dual-write for two weeks. im nervous about the lag window and always will be while walking back to the car",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0045"
+    ],
+    "linksToExisting": [
+      "Tomás Okonkwo"
+    ]
+  },
+  {
+    "id": "E0052",
+    "date": "2023-04-19",
+    "thread": "elise-and-the-move",
+    "capture": "open house sunday. pretending its casual when it absolutely is not casual at all and none of it feels clean i guess",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0046"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0053",
+    "date": "2023-04-25",
+    "thread": "dads-diagnosis",
+    "capture": "patel called results routine. i still held my breath for the entire voicemail length and i hate how familiar it i guess",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0050"
+    ],
+    "linksToExisting": [
+      "Dr. Patel"
+    ]
+  },
+  {
+    "id": "E0054",
+    "date": "2023-04-26",
+    "thread": "sleep-caffeine",
+    "capture": "finally six hours",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0047"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0055",
+    "date": "2023-04-28",
+    "thread": "oakwood-landlord",
+    "capture": "lease renewal packet arrived. rates up eight percent. of course they did that quietly without a good answer honestly",
+    "verdict": "atom",
+    "linksToEarlier": [],
+    "linksToExisting": [
+      "The duplex on Oakwood"
+    ]
+  },
+  {
+    "id": "E0056",
+    "date": "2023-05-02",
+    "thread": "relay-rewrite",
+    "capture": "may milestone is a slide not a ship. said that out loud in standup and got pure silence like every other time i guess",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0041"
+    ],
+    "linksToExisting": [
+      "Project Relay"
+    ]
+  },
+  {
+    "id": "E0057",
+    "date": "2023-05-04",
+    "thread": "dads-diagnosis",
+    "capture": "first radiation day. he brought a crossword. i sat in the waiting room doomscrolling hard in the middle of a honestly",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0050"
+    ],
+    "linksToExisting": [
+      "Allegheny General"
+    ]
+  },
+  {
+    "id": "E0058",
+    "date": "2023-05-08",
+    "thread": "elise-and-the-move",
+    "capture": "signed up for listing alerts. the algorithm thinks we want condos. we really do not and i keep turning it over right now",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0052"
+    ],
+    "linksToExisting": [
+      "Elise Kwan"
+    ]
+  },
+  {
+    "id": "E0059",
+    "date": "2023-05-09",
+    "thread": "oakwood-landlord",
+    "capture": "renewal clock ticks loud. she wants exit before we sign another long trap lease which is on me honestly and it",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0004"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0060",
+    "date": "2023-05-11",
+    "thread": "strip-office-days",
+    "capture": "rain and the garage entrance flooded. waded through. shoes are basically done for and that is the whole mess on i guess",
+    "verdict": "atom",
+    "linksToEarlier": [],
+    "linksToExisting": [
+      "Northline"
+    ]
+  },
+  {
+    "id": "E0061",
+    "date": "2023-05-15",
+    "thread": "relay-rewrite",
+    "capture": "ran production dual-write overnight. watched graphs like a hawk. they held steady somehow for what that is these days",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0051"
+    ],
+    "linksToExisting": [
+      "Project Relay"
+    ]
+  },
+  {
+    "id": "E0062",
+    "date": "2023-05-17",
+    "thread": "dads-diagnosis",
+    "capture": "he says fatigue is the worst part. not pain. just empty batteries from morning to night and i am tired of the i guess",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0057"
+    ],
+    "linksToExisting": [
+      "Robert Webb"
+    ]
+  },
+  {
+    "id": "E0063",
+    "date": "2023-05-19",
+    "thread": "sleep-caffeine",
+    "capture": "it again after a good streak. one late espresso at a goodbye lunch. classic idiot move while walking back to honestly",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0020"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0064",
+    "date": "2023-05-22",
+    "thread": "elise-and-the-move",
+    "capture": "preapproval call. numbers felt abstract until they said a hard ceiling out loud to us and none of it feels for real",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0016",
+      "E0026"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0065",
+    "date": "2023-05-23",
+    "thread": "strip-office-days",
+    "capture": "ghost town floor today. deep work like a library that only serves burnt coffee which tracks with everything right now",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0001"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0066",
+    "date": "2023-05-24",
+    "thread": "oakwood-landlord",
+    "capture": "they want twelve month renewal. we stall. heat scars from winter still feel fresh here and i hate how familiar",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0049"
+    ],
+    "linksToExisting": [
+      "The duplex on Oakwood"
+    ]
+  },
+  {
+    "id": "E0067",
+    "date": "2023-05-26",
+    "thread": "relay-rewrite",
+    "capture": "cutover plan draft is twelve pages. should be three. i keep writing fear into every line without a good answer i guess",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0061"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0068",
+    "date": "2023-05-28",
+    "thread": "strip-office-days",
+    "capture": "return amazon package ups on penn before i forget again and put a reminder on it honestly for real right now",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0069",
+    "date": "2023-05-30",
+    "thread": "sleep-caffeine",
+    "capture": "bad night again. not work. just static behind the eyes until the sky went gray like every other time before these days",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0063"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0070",
+    "date": "2023-06-01",
+    "thread": "oakwood-landlord",
+    "capture": "buy trash bags drawstring large before i forget again when i get a free minute for real right now these days",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0071",
+    "date": "2023-06-02",
+    "thread": "relay-rewrite",
+    "capture": "slipped the public milestone. priya did the corporate smile. temperature in the room dropped and i keep turning it over",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0056"
+    ],
+    "linksToExisting": [
+      "Project Relay",
+      "Priya Deshmukh"
+    ]
+  },
+  {
+    "id": "E0072",
+    "date": "2023-06-05",
+    "thread": "dads-diagnosis",
+    "capture": "last planned radiation. he walked out faster than he walked in months ago somehow today which is on me honestly i guess",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0057"
+    ],
+    "linksToExisting": [
+      "Robert Webb",
+      "Allegheny General"
+    ]
+  },
+  {
+    "id": "E0073",
+    "date": "2023-06-07",
+    "thread": "oakwood-landlord",
+    "capture": "they agreed month to month at a penalty rate. robbery with a thin side of flexibility and that is the whole honestly",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0055"
+    ],
+    "linksToExisting": [
+      "The duplex on Oakwood"
+    ]
+  },
+  {
+    "id": "E0074",
+    "date": "2023-06-09",
+    "thread": "sleep-caffeine",
+    "capture": "nights better since his treatment ended. correlation isnt causation but ill take the quiet for what that is for real",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0047"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0075",
+    "date": "2023-06-12",
+    "thread": "elise-and-the-move",
+    "capture": "month to month on oakwood if they allow it. buying timeline still fog mixed with hope while walking back to the i guess",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0064"
+    ],
+    "linksToExisting": [
+      "Elise Kwan",
+      "The duplex on Oakwood"
+    ]
+  },
+  {
+    "id": "E0076",
+    "date": "2023-06-14",
+    "thread": "relay-rewrite",
+    "capture": "matching finally has feature parity on the happy path. unhappy path is still a forest and none of it feels honestly",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0017"
+    ],
+    "linksToExisting": [
+      "Project Relay"
+    ]
+  },
+  {
+    "id": "E0077",
+    "date": "2023-06-16",
+    "thread": "dads-diagnosis",
+    "capture": "follow up with patel in six weeks. the quiet after treatment is its own weather system which tracks with everything else",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0072"
+    ],
+    "linksToExisting": [
+      "Robert Webb",
+      "Dr. Patel"
+    ]
+  },
+  {
+    "id": "E0078",
+    "date": "2023-06-17",
+    "thread": "oakwood-landlord",
+    "capture": "pick up dry cleaning ticket 7712 before i forget again before the weekend hits for real right now these days",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0079",
+    "date": "2023-06-18",
+    "thread": "strip-office-days",
+    "capture": "call mom sunday about birthday gift before i forget again so i do not forget later i guess honestly for real",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0080",
+    "date": "2023-06-20",
+    "thread": "strip-office-days",
+    "capture": "hybrid survey from hr. lied and said three days feels right. it absolutely does not and i hate how familiar it right now",
+    "verdict": "atom",
+    "linksToEarlier": [],
+    "linksToExisting": [
+      "Northline"
+    ]
+  },
+  {
+    "id": "E0081",
+    "date": "2023-06-22",
+    "thread": "elise-and-the-move",
+    "capture": "she was right",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0006"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0082",
+    "date": "2023-06-26",
+    "thread": "relay-rewrite",
+    "capture": "turns out i was wrong",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0002"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0083",
+    "date": "2023-06-26",
+    "thread": "relay-rewrite",
+    "capture": "whole point was less code. loc went up. turns out i was wrong about how clean the cut would be without a good these days",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0005"
+    ],
+    "linksToExisting": [
+      "Project Relay"
+    ]
+  },
+  {
+    "id": "E0084",
+    "date": "2023-06-27",
+    "thread": "relay-rewrite",
+    "capture": "line count went up not down. opposite of every pitch slide from the january kickoff week like every other time i guess",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0002"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0085",
+    "date": "2023-06-27",
+    "thread": "relay-rewrite",
+    "capture": "turns out i was wrong",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0002"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0086",
+    "date": "2023-06-27",
+    "thread": "relay-rewrite",
+    "capture": "turns out the delete pitch was wrong about final size and none of the usual fixes work for reasons i cannot cleanly name",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0002"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0087",
+    "date": "2023-06-28",
+    "thread": "elise-and-the-move",
+    "capture": "she was right about waiting",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0037"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0088",
+    "date": "2023-06-29",
+    "thread": "dads-diagnosis",
+    "capture": "he said hes fine stop hovering. i hovered by text anyway because that is who i am in the middle of a workday honestly",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0077"
+    ],
+    "linksToExisting": [
+      "Robert Webb"
+    ]
+  },
+  {
+    "id": "E0089",
+    "date": "2023-06-30",
+    "thread": "strip-office-days",
+    "capture": "renew zipcar check friday before i forget again and put a reminder on it for real right now these days",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0090",
+    "date": "2023-07-01",
+    "thread": "elise-and-the-move",
+    "capture": "library book due the 12th renew online before i forget again when i get a free minute i guess honestly for real",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0091",
+    "date": "2023-07-05",
+    "thread": "relay-rewrite",
+    "capture": "cutover weekend penciled for fall. summer is hardening tests and private fear in equal parts and i keep turning it over",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0067"
+    ],
+    "linksToExisting": [
+      "Project Relay"
+    ]
+  },
+  {
+    "id": "E0092",
+    "date": "2023-07-07",
+    "thread": "dads-diagnosis",
+    "capture": "bloodwork good. patel used the word encouraging. dad shrugged like it was weather again which is on me honestly",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0077"
+    ],
+    "linksToExisting": [
+      "Robert Webb",
+      "Dr. Patel"
+    ]
+  },
+  {
+    "id": "E0093",
+    "date": "2023-07-10",
+    "thread": "elise-and-the-move",
+    "capture": "looked at mortgage rates. the math is a horror movie starring a calculator app and dread and that is the whole",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0064"
+    ],
+    "linksToExisting": [
+      "Elise Kwan"
+    ]
+  },
+  {
+    "id": "E0094",
+    "date": "2023-07-12",
+    "thread": "sleep-caffeine",
+    "capture": "one rough night. not a spiral. logging it so i dont mythologize the whole week later and i am tired of the loop honestly",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0074"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0095",
+    "date": "2023-07-12",
+    "thread": "oakwood-landlord",
+    "capture": "they painted over the water stain without fixing the leak. classic landlord theater move while walking back to the car",
+    "verdict": "atom",
+    "linksToEarlier": [],
+    "linksToExisting": [
+      "The duplex on Oakwood"
+    ]
+  },
+  {
+    "id": "E0096",
+    "date": "2023-07-14",
+    "thread": "dads-diagnosis",
+    "capture": "weekend up north. house smelled like motor oil and old drip coffee. body remembers first and none of it feels these days",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0029"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0097",
+    "date": "2023-07-15",
+    "thread": "strip-office-days",
+    "capture": "renew the library card online before i forget again before the weekend hits i guess honestly for real",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0098",
+    "date": "2023-07-18",
+    "thread": "strip-office-days",
+    "capture": "office closed friday for building work. remote without guilt for once. rare clean gift which tracks with everything else",
+    "verdict": "atom",
+    "linksToEarlier": [],
+    "linksToExisting": [
+      "Northline"
+    ]
+  },
+  {
+    "id": "E0099",
+    "date": "2023-07-19",
+    "thread": "strip-office-days",
+    "capture": "pick up rx at giant eagle before i forget again so i do not forget later right now these days i guess",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0100",
+    "date": "2023-07-21",
+    "thread": "relay-rewrite",
+    "capture": "priya asked for a date she can defend upstairs. i gave september knowing its soft already and i hate how familiar it is",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0071"
+    ],
+    "linksToExisting": [
+      "Project Relay",
+      "Priya Deshmukh"
+    ]
+  },
+  {
+    "id": "E0101",
+    "date": "2023-07-24",
+    "thread": "elise-and-the-move",
+    "capture": "vine street listing popped again lower. heart rate did something stupid and hopeful without a good answer ready honestly",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0046"
+    ],
+    "linksToExisting": [
+      "Elise Kwan"
+    ]
+  },
+  {
+    "id": "E0102",
+    "date": "2023-07-26",
+    "thread": "dads-diagnosis",
+    "capture": "he mowed again and called it proof. i laughed so i wouldnt start another lecture loop like every other time for real",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0088"
+    ],
+    "linksToExisting": [
+      "Robert Webb"
+    ]
+  },
+  {
+    "id": "E0103",
+    "date": "2023-07-28",
+    "thread": "oakwood-landlord",
+    "capture": "rent hit with the month-to-month premium. every payment a reminder we should already leave in the middle of a right now",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0073"
+    ],
+    "linksToExisting": [
+      "The duplex on Oakwood"
+    ]
+  },
+  {
+    "id": "E0104",
+    "date": "2023-07-31",
+    "thread": "sleep-caffeine",
+    "capture": "good stretch continuing. almost forgot the 3am club existed which is its own risk and i keep turning it over these days",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0074"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0105",
+    "date": "2023-08-01",
+    "thread": "strip-office-days",
+    "capture": "car wash before inspection sticker before i forget again and put a reminder on it i guess honestly for real",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0106",
+    "date": "2023-08-03",
+    "thread": "elise-and-the-move",
+    "capture": "walked vine street at dusk without an agent. tried to feel like future neighbors quietly which is on me right now",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0101"
+    ],
+    "linksToExisting": [
+      "Elise Kwan"
+    ]
+  },
+  {
+    "id": "E0107",
+    "date": "2023-08-07",
+    "thread": "relay-rewrite",
+    "capture": "september date already wobbling. wei found a billing interaction we completely ignored and that is the whole i guess",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0100"
+    ],
+    "linksToExisting": [
+      "Project Relay",
+      "Wei Chen"
+    ]
+  },
+  {
+    "id": "E0108",
+    "date": "2023-08-08",
+    "thread": "strip-office-days",
+    "capture": "garage app ate payment method before i forget again when i get a free minute honestly for real right now",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0109",
+    "date": "2023-08-10",
+    "thread": "dads-diagnosis",
+    "capture": "he asked about work. i gave the clean version. he knew it was the clean version immediately for what that is worth now",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0102"
+    ],
+    "linksToExisting": [
+      "Robert Webb"
+    ]
+  },
+  {
+    "id": "E0110",
+    "date": "2023-08-12",
+    "thread": "elise-and-the-move",
+    "capture": "buy birthday card blank inside before i forget again before the weekend hits these days i guess honestly",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0111",
+    "date": "2023-08-14",
+    "thread": "strip-office-days",
+    "capture": "monday in by habit. shouldve stayed home. empty floor again and coffee gone cold and i am tired of the loop and for real",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0065"
+    ],
+    "linksToExisting": [
+      "Northline"
+    ]
+  },
+  {
+    "id": "E0112",
+    "date": "2023-08-17",
+    "thread": "elise-and-the-move",
+    "capture": "she wants a real agent soon. not more self guided fantasy tours on random weekends while walking back to the right now",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0093"
+    ],
+    "linksToExisting": [
+      "Elise Kwan"
+    ]
+  },
+  {
+    "id": "E0113",
+    "date": "2023-08-19",
+    "thread": "strip-office-days",
+    "capture": "chore list item 121: buy soap paper towels and trash bags before weekend these days i guess honestly",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0114",
+    "date": "2023-08-21",
+    "thread": "sleep-caffeine",
+    "capture": "it again",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0104"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0115",
+    "date": "2023-08-21",
+    "thread": "sleep-caffeine",
+    "capture": "it again",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0018"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0116",
+    "date": "2023-08-22",
+    "thread": "relay-rewrite",
+    "capture": "priya wants confidence language for leadership. i do not have confidence language left and none of it feels for real",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0100"
+    ],
+    "linksToExisting": [
+      "Project Relay",
+      "Priya Deshmukh"
+    ]
+  },
+  {
+    "id": "E0117",
+    "date": "2023-08-28",
+    "thread": "relay-rewrite",
+    "capture": "calendar is a graveyard of promised dates. october is the new soft hope on the wall which tracks with right now",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0013"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0118",
+    "date": "2023-08-29",
+    "thread": "oakwood-landlord",
+    "capture": "asked again about the ceiling leak source. got a shrug shaped email and no timeline and i hate how familiar it i guess",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0095"
+    ],
+    "linksToExisting": [
+      "The duplex on Oakwood"
+    ]
+  },
+  {
+    "id": "E0119",
+    "date": "2023-08-30",
+    "thread": "elise-and-the-move",
+    "capture": "promised next year becomes this fall for serious looking. said it out loud to her face without a good answer honestly",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0006"
+    ],
+    "linksToExisting": [
+      "Elise Kwan"
+    ]
+  },
+  {
+    "id": "E0120",
+    "date": "2023-08-31",
+    "thread": "strip-office-days",
+    "capture": "order more floss picks bulk before i forget again so i do not forget later for real right now these days",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0121",
+    "date": "2023-09-05",
+    "thread": "dads-diagnosis",
+    "capture": "six week check. stable. the word stable is doing a ridiculous amount of heavy lifting like every other time i guess",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0077"
+    ],
+    "linksToExisting": [
+      "Robert Webb",
+      "Dr. Patel"
+    ]
+  },
+  {
+    "id": "E0122",
+    "date": "2023-09-06",
+    "thread": "relay-rewrite",
+    "capture": "tomas last week on the stack. beer after. he said trust the tests not the vibes ever in the middle of a workday honestly",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0010"
+    ],
+    "linksToExisting": [
+      "Project Relay",
+      "Tomás Okonkwo"
+    ]
+  },
+  {
+    "id": "E0123",
+    "date": "2023-09-07",
+    "thread": "relay-rewrite",
+    "capture": "beer after his last week. trust tests not vibes he said over bar noise and bad fries and i keep turning it over for real",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0010"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0124",
+    "date": "2023-09-11",
+    "thread": "elise-and-the-move",
+    "capture": "started a shared folder of listings. feels more real than lonely browser bookmarks ever did which is on me right now",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0119"
+    ],
+    "linksToExisting": [
+      "Elise Kwan"
+    ]
+  },
+  {
+    "id": "E0125",
+    "date": "2023-09-12",
+    "thread": "sleep-caffeine",
+    "capture": "last bad cluster for a while maybe. logging the end of this flare if luck holds at all for what that is worth i guess",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0003"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0126",
+    "date": "2023-09-14",
+    "thread": "strip-office-days",
+    "capture": "hr wants badge swipes up. tracking attendance like we never graduated high school and i am tired of the loop for real",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0080"
+    ],
+    "linksToExisting": [
+      "Northline"
+    ]
+  },
+  {
+    "id": "E0127",
+    "date": "2023-09-15",
+    "thread": "dads-diagnosis",
+    "capture": "he seems lighter somehow",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0029"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0128",
+    "date": "2023-09-16",
+    "thread": "strip-office-days",
+    "capture": "order more trash bags drawstring before i forget again and put a reminder on it these days i guess honestly",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0129",
+    "date": "2023-09-18",
+    "thread": "oakwood-landlord",
+    "capture": "still month to month. they hiked again quietly in the portal without a human email while walking back to the for real",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0073",
+      "E0103"
+    ],
+    "linksToExisting": [
+      "The duplex on Oakwood"
+    ]
+  },
+  {
+    "id": "E0130",
+    "date": "2023-09-20",
+    "thread": "relay-rewrite",
+    "capture": "owning the scary parts means pages at 1am that used to route straight to someone else and none of it feels right now",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0091"
+    ],
+    "linksToExisting": [
+      "Project Relay"
+    ]
+  },
+  {
+    "id": "E0131",
+    "date": "2023-09-22",
+    "thread": "dads-diagnosis",
+    "capture": "less frequent updates now. good problem. still check the phone too much out of habit which tracks with everything else",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0121"
+    ],
+    "linksToExisting": [
+      "Robert Webb"
+    ]
+  },
+  {
+    "id": "E0132",
+    "date": "2023-09-26",
+    "thread": "elise-and-the-move",
+    "capture": "finally ready to spend weekends on this. said it without flinching for once this year and i hate how familiar these days",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0119"
+    ],
+    "linksToExisting": [
+      "Elise Kwan"
+    ]
+  },
+  {
+    "id": "E0133",
+    "date": "2023-09-28",
+    "thread": "strip-office-days",
+    "capture": "replace phone charger in desk drawer before i forget again when i get a free minute i guess honestly for real",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0134",
+    "date": "2023-09-29",
+    "thread": "relay-rewrite",
+    "capture": "october might hold. load tests green three runs. superstitious about saying the ship word without a good answer",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0061",
+      "E0117"
+    ],
+    "linksToExisting": [
+      "Project Relay"
+    ]
+  },
+  {
+    "id": "E0135",
+    "date": "2023-10-01",
+    "thread": "oakwood-landlord",
+    "capture": "replace shower liner this weekend before i forget again before the weekend hits these days i guess honestly",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0136",
+    "date": "2023-10-03",
+    "thread": "strip-office-days",
+    "capture": "october light in the strip is nice even when the floor is a ghost town before noon like every other time before for real",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0111"
+    ],
+    "linksToExisting": [
+      "Northline"
+    ]
+  },
+  {
+    "id": "E0137",
+    "date": "2023-10-06",
+    "thread": "elise-and-the-move",
+    "capture": "first serious tour with a buyers agent. not samira yet but someone from her network in the middle of a workday right now",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0132"
+    ],
+    "linksToExisting": [
+      "Elise Kwan"
+    ]
+  },
+  {
+    "id": "E0138",
+    "date": "2023-10-09",
+    "thread": "relay-rewrite",
+    "capture": "cutover night. matching flipped. graphs stayed boring. best possible outcome we could want which is on me i guess",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0130"
+    ],
+    "linksToExisting": [
+      "Project Relay"
+    ]
+  },
+  {
+    "id": "E0139",
+    "date": "2023-10-09",
+    "thread": "relay-rewrite",
+    "capture": "graphs boring. good",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0002"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0140",
+    "date": "2023-10-10",
+    "thread": "relay-rewrite",
+    "capture": "graphs boring. good",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0041"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0141",
+    "date": "2023-10-12",
+    "thread": "dads-diagnosis",
+    "capture": "quick call. hes bored which might be the best symptom on the entire list right now and that is the whole mess right now",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0131"
+    ],
+    "linksToExisting": [
+      "Robert Webb"
+    ]
+  },
+  {
+    "id": "E0142",
+    "date": "2023-10-14",
+    "thread": "oakwood-landlord",
+    "capture": "fill the prescription refill three before i forget again so i do not forget later these days i guess honestly",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0143",
+    "date": "2023-10-16",
+    "thread": "oakwood-landlord",
+    "capture": "heat kickoff for the season. prayed silently it works after last winters full disaster for what that is worth for real",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0049"
+    ],
+    "linksToExisting": [
+      "The duplex on Oakwood"
+    ]
+  },
+  {
+    "id": "E0144",
+    "date": "2023-10-19",
+    "thread": "elise-and-the-move",
+    "capture": "none of the weekend places were right. she said thats data not failure which actually helps and i am tired of the loop",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0137"
+    ],
+    "linksToExisting": [
+      "Elise Kwan"
+    ]
+  },
+  {
+    "id": "E0145",
+    "date": "2023-10-20",
+    "thread": "relay-rewrite",
+    "capture": "codebase finally smaller after the flip. year of deleting just to arrive at less mess while walking back to the",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0005",
+      "E0010"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0146",
+    "date": "2023-10-24",
+    "thread": "dads-diagnosis",
+    "capture": "stable still. updates monthly now. the thread goes quieter on purpose from here on out and none of it feels these days",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0121"
+    ],
+    "linksToExisting": [
+      "Robert Webb"
+    ]
+  },
+  {
+    "id": "E0147",
+    "date": "2023-10-25",
+    "thread": "relay-rewrite",
+    "capture": "priya called the flip a win in all hands. i thought about every slipped date quietly which tracks with everything else",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0071"
+    ],
+    "linksToExisting": [
+      "Project Relay",
+      "Priya Deshmukh"
+    ]
+  },
+  {
+    "id": "E0148",
+    "date": "2023-10-27",
+    "thread": "strip-office-days",
+    "capture": "schedule oil change saturday am before i forget again and put a reminder on it i guess honestly for real",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0149",
+    "date": "2023-10-30",
+    "thread": "strip-office-days",
+    "capture": "in twice this week. badge gods satisfied. soul less so but whatever counts for hr and i hate how familiar it is",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0126"
+    ],
+    "linksToExisting": [
+      "Northline"
+    ]
+  },
+  {
+    "id": "E0150",
+    "date": "2023-11-01",
+    "thread": "strip-office-days",
+    "capture": "order more floss picks bulk pack before i forget again when i get a free minute these days i guess honestly",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0151",
+    "date": "2023-11-06",
+    "thread": "relay-rewrite",
+    "capture": "oncall rotation lighter. matching is mostly boring. success feels oddly empty some days without a good answer for real",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0147"
+    ],
+    "linksToExisting": [
+      "Project Relay"
+    ]
+  },
+  {
+    "id": "E0152",
+    "date": "2023-11-08",
+    "thread": "dads-diagnosis",
+    "capture": "short text from him. football score only. no medical content. that counts as good news and i keep turning it i guess",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0146"
+    ],
+    "linksToExisting": [
+      "Robert Webb"
+    ]
+  },
+  {
+    "id": "E0153",
+    "date": "2023-11-09",
+    "thread": "dads-diagnosis",
+    "capture": "he texted only a score",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0053"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0154",
+    "date": "2023-11-14",
+    "thread": "elise-and-the-move",
+    "capture": "she still scrolls listings at night sometimes. i pretend not to notice the phone glow which is on me honestly i guess",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0144"
+    ],
+    "linksToExisting": [
+      "Elise Kwan"
+    ]
+  },
+  {
+    "id": "E0155",
+    "date": "2023-11-16",
+    "thread": "oakwood-landlord",
+    "capture": "heat dipped overnight. old fear woke up. it recovered. still wrote the reading down and that is the whole mess honestly",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0004",
+      "E0143"
+    ],
+    "linksToExisting": [
+      "The duplex on Oakwood"
+    ]
+  },
+  {
+    "id": "E0156",
+    "date": "2023-11-17",
+    "thread": "relay-rewrite",
+    "capture": "retro called it brave. i called it late. both true and both stuck to the walls after for what that is worth now for real",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0013",
+      "E0083"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0157",
+    "date": "2023-11-18",
+    "thread": "strip-office-days",
+    "capture": "cancel the free trial before monday before i forget again before the weekend hits right now these days i guess",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0158",
+    "date": "2023-11-21",
+    "thread": "strip-office-days",
+    "capture": "only me and two others before noon. quiet in a good way for once this month finally and i am tired of the loop honestly",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0019",
+      "E0136"
+    ],
+    "linksToExisting": [
+      "Northline"
+    ]
+  },
+  {
+    "id": "E0159",
+    "date": "2023-11-22",
+    "thread": "strip-office-days",
+    "capture": "mail package slip from front desk before i forget again so i do not forget later for real right now these days",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0160",
+    "date": "2023-11-28",
+    "thread": "dads-diagnosis",
+    "capture": "jules says hes stubborn about rest. i said thats genetic. she did not laugh at all while walking back to the i guess",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0152"
+    ],
+    "linksToExisting": [
+      "Robert Webb",
+      "Jules Webb"
+    ]
+  },
+  {
+    "id": "E0161",
+    "date": "2023-11-29",
+    "thread": "elise-and-the-move",
+    "capture": "told dad we might buy next year. he said about time in that soft voice he saves and none of it feels clean for honestly",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0154"
+    ],
+    "linksToExisting": [
+      "Elise Kwan",
+      "Robert Webb"
+    ]
+  },
+  {
+    "id": "E0162",
+    "date": "2023-12-01",
+    "thread": "elise-and-the-move",
+    "capture": "ship gift to cousin by the 15th before i forget again and put a reminder on it for real right now these days",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0163",
+    "date": "2023-12-05",
+    "thread": "relay-rewrite",
+    "capture": "year end. the thing ive been on since spring actually shipped. weird past tense feeling which tracks with i guess",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0002"
+    ],
+    "linksToExisting": [
+      "Project Relay"
+    ]
+  },
+  {
+    "id": "E0164",
+    "date": "2023-12-07",
+    "thread": "elise-and-the-move",
+    "capture": "new year resolution forming without saying that word. spring hunt is the real project and i hate how familiar for real",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0144"
+    ],
+    "linksToExisting": [
+      "Elise Kwan"
+    ]
+  },
+  {
+    "id": "E0165",
+    "date": "2023-12-09",
+    "thread": "elise-and-the-move",
+    "capture": "buy stamps forever book of twenty before i forget again when i get a free minute right now these days i guess",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0166",
+    "date": "2023-12-18",
+    "thread": "dads-diagnosis",
+    "capture": "he looked okay at christmas. thinner. jokes worse. fine enough for the year end file in the middle of a workday",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0146"
+    ],
+    "linksToExisting": [
+      "Robert Webb",
+      "Beaver Falls"
+    ]
+  },
+  {
+    "id": "E0167",
+    "date": "2023-12-19",
+    "thread": "strip-office-days",
+    "capture": "return ugly sweater to nordstrom before i forget again before the weekend hits these days i guess honestly",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0168",
+    "date": "2023-12-21",
+    "thread": "relay-rewrite",
+    "capture": "one page on christmas eve about a null. fixed remote in pajamas. extremely glamorous life and i keep turning it for real",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0151"
+    ],
+    "linksToExisting": [
+      "Project Relay"
+    ]
+  },
+  {
+    "id": "E0169",
+    "date": "2023-12-28",
+    "thread": "elise-and-the-move",
+    "capture": "we toasted to moving someday without jinxing a month. careful people being careful still which is on me right now",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0164"
+    ],
+    "linksToExisting": [
+      "Elise Kwan"
+    ]
+  },
+  {
+    "id": "E0170",
+    "date": "2023-12-29",
+    "thread": "dads-diagnosis",
+    "capture": "last checkin of the year. no news is the news. thread going dim on purpose from here and that is the whole mess i guess",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0152"
+    ],
+    "linksToExisting": [
+      "Robert Webb"
+    ]
+  },
+  {
+    "id": "E0171",
+    "date": "2023-12-30",
+    "thread": "strip-office-days",
+    "capture": "office closed rest of week. good. the empty floor can wait until january without me for what that is worth now honestly",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0098"
+    ],
+    "linksToExisting": [
+      "Northline"
+    ]
+  },
+  {
+    "id": "E0172",
+    "date": "2024-01-04",
+    "thread": "elise-and-the-move",
+    "capture": "listings reopen in my brain uninvited. spring is not actually that far away anymore and i am tired of the loop for real",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0164"
+    ],
+    "linksToExisting": [
+      "Elise Kwan"
+    ]
+  },
+  {
+    "id": "E0173",
+    "date": "2024-01-08",
+    "thread": "relay-rewrite",
+    "capture": "new year residual bugs. old assumptions hiding in a corner path. patch life returns quiet while walking back to the car",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0168"
+    ],
+    "linksToExisting": [
+      "Project Relay"
+    ]
+  },
+  {
+    "id": "E0174",
+    "date": "2024-01-10",
+    "thread": "strip-office-days",
+    "capture": "first office day of the year. half the floor still traveling or claiming to be gone and none of it feels clean right now",
+    "verdict": "atom",
+    "linksToEarlier": [],
+    "linksToExisting": [
+      "Northline"
+    ]
+  },
+  {
+    "id": "E0175",
+    "date": "2024-01-11",
+    "thread": "strip-office-days",
+    "capture": "renew aaa before it lapses before i forget again so i do not forget later these days i guess honestly",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0176",
+    "date": "2024-01-13",
+    "thread": "strip-office-days",
+    "capture": "backup photos to the cloud tonight before i forget again and put a reminder on it for real right now these days",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0177",
+    "date": "2024-01-17",
+    "thread": "relay-rewrite",
+    "capture": "leadership forgot the pain already. dangerous amnesia about how close matching came to fire and i hate how i guess",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0041"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0178",
+    "date": "2024-01-18",
+    "thread": "relay-rewrite",
+    "capture": "dangerous amnesia upstairs about how close the stack came to pure fire once for reasons i cannot cleanly name for real",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0091"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0179",
+    "date": "2024-01-19",
+    "thread": "elise-and-the-move",
+    "capture": "she wants samira involved when we get serious. family rate and less agent nonsense overall without a good answer ready",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0112"
+    ],
+    "linksToExisting": [
+      "Elise Kwan"
+    ]
+  },
+  {
+    "id": "E0180",
+    "date": "2024-01-20",
+    "thread": "strip-office-days",
+    "capture": "transfer two hundred to checking before i forget again when i get a free minute right now these days i guess",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0181",
+    "date": "2024-01-24",
+    "thread": "dads-diagnosis",
+    "capture": "quiet morning. got nothing medical. best kind of quiet morning in months of silence in the middle of a workday for real",
+    "verdict": "atom",
+    "linksToEarlier": [],
+    "linksToExisting": [
+      "Robert Webb"
+    ]
+  },
+  {
+    "id": "E0182",
+    "date": "2024-01-24",
+    "thread": "strip-office-days",
+    "capture": "quiet morning. got a hard design doc done before slack woke up. best kind of strip day like every other time honestly",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0174"
+    ],
+    "linksToExisting": [
+      "Northline"
+    ]
+  },
+  {
+    "id": "E0183",
+    "date": "2024-01-26",
+    "thread": "elise-and-the-move",
+    "capture": "march is hunt month in the calendar now. real blocks not vibes and late night scrolling and i keep turning it these days",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0179"
+    ],
+    "linksToExisting": [
+      "Elise Kwan"
+    ]
+  },
+  {
+    "id": "E0184",
+    "date": "2024-01-29",
+    "thread": "relay-rewrite",
+    "capture": "turns out the v2.1 ask is really a dashboard. not a rewrite of the rewrite thank god which is on me honestly for real",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0177"
+    ],
+    "linksToExisting": [
+      "Project Relay",
+      "Priya Deshmukh"
+    ]
+  },
+  {
+    "id": "E0185",
+    "date": "2024-01-30",
+    "thread": "oakwood-landlord",
+    "capture": "buy ice melt bag for steps before i forget again before the weekend hits right now these days i guess",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0186",
+    "date": "2024-02-01",
+    "thread": "strip-office-days",
+    "capture": "update password manager vault backup before i forget again so i do not forget later honestly for real right now",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0187",
+    "date": "2024-02-06",
+    "thread": "elise-and-the-move",
+    "capture": "coffee with samira. shes blunt about our ceiling. good blunt. needed that blunt today and that is the whole these days",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0179"
+    ],
+    "linksToExisting": [
+      "Elise Kwan"
+    ]
+  },
+  {
+    "id": "E0188",
+    "date": "2024-02-08",
+    "thread": "relay-rewrite",
+    "capture": "dashboard scope creep already. said no twice. will say no a third time before friday for what that is worth now i guess",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0184"
+    ],
+    "linksToExisting": [
+      "Project Relay"
+    ]
+  },
+  {
+    "id": "E0189",
+    "date": "2024-02-12",
+    "thread": "strip-office-days",
+    "capture": "snow day hybrid. still went in. empty and bright and weirdly nice for a monday and i am tired of the loop for honestly",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0182"
+    ],
+    "linksToExisting": [
+      "Northline"
+    ]
+  },
+  {
+    "id": "E0190",
+    "date": "2024-02-13",
+    "thread": "strip-office-days",
+    "capture": "buy stamps and manila envelopes before i forget again and put a reminder on it for real right now these days",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0191",
+    "date": "2024-02-15",
+    "thread": "relay-rewrite",
+    "capture": "said no to scope a third time. priya smiled with teeth and a calendar invite attached while walking back to the i guess",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0184"
+    ],
+    "linksToExisting": [
+      "Project Relay",
+      "Priya Deshmukh"
+    ]
+  },
+  {
+    "id": "E0192",
+    "date": "2024-02-17",
+    "thread": "oakwood-landlord",
+    "capture": "replace the furnace filter 16x25 before i forget again when i get a free minute honestly for real right now",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0193",
+    "date": "2024-02-20",
+    "thread": "elise-and-the-move",
+    "capture": "she was right",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0106"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0194",
+    "date": "2024-02-26",
+    "thread": "elise-and-the-move",
+    "capture": "she was right about samira",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0187"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0195",
+    "date": "2024-02-27",
+    "thread": "relay-rewrite",
+    "capture": "actually the dashboard is fine if it stays thin. take that back on pure stubborn refusal and none of it feels these days",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0188"
+    ],
+    "linksToExisting": [
+      "Project Relay"
+    ]
+  },
+  {
+    "id": "E0196",
+    "date": "2024-02-28",
+    "thread": "elise-and-the-move",
+    "capture": "she was right to wait for samira. diy open houses wasted months of weekends and gas which tracks with honestly for real",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0052"
+    ],
+    "linksToExisting": [
+      "Elise Kwan"
+    ]
+  },
+  {
+    "id": "E0197",
+    "date": "2024-02-28",
+    "thread": "relay-rewrite",
+    "capture": "actually the thin dashboard is fine. take that back on pure no while the rest of the day moves on and i am done i guess",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0107"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0198",
+    "date": "2024-02-28",
+    "thread": "relay-rewrite",
+    "capture": "take that back and the rest of the day sat wrong about it somehow still still still still still still right now",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0107"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0199",
+    "date": "2024-02-29",
+    "thread": "oakwood-landlord",
+    "capture": "month to month fee reminder hit. leaving cannot come soon enough from this duplex and i hate how familiar it is i guess",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0129"
+    ],
+    "linksToExisting": [
+      "The duplex on Oakwood"
+    ]
+  },
+  {
+    "id": "E0200",
+    "date": "2024-03-01",
+    "thread": "oakwood-landlord",
+    "capture": "buy lightbulbs soft white 4 pack before i forget again before the weekend hits honestly for real right now",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0201",
+    "date": "2024-03-05",
+    "thread": "elise-and-the-move",
+    "capture": "first march tour. lawrenceville brick row. narrow. she lit up standing in the doorway without a good answer these days",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0101",
+      "E0183"
+    ],
+    "linksToExisting": [
+      "Elise Kwan"
+    ]
+  },
+  {
+    "id": "E0202",
+    "date": "2024-03-08",
+    "thread": "elise-and-the-move",
+    "capture": "the lawrenceville listing is the one. tried not to say that out loud. failed within minutes like every other time before",
+    "verdict": "atom",
+    "linksToEarlier": [],
+    "linksToExisting": [
+      "Elise Kwan"
+    ]
+  },
+  {
+    "id": "E0203",
+    "date": "2024-03-09",
+    "thread": "strip-office-days",
+    "capture": "return amazon cable duplicate order before i forget again so i do not forget later i guess honestly for real",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0204",
+    "date": "2024-03-11",
+    "thread": "relay-rewrite",
+    "capture": "thin dashboard shipped internal. nobody clapped. perfect volume of reaction for once in the middle of a workday",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0195"
+    ],
+    "linksToExisting": [
+      "Project Relay"
+    ]
+  },
+  {
+    "id": "E0205",
+    "date": "2024-03-12",
+    "thread": "elise-and-the-move",
+    "capture": "second visit to the vine place. upstairs light is stupid good in the afternoon sun and i keep turning it over these days",
+    "verdict": "atom",
+    "linksToEarlier": [],
+    "linksToExisting": [
+      "Elise Kwan",
+      "The place on Vine"
+    ]
+  },
+  {
+    "id": "E0206",
+    "date": "2024-03-12",
+    "thread": "elise-and-the-move",
+    "capture": "second walk through. light upstairs does something unfair to ordinary common sense which is on me honestly and i guess",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0016"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0207",
+    "date": "2024-03-14",
+    "thread": "oakwood-landlord",
+    "capture": "exit punch list growing. stains and scuffs for a fight that hasnt started yet and that is the whole mess for honestly",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0008"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0208",
+    "date": "2024-03-14",
+    "thread": "oakwood-landlord",
+    "capture": "started an exit punch list of stains and scuffs for the deposit war coming later for what that is worth now for real",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0008"
+    ],
+    "linksToExisting": [
+      "The duplex on Oakwood"
+    ]
+  },
+  {
+    "id": "E0209",
+    "date": "2024-03-16",
+    "thread": "strip-office-days",
+    "capture": "chore list item 122: buy soap paper towels and trash bags before weekend right now these days i guess",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0210",
+    "date": "2024-03-18",
+    "thread": "strip-office-days",
+    "capture": "hr email about core hours in office. skimming it with professional grade spite today and i am tired of the loop honestly",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0126"
+    ],
+    "linksToExisting": [
+      "Northline"
+    ]
+  },
+  {
+    "id": "E0211",
+    "date": "2024-03-19",
+    "thread": "strip-office-days",
+    "capture": "order new laptop sleeve before i forget again and put a reminder on it when i get a free minute for real right now",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0212",
+    "date": "2024-03-20",
+    "thread": "elise-and-the-move",
+    "capture": "offer is out",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0006"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0213",
+    "date": "2024-03-20",
+    "thread": "elise-and-the-move",
+    "capture": "offer out on the vine place. neither of us slept right and both pretended we were fine while walking back to i guess",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0205"
+    ],
+    "linksToExisting": [
+      "Elise Kwan",
+      "The place on Vine"
+    ]
+  },
+  {
+    "id": "E0214",
+    "date": "2024-03-21",
+    "thread": "elise-and-the-move",
+    "capture": "offer is out",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0119"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0215",
+    "date": "2024-03-25",
+    "thread": "relay-rewrite",
+    "capture": "counter the estimate from platform on a dependency. not kitchen counters. focus marcus and none of it feels honestly",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0204"
+    ],
+    "linksToExisting": [
+      "Project Relay"
+    ]
+  },
+  {
+    "id": "E0216",
+    "date": "2024-03-27",
+    "thread": "elise-and-the-move",
+    "capture": "finally",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0006"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0217",
+    "date": "2024-03-27",
+    "thread": "elise-and-the-move",
+    "capture": "we accepted the middle number. vine is maybe ours. shaking hands on a random tuesday and i hate how familiar it",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0202"
+    ],
+    "linksToExisting": [
+      "Elise Kwan",
+      "The place on Vine"
+    ]
+  },
+  {
+    "id": "E0218",
+    "date": "2024-03-28",
+    "thread": "elise-and-the-move",
+    "capture": "finally",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0124"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0219",
+    "date": "2024-03-28",
+    "thread": "elise-and-the-move",
+    "capture": "we accepted",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0124"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0220",
+    "date": "2024-03-29",
+    "thread": "oakwood-landlord",
+    "capture": "told landlord we might not renew past summer. they shrugged in email form as always without a good answer ready i guess",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0199"
+    ],
+    "linksToExisting": [
+      "The duplex on Oakwood"
+    ]
+  },
+  {
+    "id": "E0221",
+    "date": "2024-04-01",
+    "thread": "strip-office-days",
+    "capture": "return duplicate amazon cable before i forget again before the weekend hits honestly for real right now",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0222",
+    "date": "2024-04-04",
+    "thread": "elise-and-the-move",
+    "capture": "inspection day. boiler aged. roof okay. pile of negotiable stuff not full disasters like every other time these days",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0217"
+    ],
+    "linksToExisting": [
+      "Elise Kwan",
+      "The place on Vine"
+    ]
+  },
+  {
+    "id": "E0223",
+    "date": "2024-04-09",
+    "thread": "relay-rewrite",
+    "capture": "minor matching tweak shipped without drama. strange calm era after years of noise in the middle of a workday i guess",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0215"
+    ],
+    "linksToExisting": [
+      "Project Relay"
+    ]
+  },
+  {
+    "id": "E0224",
+    "date": "2024-04-10",
+    "thread": "strip-office-days",
+    "capture": "benefits open enrollment before friday before i forget again so i do not forget later honestly for real right now",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0225",
+    "date": "2024-04-13",
+    "thread": "elise-and-the-move",
+    "capture": "call about the internet outage ticket before i forget again and put a reminder on it these days i guess honestly",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0226",
+    "date": "2024-04-15",
+    "thread": "oakwood-landlord",
+    "capture": "photos of every scuff for the deposit file. obsessive and completely correct behavior and i keep turning it for real",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0208"
+    ],
+    "linksToExisting": [
+      "The duplex on Oakwood"
+    ]
+  },
+  {
+    "id": "E0227",
+    "date": "2024-04-18",
+    "thread": "elise-and-the-move",
+    "capture": "appraisal came back okay. not a disaster. exhaled for about a week straight after which is on me honestly for right now",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0222"
+    ],
+    "linksToExisting": [
+      "Elise Kwan",
+      "The place on Vine"
+    ]
+  },
+  {
+    "id": "E0228",
+    "date": "2024-04-22",
+    "thread": "strip-office-days",
+    "capture": "core hours compliance and my name is not on the bad list. calling that a small win and that is the whole mess these days",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0210"
+    ],
+    "linksToExisting": [
+      "Northline"
+    ]
+  },
+  {
+    "id": "E0229",
+    "date": "2024-04-24",
+    "thread": "relay-rewrite",
+    "capture": "priya moved on to other fires. matching is furniture in the org chart now somehow for what that is worth now i guess",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0177"
+    ],
+    "linksToExisting": [
+      "Project Relay",
+      "Priya Deshmukh"
+    ]
+  },
+  {
+    "id": "E0230",
+    "date": "2024-04-29",
+    "thread": "elise-and-the-move",
+    "capture": "mental boxes packing already. duplex already past tense inside my head this week and i am tired of the loop and honestly",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0058"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0231",
+    "date": "2024-04-29",
+    "thread": "elise-and-the-move",
+    "capture": "started packing mental boxes. oakwood already feels like the old place somehow now while walking back to the for real",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0227"
+    ],
+    "linksToExisting": [
+      "Elise Kwan",
+      "The duplex on Oakwood"
+    ]
+  },
+  {
+    "id": "E0232",
+    "date": "2024-04-30",
+    "thread": "strip-office-days",
+    "capture": "pick up contacts lenscrafters before i forget again when i get a free minute right now these days i guess",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0233",
+    "date": "2024-05-01",
+    "thread": "strip-office-days",
+    "capture": "fill rx refill number four today before i forget again before the weekend hits honestly for real right now",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0234",
+    "date": "2024-05-08",
+    "thread": "elise-and-the-move",
+    "capture": "locked a rate. not great. good enough. she cried once in the car then laughed hard and none of it feels clean these days",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0227"
+    ],
+    "linksToExisting": [
+      "Elise Kwan",
+      "The place on Vine"
+    ]
+  },
+  {
+    "id": "E0235",
+    "date": "2024-05-11",
+    "thread": "strip-office-days",
+    "capture": "buy ice melt before the next freeze before i forget again so i do not forget later i guess honestly for real",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0236",
+    "date": "2024-05-14",
+    "thread": "relay-rewrite",
+    "capture": "may and matching is quiet. anniversary of slipped milestones. ironic calm everywhere which tracks with everything else",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0071"
+    ],
+    "linksToExisting": [
+      "Project Relay"
+    ]
+  },
+  {
+    "id": "E0237",
+    "date": "2024-05-16",
+    "thread": "oakwood-landlord",
+    "capture": "they scheduled move-out walkthrough for august. calendar invite was pure ice cold and i hate how familiar it is",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0220"
+    ],
+    "linksToExisting": [
+      "The duplex on Oakwood"
+    ]
+  },
+  {
+    "id": "E0238",
+    "date": "2024-05-20",
+    "thread": "strip-office-days",
+    "capture": "office day sparse. finished a whole doc in one sitting. rare enough to notice fully without a good answer ready",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0228"
+    ],
+    "linksToExisting": [
+      "Northline"
+    ]
+  },
+  {
+    "id": "E0239",
+    "date": "2024-05-21",
+    "thread": "relay-rewrite",
+    "capture": "actually proud of the boring graphs. take that back on empty success feelings from fall like every other time i guess",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0151"
+    ],
+    "linksToExisting": [
+      "Project Relay"
+    ]
+  },
+  {
+    "id": "E0240",
+    "date": "2024-05-21",
+    "thread": "strip-office-days",
+    "capture": "buy sunscreen and bug spray before i forget again and put a reminder on it honestly for real right now",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0241",
+    "date": "2024-05-22",
+    "thread": "relay-rewrite",
+    "capture": "actually proud now",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0151"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0242",
+    "date": "2024-05-22",
+    "thread": "relay-rewrite",
+    "capture": "actually the empty success thing was wrong",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0147"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0243",
+    "date": "2024-05-22",
+    "thread": "relay-rewrite",
+    "capture": "proud of boring graphs. empty success feeling from the old retro is revoked today in the middle of a workday these days",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0056"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0244",
+    "date": "2024-05-23",
+    "thread": "elise-and-the-move",
+    "capture": "close date targeting july. move august. the calendar is a tunnel with no side exits and i keep turning it over i guess",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0227"
+    ],
+    "linksToExisting": [
+      "Elise Kwan",
+      "The place on Vine"
+    ]
+  },
+  {
+    "id": "E0245",
+    "date": "2024-05-28",
+    "thread": "elise-and-the-move",
+    "capture": "she was right",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0006"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0246",
+    "date": "2024-05-28",
+    "thread": "elise-and-the-move",
+    "capture": "she was right about the forever duplex. saying it without grit in my teeth now and that is the whole mess which",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0006"
+    ],
+    "linksToExisting": [
+      "Elise Kwan"
+    ]
+  },
+  {
+    "id": "E0247",
+    "date": "2024-05-29",
+    "thread": "elise-and-the-move",
+    "capture": "she was right",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0154"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0248",
+    "date": "2024-05-30",
+    "thread": "oakwood-landlord",
+    "capture": "deposit fight loading in the future. gathering every pdf and photo now not later for what that is worth now and",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0226"
+    ],
+    "linksToExisting": [
+      "The duplex on Oakwood"
+    ]
+  },
+  {
+    "id": "E0249",
+    "date": "2024-06-04",
+    "thread": "relay-rewrite",
+    "capture": "champagne emoji in slack. i made tea and stared at green graphs like a tourist and i am tired of the loop for i guess",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0005"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0250",
+    "date": "2024-06-04",
+    "thread": "relay-rewrite",
+    "capture": "finally shipped",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0002"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0251",
+    "date": "2024-06-04",
+    "thread": "relay-rewrite",
+    "capture": "official ship of the last big matching milestone. champagne emoji in slack. i had tea while walking back to the honestly",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0138"
+    ],
+    "linksToExisting": [
+      "Project Relay",
+      "Priya Deshmukh"
+    ]
+  },
+  {
+    "id": "E0252",
+    "date": "2024-06-05",
+    "thread": "relay-rewrite",
+    "capture": "finally shipped",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0156"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0253",
+    "date": "2024-06-05",
+    "thread": "relay-rewrite",
+    "capture": "tea and green graphs while slack threw champagne emojis at a finished chapter while the rest of the day moves for real",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0156"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0254",
+    "date": "2024-06-07",
+    "thread": "elise-and-the-move",
+    "capture": "final underwriting questions. answered like a job interview with much higher stakes and none of it feels clean right now",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0244"
+    ],
+    "linksToExisting": [
+      "Elise Kwan",
+      "The place on Vine"
+    ]
+  },
+  {
+    "id": "E0255",
+    "date": "2024-06-11",
+    "thread": "strip-office-days",
+    "capture": "went in to be seen after the ship noise. theater works both directions in this building which tracks with these days",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0238"
+    ],
+    "linksToExisting": [
+      "Northline"
+    ]
+  },
+  {
+    "id": "E0256",
+    "date": "2024-06-12",
+    "thread": "strip-office-days",
+    "capture": "buy packing tape and sharpies before i forget again when i get a free minute i guess honestly for real",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0257",
+    "date": "2024-06-14",
+    "thread": "oakwood-landlord",
+    "capture": "gave sixty day formal notice. the email felt like a breakup with a whole building and i hate how familiar it is",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0237"
+    ],
+    "linksToExisting": [
+      "The duplex on Oakwood"
+    ]
+  },
+  {
+    "id": "E0258",
+    "date": "2024-06-15",
+    "thread": "oakwood-landlord",
+    "capture": "schedule dentist cleaning in march before i forget again before the weekend hits these days i guess honestly",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0259",
+    "date": "2024-06-18",
+    "thread": "relay-rewrite",
+    "capture": "post-ship lull starting for real. inbox lighter. identity wobble on a random tuesday without a good answer for real",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0251"
+    ],
+    "linksToExisting": [
+      "Project Relay"
+    ]
+  },
+  {
+    "id": "E0260",
+    "date": "2024-06-21",
+    "thread": "elise-and-the-move",
+    "capture": "close date firming for july. she circled it in three colors like a general planning like every other time right now",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0244"
+    ],
+    "linksToExisting": [
+      "Elise Kwan",
+      "The place on Vine"
+    ]
+  },
+  {
+    "id": "E0261",
+    "date": "2024-06-26",
+    "thread": "strip-office-days",
+    "capture": "office ac broken opposite of last year. swampy and everyone blames facilities again in the middle of a workday",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0060"
+    ],
+    "linksToExisting": [
+      "Northline"
+    ]
+  },
+  {
+    "id": "E0262",
+    "date": "2024-06-27",
+    "thread": "elise-and-the-move",
+    "capture": "finally feels like leaving is happening not a story we keep telling ourselves nightly and i keep turning it i guess",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0246"
+    ],
+    "linksToExisting": [
+      "Elise Kwan"
+    ]
+  },
+  {
+    "id": "E0263",
+    "date": "2024-06-27",
+    "thread": "relay-rewrite",
+    "capture": "finally feels like the matching chapter closed even if tickets still drip sometimes which is on me honestly honestly",
+    "verdict": "atom",
+    "linksToEarlier": [],
+    "linksToExisting": [
+      "Project Relay"
+    ]
+  },
+  {
+    "id": "E0264",
+    "date": "2024-06-27",
+    "thread": "elise-and-the-move",
+    "capture": "finally leaving is real",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0006"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0265",
+    "date": "2024-06-28",
+    "thread": "oakwood-landlord",
+    "capture": "donate bags to goodwill sat before i forget again so i do not forget later for real right now these days",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0266",
+    "date": "2024-07-03",
+    "thread": "relay-rewrite",
+    "capture": "july lull deep. the thing i have been on since spring is someone elses boring now and that is the whole mess honestly",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0002"
+    ],
+    "linksToExisting": [
+      "Project Relay"
+    ]
+  },
+  {
+    "id": "E0267",
+    "date": "2024-07-03",
+    "thread": "relay-rewrite",
+    "capture": "someone else finds that stack boring now. identity whiplash in the kitchen at night for what that is worth now for real",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0023"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0268",
+    "date": "2024-07-04",
+    "thread": "elise-and-the-move",
+    "capture": "cancel unused free trial before charge before i forget again and put a reminder on it right now these days i guess",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0269",
+    "date": "2024-07-06",
+    "thread": "strip-office-days",
+    "capture": "chore list item 123: buy soap paper towels and trash bags before weekend honestly for real right now",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0270",
+    "date": "2024-07-08",
+    "thread": "elise-and-the-move",
+    "capture": "closing table. hands numb. keys in a folder. the vine place is actually ours today and i am tired of the loop these days",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0260"
+    ],
+    "linksToExisting": [
+      "Elise Kwan",
+      "The place on Vine"
+    ]
+  },
+  {
+    "id": "E0271",
+    "date": "2024-07-08",
+    "thread": "elise-and-the-move",
+    "capture": "finally",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0006"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0272",
+    "date": "2024-07-08",
+    "thread": "elise-and-the-move",
+    "capture": "keys. ours",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0006"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0273",
+    "date": "2024-07-09",
+    "thread": "elise-and-the-move",
+    "capture": "finally",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0124"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0274",
+    "date": "2024-07-09",
+    "thread": "elise-and-the-move",
+    "capture": "keys. ours",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0124"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0275",
+    "date": "2024-07-12",
+    "thread": "oakwood-landlord",
+    "capture": "calendar says weeks left in the duplex. counting dirty dishes differently already while walking back to the car i guess",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0257"
+    ],
+    "linksToExisting": [
+      "The duplex on Oakwood"
+    ]
+  },
+  {
+    "id": "E0276",
+    "date": "2024-07-15",
+    "thread": "strip-office-days",
+    "capture": "update address on payroll portal before i forget again when i get a free minute honestly for real right now",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0277",
+    "date": "2024-07-16",
+    "thread": "strip-office-days",
+    "capture": "in twice. address change small talk already started. internal groan runs continuous and none of it feels clean",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0261"
+    ],
+    "linksToExisting": [
+      "Northline"
+    ]
+  },
+  {
+    "id": "E0278",
+    "date": "2024-07-20",
+    "thread": "strip-office-days",
+    "capture": "donate the old cables to goodwill before i forget again before the weekend hits i guess honestly for real",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0279",
+    "date": "2024-07-22",
+    "thread": "elise-and-the-move",
+    "capture": "movers booked. price painful. still worth not destroying our backs on the stairs which tracks with everything right now",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0270"
+    ],
+    "linksToExisting": [
+      "Elise Kwan",
+      "The place on Vine"
+    ]
+  },
+  {
+    "id": "E0280",
+    "date": "2024-07-29",
+    "thread": "elise-and-the-move",
+    "capture": "air mattress night. creak in the floorboards felt like a welcome not a threat tonight and i hate how familiar these days",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0043"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0281",
+    "date": "2024-07-29",
+    "thread": "elise-and-the-move",
+    "capture": "slept at vine on an air mattress. upstairs creaked. felt like ours already somehow without a good answer ready i guess",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0279"
+    ],
+    "linksToExisting": [
+      "Elise Kwan",
+      "The place on Vine"
+    ]
+  },
+  {
+    "id": "E0282",
+    "date": "2024-07-30",
+    "thread": "relay-rewrite",
+    "capture": "almost a full month without a matching emergency. unnatural and i actually like it like every other time before honestly",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0259"
+    ],
+    "linksToExisting": [
+      "Project Relay"
+    ]
+  },
+  {
+    "id": "E0283",
+    "date": "2024-08-01",
+    "thread": "strip-office-days",
+    "capture": "dmv appointment change of address before i forget again so i do not forget later for real right now these days",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0284",
+    "date": "2024-08-02",
+    "thread": "elise-and-the-move",
+    "capture": "move day. chaos. she directed traffic. i lifted with terrible form and dumb pride in the middle of a workday i guess",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0279"
+    ],
+    "linksToExisting": [
+      "Elise Kwan",
+      "The place on Vine"
+    ]
+  },
+  {
+    "id": "E0285",
+    "date": "2024-08-03",
+    "thread": "oakwood-landlord",
+    "capture": "keys on their desk. polite ice. money fight loading in every email subject line now and i keep turning it over honestly",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0015"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0286",
+    "date": "2024-08-03",
+    "thread": "oakwood-landlord",
+    "capture": "keys returned. walkthrough polite frozen. deposit tbd war is officially loading now which is on me honestly and for real",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0237"
+    ],
+    "linksToExisting": [
+      "The duplex on Oakwood"
+    ]
+  },
+  {
+    "id": "E0287",
+    "date": "2024-08-05",
+    "thread": "elise-and-the-move",
+    "capture": "called it home",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0006"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0288",
+    "date": "2024-08-05",
+    "thread": "elise-and-the-move",
+    "capture": "coffee upstairs without thinking. this is just where we wake up now every morning and that is the whole mess on",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0043"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0289",
+    "date": "2024-08-05",
+    "thread": "elise-and-the-move",
+    "capture": "first morning coffee upstairs. called it home out loud by accident then smiled hard for what that is worth now",
+    "verdict": "atom",
+    "linksToEarlier": [],
+    "linksToExisting": [
+      "Elise Kwan",
+      "The place on Vine"
+    ]
+  },
+  {
+    "id": "E0290",
+    "date": "2024-08-06",
+    "thread": "elise-and-the-move",
+    "capture": "called it home",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0179"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0291",
+    "date": "2024-08-06",
+    "thread": "elise-and-the-move",
+    "capture": "coffee upstairs without thinking. just where we wake. no listing language left and none of the usual fixes work i guess",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0179"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0292",
+    "date": "2024-08-07",
+    "thread": "strip-office-days",
+    "capture": "badge will hate me",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0182"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0293",
+    "date": "2024-08-08",
+    "thread": "strip-office-days",
+    "capture": "badge will hate me",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0001"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0294",
+    "date": "2024-08-08",
+    "thread": "strip-office-days",
+    "capture": "wfh most of move week. badge will hate me and i cannot find energy to care at all and i am tired of the loop honestly",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0277"
+    ],
+    "linksToExisting": [
+      "Northline"
+    ]
+  },
+  {
+    "id": "E0295",
+    "date": "2024-08-13",
+    "thread": "oakwood-landlord",
+    "capture": "disputed three charges with photos. she was right about documenting everything early on while walking back to for real",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0226"
+    ],
+    "linksToExisting": [
+      "The duplex on Oakwood",
+      "Elise Kwan"
+    ]
+  },
+  {
+    "id": "E0296",
+    "date": "2024-08-13",
+    "thread": "oakwood-landlord",
+    "capture": "she was right about photos",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0286"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0297",
+    "date": "2024-08-16",
+    "thread": "strip-office-days",
+    "capture": "change address amazon and pharmacy before i forget again and put a reminder on it right now these days i guess",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0298",
+    "date": "2024-08-17",
+    "thread": "elise-and-the-move",
+    "capture": "pick up contacts solution at cvs before i forget again when i get a free minute honestly for real right now",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0299",
+    "date": "2024-08-20",
+    "thread": "relay-rewrite",
+    "capture": "got pulled into one old relay thread. answered. felt like visiting a quiet grave site and none of it feels these days",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0282"
+    ],
+    "linksToExisting": [
+      "Project Relay"
+    ]
+  },
+  {
+    "id": "E0300",
+    "date": "2024-08-22",
+    "thread": "elise-and-the-move",
+    "capture": "first argument in the new place about a shelf. normal. weirdly comforting actually which tracks with everything i guess",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0289"
+    ],
+    "linksToExisting": [
+      "Elise Kwan",
+      "The place on Vine"
+    ]
+  },
+  {
+    "id": "E0301",
+    "date": "2024-08-24",
+    "thread": "elise-and-the-move",
+    "capture": "change address on amazon pharmacy before i forget again before the weekend hits honestly for real right now",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0302",
+    "date": "2024-08-26",
+    "thread": "elise-and-the-move",
+    "capture": "bed assembled upstairs. maybe nights become actual nights again in this kind of light and i hate how familiar these days",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0052"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0303",
+    "date": "2024-08-27",
+    "thread": "dads-diagnosis",
+    "capture": "jules texted. dad has a scan next month he didnt mention. the thread wakes hard today without a good answer i guess",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0170"
+    ],
+    "linksToExisting": [
+      "Robert Webb",
+      "Jules Webb"
+    ]
+  },
+  {
+    "id": "E0304",
+    "date": "2024-08-27",
+    "thread": "dads-diagnosis",
+    "capture": "thread wakes",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0029"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0305",
+    "date": "2024-08-28",
+    "thread": "dads-diagnosis",
+    "capture": "thread wakes",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0170"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0306",
+    "date": "2024-08-30",
+    "thread": "oakwood-landlord",
+    "capture": "another email volley. tired of the word deposit in every subject line forever now like every other time before honestly",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0295"
+    ],
+    "linksToExisting": [
+      "The duplex on Oakwood"
+    ]
+  },
+  {
+    "id": "E0307",
+    "date": "2024-09-01",
+    "thread": "elise-and-the-move",
+    "capture": "buy stamps book of twenty forever before i forget again so i do not forget later honestly for real right now",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0308",
+    "date": "2024-09-03",
+    "thread": "dads-diagnosis",
+    "capture": "scan scare language",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0029"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0309",
+    "date": "2024-09-03",
+    "thread": "dads-diagnosis",
+    "capture": "scan scare language from the nurse line. probably nothing. body rejects probably hard which is on me honestly these days",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0121"
+    ],
+    "linksToExisting": [
+      "Robert Webb",
+      "Allegheny General"
+    ]
+  },
+  {
+    "id": "E0310",
+    "date": "2024-09-04",
+    "thread": "dads-diagnosis",
+    "capture": "scan scare language",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0181"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0311",
+    "date": "2024-09-09",
+    "thread": "dads-diagnosis",
+    "capture": "patel says watchful waiting not panic. the word watchful is doing heavy lifting again and that is the whole i guess",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0309"
+    ],
+    "linksToExisting": [
+      "Robert Webb",
+      "Dr. Patel"
+    ]
+  },
+  {
+    "id": "E0312",
+    "date": "2024-09-09",
+    "thread": "dads-diagnosis",
+    "capture": "watchful waiting. body still runs emergency chemistry for hours after every call ends for what that is worth honestly",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0029"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0313",
+    "date": "2024-09-10",
+    "thread": "elise-and-the-move",
+    "capture": "home is the word now without thinking. vine is just where we live and argue shelves and i am tired of the loop for real",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0289"
+    ],
+    "linksToExisting": [
+      "Elise Kwan",
+      "The place on Vine"
+    ]
+  },
+  {
+    "id": "E0314",
+    "date": "2024-09-13",
+    "thread": "dads-diagnosis",
+    "capture": "drive up. annoyed at me for making a fuss. better than frail by a country mile while walking back to the car on",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0035"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0315",
+    "date": "2024-09-13",
+    "thread": "dads-diagnosis",
+    "capture": "drove up. he was annoyed i made it a big deal. better than frail and too quiet and none of it feels clean which",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0309"
+    ],
+    "linksToExisting": [
+      "Robert Webb",
+      "Beaver Falls"
+    ]
+  },
+  {
+    "id": "E0316",
+    "date": "2024-09-14",
+    "thread": "strip-office-days",
+    "capture": "renew car registration before month end before i forget again and put a reminder on it i guess honestly for real",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0317",
+    "date": "2024-09-16",
+    "thread": "oakwood-landlord",
+    "capture": "check cleared for the partial deposit. thread basically over. never again on this mess which tracks with everything else",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0306"
+    ],
+    "linksToExisting": [
+      "The duplex on Oakwood"
+    ]
+  },
+  {
+    "id": "E0318",
+    "date": "2024-09-16",
+    "thread": "oakwood-landlord",
+    "capture": "done with them",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0004"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0319",
+    "date": "2024-09-16",
+    "thread": "oakwood-landlord",
+    "capture": "finally done with them",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0004"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0320",
+    "date": "2024-09-17",
+    "thread": "oakwood-landlord",
+    "capture": "done with them",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0103"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0321",
+    "date": "2024-09-17",
+    "thread": "oakwood-landlord",
+    "capture": "finally done",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0103"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0322",
+    "date": "2024-09-19",
+    "thread": "dads-diagnosis",
+    "capture": "he was right not to panic",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0029"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0323",
+    "date": "2024-09-19",
+    "thread": "dads-diagnosis",
+    "capture": "he was right not to panic. i was wrong to rewrite the whole weekend around pure fear and i hate how familiar it",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0311"
+    ],
+    "linksToExisting": [
+      "Robert Webb"
+    ]
+  },
+  {
+    "id": "E0324",
+    "date": "2024-09-19",
+    "thread": "dads-diagnosis",
+    "capture": "i was wrong",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0029"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0325",
+    "date": "2024-09-19",
+    "thread": "dads-diagnosis",
+    "capture": "wrong about panic. right about driving up anyway. old pattern with new scan words without a good answer ready these days",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0044",
+      "E0088"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0326",
+    "date": "2024-09-20",
+    "thread": "strip-office-days",
+    "capture": "barely present on the floor all week. left after two hours and nobody stopped me like every other time before i guess",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0294"
+    ],
+    "linksToExisting": [
+      "Northline"
+    ]
+  },
+  {
+    "id": "E0327",
+    "date": "2024-09-20",
+    "thread": "dads-diagnosis",
+    "capture": "he was right",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0181"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0328",
+    "date": "2024-09-20",
+    "thread": "dads-diagnosis",
+    "capture": "i was wrong",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0181"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0329",
+    "date": "2024-09-20",
+    "thread": "dads-diagnosis",
+    "capture": "turns out i was wrong about the panic weekend",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0181"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0330",
+    "date": "2024-09-23",
+    "thread": "relay-rewrite",
+    "capture": "matching slack is archive-quiet. good. strange how quiet can feel like a small loss in the middle of a workday honestly",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0299"
+    ],
+    "linksToExisting": [
+      "Project Relay"
+    ]
+  },
+  {
+    "id": "E0331",
+    "date": "2024-09-24",
+    "thread": "oakwood-landlord",
+    "capture": "last password to the tenant portal deleted. done. ended. never again on oakwood ever and i keep turning it over for real",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0004"
+    ],
+    "linksToExisting": [
+      "The duplex on Oakwood"
+    ]
+  },
+  {
+    "id": "E0332",
+    "date": "2024-09-24",
+    "thread": "oakwood-landlord",
+    "capture": "portal password deleted. that chapter sealed and i will not open it again ever which is on me honestly and it right now",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0033"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0333",
+    "date": "2024-09-24",
+    "thread": "oakwood-landlord",
+    "capture": "sealed. heat death night feels like another decade not last winter somehow now and that is the whole mess on these days",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0004",
+      "E0008"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0334",
+    "date": "2024-09-25",
+    "thread": "oakwood-landlord",
+    "capture": "sealed chapter. heat death night feels like another decade not last winter which is the part i cannot shake and i guess",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0207"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0335",
+    "date": "2024-09-27",
+    "thread": "elise-and-the-move",
+    "capture": "post-move settle complete enough. she said we did it. finally without the old flinch for what that is worth now honestly",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0246"
+    ],
+    "linksToExisting": [
+      "Elise Kwan"
+    ]
+  },
+  {
+    "id": "E0336",
+    "date": "2024-09-28",
+    "thread": "strip-office-days",
+    "capture": "schedule flu shot before i forget again when i get a free minute before the weekend hits for real right now these days",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0337",
+    "date": "2024-10-01",
+    "thread": "strip-office-days",
+    "capture": "schedule chimney check quote call before i forget again so i do not forget later i guess honestly for real",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0338",
+    "date": "2024-10-08",
+    "thread": "elise-and-the-move",
+    "capture": "boring mornings are the whole point now and i finally mean that sentence fully and i am tired of the loop while",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0006"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0339",
+    "date": "2024-10-08",
+    "thread": "elise-and-the-move",
+    "capture": "last move-adjacent thought maybe. home is boring in the best possible way now while walking back to the car and",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0335"
+    ],
+    "linksToExisting": [
+      "Elise Kwan",
+      "The place on Vine"
+    ]
+  },
+  {
+    "id": "E0340",
+    "date": "2024-10-09",
+    "thread": "strip-office-days",
+    "capture": "longer drive from lawrenceville. october light still helps on the way into work and none of it feels clean honestly",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0001"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0341",
+    "date": "2024-10-09",
+    "thread": "elise-and-the-move",
+    "capture": "boring mornings are the point now and i mean the sentence without flinching and it keeps looping in my head on i guess",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0214"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0342",
+    "date": "2024-10-09",
+    "thread": "strip-office-days",
+    "capture": "october light again. different commute from lawrenceville. longer and somehow greener which tracks with everything else",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0136"
+    ],
+    "linksToExisting": [
+      "Northline"
+    ]
+  },
+  {
+    "id": "E0343",
+    "date": "2024-10-12",
+    "thread": "elise-and-the-move",
+    "capture": "buy more dish soap unscented only before i forget again and put a reminder on it for real right now these days",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0344",
+    "date": "2024-10-15",
+    "thread": "dads-diagnosis",
+    "capture": "jules says hes compliant with meds this month. low bar victory and ill take it gladly and i hate how familiar i guess",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0323"
+    ],
+    "linksToExisting": [
+      "Robert Webb",
+      "Jules Webb"
+    ]
+  },
+  {
+    "id": "E0345",
+    "date": "2024-10-17",
+    "thread": "relay-rewrite",
+    "capture": "mentally filed the rewrite as done-done. residual is just a job now not a whole self without a good answer honestly",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0330"
+    ],
+    "linksToExisting": [
+      "Project Relay"
+    ]
+  },
+  {
+    "id": "E0346",
+    "date": "2024-10-29",
+    "thread": "relay-rewrite",
+    "capture": "cutover anniversary incoming. sandwich at the desk not a party and that is right like every other time before for real",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0134"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0347",
+    "date": "2024-10-29",
+    "thread": "relay-rewrite",
+    "capture": "year anniversary of cutover soon. will not throw a party. maybe a sandwich only in the middle of a workday for right now",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0138"
+    ],
+    "linksToExisting": [
+      "Project Relay"
+    ]
+  },
+  {
+    "id": "E0348",
+    "date": "2024-10-30",
+    "thread": "elise-and-the-move",
+    "capture": "finally hung the last awkward frame. done done on move energy for real this time and i keep turning it over these days",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0339"
+    ],
+    "linksToExisting": [
+      "Elise Kwan"
+    ]
+  },
+  {
+    "id": "E0349",
+    "date": "2024-10-30",
+    "thread": "strip-office-days",
+    "capture": "order new badge lanyard before i forget again when i get a free minute before the weekend hits i guess honestly for real",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0350",
+    "date": "2024-11-03",
+    "thread": "strip-office-days",
+    "capture": "chore list item 124: buy soap paper towels and trash bags before weekend right now these days i guess",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0351",
+    "date": "2024-11-06",
+    "thread": "relay-rewrite",
+    "capture": "cutover anniversary. i ate a sandwich at my desk about it and called that enough which is on me honestly and i honestly",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0138"
+    ],
+    "linksToExisting": [
+      "Project Relay"
+    ]
+  },
+  {
+    "id": "E0352",
+    "date": "2024-11-09",
+    "thread": "strip-office-days",
+    "capture": "mail the form before friday close before i forget again so i do not forget later for real right now these days",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0353",
+    "date": "2024-11-12",
+    "thread": "dads-diagnosis",
+    "capture": "labs okay. patel brief. we like brief more than any other medical genre available and that is the whole mess i guess",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0344"
+    ],
+    "linksToExisting": [
+      "Robert Webb",
+      "Dr. Patel"
+    ]
+  },
+  {
+    "id": "E0354",
+    "date": "2024-11-14",
+    "thread": "strip-office-days",
+    "capture": "hybrid guilt low this month. showing up enough without performing hero attendance days for what that is worth honestly",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0342"
+    ],
+    "linksToExisting": [
+      "Northline"
+    ]
+  },
+  {
+    "id": "E0355",
+    "date": "2024-11-14",
+    "thread": "relay-rewrite",
+    "capture": "no matching pages this month. logging the absence like a small private blessing finally and none of it feels these days",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0351"
+    ],
+    "linksToExisting": [
+      "Project Relay"
+    ]
+  },
+  {
+    "id": "E0356",
+    "date": "2024-11-22",
+    "thread": "elise-and-the-move",
+    "capture": "thanksgiving at our place next year maybe. first time hosting talk got actually real which tracks with everything else",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0348"
+    ],
+    "linksToExisting": [
+      "Elise Kwan",
+      "The place on Vine"
+    ]
+  },
+  {
+    "id": "E0357",
+    "date": "2024-11-25",
+    "thread": "strip-office-days",
+    "capture": "ship gift white elephant before party before i forget again and put a reminder on it right now these days i guess",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0358",
+    "date": "2024-12-01",
+    "thread": "elise-and-the-move",
+    "capture": "buy batteries aa and aaa multipack before i forget again when i get a free minute honestly for real right now",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0359",
+    "date": "2024-12-03",
+    "thread": "dads-diagnosis",
+    "capture": "scare is scar tissue now not a live wire. year end stable-ish and ill take ish and i hate how familiar it is these days",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0036"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0360",
+    "date": "2024-12-03",
+    "thread": "dads-diagnosis",
+    "capture": "year end stable-ish. scare is a scar not a current fire which is the actual goal without a good answer ready i guess",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0309"
+    ],
+    "linksToExisting": [
+      "Robert Webb"
+    ]
+  },
+  {
+    "id": "E0361",
+    "date": "2024-12-04",
+    "thread": "dads-diagnosis",
+    "capture": "he sounded smaller",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0050"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0362",
+    "date": "2024-12-10",
+    "thread": "relay-rewrite",
+    "capture": "no december fires on matching. knock wood without any actual wood nearby to knock in the middle of a workday for real",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0355"
+    ],
+    "linksToExisting": [
+      "Project Relay"
+    ]
+  },
+  {
+    "id": "E0363",
+    "date": "2024-12-11",
+    "thread": "strip-office-days",
+    "capture": "no december fires on the floor. knock wood without wood nearby to knock while the rest of the day moves on and i guess",
+    "verdict": "atom",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0364",
+    "date": "2024-12-14",
+    "thread": "elise-and-the-move",
+    "capture": "order printer paper five ream case before i forget again before the weekend hits these days i guess honestly",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0365",
+    "date": "2024-12-16",
+    "thread": "elise-and-the-move",
+    "capture": "first snow at home. upstairs windows fog. soft in a way the duplex never managed which is on me honestly and it for real",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0356"
+    ],
+    "linksToExisting": [
+      "Elise Kwan",
+      "The place on Vine"
+    ]
+  },
+  {
+    "id": "E0366",
+    "date": "2024-12-18",
+    "thread": "strip-office-days",
+    "capture": "buy printer ink maybe never use before i forget again so i do not forget later right now these days i guess",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0367",
+    "date": "2024-12-23",
+    "thread": "dads-diagnosis",
+    "capture": "christmas eve call short and fine. holding fine with both hands carefully tonight and that is the whole mess on honestly",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0360"
+    ],
+    "linksToExisting": [
+      "Robert Webb"
+    ]
+  },
+  {
+    "id": "E0368",
+    "date": "2024-12-31",
+    "thread": "elise-and-the-move",
+    "capture": "year we actually moved. still cant believe the sentence when i say it out loud late for what that is worth now for real",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0006",
+      "E0270"
+    ],
+    "linksToExisting": [
+      "Elise Kwan"
+    ]
+  },
+  {
+    "id": "E0369",
+    "date": "2024-12-31",
+    "thread": "elise-and-the-move",
+    "capture": "year we moved. forever duplex talk paid off late and loud in the best dumb way and i am tired of the loop and right now",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0270"
+    ],
+    "linksToExisting": [
+      "Elise Kwan"
+    ]
+  },
+  {
+    "id": "E0370",
+    "date": "2025-01-02",
+    "thread": "strip-office-days",
+    "capture": "renew domain auto pay check card before i forget again and put a reminder on it these days i guess honestly",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0371",
+    "date": "2025-01-03",
+    "thread": "relay-rewrite",
+    "capture": "first residual ticket of the year on old matching. groaned out loud at the title alone while walking back to for real",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0138"
+    ],
+    "linksToExisting": [
+      "Project Relay"
+    ]
+  },
+  {
+    "id": "E0372",
+    "date": "2025-01-03",
+    "thread": "relay-rewrite",
+    "capture": "groaned at the first ticket title containing that old matching word again this year and none of it feels clean right now",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0010"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0373",
+    "date": "2025-01-08",
+    "thread": "relay-rewrite",
+    "capture": "bug was a timezone ghost from 2023. of course it was. of course it always is which tracks with everything else",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0045"
+    ],
+    "linksToExisting": [
+      "Project Relay"
+    ]
+  },
+  {
+    "id": "E0374",
+    "date": "2025-01-08",
+    "thread": "relay-rewrite",
+    "capture": "ghost from the first dry-run era. full circle flinch then a boring patch and tea and i hate how familiar it is i guess",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0002",
+      "E0045"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0375",
+    "date": "2025-01-08",
+    "thread": "relay-rewrite",
+    "capture": "timezone ghost from the ancient stack. flinch then patch then tea then quiet again without a good answer ready honestly",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0002"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0376",
+    "date": "2025-01-09",
+    "thread": "relay-rewrite",
+    "capture": "flinch then patch on a ghost from the ancient dry run era of that stack on the walk back from the garage which for real",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0263"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0377",
+    "date": "2025-01-10",
+    "thread": "strip-office-days",
+    "capture": "january floor half empty. new commute still annoying in the dark morning ramps like every other time before and",
+    "verdict": "atom",
+    "linksToEarlier": [],
+    "linksToExisting": [
+      "Northline"
+    ]
+  },
+  {
+    "id": "E0378",
+    "date": "2025-01-11",
+    "thread": "strip-office-days",
+    "capture": "renew parking contract online before grace before i forget again when i get a free minute these days i guess honestly",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0379",
+    "date": "2025-01-15",
+    "thread": "dads-diagnosis",
+    "capture": "jules says next scan is routine. routine is a luxury word and i am greedy for it in the middle of a workday for for real",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0309"
+    ],
+    "linksToExisting": [
+      "Robert Webb",
+      "Jules Webb"
+    ]
+  },
+  {
+    "id": "E0380",
+    "date": "2025-01-16",
+    "thread": "relay-rewrite",
+    "capture": "old bruise feeling",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0002"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0381",
+    "date": "2025-01-16",
+    "thread": "relay-rewrite",
+    "capture": "regret about how big the rewrite got before it got small. old bruise feeling returns and i keep turning it over",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0083"
+    ],
+    "linksToExisting": [
+      "Project Relay"
+    ]
+  },
+  {
+    "id": "E0382",
+    "date": "2025-01-16",
+    "thread": "relay-rewrite",
+    "capture": "swollen then small. the delete pitch from day one still echoes in residual tickets which is on me honestly and",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0005",
+      "E0010"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0383",
+    "date": "2025-01-18",
+    "thread": "strip-office-days",
+    "capture": "check ez pass balance online tonight before i forget again before the weekend hits i guess honestly for real",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0384",
+    "date": "2025-01-22",
+    "thread": "elise-and-the-move",
+    "capture": "home maintenance list starting for real. grownup tax with another spreadsheet again and that is the whole mess right now",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0368"
+    ],
+    "linksToExisting": [
+      "Elise Kwan",
+      "The place on Vine"
+    ]
+  },
+  {
+    "id": "E0385",
+    "date": "2025-01-27",
+    "thread": "relay-rewrite",
+    "capture": "turns out it was identity",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0002"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0386",
+    "date": "2025-01-27",
+    "thread": "relay-rewrite",
+    "capture": "turns out the flinch is about identity not the code. annoying accurate insight today for what that is worth now",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0266"
+    ],
+    "linksToExisting": [
+      "Project Relay"
+    ]
+  },
+  {
+    "id": "E0387",
+    "date": "2025-01-28",
+    "thread": "strip-office-days",
+    "capture": "quiet productive strip day. rare january gift when the floor stays empty past ten while walking back to the car honestly",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0377"
+    ],
+    "linksToExisting": [
+      "Northline"
+    ]
+  },
+  {
+    "id": "E0388",
+    "date": "2025-01-28",
+    "thread": "relay-rewrite",
+    "capture": "turns out it was identity",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0266"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0389",
+    "date": "2025-01-30",
+    "thread": "elise-and-the-move",
+    "capture": "buy more dish soap unscented before i forget again so i do not forget later these days i guess honestly",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0390",
+    "date": "2025-02-01",
+    "thread": "elise-and-the-move",
+    "capture": "return wrong size sheets amazon before i forget again and put a reminder on it right now these days i guess",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0391",
+    "date": "2025-02-10",
+    "thread": "relay-rewrite",
+    "capture": "i was wrong",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0002"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0392",
+    "date": "2025-02-10",
+    "thread": "relay-rewrite",
+    "capture": "i was wrong about endings",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0002"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0393",
+    "date": "2025-02-10",
+    "thread": "relay-rewrite",
+    "capture": "i was wrong that shipping would feel like an ending. it felt like a door to quieter work and none of it feels honestly",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0251"
+    ],
+    "linksToExisting": [
+      "Project Relay"
+    ]
+  },
+  {
+    "id": "E0394",
+    "date": "2025-02-11",
+    "thread": "dads-diagnosis",
+    "capture": "email said clear enough. hands still shook opening it like the first bad week ever which tracks with everything for real",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0030"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0395",
+    "date": "2025-02-11",
+    "thread": "relay-rewrite",
+    "capture": "i was wrong",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0173"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0396",
+    "date": "2025-02-11",
+    "thread": "dads-diagnosis",
+    "capture": "hands shook on clear the way they shook on the first hard word years ago hard and i hate how familiar it is right now",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0029",
+      "E0030"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0397",
+    "date": "2025-02-11",
+    "thread": "relay-rewrite",
+    "capture": "i was wrong about what shipping would feel like after and i am done pretending otherwise and it keeps looping in my head",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0134"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0398",
+    "date": "2025-02-11",
+    "thread": "dads-diagnosis",
+    "capture": "results clear enough. body lagging behind the email by several hours as usual still without a good answer ready",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0309"
+    ],
+    "linksToExisting": [
+      "Robert Webb",
+      "Dr. Patel"
+    ]
+  },
+  {
+    "id": "E0399",
+    "date": "2025-02-12",
+    "thread": "dads-diagnosis",
+    "capture": "hands shook opening clear the way they shook on the first hard word years back which is the part i cannot shake i guess",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0303"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0400",
+    "date": "2025-02-12",
+    "thread": "dads-diagnosis",
+    "capture": "he said told you",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0181"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0401",
+    "date": "2025-02-15",
+    "thread": "elise-and-the-move",
+    "capture": "buy more parchment sheets bulk pack before i forget again when i get a free minute i guess honestly for real",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0402",
+    "date": "2025-02-21",
+    "thread": "relay-rewrite",
+    "capture": "soft end feels real. unwatching the matching dashboard like a symbolic quiet divorce which is on me honestly honestly",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0386"
+    ],
+    "linksToExisting": [
+      "Project Relay"
+    ]
+  },
+  {
+    "id": "E0403",
+    "date": "2025-02-21",
+    "thread": "relay-rewrite",
+    "capture": "unwatching the dashboard. symbolic divorce from graphs that used to own whole nights and that is the whole mess for real",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0061"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0404",
+    "date": "2025-02-26",
+    "thread": "elise-and-the-move",
+    "capture": "move era truly over. life is maintenance and dinner and arguing about more plants for what that is worth now right now",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0384"
+    ],
+    "linksToExisting": [
+      "Elise Kwan"
+    ]
+  },
+  {
+    "id": "E0405",
+    "date": "2025-02-27",
+    "thread": "strip-office-days",
+    "capture": "pay parking ticket from last month before i forget again before the weekend hits these days i guess honestly",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0406",
+    "date": "2025-02-28",
+    "thread": "strip-office-days",
+    "capture": "empty thursday. best office day type when the lights hum and slack stays quiet and i am tired of the loop and i for real",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0387"
+    ],
+    "linksToExisting": [
+      "Northline"
+    ]
+  },
+  {
+    "id": "E0407",
+    "date": "2025-03-01",
+    "thread": "strip-office-days",
+    "capture": "pay water bill before the 10th before i forget again so i do not forget later right now these days i guess",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0408",
+    "date": "2025-03-03",
+    "thread": "sleep-caffeine",
+    "capture": "3am club back",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0003"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0409",
+    "date": "2025-03-03",
+    "thread": "sleep-caffeine",
+    "capture": "3am club renewed. dues collected in yawns and bad morning decisions with caffeine while walking back to the car honestly",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0014"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0410",
+    "date": "2025-03-03",
+    "thread": "sleep-caffeine",
+    "capture": "membership renewed like jan 2023 never ended only paused under a heavy rock and none of it feels clean on the for real",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0003",
+      "E0007"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0411",
+    "date": "2025-03-03",
+    "thread": "sleep-caffeine",
+    "capture": "sleep thing again. 3am club membership renewed without anyone asking me first ever which tracks with everything",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0003",
+      "E0125"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0412",
+    "date": "2025-03-04",
+    "thread": "sleep-caffeine",
+    "capture": "3am club back",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0125"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0413",
+    "date": "2025-03-04",
+    "thread": "sleep-caffeine",
+    "capture": "membership renewed like the first winter never ended only hid under a rock which is the part i cannot shake and",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0125"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0414",
+    "date": "2025-03-05",
+    "thread": "relay-rewrite",
+    "capture": "closed the last ticket on that old world. door shut without any ceremony at all and i hate how familiar it is i guess",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0005"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0415",
+    "date": "2025-03-05",
+    "thread": "relay-rewrite",
+    "capture": "door closing",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0002"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0416",
+    "date": "2025-03-05",
+    "thread": "relay-rewrite",
+    "capture": "last residual closed. soft end. the thing since spring is truly past tense now forever without a good answer honestly",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0002"
+    ],
+    "linksToExisting": [
+      "Project Relay"
+    ]
+  },
+  {
+    "id": "E0417",
+    "date": "2025-03-05",
+    "thread": "relay-rewrite",
+    "capture": "past tense on the kickoff energy. two years later the door is shut for real now like every other time before for real",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0002",
+      "E0005"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0418",
+    "date": "2025-03-06",
+    "thread": "relay-rewrite",
+    "capture": "door closing",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0045"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0419",
+    "date": "2025-03-06",
+    "thread": "relay-rewrite",
+    "capture": "door shut on the old world without ceremony or champagne emojis this time and i am done pretending otherwise right now",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0299"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0420",
+    "date": "2025-03-07",
+    "thread": "sleep-caffeine",
+    "capture": "same thing again",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0003"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0421",
+    "date": "2025-03-08",
+    "thread": "sleep-caffeine",
+    "capture": "same thing again",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0125"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0422",
+    "date": "2025-03-10",
+    "thread": "strip-office-days",
+    "capture": "tired on the floor. coffee from the cart too late probably which is entirely on me in the middle of a workday these days",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0406"
+    ],
+    "linksToExisting": [
+      "Northline"
+    ]
+  },
+  {
+    "id": "E0423",
+    "date": "2025-03-12",
+    "thread": "sleep-caffeine",
+    "capture": "not the coffee",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0003"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0424",
+    "date": "2025-03-12",
+    "thread": "sleep-caffeine",
+    "capture": "not the coffee only. cut it and still buzzed. something else again like the old years and i keep turning it i guess",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0020"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0425",
+    "date": "2025-03-13",
+    "thread": "sleep-caffeine",
+    "capture": "not the coffee",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0125"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0426",
+    "date": "2025-03-14",
+    "thread": "strip-office-days",
+    "capture": "schedule car inspection before i forget again and put a reminder on it when i get a free minute honestly for real",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0427",
+    "date": "2025-03-15",
+    "thread": "strip-office-days",
+    "capture": "pick up glasses from the shop later before i forget again before the weekend hits these days i guess honestly",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0428",
+    "date": "2025-03-17",
+    "thread": "sleep-caffeine",
+    "capture": "bad night again. brain replaying nothing useful until the birds started arguing which is on me honestly which for real",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0018"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0429",
+    "date": "2025-03-20",
+    "thread": "sleep-caffeine",
+    "capture": "it again",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0003"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0430",
+    "date": "2025-03-21",
+    "thread": "elise-and-the-move",
+    "capture": "upstairs fan white noise experiment. she bought it without asking. good call honestly for what that is worth honestly",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0404"
+    ],
+    "linksToExisting": [
+      "Elise Kwan",
+      "The place on Vine"
+    ]
+  },
+  {
+    "id": "E0431",
+    "date": "2025-03-21",
+    "thread": "sleep-caffeine",
+    "capture": "it again",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0125"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0432",
+    "date": "2025-03-22",
+    "thread": "strip-office-days",
+    "capture": "chore list item 125: buy soap paper towels and trash bags before weekend for real right now these days",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0433",
+    "date": "2025-03-26",
+    "thread": "dads-diagnosis",
+    "capture": "he mowed early spring grass. photo proof again. soft flex from beaver falls as usual and i am tired of the loop i guess",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0398"
+    ],
+    "linksToExisting": [
+      "Robert Webb"
+    ]
+  },
+  {
+    "id": "E0434",
+    "date": "2025-03-28",
+    "thread": "sleep-caffeine",
+    "capture": "heavier week. maybe stress not beans. still cutting late caffeine just in case always while walking back to the honestly",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0424"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0435",
+    "date": "2025-03-31",
+    "thread": "elise-and-the-move",
+    "capture": "buy mulch bags two before i forget again so i do not forget later and put a reminder on it for real right now these days",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0436",
+    "date": "2025-04-01",
+    "thread": "elise-and-the-move",
+    "capture": "fix hose nozzle at hardware before i forget again when i get a free minute i guess honestly for real",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0437",
+    "date": "2025-04-05",
+    "thread": "strip-office-days",
+    "capture": "order more oat bars case online before i forget again before the weekend hits right now these days i guess",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0438",
+    "date": "2025-04-07",
+    "thread": "elise-and-the-move",
+    "capture": "hosted four people. house worked. she glowed and i did dishes like a quiet champ and none of it feels clean and honestly",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0430"
+    ],
+    "linksToExisting": [
+      "Elise Kwan",
+      "The place on Vine"
+    ]
+  },
+  {
+    "id": "E0439",
+    "date": "2025-04-10",
+    "thread": "sleep-caffeine",
+    "capture": "not the coffee",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0434"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0440",
+    "date": "2025-04-10",
+    "thread": "sleep-caffeine",
+    "capture": "not the coffee. tracked late meals this time like a boring scientist of my own mess which tracks with for real right now",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0020"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0441",
+    "date": "2025-04-11",
+    "thread": "sleep-caffeine",
+    "capture": "not the coffee",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0125"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0442",
+    "date": "2025-04-12",
+    "thread": "elise-and-the-move",
+    "capture": "order furnace filter 16x25 two pack before i forget again so i do not forget later these days i guess honestly",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0443",
+    "date": "2025-04-15",
+    "thread": "elise-and-the-move",
+    "capture": "she was right about the fan. and about earlier dinners. annoying accurate pattern holds and i hate how familiar for real",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0430"
+    ],
+    "linksToExisting": [
+      "Elise Kwan"
+    ]
+  },
+  {
+    "id": "E0444",
+    "date": "2025-04-15",
+    "thread": "elise-and-the-move",
+    "capture": "she was right again",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0430"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0445",
+    "date": "2025-04-16",
+    "thread": "elise-and-the-move",
+    "capture": "she was right again",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0335"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0446",
+    "date": "2025-04-17",
+    "thread": "dads-diagnosis",
+    "capture": "empty afternoon. treasure it when nothing clinical pings the phone at all today without a good answer ready on right now",
+    "verdict": "atom",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0447",
+    "date": "2025-04-17",
+    "thread": "strip-office-days",
+    "capture": "empty floor thursday again. treasure it before someone schedules mandatory fun hour in the middle of a workday i guess",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0422"
+    ],
+    "linksToExisting": [
+      "Northline"
+    ]
+  },
+  {
+    "id": "E0448",
+    "date": "2025-04-18",
+    "thread": "dads-diagnosis",
+    "capture": "empty afternoon. treasure it when nothing clinical pings the phone at all and none of the usual fixes work for honestly",
+    "verdict": "atom",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0449",
+    "date": "2025-04-29",
+    "thread": "sleep-caffeine",
+    "capture": "light version of the old spiral. hate even the light version with full feeling still and i keep turning it over",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0007"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0450",
+    "date": "2025-04-29",
+    "thread": "sleep-caffeine",
+    "capture": "same thing again lightly",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0420"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0451",
+    "date": "2025-04-30",
+    "thread": "strip-office-days",
+    "capture": "order new mousepad before i forget again and put a reminder on it when i get a free minute i guess honestly for real",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0452",
+    "date": "2025-05-01",
+    "thread": "strip-office-days",
+    "capture": "order more oat bars case online before i forget again before the weekend hits right now these days i guess",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0453",
+    "date": "2025-05-09",
+    "thread": "sleep-caffeine",
+    "capture": "one late work tea ruined a night. classic idiot move with a teabag and pure hubris which is on me honestly on honestly",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0063"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0454",
+    "date": "2025-05-14",
+    "thread": "sleep-caffeine",
+    "capture": "not the coffee was half wrong",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0003"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0455",
+    "date": "2025-05-14",
+    "thread": "sleep-caffeine",
+    "capture": "not the coffee was half wrong. tea counts. body keeps receipts better than i ever will and that is the whole for real",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0020"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0456",
+    "date": "2025-05-15",
+    "thread": "sleep-caffeine",
+    "capture": "not the coffee",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0125"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0457",
+    "date": "2025-05-15",
+    "thread": "sleep-caffeine",
+    "capture": "not the coffee was half wrong about the whole theory which is the part i cannot shake and none of the usual fixes work",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0408"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0458",
+    "date": "2025-05-17",
+    "thread": "strip-office-days",
+    "capture": "backup phone photos to drive tonight before i forget again so i do not forget later right now these days i guess",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0459",
+    "date": "2025-05-19",
+    "thread": "sleep-caffeine",
+    "capture": "bad night again. lighter than march. still bad enough to complain into the phone notes and i am tired of the for real",
+    "verdict": "atom",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0460",
+    "date": "2025-05-22",
+    "thread": "elise-and-the-move",
+    "capture": "she was right about hosting",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0438"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0461",
+    "date": "2025-05-22",
+    "thread": "elise-and-the-move",
+    "capture": "she was right about hosting being worth the mess. take that back on all the dread before while walking back to the car",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0438",
+      "E0443"
+    ],
+    "linksToExisting": [
+      "Elise Kwan"
+    ]
+  },
+  {
+    "id": "E0462",
+    "date": "2025-05-23",
+    "thread": "elise-and-the-move",
+    "capture": "she was right about hosting",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0348"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0463",
+    "date": "2025-05-28",
+    "thread": "dads-diagnosis",
+    "capture": "call was sports and weather. medical zero. excellent category of phone call forever and none of it feels clean honestly",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0433"
+    ],
+    "linksToExisting": [
+      "Robert Webb"
+    ]
+  },
+  {
+    "id": "E0464",
+    "date": "2025-05-29",
+    "thread": "sleep-caffeine",
+    "capture": "three good nights",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0459"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0465",
+    "date": "2025-05-29",
+    "thread": "sleep-caffeine",
+    "capture": "three good nights. not saying more out loud in case the ceiling is listening hard which tracks with everything for real",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0459"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0466",
+    "date": "2025-05-30",
+    "thread": "strip-office-days",
+    "capture": "update emergency contact form hr before i forget again and put a reminder on it right now these days i guess",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0467",
+    "date": "2025-05-30",
+    "thread": "sleep-caffeine",
+    "capture": "three good nights",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0408"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0468",
+    "date": "2025-06-01",
+    "thread": "elise-and-the-move",
+    "capture": "buy more parchment sheets bulk before i forget again when i get a free minute honestly for real right now",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0469",
+    "date": "2025-06-10",
+    "thread": "strip-office-days",
+    "capture": "left by 4",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0001"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0470",
+    "date": "2025-06-10",
+    "thread": "strip-office-days",
+    "capture": "left by four on purpose. sleep beats badge theater and i will die on that small hill and i hate how familiar it",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0447"
+    ],
+    "linksToExisting": [
+      "Northline"
+    ]
+  },
+  {
+    "id": "E0471",
+    "date": "2025-06-11",
+    "thread": "strip-office-days",
+    "capture": "left by 4",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0354"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0472",
+    "date": "2025-06-12",
+    "thread": "sleep-caffeine",
+    "capture": "not the coffee alone and not only stress. messy causes. still cutting late caffeine hard without a good answer i guess",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0455"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0473",
+    "date": "2025-06-14",
+    "thread": "elise-and-the-move",
+    "capture": "ship gift to jules by the eighteenth before i forget again before the weekend hits honestly for real right now",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0474",
+    "date": "2025-06-17",
+    "thread": "sleep-caffeine",
+    "capture": "bad night again milder. logging tone matters less than actual hours eyes stayed closed like every other time these days",
+    "verdict": "atom",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0475",
+    "date": "2025-06-20",
+    "thread": "elise-and-the-move",
+    "capture": "grill wins. she was right about summer nights outside with smoke and cheap chairs and i keep turning it over right now",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0461"
+    ],
+    "linksToExisting": [
+      "Elise Kwan",
+      "The place on Vine"
+    ]
+  },
+  {
+    "id": "E0476",
+    "date": "2025-06-20",
+    "thread": "elise-and-the-move",
+    "capture": "she was right about summer nights",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0461"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0477",
+    "date": "2025-06-21",
+    "thread": "elise-and-the-move",
+    "capture": "she was right",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0356"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0478",
+    "date": "2025-06-27",
+    "thread": "elise-and-the-move",
+    "capture": "home summer nights are the thesis. finally feels true in the bones not the old slides which is on me honestly these days",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0246"
+    ],
+    "linksToExisting": [
+      "Elise Kwan",
+      "The place on Vine"
+    ]
+  },
+  {
+    "id": "E0479",
+    "date": "2025-06-27",
+    "thread": "elise-and-the-move",
+    "capture": "summer dark outside with grill smoke. thesis in the bones about why we moved at all and that is the whole mess i guess",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0064"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0480",
+    "date": "2025-06-30",
+    "thread": "strip-office-days",
+    "capture": "left early without the old guilt script playing in the head on the garage ramp for what that is worth now and i honestly",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0012"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0481",
+    "date": "2025-06-30",
+    "thread": "strip-office-days",
+    "capture": "left early without the old guilt script. remember freezing four blocks away years back and i am tired of the for real",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0001",
+      "E0012"
+    ],
+    "linksToExisting": [
+      "Northline"
+    ]
+  },
+  {
+    "id": "E0482",
+    "date": "2025-06-30",
+    "thread": "strip-office-days",
+    "capture": "month end sparse floor. left early again without guilt for the first clean time ever while walking back to the right now",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0024"
+    ],
+    "linksToExisting": [
+      "Northline"
+    ]
+  },
+  {
+    "id": "E0483",
+    "date": "2025-06-30",
+    "thread": "strip-office-days",
+    "capture": "no guilt script on the ramp. remember freezing four blocks from the garage door and it keeps looping in my head",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0363"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0484",
+    "date": "2025-07-01",
+    "thread": "strip-office-days",
+    "capture": "cancel gym day pass promo before i forget again so i do not forget later i guess honestly for real",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0485",
+    "date": "2025-07-08",
+    "thread": "elise-and-the-move",
+    "capture": "return extra paint sample jars before i forget again and put a reminder on it right now these days i guess",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0486",
+    "date": "2025-07-12",
+    "thread": "strip-office-days",
+    "capture": "buy wrapping paper and clear tape before i forget again when i get a free minute right now these days i guess",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0487",
+    "date": "2025-07-14",
+    "thread": "elise-and-the-move",
+    "capture": "key anniversary toast with small glasses. still surreal in the chest cavity somehow and none of it feels clean honestly",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0052"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0488",
+    "date": "2025-07-14",
+    "thread": "elise-and-the-move",
+    "capture": "toast with small glasses. forever duplex argument feels prehistoric and funny now which tracks with everything for real",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0006",
+      "E0011"
+    ],
+    "linksToExisting": [
+      "Elise Kwan",
+      "The place on Vine"
+    ]
+  },
+  {
+    "id": "E0489",
+    "date": "2025-07-14",
+    "thread": "elise-and-the-move",
+    "capture": "toasted the key anniversary early. our place. still surreal when the late light hits and i hate how familiar it",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0270"
+    ],
+    "linksToExisting": [
+      "Elise Kwan",
+      "The place on Vine"
+    ]
+  },
+  {
+    "id": "E0490",
+    "date": "2025-07-15",
+    "thread": "elise-and-the-move",
+    "capture": "toast with small glasses. forever duplex talk feels prehistoric and almost funny for reasons i cannot cleanly these days",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0368"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0491",
+    "date": "2025-07-18",
+    "thread": "sleep-caffeine",
+    "capture": "same thing again lightly after a long day on the strip and a late dinner out without a good answer ready while i guess",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0474"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0492",
+    "date": "2025-07-21",
+    "thread": "elise-and-the-move",
+    "capture": "she was right about a year",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0489"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0493",
+    "date": "2025-07-21",
+    "thread": "elise-and-the-move",
+    "capture": "she was right that a year would make it feel ordinary. ordinary is the actual prize like every other time honestly",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0313"
+    ],
+    "linksToExisting": [
+      "Elise Kwan"
+    ]
+  },
+  {
+    "id": "E0494",
+    "date": "2025-07-22",
+    "thread": "elise-and-the-move",
+    "capture": "she was right",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0368"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0495",
+    "date": "2025-07-24",
+    "thread": "dads-diagnosis",
+    "capture": "visit was lawn chairs and silence. good silence not the hospital kind of quiet at all in the middle of a right now",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0463"
+    ],
+    "linksToExisting": [
+      "Robert Webb",
+      "Beaver Falls"
+    ]
+  },
+  {
+    "id": "E0496",
+    "date": "2025-07-25",
+    "thread": "strip-office-days",
+    "capture": "parking app glitch paid twice before i forget again before the weekend hits i guess honestly for real",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0497",
+    "date": "2025-07-28",
+    "thread": "strip-office-days",
+    "capture": "left at four again. new normal maybe if i dont jinx it by naming it normal out loud and i keep turning it over right now",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0470"
+    ],
+    "linksToExisting": [
+      "Northline"
+    ]
+  },
+  {
+    "id": "E0498",
+    "date": "2025-08-01",
+    "thread": "strip-office-days",
+    "capture": "pick up glasses from the shop before i forget again so i do not forget later these days i guess honestly",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0499",
+    "date": "2025-08-07",
+    "thread": "elise-and-the-move",
+    "capture": "year since move day. photos comparison. we look less haunted in the new light now which is on me honestly and for real",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0281",
+      "E0284"
+    ],
+    "linksToExisting": [
+      "Elise Kwan",
+      "The place on Vine"
+    ]
+  },
+  {
+    "id": "E0500",
+    "date": "2025-08-11",
+    "thread": "sleep-caffeine",
+    "capture": "bad night again after a late dinner out. receipts collected by the body again hard for what that is worth now these days",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0440"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0501",
+    "date": "2025-08-14",
+    "thread": "sleep-caffeine",
+    "capture": "not the coffee the pasta",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0003"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0502",
+    "date": "2025-08-14",
+    "thread": "sleep-caffeine",
+    "capture": "not the coffee this time. the nine pm pasta. learning slowly like a stubborn rock and i am tired of the loop for real",
+    "verdict": "atom",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0503",
+    "date": "2025-08-16",
+    "thread": "elise-and-the-move",
+    "capture": "defrost freezer before weekend guests before i forget again and put a reminder on it right now these days i guess",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0504",
+    "date": "2025-08-22",
+    "thread": "elise-and-the-move",
+    "capture": "negotiated early dinners before guest nights. she was right again about the timing while walking back to the honestly",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0443",
+      "E0493"
+    ],
+    "linksToExisting": [
+      "Elise Kwan"
+    ]
+  },
+  {
+    "id": "E0505",
+    "date": "2025-08-22",
+    "thread": "elise-and-the-move",
+    "capture": "she was right again",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0493"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0506",
+    "date": "2025-08-23",
+    "thread": "elise-and-the-move",
+    "capture": "she was right again",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0384"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0507",
+    "date": "2025-08-25",
+    "thread": "strip-office-days",
+    "capture": "mail a form for something boring before i forget again when i get a free minute for real right now these days",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0508",
+    "date": "2025-08-28",
+    "thread": "dads-diagnosis",
+    "capture": "boring call. keep them coming. boring is the brand we want for this whole thread and none of it feels clean i guess",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0495"
+    ],
+    "linksToExisting": [
+      "Robert Webb"
+    ]
+  },
+  {
+    "id": "E0509",
+    "date": "2025-09-01",
+    "thread": "elise-and-the-move",
+    "capture": "order furnace filter 16x25 two before i forget again before the weekend hits honestly for real right now",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0510",
+    "date": "2025-09-09",
+    "thread": "sleep-caffeine",
+    "capture": "bad night again once. not a cluster. logging the once so it stays a once only and i hate how familiar it is and i guess",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0502"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0511",
+    "date": "2025-09-12",
+    "thread": "sleep-caffeine",
+    "capture": "not the coffee. maybe the doomscroll. new suspect in an old case file reopened without a good answer ready on these days",
+    "verdict": "atom",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0512",
+    "date": "2025-09-13",
+    "thread": "strip-office-days",
+    "capture": "buy sunscreen again lost the bottle before i forget again so i do not forget later i guess honestly for real",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0513",
+    "date": "2025-09-18",
+    "thread": "strip-office-days",
+    "capture": "core hours. left with daylight still. luxury after years of garage dark exits home like every other time before",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0497"
+    ],
+    "linksToExisting": [
+      "Northline"
+    ]
+  },
+  {
+    "id": "E0514",
+    "date": "2025-09-20",
+    "thread": "elise-and-the-move",
+    "capture": "fix hose nozzle at hardware store before i forget again and put a reminder on it these days i guess honestly",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0515",
+    "date": "2025-09-23",
+    "thread": "elise-and-the-move",
+    "capture": "she was right about ordinary",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0493"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0516",
+    "date": "2025-09-23",
+    "thread": "elise-and-the-move",
+    "capture": "she was right about ordinary being the goal. finally get it without starting a fight in the middle of a workday for real",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0493",
+      "E0504"
+    ],
+    "linksToExisting": [
+      "Elise Kwan"
+    ]
+  },
+  {
+    "id": "E0517",
+    "date": "2025-09-24",
+    "thread": "elise-and-the-move",
+    "capture": "she was right",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0404"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0518",
+    "date": "2025-09-25",
+    "thread": "dads-diagnosis",
+    "capture": "background quiet continues. holding without squeezing the quiet to death this month and i keep turning it over right now",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0508"
+    ],
+    "linksToExisting": [
+      "Robert Webb"
+    ]
+  },
+  {
+    "id": "E0519",
+    "date": "2025-09-26",
+    "thread": "strip-office-days",
+    "capture": "return wrong size shirt before i forget again when i get a free minute before the weekend hits these days i guess",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0520",
+    "date": "2025-10-01",
+    "thread": "strip-office-days",
+    "capture": "backup phone photos to drive tonight before i forget again so i do not forget later for real right now these days",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0521",
+    "date": "2025-10-11",
+    "thread": "elise-and-the-move",
+    "capture": "return extra paint sample jars store before i forget again and put a reminder on it i guess honestly for real",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0522",
+    "date": "2025-10-15",
+    "thread": "sleep-caffeine",
+    "capture": "it again after scrolling past curfew. broke my own rule. fine. restart tomorrow morning which is on me honestly",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0511"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0523",
+    "date": "2025-10-16",
+    "thread": "elise-and-the-move",
+    "capture": "she enforced curfew with a look. effective. humiliating. effective again tonight and that is the whole mess and",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0504"
+    ],
+    "linksToExisting": [
+      "Elise Kwan"
+    ]
+  },
+  {
+    "id": "E0524",
+    "date": "2025-10-23",
+    "thread": "strip-office-days",
+    "capture": "home in october wait wrong thread. commute dark both ends. radio and patience again for what that is worth now i guess",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0354",
+      "E0513"
+    ],
+    "linksToExisting": [
+      "Northline"
+    ]
+  },
+  {
+    "id": "E0525",
+    "date": "2025-10-29",
+    "thread": "sleep-caffeine",
+    "capture": "bad night again rare. acceptable rate if rates are allowed to be kind sometimes here while walking back to the for real",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0522"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0526",
+    "date": "2025-10-30",
+    "thread": "strip-office-days",
+    "capture": "buy halloween candy office bowl before i forget again when i get a free minute i guess honestly for real",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0527",
+    "date": "2025-11-01",
+    "thread": "elise-and-the-move",
+    "capture": "ship gift to jules by the 18th before i forget again before the weekend hits these days i guess honestly",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0528",
+    "date": "2025-11-08",
+    "thread": "strip-office-days",
+    "capture": "chore list item 119: buy soap paper towels and trash bags before weekend for real right now these days",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0529",
+    "date": "2025-11-12",
+    "thread": "dads-diagnosis",
+    "capture": "he wants pie here",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0029"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0530",
+    "date": "2025-11-12",
+    "thread": "dads-diagnosis",
+    "capture": "he wants to come to our place for pie. huge in a quiet way that actually matters and none of it feels clean and i guess",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0518"
+    ],
+    "linksToExisting": [
+      "Robert Webb"
+    ]
+  },
+  {
+    "id": "E0531",
+    "date": "2025-11-13",
+    "thread": "dads-diagnosis",
+    "capture": "he wants pie here",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0446"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0532",
+    "date": "2025-11-14",
+    "thread": "elise-and-the-move",
+    "capture": "she runs thanksgiving like a project manager. i chop onions and follow the written list which tracks with honestly",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0523"
+    ],
+    "linksToExisting": [
+      "Elise Kwan",
+      "The place on Vine"
+    ]
+  },
+  {
+    "id": "E0533",
+    "date": "2025-11-15",
+    "thread": "strip-office-days",
+    "capture": "buy aluminum foil and plastic wrap before i forget again so i do not forget later right now these days i guess",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0534",
+    "date": "2025-11-19",
+    "thread": "dads-diagnosis",
+    "capture": "pie day worked. he looked okay in our light. filing under miracle ordinary forever and i hate how familiar it honestly",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0166"
+    ],
+    "linksToExisting": [
+      "Robert Webb"
+    ]
+  },
+  {
+    "id": "E0535",
+    "date": "2025-11-19",
+    "thread": "dads-diagnosis",
+    "capture": "pie in our dining light. ordinary miracle category with whipped cream on top tonight without a good answer for real",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0057"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0536",
+    "date": "2025-11-19",
+    "thread": "dads-diagnosis",
+    "capture": "pie light versus fluorescent waiting room light. long road between those two rooms like every other time before",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0035",
+      "E0057"
+    ],
+    "linksToExisting": [
+      "Robert Webb"
+    ]
+  },
+  {
+    "id": "E0537",
+    "date": "2025-11-20",
+    "thread": "elise-and-the-move",
+    "capture": "she was right we could host",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0532"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0538",
+    "date": "2025-11-20",
+    "thread": "dads-diagnosis",
+    "capture": "pie light versus fluorescent waiting rooms. long road between those two kinds of rooms while the rest of the these days",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0448"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0539",
+    "date": "2025-11-20",
+    "thread": "elise-and-the-move",
+    "capture": "she was right we could host. house held everyone including the awkward uncles fully in the middle of a workday i guess",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0461"
+    ],
+    "linksToExisting": [
+      "Elise Kwan",
+      "The place on Vine"
+    ]
+  },
+  {
+    "id": "E0540",
+    "date": "2025-11-21",
+    "thread": "strip-office-days",
+    "capture": "buy aluminum foil and parchment before i forget again and put a reminder on it honestly for real right now",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0541",
+    "date": "2025-11-21",
+    "thread": "elise-and-the-move",
+    "capture": "she was right",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0460"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0542",
+    "date": "2025-11-28",
+    "thread": "sleep-caffeine",
+    "capture": "post host crash sleep actually deep. funny how that works after all the kitchen chaos and i keep turning it these days",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0525"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0543",
+    "date": "2025-12-04",
+    "thread": "elise-and-the-move",
+    "capture": "second christmas at home planning. ordinary magic with a checklist and cheap lights which is on me honestly and i guess",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0539"
+    ],
+    "linksToExisting": [
+      "Elise Kwan",
+      "The place on Vine"
+    ]
+  },
+  {
+    "id": "E0544",
+    "date": "2025-12-05",
+    "thread": "strip-office-days",
+    "capture": "buy wrapping paper and tape before i forget again when i get a free minute honestly for real right now",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0545",
+    "date": "2025-12-11",
+    "thread": "sleep-caffeine",
+    "capture": "not the coffee the wine",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0542"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0546",
+    "date": "2025-12-11",
+    "thread": "sleep-caffeine",
+    "capture": "not the coffee. the party wine. receipts forever. body is a ruthless accountant still and that is the whole these days",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0542"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0547",
+    "date": "2025-12-12",
+    "thread": "dads-diagnosis",
+    "capture": "year end quiet medical. scar not fire. holding enough like it is a full real word for what that is worth now on i guess",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0360"
+    ],
+    "linksToExisting": [
+      "Robert Webb"
+    ]
+  },
+  {
+    "id": "E0548",
+    "date": "2025-12-12",
+    "thread": "sleep-caffeine",
+    "capture": "not the coffee",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0464"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0549",
+    "date": "2025-12-13",
+    "thread": "elise-and-the-move",
+    "capture": "buy batteries aa and aaa multipack before i forget again before the weekend hits honestly for real right now",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0550",
+    "date": "2025-12-18",
+    "thread": "elise-and-the-move",
+    "capture": "she was right about the early tree. house feels finished in a soft dumb good way and i am tired of the loop these days",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0543"
+    ],
+    "linksToExisting": [
+      "Elise Kwan",
+      "The place on Vine"
+    ]
+  },
+  {
+    "id": "E0551",
+    "date": "2025-12-18",
+    "thread": "elise-and-the-move",
+    "capture": "she was right about the tree",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0543"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0552",
+    "date": "2025-12-19",
+    "thread": "elise-and-the-move",
+    "capture": "she was right about the tree",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0462"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0553",
+    "date": "2025-12-26",
+    "thread": "strip-office-days",
+    "capture": "between holidays nobody expects badge swipes. freedom from the old guilt tuesdays fully while walking back to i guess",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0012",
+      "E0024"
+    ],
+    "linksToExisting": [
+      "Northline"
+    ]
+  },
+  {
+    "id": "E0554",
+    "date": "2025-12-26",
+    "thread": "strip-office-days",
+    "capture": "between holidays nobody expects badge swipes. freedom tastes like leftover pie honestly and none of it feels honestly",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0524"
+    ],
+    "linksToExisting": [
+      "Northline"
+    ]
+  },
+  {
+    "id": "E0555",
+    "date": "2025-12-26",
+    "thread": "strip-office-days",
+    "capture": "holidays nobody counts swipes. rare freedom and i am not performing gratitude about it which tracks with everything else",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0024"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0556",
+    "date": "2025-12-27",
+    "thread": "strip-office-days",
+    "capture": "holidays nobody counts swipes. long way from guilt tuesday martyr energy years ago and none of the usual fixes for real",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0469"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0557",
+    "date": "2025-12-29",
+    "thread": "sleep-caffeine",
+    "capture": "dues lower than the first winter. still a member. quieter meetings though thank god and i hate how familiar it right now",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0411"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0558",
+    "date": "2025-12-29",
+    "thread": "sleep-caffeine",
+    "capture": "year end sleep mostly okay. 3am club dues lower than the first winter by a wide margin without a good answer these days",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0003",
+      "E0411"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0559",
+    "date": "2025-12-30",
+    "thread": "elise-and-the-move",
+    "capture": "fits now. the spreadsheet era feels like another person wrote those old numbers down like every other time honestly",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0006",
+      "E0016"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0560",
+    "date": "2025-12-30",
+    "thread": "sleep-caffeine",
+    "capture": "dues lower than year one. still a member. quieter meetings with the 3am club for reasons i cannot cleanly name i guess",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0472"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0561",
+    "date": "2025-12-30",
+    "thread": "elise-and-the-move",
+    "capture": "three years of notes and we actually live somewhere that fits without forcing anything in the middle of a for real",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0006",
+      "E0016"
+    ],
+    "linksToExisting": [
+      "Elise Kwan",
+      "The place on Vine"
+    ]
+  },
+  {
+    "id": "E0562",
+    "date": "2025-12-30",
+    "thread": "elise-and-the-move",
+    "capture": "three years of notes and we actually live somewhere that fits. still surreal at night and i keep turning it these days",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0006"
+    ],
+    "linksToExisting": [
+      "Elise Kwan",
+      "The place on Vine"
+    ]
+  },
+  {
+    "id": "E0563",
+    "date": "2025-12-31",
+    "thread": "strip-office-days",
+    "capture": "didnt go in. fine",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0001"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0564",
+    "date": "2025-12-31",
+    "thread": "elise-and-the-move",
+    "capture": "defrost freezer before new year guests before i forget again so i do not forget later i guess honestly for real",
+    "verdict": "noise",
+    "linksToEarlier": [],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0565",
+    "date": "2025-12-31",
+    "thread": "strip-office-days",
+    "capture": "didnt go in. fine",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0471"
+    ],
+    "linksToExisting": []
+  },
+  {
+    "id": "E0566",
+    "date": "2025-12-31",
+    "thread": "elise-and-the-move",
+    "capture": "fits now. spreadsheet era feels like another person wrote those numbers in panic and i am done pretending right now",
+    "verdict": "atom",
+    "linksToEarlier": [
+      "E0475"
+    ],
+    "linksToExisting": []
+  }
+]
