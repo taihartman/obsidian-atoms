@@ -383,7 +383,7 @@ describe("runRefreshEligibleAtoms — chunked shortlist (U5)", () => {
 
     expect(spy).toHaveBeenCalledTimes(1);
     expect(spy).toHaveBeenCalledWith(
-      expect.objectContaining({ expandGraph: false, k: 40 }),
+      expect.objectContaining({ expandGraph: false, shortlistK: 40 }),
     );
   });
 

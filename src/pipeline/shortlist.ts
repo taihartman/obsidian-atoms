@@ -88,60 +88,122 @@ function fieldTokens(note: ScoreableNote, field: ScoreField): string[] {
 }
 
 /**
- * Rank every candidate against `capture`, highest score first, ties broken alphabetically by title.
+ * The corpus-invariant half of BM25F, held so it is paid once per run instead of once per capture.
  *
- * BM25F: per-field length normalisation, with the field weight applied to term frequency **before**
- * saturation. Weighting after saturation — i.e. summing per-field BM25 scores — double-counts a
- * term that appears in two fields, which is exactly the case field weighting exists to handle.
+ * Tokenising every note's four fields, and the term/document frequencies over them, depend only on
+ * the corpus — never on the capture. Rebuilding them per capture is what KTD4 promises not to do:
+ * only `tokens(capture)` and the scoring loop belong in the per-capture path.
  *
- * A candidate sharing no term with the capture scores **exactly zero**. That is load-bearing, not
- * incidental: a miss here is absolute, so downstream code may treat zero as "not a candidate".
+ * **Appendable** (KTD4a): an atom written mid-run must be scoreable by the captures that follow it,
+ * so `add()` extends the index in place. Extension is exact rather than approximate — document
+ * frequency is a plain per-term count, and the field-length averages are re-derived at rank time
+ * from running sums, so the scores after an append are the scores a full rebuild would produce.
+ * `test/shortlist.test.ts` pins that equivalence.
+ *
+ * What is deliberately *not* precomputed is the weighted term frequency. It divides by the field's
+ * average length, which every append moves, so a cached `tf` would be the one quantity that could
+ * silently go stale. Raw per-field counts are stored instead and the normalisation is applied while
+ * scoring, in the same field order the one-shot path used, so the arithmetic is bit-identical.
+ */
+export class Bm25Index<T extends ScoreableNote> {
+  private readonly fields: ScoreField[];
+  private readonly notes: T[] = [];
+  /** Per doc: term → its raw count in each field, indexed parallel to `fields`. */
+  private readonly termCounts: Array<Map<string, number[]>> = [];
+  /** Per doc: token count of each field, indexed parallel to `fields`. */
+  private readonly fieldLengths: number[][] = [];
+  /** Running total of each field's length across the corpus — the numerator of `avg`. */
+  private readonly lengthSums: number[];
+  /** Documents containing each term in any weighted field. Unaffected by corpus size. */
+  private readonly df = new Map<string, number>();
+
+  constructor(
+    notes: readonly T[] = [],
+    private readonly weights: FieldWeights = FIELD_WEIGHTS,
+  ) {
+    this.fields = (Object.keys(weights) as ScoreField[]).filter((f) => weights[f] > 0);
+    this.lengthSums = this.fields.map(() => 0);
+    for (const n of notes) this.add(n);
+  }
+
+  /** Scoreable entries currently indexed. */
+  get size(): number {
+    return this.notes.length;
+  }
+
+  /** Index one more note. Cheap: it tokenises that note's fields and nothing else's. */
+  add(note: T): void {
+    const counts = new Map<string, number[]>();
+    const lengths: number[] = [];
+    this.fields.forEach((f, fi) => {
+      const toks = fieldTokens(note, f);
+      lengths.push(toks.length);
+      this.lengthSums[fi]! += toks.length;
+      for (const t of toks) {
+        let perField = counts.get(t);
+        if (!perField) {
+          perField = this.fields.map(() => 0);
+          counts.set(t, perField);
+        }
+        perField[fi]! += 1;
+      }
+    });
+    for (const t of counts.keys()) this.df.set(t, (this.df.get(t) ?? 0) + 1);
+    this.notes.push(note);
+    this.termCounts.push(counts);
+    this.fieldLengths.push(lengths);
+  }
+
+  /**
+   * Rank every indexed note against `capture`, highest score first, ties broken alphabetically.
+   *
+   * BM25F: per-field length normalisation, with the field weight applied to term frequency **before**
+   * saturation. Weighting after saturation — i.e. summing per-field BM25 scores — double-counts a
+   * term that appears in two fields, which is exactly the case field weighting exists to handle.
+   *
+   * A candidate sharing no term with the capture scores **exactly zero**. That is load-bearing, not
+   * incidental: a miss here is absolute, so downstream code may treat zero as "not a candidate".
+   */
+  rank(capture: string): Scored<T>[] {
+    const N = this.notes.length;
+    const avg = this.lengthSums.map((sum) => sum / (N || 1) || 1);
+    const q = [...new Set(tokens(capture))];
+    return this.notes
+      .map((n, i) => {
+        const counts = this.termCounts[i]!;
+        const lengths = this.fieldLengths[i]!;
+        let score = 0;
+        for (const t of q) {
+          const perField = counts.get(t);
+          if (!perField) continue;
+          let tf = 0;
+          for (let fi = 0; fi < this.fields.length; fi++) {
+            const c = perField[fi]!;
+            if (!c) continue;
+            const norm = 1 - B + (B * lengths[fi]!) / avg[fi]!;
+            tf += (this.weights[this.fields[fi]!] * c) / norm;
+          }
+          const n_t = this.df.get(t) ?? 0;
+          score += Math.log(1 + (N - n_t + 0.5) / (n_t + 0.5)) * (tf / (K1 + tf));
+        }
+        return { ...n, score };
+      })
+      .sort((a, b) => b.score - a.score || a.title.localeCompare(b.title));
+  }
+}
+
+/**
+ * Rank every candidate against `capture` — the one-shot form, for callers holding a plain list.
+ *
+ * A run should build a {@link Bm25Index} once instead: this rebuilds the whole corpus index on
+ * every call, which is exactly the per-capture cost KTD4 exists to avoid.
  */
 export function bm25Rank<T extends ScoreableNote>(
   capture: string,
   notes: readonly T[],
   weights: FieldWeights = FIELD_WEIGHTS,
 ): Scored<T>[] {
-  const fields = (Object.keys(weights) as ScoreField[]).filter((f) => weights[f] > 0);
-  const N = notes.length;
-  const docs = notes.map((n) => {
-    const doc = {} as Record<ScoreField, string[]>;
-    for (const f of fields) doc[f] = fieldTokens(n, f);
-    return doc;
-  });
-
-  const avg = {} as Record<ScoreField, number>;
-  for (const f of fields) {
-    avg[f] = docs.reduce((s, d) => s + d[f].length, 0) / (N || 1) || 1;
-  }
-
-  // Weighted term frequency per doc, plus the document frequency of each term across the corpus.
-  const df = new Map<string, number>();
-  const tfs = docs.map((doc) => {
-    const tf = new Map<string, number>();
-    for (const f of fields) {
-      const counts = new Map<string, number>();
-      for (const t of doc[f]) counts.set(t, (counts.get(t) ?? 0) + 1);
-      const norm = 1 - B + (B * doc[f].length) / avg[f];
-      for (const [t, c] of counts) tf.set(t, (tf.get(t) ?? 0) + (weights[f] * c) / norm);
-    }
-    for (const t of tf.keys()) df.set(t, (df.get(t) ?? 0) + 1);
-    return tf;
-  });
-
-  const q = [...new Set(tokens(capture))];
-  return notes
-    .map((n, i) => {
-      let score = 0;
-      for (const t of q) {
-        const tf = tfs[i]!.get(t);
-        if (!tf) continue;
-        const n_t = df.get(t) ?? 0;
-        score += Math.log(1 + (N - n_t + 0.5) / (n_t + 0.5)) * (tf / (K1 + tf));
-      }
-      return { ...n, score };
-    })
-    .sort((a, b) => b.score - a.score || a.title.localeCompare(b.title));
+  return new Bm25Index(notes, weights).rank(capture);
 }
 
 /**

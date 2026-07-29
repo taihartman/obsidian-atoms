@@ -127,6 +127,9 @@ export function boundContext(context) {
     tags: asStringList(c.tags, 80, 64),
     vocabulary: asStringList(c.vocabulary, 80, 64),
     personHubs: asStringList(c.personHubs, 40, 120),
+    // Which cap regime applied — ranked shortlist or the legacy alphabetical 40. Not read when
+    // building the prompt; it is here so a caller (and the suite) can tell the two apart from the
+    // result, rather than inferring a regime from how many titles happened to survive.
     ranked,
     bodyLeak: findBodyLeak(c),
   };

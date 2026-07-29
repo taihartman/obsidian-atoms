@@ -903,6 +903,9 @@ export default class AtomsPlugin extends Plugin {
             model,
             work: prepared.work,
             run: prepared.run,
+            // Chunk one was priced against this same corpus with nothing yet written; resolving it
+            // again would be byte-for-byte the same answer.
+            firstChunk: prepared.chunks[0],
           });
         } finally {
           prepared.run.end();
@@ -937,6 +940,7 @@ export default class AtomsPlugin extends Plugin {
     model: string;
     work: import("../pipeline/backfill").BackfillWorkItem[];
     run: import("../pipeline/context").ContextRun;
+    firstChunk?: import("../pipeline/backfill").ResolvedBackfillChunk;
   }) {
     if (this.backfillInFlight) return;
     this.backfillInFlight = true;
@@ -946,6 +950,7 @@ export default class AtomsPlugin extends Plugin {
         run: opts.run,
         work: opts.work,
         model: opts.model,
+        firstChunk: opts.firstChunk,
         activeVocabulary: this.settings.activeVocabulary,
         runChunk: async (chunk, body, pos) => {
           new Notice(

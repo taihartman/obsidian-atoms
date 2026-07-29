@@ -15,7 +15,6 @@ import {
 import { getPastDailyNotesWithUnmarkedCaptures } from "./daily";
 import {
   applyWrite,
-  formatLinkProse,
   listAtomPaths,
   planWrite,
 } from "./render";
@@ -280,17 +279,25 @@ export async function resolveBackfillChunks(opts: {
   run: ContextRun;
   work: BackfillWorkItem[];
   granularity?: ChunkGranularity;
+  /**
+   * The first chunk, already resolved against this same run before any atom was written.
+   *
+   * The cost gate resolves every chunk to price it, and chunk one is the one the confirm path would
+   * otherwise derive a second time from a corpus that has not changed in between — nothing has been
+   * submitted, so no atom exists in either pass. Later chunks are deliberately *not* reusable: their
+   * whole point is to see what the chunks before them wrote.
+   */
+  firstChunk?: ResolvedBackfillChunk;
   onChunkResolved?: (chunk: ResolvedBackfillChunk) => Promise<void> | void;
 }): Promise<ResolvedBackfillChunk[]> {
   const out: ResolvedBackfillChunk[] = [];
   for (const chunk of chunkBackfillWork(opts.work, opts.granularity)) {
-    const context = await opts.run.getChunkCandidates(
-      chunk.work.map((w) => w.capture),
-    );
-    const resolved: ResolvedBackfillChunk = {
+    const reusable =
+      out.length === 0 && opts.firstChunk?.key === chunk.key ? opts.firstChunk : null;
+    const resolved: ResolvedBackfillChunk = reusable ?? {
       key: chunk.key,
       work: chunk.work,
-      context,
+      context: await opts.run.getChunkCandidates(chunk.work.map((w) => w.capture)),
       cacheTitles: shouldCacheChunkTitles(chunk.work.length),
     };
     out.push(resolved);
@@ -404,7 +411,7 @@ export async function prepareBackfillEstimate(opts: {
   const work = enumerateBackfillWork(listed.notes);
   const run = await opts.contextProvider.beginRun({
     atomFolder: opts.atomFolder,
-    k: opts.shortlistK,
+    shortlistK: opts.shortlistK,
     expandGraph: false,
   });
   const context = run.vaultContext;
@@ -723,13 +730,12 @@ export async function applyBackfillResults(opts: {
     if (wr.atomCreated) {
       atomPathsTouched.push(wr.atomCreated);
       // Only newly created atoms: a collision skip means the file was already in the corpus.
-      const prose = formatLinkProse(result.links ?? []);
-      opts.run?.addAtom({
+      opts.run?.addWrittenAtom({
         path: wr.atomCreated,
         title: result.title,
         body: item.capture.text,
-        tags: result.tags ?? [],
-        links: prose ? [prose] : [],
+        tags: result.tags,
+        links: result.links,
       });
     } else if (wr.atomUpdated) atomPathsTouched.push(wr.atomUpdated);
     else if (wr.atomSkippedCollision) atomPathsTouched.push(wr.atomSkippedCollision);
@@ -796,6 +802,8 @@ export async function runBackfillChunks(opts: {
   work: BackfillWorkItem[];
   model: string;
   granularity?: ChunkGranularity;
+  /** Chunk one as the cost gate already resolved it — see `resolveBackfillChunks.firstChunk`. */
+  firstChunk?: ResolvedBackfillChunk;
   runChunk: (
     chunk: ResolvedBackfillChunk,
     body: ReturnType<typeof buildBatchCreateBody>,
@@ -817,6 +825,7 @@ export async function runBackfillChunks(opts: {
     run: opts.run,
     work: opts.work,
     granularity: opts.granularity,
+    firstChunk: opts.firstChunk,
     onChunkResolved: async (chunk) => {
       const body = buildChunkBatchCreateBody(chunk, opts.model);
       const report = await opts.runChunk(chunk, body, { index, total });

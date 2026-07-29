@@ -383,6 +383,72 @@ describe("cross-chunk visibility (U5, R4)", () => {
     expect(report.atomsCreated).toBe(3);
     run.end();
   });
+
+  it("reuses the chunk the cost gate already resolved, and only that one", async () => {
+    const v = catchUpVault();
+    const run = await provider(v.app).beginRun({ atomFolder: "Atoms" });
+    const work = enumerateBackfillWork([
+      note("2026-01-05", ["january tandem brake cable"]),
+      note("2026-02-05", ["february tandem brake cable"]),
+    ]);
+
+    // What the gate resolved: every chunk, against a corpus with nothing written yet.
+    const priced = await resolveBackfillChunks({ run, work });
+    const resolveSpy = vi.spyOn(run, "getChunkCandidates");
+
+    const seen: typeof priced = [];
+    await runBackfillChunks({
+      run,
+      work,
+      model: "claude-haiku-4-5-20251001",
+      firstChunk: priced[0],
+      runChunk: async (chunk) => {
+        seen.push(chunk);
+        run.addAtom({
+          path: `Atoms/${chunk.key} tandem.md`,
+          title: `${chunk.key} tandem`,
+          body: `${chunk.key} tandem brake cable`,
+          tags: [],
+          links: [],
+        });
+        return { applied: 1, failed: 0, atomsCreated: 1, markersAppended: 1, proposedTags: [] };
+      },
+    });
+
+    // Chunk one is the priced object itself — not a recomputed lookalike.
+    expect(seen[0]).toBe(priced[0]);
+    // Chunk two is still re-resolved: it must see the atom chunk one just wrote (R4).
+    expect(resolveSpy).toHaveBeenCalledTimes(1);
+    expect(seen[1]!.context.titles).toContain("2026-01 tandem");
+    run.end();
+  });
+
+  it("ignores a stale firstChunk whose key is not the first chunk of this work", async () => {
+    const v = catchUpVault();
+    const run = await provider(v.app).beginRun({ atomFolder: "Atoms" });
+    const work = enumerateBackfillWork([note("2026-02-05", ["february tandem brake cable"])]);
+    const stale = {
+      key: "1999-01",
+      work: [],
+      context: { titles: ["nonsense"], tags: [], vocabulary: [], personHubs: [], personHubDetails: [] },
+      cacheTitles: false,
+    };
+
+    const seen: string[] = [];
+    await runBackfillChunks({
+      run,
+      work,
+      model: "claude-haiku-4-5-20251001",
+      firstChunk: stale,
+      runChunk: async (chunk) => {
+        seen.push(chunk.key);
+        return { applied: 0, failed: 0, atomsCreated: 0, markersAppended: 0, proposedTags: [] };
+      },
+    });
+
+    expect(seen).toEqual(["2026-02"]);
+    run.end();
+  });
 });
 
 describe("chunked cost estimate (U5)", () => {

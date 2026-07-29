@@ -27,7 +27,6 @@ import {
   clampAtomFolder,
   displayTitleForAtom,
   formatAtomBody,
-  formatLinkProse,
   listAtomPaths,
   sanitizeFilename,
 } from "./render";
@@ -757,7 +756,7 @@ export async function runRefreshEligibleAtoms(
   // for the same reason (KTD7): the walk stops at hubs, so here it reaches nothing.
   const run = await opts.contextProvider.beginRun({
     atomFolder: opts.atomFolder,
-    k: opts.shortlistK,
+    shortlistK: opts.shortlistK,
     expandGraph: false,
   });
   const staticCtx = run.vaultContext;
@@ -779,147 +778,147 @@ export async function runRefreshEligibleAtoms(
   let cacheTitles = false;
 
   try {
-  for (const item of chunks.flatMap((c) => c.items)) {
-    const chunkIndex = chunkIndexOf.get(item)!;
-    if (chunkIndex !== activeChunk) {
-      activeChunk = chunkIndex;
-      const chunk = chunks[chunkIndex]!;
-      // One shortlist for the chunk, scored against each atom's **capture** — the user's own
-      // words — never its current title, which is the paraphrase this refresh exists to replace.
-      // Resolved here rather than up front so it can see what the previous chunk just rewrote.
-      ctx = await run.getChunkCandidates(
-        chunk.items.map((a) => extractCaptureBody(a.content)),
-      );
-      cacheTitles = shouldCacheChunkTitles(chunk.items.length);
-    }
-
-    // Re-read after polish may have rewritten the file
-    let liveContent = item.content;
-    try {
-      const f = opts.app.vault.getAbstractFileByPath(item.path);
-      if (f instanceof TFile) {
-        liveContent = await opts.app.vault.read(f);
+    for (const item of chunks.flatMap((c) => c.items)) {
+      const chunkIndex = chunkIndexOf.get(item)!;
+      if (chunkIndex !== activeChunk) {
+        activeChunk = chunkIndex;
+        const chunk = chunks[chunkIndex]!;
+        // One shortlist for the chunk, scored against each atom's **capture** — the user's own
+        // words — never its current title, which is the paraphrase this refresh exists to replace.
+        // Resolved here rather than up front so it can see what the previous chunk just rewrote.
+        ctx = await run.getChunkCandidates(
+          chunk.items.map((a) => extractCaptureBody(a.content)),
+        );
+        cacheTitles = shouldCacheChunkTitles(chunk.items.length);
       }
-    } catch {
-      /* use planned content */
-    }
 
-    opts.onProgress?.(done, totalSteps, {
-      captureText: extractCaptureBody(liveContent),
-    });
+      // Re-read after polish may have rewritten the file
+      let liveContent = item.content;
+      try {
+        const f = opts.app.vault.getAbstractFileByPath(item.path);
+        if (f instanceof TFile) {
+          liveContent = await opts.app.vault.read(f);
+        }
+      } catch {
+        /* use planned content */
+      }
 
-    const captureText = extractCaptureBody(liveContent);
-    const hubs: PersonHub[] = (staticCtx.personHubDetails ?? []).map((d) => ({
-      canonicalTitle: d.canonicalTitle,
-      matchKeys: d.matchKeys,
-      path: "",
-    }));
-
-    let result: ClassificationResult;
-    if (opts.fixtureResults && fixtureIdx < opts.fixtureResults.length) {
-      result = applyClassificationQuality(
-        captureText,
-        opts.fixtureResults[fixtureIdx++]!,
-        {
-          titles: ctx.titles ?? [],
-          personHubs: hubs,
-          personHubTitles: ctx.personHubs ?? [],
-        },
-      );
-    } else if (opts.fixtureResults) {
-      report.failed += 1;
-      done += 1;
-      continue;
-    } else {
-      const outcome = await classifyCapture(captureText, ctx, {
-        apiKey: opts.apiKey,
-        model: opts.model,
-        activeVocabulary: opts.activeVocabulary,
-        // Every capture in this chunk sends the same titles block, so it belongs inside the
-        // cached prefix — unless the chunk holds one atom and nothing would read it back.
-        cacheTitles,
-        ...opts.classifyDeps,
+      opts.onProgress?.(done, totalSteps, {
+        captureText: extractCaptureBody(liveContent),
       });
-      if (!outcome.ok) {
+
+      const captureText = extractCaptureBody(liveContent);
+      const hubs: PersonHub[] = (staticCtx.personHubDetails ?? []).map((d) => ({
+        canonicalTitle: d.canonicalTitle,
+        matchKeys: d.matchKeys,
+        path: "",
+      }));
+
+      let result: ClassificationResult;
+      if (opts.fixtureResults && fixtureIdx < opts.fixtureResults.length) {
+        result = applyClassificationQuality(
+          captureText,
+          opts.fixtureResults[fixtureIdx++]!,
+          {
+            titles: ctx.titles ?? [],
+            personHubs: hubs,
+            personHubTitles: ctx.personHubs ?? [],
+          },
+        );
+      } else if (opts.fixtureResults) {
         report.failed += 1;
         done += 1;
         continue;
-      }
-      result = outcome.result;
-    }
-
-    const plan = planRefreshApply({
-      path: item.path,
-      oldTitle: item.title,
-      oldContent: liveContent,
-      result,
-      atomFolder: opts.atomFolder,
-      existingAtomPaths: existing,
-    });
-
-    try {
-      const file = opts.app.vault.getAbstractFileByPath(plan.path);
-      if (!(file instanceof TFile)) {
-        report.failed += 1;
-        done += 1;
-        continue;
-      }
-
-      await opts.app.vault.modify(file, plan.content);
-      report.updated += 1;
-
-      let finalPath = plan.path;
-      let finalTitle = plan.newTitle || plan.oldTitle;
-      if (plan.rename) {
-        const destExists = opts.app.vault.getAbstractFileByPath(plan.newPath);
-        if (!destExists) {
-          try {
-            await opts.app.vault.rename(file, plan.newPath);
-            existing.delete(plan.path);
-            existing.add(plan.newPath);
-            report.renamed += 1;
-            finalPath = plan.newPath;
-            finalTitle = plan.newTitle || finalTitle;
-          } catch {
-            // Content already refreshed; leave path (aliases carry old title).
-          }
-        }
-      }
-      report.updatedItems.push({ title: finalTitle, path: finalPath });
-
-      // A refresh can rename an atom. Its old spelling is already in the corpus from seeding; add
-      // the new one so a later chunk can be offered the title the file now actually has (KTD4a).
-      if (finalTitle !== plan.oldTitle) {
-        run.addAtom({
-          path: finalPath,
-          title: finalTitle,
-          body: plan.captureText,
-          tags: result.tags ?? [],
-          links: [formatLinkProse(result.links ?? [])].filter(Boolean),
+      } else {
+        const outcome = await classifyCapture(captureText, ctx, {
+          apiKey: opts.apiKey,
+          model: opts.model,
+          activeVocabulary: opts.activeVocabulary,
+          // Every capture in this chunk sends the same titles block, so it belongs inside the
+          // cached prefix — unless the chunk holds one atom and nothing would read it back.
+          cacheTitles,
+          ...opts.classifyDeps,
         });
+        if (!outcome.ok) {
+          report.failed += 1;
+          done += 1;
+          continue;
+        }
+        result = outcome.result;
       }
 
-      if (plan.oldTitle !== plan.newTitle && plan.sourceBasename) {
-        const daily = findDailyFile(opts.app, plan.sourceBasename);
-        if (daily) {
-          const dailyText = await opts.app.vault.read(daily);
-          const repaired = repairMarkerTitleInDaily(
-            dailyText,
-            plan.captureText,
-            plan.oldTitle,
-            plan.newTitle,
-          );
-          if (repaired.changed) {
-            await opts.app.vault.modify(daily, repaired.content);
-            report.markersRepaired += 1;
+      const plan = planRefreshApply({
+        path: item.path,
+        oldTitle: item.title,
+        oldContent: liveContent,
+        result,
+        atomFolder: opts.atomFolder,
+        existingAtomPaths: existing,
+      });
+
+      try {
+        const file = opts.app.vault.getAbstractFileByPath(plan.path);
+        if (!(file instanceof TFile)) {
+          report.failed += 1;
+          done += 1;
+          continue;
+        }
+
+        await opts.app.vault.modify(file, plan.content);
+        report.updated += 1;
+
+        let finalPath = plan.path;
+        let finalTitle = plan.newTitle || plan.oldTitle;
+        if (plan.rename) {
+          const destExists = opts.app.vault.getAbstractFileByPath(plan.newPath);
+          if (!destExists) {
+            try {
+              await opts.app.vault.rename(file, plan.newPath);
+              existing.delete(plan.path);
+              existing.add(plan.newPath);
+              report.renamed += 1;
+              finalPath = plan.newPath;
+              finalTitle = plan.newTitle || finalTitle;
+            } catch {
+              // Content already refreshed; leave path (aliases carry old title).
+            }
           }
         }
+        report.updatedItems.push({ title: finalTitle, path: finalPath });
+
+        // A refresh can rename an atom. Its old spelling is already in the corpus from seeding; add
+        // the new one so a later chunk can be offered the title the file now actually has (KTD4a).
+        if (finalTitle !== plan.oldTitle) {
+          run.addWrittenAtom({
+            path: finalPath,
+            title: finalTitle,
+            body: plan.captureText,
+            tags: result.tags,
+            links: result.links,
+          });
+        }
+
+        if (plan.oldTitle !== plan.newTitle && plan.sourceBasename) {
+          const daily = findDailyFile(opts.app, plan.sourceBasename);
+          if (daily) {
+            const dailyText = await opts.app.vault.read(daily);
+            const repaired = repairMarkerTitleInDaily(
+              dailyText,
+              plan.captureText,
+              plan.oldTitle,
+              plan.newTitle,
+            );
+            if (repaired.changed) {
+              await opts.app.vault.modify(daily, repaired.content);
+              report.markersRepaired += 1;
+            }
+          }
+        }
+      } catch {
+        report.failed += 1;
       }
-    } catch {
-      report.failed += 1;
+      done += 1;
     }
-    done += 1;
-  }
   } finally {
     // The corpus lives exactly as long as the run (KTD4a) — including when a chunk threw.
     run.end();

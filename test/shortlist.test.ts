@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  Bm25Index,
   FIELD_WEIGHTS,
   bm25Rank,
   rankShortlist,
@@ -169,5 +170,80 @@ describe("rankShortlist", () => {
 
   it("returns an empty shortlist when nothing shares a term", () => {
     expect(rankShortlist("quarterly logistics invoicing", CORPUS, 10)).toEqual([]);
+  });
+});
+
+/**
+ * The safety argument for holding the index across a run (KTD4/KTD4a).
+ *
+ * `df` and the field-length averages both move when an atom is appended mid-run, so scores after an
+ * append are *not* the scores before it — they were never meant to be. What must hold is that they
+ * are the scores a full rebuild over the same notes would give. If that ever stops being true, the
+ * captures after the first written atom are being ranked against arithmetic nothing else produces.
+ */
+describe("Bm25Index — appending equals rebuilding", () => {
+  const APPENDED: ScoreableNote[] = [
+    {
+      title: "Naps repay sleep debt cheaply",
+      body: "a twenty minute nap paid back most of last night's sleep debt",
+      tags: ["idea"],
+      links: ["Follows on from [[Sleep debt doesn't accumulate linearly]]."],
+    },
+    { title: "Marcus on kitchen taps", body: "marcus fixed the dripping tap", links: ["Marcus"] },
+  ];
+
+  const CAPTURES = [
+    "sleep debt plateaus again after a bad week",
+    "the kitchen tap",
+    "marcus and the espresso",
+    "nothing here matches anything",
+  ];
+
+  it("scores identically to an index built from the whole corpus at once", () => {
+    const incremental = new Bm25Index(CORPUS);
+    for (const n of APPENDED) incremental.add(n);
+    const rebuilt = new Bm25Index([...CORPUS, ...APPENDED]);
+
+    expect(incremental.size).toBe(CORPUS.length + APPENDED.length);
+    for (const capture of CAPTURES) {
+      // Exact equality, not closeness: the two paths must do the same arithmetic, not similar.
+      expect(incremental.rank(capture)).toEqual(rebuilt.rank(capture));
+    }
+  });
+
+  it("matches the one-shot bm25Rank over the grown corpus", () => {
+    const incremental = new Bm25Index(CORPUS);
+    for (const n of APPENDED) incremental.add(n);
+    for (const capture of CAPTURES) {
+      expect(incremental.rank(capture)).toEqual(bm25Rank(capture, [...CORPUS, ...APPENDED]));
+    }
+  });
+
+  it("an appended note is immediately scoreable, and the append moves earlier scores", () => {
+    const before = new Bm25Index(CORPUS).rank("nap paid back my sleep debt");
+    const after = new Bm25Index(CORPUS);
+    after.add(APPENDED[0]!);
+    const ranked = after.rank("nap paid back my sleep debt");
+
+    expect(ranked[0]!.title).toBe("Naps repay sleep debt cheaply");
+    // df and the length averages both shifted, so the pre-existing top match is rescored.
+    const oldTop = before[0]!;
+    const rescored = ranked.find((n) => n.title === oldTop.title)!;
+    expect(rescored.score).not.toBe(oldTop.score);
+  });
+
+  it("an empty index scores nothing and stays consistent with a rebuild", () => {
+    const empty = new Bm25Index<ScoreableNote>();
+    expect(empty.rank("anything at all")).toEqual([]);
+    expect(empty.size).toBe(0);
+  });
+
+  it("honours non-default weights on both paths", () => {
+    const weights = { ...FIELD_WEIGHTS, links: 0 };
+    const incremental = new Bm25Index(CORPUS, weights);
+    incremental.add(APPENDED[0]!);
+    expect(incremental.rank("sleep debt")).toEqual(
+      bm25Rank("sleep debt", [...CORPUS, APPENDED[0]!], weights),
+    );
   });
 });

@@ -1,5 +1,10 @@
 import type { App, TFile } from "obsidian";
-import type { Capture, LinkerSettings, VaultContext } from "../shared/types";
+import type {
+  Capture,
+  ClassificationLink,
+  LinkerSettings,
+  VaultContext,
+} from "../shared/types";
 import { buildCandidateCorpus, type CandidateCorpus, type CandidateNote } from "./candidates";
 import {
   discoverPersonHubs,
@@ -13,7 +18,7 @@ import {
   EXPANSION_SLOTS,
   type LinkGraph,
 } from "./expand";
-import { rankShortlist } from "./shortlist";
+import { formatLinkProse } from "./render";
 import {
   eligibleTags,
   normalizeTag,
@@ -321,6 +326,29 @@ export function collectTitles(paths: string[]): string[] {
 }
 
 /**
+ * The trimmed aliases a file declares, in frontmatter order.
+ *
+ * The single definition of "what counts as an alias" — Obsidian accepts either a bare string or a
+ * list, and every place that must keep a hub linkable (the run's title list, the scoreable corpus,
+ * person-hub discovery) has to agree on that reading or a hub goes quietly missing from one of them.
+ * Blanks and non-strings are dropped; nothing else is filtered, so callers own their own deduping.
+ */
+export function aliasesForFrontmatter(
+  frontmatter: Record<string, unknown> | null | undefined,
+): string[] {
+  const out: string[] = [];
+  const aliases = frontmatter?.aliases;
+  if (typeof aliases === "string" && aliases.trim()) {
+    out.push(aliases.trim());
+  } else if (Array.isArray(aliases)) {
+    for (const a of aliases) {
+      if (typeof a === "string" && a.trim()) out.push(a.trim());
+    }
+  }
+  return out;
+}
+
+/**
  * Basenames + frontmatter aliases so person hubs (e.g. Alex/) stay linkable.
  * Deterministic sort for stable cache prefixes.
  */
@@ -333,55 +361,50 @@ export function collectLinkTargets(
   const out = new Set<string>();
   for (const f of files) {
     out.add(titleFromPath(f.path));
-    const aliases = f.cache?.frontmatter?.aliases;
-    if (typeof aliases === "string" && aliases.trim()) {
-      out.add(aliases.trim());
-    } else if (Array.isArray(aliases)) {
-      for (const a of aliases) {
-        if (typeof a === "string" && a.trim()) out.add(a.trim());
-      }
-    }
+    for (const a of aliasesForFrontmatter(f.cache?.frontmatter)) out.add(a);
   }
   return [...out].sort((a, b) => a.localeCompare(b));
 }
 
+/** A file cache, reduced to the two places a tag can hide. */
+export interface TaggableFileCache {
+  tags?: Array<{ tag: string }>;
+  frontmatter?: Record<string, unknown> | null;
+}
+
 /**
- * Tag-count aggregation via the documented fallback path:
- * per-file `tags` cache entries + frontmatter.tags (string | string[]).
- * Does not use undocumented `metadataCache.getTags()`.
+ * One file's tag **occurrences**, normalised, in cache order: inline hashtags then `frontmatter.tags`
+ * (string or list). The documented fallback path — never undocumented `metadataCache.getTags()`.
+ *
+ * Occurrences, not a set: the settings screen ranks tags by "N use(s)", so a tag written twice in
+ * one note counts twice. Callers that want the distinct tags of a file dedupe what comes back.
  */
+export function tagsForFileCache(cache: TaggableFileCache | null | undefined): string[] {
+  const out: string[] = [];
+  const push = (raw: string) => {
+    const t = normalizeTag(raw);
+    if (t) out.push(t);
+  };
+  for (const entry of cache?.tags ?? []) push(entry.tag);
+  const v = cache?.frontmatter?.tags;
+  if (typeof v === "string") {
+    for (const part of v.split(/[,\s]+/)) push(part);
+  } else if (Array.isArray(v)) {
+    for (const item of v) {
+      if (typeof item === "string") push(item);
+    }
+  }
+  return out;
+}
+
+/** How often each tag is used across the vault, for the "found in your vault" ranking. */
 export function aggregateTagsFromFileCaches(
-  files: Array<{
-    path: string;
-    cache: {
-      tags?: Array<{ tag: string }>;
-      frontmatter?: Record<string, unknown> | null;
-    } | null;
-  }>,
+  files: Array<{ path: string; cache: TaggableFileCache | null }>,
 ): Map<string, number> {
   const counts = new Map<string, number>();
-  const bump = (raw: string) => {
-    const t = normalizeTag(raw);
-    if (!t) return;
-    counts.set(t, (counts.get(t) ?? 0) + 1);
-  };
-
   for (const f of files) {
-    const cache = f.cache;
-    if (!cache) continue;
-    for (const entry of cache.tags ?? []) {
-      bump(entry.tag);
-    }
-    const fm = cache.frontmatter;
-    if (fm && "tags" in fm) {
-      const v = fm.tags;
-      if (typeof v === "string") {
-        for (const part of v.split(/[,\s]+/)) bump(part);
-      } else if (Array.isArray(v)) {
-        for (const item of v) {
-          if (typeof item === "string") bump(item);
-        }
-      }
+    for (const t of tagsForFileCache(f.cache)) {
+      counts.set(t, (counts.get(t) ?? 0) + 1);
     }
   }
   return counts;
@@ -460,7 +483,9 @@ export class ContextRun implements ContextProvider {
     if (!corpus) {
       throw new Error("[atoms] context run has ended — begin a new run to score captures");
     }
-    const ranked = rankShortlist(captureText(capture), corpus.notes, Number.POSITIVE_INFINITY);
+    // Scores against the run's standing index: only the query is tokenised here (KTD4). Zero is an
+    // absolute miss, so the same filter `rankShortlist` applies drops those before the cap.
+    const ranked = corpus.index.rank(captureText(capture)).filter((n) => n.score > 0);
 
     const seen = new Set<string>();
     const shortlist: ShortlistCandidate[] = [];
@@ -569,7 +594,6 @@ export class ContextRun implements ContextProvider {
   private expand(corpus: CandidateCorpus, shortlist: ShortlistCandidate[]): number | null {
     if (!this.expansion) return null;
 
-    const corpusPaths = new Set(corpus.notes.map((n) => n.path));
     const reached = expandFromSeeds(
       shortlist.map((c) => c.path),
       {
@@ -577,7 +601,7 @@ export class ContextRun implements ContextProvider {
         hubPaths: this.expansion.hubPaths,
         // `resolvedLinks` also points at attachments and at notes this run could not read; only a
         // note in the corpus is a link target the model can safely be offered.
-        accept: (path) => corpusPaths.has(path),
+        accept: (path) => corpus.paths.has(path),
       },
     );
 
@@ -612,6 +636,32 @@ export class ContextRun implements ContextProvider {
     this.corpus?.add(note);
   }
 
+  /**
+   * Index an atom this run just wrote, straight from the classification that produced it.
+   *
+   * The single place a write path — daily Process, chunked backfill, refresh — turns a result into
+   * a corpus entry. Three copies of this had already drifted on how they spell "no link prose", and
+   * the prose indexed here has to be the prose written to disk or a later capture is ranked against
+   * a note the vault does not contain.
+   */
+  addWrittenAtom(atom: {
+    path: string;
+    title: string;
+    /** The verbatim capture — the body BM25 scores. */
+    body: string;
+    tags?: string[] | null;
+    links?: ClassificationLink[] | null;
+  }): void {
+    const prose = formatLinkProse(atom.links ?? []);
+    this.addAtom({
+      path: atom.path,
+      title: atom.title,
+      body: atom.body,
+      tags: atom.tags ?? [],
+      links: prose ? [prose] : [],
+    });
+  }
+
   /** Release the corpus. Idempotent; scoring afterwards is a caller bug and throws. */
   end(): void {
     this.corpus = null;
@@ -634,14 +684,15 @@ export class MetadataContextProvider {
    */
   async beginRun(opts?: {
     atomFolder?: string;
-    k?: number;
+    /** Shortlist size — the same field name `ShortlistRunOptions` uses, so callers can spread it. */
+    shortlistK?: number;
     /** Graph expansion (R7). Daily filing wants it on; a catch-up must pass false — see KTD7. */
     expandGraph?: boolean;
   }): Promise<ContextRun> {
     const corpus = await buildCandidateCorpus(this.app, {
       atomFolder: opts?.atomFolder ?? "",
     });
-    const k = opts?.k ?? DEFAULT_SHORTLIST_K;
+    const k = opts?.shortlistK ?? DEFAULT_SHORTLIST_K;
     const { context, hubs } = this.buildContextAndHubs();
     const expansion = (opts?.expandGraph ?? DEFAULT_GRAPH_EXPANSION)
       ? {

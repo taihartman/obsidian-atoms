@@ -332,7 +332,7 @@ describe("MetadataContextProvider.getCandidates (U3 shortlist seam)", () => {
     );
     expect(wide.titles.length).toBeGreaterThan(1);
     const narrow = await (
-      await provider(app).beginRun({ k: 1 })
+      await provider(app).beginRun({ shortlistK: 1 })
     ).getCandidates("sleep espresso kayak");
     expect(narrow.titles).toHaveLength(1);
     expect(narrow.stats.k).toBe(1);

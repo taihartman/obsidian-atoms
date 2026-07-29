@@ -251,7 +251,7 @@ export async function runDryRun(
   // Preview reads the vault exactly like Process does, so what it shows is what Process would see.
   const run = await opts.contextProvider.beginRun({
     atomFolder: opts.atomFolder,
-    k: opts.shortlistK,
+    shortlistK: opts.shortlistK,
     expandGraph: opts.expandGraph,
   });
   const staticCtx: VaultContext = run.vaultContext;

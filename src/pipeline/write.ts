@@ -8,7 +8,6 @@ import { logShortlistDiagnostics, type MetadataContextProvider } from "./context
 import { getPastDailyNotesWithUnmarkedCaptures } from "./daily";
 import {
   applyWrite,
-  formatLinkProse,
   listAtomPaths,
   planWrite,
   type ApplyWriteResult,
@@ -125,7 +124,7 @@ export async function runWritePath(
   // One run, one vault read. Only the scoring repeats per capture (KTD4a).
   const run = await opts.contextProvider.beginRun({
     atomFolder: opts.atomFolder,
-    k: opts.shortlistK,
+    shortlistK: opts.shortlistK,
     expandGraph: opts.expandGraph,
   });
   // Tags, vocabulary and hubs are the run's, not the capture's — a shortlist never narrows them.
@@ -278,13 +277,12 @@ export async function runWritePath(
       // Make it scoreable for the captures still to come. Only newly created atoms:
       // a collision skip means the file was already in the corpus at seed time.
       if (writeResult.atomCreated) {
-        const prose = formatLinkProse(result.links ?? []);
-        run.addAtom({
+        run.addWrittenAtom({
           path: writeResult.atomCreated,
           title: result.title,
           body: capture.text,
-          tags: result.tags ?? [],
-          links: prose ? [prose] : [],
+          tags: result.tags,
+          links: result.links,
         });
       }
 

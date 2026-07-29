@@ -15,13 +15,17 @@
  */
 
 import type { App, TFile } from "obsidian";
-import { titleFromPath } from "./context";
+import {
+  aliasesForFrontmatter,
+  tagsForFileCache,
+  titleFromPath,
+  type TaggableFileCache,
+} from "./context";
 import { isLinkerGenerated } from "./atomQuality";
 import { extractLinkProseRegion } from "./parseLinkProse";
 import { bodyAfterFrontmatter, extractCaptureBody } from "./refreshAtoms";
 import { clampAtomFolder } from "./render";
-import { normalizeTag } from "./vocabulary";
-import type { ScoreableNote } from "./shortlist";
+import { Bm25Index, type ScoreableNote } from "./shortlist";
 
 /**
  * Character cap on **non-atom** bodies only.
@@ -59,6 +63,19 @@ export interface CandidateNote extends ScoreableNote {
  */
 export class CandidateCorpus {
   readonly notes: CandidateNote[] = [];
+  /**
+   * The BM25F index over `notes`, extended by `add()` so it can never disagree with them.
+   *
+   * Held here rather than rebuilt per capture: tokenising the corpus is corpus-invariant work, and
+   * a catch-up scores thousands of captures against it (KTD4).
+   */
+  readonly index = new Bm25Index<CandidateNote>();
+  /**
+   * Distinct paths in the corpus. Maintained on append because the alternative — deriving it from
+   * `notes` — is an O(corpus) rebuild every time graph expansion asks whether a reached path is a
+   * safe link target, which is once per capture.
+   */
+  readonly paths = new Set<string>();
   /** Vault reads spent seeding this corpus. One per markdown file, however many captures follow. */
   reads = 0;
   /** Files listed but not openable — Obsidian Sync placeholders, or deleted mid-run. */
@@ -70,47 +87,25 @@ export class CandidateCorpus {
    */
   add(note: CandidateNote): void {
     this.notes.push(note);
+    this.paths.add(note.path);
+    this.index.add(note);
   }
 }
 
-/** Per-file tags: inline hashtags plus `frontmatter.tags` (string or list), normalised. */
-export function tagsFromCache(
-  cache: {
-    tags?: Array<{ tag: string }>;
-    frontmatter?: Record<string, unknown> | null;
-  } | null,
-): string[] {
-  const out = new Set<string>();
-  const bump = (raw: string) => {
-    const t = normalizeTag(raw);
-    if (t) out.add(t);
-  };
-  for (const entry of cache?.tags ?? []) bump(entry.tag);
-  const v = cache?.frontmatter?.tags;
-  if (typeof v === "string") {
-    for (const part of v.split(/[,\s]+/)) bump(part);
-  } else if (Array.isArray(v)) {
-    for (const item of v) if (typeof item === "string") bump(item);
-  }
-  return [...out].sort((a, b) => a.localeCompare(b));
+/** The file's distinct tags, sorted — the shared per-file reading, deduped for the `tags` field. */
+export function tagsFromCache(cache: TaggableFileCache | null): string[] {
+  return [...new Set(tagsForFileCache(cache))].sort((a, b) => a.localeCompare(b));
 }
 
 /**
  * Every title this file can be linked by: its basename plus any frontmatter alias.
  *
- * One candidate per title, mirroring `collectLinkTargets` in `context.ts`. A person hub reachable
- * today by alias must stay reachable once a shortlist stands between the vault and the model —
- * narrowing the candidate set is how a hub silently stops being linkable.
+ * One candidate per title, on the same alias reading `collectLinkTargets` uses. A person hub
+ * reachable today by alias must stay reachable once a shortlist stands between the vault and the
+ * model — narrowing the candidate set is how a hub silently stops being linkable.
  */
 function linkTitles(path: string, frontmatter: Record<string, unknown> | null | undefined): string[] {
-  const out = new Set<string>([titleFromPath(path)]);
-  const aliases = frontmatter?.aliases;
-  if (typeof aliases === "string" && aliases.trim()) {
-    out.add(aliases.trim());
-  } else if (Array.isArray(aliases)) {
-    for (const a of aliases) if (typeof a === "string" && a.trim()) out.add(a.trim());
-  }
-  return [...out];
+  return [...new Set([titleFromPath(path), ...aliasesForFrontmatter(frontmatter)])];
 }
 
 /**
