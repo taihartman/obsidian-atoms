@@ -1,10 +1,12 @@
 import type { App, TFile } from "obsidian";
 import type { Capture, VaultContext } from "../shared/types";
+import { buildCandidateCorpus, type CandidateCorpus, type CandidateNote } from "./candidates";
 import {
   discoverPersonHubs,
   personHubTitles,
   type PersonHub,
 } from "./enrich/people";
+import { rankShortlist } from "./shortlist";
 import {
   eligibleTags,
   normalizeTag,
@@ -12,15 +14,53 @@ import {
   unionTags,
 } from "./vocabulary";
 
+/** Shortlist size when nothing configures it (KTD6). U8 wires the setting. */
+export const DEFAULT_SHORTLIST_K = 400;
+
+/** One selected note, with the score it earned against this capture. */
+export interface ShortlistCandidate {
+  /** Vault path — the identity a note is deduped by. */
+  path: string;
+  /** The title the model links by: basename, or the alias that matched. */
+  title: string;
+  score: number;
+}
+
+/** Counts only — never capture text, never titles. Safe to log (R6, U8). */
+export interface ShortlistStats {
+  /** Scoreable entries in the run's corpus (one per linkable title). */
+  corpusSize: number;
+  /** Entries that shared at least one term with the capture. */
+  matched: number;
+  /** Entries that scored an absolute zero. */
+  zeroScoring: number;
+  /** Distinct notes actually returned. */
+  returned: number;
+  k: number;
+}
+
 /**
- * Swappable shortlist seam (KTD6). v1 returns the full title/tag universe;
- * a future BM25 stage only changes this one function.
+ * A `VaultContext` whose `titles` are this capture's shortlist, in score order.
+ *
+ * Everything else — tags, vocabulary, person hubs — is the run's static context, unchanged.
+ * Hubs stay in their own field precisely so shortlisting a capture can never make one unlinkable.
+ */
+export interface ShortlistContext extends VaultContext {
+  shortlist: ShortlistCandidate[];
+  stats: ShortlistStats;
+}
+
+/**
+ * The shortlist seam (R3). Every classify path resolves its context through this one call, so
+ * retrieval can change without any caller learning how ranking works.
  */
 export interface ContextProvider {
-  getCandidates(capture: Capture | string): Promise<{
-    titles: string[];
-    tags: string[];
-  }>;
+  getCandidates(capture: Capture | string): Promise<ShortlistContext>;
+}
+
+/** Capture text, however the caller holds it. */
+function captureText(capture: Capture | string): string {
+  return typeof capture === "string" ? capture : capture.text;
 }
 
 /** Note title for linking: basename without extension. */
@@ -124,20 +164,123 @@ export function buildVaultContext(opts: {
 }
 
 /**
+ * One processing run's context: the static vault context plus the scoreable corpus, held for
+ * exactly as long as the run and no longer (KTD4/KTD4a).
+ *
+ * The run is a **separate object from the provider** on purpose. A provider that lazily cached a
+ * corpus for the plugin's lifetime would serve a second Process the first one's stale vault — the
+ * bug this seam exists to fix — and no amount of care at the call sites would make that visible.
+ * Here the corpus has nowhere to hide: it is reachable only through the handle `beginRun()` handed
+ * out, so a caller who forgets `end()` merely holds memory a little longer than needed, and the
+ * *next* run still re-reads the vault because it is a different object.
+ */
+export class ContextRun implements ContextProvider {
+  private corpus: CandidateCorpus | null;
+
+  constructor(
+    /** Tags, vocabulary and person hubs — computed once, identical for every capture in the run. */
+    private readonly staticContext: VaultContext,
+    corpus: CandidateCorpus,
+    readonly k: number,
+  ) {
+    this.corpus = corpus;
+  }
+
+  /** Scoreable entries currently in the corpus, including atoms appended mid-run. */
+  get corpusSize(): number {
+    return this.corpus?.notes.length ?? 0;
+  }
+
+  /**
+   * The top `k` notes for this capture, best first.
+   *
+   * Dedupe sits **between** ranking and the cap, not before or after: a note reachable by both its
+   * basename and an alias is two candidates in the corpus (so either spelling can match) but must
+   * occupy one shortlist slot, and deduping after slicing would silently return fewer than `k`.
+   * The surviving title is whichever spelling scored highest — the one the capture actually used.
+   */
+  async getCandidates(capture: Capture | string): Promise<ShortlistContext> {
+    const corpus = this.corpus;
+    if (!corpus) {
+      throw new Error("[atoms] context run has ended — begin a new run to score captures");
+    }
+    const ranked = rankShortlist(captureText(capture), corpus.notes, Number.POSITIVE_INFINITY);
+
+    const seen = new Set<string>();
+    const shortlist: ShortlistCandidate[] = [];
+    for (const n of ranked) {
+      if (seen.has(n.path)) continue;
+      seen.add(n.path);
+      shortlist.push({ path: n.path, title: n.title, score: n.score });
+      if (shortlist.length >= this.k) break;
+    }
+
+    return {
+      ...this.staticContext,
+      // Deliberately not re-sorted: score order is the product of this unit, and U7 exists because
+      // re-sorting alphabetically downstream throws it away.
+      titles: shortlist.map((c) => c.title),
+      shortlist,
+      stats: {
+        corpusSize: corpus.notes.length,
+        matched: ranked.length,
+        zeroScoring: corpus.notes.length - ranked.length,
+        returned: shortlist.length,
+        k: this.k,
+      },
+    };
+  }
+
+  /**
+   * Make an atom this run just wrote scoreable by the captures that follow it (KTD4a).
+   *
+   * Never re-reads the vault: the caller already holds the verbatim capture, the tags and the link
+   * prose it wrote a moment ago.
+   */
+  addAtom(atom: {
+    path: string;
+    title: string;
+    body: string;
+    tags?: string[];
+    links?: string[];
+  }): void {
+    const note: CandidateNote = {
+      path: atom.path,
+      title: atom.title,
+      body: atom.body,
+      tags: atom.tags ?? [],
+      links: atom.links ?? [],
+      isAtom: true,
+    };
+    this.corpus?.add(note);
+  }
+
+  /** Release the corpus. Idempotent; scoring afterwards is a caller bug and throws. */
+  end(): void {
+    this.corpus = null;
+  }
+}
+
+/**
  * v1 ContextProvider: every markdown title + every vault tag.
  * Reads metadataCache synchronously; no index, no embeddings.
  */
-export class MetadataContextProvider implements ContextProvider {
+export class MetadataContextProvider {
   constructor(
     private readonly app: App,
     private readonly getActiveVocabulary: () => string[],
   ) {}
 
-  async getCandidates(
-    _capture: Capture | string,
-  ): Promise<{ titles: string[]; tags: string[] }> {
-    const ctx = this.buildContext();
-    return { titles: ctx.titles, tags: ctx.tags };
+  /**
+   * Open a run: read the vault once, build the static context once, and hand back the only handle
+   * to both. The provider itself keeps nothing, which is what makes the run boundary real.
+   */
+  async beginRun(opts?: { atomFolder?: string; k?: number }): Promise<ContextRun> {
+    const corpus = await buildCandidateCorpus(this.app, {
+      atomFolder: opts?.atomFolder ?? "",
+    });
+    const k = opts?.k ?? DEFAULT_SHORTLIST_K;
+    return new ContextRun(this.buildContext(), corpus, k);
   }
 
   buildContext(): VaultContext {

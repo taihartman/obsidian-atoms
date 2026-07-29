@@ -43,8 +43,10 @@ export function tokens(s: string): string[] {
 export type ScoreField = "title" | "body" | "tags" | "links";
 
 /**
- * A candidate note, as U2 assembles it from the vault. Only `title` is required: a note whose body
- * cannot be read still deserves to be scoreable on its title alone.
+ * A candidate note, as U2 assembles it from the vault. Only `title` is required, so a note with no
+ * body — a stub, or a hub that is all links — still scores on the fields it has. A note that could
+ * not be *read* at all is a different case: U2 drops it rather than offering the model a link
+ * target that may no longer exist.
  */
 export interface ScoreableNote {
   title: string;

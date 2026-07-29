@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
+import type { App } from "obsidian";
 import {
   aggregateTagsFromFileCaches,
   buildVaultContext,
   collectLinkTargets,
   collectTitles,
+  DEFAULT_SHORTLIST_K,
+  MetadataContextProvider,
   renderStablePrefix,
   titleFromPath,
 } from "../src/pipeline/context";
@@ -218,5 +221,197 @@ describe("vocabulary (U5) + structural tags", () => {
 
   it("normalizeTag strips hash", () => {
     expect(normalizeTag("  #Idea ")).toBe("idea");
+  });
+});
+
+// --- U3: the shortlist seam ------------------------------------------------
+
+interface FakeFile {
+  path: string;
+  content: string;
+  cache?: {
+    tags?: Array<{ tag: string }>;
+    frontmatter?: Record<string, unknown> | null;
+  } | null;
+}
+
+/** Vault double that counts reads — the once-per-run contract is measured, not assumed. */
+function fakeApp(files: FakeFile[]): { app: App; reads: () => number } {
+  let reads = 0;
+  const byPath = new Map(files.map((f) => [f.path, f]));
+  const app = {
+    vault: {
+      getMarkdownFiles: () => files.map((f) => ({ path: f.path })),
+      cachedRead: async (file: { path: string }) => {
+        reads += 1;
+        return byPath.get(file.path)?.content ?? "";
+      },
+    },
+    metadataCache: {
+      getFileCache: (file: { path: string }) => byPath.get(file.path)?.cache ?? null,
+    },
+  };
+  return { app: app as unknown as App, reads: () => reads };
+}
+
+const fakeAtom = (title: string, capture: string, prose = ""): FakeFile => ({
+  path: `Atoms/${title}.md`,
+  content: `---
+created: 2026-07-01T10:00:00
+generated-by: linker
+tags:
+  - idea
+---
+${capture}${prose ? `\n\n${prose}` : ""}
+`,
+  cache: { frontmatter: { tags: ["idea"] } },
+});
+
+const SLEEP = fakeAtom(
+  "Sleep debt compounds",
+  "Sleep debt compounds across the week and wrecks my focus by Thursday",
+);
+const ESPRESSO = fakeAtom(
+  "Espresso grind size",
+  "Grinding the espresso finer pulled a sweeter shot this morning",
+);
+const KAYAK = fakeAtom(
+  "Kayak trip planning",
+  "Planning a kayak trip down the river next spring",
+);
+const ALEX: FakeFile = {
+  path: "People/Alex.md",
+  content: `---
+tags:
+  - person
+aliases:
+  - Al
+---
+Alex paddles a kayak most weekends.
+`,
+  cache: { frontmatter: { tags: ["person"], aliases: ["Al"] } },
+};
+
+const vault = () => fakeApp([SLEEP, ESPRESSO, KAYAK, ALEX]);
+const provider = (app: App) => new MetadataContextProvider(app, () => ["idea"]);
+
+describe("MetadataContextProvider.getCandidates (U3 shortlist seam)", () => {
+  it("scores the argument: two captures get different shortlists", async () => {
+    const { app } = vault();
+    const run = await provider(app).beginRun();
+    const sleep = await run.getCandidates("sleep debt wrecked my focus");
+    const coffee = await run.getCandidates("espresso tasted sweeter today");
+    expect(sleep.titles[0]).toBe("Sleep debt compounds");
+    expect(coffee.titles[0]).toBe("Espresso grind size");
+    expect(sleep.titles).not.toEqual(coffee.titles);
+  });
+
+  it("caps at k and honours a configured non-default k", async () => {
+    const { app } = vault();
+    expect(DEFAULT_SHORTLIST_K).toBe(400);
+    const wide = await (await provider(app).beginRun()).getCandidates(
+      "sleep espresso kayak",
+    );
+    expect(wide.titles.length).toBeGreaterThan(1);
+    const narrow = await (
+      await provider(app).beginRun({ k: 1 })
+    ).getCandidates("sleep espresso kayak");
+    expect(narrow.titles).toHaveLength(1);
+    expect(narrow.stats.k).toBe(1);
+  });
+
+  it("a capture matching nothing yields an empty shortlist, not a throw", async () => {
+    const { app } = vault();
+    const run = await provider(app).beginRun();
+    const ctx = await run.getCandidates("zzzz qqqq vvvv");
+    expect(ctx.titles).toEqual([]);
+    expect(ctx.shortlist).toEqual([]);
+    // The rest of the context survives — tags and vocabulary are not shortlisted.
+    expect(ctx.vocabulary).toContain("idea");
+  });
+
+  it("keeps person hubs linkable — hub list intact, alias reachable", async () => {
+    const { app } = vault();
+    const run = await provider(app).beginRun();
+    const ctx = await run.getCandidates("Al is paddling this weekend");
+    expect(ctx.personHubs).toContain("Alex");
+    expect(ctx.titles).toContain("Al");
+  });
+
+  it("dedupes by path so one note never occupies two slots", async () => {
+    const { app } = vault();
+    const run = await provider(app).beginRun();
+    const ctx = await run.getCandidates("Alex Al kayak weekends paddling");
+    const alexSlots = ctx.shortlist.filter((c) => c.path === "People/Alex.md");
+    expect(alexSlots).toHaveLength(1);
+  });
+
+  it("orders by score descending, not alphabetically", async () => {
+    const { app } = vault();
+    const run = await provider(app).beginRun();
+    const ctx = await run.getCandidates(
+      "sleep debt wrecked my focus during the kayak trip",
+    );
+    expect(ctx.titles.length).toBeGreaterThan(1);
+    const scores = ctx.shortlist.map((c) => c.score);
+    expect([...scores].sort((a, b) => b - a)).toEqual(scores);
+    expect(ctx.titles).not.toEqual(
+      [...ctx.titles].sort((a, b) => a.localeCompare(b)),
+    );
+  });
+
+  it("seeds the corpus once per run, however many captures follow", async () => {
+    const { app, reads } = vault();
+    const run = await provider(app).beginRun();
+    await run.getCandidates("sleep");
+    await run.getCandidates("espresso");
+    await run.getCandidates("kayak");
+    expect(reads()).toBe(4); // one per markdown file, not per capture
+  });
+
+  it("an atom appended mid-run is scoreable by a later capture", async () => {
+    const { app } = vault();
+    const run = await provider(app).beginRun();
+    const before = await run.getCandidates("tandem bicycle brake cable");
+    expect(before.titles).not.toContain("Tandem brake cable");
+
+    run.addAtom({
+      path: "Atoms/Tandem brake cable.md",
+      title: "Tandem brake cable",
+      body: "The tandem bicycle brake cable frayed on the descent",
+      tags: ["idea"],
+    });
+
+    const after = await run.getCandidates("tandem bicycle brake cable");
+    expect(after.titles).toContain("Tandem brake cable");
+  });
+
+  it("a new run re-seeds rather than reusing the previous run's corpus", async () => {
+    const { app } = vault();
+    const p = provider(app);
+    const first = await p.beginRun();
+    first.addAtom({
+      path: "Atoms/Tandem brake cable.md",
+      title: "Tandem brake cable",
+      body: "The tandem bicycle brake cable frayed on the descent",
+    });
+    expect((await first.getCandidates("tandem brake cable")).titles).toContain(
+      "Tandem brake cable",
+    );
+    first.end();
+
+    // The vault double never gained that file, so a re-seeded run cannot see it.
+    const second = await p.beginRun();
+    expect(
+      (await second.getCandidates("tandem brake cable")).titles,
+    ).not.toContain("Tandem brake cable");
+  });
+
+  it("an ended run refuses further scoring instead of serving a stale corpus", async () => {
+    const { app } = vault();
+    const run = await provider(app).beginRun();
+    run.end();
+    run.end(); // idempotent
+    await expect(run.getCandidates("sleep debt")).rejects.toThrow(/ended/i);
   });
 });
