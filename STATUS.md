@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| In progress | #182 | taihartman | `fix/csp-allow-web-analytics` | — (amend lane) | `www/src/_headers`, `www/src/privacy.html.tmpl`, `test/wwwPricing.test.ts`, `docs/plans/2026-07-28-001-feat-tryatoms-landing-page-plan.md`, `docs/security/2026-07-28-public-repo-fanout-review.md` | Widen CSP for Cloudflare Web Analytics + correct the "no analytics" claims. **Preview deploys only**, draft PR only. Privacy wording pending owner sign-off. |
+| _(nothing in flight)_ | | | | | | |
 
 ## How to claim (copy)
 
@@ -23,11 +23,11 @@ States: `Queued` · `In progress` · `Blocked` · `In review` · `Done` (then re
 
 | Merged | Issue / PR | Summary |
 |---|---|---|
+| 2026-07-29 | #184 | Capture Shortcut link refreshed + renamed **Capture Atom** everywhere · **0.6.51** |
+| 2026-07-29 | #182 / #183 | Cloudflare Web Analytics through the tryatoms.app CSP + corrected privacy claims |
+| 2026-07-28 | #181 | Verified iOS Shortcut link + the recipe that actually works · 0.6.50 (shipped in 0.6.51) |
+| 2026-07-28 | #56 / #167 | iOS capture inbox + drain into dailies · **0.6.49** |
 | 2026-07-28 | #174 / #175 | Community review lint (styles, confirm, types) · **0.6.47** |
-| 2026-07-28 | #172 / #173 | Ask mirror hub sync triggers + MCP `synced_at` · **0.6.46** |
-| 2026-07-28 | #169 / #170 | CI-built releases + artifact attestations · **0.6.45** |
-| 2026-07-28 | #163 / #164 | Plus auth criticals (soft-start fixation, idempotency tenant scope, exchange XSS, body cap) — Fly already deployed |
-| 2026-07-28 | #154 / #157 | Hub projection — managed generated block on person hubs · **0.6.44** |
 | 2026-07-28 | #115 | Plus public launch ops — tryatoms domain, Resend, Stripe **live** on Fly |
 | 2026-07-28 | #150 / #152 | Ask MCP unmisreadable shapes (revision status, snippet authority, scope) |
 | 2026-07-27 | #120 / #146 | DIY Ask self-host guide (`docs/ask-self-host.md`) |
