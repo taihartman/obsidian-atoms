@@ -6,6 +6,7 @@ artifact_contract: ce-unified-plan/v1
 artifact_readiness: implementation-ready
 product_contract_source: ce-plan-bootstrap
 execution: code
+issue: 188
 related:
   - 112
   - 119
@@ -13,6 +14,7 @@ related:
   - docs/plans/2026-07-27-006-feat-ask-chatgpt-mcp-plan.md
   - docs/research/mcp-2026-07-28-dual-protocol.md
 doc_review: 2026-07-28
+doc_review_pass: 2
 ---
 
 # Ask MCP — 2026-07-28 dual-era protocol + Claude connectors directory
@@ -39,9 +41,8 @@ doc_review: 2026-07-28
 - **Not** in Bar A: MCP Apps, MRTR product, Tasks, dropping DCR, `legacy: 'reject'`, U5 logging, directory portal approval.
 
 **Bar B — directory (pack + submit track):**
-- Pack complete; live Inspector + Claude exercise of every **listed** tool with evidence; privacy/docs content checklist; portal submit.
+- Pack complete; KTD15 done (write scope/consent + reviewer-completable apply); live Inspector + Claude exercise of **every** tool including write→applied→fetch; privacy/docs checklist; portal submit.
 - Exit: **Approved**, or **Rejected with remediation owner**, or **Blocked** on named external prerequisites (org role, privacy URL, icon) — not “submit attempted” alone.
-- First-class blocker classes: review rejection of write-via-outbox model; OAuth scope honesty if write tools stay listed under `atoms:read` only.
 
 ---
 
@@ -130,7 +131,7 @@ Claude is rolling out MCP 2026-07-28 support. A legacy-only server will eventual
 - `legacy: 'reject'` after traffic proves modern-only
 - DCR removal after ≥12-month deprecation window + CIMD-only traffic; DCR client GC / table cap
 - Per-tool rate limits / Plus MCP usage dashboard
-- Scope split `atoms:write` for outbox tools — **unless** Bar B lists write tools (then scope split or omit writes from listing is a Bar B gate, not deferred)
+- (none for write scope — KTD15 pulls scope/consent match + reviewer apply path into Bar B, not deferred)
 
 ---
 
@@ -166,7 +167,7 @@ Bootstrap plan (no prior requirements-only artifact). Session-settled scope: pro
 | KTD12 | Per-request tenant: after Bearer gate set `req.auth` / fetch `authInfo` with `extra.email` so factory/tools see it; **fail closed** if email missing; no module-scope email close-over | `toNodeHandler` only forwards `req.auth` unless fetch options pass `authInfo` |
 | KTD13 | Authenticated `/mcp` HTTP responses: `Cache-Control: private, no-store` (or equivalent) even when MCP `cacheScope` is `public` | MCP public ≠ HTTP public on Bearer responses |
 | KTD14 | Bar A release train = **U2+U3+U4** same artifact; no production dual-era deploy without U4 schemes assert | ChatGPT shares `/mcp`; private wrap dies on v2 |
-| KTD15 | Bar B write tools: either (a) `atoms:write`/outbox scope + consent match, (b) omit write tools from directory-facing catalog, or (c) reviewer-completable apply path — do not list write tools under read-only OAuth chrome | Directory scale amplifies scope underclaim |
+| KTD15 | **Write tools stay in the directory listing** (session-settled: user-directed — chosen over omit-writes / defer-Bar-B: product needs create/continue in Ask). Bar B therefore **must** ship both: (1) OAuth/consent/schemes that name write/outbox (not `atoms:read`-only chrome on write tools), and (2) a **reviewer-completable** path so `create_atom`/`continue_atom` can reach a successful applied+fetchable outcome during directory review (human vault window and/or test harness that applies outbox + mirrors) | Directory scale + Anthropic functional review; underclaim + permanent-pending both fail review |
 
 ### High-level technical design
 
@@ -209,7 +210,8 @@ sequenceDiagram
 3. U2 + U3 + U4 as **one Bar A release train** (parallelize after spike; single Fly deploy)  
 4. Post-deploy AE5a + AE9; rollback path ready  
 5. U5 optional anytime after train  
-6. U6 Bar B only after Bar A stable; write-tool strategy (KTD15) decided before submit  
+6. U6 write scope/consent (Bar B code) after Bar A stable  
+7. U7 directory pack + reviewer apply path + submit (Bar B ops)
 
 ### Risks
 
@@ -392,13 +394,46 @@ sequenceDiagram
 
 ---
 
-### U6. Claude connectors directory pack + dogfood + submit (Bar B)
+### U6. Write scope + consent honesty for directory (Bar B)
+
+**Goal.** OAuth and tool schemes stop advertising write tools as `atoms:read`-only so directory listing can include create/continue honestly (KTD15 part 1).
+
+**Requirements.** KTD15, R7  
+
+**Dependencies.** Bar A stable (U1–U4); can parallel U7 pack prep  
+
+**Files.**
+- `plus-service/src/oauth/constants.mjs` (scopes)
+- `plus-service/src/oauth/routes.mjs` / `html.mjs` / `metadata.mjs` (consent + metadata scopes)
+- `plus-service/src/mcp/handler.mjs` / `tools.mjs` (per-tool schemes; write tools require write/outbox scope)
+- `plus-service/src/store/*` mcp token scope storage if needed
+- `plus-service/test/http-ask-oauth.test.mjs` + write-path tests
+- Settings/privacy copy if consent strings surface in plugin
+
+**Approach.**
+- Add scope (name at implement: prefer `atoms:write` or `atoms:outbox` — one clear write/outbox grant).
+- Token mint + refresh preserve scopes; consent checkbox/copy lists search/fetch **and** queue new atoms.
+- tools/list / securitySchemes: read tools → read scope; write tools → write scope (fail closed if token lacks write).
+- Existing Plus users: on next consent or refresh path, ensure directory connect can request both scopes (document re-consent if required).
+- Do not change outbox vault semantics (R8).
+
+**Test scenarios.**
+- Read-only token: search OK; create_atom rejected with clear error.
+- Read+write token: create_atom enqueues; schemes on list match.
+- Consent/metadata advertise both scopes.
+- ChatGPT schemes structural assert still green.
+
+**Verification.** CI green; dogfood OAuth shows write grant before U7 submit.
+
+---
+
+### U7. Claude connectors directory pack + dogfood + submit (Bar B)
 
 **Goal.** In-repo submission pack + real dogfood evidence; portal submission when org access allows. Does **not** block Bar A protocol deploy.
 
 **Requirements.** R7, AE5b, F4, KTD15  
 
-**Dependencies.** Bar A stable (U1–U4 deployed + AE5a + AE9); U5 optional  
+**Dependencies.** Bar A stable (U1–U4 deployed + AE5a + AE9); **U6** write scope live; U5 optional  
 
 **Files.**
 - `docs/runbooks/atoms-ask-connectors-directory.md` (create)
@@ -408,12 +443,12 @@ sequenceDiagram
 - Branding asset; live privacy/docs URLs verified
 
 **Approach.**
-- **Decide KTD15 before submit:** scope split for write tools, omit writes from listed catalog, or reviewer-completable outbox-apply path (human vault window or harness that mirrors applied atom for `fetch_atom`). Read-only-only review = write tools not in submitted catalog.
-- Pack checklist: HTTPS, OAuth CIMD preferred, tool sync, listing copy, privacy/docs content vs Directory Policy, support, icon, test-account steps, compliance acks.
-- Listing copy MUST: mirror-not-vault; write semantics honest; model I/O disclosure. No real secrets in-repo.
-- Pre-submit: Inspector + Claude exercise **every listed** tool with recorded success; CIMD path proof (connect without DCR POST if possible); authorize/register RL hard check under load note.
-- Exit tracking until Approved / Rejected+remediation / external Blocked — not “attempted.”
-- Product dogfood honesty on test vault.
+- Depends on **U6** for scope/consent honesty (already live).
+- **Reviewer-completable apply (KTD15 part 2):** test-account runbook with scheduled human vault operator **or** harness that claims outbox → applies → mirror upsert so `fetch_atom` succeeds in-session. Permanent-pending alone ≠ tool success.
+- Pack checklist: HTTPS, OAuth CIMD, tool sync, listing (reads **and** writes), privacy/docs, support, icon, test-account steps including write apply window, compliance acks.
+- Listing copy: mirror-not-vault; write = queue until vault applies; model I/O disclosure. No secrets in-repo.
+- Pre-submit: every tool including write→applied→fetch; CIMD path proof; register RL check.
+- Exit until Approved / Rejected+remediation / external Blocked.
 
 **Test expectation:** none automated for portal — manual QA + runbook.
 
@@ -432,7 +467,8 @@ sequenceDiagram
 | AE5a | Claude + ChatGPT custom connectors post-deploy | A |
 | AE9 | Public HTTPS modern header probe on `plus.tryatoms.app/mcp` | A |
 | Ops log (optional) | method/tool only; no Authorization/args | U5 |
-| Directory | Pack + AE5b + KTD15 decision + exit state | B |
+| Write scope | U6 CI + dogfood OAuth shows write grant | B |
+| Directory | U7 pack + AE5b + reviewer write→applied→fetch + exit state | B |
 
 Plugin tests only if Settings change.
 
@@ -449,8 +485,8 @@ Plugin tests only if Settings change.
 - [ ] STATUS/claim/PR process followed
 
 **Bar B (directory)**
-- [ ] KTD15 write-tool strategy decided and implemented for listing
-- [ ] AE5b evidence; U6 runbook complete
+- [ ] U6 write scope/consent/schemes live
+- [ ] U7 pack + reviewer write→applied→fetch path; AE5b evidence
 - [ ] Portal **Approved** / **Rejected+remediation** / **Blocked** (named) — not bare “attempted”
 - [ ] Evidence linked from PR / issue
 

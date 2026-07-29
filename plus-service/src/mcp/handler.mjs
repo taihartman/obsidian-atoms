@@ -1,12 +1,73 @@
 /**
- * Streamable HTTP /mcp — KTD20 per-request SDK transport.
+ * Streamable HTTP /mcp — dual-era:
+ * - Legacy (initialize / no modern envelope): WebStandardStreamableHTTP +
+ *   enableJsonResponse, Accept widened so Claude's application/json-only works.
+ * - Modern 2026-07-28: createMcpHandler(legacy: 'reject', responseMode: 'json').
  */
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import {
+  createMcpHandler,
+  isLegacyRequest,
+  McpServer,
+  WebStandardStreamableHTTPServerTransport,
+} from "@modelcontextprotocol/server";
+import { toNodeHandler, toWebRequest } from "@modelcontextprotocol/node";
 import { ASK_MCP_INSTRUCTIONS } from "./instructions.mjs";
 import { registerAskTools } from "./tools.mjs";
 
 const PRM_PATH = "/.well-known/oauth-protected-resource";
+
+const CACHE_HINTS = {
+  "tools/list": { ttlMs: 300_000, cacheScope: "public" },
+  "server/discover": { ttlMs: 300_000, cacheScope: "public" },
+};
+
+/** @type {import('@modelcontextprotocol/server').McpHttpHandler | null} */
+let modernHttp = null;
+/** @type {ReturnType<typeof toNodeHandler> | null} */
+let modernNode = null;
+/** @type {object | null} */
+let boundStore = null;
+
+/**
+ * @param {object} store
+ * @param {string} email
+ */
+function buildServer(store, email) {
+  const mcp = new McpServer(
+    { name: "atoms-ask", version: "0.2.0" },
+    {
+      instructions: ASK_MCP_INSTRUCTIONS,
+      cacheHints: CACHE_HINTS,
+    },
+  );
+  if (email) {
+    registerAskTools(mcp, { email, store });
+    injectToolSecuritySchemes(mcp);
+  }
+  return mcp;
+}
+
+/**
+ * @param {object} store
+ */
+function ensureModern(store) {
+  if (modernHttp && boundStore === store && modernNode) return;
+  boundStore = store;
+  modernHttp = createMcpHandler(
+    (ctx) => {
+      const email =
+        ctx.authInfo?.extra && typeof ctx.authInfo.extra.email === "string"
+          ? ctx.authInfo.extra.email
+          : "";
+      return buildServer(store, email);
+    },
+    {
+      legacy: "reject",
+      responseMode: "json",
+    },
+  );
+  modernNode = toNodeHandler(modernHttp);
+}
 
 /**
  * @param {import('node:http').IncomingMessage} req
@@ -21,13 +82,17 @@ export async function handleMcpRequest(req, res, opts) {
     res.writeHead(405, {
       allow: "POST, OPTIONS",
       "content-type": "application/json",
+      "cache-control": "private, no-store",
     });
     res.end(JSON.stringify({ message: "Method not allowed" }));
     return;
   }
 
   if (req.method !== "POST") {
-    res.writeHead(405, { "content-type": "application/json" });
+    res.writeHead(405, {
+      "content-type": "application/json",
+      "cache-control": "private, no-store",
+    });
     res.end(JSON.stringify({ message: "Method not allowed" }));
     return;
   }
@@ -37,25 +102,13 @@ export async function handleMcpRequest(req, res, opts) {
   const token = m ? m[1] : "";
 
   if (!token || token.startsWith("sess_")) {
-    const prm = `${publicBaseUrl.replace(/\/$/, "")}${PRM_PATH}`;
-    res.writeHead(401, {
-      "content-type": "application/json",
-      "www-authenticate": `Bearer resource_metadata="${prm}", scope="atoms:read"`,
-      "access-control-allow-origin": "*",
-    });
-    res.end(JSON.stringify({ message: "Unauthorized" }));
+    writeUnauthorized(res, publicBaseUrl);
     return;
   }
 
   const account = await store.accountFromMcpToken(token);
   if (!account) {
-    const prm = `${publicBaseUrl.replace(/\/$/, "")}${PRM_PATH}`;
-    res.writeHead(401, {
-      "content-type": "application/json",
-      "www-authenticate": `Bearer resource_metadata="${prm}", scope="atoms:read"`,
-      "access-control-allow-origin": "*",
-    });
-    res.end(JSON.stringify({ message: "Unauthorized" }));
+    writeUnauthorized(res, publicBaseUrl);
     return;
   }
 
@@ -64,36 +117,140 @@ export async function handleMcpRequest(req, res, opts) {
     const raw = await readRawBody(req);
     parsedBody = raw ? JSON.parse(raw) : {};
   } catch {
-    res.writeHead(400, { "content-type": "application/json" });
+    res.writeHead(400, {
+      "content-type": "application/json",
+      "cache-control": "private, no-store",
+    });
     res.end(JSON.stringify({ message: "invalid json" }));
     return;
   }
 
-  const mcp = new McpServer(
-    { name: "atoms-ask", version: "0.1.0" },
-    { instructions: ASK_MCP_INSTRUCTIONS },
-  );
-  registerAskTools(mcp, { email: account.email, store });
-  // ChatGPT OAuth UI: top-level securitySchemes on tools/list (OpenAI plugin auth).
-  // Stock MCP SDK only serializes _meta; wrap list handler to inject schemes.
-  injectToolSecuritySchemes(mcp);
+  /** @type {import('@modelcontextprotocol/server').AuthInfo} */
+  const authInfo = {
+    token,
+    clientId: "atoms-mcp",
+    scopes: ["atoms:read"],
+    resource: new URL(resource),
+    extra: { email: account.email },
+  };
 
-  const transport = new StreamableHTTPServerTransport({
+  /** @type {any} */
+  const reqAny = req;
+  reqAny.auth = authInfo;
+
+  res.setHeader("cache-control", "private, no-store");
+
+  const webReq = await toWebRequest(req, parsedBody);
+  const legacy = await isLegacyRequest(webReq, parsedBody);
+
+  if (legacy) {
+    await handleLegacyJson(req, res, parsedBody, store, account.email, authInfo);
+    return;
+  }
+
+  ensureModern(store);
+  await modernNode(req, res, parsedBody);
+}
+
+/**
+ * Legacy Claude/ChatGPT path: pure JSON even when Accept is application/json only.
+ * Node adapter's getRequestListener ignores Accept mutations — use Web Standard
+ * transport with an explicit Request that includes text/event-stream.
+ *
+ * @param {import('node:http').IncomingMessage} req
+ * @param {import('node:http').ServerResponse} res
+ * @param {unknown} parsedBody
+ * @param {object} store
+ * @param {string} email
+ * @param {import('@modelcontextprotocol/server').AuthInfo} authInfo
+ */
+async function handleLegacyJson(req, res, parsedBody, store, email, authInfo) {
+  const mcp = buildServer(store, email);
+  const transport = new WebStandardStreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
     enableJsonResponse: true,
   });
-
   await mcp.connect(transport);
-  await transport.handleRequest(req, res, parsedBody);
+
+  const host = req.headers.host || "localhost";
+  const url = `http://${host}${req.url || "/mcp"}`;
+  const headers = new Headers();
+  for (const [k, v] of Object.entries(req.headers)) {
+    if (v == null || k === "host") continue;
+    if (Array.isArray(v)) {
+      for (const item of v) headers.append(k, item);
+    } else {
+      headers.set(k, v);
+    }
+  }
+  // SDK requires both media types in Accept even when enableJsonResponse is true.
+  const accept = headers.get("accept") || "";
+  if (!accept.includes("text/event-stream")) {
+    headers.set(
+      "accept",
+      accept
+        ? `${accept}, application/json, text/event-stream`
+        : "application/json, text/event-stream",
+    );
+  }
+  if (!headers.has("content-type")) {
+    headers.set("content-type", "application/json");
+  }
+
+  const webReq = new Request(url, {
+    method: "POST",
+    headers,
+    // body unused when parsedBody is provided
+  });
+
+  const webRes = await transport.handleRequest(webReq, {
+    authInfo,
+    parsedBody,
+  });
+  await writeWebResponse(res, webRes);
+}
+
+/**
+ * @param {import('node:http').ServerResponse} res
+ * @param {Response} webRes
+ */
+async function writeWebResponse(res, webRes) {
+  res.statusCode = webRes.status;
+  webRes.headers.forEach((value, key) => {
+    // skip hop-by-hop / content-length (set by end)
+    if (key.toLowerCase() === "transfer-encoding") return;
+    res.setHeader(key, value);
+  });
+  if (!res.getHeader("cache-control")) {
+    res.setHeader("cache-control", "private, no-store");
+  }
+  const buf = Buffer.from(await webRes.arrayBuffer());
+  res.end(buf);
+}
+
+/**
+ * @param {import('node:http').ServerResponse} res
+ * @param {string} publicBaseUrl
+ */
+function writeUnauthorized(res, publicBaseUrl) {
+  const prm = `${publicBaseUrl.replace(/\/$/, "")}${PRM_PATH}`;
+  res.writeHead(401, {
+    "content-type": "application/json",
+    "www-authenticate": `Bearer resource_metadata="${prm}", scope="atoms:read"`,
+    "access-control-allow-origin": "*",
+    "cache-control": "private, no-store",
+  });
+  res.end(JSON.stringify({ message: "Unauthorized" }));
 }
 
 const OAUTH2_SCHEMES = [{ type: "oauth2", scopes: ["atoms:read"] }];
 
 /**
- * @param {import('@modelcontextprotocol/sdk/server/mcp.js').McpServer} mcp
+ * @param {import('@modelcontextprotocol/server').McpServer} mcp
  */
 function injectToolSecuritySchemes(mcp) {
   const server = mcp.server;
+  if (!server) return;
   const handlers = server._requestHandlers;
   if (!handlers || typeof handlers.get !== "function") return;
   const method = "tools/list";

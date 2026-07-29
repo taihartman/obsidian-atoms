@@ -14,7 +14,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { createStore } from "../src/store.mjs";
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { McpServer } from "@modelcontextprotocol/server";
 import { registerAskTools } from "../src/mcp/tools.mjs";
 import { ASK_MCP_INSTRUCTIONS } from "../src/mcp/instructions.mjs";
 import { spawn } from "node:child_process";

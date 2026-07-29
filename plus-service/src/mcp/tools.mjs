@@ -27,7 +27,7 @@ function jsonTool(obj, isError = false) {
 }
 
 /**
- * @param {import('@modelcontextprotocol/sdk/server/mcp.js').McpServer} mcp
+ * @param {import('@modelcontextprotocol/server').McpServer} mcp
  * @param {{ email: string, store: object }} ctx
  */
 export function registerAskTools(mcp, ctx) {
@@ -40,8 +40,10 @@ export function registerAskTools(mcp, ctx) {
   mcp.registerTool(
     "search_atoms",
     {
+      title: "Search atoms",
       description:
         "Search mirrored atoms by title, tags, and body. Higher score = better match. Optional tags filter (all must match). Snippets are truncated and non-authoritative—use fetch_atom before claiming what a note contains. Results include status (live|superseded|contradicted).",
+      annotations: { readOnlyHint: true, destructiveHint: false },
       inputSchema: {
         query: z.string().describe("Search query"),
         limit: z.number().int().min(1).max(25).optional(),
@@ -103,6 +105,8 @@ export function registerAskTools(mcp, ctx) {
   mcp.registerTool(
     "fetch_atom",
     {
+      title: "Fetch atom",
+      annotations: { readOnlyHint: true, destructiveHint: false },
       description:
         "Fetch one mirrored note by title or path (atoms under Atoms/ and hub notes linked from atoms). Returns verbatim body (authoritative), tags, kind (atom|hub), synced_at (when this row was last pushed to the cloud mirror), status (live|superseded|contradicted), inverse revision edges, and structured links. Hubs set revision_participant:false.",
       inputSchema: {
@@ -166,6 +170,8 @@ export function registerAskTools(mcp, ctx) {
   mcp.registerTool(
     "neighbors",
     {
+      title: "Neighbors",
+      annotations: { readOnlyHint: true, destructiveHint: false },
       description:
         "Graph around a title: outgoing [[links]] from that atom (if mirrored) plus backlinks (other mirrored atoms that link to this name). Includes status on the center (when found) and on each backlink. Works even when the hub note is not in Atoms/.",
       inputSchema: {
@@ -207,6 +213,8 @@ export function registerAskTools(mcp, ctx) {
   mcp.registerTool(
     "create_atom",
     {
+      title: "Create atom",
+      annotations: { readOnlyHint: false, destructiveHint: true },
       description:
         "Queue a new atom for the user's vault (outbox). Does NOT write instantly—status stays pending until Obsidian applies it. Prefer user-dictated body text; do not invent facts.",
       inputSchema: {
@@ -270,6 +278,8 @@ export function registerAskTools(mcp, ctx) {
   mcp.registerTool(
     "continue_atom",
     {
+      title: "Continue atom",
+      annotations: { readOnlyHint: false, destructiveHint: true },
       description:
         "Queue a NEW child atom that continues/revises/contradicts a parent (parent body never modified). Parent must exist in the Ask mirror. Pending until Obsidian applies.",
       inputSchema: {
@@ -380,6 +390,8 @@ export function registerAskTools(mcp, ctx) {
   mcp.registerTool(
     "cancel_pending",
     {
+      title: "Cancel pending write",
+      annotations: { readOnlyHint: false, destructiveHint: true },
       description:
         "Cancel a pending or claimed outbox write before Obsidian applies it. Cannot undo applied atoms.",
       inputSchema: {
@@ -416,6 +428,8 @@ export function registerAskTools(mcp, ctx) {
   mcp.registerTool(
     "list_atoms",
     {
+      title: "List atoms",
+      annotations: { readOnlyHint: true, destructiveHint: false },
       description:
         "List mirrored atoms (title, path, tags, synced_at) with offset pagination. Includes server_count and last_synced_at for staleness. Use to enumerate the full mirror beyond search_atoms limit 25.",
       inputSchema: {
