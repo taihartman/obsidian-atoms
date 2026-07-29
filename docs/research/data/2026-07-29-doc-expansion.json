@@ -1,0 +1,119 @@
+{
+  "atoms": 576,
+  "goldLinks": 811,
+  "ks": [
+    40,
+    100,
+    400
+  ],
+  "rows": [
+    {
+      "config": "titleOnly",
+      "label": "title only",
+      "weights": {
+        "title": 1,
+        "body": 0,
+        "links": 0
+      },
+      "recall": {
+        "40": 0.523,
+        "100": 0.6,
+        "400": 0.654
+      },
+      "zeroScore": 319,
+      "medianRank": 6,
+      "won": 4,
+      "lost": 113
+    },
+    {
+      "config": "bodyTitle",
+      "label": "body + title (today's best)",
+      "weights": {
+        "title": 1,
+        "body": 1,
+        "links": 0
+      },
+      "recall": {
+        "40": 0.641,
+        "100": 0.725,
+        "400": 0.788
+      },
+      "zeroScore": 190,
+      "medianRank": 5,
+      "won": 0,
+      "lost": 0
+    },
+    {
+      "config": "plusLinks",
+      "label": "+ link prose",
+      "weights": {
+        "title": 1,
+        "body": 1,
+        "links": 1
+      },
+      "recall": {
+        "40": 0.666,
+        "100": 0.741,
+        "400": 0.808
+      },
+      "zeroScore": 169,
+      "medianRank": 5,
+      "won": 16,
+      "lost": 0
+    },
+    {
+      "config": "linksHeavy",
+      "label": "+ link prose ×3",
+      "weights": {
+        "title": 1,
+        "body": 1,
+        "links": 3
+      },
+      "recall": {
+        "40": 0.689,
+        "100": 0.756,
+        "400": 0.808
+      },
+      "zeroScore": 169,
+      "medianRank": 4,
+      "won": 16,
+      "lost": 0
+    },
+    {
+      "config": "bm25f",
+      "label": "BM25F title×2 body×1 links×2",
+      "weights": {
+        "title": 2,
+        "body": 1,
+        "links": 2
+      },
+      "recall": {
+        "40": 0.67,
+        "100": 0.747,
+        "400": 0.808
+      },
+      "zeroScore": 169,
+      "medianRank": 5,
+      "won": 16,
+      "lost": 0
+    },
+    {
+      "config": "linksOnly",
+      "label": "link prose only",
+      "weights": {
+        "title": 0,
+        "body": 0,
+        "links": 1
+      },
+      "recall": {
+        "40": 0.429,
+        "100": 0.434,
+        "400": 0.567
+      },
+      "zeroScore": 459,
+      "medianRank": 4,
+      "won": 34,
+      "lost": 213
+    }
+  ]
+}
