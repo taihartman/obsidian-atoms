@@ -327,4 +327,52 @@ describe("MCP modern era 2026-07-28", () => {
     const body = await parseMcpBody(init);
     assert.ok(body.result || body.protocolVersion || body.serverInfo || body.result?.protocolVersion);
   });
+
+  it("legacy Accept: application/json only (Claude-style) — not 406", async () => {
+    const access = await mintMcpTokenAndSeed();
+    const init = await fetch(`${BASE}/mcp`, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${access}`,
+        "content-type": "application/json",
+        accept: "application/json",
+      },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "initialize",
+        params: {
+          protocolVersion: "2025-03-26",
+          capabilities: {},
+          clientInfo: { name: "claude-json-only", version: "0" },
+        },
+      }),
+    });
+    assert.notEqual(init.status, 406, await init.clone().text());
+    assert.equal(init.status, 200, await init.clone().text());
+    const ct = init.headers.get("content-type") || "";
+    assert.match(ct, /application\/json/);
+    const body = await init.json();
+    assert.ok(body.result?.protocolVersion || body.result?.serverInfo);
+
+    const list = await fetch(`${BASE}/mcp`, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${access}`,
+        "content-type": "application/json",
+        accept: "application/json",
+      },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 2,
+        method: "tools/list",
+        params: {},
+      }),
+    });
+    assert.equal(list.status, 200, await list.clone().text());
+    const listBody = await list.json();
+    const tools = listBody.result?.tools || [];
+    assert.ok(tools.length >= 5, JSON.stringify(listBody).slice(0, 300));
+    assert.ok(tools.some((t) => t.name === "search_atoms"));
+  });
 });

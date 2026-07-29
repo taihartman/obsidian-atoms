@@ -1,8 +1,16 @@
 /**
- * Streamable HTTP /mcp — dual-era (legacy + 2026-07-28) via createMcpHandler.
+ * Streamable HTTP /mcp — dual-era:
+ * - Legacy (initialize / no modern envelope): WebStandardStreamableHTTP +
+ *   enableJsonResponse, Accept widened so Claude's application/json-only works.
+ * - Modern 2026-07-28: createMcpHandler(legacy: 'reject', responseMode: 'json').
  */
-import { createMcpHandler, McpServer } from "@modelcontextprotocol/server";
-import { toNodeHandler } from "@modelcontextprotocol/node";
+import {
+  createMcpHandler,
+  isLegacyRequest,
+  McpServer,
+  WebStandardStreamableHTTPServerTransport,
+} from "@modelcontextprotocol/server";
+import { toNodeHandler, toWebRequest } from "@modelcontextprotocol/node";
 import { ASK_MCP_INSTRUCTIONS } from "./instructions.mjs";
 import { registerAskTools } from "./tools.mjs";
 
@@ -14,44 +22,51 @@ const CACHE_HINTS = {
 };
 
 /** @type {import('@modelcontextprotocol/server').McpHttpHandler | null} */
-let mcpHttp = null;
+let modernHttp = null;
 /** @type {ReturnType<typeof toNodeHandler> | null} */
-let nodeHandler = null;
+let modernNode = null;
 /** @type {object | null} */
 let boundStore = null;
 
 /**
  * @param {object} store
+ * @param {string} email
  */
-function ensureHandlers(store) {
-  if (mcpHttp && boundStore === store && nodeHandler) return;
+function buildServer(store, email) {
+  const mcp = new McpServer(
+    { name: "atoms-ask", version: "0.2.0" },
+    {
+      instructions: ASK_MCP_INSTRUCTIONS,
+      cacheHints: CACHE_HINTS,
+    },
+  );
+  if (email) {
+    registerAskTools(mcp, { email, store });
+    injectToolSecuritySchemes(mcp);
+  }
+  return mcp;
+}
+
+/**
+ * @param {object} store
+ */
+function ensureModern(store) {
+  if (modernHttp && boundStore === store && modernNode) return;
   boundStore = store;
-  mcpHttp = createMcpHandler(
+  modernHttp = createMcpHandler(
     (ctx) => {
       const email =
         ctx.authInfo?.extra && typeof ctx.authInfo.extra.email === "string"
           ? ctx.authInfo.extra.email
           : "";
-      const mcp = new McpServer(
-        { name: "atoms-ask", version: "0.2.0" },
-        {
-          instructions: ASK_MCP_INSTRUCTIONS,
-          cacheHints: CACHE_HINTS,
-        },
-      );
-      if (!email) {
-        return mcp;
-      }
-      registerAskTools(mcp, { email, store });
-      injectToolSecuritySchemes(mcp);
-      return mcp;
+      return buildServer(store, email);
     },
     {
-      legacy: "stateless",
+      legacy: "reject",
       responseMode: "json",
     },
   );
-  nodeHandler = toNodeHandler(mcpHttp);
+  modernNode = toNodeHandler(modernHttp);
 }
 
 /**
@@ -87,27 +102,13 @@ export async function handleMcpRequest(req, res, opts) {
   const token = m ? m[1] : "";
 
   if (!token || token.startsWith("sess_")) {
-    const prm = `${publicBaseUrl.replace(/\/$/, "")}${PRM_PATH}`;
-    res.writeHead(401, {
-      "content-type": "application/json",
-      "www-authenticate": `Bearer resource_metadata="${prm}", scope="atoms:read"`,
-      "access-control-allow-origin": "*",
-      "cache-control": "private, no-store",
-    });
-    res.end(JSON.stringify({ message: "Unauthorized" }));
+    writeUnauthorized(res, publicBaseUrl);
     return;
   }
 
   const account = await store.accountFromMcpToken(token);
   if (!account) {
-    const prm = `${publicBaseUrl.replace(/\/$/, "")}${PRM_PATH}`;
-    res.writeHead(401, {
-      "content-type": "application/json",
-      "www-authenticate": `Bearer resource_metadata="${prm}", scope="atoms:read"`,
-      "access-control-allow-origin": "*",
-      "cache-control": "private, no-store",
-    });
-    res.end(JSON.stringify({ message: "Unauthorized" }));
+    writeUnauthorized(res, publicBaseUrl);
     return;
   }
 
@@ -124,8 +125,6 @@ export async function handleMcpRequest(req, res, opts) {
     return;
   }
 
-  ensureHandlers(store);
-
   /** @type {import('@modelcontextprotocol/server').AuthInfo} */
   const authInfo = {
     token,
@@ -135,29 +134,125 @@ export async function handleMcpRequest(req, res, opts) {
     extra: { email: account.email },
   };
 
-  // toNodeHandler forwards req.auth as authInfo
   /** @type {any} */
   const reqAny = req;
   reqAny.auth = authInfo;
 
   res.setHeader("cache-control", "private, no-store");
-  await nodeHandler(req, res, parsedBody);
+
+  const webReq = await toWebRequest(req, parsedBody);
+  const legacy = await isLegacyRequest(webReq, parsedBody);
+
+  if (legacy) {
+    await handleLegacyJson(req, res, parsedBody, store, account.email, authInfo);
+    return;
+  }
+
+  ensureModern(store);
+  await modernNode(req, res, parsedBody);
+}
+
+/**
+ * Legacy Claude/ChatGPT path: pure JSON even when Accept is application/json only.
+ * Node adapter's getRequestListener ignores Accept mutations — use Web Standard
+ * transport with an explicit Request that includes text/event-stream.
+ *
+ * @param {import('node:http').IncomingMessage} req
+ * @param {import('node:http').ServerResponse} res
+ * @param {unknown} parsedBody
+ * @param {object} store
+ * @param {string} email
+ * @param {import('@modelcontextprotocol/server').AuthInfo} authInfo
+ */
+async function handleLegacyJson(req, res, parsedBody, store, email, authInfo) {
+  const mcp = buildServer(store, email);
+  const transport = new WebStandardStreamableHTTPServerTransport({
+    sessionIdGenerator: undefined,
+    enableJsonResponse: true,
+  });
+  await mcp.connect(transport);
+
+  const host = req.headers.host || "localhost";
+  const url = `http://${host}${req.url || "/mcp"}`;
+  const headers = new Headers();
+  for (const [k, v] of Object.entries(req.headers)) {
+    if (v == null || k === "host") continue;
+    if (Array.isArray(v)) {
+      for (const item of v) headers.append(k, item);
+    } else {
+      headers.set(k, v);
+    }
+  }
+  // SDK requires both media types in Accept even when enableJsonResponse is true.
+  const accept = headers.get("accept") || "";
+  if (!accept.includes("text/event-stream")) {
+    headers.set(
+      "accept",
+      accept
+        ? `${accept}, application/json, text/event-stream`
+        : "application/json, text/event-stream",
+    );
+  }
+  if (!headers.has("content-type")) {
+    headers.set("content-type", "application/json");
+  }
+
+  const webReq = new Request(url, {
+    method: "POST",
+    headers,
+    // body unused when parsedBody is provided
+  });
+
+  const webRes = await transport.handleRequest(webReq, {
+    authInfo,
+    parsedBody,
+  });
+  await writeWebResponse(res, webRes);
+}
+
+/**
+ * @param {import('node:http').ServerResponse} res
+ * @param {Response} webRes
+ */
+async function writeWebResponse(res, webRes) {
+  res.statusCode = webRes.status;
+  webRes.headers.forEach((value, key) => {
+    // skip hop-by-hop / content-length (set by end)
+    if (key.toLowerCase() === "transfer-encoding") return;
+    res.setHeader(key, value);
+  });
+  if (!res.getHeader("cache-control")) {
+    res.setHeader("cache-control", "private, no-store");
+  }
+  const buf = Buffer.from(await webRes.arrayBuffer());
+  res.end(buf);
+}
+
+/**
+ * @param {import('node:http').ServerResponse} res
+ * @param {string} publicBaseUrl
+ */
+function writeUnauthorized(res, publicBaseUrl) {
+  const prm = `${publicBaseUrl.replace(/\/$/, "")}${PRM_PATH}`;
+  res.writeHead(401, {
+    "content-type": "application/json",
+    "www-authenticate": `Bearer resource_metadata="${prm}", scope="atoms:read"`,
+    "access-control-allow-origin": "*",
+    "cache-control": "private, no-store",
+  });
+  res.end(JSON.stringify({ message: "Unauthorized" }));
 }
 
 const OAUTH2_SCHEMES = [{ type: "oauth2", scopes: ["atoms:read"] }];
 
 /**
- * ChatGPT OAuth UI: securitySchemes on tools/list.
  * @param {import('@modelcontextprotocol/server').McpServer} mcp
  */
 function injectToolSecuritySchemes(mcp) {
   const server = mcp.server;
   if (!server) return;
   const handlers = server._requestHandlers;
-  if (!handlers || typeof handlers.get !== "function") {
-    // Fallback: annotate tools via list wrap if private map missing
-    return;
-  }
+  if (!handlers || typeof handlers.get !== "function") return;
   const method = "tools/list";
   const prev = handlers.get(method);
   if (!prev) return;
