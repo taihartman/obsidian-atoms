@@ -1,0 +1,417 @@
+{
+  "note": "Canned model responses for the first 20 chrono-corpus captures, hand-authored to exercise scripts/model-bakeoff.mjs scoring offline. Not a real run: usage counters are zero, so every cost column reads $0.00 by design. Expected: link precision 5/8, recall 5/8, verdict 19/20, hub 22/23.",
+  "arms": [
+    {
+      "model": "claude-sonnet-5",
+      "usageTotal": {
+        "inputFresh": 0,
+        "inputCacheWrite": 0,
+        "inputCacheRead": 0,
+        "output": 0
+      },
+      "reasoningTokens": 0,
+      "failures": 0,
+      "records": [
+        {
+          "id": "D0001",
+          "ms": 900,
+          "error": null,
+          "usage": null,
+          "result": {
+            "verdict": "atom",
+            "title": "Lisbon in September means learning Portuguese for real",
+            "links": [
+              {
+                "note": "Portuguese",
+                "reason": "belongs with [[Portuguese]]"
+              }
+            ],
+            "tags": [],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "B0001",
+          "ms": 907,
+          "error": null,
+          "usage": null,
+          "result": {
+            "verdict": "atom",
+            "title": "We are actually doing this house move",
+            "links": [
+              {
+                "note": "Nadia",
+                "reason": "belongs with [[Nadia]]"
+              },
+              {
+                "note": "House move",
+                "reason": "belongs with [[House move]]"
+              }
+            ],
+            "tags": [],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "C0001",
+          "ms": 914,
+          "error": null,
+          "usage": null,
+          "result": {
+            "verdict": "atom",
+            "title": "Cannot get back to sleep after 3am",
+            "links": [],
+            "tags": [],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "D0002",
+          "ms": 921,
+          "error": null,
+          "usage": null,
+          "result": {
+            "verdict": "atom",
+            "title": "The Dispossessed is the years first book",
+            "links": [
+              {
+                "note": "Ursula K. Le Guin",
+                "reason": "belongs with [[Ursula K. Le Guin]]"
+              },
+              {
+                "note": "Reading log",
+                "reason": "belongs with [[Reading log]]"
+              }
+            ],
+            "tags": [],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "A0001",
+          "ms": 928,
+          "error": null,
+          "usage": null,
+          "result": {
+            "verdict": "atom",
+            "title": "Project Harbor has six months to ship",
+            "links": [
+              {
+                "note": "Project Harbor",
+                "reason": "belongs with [[Project Harbor]]"
+              },
+              {
+                "note": "Priya Raghunathan",
+                "reason": "belongs with [[Priya Raghunathan]]"
+              }
+            ],
+            "tags": [],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "B0002",
+          "ms": 935,
+          "error": null,
+          "usage": null,
+          "result": {
+            "verdict": "atom",
+            "title": "Omars birthday at the Thai place felt easy",
+            "links": [
+              {
+                "note": "Omar",
+                "reason": "belongs with [[Omar]]"
+              },
+              {
+                "note": "Nadia",
+                "reason": "belongs with [[Nadia]]"
+              }
+            ],
+            "tags": [],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "D0003",
+          "ms": 942,
+          "error": null,
+          "usage": null,
+          "result": {
+            "verdict": "atom",
+            "title": "Duolingo day six is a toy sentence",
+            "links": [
+              {
+                "note": "Lisbon in September means learning Portuguese for real",
+                "reason": "continues [[Lisbon in September means learning Portuguese for real]]"
+              },
+              {
+                "note": "Duolingo",
+                "reason": "belongs with [[Duolingo]]"
+              },
+              {
+                "note": "Portuguese",
+                "reason": "belongs with [[Portuguese]]"
+              }
+            ],
+            "tags": [],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "A0002",
+          "ms": 949,
+          "error": null,
+          "usage": null,
+          "result": {
+            "verdict": "atom",
+            "title": "Standup is a status report for no one",
+            "links": [
+              {
+                "note": "Standup",
+                "reason": "belongs with [[Standup]]"
+              },
+              {
+                "note": "Tomás Lindqvist",
+                "reason": "belongs with [[Tomás Lindqvist]]"
+              }
+            ],
+            "tags": [],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "D0004",
+          "ms": 956,
+          "error": null,
+          "usage": null,
+          "result": {
+            "verdict": "atom",
+            "title": "Bin day moved to Wednesday",
+            "links": [],
+            "tags": [],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "B0003",
+          "ms": 963,
+          "error": null,
+          "usage": null,
+          "result": {
+            "verdict": "atom",
+            "title": "Dads van breakdown story",
+            "links": [
+              {
+                "note": "The van story",
+                "reason": "the story dad tells about the van"
+              },
+              {
+                "note": "Dad",
+                "reason": "belongs with [[Dad]]"
+              }
+            ],
+            "tags": [],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "B0004",
+          "ms": 970,
+          "error": null,
+          "usage": null,
+          "result": {
+            "verdict": "noise",
+            "title": "",
+            "links": [],
+            "tags": [],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "D0005",
+          "ms": 977,
+          "error": null,
+          "usage": null,
+          "result": {
+            "verdict": "atom",
+            "title": "Juless sourdough starter is fed one to one",
+            "links": [
+              {
+                "note": "Sourdough",
+                "reason": "belongs with [[Sourdough]]"
+              },
+              {
+                "note": "Jules",
+                "reason": "belongs with [[Jules]]"
+              }
+            ],
+            "tags": [],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "A0003",
+          "ms": 984,
+          "error": null,
+          "usage": null,
+          "result": {
+            "verdict": "noise",
+            "title": "",
+            "links": [],
+            "tags": [],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "A0004",
+          "ms": 991,
+          "error": null,
+          "usage": null,
+          "result": {
+            "verdict": "atom",
+            "title": "Harbor v1 scoped down to the import path",
+            "links": [
+              {
+                "note": "Project Harbor has six months to ship",
+                "reason": "continues [[Project Harbor has six months to ship]]"
+              },
+              {
+                "note": "Project Harbor",
+                "reason": "belongs with [[Project Harbor]]"
+              },
+              {
+                "note": "Wei-Lin Chao",
+                "reason": "belongs with [[Wei-Lin Chao]]"
+              }
+            ],
+            "tags": [],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "C0002",
+          "ms": 998,
+          "error": null,
+          "usage": null,
+          "result": {
+            "verdict": "atom",
+            "title": "Doing sums about remaining sleep makes it worse",
+            "links": [
+              {
+                "note": "Cannot get back to sleep after 3am",
+                "reason": "continues [[Cannot get back to sleep after 3am]]"
+              }
+            ],
+            "tags": [],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "D0006",
+          "ms": 1005,
+          "error": null,
+          "usage": null,
+          "result": {
+            "verdict": "atom",
+            "title": "European Portuguese is not Brazilian Portuguese",
+            "links": [
+              {
+                "note": "Duolingo day six is a toy sentence",
+                "reason": "continues [[Duolingo day six is a toy sentence]]"
+              },
+              {
+                "note": "Portuguese",
+                "reason": "belongs with [[Portuguese]]"
+              }
+            ],
+            "tags": [],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "B0005",
+          "ms": 1012,
+          "error": null,
+          "usage": null,
+          "result": {
+            "verdict": "atom",
+            "title": "First viewing was the flat above the chip shop",
+            "links": [
+              {
+                "note": "We are actually doing this house move",
+                "reason": "continues [[We are actually doing this house move]]"
+              },
+              {
+                "note": "Nadia",
+                "reason": "belongs with [[Nadia]]"
+              },
+              {
+                "note": "House move",
+                "reason": "belongs with [[House move]]"
+              }
+            ],
+            "tags": [],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "D0007",
+          "ms": 1019,
+          "error": null,
+          "usage": null,
+          "result": {
+            "verdict": "atom",
+            "title": "First sourdough loaf came out flat and gummy",
+            "links": [
+              {
+                "note": "The Dispossessed is the years first book",
+                "reason": "continues [[The Dispossessed is the years first book]]"
+              },
+              {
+                "note": "Sourdough",
+                "reason": "belongs with [[Sourdough]]"
+              }
+            ],
+            "tags": [],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "C0003",
+          "ms": 1026,
+          "error": null,
+          "usage": null,
+          "result": {
+            "verdict": "noise",
+            "title": "",
+            "links": [],
+            "tags": [],
+            "hub_section": ""
+          }
+        },
+        {
+          "id": "A0005",
+          "ms": 1033,
+          "error": null,
+          "usage": null,
+          "result": {
+            "verdict": "atom",
+            "title": "Harbors real risk is that nobody wants it",
+            "links": [
+              {
+                "note": "Cannot get back to sleep after 3am",
+                "reason": "continues [[Cannot get back to sleep after 3am]]"
+              },
+              {
+                "note": "Project Harbor",
+                "reason": "belongs with [[Project Harbor]]"
+              }
+            ],
+            "tags": [],
+            "hub_section": ""
+          }
+        }
+      ]
+    }
+  ]
+}
