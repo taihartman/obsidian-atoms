@@ -91,6 +91,34 @@ changed.** Everything lives in `scripts/` and `docs/`.
 - **Open weights: non-starter.** 3.4–6.6GB in a WebView, or an Ollama server that is desktop-only.
 - **Free win:** fold tags, aliases and link anchor text into the BM25 field (document-side
   expansion). And k=400→800 is only ~+0.35¢/capture — shortlist budget is cheap.
+- **Retrieval** (`docs/research/2026-07-29-retrieval-techniques.md`): **misses are absolute, not
+  ranking failures.** Mean rank when found is ~12, and k=400→800 buys 1.3 points — a missed note
+  scores *zero*, so recall can only come from **adding terms**, never from widening k. Order to try:
+  (1) index more body text; (2) BM25F with separate title/tags/body weights; (3) **index the
+  LLM-written tags and link prose — that is doc2query for free**, since the pipeline already pays a
+  model to generate them; (4) pseudo-relevance feedback (Rocchio over RM3, +15% MAP on short
+  queries; its usual weakness — drift hurting precision — is nearly free when 388 of 400 slots sit
+  unused; query cost 0.02ms). Learned sparse (SPLADE/docTTTTTquery) is out because the model *is*
+  the technique, but it has the strongest evidence here (recall@1000 0.853→0.947), which is exactly
+  why the free tags-as-expansion version ranks so high. Statistical term association is too weak at
+  this scale (~120k indexed tokens; Antoniak & Mimno measured *zero* bootstrap overlap in top-10
+  neighbour lists on a corpus 20× larger) — NPMI/LLR only if at all, never raw PMI; skip LSA and
+  Random Indexing (4–80× over the memory budget).
+
+### Corrections to earlier findings in this same branch
+
+- **The 200-char body truncation is not established.** Its recall advantage (97% vs 93%) rests on
+  **one link out of 30** on the real-vault run — inside the noise floor. Mean body is 1,943 chars, so
+  truncating discards ~90% of the text, and since misses are *zero-score* discarding text can only
+  reduce the chance of a term match. The memory case that motivated it is also weak now: 23.7MB for
+  full bodies sits inside a 300–450MB page budget. **Revisit and index more, not less.**
+- **The noise floor is ~5 points at n=80 probes.** Every selector and model comparison closer than
+  that — 86% vs 88%, 84% vs 85% — is indistinguishable. Grow the probe set (specifically on
+  zero-score queries) before building anything on a small gap.
+- **`recall@400` on a genuinely 3,000-note real vault has never been measured.** The real-vault run
+  had 373 notes, where k=400 is not a cap at all. The 3,000-note figures are all synthetic.
+- "thai place → onions" is **world knowledge**, not vocabulary mismatch — no local statistic solves
+  it. Body scoring caught that probe via the shared word "guts", not by any inference.
 
 ## Not established — the actual work
 
@@ -125,12 +153,15 @@ changed.** Everything lives in `scripts/` and `docs/`.
    `output_config.effort` before assuming it.
    **Quality is the priority — the owner has said so explicitly.** The question is whether the
    shortlist buys down the model requirement, not how cheap we can go.
-3. **Free win, no measurement needed:** document-side expansion (tags + aliases + link anchor text
-   into the BM25 field).
-4. **Then `ce-plan`.** The design is settled enough: body-scored BM25 shortlist behind the existing
+3. **Free wins, cheap to measure with `measure:recall`:** index the LLM-written tags and link prose
+   (doc2query for free), index more body text than 200 chars, and BM25F with separate title/tags/body
+   weights. All three add *terms*, which is the only thing that moves an absolute miss.
+4. **Grow the probe set before trusting small gaps.** n=80 puts the noise floor near 5 points.
+   Target new probes at queries that currently score **zero** — those are the real failures.
+5. **Then `ce-plan`.** The design is settled enough: body-scored BM25 shortlist behind the existing
    `ContextProvider` seam, chronological calendar chunks for backfill, per-capture for daily filing.
    Route the four call sites through `getCandidates(capture)` — see below.
-5. **File the two defects** as GitHub issues (owner has not yet said go).
+6. **File the two defects** as GitHub issues (owner has not yet said go).
 
 ## Key files
 
