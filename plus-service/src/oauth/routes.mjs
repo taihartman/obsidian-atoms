@@ -6,6 +6,7 @@ import { sendMagicLinkEmail } from "../email.mjs";
 import { checkRateLimit, clientIp } from "../ratelimit.mjs";
 import {
   isAllowedRedirectUri,
+  issuerUrl,
   oauthClientLabel,
   mcpResourceUrl,
   SCOPE_DEFAULT,
@@ -23,6 +24,30 @@ import {
   authorizationServerMetadata,
   protectedResourceMetadata,
 } from "./metadata.mjs";
+
+/**
+ * RFC 9207: append iss on every 302 back to the client redirect_uri.
+ * @param {URL} u
+ */
+function appendIss(u) {
+  u.searchParams.set("iss", issuerUrl(config.publicBaseUrl));
+  return u;
+}
+
+/**
+ * @param {import('node:http').ServerResponse} res
+ * @param {string} redirectUri
+ * @param {Record<string, string>} params
+ */
+function redirectToClient(res, redirectUri, params) {
+  const u = new URL(redirectUri);
+  for (const [k, v] of Object.entries(params)) {
+    if (v != null && v !== "") u.searchParams.set(k, v);
+  }
+  appendIss(u);
+  res.writeHead(302, { location: u.toString() });
+  res.end();
+}
 
 function writeHtml(res, status, html) {
   const data = html;
@@ -107,6 +132,8 @@ export async function handleOauthRoutes({
       writeJson(res, 400, { error: "invalid_redirect_uri" });
       return true;
     }
+    // application_type (native|web) accepted and ignored — never widens redirects.
+    void body.application_type;
     const reg = await store.mcpRegisterClient({
       redirect_uris: redirects,
       client_name: body.client_name,
@@ -326,11 +353,10 @@ export async function handleOauthRoutes({
     }
     if (decision !== "allow") {
       await store.mcpDeletePending(pendingId);
-      const u = new URL(pending.redirectUri);
-      u.searchParams.set("error", "access_denied");
-      if (pending.state) u.searchParams.set("state", pending.state);
-      res.writeHead(302, { location: u.toString() });
-      res.end();
+      redirectToClient(res, pending.redirectUri, {
+        error: "access_denied",
+        state: pending.state || "",
+      });
       return true;
     }
     const a = await store.getAccount(email);
@@ -348,11 +374,10 @@ export async function handleOauthRoutes({
       scopes: [SCOPE_DEFAULT],
     });
     await store.mcpDeletePending(pendingId);
-    const u = new URL(pending.redirectUri);
-    u.searchParams.set("code", code);
-    u.searchParams.set("state", pending.state);
-    res.writeHead(302, { location: u.toString() });
-    res.end();
+    redirectToClient(res, pending.redirectUri, {
+      code,
+      state: pending.state || "",
+    });
     return true;
   }
 

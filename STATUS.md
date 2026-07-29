@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| _(nothing in flight)_ | | | | | | |
+| In progress | #188 | agent | `feat/ask-mcp-2026-07-28` | `docs/plans/2026-07-28-002-feat-ask-mcp-2026-07-28-protocol-directory-plan.md` | `plus-service/src/mcp/*`, `plus-service/src/oauth/*`, `plus-service/package.json` | Bar A dual-era MCP + iss |
 
 ## How to claim (copy)
 
