@@ -39,8 +39,10 @@
   background: var(--background-modifier-hover);
 }
 
+/* Sits directly under .atoms-home-header-top, a 40px row of 44px icon buttons,
+   so margin: 0 fused the heading to the icons by construction. */
 .atoms-home-title {
-  margin: 0;
+  margin: 8px 0 0;
   font-size: 1.85rem;
   font-weight: 700;
   letter-spacing: -0.035em;
@@ -1812,6 +1814,13 @@
    zero — the card only renders when something is actually stuck. `is-repair`
    marks the case that needs a human (an unreadable stamp) rather than one that
    clears itself on the next drain. */
+/* .atoms-ui-flat-card carries no margin — every home card supplies its own
+   (wait 16px, resurface 18px, also-about 14px). This one never got one, so it
+   fused with whatever card followed it. */
+.atoms-home-inbox-stuck {
+  margin-bottom: 16px;
+}
+
 .atoms-home-inbox-stuck > .atoms-home-card-eyebrow {
   color: var(--text-muted);
 }
