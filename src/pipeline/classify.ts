@@ -374,7 +374,31 @@ export interface BuildRequestOptions {
   context: VaultContext;
   /** Interactive default `5m`; batch uses `1h` (KTD3). */
   cacheTtl?: "5m" | "1h";
+  /**
+   * Extend the cached prefix over the note-title block too (U5).
+   *
+   * Off by default, and daily filing must leave it off: there the titles are *this capture's*
+   * shortlist, so a breakpoint after them writes an entry nothing ever reads back — a write premium
+   * for nothing. A catch-up chunk is the opposite case. Every capture in the chunk is handed the
+   * same titles byte for byte, so the entry is written once and read back by the rest of the chunk.
+   *
+   * This flag is the whole reason chunking is cheaper than today's frozen full-vault list. Without
+   * it the titles sit *after* the only breakpoint and are re-billed at full rate on every request,
+   * however stable they are — byte-identity alone buys nothing.
+   */
+  cacheTitles?: boolean;
   maxTokens?: number;
+}
+
+/**
+ * Whether a chunk's titles block has earned a cache breakpoint.
+ *
+ * Two or more captures: yes, the write amortises over every request after the first. Exactly one:
+ * no — a solo chunk would pay the cache *write* premium on a block nothing ever reads back, which
+ * is strictly worse than leaving it uncached.
+ */
+export function shouldCacheChunkTitles(captureCount: number): boolean {
+  return captureCount > 1;
 }
 
 /**
@@ -382,9 +406,9 @@ export interface BuildRequestOptions {
  * system (stable) → user context (stable block + volatile titles) → user capture (volatile).
  *
  * The context message is **two** blocks. Block A — vocabulary, tags, person hubs — is identical for
- * every capture of a run, so it is the only thing `cache_control` is attached to. Block B is the
- * capture's shortlisted titles and changes every capture; caching it would buy a write premium on
- * an entry that is never read back.
+ * every capture of a run, and always carries `cache_control`. Block B is the note titles: volatile
+ * per capture on the daily path (so uncached), byte-stable across a catch-up chunk (so cached when
+ * the caller passes `cacheTitles`).
  */
 export function buildMessagesRequest(opts: BuildRequestOptions): Record<string, unknown> {
   const cacheTtl = opts.cacheTtl ?? "5m";
@@ -410,6 +434,11 @@ export function buildMessagesRequest(opts: BuildRequestOptions): Record<string, 
           {
             type: "text",
             text: titlesText,
+            // Index 1 stays a plain block unless asked: omitting the key entirely keeps the daily
+            // path's bytes exactly what they were before chunking existed.
+            ...(opts.cacheTitles
+              ? { cache_control: { type: "ephemeral", ttl: cacheTtl } }
+              : {}),
           },
         ],
       },
@@ -500,6 +529,12 @@ export interface ClassifyDeps {
   maxAttempts?: number;
   /** Backoff sleeper (ms); inject no-op in tests. */
   sleep?: (ms: number) => Promise<void>;
+  /**
+   * Cache the note-title block as well (U5). Only a caller sending the *same* titles to several
+   * captures in a row — a catch-up chunk — may set this. Ignored on the Plus path, which renders
+   * its own request server-side.
+   */
+  cacheTitles?: boolean;
   /** Called once on 401/403 so UI can Notice (KTD4). */
   onAuthFailure?: (message: string) => void;
   /**
@@ -545,6 +580,7 @@ export async function classifyCapture(
         model: deps.model,
         capture,
         context,
+        cacheTitles: deps.cacheTitles,
       });
 
   // Plus: fetch (localhost dogfood + CORS host). BYOK: requestUrl (no CORS to Anthropic).

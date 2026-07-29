@@ -433,3 +433,40 @@ describe("MetadataContextProvider.getCandidates (U3 shortlist seam)", () => {
     await expect(run.getCandidates("sleep debt")).rejects.toThrow(/ended/i);
   });
 });
+
+describe("ContextRun.getChunkCandidates (U5 union)", () => {
+  it("is a superset of each capture's own shortlist, deduped and score-ordered", async () => {
+    const { app } = vault();
+    const run = await provider(app).beginRun();
+    const sleep = await run.getCandidates("sleep debt wrecked my focus");
+    const coffee = await run.getCandidates("espresso tasted sweeter today");
+    const chunk = await run.getChunkCandidates([
+      "sleep debt wrecked my focus",
+      "espresso tasted sweeter today",
+    ]);
+
+    for (const t of [...sleep.titles, ...coffee.titles]) {
+      expect(chunk.titles).toContain(t);
+    }
+    expect(new Set(chunk.titles).size).toBe(chunk.titles.length);
+    const scores = chunk.shortlist.map((c) => c.score);
+    expect([...scores].sort((a, b) => b - a)).toEqual(scores);
+  });
+
+  it("a chunk of one is exactly that capture's shortlist", async () => {
+    const { app } = vault();
+    const run = await provider(app).beginRun();
+    const one = await run.getCandidates("sleep debt wrecked my focus");
+    const chunk = await run.getChunkCandidates(["sleep debt wrecked my focus"]);
+    expect(chunk.titles).toEqual(one.titles);
+  });
+
+  it("refuses to score after the run ends", async () => {
+    const { app } = vault();
+    const run = await provider(app).beginRun();
+    run.end();
+    await expect(run.getChunkCandidates(["anything"])).rejects.toThrow(
+      /run has ended/,
+    );
+  });
+});

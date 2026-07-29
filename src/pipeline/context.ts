@@ -53,6 +53,115 @@ export function clampShortlistSize(raw: unknown): number {
  */
 export const DEFAULT_GRAPH_EXPANSION = true;
 
+/**
+ * How a catch-up subdivides its captures (U5).
+ *
+ * Calendar units, never capture counts. Reachability — whether an atom written for January is
+ * offered to a February capture — is set by the chunk's *duration* against the gap in days between
+ * a capture and the note it wants to link; a "200 captures per chunk" rule conflates that with how
+ * densely the user happened to write. Measured on the real 811-link corpus: monthly recovers 71% of
+ * the in-run links a frozen list loses and costs $18.81, weekly 79% at $23.18, today's frozen list
+ * 0% at $30.79.
+ */
+export type ChunkGranularity = "month" | "week";
+
+/**
+ * Chunk size when nothing configures it.
+ *
+ * Monthly, because it is the only strategy costed that beats today's behaviour on **both** axes at
+ * once — cheaper *and* strictly better recall. Weekly buys the last 8 points for $4.37; per-capture
+ * shortlisting was the worst option costed ($52.26), because it forfeits the shared prefix entirely.
+ */
+export const DEFAULT_CHUNK_GRANULARITY: ChunkGranularity = "month";
+
+/** Leading `YYYY-MM-DD` of a date-ish string (daily-note basenames, `created:` frontmatter). */
+function parseYmd(value: string | null | undefined): { y: number; m: number; d: number } | null {
+  const m = (value ?? "").trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return null;
+  const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  if (mo < 1 || mo > 12 || d < 1 || d > 31) return null;
+  return { y, m: mo, d };
+}
+
+/**
+ * The chunk a date belongs to, or null when the string carries no usable date.
+ *
+ * Weeks are ISO-8601 (Monday start, week 1 contains the year's first Thursday) so a chunk boundary
+ * never depends on the machine's locale — the same vault must chunk identically on every device.
+ */
+export function chunkKeyForDate(
+  date: string | null | undefined,
+  granularity: ChunkGranularity = DEFAULT_CHUNK_GRANULARITY,
+): string | null {
+  const ymd = parseYmd(date);
+  if (!ymd) return null;
+  if (granularity === "month") {
+    return `${ymd.y}-${String(ymd.m).padStart(2, "0")}`;
+  }
+  const utc = new Date(Date.UTC(ymd.y, ymd.m - 1, ymd.d));
+  // Shift to the Thursday of this ISO week; its calendar year is the ISO week-numbering year.
+  const dow = (utc.getUTCDay() + 6) % 7; // Mon=0 … Sun=6
+  utc.setUTCDate(utc.getUTCDate() - dow + 3);
+  const isoYear = utc.getUTCFullYear();
+  const firstThursday = new Date(Date.UTC(isoYear, 0, 4));
+  const firstDow = (firstThursday.getUTCDay() + 6) % 7;
+  firstThursday.setUTCDate(firstThursday.getUTCDate() - firstDow + 3);
+  const week =
+    1 + Math.round((utc.getTime() - firstThursday.getTime()) / (7 * 86400000));
+  return `${isoYear}-W${String(week).padStart(2, "0")}`;
+}
+
+/** One chunk of a catch-up: a calendar key and the items that fall in it, in their original order. */
+export interface Chunk<T> {
+  key: string;
+  items: T[];
+}
+
+/** The key an item with no parseable date is filed under when nothing else can claim it. */
+export const UNDATED_CHUNK_KEY = "undated";
+
+/**
+ * Group items into calendar chunks, oldest first.
+ *
+ * **Undated items join their nearest dated neighbour** — the last dated item before them, or the
+ * first dated item after them when they lead the list. They do not get a chunk of their own, for
+ * two reasons. A lone "undated" bucket has no position in the chronological sweep, so there is no
+ * correct moment to resolve it; and a capture whose daily filename is malformed is still, in
+ * practice, sitting between two dated ones, so its neighbours' shortlist is a better guess than an
+ * arbitrary union of every other malformed capture in the vault. Only when *nothing* in the list
+ * carries a date does a single `undated` chunk exist — which is exactly one shared prefix, the
+ * cheapest shape available for a set with no chronology at all.
+ */
+export function groupIntoChunks<T>(
+  items: readonly T[],
+  dateOf: (item: T) => string | null | undefined,
+  granularity: ChunkGranularity = DEFAULT_CHUNK_GRANULARITY,
+): Array<Chunk<T>> {
+  const keys = items.map((it) => chunkKeyForDate(dateOf(it), granularity));
+
+  // Carry the last seen key forward, then the first seen key backward over any leading gap.
+  let carried: string | null = null;
+  for (let i = 0; i < keys.length; i++) {
+    if (keys[i]) carried = keys[i]!;
+    else keys[i] = carried;
+  }
+  const firstDated = keys.find((k) => k !== null) ?? UNDATED_CHUNK_KEY;
+  for (let i = 0; i < keys.length; i++) {
+    if (!keys[i]) keys[i] = firstDated;
+  }
+
+  const byKey = new Map<string, T[]>();
+  for (let i = 0; i < items.length; i++) {
+    const key = keys[i]!;
+    const bucket = byKey.get(key);
+    if (bucket) bucket.push(items[i]!);
+    else byKey.set(key, [items[i]!]);
+  }
+  return [...byKey.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([key, group]) => ({ key, items: group }));
+}
+
 /** What the two retrieval settings mean to a run. One mapping, so no call site invents its own. */
 export interface ShortlistRunOptions {
   shortlistK: number;
@@ -378,6 +487,73 @@ export class ContextRun implements ContextProvider {
         returned: shortlist.length,
         k: this.k,
         ...(expanded === null ? {} : { expanded }),
+      },
+    };
+  }
+
+  /**
+   * One shortlist for a whole chunk: the **union** of its captures' shortlists (U5).
+   *
+   * A catch-up cannot afford a shortlist per capture — measured, that is the most expensive strategy
+   * there is, because the note-title block changes on every request and so can never be read back
+   * from cache. A chunk instead resolves once and every capture in it is sent the *same* bytes.
+   *
+   * Union, not "score the concatenated text": concatenating lets one long capture's vocabulary
+   * dominate BM25 and starve a short one of its own best match, whereas a union guarantees every
+   * capture still sees at least the notes its own shortlist would have contained. The price is a
+   * larger title block — bounded by the atoms per chunk, and paid once for the chunk rather than
+   * once per capture.
+   *
+   * Order is by best score across the chunk, so U7's "the device already ranked these" contract
+   * survives; ties break on title so the bytes are stable across devices and reruns.
+   */
+  async getChunkCandidates(
+    captures: ReadonlyArray<Capture | string>,
+  ): Promise<ShortlistContext> {
+    if (!this.corpus) {
+      throw new Error("[atoms] context run has ended — begin a new run to score captures");
+    }
+    const per = await Promise.all(captures.map((c) => this.getCandidates(c)));
+    if (per.length === 1) return per[0]!;
+
+    const best = new Map<string, ShortlistCandidate>();
+    const scoredPaths = new Set<string>();
+    const reachedPaths = new Set<string>();
+    let matched = 0;
+    let anyExpansion = false;
+
+    for (const ctx of per) {
+      const expanded = ctx.stats.expanded;
+      if (expanded !== undefined) anyExpansion = true;
+      // `expand()` appends its reached notes, so they are exactly the tail of the shortlist.
+      const scoredCount = ctx.shortlist.length - (expanded ?? 0);
+      matched = Math.max(matched, ctx.stats.matched);
+      ctx.shortlist.forEach((cand, i) => {
+        (i < scoredCount ? scoredPaths : reachedPaths).add(cand.path);
+        const prev = best.get(cand.path);
+        if (!prev || cand.score > prev.score) best.set(cand.path, cand);
+      });
+    }
+
+    const shortlist = [...best.values()].sort(
+      (a, b) => b.score - a.score || a.title.localeCompare(b.title),
+    );
+    const corpusSize = per[0]?.stats.corpusSize ?? this.corpusSize;
+    // Reached by the walk and never scored by any capture in the chunk.
+    let expandedOnly = 0;
+    for (const p of reachedPaths) if (!scoredPaths.has(p)) expandedOnly += 1;
+
+    return {
+      ...this.staticContext,
+      titles: shortlist.map((c) => c.title),
+      shortlist,
+      stats: {
+        corpusSize,
+        matched,
+        zeroScoring: corpusSize - matched,
+        returned: shortlist.length,
+        k: this.k,
+        ...(anyExpansion ? { expanded: expandedOnly } : {}),
       },
     };
   }

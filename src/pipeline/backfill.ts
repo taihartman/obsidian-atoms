@@ -3,11 +3,19 @@ import {
   ANTHROPIC_VERSION,
   applyClassificationQuality,
   buildMessagesRequest,
+  shouldCacheChunkTitles,
 } from "./classify";
-import type { MetadataContextProvider } from "./context";
+import {
+  DEFAULT_CHUNK_GRANULARITY,
+  groupIntoChunks,
+  type ChunkGranularity,
+  type ContextRun,
+  type MetadataContextProvider,
+} from "./context";
 import { getPastDailyNotesWithUnmarkedCaptures } from "./daily";
 import {
   applyWrite,
+  formatLinkProse,
   listAtomPaths,
   planWrite,
 } from "./render";
@@ -56,11 +64,27 @@ export interface BackfillWorkItem {
   index: number;
 }
 
+/** One chunk's share of the estimate: how many requests it holds, and how big each one is. */
+export interface ChunkTokenCount {
+  key: string;
+  captureCount: number;
+  inputTokensPerRequest: number;
+}
+
 export interface CostEstimate {
   captureCount: number;
   model: string;
-  /** Tokens per request (input side from count_tokens). */
+  /**
+   * Tokens per request (input side from count_tokens).
+   *
+   * With chunking there is no single such number — each chunk sends its own titles block, so a
+   * February request and a July request are different sizes. When `chunks` is present this field is
+   * the **capture-weighted mean** across them, kept only so the modal has one headline figure; the
+   * money below is summed per chunk, not derived from this. Read `chunks` for the real shape.
+   */
   inputTokensPerRequest: number;
+  /** Per-chunk breakdown when the run was chunked. Absent for a single flat context. */
+  chunks?: ChunkTokenCount[];
   /** Full input tokens if every request pays full prefix (no cache credit). */
   worstCaseInputTokens: number;
   /** Output assumption × N */
@@ -93,14 +117,33 @@ export function estimateBatchCost(opts: {
   inputTokensPerRequest: number;
   model: string;
   assumedOutputTokens?: number;
+  /**
+   * Per-chunk sizes (U5). When given, the totals are summed over the chunks instead of multiplying
+   * one sample by N — which chunking made wrong, because each chunk carries a differently sized
+   * title block. `captureCount` and `inputTokensPerRequest` are then derived from these, never read.
+   */
+  chunks?: ChunkTokenCount[];
 }): CostEstimate {
-  const n = Math.max(0, opts.captureCount);
-  const perIn = Math.max(0, opts.inputTokensPerRequest);
+  const chunks = opts.chunks;
+  const n = chunks
+    ? chunks.reduce((s, c) => s + Math.max(0, c.captureCount), 0)
+    : Math.max(0, opts.captureCount);
   const perOut = opts.assumedOutputTokens ?? ASSUMED_OUTPUT_TOKENS;
   const rates = ratesForModel(opts.model);
   const disc = BATCH_DISCOUNT;
 
-  const worstCaseInputTokens = perIn * n;
+  const worstCaseInputTokens = chunks
+    ? chunks.reduce(
+        (s, c) => s + Math.max(0, c.captureCount) * Math.max(0, c.inputTokensPerRequest),
+        0,
+      )
+    : Math.max(0, opts.inputTokensPerRequest) * n;
+  // Headline only — the weighted mean of what the chunks actually send.
+  const perIn = chunks
+    ? n > 0
+      ? Math.round(worstCaseInputTokens / n)
+      : 0
+    : Math.max(0, opts.inputTokensPerRequest);
   const estimatedOutputTokens = perOut * n;
 
   // Batch = 50% of list price
@@ -128,6 +171,7 @@ export function estimateBatchCost(opts: {
     captureCount: n,
     model: opts.model,
     inputTokensPerRequest: perIn,
+    ...(chunks ? { chunks } : {}),
     worstCaseInputTokens,
     estimatedOutputTokens,
     worstCaseUsd,
@@ -198,17 +242,77 @@ export function enumerateBackfillWork(
   return work;
 }
 
+/**
+ * A calendar chunk of backfill work, with the one shortlist every capture in it is sent (U5).
+ *
+ * The context is resolved once per chunk and shared, so the note-title block is byte-identical
+ * across the chunk's requests and can sit inside the cached prefix. `cacheTitles` is false for a
+ * chunk of one, where there is no second request to read the entry back.
+ */
+export interface ResolvedBackfillChunk {
+  key: string;
+  work: BackfillWorkItem[];
+  context: VaultContext;
+  cacheTitles: boolean;
+}
+
+/** Split enumerated work into calendar chunks by the date of the daily note each capture came from. */
+export function chunkBackfillWork(
+  work: BackfillWorkItem[],
+  granularity: ChunkGranularity = DEFAULT_CHUNK_GRANULARITY,
+): Array<{ key: string; work: BackfillWorkItem[] }> {
+  return groupIntoChunks(work, (w) => w.note.date, granularity).map((c) => ({
+    key: c.key,
+    work: c.items,
+  }));
+}
+
+/**
+ * Resolve one shortlist per chunk, oldest chunk first (U5, R4).
+ *
+ * Sequential on purpose. `onChunkResolved` is the caller's chance to run the chunk — submit its
+ * batch, apply the results, and `run.addAtom()` whatever atoms it created — before the next chunk's
+ * shortlist is derived. That is what makes an atom filed in January visible to a February capture:
+ * the corpus the later chunk scores against has grown, without the run's corpus outliving the run
+ * (KTD4a).
+ */
+export async function resolveBackfillChunks(opts: {
+  run: ContextRun;
+  work: BackfillWorkItem[];
+  granularity?: ChunkGranularity;
+  onChunkResolved?: (chunk: ResolvedBackfillChunk) => Promise<void> | void;
+}): Promise<ResolvedBackfillChunk[]> {
+  const out: ResolvedBackfillChunk[] = [];
+  for (const chunk of chunkBackfillWork(opts.work, opts.granularity)) {
+    const context = await opts.run.getChunkCandidates(
+      chunk.work.map((w) => w.capture),
+    );
+    const resolved: ResolvedBackfillChunk = {
+      key: chunk.key,
+      work: chunk.work,
+      context,
+      cacheTitles: shouldCacheChunkTitles(chunk.work.length),
+    };
+    out.push(resolved);
+    await opts.onChunkResolved?.(resolved);
+  }
+  return out;
+}
+
 /** Batch request params with 1h cache TTL (U10). */
 export function buildBatchRequestParams(opts: {
   model: string;
   capture: string;
   context: VaultContext;
+  /** Chunked catch-up only — see `BuildRequestOptions.cacheTitles`. */
+  cacheTitles?: boolean;
 }): Record<string, unknown> {
   const full = buildMessagesRequest({
     model: opts.model,
     capture: opts.capture,
     context: opts.context,
     cacheTtl: "1h",
+    cacheTitles: opts.cacheTitles,
   });
   return {
     model: full.model,
@@ -223,6 +327,7 @@ export function buildBatchCreateBody(
   work: BackfillWorkItem[],
   model: string,
   context: VaultContext,
+  cacheTitles = false,
 ): { requests: Array<{ custom_id: string; params: Record<string, unknown> }> } {
   return {
     requests: work.map((w) => ({
@@ -231,9 +336,18 @@ export function buildBatchCreateBody(
         model,
         capture: w.capture.text,
         context,
+        cacheTitles,
       }),
     })),
   };
+}
+
+/** One chunk's batch body. Every request in it carries the same titles block, by construction. */
+export function buildChunkBatchCreateBody(
+  chunk: ResolvedBackfillChunk,
+  model: string,
+): ReturnType<typeof buildBatchCreateBody> {
+  return buildBatchCreateBody(chunk.work, model, chunk.context, chunk.cacheTitles);
 }
 
 export function assertBatchUsesHourCache(
@@ -253,24 +367,54 @@ export function assertBatchUsesHourCache(
 export interface BackfillEstimateResult {
   work: BackfillWorkItem[];
   estimate: CostEstimate;
+  /** The run's static context — tags, vocabulary, hubs. Never the classify context; chunks own that. */
   context: VaultContext;
+  /**
+   * The open run behind the chunks. The caller **must** `end()` it, whether or not it goes on to
+   * submit: the gate can be declined, and a declined estimate should not pin a whole vault's corpus
+   * in memory (KTD4a).
+   */
+  run: ContextRun;
+  chunks: ResolvedBackfillChunk[];
 }
 
+/**
+ * Estimate, chunked (U5).
+ *
+ * The gate still fires before anything is submitted — this function only reads the vault and calls
+ * `count_tokens`. What changed is that it prices the *chunks*: one `count_tokens` per chunk against
+ * that chunk's own shortlist, rather than one sample against the whole vault's title list. A vault
+ * whose full context no longer fits in the estimate is exactly the vault this branch exists for.
+ *
+ * `expandGraph: false` is not negotiable here. Graph expansion reaches atom → hub and stops at the
+ * hub, so in a catch-up — where the only edges are to hubs — it contributes nothing and would spend
+ * a walk per capture to prove it (KTD7).
+ */
 export async function prepareBackfillEstimate(opts: {
   app: App;
   contextProvider: MetadataContextProvider;
   apiKey: string;
   model: string;
+  atomFolder?: string;
+  shortlistK?: number;
+  granularity?: ChunkGranularity;
   request?: typeof requestUrl;
 }): Promise<BackfillEstimateResult> {
   const listed = await getPastDailyNotesWithUnmarkedCaptures(opts.app);
   const work = enumerateBackfillWork(listed.notes);
-  const context = opts.contextProvider.buildContext();
+  const run = await opts.contextProvider.beginRun({
+    atomFolder: opts.atomFolder,
+    k: opts.shortlistK,
+    expandGraph: false,
+  });
+  const context = run.vaultContext;
 
   if (work.length === 0) {
     return {
       work,
       context,
+      run,
+      chunks: [],
       estimate: estimateBatchCost({
         captureCount: 0,
         inputTokensPerRequest: 0,
@@ -279,22 +423,47 @@ export async function prepareBackfillEstimate(opts: {
     };
   }
 
-  const sample = work[0]!.capture.text;
-  const inputTokensPerRequest = await countTokensForClassifyRequest({
-    apiKey: opts.apiKey,
-    model: opts.model,
-    context,
-    sampleCapture: sample,
-    request: opts.request,
-  });
+  // Resolve every chunk up front. Nothing has been written yet, so no chunk can see another's
+  // atoms — that visibility is what `runBackfillChunks` re-resolves for, once results exist.
+  let chunks: ResolvedBackfillChunk[];
+  const counts: ChunkTokenCount[] = [];
+  try {
+    chunks = await resolveBackfillChunks({
+      run,
+      work,
+      granularity: opts.granularity,
+    });
+
+    for (const chunk of chunks) {
+      const inputTokensPerRequest = await countTokensForClassifyRequest({
+        apiKey: opts.apiKey,
+        model: opts.model,
+        context: chunk.context,
+        sampleCapture: chunk.work[0]!.capture.text,
+        request: opts.request,
+      });
+      counts.push({
+        key: chunk.key,
+        captureCount: chunk.work.length,
+        inputTokensPerRequest,
+      });
+    }
+  } catch (e) {
+    // A failed estimate hands back no run, so it must not hold the corpus either.
+    run.end();
+    throw e;
+  }
 
   return {
     work,
     context,
+    run,
+    chunks,
     estimate: estimateBatchCost({
       captureCount: work.length,
-      inputTokensPerRequest,
+      inputTokensPerRequest: 0,
       model: opts.model,
+      chunks: counts,
     }),
   };
 }
@@ -470,6 +639,12 @@ export async function applyBackfillResults(opts: {
     sections?: string[];
   }>;
   enableHubProjection?: boolean;
+  /**
+   * The open run, when backfill is chunked. Atoms created here are appended to its corpus so the
+   * *next* chunk can link them (KTD4a) — the same move `write.ts` makes between captures, one
+   * granularity coarser.
+   */
+  run?: ContextRun;
 }): Promise<ApplyBackfillReport> {
   const byId = new Map(opts.work.map((w) => [w.customId, w]));
   const existingAtoms = listAtomPaths(opts.app, opts.atomFolder);
@@ -545,8 +720,18 @@ export async function applyBackfillResults(opts: {
     applied += 1;
     if (wr.atomCreated) atomsCreated += 1;
     if (wr.markerAppended) markersAppended += 1;
-    if (wr.atomCreated) atomPathsTouched.push(wr.atomCreated);
-    else if (wr.atomUpdated) atomPathsTouched.push(wr.atomUpdated);
+    if (wr.atomCreated) {
+      atomPathsTouched.push(wr.atomCreated);
+      // Only newly created atoms: a collision skip means the file was already in the corpus.
+      const prose = formatLinkProse(result.links ?? []);
+      opts.run?.addAtom({
+        path: wr.atomCreated,
+        title: result.title,
+        body: item.capture.text,
+        tags: result.tags ?? [],
+        links: prose ? [prose] : [],
+      });
+    } else if (wr.atomUpdated) atomPathsTouched.push(wr.atomUpdated);
     else if (wr.atomSkippedCollision) atomPathsTouched.push(wr.atomSkippedCollision);
   }
 
@@ -594,6 +779,64 @@ export async function applyBackfillResults(opts: {
 }
 
 /**
+ * Run a chunked backfill: one batch per calendar chunk, oldest first (U5, R4).
+ *
+ * Sequential is the whole point. A single batch over the entire history cannot give a February
+ * capture the atom January produced, because at assembly time that atom does not exist — every
+ * request is written before any result comes back. Submitting chunk by chunk, and applying each
+ * chunk's results before the next chunk's shortlist is derived, is what recovers the 71% of in-run
+ * links a frozen list loses. The cost of that ordering is wall-clock, not money: chunks queue
+ * behind one another in the Batch API instead of running as one job.
+ *
+ * `runChunk` owns submit → wait → fetch → apply for one chunk. It is injected so the ordering can
+ * be tested without an API.
+ */
+export async function runBackfillChunks(opts: {
+  run: ContextRun;
+  work: BackfillWorkItem[];
+  model: string;
+  granularity?: ChunkGranularity;
+  runChunk: (
+    chunk: ResolvedBackfillChunk,
+    body: ReturnType<typeof buildBatchCreateBody>,
+    position: { index: number; total: number },
+  ) => Promise<ApplyBackfillReport>;
+  activeVocabulary?: string[];
+}): Promise<ApplyBackfillReport & { chunkCount: number }> {
+  const total = chunkBackfillWork(opts.work, opts.granularity).length;
+  const totals: ApplyBackfillReport = {
+    applied: 0,
+    failed: 0,
+    atomsCreated: 0,
+    markersAppended: 0,
+    proposedTags: [],
+  };
+  let index = 0;
+
+  await resolveBackfillChunks({
+    run: opts.run,
+    work: opts.work,
+    granularity: opts.granularity,
+    onChunkResolved: async (chunk) => {
+      const body = buildChunkBatchCreateBody(chunk, opts.model);
+      const report = await opts.runChunk(chunk, body, { index, total });
+      index += 1;
+      totals.applied += report.applied;
+      totals.failed += report.failed;
+      totals.atomsCreated += report.atomsCreated;
+      totals.markersAppended += report.markersAppended;
+      totals.proposedTags = mergeProposedTags(
+        totals.proposedTags,
+        report.proposedTags,
+        opts.activeVocabulary ?? [],
+      );
+    },
+  });
+
+  return { ...totals, chunkCount: total };
+}
+
+/**
  * Confirmation modal — batch is submitted only if onConfirm runs.
  */
 export class BackfillConfirmModal extends Modal {
@@ -620,8 +863,16 @@ export class BackfillConfirmModal extends Modal {
     });
     contentEl.createEl("p", { text: `Model: ${this.estimate.model}` });
     contentEl.createEl("p", {
-      text: `Input tokens / request (count_tokens): ${this.estimate.inputTokensPerRequest}`,
+      text: this.estimate.chunks
+        ? `Input tokens / request (count_tokens, mean over ${this.estimate.chunks.length} chunk(s)): ${this.estimate.inputTokensPerRequest}`
+        : `Input tokens / request (count_tokens): ${this.estimate.inputTokensPerRequest}`,
     });
+    if (this.estimate.chunks) {
+      contentEl.createEl("p", {
+        text: `Submitted as ${this.estimate.chunks.length} batch(es), oldest first — each one can link the atoms the previous one wrote.`,
+        cls: "setting-item-description",
+      });
+    }
     contentEl.createEl("p", {
       text: `Worst-case input tokens (no cache credit): ${this.estimate.worstCaseInputTokens}`,
     });

@@ -6,9 +6,14 @@ import {
 import {
   applyClassificationQuality,
   classifyCapture,
+  shouldCacheChunkTitles,
   type ClassifyDeps,
 } from "./classify";
-import type { MetadataContextProvider } from "./context";
+import {
+  groupIntoChunks,
+  type ChunkGranularity,
+  type MetadataContextProvider,
+} from "./context";
 import {
   CURRENT_ATOMS_QUALITY,
   isEligibleForUpdate,
@@ -22,6 +27,7 @@ import {
   clampAtomFolder,
   displayTitleForAtom,
   formatAtomBody,
+  formatLinkProse,
   listAtomPaths,
   sanitizeFilename,
 } from "./render";
@@ -35,7 +41,11 @@ import {
   extractLinkProseRegion,
   parseLinkProse,
 } from "./parseLinkProse";
-import type { ClassificationLink, ClassificationResult } from "../shared/types";
+import type {
+  ClassificationLink,
+  ClassificationResult,
+  VaultContext,
+} from "../shared/types";
 import type { PersonHub } from "./enrich/people";
 
 export const UPDATE_NOTES_BATCH_LIMIT = 15;
@@ -625,7 +635,25 @@ export type RunRefreshOptions = {
   /** Skip Phase B (tests). */
   skipRefile?: boolean;
   enableHubProjection?: boolean;
+  /** Shortlist size for Phase B's retrieval (R8). Defaults to the studied k. */
+  shortlistK?: number;
+  /** Calendar chunk size for Phase B (U5). Defaults to monthly. */
+  chunkGranularity?: ChunkGranularity;
 };
+
+/**
+ * The date an atom is chunked by: the daily note it came from, else its `created:` stamp.
+ *
+ * The source daily is preferred because it is when the thought happened, which is what chunk
+ * reachability is measured against; `created` is when the atom file was written, which for a
+ * previous catch-up is one arbitrary afternoon for thousands of atoms.
+ */
+export function refreshChunkDate(content: string): string | null {
+  const meta = parseImmutableFrontmatter(content);
+  const source = sourceDailyBasename(meta.sourceWikilink);
+  if (source && /^\d{4}-\d{2}-\d{2}/.test(source)) return source;
+  return meta.created || null;
+}
 
 /**
  * Smart refresh: Phase A free polish, Phase B ranked Process-parity refile.
@@ -724,12 +752,47 @@ export async function runRefreshEligibleAtoms(
   }
 
   report.usedApi = true;
-  const ctx = opts.contextProvider.buildContext();
+  // Phase B is a catch-up: many captures, one after another, against a vault whose full title list
+  // no longer fits a prompt. Same seam as Process, chunked like backfill — and `expandGraph: false`
+  // for the same reason (KTD7): the walk stops at hubs, so here it reaches nothing.
+  const run = await opts.contextProvider.beginRun({
+    atomFolder: opts.atomFolder,
+    k: opts.shortlistK,
+    expandGraph: false,
+  });
+  const staticCtx = run.vaultContext;
   const existing = listAtomPaths(opts.app, opts.atomFolder);
   let fixtureIdx = 0;
 
-  for (let i = 0; i < refileList.length; i++) {
-    const item = refileList[i]!;
+  // Ranked order is kept *within* a chunk; chunks themselves run oldest first, so an atom
+  // retitled in January is offered to March.
+  const chunks = groupIntoChunks(
+    refileList,
+    (a) => refreshChunkDate(a.content),
+    opts.chunkGranularity,
+  );
+  const chunkIndexOf = new Map<(typeof refileList)[number], number>();
+  chunks.forEach((c, i) => c.items.forEach((a) => chunkIndexOf.set(a, i)));
+
+  let activeChunk = -1;
+  let ctx: VaultContext = staticCtx;
+  let cacheTitles = false;
+
+  try {
+  for (const item of chunks.flatMap((c) => c.items)) {
+    const chunkIndex = chunkIndexOf.get(item)!;
+    if (chunkIndex !== activeChunk) {
+      activeChunk = chunkIndex;
+      const chunk = chunks[chunkIndex]!;
+      // One shortlist for the chunk, scored against each atom's **capture** — the user's own
+      // words — never its current title, which is the paraphrase this refresh exists to replace.
+      // Resolved here rather than up front so it can see what the previous chunk just rewrote.
+      ctx = await run.getChunkCandidates(
+        chunk.items.map((a) => extractCaptureBody(a.content)),
+      );
+      cacheTitles = shouldCacheChunkTitles(chunk.items.length);
+    }
+
     // Re-read after polish may have rewritten the file
     let liveContent = item.content;
     try {
@@ -746,7 +809,7 @@ export async function runRefreshEligibleAtoms(
     });
 
     const captureText = extractCaptureBody(liveContent);
-    const hubs: PersonHub[] = (ctx.personHubDetails ?? []).map((d) => ({
+    const hubs: PersonHub[] = (staticCtx.personHubDetails ?? []).map((d) => ({
       canonicalTitle: d.canonicalTitle,
       matchKeys: d.matchKeys,
       path: "",
@@ -772,6 +835,9 @@ export async function runRefreshEligibleAtoms(
         apiKey: opts.apiKey,
         model: opts.model,
         activeVocabulary: opts.activeVocabulary,
+        // Every capture in this chunk sends the same titles block, so it belongs inside the
+        // cached prefix — unless the chunk holds one atom and nothing would read it back.
+        cacheTitles,
         ...opts.classifyDeps,
       });
       if (!outcome.ok) {
@@ -821,6 +887,18 @@ export async function runRefreshEligibleAtoms(
       }
       report.updatedItems.push({ title: finalTitle, path: finalPath });
 
+      // A refresh can rename an atom. Its old spelling is already in the corpus from seeding; add
+      // the new one so a later chunk can be offered the title the file now actually has (KTD4a).
+      if (finalTitle !== plan.oldTitle) {
+        run.addAtom({
+          path: finalPath,
+          title: finalTitle,
+          body: plan.captureText,
+          tags: result.tags ?? [],
+          links: [formatLinkProse(result.links ?? [])].filter(Boolean),
+        });
+      }
+
       if (plan.oldTitle !== plan.newTitle && plan.sourceBasename) {
         const daily = findDailyFile(opts.app, plan.sourceBasename);
         if (daily) {
@@ -841,6 +919,10 @@ export async function runRefreshEligibleAtoms(
       report.failed += 1;
     }
     done += 1;
+  }
+  } finally {
+    // The corpus lives exactly as long as the run (KTD4a) — including when a chunk threw.
+    run.end();
   }
 
   await maybeProjectHubsAfterRefresh(opts, report);
