@@ -21,7 +21,8 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import { REPO_ROOT, tokens, loadRealTitles } from "./lib/shortlist.mjs";
+import { REPO_ROOT, tokens } from "./lib/shortlist.mjs";
+import { buildPreRunVault, describePool, loadChronoCaptures } from "./lib/corpus.mjs";
 
 const argv = process.argv.slice(2);
 const valueOf = (name, fallback) => {
@@ -36,13 +37,7 @@ const PRE_RUN_SIZE = Number(valueOf("pre-run", "1200"));
 
 // -------------------------------------------------------------------- corpus
 
-const captures = fs
-  .readdirSync(path.join(REPO_ROOT, "scripts/fixtures"))
-  .filter((f) => /^chrono-corpus-.*\.json$/.test(f))
-  .flatMap((f) =>
-    JSON.parse(fs.readFileSync(path.join(REPO_ROOT, "scripts/fixtures", f), "utf8")).captures ?? [],
-  )
-  .sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
+const captures = loadChronoCaptures();
 
 const byId = new Map(captures.map((c) => [c.id, c]));
 const atoms = captures.filter((c) => c.verdict === "atom");
@@ -62,14 +57,18 @@ const docOf = (c) => ({
 
 const atomDocs = atoms.map(docOf);
 const hubTitles = [...new Set(captures.flatMap((c) => c.linksToExisting ?? []))];
-const real = loadRealTitles();
-const preRun = [
-  ...hubTitles,
-  ...Array.from({ length: Math.max(0, PRE_RUN_SIZE - hubTitles.length) }, (_, i) => {
-    const base = real[i % real.length];
-    return base + (i >= real.length ? ` ${Math.floor(i / real.length) + 1}` : "");
-  }),
-].map((t) => ({ title: t, doc: { title: tokens(t), body: tokens(t), links: [] } }));
+const preRunNotes = buildPreRunVault({
+  size: PRE_RUN_SIZE,
+  hubTitles,
+  bodyPool: captures.map((c) => c.capture),
+  mode: valueOf("filler", "coherent"),
+});
+// Filler carries no link prose — only a filed atom has a model-written tail. That is the point:
+// the links field must be sparse in the pool, or its idf is meaningless.
+const preRun = preRunNotes.map((n) => ({
+  title: n.title,
+  doc: { title: tokens(n.title), body: tokens(n.body), links: [] },
+}));
 
 // ------------------------------------------------------------------- BM25F
 
@@ -177,7 +176,8 @@ for (let i = 0; i < atoms.length; i++) {
 
 const pct = (a) => `${((a / goldTotal) * 100).toFixed(0)}%`;
 console.log(
-  `${atoms.length} atoms · ${goldTotal} gold links · pre-run vault ${preRun.length} notes\n` +
+  `${atoms.length} atoms · ${goldTotal} gold links\n` +
+    describePool("pre-run vault", preRunNotes) + "\n" +
     `"zero score" = BM25 gave the target no score at all. Widening k cannot recover those;\n` +
     `only adding terms can. That column is the experiment.\n`,
 );

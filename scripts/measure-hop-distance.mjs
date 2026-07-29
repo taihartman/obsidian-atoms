@@ -33,7 +33,8 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import { REPO_ROOT, bm25Rank, loadRealTitles } from "./lib/shortlist.mjs";
+import { REPO_ROOT, bm25Rank } from "./lib/shortlist.mjs";
+import { buildPreRunVault, describePool, loadChronoCaptures } from "./lib/corpus.mjs";
 
 const argv = process.argv.slice(2);
 const valueOf = (name, fallback) => {
@@ -50,13 +51,7 @@ const PRE_RUN_SIZE = Number(valueOf("pre-run", "1200"));
 
 // -------------------------------------------------------------------- corpus
 
-const captures = fs
-  .readdirSync(path.join(REPO_ROOT, "scripts/fixtures"))
-  .filter((f) => /^chrono-corpus-.*\.json$/.test(f))
-  .flatMap((f) =>
-    JSON.parse(fs.readFileSync(path.join(REPO_ROOT, "scripts/fixtures", f), "utf8")).captures ?? [],
-  )
-  .sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
+const captures = loadChronoCaptures();
 
 if (!captures.length) {
   console.error("No chrono-corpus-*.json fixtures found.");
@@ -74,15 +69,12 @@ const titleOf = (c) => `${c.id} ${c.capture.slice(0, 46).replace(/\s+\S*$/, "")}
 // The vault as it stands when the run starts: referenced hub titles plus real-corpus filler, so
 // the seed slots are genuinely contested rather than handed to the corpus by default.
 const hubTitles = [...new Set(captures.flatMap((c) => c.linksToExisting ?? []))];
-const real = loadRealTitles();
-const preRun = [
-  ...hubTitles.map((t) => ({ title: t, ageDays: 400, body: t })),
-  ...Array.from({ length: Math.max(0, PRE_RUN_SIZE - hubTitles.length) }, (_, i) => {
-    const base = real[i % real.length];
-    const suffix = i >= real.length ? ` ${Math.floor(i / real.length) + 1}` : "";
-    return { title: base + suffix, ageDays: 500 + i, body: base };
-  }),
-];
+const preRun = buildPreRunVault({
+  size: PRE_RUN_SIZE,
+  hubTitles,
+  bodyPool: captures.map((c) => c.capture),
+  mode: valueOf("filler", "coherent"),
+});
 const hubSet = new Set(hubTitles);
 
 // ---------------------------------------------------------------- the graphs
@@ -181,7 +173,7 @@ for (const s of SETTINGS) {
 const frontier = { full: [], hubBlocked: [], catchUp: [] };
 const precision = Object.fromEntries(SETTINGS.map((s) => [s.key, { slots: 0, gold: 0 }]));
 const rankSamples = [];
-let goldTotal = 0, inK = 0;
+let goldTotal = 0, inK = 0, honestInK = 0;
 
 for (let i = 0; i < atoms.length; i++) {
   const c = atoms[i];
@@ -217,6 +209,9 @@ for (let i = 0; i < atoms.length; i++) {
     const rank = rankOf.get(title);
     const score = scoreOf.get(title) ?? 0;
     if (rank < K) inK++;
+    // A zero-score target inside k is there on the alphabetical tiebreak, which is luck, not
+    // retrieval. Only scored-and-inside-k is honest recall.
+    if (rank < K && score > 0) honestInK++;
     rankSamples.push({ rank, score, capture: c.id, target: t });
 
     const pop = rank < SEEDS ? "inSeeds" : score > 0 ? "ranked" : "zeroScore";
@@ -236,7 +231,9 @@ const popTotals = Object.fromEntries(POPS.map((p) => [p, stats.full[p].n]));
 
 console.log(
   `corpus: ${captures.length} captures (${atoms.length} atoms) · ${goldTotal} gold links to an ` +
-    `earlier atom\nseeds = BM25 bodyPlusTitle top ${SEEDS} · pre-run vault ${preRun.length} notes\n`,
+    `earlier atom\nseeds = BM25 bodyPlusTitle top ${SEEDS}\n` +
+    describePool("pre-run vault", preRun) + "\n" +
+    describePool("corpus atoms  ", atoms.map((c) => ({ title: titleOf(c), body: c.capture }))) + "\n",
 );
 
 console.log("— where the gold target sits in the BM25 ranking —");
@@ -244,6 +241,7 @@ console.log(`  already in the top ${SEEDS} seeds : ${popTotals.inSeeds} (${pct(p
 console.log(`  scored, but ranked below        : ${popTotals.ranked} (${pct(popTotals.ranked, goldTotal)})`);
 console.log(`  zero score — no shared term     : ${popTotals.zeroScore} (${pct(popTotals.zeroScore, goldTotal)})`);
 console.log(`  inside k=${K} regardless          : ${inK} (${pct(inK, goldTotal)})`);
+console.log(`  inside k=${K} AND scored          : ${honestInK} (${pct(honestInK, goldTotal)})  <- honest recall@${K}`);
 const found = rankSamples.filter((r) => r.score > 0).map((r) => r.rank).sort((a, b) => a - b);
 console.log(
   `  median rank when scored at all  : ${found[Math.floor(found.length / 2)]}` +
@@ -311,7 +309,7 @@ if (outPath) {
     JSON.stringify(
       {
         seeds: SEEDS, k: K, maxHops: MAX_HOPS, preRunVault: preRun.length,
-        goldLinks: goldTotal, insideK: inK, populations: popTotals, settings: serialised,
+        goldLinks: goldTotal, insideK: inK, honestInsideK: honestInK, populations: popTotals, settings: serialised,
         frontier: Object.fromEntries(
           SETTINGS.map((s) => {
             const f = frontier[s.key];

@@ -8,8 +8,15 @@ Data: `docs/research/data/2026-07-29-doc-expansion.json`
 prose" as the best free lever, on the reasoning that the pipeline already pays a model to generate
 that text, so using it as document expansion costs nothing. This measures it.
 
-**Verdict: do it. It is strictly better — 16 links won, 0 lost — and it is free.** The size of the
-win on this corpus is small (+2 points at k=400, +5 at k=40), but it is a floor, not an estimate.
+**Verdict: do it. It wins far more than it loses in every configuration tested, and it is free.**
+
+> **Corrected 2026-07-29b.** The first version of this doc claimed **16 won / 0 lost** and called it
+> strictly dominant. The zero-loss part was an artefact of the pre-run vault's filler notes, whose
+> bodies were set to their own titles — two-thirds of every scoring pool were three-word documents,
+> which collapsed the average length BM25 normalises against. With capture-shaped filler the result
+> is **7 to 16 won against 0 to 1 lost**, depending on weighting. Still a clear, one-directional
+> win; not a perfect one. The full band is in **What survives the corpus** below, and the
+> zero-score column — the headline metric — turns out to be completely unaffected.
 
 ## Method
 
@@ -28,19 +35,43 @@ cannot be recovered by widening k; only a term match moves it.
 
 ## Result
 
+Capture-shaped filler (`--filler coherent`, the default):
+
 | config | r@40 | r@100 | r@400 | zero-score | median rank | won/lost @400 |
 |---|---|---|---|---|---|---|
-| title only | 52% | 60% | 65% | 319 (39%) | 6 | +4 / −113 |
-| **body + title** (today's best) | 64% | 73% | 79% | 190 (23%) | 5 | — |
-| **+ link prose** | 67% | 74% | **81%** | **169 (21%)** | 5 | **+16 / −0** |
-| + link prose ×3 | **69%** | **76%** | **81%** | **169 (21%)** | **4** | **+16 / −0** |
-| BM25F title×2 body×1 links×2 | 67% | 75% | 81% | 169 (21%) | 5 | +16 / −0 |
-| link prose only | 43% | 43% | 57% | 459 (57%) | 4 | +34 / −213 |
+| title only | 35% | 48% | 76% | 319 (39%) | 28 | +50 / −73 |
+| **body + title** (today's best) | 47% | 59% | 79% | 190 (23%) | 21 | — |
+| **+ link prose** | 48% | 61% | 80% | **169 (21%)** | 21 | **+7 / −1** |
+| + link prose ×3 | **50%** | **63%** | **81%** | **169 (21%)** | **19** | **+13 / −1** |
+| BM25F title×2 body×1 links×2 | 49% | 62% | 80% | 169 (21%) | 21 | +11 / −1 |
+| link prose only | 45% | 51% | 79% | 459 (57%) | 4 | +105 / −109 |
 
-**+16 / −0 is the number that matters.** A net +2 points would be unremarkable if it were 40 won and
-24 lost — that would be churn inside the noise. It is not: adding the field never displaced a link
-it previously found, in 811 trials. A sign test on 16–0 is p < 0.0001. This is one of the few
-results in this branch that does not need a bigger corpus to believe.
+**Read the zero-score column, not r@400.** A zero-score target still lands inside the top 400
+sometimes, on the alphabetical tiebreak — which is why title-only shows a respectable 76% while
+failing to score 39% of targets at all. Its honest ceiling is (811−319)/811 = **61%**, against
+**77%** for body+title. Body scoring still wins decisively; the r@400 column just flatters the
+loser.
+
+**The win is one-directional but not perfect.** 13 won against 1 lost at ×3 weighting is a sign
+test at p ≈ 0.002 — adding the field almost never displaces a link it previously found. The
+original "0 lost" was the padding artefact, not the effect.
+
+## What survives the corpus
+
+Re-run under all three filler shapes, the band is:
+
+| measure | title-shaped (the bug) | mismatched | **capture-shaped (real)** |
+|---|---|---|---|
+| zero-score, body+title | 190 | 190 | **190** |
+| zero-score, + link prose | 169 | 169 | **169** |
+| won / lost @400 (×3 weighting) | +16 / −0 | +16 / −1 | **+13 / −1** |
+| r@40, body+title | 64% | 49% | **47%** |
+
+**The zero-score column does not move at all.** Whether a gold target shares a term with the query
+depends only on that pair — filler cannot touch it. So "indexing link prose converts 21 of 190
+absolute misses, 11% of them" is the one claim here that is immune to how the corpus is padded,
+and it is the claim the experiment was built to make. Everything expressed as recall@k is soft:
+r@40 for body+title swings 17 points on padding alone.
 
 - **Weighting only matters below k=100.** At k=400 all three weightings are identical (81%, 169
   zero-score); at k=40 the ×3 weighting is worth +2 over ×1 and **+5 over the baseline**. That is

@@ -4,110 +4,110 @@
   "maxHops": 4,
   "preRunVault": 1200,
   "goldLinks": 811,
-  "insideK": 639,
+  "insideK": 643,
+  "honestInsideK": 614,
   "populations": {
-    "inSeeds": 359,
-    "ranked": 262,
+    "inSeeds": 225,
+    "ranked": 396,
     "zeroScore": 190
   },
   "settings": {
     "full": {
       "inSeeds": {
-        "n": 359,
+        "n": 225,
         "hops": {
-          "0": 359
+          "0": 225
         }
       },
       "ranked": {
-        "n": 262,
+        "n": 396,
         "hops": {
-          "1": 146,
-          "2": 66,
-          "3": 10,
-          "4": 3,
-          "unreachable": 37
+          "1": 102,
+          "2": 118,
+          "3": 14,
+          "4": 16,
+          "unreachable": 146
         }
       },
       "zeroScore": {
         "n": 190,
         "hops": {
-          "1": 51,
-          "2": 49,
-          "3": 9,
+          "1": 15,
+          "2": 41,
+          "3": 8,
           "4": 5,
-          "unreachable": 76
+          "unreachable": 121
         }
       }
     },
     "hubBlocked": {
       "inSeeds": {
-        "n": 359,
+        "n": 225,
         "hops": {
-          "0": 359
+          "0": 225
         }
       },
       "ranked": {
-        "n": 262,
+        "n": 396,
         "hops": {
-          "1": 109,
-          "2": 46,
-          "3": 22,
-          "4": 10,
-          "unreachable": 75
+          "1": 90,
+          "2": 57,
+          "3": 32,
+          "4": 22,
+          "unreachable": 195
         }
       },
       "zeroScore": {
         "n": 190,
         "hops": {
-          "1": 39,
-          "2": 25,
-          "3": 17,
-          "4": 6,
-          "unreachable": 103
+          "1": 11,
+          "2": 16,
+          "3": 9,
+          "4": 8,
+          "unreachable": 146
         }
       }
     },
     "catchUp": {
       "inSeeds": {
-        "n": 359,
+        "n": 225,
         "hops": {
-          "0": 359
+          "0": 225
         }
       },
       "ranked": {
-        "n": 262,
+        "n": 396,
         "hops": {
-          "1": 72,
-          "2": 127,
-          "3": 4,
-          "4": 5,
-          "unreachable": 54
+          "1": 15,
+          "2": 196,
+          "4": 28,
+          "unreachable": 157
         }
       },
       "zeroScore": {
         "n": 190,
         "hops": {
-          "1": 21,
-          "2": 57,
-          "3": 2,
-          "4": 5,
-          "unreachable": 105
+          "1": 5,
+          "2": 40,
+          "3": 1,
+          "4": 9,
+          "unreachable": 135
         }
       }
     }
   },
   "frontier": {
     "full": {
-      "meanOneHop": 23,
-      "meanTwoHop": 67
+      "meanOneHop": 7,
+      "meanTwoHop": 26
     },
     "hubBlocked": {
-      "meanOneHop": 21,
-      "meanTwoHop": 22
+      "meanOneHop": 6,
+      "meanTwoHop": 7
     },
     "catchUp": {
-      "meanOneHop": 9,
-      "meanTwoHop": 70
+      "meanOneHop": 2,
+      "meanTwoHop": 27
     }
   }
 }

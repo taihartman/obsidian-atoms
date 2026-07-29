@@ -138,17 +138,32 @@ because the pipeline run is the one that reflects shipped behaviour.
 
 ## Session 2026-07-29b — what changed since this doc was written
 
+- **THE PRE-RUN VAULT WAS PADDED WRONG, AND IT MOVED NUMBERS.** All three chrono harnesses built
+  their filler notes by recycling atom titles and using the title itself as the body — so ~2/3 of
+  every scoring pool were 3–4-token documents. BM25 normalises each score by the pool's average
+  document length, so that collapsed the average and penalised the real atoms against it. Fixed:
+  filler bodies are now capture-shaped, built by the shared `scripts/lib/corpus.mjs`, with a
+  `--filler titleOnly|mismatched|coherent` switch so any result can be re-checked for sensitivity.
+  **Every harness now prints its pool's token-length distribution** — the flaw survived because
+  nothing ever reported what the pool was made of.
 - **Next step 1 is done.** `docs/research/2026-07-29-hop-distance.md` +
-  `scripts/measure-hop-distance.mjs` (`npm run measure:hops`). Graph expansion **survives**:
-  hub-blocked 2-hop reaches 47% of the zero-score misses at 25 seeds (+11 points of recall@400),
-  for ~85 extra shortlist slots. But **only for daily filing** — in a graph-blind catch-up the only
-  edges are atom→hub, so every recovery is hub-mediated and hub-blocked reach is 0% by
-  construction. ~40–50% of misses are in another component and unreachable at any depth.
+  `scripts/measure-hop-distance.mjs` (`npm run measure:hops`). Graph expansion **survives, at the
+  size originally predicted**: hub-blocked 2-hop reaches **29%** of the zero-score misses at 25
+  seeds — **+7 points** of honest recall@400 (76% → 83%) for ~32 extra slots. The first run said 47%
+  and +11; that was the padding artefact. **Only for daily filing** — in a graph-blind catch-up the
+  only edges are atom→hub, so every recovery is hub-mediated and hub-blocked reach is 0% by
+  construction. ~58% of misses are in another component and unreachable at any depth.
 - **Next step 3, the best free lever, is done.** `docs/research/2026-07-29-doc-expansion.md` +
   `scripts/measure-doc-expansion.mjs` (`npm run measure:expansion`). Indexing the model's link
-  prose is **+16 links won / 0 lost** at k=400 (p<0.0001) — strictly dominant, +2 points at k=400
-  and +5 at k=40 with the link field weighted ×3. It is a **floor**: the corpus's link prose is
-  only hub titles, not the real reason-bearing sentences plus tags.
+  prose wins **13 links and loses 1** at k=400 with ×3 weighting (p≈0.002). The earlier "+16 / −0,
+  strictly dominant" was the same padding artefact. It is still a **floor**: the corpus's link prose
+  is only hub titles, not the real reason-bearing sentences plus tags.
+- **What is robust vs soft, measured across all three filler shapes.** The **zero-score count is
+  identical in every run** (190 of 811 for body+title, 169 with link prose) — whether a gold target
+  shares a term with the query depends only on that pair, so padding cannot touch it. Honest
+  recall@400 barely moves (77/76/76%). Everything else swings: two-hop reach 47→29%, r@40 for
+  body+title 64→47%, expansion set size 2.5×. **Trust the zero-score column; treat every recall@k
+  magnitude on this corpus as ±10 points.**
 - **Item 3 below is resolved.** Sonnet 5 is $3/$15 with an introductory $2/$10 **through
   2026-08-31** — the secondary source was right. Opus 5 is $5/$25, Haiku 4.5 $1/$5.
 - **Haiku 4.5 does *not* accept `output_config.effort`** — it errors, as it does on Sonnet 4.5.

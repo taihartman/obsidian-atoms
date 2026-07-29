@@ -9,8 +9,17 @@ fused into reserved shortlist slots, and predicted **+3 to +8 points**. That onl
 BM25 misses are actually within two hops of the notes it finds. This measures it.
 
 **Verdict: build it, but only in the hub-blocked form, and only for daily filing.** The reach is
-real and slightly larger than predicted. Nearly half of the misses are unreachable at any depth —
-those need more index terms, not a graph.
+real and lands where the research doc predicted. Well over half the misses are unreachable at any
+depth — those need more index terms, not a graph.
+
+> **Corrected 2026-07-29b — the first version of this doc overstated the gain.** It reported 47%
+> two-hop reach and +11 points of recall. That was an artefact of the pre-run vault's filler notes,
+> whose bodies were set to their own titles: two-thirds of every scoring pool were three-word
+> documents, which collapsed the average document length BM25 normalises against. With
+> capture-shaped filler (`--filler coherent`, now the default) the figure is **29%, worth about
+> +7 points** — inside the +3 to +8 the graph-expansion doc originally predicted. Every number
+> below is the corrected run; the sensitivity band across all three filler shapes is in
+> **How much of this survives the corpus**, and it is the honest summary.
 
 ## Method
 
@@ -48,30 +57,47 @@ from a different angle: this is not a ranking problem. Every scored target is in
 
 ## Result
 
-Zero-score population, n=190 — the only one expansion exists to serve:
+Zero-score population, n=190 — the only one expansion exists to serve. Capture-shaped filler,
+25 seeds:
 
-| seeds | graph | 1 hop | 2 hops | **≤2 hops** | 3+ | unreachable | expansion size (mean, p90) |
-|---|---|---|---|---|---|---|---|
-| 10 | full | 27% | 26% | **53%** | 7% | 40% | 23 + 67 (p90 36 + 128) |
-| 10 | hub-blocked | 21% | 13% | **34%** | 12% | 54% | 21 + 22 (p90 33 + 43) |
-| 10 | catch-up | 11% | 30% | **41%** | 4% | 55% | 9 + 70 (p90 14 + 135) |
-| 25 | full | 35% | 26% | **62%** | 11% | 28% | 45 + 107 (p90 72 + 205) |
-| 25 | hub-blocked | 31% | 17% | **47%** | 12% | 41% | 43 + 42 (p90 68 + 78) |
-| 50 | hub-blocked | 39% | 21% | **60%** | 11% | 29% | 70 + 60 (p90 112 + 110) |
-
-Full sweep at seeds 5/10/25/50 is reproducible from the harness; the trend is monotone.
+| graph | 1 hop | 2 hops | **≤2 hops** | 3+ | unreachable | expansion size (mean, p90) |
+|---|---|---|---|---|---|---|
+| full | 35% | 26% | **62%** | 11% | 28% | 45 + 107 (p90 72 + 205) |
+| **hub-blocked** | 16% | 13% | **29%** | 13% | 58% | 15 + 17 (p90 28 + 37) |
+| catch-up | 7% | 33% | **41%** | 3% | 56% | 9 + 70 (p90 14 + 135) |
 
 ### What that is worth in recall
 
-At k=400 on this corpus, BM25 retrieves every scored target and none of the zero-score ones. (Some
-zero-score targets do land inside the top 400 — but only on the alphabetical tiebreak, which is
-luck, not retrieval. Counting them would inflate the baseline.) So:
+Honest recall@400 — a gold target that is both **scored and inside k** — is **614/811 = 76%**.
+(A zero-score target sometimes lands inside the top 400 anyway, but only on the alphabetical
+tiebreak. That is luck, not retrieval, so the harness now reports the scored-and-inside figure
+separately; counting the lucky ones inflates the baseline.)
 
-- baseline recall@400: **621/811 = 77%**
-- \+ hub-blocked 2-hop expansion, 25 seeds: +47% of 190 = **+89 links → 88%**
-- \+ hub-traversable, 50 seeds: +72% of 190 = +137 links → 94%, but see the cost below
+- baseline recall@400: **76%**
+- \+ hub-blocked 2-hop expansion, 25 seeds: +29% of 190 = **+55 links → 83%**
 
-**+11 points**, above the graph-expansion doc's +3 to +8 prediction, in the conservative setting.
+**About +7 points**, for ~32 extra shortlist slots (p90 65) — comfortably inside the ~60-slot
+reserved budget, and ~530 input tokens, well under a tenth of a cent warm.
+
+## How much of this survives the corpus
+
+The filler flaw above is not a one-off; it is a warning that this corpus's *magnitudes* are soft.
+Re-running under all three filler shapes gives the honest band:
+
+| measure | title-shaped filler (the bug) | mismatched | **capture-shaped (real)** |
+|---|---|---|---|
+| zero-score links | 190 (23%) | 190 (23%) | **190 (23%)** |
+| honest recall@400 | 77% | 76% | **76%** |
+| zero-score ≤2 hops, hub-blocked | 47% | 31% | **29%** |
+| expansion set (1 hop + 2 hop) | 43 + 42 | 18 + 20 | **15 + 17** |
+
+**What is robust:** the zero-score count is identical in all three, because whether a gold target
+shares a term with the query is a property of that pair alone — no amount of filler can change it.
+Honest recall@400 barely moves. Those two numbers can be trusted.
+
+**What is not:** the two-hop reach swings 47% → 29% purely on how the filler is shaped, and the
+expansion set size swings by 2.5×. The direction survives everywhere; the magnitude does not.
+Treat **+7 points** as the working estimate and **+3 to +8** as the interval.
 
 ### The costs, and why hub-blocked wins anyway
 

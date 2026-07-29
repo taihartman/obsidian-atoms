@@ -23,7 +23,8 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import { REPO_ROOT, SELECTORS, loadRealTitles } from "./lib/shortlist.mjs";
+import { REPO_ROOT, SELECTORS } from "./lib/shortlist.mjs";
+import { buildPreRunVault, describePool, loadChronoCaptures } from "./lib/corpus.mjs";
 
 const argv = process.argv.slice(2);
 const valueOf = (name, fallback) => {
@@ -38,13 +39,7 @@ const CHUNKS = [1, 25, 50, 100, 200, 500, Infinity];
 
 // -------------------------------------------------------------------- corpus
 
-const captures = fs
-  .readdirSync(path.join(REPO_ROOT, "scripts/fixtures"))
-  .filter((f) => /^chrono-corpus-.*\.json$/.test(f))
-  .flatMap((f) =>
-    JSON.parse(fs.readFileSync(path.join(REPO_ROOT, "scripts/fixtures", f), "utf8")).captures ?? [],
-  )
-  .sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
+const captures = loadChronoCaptures();
 
 if (!captures.length) {
   console.error("No chrono-corpus-*.json fixtures found.");
@@ -69,23 +64,19 @@ for (const c of atoms) {
   }
 }
 
-// Notes that already existed before the run: the referenced titles plus real-corpus filler.
-const preRun = [
-  ...new Set(captures.flatMap((c) => c.linksToExisting ?? [])),
-].map((t) => ({ title: t, ageDays: 400, body: t }));
 /**
  * The vault as it stands when the catch-up starts. Must be large enough that k actually caps
  * something — a first pass used the 139-title corpus straight and every shortlist returned the
- * whole pool, so "recovered" tracked "reachable" exactly and measured nothing.
+ * whole pool, so "recovered" tracked "reachable" exactly and measured nothing. Filler bodies are
+ * capture-shaped (see lib/corpus.mjs) — an earlier version made them title-shaped, which skewed
+ * BM25's length normalisation against the real atoms.
  */
 const PRE_RUN_SIZE = Number(valueOf("pre-run", "1200"));
-const real = loadRealTitles();
-const filler = Array.from({ length: Math.max(0, PRE_RUN_SIZE - preRun.length) }, (_, i) => {
-  const base = real[i % real.length];
-  const suffix = i >= real.length ? ` ${Math.floor(i / real.length) + 1}` : "";
-  return { title: base + suffix, ageDays: 500 + i, body: base };
+const PRE_RUN = buildPreRunVault({
+  size: PRE_RUN_SIZE,
+  hubTitles: [...new Set(captures.flatMap((c) => c.linksToExisting ?? []))],
+  bodyPool: captures.map((c) => c.capture),
 });
-const PRE_RUN = [...preRun, ...filler];
 
 const gaps = inRunPairs.map((p) => p.gap).sort((a, b) => a - b);
 console.log(
@@ -176,7 +167,8 @@ function simulate(chunks, { perCapture }) {
   };
 }
 
-console.log(`— in-run links recovered · shortlist k=${K} · pre-run vault ${PRE_RUN.length} notes —`);
+console.log(describePool("pre-run vault", PRE_RUN));
+console.log(`— in-run links recovered · shortlist k=${K} —`);
 console.log(
   "chunk".padEnd(16) + "atoms/chunk".padStart(12) + "reachable".padStart(11) +
     "recovered".padStart(11) + "union".padStart(8) + "  cacheable?",
