@@ -1,8 +1,9 @@
 # Runbook — Claude connectors directory (Atoms Ask)
 
 **MCP URL:** `https://plus.tryatoms.app/mcp`  
-**Plan Bar B:** `docs/plans/2026-07-28-002-feat-ask-mcp-2026-07-28-protocol-directory-plan.md` (U6–U7)  
-**Issue:** #194  
+**Plan:** `docs/plans/2026-07-28-002-feat-ask-mcp-2026-07-28-protocol-directory-plan.md`  
+**Shipped:** Bar A #188 / #189 · Bar B code #194 / #195 (Fly live)  
+**Protocol:** Dual-era — legacy initialize (Claude JSON-only Accept OK) + modern `2026-07-28`
 
 ## Product honesty (listing copy)
 
@@ -13,44 +14,54 @@
 | Scopes: `atoms:read` + `atoms:write` | Read-only if write tools are listed |
 | Tool results go to Anthropic when chatting in Claude | Zero-knowledge host |
 
-## OAuth scopes (U6)
+## OAuth scopes
 
 | Scope | Tools |
 |-------|--------|
 | `atoms:read` | `search_atoms`, `fetch_atom`, `neighbors`, `list_atoms` |
 | `atoms:write` | `create_atom`, `continue_atom`, `cancel_pending` |
 
-Consent **Allow** grants **both**. Users must **Disconnect + reconnect** after U6 deploy to pick up `atoms:write` on existing connectors.
+Consent **Allow** grants **both**.  
+**Reconnect** (Disconnect → OAuth again) if an old connector was linked before `atoms:write` shipped — otherwise write tools return `insufficient_scope`.
 
-## Reviewer-completable write path (KTD15)
+## Reviewer-completable write path
 
 Directory review needs write tools to **succeed**, not stay forever-pending.
 
-### Option A — Human vault window (default)
+### Option A — Human vault window (default; dogfooded)
 
-1. Plus test account (active/trialing) with Ask enabled + **Allow filing**.
-2. Desktop Obsidian open on a **test vault** (not personal Remote Vault for unattended agents).
-3. Reviewer (or operator) runs `create_atom` in Claude → within ~1 min with app open, outbox applies → `fetch_atom` finds the note.
-4. Document operator email + “Obsidian open during review” in portal test-account steps.
+1. Plus account (active/trialing) with Ask enabled + **Allow filing**.
+2. Desktop Obsidian open (prefer **test vault** for review; personal vault OK for owner dogfood).
+3. In Claude: `create_atom` → status **pending** / outbox id → within ~1 min with app open, vault applies → `fetch_atom` finds the note.
+4. Portal test-account steps: operator email + “Obsidian open + Allow filing during review.”
+
+**Owner dogfood (2026-07-29):** consent shows both scopes; Claude queued `create_atom` as pending outbox. Apply confirmed when Obsidian open with filing allowed.
 
 ### Option B — Harness (optional later)
 
-Script: claim outbox → apply payload into mirror upsert → ack applied, so `fetch_atom` works without Obsidian. Not required if Option A is staffed.
+Script: claim outbox → mirror upsert → ack applied (no Obsidian). Not required if Option A is staffed.
 
 ## Pre-submit checklist
 
-- [ ] HTTPS MCP URL live; unauth `/mcp` → 401 + PRM  
-- [ ] AS metadata: CIMD + `none` + `atoms:read` + `atoms:write` + `iss` flag  
-- [ ] Claude custom connector: tools list + search/fetch  
-- [ ] After reconnect: token `scope` includes `atoms:write`; `create_atom` enqueues  
-- [ ] Write → Obsidian apply → `fetch_atom` (Option A) recorded  
-- [ ] Privacy URL live on tryatoms (e.g. `/privacy`)  
-- [ ] Public docs URL (this runbook or tryatoms Ask help)  
-- [ ] Icon/asset ready  
-- [ ] Support contact  
-- [ ] DCR register still rate-limited (CI)  
-- [ ] Portal: name, tagline, description, categories, use cases **reads and writes**  
-- [ ] Compliance acks  
+### Done (code + owner dogfood)
+
+- [x] HTTPS MCP URL live; unauth `/mcp` → 401 + PRM  
+- [x] AS metadata: CIMD + `none` + `atoms:read` + `atoms:write` + `iss` flag (live prod)  
+- [x] Claude custom connector: tools list + search/fetch (after JSON Accept fix)  
+- [x] After reconnect: `atoms:write`; `create_atom` enqueues (pending outbox)  
+- [x] DCR register rate-limited (CI)  
+- [x] Dual-era + write-scope tests in `plus-service`  
+
+### Still open (portal / assets / evidence)
+
+- [ ] Write → Obsidian **apply** → `fetch_atom` screenshot/notes under `docs/qa/` (optional if you already saw it land)  
+- [ ] Privacy URL live on tryatoms (confirm `https://tryatoms.app/privacy` or current path)  
+- [ ] Public docs URL for listing (this runbook raw GitHub URL or tryatoms help page)  
+- [ ] Icon/asset for directory listing  
+- [ ] Support contact email  
+- [ ] Portal form: name, tagline, description, categories, use cases **reads and writes**  
+- [ ] Compliance acks in portal  
+- [ ] Team/Enterprise Claude org with Directory management role  
 
 ## Portal submission
 
@@ -59,17 +70,17 @@ Script: claim outbox → apply payload into mirror upsert → ack applied, so `f
 3. Dashboard: `https://claude.ai/admin-settings/directory/submissions`  
 4. Escalations: `mcp-review@anthropic.com`  
 
-### Exit state (record here after submit)
+### Exit state
 
 | Date | State | Notes | Owner |
 |------|--------|-------|--------|
-| _pending_ | Not submitted | Code + runbook first | |
+| 2026-07-29 | **Code ready, not submitted** | Bar A+B on Fly; custom connector dogfood green; portal form not started | |
 
-States: `Not submitted` · `Submitted` · `Approved` · `Rejected + remediation` · `Blocked (org/privacy/icon)`
+States: `Not submitted` · `Code ready, not submitted` · `Submitted` · `Approved` · `Rejected + remediation` · `Blocked (org/privacy/icon)`
 
-## Deploy note
+## Ops / deploy
 
-After merging U6 code:
+Already on production from #189 / #195. Further MCP changes:
 
 ```bash
 fly deploy -a atoms-plus \
@@ -77,4 +88,9 @@ fly deploy -a atoms-plus \
   --dockerfile plus-service/Dockerfile
 ```
 
-Then human: reconnect Claude connector before directory dogfood.
+Rollback: `fly releases -a atoms-plus` → prior image (see `docs/runbooks/atoms-plus-prod.md`).
+
+## Related evidence
+
+- Dual-era deploy probes: `docs/qa/2026-07-29-ask-mcp-dual-era-deploy.md`  
+- Prod runbook Ask section: `docs/runbooks/atoms-plus-prod.md`  
