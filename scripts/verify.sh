@@ -31,7 +31,9 @@ echo "=== CLI: plugins / commands ==="
   }
   obsidian commands filter=atoms
   obsidian command id=atoms:list-unprocessed-captures
-  obsidian command id=atoms:log-context-prefix
+  # No atoms:log-context-prefix here: it is dev-gated behind ATOMS_DEV_COMMANDS,
+  # and install-to-vault.sh above installs a *production* build, so the command
+  # does not exist. The eval below already checks the same thing directly.
   # Live context stability via plugin
   out=$(obsidian eval 'code=(()=>{const p=app.plugins.plugins["atoms"];if(!p?.contextProvider)return "missing";const a=p.contextProvider.buildContext();const b=p.contextProvider.buildContext();return JSON.stringify({stable:JSON.stringify(a)===JSON.stringify(b),titles:a.titles.length,tags:a.tags.length,vocab:a.vocabulary.length})})()')
   echo "$out"
@@ -42,7 +44,7 @@ echo "=== ground-truth parse (filesystem) ==="
 npx --yes tsx -e '
 import { readdirSync, readFileSync } from "fs";
 import { join } from "path";
-import { collectPastNotesWithUnmarkedCaptures, parseCaptures } from "./src/parse.ts";
+import { collectPastNotesWithUnmarkedCaptures, parseCaptures } from "./src/pipeline/parse.ts";
 
 const vault = process.argv[1];
 const today = new Date();
