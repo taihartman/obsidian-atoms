@@ -17,6 +17,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import {
+  isPersonHub,
   REPO_ROOT,
   SELECTORS,
   buildVault,
@@ -59,6 +60,21 @@ const pipeline = await loadRepoPipeline();
 
 let paidCalls = 0;
 
+/**
+ * `--via-pipeline` routes through the plugin's real `classifyCapture` instead of posting the
+ * request body directly. That matters because classify does not stop at the model: it then runs
+ * rescueKeepableIdea / enrichPersonLinks / enrichMediaLinks / enrichEntityLinks /
+ * improveClassificationLinks, and every one of those repairs over `context.titles`. So the
+ * shortlist bounds the repair stage too, and measuring the raw response measures neither the
+ * benefit of enrichment nor the penalty capping imposes on it.
+ */
+const viaPipeline = has("--via-pipeline");
+
+/** Person hubs are discovered from the whole vault and are never capped by the selector. */
+function personHubsOf(notes) {
+  return notes.filter((n) => isPersonHub(n.title)).map((n) => n.title);
+}
+
 function requestFor(probe, cfg) {
   const notes = buildVault(probe, VAULT_SIZE, probes, realTitles);
   const shortlist = SELECTORS[cfg.selector](probe.capture, notes, cfg.k);
@@ -66,9 +82,10 @@ function requestFor(probe, cfg) {
     titles: shortlist.map((n) => n.title),
     vaultTags: [],
     activeVocabulary: pipeline.DEFAULT_ACTIVE_VOCABULARY,
-    personHubs: [],
+    personHubs: personHubsOf(notes),
   });
   return {
+    context,
     body: pipeline.buildMessagesRequest({
       model: MODEL,
       capture: probe.capture,
@@ -82,29 +99,58 @@ function requestFor(probe, cfg) {
   };
 }
 
+/** Obsidian's requestUrl contract, backed by fetch — classify only reads `status` and `json`. */
+async function requestShim(opts) {
+  const res = await fetch(opts.url, {
+    method: opts.method,
+    headers: opts.headers,
+    body: opts.body,
+  });
+  const json = await res.json().catch(() => ({}));
+  return { status: res.status, json };
+}
+
 async function classify(probe, cfg) {
   if (paidCalls >= MAX_PAID_CALLS) throw new Error(`Paid-call cap ${MAX_PAID_CALLS} reached`);
   paidCalls += 1;
-  const { body, targetInShortlist } = requestFor(probe, cfg);
-  const res = await fetch(MESSAGES_URL, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": VERSION,
-    },
-    body: JSON.stringify(body),
-  });
-  const json = await res.json().catch(() => ({}));
-  if (res.status < 200 || res.status >= 300) {
-    return { probe: probe.id, config: cfg.label, error: json?.error?.type ?? res.status };
-  }
+  const { body, context, targetInShortlist } = requestFor(probe, cfg);
+
   let parsed = {};
-  try {
-    parsed = JSON.parse((json.content || []).find((b) => b.type === "text")?.text ?? "{}");
-  } catch {
-    /* keep the usage figures even when the payload does not parse */
+  let json = {};
+  if (viaPipeline) {
+    const outcome = await pipeline.classifyCapture(probe.capture, context, {
+      apiKey,
+      model: MODEL,
+      request: requestShim,
+      activeVocabulary: pipeline.DEFAULT_ACTIVE_VOCABULARY,
+      sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
+    });
+    if (!outcome.ok) {
+      return { probe: probe.id, config: cfg.label, error: outcome.reason ?? "classify_failed" };
+    }
+    parsed = outcome.result ?? {};
+    json = { usage: outcome.usage ?? {} };
+  } else {
+    const res = await fetch(MESSAGES_URL, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": VERSION,
+      },
+      body: JSON.stringify(body),
+    });
+    json = await res.json().catch(() => ({}));
+    if (res.status < 200 || res.status >= 300) {
+      return { probe: probe.id, config: cfg.label, error: json?.error?.type ?? res.status };
+    }
+    try {
+      parsed = JSON.parse((json.content || []).find((b) => b.type === "text")?.text ?? "{}");
+    } catch {
+      /* keep the usage figures even when the payload does not parse */
+    }
   }
+
   const links = (parsed.links ?? []).map((l) => l.note);
   const u = json.usage ?? {};
   return {

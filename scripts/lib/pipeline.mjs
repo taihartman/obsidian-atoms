@@ -17,7 +17,7 @@ export async function loadRepoPipeline() {
   await build({
     stdin: {
       contents: [
-        `export { buildMessagesRequest, SYSTEM_PROMPT, CLASSIFICATION_SCHEMA } from "./src/pipeline/classify";`,
+        `export { buildMessagesRequest, SYSTEM_PROMPT, CLASSIFICATION_SCHEMA, classifyCapture } from "./src/pipeline/classify";`,
         `export { buildVaultContext } from "./src/pipeline/context";`,
         `export { DEFAULT_ACTIVE_VOCABULARY } from "./src/pipeline/vocabulary";`,
         `export { ASSUMED_OUTPUT_TOKENS, DEFAULT_BACKFILL_MODEL } from "./src/pipeline/backfill";`,

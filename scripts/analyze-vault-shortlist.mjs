@@ -34,6 +34,12 @@ if (!vaultPath) {
 }
 const atomsDir = valueOf("atoms-folder", "Atoms");
 const showExamples = Number(valueOf("examples", "0"));
+/**
+ * Index only the first N characters of each body. Index memory scales with indexed text, and at
+ * 3,000 notes the full-body index is ~24MB — real pressure inside a mobile webview. If recall
+ * holds on a prefix, the memory problem goes away. 0 = no truncation.
+ */
+const bodyChars = Number(valueOf("body-chars", "0"));
 
 // -------------------------------------------------------------------- read
 
@@ -89,7 +95,7 @@ for (const f of files) {
     ? splitAtom(stripFrontmatter(raw))
     : { capture: stripFrontmatter(raw).slice(0, 2000), tail: "" };
 
-  notes.push({ title, ageDays, body: capture });
+  notes.push({ title, ageDays, body: bodyChars ? capture.slice(0, bodyChars) : capture });
   if (isAtom) {
     const links = [...tail.matchAll(/\[\[([^\]|#]+)/g)].map((m) => m[1].trim());
     atoms.push({ title, capture, links: [...new Set(links)] });
