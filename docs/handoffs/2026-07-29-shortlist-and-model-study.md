@@ -120,6 +120,19 @@ changed.** Everything lives in `scripts/` and `docs/`.
 - "thai place → onions" is **world knowledge**, not vocabulary mismatch — no local statistic solves
   it. Body scoring caught that probe via the shared word "guts", not by any inference.
 
+### One dataset was lost — know this before reading the raw JSON
+
+`measure-link-quality.mjs` was run twice: once against the raw API ($11.76) and once through the
+real `classifyCapture` (`--via-pipeline`, $11.38). Its `valueOf` only accepted `--out=path`, not
+`--out path`, so the second run silently fell back to the default filename and **overwrote the
+first run's per-probe results**. Fixed (the parser now takes both forms) and the surviving file is
+renamed `data/2026-07-28-link-quality-pipeline.json` to say what it actually holds.
+
+**What survives:** both runs' summary tables, in the plan doc's "Results — step 4" and "step 4b"
+sections, and in commits `2155f06` / `15c1278`. **What is gone:** the raw-API run's per-probe
+detail. Re-running costs ~$12 if it is ever needed; it is not needed for any current conclusion,
+because the pipeline run is the one that reflects shipped behaviour.
+
 ## Not established — the actual work
 
 1. **Model and effort.** Blocked on a fresh API key. See Next steps 2.

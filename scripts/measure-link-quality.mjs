@@ -35,9 +35,13 @@ const MAX_PAID_CALLS = 400;
 
 const argv = process.argv.slice(2);
 const has = (f) => argv.includes(f);
+// Accept BOTH `--out=path` and `--out path`. The =-only version silently fell back to the
+// default output path when given the spaced form, overwriting a previous run's raw results.
 const valueOf = (name, fallback) => {
   const hit = argv.find((a) => a.startsWith(`--${name}=`));
-  return hit ? hit.slice(name.length + 3) : fallback;
+  if (hit) return hit.slice(name.length + 3);
+  const i = argv.indexOf(`--${name}`);
+  return i >= 0 && argv[i + 1] && !argv[i + 1].startsWith("--") ? argv[i + 1] : fallback;
 };
 
 const apiKey = process.env.ANTHROPIC_API_KEY;
