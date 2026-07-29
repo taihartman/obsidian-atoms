@@ -5,7 +5,7 @@ worktree: /Users/a515138832/StudioProjects/obsidian_plugin-catch-up-study
 base: master
 tracking: https://github.com/taihartman/obsidian-atoms/issues/168
 supersedes: docs/handoffs/2026-07-29-shortlist-and-model-study.md
-status: in-progress
+status: stopped-deliberately
 ---
 
 # Handoff — build a real Atoms corpus, then re-measure everything on it
@@ -71,8 +71,46 @@ Research is complete and committed; **no plugin code has been changed.** Everyth
 **one** of which scores zero. Too small to settle anything — k=400 exceeds the whole vault. It did
 show that **tags carry more indexable tokens than the captures themselves** (714 vs 650; +158% with
 link prose), and all 37 atoms have them. That makes tags the largest untested lever, and it is
-untestable until the new corpus exists. The owner also has **409 unprocessed daily bullets** across
-27 dated notes (2025-07-09 → 2026-07-28), mean 75 chars — none carry a linker marker.
+untestable until the new corpus exists.
+
+> **CORRECTED 2026-07-29.** This doc originally claimed the owner had **409 unprocessed daily
+> bullets across 27 dated notes, none carrying a linker marker**. Measured directly against the
+> vault, that is wrong on every count: **16** dated notes (2025-07-09 → 2026-07-28), **55** bullet
+> lines total (51 top-level), and **50 of 51 already carry a marker**. There is no backlog —
+> essentially every capture the owner has ever made is already processed into the 37 atoms. The
+> original figure appears to have counted something other than capture bullets and to have missed
+> the markers entirely. It was load-bearing for the corpus-size argument below; see the correction
+> there.
+
+## Why the corpus was stopped (2026-07-29)
+
+The Next steps below were executed as far as step 4 and then **halted deliberately**. The brief,
+the acceptance gate (`scripts/validate-corpus.mjs`) and the headless pilot harness
+(`scripts/process-corpus.mjs`) are all committed and still work if this is ever restarted.
+
+**What happened.** The brief was extended into a life-story brief, an acceptance gate was written
+before commissioning anything, and authoring was delegated to `xai/grok-4.5`. The story bible came
+back good. The first capture file passed **eight** gates and was rejected on sight: it had padded
+captures to hit the mean length with stock closing phrases, manufactured the near-duplicate quota by
+repeating adjacent captures verbatim, and maxed the short-capture gate at 107/107. The gate was
+tightened (exact-duplicate reject, two padding metrics, a same-thread run cap, ceilings as well as
+floors) and it now catches all of it — measured cleanly: 33% recurring trailing phrases vs 0% on an
+honest corpus.
+
+**Why that was not worth another round.** A validator only encodes flaws already seen. File E passed
+eight gates and was still unusable; the next file passes nine and is wrong in a tenth way. This is
+the third measurement artefact on this branch — after the title-only filler bodies that inflated
+two published figures, and the 409-bullet claim corrected above.
+
+**The deciding argument.** The findings that held up did so *because* they reproduced across corpora
+with different flaws. What is still open — whether tags are the big lever, what recall@400 actually
+is — is precisely what is most sensitive to whether the fiction resembles a real vault. A corpus
+written to a brief we authored cannot settle that; it grades our own imagination. Meanwhile the
+findings already in hand are enough to implement against, and one of them (alphabetical-40 scoring
+0%) was measured on the **real** vault.
+
+**Cost at the stop:** $5.19 of authoring tokens, over half of it on discarded output. **$0** of
+Anthropic pipeline spend — the paid run never happened.
 
 ## Next steps
 
@@ -163,6 +201,11 @@ untestable until the new corpus exists. The owner also has **409 unprocessed dai
 - **How big should the corpus be?** Recommended 1,000–1,500 atoms — enough that k=400 genuinely
   caps, without paying for a 3,000-note scale neither party is sure is real. The owner's actual
   backlog is 409 bullets, so **3,000 is a hypothetical power user, not them.** Not yet decided.
+
+  > **CORRECTED / CLOSED 2026-07-29.** The real backlog is **zero** — 51 lifetime captures, 50 of
+  > them already processed, 37 atoms. The conclusion stands much harder than written: 1,200 atoms is
+  > already 30x the only vault that exists. **The corpus build was stopped** rather than resized.
+  > See § Why the corpus was stopped.
 - **Do the OpenAI arms (GPT-5.6 Terra/Luna) make the bake-off?** The pipeline is Anthropic-only;
   they need a separate adapter. The owner now has an OpenAI key, so it is possible but unscoped.
 - **Haiku 4.5 rejects `output_config.effort`** — it errors, as on Sonnet 4.5. Omit the field on that
