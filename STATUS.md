@@ -7,7 +7,6 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| In progress | [#191](https://github.com/taihartman/obsidian-atoms/issues/191) (+ core of [#177](https://github.com/taihartman/obsidian-atoms/issues/177)) | agent (Claude) | `claude/inbox-stuck-card-home-spacing-d5557d` | [2026-07-29-001](docs/plans/2026-07-29-001-fix-inbox-stuck-card-and-home-spacing.md) | `src/pipeline/inbox.ts`, `src/home/atomsHomeData.ts`, `src/home/atomsHomeView.ts`, `styles.css` | Inbox self-heals bad stamps (KTD1/KTD2); dead-end "needs a fix" card retired; home header + card spacing. [#190](https://github.com/taihartman/obsidian-atoms/issues/190) (noise misclassification) filed, deferred. |
 
 ## How to claim (copy)
 
