@@ -488,15 +488,42 @@ describe("alsoAbout strip copy", () => {
 });
 
 describe("updateNotesConfirmCopy", () => {
-  it("polish-only does not mention Anthropic key", () => {
+  it("polish-only does not mention Anthropic key or Plus", () => {
     const t = updateNotesConfirmCopy({ refileBatch: 0, polishable: 12 });
     expect(t.toLowerCase()).toMatch(/free/);
     expect(t).not.toMatch(/Anthropic/i);
+    expect(t).not.toMatch(/Plus/i);
   });
 
-  it("refile mentions key", () => {
-    const t = updateNotesConfirmCopy({ refileBatch: 15, polishable: 0 });
+  it("refile on Plus names monthly filings, not a personal key", () => {
+    const t = updateNotesConfirmCopy({
+      refileBatch: 15,
+      polishable: 0,
+      billing: "plus",
+    });
+    expect(t).toMatch(/Atoms Plus/i);
+    expect(t).toMatch(/monthly filings/i);
+    expect(t).not.toMatch(/Anthropic/i);
+  });
+
+  it("refile on BYOK names the Anthropic key", () => {
+    const t = updateNotesConfirmCopy({
+      refileBatch: 15,
+      polishable: 0,
+      billing: "byok",
+    });
     expect(t).toMatch(/Anthropic/i);
+    expect(t).not.toMatch(/Atoms Plus/i);
+  });
+
+  it("refile with no auth does not claim a key", () => {
+    const t = updateNotesConfirmCopy({
+      refileBatch: 3,
+      polishable: 2,
+      billing: "none",
+    });
+    expect(t).toMatch(/Sign in to Atoms Plus or add an API key/i);
+    expect(t).not.toMatch(/Uses your Anthropic/i);
   });
 });
 

@@ -2239,10 +2239,17 @@ export class AtomsHomeView extends ItemView {
     refileBatch: number;
     polishable: number;
   }): void {
+    const auth = this.plugin.resolveFilingAuth();
+    const billing =
+      auth.mode === "plus" && auth.status !== "exhausted"
+        ? "plus"
+        : auth.mode === "byok"
+          ? "byok"
+          : "none";
     const modal = new Modal(this.app);
     modal.titleEl.setText("Filing got smarter");
     modal.contentEl.createEl("p", {
-      text: updateNotesConfirmCopy(opts),
+      text: updateNotesConfirmCopy({ ...opts, billing }),
     });
     new Setting(modal.contentEl)
       .addButton((b) =>

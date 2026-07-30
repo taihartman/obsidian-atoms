@@ -538,34 +538,55 @@ export function updateNotesStripCopy(eligibleCount: number): {
   };
 }
 
+/** How AI refile will be billed — must match `resolveClassifyAuth` preference. */
+export type UpdateNotesBilling = "plus" | "byok" | "none";
+
 export type UpdateConfirmOpts = {
   /** AI refile slots this pass (≤ batch limit). */
   refileBatch: number;
   /** Free polish candidates (may exceed batch). */
   polishable: number;
+  /**
+   * Who pays for AI refile. Polish-only ignores this.
+   * Defaults to `none` so callers must pass the real path — never imply a key by accident.
+   */
+  billing?: UpdateNotesBilling;
 };
+
+/** One trailing sentence naming the real cost path (refile only). */
+export function updateNotesBillingLine(billing: UpdateNotesBilling): string {
+  if (billing === "plus") {
+    return "Uses Atoms Plus (counts toward your monthly filings).";
+  }
+  if (billing === "byok") {
+    return "Uses your Anthropic API key.";
+  }
+  return "Sign in to Atoms Plus or add an API key in Settings first.";
+}
 
 export function updateNotesConfirmCopy(
   batchCountOrOpts: number | UpdateConfirmOpts,
 ): string {
   if (typeof batchCountOrOpts === "number") {
     const n = Math.max(0, batchCountOrOpts);
-    return `Update ${n} note${n === 1 ? "" : "s"} to the newer filing quality? Titles and links may change. Your original capture text will not. Uses your Anthropic key.`;
+    return `Update ${n} note${n === 1 ? "" : "s"} to the newer filing quality? Titles and links may change. Your original capture text will not. ${updateNotesBillingLine("none")}`;
   }
   const refile = Math.max(0, batchCountOrOpts.refileBatch);
   const polish = Math.max(0, batchCountOrOpts.polishable);
+  const billing = batchCountOrOpts.billing ?? "none";
   if (refile <= 0 && polish <= 0) {
     return "Nothing needs a refresh right now.";
   }
   if (refile <= 0) {
     return polish === 1
-      ? "Clean up link wording on 1 note? Free — no API key. Your original capture text will not change."
-      : `Clean up link wording on older notes (about ${polish})? Free — no API key. Your original capture text will not change.`;
+      ? "Clean up link wording on 1 note? Free — no API call. Your original capture text will not change."
+      : `Clean up link wording on older notes (about ${polish})? Free — no API call. Your original capture text will not change.`;
   }
+  const cost = updateNotesBillingLine(billing);
   if (polish <= 0) {
-    return `Update ${refile} note${refile === 1 ? "" : "s"} with the same AI as filing? Titles and links may change. Your original capture text will not. Uses your Anthropic key.`;
+    return `Update ${refile} note${refile === 1 ? "" : "s"} with the same AI as filing? Titles and links may change. Your original capture text will not. ${cost}`;
   }
-  return `We’ll clean up weak link wording for free, then refresh up to ${refile} note${refile === 1 ? "" : "s"} with the same AI as filing. Titles and links may change. Your original capture text will not. Uses your Anthropic key.`;
+  return `We’ll clean up weak link wording for free, then refresh up to ${refile} note${refile === 1 ? "" : "s"} with the same AI as filing. Titles and links may change. Your original capture text will not. ${cost}`;
 }
 
 /** True when this device will file past captures without a Process tap. */
