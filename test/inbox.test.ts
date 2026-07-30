@@ -9,10 +9,12 @@ import {
   INBOX_FILED_MARKER,
   INBOX_NOTE_PATH,
   INBOX_NOTE_TEMPLATE,
+  inboxCounts,
+  inboxInferredDateFromLine,
+  inboxInferredDateMarker,
   isInboxFiledMarkerLine,
   parseInboxCaptures,
   pendingInboxCaptures,
-  unparseableInboxCaptures,
 } from "../src/pipeline/inbox";
 import {
   DailyNotesDisabledError,
@@ -22,6 +24,16 @@ import { parseCaptures } from "../src/pipeline/parse";
 
 afterEach(() => vi.restoreAllMocks());
 
+/**
+ * Independent check that a YYYY-MM-DD string names a day that exists — the
+ * property `ensureDailyForDate` needs and that produced `Daily/Invalid date.md`
+ * when it was missing. Round-trips through Date rather than reusing the
+ * plugin's own guard, so a broken guard cannot make its own tests pass.
+ */
+function isRealDateString(date: string): boolean {
+  return new Date(`${date}T00:00:00Z`).toISOString().slice(0, 10) === date;
+}
+
 describe("parseInboxCaptures — capture shape", () => {
   it("parses a single-line stamped capture", () => {
     const caps = parseInboxCaptures("- 2026-07-27T09:14-04:00 buy milk\n");
@@ -30,7 +42,7 @@ describe("parseInboxCaptures — capture shape", () => {
     expect(caps[0]!.time).toBe("09:14");
     expect(caps[0]!.text).toBe("buy milk");
     expect(caps[0]!.filed).toBe(false);
-    expect(caps[0]!.unparseable).toBe(false);
+    expect(caps[0]!.inferredDate).toBeNull();
   });
 
   it("carries seconds through into the time when the stamp has them", () => {
@@ -79,6 +91,28 @@ describe("parseInboxCaptures — capture shape", () => {
     const caps = parseInboxCaptures("- \n- 2026-07-27T09:14-04:00 real\n");
     expect(caps).toHaveLength(1);
     expect(caps[0]!.text).toBe("real");
+  });
+
+  it("skips a bullet that is only a stamp (KTD3)", () => {
+    // A stamp with no trailing text carries no content. It is empty, not
+    // unreadable — counting it as work is a false alarm about a note the user
+    // never opens.
+    expect(parseInboxCaptures("- 2026-07-28T12:00:00-04:00\n")).toHaveLength(0);
+  });
+
+  it("skips a bare stamp with a trailing space", () => {
+    expect(parseInboxCaptures("- 2026-07-28T12:00:00-04:00 \n")).toHaveLength(
+      0,
+    );
+  });
+
+  it("drops the empty first body part of a bare stamp with a continuation", () => {
+    // Trailing text is optional (KTD3), so the bullet's own body is "". Keeping
+    // it would render an empty first bullet line in the daily.
+    const caps = parseInboxCaptures("- 2026-07-28T12:00:00-04:00\n\tbuy milk\n");
+    expect(caps).toHaveLength(1);
+    expect(caps[0]!.text).toBe("buy milk");
+    expect(caps[0]!.time).toBe("12:00:00");
   });
 
   it("ignores frontmatter and prose above the first bullet", () => {
@@ -190,43 +224,375 @@ describe("parseInboxCaptures — filed markers", () => {
     expect(caps).toHaveLength(1);
     expect(caps[0]!.filed).toBe(true);
   });
-});
 
-describe("parseInboxCaptures — unparseable lines", () => {
-  it("flags a bullet with no stamp rather than dropping it", () => {
-    const caps = parseInboxCaptures("- no stamp here\n");
-    expect(caps).toHaveLength(1);
-    expect(caps[0]!.unparseable).toBe(true);
-    expect(caps[0]!.date).toBeNull();
-    expect(caps[0]!.text).toBe("no stamp here");
-  });
-
-  it("flags a malformed stamp rather than guessing a date", () => {
-    const caps = parseInboxCaptures("- 2026-13-45T99:99-04:00 nonsense\n");
-    expect(caps[0]!.unparseable).toBe(true);
-    expect(caps[0]!.date).toBeNull();
-  });
-
-  it("keeps parsing valid captures after an unparseable one", () => {
+  it("reads a capture as filed through a conflict block above its marker (F4)", () => {
+    // A line the parser refuses to absorb is noise, and noise must be invisible
+    // to the region scan in both directions: terminating on it would hide the
+    // marker below and stack a second one on the next drain.
     const md = [
-      "- broken line",
-      "- 2026-07-27T09:14-04:00 good one",
+      "- 2026-07-27T09:14-04:00 buy milk",
+      "<<<<<<< HEAD",
+      "=======",
+      ">>>>>>> other",
+      `\t${INBOX_FILED_MARKER}`,
       "",
     ].join("\n");
     const caps = parseInboxCaptures(md);
+    expect(caps).toHaveLength(1);
+    expect(caps[0]!.filed).toBe(true);
+  });
+
+  it("reads a capture as filed through a degenerate dash above its marker (F4)", () => {
+    const md = [
+      "- 2026-07-27T09:14-04:00 buy milk",
+      "-",
+      `\t${INBOX_FILED_MARKER}`,
+      "",
+    ].join("\n");
+    const caps = parseInboxCaptures(md);
+    expect(caps).toHaveLength(1);
+    expect(caps[0]!.filed).toBe(true);
+  });
+});
+
+describe("parseInboxCaptures — orphan column-0 lines (KTD4)", () => {
+  it("leaves the note's own template prose outside every capture", () => {
+    const caps = parseInboxCaptures(INBOX_NOTE_TEMPLATE);
+    expect(caps).toHaveLength(0);
+  });
+
+  it("absorbs a column-0 line that lost its indentation", () => {
+    const md = ["- 2026-07-27T09:14-04:00 first", "second line", ""].join("\n");
+    const caps = parseInboxCaptures(md);
+    expect(caps).toHaveLength(1);
+    expect(caps[0]!.text).toBe("first\nsecond line");
+  });
+
+  it("never folds an orphan into an already-filed capture above it", () => {
+    // Absorbing here would rewrite that capture's text and therefore its
+    // captureKey — the dedupe key for something already written to a daily.
+    const md = [
+      "- 2026-07-27T09:14-04:00 buy milk",
+      `\t${INBOX_FILED_MARKER}`,
+      "orphan line",
+      "",
+    ].join("\n");
+    const caps = parseInboxCaptures(md);
+    expect(caps).toHaveLength(1);
+    expect(caps[0]!.text).toBe("buy milk");
+    expect(caps[0]!.filed).toBe(true);
+  });
+
+  it.each(["-", "\t-", "-   "])(
+    "never folds a content-free dash line %j into the body above it",
+    (dash) => {
+      // TOP_LEVEL_BULLET_RE needs the trailing space, so a bare dash is not a
+      // bullet — absorbing it would append a stray "-" to a sacred body.
+      const md = ["- 2026-07-27T09:14-04:00 buy milk", dash, ""].join("\n");
+      const caps = parseInboxCaptures(md);
+      expect(caps).toHaveLength(1);
+      expect(caps[0]!.text).toBe("buy milk");
+    },
+  );
+
+  it("never folds a sync-conflict block into the body above it", () => {
+    // The inbox is appended to by every device, so it is the note in the vault
+    // most likely to receive a conflict. Absorbing the scaffolding writes text
+    // the user never typed into their capture.
+    const md = [
+      "- 2026-07-27T09:14-04:00 buy milk",
+      "<<<<<<< HEAD",
+      "=======",
+      ">>>>>>> other",
+      "",
+    ].join("\n");
+    const caps = parseInboxCaptures(md);
+    expect(caps).toHaveLength(1);
+    expect(caps[0]!.text).toBe("buy milk");
+  });
+
+  it("never folds a diff3 conflict block into the body above it", () => {
+    // `merge.conflictStyle = diff3` (and zdiff3) adds a `|||||||` base section.
+    // It is never legitimate capture text. A capture sitting last in the "ours"
+    // section puts `|||||||` directly below it, where it would be absorbed.
+    const md = [
+      "<<<<<<< HEAD",
+      "- 2026-07-27T09:14-04:00 buy milk",
+      "||||||| base",
+      "=======",
+      ">>>>>>> other",
+      "",
+    ].join("\n");
+    const caps = parseInboxCaptures(md);
+    expect(caps).toHaveLength(1);
+    expect(caps[0]!.text).toBe("buy milk");
+  });
+});
+
+describe("parseInboxCaptures — unreadable stamps heal (KTD1, KTD2)", () => {
+  const now = new Date(2026, 6, 30, 12, 0, 0); // 2026-07-30 local
+
+  it("files a stampless bullet against today when it has no stamped neighbour", () => {
+    const caps = parseInboxCaptures("- no stamp here\n", now);
+    expect(caps).toHaveLength(1);
+    expect(caps[0]!.stamp).toBeNull();
+    expect(caps[0]!.time).toBeNull();
+    expect(caps[0]!.date).toBe("2026-07-30");
+    expect(caps[0]!.text).toBe("no stamp here");
+  });
+
+  it("inherits the date of the nearest preceding stamped capture", () => {
+    const md = [
+      "- 2026-07-27T09:14-04:00 anchor",
+      "- no stamp here",
+      "- 2026-07-29T10:00-04:00 later anchor",
+      "",
+    ].join("\n");
+    const caps = parseInboxCaptures(md, now);
+    expect(caps.map((c) => c.date)).toEqual([
+      "2026-07-27",
+      "2026-07-27",
+      "2026-07-29",
+    ]);
+  });
+
+  it("falls back to the nearest following stamped capture", () => {
+    const md = [
+      "- no stamp here",
+      "- 2026-07-29T10:00-04:00 anchor",
+      "",
+    ].join("\n");
+    const caps = parseInboxCaptures(md, now);
+    expect(caps[0]!.date).toBe("2026-07-29");
+  });
+
+  it("clamps an inherited future date to today so nothing is stranded", () => {
+    // Inheriting the future date would raise FutureDailyNoteError forever —
+    // the exact stranding KTD1 exists to prevent.
+    const md = ["- 2099-01-01T08:00-04:00 far future", "- no stamp here", ""].join(
+      "\n",
+    );
+    const caps = parseInboxCaptures(md, now);
+    expect(caps[1]!.date).toBe("2026-07-30");
+  });
+
+  it("anchors only on stamped captures, never on another inferred one", () => {
+    const md = [
+      "- 2026-07-27T09:14-04:00 anchor",
+      "- first orphan",
+      "- second orphan",
+      "",
+    ].join("\n");
+    const caps = parseInboxCaptures(md, now);
+    expect(caps.map((c) => c.date)).toEqual([
+      "2026-07-27",
+      "2026-07-27",
+      "2026-07-27",
+    ]);
+  });
+
+  it("strips a junk routing stamp out of the body", () => {
+    const caps = parseInboxCaptures("- 7/28/26, 12:00 PM buy milk\n", now);
+    expect(caps).toHaveLength(1);
+    expect(caps[0]!.text).toBe("buy milk");
+    expect(caps[0]!.stamp).toBeNull();
+    expect(caps[0]!.time).toBeNull();
+    expect(caps[0]!.date).toBe("2026-07-30");
+  });
+
+  it("strips an ISO-shaped stamp whose calendar date is impossible", () => {
+    const caps = parseInboxCaptures("- 2026-13-45T99:99-04:00 nonsense\n", now);
+    expect(caps).toHaveLength(1);
+    expect(caps[0]!.text).toBe("nonsense");
+  });
+
+  it("drops a bare junk stamp entirely — it carries no content", () => {
+    expect(parseInboxCaptures("- 2026-13-45T99:99-04:00\n", now)).toHaveLength(
+      0,
+    );
+  });
+
+  it("leaves a genuine capture that merely looks date-ish alone", () => {
+    // Only three named stamp shapes strip, and none of them match this.
+    const caps = parseInboxCaptures("- 7/28 3:00 PM meeting with Bob\n", now);
+    expect(caps[0]!.text).toBe("7/28 3:00 PM meeting with Bob");
+  });
+
+  // The three junk-stamp shapes documented in docs/capture-shortcut.md, and the
+  // body text that must survive them. Stripping is the dangerous direction: a
+  // junk stamp left in the body is visible and lossless, stripped user text is
+  // gone silently and forever (non-negotiable #1).
+  it.each([
+    ["2026-13-45T99:99-04:00 impossible date", "impossible date"],
+    ["2026-07-27T12:00 missing offset", "missing offset"],
+    ["7/28/26, 12:00 PM shortcuts short style", "shortcuts short style"],
+    ["Fri, 28 Jul 2026 12:00:00 -0400 default custom format", "default custom format"],
+  ])("strips the junk stamp off %s", (bullet, text) => {
+    const caps = parseInboxCaptures(`- ${bullet}\n`, now);
+    expect(caps).toHaveLength(1);
+    expect(caps[0]!.stamp).toBeNull();
+    expect(caps[0]!.text).toBe(text);
+  });
+
+  it.each([
+    "2026-13-45T99:99-04:00",
+    "2026-07-27T12:00",
+    "7/28/26, 12:00 PM",
+    "Fri, 28 Jul 2026 12:00:00 -0400",
+  ])("drops a bare junk stamp with no body: %s", (bullet) => {
+    expect(parseInboxCaptures(`- ${bullet}\n`, now)).toHaveLength(0);
+  });
+
+  it.each([
+    "12/25/26 10:00 dentist appointment",
+    "1/2/3 4:56 remember this",
+    "2-1-1 3:45 game highlights",
+    "7/28 3:00 PM meeting with Bob",
+  ])("leaves real capture text untouched: %s", (bullet) => {
+    const caps = parseInboxCaptures(`- ${bullet}\n`, now);
+    expect(caps).toHaveLength(1);
+    expect(caps[0]!.text).toBe(bullet);
+  });
+
+  it("leaves a 24-hour comma time in the body — the Shortcut never emits one", () => {
+    // Alternation 2 requires the AM/PM marker, so a hand-written 24-hour
+    // shorthand reads as body rather than as a junk stamp.
+    const bullet = "3/15/26, 14:30 finally finished the report";
+    const caps = parseInboxCaptures(`- ${bullet}\n`, now);
+    expect(caps).toHaveLength(1);
+    expect(caps[0]!.text).toBe(bullet);
+  });
+
+  it("accepted limitation: strips a pasted chat export's leading timestamp", () => {
+    // A chat export's leading token is indistinguishable from the Shortcut's
+    // Short-style junk stamp, so it strips. Only reachable when the Shortcut is
+    // simultaneously misconfigured — the strip runs only on a bullet with no
+    // valid leading ISO stamp — and pinned here so the tradeoff stays visible.
+    const caps = parseInboxCaptures(
+      "- 7/29/26, 3:45 PM - Alice: are you free tonight?\n",
+      now,
+    );
+    expect(caps).toHaveLength(1);
+    expect(caps[0]!.text).toBe("- Alice: are you free tonight?");
+  });
+
+  it("clamps a future date restored from an inferred-date marker", () => {
+    // A marker that survived a sync merge while the filed marker did not would
+    // otherwise re-supply the bad date on every parse, so the capture could
+    // never heal — worse than the stranding KTD1 exists to prevent.
+    const md = [
+      "- no stamp here",
+      `\t${inboxInferredDateMarker("2099-01-01")}`,
+      "",
+    ].join("\n");
+    const caps = parseInboxCaptures(md, now);
+    expect(caps[0]!.inferredDate).toBe("2099-01-01");
+    expect(caps[0]!.date).toBe("2026-07-30");
+  });
+
+  it.each(["2026-02-30", "0000-00-00", "2026-11-31"])(
+    "ignores a calendar-invalid inferred-date marker (%s) and re-inherits",
+    (bad) => {
+      // The marker regex is shape-only. A corrupt date sailed through to
+      // ensureDailyForDate, which formatted an invalid moment and created a
+      // literal `Daily/Invalid date.md` every corrupt capture collided into.
+      const md = [
+        "- 2026-07-27T09:14-04:00 anchor",
+        "- no stamp here",
+        `\t${inboxInferredDateMarker(bad)}`,
+        "",
+      ].join("\n");
+      const caps = parseInboxCaptures(md, now);
+      expect(caps[1]!.date).toBe("2026-07-27");
+      expect(isRealDateString(caps[1]!.date!)).toBe(true);
+    },
+  );
+
+  it("still trusts a marker naming a real calendar date", () => {
+    const md = [
+      "- 2026-07-27T09:14-04:00 anchor",
+      "- no stamp here",
+      `\t${inboxInferredDateMarker("2026-02-28")}`,
+      "",
+    ].join("\n");
+    const caps = parseInboxCaptures(md, now);
+    expect(caps[1]!.date).toBe("2026-02-28");
+  });
+
+  it("falls back to today when a corrupt marker has no stamped neighbour", () => {
+    const md = ["- no stamp here", `\t${inboxInferredDateMarker("2026-02-30")}`, ""].join(
+      "\n",
+    );
+    const caps = parseInboxCaptures(md, now);
+    expect(caps[0]!.date).toBe("2026-07-30");
+  });
+
+  it("finds a filed marker below a column-0 inferred-date marker", () => {
+    // A merge or hand edit stripped the marker's indentation. Reading it as
+    // non-indented prose would stop the scan and re-file the capture.
+    const md = [
+      "- no stamp here",
+      inboxInferredDateMarker("2026-07-20"),
+      `\t${INBOX_FILED_MARKER}`,
+      "",
+    ].join("\n");
+    const caps = parseInboxCaptures(md, now);
+    expect(caps).toHaveLength(1);
+    expect(caps[0]!.filed).toBe(true);
+    expect(caps[0]!.inferredDate).toBe("2026-07-20");
+  });
+
+  it("keeps parsing valid captures after an unreadable one", () => {
+    const md = ["- broken line", "", "- 2026-07-27T09:14-04:00 good one", ""].join(
+      "\n",
+    );
+    const caps = parseInboxCaptures(md, now);
     expect(caps).toHaveLength(2);
-    expect(caps[0]!.unparseable).toBe(true);
-    expect(caps[1]!.unparseable).toBe(false);
+    expect(caps[0]!.stamp).toBeNull();
     expect(caps[1]!.text).toBe("good one");
   });
 
-  it("treats an out-of-range hour as unparseable (T4)", () => {
+  it("heals an out-of-range hour rather than holding it (T4)", () => {
     // The stamp shape matches (25:00 fits (\d{2}):(\d{2})), so only the
     // h > 23 guard keeps this from being read as a real 25 o'clock capture.
-    const caps = parseInboxCaptures("- 2026-07-27T25:00-04:00 x\n");
+    const caps = parseInboxCaptures("- 2026-07-27T25:00-04:00 x\n", now);
     expect(caps).toHaveLength(1);
-    expect(caps[0]!.unparseable).toBe(true);
-    expect(caps[0]!.date).toBeNull();
+    expect(caps[0]!.stamp).toBeNull();
+    expect(caps[0]!.text).toBe("x");
+    expect(caps[0]!.date).toBe("2026-07-30");
+  });
+
+  it("prefers a recorded inferred-date marker over re-guessing", () => {
+    const md = [
+      "- 2026-07-27T09:14-04:00 anchor",
+      "- no stamp here",
+      `\t${inboxInferredDateMarker("2026-07-20")}`,
+      `\t${INBOX_FILED_MARKER}`,
+      "",
+    ].join("\n");
+    const caps = parseInboxCaptures(md, now);
+    expect(caps[1]!.inferredDate).toBe("2026-07-20");
+    expect(caps[1]!.date).toBe("2026-07-20");
+    expect(caps[1]!.filed).toBe(true);
+  });
+
+  it("reads the inferred-date marker even when the filed marker precedes it", () => {
+    const md = [
+      "- no stamp here",
+      `\t${INBOX_FILED_MARKER}`,
+      `\t${inboxInferredDateMarker("2026-07-21")}`,
+      "",
+    ].join("\n");
+    const caps = parseInboxCaptures(md, now);
+    expect(caps[0]!.inferredDate).toBe("2026-07-21");
+  });
+
+  it("recognizes only its own inferred-date marker shape", () => {
+    expect(inboxInferredDateFromLine(`\t${inboxInferredDateMarker("2026-07-21")}`)).toBe(
+      "2026-07-21",
+    );
+    expect(inboxInferredDateFromLine(`\t${INBOX_FILED_MARKER}`)).toBeNull();
+    expect(inboxInferredDateFromLine("\t<!--linker-->")).toBeNull();
   });
 });
 
@@ -235,20 +601,49 @@ describe("inbox capture selectors", () => {
     "- 2026-07-27T09:14-04:00 filed",
     `\t${INBOX_FILED_MARKER}`,
     "- 2026-07-27T09:20-04:00 pending",
+    "",
     "- broken",
     "",
   ].join("\n");
 
-  it("pending excludes filed and unparseable captures", () => {
+  it("pending excludes filed captures and includes healed ones", () => {
     const pending = pendingInboxCaptures(parseInboxCaptures(md));
-    expect(pending).toHaveLength(1);
-    expect(pending[0]!.text).toBe("pending");
+    expect(pending.map((c) => c.text)).toEqual(["pending", "broken"]);
+    // Every pending capture carries a date the drain can route on.
+    expect(pending.every((c) => typeof c.date === "string")).toBe(true);
+  });
+});
+
+describe("inboxCounts — inferred dates", () => {
+  const now = new Date(2026, 6, 30, 12, 0, 0); // 2026-07-30 local
+
+  it("reports zero when no capture carries an inferred-date marker", () => {
+    expect(inboxCounts("- 2026-07-27T09:14-04:00 buy milk\n", now)).toEqual({
+      pending: 1,
+      held: 0,
+      inferredDates: 0,
+    });
   });
 
-  it("unparseable selects only the unreadable lines", () => {
-    const bad = unparseableInboxCaptures(parseInboxCaptures(md));
-    expect(bad).toHaveLength(1);
-    expect(bad[0]!.text).toBe("broken");
+  it("counts a marked capture whether it is filed or still unfiled", () => {
+    const unfiled = [
+      "- no stamp here",
+      `\t${inboxInferredDateMarker("2026-07-20")}`,
+      "",
+    ].join("\n");
+    expect(inboxCounts(unfiled, now).inferredDates).toBe(1);
+
+    const filed = [
+      "- no stamp here",
+      `\t${inboxInferredDateMarker("2026-07-20")}`,
+      `\t${INBOX_FILED_MARKER}`,
+      "",
+    ].join("\n");
+    expect(inboxCounts(filed, now)).toEqual({
+      pending: 0,
+      held: 0,
+      inferredDates: 1,
+    });
   });
 });
 
@@ -553,7 +948,7 @@ describe("drainInbox", () => {
     expect(caps[0]!.text).toBe("first line\nsecond line\nthird line");
   });
 
-  it("files valid captures and holds unparseable and future-dated ones", async () => {
+  it("heals a stampless capture and still holds a future-dated one", async () => {
     const h = drainHarness(
       [
         "- 2026-07-27T09:14-04:00 good past",
@@ -566,14 +961,70 @@ describe("drainInbox", () => {
 
     const r = await drainInbox(h.app, { ensureDaily: h.ensureDaily });
 
-    expect(r.filed).toBe(1);
-    expect(r.unparseable).toBe(1);
+    // The stampless line inherits its neighbour's day and files (KTD1, KTD2);
+    // only the future-dated capture is still held.
+    expect(r.filed).toBe(2);
+    expect(r.inferred).toBe(1);
     expect(r.held).toBe(1);
+    expect(h.dailyContent("2026-07-27")).toContain("- no stamp here");
 
     const after = parseInboxCaptures(h.inboxContent());
     expect(after.find((c) => c.text === "good past")!.filed).toBe(true);
-    expect(after.find((c) => c.text === "no stamp here")!.filed).toBe(false);
+    const healed = after.find((c) => c.text === "no stamp here")!;
+    expect(healed.filed).toBe(true);
+    expect(healed.inferredDate).toBe("2026-07-27");
     expect(after.find((c) => c.text === "far future")!.filed).toBe(false);
+  });
+
+  // Anchored on a stamped neighbour so the inherited date does not depend on
+  // the machine clock.
+  const untimedInbox = [
+    "- 2026-07-27T09:14-04:00 anchor",
+    "- no stamp here",
+    "",
+  ].join("\n");
+
+  it("writes an untimed daily bullet when the capture has no readable time", async () => {
+    const h = drainHarness(untimedInbox, { today: "2026-07-28" });
+
+    await drainInbox(h.app, { ensureDaily: h.ensureDaily });
+
+    // No fabricated time: `- null no stamp here` compiles clean and ships a lie.
+    const daily = h.dailyContent("2026-07-27")!;
+    expect(daily).toContain("- no stamp here");
+    expect(daily).not.toContain("null");
+    const healed = parseCaptures(daily).find(
+      (c) => c.text === "no stamp here",
+    )!;
+    expect(healed.timestamp).toBeNull();
+  });
+
+  it("does not re-file a healed capture on a second drain", async () => {
+    const h = drainHarness(untimedInbox, { today: "2026-07-28" });
+    await drainInbox(h.app, { ensureDaily: h.ensureDaily });
+
+    h.modified.length = 0;
+    const r = await drainInbox(h.app, { ensureDaily: h.ensureDaily });
+
+    expect(r.filed).toBe(0);
+    expect(h.modified).toEqual([]);
+    expect(parseCaptures(h.dailyContent("2026-07-27")!)).toHaveLength(2);
+  });
+
+  it("falls back to the injected clock's today when nothing anchors the date", async () => {
+    // No readable stamp anywhere, so there is no neighbour to inherit from and
+    // the capture takes today. `now` is injected so the destination daily does
+    // not depend on the machine date.
+    const h = drainHarness("- no stamp at all\n", { today: "2026-03-05" });
+
+    const r = await drainInbox(h.app, {
+      ensureDaily: h.ensureDaily,
+      now: new Date(2026, 2, 5, 9, 0, 0),
+    });
+
+    expect(r.filed).toBe(1);
+    expect(r.inferred).toBe(1);
+    expect(h.dailyContent("2026-03-05")).toContain("- no stamp at all");
   });
 
   it("does not join onto a daily that lacks a trailing newline", async () => {
@@ -664,6 +1115,40 @@ describe("drainInbox", () => {
     expect(after[1]!.filed).toBe(false);
   });
 
+  it("records the day the bullet was filed to, not a re-inferred one", async () => {
+    // The mid-drain append changes the neighbour anchors, so the re-read infers
+    // a different day than the bullet actually landed under. Marking that day
+    // makes a duplicate file the moment the filed marker is lost.
+    const h = drainHarness("- no stamp here\n");
+    const now = new Date(2026, 6, 30, 12, 0, 0); // 2026-07-30 local
+
+    const ensureDaily = async (app: unknown, date: string) => {
+      h.appendToInbox("- 2026-07-26T09:00-04:00 arrived mid-drain");
+      return h.ensureDaily(app, date);
+    };
+
+    const r = await drainInbox(h.app, { ensureDaily, now });
+
+    expect(r.filed).toBe(1);
+    expect(h.dailyContent("2026-07-30")).toContain("- no stamp here");
+    const healed = parseInboxCaptures(h.inboxContent(), now).find(
+      (c) => c.text === "no stamp here",
+    )!;
+    expect(healed.inferredDate).toBe("2026-07-30");
+  });
+
+  it("writes no empty first bullet line for a bare stamp with a continuation", async () => {
+    const h = drainHarness("- 2026-07-28T12:00:00-04:00\n\tbuy milk\n");
+
+    await drainInbox(h.app, { ensureDaily: h.ensureDaily });
+
+    const daily = h.dailyContent("2026-07-28")!;
+    expect(daily).toContain("- 12:00:00 buy milk");
+    const caps = parseCaptures(daily);
+    expect(caps).toHaveLength(1);
+    expect(caps[0]!.text).toBe("buy milk");
+  });
+
   it("counts captures as pending when their daily cannot be resolved", async () => {
     const h = drainHarness(
       [
@@ -679,7 +1164,12 @@ describe("drainInbox", () => {
 
     const r = await drainInbox(h.app, { ensureDaily });
 
-    expect(r).toEqual({ filed: 0, pending: 2, held: 0, unparseable: 0 });
+    expect(r).toEqual({
+      filed: 0,
+      pending: 2,
+      held: 0,
+      inferred: 0,
+    });
     // Nothing filed means nothing marked — the lines stay exactly as they were.
     expect(parseInboxCaptures(h.inboxContent()).every((c) => !c.filed)).toBe(
       true,
@@ -699,7 +1189,7 @@ describe("drainInbox", () => {
       filed: 0,
       pending: 0,
       held: 0,
-      unparseable: 0,
+      inferred: 0,
     });
   });
 
@@ -760,6 +1250,56 @@ describe("drainInbox", () => {
     expect(r.pending).toBe(1);
   });
 
+  it("never asks for a daily on a calendar-invalid date", async () => {
+    // Live repro: a `2026-02-30` marker reached ensureDailyForDate, which
+    // formatted an invalid moment and wrote a real `Daily/Invalid date.md`.
+    const h = drainHarness(
+      [
+        "- 2026-07-27T09:14-04:00 anchor",
+        "- feb thirty capture",
+        `\t${inboxInferredDateMarker("2026-02-30")}`,
+        "",
+      ].join("\n"),
+    );
+    const asked: string[] = [];
+    const ensureDaily = async (app: unknown, date: string) => {
+      asked.push(date);
+      return h.ensureDaily(app, date);
+    };
+
+    const r = await drainInbox(h.app, { ensureDaily });
+
+    expect(asked).toEqual(["2026-07-27"]);
+    for (const date of asked) expect(isRealDateString(date)).toBe(true);
+    expect(r.filed).toBe(2);
+    expect(h.dailyContent("2026-07-27")).toContain("- feb thirty capture");
+  });
+
+  it("keeps a degenerate dash and a conflict block out of the daily", async () => {
+    const h = drainHarness(
+      [
+        "- 2026-07-27T09:14-04:00 buy milk",
+        "-",
+        "<<<<<<< HEAD",
+        "=======",
+        ">>>>>>> other",
+        "",
+      ].join("\n"),
+    );
+
+    const r = await drainInbox(h.app, { ensureDaily: h.ensureDaily });
+
+    const daily = h.dailyContent("2026-07-27")!;
+    expect(daily).toContain("- 09:14 buy milk");
+    expect(daily).not.toContain("- -");
+    expect(daily).not.toContain("<<<<<<<");
+    expect(daily).not.toContain("=======");
+    expect(daily).not.toContain(">>>>>>>");
+    // Content-free scaffolding is not work: only the one real capture files.
+    expect(r.filed).toBe(1);
+    expect(r.pending).toBe(0);
+  });
+
   it("does not splice a second marker when one drifted below a blank line (F4)", async () => {
     const h = drainHarness(
       [
@@ -775,6 +1315,51 @@ describe("drainInbox", () => {
 
     const markerCount = h.inboxContent().split(INBOX_FILED_MARKER).length - 1;
     expect(markerCount).toBe(1);
+  });
+
+  it("does not splice a second marker when noise drifted below it (F4)", async () => {
+    // The inbox is append-only and never cleaned, so a stacked marker is
+    // permanent. Noise between a capture and its marker must not hide it.
+    const h = drainHarness(
+      [
+        "- 2026-07-27T09:14-04:00 buy milk",
+        "-",
+        "<<<<<<< HEAD",
+        "=======",
+        ">>>>>>> other",
+        `\t${INBOX_FILED_MARKER}`,
+        "",
+      ].join("\n"),
+      { dailies: { "2026-07-27": "- 09:14 buy milk\n" } },
+    );
+
+    await drainInbox(h.app, { ensureDaily: h.ensureDaily });
+    await drainInbox(h.app, { ensureDaily: h.ensureDaily });
+
+    const markerCount = h.inboxContent().split(INBOX_FILED_MARKER).length - 1;
+    expect(markerCount).toBe(1);
+  });
+
+  it("keeps a diff3 conflict block out of the daily", async () => {
+    const h = drainHarness(
+      [
+        "<<<<<<< HEAD",
+        "- 2026-07-27T09:14-04:00 buy milk",
+        "||||||| base",
+        "=======",
+        ">>>>>>> other",
+        "",
+      ].join("\n"),
+    );
+
+    await drainInbox(h.app, { ensureDaily: h.ensureDaily });
+
+    const daily = h.dailyContent("2026-07-27")!;
+    expect(daily).toContain("- 09:14 buy milk");
+    expect(daily).not.toContain("<<<<<<<");
+    expect(daily).not.toContain("|||||||");
+    expect(daily).not.toContain("=======");
+    expect(daily).not.toContain(">>>>>>>");
   });
 
   it("reports filed as markers written, not captures attempted (F5)", async () => {
@@ -816,6 +1401,41 @@ describe("drainInbox", () => {
     const after = parseInboxCaptures(h.inboxContent());
     expect(after).toHaveLength(2);
     expect(after.every((c) => c.filed)).toBe(true);
+  });
+
+  it("pairs each same-key stampless duplicate with its own day (T3)", async () => {
+    // Two stampless `ping` captures share a capture key but inherit different
+    // days, and the drain groups by date — so the filed list reaches the
+    // relocation pass with the second `ping` ahead of the first. Each inbox
+    // line's inferred-date marker must still name the daily its bullet landed
+    // in, not the other duplicate's.
+    const h = drainHarness(
+      [
+        // Anchors the 2026-07-10 group ahead of the 2026-07-25 one without
+        // acting as a stamped neighbour for the ping below it.
+        "- gamma",
+        `\t${inboxInferredDateMarker("2026-07-10")}`,
+        "- ping", // no stamped predecessor — inherits 2026-07-25 forwards
+        "- 2026-07-25T09:00-04:00 alpha",
+        "- 2026-07-10T08:00-04:00 beta",
+        "- ping", // inherits 2026-07-10 backwards
+        "",
+      ].join("\n"),
+    );
+
+    const r = await drainInbox(h.app, { ensureDaily: h.ensureDaily });
+
+    expect(r.filed).toBe(5);
+    expect(h.dailyContent("2026-07-25")).toContain("- ping");
+    expect(h.dailyContent("2026-07-10")).toContain("- ping");
+
+    const pings = parseInboxCaptures(h.inboxContent()).filter(
+      (c) => c.text === "ping",
+    );
+    expect(pings.map((c) => c.inferredDate)).toEqual([
+      "2026-07-25",
+      "2026-07-10",
+    ]);
   });
 
   it("never drops or reorders any pre-drain inbox line (T2, append-only)", async () => {
