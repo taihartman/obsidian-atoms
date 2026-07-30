@@ -6,7 +6,10 @@ import {
   CURRENT_ATOMS_QUALITY,
   isEligibleForUpdate,
 } from "../pipeline/atomQuality";
-import { isPolishableContent } from "../pipeline/refreshAtoms";
+import {
+  isPolishableContent,
+  UPDATE_NOTES_BATCH_LIMIT,
+} from "../pipeline/refreshAtoms";
 import { parseCaptures } from "../pipeline/parse";
 import { resolveCreatedField } from "../pipeline/render";
 import {
@@ -517,13 +520,28 @@ export function countUpdateWorkRemaining(
   return { refile, polishable, total: refile + polishable };
 }
 
+/**
+ * Why refile is capped per tap — keep strip + confirm in lockstep with
+ * `UPDATE_NOTES_BATCH_LIMIT` (cost + phone run length).
+ */
+export function updateNotesBatchWhy(
+  batchLimit: number = UPDATE_NOTES_BATCH_LIMIT,
+): string {
+  return `Up to ${batchLimit} per Update so each run stays short and cost stays predictable — tap again for the rest.`;
+}
+
 /** Strip copy for Update notes (product strings). */
-export function updateNotesStripCopy(eligibleCount: number): {
+export function updateNotesStripCopy(
+  eligibleCount: number,
+  batchLimit: number = UPDATE_NOTES_BATCH_LIMIT,
+): {
   title: string;
   body: string;
   button: string;
 } {
   const n = Math.max(0, eligibleCount);
+  const cap = Math.max(1, batchLimit);
+  const why = updateNotesBatchWhy(cap);
   return {
     title: "Filing got smarter",
     body:
@@ -531,9 +549,11 @@ export function updateNotesStripCopy(eligibleCount: number): {
         ? "Older notes can use the new linking."
         : n === 1
           ? "Update 1 older note to match? Titles and links may improve. Your original text stays the same."
-          : n >= 50
-            ? "Older notes can use the new linking. We’ll start with the ones that matter most."
-            : `Update ${n} older notes to match? Titles and links may improve. Your original text stays the same.`,
+          : n > cap
+            ? n >= 50
+              ? `Older notes can use the new linking. We’ll start with the ones that matter most. ${why}`
+              : `${n} older notes can use the new linking. ${why}`
+            : `Update ${n} older notes this pass? Titles and links may improve. Your original text stays the same.`,
     button: "Update",
   };
 }
@@ -569,7 +589,7 @@ export function updateNotesConfirmCopy(
 ): string {
   if (typeof batchCountOrOpts === "number") {
     const n = Math.max(0, batchCountOrOpts);
-    return `Update ${n} note${n === 1 ? "" : "s"} to the newer filing quality? Titles and links may change. Your original capture text will not. ${updateNotesBillingLine("none")}`;
+    return `Update ${n} note${n === 1 ? "" : "s"} this pass to the newer filing quality? Titles and links may change. Your original capture text will not. ${updateNotesBatchWhy()} ${updateNotesBillingLine("none")}`;
   }
   const refile = Math.max(0, batchCountOrOpts.refileBatch);
   const polish = Math.max(0, batchCountOrOpts.polishable);
@@ -583,10 +603,12 @@ export function updateNotesConfirmCopy(
       : `Clean up link wording on older notes (about ${polish})? Free — no API call. Your original capture text will not change.`;
   }
   const cost = updateNotesBillingLine(billing);
+  const batch =
+    refile >= UPDATE_NOTES_BATCH_LIMIT ? ` ${updateNotesBatchWhy()}` : "";
   if (polish <= 0) {
-    return `Update ${refile} note${refile === 1 ? "" : "s"} with the same AI as filing? Titles and links may change. Your original capture text will not. ${cost}`;
+    return `Update up to ${refile} note${refile === 1 ? "" : "s"} this pass with the same AI as filing? Titles and links may change. Your original capture text will not.${batch} ${cost}`;
   }
-  return `We’ll clean up weak link wording for free, then refresh up to ${refile} note${refile === 1 ? "" : "s"} with the same AI as filing. Titles and links may change. Your original capture text will not. ${cost}`;
+  return `We’ll clean up weak link wording for free, then refresh up to ${refile} note${refile === 1 ? "" : "s"} this pass with the same AI as filing. Titles and links may change. Your original capture text will not.${batch} ${cost}`;
 }
 
 /** True when this device will file past captures without a Process tap. */

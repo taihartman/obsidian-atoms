@@ -458,18 +458,28 @@ new
 });
 
 describe("updateNotesStripCopy", () => {
-  it("locks product copy for small N", () => {
+  it("locks product copy when the whole set fits one pass", () => {
     const c = updateNotesStripCopy(3);
     expect(c.title).toBe("Filing got smarter");
     expect(c.button).toBe("Update");
-    expect(c.body).toContain("3 older notes to match");
+    expect(c.body).toContain("3 older notes this pass");
     expect(c.body).not.toMatch(/\bmodel\b/i);
+    expect(c.body).not.toMatch(/Up to 15 per Update/i);
   });
 
-  it("uses calm large-N body without guilt count", () => {
+  it("names the 15-cap when more remain than one pass", () => {
+    const c = updateNotesStripCopy(30);
+    expect(c.body).toContain("30 older notes");
+    expect(c.body).toMatch(/Up to 15 per Update/i);
+    expect(c.body).toMatch(/short and cost stays predictable/i);
+    expect(c.body).toMatch(/tap again/i);
+  });
+
+  it("uses calm large-N body without guilt count, still names the batch", () => {
     const c = updateNotesStripCopy(800);
     expect(c.body).toMatch(/matter most/i);
     expect(c.body).not.toContain("800");
+    expect(c.body).toMatch(/Up to 15 per Update/i);
   });
 });
 
@@ -504,6 +514,8 @@ describe("updateNotesConfirmCopy", () => {
     expect(t).toMatch(/Atoms Plus/i);
     expect(t).toMatch(/monthly filings/i);
     expect(t).not.toMatch(/Anthropic/i);
+    expect(t).toMatch(/Up to 15 per Update/i);
+    expect(t).toMatch(/this pass/i);
   });
 
   it("refile on BYOK names the Anthropic key", () => {

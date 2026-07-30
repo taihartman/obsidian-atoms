@@ -2204,7 +2204,10 @@ export class AtomsHomeView extends ItemView {
       this.updateRefileCount,
       UPDATE_NOTES_BATCH_LIMIT,
     );
-    const copy = updateNotesStripCopy(this.eligibleUpdateCount);
+    const copy = updateNotesStripCopy(
+      this.eligibleUpdateCount,
+      UPDATE_NOTES_BATCH_LIMIT,
+    );
     const card = flatCard(scroll, { className: "atoms-home-update-notes" });
     card.createEl("h2", { text: copy.title });
     card.createEl("p", { text: copy.body });
