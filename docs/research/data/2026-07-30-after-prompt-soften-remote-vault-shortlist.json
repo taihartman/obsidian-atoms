@@ -1,0 +1,149 @@
+{
+  "noteCount": 376,
+  "atomCount": 38,
+  "gradedAtoms": 23,
+  "linkCount": 26,
+  "fullTokens": 9700,
+  "rows": [
+    {
+      "selector": "alphabetical",
+      "k": 40,
+      "recall": 0,
+      "found": 0,
+      "total": 26
+    },
+    {
+      "selector": "alphabetical",
+      "k": 100,
+      "recall": 0.077,
+      "found": 2,
+      "total": 26
+    },
+    {
+      "selector": "alphabetical",
+      "k": 200,
+      "recall": 0.192,
+      "found": 5,
+      "total": 26
+    },
+    {
+      "selector": "alphabetical",
+      "k": 400,
+      "recall": 1,
+      "found": 26,
+      "total": 26
+    },
+    {
+      "selector": "recency",
+      "k": 40,
+      "recall": 0.154,
+      "found": 4,
+      "total": 26
+    },
+    {
+      "selector": "recency",
+      "k": 100,
+      "recall": 0.923,
+      "found": 24,
+      "total": 26
+    },
+    {
+      "selector": "recency",
+      "k": 200,
+      "recall": 0.923,
+      "found": 24,
+      "total": 26
+    },
+    {
+      "selector": "recency",
+      "k": 400,
+      "recall": 1,
+      "found": 26,
+      "total": 26
+    },
+    {
+      "selector": "keyword",
+      "k": 40,
+      "recall": 0.962,
+      "found": 25,
+      "total": 26
+    },
+    {
+      "selector": "keyword",
+      "k": 100,
+      "recall": 0.962,
+      "found": 25,
+      "total": 26
+    },
+    {
+      "selector": "keyword",
+      "k": 200,
+      "recall": 0.962,
+      "found": 25,
+      "total": 26
+    },
+    {
+      "selector": "keyword",
+      "k": 400,
+      "recall": 1,
+      "found": 26,
+      "total": 26
+    },
+    {
+      "selector": "bodyPlusTitle",
+      "k": 40,
+      "recall": 0.962,
+      "found": 25,
+      "total": 26
+    },
+    {
+      "selector": "bodyPlusTitle",
+      "k": 100,
+      "recall": 1,
+      "found": 26,
+      "total": 26
+    },
+    {
+      "selector": "bodyPlusTitle",
+      "k": 200,
+      "recall": 1,
+      "found": 26,
+      "total": 26
+    },
+    {
+      "selector": "bodyPlusTitle",
+      "k": 400,
+      "recall": 1,
+      "found": 26,
+      "total": 26
+    },
+    {
+      "selector": "hybridBody",
+      "k": 40,
+      "recall": 0.923,
+      "found": 24,
+      "total": 26
+    },
+    {
+      "selector": "hybridBody",
+      "k": 100,
+      "recall": 1,
+      "found": 26,
+      "total": 26
+    },
+    {
+      "selector": "hybridBody",
+      "k": 200,
+      "recall": 1,
+      "found": 26,
+      "total": 26
+    },
+    {
+      "selector": "hybridBody",
+      "k": 400,
+      "recall": 1,
+      "found": 26,
+      "total": 26
+    }
+  ]
+}

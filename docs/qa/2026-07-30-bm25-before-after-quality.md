@@ -142,3 +142,18 @@ Human ran **Update notes** on Remote Vault (all 36 linker atoms stamped `atoms-q
 Report: `docs/research/data/2026-07-30-after-update-notes-remote-vault-shortlist.json`
 
 **Read:** Retrieval ceiling for body scoring held/improved. Link graph is slightly sparser (model dropped some edges; a few targets unresolved after renames). Alphabetical-40 still finds nothing — Plus path fix remains load-bearing for new filing.
+
+## After prompt soften + quality 7 Update (2026-07-30)
+
+Human ran Update on **0.6.57**. All 36 linker atoms at `atoms-quality: 7`.
+
+| | After q6 | After q7 + soft prompt |
+|---|---|---|
+| Outbound / avg | ~24 / 0.67 | ~23 / 0.64 |
+| Zero-link atoms | 15 | 15 |
+| bodyPlusTitle @40 | 96% | 96% |
+| Unresolved | 2–4 | 0 |
+
+Report: `docs/research/data/2026-07-30-after-prompt-soften-remote-vault-shortlist.json`
+
+**Read:** Same-thread soften did not densify the graph. Titles/hygiene held; product/idea islands remained. Further link pressure must stay vault-agnostic (see 0.6.58 example cleanup).
