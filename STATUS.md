@@ -7,7 +7,6 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| In progress | [#196](https://github.com/taihartman/obsidian-atoms/issues/196) | taihartman | `feat/prompt-recall-softening-196` | issue #196 | `src/pipeline/classify.ts`, `src/pipeline/atomQuality.ts` | Soften classify same-thread links; quality 7 for Update refile; live vault dogfood (bake-off deferred). |
 
 ## How to claim (copy)
 
@@ -23,6 +22,7 @@ States: `Queued` · `In progress` · `Blocked` · `In review` · `Done` (then re
 
 | Merged | Issue / PR | Summary |
 |---|---|---|
+| 2026-07-30 | #196 / #218 | Classify prompt same-thread link soften + quality 7 · **0.6.57** |
 | 2026-07-30 | #186 / #187 | BM25 body-scored shortlists for classify context · **0.6.53** |
 | 2026-07-30 | #206 / #207 | tryatoms Obsidian on-ramp for newcomers (install step 1 + hero link) |
 | 2026-07-29 | #194 / #195 | Ask MCP Bar B — `atoms:write` scope + Claude directory pack (Fly already live) |
