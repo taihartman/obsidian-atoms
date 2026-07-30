@@ -1,0 +1,54 @@
+# Deploy tryatoms.app on every master push that touches the site.
+# Direct-upload Pages project `tryatoms` (production branch: master).
+# One-time secret: CLOUDFLARE_API_TOKEN with Account → Cloudflare Pages → Edit.
+# Runbook: docs/runbooks/tryatoms-pages-deploy.md
+
+name: Deploy tryatoms.app
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "www/**"
+      - "plus-pricing.json"
+      - "package.json"
+      - "package-lock.json"
+      - "src/shared/plusPricing.ts"
+      - "test/wwwPricing.test.ts"
+      - ".github/workflows/tryatoms-pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  deployments: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    name: Build and deploy Pages
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Build www
+        run: npm run build:www
+
+      - name: Assert pricing + honesty floor
+        run: npx vitest run test/wwwPricing.test.ts
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: "6577a026858cc2ae8626632ff6fcd4bf"
+          command: pages deploy www/dist --project-name=tryatoms --branch=master
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
