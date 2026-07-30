@@ -22,6 +22,9 @@ A capture with no marker after its extent and non-empty body. Empty bullets (e.g
 ### Capture inbox
 `Atoms System/Inbox.md` — the single append-target for external capture (iOS Shortcut today). Each line is a top-level bullet opening with an ISO 8601 stamp carrying its own offset, so a capture belongs to the day and time it was made, not the day it drains. The plugin creates the note and bookmarks it on load; it never deletes or rewrites a line.
 
+### Capture stamp
+The ISO 8601 local datetime an external capture tool writes at the head of each [Capture inbox](#capture-inbox) line, carrying its own UTC offset (`2026-07-28T17:23:34-04:00`). It is the wire contract between that tool and the plugin: it decides which day's daily a capture files into, and its seconds are the dedupe key that keeps two captures made in the same minute distinct. Byte-exactness is load-bearing — an offset without a colon, or a locale short date, parses as nothing and the capture sits unfiled.
+
 ### Drain
 Move every pending inbox capture into **its own day's** daily as a `- HH:MM body` bullet, then mark it filed. Append-only and idempotent: a capture already present in its daily is re-marked, not duplicated; future-dated and unparseable lines are held and counted, never guessed at. Runs on layout-ready and via `atoms:drain-inbox`; concurrent callers join one in-flight pass.
 

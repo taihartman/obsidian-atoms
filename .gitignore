@@ -38,3 +38,4 @@ docs/media/demo-vault/
 plus-service/node_modules/
 plus-service/.env
 plus-service/data/
+test_vault

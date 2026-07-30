@@ -46,8 +46,12 @@ describe("www build output", () => {
   });
 
   it("ships exactly one same-origin script, fingerprinted, nothing inline", () => {
-    // The story carousel is the only script on the site. Same origin, no
-    // third parties, and the CSP in _headers allows only 'self'.
+    // The story carousel is the only script we author, and it is same origin.
+    //
+    // This is a claim about the built artifact, not about the served page.
+    // Cloudflare Pages injects the Web Analytics beacon at the edge, so
+    // static.cloudflareinsights.com never appears in dist and this count stays
+    // at 1. The place that governs the served page is the CSP, locked below.
     const scripts = index.match(/<script[^>]*>/gi) ?? [];
     expect(scripts).toHaveLength(1);
     expect(scripts[0]).toMatch(/src="\/a\/app\.[0-9a-f]{8}\.js"/);
@@ -130,6 +134,72 @@ describe("www build output", () => {
   it("names the three scenarios in the story nav", () => {
     for (const label of ["Relationships", "Work", "Journaling"]) {
       expect(index).toContain(`>${label}</button>`);
+    }
+  });
+});
+
+/**
+ * The CSP is the only thing standing between this site and an injected script,
+ * and it is one line in a file nobody opens. Both failure directions are silent
+ * in CI and invisible in a browser you are not looking at:
+ *
+ *   too narrow  → Cloudflare Web Analytics is blocked and collects nothing,
+ *                 which is exactly what shipped until #182
+ *   too wide    → a stray host or 'unsafe-inline' rides in on an unrelated edit
+ *
+ * So this locks the whole policy by exact string. Changing the CSP is allowed;
+ * changing it *by accident* is not. If you meant it, update the literal.
+ */
+describe("Content-Security-Policy", () => {
+  const EXPECTED_CSP = [
+    "default-src 'none'",
+    "style-src 'self'",
+    "script-src 'self' https://static.cloudflareinsights.com",
+    "connect-src 'self'",
+    "img-src 'self' data:",
+    "base-uri 'none'",
+    "form-action 'none'",
+    "frame-ancestors 'none'",
+  ].join("; ");
+
+  /** The policy actually shipped to Cloudflare, read from the built artifact. */
+  const csp = (() => {
+    const line = dist("_headers")
+      .split("\n")
+      .find((l) => l.trim().startsWith("Content-Security-Policy:"));
+    return line?.replace(/^\s*Content-Security-Policy:\s*/, "").trim() ?? "";
+  })();
+
+  it("ships the exact locked policy", () => {
+    expect(csp).toBe(EXPECTED_CSP);
+  });
+
+  it("admits the analytics beacon by bare origin, never by path", () => {
+    // Cloudflare serves the auto-injected beacon from a versioned path,
+    // /beacon.min.js/v<hash>, and CSP path matching is exact when the source
+    // expression does not end in "/". Cloudflare's own docs suggest
+    // "static.cloudflareinsights.com/beacon.min.js", which therefore does NOT
+    // match the URL they actually inject. The bare origin is the working form.
+    expect(csp).toContain("https://static.cloudflareinsights.com");
+    expect(csp).not.toContain("static.cloudflareinsights.com/");
+  });
+
+  it("declares connect-src so the beacon POST does not fall back to none", () => {
+    // There is no inheritance from a missing directive to something permissive:
+    // an absent connect-src falls back to default-src 'none', which blocks the
+    // beacon's measurement POST. It must be present and it must be 'self',
+    // because auto-injection reports to this site's own /cdn-cgi/rum rather
+    // than to cloudflareinsights.com.
+    expect(csp).toMatch(/(^|;\s*)connect-src\s+'self'\s*(;|$)/);
+  });
+
+  it("never relaxes script or style execution", () => {
+    // The widening in #182 was one host. It was not permission to open these.
+    for (const escape of ["unsafe-inline", "unsafe-eval", "data:", "*"]) {
+      const scriptSrc = csp.match(/script-src[^;]*/)?.[0] ?? "";
+      const styleSrc = csp.match(/style-src[^;]*/)?.[0] ?? "";
+      expect(scriptSrc, `script-src allows ${escape}`).not.toContain(escape);
+      expect(styleSrc, `style-src allows ${escape}`).not.toContain(escape);
     }
   });
 });
@@ -224,15 +294,31 @@ describe("honesty floor", () => {
   });
 
   it("never calls the bring-your-own-key path free", () => {
-    // "free" is only allowed where it is literally true: the trial.
+    // "free" is only allowed where it is literally true: the trial, or
+    // describing Obsidian itself (not an Atoms price claim).
     const claims = visible.match(/[^.<>]{0,70}\bfree\b[^.<>]{0,70}/gi) ?? [];
     expect(claims.length).toBeGreaterThan(0);
     for (const c of claims) {
-      const trialClaim = /trial/i.test(c) || /\d+ days? free/i.test(c);
-      expect(trialClaim, `"free" used outside the trial: ${c.trim()}`).toBe(
+      const allowed =
+        /trial/i.test(c) ||
+        /\d+ days? free/i.test(c) ||
+        /obsidian/i.test(c);
+      expect(allowed, `"free" used outside trial/Obsidian: ${c.trim()}`).toBe(
         true,
       );
     }
+  });
+
+  it("explains Obsidian before BRAT for newcomers", () => {
+    const install = index.slice(
+      index.indexOf('id="install"'),
+      index.indexOf('id="privacy-summary"'),
+    );
+    expect(install).toContain("Get Obsidian");
+    expect(install).toContain("https://obsidian.md");
+    expect(install).toContain("skip to step 2");
+    expect(install).toContain("BRAT");
+    expect(index).toContain("New to Obsidian (free)?");
   });
 
   it("says Atoms is an Obsidian plugin above the fold", () => {

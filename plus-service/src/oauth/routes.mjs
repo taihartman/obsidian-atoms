@@ -6,8 +6,11 @@ import { sendMagicLinkEmail } from "../email.mjs";
 import { checkRateLimit, clientIp } from "../ratelimit.mjs";
 import {
   isAllowedRedirectUri,
+  issuerUrl,
   oauthClientLabel,
   mcpResourceUrl,
+  parseRequestedScopes,
+  scopesOnConsentAllow,
   SCOPE_DEFAULT,
 } from "./constants.mjs";
 import {
@@ -23,6 +26,30 @@ import {
   authorizationServerMetadata,
   protectedResourceMetadata,
 } from "./metadata.mjs";
+
+/**
+ * RFC 9207: append iss on every 302 back to the client redirect_uri.
+ * @param {URL} u
+ */
+function appendIss(u) {
+  u.searchParams.set("iss", issuerUrl(config.publicBaseUrl));
+  return u;
+}
+
+/**
+ * @param {import('node:http').ServerResponse} res
+ * @param {string} redirectUri
+ * @param {Record<string, string>} params
+ */
+function redirectToClient(res, redirectUri, params) {
+  const u = new URL(redirectUri);
+  for (const [k, v] of Object.entries(params)) {
+    if (v != null && v !== "") u.searchParams.set(k, v);
+  }
+  appendIss(u);
+  res.writeHead(302, { location: u.toString() });
+  res.end();
+}
 
 function writeHtml(res, status, html) {
   const data = html;
@@ -107,6 +134,8 @@ export async function handleOauthRoutes({
       writeJson(res, 400, { error: "invalid_redirect_uri" });
       return true;
     }
+    // application_type (native|web) accepted and ignored — never widens redirects.
+    void body.application_type;
     const reg = await store.mcpRegisterClient({
       redirect_uris: redirects,
       client_name: body.client_name,
@@ -132,7 +161,8 @@ export async function handleOauthRoutes({
       url.searchParams.get("code_challenge_method") || "S256";
     const resource =
       url.searchParams.get("resource") || mcpResourceUrl(base);
-    const scope = url.searchParams.get("scope") || SCOPE_DEFAULT;
+    const scopeRaw = url.searchParams.get("scope") || "";
+    const scopes = parseRequestedScopes(scopeRaw);
 
     if (responseType !== "code") {
       writeHtml(res, 400, simpleMessage("Error", "response_type must be code"));
@@ -184,7 +214,8 @@ export async function handleOauthRoutes({
       codeChallenge,
       codeChallengeMethod,
       resource,
-      scope,
+      scope: scopes.join(" "),
+      scopes,
     });
 
     const bsId = getBrowserSessionId(req);
@@ -326,11 +357,10 @@ export async function handleOauthRoutes({
     }
     if (decision !== "allow") {
       await store.mcpDeletePending(pendingId);
-      const u = new URL(pending.redirectUri);
-      u.searchParams.set("error", "access_denied");
-      if (pending.state) u.searchParams.set("state", pending.state);
-      res.writeHead(302, { location: u.toString() });
-      res.end();
+      redirectToClient(res, pending.redirectUri, {
+        error: "access_denied",
+        state: pending.state || "",
+      });
       return true;
     }
     const a = await store.getAccount(email);
@@ -338,6 +368,9 @@ export async function handleOauthRoutes({
       writeHtml(res, 403, simpleMessage("Plus required", "Active Plus needed."));
       return true;
     }
+    const granted = scopesOnConsentAllow(
+      pending.scopes || parseRequestedScopes(pending.scope || ""),
+    );
     const code = await store.mcpCreateAuthCode({
       email,
       clientId: pending.clientId,
@@ -345,14 +378,13 @@ export async function handleOauthRoutes({
       resource: pending.resource,
       codeChallenge: pending.codeChallenge,
       codeChallengeMethod: pending.codeChallengeMethod || "S256",
-      scopes: [SCOPE_DEFAULT],
+      scopes: granted,
     });
     await store.mcpDeletePending(pendingId);
-    const u = new URL(pending.redirectUri);
-    u.searchParams.set("code", code);
-    u.searchParams.set("state", pending.state);
-    res.writeHead(302, { location: u.toString() });
-    res.end();
+    redirectToClient(res, pending.redirectUri, {
+      code,
+      state: pending.state || "",
+    });
     return true;
   }
 

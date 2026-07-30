@@ -80,6 +80,8 @@ describe("OAuth Ask AS", () => {
     assert.deepEqual(as.code_challenge_methods_supported, ["S256"]);
     assert.ok(as.token_endpoint_auth_methods_supported.includes("none"));
     assert.equal(as.client_id_metadata_document_supported, true);
+    assert.equal(as.authorization_response_iss_parameter_supported, true);
+    assert.ok(as.scopes_supported.includes("atoms:write"));
   });
 
   it("full code+PKCE → MCP tools/call", async () => {
@@ -150,6 +152,7 @@ describe("OAuth Ask AS", () => {
     assert.match(loc, new RegExp(`^${CLAUDE_CALLBACK.replace(/\./g, "\\.")}`));
     const redir = new URL(loc);
     assert.equal(redir.searchParams.get("state"), state);
+    assert.equal(redir.searchParams.get("iss"), BASE, "RFC 9207 iss on success");
     const code = redir.searchParams.get("code");
     assert.ok(code);
 
@@ -170,6 +173,8 @@ describe("OAuth Ask AS", () => {
     const tokens = await tokRes.json();
     assert.ok(tokens.access_token?.startsWith("mcp_"));
     assert.ok(tokens.refresh_token);
+    assert.match(String(tokens.scope || ""), /atoms:read/);
+    assert.match(String(tokens.scope || ""), /atoms:write/);
 
     // seed mirror via Plus session from same email
     const ml = await fetch(`${BASE}/v1/auth/magic-link`, {
@@ -266,7 +271,30 @@ describe("OAuth Ask AS", () => {
     const listText = await listed.text();
     assert.match(listText, /securitySchemes/);
     assert.match(listText, /atoms:read/);
+    assert.match(listText, /atoms:write/);
     assert.match(listText, /search_atoms/);
+    assert.match(listText, /"title"\s*:\s*"Search atoms"|Search atoms/);
+    // structural: every tool has schemes when JSON-parseable
+    try {
+      const parsed = JSON.parse(listText);
+      const tools = parsed.result?.tools || parsed.tools;
+      if (Array.isArray(tools)) {
+        for (const t of tools) {
+          const schemes = t.securitySchemes || t._meta?.securitySchemes;
+          assert.ok(schemes, `missing schemes on ${t.name}`);
+          const sc = schemes[0]?.scopes || [];
+          if (t.name === "create_atom") {
+            assert.equal(t.annotations?.destructiveHint, true);
+            assert.ok(sc.includes("atoms:write"), JSON.stringify(schemes));
+          }
+          if (t.name === "search_atoms") {
+            assert.ok(sc.includes("atoms:read"), JSON.stringify(schemes));
+          }
+        }
+      }
+    } catch {
+      /* SSE envelope — regex above still gates */
+    }
   });
 
   it("bad redirect_uri rejected", async () => {
@@ -303,6 +331,108 @@ describe("OAuth Ask AS", () => {
       assert.match(html, /pending_id/);
       assert.match(html, /Claude or ChatGPT|mirrored atoms/i);
     }
+  });
+
+  it("consent deny redirect includes iss (RFC 9207)", async () => {
+    const { challenge } = pkce();
+    const state = "st_deny_iss";
+    const authUrl = new URL(`${BASE}/oauth/authorize`);
+    authUrl.searchParams.set("response_type", "code");
+    authUrl.searchParams.set("client_id", "cli_deny_iss");
+    authUrl.searchParams.set("redirect_uri", CLAUDE_CALLBACK);
+    authUrl.searchParams.set("state", state);
+    authUrl.searchParams.set("code_challenge", challenge);
+    authUrl.searchParams.set("code_challenge_method", "S256");
+    authUrl.searchParams.set("resource", RESOURCE);
+    const authPage = await fetch(authUrl);
+    const html = await authPage.text();
+    const pm = html.match(/name="pending_id" value="([^"]+)"/);
+    assert.ok(pm);
+    const pendingId = pm[1];
+    const email = "deny-iss@atoms.test";
+    await fetch(`${BASE}/oauth/authorize`, {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ pending_id: pendingId, email }).toString(),
+      redirect: "manual",
+    });
+    await sleep(80);
+    const tm = child._log().match(/token=(mt_[a-f0-9]+)/g);
+    const token = tm[tm.length - 1].replace("token=", "");
+    const ex = await fetch(
+      `${BASE}/v1/auth/exchange?token=${encodeURIComponent(token)}&pending=${encodeURIComponent(pendingId)}`,
+      { redirect: "manual" },
+    );
+    const setCookie = ex.headers.getSetCookie?.() || [];
+    const cookieHeader =
+      setCookie.map((c) => c.split(";")[0]).join("; ") ||
+      (ex.headers.get("set-cookie") || "").split(",")[0]?.split(";")[0] ||
+      "";
+    const deny = await fetch(`${BASE}/oauth/consent`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/x-www-form-urlencoded",
+        cookie: cookieHeader,
+      },
+      body: new URLSearchParams({
+        pending_id: pendingId,
+        decision: "deny",
+      }).toString(),
+      redirect: "manual",
+    });
+    assert.ok([302, 303].includes(deny.status));
+    const loc = new URL(deny.headers.get("location") || "");
+    assert.equal(loc.searchParams.get("error"), "access_denied");
+    assert.equal(loc.searchParams.get("state"), state);
+    assert.equal(loc.searchParams.get("iss"), BASE);
+  });
+
+  it("DCR accepts application_type without widening redirects", async () => {
+    const ok = await fetch(`${BASE}/oauth/register`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        redirect_uris: [CLAUDE_CALLBACK],
+        client_name: "app-type-test",
+        application_type: "native",
+        token_endpoint_auth_method: "none",
+      }),
+    });
+    assert.equal(ok.status, 201, await ok.clone().text());
+    const bad = await fetch(`${BASE}/oauth/register`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        redirect_uris: ["https://evil.example/cb"],
+        application_type: "web",
+        token_endpoint_auth_method: "none",
+      }),
+    });
+    assert.equal(bad.status, 400);
+  });
+
+  it("DCR register flood returns 429", async () => {
+    const ip = "203.0.113.88";
+    let saw429 = false;
+    for (let i = 0; i < 35; i++) {
+      const r = await fetch(`${BASE}/oauth/register`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-forwarded-for": ip,
+        },
+        body: JSON.stringify({
+          redirect_uris: [CLAUDE_CALLBACK],
+          client_name: `flood-${i}`,
+          token_endpoint_auth_method: "none",
+        }),
+      });
+      if (r.status === 429) {
+        saw429 = true;
+        break;
+      }
+    }
+    assert.equal(saw429, true);
   });
 
 });

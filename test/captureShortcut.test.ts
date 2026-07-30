@@ -3,9 +3,12 @@ import {
   CAPTURE_SHORTCUT_VERSION,
   isAllowedCaptureShortcutUrl,
   labelInstallOrUpdate,
+  needsInferredDateSignal,
   needsShortcutCta,
+  readInferredDateAck,
   readShortcutAck,
   resolveCaptureShortcutInstallUrl,
+  writeInferredDateAck,
   writeShortcutAck,
 } from "../src/settings/captureShortcut";
 
@@ -13,7 +16,7 @@ describe("needsShortcutCta / labels", () => {
   it("needs install when never acked", () => {
     expect(needsShortcutCta(null)).toBe(true);
     expect(needsShortcutCta("")).toBe(true);
-    expect(labelInstallOrUpdate(null)).toBe("Install capture shortcut");
+    expect(labelInstallOrUpdate(null)).toBe("Install Capture Atom");
   });
 
   it("no CTA when acked matches shipped", () => {
@@ -22,7 +25,7 @@ describe("needsShortcutCta / labels", () => {
 
   it("needs update when acked differs from shipped", () => {
     expect(needsShortcutCta("0.9.0", "1.0.0")).toBe(true);
-    expect(labelInstallOrUpdate("0.9.0")).toBe("Update capture shortcut");
+    expect(labelInstallOrUpdate("0.9.0")).toBe("Update Capture Atom");
   });
 });
 
@@ -36,6 +39,55 @@ describe("ack storage helpers", () => {
     expect(readShortcutAck(load)).toBeNull();
     writeShortcutAck(save, "1.0.0");
     expect(readShortcutAck(load)).toBe("1.0.0");
+  });
+});
+
+describe("inferred-date signal ack", () => {
+  const store = () => {
+    const s: Record<string, unknown> = {};
+    return {
+      load: (k: string) => s[k],
+      save: (k: string, v: unknown) => {
+        s[k] = v;
+      },
+    };
+  };
+
+  it("round-trips its own ack version, separate from the shortcut ack", () => {
+    const { load, save } = store();
+    expect(readInferredDateAck(load)).toBeNull();
+    writeInferredDateAck(save, "1.0.0");
+    expect(readInferredDateAck(load)).toBe("1.0.0");
+    // Dismissing the signal must not silence the install/update CTA.
+    expect(readShortcutAck(load)).toBeNull();
+  });
+
+  it("defaults to the shipped shortcut version", () => {
+    const { load, save } = store();
+    writeInferredDateAck(save);
+    expect(readInferredDateAck(load)).toBe(CAPTURE_SHORTCUT_VERSION);
+  });
+
+  it("stays silent when nothing was inferred, acked or not", () => {
+    expect(needsInferredDateSignal(0, null)).toBe(false);
+    expect(needsInferredDateSignal(-1, null)).toBe(false);
+    expect(needsInferredDateSignal(0, "0.9.0", "1.0.0")).toBe(false);
+  });
+
+  it("fires when captures were inferred and nothing is acked", () => {
+    expect(needsInferredDateSignal(1, null)).toBe(true);
+    expect(needsInferredDateSignal(3, "")).toBe(true);
+  });
+
+  it("stays quiet once acked against the shipped version", () => {
+    expect(needsInferredDateSignal(2, CAPTURE_SHORTCUT_VERSION)).toBe(false);
+  });
+
+  it("re-arms after the shipped shortcut version moves on", () => {
+    // The inbox is append-only, so a read-time count stays true forever. A
+    // permanent dismiss would silently re-create the dead end; version-keying
+    // brings the signal back once the user's shortcut is updated.
+    expect(needsInferredDateSignal(2, "0.9.0", "1.0.0")).toBe(true);
   });
 });
 

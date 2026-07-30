@@ -9,14 +9,14 @@ export function authorizeEmailForm(pendingId, error = "") {
   return htmlPage(
     "Atoms Ask — Sign in",
     `<h1>Atoms Ask</h1>
-<p>Sign in with your Atoms Plus email to allow Claude or ChatGPT to <strong>read</strong> your mirrored atoms.</p>
+<p>Sign in with your Atoms Plus email so Claude or ChatGPT can use <strong>Atoms Ask</strong> on your cloud atom mirror.</p>
 ${error ? `<p style="color:#b91c1c">${error}</p>` : ""}
 <form method="POST" action="/oauth/authorize">
   <input type="hidden" name="pending_id" value="${esc(pendingId)}" />
   <label>Email<br><input name="email" type="email" required style="width:100%;padding:8px;margin:8px 0" /></label>
   <button type="submit" style="margin-top:8px;padding:8px 16px">Email me a link</button>
 </form>
-<p style="color:#666;font-size:0.9rem">Use the same browser for the email link. Read-only — no vault writes.</p>`,
+<p style="color:#666;font-size:0.9rem">Use the same browser for the email link. Next step asks you to allow access.</p>`,
   );
 }
 
@@ -26,7 +26,12 @@ export function consentForm(pendingId, email, clientLabel) {
     `<h1>Allow Atoms Ask?</h1>
 <p>Signed in as <strong>${esc(email)}</strong></p>
 <p>Client: <strong>${esc(clientLabel)}</strong></p>
-<p>Permissions: search &amp; fetch of your cloud atom mirror; optional <strong>queue new atoms</strong> (outbox) when you enable Allow filing in Obsidian. Writes land only after your vault applies them.</p>
+<p><strong>Permissions (scopes)</strong></p>
+<ul>
+<li><code>atoms:read</code> — search &amp; fetch your cloud atom mirror (not the whole vault)</li>
+<li><code>atoms:write</code> — queue new atoms via outbox; they land in Obsidian only after you enable <strong>Allow filing</strong> and the vault applies them. Does not rewrite existing note bodies.</li>
+</ul>
+<p style="color:#666;font-size:0.9rem">Tool results are sent to the AI provider (Anthropic or OpenAI) when you chat. Host can decrypt the mirror (not zero-knowledge).</p>
 <form method="POST" action="/oauth/consent">
   <input type="hidden" name="pending_id" value="${esc(pendingId)}" />
   <button type="submit" name="decision" value="allow" style="padding:8px 16px">Allow</button>

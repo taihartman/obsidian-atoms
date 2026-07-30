@@ -7,8 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| In progress | [#186](https://github.com/taihartman/obsidian-atoms/issues/186) | taihartman | `feat/bm25-shortlist` | [plan](docs/plans/2026-07-29-001-feat-bm25-shortlist-retrieval-plan.md) | `src/pipeline/context.ts`, `src/pipeline/write.ts`, `src/pipeline/preview.ts`, `src/pipeline/backfill.ts`, `src/pipeline/refreshAtoms.ts`, `src/pipeline/shortlist.ts` (new), `src/pipeline/candidates.ts` (new), `src/pipeline/expand.ts` (new), `plus-service/src/anthropic.mjs` | Scored shortlist replaces the all-titles context; routes the dead `ContextProvider` seam. Fixes the build-context-once bug on the daily Process path *and* backfill, and stops `plus-service` alphabetically re-truncating the device's ranking (currently 0% recall on real links). All 8 units landed (U1-U8) + simplify pass; 645 plugin / 180 plus-service tests green; v0.6.51. Remaining: ce-compound, world-class-qa (needs Obsidian open on the throwaway vault), PR body + screenshots. Handoff: docs/handoffs/2026-07-29-bm25-shortlist-shipping-tail.md. Tracks [#168](https://github.com/taihartman/obsidian-atoms/issues/168). |
-| In progress | [#56](https://github.com/taihartman/obsidian-atoms/issues/56) | taihartman | `feat/ios-capture-inbox-drain` | [plan](docs/plans/2026-07-28-002-feat-ios-capture-inbox-drain-plan.md) | `src/pipeline/inbox.ts` (new), `src/pipeline/daily.ts`, `src/plugin/main.ts`, `src/home/atomsHomeView.ts`, `docs/capture-shortcut.md` | iOS capture no longer needs today's daily to exist: bookmarked inbox note + drain into the capture's own daily. All units landed; [PR #167](https://github.com/taihartman/obsidian-atoms/pull/167) open (draft — awaiting the human phone smoke). Android follow-up [#166](https://github.com/taihartman/obsidian-atoms/issues/166). |
+| In review | [#186](https://github.com/taihartman/obsidian-atoms/issues/186) | taihartman | `feat/bm25-shortlist` | [plan](docs/plans/2026-07-29-001-feat-bm25-shortlist-retrieval-plan.md) | `src/pipeline/context.ts`, `src/pipeline/write.ts`, `src/pipeline/preview.ts`, `src/pipeline/backfill.ts`, `src/pipeline/refreshAtoms.ts`, `src/pipeline/shortlist.ts`, `src/pipeline/candidates.ts`, `src/pipeline/expand.ts`, `plus-service/src/anthropic.mjs` | BM25 body-scored shortlists. U1–U8 + P1 shipping fixes + compound. 647 plugin / 182 plus tests. v0.6.53. Vault smoke: dry-run + backfill-estimate + open-home on throwaway vault. PR #187. Remaining: Settings screenshots (human), Fly deploy for plus-service after merge. Tracks #168. |
 
 ## How to claim (copy)
 
@@ -24,11 +23,14 @@ States: `Queued` · `In progress` · `Blocked` · `In review` · `Done` (then re
 
 | Merged | Issue / PR | Summary |
 |---|---|---|
+| 2026-07-30 | #206 / #207 | tryatoms Obsidian on-ramp for newcomers (install step 1 + hero link) |
+| 2026-07-29 | #194 / #195 | Ask MCP Bar B — `atoms:write` scope + Claude directory pack (Fly already live) |
+| 2026-07-29 | #188 / #189 | Ask MCP dual-era 2026-07-28 + OAuth `iss` + Claude JSON Accept fix (Fly already live) |
+| 2026-07-29 | #184 | Capture Shortcut link refreshed + renamed **Capture Atom** everywhere · **0.6.51** |
+| 2026-07-29 | #182 / #183 | Cloudflare Web Analytics through the tryatoms.app CSP + corrected privacy claims |
+| 2026-07-28 | #181 | Verified iOS Shortcut link + the recipe that actually works · 0.6.50 (shipped in 0.6.51) |
+| 2026-07-28 | #56 / #167 | iOS capture inbox + drain into dailies · **0.6.49** |
 | 2026-07-28 | #174 / #175 | Community review lint (styles, confirm, types) · **0.6.47** |
-| 2026-07-28 | #172 / #173 | Ask mirror hub sync triggers + MCP `synced_at` · **0.6.46** |
-| 2026-07-28 | #169 / #170 | CI-built releases + artifact attestations · **0.6.45** |
-| 2026-07-28 | #163 / #164 | Plus auth criticals (soft-start fixation, idempotency tenant scope, exchange XSS, body cap) — Fly already deployed |
-| 2026-07-28 | #154 / #157 | Hub projection — managed generated block on person hubs · **0.6.44** |
 | 2026-07-28 | #115 | Plus public launch ops — tryatoms domain, Resend, Stripe **live** on Fly |
 | 2026-07-28 | #150 / #152 | Ask MCP unmisreadable shapes (revision status, snippet authority, scope) |
 | 2026-07-27 | #120 / #146 | DIY Ask self-host guide (`docs/ask-self-host.md`) |

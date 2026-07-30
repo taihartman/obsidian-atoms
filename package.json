@@ -1,6 +1,6 @@
 {
   "name": "obsidian-atoms",
-  "version": "0.6.51",
+  "version": "0.6.53",
   "description": "Classify past daily-note captures into atomic notes via Anthropic API",
   "main": "main.js",
   "type": "module",
@@ -9,7 +9,6 @@
     "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
     "version": "node version-bump.mjs && git add manifest.json versions.json",
     "spike:api": "node scripts/spike-api.mjs",
-    "measure:cost": "node scripts/measure-classify-cost.mjs",
     "seed:vault": "node scripts/seed-test-vault.mjs",
     "seed:demo": "node scripts/seed-demo-vault.mjs",
     "pretest": "npm run build:www",
@@ -17,6 +16,7 @@
     "test:watch": "vitest",
     "typecheck": "tsc -noEmit -skipLibCheck",
     "build:www": "node www/build.mjs",
+    "measure:cost": "node scripts/measure-classify-cost.mjs",
     "measure:recall": "node scripts/measure-shortlist-recall.mjs",
     "measure:links": "node scripts/measure-link-quality.mjs",
     "measure:chrono": "node scripts/measure-chrono-linking.mjs",

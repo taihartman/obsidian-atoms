@@ -46,7 +46,7 @@ const store = await createStore();
 const CORS_HEADERS = {
   "access-control-allow-origin": "*",
   "access-control-allow-headers":
-    "content-type, authorization, idempotency-key, x-idempotency-key, accept",
+    "content-type, authorization, idempotency-key, x-idempotency-key, accept, mcp-protocol-version, mcp-method, mcp-name",
   "access-control-allow-methods": "GET, POST, OPTIONS",
 };
 

@@ -275,7 +275,7 @@ export default class AtomsPlugin extends Plugin {
         filed: r.filed,
         held: r.held,
         pending: r.pending,
-        unparseable: r.unparseable,
+        inferred: r.inferred,
       });
       await this.refreshAtomsHomeLeaves();
     } catch (e) {
@@ -323,7 +323,6 @@ export default class AtomsPlugin extends Plugin {
       const r = await this.drainInboxOnce();
       const parts = [`${r.filed} filed`];
       if (r.held) parts.push(`${r.held} held (future)`);
-      if (r.unparseable) parts.push(`${r.unparseable} unreadable`);
       if (r.pending) parts.push(`${r.pending} pending`);
       new Notice(`Atoms inbox: ${parts.join(", ")}`);
       await this.refreshAtomsHomeLeaves();
