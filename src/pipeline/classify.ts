@@ -166,10 +166,10 @@ export const SYSTEM_PROMPT = `You classify fleeting captures from a daily-note i
 - **Reason must still teach something if wikilinks were stripped.**
   Bad: "preference about [[Alex]]" / "update about [[Alex]]" / "media work to watch"
   Good: "concrete aesthetic preference for gifts / clothes ([[Alex]])"
-  Good: "career status: Penfield interview — waiting to hear back ([[Alex]])"
+  Good: "career status: interview loop — waiting to hear back ([[Alex]])"
   Good: "adds a game they like for the detective feel ([[Alex]])"
   Good: "revises [[Old claim]]" / "contradicts [[Old claim]]"
-  Good: "same product thread — settlement timing after split ([[Aploma settlement note]])"
+  Good: "same product thread — settlement timing after split ([[Expense app — final settlement]])"
 - **When a Note title is clearly the same thread, prefer a substantive link over silence.**
   Same person, same named work, same app/product/project, same trip, or an explicit revise/continue/contradict of an earlier claim — if that exact title is under Note titles, link it with a reason that teaches the relationship. A plausible, title-exact link is better than an island. Do not skip an obvious same-thread title just to stay sparse.
 - Still never invent titles, never link on a vague shared vibe alone, and never force a junk edge with an empty reason. People must-link and media work-title rules above still apply; this section adds the missing *do link* pressure for real threads.
