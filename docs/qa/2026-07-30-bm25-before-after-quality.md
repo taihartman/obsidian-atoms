@@ -127,3 +127,18 @@ Precision matters more than raw link count (product rule: false edges destroy tr
 | `docs/research/data/2026-07-30-before-bm25-remote-vault-shortlist.json` | Layer A baseline |
 | `docs/research/data/2026-07-28-remote-vault-shortlist.json` | Earlier research baseline (same story) |
 | `scripts/analyze-vault-shortlist.mjs` | Read-only harness (safe on personal vault) |
+
+## After Update notes (2026-07-30, post 0.6.54–0.6.56)
+
+Human ran **Update notes** on Remote Vault (all 36 linker atoms stamped `atoms-quality: 6`).
+
+| | Before | After |
+|---|---|---|
+| Graded atoms / gold links | 25 / 30 | 23 / 24 |
+| bodyPlusTitle @40 | 93% (28/30) | **96%** (23/24) |
+| alphabetical @40 | 0% | 0% |
+| Unresolved link targets | 0 | 4 |
+
+Report: `docs/research/data/2026-07-30-after-update-notes-remote-vault-shortlist.json`
+
+**Read:** Retrieval ceiling for body scoring held/improved. Link graph is slightly sparser (model dropped some edges; a few targets unresolved after renames). Alphabetical-40 still finds nothing — Plus path fix remains load-bearing for new filing.
