@@ -971,6 +971,21 @@ main[data-story="self"] .s-people {
   color: var(--faint);
 }
 
+.note-break {
+  display: block;
+  margin-top: 6px;
+}
+
+.note-break a {
+  color: var(--muted);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.note-break a:hover {
+  color: var(--label);
+}
+
 @media (min-width: 620px) {
   .actions {
     flex-direction: row;

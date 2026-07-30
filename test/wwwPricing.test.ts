@@ -294,15 +294,31 @@ describe("honesty floor", () => {
   });
 
   it("never calls the bring-your-own-key path free", () => {
-    // "free" is only allowed where it is literally true: the trial.
+    // "free" is only allowed where it is literally true: the trial, or
+    // describing Obsidian itself (not an Atoms price claim).
     const claims = visible.match(/[^.<>]{0,70}\bfree\b[^.<>]{0,70}/gi) ?? [];
     expect(claims.length).toBeGreaterThan(0);
     for (const c of claims) {
-      const trialClaim = /trial/i.test(c) || /\d+ days? free/i.test(c);
-      expect(trialClaim, `"free" used outside the trial: ${c.trim()}`).toBe(
+      const allowed =
+        /trial/i.test(c) ||
+        /\d+ days? free/i.test(c) ||
+        /obsidian/i.test(c);
+      expect(allowed, `"free" used outside trial/Obsidian: ${c.trim()}`).toBe(
         true,
       );
     }
+  });
+
+  it("explains Obsidian before BRAT for newcomers", () => {
+    const install = index.slice(
+      index.indexOf('id="install"'),
+      index.indexOf('id="privacy-summary"'),
+    );
+    expect(install).toContain("Get Obsidian");
+    expect(install).toContain("https://obsidian.md");
+    expect(install).toContain("skip to step 2");
+    expect(install).toContain("BRAT");
+    expect(index).toContain("New to Obsidian (free)?");
   });
 
   it("says Atoms is an Obsidian plugin above the fold", () => {
