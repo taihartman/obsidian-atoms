@@ -15,6 +15,7 @@ import {
 import { getPastDailyNotesWithUnmarkedCaptures } from "./daily";
 import {
   applyWrite,
+  displayTitleForAtom,
   listAtomPaths,
   planWrite,
 } from "./render";
@@ -732,7 +733,7 @@ export async function applyBackfillResults(opts: {
       // Only newly created atoms: a collision skip means the file was already in the corpus.
       opts.run?.addWrittenAtom({
         path: wr.atomCreated,
-        title: result.title,
+        title: displayTitleForAtom(result.title),
         body: item.capture.text,
         tags: result.tags,
         links: result.links,

@@ -8,6 +8,7 @@ import { logShortlistDiagnostics, type MetadataContextProvider } from "./context
 import { getPastDailyNotesWithUnmarkedCaptures } from "./daily";
 import {
   applyWrite,
+  displayTitleForAtom,
   listAtomPaths,
   planWrite,
   type ApplyWriteResult,
@@ -279,7 +280,8 @@ export async function runWritePath(
       if (writeResult.atomCreated) {
         run.addWrittenAtom({
           path: writeResult.atomCreated,
-          title: result.title,
+          // Same spelling the file/marker use — raw model title can differ after sanitize.
+          title: displayTitleForAtom(result.title),
           body: capture.text,
           tags: result.tags,
           links: result.links,

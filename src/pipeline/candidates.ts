@@ -67,9 +67,10 @@ export class CandidateCorpus {
    * The BM25F index over `notes`, extended by `add()` so it can never disagree with them.
    *
    * Held here rather than rebuilt per capture: tokenising the corpus is corpus-invariant work, and
-   * a catch-up scores thousands of captures against it (KTD4).
+   * a catch-up scores thousands of captures against it (KTD4). Replaced wholesale on `upsert`
+   * (Bm25Index has no remove).
    */
-  readonly index = new Bm25Index<CandidateNote>();
+  index = new Bm25Index<CandidateNote>();
   /**
    * Distinct paths in the corpus. Maintained on append because the alternative — deriving it from
    * `notes` — is an O(corpus) rebuild every time graph expansion asks whether a reached path is a
@@ -89,6 +90,24 @@ export class CandidateCorpus {
     this.notes.push(note);
     this.paths.add(note.path);
     this.index.add(note);
+  }
+
+  /**
+   * Replace every corpus entry for `note.path` (and any paths in `alsoDrop`) with this note.
+   *
+   * Used when a refresh refiles an atom in place or renames it: the seed entry's tags/link prose
+   * (or the old path after a rename) must not keep ranking against the capture that just moved.
+   * Rebuilds the standing BM25 index so scores stay equivalent to a full re-seed.
+   */
+  upsert(note: CandidateNote, alsoDrop: readonly string[] = []): void {
+    const drop = new Set<string>([note.path, ...alsoDrop]);
+    const kept = this.notes.filter((n) => !drop.has(n.path));
+    this.notes.length = 0;
+    this.paths.clear();
+    // Fresh index: Bm25Index has no remove, and a partial edit would desync df/lengthSums.
+    this.index = new Bm25Index<CandidateNote>();
+    for (const n of kept) this.add(n);
+    this.add(note);
   }
 }
 

@@ -624,6 +624,8 @@ export class ContextRun implements ContextProvider {
     body: string;
     tags?: string[];
     links?: string[];
+    /** Drop these paths when replacing (refresh rename: old path + new path). */
+    replacePaths?: readonly string[];
   }): void {
     const note: CandidateNote = {
       path: atom.path,
@@ -633,7 +635,12 @@ export class ContextRun implements ContextProvider {
       links: atom.links ?? [],
       isAtom: true,
     };
-    this.corpus?.add(note);
+    if (!this.corpus) return;
+    if (atom.replacePaths?.length) {
+      this.corpus.upsert(note, atom.replacePaths);
+    } else {
+      this.corpus.add(note);
+    }
   }
 
   /**
@@ -651,6 +658,8 @@ export class ContextRun implements ContextProvider {
     body: string;
     tags?: string[] | null;
     links?: ClassificationLink[] | null;
+    /** When set, replace any prior entries for these paths (refresh refile / rename). */
+    replacePaths?: readonly string[];
   }): void {
     const prose = formatLinkProse(atom.links ?? []);
     this.addAtom({
@@ -659,6 +668,7 @@ export class ContextRun implements ContextProvider {
       body: atom.body,
       tags: atom.tags ?? [],
       links: prose ? [prose] : [],
+      replacePaths: atom.replacePaths,
     });
   }
 

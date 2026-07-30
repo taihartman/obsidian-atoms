@@ -255,4 +255,27 @@ body with an inline #preference tag
       "Fresh atom",
     );
   });
+
+  it("upsert replaces same-path seed and drops a renamed path", async () => {
+    const { app } = fakeApp([atom("Old title", "original capture about sleep")]);
+    const corpus = await buildCandidateCorpus(app, { atomFolder: "Atoms" });
+    expect(corpus.paths.has("Atoms/Old title.md")).toBe(true);
+
+    corpus.upsert(
+      {
+        path: "Atoms/New title.md",
+        title: "New title",
+        body: "original capture about sleep",
+        tags: ["sleep"],
+        links: ["Related to [[Other]] because of the plateau."],
+        isAtom: true,
+      },
+      ["Atoms/Old title.md"],
+    );
+
+    expect(corpus.paths.has("Atoms/Old title.md")).toBe(false);
+    expect(corpus.paths.has("Atoms/New title.md")).toBe(true);
+    expect(corpus.notes.filter((n) => n.path === "Atoms/Old title.md")).toHaveLength(0);
+    expect(rankShortlist("plateau related", corpus.notes, 3)[0]?.title).toBe("New title");
+  });
 });

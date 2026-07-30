@@ -15,9 +15,15 @@ function rankedTitles(n) {
   );
 }
 
+/** Join context content blocks (stable + titles) the way the model reads them. */
+function contextText(payload) {
+  const parts = payload.messages[0].content;
+  return Array.isArray(parts) ? parts.map((p) => p.text ?? "").join("") : "";
+}
+
 /** The "### Note titles" block of a built payload, as the model would read it. */
 function promptTitles(payload) {
-  const text = payload.messages[0].content[0].text;
+  const text = contextText(payload);
   const block = text.split("### Note titles\n")[1] ?? "";
   return block
     .split("\n")
@@ -133,5 +139,50 @@ describe("U7 R6 — the Plus request carries titles only", () => {
     });
     assert.equal(r.ok, true);
     assert.equal(promptTitles(r.payload).length, 400);
+  });
+});
+
+describe("U7 shortlist + expansion + cache split", () => {
+  beforeEach(() => {
+    delete process.env.ATOMS_PLUS_MAX_CONTEXT_TITLES;
+    delete process.env.ATOMS_PLUS_MAX_LEGACY_CONTEXT_TITLES;
+  });
+  afterEach(() => {
+    delete process.env.ATOMS_PLUS_MAX_CONTEXT_TITLES;
+    delete process.env.ATOMS_PLUS_MAX_LEGACY_CONTEXT_TITLES;
+  });
+
+  it("keeps expansion titles past scored k when stats.returned says so", () => {
+    // Device scored 400 and appended 32 expansion slots → 432 titles, best-first then reached.
+    const titles = rankedTitles(432);
+    const ctx = boundContext({
+      titles,
+      ranked: true,
+      k: 400,
+      stats: { k: 400, returned: 432, expanded: 32 },
+    });
+    assert.equal(ctx.titles.length, 432);
+    assert.deepEqual(ctx.titles, titles);
+  });
+
+  it("cache_control sits only on the stable prefix, not the titles block", () => {
+    const built = buildClassifyPayload({
+      capture: "walked the block",
+      context: {
+        titles: rankedTitles(3),
+        ranked: true,
+        k: 3,
+        tags: ["sleep"],
+        vocabulary: ["habit"],
+      },
+    });
+    assert.equal(built.ok, true);
+    const blocks = built.payload.messages[0].content;
+    assert.equal(blocks.length, 2);
+    assert.equal(blocks[0].cache_control?.type, "ephemeral");
+    assert.equal(blocks[1].cache_control, undefined);
+    assert.match(blocks[0].text, /### Active vocabulary/);
+    assert.doesNotMatch(blocks[0].text, /### Note titles/);
+    assert.match(blocks[1].text, /### Note titles/);
   });
 });

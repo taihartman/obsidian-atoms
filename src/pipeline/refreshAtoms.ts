@@ -886,17 +886,16 @@ export async function runRefreshEligibleAtoms(
         }
         report.updatedItems.push({ title: finalTitle, path: finalPath });
 
-        // A refresh can rename an atom. Its old spelling is already in the corpus from seeding; add
-        // the new one so a later chunk can be offered the title the file now actually has (KTD4a).
-        if (finalTitle !== plan.oldTitle) {
-          run.addWrittenAtom({
-            path: finalPath,
-            title: finalTitle,
-            body: plan.captureText,
-            tags: result.tags,
-            links: result.links,
-          });
-        }
+        // Always upsert: same-title refile still changes tags/link prose the next chunk must score
+        // against, and a rename must drop the old path so a later capture is not offered a dead title.
+        run.addWrittenAtom({
+          path: finalPath,
+          title: displayTitleForAtom(finalTitle),
+          body: plan.captureText,
+          tags: result.tags,
+          links: result.links,
+          replacePaths: [plan.path, finalPath],
+        });
 
         if (plan.oldTitle !== plan.newTitle && plan.sourceBasename) {
           const daily = findDailyFile(opts.app, plan.sourceBasename);

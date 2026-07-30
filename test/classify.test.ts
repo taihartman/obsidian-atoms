@@ -5,6 +5,7 @@ import {
   checkInvariants,
   classifyCapture,
   CLASSIFICATION_SCHEMA,
+  contextForPlus,
   fingerprintKey,
   SYSTEM_PROMPT,
 } from "../src/pipeline/classify";
@@ -239,6 +240,37 @@ describe("classifyCapture request layer", () => {
     expect(outcome.ok).toBe(true);
     expect(Object.keys(sent).sort()).toEqual(["capture", "context"]);
     expect(sent).not.toHaveProperty("messagesRequest");
+    // R6: wire payload is titles-only — no vault paths or local hub detail bags.
+    const wire = sent.context as Record<string, unknown>;
+    expect(wire).not.toHaveProperty("shortlist");
+    expect(wire).not.toHaveProperty("personHubDetails");
+    expect(wire.ranked).toBe(true);
+    expect(Array.isArray(wire.titles)).toBe(true);
+  });
+
+  it("contextForPlus drops shortlist paths and hub details", () => {
+    const wire = contextForPlus({
+      titles: ["A", "B"],
+      tags: ["t"],
+      vocabulary: ["v"],
+      personHubs: ["Ning"],
+      personHubDetails: [
+        { canonicalTitle: "Ning", matchKeys: ["ning"], path: "People/Ning.md" },
+      ],
+      shortlist: [{ path: "Atoms/A.md", title: "A", score: 1.2 }],
+      stats: { corpusSize: 2, matched: 1, zeroScoring: 1, returned: 2, k: 400, expanded: 0 },
+    } as never);
+    expect(wire).toEqual({
+      titles: ["A", "B"],
+      tags: ["t"],
+      vocabulary: ["v"],
+      personHubs: ["Ning"],
+      ranked: true,
+      k: 400,
+      stats: { k: 400, returned: 2, expanded: 0 },
+    });
+    expect(JSON.stringify(wire)).not.toContain("Atoms/");
+    expect(JSON.stringify(wire)).not.toContain("People/");
   });
 
   it("parses schema-valid response without try/catch issues", async () => {

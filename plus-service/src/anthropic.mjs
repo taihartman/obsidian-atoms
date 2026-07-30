@@ -31,6 +31,12 @@ function asStringList(raw, maxItems, maxLen) {
  */
 const MAX_TITLE_CHARS = 255;
 
+/**
+ * Headroom past `maxContextTitles` for graph-expansion slots the device appends after the
+ * scored shortlist. Keep in lockstep with `EXPANSION_SLOTS` in the plugin's `expand.ts`.
+ */
+const EXPANSION_SLOTS = 32;
+
 /** Context keys that would carry note text. Titles-only is the contract (R6). */
 const BODY_BEARING_KEYS = [
   "body",
@@ -85,16 +91,27 @@ function findBodyLeak(context) {
  * order is the device's BM25 score order — the whole point of the shortlist. An unranked
  * request is an older build sending the vault alphabetically; it keeps the legacy cap,
  * because raising it would only buy more alphabet.
+ *
+ * Ranked caps leave room for graph-expansion slots the device appends **after** the scored
+ * top-k (up to EXPANSION_SLOTS). Clamping to bare `k` silently dropped those tails.
  */
 function titleCap(context) {
   const ranked =
     context.ranked === true || Array.isArray(context.shortlist);
   if (!ranked) return { ranked, cap: config.maxLegacyContextTitles };
-  const ceiling = config.maxContextTitles;
+  const base = config.maxContextTitles;
+  // Device already truncated. Prefer stats.returned (scored k + expansion tail) when present;
+  // otherwise honour k / the configured ceiling. Do not invent +32 headroom without returned —
+  // that would raise every small-k request and break the maxContextTitles knob.
+  const returned = Number(context.stats?.returned);
+  if (Number.isFinite(returned) && returned > 0) {
+    return { ranked, cap: Math.min(returned, base + EXPANSION_SLOTS) };
+  }
   const asked = Number(context.k ?? context.stats?.k);
-  const cap =
-    Number.isFinite(asked) && asked > 0 ? Math.min(asked, ceiling) : ceiling;
-  return { ranked, cap };
+  if (Number.isFinite(asked) && asked > 0) {
+    return { ranked, cap: Math.min(asked, base) };
+  }
+  return { ranked, cap: base };
 }
 
 function hashTags(list) {
@@ -135,7 +152,8 @@ export function boundContext(context) {
   };
 }
 
-export function buildContextUserMessage(context) {
+/** Block A — vocabulary / tags / hubs. Byte-stable within a run; carries cache_control. */
+export function buildStableContextText(context) {
   return [
     "## Vault context (stable prefix — do not include timestamps or run IDs)",
     "",
@@ -147,10 +165,25 @@ export function buildContextUserMessage(context) {
     "",
     "### Person hubs (from your vault — prefer linking these exact titles)",
     bulletList(context.personHubs, "(none)"),
-    "",
-    "### Note titles",
-    bulletList(context.titles, "(empty vault)"),
   ].join("\n");
+}
+
+/** Block B — shortlisted titles. Volatile per capture; never cached. */
+export function buildTitlesText(context) {
+  return ["### Note titles", bulletList(context.titles, "(empty vault)")].join(
+    "\n",
+  );
+}
+
+/**
+ * Full context message as one string (stable + titles). Kept for callers/tests that want the
+ * joined bytes; the live Anthropic payload uses two content blocks so the cache breakpoint
+ * sits between them.
+ */
+export function buildContextUserMessage(context) {
+  return [buildStableContextText(context), buildTitlesText(context)].join(
+    "\n\n",
+  );
 }
 
 export function buildCaptureUserMessage(capture) {
@@ -218,10 +251,17 @@ export function buildClassifyPayload(body) {
       {
         role: "user",
         content: [
+          // Index 0: stable prefix only — cache_control lives here so a per-capture shortlist
+          // does not pay a write premium on bytes nobody will ever read back.
           {
             type: "text",
-            text: buildContextUserMessage(ctx),
+            text: buildStableContextText(ctx) + "\n\n",
             cache_control: { type: "ephemeral", ttl: "5m" },
+          },
+          // Index 1: volatile titles — no cache_control.
+          {
+            type: "text",
+            text: buildTitlesText(ctx),
           },
         ],
       },

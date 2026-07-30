@@ -23,7 +23,32 @@ import {
   buildContextPrefixBlock,
   buildTitlesBlock,
   CONTEXT_BLOCK_SEPARATOR,
+  type ShortlistContext,
 } from "./context";
+
+/**
+ * Titles-only payload for Plus (R6). Drops vault paths (`shortlist[]`) and local-only hub details.
+ * The service ranks from `titles` order + `ranked`/`k`/`stats.returned` — it never needs bodies or paths.
+ */
+export function contextForPlus(context: VaultContext): Record<string, unknown> {
+  const stats = (context as Partial<ShortlistContext>).stats;
+  const out: Record<string, unknown> = {
+    titles: context.titles,
+    tags: context.tags,
+    vocabulary: context.vocabulary,
+    personHubs: context.personHubs ?? [],
+    ranked: true,
+    k: stats?.k ?? context.titles.length,
+  };
+  if (stats) {
+    out.stats = {
+      k: stats.k,
+      returned: stats.returned,
+      ...(stats.expanded === undefined ? {} : { expanded: stats.expanded }),
+    };
+  }
+  return out;
+}
 
 /** Injected by esbuild: true in watch/dev, false in production Community builds. */
 declare const ATOMS_DEV_COMMANDS: boolean;
@@ -613,7 +638,7 @@ export async function classifyCapture(
             authorization: `Bearer ${plus.sessionToken.trim()}`,
             "Idempotency-Key": idem,
           },
-          body: JSON.stringify({ capture, context }),
+          body: JSON.stringify({ capture, context: contextForPlus(context) }),
           throw: false,
         });
         status = res.status;
