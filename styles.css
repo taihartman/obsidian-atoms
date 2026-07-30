@@ -1500,6 +1500,10 @@
   box-shadow: none;
   font-size: 0.9rem;
   font-weight: 600;
+  line-height: 1.25;
+  text-align: center;
+  white-space: normal;
+  overflow-wrap: anywhere;
   cursor: pointer;
   -webkit-appearance: none;
   appearance: none;
@@ -1535,9 +1539,12 @@
   gap: 8px;
 }
 
+/* flex-basis forces wrap when two long CTAs won't fit side-by-side
+   (phone inbox card: "Open capture settings" + "Update Capture Atom").
+   min-width: 0 alone let labels overflow into each other. */
 .atoms-ui-action-row .atoms-ui-btn--primary,
 .atoms-ui-action-row .atoms-ui-btn--secondary {
-  flex: 1;
+  flex: 1 1 11rem;
   min-width: 0;
 }
 
