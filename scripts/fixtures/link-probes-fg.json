@@ -1,0 +1,368 @@
+{
+  "probes": [
+    {
+      "id": "F01",
+      "archetype": "F",
+      "failureMode": 3,
+      "capture": "dee said the tuesday group is doing 8x400 next week and i should skip my own tempo and just go with them, worked last time",
+      "targetTitle": "Deepa Raghunathan pacing group beat solo tempo runs",
+      "targetBody": "did the session with deepas group instead of my own tempo and it was quicker than anything ive managed on my own, and it felt easier",
+      "targetAgeDays": 210,
+      "supportingTitles": [
+        "Deepa Raghunathan took over Tuesday club sessions",
+        "Tuesday club moved start to 6:30 for daylight",
+        "Track night at Meadowbank is closed until April"
+      ],
+      "why": "The capture only ever says \"dee\"; token overlap against \"Deepa Raghunathan\" is zero, so a keyword selector never surfaces the one atom about her sessions."
+    },
+    {
+      "id": "F02",
+      "archetype": "F",
+      "failureMode": 10,
+      "capture": "she said the ending was a cop out and honestly shes right, the narrator lies the whole way and theres no tell",
+      "targetTitle": "Marisol Vega argues unreliable narrators need a tell",
+      "targetBody": "marisol at book group said if the narrator is lying theres got to be something in there that lets you catch it, otherwise the writers just pulling a fast one",
+      "targetAgeDays": 165,
+      "supportingTitles": [
+        "Marisol Vega reads only translated fiction now",
+        "Priya Anand skips any book over four hundred pages",
+        "Hannah Okonkwo picks the December book every year",
+        "Book group meets first Thursday at the Rosemount"
+      ],
+      "why": "Three women in the book group could be \"she\"; nothing in the capture names one, so a selector with no notion of who talks about narrators picks by chance."
+    },
+    {
+      "id": "F03",
+      "archetype": "F",
+      "failureMode": 3,
+      "capture": "j is still weird about the table plan, do not put them anywhere near the stepdad thing again",
+      "targetTitle": "Jonah Feldman refuses to be seated near their stepdad",
+      "targetBody": "jonah said flat out they wont sit near the stepdad. not the same table, not the one next to it either. dont push it",
+      "targetAgeDays": 330,
+      "supportingTitles": [
+        "Jonah Feldman agreed to read at the ceremony",
+        "Table plan is locked two weeks before the day",
+        "Venue only allows eight tables of ten"
+      ],
+      "why": "A single initial carries the whole reference, and \"j\" matches dozens of unrelated titles under any substring or token rule."
+    },
+    {
+      "id": "F04",
+      "archetype": "F",
+      "failureMode": 10,
+      "capture": "they left the boiler cranked overnight again, third time this month and the bill is going to be mental",
+      "targetTitle": "Ade Balogun turns the boiler up and forgets it",
+      "targetBody": "came down and the heating had been blasting all night again, ade had it right up and went to bed. hes not doing it on purpose he just forgets its on",
+      "targetAgeDays": 95,
+      "supportingTitles": [
+        "Tomas Nowak works nights and showers at four am",
+        "Callum Byrne set the house thermostat schedule",
+        "Ade Balogun keeps their room at twenty-four degrees",
+        "House gas bill splits four ways from the joint account"
+      ],
+      "why": "\"they\" could be any of three housemates and the two strongest keyword matches are the thermostat and bill notes, which are the wrong people."
+    },
+    {
+      "id": "F05",
+      "archetype": "F",
+      "failureMode": 3,
+      "capture": "shift lead asked again about getting the van loaded before six, they keep saying the late loads are why the route overruns",
+      "targetTitle": "Ingrid Halvorsen wants the van loaded before six",
+      "targetBody": "ingrid keeps on about getting the van loaded before six. says the late ones are what puts the whole route behind for the rest of the day",
+      "targetAgeDays": 140,
+      "supportingTitles": [
+        "Ingrid Halvorsen runs the Saturday food bank shift",
+        "Route overruns come from late van loading",
+        "Volunteer rota is posted on the noticeboard Wednesday"
+      ],
+      "why": "The person is referred to purely by role, so resolving to the name requires knowing who holds that role — nothing a title-overlap selector can compute."
+    },
+    {
+      "id": "F06",
+      "archetype": "F",
+      "failureMode": 1,
+      "capture": "before anyone books flights this time lets just do the kitty thing again, saved so much grief last trip",
+      "targetTitle": "Splitting the trip kitty upfront stopped the money sulk",
+      "targetBody": "everyone chucked the same in at the start and nobody did the whos owed what thing all week. no one got the hump about money once",
+      "targetAgeDays": 430,
+      "supportingTitles": [
+        "Portugal trip kitty was two hundred each into one account",
+        "Group trips need one person holding the bookings",
+        "Naomi Okafor booked the Portugal house"
+      ],
+      "why": "The target is fourteen months old, so a recency-ranked shortlist drops it long before k runs out even though it is the exact prior decision being reused."
+    },
+    {
+      "id": "F07",
+      "archetype": "F",
+      "failureMode": 3,
+      "capture": "sully said theyll do the sorting but not the late drop, dont put them on the friday evening run",
+      "targetTitle": "Marcus Sullivan will not drive the van after dark",
+      "targetBody": "sully will do anything in daylight but wont take the van out once its dark, says his eyes are no good for it now. dont put him on evenings",
+      "targetAgeDays": 175,
+      "supportingTitles": [
+        "Marcus Sullivan joined the food bank rota in March",
+        "Friday evening run finishes after nine",
+        "Sorting shift needs two people minimum"
+      ],
+      "why": "\"sully\" is a surname nickname the vault never uses; a keyword selector matches the shift-logistics titles instead of the person."
+    },
+    {
+      "id": "F08",
+      "archetype": "F",
+      "failureMode": 10,
+      "capture": "they said my cadence is fine and its actually the hips dropping in the last mile, do the single leg thing twice a week",
+      "targetTitle": "Nadia Farrell blames hip drop not cadence for the wobble",
+      "targetBody": "nadia watched me run and said the cadence is fine, its my hip dropping late on thats making me wobble. single leg stuff twice a week",
+      "targetAgeDays": 260,
+      "supportingTitles": [
+        "Nadia Farrell coaches the Thursday form sessions",
+        "Rob Whitcombe took the club physio course",
+        "Yusuf Karaca leads the Sunday long run",
+        "Club runs a form clinic every second Thursday"
+      ],
+      "why": "Three club people plausibly give form advice and none is named, so the selector has to guess which one's atom this continues."
+    },
+    {
+      "id": "F09",
+      "archetype": "F",
+      "failureMode": 3,
+      "capture": "landlord ignored the whatsapp about the shower again, just email it and cc the agency like last time",
+      "targetTitle": "Priti Deshmukh only answers repairs by email",
+      "targetBody": "texted priti about the shower twice, nothing back. emailed it and cc'd the agency and she came back same day. always the way with her",
+      "targetAgeDays": 220,
+      "supportingTitles": [
+        "Priti Deshmukh owns the flat and uses Kelso Lettings",
+        "Shower pressure has been failing since December",
+        "Kelso Lettings logs repairs only from email"
+      ],
+      "why": "\"landlord\" appears in no title; the literal overlap is on shower and email, which pulls the agency and plumbing notes rather than the person atom."
+    },
+    {
+      "id": "F10",
+      "archetype": "F",
+      "failureMode": 11,
+      "capture": "florist wants to know if we want the arch or just table stuff, no clue, ask what each costs",
+      "targetTitle": null,
+      "targetAgeDays": null,
+      "supportingTitles": [
+        "Venue only allows eight tables of ten",
+        "Jonah Feldman agreed to read at the ceremony",
+        "Table plan is locked two weeks before the day",
+        "Photographer books out a year ahead"
+      ],
+      "why": "Nothing about flowers or decor exists yet, so the correct answer is no link — but \"table\" and \"venue\" overlap strongly enough that a keyword shortlist hands the model a tempting false positive."
+    },
+    {
+      "id": "F11",
+      "archetype": "F",
+      "failureMode": 5,
+      "capture": "reread the ferrante one before thursday, the friendship stuff hits completely different now that we moved away",
+      "targetTitle": "Neapolitan novels get sharper after you move away",
+      "targetBody": "started the ferrante ones again and theyre a different book now weve moved. all the stuff about the one who leaves and the one who stays lands properly this time",
+      "targetAgeDays": 340,
+      "supportingTitles": [
+        "Book group",
+        "Book group meets first Thursday at the Rosemount",
+        "Marisol Vega reads only translated fiction now"
+      ],
+      "why": "This needs both the eleven-month-old specific atom and the Book group hub; a selector tuned to return one strong match returns the hub and silently loses the specific claim."
+    },
+    {
+      "id": "F12",
+      "archetype": "F",
+      "failureMode": 10,
+      "capture": "they said theyd sort the van hire but nothings booked and were three weeks out, chase it",
+      "targetTitle": "Eli Brandt-Hsu books transport at the last minute",
+      "targetBody": "eli said hed sort the minibus weeks ago and booked it two days before. same as the ski thing. it always gets done, just never til the last second",
+      "targetAgeDays": 285,
+      "supportingTitles": [
+        "Naomi Okafor booked the Portugal house",
+        "Eli Brandt-Hsu handled transport for the ski week",
+        "Sunita Rao holds the group trip spreadsheet",
+        "Van hire needs a driver over twenty-five"
+      ],
+      "why": "Three trip organisers are candidates and the only literal match is \"van hire\", which points at the logistics note rather than the person whose pattern this is."
+    },
+    {
+      "id": "G01",
+      "archetype": "G",
+      "failureMode": 4,
+      "capture": "ledgerly onboarding still dumps people into the empty state with nothing in it, same as the beta",
+      "targetTitle": "Tallyroom needs seeded sample data on first launch",
+      "targetBody": "watched someone open it for the first time and they just sat there looking at a blank screen. it needs to come with a bit of made up stuff in it so theres something to poke at",
+      "targetAgeDays": 90,
+      "supportingTitles": [
+        "Ledgerly was renamed Tallyroom after the trademark letter",
+        "Tallyroom empty state tested badly with five users",
+        "First launch decides whether people come back"
+      ],
+      "why": "The capture uses the pre-rename product name, so the strongest keyword token in it appears in no current title except the rename note itself."
+    },
+    {
+      "id": "G02",
+      "archetype": "G",
+      "failureMode": 8,
+      "capture": "enclosure is doing the same thing as the kitchen drawer, if it takes two hands to open nobody opens it",
+      "targetTitle": "Kitchen drawers that need two hands never get used",
+      "targetBody": "that drawer that sticks, you have to hold it and pull at the same time, and nobody ever opens it. everything just lives on the worktop instead",
+      "targetAgeDays": 240,
+      "supportingTitles": [
+        "Sensor enclosure needs a latch not four screws",
+        "Workshop bench is too small for sanding the case",
+        "Kitchen refit put the bins under the sink"
+      ],
+      "why": "The target lives entirely in the home domain while the capture reads as hardware, so any selector that clusters or quotas by domain never crosses to it."
+    },
+    {
+      "id": "G03",
+      "archetype": "G",
+      "failureMode": 4,
+      "capture": "someone opened an issue on reqwrap asking why retries double count, thats the old jitter bug not a regression",
+      "targetTitle": "Fetchkit retry counter double counts with jitter",
+      "targetBody": "retry count comes out double when the random backoff is on. its counting the wait as an attempt. doesnt happen at all with jitter off",
+      "targetAgeDays": 395,
+      "supportingTitles": [
+        "Reqwrap was renamed Fetchkit at v2 for the npm scope",
+        "Fetchkit v2 kept the old retry module unchanged",
+        "Backoff jitter was added before the rename"
+      ],
+      "why": "Old package name plus a thirteen-month-old target: recency drops it and keyword matching fails on the renamed library, so both cheap selectors miss together."
+    },
+    {
+      "id": "G04",
+      "archetype": "G",
+      "failureMode": 12,
+      "capture": "paid tier thing again, still reckon its three posts free then pay, same as what i wrote in january",
+      "targetTitle": "Three free posts then paywall fits the cadence",
+      "targetBody": "reckon three free ones then you have to pay. i put out about one a week so thats basically a month to try it before it asks for anything",
+      "targetAgeDays": 0,
+      "supportingTitles": [
+        "Newsletter goes out Tuesday mornings",
+        "Open rate drops when the subject line is a question",
+        "Paid tier has to survive a month with no new posts"
+      ],
+      "why": "The target atom is filed from a January daily earlier in the same catch-up run, so a title list frozen before the run cannot contain it at any k."
+    },
+    {
+      "id": "G05",
+      "archetype": "G",
+      "failureMode": 4,
+      "capture": "copperleaf margins on the pastry case were never worth it, dont repeat that at the new site",
+      "targetTitle": "Third Rail pastry case never covered its own waste",
+      "targetBody": "did the pastry numbers for the year. we bin more than we sell out of that case. its been losing money the whole time, it just looks nice",
+      "targetAgeDays": 520,
+      "supportingTitles": [
+        "Copperleaf Coffee became Third Rail after the rebrand",
+        "Third Rail second site is on Dalry Road",
+        "Pastry waste ran twelve percent of the case"
+      ],
+      "why": "Seventeen months old and filed under the post-rebrand name, so recency and keyword selectors both drop it while the near-miss waste note scores higher."
+    },
+    {
+      "id": "G06",
+      "archetype": "G",
+      "failureMode": 8,
+      "capture": "same mistake as the build, we picked the boiler before we knew the layout and now everything bends round it",
+      "targetTitle": "Choosing the database first bent the app around it",
+      "targetBody": "picked the db before we knew what we were building and now everything is shaped round what it can do. should have left that til later",
+      "targetAgeDays": 285,
+      "supportingTitles": [
+        "Boiler position was fixed before the layout was drawn",
+        "Rear extension needs a building warrant before April",
+        "App shipped on Postgres because of one early call"
+      ],
+      "why": "The capture is renovation vocabulary and the target is software vocabulary; they share only the abstract shape, which no token-overlap or tag selector can see."
+    },
+    {
+      "id": "G07",
+      "archetype": "G",
+      "failureMode": 12,
+      "capture": "battery sag under the pump load is the same thing as the bench brownout, its not the firmware",
+      "targetTitle": "Pump inrush browns out the rail not a firmware fault",
+      "targetBody": "board keeps resetting when the pump kicks in. put a meter on it and the voltage dips right as it starts up. its not the code, its the draw at switch on",
+      "targetAgeDays": 0,
+      "supportingTitles": [
+        "Sensor enclosure needs a latch not four screws",
+        "Bench supply cannot hold three amps on the pump line",
+        "Firmware watchdog resets look like crashes"
+      ],
+      "why": "The brownout atom is created from an earlier daily in the same backfill run, so only a context refreshed mid-run can offer it as a link candidate."
+    },
+    {
+      "id": "G08",
+      "archetype": "G",
+      "failureMode": 4,
+      "capture": "mackie joinery still hasnt come back about the stair spindles, chase them before the plasterer books in",
+      "targetTitle": "Rowanbank Joinery goes quiet between deposit and start",
+      "targetBody": "paid the joiners deposit and then heard nothing for three weeks. same as last time, theyre fine once theyre on site but the gap before is dead air",
+      "targetAgeDays": 200,
+      "supportingTitles": [
+        "Mackie Joinery trades as Rowanbank Joinery since 2025",
+        "Stair spindles were quoted before the rebrand",
+        "Rear extension needs a building warrant before April"
+      ],
+      "why": "The contractor's trading name changed mid-project, so the capture's company tokens only match the rename note and the pattern atom scores zero."
+    },
+    {
+      "id": "G09",
+      "archetype": "G",
+      "failureMode": 8,
+      "capture": "writing the issue is going the same way as the long run, if i dont start before 8 it just doesnt happen",
+      "targetTitle": "Sunday long run only happens if it starts before eight",
+      "targetBody": "out the door by half seven and it was done before the day even started. any later and something always comes up and i end up binning it",
+      "targetAgeDays": 150,
+      "supportingTitles": [
+        "Newsletter goes out Tuesday mornings",
+        "Drafting on Sunday night makes Tuesday calm",
+        "Sunday long run is the only run I never skip"
+      ],
+      "why": "The relevant atom is a running note and every same-domain newsletter title outranks it on overlap, so a domain-quota'd shortlist fills up before reaching it."
+    },
+    {
+      "id": "G10",
+      "archetype": "G",
+      "failureMode": 12,
+      "capture": "offline queue and the retry thing are the same problem, one place should own pending writes",
+      "targetTitle": "Offline queue and retry should share one pending store",
+      "targetBody": "weve got two lists of stuff waiting to go out and they dont know about each other. should just be one place that holds whats not sent yet",
+      "targetAgeDays": 0,
+      "supportingTitles": [
+        "Tallyroom writes fail silently when offline",
+        "Retry logic lives in the network layer today",
+        "Ledgerly was renamed Tallyroom after the trademark letter"
+      ],
+      "why": "The target is filed from a daily processed minutes earlier in the same run; a frozen prefix makes the link structurally impossible regardless of selector quality."
+    },
+    {
+      "id": "G11",
+      "archetype": "G",
+      "failureMode": 6,
+      "capture": "closing sundays was right at the time but dalry footfall is all weekend, reopening sunday from next month",
+      "targetTitle": "Closing on Sunday saved more than the lost covers",
+      "targetBody": "shut sundays for a month and the wage bill dropped more than the takings did. everyone came in better on the monday as well",
+      "targetAgeDays": 610,
+      "supportingTitles": [
+        "Copperleaf Coffee became Third Rail after the rebrand",
+        "Third Rail second site is on Dalry Road",
+        "Weekend footfall on Dalry Road peaks on Sunday"
+      ],
+      "why": "The capture reverses a twenty-month-old decision, so if recency drops the old atom we file a contradictory duplicate instead of a supersession and the graph quietly corrupts."
+    },
+    {
+      "id": "G12",
+      "archetype": "G",
+      "failureMode": 7,
+      "capture": "maintainer burnout thing again, third time ive written this, either find a co maintainer or archive it",
+      "targetTitle": "Fetchkit needs a co-maintainer or it should be archived",
+      "targetBody": "im the only one answering issues and i dread opening it now. either someone else comes on to help or i should just put it to bed properly",
+      "targetAgeDays": 260,
+      "supportingTitles": [
+        "Reqwrap was renamed Fetchkit at v2 for the npm scope",
+        "Issue triage takes two evenings a month",
+        "Saying no to feature requests keeps the scope small"
+      ],
+      "why": "A thought revisited across months, and the capture never names the library, so the selector must recognise the recurring thread rather than any shared token."
+    }
+  ]
+}

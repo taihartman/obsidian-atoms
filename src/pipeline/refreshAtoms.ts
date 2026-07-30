@@ -6,9 +6,14 @@ import {
 import {
   applyClassificationQuality,
   classifyCapture,
+  shouldCacheChunkTitles,
   type ClassifyDeps,
 } from "./classify";
-import type { MetadataContextProvider } from "./context";
+import {
+  groupIntoChunks,
+  type ChunkGranularity,
+  type MetadataContextProvider,
+} from "./context";
 import {
   CURRENT_ATOMS_QUALITY,
   isEligibleForUpdate,
@@ -35,7 +40,11 @@ import {
   extractLinkProseRegion,
   parseLinkProse,
 } from "./parseLinkProse";
-import type { ClassificationLink, ClassificationResult } from "../shared/types";
+import type {
+  ClassificationLink,
+  ClassificationResult,
+  VaultContext,
+} from "../shared/types";
 import type { PersonHub } from "./enrich/people";
 
 export const UPDATE_NOTES_BATCH_LIMIT = 15;
@@ -625,7 +634,25 @@ export type RunRefreshOptions = {
   /** Skip Phase B (tests). */
   skipRefile?: boolean;
   enableHubProjection?: boolean;
+  /** Shortlist size for Phase B's retrieval (R8). Defaults to the studied k. */
+  shortlistK?: number;
+  /** Calendar chunk size for Phase B (U5). Defaults to monthly. */
+  chunkGranularity?: ChunkGranularity;
 };
+
+/**
+ * The date an atom is chunked by: the daily note it came from, else its `created:` stamp.
+ *
+ * The source daily is preferred because it is when the thought happened, which is what chunk
+ * reachability is measured against; `created` is when the atom file was written, which for a
+ * previous catch-up is one arbitrary afternoon for thousands of atoms.
+ */
+export function refreshChunkDate(content: string): string | null {
+  const meta = parseImmutableFrontmatter(content);
+  const source = sourceDailyBasename(meta.sourceWikilink);
+  if (source && /^\d{4}-\d{2}-\d{2}/.test(source)) return source;
+  return meta.created || null;
+}
 
 /**
  * Smart refresh: Phase A free polish, Phase B ranked Process-parity refile.
@@ -724,123 +751,176 @@ export async function runRefreshEligibleAtoms(
   }
 
   report.usedApi = true;
-  const ctx = opts.contextProvider.buildContext();
+  // Phase B is a catch-up: many captures, one after another, against a vault whose full title list
+  // no longer fits a prompt. Same seam as Process, chunked like backfill — and `expandGraph: false`
+  // for the same reason (KTD7): the walk stops at hubs, so here it reaches nothing.
+  const run = await opts.contextProvider.beginRun({
+    atomFolder: opts.atomFolder,
+    shortlistK: opts.shortlistK,
+    expandGraph: false,
+  });
+  const staticCtx = run.vaultContext;
   const existing = listAtomPaths(opts.app, opts.atomFolder);
   let fixtureIdx = 0;
 
-  for (let i = 0; i < refileList.length; i++) {
-    const item = refileList[i]!;
-    // Re-read after polish may have rewritten the file
-    let liveContent = item.content;
-    try {
-      const f = opts.app.vault.getAbstractFileByPath(item.path);
-      if (f instanceof TFile) {
-        liveContent = await opts.app.vault.read(f);
+  // Ranked order is kept *within* a chunk; chunks themselves run oldest first, so an atom
+  // retitled in January is offered to March.
+  const chunks = groupIntoChunks(
+    refileList,
+    (a) => refreshChunkDate(a.content),
+    opts.chunkGranularity,
+  );
+  const chunkIndexOf = new Map<(typeof refileList)[number], number>();
+  chunks.forEach((c, i) => c.items.forEach((a) => chunkIndexOf.set(a, i)));
+
+  let activeChunk = -1;
+  let ctx: VaultContext = staticCtx;
+  let cacheTitles = false;
+
+  try {
+    for (const item of chunks.flatMap((c) => c.items)) {
+      const chunkIndex = chunkIndexOf.get(item)!;
+      if (chunkIndex !== activeChunk) {
+        activeChunk = chunkIndex;
+        const chunk = chunks[chunkIndex]!;
+        // One shortlist for the chunk, scored against each atom's **capture** — the user's own
+        // words — never its current title, which is the paraphrase this refresh exists to replace.
+        // Resolved here rather than up front so it can see what the previous chunk just rewrote.
+        ctx = await run.getChunkCandidates(
+          chunk.items.map((a) => extractCaptureBody(a.content)),
+        );
+        cacheTitles = shouldCacheChunkTitles(chunk.items.length);
       }
-    } catch {
-      /* use planned content */
-    }
 
-    opts.onProgress?.(done, totalSteps, {
-      captureText: extractCaptureBody(liveContent),
-    });
+      // Re-read after polish may have rewritten the file
+      let liveContent = item.content;
+      try {
+        const f = opts.app.vault.getAbstractFileByPath(item.path);
+        if (f instanceof TFile) {
+          liveContent = await opts.app.vault.read(f);
+        }
+      } catch {
+        /* use planned content */
+      }
 
-    const captureText = extractCaptureBody(liveContent);
-    const hubs: PersonHub[] = (ctx.personHubDetails ?? []).map((d) => ({
-      canonicalTitle: d.canonicalTitle,
-      matchKeys: d.matchKeys,
-      path: "",
-    }));
-
-    let result: ClassificationResult;
-    if (opts.fixtureResults && fixtureIdx < opts.fixtureResults.length) {
-      result = applyClassificationQuality(
-        captureText,
-        opts.fixtureResults[fixtureIdx++]!,
-        {
-          titles: ctx.titles ?? [],
-          personHubs: hubs,
-          personHubTitles: ctx.personHubs ?? [],
-        },
-      );
-    } else if (opts.fixtureResults) {
-      report.failed += 1;
-      done += 1;
-      continue;
-    } else {
-      const outcome = await classifyCapture(captureText, ctx, {
-        apiKey: opts.apiKey,
-        model: opts.model,
-        activeVocabulary: opts.activeVocabulary,
-        ...opts.classifyDeps,
+      opts.onProgress?.(done, totalSteps, {
+        captureText: extractCaptureBody(liveContent),
       });
-      if (!outcome.ok) {
+
+      const captureText = extractCaptureBody(liveContent);
+      const hubs: PersonHub[] = (staticCtx.personHubDetails ?? []).map((d) => ({
+        canonicalTitle: d.canonicalTitle,
+        matchKeys: d.matchKeys,
+        path: "",
+      }));
+
+      let result: ClassificationResult;
+      if (opts.fixtureResults && fixtureIdx < opts.fixtureResults.length) {
+        result = applyClassificationQuality(
+          captureText,
+          opts.fixtureResults[fixtureIdx++]!,
+          {
+            titles: ctx.titles ?? [],
+            personHubs: hubs,
+            personHubTitles: ctx.personHubs ?? [],
+          },
+        );
+      } else if (opts.fixtureResults) {
         report.failed += 1;
         done += 1;
         continue;
+      } else {
+        const outcome = await classifyCapture(captureText, ctx, {
+          apiKey: opts.apiKey,
+          model: opts.model,
+          activeVocabulary: opts.activeVocabulary,
+          // Every capture in this chunk sends the same titles block, so it belongs inside the
+          // cached prefix — unless the chunk holds one atom and nothing would read it back.
+          cacheTitles,
+          ...opts.classifyDeps,
+        });
+        if (!outcome.ok) {
+          report.failed += 1;
+          done += 1;
+          continue;
+        }
+        result = outcome.result;
       }
-      result = outcome.result;
-    }
 
-    const plan = planRefreshApply({
-      path: item.path,
-      oldTitle: item.title,
-      oldContent: liveContent,
-      result,
-      atomFolder: opts.atomFolder,
-      existingAtomPaths: existing,
-    });
+      const plan = planRefreshApply({
+        path: item.path,
+        oldTitle: item.title,
+        oldContent: liveContent,
+        result,
+        atomFolder: opts.atomFolder,
+        existingAtomPaths: existing,
+      });
 
-    try {
-      const file = opts.app.vault.getAbstractFileByPath(plan.path);
-      if (!(file instanceof TFile)) {
+      try {
+        const file = opts.app.vault.getAbstractFileByPath(plan.path);
+        if (!(file instanceof TFile)) {
+          report.failed += 1;
+          done += 1;
+          continue;
+        }
+
+        await opts.app.vault.modify(file, plan.content);
+        report.updated += 1;
+
+        let finalPath = plan.path;
+        let finalTitle = plan.newTitle || plan.oldTitle;
+        if (plan.rename) {
+          const destExists = opts.app.vault.getAbstractFileByPath(plan.newPath);
+          if (!destExists) {
+            try {
+              await opts.app.vault.rename(file, plan.newPath);
+              existing.delete(plan.path);
+              existing.add(plan.newPath);
+              report.renamed += 1;
+              finalPath = plan.newPath;
+              finalTitle = plan.newTitle || finalTitle;
+            } catch {
+              // Content already refreshed; leave path (aliases carry old title).
+            }
+          }
+        }
+        report.updatedItems.push({ title: finalTitle, path: finalPath });
+
+        // Always upsert: same-title refile still changes tags/link prose the next chunk must score
+        // against, and a rename must drop the old path so a later capture is not offered a dead title.
+        run.addWrittenAtom({
+          path: finalPath,
+          title: displayTitleForAtom(finalTitle),
+          body: plan.captureText,
+          tags: result.tags,
+          links: result.links,
+          replacePaths: [plan.path, finalPath],
+        });
+
+        if (plan.oldTitle !== plan.newTitle && plan.sourceBasename) {
+          const daily = findDailyFile(opts.app, plan.sourceBasename);
+          if (daily) {
+            const dailyText = await opts.app.vault.read(daily);
+            const repaired = repairMarkerTitleInDaily(
+              dailyText,
+              plan.captureText,
+              plan.oldTitle,
+              plan.newTitle,
+            );
+            if (repaired.changed) {
+              await opts.app.vault.modify(daily, repaired.content);
+              report.markersRepaired += 1;
+            }
+          }
+        }
+      } catch {
         report.failed += 1;
-        done += 1;
-        continue;
       }
-
-      await opts.app.vault.modify(file, plan.content);
-      report.updated += 1;
-
-      let finalPath = plan.path;
-      let finalTitle = plan.newTitle || plan.oldTitle;
-      if (plan.rename) {
-        const destExists = opts.app.vault.getAbstractFileByPath(plan.newPath);
-        if (!destExists) {
-          try {
-            await opts.app.vault.rename(file, plan.newPath);
-            existing.delete(plan.path);
-            existing.add(plan.newPath);
-            report.renamed += 1;
-            finalPath = plan.newPath;
-            finalTitle = plan.newTitle || finalTitle;
-          } catch {
-            // Content already refreshed; leave path (aliases carry old title).
-          }
-        }
-      }
-      report.updatedItems.push({ title: finalTitle, path: finalPath });
-
-      if (plan.oldTitle !== plan.newTitle && plan.sourceBasename) {
-        const daily = findDailyFile(opts.app, plan.sourceBasename);
-        if (daily) {
-          const dailyText = await opts.app.vault.read(daily);
-          const repaired = repairMarkerTitleInDaily(
-            dailyText,
-            plan.captureText,
-            plan.oldTitle,
-            plan.newTitle,
-          );
-          if (repaired.changed) {
-            await opts.app.vault.modify(daily, repaired.content);
-            report.markersRepaired += 1;
-          }
-        }
-      }
-    } catch {
-      report.failed += 1;
+      done += 1;
     }
-    done += 1;
+  } finally {
+    // The corpus lives exactly as long as the run (KTD4a) — including when a chunk threw.
+    run.end();
   }
 
   await maybeProjectHubsAfterRefresh(opts, report);

@@ -1,0 +1,2335 @@
+{
+  "captures": [
+    {
+      "id": "D0001",
+      "date": "2023-01-03",
+      "thread": "language",
+      "capture": "lisbon in september. going to actually learn portuguese this time, not tourist phrases",
+      "verdict": "atom",
+      "linksToEarlier": [],
+      "linksToExisting": [
+        "Portuguese",
+        "Lisbon"
+      ]
+    },
+    {
+      "id": "D0002",
+      "date": "2023-01-08",
+      "thread": "reading",
+      "capture": "starting the year with the dispossessed. le guin again. everyone says its the political one",
+      "verdict": "atom",
+      "linksToEarlier": [],
+      "linksToExisting": [
+        "Ursula K. Le Guin",
+        "Reading log"
+      ]
+    },
+    {
+      "id": "D0003",
+      "date": "2023-01-09",
+      "thread": "language",
+      "capture": "duolingo day six. i can say the boy eats bread. lisbon will be thrilled",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0001"
+      ],
+      "linksToExisting": [
+        "Duolingo",
+        "Portuguese"
+      ]
+    },
+    {
+      "id": "D0004",
+      "date": "2023-01-11",
+      "thread": "noise",
+      "capture": "bin day is wednesday now not tuesday",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "D0005",
+      "date": "2023-01-15",
+      "thread": "sourdough",
+      "capture": "got a starter from jules. feeding it one to one to one twice a day like the internet says",
+      "verdict": "atom",
+      "linksToEarlier": [],
+      "linksToExisting": [
+        "Sourdough",
+        "Jules"
+      ]
+    },
+    {
+      "id": "D0006",
+      "date": "2023-01-20",
+      "thread": "language",
+      "capture": "european portuguese is not brazilian portuguese and the app mostly teaches brazilian. found this out on day fifteen",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0003"
+      ],
+      "linksToExisting": [
+        "Portuguese"
+      ]
+    },
+    {
+      "id": "D0007",
+      "date": "2023-01-22",
+      "thread": "sourdough",
+      "capture": "first loaf. flat, dense, gummy in the middle. tasted like sad bread",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0005"
+      ],
+      "linksToExisting": [
+        "Sourdough"
+      ]
+    },
+    {
+      "id": "D0008",
+      "date": "2023-01-29",
+      "thread": "reading",
+      "capture": "anarres is the point. a whole society built on not owning anything and it still holds together. finished it in a week",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0002"
+      ],
+      "linksToExisting": [
+        "Ursula K. Le Guin"
+      ]
+    },
+    {
+      "id": "D0009",
+      "date": "2023-02-01",
+      "thread": "language",
+      "capture": "they swallow the vowels. half the word just isnt there. reading it is easy, hearing it is a different language entirely",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0006"
+      ],
+      "linksToExisting": [
+        "Portuguese"
+      ]
+    },
+    {
+      "id": "D0010",
+      "date": "2023-02-05",
+      "thread": "sourdough",
+      "capture": "everyone says the answer is higher hydration. going to eighty percent. all the good loaves online are wet doughs",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0007"
+      ],
+      "linksToExisting": [
+        "Sourdough"
+      ]
+    },
+    {
+      "id": "D0011",
+      "date": "2023-02-08",
+      "thread": "money",
+      "capture": "rent went up six percent. every month im paying someone elses mortgage. we have to buy",
+      "verdict": "atom",
+      "linksToEarlier": [],
+      "linksToExisting": [
+        "Money",
+        "Renting vs owning"
+      ]
+    },
+    {
+      "id": "D0012",
+      "date": "2023-02-14",
+      "thread": "language",
+      "capture": "thirty day streak and i cannot form a sentence that wasnt on a card",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0003"
+      ],
+      "linksToExisting": [
+        "Duolingo"
+      ]
+    },
+    {
+      "id": "D0013",
+      "date": "2023-02-16",
+      "thread": "noise",
+      "capture": "dentist thurs 3pm, bring the old xrays",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "D0014",
+      "date": "2023-02-19",
+      "thread": "sourdough",
+      "capture": "eighty percent dough is a puddle. cant shape it, it spreads on the peel like it gave up",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0010"
+      ],
+      "linksToExisting": [
+        "Sourdough"
+      ]
+    },
+    {
+      "id": "D0015",
+      "date": "2023-02-26",
+      "thread": "reading",
+      "capture": "picked up the magic mountain. seven hundred pages. everyone warns me about the middle",
+      "verdict": "atom",
+      "linksToEarlier": [],
+      "linksToExisting": [
+        "The Magic Mountain",
+        "Reading log"
+      ]
+    },
+    {
+      "id": "D0016",
+      "date": "2023-02-27",
+      "thread": "language",
+      "capture": "a streak measures showing up, not learning. i knew that about the gym and somehow not about this",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0012"
+      ],
+      "linksToExisting": [
+        "Duolingo"
+      ]
+    },
+    {
+      "id": "D0017",
+      "date": "2023-03-02",
+      "thread": "noise",
+      "capture": "wifi password is taped under the router",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "D0018",
+      "date": "2023-03-04",
+      "thread": "sourdough",
+      "capture": "back to seventy. taller loaf but still a tight crumb. something else is wrong and it isnt water",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0014",
+        "D0010"
+      ],
+      "linksToExisting": [
+        "Sourdough"
+      ]
+    },
+    {
+      "id": "D0019",
+      "date": "2023-03-09",
+      "thread": "language",
+      "capture": "got a tutor. rita, one hour a week on video. first session i said maybe forty words and sweated through a shirt",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0016"
+      ],
+      "linksToExisting": [
+        "Rita",
+        "Portuguese"
+      ]
+    },
+    {
+      "id": "D0020",
+      "date": "2023-03-15",
+      "thread": "money",
+      "capture": "put the numbers in a spreadsheet. the deposit is five more years at this rate. thats the actual answer, not a feeling about it",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0011"
+      ],
+      "linksToExisting": [
+        "Money"
+      ]
+    },
+    {
+      "id": "D0021",
+      "date": "2023-03-18",
+      "thread": "sourdough",
+      "capture": "bought a scale that reads tenths and a probe thermometer. measured dough temp for the first time, twenty one degrees. the book says twenty six",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0018"
+      ],
+      "linksToExisting": [
+        "Sourdough"
+      ]
+    },
+    {
+      "id": "D0022",
+      "date": "2023-03-22",
+      "thread": "language",
+      "capture": "rita says stop translating in your head. i cannot find the off switch for that",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0019"
+      ],
+      "linksToExisting": [
+        "Rita"
+      ]
+    },
+    {
+      "id": "D0023",
+      "date": "2023-03-26",
+      "thread": "reading",
+      "capture": "page two hundred and ten of the magic mountain and nothing has happened for sixty pages. shelving it. not forever",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0015"
+      ],
+      "linksToExisting": [
+        "The Magic Mountain"
+      ]
+    },
+    {
+      "id": "D0024",
+      "date": "2023-03-29",
+      "thread": "noise",
+      "capture": "return the blue jacket before the 14 day thing runs out",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "D0025",
+      "date": "2023-04-02",
+      "thread": "sourdough",
+      "capture": "warm water changed more than hydration ever did. twenty six degree dough doubled in four hours instead of nine",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0021",
+        "D0010"
+      ],
+      "linksToExisting": [
+        "Sourdough"
+      ]
+    },
+    {
+      "id": "D0026",
+      "date": "2023-04-05",
+      "thread": "language",
+      "capture": "the hour with rita is worth ten days of the app, and i still open the app because it is easier",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0019",
+        "D0012"
+      ],
+      "linksToExisting": [
+        "Rita",
+        "Duolingo"
+      ]
+    },
+    {
+      "id": "D0027",
+      "date": "2023-04-11",
+      "thread": "money",
+      "capture": "moved the transfer to payday instead of whatever is left at month end. saved more in two months than in all of last year",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0020"
+      ],
+      "linksToExisting": [
+        "Money"
+      ]
+    },
+    {
+      "id": "D0028",
+      "date": "2023-04-16",
+      "thread": "sourdough",
+      "capture": "first loaf with actual holes in it. did not change the recipe at all, only the temperature of the water",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0025"
+      ],
+      "linksToExisting": [
+        "Sourdough"
+      ]
+    },
+    {
+      "id": "D0029",
+      "date": "2023-04-19",
+      "thread": "language",
+      "capture": "missed a session and paid for it anyway. that stung more than losing a sixty day streak would have",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0026"
+      ],
+      "linksToExisting": [
+        "Rita"
+      ]
+    },
+    {
+      "id": "D0030",
+      "date": "2023-04-27",
+      "thread": "noise",
+      "capture": "car service due at 60k, its at 57",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "D0031",
+      "date": "2023-05-03",
+      "thread": "language",
+      "capture": "watching a portuguese show with portuguese subtitles. im reading, not hearing. cheating with extra steps",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0009"
+      ],
+      "linksToExisting": [
+        "Portuguese"
+      ]
+    },
+    {
+      "id": "D0032",
+      "date": "2023-05-07",
+      "thread": "sourdough",
+      "capture": "overproofed it. left it six hours at twenty six because four was good so six must be better",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0025"
+      ],
+      "linksToExisting": [
+        "Sourdough"
+      ]
+    },
+    {
+      "id": "D0033",
+      "date": "2023-05-14",
+      "thread": "reading",
+      "capture": "audiobooks dont count as reading. i can feel myself being wrong about this and im saying it anyway",
+      "verdict": "atom",
+      "linksToEarlier": [],
+      "linksToExisting": [
+        "Reading log"
+      ]
+    },
+    {
+      "id": "D0034",
+      "date": "2023-05-17",
+      "thread": "language",
+      "capture": "vocabulary is not the bottleneck. i know eight hundred words and can reach maybe sixty of them in real time",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0022"
+      ],
+      "linksToExisting": [
+        "Portuguese"
+      ]
+    },
+    {
+      "id": "D0035",
+      "date": "2023-05-21",
+      "thread": "sourdough",
+      "capture": "the poke test is useless to me. i genuinely cannot tell ready from forty minutes past ready",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0032"
+      ],
+      "linksToExisting": [
+        "Sourdough"
+      ]
+    },
+    {
+      "id": "D0036",
+      "date": "2023-05-25",
+      "thread": "noise",
+      "capture": "book the train for the 12th before the price goes up",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "D0037",
+      "date": "2023-05-30",
+      "thread": "language",
+      "capture": "skipped two weeks. no drama, just didnt open anything. thats how these end isnt it",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0026"
+      ],
+      "linksToExisting": [
+        "Portuguese"
+      ]
+    },
+    {
+      "id": "D0038",
+      "date": "2023-06-04",
+      "thread": "reading",
+      "capture": "book club picked something i would never have chosen. that is the entire value of a book club",
+      "verdict": "atom",
+      "linksToEarlier": [],
+      "linksToExisting": [
+        "Book club",
+        "Reading log"
+      ]
+    },
+    {
+      "id": "D0039",
+      "date": "2023-06-07",
+      "thread": "money",
+      "capture": "index fund, monthly, boring. sam thinks i should pick stocks. i dont have an edge and neither does sam",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0027"
+      ],
+      "linksToExisting": [
+        "Vanguard",
+        "Sam"
+      ]
+    },
+    {
+      "id": "D0040",
+      "date": "2023-06-11",
+      "thread": "sourdough",
+      "capture": "weighing the dough before and after bulk now. twenty percent rise, not double. thats the number im going with instead of a feeling",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0035",
+        "D0032"
+      ],
+      "linksToExisting": [
+        "Sourdough"
+      ]
+    },
+    {
+      "id": "D0041",
+      "date": "2023-06-13",
+      "thread": "language",
+      "capture": "restarted duolingo from zero because losing the streak reset something in my head. thats a strange amount of power to hand an owl",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0016",
+        "D0012"
+      ],
+      "linksToExisting": [
+        "Duolingo"
+      ]
+    },
+    {
+      "id": "D0042",
+      "date": "2023-06-20",
+      "thread": "noise",
+      "capture": "milk, eggs, tinfoil, whatever is on the fridge list",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "D0043",
+      "date": "2023-06-27",
+      "thread": "language",
+      "capture": "last session with rita. told them it was just for the summer. it was not just for the summer",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0029",
+        "D0019"
+      ],
+      "linksToExisting": [
+        "Rita"
+      ]
+    },
+    {
+      "id": "D0044",
+      "date": "2023-07-02",
+      "thread": "sourdough",
+      "capture": "summer kitchen is twenty nine degrees and everything is fast and sour in a way i dont like. acetic versus lactic something",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0025"
+      ],
+      "linksToExisting": [
+        "Sourdough"
+      ]
+    },
+    {
+      "id": "D0045",
+      "date": "2023-07-11",
+      "thread": "language",
+      "capture": "the honest version. i wanted to have learned portuguese. i did not want to spend an hour a day being bad at it",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0001",
+        "D0037",
+        "D0043"
+      ],
+      "linksToExisting": [
+        "Portuguese"
+      ]
+    },
+    {
+      "id": "D0046",
+      "date": "2023-07-14",
+      "thread": "noise",
+      "capture": "text the plumber back about the boiler noise",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "D0047",
+      "date": "2023-07-23",
+      "thread": "sourdough",
+      "capture": "skipped two weeks. starter survived in the fridge under a layer of grey liquid. poured it off, two feeds, completely fine",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0005"
+      ],
+      "linksToExisting": [
+        "Sourdough"
+      ]
+    },
+    {
+      "id": "D0048",
+      "date": "2023-07-25",
+      "thread": "language",
+      "capture": "the only phrases that stuck are the ones i needed in a real moment. ordering coffee, asking where a thing is. context beats repetition and no app can hand me context from a sofa in another country",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0045",
+        "D0003"
+      ],
+      "linksToExisting": [
+        "Portuguese"
+      ]
+    },
+    {
+      "id": "D0049",
+      "date": "2023-08-06",
+      "thread": "reading",
+      "capture": "new rule, thirty pages then out. finishing books i dont like was making me read less not more",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0023"
+      ],
+      "linksToExisting": [
+        "Reading log"
+      ]
+    },
+    {
+      "id": "D0050",
+      "date": "2023-08-09",
+      "thread": "money",
+      "capture": "the fee difference over thirty years is a car. moved everything into the cheapest tracker and stopped reading about it",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0039"
+      ],
+      "linksToExisting": [
+        "Vanguard"
+      ]
+    },
+    {
+      "id": "D0051",
+      "date": "2023-08-13",
+      "thread": "sourdough",
+      "capture": "loaf for jules birthday was the best one yet and i cannot tell you what i did differently. that is the maddening part",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0028"
+      ],
+      "linksToExisting": [
+        "Sourdough",
+        "Jules"
+      ]
+    },
+    {
+      "id": "D0052",
+      "date": "2023-08-24",
+      "thread": "noise",
+      "capture": "passport expires march, renew it in january",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "D0053",
+      "date": "2023-09-03",
+      "thread": "sourdough",
+      "capture": "reading about retarding. shape it then fridge overnight. supposedly easier to score and better flavour",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0040"
+      ],
+      "linksToExisting": [
+        "Sourdough"
+      ]
+    },
+    {
+      "id": "D0054",
+      "date": "2023-09-08",
+      "thread": "noise",
+      "capture": "seat 14c, gate closes 40 min before",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "D0055",
+      "date": "2023-09-17",
+      "thread": "sourdough",
+      "capture": "first fridge retard, fourteen hours. scored like butter, the blade did not drag once. this is the unlock",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0053",
+        "D0035"
+      ],
+      "linksToExisting": [
+        "Sourdough"
+      ]
+    },
+    {
+      "id": "D0056",
+      "date": "2023-09-20",
+      "thread": "language",
+      "capture": "lisbon. everyone switched to english within one sentence and i let them. two people didnt and those two conversations are the only portuguese i actually did",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0001",
+        "D0048"
+      ],
+      "linksToExisting": [
+        "Lisbon",
+        "Portuguese"
+      ]
+    },
+    {
+      "id": "D0057",
+      "date": "2023-10-01",
+      "thread": "sourdough",
+      "capture": "the retard also means i bake in the morning instead of at eleven at night. the method that fits your day is the method you actually keep",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0055"
+      ],
+      "linksToExisting": [
+        "Sourdough"
+      ]
+    },
+    {
+      "id": "D0058",
+      "date": "2023-10-08",
+      "thread": "language",
+      "capture": "home a week and its already going. use it or lose it isnt a slogan, its a decay curve",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0056"
+      ],
+      "linksToExisting": [
+        "Portuguese"
+      ]
+    },
+    {
+      "id": "D0059",
+      "date": "2023-10-12",
+      "thread": "money",
+      "capture": "the urgency about buying is mostly my parents voice. noticed it halfway through writing an email about a viewing",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0011"
+      ],
+      "linksToExisting": [
+        "Renting vs owning"
+      ]
+    },
+    {
+      "id": "D0060",
+      "date": "2023-10-15",
+      "thread": "reading",
+      "capture": "the left hand of darkness. second le guin this year. nobody else writes cold like that",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0002",
+        "D0008"
+      ],
+      "linksToExisting": [
+        "Ursula K. Le Guin",
+        "Reading log"
+      ]
+    },
+    {
+      "id": "D0061",
+      "date": "2023-10-22",
+      "thread": "sourdough",
+      "capture": "tried twenty four hours in the fridge. too sour and the crust stayed pale. fourteen to sixteen is the window",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0055"
+      ],
+      "linksToExisting": [
+        "Sourdough"
+      ]
+    },
+    {
+      "id": "D0062",
+      "date": "2023-10-26",
+      "thread": "noise",
+      "capture": "cancel the streaming thing they charged again",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "D0063",
+      "date": "2023-11-07",
+      "thread": "noise",
+      "capture": "mums birthday the 23rd, dont wing it this year",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "D0064",
+      "date": "2023-11-12",
+      "thread": "sourdough",
+      "capture": "wrote the whole method on an index card taped inside the cupboard door. seventy percent, twenty six degree dough, twenty percent rise, shape, fifteen hours fridge, two fifty oven",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0025",
+        "D0040",
+        "D0055",
+        "D0018"
+      ],
+      "linksToExisting": [
+        "Sourdough"
+      ]
+    },
+    {
+      "id": "D0065",
+      "date": "2023-11-19",
+      "thread": "reading",
+      "capture": "reading fiction at lunch instead of scrolling. twenty minutes a day is apparently fifteen books a year",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0049"
+      ],
+      "linksToExisting": [
+        "Reading log"
+      ]
+    },
+    {
+      "id": "D0066",
+      "date": "2023-11-30",
+      "thread": "noise",
+      "capture": "printer needs the 405 cartridges not the 404",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "D0067",
+      "date": "2023-12-03",
+      "thread": "sourdough",
+      "capture": "three loaves in a row that look like each other. that has never happened before",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0064"
+      ],
+      "linksToExisting": [
+        "Sourdough"
+      ]
+    },
+    {
+      "id": "D0068",
+      "date": "2023-12-14",
+      "thread": "money",
+      "capture": "checked the balance far too often this year. every check made me want to do something, and doing something is how you lose",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0027"
+      ],
+      "linksToExisting": [
+        "Money"
+      ]
+    },
+    {
+      "id": "D0069",
+      "date": "2023-12-28",
+      "thread": "sourdough",
+      "capture": "christmas loaf failed. rushed the bulk because people were arriving. no method survives a schedule",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0064",
+        "D0057"
+      ],
+      "linksToExisting": [
+        "Sourdough"
+      ]
+    },
+    {
+      "id": "D0070",
+      "date": "2023-12-30",
+      "thread": "reading",
+      "capture": "counted nineteen books. felt like fewer. the ones i remember are the four i argued with someone about",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0038",
+        "D0065"
+      ],
+      "linksToExisting": [
+        "Reading log"
+      ]
+    },
+    {
+      "id": "D0071",
+      "date": "2024-01-04",
+      "thread": "noise",
+      "capture": "gym contract ends feb, decide before it auto renews",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "D0072",
+      "date": "2024-01-06",
+      "thread": "side-app",
+      "capture": "keep losing touch with people i actually like. what if something just told me you havent spoken to marisol since october. tiny app. call it pigeon",
+      "verdict": "atom",
+      "linksToEarlier": [],
+      "linksToExisting": [
+        "Pigeon",
+        "Marisol"
+      ]
+    },
+    {
+      "id": "D0073",
+      "date": "2024-01-06",
+      "thread": "language",
+      "capture": "new year and no language resolution. last january i was three days into a plan that lasted six months and left me with sixty usable words",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0001",
+        "D0045"
+      ],
+      "linksToExisting": [
+        "Portuguese"
+      ]
+    },
+    {
+      "id": "D0074",
+      "date": "2024-01-11",
+      "thread": "side-app",
+      "capture": "pigeon rule: never guilt you. no streaks no red badges no counts. one card a day, ignore it and nothing happens",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0072"
+      ],
+      "linksToExisting": [
+        "Pigeon"
+      ]
+    },
+    {
+      "id": "D0075",
+      "date": "2024-01-14",
+      "thread": "sourdough",
+      "capture": "trying a stiff starter because a video said better structure. so far it does nothing i can see and it is more work",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0064"
+      ],
+      "linksToExisting": [
+        "Sourdough"
+      ]
+    },
+    {
+      "id": "D0076",
+      "date": "2024-01-18",
+      "thread": "side-app",
+      "capture": "sketched the pigeon data model on the train. person, last contact, and a cadence you set per person instead of one global setting",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0072"
+      ],
+      "linksToExisting": [
+        "Pigeon"
+      ]
+    },
+    {
+      "id": "D0077",
+      "date": "2024-01-19",
+      "thread": "money",
+      "capture": "viewing on saturday. small flat, forty five minute commute, and the mortgage payment is thirty percent above our rent for less space",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0011",
+        "D0020"
+      ],
+      "linksToExisting": [
+        "Renting vs owning"
+      ]
+    },
+    {
+      "id": "D0078",
+      "date": "2024-01-24",
+      "thread": "side-app",
+      "capture": "going with firebase for pigeon. dont want to write a backend for a thing four people will use. auth plus firestore and im shipping in a month",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0072"
+      ],
+      "linksToExisting": [
+        "Pigeon",
+        "Firebase"
+      ]
+    },
+    {
+      "id": "D0079",
+      "date": "2024-02-02",
+      "thread": "side-app",
+      "capture": "pigeon auth working in twenty minutes. firebase really is fast for the first twenty minutes",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0078"
+      ],
+      "linksToExisting": [
+        "Firebase"
+      ]
+    },
+    {
+      "id": "D0080",
+      "date": "2024-02-04",
+      "thread": "reading",
+      "capture": "three books about cities in a row and by the third i noticed they were all citing the same two studies",
+      "verdict": "atom",
+      "linksToEarlier": [],
+      "linksToExisting": [
+        "Reading log"
+      ]
+    },
+    {
+      "id": "D0081",
+      "date": "2024-02-09",
+      "thread": "side-app",
+      "capture": "the whole product is the per person cadence. weekly for marisol, twice a year for old coworkers. thats the idea, the reminder is just plumbing",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0076",
+        "D0074"
+      ],
+      "linksToExisting": [
+        "Pigeon",
+        "Marisol"
+      ]
+    },
+    {
+      "id": "D0082",
+      "date": "2024-02-11",
+      "thread": "sourdough",
+      "capture": "dropped the stiff starter after four weeks. back to the card. the video was not lying, it just wasnt my problem",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0075",
+        "D0064"
+      ],
+      "linksToExisting": [
+        "Sourdough"
+      ]
+    },
+    {
+      "id": "D0083",
+      "date": "2024-02-15",
+      "thread": "side-app",
+      "capture": "importing the address book on day one makes it feel like a growth app. maybe you add people by hand and the friction is the filter",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0074"
+      ],
+      "linksToExisting": [
+        "Pigeon"
+      ]
+    },
+    {
+      "id": "D0084",
+      "date": "2024-02-19",
+      "thread": "noise",
+      "capture": "parcel is at the shop on the corner til friday",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "D0085",
+      "date": "2024-02-23",
+      "thread": "side-app",
+      "capture": "showed pigeon to marisol. they immediately asked if it can send the text for you. no. you texting is the entire point",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0074"
+      ],
+      "linksToExisting": [
+        "Pigeon",
+        "Marisol"
+      ]
+    },
+    {
+      "id": "D0086",
+      "date": "2024-02-23",
+      "thread": "money",
+      "capture": "did the rent versus buy maths properly, with maintenance and insurance and the interest split. renting is not throwing money away. i have been repeating a line i never once checked",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0011",
+        "D0077",
+        "D0020"
+      ],
+      "linksToExisting": [
+        "Money",
+        "Renting vs owning"
+      ]
+    },
+    {
+      "id": "D0087",
+      "date": "2024-03-01",
+      "thread": "side-app",
+      "capture": "firestore offline is fine until it isnt. two devices, stale write wins, lost my own test data. shrugging at it for now",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0078"
+      ],
+      "linksToExisting": [
+        "Firebase"
+      ]
+    },
+    {
+      "id": "D0088",
+      "date": "2024-03-05",
+      "thread": "noise",
+      "capture": "get the spare key cut, two copies",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "D0089",
+      "date": "2024-03-08",
+      "thread": "side-app",
+      "capture": "hand entry was right. eleven people in mine and every one is someone i actually want to see",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0083"
+      ],
+      "linksToExisting": [
+        "Pigeon"
+      ]
+    },
+    {
+      "id": "D0090",
+      "date": "2024-03-10",
+      "thread": "sourdough",
+      "capture": "twenty percent whole wheat is the most flavour per unit of risk. forty and the thing is a brick",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0064"
+      ],
+      "linksToExisting": [
+        "Sourdough"
+      ]
+    },
+    {
+      "id": "D0091",
+      "date": "2024-03-17",
+      "thread": "reading",
+      "capture": "abandoned two books this month without a flicker of guilt. a year ago that would have kept me up",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0049"
+      ],
+      "linksToExisting": [
+        "Reading log"
+      ]
+    },
+    {
+      "id": "D0092",
+      "date": "2024-03-19",
+      "thread": "side-app",
+      "capture": "nudge copy is just marisol, four months. no verb no exclamation. it should read like a fact not a chore",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0074",
+        "D0085"
+      ],
+      "linksToExisting": [
+        "Pigeon",
+        "Marisol"
+      ]
+    },
+    {
+      "id": "D0093",
+      "date": "2024-03-27",
+      "thread": "side-app",
+      "capture": "spent the weekend on a settings screen nobody needs. the app has three settings and i built a framework for thirty",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0076"
+      ],
+      "linksToExisting": [
+        "Pigeon"
+      ]
+    },
+    {
+      "id": "D0094",
+      "date": "2024-04-04",
+      "thread": "side-app",
+      "capture": "testflight build out to four people. embarrassing how much i care about a thing four people use",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0085"
+      ],
+      "linksToExisting": [
+        "Pigeon"
+      ]
+    },
+    {
+      "id": "D0095",
+      "date": "2024-04-05",
+      "thread": "money",
+      "capture": "what i actually want from buying is not being asked to leave. thats security, not an investment. those are two different products and i kept buying the wrong one",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0086",
+        "D0059"
+      ],
+      "linksToExisting": [
+        "Renting vs owning"
+      ]
+    },
+    {
+      "id": "D0096",
+      "date": "2024-04-07",
+      "thread": "sourdough",
+      "capture": "the eighty percent hydration thing from last february was me copying photographs. wet dough is a result of good handling, not a cause of it",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0010",
+        "D0014",
+        "D0025"
+      ],
+      "linksToExisting": [
+        "Sourdough"
+      ]
+    },
+    {
+      "id": "D0097",
+      "date": "2024-04-12",
+      "thread": "side-app",
+      "capture": "jules says the nudge feels like a to do because it sits in a list. maybe it shouldnt be a list at all. one card, swipe, gone",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0092",
+        "D0074"
+      ],
+      "linksToExisting": [
+        "Pigeon",
+        "Jules"
+      ]
+    },
+    {
+      "id": "D0098",
+      "date": "2024-04-16",
+      "thread": "noise",
+      "capture": "opticians called, glasses ready",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "D0099",
+      "date": "2024-04-20",
+      "thread": "side-app",
+      "capture": "killed the list view. one card only. app is forty percent less code and better",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0097",
+        "D0093"
+      ],
+      "linksToExisting": [
+        "Pigeon"
+      ]
+    },
+    {
+      "id": "D0100",
+      "date": "2024-04-27",
+      "thread": "language",
+      "capture": "someone at work is learning greek by only talking. no app no book. sounds awful and is obviously more correct than what i did",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0048",
+        "D0026"
+      ],
+      "linksToExisting": [
+        "Portuguese"
+      ]
+    },
+    {
+      "id": "D0101",
+      "date": "2024-05-03",
+      "thread": "side-app",
+      "capture": "firebase bill this month eleven cents. fine. but i noticed im designing around firestore query shapes instead of around what the app should do",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0078",
+        "D0087"
+      ],
+      "linksToExisting": [
+        "Pigeon",
+        "Firebase"
+      ]
+    },
+    {
+      "id": "D0102",
+      "date": "2024-05-05",
+      "thread": "reading",
+      "capture": "reread the first forty pages of the dispossessed on a train. shevek is much lonelier than i remembered. i read it as a political book and it might be a book about a marriage",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0008",
+        "D0002"
+      ],
+      "linksToExisting": [
+        "Ursula K. Le Guin"
+      ]
+    },
+    {
+      "id": "D0103",
+      "date": "2024-05-11",
+      "thread": "side-app",
+      "capture": "app store search says there are already two things called pigeon and one is a delivery app with a hundred thousand installs",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0072"
+      ],
+      "linksToExisting": [
+        "Pigeon",
+        "App Store"
+      ]
+    },
+    {
+      "id": "D0104",
+      "date": "2024-05-12",
+      "thread": "sourdough",
+      "capture": "jules asked for the recipe and i sent a photo of the index card. felt like handing over something real instead of a link",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0064",
+        "D0005"
+      ],
+      "linksToExisting": [
+        "Sourdough",
+        "Jules"
+      ]
+    },
+    {
+      "id": "D0105",
+      "date": "2024-05-18",
+      "thread": "side-app",
+      "capture": "thinking about a rename and i hate it. the name is half the reason i kept working on this",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0103",
+        "D0072"
+      ],
+      "linksToExisting": [
+        "Pigeon"
+      ]
+    },
+    {
+      "id": "D0106",
+      "date": "2024-05-21",
+      "thread": "noise",
+      "capture": "pay the water bill, they only take card on the phone",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "D0107",
+      "date": "2024-06-02",
+      "thread": "side-app",
+      "capture": "sync bug again. two phones, one says contacted, the other doesnt. its not the firestore rules, its my model. last write wins is the wrong rule for this",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0087",
+        "D0078"
+      ],
+      "linksToExisting": [
+        "Pigeon",
+        "Firebase"
+      ]
+    },
+    {
+      "id": "D0108",
+      "date": "2024-06-14",
+      "thread": "money",
+      "capture": "hit a number in the index fund that i wrote down in 2023 as a five year target. mostly the market, not me",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0039",
+        "D0027"
+      ],
+      "linksToExisting": [
+        "Vanguard"
+      ]
+    },
+    {
+      "id": "D0109",
+      "date": "2024-06-15",
+      "thread": "side-app",
+      "capture": "if i started this today i would put a sqlite file on the phone and sync nothing. one user one device. i picked firebase to go fast and it is what made me slow",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0078",
+        "D0107",
+        "D0101"
+      ],
+      "linksToExisting": [
+        "Pigeon",
+        "Firebase"
+      ]
+    },
+    {
+      "id": "D0110",
+      "date": "2024-06-16",
+      "thread": "sourdough",
+      "capture": "summer again and the dough is moving fast. this year i just use colder water instead of panicking. twenty in, still lands at twenty six",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0044",
+        "D0025"
+      ],
+      "linksToExisting": [
+        "Sourdough"
+      ]
+    },
+    {
+      "id": "D0111",
+      "date": "2024-06-23",
+      "thread": "side-app",
+      "capture": "name shortlist. halloway is a street near my grandmothers house. checked, nobody owns it, no app, no trademark",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0105"
+      ],
+      "linksToExisting": [
+        "Pigeon"
+      ]
+    },
+    {
+      "id": "D0112",
+      "date": "2024-06-27",
+      "thread": "noise",
+      "capture": "hotel confirmation number is in the other email account",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "D0113",
+      "date": "2024-06-30",
+      "thread": "reading",
+      "capture": "book club argument about whether a book can be good if you hate the narrator. i said yes, went home, and thought no",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0038"
+      ],
+      "linksToExisting": [
+        "Book club"
+      ]
+    },
+    {
+      "id": "D0114",
+      "date": "2024-07-01",
+      "thread": "side-app",
+      "capture": "its halloway now. renamed the repo the bundle id the testflight everything. felt like a funeral for about two hours and then it was fine",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0111",
+        "D0105",
+        "D0103"
+      ],
+      "linksToExisting": [
+        "Pigeon",
+        "Halloway"
+      ]
+    },
+    {
+      "id": "D0115",
+      "date": "2024-07-07",
+      "thread": "side-app",
+      "capture": "halloway keeps the one card rule. the name changed, the no guilt thing did not",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0114",
+        "D0074"
+      ],
+      "linksToExisting": [
+        "Halloway"
+      ]
+    },
+    {
+      "id": "D0116",
+      "date": "2024-07-14",
+      "thread": "side-app",
+      "capture": "explaining it is harder now. pigeon told you what it did in one word. halloway needs a whole sentence",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0114",
+        "D0072"
+      ],
+      "linksToExisting": [
+        "Halloway",
+        "Pigeon"
+      ]
+    },
+    {
+      "id": "D0117",
+      "date": "2024-07-18",
+      "thread": "noise",
+      "capture": "the tap washer is a half inch, take the old one to the shop",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "D0118",
+      "date": "2024-07-28",
+      "thread": "side-app",
+      "capture": "halloway v1 is in the store. four users, three of whom live within a mile of me",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0114",
+        "D0094"
+      ],
+      "linksToExisting": [
+        "Halloway",
+        "App Store"
+      ]
+    },
+    {
+      "id": "D0119",
+      "date": "2024-08-05",
+      "thread": "side-app",
+      "capture": "review from a stranger, nice but why cant i see a history. because a history is a scoreboard and a scoreboard is the thing i built this to avoid",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0115",
+        "D0074"
+      ],
+      "linksToExisting": [
+        "Halloway",
+        "App Store"
+      ]
+    },
+    {
+      "id": "D0120",
+      "date": "2024-08-06",
+      "thread": "money",
+      "capture": "market dropped eight percent in three days and i felt it in my stomach, which means my risk tolerance is lower than the questionnaire said it was",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0108",
+        "D0068"
+      ],
+      "linksToExisting": [
+        "Money"
+      ]
+    },
+    {
+      "id": "D0121",
+      "date": "2024-08-09",
+      "thread": "money",
+      "capture": "sold a chunk into cash. told myself it was rebalancing. it was fear with a spreadsheet on top of it",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0120",
+        "D0068"
+      ],
+      "linksToExisting": [
+        "Vanguard"
+      ]
+    },
+    {
+      "id": "D0122",
+      "date": "2024-08-14",
+      "thread": "side-app",
+      "capture": "the per person cadence from february is still the only original idea in here. everything else is a list app with better manners",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0081",
+        "D0076"
+      ],
+      "linksToExisting": [
+        "Halloway"
+      ]
+    },
+    {
+      "id": "D0123",
+      "date": "2024-08-18",
+      "thread": "reading",
+      "capture": "the magic mountain is still on the shelf face out. a year and a half of being judged by a book",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0015",
+        "D0023"
+      ],
+      "linksToExisting": [
+        "The Magic Mountain"
+      ]
+    },
+    {
+      "id": "D0124",
+      "date": "2024-08-22",
+      "thread": "side-app",
+      "capture": "firebase still costs nothing and i still write code to work around offline sync every single week. this is the tax i signed up for in january",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0109",
+        "D0078"
+      ],
+      "linksToExisting": [
+        "Halloway",
+        "Firebase"
+      ]
+    },
+    {
+      "id": "D0125",
+      "date": "2024-08-25",
+      "thread": "sourdough",
+      "capture": "stopped feeding twice a day. once, cold, before bed. the starter is happier and i think about it much less",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0005",
+        "D0047"
+      ],
+      "linksToExisting": [
+        "Sourdough"
+      ]
+    },
+    {
+      "id": "D0126",
+      "date": "2024-08-29",
+      "thread": "noise",
+      "capture": "chase the landlord about the window latch",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "D0127",
+      "date": "2024-09-01",
+      "thread": "side-app",
+      "capture": "started ripping firebase out. sqlite on device, a json export, no accounts at all",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0109",
+        "D0124"
+      ],
+      "linksToExisting": [
+        "Halloway",
+        "Firebase"
+      ]
+    },
+    {
+      "id": "D0128",
+      "date": "2024-09-09",
+      "thread": "side-app",
+      "capture": "no accounts means no password reset no support inbox no privacy policy questions. deleting the login screen deleted a third of the app",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0127"
+      ],
+      "linksToExisting": [
+        "Halloway"
+      ]
+    },
+    {
+      "id": "D0129",
+      "date": "2024-09-13",
+      "thread": "money",
+      "capture": "it recovered in five weeks and i was in cash for four of them. the cost of that decision is now a number i can look at whenever i feel clever",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0121",
+        "D0120"
+      ],
+      "linksToExisting": [
+        "Vanguard"
+      ]
+    },
+    {
+      "id": "D0130",
+      "date": "2024-09-19",
+      "thread": "noise",
+      "capture": "flu jab, walk in on saturdays",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "D0131",
+      "date": "2024-09-24",
+      "thread": "side-app",
+      "capture": "local only build opens instantly. i had gotten used to a nine hundred millisecond cold start and decided that was normal",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0127"
+      ],
+      "linksToExisting": [
+        "Halloway"
+      ]
+    },
+    {
+      "id": "D0132",
+      "date": "2024-09-29",
+      "thread": "sourdough",
+      "capture": "the fridge thing is a year old now and it is still the only step i would never take out",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0055",
+        "D0057"
+      ],
+      "linksToExisting": [
+        "Sourdough"
+      ]
+    },
+    {
+      "id": "D0133",
+      "date": "2024-10-02",
+      "thread": "side-app",
+      "capture": "the hand entry decision back in march is why the local only version works at all. eleven rows never needed a cloud",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0089",
+        "D0127",
+        "D0083"
+      ],
+      "linksToExisting": [
+        "Halloway"
+      ]
+    },
+    {
+      "id": "D0134",
+      "date": "2024-10-06",
+      "thread": "reading",
+      "capture": "listened to a whole book on a long drive and i remember more of it than the last thing i read on paper. i was snobbish and wrong about this",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0033"
+      ],
+      "linksToExisting": [
+        "Reading log"
+      ]
+    },
+    {
+      "id": "D0135",
+      "date": "2024-10-11",
+      "thread": "side-app",
+      "capture": "marisol asked why it changed names. told them the pigeon story. they said the old one sounded like a game. maybe the rename was right and i was just grieving",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0114",
+        "D0105"
+      ],
+      "linksToExisting": [
+        "Halloway",
+        "Marisol"
+      ]
+    },
+    {
+      "id": "D0136",
+      "date": "2024-10-18",
+      "thread": "money",
+      "capture": "new rule. nobody sells, including me. the transfer goes out on payday and i look at it once a quarter",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0129",
+        "D0068",
+        "D0027"
+      ],
+      "linksToExisting": [
+        "Money"
+      ]
+    },
+    {
+      "id": "D0137",
+      "date": "2024-10-20",
+      "thread": "side-app",
+      "capture": "three months in i open it about twice a week and text someone maybe half those times. thats a real hit rate for something with no notifications",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0118",
+        "D0074"
+      ],
+      "linksToExisting": [
+        "Halloway"
+      ]
+    },
+    {
+      "id": "D0138",
+      "date": "2024-10-29",
+      "thread": "noise",
+      "capture": "clocks go back sunday",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "D0139",
+      "date": "2024-11-02",
+      "thread": "side-app",
+      "capture": "thinking about what this was actually for. it was january and id realised i hadnt spoken to anyone outside work since october",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0072"
+      ],
+      "linksToExisting": [
+        "Halloway"
+      ]
+    },
+    {
+      "id": "D0140",
+      "date": "2024-11-10",
+      "thread": "reading",
+      "capture": "le guin essays. the carrier bag one. changed how i think about plot more than any craft book has",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0060",
+        "D0008"
+      ],
+      "linksToExisting": [
+        "Ursula K. Le Guin"
+      ]
+    },
+    {
+      "id": "D0141",
+      "date": "2024-11-14",
+      "thread": "noise",
+      "capture": "order the thing for dads christmas before it sells out",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "D0142",
+      "date": "2024-11-23",
+      "thread": "side-app",
+      "capture": "shipped the sqlite version. nine weeks to undo a decision that took twenty minutes to make",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0127",
+        "D0078"
+      ],
+      "linksToExisting": [
+        "Halloway",
+        "Firebase"
+      ]
+    },
+    {
+      "id": "D0143",
+      "date": "2024-11-24",
+      "thread": "sourdough",
+      "capture": "someone at work asked how long it takes to learn this. two years, and the actual answer fits on an index card",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0064",
+        "D0007"
+      ],
+      "linksToExisting": [
+        "Sourdough"
+      ]
+    },
+    {
+      "id": "D0144",
+      "date": "2024-12-05",
+      "thread": "side-app",
+      "capture": "its done. not abandoned, done. it does the one thing. i keep opening the repo looking for work and there isnt any",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0142",
+        "D0115"
+      ],
+      "linksToExisting": [
+        "Halloway"
+      ]
+    },
+    {
+      "id": "D0145",
+      "date": "2024-12-06",
+      "thread": "money",
+      "capture": "sam wants to buy again. i said the maths doesnt work, heard my own certainty, and didnt like the sound of it. i was exactly this certain the other way two years ago",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0086",
+        "D0011"
+      ],
+      "linksToExisting": [
+        "Sam",
+        "Renting vs owning"
+      ]
+    },
+    {
+      "id": "D0146",
+      "date": "2024-12-12",
+      "thread": "noise",
+      "capture": "office closed the 24th to the 2nd",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "D0147",
+      "date": "2024-12-19",
+      "thread": "side-app",
+      "capture": "note for the next side project. pick the boring local storage, name it something nobody owns, and search the store before you get attached",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0109",
+        "D0103",
+        "D0114"
+      ],
+      "linksToExisting": [
+        "Halloway"
+      ]
+    },
+    {
+      "id": "D0148",
+      "date": "2024-12-22",
+      "thread": "sourdough",
+      "capture": "second christmas loaf. started thursday for a sunday lunch. the fridge does the waiting so i dont have to",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0069",
+        "D0055",
+        "D0057"
+      ],
+      "linksToExisting": [
+        "Sourdough"
+      ]
+    },
+    {
+      "id": "D0149",
+      "date": "2024-12-29",
+      "thread": "reading",
+      "capture": "sixteen books. fewer than last year and a much better year of reading",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0070",
+        "D0091"
+      ],
+      "linksToExisting": [
+        "Reading log"
+      ]
+    },
+    {
+      "id": "D0150",
+      "date": "2025-01-11",
+      "thread": "language",
+      "capture": "two years on i can still read a portuguese menu and understand nothing anyone says. the gap between reading and hearing never closed at all",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0009",
+        "D0058",
+        "D0034"
+      ],
+      "linksToExisting": [
+        "Portuguese"
+      ]
+    },
+    {
+      "id": "D0151",
+      "date": "2025-01-23",
+      "thread": "noise",
+      "capture": "insurance renewal quote is 40 higher, ring them",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "D0152",
+      "date": "2025-02-06",
+      "thread": "noise",
+      "capture": "take the recycling out, the green one this week",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "D0153",
+      "date": "2025-02-16",
+      "thread": "reading",
+      "capture": "picked up the magic mountain again, from page one. two years later and the slow middle is the reason to read it. the whole book is about time not passing",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0023",
+        "D0015",
+        "D0123"
+      ],
+      "linksToExisting": [
+        "The Magic Mountain"
+      ]
+    },
+    {
+      "id": "D0154",
+      "date": "2025-02-21",
+      "thread": "money",
+      "capture": "landlord is selling. two months notice. the security thing i wrote about last april is not abstract any more",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0095",
+        "D0086"
+      ],
+      "linksToExisting": [
+        "Renting vs owning"
+      ]
+    },
+    {
+      "id": "D0155",
+      "date": "2025-03-08",
+      "thread": "side-app",
+      "capture": "someone at work described an app that is basically halloway with streaks. i said no streaks and couldnt explain why in one sentence. the reason is a year old",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0074",
+        "D0119"
+      ],
+      "linksToExisting": [
+        "Halloway"
+      ]
+    },
+    {
+      "id": "D0156",
+      "date": "2025-03-19",
+      "thread": "noise",
+      "capture": "train replacement bus on sundays until april",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "D0157",
+      "date": "2025-03-30",
+      "thread": "reading",
+      "capture": "finished mann. forty three days. the last hundred pages i read like a thriller",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0153",
+        "D0023"
+      ],
+      "linksToExisting": [
+        "The Magic Mountain"
+      ]
+    },
+    {
+      "id": "D0158",
+      "date": "2025-04-04",
+      "thread": "money",
+      "capture": "new place, rent nine percent higher, worse kitchen. renting is fine holds up financially and costs something the spreadsheet has no column for",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0086",
+        "D0154"
+      ],
+      "linksToExisting": [
+        "Renting vs owning"
+      ]
+    },
+    {
+      "id": "D0159",
+      "date": "2025-04-05",
+      "thread": "sourdough",
+      "capture": "havent baked since february and feel nothing about it. the card is on the cupboard for whenever i want it",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0064"
+      ],
+      "linksToExisting": [
+        "Sourdough"
+      ]
+    },
+    {
+      "id": "D0160",
+      "date": "2025-05-02",
+      "thread": "noise",
+      "capture": "battery in the smoke alarm, it beeped again at 4am",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "D0161",
+      "date": "2025-05-11",
+      "thread": "reading",
+      "capture": "the thirty page rule nearly cost me that book. abandoning early is right most of the time and wrong in exactly the cases that matter most",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0049",
+        "D0153",
+        "D0157"
+      ],
+      "linksToExisting": [
+        "Reading log"
+      ]
+    },
+    {
+      "id": "D0162",
+      "date": "2025-05-28",
+      "thread": "noise",
+      "capture": "collect the dry cleaning, ticket is in the coat",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "D0163",
+      "date": "2025-06-08",
+      "thread": "language",
+      "capture": "if i ever do this again. a tutor from week one, no app, and go somewhere i cant leave",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0045",
+        "D0026",
+        "D0019"
+      ],
+      "linksToExisting": [
+        "Portuguese",
+        "Rita"
+      ]
+    },
+    {
+      "id": "D0164",
+      "date": "2025-06-13",
+      "thread": "money",
+      "capture": "reopened the rent versus buy spreadsheet with todays rates. buying now wins in year nine instead of year fourteen. same maths, different world",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0086",
+        "D0020"
+      ],
+      "linksToExisting": [
+        "Money",
+        "Renting vs owning"
+      ]
+    },
+    {
+      "id": "D0165",
+      "date": "2025-06-22",
+      "thread": "reading",
+      "capture": "reread the dispossessed properly. it is far harder on anarres than i remembered. le guin is not selling the utopia, the utopia is the thing being put under stress",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0008",
+        "D0102",
+        "D0002"
+      ],
+      "linksToExisting": [
+        "Ursula K. Le Guin"
+      ]
+    },
+    {
+      "id": "D0166",
+      "date": "2025-07-03",
+      "thread": "noise",
+      "capture": "vet appointment moved to the 9th",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "D0167",
+      "date": "2025-07-14",
+      "thread": "reading",
+      "capture": "walking plus an audiobook is half my reading now. the format was never the problem, sitting still was",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0134",
+        "D0033"
+      ],
+      "linksToExisting": [
+        "Reading log"
+      ]
+    },
+    {
+      "id": "D0168",
+      "date": "2025-08-03",
+      "thread": "reading",
+      "capture": "third le guin read. at some point favourite author stops being a taste and becomes a place you go back to",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0165",
+        "D0140",
+        "D0060"
+      ],
+      "linksToExisting": [
+        "Ursula K. Le Guin"
+      ]
+    },
+    {
+      "id": "D0169",
+      "date": "2025-08-08",
+      "thread": "noise",
+      "capture": "charger left at the office, its the short white one",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "D0170",
+      "date": "2025-08-14",
+      "thread": "side-app",
+      "capture": "opened halloway for the first time in months and it still works because there is no server that could have died. thats the whole argument for the boring choice",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0127",
+        "D0109",
+        "D0142"
+      ],
+      "linksToExisting": [
+        "Halloway",
+        "Firebase"
+      ]
+    },
+    {
+      "id": "D0171",
+      "date": "2025-08-22",
+      "thread": "money",
+      "capture": "saving for a deposit again. not because renting is throwing money away, that was never true. because i want to choose when i move",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0011",
+        "D0086",
+        "D0095",
+        "D0158"
+      ],
+      "linksToExisting": [
+        "Money",
+        "Renting vs owning"
+      ]
+    },
+    {
+      "id": "D0172",
+      "date": "2025-09-13",
+      "thread": "sourdough",
+      "capture": "baked for the first time in months, straight off the card, and it came out right. the method holds even when i dont",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0064",
+        "D0159",
+        "D0143"
+      ],
+      "linksToExisting": [
+        "Sourdough"
+      ]
+    },
+    {
+      "id": "D0173",
+      "date": "2025-09-28",
+      "thread": "reading",
+      "capture": "book club voted to stop meeting after two years. the argument about the unlikeable narrator is the thing i will actually remember",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0113",
+        "D0038"
+      ],
+      "linksToExisting": [
+        "Book club"
+      ]
+    },
+    {
+      "id": "D0174",
+      "date": "2025-10-02",
+      "thread": "noise",
+      "capture": "boiler service, they said any weekday morning",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "D0175",
+      "date": "2025-10-17",
+      "thread": "money",
+      "capture": "a year of only looking once a quarter. no decisions made at all, and the best year of returns ive had",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0136",
+        "D0120"
+      ],
+      "linksToExisting": [
+        "Vanguard"
+      ]
+    },
+    {
+      "id": "D0176",
+      "date": "2025-11-05",
+      "thread": "noise",
+      "capture": "renew the library card, it expired in august",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "D0177",
+      "date": "2025-11-16",
+      "thread": "reading",
+      "capture": "reading slower on purpose. twelve books this year and i could tell you the shape of every one",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0149",
+        "D0070"
+      ],
+      "linksToExisting": [
+        "Reading log"
+      ]
+    },
+    {
+      "id": "D0178",
+      "date": "2025-11-20",
+      "thread": "side-app",
+      "capture": "someone at a meetup asked what stack for a tiny app. said sqlite and no accounts. they asked why not firebase and i realised i now answer that question with a story about a bird",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0078",
+        "D0109",
+        "D0114"
+      ],
+      "linksToExisting": [
+        "Halloway",
+        "Pigeon",
+        "Firebase"
+      ]
+    },
+    {
+      "id": "D0179",
+      "date": "2025-12-13",
+      "thread": "money",
+      "capture": "three years of notes about money and only two of them mattered. automate the transfer, and know what you are actually buying",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0027",
+        "D0136",
+        "D0095",
+        "D0171"
+      ],
+      "linksToExisting": [
+        "Money"
+      ]
+    },
+    {
+      "id": "D0180",
+      "date": "2025-12-21",
+      "thread": "reading",
+      "capture": "three year count, nineteen then sixteen then twelve. the number went down every year and the reading got better every year",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "D0070",
+        "D0149",
+        "D0177"
+      ],
+      "linksToExisting": [
+        "Reading log"
+      ]
+    }
+  ]
+}

@@ -43,7 +43,10 @@ import {
   ANTHROPIC_MESSAGES_URL,
   ANTHROPIC_VERSION,
 } from "../pipeline/classify";
-import { MetadataContextProvider } from "../pipeline/context";
+import {
+  MetadataContextProvider,
+  shortlistOptionsFromSettings,
+} from "../pipeline/context";
 import {
   DailyNotesDisabledError,
   getPastDailyNotesWithUnmarkedCaptures,
@@ -121,11 +124,11 @@ import {
 import {
   applyBackfillResults,
   BackfillConfirmModal,
-  buildBatchCreateBody,
   DEFAULT_BACKFILL_MODEL,
   fetchBatchResultsJsonl,
   parseBatchResultsJsonl,
   prepareBackfillEstimate,
+  runBackfillChunks,
   submitMessageBatch,
   waitForBatchEnded,
   type ApplyBackfillReport,
@@ -543,6 +546,8 @@ export default class AtomsPlugin extends Plugin {
         model: this.settings.model,
         activeVocabulary: this.settings.activeVocabulary,
         atomFolder: this.settings.atomFolder,
+        // Retrieval size only — refresh forces `expandGraph: false` for itself (KTD7).
+        shortlistK: shortlistOptionsFromSettings(this.settings).shortlistK,
         limit: opts?.limit,
         fixtureResults: opts?.fixtureResults,
         enableHubProjection: this.settings.enableHubProjection === true,
@@ -741,6 +746,7 @@ export default class AtomsPlugin extends Plugin {
         model: this.settings.model,
         activeVocabulary: this.settings.activeVocabulary,
         atomFolder: this.settings.atomFolder,
+        ...shortlistOptionsFromSettings(this.settings),
         maxCaptures: PER_LAUNCH_CAP,
         enableHubProjection: this.settings.enableHubProjection === true,
         // never includeToday on auto-run
@@ -837,7 +843,11 @@ export default class AtomsPlugin extends Plugin {
       contextProvider: this.contextProvider,
       apiKey,
       model: DEFAULT_BACKFILL_MODEL,
+      atomFolder: this.settings.atomFolder,
+      shortlistK: shortlistOptionsFromSettings(this.settings).shortlistK,
     });
+    // Estimate-only: nothing will be submitted, so the corpus is released now.
+    prepared.run.end();
     this.lastBackfillEstimate = prepared.estimate;
     return prepared.estimate;
   }
@@ -862,15 +872,19 @@ export default class AtomsPlugin extends Plugin {
         contextProvider: this.contextProvider,
         apiKey,
         model,
+        atomFolder: this.settings.atomFolder,
+        shortlistK: shortlistOptionsFromSettings(this.settings).shortlistK,
       });
       this.lastBackfillEstimate = prepared.estimate;
 
       devLog("[atoms] backfill estimate", {
         ...prepared.estimate,
         workItems: prepared.work.length,
+        chunkCount: prepared.chunks.length,
       });
 
       if (prepared.work.length === 0) {
+        prepared.run.end();
         new Notice("Atoms: nothing to backfill (no unmarked past captures)");
         return;
       }
@@ -879,14 +893,30 @@ export default class AtomsPlugin extends Plugin {
         `Atoms: ${prepared.estimate.summaryLine} — confirm in the dialog`,
       );
 
-      new BackfillConfirmModal(this.app, prepared.estimate, async () => {
-        await this.executeBackfillBatch({
-          apiKey,
-          model,
-          work: prepared.work,
-          context: prepared.context,
-        });
-      }).open();
+      let confirmed = false;
+      const modal = new BackfillConfirmModal(this.app, prepared.estimate, async () => {
+        confirmed = true;
+        try {
+          await this.executeBackfillBatch({
+            apiKey,
+            model,
+            work: prepared.work,
+            run: prepared.run,
+            // Chunk one was priced against this same corpus with nothing yet written; resolving it
+            // again would be byte-for-byte the same answer.
+            firstChunk: prepared.chunks[0],
+          });
+        } finally {
+          prepared.run.end();
+        }
+      });
+      // Declining the gate must not leave a whole vault's corpus pinned.
+      const closeHook = modal.onClose.bind(modal);
+      modal.onClose = () => {
+        closeHook();
+        if (!confirmed) prepared.run.end();
+      };
+      modal.open();
     } catch (e) {
       devLog("[atoms] backfill estimate failed", {
         name: e instanceof Error ? e.name : "Error",
@@ -898,51 +928,70 @@ export default class AtomsPlugin extends Plugin {
     }
   }
 
+  /**
+   * One batch per calendar chunk, oldest first (U5).
+   *
+   * Chunk N+1's shortlist is derived only after chunk N's atoms are on disk and in the run's corpus,
+   * which is the only way a catch-up can link an atom it wrote itself.
+   */
   private async executeBackfillBatch(opts: {
     apiKey: string;
     model: string;
     work: import("../pipeline/backfill").BackfillWorkItem[];
-    context: import("../shared/types").VaultContext;
+    run: import("../pipeline/context").ContextRun;
+    firstChunk?: import("../pipeline/backfill").ResolvedBackfillChunk;
   }) {
     if (this.backfillInFlight) return;
     this.backfillInFlight = true;
     try {
-      const body = buildBatchCreateBody(opts.work, opts.model, opts.context);
-      new Notice(
-        `Atoms: submitting batch (${opts.work.length} request(s))…`,
-      );
-      const { batchId, requestCount } = await submitMessageBatch({
-        apiKey: opts.apiKey,
-        body,
-      });
-      this.lastBackfillBatchId = batchId;
-      devLog("[atoms] batch submitted", { batchId, requestCount });
-
-      new Notice("Atoms: batch submitted — waiting for results…");
-      await waitForBatchEnded({
-        apiKey: opts.apiKey,
-        batchId,
-        intervalMs: 8000,
-        maxWaitMs: 60 * 60 * 1000,
-        onTick: (status) => {
-          devLog("[atoms] batch status", status);
-        },
-      });
-
-      const jsonl = await fetchBatchResultsJsonl({
-        apiKey: opts.apiKey,
-        batchId,
-      });
-      const lines = parseBatchResultsJsonl(jsonl);
-      const hubCtx = this.contextProvider.buildContext();
-      const report = await applyBackfillResults({
-        app: this.app,
+      const hubCtx = opts.run.vaultContext;
+      const report = await runBackfillChunks({
+        run: opts.run,
         work: opts.work,
-        lines,
-        atomFolder: this.settings.atomFolder,
+        model: opts.model,
+        firstChunk: opts.firstChunk,
         activeVocabulary: this.settings.activeVocabulary,
-        personHubDetails: hubCtx.personHubDetails,
-        enableHubProjection: this.settings.enableHubProjection === true,
+        runChunk: async (chunk, body, pos) => {
+          new Notice(
+            `Atoms: submitting ${chunk.key} (${pos.index + 1}/${pos.total}, ${chunk.work.length} request(s))…`,
+          );
+          const { batchId, requestCount } = await submitMessageBatch({
+            apiKey: opts.apiKey,
+            body,
+          });
+          this.lastBackfillBatchId = batchId;
+          devLog("[atoms] batch submitted", {
+            batchId,
+            requestCount,
+            chunk: chunk.key,
+          });
+
+          await waitForBatchEnded({
+            apiKey: opts.apiKey,
+            batchId,
+            intervalMs: 8000,
+            maxWaitMs: 60 * 60 * 1000,
+            onTick: (status) => {
+              devLog("[atoms] batch status", status);
+            },
+          });
+
+          const jsonl = await fetchBatchResultsJsonl({
+            apiKey: opts.apiKey,
+            batchId,
+          });
+          return applyBackfillResults({
+            app: this.app,
+            work: chunk.work,
+            lines: parseBatchResultsJsonl(jsonl),
+            atomFolder: this.settings.atomFolder,
+            activeVocabulary: this.settings.activeVocabulary,
+            personHubDetails: hubCtx.personHubDetails,
+            enableHubProjection: this.settings.enableHubProjection === true,
+            // Feeds this chunk's atoms to the next chunk's shortlist (KTD4a).
+            run: opts.run,
+          });
+        },
       });
       this.lastBackfillReport = report;
 
@@ -1513,6 +1562,7 @@ export default class AtomsPlugin extends Plugin {
         model: this.settings.model,
         activeVocabulary: this.settings.activeVocabulary,
         atomFolder: this.settings.atomFolder,
+        ...shortlistOptionsFromSettings(this.settings),
         maxCaptures: 15,
         includeToday: opts?.includeToday,
         enableHubProjection: this.settings.enableHubProjection === true,
@@ -1637,6 +1687,7 @@ export default class AtomsPlugin extends Plugin {
         model: this.settings.model,
         activeVocabulary: this.settings.activeVocabulary,
         atomFolder: this.settings.atomFolder,
+        ...shortlistOptionsFromSettings(this.settings),
         maxCaptures: fixtures.length,
         fixtureResults: fixtures,
         enableHubProjection: this.settings.enableHubProjection === true,
@@ -1702,6 +1753,7 @@ export default class AtomsPlugin extends Plugin {
         model: this.settings.model,
         activeVocabulary: this.settings.activeVocabulary,
         atomFolder: this.settings.atomFolder,
+        ...shortlistOptionsFromSettings(this.settings),
         // Bound work for interactive use; remainder stays unmarked for next run.
         maxCaptures: 15,
         includeToday: opts?.includeToday,

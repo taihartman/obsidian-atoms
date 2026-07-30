@@ -120,6 +120,9 @@ OpenCode Stripe MCP is often **live** OAuth — create catalog with `sk_test_` v
 | `ATOMS_PLUS_MODEL` | `claude-sonnet-5` | Forced model |
 | `ATOMS_PLUS_INCLUDED` | from `plus-pricing.json` | Filings per period |
 | `ATOMS_PLUS_TOPUP` | from pricing | Top-up size |
+| `ATOMS_PLUS_MAX_CONTEXT_TITLES` | `400` | Ceiling on a **ranked** shortlist; order received is the order sent |
+| `ATOMS_PLUS_MAX_LEGACY_CONTEXT_TITLES` | `40` | Cap for older clients that send the vault alphabetically |
+| `ATOMS_PLUS_MAX_CLASSIFY_BYTES` | `300000` | Classify body ceiling (must fit a 400-title shortlist) |
 | `DOGFOOD_AUTO_GRANT` | `1` | Grant period on first magic exchange |
 | `PORT` | `8787` | Listen port |
 | `PUBLIC_BASE_URL` | `http://127.0.0.1:$PORT` | Magic-link + Checkout return host |

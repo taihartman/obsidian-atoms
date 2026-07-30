@@ -25,6 +25,95 @@ function asStringList(raw, maxItems, maxLen) {
   return out;
 }
 
+/**
+ * Longest string that can still be a note title. Obsidian titles come from filenames,
+ * which the filesystem caps at 255 bytes; anything longer is prose, not a title.
+ */
+const MAX_TITLE_CHARS = 255;
+
+/**
+ * Headroom past `maxContextTitles` for graph-expansion slots the device appends after the
+ * scored shortlist. Keep in lockstep with `EXPANSION_SLOTS` in the plugin's `expand.ts`.
+ */
+const EXPANSION_SLOTS = 32;
+
+/** Context keys that would carry note text. Titles-only is the contract (R6). */
+const BODY_BEARING_KEYS = [
+  "body",
+  "bodies",
+  "noteBody",
+  "noteBodies",
+  "content",
+  "contents",
+  "text",
+  "texts",
+  "excerpt",
+  "excerpts",
+  "snippet",
+  "snippets",
+  "documents",
+];
+
+/**
+ * Refuse a context that carries note text. Vault→cloud is a titles-only allowlist, and the
+ * service asserts that rather than trusting whatever client is on the other end.
+ *
+ * Two rules, both chosen to be things a real title cannot be:
+ *  - a body-bearing key with content in it (catches the honest mistake), and
+ *  - a title-list entry with a line break, or longer than a filename can be (catches the
+ *    same text renamed into `titles`).
+ *
+ * @returns {string|null} reason, or null when the context is clean. Never echoes content.
+ */
+function findBodyLeak(context) {
+  for (const key of BODY_BEARING_KEYS) {
+    const v = context[key];
+    if (typeof v === "string" ? v.trim() : Array.isArray(v) ? v.length : false) {
+      return `context.${key}`;
+    }
+  }
+  for (const key of ["titles", "personHubs", "tags", "vocabulary"]) {
+    const list = context[key];
+    if (!Array.isArray(list)) continue;
+    for (const item of list) {
+      const s = typeof item === "string" ? item : "";
+      if (/[\r\n]/.test(s)) return `context.${key} (line break)`;
+      if (s.length > MAX_TITLE_CHARS) return `context.${key} (too long for a title)`;
+    }
+  }
+  return null;
+}
+
+/**
+ * How many titles this request may forward.
+ *
+ * A ranked request said so explicitly (`ranked: true`, or it sent its `shortlist`), and its
+ * order is the device's BM25 score order — the whole point of the shortlist. An unranked
+ * request is an older build sending the vault alphabetically; it keeps the legacy cap,
+ * because raising it would only buy more alphabet.
+ *
+ * Ranked caps leave room for graph-expansion slots the device appends **after** the scored
+ * top-k (up to EXPANSION_SLOTS). Clamping to bare `k` silently dropped those tails.
+ */
+function titleCap(context) {
+  const ranked =
+    context.ranked === true || Array.isArray(context.shortlist);
+  if (!ranked) return { ranked, cap: config.maxLegacyContextTitles };
+  const base = config.maxContextTitles;
+  // Device already truncated. Prefer stats.returned (scored k + expansion tail) when present;
+  // otherwise honour k / the configured ceiling. Do not invent +32 headroom without returned —
+  // that would raise every small-k request and break the maxContextTitles knob.
+  const returned = Number(context.stats?.returned);
+  if (Number.isFinite(returned) && returned > 0) {
+    return { ranked, cap: Math.min(returned, base + EXPANSION_SLOTS) };
+  }
+  const asked = Number(context.k ?? context.stats?.k);
+  if (Number.isFinite(asked) && asked > 0) {
+    return { ranked, cap: Math.min(asked, base) };
+  }
+  return { ranked, cap: base };
+}
+
 function hashTags(list) {
   return list.length
     ? list.map((t) => `#${String(t).replace(/^#/, "")}`).join(" ")
@@ -37,6 +126,11 @@ function bulletList(list, empty) {
 
 /**
  * Bound vault context from client (titles / tags / vocabulary / person hubs).
+ *
+ * `titles` arrive best-first from the device's scorer and are **never re-sorted here**:
+ * every reordering the service does is a note the subscriber silently loses the ability
+ * to link to. Truncation takes the first `cap` by received rank, nothing else.
+ *
  * @param {unknown} context
  */
 export function boundContext(context) {
@@ -44,16 +138,22 @@ export function boundContext(context) {
     context && typeof context === "object"
       ? /** @type {Record<string, unknown>} */ (context)
       : {};
-  const maxTitles = config.maxContextTitles;
+  const { ranked, cap } = titleCap(c);
   return {
-    titles: asStringList(c.titles, maxTitles, 200),
+    titles: asStringList(c.titles, cap, MAX_TITLE_CHARS),
     tags: asStringList(c.tags, 80, 64),
     vocabulary: asStringList(c.vocabulary, 80, 64),
     personHubs: asStringList(c.personHubs, 40, 120),
+    // Which cap regime applied — ranked shortlist or the legacy alphabetical 40. Not read when
+    // building the prompt; it is here so a caller (and the suite) can tell the two apart from the
+    // result, rather than inferring a regime from how many titles happened to survive.
+    ranked,
+    bodyLeak: findBodyLeak(c),
   };
 }
 
-export function buildContextUserMessage(context) {
+/** Block A — vocabulary / tags / hubs. Byte-stable within a run; carries cache_control. */
+export function buildStableContextText(context) {
   return [
     "## Vault context (stable prefix — do not include timestamps or run IDs)",
     "",
@@ -65,10 +165,25 @@ export function buildContextUserMessage(context) {
     "",
     "### Person hubs (from your vault — prefer linking these exact titles)",
     bulletList(context.personHubs, "(none)"),
-    "",
-    "### Note titles",
-    bulletList(context.titles, "(empty vault)"),
   ].join("\n");
+}
+
+/** Block B — shortlisted titles. Volatile per capture; never cached. */
+export function buildTitlesText(context) {
+  return ["### Note titles", bulletList(context.titles, "(empty vault)")].join(
+    "\n",
+  );
+}
+
+/**
+ * Full context message as one string (stable + titles). Kept for callers/tests that want the
+ * joined bytes; the live Anthropic payload uses two content blocks so the cache breakpoint
+ * sits between them.
+ */
+export function buildContextUserMessage(context) {
+  return [buildStableContextText(context), buildTitlesText(context)].join(
+    "\n\n",
+  );
 }
 
 export function buildCaptureUserMessage(capture) {
@@ -91,7 +206,7 @@ function reject(status, message) {
  * @param {{ messagesRequest?: object, capture?: string, context?: unknown }} body
  */
 export function buildClassifyPayload(body) {
-  const maxBytes = 100_000;
+  const maxBytes = config.maxClassifyBytes;
   try {
     if (JSON.stringify(body ?? {}).length > maxBytes) {
       return reject(413, "Classify request too large");
@@ -110,6 +225,13 @@ export function buildClassifyPayload(body) {
   }
 
   const ctx = boundContext(body?.context);
+  if (ctx.bodyLeak) {
+    // Name the field, never its content (log safety).
+    return reject(
+      400,
+      `Plus receives note titles only — ${ctx.bodyLeak} looks like note text`,
+    );
+  }
   /** @type {Record<string, unknown>} */
   const outputConfig = {
     format: {
@@ -129,10 +251,17 @@ export function buildClassifyPayload(body) {
       {
         role: "user",
         content: [
+          // Index 0: stable prefix only — cache_control lives here so a per-capture shortlist
+          // does not pay a write premium on bytes nobody will ever read back.
           {
             type: "text",
-            text: buildContextUserMessage(ctx),
+            text: buildStableContextText(ctx) + "\n\n",
             cache_control: { type: "ephemeral", ttl: "5m" },
+          },
+          // Index 1: volatile titles — no cache_control.
+          {
+            type: "text",
+            text: buildTitlesText(ctx),
           },
         ],
       },

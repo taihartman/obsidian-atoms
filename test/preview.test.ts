@@ -1,9 +1,17 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   buildPreviewEntry,
   renderPreviewMarkdown,
+  runDryRun,
   type DryRunReport,
 } from "../src/pipeline/preview";
+import {
+  atomResult,
+  contextProviderFor,
+  fakeClassify,
+  fakeVault,
+  stubDailyNotes,
+} from "./helpers/pipelineVault";
 import { markerLineForDecision, formatLinkProse } from "../src/pipeline/render";
 import type { Capture, DailyNoteWithCaptures } from "../src/shared/types";
 
@@ -199,6 +207,93 @@ describe("buildPreviewEntry + renderPreviewMarkdown (AE5 shape)", () => {
     });
     expect(md).toContain("FAILED");
     expect(md).toContain("offline");
+  });
+});
+
+describe("runDryRun — routed through the shortlist seam", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  const SEED = {
+    "Daily/2026-07-05.md": [
+      "- sleep debt wrecked my focus by thursday again",
+      "- pulled a sweeter espresso shot with a finer grind",
+      "",
+    ].join("\n"),
+    "Atoms/Sleep debt compounds.md":
+      "---\ngenerated-by: linker\n---\nSleep debt compounds across the week and wrecks focus\n",
+    "Atoms/Espresso grind size.md":
+      "---\ngenerated-by: linker\n---\nGrinding the espresso finer pulled a sweeter shot\n",
+  };
+
+  const run = async (v: ReturnType<typeof fakeVault>, classify: ReturnType<typeof fakeClassify>) =>
+    runDryRun({
+      app: v.app,
+      contextProvider: contextProviderFor(v.app),
+      apiKey: "k",
+      model: "claude-sonnet-5",
+      activeVocabulary: ["idea"],
+      atomFolder: "Atoms",
+      classifyDeps: { request: classify.request as never },
+    });
+
+  it("scores each capture separately instead of sending one list twice", async () => {
+    const v = fakeVault(SEED);
+    stubDailyNotes([{ path: "Daily/2026-07-05.md", date: "2026-07-05" }]);
+    const classify = fakeClassify([
+      atomResult("Sleep debt still bites"),
+      atomResult("Finer grind, sweeter shot"),
+    ]);
+
+    const report = await run(v, classify);
+    expect(report.classified).toBe(2);
+    expect(classify.contextBlocks[0]).not.toBe(classify.contextBlocks[1]);
+    // Each capture sees its own match and not the other's. (The daily itself scores
+    // for both — it contains both capture lines.)
+    expect(classify.contextBlocks[0]).toContain("- Sleep debt compounds");
+    expect(classify.contextBlocks[0]).not.toContain("- Espresso grind size");
+    expect(classify.contextBlocks[1]).toContain("- Espresso grind size");
+    expect(classify.contextBlocks[1]).not.toContain("- Sleep debt compounds");
+  });
+
+  it("writes nothing to the vault", async () => {
+    const v = fakeVault(SEED);
+    stubDailyNotes([{ path: "Daily/2026-07-05.md", date: "2026-07-05" }]);
+    const classify = fakeClassify([atomResult("A"), atomResult("B")]);
+
+    const before = v.paths().slice().sort();
+    const report = await run(v, classify);
+
+    expect(report.wroteNothing).toBe(true);
+    expect(v.writes()).toBe(0);
+    expect(v.paths().slice().sort()).toEqual(before);
+    expect(v.read("Daily/2026-07-05.md")).toBe(SEED["Daily/2026-07-05.md"]);
+  });
+
+  it("excludes today by default and includes it on explicit force", async () => {
+    const today = new Date();
+    const iso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+    const path = `Daily/${iso}.md`;
+    const seed = { [path]: "- something captured mid-day\n" };
+
+    const v = fakeVault(seed);
+    stubDailyNotes([{ path, date: iso }]);
+    const classify = fakeClassify([atomResult("Mid-day")]);
+    const base = {
+      app: v.app,
+      contextProvider: contextProviderFor(v.app),
+      apiKey: "k",
+      model: "claude-sonnet-5",
+      activeVocabulary: ["idea"],
+      atomFolder: "Atoms",
+      classifyDeps: { request: classify.request as never },
+    };
+
+    expect((await runDryRun(base)).totalUnprocessedScanned).toBe(0);
+    expect(classify.captures).toHaveLength(0);
+    expect(
+      (await runDryRun({ ...base, includeToday: true })).totalUnprocessedScanned,
+    ).toBe(1);
+    expect(classify.captures).toHaveLength(1);
   });
 });
 

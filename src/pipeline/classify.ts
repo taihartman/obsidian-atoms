@@ -19,7 +19,36 @@ import {
 } from "./enrich/linkQuality";
 import { rescueKeepableIdea } from "./enrich/ideaRescue";
 import { filterTagsToActive } from "./vocabulary";
-import { formatPersonHubsForContext } from "./context";
+import {
+  buildContextPrefixBlock,
+  buildTitlesBlock,
+  CONTEXT_BLOCK_SEPARATOR,
+  type ShortlistContext,
+} from "./context";
+
+/**
+ * Titles-only payload for Plus (R6). Drops vault paths (`shortlist[]`) and local-only hub details.
+ * The service ranks from `titles` order + `ranked`/`k`/`stats.returned` — it never needs bodies or paths.
+ */
+export function contextForPlus(context: VaultContext): Record<string, unknown> {
+  const stats = (context as Partial<ShortlistContext>).stats;
+  const out: Record<string, unknown> = {
+    titles: context.titles,
+    tags: context.tags,
+    vocabulary: context.vocabulary,
+    personHubs: context.personHubs ?? [],
+    ranked: true,
+    k: stats?.k ?? context.titles.length,
+  };
+  if (stats) {
+    out.stats = {
+      k: stats.k,
+      returned: stats.returned,
+      ...(stats.expanded === undefined ? {} : { expanded: stats.expanded }),
+    };
+  }
+  return out;
+}
 
 /** Injected by esbuild: true in watch/dev, false in production Community builds. */
 declare const ATOMS_DEV_COMMANDS: boolean;
@@ -156,35 +185,18 @@ export const SYSTEM_PROMPT = `You classify fleeting captures from a daily-note i
 - Empty string for task and noise.
 - Prefer short claims; never use the entire capture as the title when it is long.`;
 
+/**
+ * The whole vault-context message as one string: block A, then the note titles.
+ *
+ * `buildMessagesRequest` sends the same bytes as two content blocks so the cache breakpoint can sit
+ * between them; the day-batch fork and the diagnostics still want the single string.
+ */
 export function buildContextUserMessage(context: VaultContext): string {
-  const vocab = context.vocabulary.length
-    ? context.vocabulary.map((t) => `#${t.replace(/^#/, "")}`).join(" ")
-    : "(none)";
-  const tags = context.tags.length
-    ? context.tags.map((t) => `#${t.replace(/^#/, "")}`).join(" ")
-    : "(none)";
-  // Deterministic ordering is the caller's job; we render as given so the
-  // cached prefix stays byte-stable within a run (KTD3 / U4).
-  const personHubs = formatPersonHubsForContext(context);
-  const titles = context.titles.length
-    ? context.titles.map((t) => `- ${t}`).join("\n")
-    : "(empty vault)";
-
-  return [
-    "## Vault context (stable prefix — do not include timestamps or run IDs)",
-    "",
-    "### Active vocabulary",
-    vocab,
-    "",
-    "### Tags present in vault",
-    tags,
-    "",
-    "### Person hubs (from your vault — prefer linking these exact titles)",
-    personHubs,
-    "",
-    "### Note titles",
-    titles,
-  ].join("\n");
+  return (
+    buildContextPrefixBlock(context) +
+    CONTEXT_BLOCK_SEPARATOR +
+    buildTitlesBlock(context)
+  );
 }
 
 function hubsForEnrich(context: VaultContext): PersonHub[] {
@@ -387,16 +399,46 @@ export interface BuildRequestOptions {
   context: VaultContext;
   /** Interactive default `5m`; batch uses `1h` (KTD3). */
   cacheTtl?: "5m" | "1h";
+  /**
+   * Extend the cached prefix over the note-title block too (U5).
+   *
+   * Off by default, and daily filing must leave it off: there the titles are *this capture's*
+   * shortlist, so a breakpoint after them writes an entry nothing ever reads back — a write premium
+   * for nothing. A catch-up chunk is the opposite case. Every capture in the chunk is handed the
+   * same titles byte for byte, so the entry is written once and read back by the rest of the chunk.
+   *
+   * This flag is the whole reason chunking is cheaper than today's frozen full-vault list. Without
+   * it the titles sit *after* the only breakpoint and are re-billed at full rate on every request,
+   * however stable they are — byte-identity alone buys nothing.
+   */
+  cacheTitles?: boolean;
   maxTokens?: number;
 }
 
 /**
+ * Whether a chunk's titles block has earned a cache breakpoint.
+ *
+ * Two or more captures: yes, the write amortises over every request after the first. Exactly one:
+ * no — a solo chunk would pay the cache *write* premium on a block nothing ever reads back, which
+ * is strictly worse than leaving it uncached.
+ */
+export function shouldCacheChunkTitles(captureCount: number): boolean {
+  return captureCount > 1;
+}
+
+/**
  * Request body per KTD3:
- * system (stable) → user context (stable, cache breakpoint) → user capture (volatile).
+ * system (stable) → user context (stable block + volatile titles) → user capture (volatile).
+ *
+ * The context message is **two** blocks. Block A — vocabulary, tags, person hubs — is identical for
+ * every capture of a run, and always carries `cache_control`. Block B is the note titles: volatile
+ * per capture on the daily path (so uncached), byte-stable across a catch-up chunk (so cached when
+ * the caller passes `cacheTitles`).
  */
 export function buildMessagesRequest(opts: BuildRequestOptions): Record<string, unknown> {
   const cacheTtl = opts.cacheTtl ?? "5m";
-  const contextText = buildContextUserMessage(opts.context);
+  const stableText = buildContextPrefixBlock(opts.context) + CONTEXT_BLOCK_SEPARATOR;
+  const titlesText = buildTitlesBlock(opts.context);
   const captureText = buildCaptureUserMessage(opts.capture);
 
   return {
@@ -407,10 +449,21 @@ export function buildMessagesRequest(opts: BuildRequestOptions): Record<string, 
       {
         role: "user",
         content: [
+          // Index 0 is load-bearing: backfill's assertBatchUsesHourCache gates on
+          // messages[0].content[0].cache_control.ttl.
           {
             type: "text",
-            text: contextText,
+            text: stableText,
             cache_control: { type: "ephemeral", ttl: cacheTtl },
+          },
+          {
+            type: "text",
+            text: titlesText,
+            // Index 1 stays a plain block unless asked: omitting the key entirely keeps the daily
+            // path's bytes exactly what they were before chunking existed.
+            ...(opts.cacheTitles
+              ? { cache_control: { type: "ephemeral", ttl: cacheTtl } }
+              : {}),
           },
         ],
       },
@@ -501,6 +554,12 @@ export interface ClassifyDeps {
   maxAttempts?: number;
   /** Backoff sleeper (ms); inject no-op in tests. */
   sleep?: (ms: number) => Promise<void>;
+  /**
+   * Cache the note-title block as well (U5). Only a caller sending the *same* titles to several
+   * captures in a row — a catch-up chunk — may set this. Ignored on the Plus path, which renders
+   * its own request server-side.
+   */
+  cacheTitles?: boolean;
   /** Called once on 401/403 so UI can Notice (KTD4). */
   onAuthFailure?: (message: string) => void;
   /**
@@ -537,11 +596,17 @@ export async function classifyCapture(
     };
   }
 
-  const body = buildMessagesRequest({
-    model: deps.model,
-    capture,
-    context,
-  });
+  // Plus builds its own Anthropic request server-side (KTD-B3), so the device does not
+  // render one at all — sending it duplicated the whole context for a field the proxy
+  // explicitly ignores.
+  const body = plus
+    ? null
+    : buildMessagesRequest({
+        model: deps.model,
+        capture,
+        context,
+        cacheTitles: deps.cacheTitles,
+      });
 
   // Plus: fetch (localhost dogfood + CORS host). BYOK: requestUrl (no CORS to Anthropic).
   const request = deps.request ?? (plus ? plusFetchRequest : requestUrl);
@@ -573,11 +638,7 @@ export async function classifyCapture(
             authorization: `Bearer ${plus.sessionToken.trim()}`,
             "Idempotency-Key": idem,
           },
-          body: JSON.stringify({
-            capture,
-            context,
-            messagesRequest: body,
-          }),
+          body: JSON.stringify({ capture, context: contextForPlus(context) }),
           throw: false,
         });
         status = res.status;

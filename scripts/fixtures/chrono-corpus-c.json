@@ -1,0 +1,1965 @@
+{
+  "captures": [
+    {
+      "id": "C0001",
+      "date": "2023-01-08",
+      "thread": "sleep",
+      "capture": "slept like garbage again. 3rd night in a row. maybe its just january",
+      "verdict": "atom",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0002",
+      "date": "2023-01-19",
+      "thread": "sleep",
+      "capture": "lying there doing sums about how many hours id get if i fell asleep RIGHT NOW. counterproductive",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0001"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0003",
+      "date": "2023-01-24",
+      "thread": "noise",
+      "capture": "return the blue jumper by friday or its mine forever",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0004",
+      "date": "2023-02-06",
+      "thread": "sleep",
+      "capture": "no coffee after 2pm. one week trial",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0001"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0005",
+      "date": "2023-02-12",
+      "thread": "therapy",
+      "capture": "noticed i go completely silent when im wound up. sam asked whats wrong and i said nothing three separate times",
+      "verdict": "atom",
+      "linksToEarlier": [],
+      "linksToExisting": [
+        "Sam"
+      ]
+    },
+    {
+      "id": "C0006",
+      "date": "2023-02-21",
+      "thread": "sleep",
+      "capture": "two weeks of the 2pm rule and im out cold by 11. thats it then. caffeine was the whole thing",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0004"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0007",
+      "date": "2023-02-28",
+      "thread": "noise",
+      "capture": "bins are tuesday now not wednesday",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0008",
+      "date": "2023-03-08",
+      "thread": "therapy",
+      "capture": "said yes to hosting easter. did not want to host easter. said yes anyway before id even thought about it",
+      "verdict": "atom",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0009",
+      "date": "2023-03-14",
+      "thread": "noise",
+      "capture": "dentist 4.15 thursday",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0010",
+      "date": "2023-03-27",
+      "thread": "sleep",
+      "capture": "clocks went forward and im wrecked. one hour. ONE hour and im useless",
+      "verdict": "atom",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0011",
+      "date": "2023-04-03",
+      "thread": "noise",
+      "capture": "birthday card for jo",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0012",
+      "date": "2023-04-11",
+      "thread": "therapy",
+      "capture": "first one with nadia. talked for fifty minutes about work, which is not remotely why i went",
+      "verdict": "atom",
+      "linksToEarlier": [],
+      "linksToExisting": [
+        "Nadia"
+      ]
+    },
+    {
+      "id": "C0013",
+      "date": "2023-04-15",
+      "thread": "sleep",
+      "capture": "the 2pm thing has been slipping for a fortnight and im still going down fine?? confusing",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0006"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0014",
+      "date": "2023-04-25",
+      "thread": "therapy",
+      "capture": "she asked what i wanted out of it and i had nothing prepared. that genuinely never happens to me",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0012"
+      ],
+      "linksToExisting": [
+        "Nadia"
+      ]
+    },
+    {
+      "id": "C0015",
+      "date": "2023-05-02",
+      "thread": "noise",
+      "capture": "car needs an mot before the 30th",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0016",
+      "date": "2023-05-09",
+      "thread": "sleep",
+      "capture": "read that its the blue light off screens that does it. phone lives in the kitchen from tonight",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0001"
+      ],
+      "linksToExisting": [
+        "The bedroom"
+      ]
+    },
+    {
+      "id": "C0017",
+      "date": "2023-05-16",
+      "thread": "therapy",
+      "capture": "did it again. agreed to cover a saturday. the yes is out of my mouth before ive checked with myself at all",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0008"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0018",
+      "date": "2023-05-30",
+      "thread": "sleep",
+      "capture": "three weeks with it out of the room and sleeps identical. arguably worse cos now i just lie there with nothing",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0016"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0019",
+      "date": "2023-06-03",
+      "thread": "running-injury",
+      "capture": "out again after two years. 3k and i wanted to die but in a good way",
+      "verdict": "atom",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0020",
+      "date": "2023-06-13",
+      "thread": "therapy",
+      "capture": "she brought him up and i changed the subject so fast it was almost funny. watched myself do it and did it anyway",
+      "verdict": "atom",
+      "linksToEarlier": [],
+      "linksToExisting": [
+        "Nadia",
+        "Dad"
+      ]
+    },
+    {
+      "id": "C0021",
+      "date": "2023-06-18",
+      "thread": "sleep",
+      "capture": "awake at 4.40 for no reason at all. nothing in me, nothing lit up, nothing on. so much for both of those",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0006",
+        "C0018"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0022",
+      "date": "2023-06-20",
+      "thread": "running-injury",
+      "capture": "6k. the body remembers more than i thought it would",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0019"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0023",
+      "date": "2023-06-27",
+      "thread": "noise",
+      "capture": "sams train gets in at 9.12",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0024",
+      "date": "2023-07-04",
+      "thread": "therapy",
+      "capture": "i am the useful one. always have been. starting to wonder whether being needed is just a way of running the room",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0017"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0025",
+      "date": "2023-07-09",
+      "thread": "running-injury",
+      "capture": "knees a bit grumpy after the long one. nothing to write home about",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0022"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0026",
+      "date": "2023-07-11",
+      "thread": "sleep",
+      "capture": "too warm to be under anything. sheet off sheet on sheet off. that room faces completely the wrong way in summer",
+      "verdict": "atom",
+      "linksToEarlier": [],
+      "linksToExisting": [
+        "The bedroom"
+      ]
+    },
+    {
+      "id": "C0027",
+      "date": "2023-07-18",
+      "thread": "noise",
+      "capture": "cancel the trial before it charges on the 22nd",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0028",
+      "date": "2023-07-23",
+      "thread": "running-injury",
+      "capture": "grumpy again about 4k in. gave it a good stretch after and it settled",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0025"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0029",
+      "date": "2023-07-24",
+      "thread": "sleep",
+      "capture": "fan on all night. suspect the hum is doing more work than the cold air is",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0026"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0030",
+      "date": "2023-08-06",
+      "thread": "running-injury",
+      "capture": "its the outside bit. sort of a hot line down the side, above the joint, comes on at twenty minutes like a timer",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0028"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0031",
+      "date": "2023-08-08",
+      "thread": "noise",
+      "capture": "milk, tinfoil, batteries, the good coffee",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0032",
+      "date": "2023-08-13",
+      "thread": "running-injury",
+      "capture": "stretching harder isnt shifting it but it has to be a tightness thing, it feels tight",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0030"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0033",
+      "date": "2023-08-14",
+      "thread": "sleep",
+      "capture": "sam says i was talking in my sleep and apparently i was negotiating with someone. about what",
+      "verdict": "atom",
+      "linksToEarlier": [],
+      "linksToExisting": [
+        "Sam"
+      ]
+    },
+    {
+      "id": "C0034",
+      "date": "2023-08-22",
+      "thread": "therapy",
+      "capture": "cried at a film about a dog. it wasnt even a sad film. something is coming up the pipe and its not about the dog",
+      "verdict": "atom",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0035",
+      "date": "2023-08-27",
+      "thread": "running-injury",
+      "capture": "took a week clear. first one back felt brilliant for eighteen minutes and then the same hot line",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0030"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0036",
+      "date": "2023-09-05",
+      "thread": "sleep",
+      "capture": "new mattress thursday. the old one is eleven and has a me shaped dip in it",
+      "verdict": "atom",
+      "linksToEarlier": [],
+      "linksToExisting": [
+        "The bedroom"
+      ]
+    },
+    {
+      "id": "C0037",
+      "date": "2023-09-10",
+      "thread": "running-injury",
+      "capture": "googled it. runners knee? theres nine things it could be and every picture is of the front, mines not at the front",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0030"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0038",
+      "date": "2023-09-12",
+      "thread": "noise",
+      "capture": "parcel is at the shop on the corner till saturday",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0039",
+      "date": "2023-09-16",
+      "thread": "sleep",
+      "capture": "first week on it and i feel twenty two. should have done this years ago",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0036"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0040",
+      "date": "2023-09-19",
+      "thread": "therapy",
+      "capture": "the silence isnt calm. ive been calling it calm for about fifteen years and it has never once been calm",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0005"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0041",
+      "date": "2023-09-24",
+      "thread": "running-injury",
+      "capture": "stopped halfway and walked home. first time ive ever done that. felt like packing in, which is stupid",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0035"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0042",
+      "date": "2023-10-04",
+      "thread": "running-injury",
+      "capture": "booked in with someone finally. sams been on at me since july",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0041"
+      ],
+      "linksToExisting": [
+        "Sam"
+      ]
+    },
+    {
+      "id": "C0043",
+      "date": "2023-10-11",
+      "thread": "running-injury",
+      "capture": "so it has a name. the band down the side, and its not short, its raw where it passes over the bone",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0030",
+        "C0037"
+      ],
+      "linksToExisting": [
+        "Ade (physio)"
+      ]
+    },
+    {
+      "id": "C0044",
+      "date": "2023-10-11",
+      "thread": "running-injury",
+      "capture": "ade says pulling on it does nothing, its not a muscle, you cant lengthen it. two months of that for absolutely nothing",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0032"
+      ],
+      "linksToExisting": [
+        "Ade (physio)"
+      ]
+    },
+    {
+      "id": "C0045",
+      "date": "2023-10-16",
+      "thread": "noise",
+      "capture": "boiler service booked in for the 3rd",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0046",
+      "date": "2023-10-18",
+      "thread": "running-injury",
+      "capture": "the actual fault is my backside doesnt switch on. where it hurts and where its broken are two different places apparently",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0043"
+      ],
+      "linksToExisting": [
+        "Ade (physio)"
+      ]
+    },
+    {
+      "id": "C0047",
+      "date": "2023-10-24",
+      "thread": "therapy",
+      "capture": "she said i describe myself entirely in terms of what im useful for. sat with that on the bus for an hour afterwards",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0024"
+      ],
+      "linksToExisting": [
+        "Nadia"
+      ]
+    },
+    {
+      "id": "C0048",
+      "date": "2023-10-30",
+      "thread": "running-injury",
+      "capture": "clamshells. side leg raises. i look ridiculous and my hips are on fire after twelve reps",
+      "verdict": "atom",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0049",
+      "date": "2023-11-02",
+      "thread": "sleep",
+      "capture": "honeymoons over. back to the 4am thing. it wasnt the bed either",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0039"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0050",
+      "date": "2023-11-07",
+      "thread": "noise",
+      "capture": "gift ideas: nobody wants anything, as usual",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0051",
+      "date": "2023-11-13",
+      "thread": "running-injury",
+      "capture": "three weeks of the boring stuff and i went up the station steps without thinking about it. thats new",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0048"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0052",
+      "date": "2023-11-27",
+      "thread": "running-injury",
+      "capture": "he filmed me from behind. one side drops every step. ive probably been doing that since school",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0046"
+      ],
+      "linksToExisting": [
+        "Ade (physio)"
+      ]
+    },
+    {
+      "id": "C0053",
+      "date": "2023-12-01",
+      "thread": "noise",
+      "capture": "book the table for the 23rd, eight of us",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0054",
+      "date": "2023-12-05",
+      "thread": "therapy",
+      "capture": "not going near it is itself the information. obviously it is. took me eight months to spot that",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0020"
+      ],
+      "linksToExisting": [
+        "Dad"
+      ]
+    },
+    {
+      "id": "C0055",
+      "date": "2023-12-06",
+      "thread": "running-injury",
+      "capture": "shorter quicker steps. counted to 180 in my head like a lunatic but the side thing never turned up",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0052"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0056",
+      "date": "2023-12-12",
+      "thread": "sleep",
+      "capture": "one thing actually lines up with the good ones: getting in at roughly the same hour. boring answer, no product to buy",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0021",
+        "C0049"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0057",
+      "date": "2023-12-19",
+      "thread": "running-injury",
+      "capture": "5k with nothing. NOTHING. no line, no nagging, no waiting for it",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0030",
+        "C0055"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0058",
+      "date": "2023-12-27",
+      "thread": "noise",
+      "capture": "tree down before the 6th apparently or its bad luck",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0059",
+      "date": "2024-01-09",
+      "thread": "running-injury",
+      "capture": "two 5ks back to back. getting greedy and i can feel myself doing it",
+      "verdict": "atom",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0060",
+      "date": "2024-01-11",
+      "thread": "noise",
+      "capture": "renew the parking permit",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0061",
+      "date": "2024-01-14",
+      "thread": "sleep",
+      "capture": "a glass of red and im gone in ten minutes. it obviously helps, whatever anyone says",
+      "verdict": "atom",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0062",
+      "date": "2024-01-16",
+      "thread": "gut",
+      "capture": "stomachs been horrible for weeks. blown up like a balloon by 4pm every single day",
+      "verdict": "atom",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0063",
+      "date": "2024-01-23",
+      "thread": "therapy",
+      "capture": "declined a dinner. small. felt physically sick for twenty minutes afterwards. twenty minutes, over a dinner",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0017"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0064",
+      "date": "2024-01-28",
+      "thread": "running-injury",
+      "capture": "8k. old me would have gone straight to twelve",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0059"
+      ],
+      "linksToExisting": [
+        "Parkrun"
+      ]
+    },
+    {
+      "id": "C0065",
+      "date": "2024-01-30",
+      "thread": "gut",
+      "capture": "writing down what i eat. wont stick to it but here we are",
+      "verdict": "atom",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0066",
+      "date": "2024-02-03",
+      "thread": "sleep",
+      "capture": "went up at 10.30 three nights running because the house was freezing and slept clean through each time. supports the boring answer",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0056"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0067",
+      "date": "2024-02-06",
+      "thread": "gut",
+      "capture": "milk in four coffees, cheese on everything. has to be dairy. its the obvious one",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0062"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0068",
+      "date": "2024-02-11",
+      "thread": "running-injury",
+      "capture": "did hill reps because it was sunny and i felt immortal. currently on the sofa with a bag of peas on me",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0059"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0069",
+      "date": "2024-02-14",
+      "thread": "noise",
+      "capture": "flowers were a fiver more than last year",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0070",
+      "date": "2024-02-18",
+      "thread": "running-injury",
+      "capture": "week off again. difference is this time i know what im meant to be doing about it",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0035"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0071",
+      "date": "2024-02-20",
+      "thread": "gut",
+      "capture": "oat milk, no cheese, a fortnight. still a balloon by 4",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0067"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0072",
+      "date": "2024-02-27",
+      "thread": "gut",
+      "capture": "unless it needs longer than two weeks to clear out? giving it another fortnight before i call it",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0071"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0073",
+      "date": "2024-03-02",
+      "thread": "noise",
+      "capture": "printer wants magenta. we have never printed anything magenta",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0074",
+      "date": "2024-03-05",
+      "thread": "running-injury",
+      "capture": "this ones somewhere else though. not the side of the joint. deeper, higher, more in the pocket at the top of the leg",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0068"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0075",
+      "date": "2024-03-12",
+      "thread": "gut",
+      "capture": "a full month clean and its exactly the same. it is not dairy. annoying because i was certain",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0067",
+        "C0072"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0076",
+      "date": "2024-03-12",
+      "thread": "therapy",
+      "capture": "second one was easier. still not easy",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0063"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0077",
+      "date": "2024-03-17",
+      "thread": "running-injury",
+      "capture": "ade: same problem, different address. the thing at the top was always the cause, the other bit was just where i noticed it",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0046",
+        "C0074"
+      ],
+      "linksToExisting": [
+        "Ade (physio)"
+      ]
+    },
+    {
+      "id": "C0078",
+      "date": "2024-03-19",
+      "thread": "gut",
+      "capture": "bread then. pasta. its always after lunch and lunch is always a sandwich",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0075"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0079",
+      "date": "2024-03-31",
+      "thread": "sleep",
+      "capture": "the hour moved again. saw it coming this year, went up early on the friday, barely registered it",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0010"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0080",
+      "date": "2024-04-01",
+      "thread": "gut",
+      "capture": "fortnight off wheat starts today. sam thinks im being ridiculous and is probably right",
+      "verdict": "atom",
+      "linksToEarlier": [],
+      "linksToExisting": [
+        "Sam"
+      ]
+    },
+    {
+      "id": "C0081",
+      "date": "2024-04-02",
+      "thread": "running-injury",
+      "capture": "so i spent an entire autumn treating the place that was sore instead of the place that was wrong",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0025",
+        "C0043"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0082",
+      "date": "2024-04-09",
+      "thread": "noise",
+      "capture": "chase the refund again, third time",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0083",
+      "date": "2024-04-16",
+      "thread": "gut",
+      "capture": "no change whatsoever. two entire aisles of the shop cut out and my insides could not care less",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0078",
+        "C0071"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0084",
+      "date": "2024-04-21",
+      "thread": "running-injury",
+      "capture": "4k, easy, fine. keeping the boring stuff up even though nothing hurts. thats the entire lesson and i nearly missed it",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0051"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0085",
+      "date": "2024-04-22",
+      "thread": "sleep",
+      "capture": "went back through the watch export. every night with wine in it sits in the bottom ten. every single one. so much for it helping",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0061"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0086",
+      "date": "2024-04-29",
+      "thread": "gut",
+      "capture": "maybe its got nothing to do with food. the bad days do seem to be the days with the monday meeting on them",
+      "verdict": "atom",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0087",
+      "date": "2024-05-02",
+      "thread": "noise",
+      "capture": "passport expires in eight months which is apparently a problem for some countries",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0088",
+      "date": "2024-05-07",
+      "thread": "gut",
+      "capture": "that doesnt survive the weekend. saturday was the worst one in a month and i did nothing all day but read a novel",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0086"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0089",
+      "date": "2024-05-12",
+      "thread": "running-injury",
+      "capture": "10k. a year ago i couldnt manage three without wanting to lie down in a hedge",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0019"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0090",
+      "date": "2024-05-13",
+      "thread": "gut",
+      "capture": "notebook again but properly this time. everything that goes in, with times, not just meals",
+      "verdict": "atom",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0091",
+      "date": "2024-05-14",
+      "thread": "therapy",
+      "capture": "the going silent and the automatic yes are the same move. both of them are leaving the room without anyone noticing i left",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0005",
+        "C0008"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0092",
+      "date": "2024-05-19",
+      "thread": "sleep",
+      "capture": "dry fortnight. takes longer to go under but i stay under. so it was buying me the first twenty minutes and selling the other six hours",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0085"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0093",
+      "date": "2024-05-27",
+      "thread": "gut",
+      "capture": "two weeks of proper notes. the rough days: the thai green, that soup, the jar sauce, the hummus, the pizza on the friday",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0090"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0094",
+      "date": "2024-06-03",
+      "thread": "gut",
+      "capture": "whats actually inside all of those. its not a category, its something small thats in all of them",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0093"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0095",
+      "date": "2024-06-08",
+      "thread": "sleep",
+      "capture": "not the coffee. not the screens. not the bed. not the wine. the only thing left standing is going up at roughly the same time",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0006",
+        "C0018",
+        "C0049",
+        "C0092"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0096",
+      "date": "2024-06-09",
+      "thread": "running-injury",
+      "capture": "a year today. one injury, one name for it, four months of lying on the floor doing tiny movements. would do it again",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0019",
+        "C0077"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0097",
+      "date": "2024-06-10",
+      "thread": "gut",
+      "capture": "onion. garlic. theyre in everything and i never once wrote them down because theyre never the point of the meal",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0094"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0098",
+      "date": "2024-06-14",
+      "thread": "noise",
+      "capture": "someone has left a bike in the hallway",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0099",
+      "date": "2024-06-18",
+      "thread": "gut",
+      "capture": "doctor said the word fodmap and printed a list off. those two are at the top of it",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0097"
+      ],
+      "linksToExisting": [
+        "Dr Whitlock"
+      ]
+    },
+    {
+      "id": "C0100",
+      "date": "2024-06-21",
+      "thread": "attention",
+      "capture": "read the same paragraph four times and took in none of it. this is happening most days now",
+      "verdict": "atom",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0101",
+      "date": "2024-06-25",
+      "thread": "gut",
+      "capture": "both my big theories were entire sections of the supermarket and the answer was a thing i chop up first and then forget i put in",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0067",
+        "C0078"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0102",
+      "date": "2024-07-02",
+      "thread": "therapy",
+      "capture": "so its not two things. its one thing wearing two coats",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0091"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0103",
+      "date": "2024-07-05",
+      "thread": "attention",
+      "capture": "deleted it off the phone. then picked the phone up anyway and stared at the gap where it used to be",
+      "verdict": "atom",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0104",
+      "date": "2024-07-08",
+      "thread": "gut",
+      "capture": "ate a whole bowl of french onion soup deliberately to check. do not recommend the method but the result was not ambiguous",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0097"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0105",
+      "date": "2024-07-15",
+      "thread": "noise",
+      "capture": "water the plants at 41 while theyre away",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0106",
+      "date": "2024-07-19",
+      "thread": "attention",
+      "capture": "a fortnight without it and ive finished a whole book. obviously it was the app. case closed",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0103"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0107",
+      "date": "2024-07-21",
+      "thread": "gut",
+      "capture": "the infused oil is fine apparently, the bit that gets me doesnt come out into oil. cooking is possible again",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0099"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0108",
+      "date": "2024-08-02",
+      "thread": "sleep",
+      "capture": "this is the third year running ive complained about that room in august and ive never once done anything about the curtains",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0026"
+      ],
+      "linksToExisting": [
+        "The bedroom"
+      ]
+    },
+    {
+      "id": "C0109",
+      "date": "2024-08-05",
+      "thread": "gut",
+      "capture": "put cheese back and nothing happened at all. i spent a month off it for absolutely no reason",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0075"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0110",
+      "date": "2024-08-12",
+      "thread": "noise",
+      "capture": "hoover belt, the round kind not the flat one",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0111",
+      "date": "2024-08-16",
+      "thread": "attention",
+      "capture": "reinstalled it just to check one thing, eleven days ago, and here we all are",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0106"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0112",
+      "date": "2024-08-19",
+      "thread": "gut",
+      "capture": "bread is fine too unless its the seeded one from the good bakery, which has you know what in it. of course it does",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0083"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0113",
+      "date": "2024-08-27",
+      "thread": "therapy",
+      "capture": "got properly angry at someone out loud and the world did not end. nobody walked out. i keep expecting somebody to walk out",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0040"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0114",
+      "date": "2024-08-30",
+      "thread": "attention",
+      "capture": "whole weekend at my sisters with no signal and i still couldnt settle into anything at all. so its not the handset",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0106"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0115",
+      "date": "2024-09-02",
+      "thread": "gut",
+      "capture": "eight months. the wrong answers took seven of them and the right one took a fortnight of writing things down properly",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0090",
+        "C0062"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0116",
+      "date": "2024-09-06",
+      "thread": "noise",
+      "capture": "library book overdue, again",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0117",
+      "date": "2024-09-13",
+      "thread": "attention",
+      "capture": "ten minutes sitting still each morning. mostly it is ten minutes of planning lunch in detail",
+      "verdict": "atom",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0118",
+      "date": "2024-09-15",
+      "thread": "running-injury",
+      "capture": "havent thought about it in three months, which is exactly the point where people quit the exercises. noting that",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0084"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0119",
+      "date": "2024-09-23",
+      "thread": "gut",
+      "capture": "why i couldnt see it: i was hunting for a thing i ate. it was a thing that was inside what i ate",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0101"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0120",
+      "date": "2024-09-27",
+      "thread": "sleep",
+      "capture": "blackout blind up. its like a completely different room",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0108"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0121",
+      "date": "2024-10-01",
+      "thread": "attention",
+      "capture": "screen time down forty percent and my ability to hold a page is exactly where it was in june",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0114"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0122",
+      "date": "2024-10-03",
+      "thread": "noise",
+      "capture": "bathroom tap is dripping",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0123",
+      "date": "2024-10-08",
+      "thread": "therapy",
+      "capture": "its not the opposite of calm. its the opposite of the silence. calm was never in the room at all",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0040",
+        "C0113"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0124",
+      "date": "2024-10-14",
+      "thread": "gut",
+      "capture": "menus are useless. may contain means nothing. ive just started asking the person",
+      "verdict": "atom",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0125",
+      "date": "2024-10-27",
+      "thread": "sleep",
+      "capture": "hour came back. gained one and still felt like a bin on monday which makes no sense at all",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0079"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0126",
+      "date": "2024-11-01",
+      "thread": "noise",
+      "capture": "fireworks all night. dog next door not impressed",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0127",
+      "date": "2024-11-08",
+      "thread": "attention",
+      "capture": "the laptops the same and theres nothing on it. no apps, no feeds, and i still reach eleven oclock having done nothing difficult",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0114",
+        "C0121"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0128",
+      "date": "2024-11-11",
+      "thread": "gut",
+      "capture": "months clear and a small amount now does nothing. so its a threshold, not a switch. more like a bucket filling",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0104"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0129",
+      "date": "2024-11-19",
+      "thread": "therapy",
+      "capture": "actually talked to him. forty minutes. he cried, which i was in no way prepared for",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0020",
+        "C0054"
+      ],
+      "linksToExisting": [
+        "Dad"
+      ]
+    },
+    {
+      "id": "C0130",
+      "date": "2024-11-26",
+      "thread": "noise",
+      "capture": "order mums thing before it sells out",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0131",
+      "date": "2024-12-03",
+      "thread": "attention",
+      "capture": "the sitting still isnt making me sharper. what it does is tell me sooner that ive already gone",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0117"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0132",
+      "date": "2024-12-09",
+      "thread": "sleep",
+      "capture": "up at 3 and the head starts. its not that sleeps broken, its that at 3am theres nothing available to think about except the worst thing",
+      "verdict": "atom",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0133",
+      "date": "2024-12-17",
+      "thread": "therapy",
+      "capture": "the version of him ive been arguing with in my head for twenty years is not the one that was on the phone",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0129"
+      ],
+      "linksToExisting": [
+        "Dad"
+      ]
+    },
+    {
+      "id": "C0134",
+      "date": "2024-12-20",
+      "thread": "gut",
+      "capture": "christmas is built out of the stuff. stuffing, gravy, all of it. ate it, paid for it, fair trade",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0128"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0135",
+      "date": "2024-12-31",
+      "thread": "noise",
+      "capture": "nothing planned at all. good",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0136",
+      "date": "2025-01-05",
+      "thread": "running-injury",
+      "capture": "skipped the floor stuff over christmas and the side of it gave a little cough today. instant feedback, no ambiguity",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0030",
+        "C0118"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0137",
+      "date": "2025-01-13",
+      "thread": "attention",
+      "capture": "ninety minutes first thing with nothing else open. worked brilliantly for four days",
+      "verdict": "atom",
+      "linksToEarlier": [],
+      "linksToExisting": [
+        "Deep work"
+      ]
+    },
+    {
+      "id": "C0138",
+      "date": "2025-01-21",
+      "thread": "sleep",
+      "capture": "a paper book puts me under in fifteen minutes. the kindle doesnt. same amount of light coming at my face",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0018"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0139",
+      "date": "2025-01-27",
+      "thread": "noise",
+      "capture": "tax return, four days",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0140",
+      "date": "2025-01-31",
+      "thread": "attention",
+      "capture": "the ninety minutes dies the instant a morning meeting exists, and a morning meeting nearly always exists",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0137"
+      ],
+      "linksToExisting": [
+        "Deep work"
+      ]
+    },
+    {
+      "id": "C0141",
+      "date": "2025-02-11",
+      "thread": "noise",
+      "capture": "get the spare key cut",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0142",
+      "date": "2025-02-18",
+      "thread": "sleep",
+      "capture": "its not what the thing emits its what its asking of me. a novel wants nothing. email wants an answer",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0016",
+        "C0138"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0143",
+      "date": "2025-02-24",
+      "thread": "attention",
+      "capture": "i can sit for ten minutes with my eyes shut and not four with a difficult document. so its not a stillness problem",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0117",
+        "C0131"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0144",
+      "date": "2025-02-25",
+      "thread": "therapy",
+      "capture": "why i couldnt go near it: if hes not the reason im like this then i just am like this. that was the actual fear the whole time",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0054",
+        "C0129"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0145",
+      "date": "2025-03-09",
+      "thread": "noise",
+      "capture": "wash the curtains, both rooms",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0146",
+      "date": "2025-03-18",
+      "thread": "attention",
+      "capture": "caught myself at it. opened the doc, read one line, felt something unpleasant, got up to make tea. the tea was not the decision",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0143"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0147",
+      "date": "2025-04-06",
+      "thread": "sleep",
+      "capture": "2023 me binning the phone had exactly the right instinct and completely the wrong reason for it",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0016",
+        "C0142"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0148",
+      "date": "2025-04-08",
+      "thread": "therapy",
+      "capture": "being the one who copes. thats a post i applied for. nobody handed it to me and i keep telling it like they did",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0024",
+        "C0047"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0149",
+      "date": "2025-04-13",
+      "thread": "gut",
+      "capture": "week of feeling awful and i went straight back to blaming cheese out of pure habit. it was a jar of pesto. read the label after, obviously",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0067",
+        "C0109"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0150",
+      "date": "2025-04-14",
+      "thread": "attention",
+      "capture": "its not that i cant hold anything. its that the first ninety seconds of a hard thing feel bad and i leave. every time, without ever deciding to",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0100",
+        "C0146"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0151",
+      "date": "2025-04-22",
+      "thread": "noise",
+      "capture": "bin day moved for the bank holiday",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0152",
+      "date": "2025-05-06",
+      "thread": "attention",
+      "capture": "all that stuff about handsets and feeds was measuring the exit and calling it the cause",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0106",
+        "C0114",
+        "C0127"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0153",
+      "date": "2025-05-18",
+      "thread": "noise",
+      "capture": "sell the old bike, its been in the shed two years",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0154",
+      "date": "2025-05-24",
+      "thread": "running-injury",
+      "capture": "half marathon done. everything held. did the clamshells on a travelodge carpet the night before like a weirdo",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0048"
+      ],
+      "linksToExisting": [
+        "Parkrun"
+      ]
+    },
+    {
+      "id": "C0155",
+      "date": "2025-06-02",
+      "thread": "attention",
+      "capture": "the thing that works: promise myself ninety seconds and full permission to stop after. i have never once stopped",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0150"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0156",
+      "date": "2025-06-14",
+      "thread": "sleep",
+      "capture": "one americano at 4 and i was staring at the ceiling till 1. so it does count, just not as the whole story",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0006",
+        "C0095"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0157",
+      "date": "2025-06-17",
+      "thread": "therapy",
+      "capture": "rough fortnight and it came straight back with no warning at all. so its not gone, its just usually not needed",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0005",
+        "C0102"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0158",
+      "date": "2025-06-25",
+      "thread": "noise",
+      "capture": "sun cream, factor 50, the non greasy one",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0159",
+      "date": "2025-07-11",
+      "thread": "attention",
+      "capture": "afternoons are genuinely worse and no amount of gritted teeth changes it. moved the difficult thing to 8am and stopped arguing with the clock",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0140"
+      ],
+      "linksToExisting": [
+        "Deep work"
+      ]
+    },
+    {
+      "id": "C0160",
+      "date": "2025-07-20",
+      "thread": "noise",
+      "capture": "hotel confirmation is in the other email account",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0161",
+      "date": "2025-07-29",
+      "thread": "therapy",
+      "capture": "was gutted about that. nadia said relapse is the wrong word, its a default, and defaults arent failures, theyre what runs when you stop choosing",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0157"
+      ],
+      "linksToExisting": [
+        "Nadia"
+      ]
+    },
+    {
+      "id": "C0162",
+      "date": "2025-08-09",
+      "thread": "sleep",
+      "capture": "fourth summer in that room. fan in 23, blind in 24, and this is the first august i havent moaned about it once",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0026",
+        "C0120"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0163",
+      "date": "2025-08-19",
+      "thread": "attention",
+      "capture": "after a bad night the ninety seconds becomes about nine hundred. the whole thing runs on being rested and i never counted that as part of it",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0150",
+        "C0095"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0164",
+      "date": "2025-08-27",
+      "thread": "noise",
+      "capture": "gutters before autumn",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0165",
+      "date": "2025-09-08",
+      "thread": "gut",
+      "capture": "over a year on. the useful bit was never the answer, it was that i only found it once i stopped guessing and started writing things down",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0115",
+        "C0093"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0166",
+      "date": "2025-09-16",
+      "thread": "therapy",
+      "capture": "two and a half years. went in to fix one small thing about how i behave when im cross and that turned out to be the least interesting part of it",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0005",
+        "C0012"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0167",
+      "date": "2025-09-22",
+      "thread": "attention",
+      "capture": "being bored is a skill and i sold mine for roughly ten years of free video",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0131"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0168",
+      "date": "2025-09-30",
+      "thread": "sleep",
+      "capture": "wont settle on the nights i finish late. its not the hour, its that the day never got shut properly",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0132"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0169",
+      "date": "2025-10-05",
+      "thread": "noise",
+      "capture": "book the car in for the winter tyres",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0170",
+      "date": "2025-10-11",
+      "thread": "running-injury",
+      "capture": "two years on and the thing i actually learned isnt about legs at all. its that where it hurts and where its wrong are different addresses",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0077",
+        "C0081"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0171",
+      "date": "2025-10-20",
+      "thread": "attention",
+      "capture": "it was a symptom the whole time. id have got here two years quicker by asking what i was getting away from instead of what i was holding",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0103",
+        "C0152"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0172",
+      "date": "2025-11-04",
+      "thread": "therapy",
+      "capture": "its not a fault to be removed. it kept a kid safe in a house that needed managing. it just hasnt got a job any more",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0148",
+        "C0161"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0173",
+      "date": "2025-11-10",
+      "thread": "attention",
+      "capture": "got through four hundred pages in four days. didnt try to. was just interested, and interested does the work for free",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0100"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0174",
+      "date": "2025-11-16",
+      "thread": "sleep",
+      "capture": "the list of things that turned out not to be it is far longer than the list of things that were. thats fine. thats the method",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0095",
+        "C0147"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0175",
+      "date": "2025-11-27",
+      "thread": "attention",
+      "capture": "every rule i wrote in january is about keeping things out. the actual fix turned out to be about going towards the unpleasant bit",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0137",
+        "C0150"
+      ],
+      "linksToExisting": [
+        "Deep work"
+      ]
+    },
+    {
+      "id": "C0176",
+      "date": "2025-12-08",
+      "thread": "attention",
+      "capture": "sitting still, the ninety seconds, and going up at a sensible hour are all one skill. staying in something thats not comfortable yet",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0131",
+        "C0155",
+        "C0163"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0177",
+      "date": "2025-12-11",
+      "thread": "noise",
+      "capture": "wrapping paper. every year. every single year",
+      "verdict": "noise",
+      "linksToEarlier": [],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0178",
+      "date": "2025-12-20",
+      "thread": "sleep",
+      "capture": "same hour up, forty odd days straight, weekends included. genuinely the only lever on the whole machine",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0056",
+        "C0095"
+      ],
+      "linksToExisting": []
+    },
+    {
+      "id": "C0179",
+      "date": "2025-12-28",
+      "thread": "therapy",
+      "capture": "sam said ive got louder this year. meant it kindly. i checked",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0157",
+        "C0172"
+      ],
+      "linksToExisting": [
+        "Sam"
+      ]
+    },
+    {
+      "id": "C0180",
+      "date": "2025-12-30",
+      "thread": "attention",
+      "capture": "eighteen months of this and the answer had nothing to do with attention",
+      "verdict": "atom",
+      "linksToEarlier": [
+        "C0100",
+        "C0150"
+      ],
+      "linksToExisting": []
+    }
+  ]
+}

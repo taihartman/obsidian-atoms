@@ -4,6 +4,7 @@
  */
 
 import type { ClassificationResult } from "../../shared/types";
+import { aliasesForFrontmatter } from "../context";
 import { normalizeTag, sortTags } from "../vocabulary";
 
 function basenameTitle(path: string): string {
@@ -213,20 +214,11 @@ export function isPersonLikeBasename(title: string): boolean {
   return true;
 }
 
-/** Same alias extraction shape as collectLinkTargets. */
+/** The file's declared aliases — one shared reading of frontmatter, from `context.ts`. */
 export function aliasesFromCache(
   cache: { frontmatter?: Record<string, unknown> | null } | null | undefined,
 ): string[] {
-  const out: string[] = [];
-  const aliases = cache?.frontmatter?.aliases;
-  if (typeof aliases === "string" && aliases.trim()) {
-    out.push(aliases.trim());
-  } else if (Array.isArray(aliases)) {
-    for (const a of aliases) {
-      if (typeof a === "string" && a.trim()) out.push(a.trim());
-    }
-  }
-  return out;
+  return aliasesForFrontmatter(cache?.frontmatter);
 }
 
 /**

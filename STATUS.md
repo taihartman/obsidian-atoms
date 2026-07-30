@@ -7,6 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
+| In review | [#186](https://github.com/taihartman/obsidian-atoms/issues/186) | taihartman | `feat/bm25-shortlist` | [plan](docs/plans/2026-07-29-001-feat-bm25-shortlist-retrieval-plan.md) | `src/pipeline/context.ts`, `src/pipeline/write.ts`, `src/pipeline/preview.ts`, `src/pipeline/backfill.ts`, `src/pipeline/refreshAtoms.ts`, `src/pipeline/shortlist.ts`, `src/pipeline/candidates.ts`, `src/pipeline/expand.ts`, `plus-service/src/anthropic.mjs` | BM25 body-scored shortlists. U1–U8 + P1 shipping fixes + compound. 647 plugin / 182 plus tests. v0.6.53. Vault smoke: dry-run + backfill-estimate + open-home on throwaway vault. PR #187. Remaining: Settings screenshots (human), Fly deploy for plus-service after merge. Tracks #168. |
 
 ## How to claim (copy)
 

@@ -1,0 +1,50 @@
+{
+  "bodyStats": {
+    "mean": 1943,
+    "p90": 5793
+  },
+  "realCount": 373,
+  "realReadMs": 8.749666000000001,
+  "mobileAssumptions": {
+    "MOBILE_CPU_FACTOR": 4,
+    "MOBILE_IO_FACTOR": 6,
+    "MOBILE_BUDGET_MB": 100
+  },
+  "rows": [
+    {
+      "notes": 500,
+      "buildMs": 33.6,
+      "queryMs": 0.03,
+      "heapMb": 10.4,
+      "terms": 7679
+    },
+    {
+      "notes": 1000,
+      "buildMs": 59.9,
+      "queryMs": 0.03,
+      "heapMb": 9.6,
+      "terms": 7679
+    },
+    {
+      "notes": 3000,
+      "buildMs": 165.6,
+      "queryMs": 0.02,
+      "heapMb": 23.7,
+      "terms": 7679
+    },
+    {
+      "notes": 5000,
+      "buildMs": 267,
+      "queryMs": 0.03,
+      "heapMb": 31.7,
+      "terms": 7679
+    },
+    {
+      "notes": 10000,
+      "buildMs": 544.4,
+      "queryMs": 0.06,
+      "heapMb": 44.1,
+      "terms": 7679
+    }
+  ]
+}
