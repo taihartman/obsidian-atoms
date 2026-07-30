@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| _(nothing in flight)_ | | | | | | |
+| In progress | #206 | taihartman | feat/tryatoms-obsidian-on-ramp | — (amend) | www/src/index.html.tmpl, www/src/styles.css, test/wwwPricing.test.ts | Obsidian on-ramp on tryatoms install |
 
 ## How to claim (copy)
 
