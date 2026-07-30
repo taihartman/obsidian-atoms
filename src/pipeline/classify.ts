@@ -161,7 +161,7 @@ export const SYSTEM_PROMPT = `You classify fleeting captures from a daily-note i
 - **hub_section (optional but important for list/gift/date facts):** when the capture is an accumulating list or want about a person and Person hubs list indented ## section names under that hub, set hub_section to one **exact** section string from that list (e.g. Gift Ideas when they want a physical gift). Prefer a real section over leaving empty. Omit or use "" only when unsure or no section fits. Never invent a section name that is not listed.
 
 ## Links + supersession (reason quality is load-bearing)
-- Link to existing notes when the capture relates, revises, or contradicts them.
+- Link to existing notes when the capture relates, revises, continues, or contradicts them.
 - Always fill \`reason\` with readable prose that names the **relationship**.
 - **Reason must still teach something if wikilinks were stripped.**
   Bad: "preference about [[Alex]]" / "update about [[Alex]]" / "media work to watch"
@@ -169,7 +169,10 @@ export const SYSTEM_PROMPT = `You classify fleeting captures from a daily-note i
   Good: "career status: Penfield interview — waiting to hear back ([[Alex]])"
   Good: "adds a game they like for the detective feel ([[Alex]])"
   Good: "revises [[Old claim]]" / "contradicts [[Old claim]]"
-- Prefer zero forced topical links over junk edges — except people rules and existing media work-title links above.
+  Good: "same product thread — settlement timing after split ([[Aploma settlement note]])"
+- **When a Note title is clearly the same thread, prefer a substantive link over silence.**
+  Same person, same named work, same app/product/project, same trip, or an explicit revise/continue/contradict of an earlier claim — if that exact title is under Note titles, link it with a reason that teaches the relationship. A plausible, title-exact link is better than an island. Do not skip an obvious same-thread title just to stay sparse.
+- Still never invent titles, never link on a vague shared vibe alone, and never force a junk edge with an empty reason. People must-link and media work-title rules above still apply; this section adds the missing *do link* pressure for real threads.
 - If a Movies/Shows hub title already exists in Note titles, you may also link it; still link the specific work only when that work title exists.
 
 ## Trip / packing / project / document lists (entity links)

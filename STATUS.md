@@ -7,6 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
+| In progress | [#196](https://github.com/taihartman/obsidian-atoms/issues/196) | taihartman | `feat/prompt-recall-softening-196` | issue #196 | `src/pipeline/classify.ts`, `src/pipeline/atomQuality.ts` | Soften classify link restraint; bake-off vs n300 Sonnet baseline; ship only if precision holds. |
 
 ## How to claim (copy)
 
