@@ -7,6 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
+| Queued | TBD | taihartman | `claude/obsidian-resume-sync-filing-072be6` | [2026-07-31-001](docs/plans/2026-07-31-001-feat-resume-catch-up-plan.md) | `src/plugin/main.ts` · `src/platform/askMirror.ts` · `src/pipeline/inbox.ts` | Catch up on resume. **Issue + draft PR not yet opened** — claim incomplete. Plan has 6 open questions; two change the unit set. U1/U9 fix a live cloud-mirror wipe that fires on every cold start today |
 
 ## How to claim (copy)
 
