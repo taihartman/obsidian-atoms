@@ -7,7 +7,7 @@ date: 2026-07-31
 deepened: 2026-07-31
 lane: full
 depth: deep
-issue: TBD
+issue: 222
 ---
 
 # feat: Catch up on resume (foreground trigger + Sync everything now)
