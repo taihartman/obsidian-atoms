@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| Queued | [#222](https://github.com/taihartman/obsidian-atoms/issues/222) | taihartman | `claude/obsidian-resume-sync-filing-072be6` | [2026-07-31-001](docs/plans/2026-07-31-001-feat-resume-catch-up-plan.md) | `src/plugin/main.ts` · `src/platform/askMirror.ts` · `src/pipeline/inbox.ts` | Catch up on resume. Plan done + doc-reviewed; **implementation not started** — resume in a fresh session. 6 open questions; two change the unit set. U1/U9 fix a live cloud-mirror wipe that fires on every cold start today |
+| Queued | [#222](https://github.com/taihartman/obsidian-atoms/issues/222) | taihartman | `claude/obsidian-resume-sync-filing-072be6` | [2026-07-31-001](docs/plans/2026-07-31-001-feat-resume-catch-up-plan.md) | `src/plugin/main.ts` · `src/platform/askMirror.ts` · `src/pipeline/inbox.ts` | Catch up on resume. Plan done + doc-reviewed twice (round 2: 7 personas, 27 edits applied); **implementation not started** — resume via [handoff](docs/handoffs/2026-07-31-resume-catch-up-doc-review.md). **Q2/Q3/Q4 are blocking** — Q4 (latency) decides whether Phases B/C exist. U1/U9 fix a cloud-mirror wipe on the delta path |
 
 ## How to claim (copy)
 
