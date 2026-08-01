@@ -1,4 +1,3 @@
-import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   applyClassificationQuality,
@@ -40,16 +39,29 @@ describe("classification schema people field", () => {
   });
 
   // R9 / AE6 — plus-service holds a hand-synced snapshot; drift is silent.
-  it("stays in sync with the plus-service snapshot", () => {
-    const snapshot = readFileSync(
-      "plus-service/src/classifyTemplate.mjs",
-      "utf8",
+  //
+  // This *imports* the snapshot rather than reading it as text. A text-only
+  // assertion passed while the file was unparseable JavaScript: an unescaped
+  // backtick in the prompt closed its template literal early, so plus-service
+  // could not load its own classify template. Read the file, miss the bug.
+  it("stays in sync with the plus-service snapshot, and parses", async () => {
+    const snapshot = (await import(
+      "../plus-service/src/classifyTemplate.mjs"
+    )) as {
+      SYSTEM_PROMPT: string;
+      CLASSIFICATION_SCHEMA: typeof CLASSIFICATION_SCHEMA;
+    };
+    expect(snapshot.CLASSIFICATION_SCHEMA.required).toEqual(
+      CLASSIFICATION_SCHEMA.required,
     );
-    expect(snapshot).toContain(
-      `required: ["verdict", "title", "tags", "proposed_tags", "links", "people"]`,
+    expect(
+      snapshot.CLASSIFICATION_SCHEMA.properties.people.items.properties.role.enum,
+    ).toEqual(
+      CLASSIFICATION_SCHEMA.properties.people.items.properties.role.enum,
     );
-    expect(snapshot).toContain(`enum: ["subject", "mentioned", "recommender"]`);
-    expect(snapshot).toContain("people[] — who is named, and how");
+    expect(snapshot.SYSTEM_PROMPT).toContain("people[] — who is named, and how");
+    // The guidance keeps its inline code ticks — proof they survived escaping.
+    expect(snapshot.SYSTEM_PROMPT).toContain("`subject`");
   });
 });
 
