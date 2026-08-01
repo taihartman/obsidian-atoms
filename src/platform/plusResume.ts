@@ -7,15 +7,11 @@ import {
   clearAwaitingCheckout,
   isAwaitingCheckout,
   readPlusSession,
-  writePlusSession,
   type LocalStorageLike,
 } from "./filingAuth";
-import {
-  DEFAULT_PLUS_BASE_URL,
-  getEntitlement,
-  type PlusClientConfig,
-} from "./plusClient";
+import { DEFAULT_PLUS_BASE_URL, type PlusClientConfig } from "./plusClient";
 import { plusFetchRequest } from "./plusClient";
+import { refreshPlusEntitlementRecord } from "./plusRefresh";
 
 export type PlusResumeHost = {
   app: App & LocalStorageLike;
@@ -41,21 +37,15 @@ export async function refreshPlusSessionQuiet(
   }
   const base = host.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL;
   const cfg: PlusClientConfig = { baseUrl: base, request: plusFetchRequest };
-  const r = await getEntitlement(cfg, session.sessionToken);
-  if (!r.ok) return false;
-  const e = r.entitlement;
-  writePlusSession(host.app, {
-    ...session,
-    email: e.email || session.email,
-    status: e.status,
-    remaining: e.remaining,
-    periodEnd: e.periodEnd,
-    refreshedAt: Date.now(),
-  });
+  // Shared refresh: a failed or partial answer records the outcome for Settings
+  // and leaves the stored session alone.
+  const record = await refreshPlusEntitlementRecord(host.app, cfg, session);
+  if (record.kind !== "ok") return false;
+  const status = readPlusSession(host.app)?.status;
   if (
-    e.status === "active" ||
-    e.status === "trialing" ||
-    e.status === "exhausted"
+    status === "active" ||
+    status === "trialing" ||
+    status === "exhausted"
   ) {
     clearAwaitingCheckout(host.app);
     new Notice("Atoms Plus is ready", 6000);

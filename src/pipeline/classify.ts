@@ -1,5 +1,8 @@
 import { requestUrl } from "obsidian";
-import { plusFetchRequest } from "../platform/plusClient";
+import {
+  isSessionRejectedMessage,
+  plusFetchRequest,
+} from "../platform/plusClient";
 import type {
   ClassificationResult,
   ClassifyOutcome,
@@ -722,10 +725,13 @@ export async function classifyCapture(
         ? "API key rejected (401/403). Check the key in settings."
         : upstream.includes("upstream") || upstream.includes("model auth")
           ? "Plus service cannot reach Anthropic (managed API key invalid). Operator: fix ANTHROPIC_API_KEY on the Plus server."
-          : upstream.includes("invalid session") || upstream.includes("expired")
+          : isSessionRejectedMessage(plusErrorMessage)
             ? "Plus session rejected. Sign in again from Settings → Atoms Plus."
-            : plusErrorMessage?.trim() ||
-              "Plus session rejected. Sign in again from Settings → Atoms Plus.";
+            : // An explained refusal (entitlement required, …) is accurate as-is;
+              // an unexplained one (gateway, proxy, WAF) must not blame the
+              // session, which is probably fine.
+              plusErrorMessage?.trim() ||
+              `Atoms Plus refused this request (HTTP ${status}) for an unexpected reason. Nothing was filed — try again in a moment.`;
       deps.onAuthFailure?.(message);
       return { ok: false, reason: "auth", status, message };
     }

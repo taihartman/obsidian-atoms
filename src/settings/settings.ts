@@ -38,6 +38,12 @@ import {
   setAwaitingCheckout,
   writePlusSession,
 } from "../platform/filingAuth";
+import {
+  clearPlusRefreshRecord,
+  plusRefreshPresentation,
+  plusRefreshRowRecord,
+  refreshPlusEntitlementRecord,
+} from "../platform/plusRefresh";
 import { atomsPlusTopUpCopy } from "../home/atomsHomeData";
 import {
   DEFAULT_PLUS_BASE_URL,
@@ -45,7 +51,6 @@ import {
   startPlusAccount,
   createCheckout,
   createBillingPortal,
-  getEntitlement,
   signOutPlus,
   askMcpUrl,
   askMirrorStatus,
@@ -139,7 +144,8 @@ export class AtomsSettingTab extends PluginSettingTab {
   }
 
   /**
-   * Pull latest Plus entitlement into device session.
+   * Pull latest Plus entitlement into device session and record the outcome so
+   * the next `display()` can say what happened (the Notice alone was a no-op).
    * @returns true if session was updated from the service
    */
   private async refreshPlusEntitlement(opts?: {
@@ -152,25 +158,60 @@ export class AtomsSettingTab extends PluginSettingTab {
     }
     const base =
       this.plugin.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL;
-    const r = await getEntitlement(
+    const record = await refreshPlusEntitlementRecord(
+      this.app,
       { baseUrl: base, request: plusFetchRequest },
-      session.sessionToken,
+      session,
+    );
+    if (!opts?.quiet) new Notice(`Atoms Plus: ${record.message}`, 8000);
+    return record.kind === "ok";
+  }
+
+  /** Shared magic-link request — signed-out form and the expired-session row. */
+  private async sendPlusMagicLink(email: string): Promise<void> {
+    const base =
+      this.plugin.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL;
+    const r = await requestMagicLink(
+      { baseUrl: base, request: plusFetchRequest },
+      email,
     );
     if (!r.ok) {
-      if (!opts?.quiet) new Notice(`Atoms Plus: ${r.message}`);
-      return false;
+      new Notice(`Atoms Plus: ${r.message}`);
+      return;
     }
-    const e = r.entitlement;
-    writePlusSession(this.app, {
-      ...session,
-      email: e.email || session.email,
-      status: e.status,
-      remaining: e.remaining,
-      periodEnd: e.periodEnd,
-      refreshedAt: Date.now(),
-    });
-    if (!opts?.quiet) new Notice("Atoms Plus status refreshed");
-    return true;
+    new Notice(
+      "Check your email for a sign-in link. Then return here and tap Refresh status.",
+      10000,
+    );
+  }
+
+  /**
+   * Inline result of the last "Refresh status" press. Expired sessions get the
+   * sign-in link right here — no hunting for "Advanced: paste session".
+   */
+  private renderPlusRefreshOutcome(containerEl: HTMLElement): void {
+    const record = plusRefreshRowRecord(this.app);
+    if (!record) return;
+    const view = plusRefreshPresentation(record);
+    const setting = new Setting(containerEl)
+      .setName(view.title)
+      .setDesc(view.detail);
+    if (view.recovery === "magic-link" && record.email) {
+      const email = record.email;
+      setting.addButton((btn) =>
+        btn
+          .setButtonText("Send me a sign-in link")
+          .setCta()
+          .onClick(async () => {
+            btn.setDisabled(true);
+            try {
+              await this.sendPlusMagicLink(email);
+            } finally {
+              btn.setDisabled(false);
+            }
+          }),
+      );
+    }
   }
 
   private addRefreshStatusButton(
@@ -198,6 +239,7 @@ export class AtomsSettingTab extends PluginSettingTab {
    */
   private renderPlusSection(containerEl: HTMLElement) {
     settingHeading(containerEl, "Atoms Plus");
+    this.renderPlusRefreshOutcome(containerEl);
 
     const auth = this.plugin.resolveFilingAuth();
     const session = readPlusSession(this.app);
@@ -278,6 +320,7 @@ export class AtomsSettingTab extends PluginSettingTab {
         .addButton((btn) =>
           btn.setButtonText("Sign Out").onClick(() => {
             clearPlusSession(this.app);
+            clearPlusRefreshRecord(this.app);
             new Notice("Atoms Plus signed out on this device");
             this.redisplay();
           }),
@@ -343,6 +386,7 @@ export class AtomsSettingTab extends PluginSettingTab {
               );
             }
             clearPlusSession(this.app);
+            clearPlusRefreshRecord(this.app);
             new Notice("Atoms Plus signed out on this device");
             this.redisplay();
           }),
@@ -383,6 +427,7 @@ export class AtomsSettingTab extends PluginSettingTab {
         .addButton((btn) =>
           btn.setButtonText("Sign Out").onClick(() => {
             clearPlusSession(this.app);
+            clearPlusRefreshRecord(this.app);
             new Notice("Atoms Plus signed out on this device");
             this.redisplay();
           }),
@@ -471,20 +516,7 @@ export class AtomsSettingTab extends PluginSettingTab {
             new Notice("Enter a valid email first");
             return;
           }
-          const base =
-            this.plugin.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL;
-          const r = await requestMagicLink(
-            { baseUrl: base, request: plusFetchRequest },
-            email,
-          );
-          if (!r.ok) {
-            new Notice(`Atoms Plus: ${r.message}`);
-            return;
-          }
-          new Notice(
-            "Check your email for a sign-in link. Then return here and tap Refresh status.",
-            10000,
-          );
+          await this.sendPlusMagicLink(email);
         }),
       );
 
@@ -543,6 +575,8 @@ export class AtomsSettingTab extends PluginSettingTab {
                 typeof j.periodEnd === "string" ? j.periodEnd : undefined,
               refreshedAt: Date.now(),
             });
+            // Fresh session — the old "sign-in needed" row no longer applies.
+            clearPlusRefreshRecord(this.app);
             new Notice("Atoms Plus session saved on this device");
             this.redisplay();
           } catch (e) {
