@@ -149,7 +149,7 @@ Atom frontmatter: `created`, `source` (wikilink), `generated-by`, `tags`, plus q
 4. Auth split: `sess_` mutates mirror/outbox apply; `mcp_` read + outbox enqueue only.
 5. Wipe allowed on valid `sess_` even if not entitled (exit path); still nuclear (mirror + outbox + MCP tokens).
 6. Same code path desktop + iOS + Android — no desktop-only watcher.
-7. Mirror failures never fail Process/Update/outbox apply (except outbox ack waits for successful land+mirror of that item).
+7. Mirror failures never fail Process/Update/outbox apply — the entry survives: acked **only on a confirmed push**, since deferred/refused/failed are never confirmation, so the pass stops and the next one re-pulls it.
 8. Status line N = **server** count after last successful status/sync — never label local vault count as N (“Ask mirror: N”).
 
 **Anti-patterns:**

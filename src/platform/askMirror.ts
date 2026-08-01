@@ -650,6 +650,8 @@ export type AskMirrorSyncResult = {
   uploaded: number;
   deleted: number;
   refused: boolean;
+  /** Which threshold refused, so callers report the reason instead of "0 synced". */
+  refusalReason?: MirrorDeletionRefusal;
   failureMessage?: string;
 };
 
@@ -784,7 +786,12 @@ export async function runAskMirrorSync(
     // not stuck refusing forever.
     const st = await host.status();
     if (st.ok) save(LS_ASK_MIRROR_SERVER_COUNT, String(st.count));
-    return { uploaded, deleted: 0, refused: true };
+    return {
+      uploaded,
+      deleted: 0,
+      refused: true,
+      refusalReason: decision.reason,
+    };
   }
 
   // Delete hash-evidence missing paths (chunk 100). Delete-then-persist is

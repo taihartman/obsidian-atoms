@@ -63,6 +63,7 @@ import {
   LS_ASK_MIRROR_SERVER_COUNT,
   writeAskMirrorHashes,
 } from "../platform/askMirror";
+import { syncNowNotice } from "../plugin/catchUp";
 import type { ConfirmRequest, ConfirmVerdict } from "../shared/confirm";
 import { requestUrl } from "obsidian";
 import {
@@ -1182,13 +1183,15 @@ export class AtomsSettingTab extends PluginSettingTab {
       )
       .addButton((btn) =>
         btn.setButtonText("Sync now").setCta().onClick(async () => {
-          const n = await this.plugin.syncAskMirror({ force: true });
-          if (n < 0) return;
-          new Notice(
-            n === 0
-              ? "Ask mirror reconciled"
-              : `Ask mirror: uploaded ${n} atom(s)`,
-          );
+          const outcome = await this.plugin.syncAskMirror({ force: true });
+          // Four distinct outcomes. "joined" is not a zero-work success, and a
+          // refusal must never read as "reconciled" in the loudest channel the
+          // user is watching (R7). Failure is null here only because a forced
+          // push always toasts its own failure — it ignores the background
+          // dedupe flag precisely so this gesture is never silent.
+          const msg = syncNowNotice(outcome);
+          if (msg) new Notice(msg);
+          // Refresh either way so the status line reflects what just happened.
           this.redisplay();
         }),
       );

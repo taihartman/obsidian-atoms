@@ -21,6 +21,14 @@ import {
 } from "./inboxBootstrap";
 import { clampAtomFolder } from "../pipeline/render";
 import { registerAtomsCommands } from "./commands";
+import {
+  applyOutboxItemToVault,
+  runAskOutboxApply,
+  type AskOutboxHost,
+  type AskOutboxOutcome,
+  type MirrorSyncOutcome,
+  type OutboxVaultPort,
+} from "./catchUp";
 import { runOpenAtomGraph } from "../graph/openAtomGraph";
 
 /** Injected by esbuild: true in watch/dev, false in production Community builds. */
@@ -1098,133 +1106,89 @@ export default class AtomsPlugin extends Plugin {
    * Pull Ask outbox and create atoms under Atoms/ (best-effort).
    * Requires Ask mirror enabled + Allow filing ack.
    */
-  async applyAskOutbox(): Promise<{ landed: number; rejected: number }> {
-    const empty = { landed: 0, rejected: 0 };
+  async applyAskOutbox(): Promise<AskOutboxOutcome> {
+    const idle: AskOutboxOutcome = { kind: "worked", landed: 0, rejected: 0 };
     if (
       !this.settings.askEnabled ||
       !this.settings.askPrivacyAckAt ||
       !this.settings.askWriteAckAt
     ) {
-      return empty;
+      return idle;
     }
-    if (this.askOutboxInFlight) return empty;
-    this.askOutboxInFlight = true;
-    try {
-      const { readPlusSession } = await import("../platform/filingAuth");
-      const session = readPlusSession(this.app);
-      if (!session) return empty;
-      const {
-        DEFAULT_PLUS_BASE_URL,
-        askOutboxPull,
-        askOutboxAck,
-        plusFetchRequest,
-      } = await import("../platform/plusClient");
-      const { planAskOutboxApply } = await import("../platform/askOutbox");
-      const base = this.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL;
-      const cfg = { baseUrl: base, request: plusFetchRequest };
-      const folder = clampAtomFolder(this.settings.atomFolder);
-      let landed = 0;
-      let rejected = 0;
-      // One item per pull (P0)
-      for (let i = 0; i < 10; i++) {
-        const pull = await askOutboxPull(cfg, session.sessionToken, 1);
-        if (!pull.ok || pull.items.length === 0) break;
-        const item = pull.items[0]!;
-        const payload = item.payload;
-        if (!payload?.title || payload.body == null) {
-          await askOutboxAck(cfg, session.sessionToken, {
-            id: item.id,
-            status: "rejected",
-            error: "invalid_payload",
-          });
-          rejected++;
-          continue;
+    const host = await this.createAskOutboxHost();
+    if (!host) return idle;
+    return runAskOutboxApply(host);
+  }
+
+  /** Vault + Plus wiring for the outbox loop; null when there is no session. */
+  private async createAskOutboxHost(): Promise<AskOutboxHost | null> {
+    const { readPlusSession } = await import("../platform/filingAuth");
+    const session = readPlusSession(this.app);
+    if (!session) return null;
+    const {
+      DEFAULT_PLUS_BASE_URL,
+      askOutboxPull,
+      askOutboxAck,
+      plusFetchRequest,
+    } = await import("../platform/plusClient");
+    const base = this.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL;
+    const cfg = { baseUrl: base, request: plusFetchRequest };
+    const token = session.sessionToken;
+    const folder = clampAtomFolder(this.settings.atomFolder);
+    const vault: OutboxVaultPort = {
+      readIfExists: async (path) => {
+        const f = this.app.vault.getAbstractFileByPath(path);
+        return f instanceof TFile ? this.app.vault.read(f) : null;
+      },
+      ensureFolder: async (path) => {
+        if (!this.app.vault.getAbstractFileByPath(path)) {
+          await this.app.vault.createFolder(path);
         }
-        const { atomPathForTitle } = await import("../pipeline/render");
-        const pathGuess = atomPathForTitle(folder, payload.title);
-        const existingFile = this.app.vault.getAbstractFileByPath(pathGuess);
-        let existingContent: string | null = null;
-        if (existingFile instanceof TFile) {
-          existingContent = await this.app.vault.read(existingFile);
-        }
-        const payloadIn = {
-          title: payload.title,
-          body: String(payload.body),
-          tags: payload.tags,
-          links: payload.links,
-        };
-        let plan = planAskOutboxApply(payloadIn, folder, existingContent);
-        if (plan.action === "create") {
-          const parent = plan.path.includes("/")
-            ? plan.path.slice(0, plan.path.lastIndexOf("/"))
-            : folder;
-          if (parent && !this.app.vault.getAbstractFileByPath(parent)) {
-            await this.app.vault.createFolder(parent);
-          }
-          try {
-            await this.app.vault.create(plan.path, plan.content);
-          } catch {
-            const again = this.app.vault.getAbstractFileByPath(plan.path);
-            if (again instanceof TFile) {
-              const content = await this.app.vault.read(again);
-              plan = planAskOutboxApply(payloadIn, folder, content);
-            } else {
-              await askOutboxAck(cfg, session.sessionToken, {
-                id: item.id,
-                status: "rejected",
-                error: "create_failed",
-              });
-              rejected++;
-              continue;
-            }
-          }
-        }
-        if (plan.action === "reject") {
-          await askOutboxAck(cfg, session.sessionToken, {
-            id: item.id,
-            status: "rejected",
-            error: plan.reason,
-          });
-          rejected++;
-          continue;
-        }
-        // create or applied_idempotent → mirror then ack
-        const n = await this.syncAskMirror({ force: false });
-        if (n < 0) {
-          break;
-        }
-        await askOutboxAck(cfg, session.sessionToken, {
-          id: item.id,
-          status: "applied",
-        });
-        landed++;
-      }
-      if (landed > 0 || rejected > 0) {
-        const parts: string[] = [];
-        if (landed > 0) parts.push(`landed ${landed} atom(s)`);
-        if (rejected > 0) parts.push(`${rejected} write(s) rejected`);
-        new Notice(`Ask: ${parts.join(", ")}`);
+      },
+      create: (path, content) => this.app.vault.create(path, content).then(),
+    };
+
+    return {
+      beginPass: () => {
+        if (this.askOutboxInFlight) return false;
+        this.askOutboxInFlight = true;
+        return true;
+      },
+      endPass: () => {
+        this.askOutboxInFlight = false;
+      },
+      pullOne: async () => {
+        const pull = await askOutboxPull(cfg, token, 1);
+        if (!pull.ok || pull.items.length === 0) return null;
+        return pull.items[0]!;
+      },
+      ack: async (id, ack) => {
+        await askOutboxAck(cfg, token, { id, ...ack });
+      },
+      applyToVault: (payload) => applyOutboxItemToVault(vault, folder, payload),
+      syncMirror: () => this.syncAskMirror({ force: false }),
+      notice: (message) => new Notice(message),
+      onLanded: () => {
         void this.refreshAtomsHomeLeaves();
-      }
-      return { landed, rejected };
-    } finally {
-      this.askOutboxInFlight = false;
-    }
+      },
+    };
   }
 
   /**
-   * Push Atoms/ to Plus Ask mirror (best-effort). Returns atoms uploaded, or -1 on hard fail.
+   * Push Atoms/ to Plus Ask mirror (best-effort). Returns a four-way outcome —
+   * `joined` is not `worked` with a zero count, because nothing reached the
+   * cloud yet, and `refused` is not success (R7, R15).
    * force: full reconcile (keepPaths orphan delete). Never early-return before delete/reconcile.
    */
-  async syncAskMirror(opts?: { force?: boolean }): Promise<number> {
+  async syncAskMirror(opts?: { force?: boolean }): Promise<MirrorSyncOutcome> {
     if (!this.settings.askEnabled || !this.settings.askPrivacyAckAt) {
       if (opts?.force) new Notice("Enable Ask and acknowledge privacy first");
-      return -1;
+      return { kind: "failed", message: "Ask mirror is off" };
     }
     if (this.askMirrorInFlight) {
       this.askMirrorFollowUp = true;
       if (opts?.force) this.askMirrorForceFollowUp = true;
-      return 0;
+      return { kind: "joined" };
     }
     // Absorb pending debounce into this run (avoids Process + 2s double push).
     if (this.askMirrorDebounceTimer != null) {
@@ -1234,28 +1198,37 @@ export default class AtomsPlugin extends Plugin {
     this.askMirrorDirty = false;
     this.askMirrorInFlight = true;
     let uploaded = 0;
+    let deleted = 0;
     try {
       const force = Boolean(opts?.force);
       do {
         this.askMirrorFollowUp = false;
         const runForce = force || this.askMirrorForceFollowUp;
         this.askMirrorForceFollowUp = false;
-        const n = await this.runAskMirrorSyncOnce(runForce);
-        if (n < 0) return -1;
-        uploaded += n;
+        const once = await this.runAskMirrorSyncOnce(runForce);
+        if (once.kind === "failed") return once;
+        if (once.kind === "refused") {
+          // A refusal will refuse again this pass; surface it now rather than
+          // looping, and never as a zero-work success.
+          return { ...once, uploaded: uploaded + once.uploaded };
+        }
+        uploaded += once.uploaded;
+        deleted += once.deleted;
       } while (this.askMirrorFollowUp);
-      return uploaded;
+      return { kind: "worked", uploaded, deleted };
     } finally {
       this.askMirrorInFlight = false;
     }
   }
 
-  private async runAskMirrorSyncOnce(force: boolean): Promise<number> {
+  private async runAskMirrorSyncOnce(
+    force: boolean,
+  ): Promise<Exclude<MirrorSyncOutcome, { kind: "joined" }>> {
     const { readPlusSession } = await import("../platform/filingAuth");
     const session = readPlusSession(this.app);
     if (!session) {
       if (force) new Notice("Sign in to Atoms Plus first");
-      return -1;
+      return { kind: "failed", message: "Not signed in to Atoms Plus" };
     }
     const {
       DEFAULT_PLUS_BASE_URL,
@@ -1332,7 +1305,10 @@ export default class AtomsPlugin extends Plugin {
     if (result.uploaded < 0) {
       const msg = result.failureMessage ?? "";
       const snip = msg.replace(/\s+/g, " ").trim().slice(0, 72);
-      if (!this.askMirrorNoticeShown) {
+      // The dedupe flag exists to stop *background* passes from nagging after
+      // the first failure. It must never silence a push the user just asked
+      // for: "Sync now" is the one gesture that always reports its outcome.
+      if (force || !this.askMirrorNoticeShown) {
         this.askMirrorNoticeShown = true;
         new Notice(
           snip
@@ -1340,10 +1316,23 @@ export default class AtomsPlugin extends Plugin {
             : "Ask: last push failed · Sync now to retry",
         );
       }
-      return -1;
+      return { kind: "failed", ...(msg ? { message: msg } : {}) };
     }
     this.askMirrorNoticeShown = false;
-    return result.uploaded;
+    // The gate withheld deletion (U1). Dropping this here is what let the
+    // loudest channel — Settings' Sync now toast — say "reconciled".
+    if (result.refused) {
+      return {
+        kind: "refused",
+        uploaded: result.uploaded,
+        ...(result.refusalReason ? { reason: result.refusalReason } : {}),
+      };
+    }
+    return {
+      kind: "worked",
+      uploaded: result.uploaded,
+      deleted: result.deleted,
+    };
   }
 
   getApiKey(): string | null {
