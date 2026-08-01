@@ -54,6 +54,8 @@ import {
 } from "../platform/plusClient";
 import {
   formatAskMirrorRefusalLine,
+  mirrorRefusalTitle,
+  mirrorRefusalBody,
   formatAskMirrorServerCount,
   readAskMirrorRefusal,
   LS_ASK_MIRROR_HASHES,
@@ -1253,7 +1255,11 @@ export class AtomsSettingTab extends PluginSettingTab {
                       );
                       this.app.saveLocalStorage(LS_ASK_MIRROR_LAST_ERROR, "");
                       this.app.saveLocalStorage(LS_ASK_MIRROR_LAST_SUCCESS, "");
-                      this.app.saveLocalStorage(LS_ASK_MIRROR_SERVER_COUNT, "0");
+                      // Clear it, do not write "0". A stored zero used to read
+                      // as an authoritative "the cloud is empty", which
+                      // collapsed both arms of the deletion gate on the next
+                      // forced sync. Empty means unknown, which refuses.
+                      this.app.saveLocalStorage(LS_ASK_MIRROR_SERVER_COUNT, "");
                       this.app.saveLocalStorage(LS_ASK_MIRROR_HASHES, "{}");
                       this.app.saveLocalStorage(LS_ASK_MIRROR_REFUSAL, "");
                       this.app.saveLocalStorage(
@@ -1332,10 +1338,12 @@ export class AskMirrorDeleteConfirmModal extends Modal {
   onOpen() {
     const { contentEl } = this;
     contentEl.empty();
-    contentEl.createEl("h2", { text: "Vault scan looks incomplete" });
-    contentEl.createEl("p", {
-      text: "Atoms did not delete anything from your cloud mirror. This device found fewer atoms than it has synced before, which usually means the vault is still downloading.",
-    });
+    // The copy is per-reason. Hard-coding the scan-incomplete wording made the
+    // dialog lie on the other two: a first sync with no recorded cloud count
+    // has nothing to do with a shrinking scan, and the tripwire is about this
+    // vault holding far fewer atoms than the cloud.
+    contentEl.createEl("h2", { text: mirrorRefusalTitle(this.request.reason) });
+    contentEl.createEl("p", { text: mirrorRefusalBody(this.request.reason) });
     contentEl.createEl("p", {
       text: `Atoms this device has synced before: ${this.request.evidenceCount}`,
     });

@@ -8,10 +8,16 @@ import type { AskMirrorHost } from "../src/platform/askMirror";
 import {
   ASK_MIRROR_REFUSAL_ESCALATION_NOTICE,
   MIRROR_HIGHWATER_DECAY_DAYS,
+  clearAskMirrorDeviceState,
   formatAskMirrorRefusalLine,
+  mirrorRefusalBody,
+  mirrorRefusalTitle,
+  mirrorServerTripwireFloor,
   readAskMirrorRefusal,
+  readAskMirrorServerCount,
   readMirrorHighWater,
   LS_ASK_MIRROR_HASHES,
+  LS_ASK_MIRROR_REFUSAL,
   LS_ASK_MIRROR_SCAN_HIGHWATER,
   LS_ASK_MIRROR_SERVER_COUNT,
   runAskMirrorSync,
@@ -312,6 +318,12 @@ type FakeHostOpts = {
   deleteFailsAt?: number;
   /** What the server reports, independent of what this device has stored. */
   statusCount?: number;
+  /** `status()` is unreachable — the offline / captive-portal device. */
+  statusFails?: boolean;
+  /** The user opened the modal and walked away: no verdict, ever. */
+  confirmNeverAnswers?: boolean;
+  /** How long the gate waits on the modal before treating it as dismissed. */
+  confirmTimeoutMs?: number;
 };
 
 const NOW = Date.parse("2026-08-01T12:00:00Z");
@@ -344,6 +356,7 @@ function makeFakeHost(opts: FakeHostOpts) {
   const confirmRequests: ConfirmRequest[] = [];
   const notices: string[] = [];
   let deleteCalls = 0;
+  let statusCalls = 0;
 
   const host: AskMirrorHost = {
     async scanAtoms() {
@@ -387,14 +400,20 @@ function makeFakeHost(opts: FakeHostOpts) {
       return { ok: true };
     },
     async status() {
+      statusCalls++;
+      if (opts.statusFails) return { ok: false, message: "offline" };
       return { ok: true, count: opts.statusCount ?? serverCount ?? 0 };
     },
     async confirm(request) {
       confirmRequests.push(request);
+      if (opts.confirmNeverAnswers) return new Promise<ConfirmVerdict>(() => {});
       return opts.verdict ?? "dismissed";
     },
     notice: (m) => notices.push(m),
     now: () => opts.now ?? NOW,
+    ...(opts.confirmTimeoutMs != null
+      ? { confirmTimeoutMs: opts.confirmTimeoutMs }
+      : {}),
   };
 
   return {
@@ -404,6 +423,7 @@ function makeFakeHost(opts: FakeHostOpts) {
     reconciles,
     confirmRequests,
     notices,
+    statusCalls: () => statusCalls,
     setScanned: (n: number) => {
       scanned = n;
     },
@@ -480,6 +500,9 @@ describe("askMirror deletion gate (U1)", () => {
         evidenceCount: 10,
         scannedCount: 10,
         lastKnownServerCount: 400,
+        // The dialog must name which threshold refused: here the vault holds
+        // far fewer atoms than the cloud, not "fewer than we synced before".
+        reason: "server-count-tripwire",
       },
     ]);
   });
@@ -717,6 +740,7 @@ describe("askMirror deletion gate (U1)", () => {
         evidenceCount: 400,
         scannedCount: 3,
         lastKnownServerCount: 412,
+        reason: "scan-incomplete",
       },
     ]);
     expect(declined.reconciles).toEqual([]);
@@ -793,5 +817,226 @@ describe("askMirror deletion gate (U1)", () => {
     expect((await runAskMirrorSync(fresh.host, { force: true })).refused).toBe(
       true,
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Four-lens review — the fail-open paths that delete user data.
+// ---------------------------------------------------------------------------
+
+describe("askMirror gate — fail-open paths (review)", () => {
+  it("a stored server count of 0, negative, or fractional is not a known count", () => {
+    const read = (v: unknown) => readAskMirrorServerCount(() => v);
+    // A count is a cardinality of rows. Zero is what the Wipe button and a
+    // 2xx-with-no-body both write, and it silently zeroed *both* arms of the
+    // gate; a negative one made the tripwire `-0`, which nothing is below.
+    expect(read("0")).toBeNull();
+    expect(read("-1")).toBeNull();
+    expect(read("3.5")).toBeNull();
+    expect(read("not a number")).toBeNull();
+    expect(read("")).toBeNull();
+    expect(read(null)).toBeNull();
+    expect(read("400")).toBe(400);
+  });
+
+  it("the tripwire floor never returns -0, which no scan is below", () => {
+    expect(mirrorServerTripwireFloor(-1)).toBe(0);
+    expect(mirrorServerTripwireFloor(400)).toBe(320);
+  });
+
+  it('a stored server count of "0" cannot collapse both arms of the gate', async () => {
+    // The Wipe button wrote "0" literally while clearing hashes and the mark,
+    // so every threshold in the gate evaluated to 0 and a half-synced vault
+    // reconciled the cloud away with no modal at all.
+    const f = makeFakeHost({
+      evidence: 0,
+      scanned: 3,
+      serverCount: 0,
+      statusCount: 400,
+      verdict: "dismissed",
+    });
+    const r = await runAskMirrorSync(f.host, { force: true });
+    expect(f.reconciles).toEqual([]);
+    expect(f.deleted.length).toBe(0);
+    expect(r.refused).toBe(true);
+  });
+
+  it("clearing device state leaves no count behind that reads as authoritative", () => {
+    const store: Record<string, string> = {};
+    clearAskMirrorDeviceState((k, v) => {
+      store[k] = v;
+    });
+    expect(readAskMirrorServerCount((k) => store[k])).toBeNull();
+    expect(readAskMirrorRefusal((k) => store[k])).toEqual({
+      count: 0,
+      noticed: false,
+    });
+    expect(store[LS_ASK_MIRROR_HASHES]).toBe("{}");
+    expect(store[LS_ASK_MIRROR_SCAN_HIGHWATER]).toBe("");
+    expect(store[LS_ASK_MIRROR_REFUSAL]).toBe("");
+  });
+
+  it("the modal decides against a fresh server count, never the stale one", async () => {
+    // This device last synced when the cloud held 5 rows. Another device has
+    // since pushed 395 more. Deciding — and asking — against the stored 5 lets
+    // the user read "5 rows, I have 3, fine" and authorise 397 hard deletes.
+    const f = makeFakeHost({
+      evidence: 5,
+      scanned: 3,
+      serverCount: 5,
+      highWater: { count: 5, setAt: new Date(NOW).toISOString() },
+      statusCount: 400,
+      verdict: "declined",
+    });
+    const r = await runAskMirrorSync(f.host, { force: true });
+    expect(f.confirmRequests).toHaveLength(1);
+    expect(f.confirmRequests[0]!.lastKnownServerCount).toBe(400);
+    expect(r.refused).toBe(true);
+    expect(f.reconciles).toEqual([]);
+  });
+
+  it("a status() that cannot be reached fails closed without asking", async () => {
+    // Never fall back to the stale value, and never pose an irreversible
+    // question the answer to which cannot be informed.
+    const f = makeFakeHost({
+      evidence: 400,
+      scanned: 3,
+      serverCount: 400,
+      statusFails: true,
+      verdict: "confirmed",
+    });
+    const r = await runAskMirrorSync(f.host, { force: true });
+    expect(f.confirmRequests).toEqual([]);
+    expect(f.reconciles).toEqual([]);
+    expect(r.refused).toBe(true);
+    expect(r.refusalReason).toBe("no-server-count");
+  });
+
+  it("a corrupt high-water mark fails closed instead of disabling the ratchet", async () => {
+    // Losing the mark drops the baseline to the already-shrunken evidence, so
+    // each pass re-bases on the last one and the ratchet the test above proves
+    // simply stops existing.
+    const f = makeFakeHost({ evidence: 400, scanned: 350, serverCount: 400 });
+    f.store[LS_ASK_MIRROR_SCAN_HIGHWATER] = "{not json";
+    const r = await runAskMirrorSync(f.host, { force: false });
+    expect(r.refused).toBe(true);
+    expect(r.refusalReason).toBe("baseline-unreadable");
+    expect(f.deleted.length).toBe(0);
+  });
+
+  it("an absent high-water mark is still absence, not corruption", async () => {
+    const f = makeFakeHost({
+      evidence: 400,
+      scanned: 350,
+      serverCount: 400,
+      highWater: null,
+    });
+    const r = await runAskMirrorSync(f.host, { force: false });
+    expect(r.refused).toBe(false);
+    expect(r.deleted).toBe(50);
+  });
+});
+
+describe("askMirror confirmation (review)", () => {
+  it("the request names which threshold refused", async () => {
+    const f = makeFakeHost({
+      evidence: 0,
+      scanned: 10,
+      serverCount: null,
+      statusCount: 400,
+      verdict: "declined",
+    });
+    await runAskMirrorSync(f.host, { force: true });
+    expect(f.confirmRequests[0]!.reason).toBe("server-count-tripwire");
+  });
+
+  it("the modal's copy is true for every refusal reason", () => {
+    // The dialog authorising an irreversible delete hard-coded "vault scan
+    // looks incomplete" for all three reasons — untrue for two of them.
+    expect(mirrorRefusalTitle("scan-incomplete")).toMatch(/scan/i);
+    expect(mirrorRefusalBody("scan-incomplete")).toMatch(/fewer atoms than/i);
+
+    expect(mirrorRefusalTitle("no-server-count")).not.toMatch(/scan/i);
+    expect(mirrorRefusalBody("no-server-count")).toMatch(/cloud count/i);
+    expect(mirrorRefusalBody("no-server-count")).not.toMatch(/synced before/i);
+
+    expect(mirrorRefusalTitle("server-count-tripwire")).not.toMatch(/scan/i);
+    expect(mirrorRefusalBody("server-count-tripwire")).toMatch(
+      /far fewer atoms than the cloud/i,
+    );
+
+    expect(mirrorRefusalBody("baseline-unreadable")).toMatch(/baseline/i);
+  });
+
+  it("a first forced sync against an empty cloud raises no delete modal", async () => {
+    // Enable Ask, tap "Sync now" before any background pass stored a count.
+    // Nothing can be deleted from an empty cloud, so an irreversible-delete
+    // dialog plus a red refusal banner is pure misinformation.
+    const f = makeFakeHost({
+      evidence: 0,
+      scanned: 50,
+      serverCount: null,
+      statusCount: 0,
+      verdict: "dismissed",
+    });
+    const r = await runAskMirrorSync(f.host, { force: true });
+    expect(f.confirmRequests).toEqual([]);
+    expect(r.refused).toBe(false);
+    expect(f.reconciles).toHaveLength(1);
+    expect(f.reconciles[0]!.keepPaths).toHaveLength(50);
+  });
+
+  it(
+    "a modal left open does not park the sync forever",
+    async () => {
+      // Backgrounding the app on mobile is the ordinary case. Awaiting a
+      // verdict that never comes holds the single-flight lock for the app's
+      // lifetime: every later sync returns `joined`, every Ask write stalls.
+      const f = makeFakeHost({
+        evidence: 400,
+        scanned: 3,
+        serverCount: 400,
+        confirmNeverAnswers: true,
+        confirmTimeoutMs: 5,
+      });
+      const r = await runAskMirrorSync(f.host, { force: true });
+      expect(r.refused).toBe(true);
+      expect(f.reconciles).toEqual([]);
+      expect(f.deleted.length).toBe(0);
+    },
+    2000,
+  );
+
+  it("two devices reconciling in the same millisecond do not share a session", async () => {
+    // The server keys staging sets per account, not per device: a collision
+    // lets whichever commits first delete what the other had not yet staged.
+    const opts = { evidence: 600, scanned: 600, serverCount: 600, now: NOW };
+    const a = makeFakeHost(opts);
+    const b = makeFakeHost(opts);
+    await runAskMirrorSync(a.host, { force: true });
+    await runAskMirrorSync(b.host, { force: true });
+    const idA = a.reconciles[0]!.reconcileSessionId!;
+    const idB = b.reconciles[0]!.reconcileSessionId!;
+    expect(idA).not.toBe(idB);
+    expect(idA.length).toBeLessThanOrEqual(80);
+    // Still one session across the chunks of a single run.
+    expect(a.reconciles[1]!.reconcileSessionId).toBe(idA);
+  });
+
+  it("a pass that proves nothing does not reset the refusal streak", async () => {
+    const f = makeFakeHost({
+      evidence: 400,
+      scanned: 3,
+      serverCount: 400,
+      highWater: { count: 400, setAt: new Date(NOW).toISOString() },
+    });
+    await runAskMirrorSync(f.host, { force: false });
+    await runAskMirrorSync(f.host, { force: false });
+    expect(readAskMirrorRefusal((k) => f.store[k]).count).toBe(2);
+    // Evidence gone, so this pass plans no deletes and never consults the
+    // gate. It is still the same 3-of-400 vault; it has cleared nothing.
+    f.store[LS_ASK_MIRROR_HASHES] = "{}";
+    await runAskMirrorSync(f.host, { force: false });
+    expect(readAskMirrorRefusal((k) => f.store[k]).count).toBe(2);
   });
 });

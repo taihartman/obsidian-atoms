@@ -11,6 +11,18 @@
 
 export type ConfirmVerdict = "confirmed" | "declined" | "dismissed";
 
+/**
+ * Which threshold withheld the deletion. Declared here rather than in
+ * `platform/askMirror.ts` because the confirmation contract carries it: the
+ * dialog authorising an irreversible delete has to state the true reason, and
+ * `shared/` is the one place both sides may import from.
+ */
+export type MirrorDeletionRefusal =
+  | "scan-incomplete"
+  | "no-server-count"
+  | "server-count-tripwire"
+  | "baseline-unreadable";
+
 /** Ask mirror deletion — the concrete counts the modal must name. */
 export type ConfirmRequest = {
   kind: "ask-mirror-deletion";
@@ -18,8 +30,14 @@ export type ConfirmRequest = {
   evidenceCount: number;
   /** Paths the vault scan just found. */
   scannedCount: number;
-  /** Last known server row count, or null when this device never saw one. */
+  /**
+   * Server row count as of *this* pass — refreshed immediately before the ask,
+   * never the stored value, which on the at-risk device is old by definition.
+   * Null only when the count could not be established at all.
+   */
   lastKnownServerCount: number | null;
+  /** Why the gate refused, so the copy can be true rather than generic. */
+  reason: MirrorDeletionRefusal;
 };
 
 export interface ConfirmHost {

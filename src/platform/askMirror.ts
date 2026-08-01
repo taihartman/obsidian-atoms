@@ -7,7 +7,10 @@ import type {
   ConfirmRequest,
   ConfirmVerdict,
   DeletionConfirmation,
+  MirrorDeletionRefusal,
 } from "../shared/confirm";
+
+export type { MirrorDeletionRefusal };
 
 /** Device-local (not data.json) — multi-device safe evidence map. */
 export const LS_ASK_MIRROR_HASHES = "atoms-ask-mirror-hashes-v1";
@@ -15,9 +18,10 @@ export const LS_ASK_MIRROR_LAST_SUCCESS = "atoms-ask-mirror-last-success-v1";
 export const LS_ASK_MIRROR_LAST_ERROR = "atoms-ask-mirror-last-error-v1";
 export const LS_ASK_MIRROR_SERVER_COUNT = "atoms-ask-mirror-server-count-v1";
 /** Pre-shrinkage baseline for the completeness floor — device-local only. */
-export const LS_ASK_MIRROR_SCAN_HIGHWATER = "atoms-mirror-scan-highwater-v1";
+export const LS_ASK_MIRROR_SCAN_HIGHWATER =
+  "atoms-ask-mirror-scan-highwater-v1";
 /** Consecutive refused passes + whether the escalation Notice already fired. */
-export const LS_ASK_MIRROR_REFUSAL = "atoms-mirror-refusal-v1";
+export const LS_ASK_MIRROR_REFUSAL = "atoms-ask-mirror-refusal-v1";
 
 /**
  * The retired `data.json` field. Still present in every already-synced
@@ -409,6 +413,16 @@ export const MIRROR_HIGHWATER_DECAY_DAYS = 30;
 /** Consecutive refused passes before the single escalation Notice. */
 export const MIRROR_REFUSAL_ESCALATION_PASSES = 3;
 
+/**
+ * How long the deletion dialog may go unanswered before it reads as
+ * `dismissed`. It is awaited holding the single-flight lock, so a modal left
+ * open — backgrounding the app on mobile is the ordinary way that happens —
+ * would otherwise park every later sync as `joined` for the app's lifetime.
+ * Long enough that a user actually reading it is not cut off; short enough
+ * that a forgotten dialog does not wedge the device.
+ */
+export const MIRROR_CONFIRM_TIMEOUT_MS = 2 * 60_000;
+
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 export const ASK_MIRROR_REFUSAL_ESCALATION_NOTICE =
@@ -452,7 +466,12 @@ export function mirrorCompletenessFloor(
  * *allows* deletes. A reconcile must clear both thresholds.
  */
 export function mirrorServerTripwireFloor(lastKnownServerCount: number): number {
-  return Math.ceil(lastKnownServerCount * MIRROR_COMPLETENESS_FLOOR_RATIO);
+  // `Math.max(0, …)` is not cosmetic: `Math.ceil(-1 × 0.8)` is `-0`, and no
+  // scan is ever `< -0`, so a stray negative silently disabled the tripwire.
+  return Math.max(
+    0,
+    Math.ceil(lastKnownServerCount * MIRROR_COMPLETENESS_FLOOR_RATIO),
+  );
 }
 
 export type MirrorScanHighWater = {
@@ -461,26 +480,61 @@ export type MirrorScanHighWater = {
   lastRefusalAt?: string;
 };
 
-export function readMirrorHighWater(
+/**
+ * Absence and corruption are different facts and must not collapse.
+ *
+ * *Absent* is the honest state of a device that has never refused: the baseline
+ * falls back to this device's evidence, which is correct. *Present but
+ * unparseable* is a tampered or truncated mark, and reading it as absence
+ * silently drops the ratchet's baseline to the already-shrunken evidence — so
+ * each pass re-bases on the last one and a staged 400 → 350 → 330 → 300 walk
+ * that the ratchet is built to refuse proceeds instead.
+ */
+export type MirrorHighWaterRead =
+  | { state: "absent" }
+  | { state: "corrupt" }
+  | { state: "ok"; mark: MirrorScanHighWater };
+
+export function readMirrorHighWaterState(
   load: (k: string) => unknown,
-): MirrorScanHighWater | null {
+): MirrorHighWaterRead {
   const raw = load(LS_ASK_MIRROR_SCAN_HIGHWATER);
-  if (!raw || typeof raw !== "string" || !raw.trim()) return null;
+  if (raw == null || typeof raw !== "string" || !raw.trim()) {
+    return { state: "absent" };
+  }
+  let o: Partial<MirrorScanHighWater> | null;
   try {
-    const o = JSON.parse(raw) as Partial<MirrorScanHighWater>;
-    if (!o || typeof o.count !== "number" || !Number.isFinite(o.count)) {
-      return null;
-    }
-    return {
+    o = JSON.parse(raw) as Partial<MirrorScanHighWater>;
+  } catch {
+    return { state: "corrupt" };
+  }
+  if (
+    !o ||
+    typeof o !== "object" ||
+    typeof o.count !== "number" ||
+    !Number.isFinite(o.count) ||
+    o.count < 0
+  ) {
+    return { state: "corrupt" };
+  }
+  return {
+    state: "ok",
+    mark: {
       count: o.count,
       setAt: typeof o.setAt === "string" ? o.setAt : "",
       ...(typeof o.lastRefusalAt === "string"
         ? { lastRefusalAt: o.lastRefusalAt }
         : {}),
-    };
-  } catch {
-    return null;
-  }
+    },
+  };
+}
+
+/** The mark when it reads cleanly; null for both absent and corrupt. */
+export function readMirrorHighWater(
+  load: (k: string) => unknown,
+): MirrorScanHighWater | null {
+  const read = readMirrorHighWaterState(load);
+  return read.state === "ok" ? read.mark : null;
 }
 
 export function writeMirrorHighWater(
@@ -506,6 +560,17 @@ export function effectiveHighWaterCount(
   return hw.count;
 }
 
+/**
+ * The stored server count, or null when this device has no *usable* one.
+ *
+ * A count is a cardinality of rows, so only a positive integer is one. `0` and
+ * negatives are rejected for the same reason an unparseable value is: they are
+ * not evidence of anything, and admitting them fails open on both arms of the
+ * gate at once — `0` makes `lastKnownServerCount == null` false while
+ * `mirrorServerTripwireFloor(0)` is 0, so nothing refuses and no modal opens.
+ * Neither value is hypothetical: the Wipe button used to store `"0"` literally,
+ * and any 2xx with no numeric `count` used to be coerced to it.
+ */
 export function readAskMirrorServerCount(
   load: (k: string) => unknown,
 ): number | null {
@@ -513,7 +578,7 @@ export function readAskMirrorServerCount(
   const s = raw == null ? "" : String(raw).trim();
   if (!s) return null;
   const n = Number(s);
-  return Number.isFinite(n) ? n : null;
+  return Number.isInteger(n) && n > 0 ? n : null;
 }
 
 /**
@@ -527,6 +592,58 @@ export function formatAskMirrorServerCount(
 ): string {
   const raw = load(LS_ASK_MIRROR_SERVER_COUNT);
   return raw != null && String(raw).trim() !== "" ? String(raw) : "—";
+}
+
+/**
+ * Every device-local Ask key back to its "this device knows nothing" state.
+ * Owned here rather than inline in the Wipe button so the reset and the readers
+ * cannot drift: a wipe that leaves a *parseable* count behind hands the gate a
+ * fabricated authority for the cloud it just emptied.
+ */
+export function clearAskMirrorDeviceState(
+  save: (k: string, v: string) => void,
+): void {
+  save(LS_ASK_MIRROR_HASHES, "{}");
+  save(LS_ASK_MIRROR_LAST_ERROR, "");
+  save(LS_ASK_MIRROR_LAST_SUCCESS, "");
+  // Cleared, not zeroed. A wipe empties the cloud, so this device knows
+  // nothing about the row count — and "0" is a *claim*, not an absence.
+  save(LS_ASK_MIRROR_SERVER_COUNT, "");
+  save(LS_ASK_MIRROR_REFUSAL, "");
+  save(LS_ASK_MIRROR_SCAN_HIGHWATER, "");
+}
+
+/**
+ * Modal heading for a refusal. The dialog authorising an irreversible delete
+ * hard-coded "Vault scan looks incomplete" for every reason, which is simply
+ * untrue for two of the four.
+ */
+export function mirrorRefusalTitle(reason?: MirrorDeletionRefusal): string {
+  switch (reason) {
+    case "no-server-count":
+      return "Cloud count unknown";
+    case "server-count-tripwire":
+      return "Fewer atoms here than in the cloud";
+    case "baseline-unreadable":
+      return "Sync baseline unreadable";
+    default:
+      return "Vault scan looks incomplete";
+  }
+}
+
+/** Modal explanation for a refusal — the paragraph under the heading. */
+export function mirrorRefusalBody(reason?: MirrorDeletionRefusal): string {
+  const kept = "Atoms did not delete anything from your cloud mirror.";
+  switch (reason) {
+    case "no-server-count":
+      return `${kept} This device has never seen the cloud count, so it cannot tell how much a delete would remove.`;
+    case "server-count-tripwire":
+      return `${kept} This vault holds far fewer atoms than the cloud does, which usually means the vault is still downloading.`;
+    case "baseline-unreadable":
+      return `${kept} This device's sync baseline is unreadable, so it cannot tell whether the vault has finished downloading.`;
+    default:
+      return `${kept} This device found fewer atoms than it has synced before, which usually means the vault is still downloading.`;
+  }
 }
 
 export type MirrorRefusalState = { count: number; noticed: boolean };
@@ -556,11 +673,6 @@ function writeAskMirrorRefusal(
   save(LS_ASK_MIRROR_REFUSAL, JSON.stringify(state));
 }
 
-export type MirrorDeletionRefusal =
-  | "scan-incomplete"
-  | "no-server-count"
-  | "server-count-tripwire";
-
 export type MirrorDeletionDecision =
   | { allowed: true }
   /** `floor` is the threshold this pass failed to clear, per `reason`. */
@@ -587,6 +699,8 @@ export function decideMirrorDeletion(input: {
   lastKnownServerCount: number | null;
   /** True for the forced full-keepPaths reconcile, false for delta deletes. */
   reconcile?: boolean;
+  /** The stored mark is present but unreadable — the ratchet has no baseline. */
+  highWaterCorrupt?: boolean;
   confirmation?: DeletionConfirmation | null;
 }): MirrorDeletionDecision {
   const floor = mirrorCompletenessFloor(
@@ -594,6 +708,11 @@ export function decideMirrorDeletion(input: {
     input.highWaterCount,
   );
   if (input.confirmation) return { allowed: true };
+  if (input.highWaterCorrupt) {
+    // The baseline every other threshold is measured against is gone. Nothing
+    // below can be trusted, so refuse before consulting any of it.
+    return { allowed: false, reason: "baseline-unreadable", floor };
+  }
   if (input.lastKnownServerCount == null) {
     return { allowed: false, reason: "no-server-count", floor };
   }
@@ -656,6 +775,8 @@ export type AskMirrorHost = {
   /** Transient user-facing message (escalation only). */
   notice(message: string): void;
   now?(): number;
+  /** Override for `MIRROR_CONFIRM_TIMEOUT_MS` (tests). */
+  confirmTimeoutMs?: number;
 };
 
 /**
@@ -688,53 +809,113 @@ export type AskMirrorSyncResult =
  */
 async function resolveMirrorDeletionGate(
   host: AskMirrorHost,
+  save: (k: string, v: string) => void,
   args: {
     scannedCount: number;
     evidenceCount: number;
     highWaterCount: number;
+    highWaterCorrupt: boolean;
     lastKnownServerCount: number | null;
     force: boolean;
   },
 ): Promise<{
   decision: MirrorDeletionDecision;
   confirmation: DeletionConfirmation | null;
+  /** True once `status()` ran here, so the caller does not ask twice. */
+  serverCountRefreshed: boolean;
 }> {
-  const { scannedCount, evidenceCount, highWaterCount, lastKnownServerCount } =
+  const { scannedCount, evidenceCount, highWaterCount, highWaterCorrupt } =
     args;
   const force = args.force;
-  let confirmation: DeletionConfirmation | null = null;
-  let decision = decideMirrorDeletion({
-    scannedCount,
-    evidenceCount,
-    highWaterCount,
-    lastKnownServerCount,
-    reconcile: force,
-  });
+  let serverCount = args.lastKnownServerCount;
+  const judge = (confirmation?: DeletionConfirmation) =>
+    decideMirrorDeletion({
+      scannedCount,
+      evidenceCount,
+      highWaterCount,
+      highWaterCorrupt,
+      lastKnownServerCount: serverCount,
+      reconcile: force,
+      ...(confirmation ? { confirmation } : {}),
+    });
+
+  let decision = judge();
+  if (decision.allowed || !force) {
+    return { decision, confirmation: null, serverCountRefreshed: false };
+  }
+
+  // A forced pass is about to ask the user to authorise an irreversible
+  // delete, so the number it decides — and the number the dialog shows — must
+  // be *this moment's* server count. The stored one is old by definition on
+  // exactly the device at risk: it was written when this device last synced,
+  // and another device pushing 395 atoms since is invisible to it.
+  const st = await host.status();
+  // A fresh `0` is authoritative — the cloud really is empty, and nothing can
+  // be deleted from it. Only a *stored* `0` is untrustworthy (it is what a
+  // wipe and a bodyless 2xx both used to leave behind). Anything that is not a
+  // whole non-negative count is not a count at all.
+  if (!st.ok || !Number.isInteger(st.count) || st.count < 0) {
+    // Fail closed. Never fall back to the stale value, and never pose an
+    // irreversible question whose answer cannot be informed.
+    return {
+      decision: {
+        allowed: false,
+        reason: "no-server-count",
+        floor: mirrorCompletenessFloor(evidenceCount, highWaterCount),
+      },
+      confirmation: null,
+      serverCountRefreshed: false,
+    };
+  }
+  save(LS_ASK_MIRROR_SERVER_COUNT, String(st.count));
+  serverCount = st.count;
+  decision = judge();
+  // The fresh count can also *clear* the gate — a first sync against an empty
+  // cloud has nothing to delete, and a delete dialog there is misinformation.
+  if (decision.allowed) {
+    return { decision, confirmation: null, serverCountRefreshed: true };
+  }
+
   // The refusal's release valve: an explicit gesture the user is already
   // attending to ("Sync now"), never a silent delta pass.
-  if (!decision.allowed && force) {
-    const verdict = await host.confirm({
-      kind: "ask-mirror-deletion",
-      evidenceCount,
-      scannedCount,
-      lastKnownServerCount,
-    });
-    if (verdict === "confirmed") {
-      confirmation = mintDeletionConfirmation({
-        scannedCount,
-        evidenceCount,
-      });
-      decision = decideMirrorDeletion({
-        scannedCount,
-        evidenceCount,
-        highWaterCount,
-        lastKnownServerCount,
-        reconcile: force,
-        confirmation,
-      });
-    }
+  const verdict = await confirmWithTimeout(host, {
+    kind: "ask-mirror-deletion",
+    evidenceCount,
+    scannedCount,
+    lastKnownServerCount: serverCount,
+    reason: decision.reason,
+  });
+  let confirmation: DeletionConfirmation | null = null;
+  if (verdict === "confirmed") {
+    confirmation = mintDeletionConfirmation({ scannedCount, evidenceCount });
+    decision = judge(confirmation);
   }
-  return { decision, confirmation };
+  return { decision, confirmation, serverCountRefreshed: true };
+}
+
+/**
+ * Ask, but never wait forever. Backgrounding the app on mobile with the modal
+ * open resolves no branch, and the gate is awaited holding the single-flight
+ * lock — so an unanswered dialog parks every later sync as `joined` and stalls
+ * every queued Ask write for the app's lifetime. Timing out reads as
+ * `dismissed`, which already means leave the mirror untouched.
+ */
+async function confirmWithTimeout(
+  host: AskMirrorHost,
+  request: ConfirmRequest,
+): Promise<ConfirmVerdict> {
+  const ms = host.confirmTimeoutMs ?? MIRROR_CONFIRM_TIMEOUT_MS;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      host.confirm(request),
+      new Promise<ConfirmVerdict>((resolve) => {
+        timer = setTimeout(() => resolve("dismissed"), ms);
+      }),
+    ]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
 }
 
 /**
@@ -750,7 +931,13 @@ async function applyMirrorReconcile(
   if (keepPaths.length <= 500) {
     return host.reconcile({ keepPaths, done: true, confirmEmpty });
   }
-  const sid = `rec-${host.now?.() ?? Date.now()}`;
+  // The server keys staging sessions per *account*, not per device, and a bare
+  // millisecond collides: two of the user's own devices starting a chunked
+  // reconcile in the same tick share one staging set, and whichever commits
+  // first deletes what the other had not yet staged. The suffix stays well
+  // inside the server's 80-char slice.
+  const rand = Math.random().toString(36).slice(2, 10);
+  const sid = `rec-${host.now?.() ?? Date.now()}-${rand}`;
   for (let i = 0; i < keepPaths.length; i += 500) {
     const chunk = keepPaths.slice(i, i + 500);
     const last = i + 500 >= keepPaths.length;
@@ -832,22 +1019,34 @@ export async function runAskMirrorSync(
   const scannedCount = vaultPaths.size;
   const evidenceCount = Object.keys(hashSnapshot).length;
   const nowMs = host.now?.() ?? Date.now();
-  const highWater = readMirrorHighWater(load);
+  // Absent and corrupt are different facts. Absent means this device has no
+  // prior mark, so the evidence count is the honest baseline. Corrupt means a
+  // mark exists and cannot be read — losing it silently re-bases the floor on
+  // an already-shrunken scan, which is exactly how the ratchet gets defeated.
+  const highWaterRead = readMirrorHighWaterState(load);
+  const highWater = highWaterRead.state === "ok" ? highWaterRead.mark : null;
+  const highWaterCorrupt = highWaterRead.state === "corrupt";
   const highWaterCount = effectiveHighWaterCount(highWater, nowMs);
   const lastKnownServerCount = readAskMirrorServerCount(load);
 
-  const { decision, confirmation } =
-    deletePaths.length > 0 || force
-      ? await resolveMirrorDeletionGate(host, {
+  // Whether the gate actually judged anything. A pass with nothing to delete
+  // and no force proves the vault is complete no more than it proves the
+  // opposite — it simply never asked.
+  const gateEvaluated = deletePaths.length > 0 || force;
+
+  const { decision, confirmation, serverCountRefreshed } = gateEvaluated
+    ? await resolveMirrorDeletionGate(host, save, {
           scannedCount,
           evidenceCount,
           highWaterCount,
+          highWaterCorrupt,
           lastKnownServerCount,
           force,
         })
       : {
           decision: { allowed: true } as MirrorDeletionDecision,
           confirmation: null as DeletionConfirmation | null,
+          serverCountRefreshed: false,
         };
 
   if (!decision.allowed) {
@@ -871,9 +1070,12 @@ export async function runAskMirrorSync(
       });
     }
     // Still refresh the server count so a device whose first sync failed is
-    // not stuck refusing forever.
-    const st = await host.status();
-    if (st.ok) save(LS_ASK_MIRROR_SERVER_COUNT, String(st.count));
+    // not stuck refusing forever — unless the gate already refreshed it just
+    // now to decide, in which case asking again is a wasted round trip.
+    if (!serverCountRefreshed) {
+      const st = await host.status();
+      if (st.ok) save(LS_ASK_MIRROR_SERVER_COUNT, String(st.count));
+    }
     return {
       kind: "ok",
       uploaded,
@@ -916,7 +1118,18 @@ export async function runAskMirrorSync(
   // Success: clear error + refresh server count. Only stamp "last pushed"
   // when this run mutated the mirror (or user forced Sync now).
   save(LS_ASK_MIRROR_LAST_ERROR, "");
-  writeAskMirrorRefusal(save, { count: 0, noticed: false });
+  // Clear on a pass that *passes the floor*, which is a statement about scan
+  // completeness — not about whether this pass happened to have deletes. Two
+  // ways to get this wrong, and both bite:
+  //   - reset unconditionally, and an incomplete-scan pass with nothing to
+  //     delete silently retracts the escalation notice while the vault is
+  //     still missing atoms;
+  //   - reset only when the gate ran, and a user who never deleted anything
+  //     stays wedged forever — once their vault finishes syncing there are no
+  //     deletes to plan, so the gate stops being consulted at all.
+  if (scannedCount >= mirrorCompletenessFloor(evidenceCount, highWaterCount)) {
+    writeAskMirrorRefusal(save, { count: 0, noticed: false });
+  }
   // The mark tracks the pre-shrinkage baseline: raised by any complete pass,
   // lowered only by an explicitly confirmed reconcile (or by decay above).
   writeMirrorHighWater(save, {

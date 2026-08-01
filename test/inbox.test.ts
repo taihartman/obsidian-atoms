@@ -1529,6 +1529,34 @@ describe("drainInbox", () => {
     expect(after.every((c) => c.filed)).toBe(true);
   });
 
+  it("verifies one bullet per identical capture, not merely its existence (R9)", async () => {
+    // Both bullets are written, then a Sync merge drops one of them. An
+    // existence test lets the surviving bullet satisfy *both* captures: two
+    // markers, one capture gone forever — precisely the loss verification
+    // exists to catch. Counting keeps the other one pending for the next pass.
+    const h = drainHarness(
+      [
+        "- 2026-07-27T09:14:03-04:00 same text",
+        "- 2026-07-27T09:14:03-04:00 same text",
+        "",
+      ].join("\n"),
+      {
+        onModify: (path, sync) => {
+          if (path.endsWith("2026-07-27.md")) {
+            sync.setDaily("2026-07-27", "- 09:14:03 same text\n");
+          }
+        },
+      },
+    );
+
+    const r = await drainInbox(h.app, { ensureDaily: h.ensureDaily });
+
+    expect(r.filed).toBe(1);
+    expect(r.pending).toBe(1);
+    const after = parseInboxCaptures(h.inboxContent());
+    expect(after.filter((c) => c.filed)).toHaveLength(1);
+  });
+
   it("pairs each same-key stampless duplicate with its own day (T3)", async () => {
     // Two stampless `ping` captures share a capture key but inherit different
     // days, and the drain groups by date — so the filed list reaches the

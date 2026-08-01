@@ -674,6 +674,21 @@ function dailyHasCapture(
   );
 }
 
+/**
+ * How many bullets the daily holds per `(time, body)` key. Verification counts
+ * rather than tests existence: two byte-identical same-second captures both
+ * file by design (Q2), so `some(...)` lets one surviving bullet satisfy both
+ * checks and marks a capture that a merge already dropped.
+ */
+function dailyCaptureCounts(dailyContent: string): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const c of parseCaptures(dailyContent)) {
+    const key = `${c.timestamp ?? ""}\n${c.text}`;
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return counts;
+}
+
 /** Append bullet lines to a daily, keeping a newline off the previous line. */
 function appendBulletLines(content: string, bulletLines: string[]): string {
   const block = bulletLines.join("\n");
@@ -784,7 +799,9 @@ function relocateFiledCaptures(
  * daily (R9).
  *
  * Keyed on (time, body) like the write-side dedupe, so a filing sentinel or a
- * marker appended under the bullet since the write still verifies.
+ * marker appended under the bullet since the write still verifies. Matching is
+ * greedy per key rather than existence-based: two identical captures need two
+ * surviving bullets, and this is not dedupe — two bullets still verify two.
  */
 async function verifyFiledInDailies(
   vault: DrainVault,
@@ -799,8 +816,13 @@ async function verifyFiledInDailies(
       // Unreadable now — cannot prove the bullet landed, so claim nothing.
       continue;
     }
+    const remaining = dailyCaptureCounts(dailyContent);
     for (const c of group) {
-      if (dailyHasCapture(dailyContent, c.time, c.text)) verified.push(c);
+      const key = `${c.time ?? ""}\n${c.text}`;
+      const left = remaining.get(key) ?? 0;
+      if (left <= 0) continue;
+      remaining.set(key, left - 1);
+      verified.push(c);
     }
   }
   return verified;
