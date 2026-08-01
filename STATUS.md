@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| In progress | [#230](https://github.com/taihartman/obsidian-atoms/issues/230) | claude | `claude/nervous-hodgkin-cb3f8c` | ce-debug (diagnosis in PR) | `plus-service/src/server.mjs`, `plus-service/src/stripe.mjs`, `plus-service/src/store/*.mjs`, `src/settings/settings.ts`, `src/platform/plusClient.ts` | Production trial checkout revokes the plugin session — every real signup dead-ends on "Invalid session". Server-only root-cause fix + client dead-end fixes. |
+| In review | [#230](https://github.com/taihartman/obsidian-atoms/issues/230) | claude | `claude/nervous-hodgkin-cb3f8c` | ce-debug (diagnosis in PR) | `plus-service/src/server.mjs`, `plus-service/src/stripe.mjs`, `plus-service/src/store/*.mjs`, `src/settings/settings.ts`, `src/platform/plusClient.ts` | Production trial checkout revokes the plugin session — every real signup dead-ends on "Invalid session". Server-only root-cause fix + client dead-end fixes. |
 
 ## How to claim (copy)
 
