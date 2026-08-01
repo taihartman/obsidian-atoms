@@ -190,6 +190,38 @@ describe("#230 production trial webhook end-to-end", () => {
   });
 });
 
+/**
+ * The suite above can only run memory + sqlite; postgres is the production store
+ * and needs a live DB, so nothing here executes it. That gap is real — it is how
+ * a wrong parameter in the postgres binding survived a fully green run during
+ * this fix. Until there is a postgres-backed integration job, at least hold the
+ * three stores to the same method surface so one can never silently lack it.
+ */
+describe("#230 store parity", () => {
+  it("all three stores define and export the checkout binding methods", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { fileURLToPath } = await import("node:url");
+    const { dirname, join } = await import("node:path");
+    const storeDir = join(dirname(fileURLToPath(import.meta.url)), "../src/store");
+
+    for (const file of ["memory.mjs", "sqlite.mjs", "postgres.mjs"]) {
+      const src = readFileSync(join(storeDir, file), "utf8");
+      for (const method of ["bindCheckoutSession", "promoteCheckoutSession"]) {
+        assert.match(
+          src,
+          new RegExp(`function ${method}\\(`),
+          `${file} must define ${method}`,
+        );
+        assert.match(
+          src,
+          new RegExp(`^\\s+${method},$`, "m"),
+          `${file} must export ${method}`,
+        );
+      }
+    }
+  });
+});
+
 describe("#230 binding TTL", () => {
   it("is bounded to the Stripe Checkout Session lifetime", () => {
     assert.ok(CHECKOUT_BINDING_TTL_MS > 0);

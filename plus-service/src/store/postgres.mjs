@@ -248,6 +248,7 @@ export async function createPostgresStore(databaseUrl) {
    */
   async function promoteCheckoutSession(checkoutId, email) {
     if (!checkoutId) return false;
+    const csId = String(checkoutId);
     const key = String(email || "")
       .trim()
       .toLowerCase();
@@ -256,7 +257,7 @@ export async function createPostgresStore(databaseUrl) {
       await client.query("BEGIN");
       const { rows } = await client.query(
         "SELECT * FROM checkout_bindings WHERE checkout_id = $1 FOR UPDATE",
-        [String(checkoutId)],
+        [csId],
       );
       const row = rows[0];
       if (!row || row.email !== key || Date.now() > Number(row.exp_ms)) {
@@ -271,7 +272,7 @@ export async function createPostgresStore(databaseUrl) {
       );
       await client.query(
         "DELETE FROM checkout_bindings WHERE checkout_id = $1",
-        [String(checkoutId)],
+        [csId],
       );
       await client.query("COMMIT");
       return Boolean(r.rows[0]);
