@@ -516,6 +516,19 @@ export function readAskMirrorServerCount(
   return Number.isFinite(n) ? n : null;
 }
 
+/**
+ * The stored server count as a label, for the surfaces that show it verbatim.
+ * Unparseable or whitespace-only values still render, exactly as stored; only a
+ * missing/blank value becomes the dash. Kept beside the numeric read so the two
+ * Ask surfaces cannot drift apart.
+ */
+export function formatAskMirrorServerCount(
+  load: (k: string) => unknown,
+): string {
+  const raw = load(LS_ASK_MIRROR_SERVER_COUNT);
+  return raw != null && String(raw).trim() !== "" ? String(raw) : "—";
+}
+
 export type MirrorRefusalState = { count: number; noticed: boolean };
 
 export function readAskMirrorRefusal(
@@ -645,15 +658,112 @@ export type AskMirrorHost = {
   now?(): number;
 };
 
-export type AskMirrorSyncResult = {
-  /** Atoms upserted, or -1 when the run failed (matches the old contract). */
-  uploaded: number;
-  deleted: number;
-  refused: boolean;
-  /** Which threshold refused, so callers report the reason instead of "0 synced". */
-  refusalReason?: MirrorDeletionRefusal;
-  failureMessage?: string;
-};
+/**
+ * What one push did. Failure is a `kind`, never a magic count: a sentinel in a
+ * number field is one missed comparison away from reading a hard failure as a
+ * clean zero-upload success (the same reason `MirrorSyncOutcome` is tagged).
+ */
+export type AskMirrorSyncResult =
+  | {
+      kind: "ok";
+      /** Atoms upserted this pass; legitimately 0. */
+      uploaded: number;
+      deleted: number;
+      refused: boolean;
+      /** Which threshold refused, so callers report the reason instead of "0 synced". */
+      refusalReason?: MirrorDeletionRefusal;
+    }
+  | {
+      kind: "failed";
+      deleted: number;
+      /** Never refused — the run stopped before, or instead of, a gate verdict. */
+      refused: false;
+      failureMessage: string;
+    };
+
+/**
+ * The completeness gate (R8) plus its one release valve. A refused *forced*
+ * push asks the user, and only a `confirmed` verdict mints the token that the
+ * gate is re-run against — the sole path to a lowered bar.
+ */
+async function resolveMirrorDeletionGate(
+  host: AskMirrorHost,
+  args: {
+    scannedCount: number;
+    evidenceCount: number;
+    highWaterCount: number;
+    lastKnownServerCount: number | null;
+    force: boolean;
+  },
+): Promise<{
+  decision: MirrorDeletionDecision;
+  confirmation: DeletionConfirmation | null;
+}> {
+  const { scannedCount, evidenceCount, highWaterCount, lastKnownServerCount } =
+    args;
+  const force = args.force;
+  let confirmation: DeletionConfirmation | null = null;
+  let decision = decideMirrorDeletion({
+    scannedCount,
+    evidenceCount,
+    highWaterCount,
+    lastKnownServerCount,
+    reconcile: force,
+  });
+  // The refusal's release valve: an explicit gesture the user is already
+  // attending to ("Sync now"), never a silent delta pass.
+  if (!decision.allowed && force) {
+    const verdict = await host.confirm({
+      kind: "ask-mirror-deletion",
+      evidenceCount,
+      scannedCount,
+      lastKnownServerCount,
+    });
+    if (verdict === "confirmed") {
+      confirmation = mintDeletionConfirmation({
+        scannedCount,
+        evidenceCount,
+      });
+      decision = decideMirrorDeletion({
+        scannedCount,
+        evidenceCount,
+        highWaterCount,
+        lastKnownServerCount,
+        reconcile: force,
+        confirmation,
+      });
+    }
+  }
+  return { decision, confirmation };
+}
+
+/**
+ * Full keepPaths reconcile (orphan delete), single call under the chunk bar and
+ * a session-tagged sequence above it. `confirmEmpty` rides only the final call,
+ * so a partial sequence can never authorise an empty-vault wipe.
+ */
+async function applyMirrorReconcile(
+  host: AskMirrorHost,
+  keepPaths: string[],
+  confirmEmpty: boolean,
+): Promise<AskMirrorCallResult> {
+  if (keepPaths.length <= 500) {
+    return host.reconcile({ keepPaths, done: true, confirmEmpty });
+  }
+  const sid = `rec-${host.now?.() ?? Date.now()}`;
+  for (let i = 0; i < keepPaths.length; i += 500) {
+    const chunk = keepPaths.slice(i, i + 500);
+    const last = i + 500 >= keepPaths.length;
+    const r = await host.reconcile({
+      keepPaths: chunk,
+      done: last,
+      reconcileSessionId: sid,
+      confirmEmpty: last ? confirmEmpty : false,
+    });
+    if (!r.ok) return r;
+  }
+  return { ok: true };
+}
 
 export async function runAskMirrorSync(
   host: AskMirrorHost,
@@ -701,7 +811,7 @@ export async function runAskMirrorSync(
 
   const fail = (msg: string): AskMirrorSyncResult => {
     save(LS_ASK_MIRROR_LAST_ERROR, msg);
-    return { uploaded: -1, deleted, refused: false, failureMessage: msg };
+    return { kind: "failed", deleted, refused: false, failureMessage: msg };
   };
 
   // Upsert dirty (chunk 100) — never skip solely because atoms is empty
@@ -726,41 +836,19 @@ export async function runAskMirrorSync(
   const highWaterCount = effectiveHighWaterCount(highWater, nowMs);
   const lastKnownServerCount = readAskMirrorServerCount(load);
 
-  let confirmation: DeletionConfirmation | null = null;
-  let decision: MirrorDeletionDecision = { allowed: true };
-  if (deletePaths.length > 0 || force) {
-    decision = decideMirrorDeletion({
-      scannedCount,
-      evidenceCount,
-      highWaterCount,
-      lastKnownServerCount,
-      reconcile: force,
-    });
-    // The refusal's release valve: an explicit gesture the user is already
-    // attending to ("Sync now"), never a silent delta pass.
-    if (!decision.allowed && force) {
-      const verdict = await host.confirm({
-        kind: "ask-mirror-deletion",
-        evidenceCount,
-        scannedCount,
-        lastKnownServerCount,
-      });
-      if (verdict === "confirmed") {
-        confirmation = mintDeletionConfirmation({
-          scannedCount,
-          evidenceCount,
-        });
-        decision = decideMirrorDeletion({
+  const { decision, confirmation } =
+    deletePaths.length > 0 || force
+      ? await resolveMirrorDeletionGate(host, {
           scannedCount,
           evidenceCount,
           highWaterCount,
           lastKnownServerCount,
-          reconcile: force,
-          confirmation,
-        });
-      }
-    }
-  }
+          force,
+        })
+      : {
+          decision: { allowed: true } as MirrorDeletionDecision,
+          confirmation: null as DeletionConfirmation | null,
+        };
 
   if (!decision.allowed) {
     save(LS_ASK_MIRROR_LAST_ERROR, "");
@@ -787,6 +875,7 @@ export async function runAskMirrorSync(
     const st = await host.status();
     if (st.ok) save(LS_ASK_MIRROR_SERVER_COUNT, String(st.count));
     return {
+      kind: "ok",
       uploaded,
       deleted: 0,
       refused: true,
@@ -812,27 +901,8 @@ export async function runAskMirrorSync(
     // Carried by the confirmation token — never derived from emptiness, from
     // `force`, or from the fact that a command was invoked.
     const confirmEmpty = confirmation?.confirmEmpty === true;
-    if (keepPaths.length <= 500) {
-      const r = await host.reconcile({
-        keepPaths,
-        done: true,
-        confirmEmpty,
-      });
-      if (!r.ok) return fail(r.message);
-    } else {
-      const sid = `rec-${(host.now?.() ?? Date.now())}`;
-      for (let i = 0; i < keepPaths.length; i += 500) {
-        const chunk = keepPaths.slice(i, i + 500);
-        const last = i + 500 >= keepPaths.length;
-        const r = await host.reconcile({
-          keepPaths: chunk,
-          done: last,
-          reconcileSessionId: sid,
-          confirmEmpty: last ? confirmEmpty : false,
-        });
-        if (!r.ok) return fail(r.message);
-      }
-    }
+    const r = await applyMirrorReconcile(host, keepPaths, confirmEmpty);
+    if (!r.ok) return fail(r.message);
     // After force, evidence map = exact vault set (upsertNext has all when force)
     const rebuilt: Record<string, string> = {};
     for (const p of keepPaths) {
@@ -866,7 +936,7 @@ export async function runAskMirrorSync(
   if (st.ok) {
     save(LS_ASK_MIRROR_SERVER_COUNT, String(st.count));
   }
-  return { uploaded, deleted, refused: false };
+  return { kind: "ok", uploaded, deleted, refused: false };
 }
 
 /**

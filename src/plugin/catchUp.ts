@@ -96,7 +96,13 @@ export type OutboxApplyResult =
 export type AskOutboxOutcome =
   | { kind: "worked"; landed: number; rejected: number }
   | { kind: "joined"; landed: number; rejected: number }
-  | { kind: "refused"; landed: number; rejected: number }
+  | {
+      kind: "refused";
+      landed: number;
+      rejected: number;
+      /** Which threshold refused, carried through from the mirror push. */
+      reason?: MirrorDeletionRefusal;
+    }
   | { kind: "failed"; landed: number; rejected: number; message?: string };
 
 export type AskOutboxHost = {
@@ -227,7 +233,14 @@ export async function runAskOutboxApply(
                 rejected,
                 ...(mirror.message ? { message: mirror.message } : {}),
               }
-            : { kind: mirror.kind, landed, rejected },
+            : mirror.kind === "refused"
+              ? {
+                  kind: "refused",
+                  landed,
+                  rejected,
+                  ...(mirror.reason ? { reason: mirror.reason } : {}),
+                }
+              : { kind: "joined", landed, rejected },
         );
       }
       await host.ack(item.id, { status: "applied" });

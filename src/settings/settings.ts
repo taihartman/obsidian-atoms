@@ -54,6 +54,7 @@ import {
 } from "../platform/plusClient";
 import {
   formatAskMirrorRefusalLine,
+  formatAskMirrorServerCount,
   readAskMirrorRefusal,
   LS_ASK_MIRROR_HASHES,
   LS_ASK_MIRROR_LAST_ERROR,
@@ -1140,13 +1141,9 @@ export class AtomsSettingTab extends PluginSettingTab {
     const lastErr = String(
       (this.app.loadLocalStorage(LS_ASK_MIRROR_LAST_ERROR) as unknown) ?? "",
     ).trim();
-    const serverCountRaw: unknown = this.app.loadLocalStorage(
-      LS_ASK_MIRROR_SERVER_COUNT,
-    ) as unknown;
-    const serverCount =
-      serverCountRaw != null && String(serverCountRaw).trim() !== ""
-        ? String(serverCountRaw)
-        : "—";
+    const serverCount = formatAskMirrorServerCount(
+      (k) => this.app.loadLocalStorage(k) as unknown,
+    );
     const relative = (iso: string) => {
       if (!iso) return "never";
       const t = Date.parse(iso);

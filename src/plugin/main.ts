@@ -1302,7 +1302,7 @@ export default class AtomsPlugin extends Plugin {
       { force },
     );
 
-    if (result.uploaded < 0) {
+    if (result.kind === "failed") {
       const msg = result.failureMessage ?? "";
       const snip = msg.replace(/\s+/g, " ").trim().slice(0, 72);
       // The dedupe flag exists to stop *background* passes from nagging after

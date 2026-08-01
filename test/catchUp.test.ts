@@ -151,7 +151,12 @@ describe("runAskOutboxApply", () => {
     expect(f.pushes).toEqual([["Tea"]]);
     expect(f.acks).toEqual([]);
     expect(f.pendingIds()).toEqual(["o1"]);
-    expect(outcome).toEqual({ kind: "refused", landed: 0, rejected: 0 });
+    expect(outcome).toEqual({
+      kind: "refused",
+      landed: 0,
+      rejected: 0,
+      reason: "scan-incomplete",
+    });
   });
 
   it("acks each entry exactly once when the push is confirmed", async () => {

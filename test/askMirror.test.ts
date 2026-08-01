@@ -634,7 +634,7 @@ describe("askMirror deletion gate (U1)", () => {
       deleteFailsAt: 1,
     });
     const r = await runAskMirrorSync(f.host, { force: false });
-    expect(r.uploaded).toBe(-1);
+    expect(r.kind).toBe("failed");
     const evidence = f.evidencePaths();
     expect(evidence).not.toContain(atomPath(850));
     expect(evidence).toContain(atomPath(950));

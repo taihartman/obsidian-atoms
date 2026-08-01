@@ -78,8 +78,8 @@ import {
 import { UPDATE_NOTES_BATCH_LIMIT } from "../pipeline/refreshAtoms";
 import {
   formatAskMirrorRefusalLine,
+  formatAskMirrorServerCount,
   readAskMirrorRefusal,
-  LS_ASK_MIRROR_SERVER_COUNT,
 } from "../platform/askMirror";
 import {
   calendarDateToday,
@@ -808,9 +808,7 @@ export class AtomsHomeView extends ItemView {
   private renderAskMirrorRefusal(scroll: HTMLElement): void {
     const load = (k: string) => this.app.loadLocalStorage(k) as unknown;
     if (readAskMirrorRefusal(load).count <= 0) return;
-    const raw = load(LS_ASK_MIRROR_SERVER_COUNT);
-    const serverCount =
-      raw != null && String(raw).trim() !== "" ? String(raw) : "—";
+    const serverCount = formatAskMirrorServerCount(load);
     const card = statusCard(scroll, {
       tone: "error",
       className: "atoms-home-ask-mirror-refusal",
