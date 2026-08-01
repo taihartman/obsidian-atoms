@@ -7,6 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
+| In review | #224 | taihartman (agent) | `claude/likes-calling-person-bug-ify3tm` | — (debug lane) | `src/pipeline/personInvite.ts`, `test/personInvite.test.ts` | "Add Likes?" — person invite named the leading verb · 0.6.60 |
 
 ## How to claim (copy)
 

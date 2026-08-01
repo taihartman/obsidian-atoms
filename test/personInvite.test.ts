@@ -62,6 +62,51 @@ describe("resolvePersonInviteName", () => {
       resolvePersonInviteName("climb at CRG tomorrow", "Climb CRG"),
     ).toBeNull();
   });
+
+  // Subject-less capture: the preference verb leading the title is not a person.
+  it("skips the leading preference verb (Add Likes? bug)", () => {
+    expect(
+      resolvePersonInviteName(
+        "likes annie's fruit tape snack",
+        "Likes Annie's fruit tape snack",
+      ),
+    ).toBeNull();
+  });
+
+  it.each([
+    ["Prefers oat milk in coffee", "prefers oat milk in coffee"],
+    ["Loves pajamas a lot", "loves pajamas a lot"],
+    ["Hates the new checkout flow", "hates the new checkout flow"],
+    ["Always orders the same bowl", "always orders the same bowl"],
+    ["The new spot Nichita likes", "the new spot nichita likes"],
+    ["Got new boots that Nichita likes", "got new boots that nichita likes"],
+  ])("skips subject-less title %s", (title, body) => {
+    expect(resolvePersonInviteName(body, title)).toBeNull();
+  });
+
+  it("denies verbs and determiners as names", () => {
+    for (const w of ["Likes", "likes", "Loves", "The", "Always", "Tomorrow"]) {
+      expect(isDeniedPersonName(w)).toBe(true);
+    }
+  });
+
+  it("still resolves a real name leading a preference title", () => {
+    expect(
+      resolvePersonInviteName(
+        "nichita likes long brown boots",
+        "Nichita likes long brown boots",
+      ),
+    ).toBe("Nichita");
+    expect(isDeniedPersonName("Nichita")).toBe(false);
+  });
+
+  it("keeps Will and May usable as names", () => {
+    expect(isDeniedPersonName("Will")).toBe(false);
+    expect(isDeniedPersonName("May")).toBe(false);
+    expect(
+      resolvePersonInviteName("Will is the guy from the gym", "Will is a guy from the gym"),
+    ).toBe("Will");
+  });
 });
 
 describe("collectPersonInvites", () => {
@@ -113,6 +158,20 @@ describe("collectPersonInvites", () => {
       },
     );
     expect(invites.some((i) => i.displayName === "Mom")).toBe(false);
+  });
+
+  it("offers no card for a subject-less preference atom", () => {
+    const invites = collectPersonInvites(
+      [
+        atom(
+          "Atoms/likes-annie.md",
+          "Likes Annie's fruit tape snack",
+          "likes annie's fruit tape snack",
+        ),
+      ],
+      { personHubTitles: [], vaultTitles: [], now: new Date("2026-07-23") },
+    );
+    expect(invites).toEqual([]);
   });
 
   it("skips when person hub already exists", () => {

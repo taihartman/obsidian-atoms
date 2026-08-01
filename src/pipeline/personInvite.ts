@@ -62,6 +62,65 @@ export const PERSON_INVITE_DENY_NAMES = new Set(
   ].map((s) => s.toLowerCase()),
 );
 
+/**
+ * Words that are never a person name, however capitalised.
+ *
+ * A capture / title can drop its subject (“likes Annie's fruit tape snack”),
+ * so the leading capitalised token is often a verb or determiner — and the very
+ * preference verb that makes the atom person-shaped would otherwise qualify
+ * itself as the name (“Add Likes?”). Under-invite beats a fake person hub.
+ */
+export const PERSON_INVITE_NON_NAME_WORDS = new Set(
+  [
+    // determiners / pronouns / conjunctions / prepositions
+    "the", "a", "an", "this", "that", "these", "those", "my", "our", "your",
+    "his", "her", "their", "its", "i", "he", "she", "they", "we", "you", "it",
+    "and", "but", "or", "so", "for", "with", "without", "from", "about",
+    "after", "before", "when", "while", "into", "onto", "over", "under", "at",
+    "in", "on", "of", "to", "by", "as", "there", "here", "what", "which",
+    "who", "whose", "why", "how", "if", "then", "than",
+    // quantifiers / adverbs / adjectives that lead subject-less lines
+    "all", "both", "each", "every", "some", "any", "no", "not", "only",
+    "just", "still", "maybe", "probably", "again", "new", "old", "next",
+    "last", "first", "best", "worst", "good", "bad", "more", "less", "most",
+    "very", "really", "actually", "definitely",
+    // preference / relation verbs (mirror PREFERENCE_OR_RELATION_RE)
+    "like", "likes", "liked", "prefer", "prefers", "preferred", "favorite",
+    "favourite", "hate", "hates", "hated", "love", "loves", "loved", "enjoy",
+    "enjoys", "enjoyed", "dislike", "dislikes", "disliked", "always", "never",
+    "usually", "sometimes", "tends", "tend",
+    // other common subject-less leading verbs
+    "want", "wants", "wanted", "need", "needs", "needed", "got", "get",
+    "gets", "met", "meet", "meets", "went", "go", "goes", "made", "make",
+    "makes", "said", "say", "says", "think", "thinks", "thought", "try",
+    "tries", "tried", "keep", "keeps", "kept", "use", "uses", "used", "ask",
+    "asks", "asked", "told", "tell", "tells", "gave", "give", "gives",
+    "took", "take", "takes", "saw", "see", "sees", "feel", "feels", "felt",
+    "start", "starts", "started", "stop", "stops", "stopped", "wear",
+    "wears", "wore", "buy", "buys", "bought", "brought", "bring", "plan",
+    "plans", "planned", "remember", "remembers", "remembered", "notice",
+    "notices", "noticed", "learn", "learns", "learned", "find", "finds",
+    "found", "finish", "finished", "decide", "decides", "decided", "avoid",
+    "avoids", "watch", "watches", "watched", "read", "reads", "reading",
+    "wonder", "wonders", "wondered", "believe", "believes", "believed",
+    "is", "was", "are", "were", "be", "been", "has", "have", "had", "do",
+    "does", "did", "can", "could", "should", "would", "might", "must",
+    // "will" / "may" stay allowed — common first names, and a modal there is
+    // followed by a bare verb the name branches do not match.
+    // time words that look like names at the start of a line
+    "today", "tomorrow", "yesterday", "tonight", "monday", "tuesday",
+    "wednesday", "thursday", "friday", "saturday", "sunday", "january",
+    "february", "march", "september", "october", "november", "december",
+    "morning", "afternoon", "evening", "night", "week", "weekend", "month",
+    "year",
+  ],
+);
+
+/** True when the token can never be a person name (verb, determiner, weekday…). */
+export function isNonNameWord(word: string): boolean {
+  return PERSON_INVITE_NON_NAME_WORDS.has(word.trim().toLowerCase());
+}
+
 const RECOMMENDER_RE =
   /\b(?:told me|recommended|suggested|said (?:to|i should)|wants? me to)\b/i;
 
@@ -205,6 +264,8 @@ export function isDeniedPersonName(name: string): boolean {
   if (PERSON_HUB_DENY_TITLES.has(n)) return true;
   if (PERSON_INVITE_DENY_NAMES.has(n)) return true;
   if (KINSHIP.has(n)) return false;
+  // Subject-less titles lead with a verb / determiner, never a name.
+  if (isNonNameWord(n.split(/\s+/)[0] ?? n)) return true;
   // multi-word show titles
   for (const d of PERSON_INVITE_DENY_NAMES) {
     if (d.includes(" ") && n.includes(d)) return true;
