@@ -52,10 +52,10 @@ export const SYSTEM_PROMPT = `You classify fleeting captures from a daily-note i
 - Pure logistics that merely mention a name stay **noise** — do not force person atoms for chores.
 - Do not invent entity links from speech typos (e.g. "Kloe") unless that exact title exists in Note titles.
 - **people[] — who is named, and how.** List every person the capture names, each with a role:
-  - `subject` — the claim is about them. "Nichita likes long brown boots" → Nichita.
-  - `mentioned` — named, but not what the claim is about: a possessive owner, a bystander. "likes Annie's fruit tape snack" → Annie is **mentioned**, not the subject; nobody said who likes it.
-  - `recommender` — they suggested a book/show/film. "Christian told me to watch MHA" → Christian.
-  Captures routinely drop their subject because the writer knew who they meant. When that happens, return no `subject` — an empty people[] is a correct answer, never a failure. Only ever use a name written in the capture; never infer one from surrounding notes, and never put a verb, a determiner, or a weekday in `name`.
+  - \`subject\` — the claim is about them. "Nichita likes long brown boots" → Nichita.
+  - \`mentioned\` — named, but not what the claim is about: a possessive owner, a bystander. "likes Annie's fruit tape snack" → Annie is **mentioned**, not the subject; nobody said who likes it.
+  - \`recommender\` — they suggested a book/show/film. "Christian told me to watch MHA" → Christian.
+  Captures routinely drop their subject because the writer knew who they meant. When that happens, return no \`subject\` — an empty people[] is a correct answer, never a failure. Only ever use a name written in the capture; never infer one from surrounding notes, and never put a verb, a determiner, or a weekday in \`name\`.
 
 ## Links + supersession (reason quality is load-bearing)
 - Link to existing notes when the capture relates, revises, or contradicts them.
