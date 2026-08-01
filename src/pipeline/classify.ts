@@ -1,15 +1,19 @@
 import { requestUrl } from "obsidian";
 import { plusFetchRequest } from "../platform/plusClient";
 import type {
+  ClassificationPerson,
   ClassificationResult,
   ClassifyOutcome,
   ClassifyUsage,
+  PersonRole,
   VaultContext,
 } from "../shared/types";
 import {
+  captureMentionsKey,
   enrichPersonLinks,
   type PersonHub,
 } from "./enrich/people";
+import { isDeniedPersonName } from "./personInvite";
 import { enrichMediaLinks } from "./enrich/media";
 import { enrichEntityLinks } from "./enrich/entityLinks";
 import {
@@ -106,8 +110,30 @@ export const CLASSIFICATION_SCHEMA = {
       description:
         "Optional. Exact ## heading from a linked Person hub's section list for accumulating-list placement. Empty string when unsure or no fit. Never invent a section name.",
     },
+    people: {
+      type: "array",
+      description:
+        "People named in the capture. Empty array is correct and common — captures often drop the subject ('likes Annie's fruit tape snack' names Annie but never says who likes it). Never infer a name that is not written in the capture.",
+      items: {
+        type: "object",
+        properties: {
+          name: {
+            type: "string",
+            description: "The person's name exactly as written in the capture.",
+          },
+          role: {
+            type: "string",
+            enum: ["subject", "mentioned", "recommender"],
+            description:
+              "subject = the claim is about them ('Nichita likes long brown boots' → Nichita). mentioned = named but not what the claim is about, e.g. a possessive owner or bystander ('likes Annie's fruit tape snack' → Annie). recommender = they suggested a book/show/film.",
+          },
+        },
+        required: ["name", "role"],
+        additionalProperties: false,
+      },
+    },
   },
-  required: ["verdict", "title", "tags", "proposed_tags", "links"],
+  required: ["verdict", "title", "tags", "proposed_tags", "links", "people"],
   additionalProperties: false,
 } as const;
 
@@ -158,6 +184,11 @@ export const SYSTEM_PROMPT = `You classify fleeting captures from a daily-note i
 - One atom can carry a person link, a work link, and preference/media tags together.
 - Pure logistics that merely mention a name stay **noise** — do not force person atoms for chores.
 - Do not invent entity links from speech typos (e.g. "Kloe") unless that exact title exists in Note titles.
+- **people[] — who is named, and how.** List every person the capture names, each with a role:
+  - \`subject\` — the claim is about them. "Nichita likes long brown boots" → Nichita.
+  - \`mentioned\` — named, but not what the claim is about: a possessive owner, a bystander. "likes Annie's fruit tape snack" → Annie is **mentioned**, not the subject; nobody said who likes it.
+  - \`recommender\` — they suggested a book/show/film. "Christian told me to watch MHA" → Christian.
+  Captures routinely drop their subject because the writer knew who they meant. When that happens, return no \`subject\` — an empty people[] is a correct answer, never a failure. Only ever use a name written in the capture; never infer one from surrounding notes, and never put a verb, a determiner, or a weekday in \`name\`.
 - **hub_section (optional but important for list/gift/date facts):** when the capture is an accumulating list or want about a person and Person hubs list indented ## section names under that hub, set hub_section to one **exact** section string from that list (e.g. Gift Ideas when they want a physical gift). Prefer a real section over leaving empty. Omit or use "" only when unsure or no section fits. Never invent a section name that is not listed.
 
 ## Links + supersession (reason quality is load-bearing)
@@ -261,6 +292,42 @@ function dropHubSection(result: ClassificationResult): ClassificationResult {
   const next: ClassificationResult = { ...result };
   delete next.hub_section;
   return next;
+}
+
+const PERSON_ROLES = new Set<PersonRole>([
+  "subject",
+  "mentioned",
+  "recommender",
+]);
+
+/**
+ * Post-parse guard on model-named people (KTD4 layer 2, R4 + R5).
+ *
+ * Schema shape is trusted; the *content* is not. A name the capture never
+ * wrote is invented, and the 0.6.60 deny list stays as a backstop for slips.
+ * Drops offending entries, never the whole classification. Leaves `people`
+ * absent when the model did not send it — absent and `[]` differ (KTD6).
+ */
+export function normalizePeople(
+  capture: string,
+  result: ClassificationResult,
+): ClassificationResult {
+  if (result.people === undefined) return result;
+  const raw = Array.isArray(result.people) ? result.people : [];
+  const people: ClassificationPerson[] = [];
+  const seen = new Set<string>();
+  for (const entry of raw) {
+    const name = typeof entry?.name === "string" ? entry.name.trim() : "";
+    const role = entry?.role;
+    if (!name || !PERSON_ROLES.has(role)) continue;
+    if (!captureMentionsKey(capture, name)) continue; // R4 — verbatim only
+    if (isDeniedPersonName(name)) continue; // R5 — backstop
+    const key = name.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    people.push({ name, role });
+  }
+  return { ...result, people };
 }
 
 /**
@@ -794,6 +861,7 @@ export async function classifyCapture(
     return { ok: false, reason: "invariant", message: inv.message };
   }
 
+  parsed = normalizePeople(capture, parsed);
   parsed = normalizeHubSection(parsed, context);
 
   // R11 — never apply non-Active tags; proposed_tags stay for approval.
@@ -845,7 +913,10 @@ export function applyClassificationQuality(
 ): ClassificationResult {
   const titles = opts.titles ?? [];
   const hubs = opts.personHubs ?? [];
-  let r = rescueKeepableIdea(capture, result, titles);
+  // Batch (backfill) and refresh parse model JSON on their own paths — guard
+  // people here too, or unvetted names reach frontmatter (R4/R5). Idempotent.
+  let r = normalizePeople(capture, result);
+  r = rescueKeepableIdea(capture, r, titles);
   r = enrichPersonLinks(capture, r, hubs);
   r = enrichMediaLinks(capture, r, titles);
   r = maybeLinkPeopleIndex(
