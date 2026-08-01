@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| In progress | [#225](https://github.com/taihartman/obsidian-atoms/issues/225) | taihartman | `fix/mirror-delete-gate-and-outbox-ack` | [2026-07-31-001](https://github.com/taihartman/obsidian-atoms/blob/claude/obsidian-resume-sync-filing-072be6/docs/plans/2026-07-31-001-feat-resume-catch-up-plan.md) Phase A | `src/platform/askMirror.ts` · `src/plugin/main.ts` · `src/plugin/catchUp.ts` · `src/pipeline/inbox.ts` · `src/settings/settings.ts` | Three live data-loss paths: U1 mirror-wipe gate, U9 outbox ack, U2 step 3 marker re-verify. Ships ahead of #222 (Q3). Bumps **0.6.60** |
+| In review | [#225](https://github.com/taihartman/obsidian-atoms/issues/225) | taihartman | `fix/mirror-delete-gate-and-outbox-ack` | [2026-07-31-001](https://github.com/taihartman/obsidian-atoms/blob/claude/obsidian-resume-sync-filing-072be6/docs/plans/2026-07-31-001-feat-resume-catch-up-plan.md) Phase A | `src/platform/askMirror.ts` · `src/plugin/main.ts` · `src/plugin/catchUp.ts` · `src/pipeline/inbox.ts` · `src/settings/settings.ts` | Three live data-loss paths: U1 mirror-wipe gate, U9 outbox ack, U2 step 3 marker re-verify. Ships ahead of #222 (Q3). Bumps **0.6.60**. Draft [PR #226](https://github.com/taihartman/obsidian-atoms/pull/226) — code + review done, 779 tests green; **blocked on vault CLI smoke + iOS/Android device QA** (see `.remember/remember.md`) |
 
 ## How to claim (copy)
 
