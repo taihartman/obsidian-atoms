@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| In review | #224 | taihartman (agent) | `claude/likes-calling-person-bug-ify3tm` | — (debug lane) | `src/pipeline/personInvite.ts`, `test/personInvite.test.ts` | "Add Likes?" — person invite named the leading verb · 0.6.60 |
+| In review | #224 #227 | taihartman (agent) | `claude/likes-calling-person-bug-ify3tm` | `docs/plans/2026-08-01-001-feat-classifier-named-people-plan.md` | `src/pipeline/classify.ts`, `personInvite.ts`, `render.ts`, `atomQuality.ts`, `write.ts`, `src/home/atomsHomeView.ts`, `plus-service/src/classifyTemplate.mjs` | #224 containment (0.6.60) + #227 classifier-named people (0.6.61). **No live-vault QA** — no Obsidian in the remote container |
 
 ## How to claim (copy)
 

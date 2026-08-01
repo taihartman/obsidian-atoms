@@ -56,7 +56,7 @@ import {
   personInviteCopy,
   personNotePath,
   resolvePeopleFolderPrefix,
-  resolvePersonInviteName,
+  resolveAtomPersonName,
   type PersonInviteCandidate,
 } from "../pipeline/personInvite";
 import { PersonNoteSuggestModal } from "./personNoteSuggestModal";
@@ -1224,7 +1224,7 @@ export class AtomsHomeView extends ItemView {
       if (upgradePaths.has(f.path)) continue;
       const body = bodyAfterFrontmatter(f.content).split(/\n\n/)[0] ?? "";
       const title = titleFromAtomPath(f.path);
-      const n = resolvePersonInviteName(body, title);
+      const n = resolveAtomPersonName(f.content, body, title);
       if (n && n.toLowerCase() === label) upgradePaths.add(f.path);
     }
     return upgradePaths;

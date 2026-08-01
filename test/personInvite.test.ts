@@ -160,6 +160,55 @@ describe("collectPersonInvites", () => {
     expect(invites.some((i) => i.displayName === "Mom")).toBe(false);
   });
 
+  // U3 — the card itself, driven by atoms-people rather than the title regex.
+  it("offers no card when the model named only a mentioned person", () => {
+    const content = `---
+generated-by: linker
+source: "[[2026-07-31]]"
+atoms-people:
+  - name: "Annie"
+    role: mentioned
+---
+likes annie's fruit tape snack
+`;
+    const invites = collectPersonInvites(
+      [
+        {
+          path: "Atoms/likes-annie.md",
+          title: "Likes Annie's fruit tape snack",
+          sourceDate: "2026-07-31",
+          content,
+        },
+      ],
+      { personHubTitles: [], vaultTitles: [], now: new Date("2026-08-01") },
+    );
+    expect(invites).toEqual([]);
+  });
+
+  it("offers a card for the named subject", () => {
+    const content = `---
+generated-by: linker
+source: "[[2026-07-31]]"
+atoms-people:
+  - name: "Nichita"
+    role: subject
+---
+skipped the gym because nichita likes it
+`;
+    const invites = collectPersonInvites(
+      [
+        {
+          path: "Atoms/skipped.md",
+          title: "Skipped the gym because Nichita likes it",
+          sourceDate: "2026-07-31",
+          content,
+        },
+      ],
+      { personHubTitles: [], vaultTitles: [], now: new Date("2026-08-01") },
+    );
+    expect(invites.map((i) => i.displayName)).toEqual(["Nichita"]);
+  });
+
   it("offers no card for a subject-less preference atom", () => {
     const invites = collectPersonInvites(
       [

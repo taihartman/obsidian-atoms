@@ -6,6 +6,7 @@ import type {
   Verdict,
 } from "../shared/types";
 import {
+  atomsPeopleLines,
   CURRENT_ATOMS_QUALITY,
   localDateYmd,
   qualityStampLines,
@@ -208,6 +209,11 @@ export function buildAtomMarkdown(opts: {
   const hubSection = (result.hub_section ?? "").trim();
   if (hubSection) {
     fm.push(`hub-section: ${JSON.stringify(hubSection)}`);
+  }
+  // Model-named people (KTD3). Absent when the result predates the field;
+  // `[]` when the model found nobody — consumers must tell those apart (KTD6).
+  if (result.people !== undefined) {
+    fm.push(...atomsPeopleLines(result.people));
   }
   fm.push("---", "");
 

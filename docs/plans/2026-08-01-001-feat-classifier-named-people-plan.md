@@ -5,7 +5,7 @@ artifact_contract: ce-unified-plan/v1
 artifact_readiness: needs-doc-review
 product_contract_source: reverse-engineered-contract
 execution: code
-issue: TBD
+issue: 227
 lane: full
 type: feat
 origin: docs/solutions/logic-errors/person-invite-verb-as-name.md

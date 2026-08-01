@@ -3,7 +3,11 @@
  * Never auto-creates. Pure helpers; home consumes.
  */
 
-import type { ClassificationResult } from "../shared/types";
+import type {
+  ClassificationPerson,
+  ClassificationResult,
+} from "../shared/types";
+import { parseAtomsPeople } from "./atomQuality";
 import {
   isPersonShapedCapture,
   PERSON_HUB_DENY_TITLES,
@@ -162,7 +166,45 @@ function hasHardPersonHubLink(
 }
 
 /**
- * High-confidence person display name for invite, or null.
+ * Invite name from model-named people (KTD1/KTD2) — the `subject` role only.
+ *
+ * A possessive owner or bystander is `mentioned` and never invites; a media
+ * `recommender` never invites. Two subjects invite nobody: multi-person dumps
+ * under-invite by design, and a fake hub costs more than a missed one.
+ */
+export function personInviteNameFromPeople(
+  people: ClassificationPerson[],
+): string | null {
+  const subjects = people
+    .filter((p) => p.role === "subject")
+    .map((p) => p.name.trim())
+    .filter((n) => n && !isDeniedPersonName(n));
+  return subjects.length === 1 ? subjects[0]! : null;
+}
+
+/**
+ * The invite name for a rendered atom: the model's `people` when the atom
+ * carries it, else the legacy heuristic (R7 — atoms written before the field
+ * keep 0.6.60 behaviour exactly until `atoms:update-notes` refreshes them).
+ *
+ * Every consumer goes through here; none re-derives a name from prose.
+ */
+export function resolveAtomPersonName(
+  content: string,
+  captureText: string,
+  title: string,
+  tags: string[] = [],
+): string | null {
+  const people = parseAtomsPeople(content);
+  if (people !== null) return personInviteNameFromPeople(people);
+  return resolvePersonInviteName(captureText, title, tags);
+}
+
+/**
+ * Legacy heuristic name resolver — guesses from capture/title text.
+ *
+ * Prefer {@link resolveAtomPersonName}. Retained only for atoms rendered before
+ * `atoms-people` existed; the guessing this does is what #224 was about.
  */
 export function resolvePersonInviteName(
   captureText: string,
@@ -173,20 +215,17 @@ export function resolvePersonInviteName(
   const t = (title ?? "").trim();
   const blob = `${t}\n${text}`;
 
-  // Media recommender only — skip unless name is clear sole subject elsewhere
-  if (RECOMMENDER_RE.test(blob) && !SOLE_KINSHIP_RE.test(text) && !SOLE_KINSHIP_RE.test(t)) {
-    // "X told me to watch Y" — first capital name is recommender
-    const rec = blob.match(
-      /\b([A-Z][a-z]{1,20})\s+(?:told me|recommended|suggested)\b/,
-    );
-    if (rec?.[1]) {
-      // only invite if the subject is that person, not the work
-      if (!/\b(?:watch|see|read|play)\b/i.test(blob)) {
-        /* fall through */
-      } else {
-        return null;
-      }
-    }
+  // "X told me to watch Y" — X is the recommender, not the subject. Kinship
+  // captures fall through to their own branch below.
+  const recommender = /\b[A-Z][a-z]{1,20}\s+(?:told me|recommended|suggested)\b/;
+  if (
+    RECOMMENDER_RE.test(blob) &&
+    recommender.test(blob) &&
+    /\b(?:watch|see|read|play)\b/i.test(blob) &&
+    !SOLE_KINSHIP_RE.test(text) &&
+    !SOLE_KINSHIP_RE.test(t)
+  ) {
+    return null;
   }
 
   // Kinship sole-subject
@@ -279,12 +318,18 @@ export function isPersonInviteEligible(opts: {
   tags?: string[];
   personHubTitles: string[];
   vaultTitles?: string[];
+  /** Full atom markdown — routes through `atoms-people` when present. */
+  content?: string;
 }): { name: string; existingNote: boolean } | null {
-  const name = resolvePersonInviteName(
-    opts.captureText,
-    opts.title,
-    opts.tags ?? [],
-  );
+  const name =
+    opts.content === undefined
+      ? resolvePersonInviteName(opts.captureText, opts.title, opts.tags ?? [])
+      : resolveAtomPersonName(
+          opts.content,
+          opts.captureText,
+          opts.title,
+          opts.tags ?? [],
+        );
   if (!name) return null;
   const low = name.toLowerCase();
   const hubs = new Set(
@@ -342,6 +387,7 @@ export function collectPersonInvites(
     const elig = isPersonInviteEligible({
       captureText: body,
       title: atom.title,
+      content: atom.content,
       personHubTitles: opts.personHubTitles,
       vaultTitles: opts.vaultTitles,
     });

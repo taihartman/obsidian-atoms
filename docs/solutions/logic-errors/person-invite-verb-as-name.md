@@ -75,6 +75,34 @@ weekday/time words.
   names, and a modal in that position is followed by a bare verb that the
   `Name is/was/likes/…` branches do not match.
 
+## The durable fix (0.6.61)
+
+The word list was containment. Measured against the shipped `0.6.60`, unlisted verbs still resolved:
+`Skipped`, `Swapped`, `Ordered`, `Craving`. English outnumbers any hand-typed array.
+
+`classify` now emits `people[{name, role}]` (`subject` | `mentioned` | `recommender`), guarded by
+`normalizePeople` — a name must appear **verbatim** in the capture, and `isDeniedPersonName` still
+runs as a backstop. `render` persists it to `atoms-people` frontmatter, and all three consumers read
+that field through one helper, `resolveAtomPersonName`. Atoms without the field keep `0.6.60`
+behaviour until `atoms:update-notes` refreshes them (`CURRENT_ATOMS_QUALITY` 7 → 8).
+
+The role enum is the part that matters. `Annie` in the reported capture is `mentioned` — a possessive
+owner — and `mentioned` never invites. That distinction is not expressible as a regex, which is why
+the previous recommender branch had already degenerated into a dead `/* fall through */` arm.
+
+## Two traps this implementation hit
+
+**A guarded parser is not a guarded pipeline.** `normalizePeople` was first wired only into the live
+classify parser. But `backfill.ts:600` parses **Batch API** output on its own path and reaches
+frontmatter through `applyClassificationQuality` — as does smart refresh. Model output had three
+doors and the guard was on one. Fix: guard inside the shared quality pass, which every path
+traverses. Before adding a boundary check, enumerate the *parse sites*, not the callers.
+
+**Absent ≠ empty.** `atoms-people: []` (the model found nobody) and a missing key (an atom written
+before the field existed) must stay distinguishable, so `parseAtomsPeople` returns `[]` vs `null`.
+Collapsing them would silently route every legacy atom back to the buggy guesser — the fix would
+have looked complete and changed nothing for the existing library.
+
 ## Lesson
 
 When a heuristic extracts a value *and* validates it with a signal derived from

@@ -1,10 +1,12 @@
+import type { ClassificationPerson, PersonRole } from "../shared/types";
+
 /**
  * Pipeline generation stamp so older atoms can be refreshed to Process parity.
  * Bump CURRENT when Process/Update behavior that should re-touch old notes changes.
  */
 
 /** Bump when Process/Update should re-touch older atoms (e.g. self-link ban). */
-export const CURRENT_ATOMS_QUALITY = 7;
+export const CURRENT_ATOMS_QUALITY = 8;
 
 const GENERATED_BY_RE = /^generated-by:\s*linker\s*$/m;
 const QUALITY_RE = /^atoms-quality:\s*(\d+)\s*$/m;
@@ -58,6 +60,68 @@ export function isEligibleForUpdate(
 ): boolean {
   if (!isLinkerGenerated(content)) return false;
   return parseAtomsQuality(content) < current;
+}
+
+const PEOPLE_KEY_RE = /^atoms-people:(.*)$/;
+const PEOPLE_NAME_RE = /^\s{2}-\s+name:\s*(.+?)\s*$/;
+const PEOPLE_ROLE_RE = /^\s{4}role:\s*([a-z]+)\s*$/;
+const PERSON_ROLES = new Set<PersonRole>([
+  "subject",
+  "mentioned",
+  "recommender",
+]);
+
+/** Frontmatter lines for `atoms-people` (empty list stays explicit). */
+export function atomsPeopleLines(people: ClassificationPerson[]): string[] {
+  if (!people.length) return ["atoms-people: []"];
+  const lines = ["atoms-people:"];
+  for (const p of people) {
+    lines.push(`  - name: ${JSON.stringify(p.name)}`);
+    lines.push(`    role: ${p.role}`);
+  }
+  return lines;
+}
+
+/**
+ * Parse `atoms-people` from an atom's frontmatter.
+ *
+ * Returns `null` when the key is absent — a legacy atom written before the
+ * field existed, which must fall back to the heuristic path — and `[]` when the
+ * key is present but empty, meaning the model found nobody. Collapsing the two
+ * would put every legacy atom back on the buggy guesser (KTD6).
+ */
+export function parseAtomsPeople(
+  content: string,
+): ClassificationPerson[] | null {
+  const fm = frontmatterBlock(content);
+  if (!fm) return null;
+  const lines = fm.split(/\r?\n/);
+  const start = lines.findIndex((l) => PEOPLE_KEY_RE.test(l));
+  if (start === -1) return null;
+  const inline = lines[start]!.match(PEOPLE_KEY_RE)![1]!.trim();
+  if (inline) return inline === "[]" ? [] : null;
+
+  const people: ClassificationPerson[] = [];
+  for (let i = start + 1; i < lines.length; i++) {
+    const name = lines[i]!.match(PEOPLE_NAME_RE)?.[1];
+    if (!name) break;
+    const role = lines[i + 1]?.match(PEOPLE_ROLE_RE)?.[1] as
+      | PersonRole
+      | undefined;
+    if (!role || !PERSON_ROLES.has(role)) break;
+    people.push({ name: unquoteYaml(name), role });
+    i++;
+  }
+  return people;
+}
+
+function unquoteYaml(raw: string): string {
+  if (!raw.startsWith('"')) return raw;
+  try {
+    return JSON.parse(raw) as string;
+  } catch {
+    return raw;
+  }
 }
 
 export function qualityStampLines(
