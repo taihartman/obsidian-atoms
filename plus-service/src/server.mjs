@@ -435,6 +435,14 @@ ${
             email: a.email,
             kind: /** @type {import('./stripe.mjs').CheckoutKind} */ (kind),
           });
+          // The webhook that grants this trial revokes soft sessions and has no
+          // session context of its own. Bind this caller's session to the
+          // checkout so the webhook can re-verify exactly it (#230). Inside the
+          // try on purpose: if we cannot bind, failing here — before any card is
+          // charged — beats stranding the user after they pay.
+          if (typeof store.bindCheckoutSession === "function") {
+            await store.bindCheckoutSession(cs.id, a.email, session);
+          }
           return json(res, 200, { url: cs.url, id: cs.id });
         } catch (err) {
           const status = err?.status && err.status >= 400 ? err.status : 502;

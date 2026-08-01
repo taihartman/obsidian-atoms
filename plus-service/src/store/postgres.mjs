@@ -6,6 +6,7 @@ import pg from "pg";
 import { config } from "../config.mjs";
 import {
   applyStatusRules,
+  CHECKOUT_BINDING_TTL_MS,
   hashToken,
   id,
   isEntitledAccount,
@@ -42,6 +43,12 @@ CREATE TABLE IF NOT EXISTS sessions (
   exp_ms BIGINT NOT NULL,
   revoked BOOLEAN NOT NULL DEFAULT FALSE,
   verified BOOLEAN NOT NULL DEFAULT TRUE
+);
+CREATE TABLE IF NOT EXISTS checkout_bindings (
+  checkout_id TEXT PRIMARY KEY,
+  email TEXT NOT NULL,
+  session_hash TEXT NOT NULL,
+  exp_ms BIGINT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS promo_global (
   code TEXT PRIMARY KEY,
@@ -206,6 +213,74 @@ export async function createPostgresStore(databaseUrl) {
       "UPDATE sessions SET revoked = TRUE WHERE email = $1 AND verified = FALSE",
       [email.trim().toLowerCase()],
     );
+  }
+
+  /**
+   * Remember which plugin session opened this Stripe Checkout. The webhook that
+   * grants the trial has no session context of its own, and grantPeriod revokes
+   * every unverified session for the email — without this binding the paying
+   * user's session dies and never comes back (#230). Only the hash is stored,
+   * same as sessions.
+   */
+  async function bindCheckoutSession(checkoutId, email, sessionToken) {
+    if (!checkoutId || !sessionToken) return false;
+    await pool.query(
+      `INSERT INTO checkout_bindings (checkout_id, email, session_hash, exp_ms)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (checkout_id) DO UPDATE
+         SET email = EXCLUDED.email,
+             session_hash = EXCLUDED.session_hash,
+             exp_ms = EXCLUDED.exp_ms`,
+      [
+        String(checkoutId),
+        email.trim().toLowerCase(),
+        hashToken(sessionToken),
+        Date.now() + CHECKOUT_BINDING_TTL_MS,
+      ],
+    );
+    return true;
+  }
+
+  /**
+   * Single-use: re-verify the one session that paid for this checkout, undoing
+   * grantPeriod's revoke for it alone. A soft session that never opened checkout
+   * has no binding and stays revoked — that is the C1 fixation case (#163).
+   */
+  async function promoteCheckoutSession(checkoutId, email) {
+    if (!checkoutId) return false;
+    const key = String(email || "")
+      .trim()
+      .toLowerCase();
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const { rows } = await client.query(
+        "SELECT * FROM checkout_bindings WHERE checkout_id = $1 FOR UPDATE",
+        [String(checkoutId)],
+      );
+      const row = rows[0];
+      if (!row || row.email !== key || Date.now() > Number(row.exp_ms)) {
+        await client.query("ROLLBACK");
+        return false;
+      }
+      const r = await client.query(
+        `UPDATE sessions SET verified = TRUE, revoked = FALSE
+         WHERE token_hash = $1 AND exp_ms > $2
+         RETURNING token_hash`,
+        [row.session_hash, Date.now()],
+      );
+      await client.query(
+        "DELETE FROM checkout_bindings WHERE checkout_id = $1",
+        [String(checkoutId)],
+      );
+      await client.query("COMMIT");
+      return Boolean(r.rows[0]);
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      client.release();
+    }
   }
 
   /** Promote soft session after checkout; clears revoke from grantPeriod. */
@@ -538,6 +613,8 @@ export async function createPostgresStore(databaseUrl) {
     revokeSession,
     revokeAllSessionsForEmail,
     revokeUnverifiedSessionsForEmail,
+    bindCheckoutSession,
+    promoteCheckoutSession,
     markSessionVerified,
     tryConsumeFiling,
     completeUsage,

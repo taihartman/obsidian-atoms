@@ -329,6 +329,13 @@ export async function applyStripeEvent(store, event) {
       days: isTrial ? config.trialDays : isYearly ? 365 : 30,
       remaining: config.includedFilings,
     });
+    // grantPeriod just revoked every unverified session for this email. Undo it
+    // for the one session that opened this checkout — without this, the user who
+    // just paid is locked out with "Invalid session" forever (#230). A soft
+    // session with no binding stays revoked, which is the C1 case (#163).
+    if (typeof store.promoteCheckoutSession === "function") {
+      await store.promoteCheckoutSession(obj.id, email);
+    }
     if (obj.customer) await store.setStripeCustomer(email, String(obj.customer));
     if (obj.subscription) {
       await store.setStripeSubscription(email, String(obj.subscription));
