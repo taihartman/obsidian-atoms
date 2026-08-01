@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| Queued | [#222](https://github.com/taihartman/obsidian-atoms/issues/222) | taihartman | `claude/obsidian-resume-sync-filing-072be6` | [2026-07-31-001](docs/plans/2026-07-31-001-feat-resume-catch-up-plan.md) | `src/plugin/main.ts` · `src/platform/askMirror.ts` · `src/pipeline/inbox.ts` | Catch up on resume. Plan done + doc-reviewed twice (round 2: 7 personas, 27 edits applied); **implementation not started** — resume via [handoff](docs/handoffs/2026-07-31-resume-catch-up-doc-review.md). **Q2/Q3/Q4 are blocking** — Q4 (latency) decides whether Phases B/C exist. U1/U9 fix a cloud-mirror wipe on the delta path |
+| Queued | [#222](https://github.com/taihartman/obsidian-atoms/issues/222) | taihartman | `claude/obsidian-resume-sync-filing-072be6` | [2026-07-31-001](docs/plans/2026-07-31-001-feat-resume-catch-up-plan.md) | `src/plugin/main.ts` · `src/platform/askMirror.ts` · `src/pipeline/inbox.ts` | Catch up on resume. Plan done + doc-reviewed 3× ([round 3](docs/qa/2026-07-31-222-resume-catch-up-doc-review-r3.md): 7 lenses, 30 findings, all applied); **implementation not started**. **No blocking questions** — Q9 (paid stage asks once per session) and Q10 (connectivity probe cut to follow-up) closed 2026-08-01; Q7 now blocks U14/U8 only. **Next: Phase A alone (U1, U9, U2 step 3) as its own PR** — `onLayoutReady` calls `syncAskMirror({force:false})` and the delete loop sits outside the `if (force)` block, so a partially-synced device mass-deletes cloud atoms on *every relaunch today*. Then U0's spike, which gates whether Phase C is built at all |
 
 ## How to claim (copy)
 
