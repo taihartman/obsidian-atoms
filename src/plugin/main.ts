@@ -144,6 +144,7 @@ import { formatUpdateSummary } from "../home/runProgress";
 import {
   isAskMirrorWatchPath,
   readAskMirrorHashes,
+  stripLegacyAskMirrorHashes,
 } from "../platform/askMirror";
 
 export default class AtomsPlugin extends Plugin {
@@ -345,7 +346,6 @@ export default class AtomsPlugin extends Plugin {
       const folder = this.settings.atomFolder || "Atoms";
       const hashes = readAskMirrorHashes(
         (k) => this.app.loadLocalStorage(k) as unknown,
-        this.settings.askMirrorHashes,
       );
       return isAskMirrorWatchPath(path, folder, hashes);
     };
@@ -1079,12 +1079,15 @@ export default class AtomsPlugin extends Plugin {
   }
 
   async loadSettings() {
-    this.settings = Object.assign(
-      {},
-      DEFAULT_SETTINGS,
-      (await this.loadData()) as Partial<LinkerSettings>,
-    );
+    const raw = ((await this.loadData()) ?? {}) as Partial<LinkerSettings>;
+    // One-time strip of the retired synced hash map: mirror evidence is
+    // device-local (CLAUDE.md non-negotiable 12), and `data.json` syncs. This
+    // is deletion, not migration — the value is never read back as evidence,
+    // and dropping it fails safe (no evidence plans no deletes).
+    const stripped = stripLegacyAskMirrorHashes(raw);
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, raw);
     this.settings.atomFolder = clampAtomFolder(this.settings.atomFolder);
+    if (stripped) await this.saveSettings();
   }
 
   async saveSettings() {
@@ -1262,100 +1265,72 @@ export default class AtomsPlugin extends Plugin {
       askMirrorStatus,
       plusFetchRequest,
     } = await import("../platform/plusClient");
-    const {
-      planAskMirrorUpsert,
-      planAskMirrorDeletes,
-      isFlatAtomPath,
-      isHubMirrorPath,
-      collectHubLinkTitles,
-      readAskMirrorHashes,
-      writeAskMirrorHashes,
-      LS_ASK_MIRROR_LAST_SUCCESS,
-      LS_ASK_MIRROR_LAST_ERROR,
-      LS_ASK_MIRROR_SERVER_COUNT,
-    } = await import("../platform/askMirror");
+    const { runAskMirrorSync, isHubMirrorPath } = await import(
+      "../platform/askMirror"
+    );
+    const { AskMirrorDeleteConfirmModal } = await import(
+      "../settings/settings"
+    );
 
     const folder = "Atoms";
-    const atomFiles = this.app.vault
-      .getMarkdownFiles()
-      .filter((f) => isFlatAtomPath(folder, f.path));
-    const atomReads = await Promise.all(
-      atomFiles.map(async (f) => ({
-        path: f.path,
-        basename: f.basename,
-        content: await this.app.vault.read(f),
-      })),
-    );
-
-    const load = (k: string) => this.app.loadLocalStorage(k) as unknown;
-    const save = (k: string, v: string) => this.app.saveLocalStorage(k, v);
-    const hashSnapshot = readAskMirrorHashes(
-      load,
-      this.settings.askMirrorHashes,
-    );
-    if (
-      this.settings.askMirrorHashes &&
-      Object.keys(this.settings.askMirrorHashes).length > 0
-    ) {
-      writeAskMirrorHashes(save, hashSnapshot);
-      this.settings.askMirrorHashes = {};
-      await this.saveSettings();
-    }
-
-    const hashesForUpsert = force ? {} : hashSnapshot;
-    const { atoms: atomPayloads, nextHashes: atomNext } = planAskMirrorUpsert(
-      atomReads,
-      folder,
-      hashesForUpsert,
-      { kind: "atom" },
-    );
-
-    // Hubs: vault notes outside Atoms/ that atoms wikilink to
-    const allAtomLinks = planAskMirrorUpsert(atomReads, folder, {}, {
-      kind: "atom",
-    }).atoms;
-    const hubFiles = [] as typeof atomFiles;
-    const seenHub = new Set<string>();
-    for (const title of collectHubLinkTitles(allAtomLinks)) {
-      const dest = this.app.metadataCache.getFirstLinkpathDest(title, "");
-      if (!dest || dest.extension !== "md") continue;
-      if (!isHubMirrorPath(dest.path, folder)) continue;
-      if (seenHub.has(dest.path)) continue;
-      seenHub.add(dest.path);
-      hubFiles.push(dest);
-    }
-    const hubReads = await Promise.all(
-      hubFiles.map(async (f) => ({
-        path: f.path,
-        basename: f.basename,
-        content: await this.app.vault.read(f),
-      })),
-    );
-    const { atoms: hubPayloads, nextHashes: hubNext } = planAskMirrorUpsert(
-      hubReads,
-      folder,
-      hashesForUpsert,
-      { kind: "hub" },
-    );
-
-    const atoms = [...atomPayloads, ...hubPayloads];
-    const upsertNext = { ...atomNext, ...hubNext };
-    const vaultPaths = new Set([
-      ...atomFiles.map((f) => f.path),
-      ...hubFiles.map((f) => f.path),
-    ]);
-    const { deletePaths } = planAskMirrorDeletes(vaultPaths, hashSnapshot);
-
     const base = this.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL;
     const cfg = { baseUrl: base, request: plusFetchRequest };
     const token = session.sessionToken;
+    const read = async (f: TFile) => ({
+      path: f.path,
+      basename: f.basename,
+      content: await this.app.vault.read(f),
+    });
 
-    let workingHashes = { ...hashSnapshot };
-    let uploaded = 0;
-    let deleted = 0;
+    const result = await runAskMirrorSync(
+      {
+        atomFolder: folder,
+        scanAtoms: async () => {
+          const { isFlatAtomPath } = await import("../platform/askMirror");
+          return Promise.all(
+            this.app.vault
+              .getMarkdownFiles()
+              .filter((f) => isFlatAtomPath(folder, f.path))
+              .map(read),
+          );
+        },
+        resolveHubs: async (titles) => {
+          const hubFiles: TFile[] = [];
+          const seen = new Set<string>();
+          for (const title of titles) {
+            const dest = this.app.metadataCache.getFirstLinkpathDest(title, "");
+            if (!dest || dest.extension !== "md") continue;
+            if (!isHubMirrorPath(dest.path, folder)) continue;
+            if (seen.has(dest.path)) continue;
+            seen.add(dest.path);
+            hubFiles.push(dest);
+          }
+          return Promise.all(hubFiles.map(read));
+        },
+        load: (k) => this.app.loadLocalStorage(k) as unknown,
+        save: (k, v) => this.app.saveLocalStorage(k, v),
+        upsert: (atoms) => askMirrorUpsert(cfg, token, atoms),
+        deletePaths: (paths) => askMirrorDelete(cfg, token, paths),
+        reconcile: (opts) => askMirrorReconcile(cfg, token, opts),
+        status: () => askMirrorStatus(cfg, token),
+        // The only gesture that can mint a DeletionConfirmation.
+        confirm: (request) =>
+          new Promise((resolve) => {
+            try {
+              new AskMirrorDeleteConfirmModal(this.app, request, resolve).open();
+            } catch {
+              // A modal that cannot open must not park the sync forever.
+              // "dismissed" already means leave the mirror untouched.
+              resolve("dismissed");
+            }
+          }),
+        notice: (message) => new Notice(message),
+      },
+      { force },
+    );
 
-    const fail = (msg: string) => {
-      save(LS_ASK_MIRROR_LAST_ERROR, msg);
+    if (result.uploaded < 0) {
+      const msg = result.failureMessage ?? "";
       const snip = msg.replace(/\s+/g, " ").trim().slice(0, 72);
       if (!this.askMirrorNoticeShown) {
         this.askMirrorNoticeShown = true;
@@ -1365,80 +1340,10 @@ export default class AtomsPlugin extends Plugin {
             : "Ask: last push failed · Sync now to retry",
         );
       }
-      return -1 as const;
-    };
-
-    // Upsert dirty (chunk 100) — never skip solely because atoms is empty
-    for (let i = 0; i < atoms.length; i += 100) {
-      const chunk = atoms.slice(i, i + 100);
-      const r = await askMirrorUpsert(cfg, token, chunk);
-      if (!r.ok) return fail(r.message);
-      uploaded += r.upserted;
-      for (const a of chunk) {
-        const h = upsertNext[a.path];
-        if (h) workingHashes[a.path] = h;
-      }
-      writeAskMirrorHashes(save, workingHashes);
+      return -1;
     }
-
-    // Delete hash-evidence missing paths (chunk 100)
-    for (let i = 0; i < deletePaths.length; i += 100) {
-      const chunk = deletePaths.slice(i, i + 100);
-      const r = await askMirrorDelete(cfg, token, chunk);
-      if (!r.ok) return fail(r.message);
-      deleted += chunk.length;
-      for (const p of chunk) delete workingHashes[p];
-      writeAskMirrorHashes(save, workingHashes);
-    }
-
-    // Force: full keepPaths reconcile (orphan delete)
-    if (force) {
-      const keepPaths = [...vaultPaths];
-      const confirmEmpty = keepPaths.length === 0;
-      if (keepPaths.length <= 500) {
-        const r = await askMirrorReconcile(cfg, token, {
-          keepPaths,
-          done: true,
-          confirmEmpty,
-        });
-        if (!r.ok) return fail(r.message);
-      } else {
-        const sid = `rec-${Date.now()}`;
-        for (let i = 0; i < keepPaths.length; i += 500) {
-          const chunk = keepPaths.slice(i, i + 500);
-          const last = i + 500 >= keepPaths.length;
-          const r = await askMirrorReconcile(cfg, token, {
-            keepPaths: chunk,
-            done: last,
-            reconcileSessionId: sid,
-            confirmEmpty: last ? confirmEmpty : false,
-          });
-          if (!r.ok) return fail(r.message);
-        }
-      }
-      // After force, evidence map = exact vault set (upsertNext has all when force)
-      const rebuilt: Record<string, string> = {};
-      for (const p of keepPaths) {
-        const h = upsertNext[p] ?? workingHashes[p] ?? hashSnapshot[p];
-        if (h) rebuilt[p] = h;
-      }
-      workingHashes = rebuilt;
-      writeAskMirrorHashes(save, workingHashes);
-    }
-
-    // Success: clear error + refresh server count. Only stamp "last pushed"
-    // when this run mutated the mirror (or user forced Sync now).
-    save(LS_ASK_MIRROR_LAST_ERROR, "");
     this.askMirrorNoticeShown = false;
-    const mutated = uploaded > 0 || deleted > 0 || force;
-    if (mutated) {
-      save(LS_ASK_MIRROR_LAST_SUCCESS, new Date().toISOString());
-    }
-    const st = await askMirrorStatus(cfg, token);
-    if (st.ok) {
-      save(LS_ASK_MIRROR_SERVER_COUNT, String(st.count));
-    }
-    return uploaded;
+    return result.uploaded;
   }
 
   getApiKey(): string | null {

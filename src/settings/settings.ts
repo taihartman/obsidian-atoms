@@ -53,12 +53,17 @@ import {
   plusFetchRequest,
 } from "../platform/plusClient";
 import {
+  formatAskMirrorRefusalLine,
+  readAskMirrorRefusal,
   LS_ASK_MIRROR_HASHES,
   LS_ASK_MIRROR_LAST_ERROR,
   LS_ASK_MIRROR_LAST_SUCCESS,
+  LS_ASK_MIRROR_REFUSAL,
+  LS_ASK_MIRROR_SCAN_HIGHWATER,
   LS_ASK_MIRROR_SERVER_COUNT,
   writeAskMirrorHashes,
 } from "../platform/askMirror";
+import type { ConfirmRequest, ConfirmVerdict } from "../shared/confirm";
 import { requestUrl } from "obsidian";
 import {
   addCustomActiveTag,
@@ -1152,12 +1157,20 @@ export class AtomsSettingTab extends PluginSettingTab {
       return `${Math.floor(sec / 86400)}d ago`;
     };
     const errSnip = lastErr.replace(/\s+/g, " ").trim().slice(0, 96);
-    const statusLine = lastErr
-      ? `Ask mirror: ${serverCount} · push failed${errSnip ? ` — ${errSnip}` : ""} · Sync now to retry`
-      : `Ask mirror: ${serverCount} · last pushed ${relative(lastOk)}`;
+    // A refusal outranks a push error: the mirror did not converge and the
+    // user needs to know deletion was withheld, not that a request failed.
+    const refused =
+      readAskMirrorRefusal(
+        (k) => this.app.loadLocalStorage(k) as unknown,
+      ).count > 0;
+    const statusLine = refused
+      ? formatAskMirrorRefusalLine(serverCount)
+      : lastErr
+        ? `Ask mirror: ${serverCount} · push failed${errSnip ? ` — ${errSnip}` : ""} · Sync now to retry`
+        : `Ask mirror: ${serverCount} · last pushed ${relative(lastOk)}`;
     containerEl.createEl("p", {
       text: statusLine,
-      cls: lastErr
+      cls: lastErr || refused
         ? "setting-item-description atoms-ask-mirror-error"
         : "setting-item-description",
     });
@@ -1234,7 +1247,6 @@ export class AtomsSettingTab extends PluginSettingTab {
                         new Notice(`Ask: ${r.message}`);
                         return;
                       }
-                      this.plugin.settings.askMirrorHashes = {};
                       writeAskMirrorHashes(
                         (k, v) => this.app.saveLocalStorage(k, v),
                         {},
@@ -1243,6 +1255,11 @@ export class AtomsSettingTab extends PluginSettingTab {
                       this.app.saveLocalStorage(LS_ASK_MIRROR_LAST_SUCCESS, "");
                       this.app.saveLocalStorage(LS_ASK_MIRROR_SERVER_COUNT, "0");
                       this.app.saveLocalStorage(LS_ASK_MIRROR_HASHES, "{}");
+                      this.app.saveLocalStorage(LS_ASK_MIRROR_REFUSAL, "");
+                      this.app.saveLocalStorage(
+                        LS_ASK_MIRROR_SCAN_HIGHWATER,
+                        "",
+                      );
                       await this.plugin.saveSettings();
                       new Notice("Ask mirror wiped");
                       this.redisplay();
@@ -1290,5 +1307,77 @@ export class AtomsSettingTab extends PluginSettingTab {
             await this.plugin.saveSettings();
           }),
       );
+  }
+}
+
+/**
+ * The gesture that releases a deletion refusal (KTD15 / U1).
+ *
+ * It names the concrete counts because reconcile hard-deletes server-side —
+ * no tombstone, no retention window, no recovery beyond re-uploading from a
+ * vault that, by definition, may not hold the atoms. Dismissing counts as a
+ * refusal, never as consent.
+ */
+export class AskMirrorDeleteConfirmModal extends Modal {
+  private answered = false;
+
+  constructor(
+    app: App,
+    private readonly request: ConfirmRequest,
+    private readonly onVerdict: (verdict: ConfirmVerdict) => void,
+  ) {
+    super(app);
+  }
+
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.createEl("h2", { text: "Vault scan looks incomplete" });
+    contentEl.createEl("p", {
+      text: "Atoms did not delete anything from your cloud mirror. This device found fewer atoms than it has synced before, which usually means the vault is still downloading.",
+    });
+    contentEl.createEl("p", {
+      text: `Atoms this device has synced before: ${this.request.evidenceCount}`,
+    });
+    contentEl.createEl("p", {
+      text: `Atoms found in this vault right now: ${this.request.scannedCount}`,
+    });
+    contentEl.createEl("p", {
+      text: `Last known cloud count: ${
+        this.request.lastKnownServerCount ?? "unknown"
+      }`,
+    });
+    contentEl.createEl("p", {
+      text: "Deleting from the cloud cannot be undone — the only way back is re-uploading from this vault. Confirm only if you meant to delete these atoms.",
+      cls: "setting-item-description",
+    });
+
+    new Setting(contentEl)
+      .addButton((btn) =>
+        btn.setButtonText("Wait for sync").onClick(() => {
+          this.answer("declined");
+        }),
+      )
+      .addButton((btn) =>
+        btn
+          .setButtonText("Delete from cloud")
+          .setWarning()
+          .onClick(() => {
+            this.answer("confirmed");
+          }),
+      );
+  }
+
+  onClose() {
+    this.contentEl.empty();
+    // Closing without choosing is a dismissal, not consent.
+    this.answer("dismissed");
+  }
+
+  private answer(verdict: ConfirmVerdict): void {
+    if (this.answered) return;
+    this.answered = true;
+    this.onVerdict(verdict);
+    if (verdict !== "dismissed") this.close();
   }
 }

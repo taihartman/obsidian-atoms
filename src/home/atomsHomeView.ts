@@ -77,6 +77,11 @@ import {
 } from "../platform/filingAuth";
 import { UPDATE_NOTES_BATCH_LIMIT } from "../pipeline/refreshAtoms";
 import {
+  formatAskMirrorRefusalLine,
+  readAskMirrorRefusal,
+  LS_ASK_MIRROR_SERVER_COUNT,
+} from "../platform/askMirror";
+import {
   calendarDateToday,
   calendarDayDelta,
   citatorLinesForAtom,
@@ -797,6 +802,20 @@ export class AtomsHomeView extends ItemView {
         pairThrottle: this.mindChangePairThrottle,
       },
     );
+  }
+
+  /** Mirror deletion was refused — say so, do not fail silently (R8). */
+  private renderAskMirrorRefusal(scroll: HTMLElement): void {
+    const load = (k: string) => this.app.loadLocalStorage(k) as unknown;
+    if (readAskMirrorRefusal(load).count <= 0) return;
+    const raw = load(LS_ASK_MIRROR_SERVER_COUNT);
+    const serverCount =
+      raw != null && String(raw).trim() !== "" ? String(raw) : "—";
+    const card = statusCard(scroll, {
+      tone: "error",
+      className: "atoms-home-ask-mirror-refusal",
+    });
+    card.createEl("p", { text: formatAskMirrorRefusalLine(serverCount) });
   }
 
   private renderResurfaceCard(scroll: HTMLElement): void {
@@ -1755,6 +1774,10 @@ export class AtomsHomeView extends ItemView {
     });
 
     const scroll = root.createDiv({ cls: "atoms-home-scroll" });
+
+    // Settings → Atoms is not a surface a phone user opens routinely, so a
+    // Settings-only refusal is indistinguishable from silence (U1).
+    this.renderAskMirrorRefusal(scroll);
 
     if (this.runPhase !== "idle") {
       const tone =
