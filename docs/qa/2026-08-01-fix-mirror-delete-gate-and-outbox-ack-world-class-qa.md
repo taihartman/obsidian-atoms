@@ -350,7 +350,7 @@ pass walked through both.
 
 ## Re-run 2026-08-02
 
-Branch `fix/mirror-delete-gate-and-outbox-ack` @ `732ca20` · v0.6.60. Scope as the merge decision
+Branch `fix/mirror-delete-gate-and-outbox-ack` @ `732ca20` · v0.6.60 (v0.6.63 after merging master). Scope as the merge decision
 set it: fix H2, fix H1, land the parked repro, decide F2, re-run adversarial classes **C** and
 **D** only. Everything else in the ledger is untouched by these fixes and was not re-run.
 
@@ -432,7 +432,9 @@ glob; `docs/qa/repro/` is empty.
 
 - **iOS and Android device boxes** — human-only (physical device + a GitHub Release via BRAT).
   Unchanged.
-- **F1, F3, F4, F5** and both unproven suspicions — still open, still non-blocking, still want
+- **F1 is fixed on `master`**, not by this PR — `markDestructive` replaced the `setDestructive`
+  call that truncated Settings → Atoms. Picked up here by merging `origin/master` in.
+- **F3, F4, F5** and both unproven suspicions — still open, still non-blocking, still want
   their own issues.
 - **F3 bit this re-run**, exactly as written: the running Obsidian has the *main repo's*
   `test_vault/test vault` open, not the worktree's. The live probe therefore required installing
