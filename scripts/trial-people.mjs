@@ -76,6 +76,12 @@ const CASES = [
     capture: "mom wants to celebrate her birthday with a climb then dinner",
     expect: { roles: { Mom: "subject" } },
   },
+  {
+    id: 7,
+    why: "kinship possessive — the fix for case 6 must not over-invite here",
+    capture: "mom's lasagna recipe is unbeatable",
+    expect: { roles: { Mom: "mentioned" }, noSubject: true },
+  },
 ];
 
 /** Minimal context block — the trial is about people[], not retrieval. */
