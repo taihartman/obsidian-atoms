@@ -2,9 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
   applyOutboxItemToVault,
   runAskOutboxApply,
+  runMirrorSingleFlight,
   syncNowNotice,
   type AskOutboxHost,
   type AskOutboxItem,
+  type MirrorSingleFlightHost,
+  type MirrorSingleFlightState,
   type MirrorSyncOutcome,
   type OutboxApplyResult,
 } from "../src/plugin/catchUp";
@@ -411,5 +414,114 @@ describe("syncNowNotice", () => {
 
   it("leaves a hard failure to the push's own Notice", () => {
     expect(syncNowNotice({ kind: "failed", message: "network" })).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+/**
+ * H2. The single-flight force flag is shared state a *joining* caller writes,
+ * which is what makes it dangerous: `force` authorises a full keepPaths
+ * reconcile, so a flag that survives its own run hands an unforced background
+ * push the authority to delete every cloud row the scan does not name.
+ */
+describe("runMirrorSingleFlight force follow-up", () => {
+  /** A run whose passes resolve when the test says so. */
+  function fakeFlight(outcomes: Array<Exclude<MirrorSyncOutcome, { kind: "joined" }>>) {
+    const state: MirrorSingleFlightState = {
+      inFlight: false,
+      followUp: false,
+      forceFollowUp: false,
+    };
+    const forces: boolean[] = [];
+    let release: (() => void) | null = null;
+    const host: MirrorSingleFlightHost = {
+      state,
+      onBegin: () => {},
+      once: async (force) => {
+        forces.push(force);
+        // Park the first pass so a concurrent call can join mid-`await` —
+        // the only window in which the leak can be written.
+        if (forces.length === 1) {
+          await new Promise<void>((r) => {
+            release = r;
+          });
+        }
+        return outcomes[forces.length - 1] ?? { kind: "worked", uploaded: 0, deleted: 0 };
+      },
+    };
+    return {
+      state,
+      forces,
+      host,
+      release: () => {
+        release?.();
+      },
+    };
+  }
+
+  it("drops a joined force when the run exits on failure", async () => {
+    const f = fakeFlight([{ kind: "failed", message: "network" }]);
+    const run = runMirrorSingleFlight(f.host, false);
+    // A user taps Sync now while the background push is in the air.
+    expect(await runMirrorSingleFlight(f.host, true)).toEqual({ kind: "joined" });
+    expect(f.state.forceFollowUp).toBe(true);
+    f.release();
+    expect(await run).toEqual({ kind: "failed", message: "network" });
+
+    expect(f.state.forceFollowUp).toBe(false);
+    // The next vault edit must not inherit that gesture.
+    await runMirrorSingleFlight(f.host, false);
+    expect(f.forces).toEqual([false, false]);
+  });
+
+  it("drops a joined force when the run exits refused", async () => {
+    const f = fakeFlight([{ kind: "refused", uploaded: 2, reason: "scan-incomplete" }]);
+    const run = runMirrorSingleFlight(f.host, false);
+    await runMirrorSingleFlight(f.host, true);
+    f.release();
+    await run;
+
+    expect(f.state.forceFollowUp).toBe(false);
+    await runMirrorSingleFlight(f.host, false);
+    expect(f.forces).toEqual([false, false]);
+  });
+
+  it("still honours a joined force when the run keeps looping", async () => {
+    // The flag is not merely disarmed — dropping it on the *early* exits must
+    // not cost the feature its reason to exist.
+    const f = fakeFlight([
+      { kind: "worked", uploaded: 1, deleted: 0 },
+      { kind: "worked", uploaded: 0, deleted: 3 },
+    ]);
+    const run = runMirrorSingleFlight(f.host, false);
+    await runMirrorSingleFlight(f.host, true);
+    f.release();
+
+    expect(await run).toEqual({ kind: "worked", uploaded: 1, deleted: 3 });
+    expect(f.forces).toEqual([false, true]);
+    expect(f.state).toEqual({
+      inFlight: false,
+      followUp: false,
+      forceFollowUp: false,
+    });
+  });
+
+  it("leaves no flag set for the next caller after any exit", async () => {
+    for (const outcome of [
+      { kind: "failed" } as const,
+      { kind: "refused", uploaded: 0 } as const,
+      { kind: "worked", uploaded: 0, deleted: 0 } as const,
+    ]) {
+      const f = fakeFlight([outcome]);
+      const run = runMirrorSingleFlight(f.host, true);
+      await runMirrorSingleFlight(f.host, true);
+      f.release();
+      await run;
+      expect(f.state).toEqual({
+        inFlight: false,
+        followUp: false,
+        forceFollowUp: false,
+      });
+    }
   });
 });

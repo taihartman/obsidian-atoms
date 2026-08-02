@@ -1,7 +1,11 @@
 /**
- * THROWAWAY adversarial QA probe — delete after triage.
- * Mirrors test/askMirror.test.ts's fake host so scenarios run against the real
- * runAskMirrorSync.
+ * Adversarial regression suite for the mirror deletion gate (#225).
+ *
+ * Written as a break-it probe during the adversarial QA pass, kept because
+ * three of its scenarios were red against the shipped gate — all three were
+ * H1, the stored server count authorising a reconcile it had no standing to
+ * authorise. Mirrors test/askMirror.test.ts's fake host so every scenario runs
+ * against the real `runAskMirrorSync`, not a re-implementation of it.
  */
 import { describe, expect, it } from "vitest";
 import type { ConfirmRequest, ConfirmVerdict } from "../src/shared/confirm";
@@ -381,9 +385,13 @@ describe("D: network", () => {
     });
   });
 
-  it("unreachable status() does NOT stop an already-allowed forced reconcile", async () => {
-    // Complete scan + a stale-but-parseable stored count = allowed before the
-    // network is ever touched.
+  it("unreachable status() fails closed even when the stored count would allow (H1)", async () => {
+    // H1. A complete scan against a stale-but-parseable stored count is
+    // locally indistinguishable from the catastrophe: the phone holding 3 of
+    // 400 atoms also scans 100% of its own evidence, and its stored count also
+    // matches that scan. No local signal separates the two — only this
+    // moment's server count does. So an unreachable status() on the reconcile
+    // path refuses, rather than letting a stored number authorise a delete.
     const f = makeFakeHost({
       evidence: 84,
       scanned: 84,
@@ -391,9 +399,14 @@ describe("D: network", () => {
       statusFails: true,
     });
     const r = await runAskMirrorSync(f.host, { force: true });
-    expect({ refused: r.refused, reconciles: f.reconciles.length }).toEqual({
-      refused: false,
-      reconciles: 1,
+    expect({
+      refused: r.refused,
+      reason: r.refusalReason,
+      reconciles: f.reconciles.length,
+    }).toEqual({
+      refused: true,
+      reason: "no-server-count",
+      reconciles: 0,
     });
   });
 

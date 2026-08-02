@@ -1351,9 +1351,8 @@ export class AskMirrorDeleteConfirmModal extends Modal {
       text: `Atoms found in this vault right now: ${this.request.scannedCount}`,
     });
     contentEl.createEl("p", {
-      text: `Last known cloud count: ${
-        this.request.lastKnownServerCount ?? "unknown"
-      }`,
+      // Always a fresh number — the dialog is not posed without one.
+      text: `Cloud count right now: ${this.request.lastKnownServerCount}`,
     });
     contentEl.createEl("p", {
       text: "Deleting from the cloud cannot be undone — the only way back is re-uploading from this vault. Confirm only if you meant to delete these atoms.",

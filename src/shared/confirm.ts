@@ -23,6 +23,18 @@ export type MirrorDeletionRefusal =
   | "server-count-tripwire"
   | "baseline-unreadable";
 
+/**
+ * The subset a *dialog* can carry. `no-server-count` is absent by
+ * construction: the modal is posed only after this pass established a fresh
+ * count, and a run that could not get one refuses outright rather than asking
+ * an irreversible question whose answer cannot be informed. Narrowing it here
+ * is what keeps that a property of the code instead of a promise about it.
+ */
+export type MirrorDeletionAskReason = Exclude<
+  MirrorDeletionRefusal,
+  "no-server-count"
+>;
+
 /** Ask mirror deletion — the concrete counts the modal must name. */
 export type ConfirmRequest = {
   kind: "ask-mirror-deletion";
@@ -33,11 +45,11 @@ export type ConfirmRequest = {
   /**
    * Server row count as of *this* pass — refreshed immediately before the ask,
    * never the stored value, which on the at-risk device is old by definition.
-   * Null only when the count could not be established at all.
+   * Never null: no count, no question.
    */
-  lastKnownServerCount: number | null;
+  lastKnownServerCount: number;
   /** Why the gate refused, so the copy can be true rather than generic. */
-  reason: MirrorDeletionRefusal;
+  reason: MirrorDeletionAskReason;
 };
 
 export interface ConfirmHost {

@@ -24,8 +24,10 @@ import { registerAtomsCommands } from "./commands";
 import {
   applyOutboxItemToVault,
   runAskOutboxApply,
+  runMirrorSingleFlight,
   type AskOutboxHost,
   type AskOutboxOutcome,
+  type MirrorSingleFlightState,
   type MirrorSyncOutcome,
   type OutboxVaultPort,
 } from "./catchUp";
@@ -177,7 +179,12 @@ export default class AtomsPlugin extends Plugin {
   private autoRunInFlight = false;
   private backfillInFlight = false;
   private askOutboxInFlight = false;
-  private askMirrorInFlight = false;
+  /** Owned by runMirrorSingleFlight — never flip these fields by hand. */
+  private readonly askMirrorFlight: MirrorSingleFlightState = {
+    inFlight: false,
+    followUp: false,
+    forceFollowUp: false,
+  };
   /**
    * Shared in-flight drain (F1). Both entry points — bootstrapInbox (unawaited
    * from onLayoutReady) and runDrainInbox (command) — go through drainInboxOnce,
@@ -185,8 +192,6 @@ export default class AtomsPlugin extends Plugin {
    * duplicate append.
    */
   private drainInFlight: Promise<InboxDrainResult> | null = null;
-  private askMirrorFollowUp = false;
-  private askMirrorForceFollowUp = false;
   private askMirrorNoticeShown = false;
   private askMirrorDebounceTimer: number | null = null;
   private askMirrorDirty = false;
@@ -385,8 +390,8 @@ export default class AtomsPlugin extends Plugin {
       return;
     }
     // Coalesce into the in-flight run instead of a second post-run debounce.
-    if (this.askMirrorInFlight) {
-      this.askMirrorFollowUp = true;
+    if (this.askMirrorFlight.inFlight) {
+      this.askMirrorFlight.followUp = true;
       return;
     }
     this.askMirrorDirty = true;
@@ -1185,40 +1190,22 @@ export default class AtomsPlugin extends Plugin {
       if (opts?.force) new Notice("Enable Ask and acknowledge privacy first");
       return { kind: "failed", message: "Ask mirror is off" };
     }
-    if (this.askMirrorInFlight) {
-      this.askMirrorFollowUp = true;
-      if (opts?.force) this.askMirrorForceFollowUp = true;
-      return { kind: "joined" };
-    }
-    // Absorb pending debounce into this run (avoids Process + 2s double push).
-    if (this.askMirrorDebounceTimer != null) {
-      window.clearTimeout(this.askMirrorDebounceTimer);
-      this.askMirrorDebounceTimer = null;
-    }
-    this.askMirrorDirty = false;
-    this.askMirrorInFlight = true;
-    let uploaded = 0;
-    let deleted = 0;
-    try {
-      const force = Boolean(opts?.force);
-      do {
-        this.askMirrorFollowUp = false;
-        const runForce = force || this.askMirrorForceFollowUp;
-        this.askMirrorForceFollowUp = false;
-        const once = await this.runAskMirrorSyncOnce(runForce);
-        if (once.kind === "failed") return once;
-        if (once.kind === "refused") {
-          // A refusal will refuse again this pass; surface it now rather than
-          // looping, and never as a zero-work success.
-          return { ...once, uploaded: uploaded + once.uploaded };
-        }
-        uploaded += once.uploaded;
-        deleted += once.deleted;
-      } while (this.askMirrorFollowUp);
-      return { kind: "worked", uploaded, deleted };
-    } finally {
-      this.askMirrorInFlight = false;
-    }
+    return runMirrorSingleFlight(
+      {
+        state: this.askMirrorFlight,
+        onBegin: () => {
+          // Absorb pending debounce into this run (avoids Process + 2s
+          // double push).
+          if (this.askMirrorDebounceTimer != null) {
+            window.clearTimeout(this.askMirrorDebounceTimer);
+            this.askMirrorDebounceTimer = null;
+          }
+          this.askMirrorDirty = false;
+        },
+        once: (force) => this.runAskMirrorSyncOnce(force),
+      },
+      Boolean(opts?.force),
+    );
   }
 
   private async runAskMirrorSyncOnce(

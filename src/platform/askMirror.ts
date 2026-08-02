@@ -839,41 +839,54 @@ async function resolveMirrorDeletionGate(
       ...(confirmation ? { confirmation } : {}),
     });
 
-  let decision = judge();
-  if (decision.allowed || !force) {
-    return { decision, confirmation: null, serverCountRefreshed: false };
+  // The server tripwire is consulted on the reconcile path only, and there it
+  // is the sole measure of the blast radius: a reconcile deletes every row
+  // this scan does not name. So the count it judges — and the number any
+  // dialog shows — must be *this moment's*, asked before the verdict and not
+  // only after a stale one has already refused. The stored count is old by
+  // definition on exactly the device at risk: it was written when this device
+  // last synced, and another device pushing 395 atoms since is invisible to
+  // it. Trusting it on the *allow* path is how a phone holding 3 of 400 atoms
+  // talks itself into deleting the other 397.
+  let serverCountRefreshed = false;
+  if (force) {
+    const st = await host.status();
+    // A fresh `0` is authoritative — the cloud really is empty, and nothing
+    // can be deleted from it. Only a *stored* `0` is untrustworthy (it is what
+    // a wipe and a bodyless 2xx both used to leave behind). Anything that is
+    // not a whole non-negative count is not a count at all.
+    if (!st.ok || !Number.isInteger(st.count) || st.count < 0) {
+      // Fail closed. Never fall back to the stale value, and never reconcile
+      // — nor pose an irreversible question — on a count we could not get.
+      return {
+        decision: {
+          allowed: false,
+          reason: "no-server-count",
+          floor: mirrorCompletenessFloor(evidenceCount, highWaterCount),
+        },
+        confirmation: null,
+        serverCountRefreshed: false,
+      };
+    }
+    save(LS_ASK_MIRROR_SERVER_COUNT, String(st.count));
+    serverCount = st.count;
+    serverCountRefreshed = true;
   }
 
-  // A forced pass is about to ask the user to authorise an irreversible
-  // delete, so the number it decides — and the number the dialog shows — must
-  // be *this moment's* server count. The stored one is old by definition on
-  // exactly the device at risk: it was written when this device last synced,
-  // and another device pushing 395 atoms since is invisible to it.
-  const st = await host.status();
-  // A fresh `0` is authoritative — the cloud really is empty, and nothing can
-  // be deleted from it. Only a *stored* `0` is untrustworthy (it is what a
-  // wipe and a bodyless 2xx both used to leave behind). Anything that is not a
-  // whole non-negative count is not a count at all.
-  if (!st.ok || !Number.isInteger(st.count) || st.count < 0) {
-    // Fail closed. Never fall back to the stale value, and never pose an
-    // irreversible question whose answer cannot be informed.
-    return {
-      decision: {
-        allowed: false,
-        reason: "no-server-count",
-        floor: mirrorCompletenessFloor(evidenceCount, highWaterCount),
-      },
-      confirmation: null,
-      serverCountRefreshed: false,
-    };
+  // The fresh count decides both ways: it can clear the gate as well as close
+  // it — a first sync against an empty cloud has nothing to delete, and a
+  // delete dialog there is misinformation.
+  let decision = judge();
+  if (decision.allowed || !force) {
+    return { decision, confirmation: null, serverCountRefreshed };
   }
-  save(LS_ASK_MIRROR_SERVER_COUNT, String(st.count));
-  serverCount = st.count;
-  decision = judge();
-  // The fresh count can also *clear* the gate — a first sync against an empty
-  // cloud has nothing to delete, and a delete dialog there is misinformation.
-  if (decision.allowed) {
-    return { decision, confirmation: null, serverCountRefreshed: true };
+
+  // Neither can hold here — the refresh above either produced a count or
+  // returned. Asserting it rather than asserting *about* it means a future
+  // path that reaches the dialog without a count fails closed instead of
+  // posing a question the user cannot answer informedly.
+  if (serverCount == null || decision.reason === "no-server-count") {
+    return { decision, confirmation: null, serverCountRefreshed };
   }
 
   // The refusal's release valve: an explicit gesture the user is already
@@ -890,7 +903,7 @@ async function resolveMirrorDeletionGate(
     confirmation = mintDeletionConfirmation({ scannedCount, evidenceCount });
     decision = judge(confirmation);
   }
-  return { decision, confirmation, serverCountRefreshed: true };
+  return { decision, confirmation, serverCountRefreshed };
 }
 
 /**

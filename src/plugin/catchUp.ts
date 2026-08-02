@@ -74,6 +74,83 @@ export function syncNowNotice(outcome: MirrorSyncOutcome): string | null {
   }
 }
 
+/**
+ * The single-flight state one mirror push runs inside. The plugin owns the
+ * object; this module owns every transition on it, because the bug the shape
+ * exists to prevent (H2) is a flag outliving the run that set it.
+ */
+export type MirrorSingleFlightState = {
+  inFlight: boolean;
+  /** Another push was requested while this one held the lock. */
+  followUp: boolean;
+  /** ...and at least one of those requests was forced. */
+  forceFollowUp: boolean;
+};
+
+export type MirrorSingleFlightHost = {
+  state: MirrorSingleFlightState;
+  /** Runs once this call owns the lock, before the first pass. */
+  onBegin(): void;
+  /** One push. `force` is the pass's effective force, follow-ups folded in. */
+  once(force: boolean): Promise<Exclude<MirrorSyncOutcome, { kind: "joined" }>>;
+};
+
+/**
+ * Run a mirror push under single-flight, absorbing concurrent requests into
+ * the running pass instead of racing a second one.
+ *
+ * A joining caller can *upgrade* the run to forced, which is the whole reason
+ * the force flag is shared state and not a parameter — and the whole reason it
+ * is dangerous. `force` authorises a full keepPaths reconcile: every cloud row
+ * this scan does not name is deleted. So the flag is consumed on entry to each
+ * pass and cleared again on every exit, including the early returns — see the
+ * `finally`.
+ */
+export async function runMirrorSingleFlight(
+  host: MirrorSingleFlightHost,
+  force: boolean,
+): Promise<MirrorSyncOutcome> {
+  const s = host.state;
+  if (s.inFlight) {
+    s.followUp = true;
+    if (force) s.forceFollowUp = true;
+    return { kind: "joined" };
+  }
+  s.inFlight = true;
+  host.onBegin();
+  let uploaded = 0;
+  let deleted = 0;
+  try {
+    do {
+      s.followUp = false;
+      const runForce = force || s.forceFollowUp;
+      s.forceFollowUp = false;
+      const once = await host.once(runForce);
+      if (once.kind === "failed") return once;
+      if (once.kind === "refused") {
+        // A refusal will refuse again this pass; surface it now rather than
+        // looping, and never as a zero-work success.
+        return { ...once, uploaded: uploaded + once.uploaded };
+      }
+      uploaded += once.uploaded;
+      deleted += once.deleted;
+    } while (s.followUp);
+    return { kind: "worked", uploaded, deleted };
+  } finally {
+    // Both follow-up flags belong to the run that owns them, so neither may
+    // outlive it (H2). A forced call joining mid-run sets `forceFollowUp`
+    // during an `await` above; the `failed` and `refused` early returns exit
+    // without consuming it, and the next unforced push — the vault watcher
+    // fires one on any edit — would then compute `runForce` true and reconcile
+    // with no user gesture behind it. Dropping a force is safe: nothing is
+    // deleted and Sync now is one tap away. Carrying one into an unforced run
+    // is not.
+    s.forceFollowUp = false;
+    s.followUp = false;
+    s.inFlight = false;
+  }
+}
+
 /** An outbox row as pulled from Plus. */
 export type AskOutboxItem = {
   id: string;
