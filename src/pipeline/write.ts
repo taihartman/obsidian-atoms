@@ -27,7 +27,7 @@ import {
 import { mergeProposedTags } from "./vocabulary";
 import {
   applyPersonPeerLinksToContents,
-  resolvePersonInviteName,
+  resolveAtomPersonName,
 } from "./personInvite";
 import { Notice, TFile } from "obsidian";
 import {
@@ -389,7 +389,7 @@ async function applyPersonPeersForNewAtoms(
     const file = app.vault.getAbstractFileByPath(path);
     if (!(file instanceof TFile)) continue;
     const content = await app.vault.read(file);
-    const name = resolvePersonInviteName(e.captureText, e.title);
+    const name = resolveAtomPersonName(content, e.captureText, e.title);
     if (!name) continue;
     const id = name.toLowerCase();
     if (hubLower.has(id)) continue;

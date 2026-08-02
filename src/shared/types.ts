@@ -9,6 +9,19 @@ export interface ClassificationLink {
 }
 
 /**
+ * How a named person relates to the claim (KTD2).
+ * Only `subject` may drive a person-hub invite — `mentioned` is a possessive
+ * owner or bystander, `recommender` suggested media.
+ */
+export type PersonRole = "subject" | "mentioned" | "recommender";
+
+export interface ClassificationPerson {
+  /** Name exactly as written in the capture (verbatim guard, R4). */
+  name: string;
+  role: PersonRole;
+}
+
+/**
  * Model output surface. Body is never produced by the model (R2).
  * `title` is required iff verdict === "atom" (enforced post-parse, KTD4 layer 2).
  */
@@ -20,6 +33,12 @@ export interface ClassificationResult {
   links: ClassificationLink[];
   /** Optional hub H2 placement; written as atom FM hub-section. */
   hub_section?: string;
+  /**
+   * People named in the capture, with role. Absent on legacy results;
+   * `[]` means the model found nobody (a subject-less capture) — the two are
+   * not interchangeable (KTD6).
+   */
+  people?: ClassificationPerson[];
 }
 
 export interface ClassifyUsage {

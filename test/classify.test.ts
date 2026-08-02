@@ -386,6 +386,29 @@ describe("classifyCapture request layer", () => {
     expect(notices.length).toBe(1);
   });
 
+  it("plus 403 with no recognised marker does not blame the session", async () => {
+    const request = vi.fn(async () => ({
+      status: 403,
+      json: {},
+    }));
+    const notices: string[] = [];
+    const outcome = await classifyCapture("x", ctx, {
+      apiKey: "",
+      model: "m",
+      plus: { baseUrl: "https://plus.test", sessionToken: "sess" },
+      request: request as never,
+      onAuthFailure: (msg) => notices.push(msg),
+    });
+    expect(outcome.ok).toBe(false);
+    if (!outcome.ok) {
+      expect(outcome.reason).toBe("auth");
+      expect(outcome.message).toContain("HTTP 403");
+      expect(outcome.message.toLowerCase()).not.toContain("sign in");
+      expect(outcome.message.toLowerCase()).not.toContain("rejected");
+    }
+    expect(notices.length).toBe(1);
+  });
+
   it("missing key does not call network", async () => {
     const request = vi.fn();
     const outcome = await classifyCapture("x", ctx, {

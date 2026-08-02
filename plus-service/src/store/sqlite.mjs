@@ -7,6 +7,7 @@ import { DatabaseSync } from "node:sqlite";
 import { config } from "../config.mjs";
 import {
   applyStatusRules,
+  CHECKOUT_BINDING_TTL_MS,
   hashToken,
   id,
   isEntitledAccount,
@@ -42,6 +43,12 @@ function migrate(db) {
       exp_ms INTEGER NOT NULL,
       revoked INTEGER NOT NULL DEFAULT 0,
       verified INTEGER NOT NULL DEFAULT 1
+    );
+    CREATE TABLE IF NOT EXISTS checkout_bindings (
+      checkout_id TEXT PRIMARY KEY,
+      email TEXT NOT NULL,
+      session_hash TEXT NOT NULL,
+      exp_ms INTEGER NOT NULL
     );
     CREATE TABLE IF NOT EXISTS promo_global (
       code TEXT PRIMARY KEY,
@@ -182,6 +189,60 @@ export function createSqliteStore(dbPath = config.databasePath) {
     db.prepare(
       "UPDATE sessions SET revoked = 1 WHERE email = ? AND verified = 0",
     ).run(email.trim().toLowerCase());
+  }
+
+  /**
+   * Remember which plugin session opened this Stripe Checkout. The webhook that
+   * grants the trial has no session context of its own, and grantPeriod revokes
+   * every unverified session for the email — without this binding the paying
+   * user's session dies and never comes back (#230). Only the hash is stored,
+   * same as sessions.
+   */
+  function bindCheckoutSession(checkoutId, email, sessionToken) {
+    if (!checkoutId || !sessionToken) return false;
+    db.prepare(
+      `INSERT INTO checkout_bindings (checkout_id, email, session_hash, exp_ms)
+       VALUES (?, ?, ?, ?)
+       ON CONFLICT (checkout_id) DO UPDATE
+         SET email = excluded.email,
+             session_hash = excluded.session_hash,
+             exp_ms = excluded.exp_ms`,
+    ).run(
+      String(checkoutId),
+      email.trim().toLowerCase(),
+      hashToken(sessionToken),
+      Date.now() + CHECKOUT_BINDING_TTL_MS,
+    );
+    return true;
+  }
+
+  /**
+   * Single-use: re-verify the one session that paid for this checkout, undoing
+   * grantPeriod's revoke for it alone. A soft session that never opened checkout
+   * has no binding and stays revoked — that is the C1 fixation case (#163).
+   */
+  function promoteCheckoutSession(checkoutId, email) {
+    if (!checkoutId) return false;
+    const key = String(email || "")
+      .trim()
+      .toLowerCase();
+    const row = db
+      .prepare("SELECT * FROM checkout_bindings WHERE checkout_id = ?")
+      .get(String(checkoutId));
+    if (!row || row.email !== key || Date.now() > Number(row.exp_ms)) {
+      return false;
+    }
+    const r = db
+      .prepare(
+        `UPDATE sessions SET verified = 1, revoked = 0
+         WHERE token_hash = ? AND exp_ms > ?
+         RETURNING token_hash`,
+      )
+      .get(row.session_hash, Date.now());
+    db.prepare("DELETE FROM checkout_bindings WHERE checkout_id = ?").run(
+      String(checkoutId),
+    );
+    return Boolean(r);
   }
 
   /** Promote soft session after checkout; clears revoke from grantPeriod. */
@@ -428,6 +489,8 @@ export function createSqliteStore(dbPath = config.databasePath) {
     revokeSession,
     revokeAllSessionsForEmail,
     revokeUnverifiedSessionsForEmail,
+    bindCheckoutSession,
+    promoteCheckoutSession,
     markSessionVerified,
     tryConsumeFiling,
     completeUsage,

@@ -4,6 +4,7 @@
 import { config } from "../config.mjs";
 import {
   applyStatusRules,
+  CHECKOUT_BINDING_TTL_MS,
   hashToken,
   id,
   isEntitledAccount,
@@ -30,6 +31,8 @@ export function createMemoryStore() {
   const magicTokens = new Map();
   /** tokenHash → { email, exp, revoked } */
   const sessions = new Map();
+  /** stripe checkout id → { email, sessionHash, exp } */
+  const checkoutBindings = new Map();
   const promoUses = new Map();
   /** email+code → true */
   const promoByEmail = new Set();
@@ -130,6 +133,43 @@ export function createMemoryStore() {
     for (const row of sessions.values()) {
       if (row.email === key && !row.verified) row.revoked = true;
     }
+  }
+
+  /**
+   * Remember which plugin session opened this Stripe Checkout. The webhook that
+   * grants the trial has no session context of its own, and grantPeriod revokes
+   * every unverified session for the email — without this binding the paying
+   * user's session dies and never comes back (#230). Only the hash is stored,
+   * same as sessions.
+   */
+  function bindCheckoutSession(checkoutId, email, sessionToken) {
+    if (!checkoutId || !sessionToken) return false;
+    checkoutBindings.set(String(checkoutId), {
+      email: email.trim().toLowerCase(),
+      sessionHash: hashToken(sessionToken),
+      exp: Date.now() + CHECKOUT_BINDING_TTL_MS,
+    });
+    return true;
+  }
+
+  /**
+   * Single-use: re-verify the one session that paid for this checkout, undoing
+   * grantPeriod's revoke for it alone. A soft session that never opened checkout
+   * has no binding and stays revoked — that is the C1 fixation case (#163).
+   */
+  function promoteCheckoutSession(checkoutId, email) {
+    if (!checkoutId) return false;
+    const key = String(email || "")
+      .trim()
+      .toLowerCase();
+    const bound = checkoutBindings.get(String(checkoutId));
+    if (!bound || bound.email !== key || Date.now() > bound.exp) return false;
+    checkoutBindings.delete(String(checkoutId));
+    const row = sessions.get(bound.sessionHash);
+    if (!row || Date.now() > row.exp) return false;
+    row.verified = true;
+    row.revoked = false;
+    return true;
   }
 
   /** Promote soft session after checkout; clears revoke from grantPeriod. */
@@ -813,6 +853,8 @@ export function createMemoryStore() {
     revokeSession,
     revokeAllSessionsForEmail,
     revokeUnverifiedSessionsForEmail,
+    bindCheckoutSession,
+    promoteCheckoutSession,
     markSessionVerified,
     tryConsumeFiling,
     completeUsage,

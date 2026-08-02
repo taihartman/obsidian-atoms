@@ -33,11 +33,13 @@ export async function plusFetchRequest(
           : String(params.body),
   });
   const text = await res.text();
+  // Unparseable body stays `undefined` (not `{}`) so plusRequest can tell a
+  // gateway's HTML apart from a real empty 2xx and never invents fields.
   let json: unknown = {};
   try {
     json = text ? JSON.parse(text) : {};
   } catch {
-    json = {};
+    json = undefined;
   }
   const bytes = new TextEncoder().encode(text);
   const headers: Record<string, string> = {};
@@ -81,9 +83,38 @@ export type PlusApiError = {
   status: number;
   /** User-safe message (no secrets). */
   message: string;
-  /** Structured code when known. */
-  code?: "exhausted" | "auth" | "network" | "unknown";
+  /**
+   * Structured code when known. `auth` means our service rejected the session;
+   * `upstream` is a 401/403 we cannot attribute (gateway, proxy, WAF).
+   */
+  code?: "exhausted" | "auth" | "upstream" | "network" | "unknown";
 };
+
+/** Shown when the service answers with something we cannot read as JSON. */
+export const UNREADABLE_RESPONSE_MESSAGE =
+  "Atoms Plus sent a reply this device could not read. Nothing changed here — try again in a moment.";
+
+/** Shown when our own service rejects the device session (401/403 with a body). */
+export const SESSION_REJECTED_MESSAGE =
+  "Your Atoms Plus session is no longer valid. Sign in again to reconnect this device.";
+
+/**
+ * Upstream markers that mean the *session* is the problem. Shared with
+ * classify.ts so both surfaces judge a 401/403 by the same rule: an explained
+ * refusal like "Plus entitlement required" is not a sign-in problem.
+ */
+export function isSessionRejectedMessage(msg: string | undefined): boolean {
+  const m = (msg ?? "").toLowerCase();
+  return m.includes("invalid session") || m.includes("expired");
+}
+
+/**
+ * 401/403 with no service-shaped body — a gateway, proxy or WAF refused the
+ * call, so blaming the session would be a lie (mirrors classify.ts wording).
+ */
+export function upstreamRefusedMessage(status: number): string {
+  return `Atoms Plus refused this request (HTTP ${status}) for an unexpected reason. Your session on this device looks fine — try again in a moment.`;
+}
 
 function redact(msg: string): string {
   return msg
@@ -139,7 +170,21 @@ async function plusRequest(
     const json =
       typeof res.json === "object" && res.json !== null
         ? (res.json as Record<string, unknown>)
-        : {};
+        : null;
+    if (!json) {
+      const hasBody = typeof res.text === "string" && res.text.trim() !== "";
+      // A 2xx we cannot read is an error, never an empty success — callers
+      // would otherwise write invented defaults over a good session.
+      if (hasBody && res.status >= 200 && res.status < 300) {
+        return {
+          ok: false,
+          status: res.status,
+          code: "unknown",
+          message: UNREADABLE_RESPONSE_MESSAGE,
+        };
+      }
+      return { ok: true, status: res.status, json: {} };
+    }
     return { ok: true, status: res.status, json };
   } catch (err) {
     const name = err instanceof Error ? err.name : "Error";
@@ -157,6 +202,8 @@ function mapError(
   status: number,
   json: Record<string, unknown>,
 ): PlusApiError {
+  const explained =
+    typeof json.message === "string" || typeof json.error === "string";
   const rawMsg =
     typeof json.message === "string"
       ? json.message
@@ -164,12 +211,21 @@ function mapError(
         ? json.error
         : `Plus request failed (HTTP ${status})`;
   if (status === 401 || status === 403) {
-    return {
-      ok: false,
-      status,
-      code: "auth",
-      message: redact(rawMsg) || "Plus session rejected. Sign in again.",
-    };
+    // Three branches, because "401" alone says nothing about the session:
+    // session markers → sign in; any other explained refusal (entitlement
+    // required, rate limit) → the service's own accurate sentence; no body at
+    // all → an upstream refusal we cannot attribute.
+    if (!explained) {
+      return {
+        ok: false,
+        status,
+        code: "upstream",
+        message: upstreamRefusedMessage(status),
+      };
+    }
+    return isSessionRejectedMessage(rawMsg)
+      ? { ok: false, status, code: "auth", message: SESSION_REJECTED_MESSAGE }
+      : { ok: false, status, code: "unknown", message: redact(rawMsg) };
   }
   if (status === 402) {
     return {
@@ -188,24 +244,47 @@ function mapError(
   };
 }
 
-function parseEntitlement(json: Record<string, unknown>): PlusEntitlement {
-  const statusRaw = json.status;
-  const status: PlusEntitlementStatus =
-    statusRaw === "active" ||
-    statusRaw === "trialing" ||
-    statusRaw === "exhausted" ||
-    statusRaw === "inactive" ||
-    statusRaw === "unknown"
-      ? statusRaw
-      : "unknown";
-  const remaining =
-    typeof json.remaining === "number" && Number.isFinite(json.remaining)
-      ? Math.max(0, Math.floor(json.remaining))
-      : 0;
+/** Stated plan status, or null when the service did not say. */
+function parseStatus(
+  json: Record<string, unknown>,
+): PlusEntitlementStatus | null {
+  const raw = json.status;
+  return raw === "active" ||
+    raw === "trialing" ||
+    raw === "exhausted" ||
+    raw === "inactive" ||
+    raw === "unknown"
+    ? raw
+    : null;
+}
+
+/** Stated remaining filings, or null when the service did not say. */
+function parseRemaining(json: Record<string, unknown>): number | null {
+  return typeof json.remaining === "number" && Number.isFinite(json.remaining)
+    ? Math.max(0, Math.floor(json.remaining))
+    : null;
+}
+
+function parsePeriodEnd(json: Record<string, unknown>): string | undefined {
+  return typeof json.periodEnd === "string" ? json.periodEnd : undefined;
+}
+
+/**
+ * Strict: returns null unless the service actually said what the plan is.
+ * A missing `status`/`remaining` used to coerce to `unknown`/0, which callers
+ * then wrote over a live `trialing` session (Issue #230). Fields are parsed
+ * independently so callers that only need one can keep a stated value.
+ */
+function parseEntitlement(
+  json: Record<string, unknown>,
+): PlusEntitlement | null {
+  const status = parseStatus(json);
+  const remaining = parseRemaining(json);
+  if (!status || remaining === null) return null;
   return {
     status,
     remaining,
-    periodEnd: typeof json.periodEnd === "string" ? json.periodEnd : undefined,
+    periodEnd: parsePeriodEnd(json),
     plan:
       json.plan === "monthly" ||
       json.plan === "yearly" ||
@@ -281,15 +360,16 @@ export async function startPlusAccount(
       message: "Plus start response missing session",
     };
   }
-  const ent = parseEntitlement(res.json);
+  // Start hands back a soft session; only an *unstated* plan is "inactive".
+  const status = parseStatus(res.json);
   return {
     ok: true,
     session: {
       sessionToken,
       email: em,
-      status: ent.status === "unknown" ? "inactive" : ent.status,
-      remaining: ent.remaining ?? 0,
-      periodEnd: ent.periodEnd,
+      status: !status || status === "unknown" ? "inactive" : status,
+      remaining: parseRemaining(res.json) ?? 0,
+      periodEnd: parsePeriodEnd(res.json),
       refreshedAt: Date.now(),
     },
   };
@@ -323,15 +403,17 @@ export async function exchangeMagicToken(
       message: "Plus auth response missing session",
     };
   }
-  const ent = parseEntitlement(res.json);
+  // Exchange proves the session; only an *unstated* plan is treated as active,
+  // so a stated "exhausted"/"inactive" is never upgraded by a missing field.
+  const status = parseStatus(res.json);
   return {
     ok: true,
     session: {
       sessionToken,
       email,
-      status: ent.status === "unknown" ? "active" : ent.status,
-      remaining: ent.remaining,
-      periodEnd: ent.periodEnd,
+      status: !status || status === "unknown" ? "active" : status,
+      remaining: parseRemaining(res.json) ?? undefined,
+      periodEnd: parsePeriodEnd(res.json),
       refreshedAt: Date.now(),
     },
   };
@@ -350,7 +432,17 @@ export async function getEntitlement(
   if (res.status < 200 || res.status >= 300) {
     return mapError(res.status, res.json);
   }
-  return { ok: true, entitlement: parseEntitlement(res.json) };
+  const entitlement = parseEntitlement(res.json);
+  if (!entitlement) {
+    // Partial 2xx: better no answer than a fabricated "unknown / 0 filings".
+    return {
+      ok: false,
+      status: res.status,
+      code: "unknown",
+      message: UNREADABLE_RESPONSE_MESSAGE,
+    };
+  }
+  return { ok: true, entitlement };
 }
 
 export type ProxyClassifyBody = {

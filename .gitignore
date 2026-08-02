@@ -40,3 +40,6 @@ plus-service/.env
 plus-service/data/
 test_vault
 firepit-log.txt
+
+# Claude Code personal overrides (not shared)
+.claude/settings.local.json

@@ -9,6 +9,9 @@ import {
   getEntitlement,
   requestMagicLink,
   startPlusAccount,
+  SESSION_REJECTED_MESSAGE,
+  UNREADABLE_RESPONSE_MESSAGE,
+  upstreamRefusedMessage,
   type RequestFn,
 } from "../src/platform/plusClient";
 
@@ -19,7 +22,9 @@ function mockRequest(
     const partial = handler(params);
     return {
       status: partial.status ?? 200,
-      json: partial.json ?? {},
+      // Keep an explicit `undefined` — that is how plusFetchRequest reports an
+      // unparseable body.
+      json: "json" in partial ? partial.json : {},
       text: partial.text ?? "",
       arrayBuffer: partial.arrayBuffer ?? new ArrayBuffer(0),
       headers: partial.headers ?? {},
@@ -110,6 +115,95 @@ describe("plusClient", () => {
       expect(r.code).toBe("exhausted");
       expect(r.message.toLowerCase()).toMatch(/top-up|reset|included/);
     }
+  });
+
+  it("getEntitlement 401 gives the human sign-in sentence, not the HTTP line", async () => {
+    const request = mockRequest(() => ({
+      status: 401,
+      json: { message: "Invalid session" },
+    }));
+    const r = await getEntitlement({ baseUrl: base, request }, "sess");
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.code).toBe("auth");
+      expect(r.message).toBe(SESSION_REJECTED_MESSAGE);
+      expect(r.message).not.toContain("HTTP");
+    }
+  });
+
+  it("403 for missing entitlement keeps the service sentence, not a sign-in nudge", async () => {
+    const request = mockRequest(() => ({
+      status: 403,
+      json: { message: "Plus entitlement required for Ask mirror" },
+    }));
+    const r = await getEntitlement({ baseUrl: base, request }, "sess");
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.code).not.toBe("auth");
+      expect(r.message).toBe("Plus entitlement required for Ask mirror");
+    }
+  });
+
+  it("getEntitlement 403 without a service body is an upstream refusal", async () => {
+    const request = mockRequest(() => ({
+      status: 403,
+      json: undefined,
+      text: "<html>Forbidden</html>",
+    }));
+    const r = await getEntitlement({ baseUrl: base, request }, "sess");
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.code).toBe("upstream");
+      expect(r.message).toBe(upstreamRefusedMessage(403));
+      expect(r.message.toLowerCase()).not.toContain("sign in");
+    }
+  });
+
+  it("exchangeMagicToken keeps a stated status when remaining is missing", async () => {
+    const request = mockRequest(() => ({
+      status: 200,
+      json: { session: "sess_1", email: "a@b.co", status: "exhausted" },
+    }));
+    const r = await exchangeMagicToken({ baseUrl: base, request }, "tok");
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.session.status).toBe("exhausted");
+      expect(r.session.remaining).toBeUndefined();
+    }
+  });
+
+  it("startPlusAccount keeps a stated remaining when status is missing", async () => {
+    const request = mockRequest(() => ({
+      status: 200,
+      json: { session: "sess_soft", email: "a@b.co", remaining: 12 },
+    }));
+    const r = await startPlusAccount({ baseUrl: base, request }, "a@b.co");
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.session.status).toBe("inactive");
+      expect(r.session.remaining).toBe(12);
+    }
+  });
+
+  it("getEntitlement rejects a 2xx missing entitlement fields", async () => {
+    const request = mockRequest(() => ({
+      status: 200,
+      json: { email: "a@b.co" },
+    }));
+    const r = await getEntitlement({ baseUrl: base, request }, "sess");
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.message).toBe(UNREADABLE_RESPONSE_MESSAGE);
+  });
+
+  it("getEntitlement rejects a 2xx whose body is not JSON", async () => {
+    const request = mockRequest(() => ({
+      status: 200,
+      json: undefined,
+      text: "<html>gateway</html>",
+    }));
+    const r = await getEntitlement({ baseUrl: base, request }, "sess");
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.message).toBe(UNREADABLE_RESPONSE_MESSAGE);
   });
 
   it("classifyViaProxy sends Bearer and returns remaining", async () => {
