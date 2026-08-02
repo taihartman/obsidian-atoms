@@ -6,6 +6,12 @@ PR [#226](https://github.com/taihartman/obsidian-atoms/pull/226) · Issue [#225]
 
 **Not ready — two P0 data-loss holes proven live, both in the guard this PR exists to add.**
 
+> **Superseded 2026-08-02 by the re-run below.** H1, H2 and F2 are fixed at `732ca20`, the parked
+> repro is landed in `test/`, and adversarial classes C and D were re-run green — H2 live against
+> the shipped bundle. The desktop verdict is now **ready**; the two device boxes stay human-only.
+> The original verdict is kept verbatim, because a QA report that quietly rewrites its own history
+> stops being evidence. See [§ Re-run 2026-08-02](#re-run-2026-08-02).
+
 The four desktop stories the PR test plan asks for all **passed**, with authoritative evidence:
 the headline 3-of-491 delta issued **zero** deletes. But the required adversarial pass then broke
 the same guard two other ways, and in both repros the cloud mirror lost 400 rows for real. One
@@ -339,3 +345,104 @@ F4, F5, and both unproven suspicions.
 
 The three original fixes do what the PR says they do. The gate simply has two more doors, and this
 pass walked through both.
+
+---
+
+## Re-run 2026-08-02
+
+Branch `fix/mirror-delete-gate-and-outbox-ack` @ `732ca20` · v0.6.60. Scope as the merge decision
+set it: fix H2, fix H1, land the parked repro, decide F2, re-run adversarial classes **C** and
+**D** only. Everything else in the ledger is untouched by these fixes and was not re-run.
+
+### H2 — fixed, and now testable at all
+
+`askMirrorForceFollowUp` is consumed on every exit, not just the loop-continue path. The
+single-flight state machine moved out of `main.ts` into `runMirrorSingleFlight` (`plugin/catchUp.ts`)
+against a `MirrorSingleFlightState` the plugin owns but never mutates by hand — the same extraction
+U1 and U9 each had to make first, because nothing in the repo imports `main.ts`.
+
+**Live proof, against the shipped 0.6.60 bundle** (`obsidian eval`, real `syncAskMirror`, only the
+one network pass faked; `askEnabled` flipped in memory and restored, never saved):
+
+```json
+{"forces":[false,false],"joined":{"kind":"joined"},"midFlag":true,"afterFlag":false,
+ "first":{"kind":"failed","message":"probe"},"next":{"kind":"failed","message":"probe"},
+ "flight":{"inFlight":false,"followUp":false,"forceFollowUp":false}}
+```
+
+Read it in order: the concurrent forced call is absorbed (`joined`), it really does arm the flag
+mid-`await` (`midFlag: true` — the leak's precondition is present, not designed away), the run
+exits through the `failed` early return that used to skip consumption, the flag is gone
+(`afterFlag: false`), and **the next background push ran unforced** — `forces: [false, false]`.
+Pre-fix that second entry is `true`, which is the full keepPaths reconcile with no user gesture.
+
+**Unit:** 4 scenarios in `test/catchUp.test.ts`. 3 go red against the pre-fix `finally` (verified by
+reverting it); the 4th — "still honours a joined force when the run keeps looping" — is green both
+ways on purpose, because a fix that merely disarms the flag would cost the feature its reason to
+exist.
+
+### H1 — fixed
+
+The count is refreshed **before** the verdict on every reconcile, not only after a stale count has
+already refused. An unreachable `status()` on a forced pass now fails closed.
+
+This flips one previously-green adversarial scenario, deliberately: *"unreachable status() does NOT
+stop an already-allowed forced reconcile"* (evidence 84, scanned 84, stored 84) now expects a
+refusal. That test was characterising the bug's benign face. The scenario is **locally
+indistinguishable** from the catastrophe — the phone holding 3 of 400 atoms also scans 100% of its
+own evidence, and its stored count also matches that scan. No local signal separates them; only
+this moment's server count does. So the test was rewritten to the new contract and renamed for H1.
+
+### F2 — decided: make the claim true, not softer
+
+`no-server-count` was unreachable in the modal because a run without a count refuses before asking.
+That is correct behaviour — never pose an irreversible question whose answer cannot be informed —
+so it is now in the type rather than in a comment: `ConfirmRequest` carries
+`MirrorDeletionAskReason` (`Exclude<…, "no-server-count">`) and a non-null `lastKnownServerCount`.
+The PR's claim that the modal names which threshold refused is now true of all reasons it can
+carry. Modal copy follows: "Cloud count right now: N" — it was never a *last known* number on this
+path, and the `?? "unknown"` fallback is gone with the nullable type.
+
+### Class C (sequences) — re-run
+
+C1 and C3 were the two that *fed* H2; both are now covered by the live probe above (C1's `joined`
+absorb is the first assertion in it) and by the unit scenarios. C2, C4, C5 are untouched by these
+fixes — the escalation-count and lock-release paths did not move — and were not re-run. **C6 stays
+blocked** for the original reason: the `eval` context is torn down with the plugin instance, so a
+post-reload partial-state probe still races itself. Unchanged by this work.
+
+### Class D (network) — re-run
+
+**D1 → green.** The stale-count scenarios that were red are green, driving the real
+`runAskMirrorSync` through the fake host. **D2 is now actually run** rather than skipped for budget
+— it is the rewritten "fails closed even when the stored count would allow" scenario. D3 (bodyless
+2xx) stays green. D4 remains analytic.
+
+**A5 closes as a consequence.** It was "corrupt hashes + absent mark zeroes the completeness floor,
+leaving only the tripwire — which H1 defeats". The tripwire now judges a fresh count, so the
+remaining arm holds. Its scenario was one of the three parked reds and is green.
+
+### Suite
+
+822 green (52 files) — 779 before, plus the 39 landed from the repro and 4 new single-flight tests.
+`npm run build` clean. The repro file is now `test/askMirrorGate.adversarial.test.ts`, inside the
+glob; `docs/qa/repro/` is empty.
+
+### Still not done
+
+- **iOS and Android device boxes** — human-only (physical device + a GitHub Release via BRAT).
+  Unchanged.
+- **F1, F3, F4, F5** and both unproven suspicions — still open, still non-blocking, still want
+  their own issues.
+- **F3 bit this re-run**, exactly as written: the running Obsidian has the *main repo's*
+  `test_vault/test vault` open, not the worktree's. The live probe therefore required installing
+  this branch's build into that shared vault explicitly — so that vault now carries **0.6.60 from
+  this branch**, not master's 0.6.61. Any other session using it should reinstall from its own
+  branch.
+
+### Re-run verdict
+
+**Desktop: ready.** The three original fixes still do what the PR says, and the two doors this
+pass's predecessor walked through are shut — one of them proven shut in the running plugin, not
+just in a unit test. PR #226 can leave draft. Merge still waits on nothing but the two human device
+checks, which the PR body should keep unchecked and honest.
