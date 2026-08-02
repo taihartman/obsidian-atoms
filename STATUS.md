@@ -7,7 +7,6 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| In review | [#230](https://github.com/taihartman/obsidian-atoms/issues/230) | claude | `claude/nervous-hodgkin-cb3f8c` | ce-debug (diagnosis in PR) | `plus-service/src/server.mjs`, `plus-service/src/stripe.mjs`, `plus-service/src/store/*.mjs`, `src/settings/settings.ts`, `src/platform/plusClient.ts` | Production trial checkout revokes the plugin session — every real signup dead-ends on "Invalid session". Server-only root-cause fix + client dead-end fixes. |
 
 ## How to claim (copy)
 
@@ -23,6 +22,7 @@ States: `Queued` · `In progress` · `Blocked` · `In review` · `Done` (then re
 
 | Merged | Issue / PR | Summary |
 |---|---|---|
+| 2026-08-02 | #230 / #231 | Production trial checkout no longer revokes the plugin session; a rejected session is never a dead end · **0.6.62** |
 | 2026-08-01 | #224 #227 / #228 | Person invites name model-identified people, not the leading verb · **0.6.61** |
 | 2026-07-30 | #196 / #218 | Classify prompt same-thread link soften + quality 7 · **0.6.57** |
 | 2026-07-30 | #186 / #187 | BM25 body-scored shortlists for classify context · **0.6.53** |
