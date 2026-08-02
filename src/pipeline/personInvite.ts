@@ -3,7 +3,11 @@
  * Never auto-creates. Pure helpers; home consumes.
  */
 
-import type { ClassificationResult } from "../shared/types";
+import type {
+  ClassificationPerson,
+  ClassificationResult,
+} from "../shared/types";
+import { parseAtomsPeople } from "./atomQuality";
 import {
   isPersonShapedCapture,
   PERSON_HUB_DENY_TITLES,
@@ -62,6 +66,65 @@ export const PERSON_INVITE_DENY_NAMES = new Set(
   ].map((s) => s.toLowerCase()),
 );
 
+/**
+ * Words that are never a person name, however capitalised.
+ *
+ * A capture / title can drop its subject (“likes Annie's fruit tape snack”),
+ * so the leading capitalised token is often a verb or determiner — and the very
+ * preference verb that makes the atom person-shaped would otherwise qualify
+ * itself as the name (“Add Likes?”). Under-invite beats a fake person hub.
+ */
+export const PERSON_INVITE_NON_NAME_WORDS = new Set(
+  [
+    // determiners / pronouns / conjunctions / prepositions
+    "the", "a", "an", "this", "that", "these", "those", "my", "our", "your",
+    "his", "her", "their", "its", "i", "he", "she", "they", "we", "you", "it",
+    "and", "but", "or", "so", "for", "with", "without", "from", "about",
+    "after", "before", "when", "while", "into", "onto", "over", "under", "at",
+    "in", "on", "of", "to", "by", "as", "there", "here", "what", "which",
+    "who", "whose", "why", "how", "if", "then", "than",
+    // quantifiers / adverbs / adjectives that lead subject-less lines
+    "all", "both", "each", "every", "some", "any", "no", "not", "only",
+    "just", "still", "maybe", "probably", "again", "new", "old", "next",
+    "last", "first", "best", "worst", "good", "bad", "more", "less", "most",
+    "very", "really", "actually", "definitely",
+    // preference / relation verbs (mirror PREFERENCE_OR_RELATION_RE)
+    "like", "likes", "liked", "prefer", "prefers", "preferred", "favorite",
+    "favourite", "hate", "hates", "hated", "love", "loves", "loved", "enjoy",
+    "enjoys", "enjoyed", "dislike", "dislikes", "disliked", "always", "never",
+    "usually", "sometimes", "tends", "tend",
+    // other common subject-less leading verbs
+    "want", "wants", "wanted", "need", "needs", "needed", "got", "get",
+    "gets", "met", "meet", "meets", "went", "go", "goes", "made", "make",
+    "makes", "said", "say", "says", "think", "thinks", "thought", "try",
+    "tries", "tried", "keep", "keeps", "kept", "use", "uses", "used", "ask",
+    "asks", "asked", "told", "tell", "tells", "gave", "give", "gives",
+    "took", "take", "takes", "saw", "see", "sees", "feel", "feels", "felt",
+    "start", "starts", "started", "stop", "stops", "stopped", "wear",
+    "wears", "wore", "buy", "buys", "bought", "brought", "bring", "plan",
+    "plans", "planned", "remember", "remembers", "remembered", "notice",
+    "notices", "noticed", "learn", "learns", "learned", "find", "finds",
+    "found", "finish", "finished", "decide", "decides", "decided", "avoid",
+    "avoids", "watch", "watches", "watched", "read", "reads", "reading",
+    "wonder", "wonders", "wondered", "believe", "believes", "believed",
+    "is", "was", "are", "were", "be", "been", "has", "have", "had", "do",
+    "does", "did", "can", "could", "should", "would", "might", "must",
+    // "will" / "may" stay allowed — common first names, and a modal there is
+    // followed by a bare verb the name branches do not match.
+    // time words that look like names at the start of a line
+    "today", "tomorrow", "yesterday", "tonight", "monday", "tuesday",
+    "wednesday", "thursday", "friday", "saturday", "sunday", "january",
+    "february", "march", "september", "october", "november", "december",
+    "morning", "afternoon", "evening", "night", "week", "weekend", "month",
+    "year",
+  ],
+);
+
+/** True when the token can never be a person name (verb, determiner, weekday…). */
+export function isNonNameWord(word: string): boolean {
+  return PERSON_INVITE_NON_NAME_WORDS.has(word.trim().toLowerCase());
+}
+
 const RECOMMENDER_RE =
   /\b(?:told me|recommended|suggested|said (?:to|i should)|wants? me to)\b/i;
 
@@ -103,7 +166,45 @@ function hasHardPersonHubLink(
 }
 
 /**
- * High-confidence person display name for invite, or null.
+ * Invite name from model-named people (KTD1/KTD2) — the `subject` role only.
+ *
+ * A possessive owner or bystander is `mentioned` and never invites; a media
+ * `recommender` never invites. Two subjects invite nobody: multi-person dumps
+ * under-invite by design, and a fake hub costs more than a missed one.
+ */
+export function personInviteNameFromPeople(
+  people: ClassificationPerson[],
+): string | null {
+  const subjects = people
+    .filter((p) => p.role === "subject")
+    .map((p) => p.name.trim())
+    .filter((n) => n && !isDeniedPersonName(n));
+  return subjects.length === 1 ? subjects[0]! : null;
+}
+
+/**
+ * The invite name for a rendered atom: the model's `people` when the atom
+ * carries it, else the legacy heuristic (R7 — atoms written before the field
+ * keep 0.6.60 behaviour exactly until `atoms:update-notes` refreshes them).
+ *
+ * Every consumer goes through here; none re-derives a name from prose.
+ */
+export function resolveAtomPersonName(
+  content: string,
+  captureText: string,
+  title: string,
+  tags: string[] = [],
+): string | null {
+  const people = parseAtomsPeople(content);
+  if (people !== null) return personInviteNameFromPeople(people);
+  return resolvePersonInviteName(captureText, title, tags);
+}
+
+/**
+ * Legacy heuristic name resolver — guesses from capture/title text.
+ *
+ * Prefer {@link resolveAtomPersonName}. Retained only for atoms rendered before
+ * `atoms-people` existed; the guessing this does is what #224 was about.
  */
 export function resolvePersonInviteName(
   captureText: string,
@@ -114,20 +215,17 @@ export function resolvePersonInviteName(
   const t = (title ?? "").trim();
   const blob = `${t}\n${text}`;
 
-  // Media recommender only — skip unless name is clear sole subject elsewhere
-  if (RECOMMENDER_RE.test(blob) && !SOLE_KINSHIP_RE.test(text) && !SOLE_KINSHIP_RE.test(t)) {
-    // "X told me to watch Y" — first capital name is recommender
-    const rec = blob.match(
-      /\b([A-Z][a-z]{1,20})\s+(?:told me|recommended|suggested)\b/,
-    );
-    if (rec?.[1]) {
-      // only invite if the subject is that person, not the work
-      if (!/\b(?:watch|see|read|play)\b/i.test(blob)) {
-        /* fall through */
-      } else {
-        return null;
-      }
-    }
+  // "X told me to watch Y" — X is the recommender, not the subject. Kinship
+  // captures fall through to their own branch below.
+  const recommender = /\b[A-Z][a-z]{1,20}\s+(?:told me|recommended|suggested)\b/;
+  if (
+    RECOMMENDER_RE.test(blob) &&
+    recommender.test(blob) &&
+    /\b(?:watch|see|read|play)\b/i.test(blob) &&
+    !SOLE_KINSHIP_RE.test(text) &&
+    !SOLE_KINSHIP_RE.test(t)
+  ) {
+    return null;
   }
 
   // Kinship sole-subject
@@ -205,6 +303,8 @@ export function isDeniedPersonName(name: string): boolean {
   if (PERSON_HUB_DENY_TITLES.has(n)) return true;
   if (PERSON_INVITE_DENY_NAMES.has(n)) return true;
   if (KINSHIP.has(n)) return false;
+  // Subject-less titles lead with a verb / determiner, never a name.
+  if (isNonNameWord(n.split(/\s+/)[0] ?? n)) return true;
   // multi-word show titles
   for (const d of PERSON_INVITE_DENY_NAMES) {
     if (d.includes(" ") && n.includes(d)) return true;
@@ -218,12 +318,18 @@ export function isPersonInviteEligible(opts: {
   tags?: string[];
   personHubTitles: string[];
   vaultTitles?: string[];
+  /** Full atom markdown — routes through `atoms-people` when present. */
+  content?: string;
 }): { name: string; existingNote: boolean } | null {
-  const name = resolvePersonInviteName(
-    opts.captureText,
-    opts.title,
-    opts.tags ?? [],
-  );
+  const name =
+    opts.content === undefined
+      ? resolvePersonInviteName(opts.captureText, opts.title, opts.tags ?? [])
+      : resolveAtomPersonName(
+          opts.content,
+          opts.captureText,
+          opts.title,
+          opts.tags ?? [],
+        );
   if (!name) return null;
   const low = name.toLowerCase();
   const hubs = new Set(
@@ -281,6 +387,7 @@ export function collectPersonInvites(
     const elig = isPersonInviteEligible({
       captureText: body,
       title: atom.title,
+      content: atom.content,
       personHubTitles: opts.personHubTitles,
       vaultTitles: opts.vaultTitles,
     });

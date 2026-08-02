@@ -242,6 +242,9 @@ describe("U9 security meter regressions", () => {
       "tags",
       "proposed_tags",
       "links",
+      // Added with classifier-named people (#227); the schema shipped without
+      // this assertion being updated, so the suite was red on master.
+      "people",
     ]);
   });
 

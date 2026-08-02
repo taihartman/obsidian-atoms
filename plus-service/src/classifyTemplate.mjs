@@ -6,7 +6,7 @@
 export const SYSTEM_PROMPT = `You classify fleeting captures from a daily-note inbox into a personal knowledge graph (second brain). This product is NOT a task app — the user has Reminders/Things for chores.
 
 ## Output surface (hard rules)
-- You output ONLY: verdict, title, tags, proposed_tags, links, and optional hub_section.
+- You output ONLY: verdict, title, tags, proposed_tags, links, people, and optional hub_section.
 - You never rewrite, paraphrase, expand, or "improve" the capture body. The body is sacred and is written elsewhere, verbatim.
 - You never choose folders or move files. Placement is not your job. One capture → at most one atom (never append into a Movies/list note).
 - Titles (when atom) are **short declarative claims** (~8–12 words / under ~80 characters when possible), not topics and not a paste of the whole capture.
@@ -51,6 +51,11 @@ export const SYSTEM_PROMPT = `You classify fleeting captures from a daily-note i
 - **hub_section (optional but important for list/gift/date facts):** when the capture is an accumulating list or want about a person and Person hubs list indented ## section names under that hub, set hub_section to one **exact** section string from that list (e.g. Gift Ideas when they want a physical gift). Prefer a real section over leaving empty. Omit or use "" only when unsure or no section fits. Never invent a section name that is not listed.
 - Pure logistics that merely mention a name stay **noise** — do not force person atoms for chores.
 - Do not invent entity links from speech typos (e.g. "Kloe") unless that exact title exists in Note titles.
+- **people[] — who is named, and how.** List every person the capture names, each with a role:
+  - \`subject\` — the claim is about them. "Nichita likes long brown boots" → Nichita.
+  - \`mentioned\` — named, but not what the claim is about: a possessive owner, a bystander. "likes Annie's fruit tape snack" → Annie is **mentioned**, not the subject; nobody said who likes it.
+  - \`recommender\` — they suggested a book/show/film. "Christian told me to watch MHA" → Christian.
+  Captures routinely drop their subject because the writer knew who they meant. When that happens, return no \`subject\` — an empty people[] is a correct answer, never a failure. Only ever use a name written in the capture; never infer one from surrounding notes, and never put a verb, a determiner, or a weekday in \`name\`.
 
 ## Links + supersession (reason quality is load-bearing)
 - Link to existing notes when the capture relates, revises, or contradicts them.
@@ -126,7 +131,29 @@ export const CLASSIFICATION_SCHEMA = {
       description:
         "Optional. Exact ## heading from a linked Person hub's section list for accumulating-list placement. Empty string when unsure or no fit. Never invent a section name.",
     },
+    people: {
+      type: "array",
+      description:
+        "People named in the capture. Empty array is correct and common — captures often drop the subject ('likes Annie's fruit tape snack' names Annie but never says who likes it). Never infer a name that is not written in the capture.",
+      items: {
+        type: "object",
+        properties: {
+          name: {
+            type: "string",
+            description: "The person's name exactly as written in the capture.",
+          },
+          role: {
+            type: "string",
+            enum: ["subject", "mentioned", "recommender"],
+            description:
+              "subject = the claim is about them ('Nichita likes long brown boots' → Nichita). mentioned = named but not what the claim is about, e.g. a possessive owner or bystander ('likes Annie's fruit tape snack' → Annie). recommender = they suggested a book/show/film.",
+          },
+        },
+        required: ["name", "role"],
+        additionalProperties: false,
+      },
+    },
   },
-  required: ["verdict", "title", "tags", "proposed_tags", "links"],
+  required: ["verdict", "title", "tags", "proposed_tags", "links", "people"],
   additionalProperties: false,
 };
