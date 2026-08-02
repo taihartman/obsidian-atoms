@@ -17,6 +17,12 @@ export function hashToken(token) {
   return createHash("sha256").update(token).digest("hex");
 }
 
+/**
+ * How long a checkout→session binding stays claimable. Stripe Checkout
+ * Sessions expire after 24h, so a binding outliving that is only replay surface.
+ */
+export const CHECKOUT_BINDING_TTL_MS = 24 * 60 * 60 * 1000;
+
 /** Public entitlement shape returned by /v1/me and auth exchange. */
 export function publicAccount(a) {
   return {
