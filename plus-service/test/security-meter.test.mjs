@@ -242,6 +242,7 @@ describe("U9 security meter regressions", () => {
       "tags",
       "proposed_tags",
       "links",
+      "people",
     ]);
   });
 
