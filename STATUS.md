@@ -7,7 +7,6 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| In progress | #222 | taihartman | `feat/resume-catch-up` | `docs/plans/2026-07-31-001-feat-resume-catch-up-plan.md` | `src/platform/resume.ts`, `src/plugin/catchUp.ts`, `main.ts`, settings, home | Phase A shipped (#226); B–D remaining; PR #223 |
 
 ## How to claim (copy)
 
@@ -23,7 +22,8 @@ States: `Queued` · `In progress` · `Blocked` · `In review` · `Done` (then re
 
 | Merged | Issue / PR | Summary |
 |---|---|---|
-| 2026-08-04 | #256 / #262 | Ask MCP `list_tags` · Fly deploy after merge (no plugin bump) |
+| 2026-08-04 | #222 / #266 | Catch-up on resume + Sync everything now · **0.6.67** |
+| 2026-08-04 | #256 / #262–#265 | Ask MCP `list_tags` + residuals · Fly live (no plugin bump until 0.6.67) |
 | 2026-08-04 | #255 #259 / #260 | Ask MCP `mirror_status` + absence wording · Fly live (no plugin bump) |
 | 2026-08-04 | #251 / #252 | Ask MCP pairing code + OAuth identity chooser · **0.6.66** (released; Fly already live) |
 | 2026-08-04 | #246 / #247 | Ask coordinator peel + wire the inert confirm-withdrawal hook · **0.6.65** (released) |
