@@ -519,7 +519,10 @@ export function createAskSqliteMethods(db, deps) {
   function mirrorListTags(email) {
     const e = normEmail(email);
     const rows = db
-      .prepare(`SELECT tags_json FROM atom_mirror WHERE email = ?`)
+      .prepare(
+        `SELECT tags_json FROM atom_mirror WHERE email = ?
+         ORDER BY path ASC`,
+      )
       .all(e);
     const agg = aggregateMirrorTags(
       rows.map((r) => rowToPublicAtom(r, { includeBody: false }).tags),

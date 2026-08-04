@@ -81,6 +81,18 @@ describe("aggregateMirrorTags", () => {
     ]);
     assert.equal(total_distinct, 2);
   });
+
+  it("display casing is order-stable (most-common; ties → lowercase)", () => {
+    const a = aggregateMirrorTags([["Bug"], ["bug"], ["BUG"], ["bug"]]);
+    const b = aggregateMirrorTags([["BUG"], ["Bug"], ["bug"], ["bug"]]);
+    assert.equal(a.tags[0].tag, "bug");
+    assert.equal(b.tags[0].tag, "bug");
+    assert.equal(a.tags[0].count, 4);
+    const tied = aggregateMirrorTags([["OKR"], ["okr"]]);
+    assert.equal(tied.tags[0].tag, "okr");
+    const majority = aggregateMirrorTags([["OKR"], ["OKR"], ["okr"]]);
+    assert.equal(majority.tags[0].tag, "OKR");
+  });
 });
 
 describe("list_tags tool", () => {
@@ -243,4 +255,93 @@ describe("list_tags instructions", () => {
     assert.match(ASK_MCP_INSTRUCTIONS, /tags:\s*filter|tag filter|tags filter/i);
     assert.match(ASK_MCP_INSTRUCTIONS, /truncated/i);
   });
+});
+
+describe("list_tags store parity + rate limit", () => {
+  it("memory, sqlite methods, postgres methods all define mirrorListTags", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { fileURLToPath } = await import("node:url");
+    const { dirname, join } = await import("node:path");
+    const storeDir = join(
+      dirname(fileURLToPath(import.meta.url)),
+      "../src/store",
+    );
+    for (const file of [
+      "memory.mjs",
+      "askSqliteMethods.mjs",
+      "askPostgresMethods.mjs",
+    ]) {
+      const src = readFileSync(join(storeDir, file), "utf8");
+      assert.match(
+        src,
+        /function mirrorListTags\(/,
+        `${file} must define mirrorListTags`,
+      );
+      assert.match(
+        src,
+        /^\s+mirrorListTags,$/m,
+        `${file} must export mirrorListTags`,
+      );
+      assert.match(src, /ORDER BY path ASC|localeCompare.*path/, `${file} stable path order`);
+    }
+  });
+
+  it("rate-limits list_tags after burst", async () => {
+    const store = await createStore({ mode: "memory" });
+    await store.grantPeriod("rl@t.co", { status: "active", remaining: 10 });
+    const mcp = makeMcp(store, "rl@t.co");
+    let limited = null;
+    for (let i = 0; i < 70; i++) {
+      const body = parseToolJson(
+        await mcp._registeredTools.list_tags.handler({}, {}),
+      );
+      if (body.error === "rate_limited") {
+        limited = body;
+        break;
+      }
+    }
+    assert.ok(limited, "expected rate_limited within burst");
+    assert.ok(Number(limited.retryAfterSec) >= 1);
+  });
+
+  const pgUrl = process.env.DATABASE_URL || "";
+  const runPg =
+    pgUrl.startsWith("postgres") &&
+    (process.env.PLUS_METER_PG === "1" || process.env.PLUS_LIST_TAGS_PG === "1");
+
+  if (runPg) {
+    it("postgres store aggregates tags_json", async () => {
+      const store = await createStore({
+        mode: "postgres",
+        databaseUrl: pgUrl,
+      });
+      const email = `list-tags-pg-${Date.now()}@t.co`;
+      await store.grantPeriod(email, { status: "active", remaining: 10 });
+      await store.mirrorUpsert(email, [
+        {
+          path: "Atoms/PgA.md",
+          title: "PgA",
+          body: "a",
+          tags: ["pg-alpha", "pg-beta"],
+        },
+        {
+          path: "Atoms/PgB.md",
+          title: "PgB",
+          body: "b",
+          tags: ["pg-beta"],
+        },
+      ]);
+      const listed = await store.mirrorListTags(email);
+      assert.equal(listed.mirror_count, 2);
+      assert.deepEqual(listed.tags, [
+        { tag: "pg-beta", count: 2 },
+        { tag: "pg-alpha", count: 1 },
+      ]);
+      if (store.close) await store.close();
+    });
+  } else {
+    it("postgres list_tags skipped (set DATABASE_URL + PLUS_LIST_TAGS_PG=1)", () => {
+      assert.ok(true);
+    });
+  }
 });

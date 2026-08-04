@@ -361,10 +361,34 @@ export function matchesTagFilter(tags, filterTags) {
 export const MIRROR_TAGS_LIMIT = 500;
 
 /**
+ * Prefer most-common casing for a tag key; ties → lowercased form (stable).
+ * @param {Map<string, number>} forms
+ */
+function pickTagDisplay(forms) {
+  let best = "";
+  let bestN = -1;
+  for (const [form, n] of forms) {
+    if (n > bestN) {
+      best = form;
+      bestN = n;
+      continue;
+    }
+    if (n === bestN) {
+      const lower = form.toLowerCase() === form;
+      const bestLower = best.toLowerCase() === best;
+      if (lower && !bestLower) best = form;
+      else if (lower === bestLower && form.localeCompare(best) < 0) best = form;
+    }
+  }
+  return best;
+}
+
+/**
  * Aggregate per-atom tag lists into vocabulary with counts.
- * Case-insensitive merge (display = first-seen form). Count = atoms that
- * carry the tag (duplicate tags on one atom count once). Sort: count desc,
- * then tag alpha. Cap at limit (default 500). Non-string values skipped.
+ * Case-insensitive merge. Display = most-common casing (ties → lowercase form)
+ * so row scan order does not flip the label. Count = atoms that carry the tag
+ * (duplicate tags on one atom count once). Sort: count desc, then tag alpha.
+ * Cap at limit (default 500). Non-string/non-number values skipped.
  *
  * @param {Iterable<string[] | unknown>} tagLists
  * @param {{ limit?: number }} [opts]
@@ -375,7 +399,7 @@ export function aggregateMirrorTags(tagLists, opts = {}) {
     Math.max(Number(opts.limit) || MIRROR_TAGS_LIMIT, 1),
     MIRROR_TAGS_LIMIT,
   );
-  /** @type {Map<string, { tag: string, count: number }>} */
+  /** @type {Map<string, { forms: Map<string, number>, count: number }>} */
   const byKey = new Map();
   for (const list of tagLists) {
     if (!Array.isArray(list)) continue;
@@ -387,16 +411,22 @@ export function aggregateMirrorTags(tagLists, opts = {}) {
       const key = tag.toLowerCase();
       if (seen.has(key)) continue;
       seen.add(key);
-      const cur = byKey.get(key);
-      if (cur) cur.count += 1;
-      else byKey.set(key, { tag, count: 1 });
+      let cur = byKey.get(key);
+      if (!cur) {
+        cur = { forms: new Map(), count: 0 };
+        byKey.set(key, cur);
+      }
+      cur.count += 1;
+      cur.forms.set(tag, (cur.forms.get(tag) || 0) + 1);
     }
   }
-  const sorted = [...byKey.values()].sort(
-    (a, b) =>
-      b.count - a.count ||
-      a.tag.localeCompare(b.tag, undefined, { sensitivity: "base" }),
-  );
+  const sorted = [...byKey.entries()]
+    .map(([, v]) => ({ tag: pickTagDisplay(v.forms), count: v.count }))
+    .sort(
+      (a, b) =>
+        b.count - a.count ||
+        a.tag.localeCompare(b.tag, undefined, { sensitivity: "base" }),
+    );
   const total_distinct = sorted.length;
   return {
     tags: sorted.slice(0, limit),
