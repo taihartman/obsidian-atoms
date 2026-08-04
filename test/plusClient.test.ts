@@ -3,6 +3,7 @@ import type { RequestUrlParam, RequestUrlResponse } from "obsidian";
 import {
   askMirrorDelete,
   askMirrorReconcile,
+  askMirrorStatus,
   classifyViaProxy,
   createCheckout,
   exchangeMagicToken,
@@ -291,4 +292,45 @@ describe("plusClient", () => {
     expect(r.ok).toBe(true);
     if (r.ok) expect(r.count).toBe(1);
   });
+
+  // The count this returns is the sole input to the reconcile tripwire, and a
+  // reconcile hard-deletes every cloud row the local scan does not name. So a
+  // response that does not actually carry a count must read as a failure, not
+  // as "the cloud holds zero" — a captive portal or a proxy that swallows the
+  // body would otherwise hand the gate an authoritative-looking permission to
+  // delete everything.
+  describe("askMirrorStatus fails closed on a 2xx without a usable count", () => {
+    const cfg = { baseUrl: base, request: mockRequest(() => ({})) };
+    const cases: { name: string; json: unknown }[] = [
+      { name: "bodyless 2xx", json: undefined },
+      { name: "empty object", json: {} },
+      { name: "null count", json: { count: null } },
+      { name: "string count", json: { count: "400" } },
+      { name: "NaN count", json: { count: Number.NaN } },
+      { name: "Infinity count", json: { count: Number.POSITIVE_INFINITY } },
+    ];
+    for (const c of cases) {
+      it(c.name, async () => {
+        const r = await askMirrorStatus(
+          { ...cfg, request: mockRequest(() => ({ status: 200, json: c.json })) },
+          "sess_x",
+        );
+        expect(r.ok).toBe(false);
+      });
+    }
+
+    it("a real numeric count still succeeds, including a genuine zero", async () => {
+      for (const count of [0, 1, 484]) {
+        const r = await askMirrorStatus(
+          {
+            ...cfg,
+            request: mockRequest(() => ({ status: 200, json: { count } })),
+          },
+          "sess_x",
+        );
+        expect(r).toEqual({ ok: true, count, updatedAt: null });
+      }
+    });
+  });
+
 });

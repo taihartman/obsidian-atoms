@@ -9,15 +9,38 @@
  */
 import { describe, expect, it } from "vitest";
 import type { ConfirmRequest, ConfirmVerdict } from "../src/shared/confirm";
-import type { AskMirrorHost } from "../src/platform/askMirror";
+import type {
+  AskMirrorHost,
+  AskMirrorSyncResult,
+} from "../src/platform/askMirror";
 import {
   ASK_MIRROR_REFUSAL_ESCALATION_NOTICE,
   LS_ASK_MIRROR_HASHES,
+  LS_ASK_MIRROR_REFUSAL,
   LS_ASK_MIRROR_SCAN_HIGHWATER,
   LS_ASK_MIRROR_SERVER_COUNT,
   mirrorCompletenessFloor,
   runAskMirrorSync,
 } from "../src/platform/askMirror";
+
+/**
+ * Narrow a sync result to its `ok` arm before asserting on counts.
+ *
+ * `uploaded` and `refusalReason` live only on `ok`; a `failed` result carries a
+ * message instead. Reaching for them on the bare union used to be invisible
+ * because `tsconfig.json` excluded `test/` — see tsconfig.test.json. Throwing
+ * here also turns "the run failed for an unrelated reason" into a legible test
+ * failure rather than an `undefined` compared against an expected value.
+ */
+function okResult(
+  r: AskMirrorSyncResult,
+): Extract<AskMirrorSyncResult, { kind: "ok" }> {
+  if (r.kind !== "ok") {
+    throw new Error(`expected an ok sync result, got: ${JSON.stringify(r)}`);
+  }
+  return r;
+}
+
 
 const NOW = Date.parse("2026-08-01T12:00:00Z");
 const atomPath = (i: number) => `Atoms/A${i}.md`;
@@ -29,6 +52,9 @@ type Opts = {
   statusCount?: number;
   statusFails?: boolean;
   verdict?: ConfirmVerdict;
+  /** Modal that never resolves — the backgrounded-on-mobile case. */
+  confirmNeverAnswers?: boolean;
+  confirmTimeoutMs?: number;
   highWaterRaw?: string;
   hashesRaw?: string;
   now?: number;
@@ -47,24 +73,28 @@ function makeFakeHost(opts: Opts) {
     store[LS_ASK_MIRROR_SCAN_HIGHWATER] = opts.highWaterRaw;
   }
   let scanned = opts.scanned;
+  // Explicit path list, for scenarios where *which* paths the scan found
+  // matters and not just how many. Default stays the first `scanned` evidence
+  // paths, so every existing scenario is unaffected.
+  let scannedPaths: string[] | null = null;
   const deleted: string[] = [];
   const reconciles: { keepPaths: string[]; confirmEmpty: boolean; sid?: string }[] =
     [];
   const confirmRequests: ConfirmRequest[] = [];
   const notices: string[] = [];
   let statusCalls = 0;
+  let cancelled = 0;
 
   const host: AskMirrorHost = {
     async scanAtoms() {
-      const out = [];
-      for (let i = 0; i < scanned; i++) {
-        out.push({
-          path: atomPath(i),
-          basename: `A${i}`,
-          content: `---\ntags: []\n---\nbody ${i}\n`,
-        });
-      }
-      return out;
+      const paths =
+        scannedPaths ??
+        Array.from({ length: scanned }, (_, i) => atomPath(i));
+      return paths.map((path, i) => ({
+        path,
+        basename: path.replace(/^Atoms\//, "").replace(/\.md$/, ""),
+        content: `---\ntags: []\n---\nbody ${i}\n`,
+      }));
     },
     async resolveHubs() {
       return [];
@@ -95,10 +125,17 @@ function makeFakeHost(opts: Opts) {
     },
     async confirm(request) {
       confirmRequests.push(request);
+      if (opts.confirmNeverAnswers) return new Promise<ConfirmVerdict>(() => {});
       return opts.verdict ?? "dismissed";
+    },
+    cancelConfirm: () => {
+      cancelled++;
     },
     notice: (m) => notices.push(m),
     now: () => opts.now ?? NOW,
+    ...(opts.confirmTimeoutMs !== undefined
+      ? { confirmTimeoutMs: opts.confirmTimeoutMs }
+      : {}),
   };
   return {
     host,
@@ -108,8 +145,12 @@ function makeFakeHost(opts: Opts) {
     confirmRequests,
     notices,
     statusCalls: () => statusCalls,
+    cancelledConfirms: () => cancelled,
     setScanned: (n: number) => {
       scanned = n;
+    },
+    setScannedPaths: (paths: string[]) => {
+      scannedPaths = paths;
     },
   };
 }
@@ -135,7 +176,7 @@ describe("H1 stale server count defeats the reconcile tripwire", () => {
     // ceil(484 × 0.8) = 388, and this device scanned 84. The tripwire should
     // refuse and route to the modal.
     expect(r.refused).toBe(true);
-    expect(r.refusalReason).toBe("server-count-tripwire");
+    expect(okResult(r).refusalReason).toBe("server-count-tripwire");
     expect(f.reconciles).toEqual([]);
   });
 
@@ -218,7 +259,7 @@ describe("A: corrupt gate inputs", () => {
     });
     const r = await runAskMirrorSync(biting.host, { force: false });
     expect(r.refused).toBe(true);
-    expect(r.refusalReason).toBe("scan-incomplete");
+    expect(okResult(r).refusalReason).toBe("scan-incomplete");
   });
 
   // "1e3" is deliberately excluded: Number("1e3") === 1000 is a real integer,
@@ -305,7 +346,7 @@ describe("B: floor boundaries", () => {
     const r = await runAskMirrorSync(f.host, { force: true });
     expect({
       refused: r.refused,
-      reason: r.refusalReason,
+      reason: okResult(r).refusalReason,
       reconciles: f.reconciles.length,
       asked: f.confirmRequests.length,
     }).toEqual({
@@ -374,7 +415,7 @@ describe("D: network", () => {
     const r = await runAskMirrorSync(f.host, { force: true });
     expect({
       refused: r.refused,
-      reason: r.refusalReason,
+      reason: okResult(r).refusalReason,
       asked: f.confirmRequests.length,
       reconciles: f.reconciles.length,
     }).toEqual({
@@ -401,7 +442,7 @@ describe("D: network", () => {
     const r = await runAskMirrorSync(f.host, { force: true });
     expect({
       refused: r.refused,
-      reason: r.refusalReason,
+      reason: okResult(r).refusalReason,
       reconciles: f.reconciles.length,
     }).toEqual({
       refused: true,
@@ -419,7 +460,7 @@ describe("D: network", () => {
       verdict: "confirmed",
     });
     const r = await runAskMirrorSync(f.host, { force: true });
-    expect(r.refusalReason).toBe("no-server-count");
+    expect(okResult(r).refusalReason).toBe("no-server-count");
     expect(f.reconciles).toEqual([]);
   });
 });
@@ -444,5 +485,158 @@ describe("F: reconcile session id", () => {
     const sidB = b.reconciles[0]!.sid!;
     expect(sidA).toMatch(/^rec-\d+-[a-z0-9]{6,8}$/);
     expect(sidA).not.toBe(sidB);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The completeness floor's numerator must be evidence, not vault cardinality.
+// Found post-merge: `scannedCount` was bound to `vaultPaths.size` while `floor`
+// derived from evidence, so the two counted different sets and a newly created
+// atom paid for a missing one.
+// ---------------------------------------------------------------------------
+describe("G: new atoms cannot pay for missing ones", () => {
+  it("a mixed set at full cardinality still refuses (evidence 400, 230 survive + 100 new)", async () => {
+    // The device holds 400 evidence paths. Its vault currently shows 230 of
+    // them plus 100 atoms created since — 330 files, against a floor of 320.
+    // By cardinality alone that clears. By evidence it does not: 170 of this
+    // device's own paths are missing, and deleting them is the exact
+    // partially-synced wipe the gate exists to stop.
+    const f = makeFakeHost({ evidence: 400, scanned: 230, serverCount: 400 });
+    f.setScannedPaths([
+      ...Array.from({ length: 230 }, (_, i) => atomPath(i)),
+      ...Array.from({ length: 100 }, (_, i) => `Atoms/New${i}.md`),
+    ]);
+    const r = await runAskMirrorSync(f.host, { force: false });
+
+    expect({
+      refused: r.refused,
+      reason: okResult(r).refusalReason,
+      deleted: f.deleted.length,
+    }).toEqual({
+      refused: true,
+      reason: "scan-incomplete",
+      deleted: 0,
+    });
+  });
+
+  it("the same vault without the new atoms refuses identically", async () => {
+    // Control: the refusal is about the 170 missing paths, not about the 100
+    // new ones. Cardinality 230 is plainly below the floor either way.
+    const f = makeFakeHost({ evidence: 400, scanned: 230, serverCount: 400 });
+    const r = await runAskMirrorSync(f.host, { force: false });
+    expect({ refused: r.refused, deleted: f.deleted.length }).toEqual({
+      refused: true,
+      deleted: 0,
+    });
+  });
+
+  it("a genuinely complete vault that also grew still passes", async () => {
+    // The guard must not wedge the ordinary case: every evidence path is
+    // present, and 100 new atoms sit on top. Nothing to delete, nothing to
+    // refuse.
+    const f = makeFakeHost({ evidence: 400, scanned: 400, serverCount: 400 });
+    f.setScannedPaths([
+      ...Array.from({ length: 400 }, (_, i) => atomPath(i)),
+      ...Array.from({ length: 100 }, (_, i) => `Atoms/New${i}.md`),
+    ]);
+    const r = await runAskMirrorSync(f.host, { force: false });
+    expect({ refused: r.refused, deleted: f.deleted.length }).toEqual({
+      refused: false,
+      deleted: 0,
+    });
+  });
+
+  it("a confirmed prune clears the refusal banner it had to raise", async () => {
+    // Being below the floor is *why* the prune had to ask, so the banner is
+    // still up when the pass reaches its success tail. Without the
+    // confirmation arm the status line reads "sync refused" while the toast
+    // for the same click reads "reconciled".
+    const f = makeFakeHost({
+      evidence: 400,
+      scanned: 3,
+      serverCount: 3,
+      verdict: "confirmed",
+    });
+    const r = await runAskMirrorSync(f.host, { force: true });
+    expect(r.refused).toBe(false);
+    expect(JSON.parse(f.store[LS_ASK_MIRROR_REFUSAL] ?? "{}")).toEqual({
+      count: 0,
+      noticed: false,
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The dialog's lifetime. Losing the race is not the same as the question going
+// away: an abandoned modal still shows a live "Delete from cloud" button, and
+// tapping it resolves an already-settled promise — the user authorises an
+// irreversible delete and nothing happens.
+// ---------------------------------------------------------------------------
+describe("H: confirm dialog lifecycle", () => {
+  it("withdraws the dialog when the confirm times out", async () => {
+    const f = makeFakeHost({
+      evidence: 400,
+      scanned: 3,
+      serverCount: 400,
+      confirmNeverAnswers: true,
+      confirmTimeoutMs: 5,
+    });
+    const r = await runAskMirrorSync(f.host, { force: true });
+
+    expect({
+      asked: f.confirmRequests.length,
+      cancelled: f.cancelledConfirms(),
+      refused: r.refused,
+      reconciles: f.reconciles.length,
+    }).toEqual({ asked: 1, cancelled: 1, refused: true, reconciles: 0 });
+  });
+
+  it("leaves an answered dialog alone", async () => {
+    // The host closes it itself on a real verdict; cancelling again would be a
+    // second close on a modal that is already gone.
+    const f = makeFakeHost({
+      evidence: 400,
+      scanned: 3,
+      serverCount: 400,
+      verdict: "declined",
+    });
+    await runAskMirrorSync(f.host, { force: true });
+    expect(f.cancelledConfirms()).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// A refusal has to name the threshold that actually refused. The hand-built
+// no-server-count branch reported itself even when the real reason was a
+// corrupt baseline, which decideMirrorDeletion checks first.
+// ---------------------------------------------------------------------------
+describe("I: the refusal names its true reason", () => {
+  it("an unreachable status() on a corrupt baseline says baseline-unreadable", async () => {
+    const f = makeFakeHost({
+      evidence: 400,
+      scanned: 400,
+      serverCount: 400,
+      statusFails: true,
+      highWaterRaw: "abc",
+    });
+    const r = await runAskMirrorSync(f.host, { force: true });
+    expect({ refused: r.refused, reason: okResult(r).refusalReason }).toEqual({
+      refused: true,
+      reason: "baseline-unreadable",
+    });
+  });
+
+  it("an unreachable status() on a readable baseline still says no-server-count", async () => {
+    const f = makeFakeHost({
+      evidence: 400,
+      scanned: 400,
+      serverCount: 400,
+      statusFails: true,
+    });
+    const r = await runAskMirrorSync(f.host, { force: true });
+    expect({ refused: r.refused, reason: okResult(r).refusalReason }).toEqual({
+      refused: true,
+      reason: "no-server-count",
+    });
   });
 });

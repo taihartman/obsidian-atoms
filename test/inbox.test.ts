@@ -1642,3 +1642,52 @@ describe("drainInbox", () => {
     expect(parseInboxCaptures(files.get(INBOX_NOTE_PATH)!)[0]!.filed).toBe(true);
   });
 });
+
+describe("drainInbox — a capture whose body looks stamped", () => {
+  // A stamped neighbour so the stampless bullet inherits a fixed date instead
+  // of the machine's today.
+  const anchored = [
+    "- 2026-07-27T08:00-04:00 anchor",
+    "- 9:30 met Sam at the shop",
+    "",
+  ].join("\n");
+
+  it("marks an unstamped capture starting with a time, and never re-appends it", async () => {
+    // The stamp is unreadable, so `time` is null and the bullet is written as
+    // `- 9:30 met Sam at the shop`. The daily parser then reads `9:30` back as
+    // the timestamp. Keying the capture on its raw fields compared
+    // `("", "9:30 met Sam...")` against the daily's `("9:30", "met Sam...")`,
+    // which never matched: the capture never verified, never got its marker,
+    // and the next drain appended it again. And again.
+    const h = drainHarness(anchored);
+    const first = await drainInbox(h.app, { ensureDaily: h.ensureDaily });
+    expect(first.filed).toBe(2);
+
+    const daily = h.dailyContent("2026-07-27") ?? "";
+    expect(daily).toContain("9:30 met Sam at the shop");
+    expect(daily.match(/met Sam at the shop/g)).toHaveLength(1);
+
+    // The load-bearing half: a second pass must add nothing.
+    h.modified.length = 0;
+    const second = await drainInbox(h.app, { ensureDaily: h.ensureDaily });
+    expect({ filed: second.filed, modified: h.modified }).toEqual({
+      filed: 0,
+      modified: [],
+    });
+    expect(h.dailyContent("2026-07-27")).toBe(daily);
+  });
+
+  it("still dedupes such a capture against a daily whose marker was lost", async () => {
+    // Same shape as the existing lost-marker case, but for the body that
+    // round-trips into a timestamp — the write-side dedupe has to agree with
+    // the verify-side key or the drain adds a second identical bullet.
+    const h = drainHarness(anchored, {
+      dailies: { "2026-07-27": "- 9:30 met Sam at the shop\n" },
+    });
+    const r = await drainInbox(h.app, { ensureDaily: h.ensureDaily });
+
+    const daily = h.dailyContent("2026-07-27") ?? "";
+    expect(daily.match(/met Sam at the shop/g)).toHaveLength(1);
+    expect(r.filed).toBe(2);
+  });
+});

@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| In review | [#225](https://github.com/taihartman/obsidian-atoms/issues/225) | taihartman | `fix/mirror-delete-gate-and-outbox-ack` | [2026-07-31-001](https://github.com/taihartman/obsidian-atoms/blob/claude/obsidian-resume-sync-filing-072be6/docs/plans/2026-07-31-001-feat-resume-catch-up-plan.md) Phase A | `src/platform/askMirror.ts` · `src/plugin/main.ts` · `src/plugin/catchUp.ts` · `src/pipeline/inbox.ts` · `src/settings/settings.ts` | Three live data-loss paths: U1 mirror-wipe gate, U9 outbox ack, U2 step 3 marker re-verify. Ships ahead of #222 (Q3). Bumps **0.6.63** (master merged in). [PR #226](https://github.com/taihartman/obsidian-atoms/pull/226) **out of draft** — QA + adversarial re-run green, the two P0 gate holes (H1, H2) closed, 874 tests; **only the iOS/Android device boxes remain, and those are human-only** (BRAT + physical device) |
+| In progress | [#248](https://github.com/taihartman/obsidian-atoms/issues/248) | taihartman | `fix/mirror-gate-overlap-floor-248` | post-merge code review of #226 | `src/platform/askMirror.ts` · `src/plugin/catchUp.ts` · `src/pipeline/inbox.ts` · `src/platform/plusClient.ts` | Nine defects the pre-merge QA missed, headline: the completeness floor compared vault cardinality against an evidence-derived floor, so new atoms paid for missing ones. Bumps **0.6.64**. **Layering + wipe-path findings deliberately excluded — owned by [PR #247](https://github.com/taihartman/obsidian-atoms/pull/247) U1/U6.** |
 
 ## How to claim (copy)
 
