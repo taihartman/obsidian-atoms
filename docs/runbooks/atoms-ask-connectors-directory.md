@@ -78,9 +78,20 @@ Script: claim outbox → mirror upsert → ack applied (no Obsidian). Not requir
 
 States: `Not submitted` · `Code ready, not submitted` · `Submitted` · `Approved` · `Rejected + remediation` · `Blocked (org/privacy/icon)`
 
+## Pairing code (Plus email ≠ Claude/ChatGPT account)
+
+When the OAuth browser cannot complete magic link on the **Atoms Plus** email (or a prior OAuth cookie is wrong):
+
+1. Obsidian → Settings → Atoms → Ask → **Get pairing code** (copies `XXXX-XXXX`).
+2. Claude/ChatGPT → Connect Atoms → on authorize page choose **code from Obsidian** (or Continue / different email if a browser session exists).
+3. Allow consent — tokens bind to the **Plus** email, not the Claude profile.
+4. If `list_atoms` still looks stale: disconnect/reconnect the connector so it drops the old grant.
+
+Deploy **plus-service before** a plugin BRAT release that mints codes (`POST /v1/ask/mcp/pair` + OAuth chooser). Plan: `docs/plans/2026-08-04-002-feat-ask-mcp-pairing-plan.md`.
+
 ## Ops / deploy
 
-Already on production from #189 / #195. Further MCP changes:
+Already on production from #189 / #195. Further MCP changes (including pairing):
 
 ```bash
 fly deploy -a atoms-plus \
@@ -88,7 +99,7 @@ fly deploy -a atoms-plus \
   --dockerfile plus-service/Dockerfile
 ```
 
-Rollback: `fly releases -a atoms-plus` → prior image (see `docs/runbooks/atoms-plus-prod.md`).
+Rollback: `fly releases -a atoms-plus` → prior image (see `docs/runbooks/atoms-plus-prod.md`). Note: rolling back pairing removes the cookie identity chooser (silent consent returns).
 
 ## Related evidence
 

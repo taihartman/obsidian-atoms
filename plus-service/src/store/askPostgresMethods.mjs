@@ -15,6 +15,9 @@ import {
   decryptOutboxPayload,
   publicOutboxRow,
   assertMirrorPath,
+  generatePairCode,
+  normalizePairCodeInput,
+  PAIR_CODE_TTL_MS,
 } from "./askHelpers.mjs";
 
 export const ASK_PG_DDL = `
@@ -77,6 +80,13 @@ CREATE TABLE IF NOT EXISTS mcp_browser_sessions (
   email TEXT NOT NULL,
   exp_ms BIGINT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS mcp_pair_codes (
+  email TEXT PRIMARY KEY,
+  code_hash TEXT NOT NULL,
+  exp_ms BIGINT NOT NULL,
+  consumed_ms BIGINT
+);
+CREATE INDEX IF NOT EXISTS idx_mcp_pair_codes_hash ON mcp_pair_codes(code_hash);
 CREATE TABLE IF NOT EXISTS ask_outbox (
   id TEXT PRIMARY KEY,
   email TEXT NOT NULL,
@@ -570,6 +580,44 @@ export function createAskPostgresMethods(pool, deps) {
     return mcpGetPending(pendingId);
   }
 
+  async function pairMint(email) {
+    const e = normEmail(email);
+    const code = generatePairCode();
+    const expMs = Date.now() + PAIR_CODE_TTL_MS;
+    await pool.query(
+      `INSERT INTO mcp_pair_codes (email, code_hash, exp_ms, consumed_ms)
+       VALUES ($1,$2,$3,NULL)
+       ON CONFLICT (email) DO UPDATE SET
+         code_hash = EXCLUDED.code_hash,
+         exp_ms = EXCLUDED.exp_ms,
+         consumed_ms = NULL`,
+      [e, hashToken(code), expMs],
+    );
+    return { code, expiresAt: new Date(expMs).toISOString() };
+  }
+
+  async function pairRedeem(rawCode) {
+    const code = normalizePairCodeInput(rawCode);
+    if (!code || code.length < 6) return null;
+    const h = hashToken(code);
+    const { rows } = await pool.query(
+      "SELECT * FROM mcp_pair_codes WHERE code_hash = $1",
+      [h],
+    );
+    const r = rows[0];
+    if (!r) return null;
+    if (r.consumed_ms != null) return null;
+    if (Date.now() > Number(r.exp_ms)) return null;
+    const upd = await pool.query(
+      `UPDATE mcp_pair_codes SET consumed_ms = $1
+       WHERE email = $2 AND code_hash = $3 AND consumed_ms IS NULL
+       RETURNING email`,
+      [Date.now(), r.email, h],
+    );
+    if (!upd.rows[0]) return null;
+    return { email: upd.rows[0].email };
+  }
+
   async function mcpCreateBrowserSession(email) {
     const sid = id("obs");
     await pool.query(
@@ -770,6 +818,8 @@ export function createAskPostgresMethods(pool, deps) {
     mcpGetPending,
     mcpDeletePending,
     mcpUpdatePending,
+    pairMint,
+    pairRedeem,
     mcpCreateBrowserSession,
     mcpGetBrowserSession,
     mcpCreateAuthCode,

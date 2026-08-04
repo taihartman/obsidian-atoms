@@ -24,6 +24,9 @@ import {
   decryptOutboxPayload,
   publicOutboxRow,
   assertMirrorPath,
+  generatePairCode,
+  normalizePairCodeInput,
+  PAIR_CODE_TTL_MS,
 } from "./askHelpers.mjs";
 
 export function createMemoryStore() {
@@ -56,6 +59,8 @@ export function createMemoryStore() {
   const mcpClients = new Map();
   /** browser session id → { email, exp } */
   const mcpBrowserSessions = new Map();
+  /** email → { codeHash, expMs, consumedMs } */
+  const mcpPairCodes = new Map();
 
   const sessionTtlMs = () => config.sessionTtlDays * 24 * 60 * 60 * 1000;
 
@@ -710,6 +715,32 @@ export function createMemoryStore() {
     return row;
   }
 
+  function pairMint(email) {
+    const e = normEmail(email);
+    const code = generatePairCode();
+    const expMs = Date.now() + PAIR_CODE_TTL_MS;
+    mcpPairCodes.set(e, {
+      codeHash: hashToken(code),
+      expMs,
+      consumedMs: null,
+    });
+    return { code, expiresAt: new Date(expMs).toISOString() };
+  }
+
+  function pairRedeem(rawCode) {
+    const code = normalizePairCodeInput(rawCode);
+    if (!code || code.length < 6) return null;
+    const h = hashToken(code);
+    for (const [email, row] of mcpPairCodes) {
+      if (row.codeHash !== h) continue;
+      if (row.consumedMs != null) return null;
+      if (Date.now() > row.expMs) return null;
+      row.consumedMs = Date.now();
+      return { email };
+    }
+    return null;
+  }
+
   function mcpCreateBrowserSession(email) {
     const sid = id("obs");
     mcpBrowserSessions.set(sid, {
@@ -886,6 +917,8 @@ export function createMemoryStore() {
     mcpGetPending,
     mcpDeletePending,
     mcpUpdatePending,
+    pairMint,
+    pairRedeem,
     mcpCreateBrowserSession,
     mcpGetBrowserSession,
     mcpCreateAuthCode,

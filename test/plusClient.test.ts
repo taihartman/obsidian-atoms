@@ -4,6 +4,7 @@ import {
   askMirrorDelete,
   askMirrorReconcile,
   askMirrorStatus,
+  askMcpPair,
   classifyViaProxy,
   createCheckout,
   exchangeMagicToken,
@@ -256,6 +257,33 @@ describe("plusClient", () => {
     const r = await getEntitlement({ baseUrl: base, request }, "sess");
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.code).toBe("network");
+  });
+
+  it("askMirrorStatus parses email", async () => {
+    const request = mockRequest(() => ({
+      status: 200,
+      json: { count: 12, updatedAt: "2026-08-04T00:00:00.000Z", email: "You@Ex.Co" },
+    }));
+    const r = await askMirrorStatus({ baseUrl: base, request }, "sess");
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.count).toBe(12);
+      expect(r.email).toBe("you@ex.co");
+    }
+  });
+
+  it("askMcpPair posts empty body", async () => {
+    const request = mockRequest((p) => {
+      expect(p.url).toBe("https://plus.test/v1/ask/mcp/pair");
+      expect(p.method).toBe("POST");
+      return {
+        status: 200,
+        json: { code: "ABCD1234", expiresAt: "2026-08-04T12:00:00.000Z" },
+      };
+    });
+    const r = await askMcpPair({ baseUrl: base, request }, "sess");
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.code).toBe("ABCD1234");
   });
 
   it("askMirrorDelete posts paths", async () => {

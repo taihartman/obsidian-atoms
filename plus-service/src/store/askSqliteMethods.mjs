@@ -15,6 +15,9 @@ import {
   decryptOutboxPayload,
   publicOutboxRow,
   assertMirrorPath,
+  generatePairCode,
+  normalizePairCodeInput,
+  PAIR_CODE_TTL_MS,
 } from "./askHelpers.mjs";
 
 export const ASK_SQLITE_DDL = `
@@ -77,6 +80,13 @@ CREATE TABLE IF NOT EXISTS mcp_browser_sessions (
   email TEXT NOT NULL,
   exp_ms INTEGER NOT NULL
 );
+CREATE TABLE IF NOT EXISTS mcp_pair_codes (
+  email TEXT PRIMARY KEY,
+  code_hash TEXT NOT NULL,
+  exp_ms INTEGER NOT NULL,
+  consumed_ms INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_mcp_pair_codes_hash ON mcp_pair_codes(code_hash);
 CREATE TABLE IF NOT EXISTS ask_outbox (
   id TEXT PRIMARY KEY,
   email TEXT NOT NULL,
@@ -545,6 +555,39 @@ export function createAskSqliteMethods(db, deps) {
     return mcpGetPending(pendingId);
   }
 
+  function pairMint(email) {
+    const e = normEmail(email);
+    const code = generatePairCode();
+    const expMs = Date.now() + PAIR_CODE_TTL_MS;
+    db.prepare(
+      `INSERT INTO mcp_pair_codes (email, code_hash, exp_ms, consumed_ms)
+       VALUES (?, ?, ?, NULL)
+       ON CONFLICT(email) DO UPDATE SET
+         code_hash = excluded.code_hash,
+         exp_ms = excluded.exp_ms,
+         consumed_ms = NULL`,
+    ).run(e, hashToken(code), expMs);
+    return { code, expiresAt: new Date(expMs).toISOString() };
+  }
+
+  function pairRedeem(rawCode) {
+    const code = normalizePairCodeInput(rawCode);
+    if (!code || code.length < 6) return null;
+    const h = hashToken(code);
+    const r = db.prepare("SELECT * FROM mcp_pair_codes WHERE code_hash = ?").get(h);
+    if (!r) return null;
+    if (r.consumed_ms != null) return null;
+    if (Date.now() > r.exp_ms) return null;
+    db.prepare(
+      "UPDATE mcp_pair_codes SET consumed_ms = ? WHERE email = ? AND code_hash = ? AND consumed_ms IS NULL",
+    ).run(Date.now(), r.email, h);
+    const check = db
+      .prepare("SELECT consumed_ms FROM mcp_pair_codes WHERE email = ? AND code_hash = ?")
+      .get(r.email, h);
+    if (!check?.consumed_ms) return null;
+    return { email: r.email };
+  }
+
   function mcpCreateBrowserSession(email) {
     const sid = id("obs");
     db.prepare(
@@ -730,6 +773,8 @@ export function createAskSqliteMethods(db, deps) {
     mcpGetPending,
     mcpDeletePending,
     mcpUpdatePending,
+    pairMint,
+    pairRedeem,
     mcpCreateBrowserSession,
     mcpGetBrowserSession,
     mcpCreateAuthCode,

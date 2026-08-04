@@ -13,6 +13,7 @@ import {
   MIRROR_HIGHWATER_DECAY_DAYS,
   clearAskMirrorDeviceState,
   formatAskMirrorRefusalLine,
+  formatAskMirrorStatusLine,
   mirrorRefusalBody,
   mirrorRefusalTitle,
   mirrorServerTripwireFloor,
@@ -717,6 +718,36 @@ describe("askMirror deletion gate (U1)", () => {
         ([k, v]) => typeof v === "function" && /confirm/i.test(k),
       ),
     ).toEqual([]);
+  });
+
+  it("status line includes Plus email on happy and error paths", () => {
+    expect(
+      formatAskMirrorStatusLine({
+        serverCount: "56",
+        email: "a@ex.co",
+        relativeLastOk: "1h ago",
+      }),
+    ).toBe("Ask mirror: 56 · as a@ex.co · last pushed 1h ago");
+    expect(
+      formatAskMirrorStatusLine({
+        serverCount: "56",
+        email: "a@ex.co",
+        relativeLastOk: "never",
+        lastErr: "network",
+      }),
+    ).toBe(
+      "Ask mirror: 56 · as a@ex.co · push failed — network · Sync now to retry",
+    );
+    expect(
+      formatAskMirrorStatusLine({
+        serverCount: "10",
+        email: "a@ex.co",
+        relativeLastOk: "never",
+        refused: true,
+      }),
+    ).toBe(
+      "Ask mirror: 10 · as a@ex.co · sync refused — vault scan incomplete · Sync now to retry",
+    );
   });
 
   it("a refusal renders the literal status line and clears on the next clean pass", async () => {

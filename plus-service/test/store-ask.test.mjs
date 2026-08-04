@@ -257,4 +257,42 @@ describe("ask mirror + mcp store", () => {
       else process.env.ATOMS_ASK_MIRROR_KEY = prev;
     }
   });
+
+  for (const mode of ["memory", "sqlite"]) {
+    describe(`pair codes (${mode})`, () => {
+      it("mint then redeem once; remint invalidates prior", async () => {
+        await withStore(mode, async (store) => {
+          await seedAccount(store, "pair@ex.co");
+          const m1 = await store.pairMint("pair@ex.co");
+          assert.ok(m1.code);
+          assert.ok(m1.expiresAt);
+          assert.match(m1.code, /^[0-9A-HJKMNP-TV-Z]{8}$/i);
+          const m2 = await store.pairMint("pair@ex.co");
+          assert.notEqual(m1.code, m2.code);
+          assert.equal(await store.pairRedeem(m1.code), null);
+          const r = await store.pairRedeem(m2.code);
+          assert.equal(r.email, "pair@ex.co");
+          assert.equal(await store.pairRedeem(m2.code), null);
+        });
+      });
+
+      it("accepts dashed display form", async () => {
+        await withStore(mode, async (store) => {
+          await seedAccount(store, "dash@ex.co");
+          const m = await store.pairMint("dash@ex.co");
+          const dashed = `${m.code.slice(0, 4)}-${m.code.slice(4)}`;
+          const r = await store.pairRedeem(dashed);
+          assert.equal(r.email, "dash@ex.co");
+        });
+      });
+
+      it("wrong code fails", async () => {
+        await withStore(mode, async (store) => {
+          await seedAccount(store, "w@ex.co");
+          await store.pairMint("w@ex.co");
+          assert.equal(await store.pairRedeem("00000000"), null);
+        });
+      });
+    });
+  }
 });
