@@ -93,6 +93,8 @@ processInbox(dryRun)
 | `settings/*` | Settings tab + capture shortcut CTA |
 | `platform/*` | Auto-run gates, connectivity probe |
 | `shared/types.ts` | Shared types + defaults |
+| `shared/confirm.ts` | Confirm contract + `DeletionConfirmation` token, so `platform/` never imports a `plugin/` type |
+| `plugin/catchUp.ts` | Outbox apply loop + sync outcomes, against an injected host |
 
 ## Model contract
 
@@ -124,7 +126,7 @@ processInbox(dryRun)
 |---|---|---|
 | API key | SecretStorage (fallback: device localStorage) | no |
 | Auto-run flag + last-run day | `saveLocalStorage` | no |
-| Ask mirror hashes + last success/error + server count | `saveLocalStorage` (`atoms-ask-mirror-*`) | **no** (multi-device safety) |
+| Ask mirror hashes + last success/error + server count + scan high-water + refusal state | `saveLocalStorage` (`atoms-ask-mirror-*`) | **no** (multi-device safety) |
 | Active vocabulary, model, atom folder | `data.json` | yes |
 | Atoms | `Atoms/*.md` | yes (vault) |
 | Markers | under captures in daily notes | yes (vault) |
@@ -149,11 +151,11 @@ Atom frontmatter: `created`, `source` (wikilink), `generated-by`, `tags`, plus q
 
 1. Vault SSOT — never mirror→vault body; no CRDT; no conflict UI.
 2. Server path allowlist: flat `Atoms/*.md` only (`assertMirrorPath`) on upsert/delete/reconcile — no folder from request body.
-3. Hash evidence + status stamps are **device-local** — never put `askMirrorHashes` in synced `data.json` (legacy migrate-off once).
+3. Hash evidence + status stamps are **device-local** — never put `askMirrorHashes` in synced `data.json` (legacy field stripped on load, never read back).
 4. Auth split: `sess_` mutates mirror/outbox apply; `mcp_` read + outbox enqueue only.
 5. Wipe allowed on valid `sess_` even if not entitled (exit path); still nuclear (mirror + outbox + MCP tokens).
 6. Same code path desktop + iOS + Android — no desktop-only watcher.
-7. Mirror failures never fail Process/Update/outbox apply (except outbox ack waits for successful land+mirror of that item).
+7. Mirror failures never fail Process/Update/outbox apply — the entry survives: acked **only on a confirmed push**, since deferred/refused/failed are never confirmation, so the pass stops and the next one re-pulls it.
 8. Status line N = **server** count after last successful status/sync — never label local vault count as N (“Ask mirror: N”).
 
 **Anti-patterns:**

@@ -634,9 +634,17 @@ export async function askMirrorStatus(
   if (res.status < 200 || res.status >= 300) {
     return mapError(res.status, res.json);
   }
+  // A 2xx with no usable count is not a count of zero. Coercing it to 0 let a
+  // captive portal or a half-deployed instance answering 200 write an
+  // authoritative "the cloud is empty" into device storage, which is one of
+  // the two ways the deletion gate could be talked into allowing a wipe.
+  // Absent is unknown, and unknown must fail closed.
+  if (typeof res.json.count !== "number" || !Number.isFinite(res.json.count)) {
+    return mapError(res.status, { message: "mirror status had no count" });
+  }
   return {
     ok: true,
-    count: typeof res.json.count === "number" ? res.json.count : 0,
+    count: res.json.count,
     updatedAt:
       typeof res.json.updatedAt === "string" ? res.json.updatedAt : null,
   };

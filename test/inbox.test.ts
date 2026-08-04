@@ -828,7 +828,25 @@ describe("ensureInboxBookmark", () => {
  */
 function drainHarness(
   inboxContent: string,
-  opts: { dailies?: Record<string, string>; today?: string } = {},
+  opts: {
+    dailies?: Record<string, string>;
+    today?: string;
+    /**
+     * Fires after each `vault.modify` lands, so a test can replace a file the
+     * way Obsidian Sync does — out-of-band, between the drain's own writes.
+     * The only way to open the marker-time window; calling the drain twice
+     * never does.
+     */
+    onModify?: (
+      path: string,
+      sync: {
+        setDaily: (date: string, content: string) => void;
+        setInbox: (content: string) => void;
+      },
+    ) => void;
+    /** Throw instead of writing, so a crash leaves nothing on disk. */
+    failWrite?: (path: string) => boolean;
+  } = {},
 ) {
   const files = new Map<string, string>();
   files.set(INBOX_NOTE_PATH, inboxContent);
@@ -845,8 +863,13 @@ function drainHarness(
       getAbstractFileByPath: (p: string) => (files.has(p) ? new TFile(p) : null),
       read: async (f: { path: string }) => files.get(f.path) ?? "",
       modify: async (f: { path: string }, data: string) => {
+        if (opts.failWrite?.(f.path)) throw new Error("simulated crash");
         files.set(f.path, data);
         modified.push(f.path);
+        opts.onModify?.(f.path, {
+          setDaily: (date, content) => files.set(dailyPath(date), content),
+          setInbox: (content) => files.set(INBOX_NOTE_PATH, content),
+        });
       },
     },
   } as never;
@@ -1386,6 +1409,109 @@ describe("drainInbox", () => {
     expect(r.pending).toBe(1);
   });
 
+  it("writes no marker when the daily bullet is gone at marker time (R9)", async () => {
+    // The daily write lands, then Sync replaces the daily with a merge that
+    // dropped the bullet. Marking the capture filed on the earlier loop's
+    // result would leave it marked and gone — the one loss this path exists to
+    // prevent. It must stay pending and re-drain next pass.
+    const h = drainHarness("- 2026-07-27T09:14-04:00 buy milk\n", {
+      onModify: (path, sync) => {
+        if (path.endsWith("2026-07-27.md")) sync.setDaily("2026-07-27", "");
+      },
+    });
+
+    const r = await drainInbox(h.app, { ensureDaily: h.ensureDaily });
+
+    expect(r.filed).toBe(0);
+    expect(r.pending).toBe(1);
+    expect(h.inboxContent()).not.toContain(INBOX_FILED_MARKER);
+    expect(parseInboxCaptures(h.inboxContent())[0]!.filed).toBe(false);
+  });
+
+  it("marks only the date whose daily still holds its bullet (R9)", async () => {
+    // Two dates file; Sync drops one daily's bullet after its write. The
+    // surviving date is still marked — verification is per capture, not a
+    // whole-pass abort.
+    const h = drainHarness(
+      [
+        "- 2026-07-27T09:14-04:00 monday one",
+        "- 2026-07-28T10:00-04:00 tuesday one",
+        "",
+      ].join("\n"),
+      {
+        onModify: (path, sync) => {
+          if (path.endsWith("2026-07-27.md")) sync.setDaily("2026-07-27", "");
+        },
+      },
+    );
+
+    const r = await drainInbox(h.app, { ensureDaily: h.ensureDaily });
+
+    expect(r.filed).toBe(1);
+    expect(r.pending).toBe(1);
+    const after = parseInboxCaptures(h.inboxContent());
+    expect(after.map((c) => c.filed)).toEqual([false, true]);
+  });
+
+  it("re-files a capture the next pass after its daily bullet vanished (R9)", async () => {
+    // The recovery path for the residual window: unmarked means re-drained, and
+    // the second pass files it for real.
+    let dropBullet = true;
+    const h = drainHarness("- 2026-07-27T09:14-04:00 buy milk\n", {
+      onModify: (path, sync) => {
+        if (dropBullet && path.endsWith("2026-07-27.md")) {
+          sync.setDaily("2026-07-27", "");
+        }
+      },
+    });
+    await drainInbox(h.app, { ensureDaily: h.ensureDaily });
+
+    dropBullet = false;
+    const r = await drainInbox(h.app, { ensureDaily: h.ensureDaily });
+
+    expect(r.filed).toBe(1);
+    expect(h.dailyContent("2026-07-27")).toContain("- 09:14 buy milk");
+    expect(parseInboxCaptures(h.inboxContent())[0]!.filed).toBe(true);
+  });
+
+  it("re-runs cleanly after a crash between the daily and marker writes", async () => {
+    // The marker write blows up with the daily bullet already on disk. The
+    // re-run must neither duplicate the bullet nor lose the capture.
+    let failInboxWrite = true;
+    const h = drainHarness("- 2026-07-27T09:14-04:00 buy milk\n", {
+      failWrite: (path) => failInboxWrite && path === INBOX_NOTE_PATH,
+    });
+    await expect(
+      drainInbox(h.app, { ensureDaily: h.ensureDaily }),
+    ).rejects.toThrow("simulated crash");
+
+    failInboxWrite = false;
+    const r = await drainInbox(h.app, { ensureDaily: h.ensureDaily });
+
+    expect(r.filed).toBe(1);
+    const dailyCaps = parseCaptures(h.dailyContent("2026-07-27")!);
+    expect(dailyCaps.filter((c) => c.text === "buy milk")).toHaveLength(1);
+    expect(parseInboxCaptures(h.inboxContent())[0]!.filed).toBe(true);
+  });
+
+  it("verifies through a filing sentinel appended under the daily bullet", async () => {
+    // Same crash shape, but the filing pass has since put an atom sentinel
+    // under the daily bullet. Verification is content-keyed on (time, body), so
+    // the sentinel neither hides the bullet nor earns a duplicate.
+    const h = drainHarness("- 2026-07-27T09:14-04:00 buy milk\n", {
+      dailies: {
+        "2026-07-27": "- 09:14 buy milk\n↳ [[Buy milk]] <!--linker-->\n",
+      },
+    });
+
+    const r = await drainInbox(h.app, { ensureDaily: h.ensureDaily });
+
+    expect(r.filed).toBe(1);
+    const dailyCaps = parseCaptures(h.dailyContent("2026-07-27")!);
+    expect(dailyCaps.filter((c) => c.text === "buy milk")).toHaveLength(1);
+    expect(parseInboxCaptures(h.inboxContent())[0]!.filed).toBe(true);
+  });
+
   it("files both of two captures with identical stamp and text (T3)", async () => {
     const h = drainHarness(
       [
@@ -1401,6 +1527,34 @@ describe("drainInbox", () => {
     const after = parseInboxCaptures(h.inboxContent());
     expect(after).toHaveLength(2);
     expect(after.every((c) => c.filed)).toBe(true);
+  });
+
+  it("verifies one bullet per identical capture, not merely its existence (R9)", async () => {
+    // Both bullets are written, then a Sync merge drops one of them. An
+    // existence test lets the surviving bullet satisfy *both* captures: two
+    // markers, one capture gone forever — precisely the loss verification
+    // exists to catch. Counting keeps the other one pending for the next pass.
+    const h = drainHarness(
+      [
+        "- 2026-07-27T09:14:03-04:00 same text",
+        "- 2026-07-27T09:14:03-04:00 same text",
+        "",
+      ].join("\n"),
+      {
+        onModify: (path, sync) => {
+          if (path.endsWith("2026-07-27.md")) {
+            sync.setDaily("2026-07-27", "- 09:14:03 same text\n");
+          }
+        },
+      },
+    );
+
+    const r = await drainInbox(h.app, { ensureDaily: h.ensureDaily });
+
+    expect(r.filed).toBe(1);
+    expect(r.pending).toBe(1);
+    const after = parseInboxCaptures(h.inboxContent());
+    expect(after.filter((c) => c.filed)).toHaveLength(1);
   });
 
   it("pairs each same-key stampless duplicate with its own day (T3)", async () => {

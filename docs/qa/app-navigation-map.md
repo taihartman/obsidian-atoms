@@ -41,8 +41,12 @@ Living map for driving Atoms during QA. Update when commands, home cards, or set
 ### Settings → Atoms
 
 - **Entrypoint:** Settings tab id `atoms`.
-- **Contains:** Version, API key / SecretStorage id, auto-run ack + enable, model, atom folder, vocab, capture shortcut URL.
-- **Source:** `src/settings.ts`.
+- **Contains:** Version, API key / SecretStorage id, auto-run ack + enable, model, atom folder, vocab, capture shortcut URL. Then the **Ask (Claude + ChatGPT)** section: Privacy acknowledgment, Enable Ask mirror, Allow filing, MCP connector URL, **Ask mirror status line**, **Sync now**, Cloud mirror status (Refresh), Wipe cloud copy, Self-host Ask, Plus service URL override.
+- **Source:** `src/settings/settings.ts` (not `src/settings.ts` — moved in the hybrid-src layout).
+- **Ask mirror status line:** `src/settings/settings.ts:1160-1168`, rendered via `formatAskMirrorRefusalLine` (`src/platform/askMirror.ts:431-439`). Refusal text: `Ask mirror: {N} · sync refused — vault scan incomplete · Sync now to retry` (class `atoms-ask-mirror-error`). Same string renders on Atoms home as `.atoms-home-ask-mirror-refusal`.
+- **Sync now:** `src/settings/settings.ts:1179-1195` → `plugin.syncAskMirror({ force: true })`; toasts one of four outcomes via `syncNowNotice` (`src/plugin/catchUp.ts:62`). The forced path is the only one that can open `AskMirrorDeleteConfirmModal` (`askMirror.ts:621-647`); a non-forced delta refusal never shows a modal (`askMirror.ts:842-844`).
+- **Plus service URL override:** `src/settings/settings.ts:1303`. Free text, no host validation — point it at a local `plus-service` (`http://127.0.0.1:8790`) to drive Ask mirror QA without a cloud account.
+- **KNOWN DEFECT (Obsidian 1.12.7):** the tab throws at `settings.ts:1225`/`:1239` (`ButtonComponent.setDestructive` is typed in `obsidian.d.ts` but is not a runtime function) and **stops rendering after "Wipe cloud copy"** — Self-host Ask and Plus service URL override are unreachable in the UI. Set `plusBaseUrl` via `obsidian eval` instead. Pre-existing on `master`; see `docs/qa/2026-08-01-fix-mirror-delete-gate-and-outbox-ack-world-class-qa.md` § F1.
 
 ### Process / Preview (manual)
 

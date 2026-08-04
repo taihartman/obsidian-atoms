@@ -674,6 +674,21 @@ function dailyHasCapture(
   );
 }
 
+/**
+ * How many bullets the daily holds per `(time, body)` key. Verification counts
+ * rather than tests existence: two byte-identical same-second captures both
+ * file by design (Q2), so `some(...)` lets one surviving bullet satisfy both
+ * checks and marks a capture that a merge already dropped.
+ */
+function dailyCaptureCounts(dailyContent: string): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const c of parseCaptures(dailyContent)) {
+    const key = `${c.timestamp ?? ""}\n${c.text}`;
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return counts;
+}
+
 /** Append bullet lines to a daily, keeping a newline off the previous line. */
 function appendBulletLines(content: string, bulletLines: string[]): string {
   const block = bulletLines.join("\n");
@@ -766,6 +781,53 @@ function relocateFiledCaptures(
   return matched;
 }
 
+/**
+ * Keep only the captures whose bullet is still in its daily at marker time.
+ *
+ * The daily write landing is not proof the bullet survived: Obsidian Sync
+ * replaces files out-of-band, so a merge can drop the bullet after the write
+ * and before the marker, leaving a capture marked filed and gone. Re-reading
+ * each daily here is the only thing that catches that, and no in-process write
+ * primitive helps — `Vault.process` serializes writers within this process
+ * only.
+ *
+ * **This narrows the window; it does not close it.** A Sync replacement landing
+ * between this read and the marker write is still possible, just over a shorter
+ * span. The recovery path for that residual is the unmatched-capture fallback:
+ * an unverified capture gets no marker, counts as pending, and re-drains next
+ * pass — which is why this conditions the marker rather than repairing the
+ * daily (R9).
+ *
+ * Keyed on (time, body) like the write-side dedupe, so a filing sentinel or a
+ * marker appended under the bullet since the write still verifies. Matching is
+ * greedy per key rather than existence-based: two identical captures need two
+ * surviving bullets, and this is not dedupe — two bullets still verify two.
+ */
+async function verifyFiledInDailies(
+  vault: DrainVault,
+  written: { daily: TFile; group: DatedInboxCapture[] }[],
+): Promise<DatedInboxCapture[]> {
+  const verified: DatedInboxCapture[] = [];
+  for (const { daily, group } of written) {
+    let dailyContent: string;
+    try {
+      dailyContent = await vault.read(daily);
+    } catch {
+      // Unreadable now — cannot prove the bullet landed, so claim nothing.
+      continue;
+    }
+    const remaining = dailyCaptureCounts(dailyContent);
+    for (const c of group) {
+      const key = `${c.time ?? ""}\n${c.text}`;
+      const left = remaining.get(key) ?? 0;
+      if (left <= 0) continue;
+      remaining.set(key, left - 1);
+      verified.push(c);
+    }
+  }
+  return verified;
+}
+
 const EMPTY_DRAIN_RESULT: InboxDrainResult = {
   filed: 0,
   pending: 0,
@@ -812,6 +874,9 @@ export async function drainInbox(
   }
 
   const filedCaptures: DatedInboxCapture[] = [];
+  // Each written daily kept alongside its captures, so marker time can re-read
+  // it and confirm the bullets are still there.
+  const writtenDailies: { daily: TFile; group: DatedInboxCapture[] }[] = [];
   let held = 0;
   let stillPending = 0;
 
@@ -835,8 +900,10 @@ export async function drainInbox(
       if (additions.length > 0) {
         await vault.modify(daily, appendBulletLines(dailyContent, additions));
       }
-      // Only after the daily is written do these captures count as filed.
+      // Only after the daily is written do these captures count as filed —
+      // and only provisionally, until re-verified below.
       filedCaptures.push(...group);
+      writtenDailies.push({ daily, group });
     } catch (e) {
       if (e instanceof FutureDailyNoteError) held += group.length;
       else stillPending += group.length;
@@ -845,25 +912,24 @@ export async function drainInbox(
   }
 
   let matched: DatedInboxCapture[] = [];
-  if (filedCaptures.length > 0) {
+  const verified = await verifyFiledInDailies(vault, writtenDailies);
+  if (verified.length > 0) {
     // Re-read rather than marking the opening snapshot: the loop above awaited
     // daily creation and writes, and the Shortcut or Sync can append into that
     // window. Writing the stale content back would silently discard whatever
     // landed — the exact capture loss this whole path exists to prevent.
     const fresh = await vault.read(inbox);
-    matched = relocateFiledCaptures(
-      parseInboxCaptures(fresh, now),
-      filedCaptures,
-    );
+    matched = relocateFiledCaptures(parseInboxCaptures(fresh, now), verified);
     if (matched.length > 0) {
       await vault.modify(inbox, appendFiledMarkers(fresh, matched));
     }
   }
 
   return {
-    // `filed` counts markers actually written, not captures attempted: an
-    // unmatched capture (its inbox line reflowed by a merge) is written to the
-    // daily but re-surfaces as pending until the next drain marks it (F5).
+    // `filed` counts markers actually written, not captures attempted: a
+    // capture whose bullet no longer reads back from its daily, or whose inbox
+    // line a merge reflowed, gets no marker and re-surfaces as pending until a
+    // later drain files and marks it (F5, R9).
     filed: matched.length,
     pending: stillPending + (filedCaptures.length - matched.length),
     held,

@@ -178,8 +178,6 @@ export interface LinkerSettings {
    * ISO timestamp when enabled; empty = off.
    */
   askWriteAckAt: string;
-  /** path → content hash for Ask push skip. */
-  askMirrorHashes: Record<string, string>;
 }
 
 export const DEFAULT_SETTINGS: LinkerSettings = {
@@ -214,7 +212,6 @@ export const DEFAULT_SETTINGS: LinkerSettings = {
   askEnabled: false,
   askPrivacyAckAt: "",
   askWriteAckAt: "",
-  askMirrorHashes: {},
 };
 
 /** SecretStorage / localStorage keys — lowercase-dashed (KTD5). */
