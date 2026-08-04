@@ -25,6 +25,7 @@ import {
   isProduction,
 } from "./prodGate.mjs";
 import { sendMagicLinkEmail } from "./email.mjs";
+import { alertStripeIncident } from "./alert.mjs";
 import { checkRateLimit, clientIp } from "./ratelimit.mjs";
 import { handleMirrorRoutes } from "./mirror/http.mjs";
 import { handleMcpRequest } from "./mcp/handler.mjs";
@@ -262,19 +263,49 @@ ${
     // POST /v1/billing/webhook — raw body + Stripe-Signature
     if (req.method === "POST" && path === "/v1/billing/webhook") {
       const raw = await readRawBody(req);
+      /** #238 — the row this delivery produced, if any (class A or class B). */
+      let incident = null;
       try {
         const event = constructEvent(raw, req.headers["stripe-signature"]);
         const result = await applyStripeEvent(store, event);
+        // Keep the incident row out of the wire response.
+        const { incident: recorded, ...payload } = result;
+        incident = recorded || null;
         console.log(
           `[plus] stripe webhook ${event.type} → ${result.action || "ok"}${result.email ? ` ${result.email}` : ""}`,
         );
-        return json(res, 200, { received: true, ...result });
+        json(res, 200, { received: true, ...payload });
       } catch (err) {
         const status = err?.status && err.status >= 400 ? err.status : 400;
         const msg = err instanceof Error ? err.message : "webhook error";
         console.error("[plus] webhook reject", msg);
-        return json(res, status, { message: msg });
+        // Class A: signature never verified, so there is no Stripe id to key
+        // on. The empty id collapses the flood to one row per kind per day —
+        // this route has no rate limit (KTD2).
+        try {
+          incident = await store.recordStripeIncident("webhook_reject", {
+            stripeId: "",
+            detail: msg,
+          });
+        } catch (recErr) {
+          console.error(
+            "[plus] incident record failed webhook_reject",
+            recErr instanceof Error ? recErr.message : "err",
+          );
+        }
+        json(res, status, { message: msg });
       }
+      // Alert after the response is written, and never fire-and-forget: an
+      // unhandled Resend rejection would take the process down (#238 U3).
+      try {
+        await alertStripeIncident(store, incident);
+      } catch (alertErr) {
+        console.error(
+          "[plus] stripe alert failed",
+          alertErr instanceof Error ? alertErr.message : "err",
+        );
+      }
+      return;
     }
 
     // POST /v1/auth/magic-link

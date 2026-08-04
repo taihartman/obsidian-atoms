@@ -247,6 +247,26 @@ export function constructEvent(rawBody, signatureHeader) {
  * Claim event id before mutating entitlements. Returns "duplicate" if already claimed.
  * Do not claim unpaid/skip paths that must remain retriable.
  */
+/**
+ * #238 class B — record a no-grant outcome. Recording must never change what
+ * the webhook answers, so a store failure is logged and swallowed. The row is
+ * handed back on the result for the single alert call site in `server.mjs`.
+ * @returns {Promise<object | null>}
+ */
+async function recordIncident(store, kind, opts) {
+  if (typeof store.recordStripeIncident !== "function") return null;
+  try {
+    return await store.recordStripeIncident(kind, opts);
+  } catch (err) {
+    console.error(
+      "[plus] incident record failed",
+      kind,
+      err instanceof Error ? err.message : "err",
+    );
+    return null;
+  }
+}
+
 async function claimOrDuplicate(store, eventId) {
   if (typeof store.claimEvent === "function") {
     const claimed = await store.claimEvent(eventId);
@@ -271,7 +291,11 @@ export async function applyStripeEvent(store, event) {
     const resolved = resolveCheckoutGrantEmail(obj);
     if (resolved.missing) {
       await claimOrDuplicate(store, event.id);
-      return { handled: false, action: "missing_email" };
+      const incident = await recordIncident(store, "missing_email", {
+        stripeId: String(obj.id || ""),
+        detail: "checkout session carried no usable email",
+      });
+      return { handled: false, action: "missing_email", incident };
     }
     if (resolved.mismatch) {
       await claimOrDuplicate(store, event.id);
@@ -279,7 +303,17 @@ export async function applyStripeEvent(store, event) {
         "[plus] checkout email mismatch — no grant",
         resolved.email,
       );
-      return { handled: true, action: "email_mismatch", email: resolved.email };
+      const incident = await recordIncident(store, "email_mismatch", {
+        stripeId: String(obj.id || ""),
+        email: resolved.email,
+        detail: "customer email disagrees with plugin metadata",
+      });
+      return {
+        handled: true,
+        action: "email_mismatch",
+        email: resolved.email,
+        incident,
+      };
     }
     const email = resolved.email;
     const kind = String(obj.metadata?.kind || "");
@@ -297,7 +331,12 @@ export async function applyStripeEvent(store, event) {
       "";
     if (linePrice && allowedPriceIds().size && !allowedPriceIds().has(linePrice)) {
       await claimOrDuplicate(store, event.id);
-      return { handled: true, action: "unknown_price", email };
+      const incident = await recordIncident(store, "unknown_price", {
+        stripeId: String(obj.id || ""),
+        email,
+        detail: `price ${linePrice} is not in the allowlist`,
+      });
+      return { handled: true, action: "unknown_price", email, incident };
     }
     const fromPrice = grantFromPriceId(linePrice);
 
@@ -357,7 +396,13 @@ export async function applyStripeEvent(store, event) {
     const email = await resolveInvoiceEmail(store, obj);
     if (!email) {
       await claimOrDuplicate(store, event.id);
-      return { handled: false, action: "missing_email" };
+      // Own kind: a renewal that granted nothing throttles apart from a
+      // checkout that granted nothing, and the two read differently on call.
+      const incident = await recordIncident(store, "invoice_missing_email", {
+        stripeId: String(obj.id || ""),
+        detail: "paid renewal invoice carried no resolvable email",
+      });
+      return { handled: false, action: "missing_email", incident };
     }
     const claim = await claimOrDuplicate(store, event.id);
     if (claim === "duplicate") {
