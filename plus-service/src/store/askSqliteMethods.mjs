@@ -521,10 +521,15 @@ export function createAskSqliteMethods(db, deps) {
     const rows = db
       .prepare(`SELECT tags_json FROM atom_mirror WHERE email = ?`)
       .all(e);
-    const tags = aggregateMirrorTags(
+    const agg = aggregateMirrorTags(
       rows.map((r) => rowToPublicAtom(r, { includeBody: false }).tags),
     );
-    return { tags, mirror_count: rows.length };
+    return {
+      tags: agg.tags,
+      mirror_count: rows.length,
+      total_distinct: agg.total_distinct,
+      truncated: agg.truncated,
+    };
   }
 
   function mcpCreatePending(fields) {

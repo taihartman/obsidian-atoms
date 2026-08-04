@@ -20,7 +20,7 @@ Read rules:
 - Before concluding a tags: filter found nothing, call list_tags—empty search may mean the tag is absent from this mirror, present but unmatched, or only in unsynced vault notes.
 - fetch_atom text is authoritative for that note's body. synced_at is when the cloud mirror last received that row—if it is hours old, vault may have newer content not yet pushed.
 - list_atoms includes last_synced_at + server_count for mirror-level staleness.
-- list_tags returns tag vocabulary with counts (count desc, then alpha; cap 500).
+- list_tags returns tag vocabulary with counts (count desc, then alpha; cap 500). If truncated is true, absence of a tag from the list is inconclusive—try search_atoms.
 - Every atom has status: live | superseded | contradicted (always present; never treat missing status as live).
 - If status is superseded or contradicted, do not present the parent as a current uncontested fact. Prefer the child named in superseded_by / contradicted_by (relation revised_by / contradicted_by).
 - Hubs (kind: hub) set revision_participant: false—they are hand-maintained prose and do not participate in revises chains. related_atoms lists backlinked atoms with their status.

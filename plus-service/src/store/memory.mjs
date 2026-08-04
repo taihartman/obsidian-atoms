@@ -685,10 +685,15 @@ export function createMemoryStore() {
     const e = normEmail(email);
     const bucket = atomMirror.get(e);
     const rows = bucket ? [...bucket.values()] : [];
-    const tags = aggregateMirrorTags(
+    const agg = aggregateMirrorTags(
       rows.map((r) => rowToPublicAtom(r, { includeBody: false }).tags),
     );
-    return { tags, mirror_count: rows.length };
+    return {
+      tags: agg.tags,
+      mirror_count: rows.length,
+      total_distinct: agg.total_distinct,
+      truncated: agg.truncated,
+    };
   }
 
   function mcpCreatePending(fields) {
