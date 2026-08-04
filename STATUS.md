@@ -7,6 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
+| In progress | [#238](https://github.com/taihartman/obsidian-atoms/issues/238) | @taihartman (agent) | `ops/plus-stripe-reconcile-alerts` | [plan](docs/plans/2026-08-04-238-stripe-reconcile-alerts-plan.md) | `plus-service/src/{stripe,server,email,config}.mjs`, `plus-service/src/store/*`, `plus-service/scripts/` | Server-only; no plugin bump, no Release. Follow-up from #230 |
 
 ## How to claim (copy)
 
