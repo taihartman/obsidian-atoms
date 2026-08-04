@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Atoms home — resume UI polish preview</title>
+  <style>
+    :root {
+      --background-primary: #1e1e1e;
+      --background-secondary: #2a2a2a;
+      --background-modifier-border: #444;
+      --text-normal: #e8e8e8;
+      --text-muted: #a0a0a0;
+      --text-faint: #6a6a6a;
+      --text-error: #ff6b6b;
+      --interactive-accent: #7c9cff;
+      --color-orange: #ff9f0a;
+      --color-green: #30d158;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    }
+    body {
+      margin: 0;
+      background: var(--background-primary);
+      color: var(--text-normal);
+      padding: 24px 16px 48px;
+    }
+    .frame {
+      max-width: 390px;
+      margin: 0 auto;
+      background: #161616;
+      border-radius: 24px;
+      border: 1px solid #333;
+      padding: 20px 16px 28px;
+      box-shadow: 0 20px 50px rgba(0,0,0,.45);
+    }
+    h1.title { margin: 0 0 4px; font-size: 1.5rem; letter-spacing: -0.03em; }
+    .sub { margin: 0 0 18px; color: var(--text-muted); font-size: 0.9rem; }
+    .atoms-home-card-eyebrow {
+      margin: 0;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      color: var(--text-faint);
+      text-transform: uppercase;
+    }
+    .atoms-ui-status-card {
+      border-radius: 16px;
+      padding: 16px 18px;
+      border: 1px solid transparent;
+    }
+    .atoms-ui-status-card--wait {
+      background: color-mix(in srgb, var(--interactive-accent) 10%, transparent);
+      border-color: color-mix(in srgb, var(--interactive-accent) 32%, transparent);
+    }
+    .atoms-home-wait-card {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding: 16px;
+      margin-bottom: 12px;
+      border-radius: 16px;
+      border: 1px solid color-mix(in srgb, var(--color-orange) 28%, transparent);
+      background: color-mix(in srgb, var(--color-orange) 9%, var(--background-secondary));
+    }
+    .atoms-home-wait-card h2 {
+      margin: 0;
+      font-size: 1.15rem;
+      font-weight: 650;
+      letter-spacing: -0.02em;
+    }
+    .atoms-home-wait-card > p:not(.atoms-home-card-eyebrow) {
+      margin: 0;
+      font-size: 0.88rem;
+      color: var(--text-muted);
+      line-height: 1.4;
+    }
+    .atoms-home-wait-actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 8px;
+      flex-wrap: wrap;
+    }
+    .btn {
+      flex: 1;
+      min-height: 46px;
+      border: none;
+      border-radius: 12px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .btn-primary { background: var(--interactive-accent); color: #111; }
+    .btn-secondary {
+      background: color-mix(in srgb, var(--background-primary) 40%, transparent);
+      color: var(--text-normal);
+      border: 1px solid var(--background-modifier-border);
+    }
+    .atoms-home-last-catchup-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin: 0 0 14px;
+      padding: 8px 12px;
+      border-radius: 12px;
+      border: 1px solid color-mix(in srgb, var(--background-modifier-border) 80%, transparent);
+      background: color-mix(in srgb, var(--background-secondary) 70%, transparent);
+    }
+    .atoms-home-last-catchup {
+      margin: 0;
+      flex: 1;
+      font-size: 0.78rem;
+      line-height: 1.35;
+      color: var(--text-muted);
+    }
+    .btn-quiet {
+      flex-shrink: 0;
+      min-height: 32px;
+      padding: 4px 10px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      border-radius: 8px;
+      border: none;
+      background: transparent;
+      color: var(--interactive-accent);
+      cursor: pointer;
+    }
+    .note {
+      max-width: 390px;
+      margin: 16px auto 0;
+      font-size: 0.8rem;
+      color: #888;
+      line-height: 1.4;
+    }
+  </style>
+</head>
+<body>
+  <div class="frame">
+    <h1 class="title">Atoms</h1>
+    <p class="sub">Your second brain</p>
+
+    <div class="atoms-ui-status-card atoms-ui-status-card--wait atoms-home-wait-card atoms-home-egress-catchup-notice">
+      <p class="atoms-home-card-eyebrow">New</p>
+      <h2>Catches up when you reopen</h2>
+      <p>Filing now runs when you come back to Obsidian, not only on launch. Sync everything now can spend API even if automatic filing is off — same TLS path to Anthropic as before.</p>
+      <div class="atoms-home-wait-actions">
+        <button class="btn btn-primary" type="button">Got it</button>
+        <button class="btn btn-secondary" type="button">Sync now</button>
+      </div>
+    </div>
+
+    <div class="atoms-ui-status-card atoms-ui-status-card--wait atoms-home-wait-card atoms-home-backlog-gate">
+      <p class="atoms-home-card-eyebrow">Inbox</p>
+      <h2>52 captures waiting</h2>
+      <p>That’s a lot to file unattended. OK to catch up now, or wait until you Process yourself.</p>
+      <div class="atoms-home-wait-actions">
+        <button class="btn btn-primary" type="button">File them now</button>
+        <button class="btn btn-secondary" type="button">Not now</button>
+      </div>
+    </div>
+
+    <div class="atoms-home-last-catchup-row">
+      <p class="atoms-home-last-catchup">Last catch-up 12m ago: filed 3 · drained 2 · 5 in the last hour</p>
+      <button class="btn-quiet" type="button">Sync everything</button>
+    </div>
+  </div>
+  <p class="note">Static preview of resume home UI (0.6.68 polish). Real chrome lives in Obsidian Atoms home.</p>
+</body>
+</html>

@@ -821,14 +821,18 @@ export class AtomsHomeView extends ItemView {
     if (!this.plugin.isEgressNoticePending()) return;
     const card = statusCard(scroll, {
       tone: "wait",
-      className: "atoms-home-egress-catchup-notice",
+      className: "atoms-home-wait-card atoms-home-egress-catchup-notice",
     });
-    card.createEl("h2", { text: "Atoms now catches up when you reopen the app" });
     card.createEl("p", {
-      text: "Filing used to run only when Obsidian started. It now also runs when you come back to the app, and when you tap Sync everything now — that can spend API even if automatic filing is off. Each capture still goes to the Anthropic API over TLS.",
+      cls: "atoms-home-card-eyebrow",
+      text: "New",
+    });
+    card.createEl("h2", { text: "Catches up when you reopen" });
+    card.createEl("p", {
+      text: "Filing now runs when you come back to Obsidian, not only on launch. Sync everything now can spend API even if automatic filing is off — same TLS path to Anthropic as before.",
     });
     const actions = actionRow(card, {
-      className: "atoms-home-egress-catchup-actions",
+      className: "atoms-home-wait-actions atoms-home-egress-catchup-actions",
     });
     button(actions, {
       grade: "primary",
@@ -840,7 +844,7 @@ export class AtomsHomeView extends ItemView {
     });
     button(actions, {
       grade: "secondary",
-      label: "Sync everything now",
+      label: "Sync now",
       onClick: () => {
         void this.plugin.runSyncEverythingNow();
       },
@@ -852,13 +856,21 @@ export class AtomsHomeView extends ItemView {
     if (n <= 0) return;
     const card = statusCard(scroll, {
       tone: "wait",
-      className: "atoms-home-backlog-gate",
+      className: "atoms-home-wait-card atoms-home-backlog-gate",
     });
-    card.createEl("h2", { text: `${n} captures waiting in the inbox` });
     card.createEl("p", {
-      text: "Automatic catch-up will not file this many at once without your OK. File them now, or defer until you Process manually.",
+      cls: "atoms-home-card-eyebrow",
+      text: "Inbox",
     });
-    const actions = actionRow(card, { className: "atoms-home-backlog-actions" });
+    card.createEl("h2", {
+      text: n === 1 ? "1 capture waiting" : `${n} captures waiting`,
+    });
+    card.createEl("p", {
+      text: "That’s a lot to file unattended. OK to catch up now, or wait until you Process yourself.",
+    });
+    const actions = actionRow(card, {
+      className: "atoms-home-wait-actions atoms-home-backlog-actions",
+    });
     button(actions, {
       grade: "primary",
       label: "File them now",
@@ -887,7 +899,7 @@ export class AtomsHomeView extends ItemView {
     });
     button(row, {
       grade: "quiet",
-      label: "Sync everything now",
+      label: "Sync everything",
       className: "atoms-home-sync-everything",
       onClick: () => {
         void this.plugin.runSyncEverythingNow();

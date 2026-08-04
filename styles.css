@@ -104,6 +104,44 @@
   display: flex;
   gap: 10px;
   margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+/* Resume catch-up notices share wait-card chrome; slight spacing stack */
+.atoms-home-egress-catchup-notice,
+.atoms-home-backlog-gate {
+  margin-bottom: 12px;
+}
+
+/* Passive last-catch-up strip — secondary to hero cards */
+.atoms-home-last-catchup-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0 0 14px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--background-modifier-border) 80%, transparent);
+  background: color-mix(in srgb, var(--background-secondary) 70%, transparent);
+}
+
+.atoms-home-last-catchup {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  color: var(--text-muted);
+}
+
+.atoms-home-last-catchup-row .atoms-home-sync-everything,
+.atoms-home-last-catchup-row .atoms-ui-btn {
+  flex-shrink: 0;
+  min-height: 32px;
+  padding: 4px 10px;
+  font-size: 0.78rem;
+  font-weight: 600;
 }
 
 .atoms-home-btn {
