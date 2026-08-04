@@ -7,6 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
+| In progress | #251 | tai | feat/ask-mcp-pairing | docs/plans/2026-08-04-002-feat-ask-mcp-pairing-plan.md | plus-service oauth/mirror/store, src/platform/plusClient.ts, src/settings/settings.ts | Pairing code + cookie chooser; Fly before plugin |
 
 ## How to claim (copy)
 
