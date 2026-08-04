@@ -18,6 +18,7 @@ import {
   setBrowserSessionCookie,
 } from "./cookies.mjs";
 import {
+  authorizeChooserForm,
   authorizeEmailForm,
   consentForm,
   simpleMessage,
@@ -223,13 +224,8 @@ export async function handleOauthRoutes({
     if (bs?.email) {
       const a = await store.getAccount(bs.email);
       if (a && (a.status === "active" || a.status === "trialing")) {
-        // Attach email to pending and show consent
-        await store.mcpUpdatePending(pendingId, { email: bs.email });
-        writeHtml(
-          res,
-          200,
-          consentForm(pendingId, bs.email, client?.clientName || clientId),
-        );
+        // R5: chooser — never silent consent (wrong-tenant trap)
+        writeHtml(res, 200, authorizeChooserForm(pendingId, bs.email));
         return true;
       }
     }
@@ -238,14 +234,12 @@ export async function handleOauthRoutes({
     return true;
   }
 
-  // --- authorize POST (email) ---
+  // --- authorize POST (email | pair | continue) ---
   if (req.method === "POST" && path === "/oauth/authorize") {
     const raw = await readRawBody(req);
     const form = parseForm(raw);
     const pendingId = form.pending_id || "";
-    const email = String(form.email || "")
-      .trim()
-      .toLowerCase();
+    const mode = String(form.mode || "email").toLowerCase();
     const pending = await store.mcpGetPending(pendingId);
     if (!pending) {
       writeHtml(
@@ -255,8 +249,106 @@ export async function handleOauthRoutes({
       );
       return true;
     }
+
+    async function showForm(err) {
+      const bsId = getBrowserSessionId(req);
+      const bs = bsId ? await store.mcpGetBrowserSession(bsId) : null;
+      if (bs?.email) {
+        const a = await store.getAccount(bs.email);
+        if (a && (a.status === "active" || a.status === "trialing")) {
+          writeHtml(res, 400, authorizeChooserForm(pendingId, bs.email, err));
+          return;
+        }
+      }
+      writeHtml(res, 400, authorizeEmailForm(pendingId, err));
+    }
+
+    // Continue as existing browser session
+    if (mode === "continue") {
+      const bsId = getBrowserSessionId(req);
+      const bs = bsId ? await store.mcpGetBrowserSession(bsId) : null;
+      if (!bs?.email) {
+        writeHtml(res, 400, authorizeEmailForm(pendingId, "Session expired — sign in again"));
+        return true;
+      }
+      const a = await store.getAccount(bs.email);
+      if (!a || (a.status !== "active" && a.status !== "trialing")) {
+        writeHtml(
+          res,
+          403,
+          simpleMessage(
+            "Plus required",
+            "Atoms Ask needs an active or trialing Plus account.",
+          ),
+        );
+        return true;
+      }
+      await store.mcpUpdatePending(pendingId, { email: a.email });
+      writeHtml(
+        res,
+        200,
+        consentForm(
+          pendingId,
+          a.email,
+          oauthClientLabel(pending.clientId || "", pending.redirectUri || ""),
+        ),
+      );
+      return true;
+    }
+
+    // Pairing code from Obsidian
+    if (mode === "pair") {
+      const ip = clientIp(req);
+      const rl = checkRateLimit(`pair-redeem:${ip}`, 20);
+      if (!rl.ok) {
+        writeHtml(res, 429, simpleMessage("Slow down", "Too many code attempts."));
+        return true;
+      }
+      const rawCode = form.pair_code || form.code || "";
+      const redeemed = await store.pairRedeem(rawCode);
+      if (!redeemed?.email) {
+        await showForm("Invalid or expired code. Generate a new one in Obsidian.");
+        return true;
+      }
+      const a = await store.getAccount(redeemed.email);
+      if (!a || (a.status !== "active" && a.status !== "trialing")) {
+        writeHtml(
+          res,
+          403,
+          simpleMessage(
+            "Plus required",
+            "Atoms Ask needs an active or trialing Plus account.",
+          ),
+        );
+        return true;
+      }
+      await store.mcpUpdatePending(pendingId, { email: a.email });
+      const newBs = await store.mcpCreateBrowserSession(a.email);
+      const secure =
+        (process.env.ATOMS_PLUS_ENV || "").toLowerCase() === "production"
+          ? "; Secure"
+          : "";
+      const html = consentForm(
+        pendingId,
+        a.email,
+        oauthClientLabel(pending.clientId || "", pending.redirectUri || ""),
+      );
+      res.writeHead(200, {
+        "content-type": "text/html; charset=utf-8",
+        "set-cookie": [
+          `atoms_oauth_bs=${encodeURIComponent(newBs)}; Path=/; Max-Age=900; HttpOnly; SameSite=Lax${secure}`,
+        ],
+      });
+      res.end(html);
+      return true;
+    }
+
+    // Default: magic-link email
+    const email = String(form.email || "")
+      .trim()
+      .toLowerCase();
     if (!email || !email.includes("@")) {
-      writeHtml(res, 400, authorizeEmailForm(pendingId, "Valid email required"));
+      await showForm("Valid Atoms Plus email required");
       return true;
     }
     const rl = checkRateLimit(`oauth-ml:${clientIp(req)}:${email}`);

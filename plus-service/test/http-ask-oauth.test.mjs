@@ -435,4 +435,218 @@ describe("OAuth Ask AS", () => {
     assert.equal(saw429, true);
   });
 
+  it("pairing code binds OAuth to Plus email (no magic link)", async () => {
+    const email = "pair-oauth@atoms.test";
+    // Entitle + mint via Plus sess_
+    const ml = await fetch(`${BASE}/v1/auth/magic-link`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email }),
+    });
+    assert.equal(ml.status, 200);
+    await sleep(80);
+    const tm = child._log().match(/token=(mt_[a-f0-9]+)/g);
+    const mt = tm[tm.length - 1].replace("token=", "");
+    const ex = await (
+      await fetch(`${BASE}/v1/auth/exchange`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ token: mt }),
+      })
+    ).json();
+    assert.ok(ex.session);
+    const pair = await (
+      await fetch(`${BASE}/v1/ask/mcp/pair`, {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${ex.session}`,
+          "content-type": "application/json",
+        },
+        body: "{}",
+      })
+    ).json();
+    assert.ok(pair.code);
+
+    // Seed mirror under that email
+    await fetch(`${BASE}/v1/ask/mirror/upsert`, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${ex.session}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        atoms: [
+          {
+            path: "Atoms/PairNote.md",
+            title: "PairNote",
+            body: "from pair path",
+          },
+        ],
+      }),
+    });
+
+    const { verifier, challenge } = pkce();
+    const state = "st_pair_1";
+    const clientId = "cli_pair_test";
+    const authUrl = new URL(`${BASE}/oauth/authorize`);
+    authUrl.searchParams.set("response_type", "code");
+    authUrl.searchParams.set("client_id", clientId);
+    authUrl.searchParams.set("redirect_uri", CLAUDE_CALLBACK);
+    authUrl.searchParams.set("state", state);
+    authUrl.searchParams.set("code_challenge", challenge);
+    authUrl.searchParams.set("code_challenge_method", "S256");
+    authUrl.searchParams.set("resource", RESOURCE);
+
+    const authPage = await fetch(authUrl);
+    const html = await authPage.text();
+    assert.match(html, /pair_code|Pairing code|code from Obsidian/i);
+    const pm = html.match(/name="pending_id" value="([^"]+)"/);
+    const pendingId = pm[1];
+
+    const redeem = await fetch(`${BASE}/oauth/authorize`, {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        pending_id: pendingId,
+        mode: "pair",
+        pair_code: pair.code,
+      }).toString(),
+    });
+    assert.equal(redeem.status, 200);
+    const consentHtml = await redeem.text();
+    assert.match(consentHtml, new RegExp(email.replace(".", "\\.")));
+    assert.match(consentHtml, /Allow/);
+
+    const setCookie = redeem.headers.getSetCookie?.() || [];
+    const cookieHeader =
+      setCookie.map((c) => c.split(";")[0]).join("; ") ||
+      (redeem.headers.get("set-cookie") || "").split(",")[0]?.split(";")[0] ||
+      "";
+
+    const allow = await fetch(`${BASE}/oauth/consent`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/x-www-form-urlencoded",
+        cookie: cookieHeader,
+      },
+      body: new URLSearchParams({
+        pending_id: pendingId,
+        decision: "allow",
+      }).toString(),
+      redirect: "manual",
+    });
+    assert.ok([302, 303].includes(allow.status));
+    const loc = new URL(allow.headers.get("location") || "");
+    const code = loc.searchParams.get("code");
+    assert.ok(code);
+
+    const tok = await (
+      await fetch(`${BASE}/oauth/token`, {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          grant_type: "authorization_code",
+          code,
+          redirect_uri: CLAUDE_CALLBACK,
+          client_id: clientId,
+          code_verifier: verifier,
+          resource: RESOURCE,
+        }).toString(),
+      })
+    ).json();
+    assert.ok(tok.access_token?.startsWith("mcp_"));
+
+    const tools = await fetch(`${BASE}/mcp`, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${tok.access_token}`,
+        "content-type": "application/json",
+        accept: "application/json, text/event-stream",
+      },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "tools/call",
+        params: { name: "list_atoms", arguments: { limit: 10 } },
+      }),
+    });
+    assert.equal(tools.status, 200);
+    const body = await tools.text();
+    assert.match(body, /PairNote|server_count/);
+  });
+
+  it("authorize GET with browser session shows chooser not silent consent", async () => {
+    const email = "chooser@atoms.test";
+    const ml = await fetch(`${BASE}/v1/auth/magic-link`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email }),
+    });
+    assert.equal(ml.status, 200);
+    await sleep(80);
+    const tm = child._log().match(/token=(mt_[a-f0-9]+)/g);
+    const mt = tm[tm.length - 1].replace("token=", "");
+    // Create browser session via pair redeem path's cookie: use exchange with fake pending skip —
+    // mint pair + oauth with cookie from prior pair test style: create bs via internal by completing pair once
+    const ex = await (
+      await fetch(`${BASE}/v1/auth/exchange`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ token: mt }),
+      })
+    ).json();
+    const pair = await (
+      await fetch(`${BASE}/v1/ask/mcp/pair`, {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${ex.session}`,
+          "content-type": "application/json",
+        },
+        body: "{}",
+      })
+    ).json();
+
+    const { challenge } = pkce();
+    const authUrl = new URL(`${BASE}/oauth/authorize`);
+    authUrl.searchParams.set("response_type", "code");
+    authUrl.searchParams.set("client_id", "cli_chooser");
+    authUrl.searchParams.set("redirect_uri", CLAUDE_CALLBACK);
+    authUrl.searchParams.set("state", "st_ch");
+    authUrl.searchParams.set("code_challenge", challenge);
+    authUrl.searchParams.set("code_challenge_method", "S256");
+    authUrl.searchParams.set("resource", RESOURCE);
+    const page1 = await fetch(authUrl);
+    const html1 = await page1.text();
+    const pm = html1.match(/name="pending_id" value="([^"]+)"/);
+    const redeem = await fetch(`${BASE}/oauth/authorize`, {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        pending_id: pm[1],
+        mode: "pair",
+        pair_code: pair.code,
+      }).toString(),
+    });
+    const setCookie = redeem.headers.getSetCookie?.() || [];
+    const cookie =
+      setCookie.map((c) => c.split(";")[0]).join("; ") ||
+      (redeem.headers.get("set-cookie") || "").split(";")[0] ||
+      "";
+    assert.ok(cookie.includes("atoms_oauth_bs"));
+
+    const { challenge: ch2 } = pkce();
+    const authUrl2 = new URL(`${BASE}/oauth/authorize`);
+    authUrl2.searchParams.set("response_type", "code");
+    authUrl2.searchParams.set("client_id", "cli_chooser2");
+    authUrl2.searchParams.set("redirect_uri", CLAUDE_CALLBACK);
+    authUrl2.searchParams.set("state", "st_ch2");
+    authUrl2.searchParams.set("code_challenge", ch2);
+    authUrl2.searchParams.set("code_challenge_method", "S256");
+    authUrl2.searchParams.set("resource", RESOURCE);
+    const page2 = await fetch(authUrl2, { headers: { cookie } });
+    const html2 = await page2.text();
+    assert.match(html2, /Continue as|Choose account|Use a code/i);
+    assert.doesNotMatch(html2, /name="decision" value="allow"/);
+  });
+
 });

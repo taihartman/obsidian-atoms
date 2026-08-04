@@ -338,4 +338,31 @@ describe("HTTP ask mirror", () => {
     });
     assert.equal(r.status, 401);
   });
+
+  it("POST /v1/ask/mcp/pair mints code for entitled sess_", async () => {
+    const sess = await sessionFor("pair@ex.co");
+    const r = await fetch(`${BASE}/v1/ask/mcp/pair`, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${sess}`,
+        "content-type": "application/json",
+      },
+      body: "{}",
+    });
+    assert.equal(r.status, 200, await r.clone().text());
+    const j = await r.json();
+    assert.ok(j.code);
+    assert.ok(j.expiresAt);
+    assert.match(j.code, /^[0-9A-HJKMNP-TV-Z]{8}$/i);
+
+    const bad = await fetch(`${BASE}/v1/ask/mcp/pair`, {
+      method: "POST",
+      headers: {
+        authorization: "Bearer mcp_notasession",
+        "content-type": "application/json",
+      },
+      body: "{}",
+    });
+    assert.equal(bad.status, 401);
+  });
 });

@@ -624,7 +624,15 @@ export async function askMirrorWipe(
 export async function askMirrorStatus(
   cfg: PlusClientConfig,
   sessionToken: string,
-): Promise<{ ok: true; count: number; updatedAt: string | null } | PlusApiError> {
+): Promise<
+  | {
+      ok: true;
+      count: number;
+      updatedAt: string | null;
+      email?: string;
+    }
+  | PlusApiError
+> {
   const res = await plusRequest(cfg, {
     path: "/v1/ask/mirror/status",
     method: "GET",
@@ -642,12 +650,44 @@ export async function askMirrorStatus(
   if (typeof res.json.count !== "number" || !Number.isFinite(res.json.count)) {
     return mapError(res.status, { message: "mirror status had no count" });
   }
+  const email =
+    typeof res.json.email === "string" && res.json.email.includes("@")
+      ? res.json.email.trim().toLowerCase()
+      : undefined;
   return {
     ok: true,
     count: res.json.count,
     updatedAt:
       typeof res.json.updatedAt === "string" ? res.json.updatedAt : null,
+    ...(email ? { email } : {}),
   };
+}
+
+/** Mint a short-lived pairing code for connector OAuth (KTD5). */
+export async function askMcpPair(
+  cfg: PlusClientConfig,
+  sessionToken: string,
+): Promise<
+  | { ok: true; code: string; expiresAt: string }
+  | PlusApiError
+> {
+  const res = await plusRequest(cfg, {
+    path: "/v1/ask/mcp/pair",
+    method: "POST",
+    sessionToken,
+    body: {},
+  });
+  if (!res.ok) return res;
+  if (res.status < 200 || res.status >= 300) {
+    return mapError(res.status, res.json);
+  }
+  const code = typeof res.json.code === "string" ? res.json.code : "";
+  const expiresAt =
+    typeof res.json.expiresAt === "string" ? res.json.expiresAt : "";
+  if (!code || !expiresAt) {
+    return mapError(res.status, { message: "pair response incomplete" });
+  }
+  return { ok: true, code, expiresAt };
 }
 
 export async function askMirrorDelete(

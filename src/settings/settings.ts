@@ -54,17 +54,20 @@ import {
   createBillingPortal,
   signOutPlus,
   askMcpUrl,
+  askMcpPair,
   askMirrorStatus,
   askMirrorWipe,
   plusFetchRequest,
 } from "../platform/plusClient";
 import {
   clearAskMirrorDeviceState,
-  formatAskMirrorRefusalLine,
+  formatAskMirrorStatusLine,
+  formatAskMirrorServerCount,
   mirrorRefusalTitle,
   mirrorRefusalBody,
-  formatAskMirrorServerCount,
+  readAskMirrorEmail,
   readAskMirrorRefusal,
+  saveAskMirrorStatus,
   LS_ASK_MIRROR_LAST_ERROR,
   LS_ASK_MIRROR_LAST_SUCCESS,
   LS_ASK_MIRROR_SERVER_COUNT,
@@ -1201,24 +1204,71 @@ export class AtomsSettingTab extends PluginSettingTab {
       if (sec < 86400) return `${Math.floor(sec / 3600)}h ago`;
       return `${Math.floor(sec / 86400)}d ago`;
     };
-    const errSnip = lastErr.replace(/\s+/g, " ").trim().slice(0, 96);
     // A refusal outranks a push error: the mirror did not converge and the
     // user needs to know deletion was withheld, not that a request failed.
     const refused =
       readAskMirrorRefusal(
         (k) => this.app.loadLocalStorage(k) as unknown,
       ).count > 0;
-    const statusLine = refused
-      ? formatAskMirrorRefusalLine(serverCount)
-      : lastErr
-        ? `Ask mirror: ${serverCount} · push failed${errSnip ? ` — ${errSnip}` : ""} · Sync now to retry`
-        : `Ask mirror: ${serverCount} · last pushed ${relative(lastOk)}`;
+    const mirrorEmail =
+      readAskMirrorEmail((k) => this.app.loadLocalStorage(k) as unknown) ||
+      session.email ||
+      "";
+    const statusLine = formatAskMirrorStatusLine({
+      serverCount,
+      email: mirrorEmail,
+      relativeLastOk: relative(lastOk),
+      lastErr: refused ? "" : lastErr,
+      refused,
+    });
     containerEl.createEl("p", {
       text: statusLine,
       cls: lastErr || refused
         ? "setting-item-description atoms-ask-mirror-error"
         : "setting-item-description",
     });
+
+    new Setting(containerEl)
+      .setName("Link Claude / ChatGPT")
+      .setDesc(
+        "Generate a short pairing code for the connector authorize page. Your Claude/ChatGPT account email need not match Atoms Plus — the code binds the Plus account shown above. Codes expire quickly and are secrets (do not share). After pairing, disconnect/reconnect the connector if counts still look stale.",
+      )
+      .addButton((btn) =>
+        btn.setButtonText("Get pairing code").onClick(async () => {
+          if (!this.plugin.settings.askEnabled) {
+            new Notice("Enable Ask mirror first");
+            return;
+          }
+          btn.setDisabled(true);
+          try {
+            const r = await askMcpPair(
+              { baseUrl: base, request: plusFetchRequest },
+              session.sessionToken,
+            );
+            if (!r.ok) {
+              new Notice(`Pairing: ${r.message}`);
+              return;
+            }
+            const raw = r.code.replace(/-/g, "");
+            const display =
+              raw.length === 8
+                ? `${raw.slice(0, 4)}-${raw.slice(4)}`
+                : r.code;
+            try {
+              await navigator.clipboard.writeText(display);
+              new Notice(
+                `Pairing code ${display} copied — paste on the connector authorize page (expires soon)`,
+              );
+            } catch {
+              new Notice(
+                `Pairing code: ${display} — paste on the connector authorize page (expires soon)`,
+              );
+            }
+          } finally {
+            btn.setDisabled(false);
+          }
+        }),
+      );
 
     new Setting(containerEl)
       .setName("Sync now")
@@ -1253,8 +1303,12 @@ export class AtomsSettingTab extends PluginSettingTab {
             new Notice(`Ask: ${r.message}`);
             return;
           }
-          this.app.saveLocalStorage(LS_ASK_MIRROR_SERVER_COUNT, String(r.count));
-          new Notice(`Ask mirror: ${r.count} atom(s)`);
+          saveAskMirrorStatus(
+            (k, v) => this.app.saveLocalStorage(k, v),
+            r,
+          );
+          const as = r.email ? ` as ${r.email}` : "";
+          new Notice(`Ask mirror: ${r.count} atom(s)${as}`);
           this.redisplay();
         }),
       );

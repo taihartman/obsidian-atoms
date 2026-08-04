@@ -1,13 +1,43 @@
 /**
  * Shared Ask / mirror helpers (search scoring, row shape).
  */
-import { createHash } from "node:crypto";
+import { createHash, randomInt } from "node:crypto";
 import { contentHash, decryptMirrorField, encryptMirrorField } from "../mirror/crypto.mjs";
 
 export function verifyPkce(codeVerifier, challenge, method = "S256") {
   if (method !== "S256") return challenge === codeVerifier;
   const dig = createHash("sha256").update(codeVerifier).digest("base64url");
   return dig === challenge;
+}
+
+/** Pair code TTL (KTD2). */
+export const PAIR_CODE_TTL_MS = 10 * 60 * 1000;
+
+/** Crockford Base32 without I L O U (KTD1). */
+const CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+
+/**
+ * 8-char Crockford pair code (plaintext once). Display as XXXX-XXXX via formatPairCodeDisplay.
+ */
+export function generatePairCode() {
+  let s = "";
+  for (let i = 0; i < 8; i++) s += CROCKFORD[randomInt(CROCKFORD.length)];
+  return s;
+}
+
+export function formatPairCodeDisplay(code) {
+  const c = String(code || "")
+    .replace(/-/g, "")
+    .toUpperCase();
+  if (c.length !== 8) return c;
+  return `${c.slice(0, 4)}-${c.slice(4)}`;
+}
+
+/** Normalize user paste: strip spaces/hyphens, uppercase. */
+export function normalizePairCodeInput(raw) {
+  return String(raw || "")
+    .replace(/[\s-]+/g, "")
+    .toUpperCase();
 }
 
 /** S256 code_challenge for tests / authorize. */

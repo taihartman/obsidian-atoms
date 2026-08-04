@@ -17,6 +17,8 @@ export const LS_ASK_MIRROR_HASHES = "atoms-ask-mirror-hashes-v1";
 export const LS_ASK_MIRROR_LAST_SUCCESS = "atoms-ask-mirror-last-success-v1";
 export const LS_ASK_MIRROR_LAST_ERROR = "atoms-ask-mirror-last-error-v1";
 export const LS_ASK_MIRROR_SERVER_COUNT = "atoms-ask-mirror-server-count-v1";
+/** Last known Plus email from mirror status (device-local). */
+export const LS_ASK_MIRROR_EMAIL = "atoms-ask-mirror-email-v1";
 /** Pre-shrinkage baseline for the completeness floor — device-local only. */
 export const LS_ASK_MIRROR_SCAN_HIGHWATER =
   "atoms-ask-mirror-scan-highwater-v1";
@@ -594,6 +596,45 @@ export function formatAskMirrorServerCount(
   return raw != null && String(raw).trim() !== "" ? String(raw) : "—";
 }
 
+/** Plus email from last status, or empty. */
+export function readAskMirrorEmail(load: (k: string) => unknown): string {
+  const raw = load(LS_ASK_MIRROR_EMAIL);
+  return raw != null ? String(raw).trim() : "";
+}
+
+/**
+ * Status line with optional Plus email (R9).
+ * Happy: `Ask mirror: N · as you@… · last pushed …`
+ * Error: `Ask mirror: N · as you@… · push failed — …`
+ */
+export function formatAskMirrorStatusLine(opts: {
+  serverCount: string;
+  email: string;
+  relativeLastOk: string;
+  lastErr?: string;
+  refused?: boolean;
+}): string {
+  const as = opts.email ? ` · as ${opts.email}` : "";
+  if (opts.refused) {
+    return `Ask mirror: ${opts.serverCount}${as} · sync refused — vault scan incomplete · Sync now to retry`;
+  }
+  const err = (opts.lastErr || "").replace(/\s+/g, " ").trim().slice(0, 96);
+  if (err) {
+    return `Ask mirror: ${opts.serverCount}${as} · push failed${err ? ` — ${err}` : ""} · Sync now to retry`;
+  }
+  return `Ask mirror: ${opts.serverCount}${as} · last pushed ${opts.relativeLastOk}`;
+}
+
+export function saveAskMirrorStatus(
+  save: (k: string, v: string) => void,
+  st: { count: number; email?: string },
+): void {
+  save(LS_ASK_MIRROR_SERVER_COUNT, String(st.count));
+  if (st.email && st.email.includes("@")) {
+    save(LS_ASK_MIRROR_EMAIL, st.email.trim().toLowerCase());
+  }
+}
+
 /**
  * Every device-local Ask key back to its "this device knows nothing" state.
  * Owned here rather than inline in the Wipe button so the reset and the readers
@@ -609,6 +650,7 @@ export function clearAskMirrorDeviceState(
   // Cleared, not zeroed. A wipe empties the cloud, so this device knows
   // nothing about the row count — and "0" is a *claim*, not an absence.
   save(LS_ASK_MIRROR_SERVER_COUNT, "");
+  save(LS_ASK_MIRROR_EMAIL, "");
   save(LS_ASK_MIRROR_REFUSAL, "");
   save(LS_ASK_MIRROR_SCAN_HIGHWATER, "");
 }
@@ -785,7 +827,8 @@ export type AskMirrorHost = {
     confirmEmpty: boolean;
   }): Promise<AskMirrorCallResult>;
   status(): Promise<
-    { ok: true; count: number } | { ok: false; message: string }
+    | { ok: true; count: number; email?: string }
+    | { ok: false; message: string }
   >;
   confirm(request: ConfirmRequest): Promise<ConfirmVerdict>;
   /**
@@ -904,7 +947,7 @@ async function resolveMirrorDeletionGate(
         serverCountRefreshed: false,
       };
     }
-    save(LS_ASK_MIRROR_SERVER_COUNT, String(st.count));
+    saveAskMirrorStatus(save, st);
     serverCount = st.count;
     serverCountRefreshed = true;
   }
@@ -1138,7 +1181,7 @@ export async function runAskMirrorSync(
     // now to decide, in which case asking again is a wasted round trip.
     if (!serverCountRefreshed) {
       const st = await host.status();
-      if (st.ok) save(LS_ASK_MIRROR_SERVER_COUNT, String(st.count));
+      if (st.ok) saveAskMirrorStatus(save, st);
     }
     return {
       kind: "ok",
@@ -1228,7 +1271,7 @@ export async function runAskMirrorSync(
   }
   const st = await host.status();
   if (st.ok) {
-    save(LS_ASK_MIRROR_SERVER_COUNT, String(st.count));
+    saveAskMirrorStatus(save, st);
   }
   return { kind: "ok", uploaded, deleted, refused: false };
 }

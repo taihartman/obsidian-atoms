@@ -44,7 +44,8 @@ export async function handleMirrorRoutes({
     path === "/v1/ask/mirror/delete" ||
     path === "/v1/ask/mirror/reconcile" ||
     path === "/v1/ask/outbox/pull" ||
-    path === "/v1/ask/outbox/ack";
+    path === "/v1/ask/outbox/ack" ||
+    path === "/v1/ask/mcp/pair";
   if (!isAsk) return false;
 
   const token = bearer(req);
@@ -81,6 +82,36 @@ export async function handleMirrorRoutes({
     }
     const st = await store.mirrorStatus(a.email);
     json(res, 200, { email: a.email, ...st });
+    return true;
+  }
+
+  // Pairing code for connector OAuth (KTD5)
+  if (req.method === "POST" && path === "/v1/ask/mcp/pair") {
+    if (!entitled(a)) {
+      json(res, 403, { message: "Plus entitlement required for Ask pairing" });
+      return true;
+    }
+    const mintRl = checkRateLimit(`pair-mint:${a.email}`, 5);
+    if (!mintRl.ok) {
+      json(res, 429, {
+        message: "Too many pairing codes — try again later",
+        retryAfterSec: mintRl.retryAfterSec,
+      });
+      return true;
+    }
+    const mintIpRl = checkRateLimit(`pair-mint-ip:${ip}`, 10);
+    if (!mintIpRl.ok) {
+      json(res, 429, {
+        message: "Too many pairing codes — try again later",
+        retryAfterSec: mintIpRl.retryAfterSec,
+      });
+      return true;
+    }
+    const out = await store.pairMint(a.email);
+    json(res, 200, {
+      code: out.code,
+      expiresAt: out.expiresAt,
+    });
     return true;
   }
 
