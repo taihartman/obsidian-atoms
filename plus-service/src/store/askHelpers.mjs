@@ -364,11 +364,11 @@ export const MIRROR_TAGS_LIMIT = 500;
  * Aggregate per-atom tag lists into vocabulary with counts.
  * Case-insensitive merge (display = first-seen form). Count = atoms that
  * carry the tag (duplicate tags on one atom count once). Sort: count desc,
- * then tag alpha. Cap at limit (default 500).
+ * then tag alpha. Cap at limit (default 500). Non-string values skipped.
  *
  * @param {Iterable<string[] | unknown>} tagLists
  * @param {{ limit?: number }} [opts]
- * @returns {{ tag: string, count: number }[]}
+ * @returns {{ tags: { tag: string, count: number }[], total_distinct: number, truncated: boolean }}
  */
 export function aggregateMirrorTags(tagLists, opts = {}) {
   const limit = Math.min(
@@ -381,7 +381,8 @@ export function aggregateMirrorTags(tagLists, opts = {}) {
     if (!Array.isArray(list)) continue;
     const seen = new Set();
     for (const raw of list) {
-      const tag = String(raw ?? "").trim();
+      if (typeof raw !== "string" && typeof raw !== "number") continue;
+      const tag = String(raw).trim();
       if (!tag) continue;
       const key = tag.toLowerCase();
       if (seen.has(key)) continue;
@@ -391,13 +392,17 @@ export function aggregateMirrorTags(tagLists, opts = {}) {
       else byKey.set(key, { tag, count: 1 });
     }
   }
-  return [...byKey.values()]
-    .sort(
-      (a, b) =>
-        b.count - a.count ||
-        a.tag.localeCompare(b.tag, undefined, { sensitivity: "base" }),
-    )
-    .slice(0, limit);
+  const sorted = [...byKey.values()].sort(
+    (a, b) =>
+      b.count - a.count ||
+      a.tag.localeCompare(b.tag, undefined, { sensitivity: "base" }),
+  );
+  const total_distinct = sorted.length;
+  return {
+    tags: sorted.slice(0, limit),
+    total_distinct,
+    truncated: total_distinct > limit,
+  };
 }
 
 /**

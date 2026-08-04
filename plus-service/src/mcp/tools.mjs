@@ -91,19 +91,31 @@ export function registerAskTools(mcp, ctx) {
     {
       title: "List tags",
       description:
-        "Distinct tags on mirrored atoms with per-tag atom counts. Sorted by count descending, then tag name ascending (cap 500). Call before concluding a tags: filter on search_atoms found nothing—distinguishes missing tag vs tag present but no query match. Partial mirror only.",
+        "Distinct tags on mirrored atoms with per-tag atom counts. Sorted by count descending, then tag name ascending (cap 500). When truncated is true, a missing tag is inconclusive—still try search_atoms. Call before concluding a tags: filter on search_atoms found nothing—distinguishes missing tag vs tag present but no query match. Partial mirror only.",
       annotations: { readOnlyHint: true, destructiveHint: false },
       inputSchema: {},
     },
     async () => {
       const result = await store.mirrorListTags(email);
       const mirrorCount = result?.mirror_count ?? 0;
+      const tags = result?.tags ?? [];
+      const truncated = Boolean(result?.truncated);
+      let hint;
+      if (mirrorCount === 0) hint = EMPTY_HINT;
+      else if (truncated)
+        hint =
+          "tag list capped (see total_distinct); missing tag here is inconclusive—try search_atoms tags filter";
+      else if (tags.length === 0)
+        hint =
+          "no tags on mirrored atoms in this account's mirror—not proof the vault has none";
       return jsonTool({
         account: email,
         mirror_count: mirrorCount,
-        tags: result?.tags ?? [],
+        tags,
+        total_distinct: result?.total_distinct ?? tags.length,
+        truncated,
         ...absenceMeta({ searched_fields: ["tags"] }),
-        hint: mirrorCount === 0 ? EMPTY_HINT : undefined,
+        hint,
       });
     },
   );
@@ -138,6 +150,15 @@ export function registerAskTools(mcp, ctx) {
       });
       const scope = absenceMeta();
       if (!hits.length) {
+        const tagFilter = Array.isArray(tags) && tags.length > 0;
+        let emptyHint;
+        if (st.count === 0) emptyHint = EMPTY_HINT;
+        else if (tagFilter)
+          emptyHint =
+            "no matches for this query in this account's mirror_scope—call list_tags before concluding the tag is absent; confirm account via mirror_status if unexpected";
+        else
+          emptyHint =
+            "no matches for this query in this account's mirror_scope—confirm account via mirror_status if unexpected";
         return {
           content: [
             {
@@ -147,10 +168,7 @@ export function registerAskTools(mcp, ctx) {
                 account: email,
                 mirror_count: st.count,
                 ...scope,
-                hint:
-                  st.count === 0
-                    ? EMPTY_HINT
-                    : "no matches for this query in this account's mirror_scope—confirm account via mirror_status if unexpected",
+                hint: emptyHint,
               }),
             },
           ],
