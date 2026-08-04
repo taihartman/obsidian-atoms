@@ -13,6 +13,7 @@
 import { Notice, TFile } from "obsidian";
 import type AtomsPlugin from "./main";
 import { clampAtomFolder } from "../pipeline/render";
+import { fireAndForgetAsk } from "../shared/fireAndForget";
 import {
   isAskMirrorWatchPath,
   readAskMirrorHashes,
@@ -28,12 +29,6 @@ import {
 } from "./catchUp";
 import type { MirrorSyncOutcome } from "../shared/mirrorOutcome";
 
-/** Process/Update must never fail because mirror/outbox failed. */
-export function fireAndForgetAsk(task: Promise<unknown>): void {
-  void task.catch(() => {
-    /* best-effort — vault write already committed */
-  });
-}
 
 /**
  * Single owner of Ask orchestration state still living on the plugin after #226.

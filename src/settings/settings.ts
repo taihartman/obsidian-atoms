@@ -69,6 +69,7 @@ import {
   LS_ASK_MIRROR_LAST_SUCCESS,
   LS_ASK_MIRROR_SERVER_COUNT,
 } from "../platform/askMirror";
+import { fireAndForgetAsk } from "../shared/fireAndForget";
 import { syncNowNotice } from "../shared/mirrorOutcome";
 import type { ConfirmRequest, ConfirmVerdict } from "../shared/confirm";
 import { requestUrl } from "obsidian";
@@ -1131,9 +1132,7 @@ export class AtomsSettingTab extends PluginSettingTab {
             if (!on) this.plugin.settings.askWriteAckAt = "";
             await this.plugin.saveSettings();
             if (on) {
-              void this.plugin.syncAskMirror({ force: false }).catch(() => {
-                /* */
-              });
+              fireAndForgetAsk(this.plugin.syncAskMirror({ force: false }));
             }
             this.redisplay();
           }),
@@ -1160,9 +1159,7 @@ export class AtomsSettingTab extends PluginSettingTab {
               : "";
             await this.plugin.saveSettings();
             if (on) {
-              void this.plugin.applyAskOutbox().catch(() => {
-                /* */
-              });
+              fireAndForgetAsk(this.plugin.applyAskOutbox());
             }
             this.redisplay();
           }),

@@ -1,12 +1,16 @@
 /**
  * Catch-up orchestration (KTD15).
  *
- * The Ask outbox apply loop and the shared busy/result vocabulary live here,
- * against an **injected host**, rather than in `main.ts` (already ~2000 lines
- * and named in `CLAUDE.md` as "not a dumping ground") or in `platform/`
- * (which would drag the plugin instance across the module boundary). The host
- * is also what makes the loop testable at all: no test in this repo imports
- * `main.ts`, because the shared Obsidian mock stubs `Plugin` as an empty class.
+ * The Ask outbox apply loop and the single-flight busy state live here, against
+ * an **injected host**, rather than in `main.ts` (already ~2000 lines and named
+ * in `CLAUDE.md` as "not a dumping ground") or in `platform/` (which would drag
+ * the plugin instance across the module boundary). The host is also what makes
+ * the loop testable at all: no test in this repo imports `main.ts`, because the
+ * shared Obsidian mock stubs `Plugin` as an empty class.
+ *
+ * The *result* vocabulary — `MirrorSyncOutcome`, `mirrorConfirmedReceipt`,
+ * `describeMirrorRefusal`, `syncNowNotice` — lives in `shared/mirrorOutcome.ts`,
+ * because `settings/` needs it too and must not import a value out of `plugin/`.
  */
 
 import {

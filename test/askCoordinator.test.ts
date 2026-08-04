@@ -1,11 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { AskCoordinator, fireAndForgetAsk } from "../src/plugin/askCoordinator";
+import { AskCoordinator } from "../src/plugin/askCoordinator";
+import { fireAndForgetAsk } from "../src/shared/fireAndForget";
 import { DEFAULT_SETTINGS } from "../src/shared/types";
 import { stripLegacyAskMirrorHashes } from "../src/platform/askMirror";
-import type {
-  AskMirrorHost,
-  ConfirmRequest,
-} from "../src/platform/askMirror";
+import type { AskMirrorHost } from "../src/platform/askMirror";
+import type { ConfirmRequest, ConfirmVerdict } from "../src/shared/confirm";
 
 /** Modals the coordinator opened, newest last. */
 const openedModals: FakeConfirmModal[] = [];
@@ -16,7 +15,7 @@ class FakeConfirmModal {
   constructor(
     readonly app: unknown,
     readonly request: ConfirmRequest,
-    private readonly onVerdict: (verdict: string) => void,
+    private readonly onVerdict: (verdict: ConfirmVerdict) => void,
   ) {
     openedModals.push(this);
   }

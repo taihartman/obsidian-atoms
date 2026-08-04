@@ -23,7 +23,8 @@ import { clampAtomFolder } from "../pipeline/render";
 import { registerAtomsCommands } from "./commands";
 import type { AskOutboxOutcome } from "./catchUp";
 import type { MirrorSyncOutcome } from "../shared/mirrorOutcome";
-import { AskCoordinator, fireAndForgetAsk } from "./askCoordinator";
+import { AskCoordinator } from "./askCoordinator";
+import { fireAndForgetAsk } from "../shared/fireAndForget";
 import { runOpenAtomGraph } from "../graph/openAtomGraph";
 
 /** Injected by esbuild: true in watch/dev, false in production Community builds. */
