@@ -87,6 +87,28 @@ export function registerAskTools(mcp, ctx) {
   );
 
   mcp.registerTool(
+    "list_tags",
+    {
+      title: "List tags",
+      description:
+        "Distinct tags on mirrored atoms with per-tag atom counts. Sorted by count descending, then tag name ascending (cap 500). Call before concluding a tags: filter on search_atoms found nothing—distinguishes missing tag vs tag present but no query match. Partial mirror only.",
+      annotations: { readOnlyHint: true, destructiveHint: false },
+      inputSchema: {},
+    },
+    async () => {
+      const result = await store.mirrorListTags(email);
+      const mirrorCount = result?.mirror_count ?? 0;
+      return jsonTool({
+        account: email,
+        mirror_count: mirrorCount,
+        tags: result?.tags ?? [],
+        ...absenceMeta({ searched_fields: ["tags"] }),
+        hint: mirrorCount === 0 ? EMPTY_HINT : undefined,
+      });
+    },
+  );
+
+  mcp.registerTool(
     "search_atoms",
     {
       title: "Search atoms",

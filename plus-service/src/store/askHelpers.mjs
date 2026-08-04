@@ -357,6 +357,49 @@ export function matchesTagFilter(tags, filterTags) {
   return filterTags.every((t) => have.has(String(t).toLowerCase()));
 }
 
+/** Max distinct tags returned by list_tags / mirrorListTags. */
+export const MIRROR_TAGS_LIMIT = 500;
+
+/**
+ * Aggregate per-atom tag lists into vocabulary with counts.
+ * Case-insensitive merge (display = first-seen form). Count = atoms that
+ * carry the tag (duplicate tags on one atom count once). Sort: count desc,
+ * then tag alpha. Cap at limit (default 500).
+ *
+ * @param {Iterable<string[] | unknown>} tagLists
+ * @param {{ limit?: number }} [opts]
+ * @returns {{ tag: string, count: number }[]}
+ */
+export function aggregateMirrorTags(tagLists, opts = {}) {
+  const limit = Math.min(
+    Math.max(Number(opts.limit) || MIRROR_TAGS_LIMIT, 1),
+    MIRROR_TAGS_LIMIT,
+  );
+  /** @type {Map<string, { tag: string, count: number }>} */
+  const byKey = new Map();
+  for (const list of tagLists) {
+    if (!Array.isArray(list)) continue;
+    const seen = new Set();
+    for (const raw of list) {
+      const tag = String(raw ?? "").trim();
+      if (!tag) continue;
+      const key = tag.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const cur = byKey.get(key);
+      if (cur) cur.count += 1;
+      else byKey.set(key, { tag, count: 1 });
+    }
+  }
+  return [...byKey.values()]
+    .sort(
+      (a, b) =>
+        b.count - a.count ||
+        a.tag.localeCompare(b.tag, undefined, { sensitivity: "base" }),
+    )
+    .slice(0, limit);
+}
+
 /**
  * @param {string} body
  * @param {string} query

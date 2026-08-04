@@ -236,6 +236,9 @@ describe("MCP modern era 2026-07-28", () => {
     const statusTool = result.tools.find((t) => t.name === "mirror_status");
     assert.ok(statusTool, "mirror_status must appear in tools/list");
     assert.ok(statusTool.title || statusTool.annotations?.title);
+    const listTagsTool = result.tools.find((t) => t.name === "list_tags");
+    assert.ok(listTagsTool, "list_tags must appear in tools/list");
+    assert.ok(listTagsTool.title || listTagsTool.annotations?.title);
     // cache hints when present (modern complete)
     if (result.ttlMs != null) {
       assert.ok(result.ttlMs >= 60_000, `ttlMs=${result.ttlMs}`);

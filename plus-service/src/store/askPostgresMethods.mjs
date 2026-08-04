@@ -3,6 +3,7 @@
  */
 import { hashToken, id } from "./shared.mjs";
 import {
+  aggregateMirrorTags,
   buildNeighborsGraph,
   buildSearchHits,
   normEmail,
@@ -536,6 +537,18 @@ export function createAskPostgresMethods(pool, deps) {
     };
   }
 
+  async function mirrorListTags(email) {
+    const e = normEmail(email);
+    const { rows } = await pool.query(
+      `SELECT tags_json FROM atom_mirror WHERE email = $1`,
+      [e],
+    );
+    const tags = aggregateMirrorTags(
+      rows.map((r) => rowToPublicAtom(r, { includeBody: false }).tags),
+    );
+    return { tags, mirror_count: rows.length };
+  }
+
   async function mcpCreatePending(fields) {
     const pendingId = id("pend");
     await pool.query(
@@ -803,6 +816,7 @@ export function createAskPostgresMethods(pool, deps) {
     mirrorNeighbors,
     mirrorWipe,
     mirrorStatus,
+    mirrorListTags,
     mirrorDelete,
     mirrorReconcileKeep,
     outboxEnqueue,
