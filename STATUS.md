@@ -7,6 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
+| In review | #255 #259 | tai | feat/ask-mcp-mirror-status-whoami | docs/plans/2026-08-04-003-feat-ask-mcp-mirror-status-plan.md | plus-service/src/mcp/tools.mjs, instructions.mjs, askHelpers.mjs | PR #260; mirror_status + absence wording; Fly-only |
 
 ## How to claim (copy)
 

@@ -18,7 +18,7 @@
 
 | Scope | Tools |
 |-------|--------|
-| `atoms:read` | `search_atoms`, `fetch_atom`, `neighbors`, `list_atoms` |
+| `atoms:read` | `mirror_status`, `search_atoms`, `fetch_atom`, `neighbors`, `list_atoms` |
 | `atoms:write` | `create_atom`, `continue_atom`, `cancel_pending` |
 
 Consent **Allow** grants **both**.  

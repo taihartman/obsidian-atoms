@@ -377,12 +377,18 @@ export function makeSnippet(body, query, max = 240) {
 }
 
 /**
- * What the Ask mirror covers. scope_complete is false: not the whole vault.
- * Clients must not hardcode paths — read these fields from responses.
+ * What the Ask mirror covers. scope_complete is always false by design
+ * (Atoms/ + linked hubs only — not the whole vault). Clients must not
+ * hardcode paths — read these fields from responses.
+ *
+ * scope_note: agents must not treat absence as "not in the vault" or
+ * "not on another Plus account" — only "not in this token's mirror."
  */
 export const MIRROR_SCOPE_META = {
   mirror_scope: ["Atoms/", "hub notes linked from atoms"],
   scope_complete: false,
+  scope_note:
+    "Partial mirror for this Plus account only. Missing here does not mean missing from the vault or from another account.",
 };
 
 /** Fields mirrorSearch scores against. */
@@ -572,6 +578,7 @@ export function buildNeighborsGraph(center, idOrTitle, pubs) {
 
   const found = Boolean(center);
   const hasBacklinks = backlinks.length > 0;
+  const hubLinkedNotSynced = !found && hasBacklinks;
   const centerRev = revisionStatusFor(keyTitle, inboundIndex);
   /** @type {Record<string, unknown>} */
   const out = {
@@ -579,8 +586,12 @@ export function buildNeighborsGraph(center, idOrTitle, pubs) {
     path: center?.path || null,
     kind: center?.kind || null,
     found,
-    exists_outside_mirror: !found && hasBacklinks,
-    reason: found ? null : hasBacklinks ? "hub_not_synced" : "not_in_mirror",
+    in_this_mirror: found,
+    // Back-compat name: true only when backlinks exist but center row is not mirrored (hub gap).
+    // Prefer hub_linked_not_synced / in_this_mirror — false does NOT mean "absent from vault."
+    exists_outside_mirror: hubLinkedNotSynced,
+    hub_linked_not_synced: hubLinkedNotSynced,
+    reason: found ? null : hubLinkedNotSynced ? "hub_not_synced" : "not_in_mirror",
     outgoing,
     backlinks,
     ...absenceMeta(),
