@@ -9,11 +9,11 @@
 
 | Pri | Issue | Title |
 |---|---|---|
-| P0 | #255 | `mirror_status` / whoami |
+| P0 | #255 | `mirror_status` / whoami — **shipping in #260** |
 | P0 | #256 | `list_tags` |
 | P1 | #257 | `created` + list sort/filter |
 | P2 | #258 | `list_pending` |
-| P2 | #259 | qualify `exists_outside_mirror` / `scope_complete` |
+| P2 | #259 | qualify `exists_outside_mirror` / `scope_complete` — **shipping in #260** |
 
 ---
 

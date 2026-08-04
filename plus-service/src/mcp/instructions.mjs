@@ -5,8 +5,9 @@ Write tools: create_atom, continue_atom — these QUEUE work; they do not write 
 cancel_pending(outbox_id) cancels a write still in the outbox (not yet applied).
 
 Identity + health:
-- Call mirror_status first when the user disputes absence, counts look wrong, or you need which Plus account this connector reads. It returns account, server_count, last_synced_at, pending_writes, scopes.
-- If plugin Settings show a different account or count than mirror_status, the connector is bound to the wrong tenant—tell the user to reconnect (pairing code or identity chooser), do not invent vault contents.
+- Call mirror_status once early in the session (before answering existence, counts, or "do I have X?"). It returns account, server_count, last_synced_at, pending_writes, scopes.
+- Read/list/search/not_found payloads also include account—if it does not match the user's Plus email or Settings, stop and tell them to reconnect (pairing code or identity chooser). Do not invent vault contents.
+- Call mirror_status again when the user disputes absence or counts look wrong.
 
 Mirror scope:
 - Tools only see this Plus account's Ask mirror (Atoms/ plus hub notes linked from atoms), not the whole vault and not other accounts.

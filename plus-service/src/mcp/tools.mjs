@@ -72,10 +72,7 @@ export function registerAskTools(mcp, ctx) {
     },
     async () => {
       const st = await store.mirrorStatus(email);
-      let pendingWrites = 0;
-      if (typeof store.outboxPendingCount === "function") {
-        pendingWrites = await store.outboxPendingCount(email);
-      }
+      const pendingWrites = await store.outboxPendingCount(email);
       const count = st?.count ?? 0;
       return jsonTool({
         account: email,
@@ -125,9 +122,13 @@ export function registerAskTools(mcp, ctx) {
               type: "text",
               text: JSON.stringify({
                 results: [],
+                account: email,
                 mirror_count: st.count,
                 ...scope,
-                hint: st.count === 0 ? EMPTY_HINT : "no matches for this query in mirror_scope",
+                hint:
+                  st.count === 0
+                    ? EMPTY_HINT
+                    : "no matches for this query in this account's mirror_scope—confirm account via mirror_status if unexpected",
               }),
             },
           ],
@@ -140,6 +141,7 @@ export function registerAskTools(mcp, ctx) {
             text: JSON.stringify(
               {
                 results: hits,
+                account: email,
                 mirror_count: st.count,
                 returned: hits.length,
                 limit: limit ?? 8,
@@ -182,9 +184,10 @@ export function registerAskTools(mcp, ctx) {
           content: [
             {
               type: "text",
-              text: JSON.stringify({
+                text: JSON.stringify({
                 error: "not_found",
                 id_or_title,
+                account: email,
                 mirror_count: st.count,
                 in_this_mirror: false,
                 // Legacy: true only for hub-linked-not-synced. false ≠ vault absence.
@@ -245,8 +248,9 @@ export function registerAskTools(mcp, ctx) {
           content: [
             {
               type: "text",
-              text: JSON.stringify({
+                  text: JSON.stringify({
                 error: "empty",
+                account: email,
                 mirror_count: st.count,
                 ...absenceMeta(),
                 hint: st.count === 0 ? EMPTY_HINT : "invalid title",
@@ -508,6 +512,7 @@ export function registerAskTools(mcp, ctx) {
       const st = await store.mirrorStatus(email);
       return jsonTool({
         ...page,
+        account: email,
         server_count: st?.count ?? page.total,
         last_synced_at: formatLastSynced(st?.updatedAt),
         ...absenceMeta({ searched_fields: ["title", "path", "tags"] }),

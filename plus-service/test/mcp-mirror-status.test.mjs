@@ -99,6 +99,7 @@ describe("mirror_status tool", () => {
       ),
     );
     assert.equal(missing.error, "not_found");
+    assert.equal(missing.account, "n@t.co");
     assert.equal(missing.in_this_mirror, false);
     assert.equal(missing.exists_outside_mirror, false);
     assert.equal(missing.hub_linked_not_synced, false);
@@ -113,10 +114,18 @@ describe("mirror_status tool", () => {
       ),
     );
     assert.equal(hubGap.error, "not_found");
+    assert.equal(hubGap.account, "n@t.co");
     assert.equal(hubGap.in_this_mirror, false);
     assert.equal(hubGap.hub_linked_not_synced, true);
     assert.equal(hubGap.exists_outside_mirror, true);
     assert.equal(hubGap.reason, "hub_not_synced");
+
+    const neighbors = await store.mirrorNeighbors("n@t.co", "Nichita");
+    assert.equal(neighbors.found, false);
+    assert.equal(neighbors.in_this_mirror, false);
+    assert.equal(neighbors.hub_linked_not_synced, true);
+    assert.equal(neighbors.exists_outside_mirror, true);
+    assert.ok(neighbors.scope_note);
   });
 });
 
@@ -130,7 +139,7 @@ describe("absence meta + instructions (#259)", () => {
 
   it("instructions name mirror_status and forbid vault-absence claims", () => {
     assert.match(ASK_MCP_INSTRUCTIONS, /mirror_status/);
-    assert.match(ASK_MCP_INSTRUCTIONS, /wrong tenant|wrong-tenant/i);
+    assert.match(ASK_MCP_INSTRUCTIONS, /once early|early in the session/i);
     assert.match(ASK_MCP_INSTRUCTIONS, /NEVER claim a note is "not in the vault"/i);
     assert.match(ASK_MCP_INSTRUCTIONS, /scope_complete.*always false/i);
     assert.match(ASK_MCP_INSTRUCTIONS, /hub_linked_not_synced/);

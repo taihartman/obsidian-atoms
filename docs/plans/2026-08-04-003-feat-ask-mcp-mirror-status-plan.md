@@ -33,6 +33,7 @@ Keep `scope_complete: false` always (partial mirror by design). Louder docs + `s
 
 ## Done when
 
-- [ ] `cd plus-service && npm test` green
-- [ ] Tool returns account matching token email
-- [ ] Draft PR `Closes #255` + `Closes #259`
+- [x] `cd plus-service && npm test` green
+- [x] Tool returns account matching token email
+- [x] Draft PR `Closes #255` + `Closes #259` (#260)
+- [ ] Fly deploy + dogfood `mirror_status` matches Settings
