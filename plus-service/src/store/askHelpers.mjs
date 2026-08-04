@@ -93,7 +93,45 @@ export function assertMirrorPath(path, opts = {}) {
 }
 
 /**
- * @param {{ path: string, title?: string, body?: string, tags?: string[], links?: {note:string,reason?:string}[], atomId?: string, kind?: string }} atom
+ * Normalize vault frontmatter `created` for mirror storage.
+ * Day-only → `YYYY-MM-DD`; datetime → ISO-ish string; invalid → null.
+ * @param {unknown} raw
+ * @returns {string|null}
+ */
+export function normalizeMirrorCreated(raw) {
+  if (raw == null) return null;
+  const s = String(raw).trim().replace(/^["']|["']$/g, "");
+  if (!s) return null;
+  const dayOnly = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (dayOnly) return `${dayOnly[1]}-${dayOnly[2]}-${dayOnly[3]}`;
+  const withTime = s.match(
+    /^(\d{4})-(\d{2})-(\d{2})T(\d{1,2}):(\d{2})(?::(\d{2}))?/,
+  );
+  if (withTime) {
+    const hh = String(withTime[4]).padStart(2, "0");
+    const mm = withTime[5];
+    const ss = String(withTime[6] ?? "00").padStart(2, "0");
+    return `${withTime[1]}-${withTime[2]}-${withTime[3]}T${hh}:${mm}:${ss}`;
+  }
+  const t = Date.parse(s);
+  if (Number.isFinite(t)) return new Date(t).toISOString();
+  return null;
+}
+
+/** Inclusive range bound for created_after / created_before filters. */
+export function normalizeCreatedBound(raw, edge /* 'start' | 'end' */) {
+  const s = String(raw || "")
+    .trim()
+    .replace(/^["']|["']$/g, "");
+  if (!s) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+    return edge === "end" ? `${s}T23:59:59.999` : s;
+  }
+  return normalizeMirrorCreated(s) || s;
+}
+
+/**
+ * @param {{ path: string, title?: string, body?: string, tags?: string[], links?: {note:string,reason?:string}[], atomId?: string, kind?: string, created?: string }} atom
  */
 export function prepareMirrorRow(email, atom) {
   const kindIn = String(atom.kind || "atom").toLowerCase() === "hub" ? "hub" : "atom";
@@ -108,9 +146,17 @@ export function prepareMirrorRow(email, atom) {
     Array.isArray(atom.links) ? atom.links : [],
     body,
   );
+  const created = normalizeMirrorCreated(atom.created);
   const tagsJson = JSON.stringify(tags);
   const linksJson = JSON.stringify(links);
-  const hash = contentHash([title, body, tagsJson, linksJson, kind]);
+  const hash = contentHash([
+    title,
+    body,
+    tagsJson,
+    linksJson,
+    kind,
+    created || "",
+  ]);
   return {
     email: normEmail(email),
     atomId: atom.atomId || path,
@@ -122,6 +168,7 @@ export function prepareMirrorRow(email, atom) {
     linksJson,
     contentHash: hash,
     updatedAt: new Date().toISOString(),
+    created,
   };
 }
 
@@ -260,6 +307,14 @@ export function rowToPublicAtom(row, { includeBody = true } = {}) {
       : String(path || "").startsWith("Atoms/")
         ? "atom"
         : "hub";
+  const createdRaw = row.created ?? row.created_at_note;
+  const created =
+    createdRaw != null && createdRaw !== ""
+      ? normalizeMirrorCreated(createdRaw) ||
+        (typeof createdRaw === "string"
+          ? createdRaw
+          : iso(createdRaw))
+      : null;
   const out = {
     id: row.atom_id ?? row.atomId,
     title: row.title,
@@ -269,9 +324,95 @@ export function rowToPublicAtom(row, { includeBody = true } = {}) {
     links,
     contentHash: row.content_hash ?? row.contentHash,
     updatedAt: iso(row.updated_at ?? row.updatedAt),
+    created,
   };
   if (includeBody) out.text = text;
   return out;
+}
+
+/**
+ * Shape one list_atoms item from a public atom.
+ * @param {object} pub
+ */
+export function shapeMirrorListItem(pub) {
+  return {
+    id: pub.id,
+    title: pub.title,
+    path: pub.path,
+    tags: pub.tags,
+    kind: pub.kind,
+    synced_at: pub.updatedAt ?? null,
+    created: pub.created ?? null,
+  };
+}
+
+/**
+ * Filter/sort/paginate public mirror atoms for list_atoms.
+ * Default sort: title ASC (back-compat). created/synced default order: desc.
+ * Missing created sorts last on created sort.
+ * @param {object[]} pubs
+ * @param {object} [opts]
+ */
+export function paginateMirrorList(pubs, opts = {}) {
+  const limit = Math.min(Math.max(Number(opts.limit) || 25, 1), 50);
+  const offset = Math.max(Number(opts.offset) || 0, 0);
+  let sortBy = String(opts.sort_by || "title").toLowerCase();
+  if (sortBy !== "title" && sortBy !== "created" && sortBy !== "synced") {
+    sortBy = "title";
+  }
+  let order = String(opts.order || "").toLowerCase();
+  if (order !== "asc" && order !== "desc") {
+    order = sortBy === "title" ? "asc" : "desc";
+  }
+  const after = normalizeCreatedBound(opts.created_after, "start");
+  const before = normalizeCreatedBound(opts.created_before, "end");
+  const tagFilter = opts.tags;
+
+  let filtered = (pubs || []).filter((p) => {
+    if (!matchesTagFilter(p.tags, tagFilter)) return false;
+    const c = p.created || null;
+    if (after) {
+      if (!c || String(c) < after) return false;
+    }
+    if (before) {
+      if (!c || String(c) > before) return false;
+    }
+    return true;
+  });
+
+  const dir = order === "asc" ? 1 : -1;
+  filtered = [...filtered].sort((a, b) => {
+    if (sortBy === "created") {
+      const aN = !a.created;
+      const bN = !b.created;
+      if (aN && bN) {
+        /* fall through */
+      } else if (aN) return 1;
+      else if (bN) return -1;
+      else {
+        const c = String(a.created).localeCompare(String(b.created));
+        if (c) return c * dir;
+      }
+    } else if (sortBy === "synced") {
+      const as = a.updatedAt || "";
+      const bs = b.updatedAt || "";
+      const c = String(as).localeCompare(String(bs));
+      if (c) return c * dir;
+    } else {
+      const c = String(a.title || "").localeCompare(String(b.title || ""), undefined, {
+        sensitivity: "base",
+      });
+      if (c) return c * dir;
+    }
+    return String(a.path || "").localeCompare(String(b.path || ""));
+  });
+
+  const total = filtered.length;
+  const slice = filtered.slice(offset, offset + limit);
+  const items = slice.map(shapeMirrorListItem);
+  const next_offset =
+    offset + items.length < total ? offset + items.length : null;
+  return { items, total, offset, limit, next_offset };
 }
 
 function safeJson(s, fallback) {
@@ -596,6 +737,8 @@ export function buildSearchHits(pubs, query, limit = 8, opts = {}) {
       score: s,
       status: rev.status,
       authoritative: false,
+      created: pub.created ?? null,
+      synced_at: pub.updatedAt ?? null,
     };
     if (includeSnippets) {
       hit.snippet = makeSnippet(pub.text, query);
@@ -728,6 +871,8 @@ export function shapeFetchAtom(atom, neighborsGraph, opts = {}) {
     authoritative: true,
     /** When this row was last written to the cloud mirror (ISO). */
     synced_at: syncedAt,
+    /** Note frontmatter created when known (day or ISO). */
+    created: atom.created ?? null,
   };
 
   if (kind === "hub") {

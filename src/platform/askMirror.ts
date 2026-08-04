@@ -82,6 +82,8 @@ export type AskMirrorAtomPayload = {
   links: { note: string; reason?: string }[];
   /** atom = Atoms/*.md; hub = vault note linked from atoms (outside Atoms/). */
   kind?: "atom" | "hub";
+  /** Frontmatter `created` when present (day or local datetime). */
+  created?: string;
 };
 
 export type VaultFileRead = {
@@ -92,12 +94,13 @@ export type VaultFileRead = {
 
 type FmLink = { note: string; reason?: string };
 
-/** Parse frontmatter tags, atom-links, parent/relation, body. */
+/** Parse frontmatter tags, atom-links, parent/relation, created, body. */
 export function splitAtomMarkdown(content: string): {
   body: string;
   tags: string[];
   parent?: string;
   relation?: string;
+  created?: string;
   fmLinks: FmLink[];
 } {
   if (!content.startsWith("---")) {
@@ -127,6 +130,15 @@ export function splitAtomMarkdown(content: string): {
   const relationM = fm.match(/^relation:\s*["']?(\w+)["']?\s*$/m);
   const parent = parentM?.[1]?.trim().replace(/^\[\[|\]\]$/g, "");
   const relation = relationM?.[1]?.trim();
+  const createdM = fm.match(/^created:\s*(.+)$/m);
+  const createdRaw = createdM?.[1]?.trim().replace(/^["']|["']$/g, "");
+  const created =
+    createdRaw &&
+    (/^\d{4}-\d{2}-\d{2}$/.test(createdRaw) ||
+      /^\d{4}-\d{2}-\d{2}T\d{1,2}:\d{2}/.test(createdRaw) ||
+      Number.isFinite(Date.parse(createdRaw)))
+      ? createdRaw
+      : undefined;
 
   const fmLinks: FmLink[] = [];
   // atom-links:
@@ -157,6 +169,7 @@ export function splitAtomMarkdown(content: string): {
     fmLinks,
     ...(parent ? { parent } : {}),
     ...(relation ? { relation } : {}),
+    ...(created ? { created } : {}),
   };
 }
 
@@ -361,9 +374,8 @@ export function planAskMirrorUpsert(
   for (const f of files) {
     if (kind === "atom" && !isFlatAtomPath(folder, f.path)) continue;
     if (kind === "hub" && !isHubMirrorPath(f.path, folder)) continue;
-    const { body, tags, parent, relation, fmLinks } = splitAtomMarkdown(
-      f.content,
-    );
+    const { body, tags, parent, relation, created, fmLinks } =
+      splitAtomMarkdown(f.content);
     const title = f.basename.replace(/\.md$/i, "");
     const links = linksFromAtomFile({ body, fmLinks, parent, relation });
     const hash = contentHash([
@@ -372,6 +384,7 @@ export function planAskMirrorUpsert(
       JSON.stringify(tags),
       JSON.stringify(links),
       kind,
+      created || "",
     ]);
     if (lastHashes[f.path] === hash) continue;
     nextHashes[f.path] = hash;
@@ -382,6 +395,7 @@ export function planAskMirrorUpsert(
       tags,
       links,
       kind,
+      ...(created ? { created } : {}),
     });
   }
   return { atoms, nextHashes };

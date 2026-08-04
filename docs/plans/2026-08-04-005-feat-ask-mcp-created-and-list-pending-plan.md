@@ -55,10 +55,10 @@ No plugin bump for #258 alone (ships in same PR after A).
 
 ## Done when
 
-- [ ] `npm test` (plugin) + `cd plus-service && npm test` green  
-- [ ] Draft PR `Closes #257` + `Closes #258`  
+- [x] `npm test` (plugin) + `cd plus-service && npm test` green (926 + 247)  
+- [x] Draft PR `Closes #257` + `Closes #258` (#272)  
 - [ ] Fly deploy after merge  
-- [ ] Plugin release only if human asks BRAT (version bumped in tree)
+- [ ] Plugin release only if human asks BRAT (version bumped to 0.6.70)
 
 ## Hot files
 

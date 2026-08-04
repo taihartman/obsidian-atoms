@@ -1,8 +1,9 @@
 export const ASK_MCP_INSTRUCTIONS = `You are working with the user's Atoms second brain via MCP tools (read + write-via-outbox).
 
-Read tools: mirror_status, list_tags, search_atoms, fetch_atom, neighbors, list_atoms (paginated).
+Read tools: mirror_status, list_tags, search_atoms, fetch_atom, neighbors, list_atoms (paginated; sort/filter).
 Write tools: create_atom, continue_atom — these QUEUE work; they do not write the vault instantly.
 cancel_pending(outbox_id) cancels a write still in the outbox (not yet applied).
+list_pending (atoms:write) lists non-terminal outbox rows when you need outbox_id again.
 
 Identity + health:
 - Call mirror_status once early in the session (before answering existence, counts, or "do I have X?"). It returns account, server_count, last_synced_at, pending_writes, scopes.
@@ -18,8 +19,9 @@ Mirror scope:
 Read rules:
 - search_atoms snippets are truncated and non-authoritative (snippet_truncated: true, authoritative: false). Do not claim what a note contains or does not contain from a snippet. Call fetch_atom for body quotes and content claims.
 - Before concluding a tags: filter found nothing, call list_tags—empty search may mean the tag is absent from this mirror, present but unmatched, or only in unsynced vault notes.
-- fetch_atom text is authoritative for that note's body. synced_at is when the cloud mirror last received that row—if it is hours old, vault may have newer content not yet pushed.
-- list_atoms includes last_synced_at + server_count for mirror-level staleness.
+- fetch_atom text is authoritative for that note's body. synced_at is when the cloud mirror last received that row—if it is hours old, vault may have newer content not yet pushed. created is note frontmatter date when known (null until re-synced after that field shipped).
+- list_atoms includes last_synced_at + server_count for mirror-level staleness. Default sort is title ASC. For "newest atoms" use sort_by=created order=desc (not synced_at—bulk re-push stamps many rows at once). Optional created_after/before and tags filters run server-side.
+- list_pending returns pending/claimed outbox rows (outbox_id, kind, title, created_at). Pair with cancel_pending.
 - list_tags returns tag vocabulary with counts (count desc, then alpha; cap 500). If truncated is true, absence of a tag from the list is inconclusive—try search_atoms.
 - Every atom has status: live | superseded | contradicted (always present; never treat missing status as live).
 - If status is superseded or contradicted, do not present the parent as a current uncontested fact. Prefer the child named in superseded_by / contradicted_by (relation revised_by / contradicted_by).

@@ -16,6 +16,7 @@ import {
   buildNeighborsGraph,
   buildSearchHits,
   normEmail,
+  paginateMirrorList,
   prepareMirrorRow,
   rowToPublicAtom,
   verifyPkce,
@@ -618,6 +619,18 @@ export function createMemoryStore() {
     return { ok: true, ...outboxPublic(row) };
   }
 
+  /** Non-terminal outbox rows (pending + claimed), read-only — no claim. */
+  function outboxListOpen(email) {
+    const e = normEmail(email);
+    outboxReclaimStale(e);
+    const bucket = askOutbox.get(e);
+    if (!bucket) return [];
+    return [...bucket.values()]
+      .filter((r) => r.status === "pending" || r.status === "claimed")
+      .sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)))
+      .map((r) => outboxPublic(r));
+  }
+
   function outboxHasOpenTitle(email, title) {
     const e = normEmail(email);
     const want = String(title || "").trim().toLowerCase();
@@ -635,33 +648,13 @@ export function createMemoryStore() {
 
   function mirrorList(email, opts = {}) {
     const e = normEmail(email);
-    const limit = Math.min(Math.max(Number(opts.limit) || 25, 1), 50);
-    const offset = Math.max(Number(opts.offset) || 0, 0);
     const bucket = atomMirror.get(e);
-    const all = bucket
-      ? [...bucket.values()].sort(
-          (a, b) =>
-            String(a.title).localeCompare(String(b.title), undefined, {
-              sensitivity: "base",
-            }) || String(a.path).localeCompare(String(b.path)),
+    const pubs = bucket
+      ? [...bucket.values()].map((r) =>
+          rowToPublicAtom(r, { includeBody: false }),
         )
       : [];
-    const slice = all.slice(offset, offset + limit);
-    const items = slice.map((r) => {
-      const pub = rowToPublicAtom(r, { includeBody: false });
-      return {
-        id: pub.id,
-        title: pub.title,
-        path: pub.path,
-        tags: pub.tags,
-        kind: pub.kind,
-        synced_at: pub.updatedAt ?? null,
-      };
-    });
-    const total = all.length;
-    const next_offset =
-      offset + items.length < total ? offset + items.length : null;
-    return { items, total, offset, limit, next_offset };
+    return paginateMirrorList(pubs, opts);
   }
 
   function _forceOutboxClaimedAt(email, outboxId, iso) {
@@ -931,6 +924,7 @@ export function createMemoryStore() {
     outboxGet,
     outboxPendingCount,
     outboxCancel,
+    outboxListOpen,
     outboxHasOpenTitle,
     mirrorList,
     _forceOutboxClaimedAt,

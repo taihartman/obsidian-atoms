@@ -7,6 +7,7 @@ import {
   buildNeighborsGraph,
   buildSearchHits,
   normEmail,
+  paginateMirrorList,
   prepareMirrorRow,
   rowToPublicAtom,
   verifyPkce,
@@ -32,6 +33,7 @@ CREATE TABLE IF NOT EXISTS atom_mirror (
   links_json TEXT NOT NULL,
   content_hash TEXT NOT NULL,
   updated_at TIMESTAMPTZ NOT NULL,
+  created TEXT,
   PRIMARY KEY (email, path)
 );
 CREATE INDEX IF NOT EXISTS idx_atom_mirror_email ON atom_mirror(email);
@@ -126,12 +128,13 @@ export function createAskPostgresMethods(pool, deps) {
         continue;
       }
       await pool.query(
-        `INSERT INTO atom_mirror (email, atom_id, title, path, body_enc, tags_json, links_json, content_hash, updated_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+        `INSERT INTO atom_mirror (email, atom_id, title, path, body_enc, tags_json, links_json, content_hash, updated_at, created)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
          ON CONFLICT (email, path) DO UPDATE SET
            atom_id=EXCLUDED.atom_id, title=EXCLUDED.title, body_enc=EXCLUDED.body_enc,
            tags_json=EXCLUDED.tags_json, links_json=EXCLUDED.links_json,
-           content_hash=EXCLUDED.content_hash, updated_at=EXCLUDED.updated_at`,
+           content_hash=EXCLUDED.content_hash, updated_at=EXCLUDED.updated_at,
+           created=EXCLUDED.created`,
         [
           row.email,
           row.atomId,
@@ -142,6 +145,7 @@ export function createAskPostgresMethods(pool, deps) {
           row.linksJson,
           row.contentHash,
           row.updatedAt,
+          row.created,
         ],
       );
       upserted += 1;
@@ -433,6 +437,18 @@ export function createAskPostgresMethods(pool, deps) {
     return outboxOpenCount(e);
   }
 
+  async function outboxListOpen(email) {
+    const e = normEmail(email);
+    await outboxReclaimStale(e);
+    const { rows } = await pool.query(
+      `SELECT * FROM ask_outbox
+       WHERE email = $1 AND status IN ('pending','claimed')
+       ORDER BY created_at ASC`,
+      [e],
+    );
+    return rows.map((r) => outboxRowFromDb(r));
+  }
+
   async function outboxCancel(email, outboxId) {
     const e = normEmail(email);
     const oid = String(outboxId || "").trim();
@@ -484,33 +500,12 @@ export function createAskPostgresMethods(pool, deps) {
 
   async function mirrorList(email, opts = {}) {
     const e = normEmail(email);
-    const limit = Math.min(Math.max(Number(opts.limit) || 25, 1), 50);
-    const offset = Math.max(Number(opts.offset) || 0, 0);
-    const rows = await pool.query(
-      `SELECT * FROM atom_mirror WHERE email = $1
-       ORDER BY lower(title) ASC, path ASC
-       LIMIT $2 OFFSET $3`,
-      [e, limit, offset],
-    );
-    const total = await pool.query(
-      `SELECT COUNT(*)::int AS n FROM atom_mirror WHERE email = $1`,
+    const { rows } = await pool.query(
+      `SELECT * FROM atom_mirror WHERE email = $1`,
       [e],
     );
-    const items = rows.rows.map((r) => {
-      const pub = rowToPublicAtom(r, { includeBody: false });
-      return {
-        id: pub.id,
-        title: pub.title,
-        path: pub.path,
-        tags: pub.tags,
-        kind: pub.kind,
-        synced_at: pub.updatedAt ?? null,
-      };
-    });
-    const count = total.rows[0]?.n ?? 0;
-    const next_offset =
-      offset + items.length < count ? offset + items.length : null;
-    return { items, total: count, offset, limit, next_offset };
+    const pubs = rows.map((r) => rowToPublicAtom(r, { includeBody: false }));
+    return paginateMirrorList(pubs, opts);
   }
 
   async function _forceOutboxClaimedAt(email, outboxId, iso) {
@@ -831,6 +826,7 @@ export function createAskPostgresMethods(pool, deps) {
     outboxGet,
     outboxPendingCount,
     outboxCancel,
+    outboxListOpen,
     outboxHasOpenTitle,
     mirrorList,
     _forceOutboxClaimedAt,

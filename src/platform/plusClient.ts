@@ -586,6 +586,8 @@ export async function askMirrorUpsert(
     body: string;
     tags?: string[];
     links?: { note: string; reason?: string }[];
+    kind?: "atom" | "hub";
+    created?: string;
   }>,
 ): Promise<{ ok: true; count: number; upserted: number } | PlusApiError> {
   const res = await plusRequest(cfg, {

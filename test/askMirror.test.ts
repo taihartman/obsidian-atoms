@@ -64,6 +64,26 @@ describe("askMirror", () => {
     expect(body).toContain("I prefer tea");
   });
 
+  it("parses created into mirror payload and hash", () => {
+    const { created, body } = splitAtomMarkdown(
+      "---\ncreated: 2026-08-01\ntags:\n  - x\n---\nhello\n",
+    );
+    expect(created).toBe("2026-08-01");
+    expect(body).toContain("hello");
+    const files = [
+      {
+        path: "Atoms/Hello.md",
+        basename: "Hello.md",
+        content: "---\ncreated: 2026-08-01T09:30\ntags:\n  - x\n---\nhello\n",
+      },
+    ];
+    const first = planAskMirrorUpsert(files, "Atoms", {});
+    expect(first.atoms).toHaveLength(1);
+    expect(first.atoms[0]?.created).toBe("2026-08-01T09:30");
+    const again = planAskMirrorUpsert(files, "Atoms", first.nextHashes);
+    expect(again.atoms).toHaveLength(0);
+  });
+
   it("recovers reasons from Process-style link prose without atom-links", () => {
     const files = [
       {
