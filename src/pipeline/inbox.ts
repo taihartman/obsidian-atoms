@@ -457,6 +457,18 @@ export function inboxCounts(content: string, now: Date): InboxCounts {
   };
 }
 
+/** Pending (not held) inbox captures for backlog gate (U13). */
+export async function countInboxPending(app: App): Promise<number> {
+  const file = app.vault.getAbstractFileByPath(INBOX_NOTE_PATH);
+  if (!file || !("extension" in file)) return 0;
+  try {
+    const content = await app.vault.cachedRead(file as TFile);
+    return inboxCounts(content, new Date()).pending;
+  } catch {
+    return 0;
+  }
+}
+
 /**
  * Header written into a freshly created inbox note.
  *

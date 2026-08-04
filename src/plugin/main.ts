@@ -114,15 +114,23 @@ import {
 } from "../platform/autorun";
 import {
   appendFilingBudgetStamps,
+  backlogGateCleared,
   decideResumeStages,
   formatLastCatchupLine,
+  readBacklogGate,
   readEgressNoticeAcked,
   readFilingBudgetStamps,
   readLastCatchup,
   readResumeEnabled,
+  readStageTiming,
+  writeBacklogGate,
   writeEgressNoticeAcked,
   writeLastCatchup,
   writeResumeEnabled,
+  writeStageTiming,
+  BACKLOG_GATE_THRESHOLD,
+  type ResumeStage,
+  type StageTimingState,
 } from "../platform/resume";
 import {
   readPlusSession,
@@ -197,7 +205,15 @@ export default class AtomsPlugin extends Plugin {
   private waiverUsedThisSignal = false;
   private waivedFilingStamps: number[] = [];
   private catchUpInFlight = false;
-  private lastDrainFiled = 0;
+  /** Drain filed count not yet consumed by a successful filing pass. */
+  private pendingNewDrainWork = 0;
+  /** Real start times for in-flight stages (liveness). */
+  private drainStartedAt: number | null = null;
+  private filingStartedAt: number | null = null;
+  /** Suppress resume until cold-start bootstrap + index settle (U5). */
+  private resumeListenersArmed = false;
+  /** One deferred pass after vaultIndexReady if focus arrived early. */
+  private pendingResumeWhenReady = false;
 
   async onload() {
     await this.loadSettings();
@@ -239,15 +255,14 @@ export default class AtomsPlugin extends Plugin {
     this.ask = new AskCoordinator(this);
     this.ask.registerLifecycle();
 
-    // Resume catch-up: visibility + focus → same chain as cold start (R1).
-    // U0: plusResume already ships these signals on mobile webviews; agent
-    // cannot BRAT-spike phones — proceed on that precedent.
+    // Resume listeners armed after vault index ready (avoids vault_not_ready drop).
+    // U0: plusResume already ships these signals on mobile webviews.
     this.registerDomEvent(document, "visibilitychange", () => {
       if (document.hidden) return;
-      this.scheduleResumeCatchUp();
+      this.onResumeSignal();
     });
     this.registerDomEvent(window, "focus", () => {
-      this.scheduleResumeCatchUp();
+      this.onResumeSignal();
     });
   }
 
@@ -305,8 +320,10 @@ export default class AtomsPlugin extends Plugin {
    */
   private drainInboxOnce(): Promise<InboxDrainResult> {
     if (this.drainInFlight) return this.drainInFlight;
+    this.drainStartedAt = Date.now();
     const pass = drainInbox(this.app).finally(() => {
       this.drainInFlight = null;
+      this.drainStartedAt = null;
     });
     this.drainInFlight = pass;
     return pass;
@@ -574,6 +591,14 @@ export default class AtomsPlugin extends Plugin {
     }
   }
 
+  private onResumeSignal(): void {
+    if (!this.resumeListenersArmed || !this.vaultIndexReady) {
+      this.pendingResumeWhenReady = true;
+      return;
+    }
+    this.scheduleResumeCatchUp();
+  }
+
   /** Leading-edge coalesce for visibility+focus (KTD4). */
   private scheduleResumeCatchUp(): void {
     if (this.resumeCoalesceTimer != null) return;
@@ -584,9 +609,55 @@ export default class AtomsPlugin extends Plugin {
     }, 750);
   }
 
+  private stageInput(
+    load: (k: string) => unknown,
+    opts: { manual: boolean; now: number },
+  ) {
+    const timing = readStageTiming(load);
+    const backlog = this.lastInboxPendingCount;
+    return {
+      now: opts.now,
+      resumeEnabled: readResumeEnabled(load),
+      manual: opts.manual,
+      vaultIndexReady: this.vaultIndexReady,
+      egressNoticeAcked: readEgressNoticeAcked(load),
+      lastResumePassAt: this.lastResumePassAt,
+      lastStageRunAt: timing.lastRun,
+      lastStageFailAt: timing.lastFail,
+      inFlightStartedAt: {
+        drain: this.drainStartedAt,
+        filing: this.filingStartedAt,
+      },
+      filingBudgetStamps: readFilingBudgetStamps(load, opts.now),
+      waivedFilingStamps: this.waivedFilingStamps,
+      hasNewDrainedWork: this.pendingNewDrainWork > 0,
+      waiverUsedThisSignal: this.waiverUsedThisSignal,
+      backlogStrandedCount: backlog,
+      backlogGateCleared: backlogGateCleared(readBacklogGate(load)),
+    };
+  }
+
+  private stampStage(
+    save: (k: string, v: unknown) => void,
+    load: (k: string) => unknown,
+    stage: ResumeStage,
+    kind: "run" | "fail",
+    at: number = Date.now(),
+  ): void {
+    const t = readStageTiming(load);
+    const next: StageTimingState =
+      kind === "run"
+        ? { lastRun: { ...t.lastRun, [stage]: at }, lastFail: t.lastFail }
+        : { lastRun: t.lastRun, lastFail: { ...t.lastFail, [stage]: at } };
+    writeStageTiming(save, next);
+  }
+
+  /** Cached for backlog gate; refreshed on catch-up. */
+  private lastInboxPendingCount = 0;
+
   /**
    * Full catch-up chain: drain → outbox → mirror → optional filing.
-   * Manual path is chatty; resume path is silent (R5).
+   * Manual path is chatty and bypasses auto-run enable + filing cooldown (R6/KTD11).
    */
   async runCatchUpPass(opts: {
     manual: boolean;
@@ -598,27 +669,20 @@ export default class AtomsPlugin extends Plugin {
     const now = Date.now();
 
     if (this.catchUpInFlight) {
+      if (opts.manual) {
+        new Notice("Atoms: catch-up already running — try again in a moment");
+      }
       return { ran: false, reason: "in_flight" };
     }
 
-    const decision = decideResumeStages({
-      now,
-      resumeEnabled: readResumeEnabled(load),
-      manual: opts.manual,
-      vaultIndexReady: this.vaultIndexReady,
-      egressNoticeAcked: readEgressNoticeAcked(load),
-      lastResumePassAt: this.lastResumePassAt,
-      lastStageRunAt: {},
-      lastStageFailAt: {},
-      inFlightStartedAt: {
-        drain: this.drainInFlight ? now : null,
-        filing: this.autoRunInFlight ? now : null,
-      },
-      filingBudgetStamps: readFilingBudgetStamps(load, now),
-      waivedFilingStamps: this.waivedFilingStamps,
-      hasNewDrainedWork: this.lastDrainFiled > 0,
-      waiverUsedThisSignal: this.waiverUsedThisSignal,
-    });
+    try {
+      const { countInboxPending } = await import("../pipeline/inbox");
+      this.lastInboxPendingCount = await countInboxPending(this.app);
+    } catch {
+      /* keep last */
+    }
+
+    const decision = decideResumeStages(this.stageInput(load, { ...opts, now }));
 
     if (
       !decision.stages.drain.run &&
@@ -631,6 +695,9 @@ export default class AtomsPlugin extends Plugin {
           "reason" in decision.stages.drain &&
           decision.stages.drain.reason) ||
         "blocked";
+      if (opts.manual && reason === "vault_not_ready") {
+        new Notice("Atoms: vault still loading — try Sync everything now again");
+      }
       return { ran: false, reason: String(reason) };
     }
 
@@ -644,28 +711,17 @@ export default class AtomsPlugin extends Plugin {
         try {
           const r = await this.drainInboxOnce();
           drained = r.filed;
-          this.lastDrainFiled = r.filed;
+          if (r.filed > 0) this.pendingNewDrainWork += r.filed;
+          this.stampStage(save, load, "drain", "run");
         } catch (e) {
+          this.stampStage(save, load, "drain", "fail");
           devLog("[atoms] catch-up drain failed", e);
         }
       }
 
-      // Re-decide filing after drain so new-work waiver can apply
-      const afterDrain = decideResumeStages({
-        now: Date.now(),
-        resumeEnabled: readResumeEnabled(load),
-        manual: opts.manual,
-        vaultIndexReady: this.vaultIndexReady,
-        egressNoticeAcked: readEgressNoticeAcked(load),
-        lastResumePassAt: this.lastResumePassAt,
-        lastStageRunAt: {},
-        lastStageFailAt: {},
-        inFlightStartedAt: {},
-        filingBudgetStamps: readFilingBudgetStamps(load, Date.now()),
-        waivedFilingStamps: this.waivedFilingStamps,
-        hasNewDrainedWork: this.lastDrainFiled > 0,
-        waiverUsedThisSignal: this.waiverUsedThisSignal,
-      });
+      const afterDrain = decideResumeStages(
+        this.stageInput(load, { manual: opts.manual, now: Date.now() }),
+      );
 
       if (decision.stages.outbox.run && this.ask) {
         try {
@@ -673,7 +729,10 @@ export default class AtomsPlugin extends Plugin {
           if (o.kind === "worked" || o.kind === "joined") {
             outbox = o.landed;
           }
+          if (o.kind === "failed") this.stampStage(save, load, "outbox", "fail");
+          else this.stampStage(save, load, "outbox", "run");
         } catch (e) {
+          this.stampStage(save, load, "outbox", "fail");
           devLog("[atoms] catch-up outbox failed", e);
         }
       }
@@ -683,8 +742,14 @@ export default class AtomsPlugin extends Plugin {
           const m = await this.syncAskMirror({ force: opts.manual });
           if (m.kind === "worked") {
             mirrored = m.uploaded + m.deleted;
+            this.stampStage(save, load, "mirror", "run");
+          } else if (m.kind === "failed") {
+            this.stampStage(save, load, "mirror", "fail");
+          } else {
+            this.stampStage(save, load, "mirror", "run");
           }
         } catch (e) {
+          this.stampStage(save, load, "mirror", "fail");
           devLog("[atoms] catch-up mirror failed", e);
         }
       }
@@ -699,28 +764,45 @@ export default class AtomsPlugin extends Plugin {
         }
         const auto = await this.maybeAutoRun(
           opts.manual ? "manual" : "resume",
+          {
+            // KTD11: manual catch-up files even when auto-run toggle is off.
+            bypassEnabled: opts.manual,
+            silentHome: opts.silent,
+          },
         );
         if (auto.ran && this.lastWriteReport) {
           filed = this.lastWriteReport.markersAppended;
           if (filed > 0) {
             appendFilingBudgetStamps(load, save, Date.now(), filed);
+            this.pendingNewDrainWork = Math.max(
+              0,
+              this.pendingNewDrainWork - filed,
+            );
           }
+          this.stampStage(save, load, "filing", "run");
+        } else if (auto.reason === "error" || auto.reason === "missing_key") {
+          this.stampStage(save, load, "filing", "fail");
         }
-        // Silence auto-run notices on resume path
-        if (opts.silent && filed > 0) {
-          /* maybeAutoRun may Notice — acceptable for now on manual only */
+      } else if (opts.manual) {
+        const fr = afterDrain.stages.filing;
+        if ("reason" in fr && fr.reason === "egress_notice") {
+          new Notice(
+            "Atoms: acknowledge the catch-up notice on Atoms home before filing can spend API",
+          );
+        } else if ("reason" in fr && fr.reason === "budget") {
+          new Notice("Atoms: filing budget full for this hour — try later");
         }
-      } else if (
-        opts.manual &&
-        afterDrain.stages.filing.reason === "egress_notice"
-      ) {
-        new Notice(
-          "Atoms: acknowledge the catch-up notice on Atoms home before filing can spend API",
-        );
       }
 
-      if (!opts.manual) this.lastResumePassAt = Date.now();
+      // Only burn min-interval when something actually ran cheap stages
+      if (!opts.manual && (drained > 0 || outbox > 0 || mirrored > 0 || filed > 0)) {
+        this.lastResumePassAt = Date.now();
+      } else if (!opts.manual && decision.stages.drain.run) {
+        // Empty successful pass still counts as a resume pass for debounce
+        this.lastResumePassAt = Date.now();
+      }
 
+      const budgetHour = readFilingBudgetStamps(load, Date.now()).length;
       writeLastCatchup(save, {
         at: Date.now(),
         drained,
@@ -728,6 +810,8 @@ export default class AtomsPlugin extends Plugin {
         mirrored,
         outbox,
       });
+      // stash hour count on the line via format overload
+      this._lastCatchupHourFiled = budgetHour;
       await this.refreshAtomsHomeLeaves();
 
       if (opts.manual) {
@@ -750,14 +834,40 @@ export default class AtomsPlugin extends Plugin {
     }
   }
 
+  private _lastCatchupHourFiled = 0;
+
   /** Manual escape hatch (R6). */
   async runSyncEverythingNow(): Promise<void> {
-    await this.runCatchUpPass({ manual: true, silent: false });
+    const r = await this.runCatchUpPass({ manual: true, silent: false });
+    if (!r.ran && r.reason === "in_flight") {
+      /* already noticed */
+    }
   }
 
   getLastCatchupLine(): string | null {
     const load = (k: string) => this.app.loadLocalStorage(k) as unknown;
-    return formatLastCatchupLine(readLastCatchup(load));
+    const now = Date.now();
+    const hour =
+      this._lastCatchupHourFiled ||
+      readFilingBudgetStamps(load, now).length;
+    return formatLastCatchupLine(readLastCatchup(load), now, hour);
+  }
+
+  getBacklogGatePending(): number {
+    const load = (k: string) => this.app.loadLocalStorage(k) as unknown;
+    if (backlogGateCleared(readBacklogGate(load))) return 0;
+    return this.lastInboxPendingCount >= BACKLOG_GATE_THRESHOLD
+      ? this.lastInboxPendingCount
+      : 0;
+  }
+
+  answerBacklogGate(allow: boolean): void {
+    writeBacklogGate(
+      (k, v) => this.app.saveLocalStorage(k, v),
+      allow ? "allow" : "defer",
+    );
+    void this.refreshAtomsHomeLeaves();
+    if (allow) void this.runCatchUpPass({ manual: true, silent: false });
   }
 
   isEgressNoticePending(): boolean {
@@ -787,6 +897,14 @@ export default class AtomsPlugin extends Plugin {
     } catch {
       // If wait fails, still mark ready after a beat so we aren't stuck forever.
       this.vaultIndexReady = true;
+    }
+
+    // Arm resume after cold-start settle so startup focus does not double-run.
+    this.resumeListenersArmed = true;
+    if (this.pendingResumeWhenReady) {
+      this.pendingResumeWhenReady = false;
+      // Defer slightly so onload auto-run wins the first filing slot.
+      window.setTimeout(() => this.scheduleResumeCatchUp(), 2000);
     }
 
     // Primary: once index is ready (app open).
@@ -844,6 +962,7 @@ export default class AtomsPlugin extends Plugin {
    */
   async maybeAutoRun(
     source: "onload" | "interval" | "manual" | "resume",
+    catchUp?: { bypassEnabled?: boolean; silentHome?: boolean },
   ): Promise<{
     ran: boolean;
     reason: string;
@@ -860,20 +979,31 @@ export default class AtomsPlugin extends Plugin {
 
     const pastRemaining = await this.countPastUnprocessed();
 
+    // Catch-up manual: bypass auto-run enable (KTD11). Still need privacy ack
+    // (auto-run egress) OR catch-up egress notice is gated earlier in decideResumeStages.
+    const enabled =
+      catchUp?.bypassEnabled === true ? true : state.enabled;
+    // For catch-up filing, egress notice already gated; treat auto-run ack OR
+    // catch-up notice as sufficient privacy for the paid path.
+    const egressOk =
+      state.egressAcked ||
+      (catchUp != null && readEgressNoticeAcked(load));
+
     if (
       !shouldRunAutoProcess({
-        enabled: state.enabled,
-        lastRunDay: state.lastRunDay,
+        enabled,
+        lastRunDay:
+          catchUp?.bypassEnabled === true ? null : state.lastRunDay,
         today,
-        egressAcked: state.egressAcked,
+        egressAcked: egressOk,
         pastUnprocessedRemaining: pastRemaining,
       })
     ) {
       return {
         ran: false,
-        reason: !state.enabled
+        reason: !enabled
           ? "disabled"
-          : !state.egressAcked
+          : !egressOk
             ? "no_egress_ack"
             : pastRemaining > 0
               ? "blocked"
@@ -903,6 +1033,7 @@ export default class AtomsPlugin extends Plugin {
     }
 
     this.autoRunInFlight = true;
+    this.filingStartedAt = Date.now();
     try {
       const report = await runWritePath({
         app: this.app,
@@ -946,13 +1077,13 @@ export default class AtomsPlugin extends Plugin {
 
       const filed = report.markersAppended;
       if (filed > 0) {
-        // Resume path stays silent (R5); onload/interval/manual stay chatty.
-        if (source !== "resume") {
+        // Resume path stays silent (R5); no land-peak fanfare either.
+        if (source !== "resume" && !catchUp?.silentHome) {
           new Notice(
             `Atoms: filed ${filed} capture${filed === 1 ? "" : "s"} (${report.atomsCreated} atom${report.atomsCreated === 1 ? "" : "s"})`,
           );
         }
-        if (this.hasOpenAtomsHome()) {
+        if (this.hasOpenAtomsHome() && source !== "resume" && !catchUp?.silentHome) {
           const summary = formatRunSummary(summaryFromWrite(report));
           this.finishHomeRun(
             summary,
@@ -982,6 +1113,7 @@ export default class AtomsPlugin extends Plugin {
       return { ran: false, reason: "error" };
     } finally {
       this.autoRunInFlight = false;
+      this.filingStartedAt = null;
     }
   }
 
