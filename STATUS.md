@@ -7,7 +7,6 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| In review | #255 #259 | tai | feat/ask-mcp-mirror-status-whoami | docs/plans/2026-08-04-003-feat-ask-mcp-mirror-status-plan.md | plus-service/src/mcp/tools.mjs, instructions.mjs, askHelpers.mjs | PR #260; mirror_status + absence wording; Fly-only |
 
 ## How to claim (copy)
 
@@ -23,6 +22,7 @@ States: `Queued` · `In progress` · `Blocked` · `In review` · `Done` (then re
 
 | Merged | Issue / PR | Summary |
 |---|---|---|
+| 2026-08-04 | #255 #259 / #260 | Ask MCP `mirror_status` + absence wording · Fly live (no plugin bump) |
 | 2026-08-04 | #251 / #252 | Ask MCP pairing code + OAuth identity chooser · **0.6.66** (released; Fly already live) |
 | 2026-08-04 | #246 / #247 | Ask coordinator peel + wire the inert confirm-withdrawal hook · **0.6.65** (released) |
 | 2026-08-04 | #248 / #249 | Mirror completeness floor counts surviving evidence, not raw scan · **0.6.64** |
