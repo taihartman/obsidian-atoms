@@ -20,9 +20,14 @@
  */
 
 import { config } from "./config.mjs";
-import { applyCheckoutCompleted, stripeGet } from "./stripe.mjs";
+import {
+  applyCheckoutCompleted,
+  classifyCheckoutGrant,
+  stripeGet,
+} from "./stripe.mjs";
+import { INCIDENT_KIND } from "./store/shared.mjs";
 
-const DAY_MS = 86400000;
+export const DAY_MS = 86400000;
 /** Stripe's events API retains 30 days — a wider window returns nothing. */
 export const MAX_WINDOW_DAYS = 30;
 export const DEFAULT_WINDOW_DAYS = 7;
@@ -32,9 +37,6 @@ const PAGE_SIZE = 100;
 
 /** Statuses we owe entitlement for — "paid" in the product sense, not "money moved". */
 const GRANTABLE_PAYMENT_STATUS = new Set(["paid", "no_payment_required"]);
-
-/** Class-C incident kind — pairs with U2's `webhook_reject` (class A). */
-export const MISSING_WEBHOOK = "missing_webhook";
 
 /**
  * @param {{
@@ -129,7 +131,7 @@ async function sweepEvent({ store, event, report, repair, force, now }) {
 
   // KTD3 — every incident is recorded, sweep findings included.
   try {
-    await store.recordStripeIncident(MISSING_WEBHOOK, {
+    await store.recordStripeIncident(INCIDENT_KIND.MISSING_WEBHOOK, {
       stripeId: sessionId,
       email,
       detail: "Stripe delivered checkout.session.completed; we never processed it",
@@ -196,12 +198,14 @@ function eventCreatedMs(event, session) {
  * does not invalidate them — `null` means no age limit.
  */
 function grantWindowDays(session) {
-  const kind = String(session.metadata?.kind || "");
-  const plan = String(session.metadata?.plan || "");
-  if (kind === "topup_50" || plan === "topup" || session.mode === "payment") {
-    return null;
+  switch (classifyCheckoutGrant(session, { planTopup: true })) {
+    case "topup":
+      return null;
+    case "trial":
+      return config.trialDays;
+    case "yearly":
+      return 365;
+    default:
+      return 30;
   }
-  if (kind === "start_trial" || plan === "trial") return config.trialDays;
-  if (kind === "subscribe_yearly" || plan === "yearly") return 365;
-  return 30;
 }

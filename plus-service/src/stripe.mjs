@@ -5,7 +5,7 @@
 
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { config } from "./config.mjs";
-import { resolveCheckoutGrantEmail } from "./store/shared.mjs";
+import { INCIDENT_KIND, resolveCheckoutGrantEmail } from "./store/shared.mjs";
 
 /** @typedef {'start_trial'|'subscribe_monthly'|'subscribe_yearly'|'topup_50'} CheckoutKind */
 
@@ -41,6 +41,44 @@ export function resolveCheckoutKind(kind) {
   }
 }
 
+/**
+ * The grant a completed checkout session buys. One taxonomy, two readers: the
+ * webhook (`applyCheckoutCompleted`) and the #238 sweep's age gate
+ * (`grantWindowDays` in `reconcile.mjs`) — add a plan tier here and both move.
+ *
+ * The two see different evidence, so the extra top-up signals stay explicit
+ * options rather than silently unioned:
+ * - `fromPrice` — only the webhook expands `line_items`, so only it can map a
+ *   price id back to a grant.
+ * - `planTopup` — only the sweep has ever read `metadata.plan === "topup"`.
+ *
+ * @param {object} session Stripe checkout session
+ * @param {{ fromPrice?: 'monthly'|'yearly'|'topup'|null, planTopup?: boolean }} [opts]
+ * @returns {'topup'|'trial'|'yearly'|'monthly'}
+ */
+export function classifyCheckoutGrant(session, opts = {}) {
+  const kind = String(session?.metadata?.kind || "");
+  const plan = String(session?.metadata?.plan || "");
+  const fromPrice = opts.fromPrice ?? null;
+  if (
+    kind === "topup_50" ||
+    fromPrice === "topup" ||
+    (opts.planTopup === true && plan === "topup") ||
+    session?.mode === "payment"
+  ) {
+    return "topup";
+  }
+  if (kind === "start_trial" || plan === "trial") return "trial";
+  if (
+    kind === "subscribe_yearly" ||
+    plan === "yearly" ||
+    fromPrice === "yearly"
+  ) {
+    return "yearly";
+  }
+  return "monthly";
+}
+
 export function stripeConfigured() {
   return Boolean(
     config.stripeSecretKey &&
@@ -51,15 +89,29 @@ export function stripeConfigured() {
 }
 
 /**
+ * Stripe params → `URLSearchParams`, dropping the keys we never send.
+ * `skipNull` is explicit rather than shared: the POST path has always passed a
+ * literal `null` straight through to Stripe, and only the GET path (whose
+ * `starting_after` is absent on the first page) drops it.
+ * @param {Record<string, string | number | undefined | null>} params
+ * @param {{ skipNull?: boolean }} [opts]
+ */
+function buildStripeParams(params, opts = {}) {
+  const out = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v === undefined || v === "") continue;
+    if (opts.skipNull && v === null) continue;
+    out.set(k, String(v));
+  }
+  return out;
+}
+
+/**
  * @param {string} path
  * @param {Record<string, string | number | undefined>} params
  */
 async function stripeForm(path, params) {
-  const body = new URLSearchParams();
-  for (const [k, v] of Object.entries(params)) {
-    if (v === undefined || v === "") continue;
-    body.set(k, String(v));
-  }
+  const body = buildStripeParams(params);
   const res = await fetch(`https://api.stripe.com/v1${path}`, {
     method: "POST",
     headers: {
@@ -81,12 +133,7 @@ async function stripeForm(path, params) {
  * @param {{ fetchImpl?: typeof fetch }} [opts]
  */
 export async function stripeGet(path, params = {}, opts = {}) {
-  const qs = new URLSearchParams();
-  for (const [k, v] of Object.entries(params)) {
-    if (v === undefined || v === null || v === "") continue;
-    qs.set(k, String(v));
-  }
-  const query = qs.toString();
+  const query = buildStripeParams(params, { skipNull: true }).toString();
   const doFetch = opts.fetchImpl || fetch;
   const res = await doFetch(
     `https://api.stripe.com/v1${path}${query ? `?${query}` : ""}`,
@@ -322,7 +369,7 @@ export async function applyCheckoutCompleted(store, event) {
   const resolved = resolveCheckoutGrantEmail(obj);
   if (resolved.missing) {
     await claimOrDuplicate(store, event.id);
-    const incident = await recordIncident(store, "missing_email", {
+    const incident = await recordIncident(store, INCIDENT_KIND.MISSING_EMAIL, {
       stripeId: String(obj.id || ""),
       detail: "checkout session carried no usable email",
     });
@@ -334,7 +381,7 @@ export async function applyCheckoutCompleted(store, event) {
       "[plus] checkout email mismatch — no grant",
       resolved.email,
     );
-    const incident = await recordIncident(store, "email_mismatch", {
+    const incident = await recordIncident(store, INCIDENT_KIND.EMAIL_MISMATCH, {
       stripeId: String(obj.id || ""),
       email: resolved.email,
       detail: "customer email disagrees with plugin metadata",
@@ -347,7 +394,6 @@ export async function applyCheckoutCompleted(store, event) {
     };
   }
   const email = resolved.email;
-  const kind = String(obj.metadata?.kind || "");
 
   // Prefer paid/complete; unpaid async methods should not grant yet — do NOT claim
   const payStatus = String(obj.payment_status || "paid");
@@ -362,14 +408,16 @@ export async function applyCheckoutCompleted(store, event) {
     "";
   if (linePrice && allowedPriceIds().size && !allowedPriceIds().has(linePrice)) {
     await claimOrDuplicate(store, event.id);
-    const incident = await recordIncident(store, "unknown_price", {
+    const incident = await recordIncident(store, INCIDENT_KIND.UNKNOWN_PRICE, {
       stripeId: String(obj.id || ""),
       email,
       detail: `price ${linePrice} is not in the allowlist`,
     });
     return { handled: true, action: "unknown_price", email, incident };
   }
-  const fromPrice = grantFromPriceId(linePrice);
+  const grant = classifyCheckoutGrant(obj, {
+    fromPrice: grantFromPriceId(linePrice),
+  });
 
   // Claim before grant — crash after claim + before grant is preferred to double-mint
   const claim = await claimOrDuplicate(store, event.id);
@@ -377,26 +425,17 @@ export async function applyCheckoutCompleted(store, event) {
     return { handled: true, action: "duplicate" };
   }
 
-  if (
-    kind === "topup_50" ||
-    fromPrice === "topup" ||
-    obj.mode === "payment"
-  ) {
+  if (grant === "topup") {
     await store.addTopUp(email, config.topUpFilings);
     if (obj.customer) await store.setStripeCustomer(email, String(obj.customer));
     return { handled: true, action: "topup", email };
   }
 
-  const planMeta = String(obj.metadata?.plan || "");
-  const isTrial = kind === "start_trial" || planMeta === "trial";
-  const isYearly =
-    kind === "subscribe_yearly" ||
-    planMeta === "yearly" ||
-    fromPrice === "yearly";
+  const isTrial = grant === "trial";
   await store.grantPeriod(email, {
     status: isTrial ? "trialing" : "active",
-    plan: isTrial ? "trial" : isYearly ? "yearly" : "monthly",
-    days: isTrial ? config.trialDays : isYearly ? 365 : 30,
+    plan: grant,
+    days: isTrial ? config.trialDays : grant === "yearly" ? 365 : 30,
     remaining: config.includedFilings,
   });
   // grantPeriod just revoked every unverified session for this email. Undo it
@@ -441,10 +480,14 @@ export async function applyStripeEvent(store, event) {
       await claimOrDuplicate(store, event.id);
       // Own kind: a renewal that granted nothing throttles apart from a
       // checkout that granted nothing, and the two read differently on call.
-      const incident = await recordIncident(store, "invoice_missing_email", {
-        stripeId: String(obj.id || ""),
-        detail: "paid renewal invoice carried no resolvable email",
-      });
+      const incident = await recordIncident(
+        store,
+        INCIDENT_KIND.INVOICE_MISSING_EMAIL,
+        {
+          stripeId: String(obj.id || ""),
+          detail: "paid renewal invoice carried no resolvable email",
+        },
+      );
       return { handled: false, action: "missing_email", incident };
     }
     const claim = await claimOrDuplicate(store, event.id);

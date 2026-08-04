@@ -541,31 +541,28 @@ export function createSqliteStore(dbPath = config.databasePath) {
     recordStripeIncident(kind, opts = {}) {
       const n = normalizeStripeIncident(kind, opts);
       const at = new Date(n.now).toISOString();
-      db.prepare(
-        `INSERT INTO stripe_incidents
-           (id, kind, day_bucket, stripe_id, email, detail, occurrences, first_seen_at, last_seen_at)
-         VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)
-         ON CONFLICT(kind, day_bucket, stripe_id) DO UPDATE SET
-           occurrences = occurrences + 1,
-           last_seen_at = excluded.last_seen_at,
-           email = COALESCE(excluded.email, email),
-           detail = COALESCE(excluded.detail, detail)`,
-      ).run(
-        id("inc"),
-        n.kind,
-        n.dayBucket,
-        n.stripeId,
-        n.email,
-        n.detail,
-        at,
-        at,
-      );
       const row = db
         .prepare(
-          `SELECT * FROM stripe_incidents
-            WHERE kind = ? AND day_bucket = ? AND stripe_id = ?`,
+          `INSERT INTO stripe_incidents
+             (id, kind, day_bucket, stripe_id, email, detail, occurrences, first_seen_at, last_seen_at)
+           VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)
+           ON CONFLICT(kind, day_bucket, stripe_id) DO UPDATE SET
+             occurrences = occurrences + 1,
+             last_seen_at = excluded.last_seen_at,
+             email = COALESCE(excluded.email, email),
+             detail = COALESCE(excluded.detail, detail)
+           RETURNING *`,
         )
-        .get(n.kind, n.dayBucket, n.stripeId);
+        .get(
+          id("inc"),
+          n.kind,
+          n.dayBucket,
+          n.stripeId,
+          n.email,
+          n.detail,
+          at,
+          at,
+        );
       return rowToIncident(row);
     },
     /** Newest alert epoch ms for this kind at or after `sinceMs`, else null. */
@@ -580,13 +577,11 @@ export function createSqliteStore(dbPath = config.databasePath) {
     },
     markStripeIncidentAlerted(incidentId, opts = {}) {
       const now = Number.isFinite(opts.now) ? opts.now : Date.now();
-      db.prepare("UPDATE stripe_incidents SET alerted_at = ? WHERE id = ?").run(
-        new Date(now).toISOString(),
-        incidentId,
-      );
       const row = db
-        .prepare("SELECT * FROM stripe_incidents WHERE id = ?")
-        .get(incidentId);
+        .prepare(
+          "UPDATE stripe_incidents SET alerted_at = ? WHERE id = ? RETURNING *",
+        )
+        .get(new Date(now).toISOString(), incidentId);
       return rowToIncident(row);
     },
     listStripeIncidents({ since, kind, limit } = {}) {

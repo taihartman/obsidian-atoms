@@ -25,6 +25,7 @@ import {
   isProduction,
 } from "./prodGate.mjs";
 import { sendMagicLinkEmail } from "./email.mjs";
+import { INCIDENT_KIND } from "./store/shared.mjs";
 import { alertStripeIncident } from "./alert.mjs";
 import { checkRateLimit, clientIp } from "./ratelimit.mjs";
 import { handleMirrorRoutes } from "./mirror/http.mjs";
@@ -283,10 +284,13 @@ ${
         // on. The empty id collapses the flood to one row per kind per day —
         // this route has no rate limit (KTD2).
         try {
-          incident = await store.recordStripeIncident("webhook_reject", {
-            stripeId: "",
-            detail: msg,
-          });
+          incident = await store.recordStripeIncident(
+            INCIDENT_KIND.WEBHOOK_REJECT,
+            {
+              stripeId: "",
+              detail: msg,
+            },
+          );
         } catch (recErr) {
           console.error(
             "[plus] incident record failed webhook_reject",

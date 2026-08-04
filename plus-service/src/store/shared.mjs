@@ -35,6 +35,27 @@ export function toMs(v, fallback = 0) {
 export const INCIDENT_DETAIL_MAX = 300;
 
 /**
+ * Every `stripe_incidents` kind, in one place. The kind is the alert throttle
+ * key *and* part of the unique key `(kind, day_bucket, stripe_id)`, so a typo
+ * at a call site does not error — it silently opens a fresh undeduped bucket.
+ * These strings are persisted; never change a value, only add a key.
+ */
+export const INCIDENT_KIND = Object.freeze({
+  /** Class A — signature never verified, so there is no Stripe id to key on. */
+  WEBHOOK_REJECT: "webhook_reject",
+  /** Class B — checkout session carried no usable email. */
+  MISSING_EMAIL: "missing_email",
+  /** Class B — free-form customer email disagrees with plugin metadata. */
+  EMAIL_MISMATCH: "email_mismatch",
+  /** Class B — line item price is not in the allowlist. */
+  UNKNOWN_PRICE: "unknown_price",
+  /** Class B — paid renewal invoice with no resolvable email (throttles apart). */
+  INVOICE_MISSING_EMAIL: "invoice_missing_email",
+  /** Class C — Stripe delivered the event; we never processed it (#238 sweep). */
+  MISSING_WEBHOOK: "missing_webhook",
+});
+
+/**
  * Normalize a `recordStripeIncident` call into its stored shape.
  * KTD2: the UTC `dayBucket` is derived at write time and is part of the unique
  * key, so a class-A flood (no parseable Stripe id → empty string) collapses to

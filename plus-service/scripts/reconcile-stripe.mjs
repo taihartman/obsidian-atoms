@@ -17,11 +17,10 @@ import "../src/loadEnv.mjs";
 import { createStore } from "../src/store.mjs";
 import {
   reconcileStripe,
+  DAY_MS,
   MAX_WINDOW_DAYS,
   DEFAULT_WINDOW_DAYS,
 } from "../src/reconcile.mjs";
-
-const DAY_MS = 86400000;
 
 function parseArgs(argv) {
   const out = { days: DEFAULT_WINDOW_DAYS, repair: false, force: false, json: false };
