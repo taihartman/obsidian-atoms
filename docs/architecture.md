@@ -102,9 +102,13 @@ processInbox(dryRun)
   "title": "Declarative claim",      // required iff atom (post-parse invariant)
   "tags": ["from Active vocabulary only"],
   "proposed_tags": ["never auto-applied"],
-  "links": [{ "note": "Title", "reason": "revises [[…]] | contradicts | relates…" }]
+  "links": [{ "note": "Title", "reason": "revises [[…]] | contradicts | relates…" }],
+  "people": [{ "name": "As written", "role": "subject" | "mentioned" | "recommender" }],
+  "hub_section": ""                  // optional; exact ## on a linked person hub
 }
 ```
+
+**Dual-surface parity:** plugin `src/pipeline/classify.ts` and plus-service `classifyTemplate.mjs` must stay aligned. CI: `test/classificationContract.test.ts` (import Plus template; locked phrases + schema keys). Not generate-one-source yet.
 
 **Three trust layers (KTD4):**
 

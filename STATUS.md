@@ -7,6 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
+| In progress | #243 | taihartman | `refactor/classify-parity-u5` | `docs/plans/2026-08-04-001-refactor-orchestration-peel-and-classify-contract-plan.md` U5 | `src/pipeline/classify.ts`, `plus-service/src/classifyTemplate.mjs`, `test/classificationContract.test.ts`, version | POV-2 first unit: dual-surface parity freeze |
 
 ## How to claim (copy)
 
