@@ -21,7 +21,8 @@ import {
 } from "./inboxBootstrap";
 import { clampAtomFolder } from "../pipeline/render";
 import { registerAtomsCommands } from "./commands";
-import type { AskOutboxOutcome, MirrorSyncOutcome } from "./catchUp";
+import type { AskOutboxOutcome } from "./catchUp";
+import type { MirrorSyncOutcome } from "../shared/mirrorOutcome";
 import { AskCoordinator, fireAndForgetAsk } from "./askCoordinator";
 import { runOpenAtomGraph } from "../graph/openAtomGraph";
 

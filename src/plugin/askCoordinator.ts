@@ -24,9 +24,9 @@ import {
   type AskOutboxHost,
   type AskOutboxOutcome,
   type MirrorSingleFlightState,
-  type MirrorSyncOutcome,
   type OutboxVaultPort,
 } from "./catchUp";
+import type { MirrorSyncOutcome } from "../shared/mirrorOutcome";
 
 /** Process/Update must never fail because mirror/outbox failed. */
 export function fireAndForgetAsk(task: Promise<unknown>): void {

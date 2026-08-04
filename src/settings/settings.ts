@@ -59,20 +59,17 @@ import {
   plusFetchRequest,
 } from "../platform/plusClient";
 import {
+  clearAskMirrorDeviceState,
   formatAskMirrorRefusalLine,
   mirrorRefusalTitle,
   mirrorRefusalBody,
   formatAskMirrorServerCount,
   readAskMirrorRefusal,
-  LS_ASK_MIRROR_HASHES,
   LS_ASK_MIRROR_LAST_ERROR,
   LS_ASK_MIRROR_LAST_SUCCESS,
-  LS_ASK_MIRROR_REFUSAL,
-  LS_ASK_MIRROR_SCAN_HIGHWATER,
   LS_ASK_MIRROR_SERVER_COUNT,
-  writeAskMirrorHashes,
 } from "../platform/askMirror";
-import { syncNowNotice } from "../plugin/catchUp";
+import { syncNowNotice } from "../shared/mirrorOutcome";
 import type { ConfirmRequest, ConfirmVerdict } from "../shared/confirm";
 import { requestUrl } from "obsidian";
 import {
@@ -1296,22 +1293,12 @@ export class AtomsSettingTab extends PluginSettingTab {
                         new Notice(`Ask: ${r.message}`);
                         return;
                       }
-                      writeAskMirrorHashes(
-                        (k, v) => this.app.saveLocalStorage(k, v),
-                        {},
-                      );
-                      this.app.saveLocalStorage(LS_ASK_MIRROR_LAST_ERROR, "");
-                      this.app.saveLocalStorage(LS_ASK_MIRROR_LAST_SUCCESS, "");
-                      // Clear it, do not write "0". A stored zero used to read
-                      // as an authoritative "the cloud is empty", which
-                      // collapsed both arms of the deletion gate on the next
-                      // forced sync. Empty means unknown, which refuses.
-                      this.app.saveLocalStorage(LS_ASK_MIRROR_SERVER_COUNT, "");
-                      this.app.saveLocalStorage(LS_ASK_MIRROR_HASHES, "{}");
-                      this.app.saveLocalStorage(LS_ASK_MIRROR_REFUSAL, "");
-                      this.app.saveLocalStorage(
-                        LS_ASK_MIRROR_SCAN_HIGHWATER,
-                        "",
+                      // One owner for the reset. Re-listing the keys here is
+                      // how the wipe and the gate's readers drift — and a wipe
+                      // that leaves a *parseable* count behind hands the gate a
+                      // fabricated authority for the cloud it just emptied.
+                      clearAskMirrorDeviceState((k, v) =>
+                        this.app.saveLocalStorage(k, v),
                       );
                       await this.plugin.saveSettings();
                       new Notice("Ask mirror wiped");

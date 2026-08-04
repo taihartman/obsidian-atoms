@@ -1,17 +1,19 @@
 import { describe, expect, it } from "vitest";
 import {
   applyOutboxItemToVault,
-  describeMirrorRefusal,
   runAskOutboxApply,
   runMirrorSingleFlight,
-  syncNowNotice,
   type AskOutboxHost,
   type AskOutboxItem,
   type MirrorSingleFlightHost,
   type MirrorSingleFlightState,
-  type MirrorSyncOutcome,
   type OutboxApplyResult,
 } from "../src/plugin/catchUp";
+import {
+  describeMirrorRefusal,
+  syncNowNotice,
+  type MirrorSyncOutcome,
+} from "../src/shared/mirrorOutcome";
 import type { MirrorDeletionRefusal } from "../src/shared/confirm";
 
 type AckRecord = { id: string; status: string; error?: string };
