@@ -3,6 +3,7 @@
  */
 import { hashToken, id } from "./shared.mjs";
 import {
+  aggregateMirrorTags,
   buildNeighborsGraph,
   buildSearchHits,
   normEmail,
@@ -515,6 +516,17 @@ export function createAskSqliteMethods(db, deps) {
     return { count: c?.n ?? 0, updatedAt: u?.u ?? null };
   }
 
+  function mirrorListTags(email) {
+    const e = normEmail(email);
+    const rows = db
+      .prepare(`SELECT tags_json FROM atom_mirror WHERE email = ?`)
+      .all(e);
+    const tags = aggregateMirrorTags(
+      rows.map((r) => rowToPublicAtom(r, { includeBody: false }).tags),
+    );
+    return { tags, mirror_count: rows.length };
+  }
+
   function mcpCreatePending(fields) {
     const pendingId = id("pend");
     db.prepare(
@@ -758,6 +770,7 @@ export function createAskSqliteMethods(db, deps) {
     mirrorNeighbors,
     mirrorWipe,
     mirrorStatus,
+    mirrorListTags,
     mirrorDelete,
     mirrorReconcileKeep,
     outboxEnqueue,

@@ -12,6 +12,7 @@ import {
   publicAccount,
 } from "./shared.mjs";
 import {
+  aggregateMirrorTags,
   buildNeighborsGraph,
   buildSearchHits,
   normEmail,
@@ -680,6 +681,16 @@ export function createMemoryStore() {
     return { count: bucket ? bucket.size : 0, updatedAt };
   }
 
+  function mirrorListTags(email) {
+    const e = normEmail(email);
+    const bucket = atomMirror.get(e);
+    const rows = bucket ? [...bucket.values()] : [];
+    const tags = aggregateMirrorTags(
+      rows.map((r) => rowToPublicAtom(r, { includeBody: false }).tags),
+    );
+    return { tags, mirror_count: rows.length };
+  }
+
   function mcpCreatePending(fields) {
     const pendingId = id("pend");
     mcpPending.set(pendingId, {
@@ -902,6 +913,7 @@ export function createMemoryStore() {
     mirrorNeighbors,
     mirrorWipe,
     mirrorStatus,
+    mirrorListTags,
     mirrorDelete,
     mirrorReconcileKeep,
     outboxEnqueue,
