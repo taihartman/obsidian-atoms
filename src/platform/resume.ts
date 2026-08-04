@@ -23,6 +23,10 @@ export const WAIVED_FILING_PASS_CAP = 4;
 export const BACKLOG_GATE_THRESHOLD = 50;
 /** Consecutive mirror refusals before one Notice. */
 export const REFUSAL_STREAK_NOTICE = 3;
+/** Quarantine: failures before a capture is skipped. */
+export const QUARANTINE_FAIL_THRESHOLD = 3;
+/** Quarantine entry TTL (days). */
+export const QUARANTINE_EXPIRY_DAYS = 14;
 
 export const LS_RESUME_ENABLED = "atoms-resume-enabled-v1";
 export const LS_FILING_BUDGET = "atoms-filing-budget-v1";
@@ -30,12 +34,10 @@ export const LS_EGRESS_NOTICE = "atoms-egress-notice-v1";
 export const LS_LAST_CATCHUP = "atoms-last-catchup-v1";
 export const LS_BACKLOG_GATE = "atoms-backlog-gate-v1";
 export const LS_QUARANTINE = "atoms-quarantine-v1";
+/** Device-local stage timing (not synced). */
+export const LS_STAGE_TIMING = "atoms-resume-stage-timing-v1";
 
-export type ResumeStage =
-  | "drain"
-  | "outbox"
-  | "mirror"
-  | "filing";
+export type ResumeStage = "drain" | "outbox" | "mirror" | "filing";
 
 export type StageDecision =
   | { run: true; waivedCooldown?: boolean }
@@ -50,47 +52,39 @@ export type StageDecision =
         | "kill_switch"
         | "vault_not_ready"
         | "egress_notice"
-        | "manual_only";
+        | "backlog_gate";
     };
 
 export type ResumeDecisionInput = {
-  /** Monotonic-ish now (ms). */
   now: number;
-  /** Kill switch: false blocks automated resume (not manual). */
   resumeEnabled: boolean;
-  /** Caller is the manual "Sync everything now" path. */
+  /** Manual "Sync everything now" — bypasses kill switch, min interval, filing cooldown. */
   manual: boolean;
   vaultIndexReady: boolean;
-  /** Device acknowledged widened egress notice. */
   egressNoticeAcked: boolean;
   lastResumePassAt: number | null;
   lastStageRunAt: Partial<Record<ResumeStage, number | null>>;
   lastStageFailAt: Partial<Record<ResumeStage, number | null>>;
-  /** In-flight stage start times; null if idle. */
+  /** Real start times of in-flight work; null/omit if idle. */
   inFlightStartedAt: Partial<Record<ResumeStage, number | null>>;
-  /** Capture timestamps in the rolling filing budget (ms). */
   filingBudgetStamps: number[];
-  /** Waived filing pass timestamps in the rolling hour. */
   waivedFilingStamps: number[];
-  /** Drain produced work not seen by the previous filing pass. */
+  /** Drain produced work not yet consumed by a filing pass. */
   hasNewDrainedWork: boolean;
-  /** Waivers already granted for this resume signal. */
   waiverUsedThisSignal: boolean;
+  /** Inbox-stranded capture count for U13. */
+  backlogStrandedCount?: number;
+  /** User answered backlog banner (allow or defer). */
+  backlogGateCleared?: boolean;
 };
 
 export type ResumeDecision = {
   stages: Record<ResumeStage, StageDecision>;
-  /** Grant a filing-cooldown waiver for this pass (caller records stamp). */
   grantWaiver: boolean;
 };
 
 function clampStamps(stamps: number[], now: number): number[] {
   return stamps.map((t) => (t > now ? now : t));
-}
-
-function newestStamp(stamps: number[], now: number): number {
-  if (!stamps.length) return now;
-  return Math.max(...clampStamps(stamps, now));
 }
 
 /** Retire budget entries by forward progress from newest stamp (KTD4). */
@@ -113,7 +107,7 @@ function cooldownRemaining(
 ): number {
   if (lastAt == null) return 0;
   const elapsed = now - lastAt;
-  if (elapsed < 0) return cooldownMs; // clock went backwards → treat as no progress
+  if (elapsed < 0) return cooldownMs;
   return Math.max(0, cooldownMs - elapsed);
 }
 
@@ -161,25 +155,25 @@ export function decideResumeStages(input: ResumeDecisionInput): ResumeDecision {
     return { stages, grantWaiver: false };
   }
 
-  // Cheap stages: drain, outbox, mirror — short cooldowns via min interval only
   for (const s of ["drain", "outbox", "mirror"] as const) {
     const started = input.inFlightStartedAt[s];
     if (started != null && !isDeadInFlight(started, input.now, LIVENESS_MS)) {
       stages[s] = { run: false, reason: "in_flight" };
       continue;
     }
-    const failAt = input.lastStageFailAt[s];
-    if (
-      failAt != null &&
-      cooldownRemaining(failAt, input.now, RESUME_MIN_INTERVAL_MS) > 0
-    ) {
-      stages[s] = { run: false, reason: "failure_backoff" };
-      continue;
+    if (!input.manual) {
+      const failAt = input.lastStageFailAt[s];
+      if (
+        failAt != null &&
+        cooldownRemaining(failAt, input.now, RESUME_MIN_INTERVAL_MS) > 0
+      ) {
+        stages[s] = { run: false, reason: "failure_backoff" };
+        continue;
+      }
     }
     stages[s] = { run: true };
   }
 
-  // Filing (paid)
   const fStarted = input.inFlightStartedAt.filing;
   if (
     fStarted != null &&
@@ -194,18 +188,36 @@ export function decideResumeStages(input: ResumeDecisionInput): ResumeDecision {
     return { stages, grantWaiver: false };
   }
 
+  const backlog = input.backlogStrandedCount ?? 0;
+  if (
+    !input.manual &&
+    backlog >= BACKLOG_GATE_THRESHOLD &&
+    !input.backlogGateCleared
+  ) {
+    stages.filing = { run: false, reason: "backlog_gate" };
+    return { stages, grantWaiver: false };
+  }
+
   const budget = pruneBudgetWindow(input.filingBudgetStamps, input.now);
   if (budget.length >= FILING_BUDGET_CAP) {
     stages.filing = { run: false, reason: "budget" };
     return { stages, grantWaiver: false };
   }
 
-  const failAt = input.lastStageFailAt.filing;
-  if (
-    failAt != null &&
-    cooldownRemaining(failAt, input.now, FILING_COOLDOWN_MS) > 0
-  ) {
-    stages.filing = { run: false, reason: "failure_backoff" };
+  if (!input.manual) {
+    const failAt = input.lastStageFailAt.filing;
+    if (
+      failAt != null &&
+      cooldownRemaining(failAt, input.now, FILING_COOLDOWN_MS) > 0
+    ) {
+      stages.filing = { run: false, reason: "failure_backoff" };
+      return { stages, grantWaiver: false };
+    }
+  }
+
+  // Manual ignores filing cooldown (R6).
+  if (input.manual) {
+    stages.filing = { run: true };
     return { stages, grantWaiver: false };
   }
 
@@ -239,7 +251,6 @@ export function decideResumeStages(input: ResumeDecisionInput): ResumeDecision {
 
 export function readResumeEnabled(load: (key: string) => unknown): boolean {
   const v = load(LS_RESUME_ENABLED);
-  // Default on when unset
   if (v === false || v === "false") return false;
   return true;
 }
@@ -317,20 +328,133 @@ export function appendFilingBudgetStamps(
   save(LS_FILING_BUDGET, next);
 }
 
-/** Format passive "last caught up" line for home / settings. */
+export type StageTimingState = {
+  lastRun: Partial<Record<ResumeStage, number>>;
+  lastFail: Partial<Record<ResumeStage, number>>;
+};
+
+export function readStageTiming(load: (key: string) => unknown): StageTimingState {
+  const raw = load(LS_STAGE_TIMING);
+  if (!raw || typeof raw !== "object") return { lastRun: {}, lastFail: {} };
+  const o = raw as { lastRun?: unknown; lastFail?: unknown };
+  const pick = (v: unknown): Partial<Record<ResumeStage, number>> => {
+    if (!v || typeof v !== "object") return {};
+    const out: Partial<Record<ResumeStage, number>> = {};
+    for (const k of ["drain", "outbox", "mirror", "filing"] as ResumeStage[]) {
+      const n = (v as Record<string, unknown>)[k];
+      if (typeof n === "number") out[k] = n;
+    }
+    return out;
+  };
+  return { lastRun: pick(o.lastRun), lastFail: pick(o.lastFail) };
+}
+
+export function writeStageTiming(
+  save: (key: string, data: unknown) => void,
+  state: StageTimingState,
+): void {
+  save(LS_STAGE_TIMING, state);
+}
+
+/** Backlog gate: unanswered | allow | defer */
+export type BacklogGateState = "unanswered" | "allow" | "defer";
+
+export function readBacklogGate(load: (key: string) => unknown): BacklogGateState {
+  const v = load(LS_BACKLOG_GATE);
+  if (v === "allow" || v === "defer") return v;
+  return "unanswered";
+}
+
+export function writeBacklogGate(
+  save: (key: string, data: unknown) => void,
+  state: BacklogGateState,
+): void {
+  save(LS_BACKLOG_GATE, state);
+}
+
+export function backlogGateCleared(state: BacklogGateState): boolean {
+  return state === "allow" || state === "defer";
+}
+
+/** U10 quarantine store */
+export type QuarantineEntry = {
+  fails: number;
+  firstAt: number;
+  lastAt: number;
+};
+
+export type QuarantineMap = Record<string, QuarantineEntry>;
+
+export function readQuarantine(
+  load: (key: string) => unknown,
+  now: number = Date.now(),
+): QuarantineMap {
+  const raw = load(LS_QUARANTINE);
+  if (!raw || typeof raw !== "object") return {};
+  const expMs = QUARANTINE_EXPIRY_DAYS * 24 * 60 * 60 * 1000;
+  const out: QuarantineMap = {};
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (!v || typeof v !== "object") continue;
+    const e = v as QuarantineEntry;
+    if (typeof e.fails !== "number" || typeof e.lastAt !== "number") continue;
+    if (now - e.lastAt > expMs) continue;
+    out[k] = e;
+  }
+  return out;
+}
+
+export function writeQuarantine(
+  save: (key: string, data: unknown) => void,
+  map: QuarantineMap,
+): void {
+  save(LS_QUARANTINE, map);
+}
+
+export function isQuarantined(
+  map: QuarantineMap,
+  id: string,
+  threshold: number = QUARANTINE_FAIL_THRESHOLD,
+): boolean {
+  return (map[id]?.fails ?? 0) >= threshold;
+}
+
+export function recordQuarantineFail(
+  map: QuarantineMap,
+  id: string,
+  now: number = Date.now(),
+): QuarantineMap {
+  const prev = map[id];
+  return {
+    ...map,
+    [id]: {
+      fails: (prev?.fails ?? 0) + 1,
+      firstAt: prev?.firstAt ?? now,
+      lastAt: now,
+    },
+  };
+}
+
 export function formatLastCatchupLine(
   rec: LastCatchupRecord | null,
   now: number = Date.now(),
+  filingInLastHour?: number,
 ): string | null {
   if (!rec) return null;
   const mins = Math.max(0, Math.round((now - rec.at) / 60_000));
   const when =
-    mins < 1 ? "just now" : mins < 60 ? `${mins}m ago` : `${Math.round(mins / 60)}h ago`;
+    mins < 1
+      ? "just now"
+      : mins < 60
+        ? `${mins}m ago`
+        : `${Math.round(mins / 60)}h ago`;
   const parts: string[] = [];
   if (rec.filed) parts.push(`filed ${rec.filed}`);
   if (rec.drained) parts.push(`drained ${rec.drained}`);
   if (rec.outbox) parts.push(`outbox ${rec.outbox}`);
   if (rec.mirrored) parts.push(`mirrored ${rec.mirrored}`);
+  if (filingInLastHour != null && filingInLastHour > 0) {
+    parts.push(`${filingInLastHour} in the last hour`);
+  }
   const detail = parts.length ? parts.join(" · ") : "caught up";
   return `Last catch-up ${when}: ${detail}`;
 }

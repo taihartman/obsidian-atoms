@@ -847,18 +847,51 @@ export class AtomsHomeView extends ItemView {
     });
   }
 
+  private renderBacklogGate(scroll: HTMLElement): void {
+    const n = this.plugin.getBacklogGatePending?.() ?? 0;
+    if (n <= 0) return;
+    const card = statusCard(scroll, {
+      tone: "wait",
+      className: "atoms-home-backlog-gate",
+    });
+    card.createEl("h2", { text: `${n} captures waiting in the inbox` });
+    card.createEl("p", {
+      text: "Automatic catch-up will not file this many at once without your OK. File them now, or defer until you Process manually.",
+    });
+    const actions = actionRow(card, { className: "atoms-home-backlog-actions" });
+    button(actions, {
+      grade: "primary",
+      label: "File them now",
+      onClick: () => {
+        this.plugin.answerBacklogGate(true);
+        this.render();
+      },
+    });
+    button(actions, {
+      grade: "secondary",
+      label: "Not now",
+      onClick: () => {
+        this.plugin.answerBacklogGate(false);
+        this.render();
+      },
+    });
+  }
+
   private renderLastCatchupLine(scroll: HTMLElement): void {
     const line = this.plugin.getLastCatchupLine();
     if (!line) return;
-    const el = scroll.createEl("p", {
+    const row = scroll.createDiv({ cls: "atoms-home-last-catchup-row" });
+    row.createEl("p", {
       cls: "atoms-home-last-catchup",
       text: line,
     });
-    el.createEl("button", {
-      cls: "atoms-ui-ghost-btn atoms-home-sync-everything",
-      text: "Sync everything now",
-    }).addEventListener("click", () => {
-      void this.plugin.runSyncEverythingNow();
+    button(row, {
+      grade: "quiet",
+      label: "Sync everything now",
+      className: "atoms-home-sync-everything",
+      onClick: () => {
+        void this.plugin.runSyncEverythingNow();
+      },
     });
   }
 
@@ -1823,6 +1856,7 @@ export class AtomsHomeView extends ItemView {
     // Settings-only refusal is indistinguishable from silence (U1).
     this.renderAskMirrorRefusal(scroll);
     this.renderEgressCatchUpNotice(scroll);
+    this.renderBacklogGate(scroll);
     this.renderLastCatchupLine(scroll);
 
     if (this.runPhase !== "idle") {
