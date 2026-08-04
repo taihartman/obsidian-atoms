@@ -14,7 +14,7 @@ import {
 const EMPTY_HINT =
   "mirror empty—sync from Obsidian (Settings → Atoms → Ask → Sync now)";
 const MISSING_HINT =
-  "no note with that title/path in the mirror (not the whole vault—see mirror_scope)";
+  "not in this Plus account's Ask mirror (Atoms/ + linked hubs only—not the whole vault, not other accounts). Call mirror_status if the user expected this note.";
 const HUB_NOT_SYNCED_HINT =
   "This name has backlinks from atoms but the hub note is not in the mirror yet. Open Obsidian with Ask on and Sync now (hubs linked from Atoms/ are included). Do not create a duplicate hub.";
 const PENDING_HINT =
@@ -25,6 +25,16 @@ function jsonTool(obj, isError = false) {
     content: [{ type: "text", text: JSON.stringify(obj, null, 2) }],
     ...(isError ? { isError: true } : {}),
   };
+}
+
+/** Normalize mirrorStatus.updatedAt → ISO string or null. */
+function formatLastSynced(updatedAt) {
+  if (updatedAt == null) return null;
+  let lastSynced =
+    updatedAt instanceof Date ? updatedAt.toISOString() : String(updatedAt);
+  const t = Date.parse(lastSynced);
+  if (Number.isFinite(t)) lastSynced = new Date(t).toISOString();
+  return lastSynced;
 }
 
 /**
@@ -50,6 +60,34 @@ export function registerAskTools(mcp, ctx) {
       true,
     );
   }
+
+  mcp.registerTool(
+    "mirror_status",
+    {
+      title: "Mirror status",
+      description:
+        "Which Plus account this connector reads, how many notes are in the Ask mirror, when the mirror last received a push, pending outbox writes, and granted scopes. Call first when counts look wrong, the user disputes absence, or you need account identity (wrong-tenant diagnosis).",
+      annotations: { readOnlyHint: true, destructiveHint: false },
+      inputSchema: {},
+    },
+    async () => {
+      const st = await store.mirrorStatus(email);
+      let pendingWrites = 0;
+      if (typeof store.outboxPendingCount === "function") {
+        pendingWrites = await store.outboxPendingCount(email);
+      }
+      const count = st?.count ?? 0;
+      return jsonTool({
+        account: email,
+        server_count: count,
+        last_synced_at: formatLastSynced(st?.updatedAt),
+        pending_writes: pendingWrites,
+        granted_scopes: scopes,
+        ...absenceMeta({ searched_fields: [] }),
+        hint: count === 0 ? EMPTY_HINT : undefined,
+      });
+    },
+  );
 
   mcp.registerTool(
     "search_atoms",
@@ -137,7 +175,9 @@ export function registerAskTools(mcp, ctx) {
           typeof store.mirrorNeighbors === "function"
             ? await store.mirrorNeighbors(email, id_or_title)
             : null;
-        const hubNotSynced = Boolean(graph?.exists_outside_mirror);
+        const hubNotSynced = Boolean(
+          graph?.hub_linked_not_synced ?? graph?.exists_outside_mirror,
+        );
         return {
           content: [
             {
@@ -146,7 +186,10 @@ export function registerAskTools(mcp, ctx) {
                 error: "not_found",
                 id_or_title,
                 mirror_count: st.count,
+                in_this_mirror: false,
+                // Legacy: true only for hub-linked-not-synced. false ≠ vault absence.
                 exists_outside_mirror: hubNotSynced,
+                hub_linked_not_synced: hubNotSynced,
                 reason: hubNotSynced
                   ? "hub_not_synced"
                   : st.count === 0
@@ -463,20 +506,10 @@ export function registerAskTools(mcp, ctx) {
         offset: offset ?? 0,
       });
       const st = await store.mirrorStatus(email);
-      let lastSynced = null;
-      if (st?.updatedAt != null) {
-        lastSynced =
-          st.updatedAt instanceof Date
-            ? st.updatedAt.toISOString()
-            : String(st.updatedAt);
-        // Normalize non-ISO sqlite/pg strings when parseable
-        const t = Date.parse(lastSynced);
-        if (Number.isFinite(t)) lastSynced = new Date(t).toISOString();
-      }
       return jsonTool({
         ...page,
         server_count: st?.count ?? page.total,
-        last_synced_at: lastSynced,
+        last_synced_at: formatLastSynced(st?.updatedAt),
         ...absenceMeta({ searched_fields: ["title", "path", "tags"] }),
         hint:
           page.next_offset != null

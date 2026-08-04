@@ -88,12 +88,14 @@ async function seedNichitaPair(store, email) {
 }
 
 describe("mcp unmisreadable shape helpers", () => {
-  it("absenceMeta always exposes scope + searched_fields", () => {
+  it("absenceMeta always exposes scope + searched_fields + scope_note", () => {
     const m = absenceMeta();
     assert.equal(m.scope_complete, false);
     assert.ok(Array.isArray(m.mirror_scope));
     assert.ok(m.mirror_scope.includes("Atoms/"));
     assert.deepEqual(m.searched_fields, SEARCHED_FIELDS);
+    assert.ok(typeof m.scope_note === "string");
+    assert.match(m.scope_note, /not mean missing from the vault/i);
   });
 
   it("revisionStatusFor: revises → superseded + revised_by", () => {
