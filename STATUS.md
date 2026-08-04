@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| In review | [#225](https://github.com/taihartman/obsidian-atoms/issues/225) | taihartman | `fix/mirror-delete-gate-and-outbox-ack` | [2026-07-31-001](https://github.com/taihartman/obsidian-atoms/blob/claude/obsidian-resume-sync-filing-072be6/docs/plans/2026-07-31-001-feat-resume-catch-up-plan.md) Phase A | `src/platform/askMirror.ts` · `src/plugin/main.ts` · `src/plugin/catchUp.ts` · `src/pipeline/inbox.ts` · `src/settings/settings.ts` | Three live data-loss paths: U1 mirror-wipe gate, U9 outbox ack, U2 step 3 marker re-verify. Ships ahead of #222 (Q3). Bumps **0.6.63** (master merged in). [PR #226](https://github.com/taihartman/obsidian-atoms/pull/226) **out of draft** — QA + adversarial re-run green, the two P0 gate holes (H1, H2) closed, 874 tests; **only the iOS/Android device boxes remain, and those are human-only** (BRAT + physical device) |
+| In progress | #246 | taihartman | `refactor/ask-coordinator-peel` | `docs/plans/2026-08-04-001-refactor-orchestration-peel-and-classify-contract-plan.md` U1 (+U6) | `src/plugin/main.ts`, `src/plugin/catchUp.ts`, `src/platform/askMirror.ts` | Rebase on #226 merge. Re-scope peel against catchUp + runAskMirrorSync — U6 already landed in #226. |
 
 ## How to claim (copy)
 
@@ -23,6 +23,7 @@ States: `Queued` · `In progress` · `Blocked` · `In review` · `Done` (then re
 
 | Merged | Issue / PR | Summary |
 |---|---|---|
+| 2026-08-04 | #225 / #226 | Gate mirror deletion, fix outbox ack, verify marker placement · **0.6.63** |
 | 2026-08-04 | #243 / #244 | Classify dual-surface parity freeze + people hard-rules line · **0.6.63** |
 | 2026-08-02 | #230 / #231 | Production trial checkout no longer revokes the plugin session; a rejected session is never a dead end · **0.6.62** |
 | 2026-08-01 | #224 #227 / #228 | Person invites name model-identified people, not the leading verb · **0.6.61** |
