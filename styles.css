@@ -113,13 +113,15 @@
   margin-bottom: 12px;
 }
 
-/* Passive last-catch-up strip — secondary to hero cards */
+/* Passive last-catch-up strip — secondary to hero cards.
+   Extra bottom margin so "Sync everything" doesn't sit on top of the next
+   home card (invite / resurface / Also about / library) on phone. */
 .atoms-home-last-catchup-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  margin: 0 0 14px;
+  margin: 0 0 22px;
   padding: 8px 12px;
   border-radius: 12px;
   border: 1px solid color-mix(in srgb, var(--background-modifier-border) 80%, transparent);
@@ -522,14 +524,16 @@
   font-weight: 700;
   letter-spacing: -0.03em;
   line-height: 1.25;
-  margin: 0 0 12px;
+  /* Room before Also about strip on phone */
+  margin: 0 0 16px;
 }
 
 .atoms-home-also-about {
   display: flex;
   align-items: center;
   min-height: 44px;
-  margin: 0 0 14px;
+  /* Clear the open-title above and the claim body / citator below on mobile */
+  margin: 4px 0 20px;
   padding: 12px 14px;
   border-radius: 16px;
   border: 1px solid var(--background-modifier-border);
