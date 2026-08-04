@@ -195,7 +195,16 @@ describe("#238 U2 — legitimate outcomes record nothing", () => {
     assert.deepEqual(await allIncidents(store), []);
   });
 
-  it("the revoke-path missing_email stays out of this issue", async () => {
+});
+
+describe("#238 U2 — the revoke path records too (F5)", () => {
+  /**
+   * The fifth no-grant branch. `customer.subscription.deleted` with no
+   * resolvable email claims the event, revokes nothing, and Stripe never
+   * retries — so the account keeps entitlement invisibly. Repairing revokes is
+   * still out of scope; being invisible is not.
+   */
+  it("records revoke_missing_email when a cancellation cannot be attributed", async () => {
     const store = createMemoryStore();
     const r = await applyStripeEvent(store, {
       id: "evt_revoke_orphan",
@@ -203,10 +212,44 @@ describe("#238 U2 — legitimate outcomes record nothing", () => {
       data: { object: { id: "sub_orphan", metadata: {} } },
     });
     assert.equal(r.action, "missing_email");
-    assert.deepEqual(
-      await allIncidents(store),
-      [],
-      "failed revoke is a separate issue — recording it here is scope creep",
+    assert.equal(r.handled, false, "the webhook answer is unchanged");
+
+    const rows = await allIncidents(store);
+    assert.equal(rows.length, 1);
+    assert.equal(
+      rows[0].kind,
+      "revoke_missing_email",
+      "own kind — a stuck grant throttles apart from the lost-grant kinds",
     );
+    assert.equal(rows[0].stripeId, "sub_orphan");
+    assert.match(rows[0].detail, /not revoked/i);
+  });
+
+  it("covers the canceled subscription.updated shape as well", async () => {
+    const store = createMemoryStore();
+    const r = await applyStripeEvent(store, {
+      id: "evt_revoke_updated",
+      type: "customer.subscription.updated",
+      data: { object: { id: "sub_upd", status: "canceled", metadata: {} } },
+    });
+    assert.equal(r.action, "missing_email");
+    const rows = await allIncidents(store);
+    assert.deepEqual(
+      rows.map((x) => [x.kind, x.stripeId]),
+      [["revoke_missing_email", "sub_upd"]],
+    );
+  });
+
+  it("a resolvable cancellation revokes and records nothing", async () => {
+    const store = createMemoryStore();
+    const r = await applyStripeEvent(store, {
+      id: "evt_revoke_ok",
+      type: "customer.subscription.deleted",
+      data: {
+        object: { id: "sub_ok", metadata: { email: "gone@atoms.test" } },
+      },
+    });
+    assert.equal(r.action, "revoke");
+    assert.deepEqual(await allIncidents(store), []);
   });
 });

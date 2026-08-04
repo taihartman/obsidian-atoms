@@ -53,6 +53,13 @@ export const INCIDENT_KIND = Object.freeze({
   INVOICE_MISSING_EMAIL: "invoice_missing_email",
   /** Class C — Stripe delivered the event; we never processed it (#238 sweep). */
   MISSING_WEBHOOK: "missing_webhook",
+  /**
+   * Class B — a cancellation we could not attribute to an account. We revoke
+   * nothing and Stripe never retries, so the account silently keeps
+   * entitlement. Own kind: this one is a *stuck grant*, not a lost one, so it
+   * throttles apart from the grant-path kinds and reads differently on call.
+   */
+  REVOKE_MISSING_EMAIL: "revoke_missing_email",
 });
 
 /**

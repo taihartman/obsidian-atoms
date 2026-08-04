@@ -281,21 +281,29 @@ ${
         const msg = err instanceof Error ? err.message : "webhook error";
         console.error("[plus] webhook reject", msg);
         // Class A: signature never verified, so there is no Stripe id to key
-        // on. The empty id collapses the flood to one row per kind per day —
-        // this route has no rate limit (KTD2).
-        try {
-          incident = await store.recordStripeIncident(
-            INCIDENT_KIND.WEBHOOK_REJECT,
-            {
-              stripeId: "",
-              detail: msg,
-            },
-          );
-        } catch (recErr) {
-          console.error(
-            "[plus] incident record failed webhook_reject",
-            recErr instanceof Error ? recErr.message : "err",
-          );
+        // on. The empty id collapses the flood to one row per kind per day
+        // (KTD2) — but collapsing *rows* is not collapsing *writes*: every
+        // anonymous reject still UPSERTs the same `(webhook_reject, today, "")`
+        // row, so a flood serializes on one Postgres row lock and can drain the
+        // pool. Rate-limit the reject path only. A verified Stripe delivery
+        // never reaches here, so a real webhook can never be throttled, and the
+        // response the caller gets is identical either way.
+        const rlReject = checkRateLimit(`webhook_reject:${clientIp(req)}`);
+        if (rlReject.ok) {
+          try {
+            incident = await store.recordStripeIncident(
+              INCIDENT_KIND.WEBHOOK_REJECT,
+              {
+                stripeId: "",
+                detail: msg,
+              },
+            );
+          } catch (recErr) {
+            console.error(
+              "[plus] incident record failed webhook_reject",
+              recErr instanceof Error ? recErr.message : "err",
+            );
+          }
         }
         json(res, status, { message: msg });
       }

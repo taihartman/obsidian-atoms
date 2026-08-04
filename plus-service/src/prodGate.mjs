@@ -64,7 +64,8 @@ export function checkProductionReady() {
   );
   need(
     !config.alertEmail,
-    "ATOMS_PLUS_ALERT_EMAIL required in production (Stripe incident alerts — #238)",
+    "ATOMS_PLUS_ALERT_EMAIL required in production (Stripe incident alerts — #238). " +
+      "Fix: fly secrets set ATOMS_PLUS_ALERT_EMAIL=ops@yourdomain.example",
   );
 
   const storeMode = (config.storeMode || "memory").toLowerCase();

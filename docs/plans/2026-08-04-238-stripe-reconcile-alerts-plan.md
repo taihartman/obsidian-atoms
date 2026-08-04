@@ -25,7 +25,7 @@ Today all three classes produce at most one `console.error` line nobody reads.
 | Class | Today | Covered by |
 |---|---|---|
 | **A. Webhook arrived, was rejected** — bad/rotated `STRIPE_WEBHOOK_SECRET`, HMAC fail | 400 + `[plus] webhook reject` log (`server.mjs:275`) | U2 record + U3 alert |
-| **B. Webhook arrived, applied, granted nothing** — `missing_email`, `email_mismatch`, `unknown_price` | silent return, one `console.error` for mismatch only | U2 record + U3 alert |
+| **B. Webhook arrived, applied, granted nothing** — `missing_email`, `email_mismatch`, `unknown_price`, `invoice_missing_email`, `revoke_missing_email` | silent return, one `console.error` for mismatch only | U2 record + U3 alert |
 | **C. Webhook never arrived** — endpoint unsubscribed, Stripe retries exhausted | **nothing at all, no in-process signal exists** | U4 sweep (records + reports) |
 
 **Not incidents** — intentional skips that legitimately grant later or elsewhere. Recording them
@@ -100,6 +100,11 @@ payload, so `sendOpsEmail` bodies must stay free of anything beyond those three 
 - **U2 — Record at both holes.** `server.mjs:275` webhook-reject path (class A);
   `applyStripeEvent`'s no-grant returns in `stripe.mjs` (class B), excluding the two named
   non-incidents. Record only — no change to any response.
+  *Amended in review (F4):* the class-A reject path is rate-limited on client IP. The day bucket
+  collapses *rows* but not *writes*, so an unauthenticated flood would UPSERT the same
+  `(webhook_reject, today, "")` row on every request, serialize on one Postgres row lock and drain
+  the pool. Only the reject path is limited — a verified Stripe delivery never reaches it — and the
+  status and body are identical whether or not the write happened.
 - **U3 — Alert.** `sendOpsEmail` extracted in `src/email.mjs`; `src/alert.mjs` sends when no row of
   that kind has a non-null `alerted_at` inside the window, then stamps the row. **Single call site:
   the webhook handler in `server.mjs`, after the response is written, inside its own try/catch** —
@@ -108,22 +113,43 @@ payload, so `sendOpsEmail` bodies must stay free of anything beyond those three 
   `--unhandled-rejections=throw`, so an unhandled Resend outage would take the process down — the
   exact opposite of the requirement. Config `ATOMS_PLUS_ALERT_EMAIL` +
   `ATOMS_PLUS_ALERT_THROTTLE_MIN`, and **`prodGate` requires the address in production** so
-  alerting cannot boot silently off.
+  alerting cannot boot silently off — the gate message names the exact remedy
+  (`fly secrets set ATOMS_PLUS_ALERT_EMAIL=…`) so a boot failure is self-explanatory.
+  *Amended in review (F8):* the stamp is caught apart from the send. `alerted_at` *is* the
+  throttle, so a stamp failure swallowed by the outer catch fails open — every later delivery
+  re-sends, and the operator gets a Resend flood with no explanation. It now logs
+  `[plus] alert stamp failed` distinctly and still never throws.
 - **U4 — Reconciliation sweep.** `stripeGet(path, params)` alongside the POST-only `stripeForm`
   (`stripe.mjs:57`), then `src/reconcile.mjs` exporting
   `reconcileStripe({ store, fetchImpl, since })`: list `/v1/events?type=checkout.session.completed`
   with `created[gte]` and `starting_after` pagination, flag every event where
   `store.hasProcessedEvent(event.id)` is false, record each as a class-C incident, and report.
   Default window 7 days (Stripe's events API retains 30; `--since` accepts up to that).
-  The sweep's grantable `payment_status` filter is **`paid` ∪ `no_payment_required`** (absent
-  still reads as paid): trial starts settle as `no_payment_required` and `applyStripeEvent`
-  grants on them, so a `paid`-only filter would be blind to exactly the signup path #230 broke.
-  Genuinely non-grantable statuses (`unpaid`) are still skipped.
+  The sweep's `payment_status` filter is a **denylist of one — skip only the literal `unpaid`**,
+  the same test `applyCheckoutCompleted` applies (absent still reads as paid). *Amended during
+  pre-merge review (F6):* this shipped as an allowlist of `paid` ∪ `no_payment_required`, which is
+  one-way lossy — a status Stripe adds later would be *granted* by the webhook and silently
+  *dropped* by the sweep, so the sweep would never flag the grant it exists to find. Trial starts
+  still settle as `no_payment_required` and are still flagged; the two filters now agree by
+  construction rather than by matching lists.
   `--repair` extracts the `checkout.session.completed` grant branch of `applyStripeEvent` into a
   shared function both callers use, so repair claims the event id *before* granting (a late Stripe
   redelivery must not double-mint) and honors `metadata.kind` / `mode` so a `topup_50` gets
   `addTopUp`, not a 30-day period. Repair refuses sessions older than the period it would grant
   unless `--force`.
+  **KTD9 (added in review, F2/F3):** because repair *claims the event either way*, it may only
+  report as repaired what actually granted (`topup`, `trial`, `subscribe`). Any other outcome
+  (`missing_email`, `unknown_price`, `email_mismatch`, `duplicate`) goes to a separate `failed`
+  list that states the event is now claimed and will not resurface. Repair also refuses any
+  checkout whose subscription Stripe now reports canceled — `grantPeriod` runs from `now`, not the
+  session date, so repairing one would hand a departed customer a fresh full period. `--force`
+  widens the age window only; it never re-entitles a canceled account.
+  The CLI asserts `store.kind` and refuses a `memory` store unless `--allow-memory-store` is
+  passed, and prints the store kind in the report header (F1): `createStore` only forces Postgres
+  when `ATOMS_PLUS_ENV` *and* `DATABASE_URL` are both set, so an operator shell with only the
+  latter would otherwise sweep an empty in-memory store, flag 100% of the window, and "repair"
+  every real customer into a map that vanishes on exit. The report also carries `truncated` when
+  the page cap runs out with `has_more` still set (F7) — a silent cap reads as "swept everything".
 - **U5 — Tests, written per unit (TDD), not batched at the end.** `node:test`, memory + sqlite
   through the existing `runStoreSuite` shape. Stripe list calls take an **injected fetch** — no
   global monkey-patching, consistent with `test/stripe.test.mjs`, which avoids network by testing
@@ -138,8 +164,16 @@ reachable by SQL through the same `fly ssh console` access the CLI uses; making 
 that Stripe secrets are *correct* rather than *present* (real, but it needs a live Stripe call at
 boot — separate issue); backfilling incidents from Stripe history.
 
-**Deliberately not this issue:** `applyStripeEvent`'s *third* `missing_email` return, on the
-`customer.subscription.deleted/updated` path. That is a failed **revoke**, not a failed grant — the
+**Amended in pre-merge review (F5) — the revoke path is now *recorded*, but still not repaired.**
+The original scoping below excluded `applyStripeEvent`'s `customer.subscription.deleted/updated`
+`missing_email` return entirely. That went too far: the branch claims the event, revokes nothing,
+and Stripe never retries, so the account keeps entitlement **invisibly** — and invisibility is the
+exact failure this issue exists to kill. It now records an incident under its own kind,
+`revoke_missing_email`, so it throttles independently of the grant-path kinds and reads differently
+on call. **Recording only.** Resolving the email, revoking, or repairing revokes stays out of scope
+and keeps its own issue.
+
+*Original scoping, kept for the rationale:* that is a failed **revoke**, not a failed grant — the
 opposite customer-harm direction (revenue leakage, not denied entitlement) from this issue's product
 bar. Worth its own issue; naming it here so U2's implementer does not silently fold it in.
 

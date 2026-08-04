@@ -521,7 +521,18 @@ export async function applyStripeEvent(store, event) {
       return { handled: true, action: "revoke", email };
     }
     await claimOrDuplicate(store, event.id);
-    return { handled: false, action: "missing_email" };
+    // The fifth no-grant branch. We revoke nothing and Stripe never retries, so
+    // without a row this account keeps entitlement invisibly — the exact class
+    // #238 exists to kill. Recording only: repairing revokes stays out of scope.
+    const incident = await recordIncident(
+      store,
+      INCIDENT_KIND.REVOKE_MISSING_EMAIL,
+      {
+        stripeId: String(obj.id || ""),
+        detail: "subscription cancellation carried no resolvable email — entitlement not revoked",
+      },
+    );
+    return { handled: false, action: "missing_email", incident };
   }
 
   // Acknowledge unknown types so Stripe stops retrying

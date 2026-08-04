@@ -38,7 +38,21 @@ export async function alertStripeIncident(store, incident, opts = {}) {
     if (res && res.ok === false) return { alerted: false, reason: "send_failed" };
 
     // Stamp only after a delivered alert, so a Resend outage retries next time.
-    await store.markStripeIncidentAlerted(incident.id, { now });
+    // Caught apart from the send: the throttle *is* this column, so a stamp
+    // failure swallowed by the outer catch fails open — every later delivery
+    // re-sends, and the operator sees a Resend flood with no explanation. It
+    // must not throw (the caller is a webhook that already answered Stripe),
+    // so name it in the log instead and report the send that did happen.
+    try {
+      await store.markStripeIncidentAlerted(incident.id, { now });
+    } catch (stampErr) {
+      console.error(
+        "[plus] alert stamp failed",
+        incident.kind,
+        stampErr instanceof Error ? stampErr.message : "err",
+      );
+      return { alerted: true, reason: "stamp_failed" };
+    }
     return { alerted: true };
   } catch (err) {
     console.error(

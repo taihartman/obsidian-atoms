@@ -47,14 +47,32 @@ function checkoutEvent(opts) {
   };
 }
 
-/** Injected fetch over a list of pages; walks `starting_after` like Stripe. */
-function stripeStub(pages) {
+/**
+ * Injected fetch over a list of pages; walks `starting_after` like Stripe.
+ * `subscriptions` answers the repair path's `/subscriptions/{id}` lookup — an
+ * id absent from the map 404s, which the sweep must treat as "no evidence of
+ * cancellation" rather than as a cancellation.
+ */
+function stripeStub(pages, subscriptions = {}) {
   const urls = [];
   async function fetchImpl(url, init) {
     urls.push(String(url));
     assert.equal(init?.method, "GET");
     assert.match(String(init?.headers?.authorization || ""), /^Bearer sk_test_/);
-    const after = new URL(String(url)).searchParams.get("starting_after");
+    const parsed = new URL(String(url));
+    const subMatch = parsed.pathname.match(/\/v1\/subscriptions\/(.+)$/);
+    if (subMatch) {
+      const sub = subscriptions[decodeURIComponent(subMatch[1])];
+      if (!sub) {
+        return {
+          ok: false,
+          status: 404,
+          json: async () => ({ error: { message: "No such subscription" } }),
+        };
+      }
+      return { ok: true, status: 200, json: async () => sub };
+    }
+    const after = parsed.searchParams.get("starting_after");
     const idx = after
       ? pages.findIndex((p) => p.some((e) => e.id === after)) + 1
       : 0;
@@ -347,5 +365,273 @@ describe("#238 U4 — --repair", () => {
     assert.equal(b.calls.grantPeriod, 1);
     assert.equal(forced.refused.length, 0);
     assert.equal(forced.repaired[0].action, "trial");
+  });
+});
+
+describe("#238 F6 — payment_status filter agrees with the webhook by construction", () => {
+  it("skips only the literal unpaid, exactly as applyCheckoutCompleted does", async () => {
+    const store = createMemoryStore();
+    const { fetchImpl } = stripeStub([
+      [checkoutEvent({ id: "evt_unpaid", session: { payment_status: "unpaid" } })],
+    ]);
+
+    const report = await reconcileStripe({ store, fetchImpl, now: NOW });
+
+    assert.equal(report.skippedUnpaid, 1);
+    assert.equal(report.flagged.length, 0);
+  });
+
+  it("flags a payment_status it has never seen instead of dropping it", async () => {
+    // An allowlist would silently drop this — while the webhook, which skips
+    // only "unpaid", would have granted on it. That asymmetry can only ever
+    // hide a real lost grant, so the sweep must flag the unknown status.
+    const store = createMemoryStore();
+    const unknown = { payment_status: "settled_via_some_future_rail" };
+    const event = checkoutEvent({ id: "evt_future", session: unknown });
+    const { fetchImpl } = stripeStub([[event]]);
+
+    const report = await reconcileStripe({ store, fetchImpl, now: NOW });
+
+    assert.equal(report.skippedUnpaid, 0, "unknown is not unpaid");
+    assert.deepEqual(
+      report.flagged.map((f) => f.eventId),
+      ["evt_future"],
+      "an unrecognized payment status must surface, not vanish",
+    );
+
+    // Same input, same verdict on the webhook side — that is the invariant.
+    const applied = await applyCheckoutCompleted(createMemoryStore(), event);
+    assert.notEqual(applied.action, "unpaid_skip");
+  });
+});
+
+describe("#238 F2 — repair only claims what it actually granted", () => {
+  /** A session with no usable email: applyCheckoutCompleted claims, grants nothing. */
+  function emaillessEvent(id) {
+    return {
+      id,
+      type: "checkout.session.completed",
+      created: Math.floor((NOW - DAY) / 1000),
+      data: {
+        object: {
+          id: `cs_${id}`,
+          mode: "subscription",
+          payment_status: "paid",
+          metadata: {},
+        },
+      },
+    };
+  }
+
+  it("files missing_email under failed, not repaired", async () => {
+    const { store, calls } = spyStore();
+    const { fetchImpl } = stripeStub([[emaillessEvent("evt_noemail")]]);
+
+    const report = await reconcileStripe({
+      store,
+      fetchImpl,
+      now: NOW,
+      repair: true,
+    });
+
+    assert.equal(calls.grantPeriod, 0);
+    assert.equal(calls.addTopUp, 0);
+    assert.equal(
+      report.repaired.length,
+      0,
+      "an outcome that granted nothing must not print as repaired",
+    );
+    assert.equal(report.failed.length, 1);
+    assert.equal(report.failed[0].action, "missing_email");
+    assert.equal(report.failed[0].eventId, "evt_noemail");
+    assert.equal(report.failed[0].claimed, true);
+    assert.match(report.failed[0].reason, /granted nothing/i);
+    assert.match(
+      report.failed[0].reason,
+      /not resurface/i,
+      "the operator must be told the event is claimed either way",
+    );
+  });
+
+  it("files email_mismatch under failed too", async () => {
+    const { store } = spyStore();
+    const event = checkoutEvent({
+      id: "evt_mismatch",
+      session: { customer_email: "someone.else@atoms.test" },
+    });
+    const { fetchImpl } = stripeStub([[event]]);
+
+    const report = await reconcileStripe({
+      store,
+      fetchImpl,
+      now: NOW,
+      repair: true,
+    });
+
+    assert.equal(report.repaired.length, 0);
+    assert.deepEqual(
+      report.failed.map((f) => f.action),
+      ["email_mismatch"],
+    );
+  });
+
+  it("and the claim really is permanent — a second sweep never sees it again", async () => {
+    const { store } = spyStore();
+    const { fetchImpl } = stripeStub([[emaillessEvent("evt_gone")]]);
+
+    await reconcileStripe({ store, fetchImpl, now: NOW, repair: true });
+    const again = await reconcileStripe({ store, fetchImpl, now: NOW, repair: true });
+
+    assert.equal(again.flagged.length, 0);
+    assert.equal(again.failed.length, 0);
+    assert.equal(again.processed, 1);
+  });
+});
+
+describe("#238 F3 — repair never resurrects a canceled account", () => {
+  const canceledEvent = checkoutEvent({
+    id: "evt_canceled",
+    session: { subscription: "sub_dead" },
+  });
+
+  it("skips a checkout whose subscription Stripe now reports canceled", async () => {
+    const { store, calls } = spyStore();
+    const { fetchImpl } = stripeStub([[canceledEvent]], {
+      sub_dead: { id: "sub_dead", status: "canceled" },
+    });
+
+    const report = await reconcileStripe({
+      store,
+      fetchImpl,
+      now: NOW,
+      repair: true,
+    });
+
+    assert.equal(calls.grantPeriod, 0, "no fresh period for a departed customer");
+    assert.equal(report.repaired.length, 0);
+    assert.equal(report.failed.length, 0);
+    assert.equal(report.skipped.length, 1);
+    assert.equal(report.skipped[0].eventId, "evt_canceled");
+    assert.equal(report.skipped[0].subscriptionStatus, "canceled");
+    assert.match(report.skipped[0].reason, /resurrect/i);
+    // Still flagged and still unclaimed — the loss stays visible.
+    assert.equal(report.flagged.length, 1);
+    assert.equal(await store.hasProcessedEvent("evt_canceled"), false);
+  });
+
+  it("--force widens the age window but never re-entitles a canceled account", async () => {
+    const { store, calls } = spyStore();
+    const { fetchImpl } = stripeStub([[canceledEvent]], {
+      sub_dead: { id: "sub_dead", status: "canceled" },
+    });
+
+    const report = await reconcileStripe({
+      store,
+      fetchImpl,
+      now: NOW,
+      repair: true,
+      force: true,
+    });
+
+    assert.equal(calls.grantPeriod, 0);
+    assert.equal(report.skipped.length, 1);
+  });
+
+  it("repairs normally when the subscription is still alive", async () => {
+    const { store, calls } = spyStore();
+    const { fetchImpl } = stripeStub(
+      [[checkoutEvent({ id: "evt_live", session: { subscription: "sub_live" } })]],
+      { sub_live: { id: "sub_live", status: "active" } },
+    );
+
+    const report = await reconcileStripe({
+      store,
+      fetchImpl,
+      now: NOW,
+      repair: true,
+    });
+
+    assert.equal(calls.grantPeriod, 1);
+    assert.equal(report.skipped.length, 0);
+    assert.equal(report.repaired[0].action, "subscribe");
+  });
+
+  it("treats a failed subscription lookup as no evidence, not as cancellation", async () => {
+    const { store, calls } = spyStore();
+    // `sub_missing` is absent from the map, so the stub 404s.
+    const { fetchImpl } = stripeStub([
+      [checkoutEvent({ id: "evt_404", session: { subscription: "sub_missing" } })],
+    ]);
+
+    const report = await reconcileStripe({
+      store,
+      fetchImpl,
+      now: NOW,
+      repair: true,
+    });
+
+    assert.equal(report.skipped.length, 0);
+    assert.equal(calls.grantPeriod, 1, "an outage must not block every repair");
+  });
+
+  it("costs no subscription lookup at all when not repairing", async () => {
+    const store = createMemoryStore();
+    const { fetchImpl, urls } = stripeStub([[canceledEvent]], {
+      sub_dead: { id: "sub_dead", status: "canceled" },
+    });
+
+    await reconcileStripe({ store, fetchImpl, now: NOW });
+
+    assert.equal(urls.length, 1, "report-only stays one list call");
+    assert.ok(!urls[0].includes("/subscriptions/"));
+  });
+});
+
+describe("#238 F7 — a truncated sweep says so", () => {
+  it("is not truncated when Stripe runs out of pages", async () => {
+    const store = createMemoryStore();
+    const { fetchImpl } = stripeStub([[checkoutEvent({ id: "evt_small" })]]);
+
+    const report = await reconcileStripe({ store, fetchImpl, now: NOW });
+
+    assert.equal(report.truncated, false);
+  });
+
+  it("flags truncation when the page cap runs out with has_more still set", async () => {
+    const store = createMemoryStore();
+    let n = 0;
+    async function fetchImpl() {
+      n += 1;
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          object: "list",
+          data: [checkoutEvent({ id: `evt_cap_${n}` })],
+          has_more: true,
+        }),
+      };
+    }
+
+    const report = await reconcileStripe({ store, fetchImpl, now: NOW });
+
+    assert.equal(
+      report.truncated,
+      true,
+      "a silent cap reads as 'swept everything' when it did not",
+    );
+    assert.equal(report.scanned, report.pages);
+    assert.ok(report.pages > 1);
+  });
+});
+
+describe("#238 F1 — the report names the store it swept", () => {
+  it("carries the store kind so an empty-store sweep is never mistaken for a clean one", async () => {
+    const store = createMemoryStore();
+    const { fetchImpl } = stripeStub([[checkoutEvent({ id: "evt_kind" })]]);
+
+    const report = await reconcileStripe({ store, fetchImpl, now: NOW });
+
+    assert.equal(report.storeKind, "memory");
   });
 });

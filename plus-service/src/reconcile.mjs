@@ -17,6 +17,11 @@
  * Stripe exhausted its retries can never restore the customer's session. Every
  * repaired customer must sign in again with a magic link, and the report says
  * so rather than implying otherwise.
+ *
+ * KTD9 — repair only *claims to have repaired* what actually granted, and never
+ * repairs a checkout whose subscription Stripe now reports as canceled. Both
+ * halves matter because repair claims the event id either way: a no-grant
+ * outcome filed under `repaired` would never resurface in a later sweep.
  */
 
 import { config } from "./config.mjs";
@@ -35,8 +40,28 @@ export const DEFAULT_WINDOW_DAYS = 7;
 const MAX_PAGES = 100;
 const PAGE_SIZE = 100;
 
-/** Statuses we owe entitlement for — "paid" in the product sense, not "money moved". */
-const GRANTABLE_PAYMENT_STATUS = new Set(["paid", "no_payment_required"]);
+/**
+ * Payment statuses that do NOT buy entitlement. Deliberately a denylist of one,
+ * mirroring `applyCheckoutCompleted` (`payStatus === "unpaid"` → no grant): an
+ * allowlist here would be one-way lossy, because a payment status Stripe adds
+ * later would be *granted* by the webhook and silently *dropped* by the sweep —
+ * the sweep would then never flag the lost grant it exists to find. The two
+ * filters have to agree by construction, so both are "skip unpaid, take the rest".
+ */
+const UNGRANTABLE_PAYMENT_STATUS = new Set(["unpaid"]);
+
+/** Repair outcomes that actually granted something. Everything else is a failure. */
+const GRANTING_ACTIONS = new Set(["topup", "trial", "subscribe"]);
+
+/**
+ * Stripe subscription statuses that mean "this customer is gone". Repairing a
+ * lost checkout for one of these resurrects a canceled account.
+ */
+const DEAD_SUBSCRIPTION_STATUS = new Set([
+  "canceled",
+  "incomplete_expired",
+  "unpaid",
+]);
 
 /**
  * @param {{
@@ -65,12 +90,18 @@ export async function reconcileStripe(opts) {
     repair,
     force,
     clamped: requested < floor,
+    /** What `createStore` actually handed us — a memory store sweeps nothing real. */
+    storeKind: String(store?.kind || "unknown"),
     pages: 0,
     scanned: 0,
     skippedUnpaid: 0,
     processed: 0,
+    /** True when MAX_PAGES ran out with Stripe still reporting `has_more`. */
+    truncated: false,
     flagged: [],
     repaired: [],
+    failed: [],
+    skipped: [],
     refused: [],
   };
 
@@ -91,23 +122,35 @@ export async function reconcileStripe(opts) {
     report.pages += 1;
     const data = Array.isArray(list?.data) ? list.data : [];
     for (const event of data) {
-      await sweepEvent({ store, event, report, repair, force, now });
+      await sweepEvent({
+        store,
+        event,
+        report,
+        repair,
+        force,
+        now,
+        fetchImpl: opts.fetchImpl,
+      });
     }
     if (!list?.has_more || data.length === 0) break;
     startingAfter = data[data.length - 1].id;
+    // A silent cap reads as "swept everything" when it did not — say so.
+    if (page === MAX_PAGES - 1) report.truncated = true;
   }
 
   return report;
 }
 
-async function sweepEvent({ store, event, report, repair, force, now }) {
+async function sweepEvent({ store, event, report, repair, force, now, fetchImpl }) {
   report.scanned += 1;
   const session = event.data?.object ?? {};
 
-  // Match `applyStripeEvent`: an absent payment_status reads as paid. Trial
-  // starts settle as `no_payment_required` and `applyStripeEvent` grants on
-  // them, so a sweep blind to that would miss the whole signup path #230 broke.
-  if (!GRANTABLE_PAYMENT_STATUS.has(String(session.payment_status || "paid"))) {
+  // Match `applyCheckoutCompleted` exactly: an absent payment_status reads as
+  // paid, only the literal "unpaid" is skipped. Trial starts settle as
+  // `no_payment_required` and the webhook grants on them, so a sweep blind to
+  // that would miss the whole signup path #230 broke — and so would a sweep
+  // that allowlisted today's known statuses and dropped tomorrow's.
+  if (UNGRANTABLE_PAYMENT_STATUS.has(String(session.payment_status || "paid"))) {
     report.skippedUnpaid += 1;
     return;
   }
@@ -164,16 +207,77 @@ async function sweepEvent({ store, event, report, repair, force, now }) {
     return;
   }
 
+  // KTD9 — never resurrect a canceled account. `grantPeriod` runs from `now`,
+  // not the session date, so repairing a checkout whose subscription has since
+  // been canceled hands a departed customer a fresh full period. `--force`
+  // deliberately does NOT override this: it exists to widen the age window, not
+  // to re-entitle someone Stripe says is gone.
+  const dead = await deadSubscription({ session, fetchImpl });
+  if (dead) {
+    report.skipped.push({
+      eventId: event.id,
+      sessionId,
+      email,
+      subscriptionId: dead.subscriptionId,
+      subscriptionStatus: dead.status,
+      reason: `subscription ${dead.subscriptionId} is ${dead.status} at Stripe — repairing would resurrect a canceled account`,
+    });
+    return;
+  }
+
   const result = await applyCheckoutCompleted(store, event);
-  report.repaired.push({
+  const entry = {
     eventId: event.id,
     sessionId,
     email: result.email || email,
     action: result.action,
+  };
+  if (!GRANTING_ACTIONS.has(String(result.action))) {
+    // The event id is claimed either way, so this will not resurface in a
+    // later sweep. Reporting it as "repaired" would have buried it forever.
+    report.failed.push({
+      ...entry,
+      claimed: true,
+      reason: `repair granted nothing (${result.action}); the event id is now claimed, so this will not resurface in a later sweep`,
+    });
+    return;
+  }
+  report.repaired.push({
+    ...entry,
     // KTD6 — the checkout binding is long gone; entitlement is all we restored.
     sessionRestored: false,
     note: "entitlement restored; this customer must sign in again with a magic link",
   });
+}
+
+/**
+ * Ask Stripe whether this checkout's subscription is still alive. Only the
+ * repair path calls it, and only for subscription sessions, so a report-only
+ * sweep stays one list call. A lookup failure is not evidence of cancellation —
+ * it logs and lets the repair proceed under the age gate.
+ * @returns {Promise<{ subscriptionId: string, status: string } | null>}
+ */
+async function deadSubscription({ session, fetchImpl }) {
+  const subscriptionId = String(session.subscription || "");
+  if (!subscriptionId) return null;
+  try {
+    const sub = await stripeGet(
+      `/subscriptions/${encodeURIComponent(subscriptionId)}`,
+      {},
+      { fetchImpl },
+    );
+    const status = String(sub?.status || "");
+    return DEAD_SUBSCRIPTION_STATUS.has(status)
+      ? { subscriptionId, status }
+      : null;
+  } catch (err) {
+    console.error(
+      "[plus] subscription lookup failed",
+      subscriptionId,
+      err instanceof Error ? err.message : "err",
+    );
+    return null;
+  }
 }
 
 /** Email we would grant to, for the report only — never a session token (KTD7). */
