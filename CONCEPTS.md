@@ -108,6 +108,11 @@ Normal `syncAskMirror({ force: false })`: upsert dirty atoms + `mirror/delete` f
 ### Force reconcile / Sync now
 `syncAskMirror({ force: true })`: upsert dirty + `mirror/reconcile` with complete vault `keepPaths` (chunked accumulate if >500; empty set requires `confirmEmpty`). Removes server paths this device never hashed. Settings copy must warn multi-device incomplete vaults.
 
+### Mirror deletion gate
+The check that stands between a sync pass and removing anything from the cloud copy. It compares the evidence that would survive this pass against a floor derived from what this device has mirrored before, and refuses the deletion — while still letting the uploads through — when the vault looks too incomplete to be trusted. A refusal is never silent: it is recorded, surfaced in Settings, and cleared by the next pass that converges.
+
+Only a **deletion confirmation** overrides a refusal, and only on a user-forced sync. The gate poses a dialog naming the concrete counts, and treats anything other than an explicit confirmation — declining, dismissing, or walking away — as "leave the cloud untouched." A confirmation is bound to the pass that asked for it: once that pass stops waiting, the dialog is withdrawn rather than left on screen, because a prompt authorising an irreversible delete must never be clickable after the delete it authorises can no longer happen.
+
 ### Ask outbox
 Cloud queue of create/continue intents from Claude. Plugin pulls with Plus `sess_`, creates new files under `Atoms/` (`generated-by: ask-mcp`), mirrors them, then acks. Pending ≠ filed. Requires **Allow filing** in Settings.
 
