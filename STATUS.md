@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| In progress | #246 | taihartman | `refactor/ask-coordinator-peel` | `docs/plans/2026-08-04-001-refactor-orchestration-peel-and-classify-contract-plan.md` U1 (+U6) | `src/plugin/main.ts`, `src/plugin/catchUp.ts`, `src/platform/askMirror.ts` | Rebase on #226 merge. Re-scope peel against catchUp + runAskMirrorSync — U6 already landed in #226. |
+| In progress | #246 | taihartman | `refactor/ask-coordinator-peel` | `docs/plans/2026-08-04-001-refactor-orchestration-peel-and-classify-contract-plan.md` U1 residual | `src/plugin/main.ts`, `src/plugin/askCoordinator.ts` (new) | Post-#226 residual peel: debounce/events/host wiring → askCoordinator. U6 already in #226. catchUp + runAskMirrorSync stay. |
 
 ## How to claim (copy)
 

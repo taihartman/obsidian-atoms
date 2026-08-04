@@ -21,16 +21,8 @@ import {
 } from "./inboxBootstrap";
 import { clampAtomFolder } from "../pipeline/render";
 import { registerAtomsCommands } from "./commands";
-import {
-  applyOutboxItemToVault,
-  runAskOutboxApply,
-  runMirrorSingleFlight,
-  type AskOutboxHost,
-  type AskOutboxOutcome,
-  type MirrorSingleFlightState,
-  type MirrorSyncOutcome,
-  type OutboxVaultPort,
-} from "./catchUp";
+import type { AskOutboxOutcome, MirrorSyncOutcome } from "./catchUp";
+import { AskCoordinator, fireAndForgetAsk } from "./askCoordinator";
 import { runOpenAtomGraph } from "../graph/openAtomGraph";
 
 /** Injected by esbuild: true in watch/dev, false in production Community builds. */
@@ -151,15 +143,13 @@ import {
 } from "../pipeline/refreshAtoms";
 import { isEligibleForUpdate } from "../pipeline/atomQuality";
 import { formatUpdateSummary } from "../home/runProgress";
-import {
-  isAskMirrorWatchPath,
-  readAskMirrorHashes,
-  stripLegacyAskMirrorHashes,
-} from "../platform/askMirror";
+import { stripLegacyAskMirrorHashes } from "../platform/askMirror";
 
 export default class AtomsPlugin extends Plugin {
   settings!: LinkerSettings;
   contextProvider!: MetadataContextProvider;
+  /** Ask mirror + outbox orchestration (single owner of inFlight state). */
+  ask!: AskCoordinator;
   /** Last classify outcome for CLI/dev inspection (no secrets). */
   lastClassifyOutcome: ClassifyOutcome | null = null;
   /** Last dry-run report for CLI inspection (no vault writes). */
@@ -178,13 +168,6 @@ export default class AtomsPlugin extends Plugin {
   /** Guards double-fire of onload + interval auto-run. */
   private autoRunInFlight = false;
   private backfillInFlight = false;
-  private askOutboxInFlight = false;
-  /** Owned by runMirrorSingleFlight — never flip these fields by hand. */
-  private readonly askMirrorFlight: MirrorSingleFlightState = {
-    inFlight: false,
-    followUp: false,
-    forceFollowUp: false,
-  };
   /**
    * Shared in-flight drain (F1). Both entry points — bootstrapInbox (unawaited
    * from onLayoutReady) and runDrainInbox (command) — go through drainInboxOnce,
@@ -192,9 +175,6 @@ export default class AtomsPlugin extends Plugin {
    * duplicate append.
    */
   private drainInFlight: Promise<InboxDrainResult> | null = null;
-  private askMirrorNoticeShown = false;
-  private askMirrorDebounceTimer: number | null = null;
-  private askMirrorDirty = false;
   /** Set true only after waitForVaultIndexReady (U9 cold-start gate). */
   private vaultIndexReady = false;
 
@@ -234,23 +214,9 @@ export default class AtomsPlugin extends Plugin {
     );
     schedulePlusCheckoutResume(this);
 
-    // Ask outbox + mirror catch-up when vault is open.
-    this.app.workspace.onLayoutReady(() => {
-      this.registerAskMirrorVaultEvents();
-      void this.applyAskOutbox().catch(() => {
-        /* best-effort */
-      });
-      void this.syncAskMirror({ force: false }).catch(() => {
-        /* best-effort */
-      });
-    });
-    this.registerInterval(
-      window.setInterval(() => {
-        void this.applyAskOutbox().catch(() => {
-          /* best-effort */
-        });
-      }, 60_000),
-    );
+    // Ask outbox + mirror catch-up when vault is open (coordinator owns state).
+    this.ask = new AskCoordinator(this);
+    this.ask.registerLifecycle();
   }
 
   /**
@@ -347,65 +313,9 @@ export default class AtomsPlugin extends Plugin {
     }
   }
 
-  /**
-   * Debounced vault watch for Ask mirror parity.
-   * Flat Atoms/*.md + hubs already in this device's hash evidence
-   * (not every vault .md — dailies would storm-sync). New hubs seed via
-   * end-of-run Process/Update/invite push.
-   */
-  private registerAskMirrorVaultEvents(): void {
-    const schedule = () => this.scheduleAskMirrorSync();
-    const watch = (path: string) => {
-      const folder = this.settings.atomFolder || "Atoms";
-      const hashes = readAskMirrorHashes(
-        (k) => this.app.loadLocalStorage(k) as unknown,
-      );
-      return isAskMirrorWatchPath(path, folder, hashes);
-    };
-    this.registerEvent(
-      this.app.vault.on("create", (f) => {
-        if (watch(f.path)) schedule();
-      }),
-    );
-    this.registerEvent(
-      this.app.vault.on("modify", (f) => {
-        if (watch(f.path)) schedule();
-      }),
-    );
-    this.registerEvent(
-      this.app.vault.on("delete", (f) => {
-        if (watch(f.path)) schedule();
-      }),
-    );
-    this.registerEvent(
-      this.app.vault.on("rename", (f, oldPath) => {
-        if (watch(f.path) || watch(oldPath)) schedule();
-      }),
-    );
-  }
-
   /** Debounced best-effort push after vault or pipeline writes. */
   scheduleAskMirrorSync(): void {
-    if (!this.settings.askEnabled || !this.settings.askPrivacyAckAt) {
-      return;
-    }
-    // Coalesce into the in-flight run instead of a second post-run debounce.
-    if (this.askMirrorFlight.inFlight) {
-      this.askMirrorFlight.followUp = true;
-      return;
-    }
-    this.askMirrorDirty = true;
-    if (this.askMirrorDebounceTimer != null) {
-      window.clearTimeout(this.askMirrorDebounceTimer);
-    }
-    this.askMirrorDebounceTimer = window.setTimeout(() => {
-      this.askMirrorDebounceTimer = null;
-      if (!this.askMirrorDirty) return;
-      this.askMirrorDirty = false;
-      void this.syncAskMirror({ force: false }).catch(() => {
-        /* best-effort */
-      });
-    }, 2000);
+    this.ask.scheduleSync();
   }
 
   /**
@@ -600,12 +510,8 @@ export default class AtomsPlugin extends Plugin {
           : `Atoms: polished ${polished}, updated ${report.updated}, renamed ${report.renamed}, failed ${report.failed}`,
       );
       // After projection + atom writes settle — end-of-run push (hubs included).
-      void this.syncAskMirror({ force: false }).catch(() => {
-        /* best-effort — vault write already committed */
-      });
-      void this.applyAskOutbox().catch(() => {
-        /* best-effort */
-      });
+      fireAndForgetAsk(this.syncAskMirror({ force: false }));
+      fireAndForgetAsk(this.applyAskOutbox());
     } catch (e) {
       const msg = e instanceof Error ? e.message : "update failed";
       this.failHomeRun(msg);
@@ -1109,217 +1015,18 @@ export default class AtomsPlugin extends Plugin {
 
   /**
    * Pull Ask outbox and create atoms under Atoms/ (best-effort).
-   * Requires Ask mirror enabled + Allow filing ack.
+   * Thin wrapper — orchestration lives on AskCoordinator.
    */
   async applyAskOutbox(): Promise<AskOutboxOutcome> {
-    const idle: AskOutboxOutcome = { kind: "worked", landed: 0, rejected: 0 };
-    if (
-      !this.settings.askEnabled ||
-      !this.settings.askPrivacyAckAt ||
-      !this.settings.askWriteAckAt
-    ) {
-      return idle;
-    }
-    const host = await this.createAskOutboxHost();
-    if (!host) return idle;
-    return runAskOutboxApply(host);
-  }
-
-  /** Vault + Plus wiring for the outbox loop; null when there is no session. */
-  private async createAskOutboxHost(): Promise<AskOutboxHost | null> {
-    const { readPlusSession } = await import("../platform/filingAuth");
-    const session = readPlusSession(this.app);
-    if (!session) return null;
-    const {
-      DEFAULT_PLUS_BASE_URL,
-      askOutboxPull,
-      askOutboxAck,
-      plusFetchRequest,
-    } = await import("../platform/plusClient");
-    const base = this.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL;
-    const cfg = { baseUrl: base, request: plusFetchRequest };
-    const token = session.sessionToken;
-    const folder = clampAtomFolder(this.settings.atomFolder);
-    const vault: OutboxVaultPort = {
-      readIfExists: async (path) => {
-        const f = this.app.vault.getAbstractFileByPath(path);
-        return f instanceof TFile ? this.app.vault.read(f) : null;
-      },
-      ensureFolder: async (path) => {
-        if (!this.app.vault.getAbstractFileByPath(path)) {
-          await this.app.vault.createFolder(path);
-        }
-      },
-      create: (path, content) => this.app.vault.create(path, content).then(),
-    };
-
-    return {
-      beginPass: () => {
-        if (this.askOutboxInFlight) return false;
-        this.askOutboxInFlight = true;
-        return true;
-      },
-      endPass: () => {
-        this.askOutboxInFlight = false;
-      },
-      pullOne: async () => {
-        const pull = await askOutboxPull(cfg, token, 1);
-        if (!pull.ok || pull.items.length === 0) return null;
-        return pull.items[0]!;
-      },
-      ack: async (id, ack) => {
-        await askOutboxAck(cfg, token, { id, ...ack });
-      },
-      applyToVault: (payload) => applyOutboxItemToVault(vault, folder, payload),
-      syncMirror: () => this.syncAskMirror({ force: false }),
-      notice: (message) => new Notice(message),
-      onLanded: () => {
-        void this.refreshAtomsHomeLeaves();
-      },
-    };
+    return this.ask.applyOutbox();
   }
 
   /**
-   * Push Atoms/ to Plus Ask mirror (best-effort). Returns a four-way outcome —
-   * `joined` is not `worked` with a zero count, because nothing reached the
-   * cloud yet, and `refused` is not success (R7, R15).
-   * force: full reconcile (keepPaths orphan delete). Never early-return before delete/reconcile.
+   * Push Atoms/ to Plus Ask mirror (best-effort). Four-way outcome (worked /
+   * joined / refused / failed). Thin wrapper — orchestration on AskCoordinator.
    */
   async syncAskMirror(opts?: { force?: boolean }): Promise<MirrorSyncOutcome> {
-    if (!this.settings.askEnabled || !this.settings.askPrivacyAckAt) {
-      if (opts?.force) new Notice("Enable Ask and acknowledge privacy first");
-      return { kind: "failed", message: "Ask mirror is off" };
-    }
-    return runMirrorSingleFlight(
-      {
-        state: this.askMirrorFlight,
-        onBegin: () => {
-          // Absorb pending debounce into this run (avoids Process + 2s
-          // double push).
-          if (this.askMirrorDebounceTimer != null) {
-            window.clearTimeout(this.askMirrorDebounceTimer);
-            this.askMirrorDebounceTimer = null;
-          }
-          this.askMirrorDirty = false;
-        },
-        once: (force) => this.runAskMirrorSyncOnce(force),
-      },
-      Boolean(opts?.force),
-    );
-  }
-
-  private async runAskMirrorSyncOnce(
-    force: boolean,
-  ): Promise<Exclude<MirrorSyncOutcome, { kind: "joined" }>> {
-    const { readPlusSession } = await import("../platform/filingAuth");
-    const session = readPlusSession(this.app);
-    if (!session) {
-      if (force) new Notice("Sign in to Atoms Plus first");
-      return { kind: "failed", message: "Not signed in to Atoms Plus" };
-    }
-    const {
-      DEFAULT_PLUS_BASE_URL,
-      askMirrorUpsert,
-      askMirrorDelete,
-      askMirrorReconcile,
-      askMirrorStatus,
-      plusFetchRequest,
-    } = await import("../platform/plusClient");
-    const { runAskMirrorSync, isHubMirrorPath } = await import(
-      "../platform/askMirror"
-    );
-    const { AskMirrorDeleteConfirmModal } = await import(
-      "../settings/settings"
-    );
-
-    const folder = "Atoms";
-    const base = this.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL;
-    const cfg = { baseUrl: base, request: plusFetchRequest };
-    const token = session.sessionToken;
-    const read = async (f: TFile) => ({
-      path: f.path,
-      basename: f.basename,
-      content: await this.app.vault.read(f),
-    });
-
-    const result = await runAskMirrorSync(
-      {
-        atomFolder: folder,
-        scanAtoms: async () => {
-          const { isFlatAtomPath } = await import("../platform/askMirror");
-          return Promise.all(
-            this.app.vault
-              .getMarkdownFiles()
-              .filter((f) => isFlatAtomPath(folder, f.path))
-              .map(read),
-          );
-        },
-        resolveHubs: async (titles) => {
-          const hubFiles: TFile[] = [];
-          const seen = new Set<string>();
-          for (const title of titles) {
-            const dest = this.app.metadataCache.getFirstLinkpathDest(title, "");
-            if (!dest || dest.extension !== "md") continue;
-            if (!isHubMirrorPath(dest.path, folder)) continue;
-            if (seen.has(dest.path)) continue;
-            seen.add(dest.path);
-            hubFiles.push(dest);
-          }
-          return Promise.all(hubFiles.map(read));
-        },
-        load: (k) => this.app.loadLocalStorage(k) as unknown,
-        save: (k, v) => this.app.saveLocalStorage(k, v),
-        upsert: (atoms) => askMirrorUpsert(cfg, token, atoms),
-        deletePaths: (paths) => askMirrorDelete(cfg, token, paths),
-        reconcile: (opts) => askMirrorReconcile(cfg, token, opts),
-        status: () => askMirrorStatus(cfg, token),
-        // The only gesture that can mint a DeletionConfirmation.
-        confirm: (request) =>
-          new Promise((resolve) => {
-            try {
-              new AskMirrorDeleteConfirmModal(this.app, request, resolve).open();
-            } catch {
-              // A modal that cannot open must not park the sync forever.
-              // "dismissed" already means leave the mirror untouched.
-              resolve("dismissed");
-            }
-          }),
-        notice: (message) => new Notice(message),
-      },
-      { force },
-    );
-
-    if (result.kind === "failed") {
-      const msg = result.failureMessage ?? "";
-      const snip = msg.replace(/\s+/g, " ").trim().slice(0, 72);
-      // The dedupe flag exists to stop *background* passes from nagging after
-      // the first failure. It must never silence a push the user just asked
-      // for: "Sync now" is the one gesture that always reports its outcome.
-      if (force || !this.askMirrorNoticeShown) {
-        this.askMirrorNoticeShown = true;
-        new Notice(
-          snip
-            ? `Ask: push failed — ${snip} · Sync now to retry`
-            : "Ask: last push failed · Sync now to retry",
-        );
-      }
-      return { kind: "failed", ...(msg ? { message: msg } : {}) };
-    }
-    this.askMirrorNoticeShown = false;
-    // The gate withheld deletion (U1). Dropping this here is what let the
-    // loudest channel — Settings' Sync now toast — say "reconciled".
-    if (result.refused) {
-      return {
-        kind: "refused",
-        uploaded: result.uploaded,
-        ...(result.refusalReason ? { reason: result.refusalReason } : {}),
-      };
-    }
-    return {
-      kind: "worked",
-      uploaded: result.uploaded,
-      deleted: result.deleted,
-    };
+    return this.ask.sync(opts);
   }
 
   getApiKey(): string | null {
@@ -1495,12 +1202,8 @@ export default class AtomsPlugin extends Plugin {
         new Notice(notice);
       }
       // After projection + atom writes settle — end-of-run push (hubs included).
-      void this.syncAskMirror({ force: false }).catch(() => {
-        /* best-effort — vault write already committed */
-      });
-      void this.applyAskOutbox().catch(() => {
-        /* best-effort */
-      });
+      fireAndForgetAsk(this.syncAskMirror({ force: false }));
+      fireAndForgetAsk(this.applyAskOutbox());
     } catch (e) {
       if (e instanceof DailyNotesDisabledError) {
         this.failHomeRun(e.message);
