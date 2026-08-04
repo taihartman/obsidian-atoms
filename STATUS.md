@@ -7,7 +7,6 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| In progress | #256 | taihartman | `feat/ask-mcp-list-tags` | `docs/plans/2026-08-04-004-feat-ask-mcp-list-tags-plan.md` | `plus-service/src/mcp/tools.mjs`, `instructions.mjs`, `store/{memory,askSqliteMethods,askPostgresMethods,askHelpers}.mjs`, `test/mcp-list-tags.test.mjs`, runbook | Ask MCP `list_tags`; Fly after merge; no plugin |
 
 ## How to claim (copy)
 
@@ -23,6 +22,7 @@ States: `Queued` · `In progress` · `Blocked` · `In review` · `Done` (then re
 
 | Merged | Issue / PR | Summary |
 |---|---|---|
+| 2026-08-04 | #256 / #262 | Ask MCP `list_tags` · Fly deploy after merge (no plugin bump) |
 | 2026-08-04 | #255 #259 / #260 | Ask MCP `mirror_status` + absence wording · Fly live (no plugin bump) |
 | 2026-08-04 | #251 / #252 | Ask MCP pairing code + OAuth identity chooser · **0.6.66** (released; Fly already live) |
 | 2026-08-04 | #246 / #247 | Ask coordinator peel + wire the inert confirm-withdrawal hook · **0.6.65** (released) |
