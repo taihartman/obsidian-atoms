@@ -816,6 +816,52 @@ export class AtomsHomeView extends ItemView {
     card.createEl("p", { text: formatAskMirrorRefusalLine(serverCount) });
   }
 
+  /** One-time upgrade disclosure before resume-triggered filing (U14). */
+  private renderEgressCatchUpNotice(scroll: HTMLElement): void {
+    if (!this.plugin.isEgressNoticePending()) return;
+    const card = statusCard(scroll, {
+      tone: "wait",
+      className: "atoms-home-egress-catchup-notice",
+    });
+    card.createEl("h2", { text: "Atoms now catches up when you reopen the app" });
+    card.createEl("p", {
+      text: "Filing used to run only when Obsidian started. It now also runs when you come back to the app, and when you tap Sync everything now — that can spend API even if automatic filing is off. Each capture still goes to the Anthropic API over TLS.",
+    });
+    const actions = actionRow(card, {
+      className: "atoms-home-egress-catchup-actions",
+    });
+    button(actions, {
+      grade: "primary",
+      label: "Got it",
+      onClick: () => {
+        this.plugin.ackEgressNotice();
+        this.render();
+      },
+    });
+    button(actions, {
+      grade: "secondary",
+      label: "Sync everything now",
+      onClick: () => {
+        void this.plugin.runSyncEverythingNow();
+      },
+    });
+  }
+
+  private renderLastCatchupLine(scroll: HTMLElement): void {
+    const line = this.plugin.getLastCatchupLine();
+    if (!line) return;
+    const el = scroll.createEl("p", {
+      cls: "atoms-home-last-catchup",
+      text: line,
+    });
+    el.createEl("button", {
+      cls: "atoms-ui-ghost-btn atoms-home-sync-everything",
+      text: "Sync everything now",
+    }).addEventListener("click", () => {
+      void this.plugin.runSyncEverythingNow();
+    });
+  }
+
   private renderResurfaceCard(scroll: HTMLElement): void {
     const card = this.resurfaceCard;
     if (!card) return;
@@ -1776,6 +1822,8 @@ export class AtomsHomeView extends ItemView {
     // Settings → Atoms is not a surface a phone user opens routinely, so a
     // Settings-only refusal is indistinguishable from silence (U1).
     this.renderAskMirrorRefusal(scroll);
+    this.renderEgressCatchUpNotice(scroll);
+    this.renderLastCatchupLine(scroll);
 
     if (this.runPhase !== "idle") {
       const tone =
