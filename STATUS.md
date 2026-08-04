@@ -7,7 +7,6 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| In progress | #243 | taihartman | `refactor/classify-parity-u5` | `docs/plans/2026-08-04-001-refactor-orchestration-peel-and-classify-contract-plan.md` U5 | `src/pipeline/classify.ts`, `plus-service/src/classifyTemplate.mjs`, `test/classificationContract.test.ts`, version | POV-2 first unit: dual-surface parity freeze |
 
 ## How to claim (copy)
 
@@ -23,6 +22,7 @@ States: `Queued` · `In progress` · `Blocked` · `In review` · `Done` (then re
 
 | Merged | Issue / PR | Summary |
 |---|---|---|
+| 2026-08-04 | #243 / #244 | Classify dual-surface parity freeze + people hard-rules line · **0.6.63** |
 | 2026-08-02 | #230 / #231 | Production trial checkout no longer revokes the plugin session; a rejected session is never a dead end · **0.6.62** |
 | 2026-08-01 | #224 #227 / #228 | Person invites name model-identified people, not the leading verb · **0.6.61** |
 | 2026-07-30 | #196 / #218 | Classify prompt same-thread link soften + quality 7 · **0.6.57** |
