@@ -23,6 +23,59 @@ export function hashToken(token) {
  */
 export const CHECKOUT_BINDING_TTL_MS = 24 * 60 * 60 * 1000;
 
+/** Epoch ms from a number / Date / ISO string, else `fallback`. */
+export function toMs(v, fallback = 0) {
+  if (v == null) return fallback;
+  if (typeof v === "number") return Number.isFinite(v) ? v : fallback;
+  const ms = v instanceof Date ? v.getTime() : Date.parse(String(v));
+  return Number.isNaN(ms) ? fallback : ms;
+}
+
+/** Longest incident detail we keep — it is an ops hint, not a payload (KTD7). */
+export const INCIDENT_DETAIL_MAX = 300;
+
+/**
+ * Normalize a `recordStripeIncident` call into its stored shape.
+ * KTD2: the UTC `dayBucket` is derived at write time and is part of the unique
+ * key, so a class-A flood (no parseable Stripe id → empty string) collapses to
+ * one row per kind per day instead of one row per anonymous request.
+ * `opts.now` is the injectable clock (tests); production omits it.
+ */
+export function normalizeStripeIncident(kind, opts = {}) {
+  const now = Number.isFinite(opts.now) ? opts.now : Date.now();
+  return {
+    kind: String(kind),
+    stripeId: String(opts.stripeId ?? ""),
+    email: opts.email ? String(opts.email).trim().toLowerCase() : null,
+    detail: opts.detail ? String(opts.detail).slice(0, INCIDENT_DETAIL_MAX) : null,
+    dayBucket: new Date(now).toISOString().slice(0, 10),
+    now,
+  };
+}
+
+/**
+ * Map a `stripe_incidents` row (snake_case, or an in-memory row) to the public
+ * incident shape. Timestamps come back as ISO strings on every backend.
+ * @param {Record<string, unknown> | null | undefined} r
+ */
+export function rowToIncident(r) {
+  if (!r) return null;
+  const iso = (v) =>
+    v == null ? null : v instanceof Date ? v.toISOString() : new Date(v).toISOString();
+  return {
+    id: r.id,
+    kind: r.kind,
+    dayBucket: r.dayBucket ?? r.day_bucket,
+    stripeId: r.stripeId ?? r.stripe_id ?? "",
+    email: (r.email ?? null) || null,
+    detail: (r.detail ?? null) || null,
+    occurrences: Number(r.occurrences ?? 0),
+    firstSeenAt: iso(r.firstSeenAt ?? r.first_seen_at),
+    lastSeenAt: iso(r.lastSeenAt ?? r.last_seen_at),
+    alertedAt: iso(r.alertedAt ?? r.alerted_at ?? null),
+  };
+}
+
 /** Public entitlement shape returned by /v1/me and auth exchange. */
 export function publicAccount(a) {
   return {

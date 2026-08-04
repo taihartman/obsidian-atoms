@@ -10,9 +10,12 @@ import {
   hashToken,
   id,
   isEntitledAccount,
+  normalizeStripeIncident,
   periodEndFromNow,
   publicAccount,
   rowToAccount,
+  rowToIncident,
+  toMs,
 } from "./shared.mjs";
 import {
   ASK_PG_DDL,
@@ -66,6 +69,19 @@ CREATE TABLE IF NOT EXISTS stripe_events (
 CREATE TABLE IF NOT EXISTS stripe_customers (
   customer_id TEXT PRIMARY KEY,
   email TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS stripe_incidents (
+  id TEXT PRIMARY KEY,
+  kind TEXT NOT NULL,
+  day_bucket TEXT NOT NULL,
+  stripe_id TEXT NOT NULL DEFAULT '',
+  email TEXT,
+  detail TEXT,
+  occurrences INTEGER NOT NULL DEFAULT 1,
+  first_seen_at TIMESTAMPTZ NOT NULL,
+  last_seen_at TIMESTAMPTZ NOT NULL,
+  alerted_at TIMESTAMPTZ,
+  UNIQUE (kind, day_bucket, stripe_id)
 );
 CREATE TABLE IF NOT EXISTS usage_events (
   idempotency_key TEXT PRIMARY KEY,
@@ -654,6 +670,57 @@ export async function createPostgresStore(databaseUrl) {
          ON CONFLICT (event_id) DO NOTHING`,
         [eventId],
       );
+    },
+    async recordStripeIncident(kind, opts = {}) {
+      const n = normalizeStripeIncident(kind, opts);
+      const { rows } = await pool.query(
+        `INSERT INTO stripe_incidents
+           (id, kind, day_bucket, stripe_id, email, detail, occurrences, first_seen_at, last_seen_at)
+         VALUES ($1, $2, $3, $4, $5, $6, 1,
+                 to_timestamp($7::double precision / 1000.0),
+                 to_timestamp($7::double precision / 1000.0))
+         ON CONFLICT (kind, day_bucket, stripe_id) DO UPDATE SET
+           occurrences = stripe_incidents.occurrences + 1,
+           last_seen_at = EXCLUDED.last_seen_at,
+           email = COALESCE(EXCLUDED.email, stripe_incidents.email),
+           detail = COALESCE(EXCLUDED.detail, stripe_incidents.detail)
+         RETURNING *`,
+        [id("inc"), n.kind, n.dayBucket, n.stripeId, n.email, n.detail, n.now],
+      );
+      return rowToIncident(rows[0]);
+    },
+    /** Newest alert epoch ms for this kind at or after `sinceMs`, else null. */
+    async lastStripeAlertAt(kind, sinceMs = 0) {
+      const { rows } = await pool.query(
+        `SELECT MAX(alerted_at) AS last FROM stripe_incidents
+          WHERE kind = $1 AND alerted_at IS NOT NULL
+            AND alerted_at >= to_timestamp($2::double precision / 1000.0)`,
+        [kind, sinceMs],
+      );
+      const last = rows[0]?.last;
+      return last ? new Date(last).getTime() : null;
+    },
+    async markStripeIncidentAlerted(incidentId, opts = {}) {
+      const now = Number.isFinite(opts.now) ? opts.now : Date.now();
+      const { rows } = await pool.query(
+        `UPDATE stripe_incidents
+            SET alerted_at = to_timestamp($2::double precision / 1000.0)
+          WHERE id = $1
+          RETURNING *`,
+        [incidentId, now],
+      );
+      return rowToIncident(rows[0]);
+    },
+    async listStripeIncidents({ since, kind, limit } = {}) {
+      const { rows } = await pool.query(
+        `SELECT * FROM stripe_incidents
+          WHERE ($1::text IS NULL OR kind = $1)
+            AND last_seen_at >= to_timestamp($2::double precision / 1000.0)
+          ORDER BY last_seen_at DESC, first_seen_at DESC
+          LIMIT $3`,
+        [kind ?? null, toMs(since, 0), Number.isFinite(limit) ? limit : 100],
+      );
+      return rows.map(rowToIncident);
     },
     async setStripeCustomer(email, customerId) {
       const a = await ensureAccount(email);
