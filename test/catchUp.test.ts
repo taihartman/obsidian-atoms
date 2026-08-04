@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   applyOutboxItemToVault,
+  describeMirrorRefusal,
   runAskOutboxApply,
   runMirrorSingleFlight,
   syncNowNotice,
@@ -11,6 +12,7 @@ import {
   type MirrorSyncOutcome,
   type OutboxApplyResult,
 } from "../src/plugin/catchUp";
+import type { MirrorDeletionRefusal } from "../src/shared/confirm";
 
 type AckRecord = { id: string; status: string; error?: string };
 
@@ -523,5 +525,46 @@ describe("runMirrorSingleFlight force follow-up", () => {
         forceFollowUp: false,
       });
     }
+  });
+});
+
+describe("describeMirrorRefusal covers every reason", () => {
+  // The switch has no `default`, so this list and the union must agree or the
+  // build breaks. The bug it replaces: `baseline-unreadable` fell through to
+  // "vault scan looks incomplete" while the modal for the same refusal said
+  // the baseline could not be read.
+  const reasons: MirrorDeletionRefusal[] = [
+    "scan-incomplete",
+    "no-server-count",
+    "server-count-tripwire",
+    "baseline-unreadable",
+  ];
+
+  it("gives each reason its own sentence", () => {
+    const lines = reasons.map((r) => describeMirrorRefusal(r));
+    expect(new Set(lines).size).toBe(reasons.length);
+    for (const line of lines) expect(line).toMatch(/nothing was deleted/);
+  });
+
+  it("says the baseline is unreadable rather than blaming the scan", () => {
+    expect(describeMirrorRefusal("baseline-unreadable")).toMatch(/baseline/i);
+    expect(describeMirrorRefusal("baseline-unreadable")).not.toMatch(
+      /scan looks incomplete/,
+    );
+  });
+
+  it("falls back to the scan wording only when no reason was given", () => {
+    expect(describeMirrorRefusal(undefined)).toMatch(/scan looks incomplete/);
+  });
+});
+
+describe("syncNowNotice is honest about a joined push", () => {
+  it("does not claim the joined work happened", () => {
+    // A joining caller's request is absorbed, and if the running pass exits on
+    // failed/refused the absorbed work never runs. "joined it" read as done.
+    const line = syncNowNotice({ kind: "joined" }) ?? "";
+    expect(line).not.toMatch(/joined it/);
+    expect(line).toMatch(/already running/);
+    expect(line).toMatch(/again/);
   });
 });

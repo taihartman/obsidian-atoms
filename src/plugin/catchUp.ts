@@ -35,19 +35,39 @@ export type MirrorSyncOutcome =
   | { kind: "refused"; uploaded: number; reason?: MirrorDeletionRefusal }
   | { kind: "failed"; message?: string };
 
-/** True only when the cloud confirmed receipt — the sole ack condition (R15). */
-export function mirrorConfirmedReceipt(outcome: MirrorSyncOutcome): boolean {
+/**
+ * True only when the cloud confirmed receipt — the sole ack condition (R15).
+ *
+ * A type predicate, not a `boolean`, so a caller that guards on it actually
+ * narrows. Without that, `!mirrorConfirmedReceipt(x)` left `worked` in the
+ * union and any exhaustiveness check downstream had to pretend the impossible
+ * arm was reachable — which is how the outbox ended up with a catch-all that
+ * would have reported a future outcome as `joined`.
+ */
+export function mirrorConfirmedReceipt(
+  outcome: MirrorSyncOutcome,
+): outcome is Extract<MirrorSyncOutcome, { kind: "worked" }> {
   return outcome.kind === "worked";
 }
 
-/** One-line, user-facing reason a forced sync was refused (never "success"). */
+/**
+ * One-line, user-facing reason a forced sync was refused (never "success").
+ *
+ * No `default` arm on purpose. A catch-all here does not fall back, it *lies*:
+ * `baseline-unreadable` used to be reported as "vault scan looks incomplete"
+ * while the modal for the same refusal correctly said the baseline could not be
+ * read. Listing every reason makes the next one a compile error instead.
+ */
 export function describeMirrorRefusal(reason?: MirrorDeletionRefusal): string {
   switch (reason) {
     case "no-server-count":
       return "Ask mirror: sync refused — this device has never seen the cloud count; nothing was deleted";
     case "server-count-tripwire":
       return "Ask mirror: sync refused — this vault holds far fewer atoms than the cloud; nothing was deleted";
-    default:
+    case "baseline-unreadable":
+      return "Ask mirror: sync refused — this device's sync baseline is unreadable; nothing was deleted";
+    case "scan-incomplete":
+    case undefined:
       return "Ask mirror: sync refused — vault scan looks incomplete; nothing was deleted";
   }
 }
@@ -62,7 +82,13 @@ export function describeMirrorRefusal(reason?: MirrorDeletionRefusal): string {
 export function syncNowNotice(outcome: MirrorSyncOutcome): string | null {
   switch (outcome.kind) {
     case "joined":
-      return "Ask mirror: a sync is already running — joined it";
+      // Not "joined it". A joining caller's request is absorbed into the
+      // running pass, and if that pass exits on `failed` or `refused` the
+      // absorbed work — including a forced reconcile and the confirmation
+      // dialog only the forced path can reach — never runs. Dropping it is the
+      // fail-closed direction and deletes nothing; claiming it happened is the
+      // part that misleads. Say what is true and name the recovery.
+      return "Ask mirror: a sync was already running — press Sync now again when it finishes";
     case "refused":
       return describeMirrorRefusal(outcome.reason);
     case "worked":
@@ -302,22 +328,38 @@ export async function runAskOutboxApply(
       // write on the floor, since the outbox never serves it again. Stop and
       // leave the entry pending; the next pass re-pulls it.
       if (!mirrorConfirmedReceipt(mirror)) {
+        // Exhaustive switch, not a ternary chain with a trailing else. The
+        // else-arm meant "anything that is not failed or refused is joined",
+        // which is exactly the reading the ack rule exists to forbid: a fifth
+        // outcome would compile silently and be reported as a push that moved
+        // nothing. `never` makes adding one a type error here first.
         return finish(
-          mirror.kind === "failed"
-            ? {
-                kind: "failed",
-                landed,
-                rejected,
-                ...(mirror.message ? { message: mirror.message } : {}),
-              }
-            : mirror.kind === "refused"
-              ? {
+          ((): AskOutboxOutcome => {
+            switch (mirror.kind) {
+              case "failed":
+                return {
+                  kind: "failed",
+                  landed,
+                  rejected,
+                  ...(mirror.message ? { message: mirror.message } : {}),
+                };
+              case "refused":
+                return {
                   kind: "refused",
                   landed,
                   rejected,
                   ...(mirror.reason ? { reason: mirror.reason } : {}),
-                }
-              : { kind: "joined", landed, rejected },
+                };
+              case "joined":
+                return { kind: "joined", landed, rejected };
+              default: {
+                const unreachable: never = mirror;
+                throw new Error(
+                  `unhandled mirror outcome: ${JSON.stringify(unreachable)}`,
+                );
+              }
+            }
+          })(),
         );
       }
       await host.ack(item.id, { status: "applied" });

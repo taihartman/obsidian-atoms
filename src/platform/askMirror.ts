@@ -693,7 +693,23 @@ export type MirrorDeletionDecision =
  *    server count is the only measure of what is about to be destroyed.
  */
 export function decideMirrorDeletion(input: {
+  /**
+   * Paths the vault scan found now — the exact set a forced reconcile sends as
+   * `keepPaths`, and therefore the only honest measure of what survives on the
+   * server. The tripwire arm uses this; the completeness arm must not.
+   */
   scannedCount: number;
+  /**
+   * How many of *this device's own* evidence paths the scan still found.
+   *
+   * The completeness floor's denominator is evidence, so its numerator has to
+   * be evidence too. Measuring the raw scan against an evidence-derived floor
+   * compares two different sets, and a newly created atom then pays for a
+   * missing one: 50 surviving evidence paths plus 50 brand-new atoms scores
+   * 100 against a floor of 80 and deletes the 50 rows that were only missing
+   * because the vault had not finished downloading.
+   */
+  survivingEvidenceCount: number;
   evidenceCount: number;
   highWaterCount: number;
   lastKnownServerCount: number | null;
@@ -716,7 +732,7 @@ export function decideMirrorDeletion(input: {
   if (input.lastKnownServerCount == null) {
     return { allowed: false, reason: "no-server-count", floor };
   }
-  if (input.scannedCount < floor) {
+  if (input.survivingEvidenceCount < floor) {
     return { allowed: false, reason: "scan-incomplete", floor };
   }
   if (input.reconcile) {
@@ -772,6 +788,16 @@ export type AskMirrorHost = {
     { ok: true; count: number } | { ok: false; message: string }
   >;
   confirm(request: ConfirmRequest): Promise<ConfirmVerdict>;
+  /**
+   * Withdraw a `confirm` the gate has stopped waiting for. Optional so a host
+   * that cannot cancel still compiles, but a host whose `confirm` shows UI must
+   * implement it: the timeout below abandons the race, and an abandoned dialog
+   * left on screen still offers "Delete from cloud". Tapping it resolves an
+   * already-settled promise, so the user authorises an irreversible delete and
+   * nothing at all happens — the one outcome an irreversible-delete prompt must
+   * never produce.
+   */
+  cancelConfirm?(): void;
   /** Transient user-facing message (escalation only). */
   notice(message: string): void;
   now?(): number;
@@ -812,6 +838,7 @@ async function resolveMirrorDeletionGate(
   save: (k: string, v: string) => void,
   args: {
     scannedCount: number;
+    survivingEvidenceCount: number;
     evidenceCount: number;
     highWaterCount: number;
     highWaterCorrupt: boolean;
@@ -824,13 +851,19 @@ async function resolveMirrorDeletionGate(
   /** True once `status()` ran here, so the caller does not ask twice. */
   serverCountRefreshed: boolean;
 }> {
-  const { scannedCount, evidenceCount, highWaterCount, highWaterCorrupt } =
-    args;
+  const {
+    scannedCount,
+    survivingEvidenceCount,
+    evidenceCount,
+    highWaterCount,
+    highWaterCorrupt,
+  } = args;
   const force = args.force;
   let serverCount = args.lastKnownServerCount;
   const judge = (confirmation?: DeletionConfirmation) =>
     decideMirrorDeletion({
       scannedCount,
+      survivingEvidenceCount,
       evidenceCount,
       highWaterCount,
       highWaterCorrupt,
@@ -858,12 +891,15 @@ async function resolveMirrorDeletionGate(
     if (!st.ok || !Number.isInteger(st.count) || st.count < 0) {
       // Fail closed. Never fall back to the stale value, and never reconcile
       // — nor pose an irreversible question — on a count we could not get.
+      //
+      // Route the refusal through `judge()` rather than hand-building it. The
+      // hand-built copy had already drifted: it reported `no-server-count`
+      // even when the real reason was a corrupt baseline, which
+      // `decideMirrorDeletion` checks *first* and reports differently. One
+      // author for the refusal shape, so the reason cannot lie again.
+      serverCount = null;
       return {
-        decision: {
-          allowed: false,
-          reason: "no-server-count",
-          floor: mirrorCompletenessFloor(evidenceCount, highWaterCount),
-        },
+        decision: judge(),
         confirmation: null,
         serverCountRefreshed: false,
       };
@@ -919,15 +955,23 @@ async function confirmWithTimeout(
 ): Promise<ConfirmVerdict> {
   const ms = host.confirmTimeoutMs ?? MIRROR_CONFIRM_TIMEOUT_MS;
   let timer: ReturnType<typeof setTimeout> | undefined;
+  let timedOut = false;
   try {
     return await Promise.race([
       host.confirm(request),
       new Promise<ConfirmVerdict>((resolve) => {
-        timer = setTimeout(() => resolve("dismissed"), ms);
+        timer = setTimeout(() => {
+          timedOut = true;
+          resolve("dismissed");
+        }, ms);
       }),
     ]);
   } finally {
     if (timer !== undefined) clearTimeout(timer);
+    // Losing the race is not the same as the question going away. Tell the
+    // host to take the dialog down, or it keeps offering a delete this pass
+    // has already stopped listening for.
+    if (timedOut) host.cancelConfirm?.();
   }
 }
 
@@ -1031,6 +1075,12 @@ export async function runAskMirrorSync(
   // Nothing above this line deletes; everything below it can.
   const scannedCount = vaultPaths.size;
   const evidenceCount = Object.keys(hashSnapshot).length;
+  // Two different questions, so two different numbers. `scannedCount` answers
+  // "how much survives a reconcile" (it is keepPaths). This answers "did my own
+  // prior evidence survive the scan" — the only one the completeness floor can
+  // honestly ask, because its denominator is that same evidence. Every path the
+  // delete planner named is an evidence path the scan did not find.
+  const survivingEvidenceCount = evidenceCount - deletePaths.length;
   const nowMs = host.now?.() ?? Date.now();
   // Absent and corrupt are different facts. Absent means this device has no
   // prior mark, so the evidence count is the honest baseline. Corrupt means a
@@ -1050,6 +1100,7 @@ export async function runAskMirrorSync(
   const { decision, confirmation, serverCountRefreshed } = gateEvaluated
     ? await resolveMirrorDeletionGate(host, save, {
           scannedCount,
+          survivingEvidenceCount,
           evidenceCount,
           highWaterCount,
           highWaterCorrupt,
@@ -1140,15 +1191,32 @@ export async function runAskMirrorSync(
   //   - reset only when the gate ran, and a user who never deleted anything
   //     stays wedged forever — once their vault finishes syncing there are no
   //     deletes to plan, so the gate stops being consulted at all.
-  if (scannedCount >= mirrorCompletenessFloor(evidenceCount, highWaterCount)) {
+  // A confirmed prune is converged by definition — the user was shown the
+  // counts and authorised them — but it reaches here *below* the floor, since
+  // being below the floor is why it had to ask. Without the confirmation arm
+  // the banner keeps saying "sync refused" while this same click's toast says
+  // "reconciled". Measured against surviving evidence, like the gate itself.
+  if (
+    confirmation ||
+    survivingEvidenceCount >=
+      mirrorCompletenessFloor(evidenceCount, highWaterCount)
+  ) {
     writeAskMirrorRefusal(save, { count: 0, noticed: false });
   }
   // The mark tracks the pre-shrinkage baseline: raised by any complete pass,
   // lowered only by an explicitly confirmed reconcile (or by decay above).
+  //
+  // It ratchets on *evidence*, not on vault cardinality, because the floor it
+  // feeds is now measured against surviving evidence. Mixing the two wedges an
+  // ordinary user: a vault of 500 files with 400 evidence paths would set the
+  // mark to 500, pushing the floor to exactly 400 — so a single legitimately
+  // deleted atom could never clear it. On a confirmed reconcile the evidence
+  // map is rebuilt to the exact vault set below, so `scannedCount` is the
+  // evidence count this pass ends with.
   writeMirrorHighWater(save, {
     count: confirmation
       ? scannedCount
-      : Math.max(highWaterCount, scannedCount, evidenceCount),
+      : Math.max(highWaterCount, evidenceCount),
     setAt: new Date(nowMs).toISOString(),
   });
   const mutated = uploaded > 0 || deleted > 0 || force;

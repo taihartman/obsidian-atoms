@@ -4,7 +4,10 @@ import type {
   ConfirmVerdict,
   DeletionConfirmation,
 } from "../src/shared/confirm";
-import type { AskMirrorHost } from "../src/platform/askMirror";
+import type {
+  AskMirrorHost,
+  AskMirrorSyncResult,
+} from "../src/platform/askMirror";
 import {
   ASK_MIRROR_REFUSAL_ESCALATION_NOTICE,
   MIRROR_HIGHWATER_DECAY_DAYS,
@@ -31,6 +34,25 @@ import {
   stripLegacyAskMirrorHashes,
   writeAskMirrorHashes,
 } from "../src/platform/askMirror";
+
+/**
+ * Narrow a sync result to its `ok` arm before asserting on counts.
+ *
+ * `uploaded` and `refusalReason` live only on `ok`; a `failed` result carries a
+ * message instead. Reaching for them on the bare union used to be invisible
+ * because `tsconfig.json` excluded `test/` — see tsconfig.test.json. Throwing
+ * here also turns "the run failed for an unrelated reason" into a legible test
+ * failure rather than an `undefined` compared against an expected value.
+ */
+function okResult(
+  r: AskMirrorSyncResult,
+): Extract<AskMirrorSyncResult, { kind: "ok" }> {
+  if (r.kind !== "ok") {
+    throw new Error(`expected an ok sync result, got: ${JSON.stringify(r)}`);
+  }
+  return r;
+}
+
 
 describe("askMirror", () => {
   it("splits frontmatter tags and body", () => {
@@ -243,7 +265,7 @@ durable taste fact about [[Andrew]] from this capture.
     ];
     const first = planAskMirrorUpsert(files, "Atoms", {});
     expect(first.atoms).toHaveLength(1);
-    expect(first.atoms[0].title).toBe("Tea");
+    expect(first.atoms[0]?.title).toBe("Tea");
     const h = first.nextHashes["Atoms/Tea.md"];
     expect(h).toBeTruthy();
     const second = planAskMirrorUpsert(files, "Atoms", first.nextHashes);
@@ -468,7 +490,7 @@ describe("askMirror deletion gate (U1)", () => {
     const r = await runAskMirrorSync(f.host, { force: false });
     expect(f.deleted.length).toBe(0);
     expect(r.refused).toBe(false);
-    expect(r.uploaded).toBe(300);
+    expect(okResult(r).uploaded).toBe(300);
   });
 
   it("a fresh device with 10 of 400 atoms downloaded cannot force away the other 390", async () => {
@@ -595,7 +617,7 @@ describe("askMirror deletion gate (U1)", () => {
     expect(f.reconciles).toEqual([]);
     expect(f.deleted.length).toBe(0);
     // Upserts still ran — a refusal blocks deletion, not the whole pass.
-    expect(r.uploaded).toBe(100);
+    expect(okResult(r).uploaded).toBe(100);
   });
 
   it("chunked reconcile stages with confirmEmpty false until the final chunk", async () => {
@@ -668,6 +690,7 @@ describe("askMirror deletion gate (U1)", () => {
     expect(
       mod.decideMirrorDeletion({
         scannedCount: 3,
+        survivingEvidenceCount: 3,
         evidenceCount: 400,
         highWaterCount: 0,
         lastKnownServerCount: 400,
@@ -909,7 +932,7 @@ describe("askMirror gate — fail-open paths (review)", () => {
     expect(f.confirmRequests).toEqual([]);
     expect(f.reconciles).toEqual([]);
     expect(r.refused).toBe(true);
-    expect(r.refusalReason).toBe("no-server-count");
+    expect(okResult(r).refusalReason).toBe("no-server-count");
   });
 
   it("a corrupt high-water mark fails closed instead of disabling the ratchet", async () => {
@@ -920,7 +943,7 @@ describe("askMirror gate — fail-open paths (review)", () => {
     f.store[LS_ASK_MIRROR_SCAN_HIGHWATER] = "{not json";
     const r = await runAskMirrorSync(f.host, { force: false });
     expect(r.refused).toBe(true);
-    expect(r.refusalReason).toBe("baseline-unreadable");
+    expect(okResult(r).refusalReason).toBe("baseline-unreadable");
     expect(f.deleted.length).toBe(0);
   });
 
