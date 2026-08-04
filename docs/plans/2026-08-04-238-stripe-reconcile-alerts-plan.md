@@ -115,6 +115,10 @@ payload, so `sendOpsEmail` bodies must stay free of anything beyond those three 
   with `created[gte]` and `starting_after` pagination, flag every event where
   `store.hasProcessedEvent(event.id)` is false, record each as a class-C incident, and report.
   Default window 7 days (Stripe's events API retains 30; `--since` accepts up to that).
+  The sweep's grantable `payment_status` filter is **`paid` ∪ `no_payment_required`** (absent
+  still reads as paid): trial starts settle as `no_payment_required` and `applyStripeEvent`
+  grants on them, so a `paid`-only filter would be blind to exactly the signup path #230 broke.
+  Genuinely non-grantable statuses (`unpaid`) are still skipped.
   `--repair` extracts the `checkout.session.completed` grant branch of `applyStripeEvent` into a
   shared function both callers use, so repair claims the event id *before* granting (a late Stripe
   redelivery must not double-mint) and honors `metadata.kind` / `mode` so a `topup_50` gets
