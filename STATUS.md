@@ -7,6 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
+| In progress | #222 | taihartman | `feat/resume-catch-up` | `docs/plans/2026-07-31-001-feat-resume-catch-up-plan.md` | `src/platform/resume.ts`, `src/plugin/catchUp.ts`, `main.ts`, settings, home | Phase A shipped (#226); B–D remaining; PR #223 |
 
 ## How to claim (copy)
 

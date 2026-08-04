@@ -814,7 +814,7 @@ export class AtomsSettingTab extends PluginSettingTab {
     new Setting(containerEl)
       .setName("Data egress acknowledgment")
       .setDesc(
-        "I understand auto-run will send my vault title graph and each capture to the Anthropic API over TLS when Obsidian opens (unattended).",
+        'I understand Atoms will send my vault title graph and each capture to the Anthropic API over TLS, unattended — when Obsidian opens, when it returns to the foreground, and when I tap "Sync everything now", which classifies even when automatic filing is turned off.',
       )
       .addToggle((toggle) =>
         toggle.setValue(state.egressAcked).onChange((on) => {
@@ -848,9 +848,39 @@ export class AtomsSettingTab extends PluginSettingTab {
           }),
       );
 
+    new Setting(containerEl)
+      .setName("Sync automatically on resume")
+      .setDesc(
+        "When you return to Obsidian, drain the inbox, apply the Ask outbox, push the mirror, and file if automatic filing is on. Device-local only. Manual Sync everything now still works when this is off.",
+      )
+      .addToggle((toggle) =>
+        toggle.setValue(this.plugin.getResumeEnabled()).onChange((on) => {
+          this.plugin.setResumeEnabled(on);
+          this.redisplay();
+        }),
+      );
+
+    new Setting(containerEl)
+      .setName("Sync everything now")
+      .setDesc(
+        "Run drain → outbox → mirror → filing now (ignores resume cooldowns). Filing still needs the catch-up notice on Atoms home when present.",
+      )
+      .addButton((btn) =>
+        btn.setButtonText("Sync everything now").setCta().onClick(() => {
+          void this.plugin.runSyncEverythingNow();
+        }),
+      );
+
     if (state.lastRunDay) {
       containerEl.createEl("p", {
         text: `Last auto-run day (this device): ${state.lastRunDay}`,
+        cls: "setting-item-description",
+      });
+    }
+    const catchLine = this.plugin.getLastCatchupLine();
+    if (catchLine) {
+      containerEl.createEl("p", {
+        text: catchLine,
         cls: "setting-item-description",
       });
     }

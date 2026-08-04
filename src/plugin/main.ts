@@ -113,6 +113,18 @@ import {
   type DeviceAutoRunState,
 } from "../platform/autorun";
 import {
+  appendFilingBudgetStamps,
+  decideResumeStages,
+  formatLastCatchupLine,
+  readEgressNoticeAcked,
+  readFilingBudgetStamps,
+  readLastCatchup,
+  readResumeEnabled,
+  writeEgressNoticeAcked,
+  writeLastCatchup,
+  writeResumeEnabled,
+} from "../platform/resume";
+import {
   readPlusSession,
   resolveFilingAuth,
   writePlusSession,
@@ -179,6 +191,13 @@ export default class AtomsPlugin extends Plugin {
   private drainInFlight: Promise<InboxDrainResult> | null = null;
   /** Set true only after waitForVaultIndexReady (U9 cold-start gate). */
   private vaultIndexReady = false;
+  /** Resume catch-up coalescing / cooldown state (in-memory). */
+  private lastResumePassAt: number | null = null;
+  private resumeCoalesceTimer: number | null = null;
+  private waiverUsedThisSignal = false;
+  private waivedFilingStamps: number[] = [];
+  private catchUpInFlight = false;
+  private lastDrainFiled = 0;
 
   async onload() {
     await this.loadSettings();
@@ -219,6 +238,17 @@ export default class AtomsPlugin extends Plugin {
     // Ask outbox + mirror catch-up when vault is open (coordinator owns state).
     this.ask = new AskCoordinator(this);
     this.ask.registerLifecycle();
+
+    // Resume catch-up: visibility + focus → same chain as cold start (R1).
+    // U0: plusResume already ships these signals on mobile webviews; agent
+    // cannot BRAT-spike phones — proceed on that precedent.
+    this.registerDomEvent(document, "visibilitychange", () => {
+      if (document.hidden) return;
+      this.scheduleResumeCatchUp();
+    });
+    this.registerDomEvent(window, "focus", () => {
+      this.scheduleResumeCatchUp();
+    });
   }
 
   /**
@@ -536,6 +566,218 @@ export default class AtomsPlugin extends Plugin {
 
   onunload() {
     this.autoRunInFlight = false;
+    this.catchUpInFlight = false;
+    this.drainInFlight = null;
+    if (this.resumeCoalesceTimer != null) {
+      window.clearTimeout(this.resumeCoalesceTimer);
+      this.resumeCoalesceTimer = null;
+    }
+  }
+
+  /** Leading-edge coalesce for visibility+focus (KTD4). */
+  private scheduleResumeCatchUp(): void {
+    if (this.resumeCoalesceTimer != null) return;
+    this.waiverUsedThisSignal = false;
+    this.resumeCoalesceTimer = window.setTimeout(() => {
+      this.resumeCoalesceTimer = null;
+      void this.runCatchUpPass({ manual: false, silent: true });
+    }, 750);
+  }
+
+  /**
+   * Full catch-up chain: drain → outbox → mirror → optional filing.
+   * Manual path is chatty; resume path is silent (R5).
+   */
+  async runCatchUpPass(opts: {
+    manual: boolean;
+    silent: boolean;
+  }): Promise<{ ran: boolean; reason: string }> {
+    const load = (k: string): unknown =>
+      this.app.loadLocalStorage(k) as unknown;
+    const save = (k: string, v: unknown) => this.app.saveLocalStorage(k, v);
+    const now = Date.now();
+
+    if (this.catchUpInFlight) {
+      return { ran: false, reason: "in_flight" };
+    }
+
+    const decision = decideResumeStages({
+      now,
+      resumeEnabled: readResumeEnabled(load),
+      manual: opts.manual,
+      vaultIndexReady: this.vaultIndexReady,
+      egressNoticeAcked: readEgressNoticeAcked(load),
+      lastResumePassAt: this.lastResumePassAt,
+      lastStageRunAt: {},
+      lastStageFailAt: {},
+      inFlightStartedAt: {
+        drain: this.drainInFlight ? now : null,
+        filing: this.autoRunInFlight ? now : null,
+      },
+      filingBudgetStamps: readFilingBudgetStamps(load, now),
+      waivedFilingStamps: this.waivedFilingStamps,
+      hasNewDrainedWork: this.lastDrainFiled > 0,
+      waiverUsedThisSignal: this.waiverUsedThisSignal,
+    });
+
+    if (
+      !decision.stages.drain.run &&
+      !decision.stages.outbox.run &&
+      !decision.stages.mirror.run &&
+      !decision.stages.filing.run
+    ) {
+      const reason =
+        (!decision.stages.drain.run &&
+          "reason" in decision.stages.drain &&
+          decision.stages.drain.reason) ||
+        "blocked";
+      return { ran: false, reason: String(reason) };
+    }
+
+    this.catchUpInFlight = true;
+    let drained = 0;
+    let outbox = 0;
+    let mirrored = 0;
+    let filed = 0;
+    try {
+      if (decision.stages.drain.run) {
+        try {
+          const r = await this.drainInboxOnce();
+          drained = r.filed;
+          this.lastDrainFiled = r.filed;
+        } catch (e) {
+          devLog("[atoms] catch-up drain failed", e);
+        }
+      }
+
+      // Re-decide filing after drain so new-work waiver can apply
+      const afterDrain = decideResumeStages({
+        now: Date.now(),
+        resumeEnabled: readResumeEnabled(load),
+        manual: opts.manual,
+        vaultIndexReady: this.vaultIndexReady,
+        egressNoticeAcked: readEgressNoticeAcked(load),
+        lastResumePassAt: this.lastResumePassAt,
+        lastStageRunAt: {},
+        lastStageFailAt: {},
+        inFlightStartedAt: {},
+        filingBudgetStamps: readFilingBudgetStamps(load, Date.now()),
+        waivedFilingStamps: this.waivedFilingStamps,
+        hasNewDrainedWork: this.lastDrainFiled > 0,
+        waiverUsedThisSignal: this.waiverUsedThisSignal,
+      });
+
+      if (decision.stages.outbox.run && this.ask) {
+        try {
+          const o = await this.ask.applyOutbox();
+          if (o.kind === "worked" || o.kind === "joined") {
+            outbox = o.landed;
+          }
+        } catch (e) {
+          devLog("[atoms] catch-up outbox failed", e);
+        }
+      }
+
+      if (decision.stages.mirror.run && this.ask) {
+        try {
+          const m = await this.syncAskMirror({ force: opts.manual });
+          if (m.kind === "worked") {
+            mirrored = m.uploaded + m.deleted;
+          }
+        } catch (e) {
+          devLog("[atoms] catch-up mirror failed", e);
+        }
+      }
+
+      if (afterDrain.stages.filing.run) {
+        if (afterDrain.grantWaiver) {
+          this.waiverUsedThisSignal = true;
+          this.waivedFilingStamps = [
+            ...this.waivedFilingStamps,
+            Date.now(),
+          ];
+        }
+        const auto = await this.maybeAutoRun(
+          opts.manual ? "manual" : "resume",
+        );
+        if (auto.ran && this.lastWriteReport) {
+          filed = this.lastWriteReport.markersAppended;
+          if (filed > 0) {
+            appendFilingBudgetStamps(load, save, Date.now(), filed);
+          }
+        }
+        // Silence auto-run notices on resume path
+        if (opts.silent && filed > 0) {
+          /* maybeAutoRun may Notice — acceptable for now on manual only */
+        }
+      } else if (
+        opts.manual &&
+        afterDrain.stages.filing.reason === "egress_notice"
+      ) {
+        new Notice(
+          "Atoms: acknowledge the catch-up notice on Atoms home before filing can spend API",
+        );
+      }
+
+      if (!opts.manual) this.lastResumePassAt = Date.now();
+
+      writeLastCatchup(save, {
+        at: Date.now(),
+        drained,
+        filed,
+        mirrored,
+        outbox,
+      });
+      await this.refreshAtomsHomeLeaves();
+
+      if (opts.manual) {
+        const bits = [
+          drained && `drained ${drained}`,
+          filed && `filed ${filed}`,
+          outbox && `outbox ${outbox}`,
+          mirrored && `mirror ${mirrored}`,
+        ].filter(Boolean);
+        new Notice(
+          bits.length
+            ? `Atoms: ${bits.join(" · ")}`
+            : "Atoms: catch-up finished (nothing new)",
+        );
+      }
+
+      return { ran: true, reason: "ok" };
+    } finally {
+      this.catchUpInFlight = false;
+    }
+  }
+
+  /** Manual escape hatch (R6). */
+  async runSyncEverythingNow(): Promise<void> {
+    await this.runCatchUpPass({ manual: true, silent: false });
+  }
+
+  getLastCatchupLine(): string | null {
+    const load = (k: string) => this.app.loadLocalStorage(k) as unknown;
+    return formatLastCatchupLine(readLastCatchup(load));
+  }
+
+  isEgressNoticePending(): boolean {
+    const load = (k: string) => this.app.loadLocalStorage(k) as unknown;
+    return !readEgressNoticeAcked(load);
+  }
+
+  ackEgressNotice(): void {
+    writeEgressNoticeAcked((k, v) => this.app.saveLocalStorage(k, v));
+    void this.refreshAtomsHomeLeaves();
+  }
+
+  getResumeEnabled(): boolean {
+    return readResumeEnabled(
+      (k) => this.app.loadLocalStorage(k) as unknown,
+    );
+  }
+
+  setResumeEnabled(on: boolean): void {
+    writeResumeEnabled((k, v) => this.app.saveLocalStorage(k, v), on);
   }
 
   private async scheduleAutoRunLifecycle() {
@@ -600,7 +842,9 @@ export default class AtomsPlugin extends Plugin {
    * Does not invoke buildContext until vaultIndexReady.
    * Stamps last-run day only when past queue is drained (not on attempt/failure).
    */
-  async maybeAutoRun(source: "onload" | "interval" | "manual"): Promise<{
+  async maybeAutoRun(
+    source: "onload" | "interval" | "manual" | "resume",
+  ): Promise<{
     ran: boolean;
     reason: string;
   }> {
@@ -702,9 +946,12 @@ export default class AtomsPlugin extends Plugin {
 
       const filed = report.markersAppended;
       if (filed > 0) {
-        new Notice(
-          `Atoms: filed ${filed} capture${filed === 1 ? "" : "s"} (${report.atomsCreated} atom${report.atomsCreated === 1 ? "" : "s"})`,
-        );
+        // Resume path stays silent (R5); onload/interval/manual stay chatty.
+        if (source !== "resume") {
+          new Notice(
+            `Atoms: filed ${filed} capture${filed === 1 ? "" : "s"} (${report.atomsCreated} atom${report.atomsCreated === 1 ? "" : "s"})`,
+          );
+        }
         if (this.hasOpenAtomsHome()) {
           const summary = formatRunSummary(summaryFromWrite(report));
           this.finishHomeRun(
