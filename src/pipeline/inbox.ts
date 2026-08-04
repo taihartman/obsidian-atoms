@@ -660,6 +660,27 @@ function inboxDailyBulletLines(time: string | null, body: string): string[] {
 }
 
 /**
+ * The `(time, body)` key as the *daily* will read it back.
+ *
+ * Both comparisons below match a capture against `parseCaptures` output, so the
+ * capture side has to travel the same road: write the bullet, parse it, key on
+ * that. Keying on the raw fields instead silently loses one real case — an
+ * untimed capture (`time === null`) whose body starts with something the parser
+ * reads as a stamp. `- 9:30 met Sam` round-trips to `timestamp: "9:30"`, so the
+ * raw key `"\n9:30 met Sam"` never matches the parsed key `"9:30\nmet Sam"`.
+ * The capture then never verifies, never gets its marker, and re-appends on
+ * every pass.
+ */
+function dailyCaptureKey(time: string | null, body: string): string {
+  const roundTripped = parseCaptures(
+    inboxDailyBulletLines(time, body).join("\n"),
+  )[0];
+  return roundTripped
+    ? `${roundTripped.timestamp ?? ""}\n${roundTripped.text}`
+    : `${time ?? ""}\n${body}`;
+}
+
+/**
  * Dedupe backstop: does the daily already hold this capture? Compares against
  * the daily's own parse so a line whose inbox marker was lost to a sync merge
  * is re-marked rather than duplicated. Keyed on (time, body) per Q2.
@@ -669,8 +690,9 @@ function dailyHasCapture(
   time: string | null,
   body: string,
 ): boolean {
+  const key = dailyCaptureKey(time, body);
   return parseCaptures(dailyContent).some(
-    (c) => c.timestamp === time && c.text === body,
+    (c) => `${c.timestamp ?? ""}\n${c.text}` === key,
   );
 }
 
@@ -818,7 +840,7 @@ async function verifyFiledInDailies(
     }
     const remaining = dailyCaptureCounts(dailyContent);
     for (const c of group) {
-      const key = `${c.time ?? ""}\n${c.text}`;
+      const key = dailyCaptureKey(c.time, c.text);
       const left = remaining.get(key) ?? 0;
       if (left <= 0) continue;
       remaining.set(key, left - 1);

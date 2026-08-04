@@ -1,0 +1,27 @@
+{
+	// Typecheck for the deletion-gate tests. The build config deliberately
+	// excludes `test/` so a test file can never reach the shipped bundle, but
+	// that exclusion also meant nothing typechecked the tests, and two costs came
+	// due at once:
+	//
+	//   1. The `@ts-expect-error` assertions guarding the deletion token's
+	//      unforgeability were inert — asserting nothing, in the file whose whole
+	//      job is proving the token cannot be forged.
+	//   2. Adding a required field to `decideMirrorDeletion` left a safety test
+	//      passing `undefined` for it, which silently flipped that test from
+	//      "refuses an incomplete scan" to "allows" instead of failing to build.
+	//
+	// Scoped to the gate's own tests rather than all of `test/`: the wider tree
+	// has pre-existing errors (untyped `.mjs` imports, un-narrowed unions) whose
+	// cleanup is its own change, and a gate that cannot go green gates nothing.
+	// Widen this list as those files are cleaned up.
+	"extends": "./tsconfig.json",
+	"include": [
+		"src/**/*.ts",
+		"test/askMirror.test.ts",
+		"test/askMirrorGate.adversarial.test.ts",
+		"test/catchUp.test.ts",
+		"plus-pricing.json"
+	],
+	"exclude": ["node_modules"]
+}

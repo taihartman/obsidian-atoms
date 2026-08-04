@@ -43,3 +43,6 @@ firepit-log.txt
 
 # Claude Code personal overrides (not shared)
 .claude/settings.local.json
+
+# compound-engineering local (machine-specific) config
+.compound-engineering/config.local.yaml
