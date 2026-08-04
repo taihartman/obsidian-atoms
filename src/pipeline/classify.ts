@@ -63,6 +63,52 @@ declare const ATOMS_DEV_COMMANDS: boolean;
 export const ANTHROPIC_MESSAGES_URL = "https://api.anthropic.com/v1/messages";
 export const ANTHROPIC_VERSION = "2023-06-01";
 
+/**
+ * Prompt/schema phrases that must match plus-service `classifyTemplate.mjs`
+ * (parity freeze — dual sources until generate-one-source).
+ */
+export const CLASSIFICATION_PARITY_PHRASES = [
+  "You output ONLY: verdict, title, tags, proposed_tags, links, people, and optional hub_section.",
+  "people[] — who is named, and how",
+  "This product is NOT a task app",
+  "The body is sacred and is written elsewhere, verbatim.",
+  "task: **soft-retired / almost never**",
+] as const;
+
+/**
+ * Live `classifyCapture` post-parse enrich order (after JSON parse).
+ * Invariants + active-tag filter sit between stages; see classifyCapture body.
+ */
+export const CLASSIFY_LIVE_ENRICH_ORDER = [
+  "rescueKeepableIdea",
+  "normalizePeople",
+  "normalizeHubSection",
+  "enrichPersonLinks",
+  "enrichMediaLinks",
+  "maybeLinkPeopleIndex",
+  "enrichEntityLinks",
+  "improveClassificationLinks",
+  "stripSelfReferentialLinks",
+  "repairHubSection",
+] as const;
+
+/**
+ * Offline `applyClassificationQuality` order (fixtures / backfill / refresh paths).
+ * Intentionally differs from live: normalizePeople before rescue; hub repair only
+ * when personHubDetails provided; no normalizeHubSection / active-tag filter here.
+ */
+export const CLASSIFY_OFFLINE_QUALITY_ORDER = [
+  "normalizePeople",
+  "rescueKeepableIdea",
+  "enrichPersonLinks",
+  "enrichMediaLinks",
+  "maybeLinkPeopleIndex",
+  "enrichEntityLinks",
+  "improveClassificationLinks",
+  "stripSelfReferentialLinks",
+  "repairHubSection",
+] as const;
+
 /** Grammar-constrained classification schema (KTD4). additionalProperties: false everywhere. */
 export const CLASSIFICATION_SCHEMA = {
   type: "object",
@@ -143,7 +189,7 @@ export const CLASSIFICATION_SCHEMA = {
 export const SYSTEM_PROMPT = `You classify fleeting captures from a daily-note inbox into a personal knowledge graph (second brain). This product is NOT a task app — the user has Reminders/Things for chores.
 
 ## Output surface (hard rules)
-- You output ONLY: verdict, title, tags, proposed_tags, links, and optional hub_section.
+- You output ONLY: verdict, title, tags, proposed_tags, links, people, and optional hub_section.
 - You never rewrite, paraphrase, expand, or "improve" the capture body. The body is sacred and is written elsewhere, verbatim.
 - You never choose folders or move files. Placement is not your job. One capture → at most one atom (never append into a Movies/list note).
 - Titles (when atom) are **short declarative claims** (~8–12 words / under ~80 characters when possible), not topics and not a paste of the whole capture.
