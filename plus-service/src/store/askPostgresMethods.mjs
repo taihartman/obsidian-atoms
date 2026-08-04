@@ -540,7 +540,8 @@ export function createAskPostgresMethods(pool, deps) {
   async function mirrorListTags(email) {
     const e = normEmail(email);
     const { rows } = await pool.query(
-      `SELECT tags_json FROM atom_mirror WHERE email = $1`,
+      `SELECT tags_json FROM atom_mirror WHERE email = $1
+       ORDER BY path ASC`,
       [e],
     );
     const agg = aggregateMirrorTags(

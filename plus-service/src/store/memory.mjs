@@ -684,7 +684,11 @@ export function createMemoryStore() {
   function mirrorListTags(email) {
     const e = normEmail(email);
     const bucket = atomMirror.get(e);
-    const rows = bucket ? [...bucket.values()] : [];
+    const rows = bucket
+      ? [...bucket.values()].sort((a, b) =>
+          String(a.path || "").localeCompare(String(b.path || "")),
+        )
+      : [];
     const agg = aggregateMirrorTags(
       rows.map((r) => rowToPublicAtom(r, { includeBody: false }).tags),
     );

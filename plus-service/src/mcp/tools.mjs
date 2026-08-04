@@ -48,6 +48,11 @@ export function registerAskTools(mcp, ctx) {
     return checkRateLimit(`ask-write:${email}`, 30);
   }
 
+  /** Full-mirror scans (list_tags) — cheaper than write, still bounded. */
+  function listTagsRateOk() {
+    return checkRateLimit(`ask-list-tags:${email}`, 60);
+  }
+
   function requireWrite() {
     if (hasWriteScope(scopes)) return null;
     return jsonTool(
@@ -96,6 +101,13 @@ export function registerAskTools(mcp, ctx) {
       inputSchema: {},
     },
     async () => {
+      const rl = listTagsRateOk();
+      if (!rl.ok) {
+        return jsonTool(
+          { error: "rate_limited", retryAfterSec: rl.retryAfterSec },
+          true,
+        );
+      }
       const result = await store.mirrorListTags(email);
       const mirrorCount = result?.mirror_count ?? 0;
       const tags = result?.tags ?? [];
