@@ -259,6 +259,14 @@ export class AskCoordinator {
     );
     const { AskMirrorDeleteConfirmModal } = await import("../settings/settings");
 
+    // Retained so a timed-out confirm can be withdrawn. confirmWithTimeout
+    // abandons the promise after 2 minutes; a dialog left on screen would keep
+    // offering "Delete from cloud" against an already-settled promise, so the
+    // user would authorise an irreversible delete and nothing would happen.
+    let pendingConfirmModal: InstanceType<
+      typeof AskMirrorDeleteConfirmModal
+    > | null = null;
+
     const folder = "Atoms";
     const base = p.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL;
     const cfg = { baseUrl: base, request: plusFetchRequest };
@@ -304,13 +312,26 @@ export class AskCoordinator {
         confirm: (request) =>
           new Promise((resolve) => {
             try {
-              new AskMirrorDeleteConfirmModal(p.app, request, resolve).open();
+              pendingConfirmModal = new AskMirrorDeleteConfirmModal(
+                p.app,
+                request,
+                (choice) => {
+                  pendingConfirmModal = null;
+                  resolve(choice);
+                },
+              );
+              pendingConfirmModal.open();
             } catch {
               // A modal that cannot open must not park the sync forever.
               // "dismissed" already means leave the mirror untouched.
+              pendingConfirmModal = null;
               resolve("dismissed");
             }
           }),
+        cancelConfirm: () => {
+          pendingConfirmModal?.close();
+          pendingConfirmModal = null;
+        },
         notice: (message) => new Notice(message),
       },
       { force },
