@@ -7,7 +7,6 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| In progress | #251 | tai | feat/ask-mcp-pairing | docs/plans/2026-08-04-002-feat-ask-mcp-pairing-plan.md | plus-service oauth/mirror/store, src/platform/plusClient.ts, src/settings/settings.ts | Pairing code + cookie chooser; Fly before plugin |
 
 ## How to claim (copy)
 
@@ -23,6 +22,7 @@ States: `Queued` · `In progress` · `Blocked` · `In review` · `Done` (then re
 
 | Merged | Issue / PR | Summary |
 |---|---|---|
+| 2026-08-04 | #251 / #252 | Ask MCP pairing code + OAuth identity chooser · **0.6.66** (released; Fly already live) |
 | 2026-08-04 | #246 / #247 | Ask coordinator peel + wire the inert confirm-withdrawal hook · **0.6.65** (released) |
 | 2026-08-04 | #248 / #249 | Mirror completeness floor counts surviving evidence, not raw scan · **0.6.64** |
 | 2026-08-04 | #225 / #226 | Gate mirror deletion, fix outbox ack, verify marker placement · **0.6.63** |
