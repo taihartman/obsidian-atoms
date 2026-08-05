@@ -79,9 +79,14 @@ export function resolveSkippedCapture(
 /** Pure strip of one noise|task marker region. */
 export function unlabelSkippedInContent(
   content: string,
-  opts: { startLine: number; snippet: string },
+  opts: { startLine: number; snippet: string; text?: string },
 ): UnlabelContentResult {
-  const capture = resolveSkippedCapture(content, opts);
+  // Prefer full identity; fall back to line for refuse messages (atom at cursor).
+  let capture = resolveSkippedCapture(content, opts);
+  if (!capture) {
+    const at = findCaptureAtLine(content, opts.startLine);
+    if (at) capture = at;
+  }
   const gate = gateReconsiderTarget(capture);
   if (!gate.ok) return { ok: false, reason: gate.reason };
   const kind = gate.capture.markerKind as SkippedMarkerKind;
