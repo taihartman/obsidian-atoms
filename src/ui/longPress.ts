@@ -81,11 +81,27 @@ export function attachLongPress(
     }
   };
 
+  const releaseCapture = (ev: PointerEvent) => {
+    try {
+      if (el.hasPointerCapture?.(ev.pointerId)) {
+        el.releasePointerCapture(ev.pointerId);
+      }
+    } catch {
+      /* ignore */
+    }
+  };
+
   const onPointerDown = (ev: PointerEvent) => {
-    if (ev.button !== 0 && ev.pointerType === "mouse") return;
+    // Primary button only for mouse; touch/pen have button 0.
+    if (ev.pointerType === "mouse" && ev.button !== 0) return;
     session.down(ev.clientX, ev.clientY);
     suppressClick = false;
     clearTimer();
+    try {
+      el.setPointerCapture?.(ev.pointerId);
+    } catch {
+      /* ignore */
+    }
     timer = setTimeout(() => {
       timer = null;
       if (session.timerFire()) {
@@ -103,6 +119,7 @@ export function attachLongPress(
 
   const onPointerUp = (ev: PointerEvent) => {
     clearTimer();
+    releaseCapture(ev);
     const result = session.up();
     if (result === "tap" && !suppressClick) {
       // Touch/pen: fire here (no reliable click). Mouse: wait for click.
@@ -117,8 +134,9 @@ export function attachLongPress(
     }
   };
 
-  const onPointerCancel = () => {
+  const onPointerCancel = (ev: PointerEvent) => {
     clearTimer();
+    releaseCapture(ev);
     session.reset();
   };
 

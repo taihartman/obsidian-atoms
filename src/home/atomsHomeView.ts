@@ -217,6 +217,8 @@ export class AtomsHomeView extends ItemView {
   private peek: Array<{ text: string; date: string }> = [];
   private busy = false;
   private rootEl: HTMLElement | null = null;
+  /** Detach long-press bindings before re-render (clears mid-hold timers). */
+  private libraryPressDetach: Array<() => void> = [];
   private shortcutAcked: string | null = null;
   /** Ack for the "filed without a time" signal, keyed to the shortcut version. */
   private inferredDateAcked: string | null = null;
@@ -2284,6 +2286,8 @@ export class AtomsHomeView extends ItemView {
         });
       }
     } else {
+      for (const d of this.libraryPressDetach) d();
+      this.libraryPressDetach = [];
       const list = listGroup(scroll, { className: "atoms-home-list" });
       const now = Date.now();
       for (const e of visible) {
@@ -2293,14 +2297,17 @@ export class AtomsHomeView extends ItemView {
           role: "button",
         });
         row.setAttr("tabindex", "0");
-        attachLongPress(row, {
-          onTap: () => {
-            void this.openPathInVault(e.path);
-          },
-          onLongPress: () => {
-            this.onContinueAtom(e.path, e.title);
-          },
-        });
+        row.style.touchAction = "manipulation";
+        this.libraryPressDetach.push(
+          attachLongPress(row, {
+            onTap: () => {
+              void this.openPathInVault(e.path);
+            },
+            onLongPress: () => {
+              this.onContinueAtom(e.path, e.title);
+            },
+          }),
+        );
         row.addEventListener("keydown", (ev) => {
           if (ev.key === "Enter" || ev.key === " ") {
             ev.preventDefault();
