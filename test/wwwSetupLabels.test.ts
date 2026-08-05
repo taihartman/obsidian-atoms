@@ -1,0 +1,125 @@
+/**
+ * The setup guide tells a reader which switch to flip and which button to press, by quoting the
+ * exact on-screen wording. Rename one of those in the plugin and the guide keeps confidently
+ * naming a control that no longer exists — prose cannot notice, and the reader is the one who
+ * finds out.
+ *
+ * So every quoted label is asserted from both ends:
+ *
+ *   1. the plugin side, through what the settings tab actually *renders* (or the function that
+ *      produces the string) — a source grep would pass on a literal that never reaches a screen
+ *   2. the guide side, against the BUILT page in `www/dist` rather than the `.tmpl` source
+ *
+ * Point 2 is the whole reason this file exists. `package.json` runs `build:www` as `pretest`, so
+ * dist is current at test time; asserting the template instead would leave exactly the gap that
+ * let #302's guard pass against a string the shipped page never contained.
+ */
+
+import { describe, it, expect } from "vitest";
+import { readFileSync } from "fs";
+import { join } from "path";
+import {
+  destinationNames,
+  open,
+  row,
+  rowNames,
+  settingTab,
+} from "./helpers/settingsTab";
+import { labelInstallOrUpdate } from "../src/settings/captureShortcut";
+import type { PlusSession } from "../src/platform/filingAuth";
+
+/** The guide as a reader reads it: no markup, no line wrapping, so a label may straddle both. */
+const guide = readFileSync(
+  join(__dirname, "..", "www", "dist", "setup.html"),
+  "utf8",
+)
+  .replace(/<[^>]+>/g, " ")
+  .replace(/\s+/g, " ");
+
+const PLUS_SESSION: PlusSession = {
+  sessionToken: "sess_setup",
+  email: "user@example.com",
+  status: "active",
+  periodEnd: "2099-01-01T00:00:00.000Z",
+};
+
+/** Signed in to Plus, which is the only state that renders the Ask cluster. */
+function plusTab() {
+  return settingTab({
+    session: PLUS_SESSION,
+    auth: {
+      mode: "plus",
+      sessionToken: PLUS_SESSION.sessionToken,
+      email: PLUS_SESSION.email,
+      status: "active",
+      remaining: 12,
+      periodEnd: PLUS_SESSION.periodEnd,
+    },
+  });
+}
+
+/** The labels on the buttons of one rendered row. */
+function buttonLabels(tab: ReturnType<typeof plusTab>["tab"], name: string): string[] {
+  return Array.from(row(tab, name).querySelectorAll("button")).map(
+    (el) => el.textContent ?? "",
+  );
+}
+
+describe("setup guide quotes labels the plugin still renders", () => {
+  it("names the capture button captureShortcut.ts hands the row", () => {
+    // Owning source: src/settings/captureShortcut.ts. The string is one arm of a conditional —
+    // an un-acked shortcut says Install, an acked one says Update — so the guide's step, which
+    // is written for a first install, is bound to the un-acked arm specifically.
+    const label = labelInstallOrUpdate(null);
+    expect(label).toBe("Install Capture Atom");
+    expect(guide.includes(label), "guide does not name the capture button").toBe(true);
+  });
+
+  it("names the two Ask switches the main screen renders", () => {
+    // Owning source: src/settings/settings.ts, renderAskSection.
+    const { tab } = plusTab();
+    tab.display();
+
+    const rows = rowNames(tab, { headings: false });
+    for (const label of ["Ask mirror", "Allow filing from Claude or ChatGPT"]) {
+      expect(rows, `no row named ${label}`).toContain(label);
+      expect(guide.includes(label), `guide does not name ${label}`).toBe(true);
+    }
+  });
+
+  it("names the connector row and the pairing button, both now one screen in", () => {
+    // Owning source: src/settings/settings.ts, renderConnectDestination. U6 moved these off the
+    // main screen, which is why the guide has to say where they went.
+    const { tab } = plusTab();
+    tab.display();
+    expect(destinationNames(tab)).toContain("Connect Claude or ChatGPT");
+
+    open(tab, "Connect Claude or ChatGPT");
+    expect(rowNames(tab)).toContain("MCP connector URL");
+    expect(buttonLabels(tab, "Link Claude / ChatGPT")).toContain("Get pairing code");
+
+    for (const label of [
+      "Connect Claude or ChatGPT",
+      "MCP connector URL",
+      "Get pairing code",
+    ]) {
+      expect(guide.includes(label), `guide does not name ${label}`).toBe(true);
+    }
+  });
+
+  it("sends the reader into the destination the pairing button now lives in", () => {
+    // "Press Get pairing code" was true when the button sat on the main screen. After U6 the
+    // instruction is only followable if the step also names the destination.
+    const sentence = guide
+      .split(/(?<=\.)\s+/)
+      .find((s) => s.includes("Get pairing code"));
+    expect(sentence, "guide has no pairing-code step").toBeDefined();
+    expect(sentence).toContain("Connect Claude or ChatGPT");
+  });
+
+  it("has dropped the label this unit retired", () => {
+    // The switch is named "Ask mirror" now: a row grammar's toggle already says "enable", so the
+    // label does not repeat it. Guard the old wording rather than trusting the edit.
+    expect(guide.includes("Enable Ask mirror"), "guide still says Enable Ask mirror").toBe(false);
+  });
+});

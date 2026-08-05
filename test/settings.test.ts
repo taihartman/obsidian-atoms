@@ -638,7 +638,7 @@ describe("consent sheets", () => {
   describe("declining", () => {
     it("leaves auto-run off and writes no egress ack", async () => {
       const { tab, local } = askTab();
-      flip(tab, "Auto-run on open");
+      flip(tab, "File automatically when Obsidian opens");
       await flush();
 
       expect(sheetOpen()).toBe(true);
@@ -648,12 +648,12 @@ describe("consent sheets", () => {
       expect(sheetOpen()).toBe(false);
       expect(local.get(LS_AUTO_RUN_EGRESS_ACK)).not.toBe(true);
       expect(local.get(LS_AUTO_RUN_ENABLED)).not.toBe(true);
-      expect(row(tab, "Auto-run on open").querySelector(".is-enabled")).toBeNull();
+      expect(row(tab, "File automatically when Obsidian opens").querySelector(".is-enabled")).toBeNull();
     });
 
     it("leaves the Ask mirror off and writes no privacy ack", async () => {
       const { tab } = askTab();
-      flip(tab, "Enable Ask mirror");
+      flip(tab, "Ask mirror");
       await flush();
       pressSheet("Cancel");
       await flush();
@@ -677,7 +677,7 @@ describe("consent sheets", () => {
     it("treats Escape or a click outside as a decline on every sheet", async () => {
       const { tab, local } = askTab({ askPrivacyAckAt: ACKED, askEnabled: true });
 
-      flip(tab, "Auto-run on open");
+      flip(tab, "File automatically when Obsidian opens");
       await flush();
       dismissSheet();
       await flush();
@@ -693,7 +693,7 @@ describe("consent sheets", () => {
 
     it("treats a privacy sheet dismissal as a decline", async () => {
       const { tab } = askTab();
-      flip(tab, "Enable Ask mirror");
+      flip(tab, "Ask mirror");
       await flush();
       dismissSheet();
       await flush();
@@ -704,7 +704,7 @@ describe("consent sheets", () => {
 
     it("closes an open sheet when the settings tab closes, writing no ack", async () => {
       const { tab } = askTab();
-      flip(tab, "Enable Ask mirror");
+      flip(tab, "Ask mirror");
       await flush();
 
       tab.hide();
@@ -776,7 +776,7 @@ describe("consent sheets", () => {
         askEnabled: true,
         askWriteAckAt: ACKED,
       });
-      flip(tab, "Enable Ask mirror");
+      flip(tab, "Ask mirror");
       await flush();
 
       expect(persisted(tab).askEnabled).toBe(false);
@@ -810,7 +810,7 @@ describe("consent sheets", () => {
   describe("accepting", () => {
     it("writes the egress ack and enables auto-run", async () => {
       const { tab, local } = askTab();
-      flip(tab, "Auto-run on open");
+      flip(tab, "File automatically when Obsidian opens");
       await flush();
 
       expect(sheetText()).toContain("Anthropic");
@@ -826,7 +826,7 @@ describe("consent sheets", () => {
 
     it("writes the privacy ack and enables the mirror, and nothing else", async () => {
       const { tab, local } = askTab();
-      flip(tab, "Enable Ask mirror");
+      flip(tab, "Ask mirror");
       await flush();
       pressSheet("I understand");
       await flush();
@@ -960,9 +960,9 @@ describe("API key row (U6)", () => {
     await flush();
 
     // Any toggle elsewhere on the screen re-renders the whole tab.
-    flip(tab, "Sync automatically on resume");
-    flip(tab, "Sync automatically on resume");
-    flip(tab, "Sync automatically on resume");
+    flip(tab, "Sync when you return to Obsidian");
+    flip(tab, "Sync when you return to Obsidian");
+    flip(tab, "Sync when you return to Obsidian");
     await flush();
 
     expect(net.anthropicCalls()).toBe(1);
@@ -1166,7 +1166,7 @@ describe("main screen row grammar (U9)", () => {
 
   /** Rows 7–9 of the table: the Ask cluster, which only a Plus session renders. */
   const ASK_ROWS = [
-    "Enable Ask mirror",
+    "Ask mirror",
     "Allow filing from Claude or ChatGPT",
     "Connect Claude or ChatGPT",
   ];
@@ -1175,14 +1175,14 @@ describe("main screen row grammar (U9)", () => {
     const vocabulary = `Tag vocabulary — ${DEFAULT_SETTINGS.activeVocabulary.length} active`;
     return [
       account,
-      "Custom shortcut link",
+      "iCloud shortcut link",
       "Capture Atom shortcut",
       "Atom folder",
-      "Hub projection",
+      "List atoms in person notes",
       vocabulary,
       ...ASK_ROWS,
-      "Auto-run on open",
-      "Sync automatically on resume",
+      "File automatically when Obsidian opens",
+      "Sync when you return to Obsidian",
       "Sync everything now",
       "Anthropic API key",
       "Advanced",

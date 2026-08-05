@@ -563,7 +563,7 @@ export class AtomsSettingTab extends PluginSettingTab {
       label: "Get pairing code",
       onClick: async () => {
         if (!this.plugin.settings.askEnabled) {
-          new Notice("Enable Ask mirror first");
+          new Notice("Turn on Ask mirror first");
           return;
         }
         const r = await askMcpPair(
@@ -1283,7 +1283,7 @@ export class AtomsSettingTab extends PluginSettingTab {
     // user who fills it in with our own default stops receiving shipped link
     // updates. Keep the copy pointed at "leave this empty".
     new Setting(containerEl)
-      .setName("Custom shortcut link")
+      .setName("iCloud shortcut link")
       .setDesc(
         custom
           ? "Using your own link. Clear it (or press Use built-in) to go back to the shortcut Atoms ships and keep getting updates to it."
@@ -1443,7 +1443,7 @@ export class AtomsSettingTab extends PluginSettingTab {
   }
 
   private renderAutoRunSection(containerEl: HTMLElement) {
-    settingHeading(containerEl, "Auto-run (this device)");
+    settingHeading(containerEl, "Automatic filing (this device)");
     containerEl.createEl("p", {
       text: "Stored only on this device (not synced via data.json). Default off. Turning it on asks for a one-time acknowledgment — unattended runs send titles + captures to Anthropic.",
       cls: "setting-item-description",
@@ -1454,7 +1454,7 @@ export class AtomsSettingTab extends PluginSettingTab {
     const state = readDeviceAutoRunState(load);
 
     settingRow(containerEl, {
-      name: "Auto-run on open",
+      name: "File automatically when Obsidian opens",
       desc: "When enabled: once per calendar day after layout + metadata are ready. Caps work per launch; offline fails silently until next day.",
       control: {
         kind: "toggle",
@@ -1504,7 +1504,7 @@ export class AtomsSettingTab extends PluginSettingTab {
     }
 
     new Setting(containerEl)
-      .setName("Sync automatically on resume")
+      .setName("Sync when you return to Obsidian")
       .setDesc(
         "When you return to Obsidian, drain the inbox, apply the Ask outbox, push the mirror, and file if automatic filing is on. Device-local only. Manual Sync everything now still works when this is off.",
       )
@@ -1560,7 +1560,7 @@ export class AtomsSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName("Hub projection")
+      .setName("List atoms in person notes")
       .setDesc(
         "When on, Process / Update / backfill write a managed section at the end of person hub notes listing linked atoms under your existing headings. Your text outside the markers is never changed. If Ask mirror is on, updated hub notes sync vault→cloud like other linked hubs. Off by default.",
       )
@@ -1784,7 +1784,7 @@ export class AtomsSettingTab extends PluginSettingTab {
 
     const ack = Boolean(this.plugin.settings.askPrivacyAckAt);
     settingRow(containerEl, {
-      name: "Enable Ask mirror",
+      name: "Ask mirror",
       desc: "Keep the cloud Atoms/ copy current while Obsidian is open (vault events + Process/Update).",
       control: {
         kind: "toggle",
@@ -1848,7 +1848,7 @@ export class AtomsSettingTab extends PluginSettingTab {
                 return;
               }
               if (!this.plugin.settings.askEnabled) {
-                new Notice("Enable Ask mirror first");
+                new Notice("Turn on Ask mirror first");
                 this.redisplay();
                 return;
               }
