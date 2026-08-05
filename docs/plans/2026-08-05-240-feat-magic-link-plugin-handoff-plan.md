@@ -16,7 +16,7 @@ issue: https://github.com/taihartman/obsidian-atoms/issues/240
 
 - **Objective:** the emailed sign-in link signs the plugin in on the device that opened it, with nothing typed and nothing copied.
 - **Product authority:** this Product Contract, issue #240, and the `CLAUDE.md` non-negotiables it inherits (log safety; secrets never in `data.json`). Sign-out teardown (#284) and cloud-copy wipe (#285) are siblings from the same dogfood session and are not active scope here.
-- **Open blockers:** none blocking planning. One blocks release: `obsidian://` firing from mobile mail clients and in-app browsers is unverified on both iOS and Android, and the gate is a real-device test (see Outstanding Questions).
+- **Open blockers:** one blocks planning — whether desktop Obsidian takes the deep link decides whether F2/AE4 are mislabelled or whether a desktop-only user is stranded (see Outstanding Questions). Three block release, all answered by the same real-device probe: whether `obsidian://` fires from mobile mail clients and in-app browsers on iOS and Android, whether the landing page can tell a successful handoff from a silent one, and whether a URI can be routed to a named vault on mobile.
 
 ---
 
@@ -61,23 +61,27 @@ The session the link minted only ever existed as text in the browser, inside a c
 - R1. Tapping the emailed sign-in link on the device running Obsidian signs that Obsidian in, with no characters typed and no text copied.
 - R2. The handoff to Obsidian carries the magic token; it never carries a session token.
 - R3. The session lands in the vault that requested the link, on a device running more than one vault.
+- R12. The plugin mints a device-held verifier when it requests a sign-in link, the request registers that verifier's hash against the magic token, and the exchange succeeds only when the plugin presents the matching verifier. A handoff arriving without a match is refused with a visible explanation — never silently dropped.
+- R13. A link opened while the requesting vault is not running leaves the token unconsumed and tells the user which vault to open, rather than showing the confirmation in a vault that did not request it.
 
 **Consent**
 
-- R4. The user sees a confirmation naming the server-verified account email and approves it before any session is written; cancelling writes nothing and leaves the device signed out.
-- R5. A link arriving on a device that did not request one still surfaces the confirmation, with copy stating the request did not originate here — never silently accepted, never silently dropped.
+- R4. The user sees a confirmation naming the server-verified account email and approves it before any session is written; cancelling writes nothing, revokes the just-exchanged session server-side, and leaves the device signed out.
+- R5. A link arriving on a device that did not request one still surfaces the confirmation, with copy stating the request did not originate here — never silently accepted, never silently dropped. That copy also names what approving grants: this vault will act as that account and will sync its atoms there. The confirmation defaults to cancel and takes a deliberate non-default tap to approve.
 
 **Link lifecycle and dead ends**
 
 - R6. A magic link is consumed exactly once, by the plugin's exchange; mail prefetches, security scanners, and repeat page loads leave it usable.
 - R7. An expired or already-used link says so on the landing page and points the user at requesting a new one from Settings.
 - R8. A link opened where the handoff cannot reach Obsidian explains what happened and tells the user to reopen the email on the device running Obsidian.
-- R9. An expired token is rejected as expired whichever store backend serves it, so validity never depends on which store is deployed.
+- R9. A validity check never consumes the magic token in any store backend, so a dead-link check and a real exchange stay distinguishable.
+- R14. After handing off, the landing page states the sign-in is finishing in Obsidian. R8's reopen-on-the-right-device text is a fallback the user reaches only when Obsidian never came forward — never an assertion that the handoff failed.
 
 **Settings surface and safety**
 
 - R10. "Advanced: paste session" is gone from Settings; requesting a sign-in link is the only sign-in-on-another-device path.
 - R11. Nothing in this flow writes a session token into a URL, a log, or an error object.
+- R15. After a sign-in link is requested, the plugin's signed-out Settings copy describes the new flow — open the link in the email on this device — and does not direct the user to **Refresh status**.
 
 ### Key Flows
 
@@ -86,8 +90,9 @@ flowchart TB
   A[User taps emailed link] --> B{Link still valid?}
   B -->|no| C[Page: expired or used, request a new link from Settings]
   B -->|yes| D[Page attempts handoff to Obsidian]
-  D -->|Obsidian did not take it| E[Page: reopen this email on the device running Obsidian]
-  D -->|Obsidian opened| F[Plugin exchanges the token]
+  D --> J[Page: sign-in is finishing in Obsidian]
+  J -->|Obsidian never came forward| E[Fallback: reopen this email on the device running Obsidian]
+  J -->|Obsidian opened| F[Plugin exchanges the token, presenting its verifier]
   F --> G[Confirm account email with user]
   G -->|approve| H[Session written, vault signed in]
   G -->|cancel| I[Nothing written, still signed out]
@@ -96,13 +101,13 @@ flowchart TB
 - F1. Same-device sign-in
   - **Trigger:** A1 taps the emailed link in a mail client on the phone running Obsidian.
   - **Actors:** A1, A2, A3, A4
-  - **Steps:** A2 confirms the link is still valid without consuming it; A2 hands the magic token and the requesting vault's identity to Obsidian; A4 in that vault exchanges the token with A3; A4 shows A1 the server-verified email; A1 approves; A4 stores the session and Settings reads signed in.
-  - **Covers:** R1, R2, R3, R4, R6
+  - **Steps:** A2 confirms the link is still valid without consuming it; A2 hands the magic token and the requesting vault's identity to Obsidian, then states the sign-in is finishing in Obsidian; A4 in that vault exchanges the token with A3, presenting the verifier it minted when the link was requested; A4 shows A1 the server-verified email; A1 approves; A4 stores the session and Settings reads signed in.
+  - **Covers:** R1, R2, R3, R4, R6, R12, R14
 - F2. Handoff cannot reach Obsidian
-  - **Trigger:** the link opens on a desktop browser, or on a phone without the plugin, and nothing takes the deep link.
+  - **Trigger:** the link opens where nothing takes the deep link — see the desktop question under Outstanding Questions before treating any specific device shape as this lane.
   - **Actors:** A1, A2
   - **Steps:** A2 explains that the sign-in has to finish inside Obsidian and tells A1 to reopen this email on the device running Obsidian. The link stays unconsumed.
-  - **Covers:** R6, R8
+  - **Covers:** R6, R8, R14
 - F3. Dead link
   - **Trigger:** A1 opens a link that has expired or that a completed sign-in already consumed.
   - **Actors:** A1, A2, A3
@@ -112,7 +117,7 @@ flowchart TB
 ### Acceptance Examples
 
 - AE1. Happy path on a real phone
-  - **Covers R1, R3, R4.**
+  - **Covers R1, R4.**
   - **Given** a phone running Obsidian on one vault, signed out of Plus, having just requested a sign-in link
   - **When** the user opens the email and taps the link
   - **Then** Obsidian comes forward, shows a confirmation naming the account email, and on approval Settings → Atoms Plus reads signed in — with nothing typed and nothing copied.
@@ -120,13 +125,13 @@ flowchart TB
   - **Covers R4.**
   - **Given** the confirmation is on screen naming the account email
   - **When** the user cancels
-  - **Then** no session is stored, Settings still reads signed out, and no error is presented as a failure.
+  - **Then** no session is stored, Settings still reads signed out, no error is presented as a failure, and the session that was exchanged a moment earlier no longer authenticates.
 - AE3. Expired link
   - **Covers R7.**
   - **Given** a link older than the magic token's lifetime
   - **When** the user opens it
   - **Then** the landing page says the link expired and tells the user to request a new one from Settings, and Obsidian is never opened.
-- AE4. Desktop browser
+- AE4. Handoff finds no taker (device shape pending the desktop question in Outstanding Questions)
   - **Covers R8.**
   - **Given** the user opens the email in a desktop browser on a machine where the handoff does not reach Obsidian
   - **When** the page loads
@@ -145,7 +150,27 @@ flowchart TB
   - **Covers R5.**
   - **Given** a device that never requested a sign-in link
   - **When** a valid link is opened there
-  - **Then** the confirmation still appears, its copy states the request did not originate on this device, and no session is written unless the user approves.
+  - **Then** the confirmation still appears, its copy states the request did not originate on this device and names what approving would grant, the cancel action is the default, and no session is written unless the user deliberately approves.
+- AE8. Neither token reaches a log or an error
+  - **Covers R11.**
+  - **Given** a sign-in completing through the handoff, and a second attempt whose exchange fails
+  - **When** the deep-link URL, the plugin's logs, and the surfaced error are inspected
+  - **Then** no session token appears in any of the three, and no magic token appears in a log line or an error object — the deep-link URL is the magic token's only carrier.
+- AE9. The paste field is gone
+  - **Covers R10.**
+  - **Given** the plugin is signed out
+  - **When** the user opens Settings → Atoms Plus
+  - **Then** there is no "Advanced: paste session" field anywhere in the panel.
+- AE10. Requesting vault is closed
+  - **Covers R13.**
+  - **Given** a device running Obsidian on a vault other than the one that requested the link
+  - **When** the user taps the link
+  - **Then** the user is told which vault to open, no confirmation appears in the wrong vault, and the link still works after opening the right one.
+- AE11. Settings copy after requesting a link
+  - **Covers R15.**
+  - **Given** the user has just tapped **Send sign-in link** on a signed-out device
+  - **When** they read the Settings copy that follows
+  - **Then** it tells them to open the link in the email on this device, and does not tell them to tap **Refresh status**.
 
 ### Scope Boundaries
 
@@ -157,13 +182,13 @@ flowchart TB
 
 ### Success Criteria
 
-A real trial-account sign-in completed on a physical phone, from tapping the emailed link to Settings showing the signed-in state, with zero characters typed and zero text copied.
+A real trial-account sign-in completed on a physical iOS device **and** a physical Android device, with the link opened from a mail client that uses an in-app browser, from tapping the emailed link to Settings showing the signed-in state, with zero characters typed and zero text copied. The no-handoff path must also produce a message the user can act on rather than a dead end.
 
 ### Outstanding Questions
 
 **Resolve before planning**
 
-- None.
+- **Does desktop Obsidian take the deep link?** Two reviewers read the desktop lane oppositely and the fix depends on which is true. If it does, a desktop with Obsidian installed is the F1 success case and F2/AE4 currently mislabel it — the repo already uses `obsidian://open?path=` and a desktop deep link after Checkout elsewhere. If it does not, a desktop-only user is strictly worse off after this ships than before, because R10 deletes the paste field that was their working path and R8's only remedy sends them to the device they are already on. Scope Boundaries acknowledges only the wrong-device regression, not this one. Settle it with the same probe that de-risks the rest: register a trivial protocol handler and open an `obsidian://` URL from a real phone's mail client and from a desktop browser, before anything else is built. Then either fix F2/AE4's framing, or state desktop-to-desktop scope and add recovery copy for a failure on a device already running Obsidian.
 
 **Deferred to planning**
 
@@ -172,7 +197,9 @@ A real trial-account sign-in completed on a physical phone, from tapping the ema
 **Risks**
 
 - Whether `obsidian://` reliably fires from mobile mail clients and in-app browsers on both iOS and Android is unverified, and it is the single biggest risk to this design. The release gate is a real-device test, echoing #230 where an automated test proved the mechanism but not the live path.
-- The store backends currently disagree on whether a magic token is deleted before or after its expiry is checked, so the same expired token behaves differently by backend (per R9).
+- **Firing is not the only unverified half — detection is too.** A browser gives no callback telling the landing page whether the handoff was taken, so R8's fallback message rests on a timing heuristic that can fire after a *successful* handoff. The real-device gate must confirm both that the link fires and that the fallback does not appear when it succeeds (per R14).
+- Whether an `obsidian://` URI can be routed to a *named* vault on mobile is unverified — the repo's own QA fixture qualifies the `vault=` parameter with "when supported" (`docs/qa/testing-fixtures.md:86`). If mobile ignores it, KD7's named failure arrives: the right vault still reads signed out. R3 and AE6 join the same real-device release gate as the firing risk.
+- All three store backends delete the magic token unconditionally, including on the expired path (`postgres.mjs:343-347`, `sqlite.mjs:295-296`, `memory.mjs:213-217`) — the deletion *ordering* differs but the observable result does not. The real defect is that no code path can check a token without consuming it, which is what R9 and KD8 require changing.
 
 ### Sources / Research
 
@@ -182,6 +209,11 @@ Verified against the branch on 2026-08-05. Cited as context for planning, not as
 - `POST /v1/auth/exchange` already exists and returns session, email, status, and remaining — `plus-service/src/server.mjs:390-405`.
 - The plugin-side client `exchangeMagicToken` exists with zero production callers — `src/platform/plusClient.ts:378`. Both ends are wired to nothing.
 - The plugin registers no `obsidian://` protocol handler: `registerObsidianProtocolHandler` has zero matches in `src/`, `test/`, or `plus-service/`. This is net-new surface.
+- No endpoint can report magic-token validity without consuming it — every magic-token route calls `store.exchangeMagic`, which deletes the row (`plus-service/src/server.mjs:364,379,391`). KD8/R7/F3 therefore require a net-new non-consuming check endpoint, the second piece of net-new surface alongside the protocol handler.
+- The exchange accepts a bare token from any caller with no device, vault, or origin binding (`plus-service/src/server.mjs:391-405`), which is what R12's verifier closes. Sign-out already revokes a session by bearer (`:357-359`), which is what R4's cancel path can reuse.
+- The device-local pending flag KD4 refers to does not exist yet; `src/platform/filingAuth.ts` declares only `atoms-plus-session`, `atoms-plus-limit-dismiss-day`, and `atoms-plus-awaiting-checkout`. Buildable on the awaiting-checkout precedent.
+- The magic link is minted with only a token parameter (`plus-service/src/server.mjs:346`) and the client sends email only (`src/platform/plusClient.ts:299`), so KD7's vault identity needs plumbing through the mint path, not just the landing page.
+- Signed-out Settings copy still tells the user to tap **Refresh status** (`src/settings/settings.ts:212`) and still references the paste field (`:219`) — both are stale once R10 and R15 land.
 - Magic token TTL is 15 minutes — `plus-service/src/store/postgres.mjs:199-206`, `sqlite.mjs:180-186`.
 - `exchangeMagic` deletes the token row *before* checking expiry in both real stores — `postgres.mjs:328-350`, `sqlite.mjs:290-296` — so any GET burns the link. `memory.mjs:210-218` checks expiry first, so the stores disagree.
 - The Plus session persists in Obsidian `localStorage` under `atoms-plus-session`, never `data.json` — `src/platform/filingAuth.ts:42-47`, `:176`.
