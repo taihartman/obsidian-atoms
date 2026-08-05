@@ -70,6 +70,48 @@ export function gateReconsiderTarget(
   return { ok: false, reason: "not_skip" };
 }
 
+/**
+ * Locate a noise|task capture for Library Skipped → Reconsider.
+ * Prefer full `text` body match; never accept line number alone.
+ */
+export function resolveSkippedCapture(
+  content: string,
+  opts: { startLine: number; snippet: string; text?: string },
+): Capture | null {
+  const bodyKey = (opts.text ?? opts.snippet.replace(/…$/, "")).trim();
+  const caps = parseCaptures(content).filter(
+    (c) =>
+      c.processed &&
+      (c.markerKind === "noise" || c.markerKind === "task"),
+  );
+
+  if (opts.text) {
+    const exact = caps.find((c) => captureTextsMatch(c.text, opts.text!));
+    if (exact) return exact;
+  }
+
+  const byLine = findCaptureAtLine(content, opts.startLine);
+  if (
+    byLine &&
+    (byLine.markerKind === "noise" || byLine.markerKind === "task") &&
+    byLine.processed &&
+    (captureTextsMatch(byLine.text, bodyKey) ||
+      byLine.text.replace(/\s+/g, " ").trim().startsWith(bodyKey.slice(0, 40)))
+  ) {
+    return byLine;
+  }
+
+  for (const c of caps) {
+    if (
+      captureTextsMatch(c.text, bodyKey) ||
+      c.text.replace(/\s+/g, " ").trim().startsWith(bodyKey.slice(0, 40))
+    ) {
+      return c;
+    }
+  }
+  return null;
+}
+
 export function labelSkipKind(kind: MarkerKind | null): string {
   if (kind === "atom") return "Note";
   return "Skipped";
@@ -132,7 +174,7 @@ export interface ReconsiderApplyOpts {
 
 export interface ReconsiderApplyReport {
   ok: boolean;
-  reason?: "no_change" | "collision" | "missing_daily" | "error";
+  reason?: "no_change" | "collision" | "missing_daily" | "stale" | "error";
   write?: ApplyWriteResult;
   planned?: PlannedWrite;
   title?: string;
@@ -140,7 +182,7 @@ export interface ReconsiderApplyReport {
 
 /**
  * Promote skipped capture → atom: create atom (collision body-gate), replace marker.
- * On mismatch: leave daily unchanged.
+ * Re-resolves capture by body text before write; daily marker via vault.process.
  */
 export async function applyReconsiderWrite(
   opts: ReconsiderApplyOpts,
@@ -149,22 +191,34 @@ export async function applyReconsiderWrite(
     return { ok: false, reason: "no_change" };
   }
 
+  const dailyFile = opts.app.vault.getAbstractFileByPath(opts.dailyPath);
+  if (!(dailyFile instanceof TFile)) {
+    return { ok: false, reason: "missing_daily" };
+  }
+
+  // Fresh daily + body identity before creating an atom (avoid orphan on drift).
+  const dailyContent = await opts.app.vault.cachedRead(dailyFile);
+  const live =
+    resolveSkippedCapture(dailyContent, {
+      startLine: opts.capture.startLine,
+      snippet: opts.capture.text,
+      text: opts.capture.text,
+    }) ?? null;
+  const gate = gateReconsiderTarget(live);
+  if (!gate.ok) {
+    return { ok: false, reason: "stale" };
+  }
+  const capture = gate.capture;
+
   const existingAtoms = listAtomPaths(opts.app, opts.atomFolder);
   const planned = planWrite({
     result: opts.result,
-    capture: opts.capture,
+    capture,
     dailyPath: opts.dailyPath,
     dailyDate: opts.dailyDate,
     atomFolder: opts.atomFolder,
     existingAtomPaths: existingAtoms,
   });
-
-  const dailyFile = opts.app.vault.getAbstractFileByPath(opts.dailyPath);
-  if (!(dailyFile instanceof TFile)) {
-    return { ok: false, reason: "missing_daily", planned };
-  }
-
-  const dailyContent = await opts.app.vault.read(dailyFile);
 
   let atomCreated: string | null = null;
   let atomSkippedCollision: string | null = null;
@@ -173,10 +227,7 @@ export async function applyReconsiderWrite(
     const f = opts.app.vault.getAbstractFileByPath(path);
     if (!(f instanceof TFile)) return false;
     const atomContent = await opts.app.vault.read(f);
-    return captureTextsMatch(
-      extractCaptureBody(atomContent),
-      opts.capture.text,
-    );
+    return captureTextsMatch(extractCaptureBody(atomContent), capture.text);
   };
 
   if (planned.action.kind === "create_atom") {
@@ -230,15 +281,24 @@ export async function applyReconsiderWrite(
     atomSkippedCollision = planned.action.path;
   }
 
-  const { content: newDaily, changed } = replaceMarkerAfterCapture(
-    dailyContent,
-    opts.capture,
-    planned.markerLine,
-  );
-
-  if (changed) {
-    await opts.app.vault.modify(dailyFile, newDaily);
-  }
+  let markerAppended = false;
+  await opts.app.vault.process(dailyFile, (data) => {
+    const again =
+      resolveSkippedCapture(data, {
+        startLine: capture.startLine,
+        snippet: capture.text,
+        text: capture.text,
+      }) ?? null;
+    const g2 = gateReconsiderTarget(again);
+    if (!g2.ok) return data;
+    const { content: next, changed } = replaceMarkerAfterCapture(
+      data,
+      g2.capture,
+      planned.markerLine,
+    );
+    markerAppended = changed;
+    return next;
+  });
 
   return {
     ok: true,
@@ -248,7 +308,7 @@ export async function applyReconsiderWrite(
       atomCreated,
       atomUpdated: null,
       atomSkippedCollision,
-      markerAppended: changed,
+      markerAppended,
       dailyPath: opts.dailyPath,
       collisionBodyMismatch: false,
     },

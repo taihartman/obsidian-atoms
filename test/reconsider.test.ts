@@ -5,6 +5,7 @@ import {
   forceKeepAtomResult,
   gateReconsiderTarget,
   labelVerdict,
+  resolveSkippedCapture,
 } from "../src/pipeline/reconsider";
 import { parseCaptures } from "../src/pipeline/parse";
 
@@ -89,5 +90,26 @@ describe("forceKeepAtomResult", () => {
     );
     expect(r.verdict).toBe("atom");
     expect(r.title.toLowerCase()).toContain("document");
+  });
+});
+
+describe("resolveSkippedCapture", () => {
+  it("matches by full body when line drifted", () => {
+    const c = resolveSkippedCapture(daily, {
+      startLine: 99,
+      snippet: "packing list for Japan: passport",
+      text: "packing list for Japan: passport",
+    });
+    expect(c?.markerKind).toBe("noise");
+    expect(c?.text).toContain("packing list");
+  });
+
+  it("refuses line-only without body match", () => {
+    expect(
+      resolveSkippedCapture(daily, {
+        startLine: 0,
+        snippet: "totally different body",
+      }),
+    ).toBeNull();
   });
 });

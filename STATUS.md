@@ -7,6 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
+| In progress | [#287](https://github.com/taihartman/obsidian-atoms/issues/287) | taihartman | `feat/library-skipped-filter` | [plan](docs/plans/2026-08-05-002-feat-library-skipped-filter-plan.md) | `src/home/atomsHomeView.ts`, `src/home/skippedLibrary.ts`, `src/pipeline/reconsider.ts` | Library Skipped + try filing (Reconsider); Plus/BYOK · **0.6.77** |
 
 ## How to claim (copy)
 
