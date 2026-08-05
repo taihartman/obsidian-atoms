@@ -1,4 +1,6 @@
 import { AtomsSettingTab } from "../../src/settings/settings";
+// `../mocks/obsidian` rather than `"obsidian"`: vitest aliases the module, `tsc` does not.
+import { Modal } from "../mocks/obsidian";
 import {
   LS_PLUS_SESSION,
   serializePlusSession,
@@ -16,6 +18,8 @@ export interface SettingTabOptions {
   settings?: Partial<LinkerSettings>;
   /** Tags the vault already uses, one file each, for the "found in your vault" ranking. */
   vaultTags?: string[];
+  /** Device-local keys the tab should find already written (auto-run state, egress ack). */
+  local?: Record<string, unknown>;
 }
 
 /**
@@ -27,9 +31,14 @@ export interface SettingTabOptions {
 export function settingTab(opts: SettingTabOptions = {}): {
   tab: AtomsSettingTab;
   scroller: HTMLElement;
+  /** Device-local storage the tab reads and writes, for asserting on ack keys. */
+  local: Map<string, unknown>;
 } {
+  // A sheet left open by an earlier test would still be in `Modal.open` and in the document.
+  for (const stale of [...Modal.open]) stale.close();
   const local = new Map<string, unknown>();
   if (opts.session) local.set(LS_PLUS_SESSION, serializePlusSession(opts.session));
+  for (const [key, value] of Object.entries(opts.local ?? {})) local.set(key, value);
   // One markdown file per requested tag: the ranking only reads counts, so a file apiece is the
   // smallest vault that still exercises it.
   const files = (opts.vaultTags ?? []).map((tag, i) => ({ path: `tagged-${i}.md`, tag }));
@@ -55,6 +64,10 @@ export function settingTab(opts: SettingTabOptions = {}): {
     manifest: { version: "9.9.9" },
     settings: { ...DEFAULT_SETTINGS, ...opts.settings },
     resolveFilingAuth: () => opts.auth ?? { mode: "none" },
+    // The Proxy's no-op fallback returns `undefined`, and these two are handed to
+    // `fireAndForgetAsk`, which calls `.catch` on what it is given.
+    syncAskMirror: () => Promise.resolve({ ok: false, message: "test double" }),
+    applyAskOutbox: () => Promise.resolve(),
   };
   const plugin = new Proxy(known, {
     get: (target, prop: string) => (prop in target ? target[prop] : () => undefined),
@@ -66,7 +79,43 @@ export function settingTab(opts: SettingTabOptions = {}): {
   // the scroll assertions to be about the tab rather than about a null scroller.
   const scroller = document.createElement("div");
   scroller.appendChild(tab.containerEl);
-  return { tab, scroller };
+  return { tab, scroller, local };
+}
+
+/** The one sheet currently up. Throws rather than letting an assertion pass against nothing. */
+export function sheet(): Modal {
+  if (Modal.open.length !== 1) {
+    throw new Error(`expected exactly one open sheet, found ${Modal.open.length}`);
+  }
+  return Modal.open[0]!;
+}
+
+/** Whether any sheet is up — the decline assertions are about a sheet that is not. */
+export function sheetOpen(): boolean {
+  return Modal.open.length > 0;
+}
+
+/** Everything the open sheet says, title included, as a reader sees it. */
+export function sheetText(): string {
+  const open = sheet();
+  return `${open.titleEl.textContent ?? ""} ${open.contentEl.textContent ?? ""}`;
+}
+
+/** Press the sheet's button carrying this label. */
+export function pressSheet(label: string): void {
+  const button = Array.from(sheet().contentEl.querySelectorAll("button")).find(
+    (el) => el.textContent === label,
+  );
+  if (!button) throw new Error(`open sheet has no button labelled ${label}`);
+  button.click();
+}
+
+/**
+ * Escape, a click outside, and the settings tab closing all reach Obsidian as `Modal.close()`,
+ * so one helper stands for all three dismissal paths.
+ */
+export function dismissSheet(): void {
+  sheet().close();
 }
 
 /** Every rendered row name on whatever screen is currently up, in document order. */

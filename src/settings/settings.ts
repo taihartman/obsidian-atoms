@@ -187,6 +187,27 @@ function loadLocal(app: App, key: string): unknown {
 }
 
 /**
+ * The three consents, and the three disclosures that carry them (KTD7).
+ *
+ * They are never unified. The egress ack covers this vault's own key sending captures to
+ * Anthropic; the Ask privacy ack covers bodies stored on Atoms Plus servers, decryptable at
+ * rest in v1; the write ack covers Claude or ChatGPT creating files in the vault. Merging any
+ * two would let agreeing to one silently authorize another, so each has its own sheet and each
+ * sheet writes exactly its own field.
+ */
+const EGRESS_ACK_TITLE = "Data egress acknowledgment";
+const EGRESS_DISCLOSURE =
+  'Atoms will send my vault title graph and each capture to the Anthropic API over TLS, unattended — when Obsidian opens, when it returns to the foreground, and when I tap "Sync everything now", which classifies even when automatic filing is turned off.';
+
+const ASK_PRIVACY_ACK_TITLE = "Ask privacy acknowledgment";
+const ASK_PRIVACY_DISCLOSURE =
+  "(1) only Atoms/ leaves this device; (2) bodies are stored on Atoms Plus servers; (3) the host can decrypt at rest in v1 (not zero-knowledge); (4) when I chat in Claude, Anthropic receives tool results (titles, snippets, bodies); when I chat in ChatGPT, OpenAI receives them; (5) Wipe deletes the cloud mirror, pending outbox writes, and connector tokens; (6) turning Ask off does not wipe.";
+
+const ASK_WRITE_ACK_TITLE = "Vault write acknowledgment";
+const ASK_WRITE_DISCLOSURE =
+  "Claude or ChatGPT can queue new atom bodies to Atoms Plus, and this vault will write them as new files under my Atoms folder. New files only — existing bodies are never rewritten. This is a separate consent from the Ask privacy acknowledgment, and turning it off stops the writes without touching the mirror.";
+
+/**
  * Which screen the settings tab is showing. `main` is the list the user lands on; every other
  * value is a destination reached from it.
  *
@@ -214,6 +235,12 @@ export class AtomsSettingTab extends PluginSettingTab {
   plugin: AtomsPlugin;
   private customTagDraft = "";
   private route: SettingsRoute = "main";
+  /**
+   * The consent sheet currently up, so closing Settings can close it. Without this handle a
+   * sheet outlives the screen whose toggle opened it, and its verdict lands on a tab that has
+   * already reset its route.
+   */
+  private openSheet: ConsentSheetModal | null = null;
 
   constructor(app: App, plugin: AtomsPlugin) {
     super(app, plugin);
@@ -263,7 +290,81 @@ export class AtomsSettingTab extends PluginSettingTab {
    */
   hide(): void {
     this.route = "main";
+    // Closing Settings mid-decision is a decline, not a half-written ack: `close()` reaches the
+    // sheet's `onClose`, which settles it the same way Escape does.
+    this.openSheet?.close();
+    this.openSheet = null;
     super.hide();
+  }
+
+  /**
+   * Put a disclosure in front of the user at the moment of decision.
+   *
+   * Every exit that is not the accept button — Cancel, Escape, a click outside, Settings
+   * closing — arrives as `declined`, because the toggle has already flipped visually by the
+   * time the sheet opens and an unhandled dismissal is the path that silently grants consent.
+   */
+  private presentConsent(spec: ConsentSheetSpec): void {
+    const sheet = new ConsentSheetModal(this.app, {
+      ...spec,
+      onVerdict: (verdict) => {
+        this.openSheet = null;
+        spec.onVerdict(verdict);
+      },
+    });
+    this.openSheet = sheet;
+    sheet.open();
+  }
+
+  /**
+   * The record of an ack already granted: what it was, when, and the way back out.
+   *
+   * An `actionRow` rather than a `statusRow` + button, because `statusRow` deliberately carries
+   * no control — reaching Review from it would mean widening that kind, and the withdrawal is
+   * the whole point of the line.
+   */
+  private renderAckRecord(
+    containerEl: HTMLElement,
+    record: {
+      name: string;
+      at: string;
+      disclosure: string;
+      onWithdraw: () => void | Promise<void>;
+    },
+  ): void {
+    const day = record.at.slice(0, 10);
+    actionRow(containerEl, {
+      name: record.name,
+      desc: `Acknowledged ${day}`,
+      label: "Review",
+      onClick: () =>
+        this.presentConsent({
+          title: record.name,
+          disclosure: record.disclosure,
+          granted: `Acknowledged ${day}.`,
+          onVerdict: (verdict) => {
+            if (verdict !== "withdrawn") return;
+            void record.onWithdraw();
+          },
+        }),
+    });
+  }
+
+  /** Enabling the mirror is one write plus one sync; disabling it also drops the write ack. */
+  private async setAskMirrorEnabled(enabled: boolean): Promise<void> {
+    this.plugin.settings.askEnabled = enabled;
+    if (!enabled) this.plugin.settings.askWriteAckAt = "";
+    await this.plugin.saveSettings();
+    if (enabled) fireAndForgetAsk(this.plugin.syncAskMirror({ force: false }));
+    this.redisplay();
+  }
+
+  /** Grant (timestamp) or withdraw ("") the consent for Claude or ChatGPT to write here. */
+  private async setAskWriteAck(at: string): Promise<void> {
+    this.plugin.settings.askWriteAckAt = at;
+    await this.plugin.saveSettings();
+    if (at) fireAndForgetAsk(this.plugin.applyAskOutbox());
+    this.redisplay();
   }
 
   /**
@@ -1008,7 +1109,7 @@ export class AtomsSettingTab extends PluginSettingTab {
   private renderAutoRunSection(containerEl: HTMLElement) {
     settingHeading(containerEl, "Auto-run (this device)");
     containerEl.createEl("p", {
-      text: "Stored only on this device (not synced via data.json). Default off. Requires a one-time privacy acknowledgment — unattended runs send titles + captures to Anthropic.",
+      text: "Stored only on this device (not synced via data.json). Default off. Turning it on asks for a one-time acknowledgment — unattended runs send titles + captures to Anthropic.",
       cls: "setting-item-description",
     });
 
@@ -1016,42 +1117,55 @@ export class AtomsSettingTab extends PluginSettingTab {
     const save = (k: string, v: unknown) => this.app.saveLocalStorage(k, v);
     const state = readDeviceAutoRunState(load);
 
-    new Setting(containerEl)
-      .setName("Data egress acknowledgment")
-      .setDesc(
-        'I understand Atoms will send my vault title graph and each capture to the Anthropic API over TLS, unattended — when Obsidian opens, when it returns to the foreground, and when I tap "Sync everything now", which classifies even when automatic filing is turned off.',
-      )
-      .addToggle((toggle) =>
-        toggle.setValue(state.egressAcked).onChange((on) => {
-          writeEgressAck(save, on);
-          if (!on) {
-            writeAutoRunEnabled(save, false);
-          }
-          this.redisplay();
-        }),
-      );
-
-    new Setting(containerEl)
-      .setName("Auto-run on open")
-      .setDesc(
-        state.egressAcked
-          ? "When enabled: once per calendar day after layout + metadata are ready. Caps work per launch; offline fails silently until next day."
-          : "Enable the acknowledgment above first.",
-      )
-      .addToggle((toggle) =>
-        toggle
-          .setValue(state.enabled && state.egressAcked)
-          .setDisabled(!state.egressAcked)
-          .onChange((on) => {
-            if (on && !state.egressAcked) {
-              writeAutoRunEnabled(save, false);
+    settingRow(containerEl, {
+      name: "Auto-run on open",
+      desc: "When enabled: once per calendar day after layout + metadata are ready. Caps work per launch; offline fails silently until next day.",
+      control: {
+        kind: "toggle",
+        configure: (toggle) =>
+          toggle.setValue(state.enabled && state.egressAcked).onChange((on) => {
+            if (!on || state.egressAcked) {
+              writeAutoRunEnabled(save, on);
               this.redisplay();
               return;
             }
-            writeAutoRunEnabled(save, on);
-            this.redisplay();
+            this.presentConsent({
+              title: EGRESS_ACK_TITLE,
+              disclosure: EGRESS_DISCLOSURE,
+              onVerdict: (verdict) => {
+                // Anything short of an explicit accept leaves the toggle exactly where the
+                // sheet found it: off, and unacknowledged.
+                writeEgressAck(save, verdict === "accepted");
+                writeAutoRunEnabled(save, verdict === "accepted");
+                this.redisplay();
+              },
+            });
           }),
-      );
+      },
+    });
+
+    // Rendered from the ack itself rather than from the toggle above it: an ack recorded
+    // against a feature that is currently off is still a live consent, and still revocable.
+    if (state.egressAcked) {
+      actionRow(containerEl, {
+        name: EGRESS_ACK_TITLE,
+        // Device-local, and stored as a boolean — there is no timestamp to name here.
+        desc: "Acknowledged on this device",
+        label: "Review",
+        onClick: () =>
+          this.presentConsent({
+            title: EGRESS_ACK_TITLE,
+            disclosure: EGRESS_DISCLOSURE,
+            granted: "Acknowledged on this device.",
+            onVerdict: (verdict) => {
+              if (verdict !== "withdrawn") return;
+              writeEgressAck(save, false);
+              writeAutoRunEnabled(save, false);
+              this.redisplay();
+            },
+          }),
+      });
+    }
 
     new Setting(containerEl)
       .setName("Sync automatically on resume")
@@ -1351,73 +1465,100 @@ export class AtomsSettingTab extends PluginSettingTab {
     }
 
     const ack = Boolean(this.plugin.settings.askPrivacyAckAt);
-    new Setting(containerEl)
-      .setName("Privacy acknowledgment")
-      .setDesc(
-        "I understand: (1) only Atoms/ leaves this device; (2) bodies are stored on Atoms Plus servers; (3) the host can decrypt at rest in v1 (not zero-knowledge); (4) when I chat in Claude, Anthropic receives tool results (titles, snippets, bodies); when I chat in ChatGPT, OpenAI receives them; (5) with Allow filing, Claude or ChatGPT can queue new atom bodies to Plus until Obsidian writes them under Atoms/; (6) Wipe deletes the cloud mirror, pending outbox writes, and connector tokens; (7) turning Ask off does not wipe.",
-      )
-      .addToggle((tog) =>
-        tog.setValue(ack).onChange(async (on) => {
-          this.plugin.settings.askPrivacyAckAt = on
-            ? new Date().toISOString()
-            : "";
-          if (!on) this.plugin.settings.askEnabled = false;
+    settingRow(containerEl, {
+      name: "Enable Ask mirror",
+      desc: "Keep the cloud Atoms/ copy current while Obsidian is open (vault events + Process/Update).",
+      control: {
+        kind: "toggle",
+        configure: (tog) =>
+          tog.setValue(this.plugin.settings.askEnabled).onChange((on) => {
+            if (!on) {
+              void this.setAskMirrorEnabled(false);
+              return;
+            }
+            if (ack) {
+              void this.setAskMirrorEnabled(true);
+              return;
+            }
+            this.presentConsent({
+              title: ASK_PRIVACY_ACK_TITLE,
+              disclosure: ASK_PRIVACY_DISCLOSURE,
+              onVerdict: (verdict) => {
+                if (verdict !== "accepted") {
+                  this.redisplay();
+                  return;
+                }
+                this.plugin.settings.askPrivacyAckAt = new Date().toISOString();
+                void this.setAskMirrorEnabled(true);
+              },
+            });
+          }),
+      },
+    });
+
+    if (ack) {
+      this.renderAckRecord(containerEl, {
+        name: ASK_PRIVACY_ACK_TITLE,
+        at: this.plugin.settings.askPrivacyAckAt,
+        disclosure: ASK_PRIVACY_DISCLOSURE,
+        onWithdraw: async () => {
+          this.plugin.settings.askPrivacyAckAt = "";
+          this.plugin.settings.askEnabled = false;
+          // Withdrawing consent to store bodies in the cloud also withdraws consent for the
+          // cloud to write back into the vault: the narrower ack cannot outlive the one it
+          // was granted on top of.
+          this.plugin.settings.askWriteAckAt = "";
           await this.plugin.saveSettings();
           this.redisplay();
-        }),
-      );
-
-    new Setting(containerEl)
-      .setName("Enable Ask mirror")
-      .setDesc(
-        "Keep the cloud Atoms/ copy current while Obsidian is open (vault events + Process/Update).",
-      )
-      .addToggle((tog) =>
-        tog
-          .setValue(this.plugin.settings.askEnabled)
-          .setDisabled(!ack)
-          .onChange(async (on) => {
-            if (on && !this.plugin.settings.askPrivacyAckAt) {
-              new Notice("Acknowledge privacy first");
-              this.redisplay();
-              return;
-            }
-            this.plugin.settings.askEnabled = on;
-            if (!on) this.plugin.settings.askWriteAckAt = "";
-            await this.plugin.saveSettings();
-            if (on) {
-              fireAndForgetAsk(this.plugin.syncAskMirror({ force: false }));
-            }
-            this.redisplay();
-          }),
-      );
+        },
+      });
+    }
 
     const writeAck = Boolean(this.plugin.settings.askWriteAckAt);
-    new Setting(containerEl)
-      .setName("Allow filing from Claude or ChatGPT")
-      .setDesc(
-        "When on, this vault applies create/continue outbox items under your Atoms folder (new files only; never rewrites existing bodies). Requires Ask mirror enabled.",
-      )
-      .addToggle((tog) =>
-        tog
-          .setValue(writeAck)
-          .setDisabled(!ack || !this.plugin.settings.askEnabled)
-          .onChange(async (on) => {
-            if (on && !this.plugin.settings.askEnabled) {
-              new Notice("Enable Ask mirror first");
-              this.redisplay();
-              return;
-            }
-            this.plugin.settings.askWriteAckAt = on
-              ? new Date().toISOString()
-              : "";
-            await this.plugin.saveSettings();
-            if (on) {
-              fireAndForgetAsk(this.plugin.applyAskOutbox());
-            }
-            this.redisplay();
-          }),
-      );
+    settingRow(containerEl, {
+      name: "Allow filing from Claude or ChatGPT",
+      desc: "When on, this vault applies create/continue outbox items under your Atoms folder (new files only; never rewrites existing bodies). Requires Ask mirror enabled.",
+      control: {
+        kind: "toggle",
+        configure: (tog) =>
+          tog
+            .setValue(writeAck)
+            .setDisabled(!ack || !this.plugin.settings.askEnabled)
+            .onChange((on) => {
+              if (!on) {
+                void this.setAskWriteAck("");
+                return;
+              }
+              if (!this.plugin.settings.askEnabled) {
+                new Notice("Enable Ask mirror first");
+                this.redisplay();
+                return;
+              }
+              this.presentConsent({
+                title: ASK_WRITE_ACK_TITLE,
+                disclosure: ASK_WRITE_DISCLOSURE,
+                onVerdict: (verdict) => {
+                  if (verdict !== "accepted") {
+                    this.redisplay();
+                    return;
+                  }
+                  void this.setAskWriteAck(new Date().toISOString());
+                },
+              });
+            }),
+      },
+    });
+
+    if (writeAck) {
+      this.renderAckRecord(containerEl, {
+        name: ASK_WRITE_ACK_TITLE,
+        at: this.plugin.settings.askWriteAckAt,
+        disclosure: ASK_WRITE_DISCLOSURE,
+        // The narrower of the two Ask consents: withdrawing it stops vault writes and leaves
+        // the mirror exactly as it was.
+        onWithdraw: () => this.setAskWriteAck(""),
+      });
+    }
 
     new Setting(containerEl)
       .setName("MCP connector URL")
@@ -1653,6 +1794,87 @@ export class AtomsSettingTab extends PluginSettingTab {
             await this.plugin.saveSettings();
           }),
       );
+  }
+}
+
+/** How a consent sheet ended. Only `accepted` grants; only `withdrawn` revokes. */
+export type ConsentVerdict = "accepted" | "declined" | "withdrawn";
+
+/** What a consent sheet says, and who hears how it ended. */
+export interface ConsentSheetSpec {
+  title: string;
+  disclosure: string;
+  /** Set when reviewing an ack already granted — the sheet then offers withdrawal, not accept. */
+  granted?: string;
+  onVerdict: (verdict: ConsentVerdict) => void;
+}
+
+/**
+ * A disclosure at the moment of decision, and the surface that takes it back (KTD4).
+ *
+ * The three permanent acknowledgment toggles this replaces were the only controls that could
+ * clear an ack, so the review shape carries `Withdraw acknowledgment`: a consent that can be
+ * granted but not withdrawn would be worse than the row it replaced.
+ *
+ * `answered` is what separates accept from dismissal. `onClose` fires for *every* close,
+ * including the one an accept triggers, so it settles as `declined` only when nothing has
+ * settled yet — which makes Escape, a click outside, and Settings closing all declines, and
+ * leaves an accepted sheet accepted.
+ */
+export class ConsentSheetModal extends Modal {
+  private answered = false;
+
+  constructor(
+    app: App,
+    private readonly spec: ConsentSheetSpec,
+  ) {
+    super(app);
+  }
+
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.empty();
+    const reviewing = this.spec.granted !== undefined;
+    contentEl.createEl("h2", { text: this.spec.title });
+    contentEl.createEl("p", { text: `I understand: ${this.spec.disclosure}` });
+    if (this.spec.granted !== undefined) {
+      contentEl.createEl("p", {
+        text: this.spec.granted,
+        cls: "setting-item-description",
+      });
+    }
+
+    const buttons = new Setting(contentEl).addButton((btn) =>
+      // "Close" reads as leaving a record alone; "Cancel" as abandoning a decision.
+      btn.setButtonText(reviewing ? "Close" : "Cancel").onClick(() => this.answer("declined")),
+    );
+    if (reviewing) {
+      buttons.addButton((btn) =>
+        markDestructive(btn.setButtonText("Withdraw acknowledgment")).onClick(() =>
+          this.answer("withdrawn"),
+        ),
+      );
+      return;
+    }
+    buttons.addButton((btn) =>
+      btn
+        .setButtonText("I understand")
+        .setCta()
+        .onClick(() => this.answer("accepted")),
+    );
+  }
+
+  onClose() {
+    this.contentEl.empty();
+    // Closing without choosing is a decline, never consent — and never a withdrawal either.
+    this.answer("declined");
+  }
+
+  private answer(verdict: ConsentVerdict): void {
+    if (this.answered) return;
+    this.answered = true;
+    this.spec.onVerdict(verdict);
+    this.close();
   }
 }
 

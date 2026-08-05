@@ -20,15 +20,23 @@ import {
 import type { PlusSession } from "../src/platform/filingAuth";
 import {
   destinationNames,
+  dismissSheet,
   flip,
   open,
   press,
+  pressSheet,
   row,
   rowNames,
   settingTab,
+  sheetOpen,
+  sheetText,
   fill,
   type SettingTabOptions,
 } from "./helpers/settingsTab";
+import {
+  LS_AUTO_RUN_EGRESS_ACK,
+  LS_AUTO_RUN_ENABLED,
+} from "../src/platform/autorun";
 import { DEFAULT_SETTINGS, type LinkerSettings } from "../src/shared/types";
 import {
   atomResult,
@@ -531,5 +539,261 @@ describe("tag vocabulary", () => {
     await flush();
 
     expect(rowNames(tab).filter((name) => name.startsWith("#"))).toEqual(["#idea"]);
+  });
+});
+
+/**
+ * U5 — the three permanent acknowledgment rows are gone; consent is a sheet at enable time.
+ *
+ * Ordered decline → dismissal → withdrawal → happy path on purpose. The happy path is the one
+ * that would pass by accident: the toggle has already flipped visually by the time the sheet
+ * opens, so every path that is *not* an explicit accept is the one that can silently enable
+ * egress, cloud storage, or vault writes.
+ */
+describe("consent sheets", () => {
+  const flush = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+  const SESSION: PlusSession = {
+    sessionToken: "sess_live",
+    email: "user@example.com",
+    status: "active",
+    remaining: 12,
+    periodEnd: "2026-09-01T00:00:00.000Z",
+  };
+
+  /** A tab with an Atoms Plus session, because the Ask section renders only behind one. */
+  function askTab(settings: Partial<LinkerSettings> = {}, local: Record<string, unknown> = {}) {
+    const made = settingTab({ session: SESSION, settings, local });
+    made.tab.display();
+    return made;
+  }
+
+  /** What the plugin double persisted, read back the way the tab wrote it. */
+  const persisted = (tab: AtomsSettingTab) => tab.plugin.settings;
+
+  const ACKED = "2026-08-01T10:00:00.000Z";
+
+  describe("declining", () => {
+    it("leaves auto-run off and writes no egress ack", async () => {
+      const { tab, local } = askTab();
+      flip(tab, "Auto-run on open");
+      await flush();
+
+      expect(sheetOpen()).toBe(true);
+      pressSheet("Cancel");
+      await flush();
+
+      expect(sheetOpen()).toBe(false);
+      expect(local.get(LS_AUTO_RUN_EGRESS_ACK)).not.toBe(true);
+      expect(local.get(LS_AUTO_RUN_ENABLED)).not.toBe(true);
+      expect(row(tab, "Auto-run on open").querySelector(".is-enabled")).toBeNull();
+    });
+
+    it("leaves the Ask mirror off and writes no privacy ack", async () => {
+      const { tab } = askTab();
+      flip(tab, "Enable Ask mirror");
+      await flush();
+      pressSheet("Cancel");
+      await flush();
+
+      expect(persisted(tab).askPrivacyAckAt).toBe("");
+      expect(persisted(tab).askEnabled).toBe(false);
+    });
+
+    it("leaves filing off and writes no vault-write ack", async () => {
+      const { tab } = askTab({ askPrivacyAckAt: ACKED, askEnabled: true });
+      flip(tab, "Allow filing from Claude or ChatGPT");
+      await flush();
+      pressSheet("Cancel");
+      await flush();
+
+      expect(persisted(tab).askWriteAckAt).toBe("");
+    });
+  });
+
+  describe("dismissing", () => {
+    it("treats Escape or a click outside as a decline on every sheet", async () => {
+      const { tab, local } = askTab({ askPrivacyAckAt: ACKED, askEnabled: true });
+
+      flip(tab, "Auto-run on open");
+      await flush();
+      dismissSheet();
+      await flush();
+      expect(local.get(LS_AUTO_RUN_EGRESS_ACK)).not.toBe(true);
+      expect(local.get(LS_AUTO_RUN_ENABLED)).not.toBe(true);
+
+      flip(tab, "Allow filing from Claude or ChatGPT");
+      await flush();
+      dismissSheet();
+      await flush();
+      expect(persisted(tab).askWriteAckAt).toBe("");
+    });
+
+    it("treats a privacy sheet dismissal as a decline", async () => {
+      const { tab } = askTab();
+      flip(tab, "Enable Ask mirror");
+      await flush();
+      dismissSheet();
+      await flush();
+
+      expect(persisted(tab).askPrivacyAckAt).toBe("");
+      expect(persisted(tab).askEnabled).toBe(false);
+    });
+
+    it("closes an open sheet when the settings tab closes, writing no ack", async () => {
+      const { tab } = askTab();
+      flip(tab, "Enable Ask mirror");
+      await flush();
+
+      tab.hide();
+      await flush();
+
+      expect(sheetOpen()).toBe(false);
+      expect(persisted(tab).askPrivacyAckAt).toBe("");
+      expect(persisted(tab).askEnabled).toBe(false);
+    });
+  });
+
+  describe("the acknowledgment record", () => {
+    it("shows the egress ack even while auto-run is off, and still offers Review", () => {
+      const { tab } = askTab({}, { [LS_AUTO_RUN_EGRESS_ACK]: true, [LS_AUTO_RUN_ENABLED]: false });
+
+      expect(rowNames(tab)).toContain("Data egress acknowledgment");
+      press(tab, "Data egress acknowledgment", "Review");
+      expect(sheetText()).toContain("Withdraw acknowledgment");
+    });
+
+    it("shows the Ask privacy ack even while the mirror is off", () => {
+      const { tab } = askTab({ askPrivacyAckAt: ACKED, askEnabled: false });
+
+      expect(rowNames(tab)).toContain("Ask privacy acknowledgment");
+      expect(row(tab, "Ask privacy acknowledgment").textContent).toContain("2026-08-01");
+    });
+
+    it("keeps no acknowledgment row for an ack that was never granted", () => {
+      const { tab } = askTab();
+
+      expect(rowNames(tab)).not.toContain("Data egress acknowledgment");
+      expect(rowNames(tab)).not.toContain("Ask privacy acknowledgment");
+      expect(rowNames(tab)).not.toContain("Vault write acknowledgment");
+    });
+  });
+
+  describe("withdrawing", () => {
+    it("clears the egress ack and force-disables auto-run", async () => {
+      const { tab, local } = askTab({}, {
+        [LS_AUTO_RUN_EGRESS_ACK]: true,
+        [LS_AUTO_RUN_ENABLED]: true,
+      });
+      press(tab, "Data egress acknowledgment", "Review");
+      pressSheet("Withdraw acknowledgment");
+      await flush();
+
+      expect(local.get(LS_AUTO_RUN_EGRESS_ACK)).not.toBe(true);
+      expect(local.get(LS_AUTO_RUN_ENABLED)).not.toBe(true);
+    });
+
+    it("clears the vault-write ack when the privacy ack is withdrawn", async () => {
+      const { tab } = askTab({
+        askPrivacyAckAt: ACKED,
+        askEnabled: true,
+        askWriteAckAt: ACKED,
+      });
+      press(tab, "Ask privacy acknowledgment", "Review");
+      pressSheet("Withdraw acknowledgment");
+      await flush();
+
+      expect(persisted(tab).askPrivacyAckAt).toBe("");
+      expect(persisted(tab).askEnabled).toBe(false);
+      expect(persisted(tab).askWriteAckAt).toBe("");
+    });
+
+    it("clears the vault-write ack when the mirror is turned off", async () => {
+      const { tab } = askTab({
+        askPrivacyAckAt: ACKED,
+        askEnabled: true,
+        askWriteAckAt: ACKED,
+      });
+      flip(tab, "Enable Ask mirror");
+      await flush();
+
+      expect(persisted(tab).askEnabled).toBe(false);
+      expect(persisted(tab).askWriteAckAt).toBe("");
+    });
+
+    it("withdraws the vault-write ack on its own without touching the privacy ack", async () => {
+      const { tab } = askTab({
+        askPrivacyAckAt: ACKED,
+        askEnabled: true,
+        askWriteAckAt: ACKED,
+      });
+      press(tab, "Vault write acknowledgment", "Review");
+      pressSheet("Withdraw acknowledgment");
+      await flush();
+
+      expect(persisted(tab).askWriteAckAt).toBe("");
+      expect(persisted(tab).askPrivacyAckAt).toBe(ACKED);
+      expect(persisted(tab).askEnabled).toBe(true);
+    });
+
+    it("keeps filing disabled while the Ask mirror is off", () => {
+      const { tab } = askTab({ askPrivacyAckAt: ACKED, askEnabled: false });
+
+      expect(
+        row(tab, "Allow filing from Claude or ChatGPT").querySelector(".is-disabled"),
+      ).not.toBeNull();
+    });
+  });
+
+  describe("accepting", () => {
+    it("writes the egress ack and enables auto-run", async () => {
+      const { tab, local } = askTab();
+      flip(tab, "Auto-run on open");
+      await flush();
+
+      expect(sheetText()).toContain("Anthropic");
+      pressSheet("I understand");
+      await flush();
+
+      expect(local.get(LS_AUTO_RUN_EGRESS_ACK)).toBe(true);
+      expect(local.get(LS_AUTO_RUN_ENABLED)).toBe(true);
+      // R7: an egress accept authorizes nothing on the Ask side.
+      expect(persisted(tab).askPrivacyAckAt).toBe("");
+      expect(persisted(tab).askWriteAckAt).toBe("");
+    });
+
+    it("writes the privacy ack and enables the mirror, and nothing else", async () => {
+      const { tab, local } = askTab();
+      flip(tab, "Enable Ask mirror");
+      await flush();
+      pressSheet("I understand");
+      await flush();
+
+      expect(persisted(tab).askPrivacyAckAt).not.toBe("");
+      expect(persisted(tab).askEnabled).toBe(true);
+      // R7: agreeing to cloud storage does not authorize writes into the vault, or egress.
+      expect(persisted(tab).askWriteAckAt).toBe("");
+      expect(local.get(LS_AUTO_RUN_EGRESS_ACK)).not.toBe(true);
+    });
+
+    it("writes the vault-write ack and nothing else", async () => {
+      const { tab, local } = askTab({ askPrivacyAckAt: ACKED, askEnabled: true });
+      flip(tab, "Allow filing from Claude or ChatGPT");
+      await flush();
+      pressSheet("I understand");
+      await flush();
+
+      expect(persisted(tab).askWriteAckAt).not.toBe("");
+      // R7: the privacy ack is untouched — it was already granted, and stays exactly as granted.
+      expect(persisted(tab).askPrivacyAckAt).toBe(ACKED);
+      expect(local.get(LS_AUTO_RUN_EGRESS_ACK)).not.toBe(true);
+    });
+  });
+
+  it("keeps no permanent acknowledgment toggle on the screen", () => {
+    const { tab } = askTab();
+
+    expect(rowNames(tab)).not.toContain("Privacy acknowledgment");
+    expect(rowNames(tab)).not.toContain("Data egress acknowledgment");
   });
 });

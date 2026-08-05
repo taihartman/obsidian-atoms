@@ -417,7 +417,7 @@ describe("destination shell", () => {
  * a flat ban: the count may fall, never rise. When it reaches zero, tighten the budget to 0 and
  * this becomes the flat ban the grammar wants.
  */
-const DIRECT_SETTING_BUDGET = 31;
+const DIRECT_SETTING_BUDGET = 27;
 
 describe("row-grammar repository guard", () => {
   it("settings.ts does not grow new direct `new Setting(` sites", () => {

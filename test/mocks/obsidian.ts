@@ -370,24 +370,46 @@ export class SecretComponent extends BaseComponent {
     return this;
   }
 }
+/**
+ * DOM-backed, because consent now lives in a sheet: a test has to read the disclosure a modal
+ * renders and press its buttons, and the previous stub swallowed both. `open()`/`close()` run
+ * the lifecycle hooks exactly once per visit, so "dismissed" (Escape, click-outside, the tab
+ * closing — all of which reach Obsidian as `close()`) stays distinguishable from "accepted".
+ */
 export class Modal {
   app: unknown;
-  contentEl: {
-    empty: () => void;
-    addClass: () => void;
-    createEl: () => { setText: () => void; style: Record<string, string> };
-  };
+  containerEl: HTMLElement;
+  contentEl: HTMLElement;
+  titleEl: HTMLElement;
+  private isOpen = false;
+  /** Modals currently open, oldest first — a test's handle on a sheet it never constructed. */
+  static open: Modal[] = [];
   constructor(app: unknown) {
     this.app = app;
-    this.contentEl = {
-      empty: () => {},
-      addClass: () => {},
-      createEl: () => ({ setText: () => {}, style: {} }),
-    };
+    this.containerEl = document.createElement("div");
+    this.containerEl.classList.add("modal-container");
+    this.titleEl = this.containerEl.appendChild(document.createElement("div"));
+    this.titleEl.classList.add("modal-title");
+    this.contentEl = this.containerEl.appendChild(document.createElement("div"));
+    this.contentEl.classList.add("modal-content");
   }
   onOpen() {}
   onClose() {}
-  close() {}
+  open() {
+    if (this.isOpen) return;
+    this.isOpen = true;
+    Modal.open.push(this);
+    document.body.appendChild(this.containerEl);
+    this.onOpen();
+  }
+  close() {
+    if (!this.isOpen) return;
+    this.isOpen = false;
+    const at = Modal.open.indexOf(this);
+    if (at >= 0) Modal.open.splice(at, 1);
+    this.containerEl.remove();
+    this.onClose();
+  }
 }
 export type App = unknown;
 export type EventRef = unknown;
