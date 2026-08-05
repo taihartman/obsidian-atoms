@@ -59,3 +59,12 @@ Chat is not a ticket. Unclaimed work is out of bounds.
 
 Method skills are **not** in this repo. They come from private `taihartman/claude-skills` (see `docs/collab.md` § Shared agent skills).  
 If `world-class-qa` / `adversarial-qa` cannot load: stop the shipping-tail QA step, report **skills not installed**, and point the human at that section — do not fake QA from code-read alone.
+
+## Repo-local skills (Claude + other agents)
+
+| Skill | Path | When |
+|---|---|---|
+| **field-notes** | `.agents/skills/field-notes/` (symlink `.claude/skills/field-notes`) | User feeds a Field notes idea → draft, test email, broadcast on approval |
+| **atoms-voice** | `.agents/skills/atoms-voice/` (symlink `.claude/skills/atoms-voice`) | Any product copy / email tone |
+
+Claude Code: project skills under `.claude/skills/`; also symlink into `~/.claude/skills/` on each machine if global discovery is needed. Docs: `docs/voice.md`, `docs/field-notes-email.md`, `docs/runbooks/atoms-notes-list.md`.

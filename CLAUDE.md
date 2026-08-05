@@ -20,6 +20,8 @@ Turn **past** daily captures into a trusted second brain: classify → flat atom
 | `docs/u1-spike-findings.md` | Spike-verified API/SecretStorage notes |
 | `docs/solutions/` | Documented solutions to past problems (bugs, patterns, workflows), by category with YAML frontmatter (`module`, `tags`, `problem_type`) — relevant when implementing or debugging in those areas |
 | `CONCEPTS.md` | Shared domain vocabulary (entities, named processes, status concepts) — relevant when orienting or discussing domain terms |
+| `docs/voice.md` | Product voice (plugin + tryatoms + Field notes). Skill **`atoms-voice`**. |
+| `docs/field-notes-email.md` + skill **`field-notes`** | Field notes mailing list: idea → draft → test send → (approve) broadcast. Source: `.agents/skills/field-notes/` (also linked from `.claude/skills/`). |
 
 Where an **active feature plan** and amendments conflict, **that plan wins**. Amendments explain rationale for plan KTDs.  
 **Constitution** (`CLAUDE.md` non-negotiables + `architecture.md` north star) changes **only via PR** — never silent mid-feature edits.
