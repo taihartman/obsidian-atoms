@@ -12,7 +12,10 @@ import type { ClassificationResult } from "../../src/shared/types";
 import { MetadataContextProvider } from "../../src/pipeline/context";
 
 export function mdFile(path: string): TFile {
-  const f = new TFile(path);
+  // `TFile`'s constructor takes no arguments in `obsidian.d.ts`; the path is assigned rather
+  // than passed so this helper typechecks against the real API, not only against the mock.
+  const f = new TFile();
+  f.path = path;
   f.basename = (path.split("/").pop() ?? path).replace(/\.md$/, "");
   (f as TFile & { extension: string }).extension = "md";
   return f;

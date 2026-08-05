@@ -15,12 +15,22 @@
 	// has pre-existing errors (untyped `.mjs` imports, un-narrowed unions) whose
 	// cleanup is its own change, and a gate that cannot go green gates nothing.
 	// Widen this list as those files are cleaned up.
+	//
+	// The settings row-grammar tests joined for the same reason: their assertions are
+	// type-level (an illegal row must fail to compile), and an assertion in an unchecked
+	// file asserts nothing — cost 1 above, repeated. The rendering harness they run on is
+	// checked too, so a mock that drifts from `obsidian.d.ts` breaks the build rather than
+	// leaving tests passing against a fiction.
 	"extends": "./tsconfig.json",
 	"include": [
 		"src/**/*.ts",
 		"test/askMirror.test.ts",
 		"test/askMirrorGate.adversarial.test.ts",
 		"test/catchUp.test.ts",
+		"test/settings.test.ts",
+		"test/settingsRows.test.ts",
+		"test/mocks/obsidian.ts",
+		"test/mocks/domAugmentations.ts",
 		"plus-pricing.json"
 	],
 	"exclude": ["node_modules"]
