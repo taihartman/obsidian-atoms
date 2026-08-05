@@ -2039,8 +2039,9 @@ export default class AtomsPlugin extends Plugin {
       return;
     }
 
-    const apiKey = this.requireApiKey();
-    if (!apiKey) return;
+    // Same auth as Process: BYOK or Atoms Plus (not BYOK-only).
+    const classifyAuth = this.requireClassifyAuth();
+    if (!classifyAuth) return;
 
     const nowKind = gate.capture.markerKind!;
     const loading = new ReconsiderModal(this.app, {
@@ -2053,11 +2054,14 @@ export default class AtomsPlugin extends Plugin {
 
     try {
       const ctx = this.contextProvider.buildContext();
+      const shortlist = shortlistOptionsFromSettings(this.settings);
       const outcome = await classifyCapture(gate.capture.text, ctx, {
-        apiKey,
+        apiKey: classifyAuth.apiKey,
         model: this.settings.model,
         activeVocabulary: this.settings.activeVocabulary,
         maxAttempts: 2,
+        plus: classifyAuth.plus,
+        ...shortlist,
         onAuthFailure: (msg) => new Notice(`Atoms: ${msg}`),
       });
 
