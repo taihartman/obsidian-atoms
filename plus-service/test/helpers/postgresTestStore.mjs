@@ -20,10 +20,23 @@
  * KTD3 — skipping is silent locally and fatal in CI. See `postgresStoreRows`.
  */
 import { after } from "node:test";
+import { randomBytes } from "node:crypto";
 import pg from "pg";
 import { createPostgresStore } from "../../src/store/postgres.mjs";
 
 let counter = 0;
+
+/**
+ * Per-run entropy in the schema name.
+ *
+ * The pid alone disambiguates only *within* a run (`node --test` gives each
+ * file its own process). Pids recycle, so against a persistent developer
+ * database a schema stranded by an earlier crashed run collides with the next
+ * run that draws the same pid — and `CREATE SCHEMA` without IF NOT EXISTS then
+ * fails before the store exists to clean it up. IF NOT EXISTS would be worse:
+ * it would silently reuse another run's tables.
+ */
+const RUN_ID = randomBytes(4).toString("hex");
 
 /** Schemas created but not yet dropped, for the end-of-file sweep below. */
 const liveSchemas = new Set();
@@ -63,7 +76,7 @@ async function onAdminConnection(fn) {
  * test file — a module-local counter alone would collide across files.
  */
 export async function createTestPostgresStore() {
-  const schema = `t_${process.pid}_${++counter}`;
+  const schema = `t_${RUN_ID}_${process.pid}_${++counter}`;
   await onAdminConnection((c) => c.query(`CREATE SCHEMA "${schema}"`));
   liveSchemas.add(schema);
 
@@ -72,13 +85,16 @@ export async function createTestPostgresStore() {
     store = await createPostgresStore(withSearchPath(baseUrl(), schema));
   } catch (err) {
     // A migration or connection failure here would otherwise strand the schema
-    // we just created, with no store to close.
-    await dropSchema(schema);
+    // we just created, with no store to close. Swallow any drop failure: the
+    // usual reason the drop fails is the same reason the store did, and the
+    // cleanup error must never outrank the error it is cleaning up after.
+    await dropSchema(schema).catch(() => {});
     throw err;
   }
 
   return {
     ...store,
+    schemaForTest: schema,
     async close() {
       // Pool first: `DROP SCHEMA` cannot run from a connection whose
       // `search_path` is the schema being dropped, and dropping from the
@@ -102,7 +118,19 @@ async function dropSchema(schema) {
 // TEST_DATABASE_URL at a persistent database does not, and the debris
 // accumulates silently. This file-level hook sweeps whatever is left.
 after(async () => {
-  for (const schema of [...liveSchemas]) await dropSchema(schema);
+  const stranded = [];
+  for (const schema of [...liveSchemas]) {
+    // Per-schema guard: one undroppable schema must not abandon the rest, nor
+    // turn a run whose tests all passed into a teardown failure.
+    try {
+      await dropSchema(schema);
+    } catch {
+      stranded.push(schema);
+    }
+  }
+  if (stranded.length) {
+    console.error(`[#239] could not drop test schemas: ${stranded.join(", ")}`);
+  }
 });
 
 /**

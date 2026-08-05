@@ -141,29 +141,22 @@ function runStoreSuite(name, create) {
       // Craft: create soft session, mark account entitled without going through grantPeriod revoke
       // (simulate race where status flips but verified flag still false — use createSession)
       await store.ensureAccount("edge@t.co");
+
+      // Entitle through the public API on every backend. This used to mutate
+      // the object returned by getAccount and branch on store.kind, which only
+      // persisted on memory (the one store that hands back a live reference) —
+      // so the four rows were not proving the same thing, and a fifth backend
+      // would have dropped silently into the memory arm and asserted the gate
+      // against an account that was never entitled (#239).
+      await store.grantPeriod("edge@t.co", { remaining: 10, status: "active" });
+
+      // grantPeriod revokes unverified sessions (C1), so mint the soft session
+      // under test after it — the gate being asserted is requireVerified, not
+      // the revoke.
       const soft = await store.createSession("edge@t.co", { verified: false });
-      // Direct status mutation path
-      const acc = await store.getAccount("edge@t.co");
-      acc.status = "active";
-      acc.remaining = 10;
-      if (store.kind === "sqlite" || store.kind === "postgres") {
-        await store.grantPeriod("edge@t.co", {
-          remaining: 10,
-          status: "active",
-        });
-        // grant revokes soft — recreate unverified after grant to test requireVerified gate
-        const soft2 = await store.createSession("edge@t.co", {
-          verified: false,
-        });
-        const r = await store.tryConsumeFiling(soft2, "x");
-        assert.equal(r.ok, false);
-        assert.equal(r.code, "auth");
-      } else {
-        // memory: don't call grantPeriod (would revoke); test gate alone
-        const r = await store.tryConsumeFiling(soft, "x");
-        assert.equal(r.ok, false);
-        assert.equal(r.code, "auth");
-      }
+      const r = await store.tryConsumeFiling(soft, "x");
+      assert.equal(r.ok, false);
+      assert.equal(r.code, "auth");
 
       if (store.close) await store.close();
     });

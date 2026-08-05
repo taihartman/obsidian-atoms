@@ -8,11 +8,15 @@
  */
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
+import pg from "pg";
 import {
+  createTestPostgresStore,
   postgresStoreRows,
   withSearchPath,
 } from "./helpers/postgresTestStore.mjs";
 import { askStoreModes, withStore } from "./helpers/askStore.mjs";
+
+const DUMMY_URL = "postgres://u:p@localhost:5432/atoms_test";
 
 function restoreEnv(key, value) {
   if (value === undefined) delete process.env[key];
@@ -27,6 +31,17 @@ function restoreEnv(key, value) {
  * without a database. A version of this that cleared only TEST_DATABASE_URL
  * passed locally and failed the job.
  */
+/** Run `fn` with CI cleared, leaving TEST_DATABASE_URL alone. */
+function withoutCi(fn) {
+  const ci = process.env.CI;
+  delete process.env.CI;
+  try {
+    return fn();
+  } finally {
+    restoreEnv("CI", ci);
+  }
+}
+
 function withoutPostgresEnv(fn) {
   const url = process.env.TEST_DATABASE_URL;
   const ci = process.env.CI;
@@ -69,16 +84,19 @@ describe("postgres store gate (#239 KTD3)", () => {
   });
 
   it("a database — contributes exactly one row named postgres", () => {
-    process.env.TEST_DATABASE_URL = "postgres://u:p@localhost:5432/atoms_test";
+    process.env.TEST_DATABASE_URL = DUMMY_URL;
     const rows = postgresStoreRows();
     assert.equal(rows.length, 1);
     assert.equal(rows[0][0], "postgres");
-    assert.equal(typeof rows[0][1], "function");
+    // Identity, not arity. `typeof fn === "function"` is satisfied by
+    // `() => createMemoryStore()` — a memory store labelled postgres, which is
+    // the precise fake-green this file exists to catch.
+    assert.equal(rows[0][1], createTestPostgresStore);
   });
 
   it("a database wins over CI — CI does not force the throw when set", () => {
     process.env.CI = "true";
-    process.env.TEST_DATABASE_URL = "postgres://u:p@localhost:5432/atoms_test";
+    process.env.TEST_DATABASE_URL = DUMMY_URL;
     assert.equal(postgresStoreRows().length, 1);
   });
 });
@@ -94,22 +112,39 @@ describe("ask suite mode mapping is total (#239 KTD6)", () => {
     );
   });
 
-  it("routes each known mode to a distinct backend", async () => {
+  it("routes every offered mode to the backend of that name", async () => {
+    // Assert the backend's own discriminator, not a proxy like "does it have a
+    // close() method". A fallback-to-memory bug is a mismatched name here; a
+    // proxy assertion would miss it whenever the shapes happened to agree. This
+    // iterates askStoreModes(), so it covers postgres wherever postgres exists.
+    // Read the mode list with CI cleared so this test measures routing, not
+    // the CI trapdoor — that has its own test above, and letting it fire here
+    // would make this assertion depend on ambient environment.
+    const modes = withoutCi(() => askStoreModes());
+
     const seen = [];
-    for (const mode of ["memory", "sqlite"]) {
+    for (const mode of modes) {
       await withStore(mode, async (store) => {
-        seen.push(typeof store.close);
+        seen.push(store.kind);
       });
     }
-    // sqlite exposes close(), memory does not — proof they are not the same
-    // object graph, which a fallback-to-memory bug would make identical.
-    assert.deepEqual(seen, ["undefined", "function"]);
+    assert.deepEqual(seen, modes);
   });
 
   it("offers memory and sqlite with no database present", () => {
     withoutPostgresEnv(() => {
       assert.deepEqual(askStoreModes(), ["memory", "sqlite"]);
     });
+  });
+
+  it("adds postgres when a database is present", () => {
+    const saved = process.env.TEST_DATABASE_URL;
+    process.env.TEST_DATABASE_URL = DUMMY_URL;
+    try {
+      assert.deepEqual(askStoreModes(), ["memory", "sqlite", "postgres"]);
+    } finally {
+      restoreEnv("TEST_DATABASE_URL", saved);
+    }
   });
 });
 
@@ -143,3 +178,88 @@ describe("per-schema connection URL (#239 KTD2)", () => {
     ]);
   });
 });
+
+/**
+ * KTD2 asserted against a real server, not against a string.
+ *
+ * Everything else here checks that `withSearchPath` produces a URL containing
+ * the right `options` value — which is `URLSearchParams` round-tripping the
+ * string the test just wrote. That proves nothing about whether postgres
+ * honours it. If `options` ever stops reaching the startup packet (a pg major
+ * bump, a pooler in front of the connection, a provider that strips startup
+ * options), every store silently migrates into `public`, all five suites share
+ * one table set, and the run stays green while per-test isolation is gone.
+ *
+ * These fail loudly the day that happens. Present only when a database is.
+ */
+const HAS_DB = Boolean(process.env.TEST_DATABASE_URL);
+
+describe(
+  "per-schema isolation against a live postgres (#239 KTD2)",
+  { skip: HAS_DB ? false : "no TEST_DATABASE_URL" },
+  () => {
+    it("connects on the schema it minted, not public", async () => {
+      const store = await createTestPostgresStore();
+      const client = new pg.Client({
+        connectionString: withSearchPath(
+          process.env.TEST_DATABASE_URL,
+          store.schemaForTest,
+        ),
+      });
+      await client.connect();
+      try {
+        const { rows } = await client.query("SELECT current_schema() AS s");
+        assert.equal(rows[0].s, store.schemaForTest);
+
+        // The tables the migration created belong to that schema, not public.
+        const reg = await client.query(
+          "SELECT to_regclass('accounts')::text AS t",
+        );
+        assert.equal(reg.rows[0].t, `${store.schemaForTest}.accounts`);
+      } finally {
+        await client.end();
+        await store.close();
+      }
+    });
+
+    it("two stores cannot see each other's rows", async () => {
+      const a = await createTestPostgresStore();
+      const b = await createTestPostgresStore();
+      try {
+        assert.notEqual(a.schemaForTest, b.schemaForTest);
+        await a.grantPeriod("isolated@ex.co", {
+          remaining: 5,
+          status: "active",
+          days: 1,
+        });
+        assert.ok(await a.getAccount("isolated@ex.co"));
+        // If search_path were ignored, both stores would be reading the same
+        // public.accounts and this would find the row.
+        assert.equal(await b.getAccount("isolated@ex.co"), null);
+      } finally {
+        await a.close();
+        await b.close();
+      }
+    });
+
+    it("drops the schema on close", async () => {
+      const store = await createTestPostgresStore();
+      const schema = store.schemaForTest;
+      await store.close();
+
+      const client = new pg.Client({
+        connectionString: process.env.TEST_DATABASE_URL,
+      });
+      await client.connect();
+      try {
+        const { rows } = await client.query(
+          "SELECT 1 FROM information_schema.schemata WHERE schema_name = $1",
+          [schema],
+        );
+        assert.equal(rows.length, 0);
+      } finally {
+        await client.end();
+      }
+    });
+  },
+);

@@ -1,8 +1,16 @@
 # #239 — the first CI job that runs plus-service tests at all.
 #
 # Before this, `release.yml` ran the root vitest suite on version tags and
-# nothing ran plus-service. Its tests gate pull requests from here on, and the
-# postgres rows run against a real server rather than memory or sqlite.
+# nothing ran plus-service. Its tests now RUN on every pull request touching
+# plus-service, and the postgres rows run against a real server rather than
+# memory or sqlite.
+#
+# They do not yet BLOCK a merge: `master` branch protection lists no required
+# status checks (docs/collab.md § master branch protection; docs/security
+# H8), so a red run here is advisory until someone adds
+# `plus-service tests / test` to the required set. Note the interaction when
+# doing so — a required check with a `paths:` filter stays pending forever on
+# PRs that touch nothing under plus-service/.
 name: plus-service tests
 
 on:
@@ -22,6 +30,10 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+    # A stranded pg.Pool keeps the node process alive after the reporter
+    # finishes. pg reaps idle sockets after ~10s so this should never bind, but
+    # without it the default ceiling is six hours.
+    timeout-minutes: 15
 
     # KTD1 — a real postgres. The bugs this job exists to catch are
     # engine-behaviour bugs (parameter binding, ON CONFLICT, TIMESTAMPTZ), so a
@@ -62,7 +74,21 @@ jobs:
         run: npm ci
 
       - name: Test — memory, sqlite, and postgres
-        run: npm test
+        run: |
+          set -o pipefail
+          npm test 2>&1 | tee /tmp/test.log
+          # A floor on how much postgres actually ran. The guard step below
+          # proves what happens when the database is MISSING; nothing otherwise
+          # proves the rows executed when it is present. Delete one suite's
+          # postgres row and the suite count drops while everything stays green
+          # — the same "no coverage and coverage passing look identical"
+          # trapdoor, relocated from the env var to the call sites.
+          RAN=$(grep -c '(postgres)' /tmp/test.log || true)
+          echo "postgres suites that ran: $RAN"
+          if [ "$RAN" -lt 5 ]; then
+            echo "::error::only $RAN postgres suites ran, expected at least 5 — a suite lost its postgres row"
+            exit 1
+          fi
         env:
           TEST_DATABASE_URL: postgres://atoms:atoms@localhost:5432/atoms_test
           # DATABASE_URL is deliberately NOT set. createStore promotes a
@@ -87,6 +113,10 @@ jobs:
             echo "::error::plus-service tests PASSED with no TEST_DATABASE_URL — the postgres rows skipped silently and postgres is untested"
             exit 1
           fi
-          grep -q "TEST_DATABASE_URL" /tmp/guard.log \
+          # Match the thrown sentence, not the bare identifier. The identifier
+          # appears in the helper's own source, which node prints in a code
+          # frame for any load-time crash there — so grepping for it would
+          # certify a gate that never fired.
+          grep -q "would go untested behind a green check" /tmp/guard.log \
             || { echo "::error::run failed, but not for the expected missing-database reason"; exit 1; }
-          echo "Guard OK — the run failed and named TEST_DATABASE_URL."
+          echo "Guard OK — the run failed with the missing-database error."
