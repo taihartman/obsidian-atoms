@@ -14,6 +14,32 @@ import {
 } from "./helpers/postgresTestStore.mjs";
 import { askStoreModes, withStore } from "./helpers/askStore.mjs";
 
+function restoreEnv(key, value) {
+  if (value === undefined) delete process.env[key];
+  else process.env[key] = value;
+}
+
+/**
+ * Run `fn` with both gate inputs cleared, then restore them.
+ *
+ * Clearing CI is not optional even though it looks redundant on a laptop: CI is
+ * exactly where it is set, and `postgresStoreRows()` throws when CI is set
+ * without a database. A version of this that cleared only TEST_DATABASE_URL
+ * passed locally and failed the job.
+ */
+function withoutPostgresEnv(fn) {
+  const url = process.env.TEST_DATABASE_URL;
+  const ci = process.env.CI;
+  delete process.env.TEST_DATABASE_URL;
+  delete process.env.CI;
+  try {
+    return fn();
+  } finally {
+    restoreEnv("TEST_DATABASE_URL", url);
+    restoreEnv("CI", ci);
+  }
+}
+
 describe("postgres store gate (#239 KTD3)", () => {
   // Scoped to this block: only these tests need a stripped environment, and a
   // file-level hook would silently strip it from every other test here too.
@@ -81,13 +107,9 @@ describe("ask suite mode mapping is total (#239 KTD6)", () => {
   });
 
   it("offers memory and sqlite with no database present", () => {
-    const saved = process.env.TEST_DATABASE_URL;
-    delete process.env.TEST_DATABASE_URL;
-    try {
+    withoutPostgresEnv(() => {
       assert.deepEqual(askStoreModes(), ["memory", "sqlite"]);
-    } finally {
-      if (saved !== undefined) process.env.TEST_DATABASE_URL = saved;
-    }
+    });
   });
 });
 
