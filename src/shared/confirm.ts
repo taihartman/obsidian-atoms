@@ -12,6 +12,26 @@
 export type ConfirmVerdict = "confirmed" | "declined" | "dismissed";
 
 /**
+ * The sign-in handoff's confirmation (#240 U10, R4).
+ *
+ * Carries the **server-verified** account email and nothing else: the token and
+ * the device verifier stay inside `platform/`, so no surface that renders text
+ * can render either of them (R11). Declared beside `ConfirmVerdict` rather than
+ * folded into `ConfirmRequest` — a dialog that names atom counts and a dialog
+ * that names an account answer different questions, and the two unions have no
+ * shared field to discriminate usefully.
+ */
+export type SignInConfirmRequest = {
+  kind: "plus-signin";
+  email: string;
+};
+
+/** The gesture that releases a sign-in exchange. */
+export interface SignInConfirmHost {
+  confirmSignIn(request: SignInConfirmRequest): Promise<ConfirmVerdict>;
+}
+
+/**
  * Which threshold withheld the deletion. Declared here rather than in
  * `platform/askMirror.ts` because the confirmation contract carries it: the
  * dialog authorising an irreversible delete has to state the true reason, and

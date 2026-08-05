@@ -77,9 +77,18 @@ function makeText() {
 }
 
 export class Notice {
-  constructor(msg: string) {
+  message: string;
+  constructor(msg: string, _timeout?: number) {
+    this.message = msg;
     capture?.notices.push(msg);
   }
+  /** Every message a Notice carried, so a test can tell a toast from a modal. */
+  setMessage(msg: string) {
+    this.message = msg;
+    capture?.notices.push(msg);
+    return this;
+  }
+  hide() {}
 }
 export class Setting {
   constructor(_containerEl?: unknown) {}
@@ -129,23 +138,46 @@ export const moment = (input?: string) => ({
   _input: input ?? null,
 });
 export class SecretComponent {}
+type ModalEl = {
+  empty: () => void;
+  addClass: () => void;
+  createEl: (
+    tag?: string,
+    opts?: { text?: string; cls?: string },
+  ) => ModalEl & { setText: (text: string) => void; style: Record<string, string> };
+};
+
+function makeModalEl(): ModalEl {
+  const el: ModalEl = {
+    empty: () => {},
+    addClass: () => {},
+    // Text goes through `note` so a capturing test can assert what a modal
+    // actually rendered, and in what order relative to its buttons.
+    createEl: (_tag?: string, opts?: { text?: string; cls?: string }) => {
+      note(opts?.text);
+      return Object.assign(makeModalEl(), {
+        setText: (text: string) => note(text),
+        style: {} as Record<string, string>,
+      });
+    },
+  };
+  return el;
+}
+
 export class Modal {
   app: unknown;
-  contentEl: {
-    empty: () => void;
-    addClass: () => void;
-    createEl: () => { setText: () => void; style: Record<string, string> };
-  };
+  contentEl: ModalEl;
   constructor(app: unknown) {
     this.app = app;
-    this.contentEl = {
-      empty: () => {},
-      addClass: () => {},
-      createEl: () => ({ setText: () => {}, style: {} }),
-    };
+    this.contentEl = makeModalEl();
+  }
+  /** Obsidian renders on open; tests need the same trigger. */
+  open() {
+    this.onOpen();
   }
   onOpen() {}
   onClose() {}
+  /** Inert, as before: dismissal is driven by calling `onClose` directly. */
   close() {}
 }
 export type App = unknown;

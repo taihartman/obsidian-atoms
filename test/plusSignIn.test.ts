@@ -1,6 +1,7 @@
 /**
- * #240 U9 — the deep-link handoff peeks before it spends anything, and every
- * outcome of that peek says something the user can act on.
+ * #240 U9 + U10 — the deep-link handoff peeks before it spends anything, every
+ * outcome says something the user can act on, and the exchange happens only
+ * after a deliberate approval.
  *
  * The refusal path is first on purpose: it is the one a user actually hits when
  * mobile routing sends the link to the wrong vault.
@@ -28,16 +29,21 @@ import {
   MAGIC_LINK_REFUSED_MESSAGE,
 } from "../src/platform/plusClient";
 import {
+  readPendingSignIns,
+  readPlusSession,
   recordPendingSignIn,
   type LocalStorageLike,
 } from "../src/platform/filingAuth";
+import type { ConfirmVerdict, SignInConfirmRequest } from "../src/shared/confirm";
 import {
   createSignInHandoffQueue,
   sanitizeVaultLabel,
   MAGIC_LINK_NETWORK_MESSAGE,
   MAGIC_LINK_RATE_LIMITED_MESSAGE,
+  SIGN_IN_DECLINED_MESSAGE,
+  SIGNING_IN_APPROVED_MESSAGE,
   SIGNING_IN_MESSAGE,
-  type MagicHandoffApproval,
+  signedInMessage,
   type PlusSignInHost,
   type SignInStatusSurface,
 } from "../src/platform/plusSignIn";
@@ -55,12 +61,25 @@ function fakeApp(): LocalStorageLike {
   };
 }
 
-type Surface = SignInStatusSurface & { messages: string[]; hidden: boolean };
+/**
+ * `failed` is recorded separately from `messages` so a test can assert *which
+ * channel* an outcome took: a refusal has to reach the acknowledge-only surface,
+ * not the progress line (U10 step 7 / R5).
+ */
+type Surface = SignInStatusSurface & {
+  messages: string[];
+  failed: string[];
+  hidden: boolean;
+};
 
 const NOW = Date.now();
 
 function harness(opts?: {
   pending?: { verifier: string; vault: string; requestedAt: number }[];
+  /** What the human answers. Declining is the default, so no test approves by accident. */
+  verdict?: ConfirmVerdict;
+  /** Runs while the confirmation is open — e.g. a second link request. */
+  whileConfirming?: (app: LocalStorageLike) => void;
 }) {
   const app = fakeApp();
   for (const entry of [...(opts?.pending ?? [])].sort(
@@ -75,20 +94,27 @@ function harness(opts?: {
     });
   }
   const surfaces: Surface[] = [];
-  const approvals: MagicHandoffApproval[] = [];
+  const confirms: SignInConfirmRequest[] = [];
   const host: PlusSignInHost = {
     app: app as PlusSignInHost["app"],
     settings: { plusBaseUrl: "https://plus.test" },
-    onPeekUsable: (ctx) => {
-      approvals.push(ctx);
+    confirmSignIn: async (request) => {
+      confirms.push(request);
+      opts?.whileConfirming?.(app);
+      return opts?.verdict ?? "declined";
     },
   };
   const queue = createSignInHandoffQueue({
     openStatus: () => {
       const surface: Surface = {
         messages: [],
+        failed: [],
         hidden: false,
         update(message: string) {
+          surface.messages.push(message);
+        },
+        fail(message: string) {
+          surface.failed.push(message);
           surface.messages.push(message);
         },
         hide() {
@@ -99,8 +125,18 @@ function harness(opts?: {
       return surface;
     },
   });
-  return { app, host, queue, surfaces, approvals };
+  return { app, host, queue, surfaces, confirms };
 }
+
+const session = {
+  ok: true as const,
+  session: {
+    sessionToken: "sess_secret_value",
+    email: "a@b.co",
+    status: "active" as const,
+    refreshedAt: NOW,
+  },
+};
 
 const usable = {
   ok: true as const,
@@ -131,8 +167,8 @@ describe("plusSignIn — refusal paths", () => {
 
     expect(peek).not.toHaveBeenCalled();
     expect(exchange).not.toHaveBeenCalled();
-    expect(h.approvals).toEqual([]);
-    expect(shown(h.surfaces)).toContain(MAGIC_LINK_REFUSED_MESSAGE);
+    expect(h.confirms).toEqual([]);
+    expect(h.surfaces[0].failed).toEqual([MAGIC_LINK_REFUSED_MESSAGE]);
     // No attested name exists, so none is printed — not even the param's.
     expect(shown(h.surfaces)).not.toContain("Notes");
   });
@@ -160,11 +196,14 @@ describe("plusSignIn — refusal paths", () => {
     expect(text).toContain("Work vault");
     expect(text).not.toContain("Attacker");
     expect(exchange).not.toHaveBeenCalled();
-    expect(h.approvals).toEqual([]);
+    expect(h.confirms).toEqual([]);
+    // A refusal has to be acknowledged, not swept away on a timer (R5).
+    expect(h.surfaces[0].failed).toHaveLength(1);
   });
 
-  it("tries the older verifier when the newest is refused, and carries the one that worked", async () => {
+  it("tries the older verifier when the newest is refused, and exchanges with the one that worked", async () => {
     const h = harness({
+      verdict: "confirmed",
       pending: [
         { verifier: "v_old", vault: "Notes", requestedAt: 1000 },
         { verifier: "v_new", vault: "Notes", requestedAt: 2000 },
@@ -187,9 +226,9 @@ describe("plusSignIn — refusal paths", () => {
     await h.queue.accept({ action: "atoms-signin", token: "tok_1" });
 
     expect(peek).toHaveBeenCalledTimes(2);
-    expect(h.approvals).toHaveLength(1);
-    expect(h.approvals[0].verifier).toBe("v_old");
-    expect(exchange).not.toHaveBeenCalled();
+    expect(h.confirms).toHaveLength(1);
+    expect(exchange).toHaveBeenCalledTimes(1);
+    expect(exchange.mock.calls[0][2]).toMatchObject({ verifier: "v_old" });
   });
 
   it("refuses with the attested vault when every pending verifier is refused", async () => {
@@ -212,7 +251,7 @@ describe("plusSignIn — refusal paths", () => {
 
     expect(peek).toHaveBeenCalledTimes(2);
     expect(shown(h.surfaces)).toContain("Work vault");
-    expect(h.approvals).toEqual([]);
+    expect(h.confirms).toEqual([]);
   });
 
   it("stops at the first non-refused verdict rather than burning the rest of the list", async () => {
@@ -240,20 +279,15 @@ describe("plusSignIn — refusal paths", () => {
 describe("plusSignIn — every outcome says something", () => {
   const pending = [{ verifier: "v1", vault: "Notes", requestedAt: 1000 }];
 
-  it("hands a usable peek to the confirmation without exchanging", async () => {
+  it("asks the human before it spends anything, naming the server-verified email", async () => {
     const h = harness({ pending });
     peek.mockResolvedValue(usable);
     h.queue.ready(h.host);
     await h.queue.accept({ action: "atoms-signin", token: "tok_1" });
 
+    expect(h.confirms).toEqual([{ kind: "plus-signin", email: "a@b.co" }]);
+    // Declined by default in the harness, so the peek stands alone here.
     expect(exchange).not.toHaveBeenCalled();
-    expect(h.approvals).toHaveLength(1);
-    expect(h.approvals[0]).toMatchObject({
-      token: "tok_1",
-      verifier: "v1",
-      email: "a@b.co",
-      vault: "Notes",
-    });
   });
 
   it("surfaces the request-a-new-link message for an expired token", async () => {
@@ -353,6 +387,123 @@ describe("plusSignIn — every outcome says something", () => {
       SIGNING_IN_MESSAGE,
       MAGIC_LINK_EXPIRED_MESSAGE,
     ]);
+  });
+});
+
+describe("plusSignIn — the exchange runs only on approval (U10)", () => {
+  const pending = [{ verifier: "v1", vault: "Notes", requestedAt: 1000 }];
+
+  it("exchanges once, stores the session, and retires the pending verifier", async () => {
+    const h = harness({ pending, verdict: "confirmed" });
+    peek.mockResolvedValue(usable);
+    exchange.mockResolvedValue(session);
+    h.queue.ready(h.host);
+    await h.queue.accept({ action: "atoms-signin", token: "tok_1" });
+
+    expect(exchange).toHaveBeenCalledTimes(1);
+    expect(exchange.mock.calls[0][1]).toBe("tok_1");
+    expect(exchange.mock.calls[0][2]).toMatchObject({ verifier: "v1" });
+    expect(readPlusSession(h.app)?.email).toBe("a@b.co");
+    expect(readPendingSignIns(h.app)).toEqual([]);
+    expect(shown(h.surfaces)).toContain(signedInMessage("a@b.co"));
+  });
+
+  for (const verdict of ["declined", "dismissed"] as const) {
+    it(`makes no server call at all when the user ${verdict} it, and the link still works`, async () => {
+      const h = harness({ pending, verdict });
+      peek.mockResolvedValue(usable);
+      h.queue.ready(h.host);
+      await h.queue.accept({ action: "atoms-signin", token: "tok_1" });
+
+      // Zero calls, not merely "no session written" — cancel must not revoke
+      // the account's other sessions, which an exchange would (AE2).
+      expect(exchange).not.toHaveBeenCalled();
+      expect(readPlusSession(h.app)).toBeNull();
+      expect(shown(h.surfaces)).toContain(SIGN_IN_DECLINED_MESSAGE);
+
+      // The peek consumed nothing and the verifier survived, so a second tap
+      // reaches the same question rather than a dead link.
+      expect(readPendingSignIns(h.app)).toHaveLength(1);
+      await h.queue.accept({ action: "atoms-signin", token: "tok_1" });
+      expect(h.confirms).toHaveLength(2);
+    });
+  }
+
+  it("shows progress between the approval and the session landing (R19)", async () => {
+    const h = harness({ pending, verdict: "confirmed" });
+    peek.mockResolvedValue(usable);
+    let settleExchange: (v: unknown) => void = () => {};
+    exchange.mockImplementation(
+      () => new Promise((resolve) => (settleExchange = resolve)),
+    );
+    h.queue.ready(h.host);
+    const done = h.queue.accept({ action: "atoms-signin", token: "tok_1" });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(h.surfaces[0].messages.at(-1)).toBe(SIGNING_IN_APPROVED_MESSAGE);
+    expect(readPlusSession(h.app)).toBeNull();
+
+    settleExchange(session);
+    await done;
+    expect(h.surfaces[0].messages).toEqual([
+      SIGNING_IN_MESSAGE,
+      SIGNING_IN_APPROVED_MESSAGE,
+      signedInMessage("a@b.co"),
+    ]);
+  });
+
+  it("leaves the device signed out and says so when the exchange fails after approval", async () => {
+    const h = harness({ pending, verdict: "confirmed" });
+    peek.mockResolvedValue(usable);
+    exchange.mockResolvedValue({
+      ok: false,
+      status: 410,
+      code: "expired",
+      verdict: "expired",
+      message: MAGIC_LINK_EXPIRED_MESSAGE,
+    });
+    h.queue.ready(h.host);
+    await h.queue.accept({ action: "atoms-signin", token: "tok_1" });
+
+    expect(readPlusSession(h.app)).toBeNull();
+    expect(h.surfaces[0].failed).toEqual([MAGIC_LINK_EXPIRED_MESSAGE]);
+    // The verifier outlives a failed exchange so the next tap can still work.
+    expect(readPendingSignIns(h.app)).toHaveLength(1);
+  });
+
+  it("exchanges with this flow's verifier, not one minted while the question was open", async () => {
+    // The user taps **Send sign-in link** again with the confirmation on screen.
+    let headAtConfirm = "";
+    const h = harness({
+      pending,
+      verdict: "confirmed",
+      whileConfirming: (app) => {
+        recordPendingSignIn(app, { verifier: "v_newer", vault: "Notes" });
+        headAtConfirm = readPendingSignIns(app)[0]?.verifier ?? "";
+      },
+    });
+    peek.mockResolvedValue(usable);
+    exchange.mockResolvedValue(session);
+    h.queue.ready(h.host);
+    await h.queue.accept({ action: "atoms-signin", token: "tok_1" });
+
+    // A fresh read at approve time would have handed over the newer verifier,
+    // which this link's row does not know — so the carried one is used instead.
+    expect(headAtConfirm).toBe("v_newer");
+    expect(exchange.mock.calls[0][2]).toMatchObject({ verifier: "v1" });
+    expect(h.confirms).toEqual([{ kind: "plus-signin", email: "a@b.co" }]);
+  });
+
+  it("never surfaces the session token it just stored", async () => {
+    const h = harness({ pending, verdict: "confirmed" });
+    peek.mockResolvedValue(usable);
+    exchange.mockResolvedValue(session);
+    h.queue.ready(h.host);
+    await h.queue.accept({ action: "atoms-signin", token: "tok_1" });
+
+    expect(readPlusSession(h.app)?.sessionToken).toBe("sess_secret_value");
+    expect(shown(h.surfaces)).not.toContain("sess_secret_value");
   });
 });
 
@@ -467,7 +618,7 @@ describe("plusSignIn — cold-open queue", () => {
 
     await h.queue.ready(h.host);
     expect(peek).toHaveBeenCalledTimes(1);
-    expect(h.approvals).toHaveLength(1);
+    expect(h.confirms).toHaveLength(1);
   });
 
   it("supersedes rather than queues a second handoff during a cold open", async () => {

@@ -166,6 +166,10 @@ import { isEligibleForUpdate } from "../pipeline/atomQuality";
 import { formatUpdateSummary } from "../home/runProgress";
 import { stripLegacyAskMirrorHashes } from "../platform/askMirror";
 import { createSignInHandoffQueue } from "../platform/plusSignIn";
+import {
+  askSignInApproval,
+  createSignInStatusSurface,
+} from "../settings/plusSignInConfirmModal";
 
 export default class AtomsPlugin extends Plugin {
   settings!: LinkerSettings;
@@ -175,7 +179,9 @@ export default class AtomsPlugin extends Plugin {
    * are loaded. Built in the field initializer so the handler registered above
    * `onload`'s first `await` has somewhere to put what it receives.
    */
-  private signInHandoff = createSignInHandoffQueue();
+  private signInHandoff = createSignInHandoffQueue({
+    openStatus: () => createSignInStatusSurface(this.app),
+  });
   /** Ask mirror + outbox orchestration (single owner of inFlight state). */
   ask!: AskCoordinator;
   /** Last classify outcome for CLI/dev inspection (no secrets). */
@@ -233,14 +239,9 @@ export default class AtomsPlugin extends Plugin {
     void this.signInHandoff.ready({
       app: this.app,
       settings: this.settings,
-      // U10 owns the confirmation modal and the exchange. Until it lands, a
-      // usable peek still replaces the in-progress state rather than leaving
-      // the user staring at "Checking…" (R19).
-      onPeekUsable: (approval) => {
-        approval.status.update(
-          `Signed-in link verified for ${approval.email}. Confirmation is coming in the next step.`,
-        );
-      },
+      // The only gate in front of the exchange (#240 U10 / R4): the modal owns
+      // the question, `platform/plusSignIn` owns what a "confirmed" spends.
+      confirmSignIn: (request) => askSignInApproval(this.app, request),
     });
     this.contextProvider = new MetadataContextProvider(
       this.app,

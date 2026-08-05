@@ -1,17 +1,24 @@
 /**
- * #240 U9 — the `obsidian://atoms-signin` handoff: peek first, route every
- * outcome, spend nothing before the user has chosen.
+ * #240 U9 + U10 — the `obsidian://atoms-signin` handoff: peek first, ask, and
+ * spend the token only on an explicit approval.
  *
- * The exchange lives in U10 and runs only on approval; this module stops at
- * handing a usable peek to `onPeekUsable`, carrying the verifier that satisfied
- * it (KD4, KTD15).
+ * The peek is non-consuming (KTD15), so every path short of "confirmed" leaves
+ * the link redeemable. The confirmation itself is a host callback rather than a
+ * Modal built here, following `shared/confirm.ts`: `platform/` stays testable in
+ * node, and the token and verifier never reach a surface that renders text.
  */
-import { Notice } from "obsidian";
 import type { App } from "obsidian";
-import { readPendingSignIns, type LocalStorageLike } from "./filingAuth";
+import type { ConfirmVerdict, SignInConfirmRequest } from "../shared/confirm";
+import {
+  clearPendingSignIn,
+  readPendingSignIns,
+  writePlusSession,
+  type LocalStorageLike,
+} from "./filingAuth";
 import {
   DEFAULT_PLUS_BASE_URL,
   MAGIC_LINK_REFUSED_MESSAGE,
+  exchangeMagicToken,
   peekMagicToken,
   plusFetchRequest,
   type PlusClientConfig,
@@ -34,14 +41,34 @@ export const MAGIC_LINK_NETWORK_MESSAGE =
 export const MAGIC_LINK_UNKNOWN_MESSAGE =
   "Could not check this sign-in link. Tap it again, or request a new one from Settings → Atoms.";
 
+/** Shown from the approval until the session lands (R19). */
+export const SIGNING_IN_APPROVED_MESSAGE = "Signing in…";
+
+/**
+ * Cancelling is a choice, not a failure — and the peek consumed nothing, so the
+ * link genuinely still works. Saying so is what keeps a cancel recoverable.
+ */
+export const SIGN_IN_DECLINED_MESSAGE =
+  "Left signed out. This sign-in link still works — tap it again if you change your mind.";
+
+export function signedInMessage(email: string): string {
+  return `Signed in to Atoms Plus as ${email}.`;
+}
+
 /** The surface the in-progress state and its outcome share. */
 export type SignInStatusSurface = {
   /** Replace what is on screen — never stack a second surface. */
   update: (message: string) => void;
+  /**
+   * A dead end the user must acknowledge (R5). Separate from `update` because a
+   * refusal that expires on a timer is indistinguishable from the silent drop
+   * #240 exists to remove; the plugin surface renders this as a modal.
+   */
+  fail: (message: string) => void;
   hide: () => void;
 };
 
-/** What U10's confirmation needs, and nothing that could spend the token here. */
+/** What the confirmation needs, and nothing that could spend the token elsewhere. */
 export type MagicHandoffApproval = {
   token: string;
   /**
@@ -60,8 +87,11 @@ export type MagicHandoffApproval = {
 export type PlusSignInHost = {
   app: App & LocalStorageLike;
   settings: { plusBaseUrl: string };
-  /** U10 owns the confirmation and the exchange; U9 only reaches this. */
-  onPeekUsable?: (approval: MagicHandoffApproval) => void | Promise<void>;
+  /**
+   * Asks the human. Injected rather than constructed here so the whole flow runs
+   * under vitest, and so the exchange has exactly one gate in front of it.
+   */
+  confirmSignIn: (request: SignInConfirmRequest) => Promise<ConfirmVerdict>;
 };
 
 /** Control characters, including DEL — never rendered, never logged. */
@@ -121,13 +151,11 @@ export async function runSignInHandoff(
   if (pending.length === 0) {
     // No verifier to present, so no peek can run and no name is attested.
     // Naming nothing beats naming the `vault=` param (R5).
-    status.update(refusalMessage());
+    status.fail(refusalMessage());
     return;
   }
 
-  const base = host.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL;
-  const cfg: PlusClientConfig = { baseUrl: base, request: plusFetchRequest };
-
+  const cfg = plusConfig(host);
   let lastRefusal: PeekFailure | null = null;
   for (const entry of pending) {
     const result = await peekMagicToken(cfg, {
@@ -135,7 +163,7 @@ export async function runSignInHandoff(
       verifier: entry.verifier,
     });
     if (result.ok) {
-      await host.onPeekUsable?.({
+      await completeSignInHandoff(host, {
         token,
         verifier: entry.verifier,
         email: result.email,
@@ -149,14 +177,61 @@ export async function runSignInHandoff(
       lastRefusal = failure;
       continue;
     }
-    status.update(failureMessage(failure));
+    status.fail(failureMessage(failure));
     return;
   }
-  status.update(
+  status.fail(
     failureMessage(
       lastRefusal ?? { status: 403, code: "refused", message: "" },
     ),
   );
+}
+
+function plusConfig(host: Pick<PlusSignInHost, "settings">): PlusClientConfig {
+  const base = host.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL;
+  return { baseUrl: base, request: plusFetchRequest };
+}
+
+/**
+ * U10 — confirm, then exchange, and only in that order.
+ *
+ * The exchange carries **the verifier that satisfied this flow's peek**, never a
+ * fresh read of the pending record: a second **Send sign-in link** tap while the
+ * confirmation is open prepends a newer verifier, and presenting that against
+ * this link's row would refuse a user whose only mistake was tapping twice.
+ */
+export async function completeSignInHandoff(
+  host: Pick<PlusSignInHost, "app" | "settings" | "confirmSignIn">,
+  approval: MagicHandoffApproval,
+): Promise<void> {
+  const { status } = approval;
+  const verdict = await host.confirmSignIn({
+    kind: "plus-signin",
+    email: approval.email,
+  });
+  if (verdict !== "confirmed") {
+    // Nothing to undo, because nothing was spent: no exchange, no revoke, no
+    // request of any kind (AE2). A dismissal is counted here, not consented to.
+    status.update(SIGN_IN_DECLINED_MESSAGE);
+    return;
+  }
+
+  status.update(SIGNING_IN_APPROVED_MESSAGE);
+  const result = await exchangeMagicToken(plusConfig(host), approval.token, {
+    verifier: approval.verifier,
+  });
+  if (!result.ok) {
+    // The device stays signed out and the pending verifier survives, so the
+    // user's next tap can still complete.
+    status.fail(failureMessage(result as PeekFailure));
+    return;
+  }
+
+  writePlusSession(host.app, result.session);
+  // The link is spent and the session is stored, so the verifiers it was
+  // redeemed against have no further use.
+  clearPendingSignIn(host.app);
+  status.update(signedInMessage(result.session.email || approval.email));
 }
 
 export type SignInHandoffQueue = {
@@ -174,20 +249,14 @@ export type SignInHandoffQueue = {
  * in-progress surface opens at the tap, not at the drain, so a cold open still
  * shows something immediately.
  */
-export function createSignInHandoffQueue(opts?: {
-  openStatus?: () => SignInStatusSurface;
+export function createSignInHandoffQueue(opts: {
+  /**
+   * Required rather than defaulted: the surface is Obsidian UI (a `Notice` for
+   * progress, a modal for a dead end) and `platform/` does not build UI.
+   */
+  openStatus: () => SignInStatusSurface;
 }): SignInHandoffQueue {
-  const openStatus =
-    opts?.openStatus ??
-    (() => {
-      // Timeout 0 — this notice is replaced by its own outcome, and F13 removed
-      // the auto-dismiss so a refusal stays until the user dismisses it.
-      const notice = new Notice(SIGNING_IN_MESSAGE, 0);
-      return {
-        update: (message: string) => notice.setMessage(message),
-        hide: () => notice.hide(),
-      };
-    });
+  const { openStatus } = opts;
 
   let host: PlusSignInHost | null = null;
   let slot: { token: string; status: SignInStatusSurface } | null = null;
@@ -199,7 +268,7 @@ export function createSignInHandoffQueue(opts?: {
     } catch {
       // Never let a deep link throw out of the protocol handler, and never
       // surface the thrown text — it is the one place a token could leak.
-      status.update(MAGIC_LINK_UNKNOWN_MESSAGE);
+      status.fail(MAGIC_LINK_UNKNOWN_MESSAGE);
     }
   };
 

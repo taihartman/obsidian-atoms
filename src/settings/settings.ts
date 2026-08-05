@@ -1,6 +1,5 @@
 import {
   App,
-  type ButtonComponent,
   Modal,
   Notice,
   PluginSettingTab,
@@ -28,6 +27,7 @@ import {
   resolveCaptureShortcutInstallUrl,
   writeShortcutAck,
 } from "./captureShortcut";
+import { markDestructive } from "./destructiveButton";
 import { clampAtomFolder } from "../pipeline/render";
 import {
   API_KEY_SECRET_ID_DEFAULT,
@@ -90,24 +90,6 @@ import {
 
 /** Public marketing + pricing page. Source lives in `www/` in this repo. */
 export const ATOMS_SITE_URL = "https://tryatoms.app";
-
-/**
- * `setDestructive()` only exists from Obsidian 1.13, but the manifest supports
- * 1.11.4. Calling it on an older installer threw mid-render and killed the whole
- * Atoms settings tab for anyone with a stored Plus session — every control below
- * "Wipe cloud copy" simply vanished. Prefer it where present, fall back to the
- * deprecated-but-still-shipping warning style otherwise.
- */
-function markDestructive(btn: ButtonComponent): ButtonComponent {
-  // Bracket access so static community lint does not treat setDestructive
-  // (1.13+) as an unconditional API use against minAppVersion 1.11.4.
-  const maybe = btn as ButtonComponent & Record<string, unknown>;
-  const fn = maybe["setDestructive"];
-  if (typeof fn === "function") {
-    return (fn as () => ButtonComponent).call(btn);
-  }
-  return btn.setWarning();
-}
 
 function settingHeading(containerEl: HTMLElement, name: string): void {
   new Setting(containerEl).setName(name).setHeading();
@@ -1565,12 +1547,9 @@ export class AskMirrorDeleteConfirmModal extends Modal {
         }),
       )
       .addButton((btn) =>
-        btn
-          .setButtonText("Delete from cloud")
-          .setWarning()
-          .onClick(() => {
-            this.answer("confirmed");
-          }),
+        markDestructive(btn.setButtonText("Delete from cloud")).onClick(() => {
+          this.answer("confirmed");
+        }),
       );
   }
 
