@@ -761,7 +761,7 @@ export function createAskPostgresMethods(pool, deps) {
     if (!accessToken) return null;
     const { rows } = await pool.query(
       "SELECT * FROM mcp_access_tokens WHERE token_hash = $1",
-      [accessToken],
+      [hashToken(accessToken)],
     );
     const r = rows[0];
     if (!r || r.revoked || Date.now() > Number(r.exp_ms)) return null;

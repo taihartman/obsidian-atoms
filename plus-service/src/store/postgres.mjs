@@ -257,7 +257,7 @@ export async function createPostgresStore(databaseUrl) {
       await client.query("BEGIN");
       const { rows } = await client.query(
         "SELECT * FROM checkout_bindings WHERE checkout_id = $1 FOR UPDATE",
-        [key],
+        [csId],
       );
       const row = rows[0];
       if (!row || row.email !== key || Date.now() > Number(row.exp_ms)) {
