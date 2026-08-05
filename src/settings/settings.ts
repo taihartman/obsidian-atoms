@@ -36,10 +36,13 @@ import {
 import {
   clearPlusSession,
   hasPlusSetupSession,
+  latestPendingSignIn,
   readPlusSession,
+  recordPendingSignIn,
   setAwaitingCheckout,
   writePlusSession,
 } from "../platform/filingAuth";
+import { generateVerifier, hasWebCrypto, s256Challenge } from "../platform/pkce";
 import {
   clearPlusRefreshRecord,
   plusRefreshPresentation,
@@ -197,26 +200,73 @@ export class AtomsSettingTab extends PluginSettingTab {
     return record.kind === "ok";
   }
 
-  /** Shared magic-link request — signed-out form and the expired-session row. */
+  /**
+   * Copy for the sign-in-link row. Three honest states: a device that cannot
+   * complete the handoff at all says so up front and names the fallback (R19);
+   * otherwise the emailed link is only described once one has been requested,
+   * since before that there is no email to send anyone to (R15).
+   */
+  private signInLinkDesc(): string {
+    if (!hasWebCrypto()) {
+      return "This device can't sign itself in from an emailed link. Send one anyway, then finish with Advanced: paste session below.";
+    }
+    return latestPendingSignIn(this.app)
+      ? "Link sent — open it in the email on this device and Obsidian signs itself in. Send another if it has expired."
+      : "Already subscribed? We'll email a one-time link. Open it on this device and Obsidian signs itself in.";
+  }
+
+  /** This vault's name — what the link is bound to, and what the landing page shows. */
+  private vaultName(): string {
+    const vault = (this.app as { vault?: { getName?: () => string } }).vault;
+    return vault?.getName?.() ?? "";
+  }
+
+  /**
+   * Shared magic-link request — signed-out form and the expired-session row.
+   *
+   * Every request mints a fresh device-held verifier and registers its hash
+   * against the token, so only this vault can redeem the link. The record is
+   * prepended, never replaced: tapping twice must leave the first link still
+   * redeemable (U7).
+   *
+   * A device with no WebCrypto still gets its link — locking sign-in out would
+   * be worse than the paste fallback — but the link goes unbound, so the landing
+   * page will offer no handoff. That outcome is announced, never swallowed: a
+   * silent unbound send drops the user in exactly the dead end #240 exists to
+   * remove (R19). The capability is probed rather than caught, so any other
+   * failure still surfaces instead of being read as "this device can't".
+   */
   private async sendPlusMagicLink(email: string): Promise<void> {
     const base =
       this.plugin.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL;
+    const vault = this.vaultName();
+    const canSignInFromLink = hasWebCrypto();
+    let verifier: string | null = null;
+    let verifierHash: string | undefined;
+    if (canSignInFromLink) {
+      verifier = generateVerifier();
+      verifierHash = await s256Challenge(verifier);
+    }
     const r = await requestMagicLink(
       { baseUrl: base, request: plusFetchRequest },
       email,
+      { verifierHash, vault },
     );
     if (!r.ok) {
       new Notice(`Atoms Plus: ${r.message}`);
       return;
     }
+    if (verifier) recordPendingSignIn(this.app, { verifier, vault });
     new Notice(
-      "Check your email for a sign-in link. Then return here and tap Refresh status.",
+      canSignInFromLink
+        ? "Sign-in link sent. Open it in your email on this device and Obsidian signs itself in."
+        : "Sign-in link sent, but this device can't sign itself in from a link. Open the link, then paste the session it shows you into Advanced: paste session below.",
       10000,
     );
   }
 
   /**
-   * Inline result of the last "Refresh status" press. Expired sessions get the
+   * Inline result of the last entitlement refresh. An expired session gets the
    * sign-in link right here — no hunting for "Advanced: paste session".
    */
   private renderPlusRefreshOutcome(containerEl: HTMLElement): void {
@@ -527,10 +577,8 @@ export class AtomsSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName("Sign in on another device")
-      .setDesc(
-        "Already subscribed? Email a one-time link. Open it, then Refresh status here.",
-      )
+      .setName("Sign in with a link")
+      .setDesc(this.signInLinkDesc())
       .addText((text) => {
         text.setPlaceholder("you@example.com").inputEl.dataset.plusMagicEmail =
           "1";
@@ -547,13 +595,18 @@ export class AtomsSettingTab extends PluginSettingTab {
             return;
           }
           await this.sendPlusMagicLink(email);
+          // The row's copy turns into the "open the email" form once a link exists.
+          this.redisplay();
         }),
       );
 
-    // Advanced: paste session (restore fallback)
+    // Advanced: paste session — the different-device fallback, kept below the
+    // link row until #286 replaces it (KD3, R10).
     new Setting(containerEl)
       .setName("Advanced: paste session")
-      .setDesc("Only if Refresh status does not work after the sign-in link.")
+      .setDesc(
+        "Only if your email opens on a different device from Obsidian. Sign in there, then paste the session it gives you.",
+      )
       .addText((text) => {
         text.setPlaceholder("sess_…").inputEl.dataset.plusSession = "1";
       })
