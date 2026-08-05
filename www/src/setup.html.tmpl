@@ -20,12 +20,13 @@
         <a class="back" href="/">↳ Atoms</a>
 
         <h1>Setting up Atoms</h1>
-        <p class="updated">Written against Obsidian 1.12.7 and BRAT 2.2.0.</p>
+        <p class="updated">Written against Obsidian 1.12.7.</p>
 
         <p class="lead">
           Three parts. Get it installed, get capture onto your phone, then wire
-          it into Claude or ChatGPT. The first part is the only one that is
-          fiddly, and it is fiddly once.
+          it into Claude or ChatGPT. Installing is a two-minute job — Atoms is
+          in Obsidian's plugin directory. The phone shortcut is the fiddly one,
+          and it is fiddly once.
         </p>
 
         <nav class="guide-nav" aria-label="Setup steps">
@@ -110,60 +111,35 @@
             <figcaption>After. Browse is what you want next.</figcaption>
           </figure>
 
-          <h3>Install BRAT</h3>
+          <h3>Install Atoms</h3>
           <p>
-            Atoms is not in Obsidian's plugin directory yet, so it is installed
-            through <a href="https://obsidian.md/plugins?id=obsidian42-brat">BRAT</a>,
-            a plugin whose whole job is installing other plugins from GitHub and
-            keeping them current.
-          </p>
-          <p>
-            Hit <strong>Browse</strong>, search <span class="mono">BRAT</span>,
-            and install the one called <strong>BRAT</strong> by TfTHacker. Enable
-            it if it does not enable itself.
-          </p>
-
-          <h3>Point BRAT at Atoms</h3>
-          <p>
-            Open <strong>Settings → BRAT</strong> and press
-            <strong>Add beta plugin</strong>, the button under
-            <strong>Beta plugin list</strong>. On a computer the command
-            palette does the same thing:
-            <span class="mono">Ctrl/Cmd + P</span>, then
-            <strong>BRAT: Plugins: Add a beta plugin for testing</strong>. In
-            the box that appears, paste exactly:
-          </p>
-          <p class="guide-paste">
-            <span class="mono">taihartman/obsidian-atoms</span>
-          </p>
-          <p>
-            The field's own example shows a full GitHub address, and that form
-            works too — <span class="mono">owner/repository</span> is simply
-            less to type. Then open the version dropdown, which starts on
-            <strong>Select a version</strong>, and choose
-            <strong>Latest version</strong>. Ignore the optional GitHub token,
-            leave <strong>Enable after installing the plugin</strong> ticked,
-            and press <strong>Add plugin</strong>.
+            Hit <strong>Browse</strong> and search <span class="mono">Atoms</span>.
+            Two results come back and the top one is not us — take the one by
+            <strong>Tai Hartman</strong>.
           </p>
 
           <figure class="shot">
             <img
-              src="/setup-brat-add-beta-plugin-modal.webp"
-              alt="BRAT's Add beta plugin dialog, with a Repository field, a version selector set to Latest version, and an Enable after installing checkbox"
+              src="/setup-community-browse-atoms.webp"
+              alt="Obsidian's community plugin browser searching for Atoms, showing two results: Bonds by Zak first and Atoms by Tai Hartman second"
               width="780"
               height="1688"
               loading="lazy"
             />
             <figcaption>
-              Paste the repository, choose Latest version, leave the tick, then
-              Add plugin.
+              Two results, and Atoms is the second one. Tap it to open its page.
             </figcaption>
           </figure>
 
           <p>
-            BRAT downloads Atoms and switches it on for you. There is no separate
-            step to enable it. If it somehow arrives switched off, it is under
-            <strong>Settings → Community plugins → Installed plugins</strong>.
+            That opens its page, where the button says <strong>Install</strong>.
+            Press it and the same button becomes <strong>Enable</strong>. Press
+            that too — installing does not switch it on.
+          </p>
+          <p class="fineprint">
+            Both results carry Obsidian's standard note that the plugin has not
+            been manually reviewed by its staff. That is true of most of the
+            directory; it is not a warning about Atoms specifically.
           </p>
 
           <h3>Check it worked</h3>
@@ -191,29 +167,34 @@
             {{trialFinePrint}}
           </p>
 
-          <h3>Staying up to date</h3>
+          <h3>Open Atoms</h3>
           <p>
-            Atoms ships often, and BRAT already handles it:
-            <strong>Auto-update plugins at startup</strong> is on by default
-            under <strong>Settings → BRAT</strong>, so new versions arrive the
-            next time Obsidian starts. There is nothing to switch on — just know
-            that is where it lives. If you would rather decide for yourself,
-            turn it off and run BRAT's <strong>Check for updates</strong> by
-            hand.
+            Installing it does not put it in front of you, and nothing about
+            the settings screen is the product. On a computer, Atoms is the
+            books icon in the left ribbon — hover it and it says
+            <strong>Open Atoms</strong>. On a phone there is no ribbon, so open
+            the left sidebar and pick the <strong>Atoms</strong> tab along the
+            top.
+          </p>
+          <p>
+            Either way you land on the same panel, and either way it is safe to
+            press twice — it reuses the pane it already opened rather than
+            stacking up copies. If you would rather type it, the command
+            palette (<span class="mono">Ctrl/Cmd + P</span>) has
+            <strong>Atoms: Open home</strong>.
           </p>
 
-          <figure class="shot">
-            <img
-              src="/setup-brat-settings.webp"
-              alt="BRAT's settings pane showing toggles including auto-enable after installation and auto-update plugins at startup"
-              width="780"
-              height="1688"
-              loading="lazy"
-            />
-            <figcaption>
-              Auto-update at startup, already on. This is just where it lives.
-            </figcaption>
-          </figure>
+          <h3>Staying up to date</h3>
+          <p>
+            Atoms ships often, and Obsidian handles updates itself.
+            <strong>Settings → Community plugins</strong> has
+            <strong>Automatically check for plugin updates</strong> and a
+            <strong>Check for updates</strong> button for when you would rather
+            not wait. The version at the top of
+            <strong>Settings → Atoms</strong> is how you confirm which build you
+            are actually on — worth a glance on your phone, where a stale copy
+            is easy to miss.
+          </p>
         </section>
 
         <!-- ---------------------------------------------------------- -->
