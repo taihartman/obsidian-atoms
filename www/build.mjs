@@ -247,6 +247,7 @@ const SETUP_SHOTS = [
   "setup-community-plugins-on.webp",
   "setup-community-browse-atoms.webp",
   "setup-atoms-settings.webp",
+  "setup-atoms-home.webp",
 ];
 
 const ASSETS = [

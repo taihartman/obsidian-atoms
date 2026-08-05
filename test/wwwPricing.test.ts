@@ -528,6 +528,10 @@ describe("setup guide", () => {
     expect(setup).toContain("Open Atoms");
     expect(setup).toContain("Atoms: Open home");
     expect(setup).toMatch(/no ribbon/i);
+    // The first draft said the phone's tab picker sits along the top. The
+    // captured frame disproved it — .workspace-drawer-tab-select renders at
+    // y=700 of an 844pt viewport. Guard the corrected direction.
+    expect(setup).toContain("view picker near the bottom");
   });
 
   it("publishes the same MCP connector URL the plugin hands out", () => {
