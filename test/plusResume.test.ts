@@ -135,22 +135,35 @@ describe("#280 post-checkout readiness announcement", () => {
     expect(isAwaitingCheckout(app)).toBe(false);
   });
 
-  it("does the network work once, not once per concurrent caller", async () => {
+  it("keeps polling independently so one hung request cannot silence the rest", async () => {
+    // The tempting fix for #280 is to coalesce callers onto one shared promise.
+    // `plusFetchRequest` has no timeout, so that would let a single hung
+    // request absorb every remaining poll and tell a paying user nothing. Each
+    // caller must keep issuing its own request.
     const app = fakeApp();
     app.saveLocalStorage(LS_PLUS_SESSION, serializePlusSession(pending));
     setAwaitingCheckout(app, true);
-    const release = deferredRefresh(app);
     const host = hostFor(app);
 
-    const inFlight = [
-      refreshPlusSessionQuiet(host),
-      refreshPlusSessionQuiet(host),
-      refreshPlusSessionQuiet(host),
-    ];
-    release();
-    await Promise.all(inFlight);
+    // First poll hangs forever — a cold-started backend that never answers.
+    deferredRefresh(app);
+    const hung = refreshPlusSessionQuiet(host);
+    let hungSettled = false;
+    void hung.then(() => {
+      hungSettled = true;
+    });
 
-    expect(vi.mocked(refreshPlusEntitlementRecord)).toHaveBeenCalledTimes(1);
+    // A later trigger (interval tick, focus) must still reach the network and
+    // still be able to announce.
+    gates.delete(app);
+    const done = await refreshPlusSessionQuiet(host);
+
+    expect(done).toBe(true);
+    expect(noticeCount).toBe(1);
+    expect(hungSettled).toBe(false);
+    expect(
+      vi.mocked(refreshPlusEntitlementRecord).mock.calls.length,
+    ).toBeGreaterThan(1);
   });
 
   it("announces again for a later checkout — the guard is not a permanent latch", async () => {
@@ -199,14 +212,19 @@ describe("#280 post-checkout readiness announcement", () => {
       app.saveLocalStorage(LS_PLUS_SESSION, serializePlusSession(pending));
       setAwaitingCheckout(app, true);
     }
-    // Only A's refresh is gated; B must not be made to wait on it.
+    // A's refresh must be genuinely IN FLIGHT while B runs. Awaiting B first
+    // and only then starting A proves nothing: the two never overlap, and the
+    // test passes just as happily against a single module-global slot that
+    // couples every vault together.
     const releaseA = deferredRefresh(deviceA);
+    const a = refreshPlusSessionQuiet(hostFor(deviceA));
 
     const b = await refreshPlusSessionQuiet(hostFor(deviceB));
-    releaseA();
-    await refreshPlusSessionQuiet(hostFor(deviceA));
-
     expect(b).toBe(true);
+    expect(noticeCount).toBe(1);
+
+    releaseA();
+    await a;
     expect(noticeCount).toBe(2);
   });
 });

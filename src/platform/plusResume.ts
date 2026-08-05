@@ -23,36 +23,12 @@ const MAX_POLLS = 8;
 const INTERVAL_MS = 5000;
 
 /**
- * One refresh in flight per app (#280). Four uncoordinated triggers feed this
- * function — load, the 5s interval, `visibilitychange` and `focus` (the last
- * two fire together on return from Stripe) — and the awaiting-checkout guard
- * below is a check-then-act across an `await`: every caller already past it is
- * committed to announcing readiness. When entitlement flipped, all of them
- * announced, which is how one checkout produced seven identical notices.
- *
- * Keyed per app rather than module-global so two vaults never wait on each
- * other's refresh.
- */
-const inFlight = new WeakMap<object, Promise<boolean>>();
-
-/**
  * If awaiting checkout, refresh /v1/me. Clears flag when entitled.
- * Concurrent callers share the first call's result and do not re-announce.
  * @returns true if entitlement became active/trialing/exhausted
  */
-export function refreshPlusSessionQuiet(
+export async function refreshPlusSessionQuiet(
   host: PlusResumeHost,
 ): Promise<boolean> {
-  const existing = inFlight.get(host.app);
-  if (existing) return existing;
-  const run = quietRefresh(host).finally(() => {
-    inFlight.delete(host.app);
-  });
-  inFlight.set(host.app, run);
-  return run;
-}
-
-async function quietRefresh(host: PlusResumeHost): Promise<boolean> {
   if (!isAwaitingCheckout(host.app)) return false;
   const session = readPlusSession(host.app);
   if (!session) {
@@ -71,6 +47,21 @@ async function quietRefresh(host: PlusResumeHost): Promise<boolean> {
     status === "trialing" ||
     status === "exhausted"
   ) {
+    // #280 — announce exactly once per checkout. Four uncoordinated triggers
+    // feed this function (load, the 5s interval, `visibilitychange` and
+    // `focus`, the last two firing together on return from Stripe), so several
+    // polls are routinely in flight when entitlement flips. The guard at the
+    // top is a check-then-act across the `await` above: every caller already
+    // past it is committed, which is how one checkout produced seven notices.
+    //
+    // Re-read the flag here instead. Nothing below yields, so clear-and-notice
+    // is one synchronous block and only the first caller through can announce.
+    // Deliberately NOT solved by coalescing callers onto one shared promise:
+    // `plusFetchRequest` has no timeout, so a single hung request would then
+    // absorb every remaining poll and the user would be told nothing at all —
+    // and on a path whose whole job is telling a paying user their entitlement
+    // landed, silence is a worse failure than a duplicate notice.
+    if (!isAwaitingCheckout(host.app)) return true;
     clearAwaitingCheckout(host.app);
     new Notice("Atoms Plus is ready", 6000);
     return true;
