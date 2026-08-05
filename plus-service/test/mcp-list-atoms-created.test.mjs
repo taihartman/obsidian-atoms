@@ -197,3 +197,83 @@ describe("instructions", () => {
     assert.match(ASK_MCP_INSTRUCTIONS, /list_pending/);
   });
 });
+
+describe("created preserve + day filter", () => {
+  it("null incoming created does not wipe backfilled value", async () => {
+    const store = await createStore({ mode: "memory" });
+    const email = "p@example.com";
+    await store.grantPeriod(email, {
+      remaining: 50,
+      status: "active",
+      plan: "monthly",
+    });
+    await store.mirrorUpsert(email, [
+      {
+        path: "Atoms/Keep.md",
+        title: "Keep",
+        body: "v1",
+        tags: [],
+        created: "2026-08-01",
+      },
+    ]);
+    await store.mirrorUpsert(email, [
+      {
+        path: "Atoms/Keep.md",
+        title: "Keep",
+        body: "v2 body change",
+        tags: [],
+        // omit created — older plugin
+      },
+    ]);
+    const page = await store.mirrorList(email, {
+      sort_by: "created",
+      limit: 10,
+    });
+    assert.equal(page.items[0].created, "2026-08-01");
+    assert.equal(page.items[0].title, "Keep");
+  });
+
+  it("day-only created included when created_after is ISO midnight", () => {
+    const page = paginateMirrorList(
+      [
+        {
+          id: "d",
+          title: "Day",
+          path: "Atoms/D.md",
+          tags: [],
+          kind: "atom",
+          created: "2026-07-15",
+          updatedAt: "t",
+        },
+      ],
+      { created_after: "2026-07-15T00:00:00", limit: 10 },
+    );
+    assert.equal(page.total, 1);
+    assert.equal(page.items[0].title, "Day");
+  });
+
+  it("sqlite preserves created on null upsert", async () => {
+    const store = await createStore({ mode: "sqlite", path: ":memory:" });
+    const email = "s@example.com";
+    await store.grantPeriod(email, {
+      remaining: 50,
+      status: "active",
+      plan: "monthly",
+    });
+    await store.mirrorUpsert(email, [
+      {
+        path: "Atoms/S.md",
+        title: "S",
+        body: "one",
+        tags: [],
+        created: "2026-06-01",
+      },
+    ]);
+    await store.mirrorUpsert(email, [
+      { path: "Atoms/S.md", title: "S", body: "two", tags: [] },
+    ]);
+    const page = await store.mirrorList(email, { limit: 5 });
+    assert.equal(page.items[0].created, "2026-06-01");
+    if (store.close) store.close();
+  });
+});

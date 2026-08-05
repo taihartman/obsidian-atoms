@@ -125,9 +125,20 @@ export function normalizeCreatedBound(raw, edge /* 'start' | 'end' */) {
     .replace(/^["']|["']$/g, "");
   if (!s) return null;
   if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
-    return edge === "end" ? `${s}T23:59:59.999` : s;
+    return edge === "end" ? `${s}T23:59:59.999` : `${s}T00:00:00`;
   }
   return normalizeMirrorCreated(s) || s;
+}
+
+/**
+ * Comparable key for sort/filter. Day-only → noon (matches libraryTimeMs convention)
+ * so day stamps are not lexicographically before every timed stamp that day.
+ */
+export function createdSortKey(created) {
+  if (created == null || created === "") return null;
+  const s = String(created);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return `${s}T12:00:00`;
+  return s;
 }
 
 /**
@@ -368,14 +379,17 @@ export function paginateMirrorList(pubs, opts = {}) {
   const before = normalizeCreatedBound(opts.created_before, "end");
   const tagFilter = opts.tags;
 
+  let missingCreated = 0;
   let filtered = (pubs || []).filter((p) => {
     if (!matchesTagFilter(p.tags, tagFilter)) return false;
-    const c = p.created || null;
-    if (after) {
-      if (!c || String(c) < after) return false;
-    }
-    if (before) {
-      if (!c || String(c) > before) return false;
+    const ck = createdSortKey(p.created);
+    if (after || before) {
+      if (!ck) {
+        missingCreated += 1;
+        return false;
+      }
+      if (after && ck < after) return false;
+      if (before && ck > before) return false;
     }
     return true;
   });
@@ -383,14 +397,16 @@ export function paginateMirrorList(pubs, opts = {}) {
   const dir = order === "asc" ? 1 : -1;
   filtered = [...filtered].sort((a, b) => {
     if (sortBy === "created") {
-      const aN = !a.created;
-      const bN = !b.created;
+      const ak = createdSortKey(a.created);
+      const bk = createdSortKey(b.created);
+      const aN = !ak;
+      const bN = !bk;
       if (aN && bN) {
         /* fall through */
       } else if (aN) return 1;
       else if (bN) return -1;
       else {
-        const c = String(a.created).localeCompare(String(b.created));
+        const c = String(ak).localeCompare(String(bk));
         if (c) return c * dir;
       }
     } else if (sortBy === "synced") {
@@ -412,7 +428,17 @@ export function paginateMirrorList(pubs, opts = {}) {
   const items = slice.map(shapeMirrorListItem);
   const next_offset =
     offset + items.length < total ? offset + items.length : null;
-  return { items, total, offset, limit, next_offset };
+  /** @type {Record<string, unknown>} */
+  const out = { items, total, offset, limit, next_offset };
+  if (after || before) {
+    out.excluded_missing_created = missingCreated;
+  }
+  const withCreated = (pubs || []).filter((p) => p.created).length;
+  out.created_coverage = {
+    with_created: withCreated,
+    total: (pubs || []).length,
+  };
+  return out;
 }
 
 function safeJson(s, fallback) {

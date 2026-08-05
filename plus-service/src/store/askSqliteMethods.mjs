@@ -131,7 +131,7 @@ export function createAskSqliteMethods(db, deps) {
         links_json=excluded.links_json,
         content_hash=excluded.content_hash,
         updated_at=excluded.updated_at,
-        created=excluded.created
+        created=COALESCE(excluded.created, atom_mirror.created)
     `);
     for (const atom of list) {
       const row = prepareMirrorRow(email, atom);
@@ -478,8 +478,13 @@ export function createAskSqliteMethods(db, deps) {
    */
   function mirrorList(email, opts = {}) {
     const e = normEmail(email);
+    // List columns only — never pull body_enc for pagination scans.
     const rows = db
-      .prepare(`SELECT * FROM atom_mirror WHERE email = ?`)
+      .prepare(
+        `SELECT email, atom_id, title, path, tags_json, links_json,
+                content_hash, updated_at, created
+         FROM atom_mirror WHERE email = ?`,
+      )
       .all(e);
     const pubs = rows.map((r) => rowToPublicAtom(r, { includeBody: false }));
     return paginateMirrorList(pubs, opts);

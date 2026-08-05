@@ -134,7 +134,7 @@ export function createAskPostgresMethods(pool, deps) {
            atom_id=EXCLUDED.atom_id, title=EXCLUDED.title, body_enc=EXCLUDED.body_enc,
            tags_json=EXCLUDED.tags_json, links_json=EXCLUDED.links_json,
            content_hash=EXCLUDED.content_hash, updated_at=EXCLUDED.updated_at,
-           created=EXCLUDED.created`,
+           created=COALESCE(EXCLUDED.created, atom_mirror.created)`,
         [
           row.email,
           row.atomId,
@@ -500,8 +500,11 @@ export function createAskPostgresMethods(pool, deps) {
 
   async function mirrorList(email, opts = {}) {
     const e = normEmail(email);
+    // List columns only — never pull body_enc for pagination scans.
     const { rows } = await pool.query(
-      `SELECT * FROM atom_mirror WHERE email = $1`,
+      `SELECT email, atom_id, title, path, tags_json, links_json,
+              content_hash, updated_at, created
+       FROM atom_mirror WHERE email = $1`,
       [e],
     );
     const pubs = rows.map((r) => rowToPublicAtom(r, { includeBody: false }));

@@ -371,6 +371,10 @@ export function createMemoryStore() {
         skipped += 1;
         continue;
       }
+      // Preserve backfilled created when client omits it (older plugin / multi-device).
+      if (row.created == null && prev?.created != null) {
+        row.created = prev.created;
+      }
       bucket.set(row.path, row);
       upserted += 1;
     }

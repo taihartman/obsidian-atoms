@@ -48,9 +48,12 @@ export function registerAskTools(mcp, ctx) {
     return checkRateLimit(`ask-write:${email}`, 30);
   }
 
-  /** Full-mirror scans (list_tags) — cheaper than write, still bounded. */
+  /** Full-mirror scans (list_tags / list_atoms) — cheaper than write, still bounded. */
   function listTagsRateOk() {
     return checkRateLimit(`ask-list-tags:${email}`, 60);
+  }
+  function listAtomsRateOk() {
+    return checkRateLimit(`ask-list-atoms:${email}`, 60);
   }
 
   function requireWrite() {
@@ -618,6 +621,13 @@ export function registerAskTools(mcp, ctx) {
       created_before,
       tags,
     }) => {
+      const rl = listAtomsRateOk();
+      if (!rl.ok) {
+        return jsonTool(
+          { error: "rate_limited", retryAfterSec: rl.retryAfterSec },
+          true,
+        );
+      }
       const page = await store.mirrorList(email, {
         limit: limit ?? 25,
         offset: offset ?? 0,
@@ -628,6 +638,12 @@ export function registerAskTools(mcp, ctx) {
         tags,
       });
       const st = await store.mirrorStatus(email);
+      const cov = page.created_coverage;
+      const lowCoverage =
+        cov &&
+        cov.total > 0 &&
+        sort_by === "created" &&
+        cov.with_created / cov.total < 0.5;
       return jsonTool({
         ...page,
         account: email,
@@ -639,7 +655,9 @@ export function registerAskTools(mcp, ctx) {
             ? `More results: call list_atoms with offset=${page.next_offset}`
             : page.total === 0
               ? EMPTY_HINT
-              : undefined,
+              : lowCoverage
+                ? "created_coverage is partial—many rows lack created until vault Sync now / re-push; do not claim global newest from this page alone"
+                : undefined,
       });
     },
   );
