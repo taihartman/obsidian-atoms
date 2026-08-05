@@ -115,6 +115,12 @@ function bearer(req) {
   return m ? m[1] : "";
 }
 
+/**
+ * #240 U6 — the fallback's own route. Named once so the form's `action` and the
+ * route that answers it cannot drift apart.
+ */
+const FALLBACK_EXCHANGE_PATH = "/v1/auth/exchange/fallback";
+
 /** #240 U3 — hex sha256 of the device verifier; a little slack over its 64. */
 const MAX_VERIFIER_HASH_CHARS = 128;
 /** #240 U4 — 32 random bytes base64url is 43 chars; the ceiling is generous. */
@@ -152,15 +158,20 @@ function escHtml(s) {
 /**
  * #240 U5 — headers every magic-link landing render carries.
  *
- * The CSP is unchanged from the page it replaces: `default-src 'none'` with
- * inline styles, and no script is ever added (KTD4). `no-store` is new and
- * load-bearing — R14 makes this page deliberately re-loadable and its body
- * carries a live `obsidian://…token=` anchor, so a cached copy is a cached
- * magic token sitting in a shared or in-app browser cache.
+ * The CSP keeps `default-src 'none'` with inline styles, and no script is ever
+ * added (KTD4). `form-action 'self'` is stated explicitly for U6's fallback
+ * form: `default-src` is not a fallback for `form-action`, so the submit was
+ * already permitted — naming it pins the only destination the form may ever
+ * post to rather than leaving that to a directive that does not govern it.
+ * `no-store` is load-bearing — R14 makes this page deliberately re-loadable and
+ * its body carries a live `obsidian://…token=` anchor and, after a submit, a
+ * session token, so a cached copy is a cached credential sitting in a shared or
+ * in-app browser cache.
  */
 const LANDING_HEADERS = Object.freeze({
   "content-type": "text/html; charset=utf-8",
-  "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'",
+  "content-security-policy":
+    "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'",
   "referrer-policy": "no-referrer",
   "cache-control": "no-store",
   "x-content-type-options": "nosniff",
@@ -196,21 +207,49 @@ function renderDeadLink(
  * U5 owns the block's identity (`id="fallback"`), its copy, and its position:
  * demoted below the troubleshooting details when a handoff was offered (R10),
  * promoted to primary when the token is unbound and no handoff exists. U6 fills
- * `<!-- U6 -->` with the `<form method="post">` that mints a pasteable session
- * on an explicit submit (R17), and needs to change nothing else here — the
- * caller already holds the token to put in its hidden field.
+ * it with the `<form method="post">` that mints a pasteable session on an
+ * explicit submit (R17) — a form, not a link, because mail scanners and
+ * prefetchers issue GETs and a POST requires the human (KTD5).
  *
- * @param {{ promoted: boolean }} opts
+ * @param {{ promoted: boolean, token: string }} opts
  */
-function fallbackBlockHtml({ promoted }) {
+function fallbackBlockHtml({ promoted, token }) {
   const lead = promoted
     ? "This link was requested by an older version of Atoms, which cannot hand the sign-in to Obsidian. Update Atoms and request a new link, or sign in here instead."
     : "On a different device from the one running Obsidian? Sign in here and paste the result into Atoms Settings.";
   return `<section id="fallback" style="margin-top:1.5rem;padding-top:1rem;border-top:1px solid #e4e4e7">
 <h2 style="font-size:1rem;margin:0 0 .5rem">Sign in without the handoff</h2>
 <p style="color:#666;font-size:0.9rem">${escHtml(lead)}</p>
-<!-- U6 -->
+<form method="post" action="${FALLBACK_EXCHANGE_PATH}">
+<input type="hidden" name="token" value="${escHtml(token)}">
+<button type="submit" style="display:block;box-sizing:border-box;width:100%;min-height:44px;padding:14px 16px;border-radius:10px;border:1px solid #7c3aed;background:#fff;color:#7c3aed;font-weight:600;font-size:1rem">Sign in here</button>
+</form>
 </section>`;
+}
+
+/**
+ * #240 U6 — the session the fallback just minted, for pasting into Settings.
+ *
+ * R15 — the copy this replaces ended by telling the user to switch back to
+ * Obsidian and tap **Refresh status**, which is the no-op by construction this
+ * whole issue exists because of. U11 removes that sentence from the plugin;
+ * nothing else removes it from here.
+ *
+ * @param {import("node:http").ServerResponse} res
+ * @param {{ session: string, account: any }} out
+ */
+function renderFallbackSession(res, out) {
+  const pub = store.publicAccount(out.account);
+  writeLanding(
+    res,
+    200,
+    `<h1>Signed in</h1>
+<p>Email: <strong>${escHtml(pub.email)}</strong></p>
+<p>Status: <strong>${escHtml(pub.status)}</strong> · remaining ${escHtml(String(pub.remaining))}</p>
+<p>Copy the session below, then in Obsidian open <strong>Settings → Atoms Plus → Advanced: paste session</strong> and paste it there.</p>
+<p style="word-break:break-all;font-family:ui-monospace,monospace;background:#f4f4f5;border-radius:8px;padding:12px">${escHtml(out.session)}</p>
+<p style="color:#666;font-size:0.9rem">This session signs in the vault you paste it into. Treat it like a password, and close this page when you are done.</p>`,
+  );
 }
 
 /**
@@ -252,7 +291,7 @@ ${who}
 <a href="${escHtml(href)}" style="display:block;box-sizing:border-box;min-height:44px;padding:14px 16px;margin:1.25rem 0;border-radius:10px;background:#7c3aed;color:#fff;font-weight:600;text-align:center;text-decoration:none">Open Obsidian</a>
 <p style="color:#666;font-size:0.9rem">Obsidian will ask you to confirm first.</p>
 ${TROUBLESHOOTING_HTML}
-${fallbackBlockHtml({ promoted: false })}`,
+${fallbackBlockHtml({ promoted: false, token })}`,
   );
 }
 
@@ -262,12 +301,12 @@ ${fallbackBlockHtml({ promoted: false })}`,
  * a dead end, so the fallback takes the primary position and the troubleshooting
  * block is omitted: there is no button whose silence needs explaining.
  */
-function renderUnboundPage(res) {
+function renderUnboundPage(res, { token }) {
   writeLanding(
     res,
     200,
     `<h1>Finish signing in</h1>
-${fallbackBlockHtml({ promoted: true })}`,
+${fallbackBlockHtml({ promoted: true, token })}`,
   );
 }
 
@@ -525,8 +564,32 @@ ${
       const peek = await store.peekMagic(token);
       if (!peek.ok) return renderDeadLink(res);
       // KD9 — the handoff is offered only to a token that can complete one.
-      if (!peek.verifierBound) return renderUnboundPage(res);
+      if (!peek.verifierBound) return renderUnboundPage(res, { token });
       return renderHandoffPage(res, { token, vault: peek.vault });
+    }
+
+    // POST /v1/auth/exchange/fallback — the landing page's own form (KTD5)
+    if (req.method === "POST" && path === FALLBACK_EXCHANGE_PATH) {
+      // A scriptless form sends `application/x-www-form-urlencoded`, and
+      // `readBody` is JSON-only and throws on anything else — which is why this
+      // is a separate HTML-rendering route rather than a branch inside the
+      // plugin's JSON exchange above.
+      const form = new URLSearchParams(await readRawBody(req));
+      const token = (form.get("token") || "").trim();
+
+      // KD9 — this route skips the verifier check entirely, for bound and
+      // unbound tokens alike, by design. It presents no verifier because the
+      // browser holding this page is not the device that requested the link.
+      // Every link a current build mints is bound, so a fallback that honored
+      // the check would recover nothing and KD3's cross-device path would be
+      // dead on arrival. This is not a loophole to tighten later: it closes
+      // with #286, which deletes this route and the paste field together.
+      const out = await store.exchangeMagic(token, { skipVerifierCheck: true });
+      // Expired, already spent, and never-existed all collapse to R7's one
+      // message here — a browser is not the plugin and has no use for the
+      // distinction. Nothing was consumed on the way in either way.
+      if (!out) return renderDeadLink(res);
+      return renderFallbackSession(res, out);
     }
 
     // POST /v1/auth/exchange — plugin in-app exchange

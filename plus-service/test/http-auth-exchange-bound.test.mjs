@@ -221,23 +221,30 @@ describe("#240 U4 — POST /v1/auth/exchange is verifier-bound", () => {
     assert.equal(store.peekMagic(token).status, "usable");
   });
 
-  it("KD9: skipVerifierCheck still redeems a bound token", async () => {
+  it("KD9: the web fallback route still redeems a bound token", async () => {
     // The web path is at a different trust level and skips the check by design
     // (KD9). If this ever turns red because the abort was pushed into the store
-    // unconditionally, cross-device recovery is gone.
+    // unconditionally — or because someone "hardened" the fallback route into
+    // demanding a verifier — cross-device recovery is gone.
     //
-    // Asserted at the store rather than through the GET landing: #240 U5 made
-    // that page non-consuming, so the caller of this skip is now U6's fallback
-    // POST. The rule being guarded is the store's, and it is unchanged.
+    // #240 U5 made the GET landing non-consuming, so this briefly asserted at
+    // the store instead; U6 built the route that actually skips the check, and
+    // the assertion is back at that venue. The rule it guards is unchanged.
     const token = plant({
       email: "browser@ex.com",
       verifierHash: challenge(`ver_${"b".repeat(40)}`),
       vault: "Elsewhere",
     });
 
-    const out = store.exchangeMagic(token, { skipVerifierCheck: true });
-    assert.equal(out.account.email, "browser@ex.com");
-    assert.ok(out.session);
+    const res = await fetch(`${BASE}/v1/auth/exchange/fallback`, {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ token }).toString(),
+    });
+    const html = await res.text();
+    assert.equal(res.status, 200);
+    assert.match(html, /browser@ex\.com/);
+    assert.match(html, /sess_/, "a pasteable session, with no verifier presented");
     assert.equal(store.peekMagic(token).status, "invalid");
   });
 });

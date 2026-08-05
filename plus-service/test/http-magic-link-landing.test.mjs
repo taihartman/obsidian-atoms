@@ -170,15 +170,17 @@ describe("#240 U5 — the landing page offers a handoff and spends nothing", () 
     assert.equal(html.includes("sess_"), false);
   });
 
-  it("carries Referrer-Policy, Cache-Control: no-store, and an unchanged CSP", async () => {
+  it("carries Referrer-Policy, Cache-Control: no-store, and a script-free CSP", async () => {
     const token = plantBound({ email: "hdr@ex.com", vault: "Vault D" });
     const { res } = await land(token);
 
     assert.equal(res.headers.get("referrer-policy"), "no-referrer");
     assert.equal(res.headers.get("cache-control"), "no-store");
+    // `form-action 'self'` joined it in U6, which put a form on this page;
+    // `default-src` does not govern that directive, so it is named explicitly.
     assert.equal(
       res.headers.get("content-security-policy"),
-      "default-src 'none'; style-src 'unsafe-inline'",
+      "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'",
     );
     assert.equal(res.headers.get("x-content-type-options"), "nosniff");
   });
