@@ -8,6 +8,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
 | In review | [#294](https://github.com/taihartman/obsidian-atoms/issues/294) | taihartman | `fix/capture-shortcut-link-optional` | amend lane (no plan doc) | `src/settings/captureShortcut.ts`, `src/settings/settings.ts`, `src/home/atomsHomeView.ts` | Custom shortcut link is optional; every shipped built-in URL now un-pins. **Prepend, never append**, to `BUILTIN_INSTALL_URLS` when the link moves — the constant is its head |
+| In progress | [#240](https://github.com/taihartman/obsidian-atoms/issues/240) | taihartman (agent) | `feat/240-magic-link-handoff` | [`docs/plans/2026-08-05-240-feat-magic-link-plugin-handoff-plan.md`](docs/plans/2026-08-05-240-feat-magic-link-plugin-handoff-plan.md) | `src/platform/filingAuth.ts`, plus-service token exchange + landing page (settled by `ce-plan`) | Magic-link handoff replacing token copy/paste. Requirements-only plan, doc-reviewed; desktop probe done. Planning stage — `ce-plan` next, no implementation yet. Release gate is human-only: `obsidian://` from an in-app browser on iOS + Android |
 
 ## How to claim (copy)
 
