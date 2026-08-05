@@ -97,13 +97,32 @@ Bookmark writes to a note that already exists, so it never hits that bug.
 
 ## Install and update from the plugin
 
-The plugin can open a shared iCloud link for this recipe:
+Atoms ships a built-in iCloud link for this recipe, so most users paste
+nothing: Atoms home → **Install Capture Atom** opens the current one, and a
+plugin update moves everyone to a newer link automatically.
 
-1. Build the shortcut above, then Share → **Copy iCloud Link**
+**Settings → Atoms → Capture → Custom shortcut link is optional**, and only for
+people who modified the recipe:
+
+1. Build your own variant, then Share → **Copy iCloud Link**
    (`https://www.icloud.com/shortcuts/…`). Apple only mints these from
    Shortcuts.app on your device — neither the plugin nor an agent can.
-2. Obsidian → **Settings → Atoms → Capture** → paste the link.
-3. On the phone after Sync, Atoms home → **Install Capture Atom** opens it.
+2. Obsidian → **Settings → Atoms → Capture** → paste it into *Custom shortcut
+   link*. This wins over the built-in from then on, which also means shipped
+   link updates stop reaching you.
+3. Clear the field (or press **Use built-in**) to go back to the shipped link.
+
+Pasting a link Atoms itself ships is treated as *no* custom link — see
+`BUILTIN_INSTALL_URLS`. Users copied the default into that field thinking it was
+required, which pinned them to whatever link was current that day. Matching
+ignores cosmetic differences (trailing slash, host case, empty `?`/`#`), since
+those are the same shortcut wearing a different string.
+
+**To ship a new link, prepend it to `BUILTIN_INSTALL_URLS`.**
+`CAPTURE_SHORTCUT_INSTALL_URL` is the head of that list, so there is no second
+edit to forget, and `test/captureShortcut.test.ts` freezes the full shipped set —
+dropping an entry fails there rather than silently re-pinning everyone who still
+stores it.
 
 `CAPTURE_SHORTCUT_VERSION` in `src/settings/captureShortcut.ts` is the
 shipped-recipe id; the ack is device-local
