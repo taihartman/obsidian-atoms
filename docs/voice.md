@@ -128,9 +128,18 @@ Grounded in shipped landing and home copy, `docs/design-handoff/tokens/README.md
 
 ---
 
+## Email visuals
+
+Field notes is not plain-text-only. HTML mail should match tryatoms (dark card, tint blue, quiet type). Diagrams: simple glanceable beats. **Gmail strips SVG** - host PNG on tryatoms; keep SVG as source under `www/src/email/`.
+
+Full layout and export recipe: **`docs/field-notes-email.md`**.
+
+---
+
 ## Related
 
 - `docs/design-handoff/tokens/README.md` - visual + no em dash  
+- `docs/field-notes-email.md` - HTML email shell + SVG/PNG workflow  
 - `docs/components.md` - UI kit + copy placement  
 - `docs/runbooks/atoms-notes-list.md` - ops for the list  
 - `CLAUDE.md` - body sacred, second brain not task app  

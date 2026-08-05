@@ -44,13 +44,14 @@ npm run build:www
 
 ## Ongoing Broadcasts
 
-1. Read **`docs/voice.md`** (Field notes section).
+1. Read **`docs/voice.md`** and **`docs/field-notes-email.md`**.
 2. Resend → **Broadcasts** → new → audience = **Atoms Notes** segment only (internal name).
-3. Content: one concrete real-life beat + how the stack helped + soft CTA + invite “reply with how you run yours.”
-4. Include `{{{RESEND_UNSUBSCRIBE_URL}}}` and postal address.
-5. **Test email** to yourself first.
-6. Do not send to Plus auth contacts or generic “all contacts” unless they are on this segment via signup.
-7. No “use case,” no hype, no em dashes, no guilt language.
+3. Content: one concrete real-life beat + optional diagram (PNG on tryatoms) + soft CTA + invite “reply with how you run yours.”
+4. Style: dark card / tint blue (match site). Welcome already uses `fieldNotesEmail.mjs` HTML.
+5. Include `{{{RESEND_UNSUBSCRIBE_URL}}}` and postal address.
+6. **Test email** on iPhone Mail + Gmail before audience send.
+7. Do not send to Plus auth contacts or generic “all contacts” unless they are on this segment via signup.
+8. No “use case,” no hype, no em dashes, no guilt language.
 
 ## First launch checklist
 

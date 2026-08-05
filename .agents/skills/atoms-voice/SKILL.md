@@ -23,6 +23,7 @@ description: >
 - Soft CTA + invite to reply with their practice.
 - Under-promise cadence; prefer silence to filler.
 - CAN-SPAM: unsubscribe + physical address (ops: `docs/runbooks/atoms-notes-list.md`).
+- **Layout:** read `docs/field-notes-email.md`. Use on-theme HTML (`fieldNotesEmail.mjs`). Prefer a simple diagram (built-in loop or hosted PNG). Do not paste raw SVG into the email body (Gmail strips it) - SVG lives in `www/src/email/`, export PNG for `<img>`.
 
 ## When editing existing copy
 

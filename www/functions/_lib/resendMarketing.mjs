@@ -1,6 +1,7 @@
 /**
- * Resend Contacts + welcome email for Atoms Notes (server-side only).
+ * Resend Contacts + welcome email for Field notes (server-side only).
  */
+import { welcomeEmailContent } from "./fieldNotesEmail.mjs";
 
 /**
  * @param {string} apiKey
@@ -140,27 +141,13 @@ export async function upsertMarketingContact(opts) {
  */
 export async function sendWelcomeEmail(opts) {
   const { apiKey, email, from, replyTo, postalAddress, unsubUrl } = opts;
-  const lines = [
-    "You're on Field notes.",
-    "",
-    "This list is about a second brain you actually use: the five-second capture on a morning walk, and remembering it when it matters later. How people run that in real life - Obsidian, Claude, the hooks that make it stick. How others do it too.",
-    "",
-    "When something is worth saying, we'll write. Not a drip. Not a changelog.",
-    "",
-    "And we want yours: reply to any note with how you capture, remember, and expand. The best of that becomes the list.",
-    "",
-    "Try Atoms: https://tryatoms.app",
-    "Setup guide: https://tryatoms.app/setup",
-    "",
-    `Unsubscribe: ${unsubUrl}`,
-    "",
-    postalAddress,
-  ];
+  const content = welcomeEmailContent({ unsubUrl, postalAddress });
   const body = {
     from,
     to: [email],
-    subject: "You're on Field notes",
-    text: lines.join("\n"),
+    subject: content.subject,
+    text: content.text,
+    html: content.html,
     headers: {
       "List-Unsubscribe": `<${unsubUrl}>`,
     },
