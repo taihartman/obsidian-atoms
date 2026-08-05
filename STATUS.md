@@ -8,7 +8,6 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
 | In progress | [#287](https://github.com/taihartman/obsidian-atoms/issues/287) | taihartman | `feat/library-skipped-filter` | [plan](docs/plans/2026-08-05-002-feat-library-skipped-filter-plan.md) | `src/home/atomsHomeView.ts`, `src/home/skippedLibrary.ts`, `src/pipeline/reconsider.ts` | Library Skipped + try filing (Reconsider); Plus/BYOK · **0.6.77** |
-| In review | [#309](https://github.com/taihartman/obsidian-atoms/issues/309) | taihartman | `claude/optimistic-pascal-01fam8` | mechanical lane — no plan | `plus-service/src/store/askHelpers.mjs`, `plus-service/test/pkce-digest.test.mjs` | One PKCE S256 digest + encoding pin. Server-only, no plugin bump. **#240 must import `pkceChallengeS256`** — its plan said hex for `verifier_hash` (fixed on `feat/240-magic-link-handoff`) |
 
 ## How to claim (copy)
 
@@ -24,6 +23,7 @@ States: `Queued` · `In progress` · `Blocked` · `In review` · `Done` (then re
 
 | Merged | Issue / PR | Summary |
 |---|---|---|
+| 2026-08-05 | #309 / #310 | One PKCE S256 digest, pinned to base64url (server-only, no plugin bump). **#240 must import `pkceChallengeS256` — never `hashToken`, which is hex.** Its plan said hex for `verifier_hash`; corrected on `feat/240-magic-link-handoff` (`a692e2f`, rides on #298) |
 | 2026-08-05 | #301 / #302 | Hero shows the loop closing — capture beat per storyline + promoted sub-line; verbatim match guarded by test (www-only) |
 | 2026-08-05 | #299 / #300 | `/setup` installs from the community directory, not BRAT; adds the Open Atoms step; guide tightened 1582→1332 words (www-only, no plugin bump) |
 | 2026-08-05 | #294 / #295 | Custom capture-shortcut link is optional, not a setup step · **0.6.76**. **Prepend, never append**, to `BUILTIN_INSTALL_URLS` when the link moves — the constant is its head |
