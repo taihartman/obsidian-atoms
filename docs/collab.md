@@ -108,8 +108,11 @@ Enforced on `taihartman/obsidian-atoms` (includes admins):
 
 - **PR required** to merge into `master` (no direct push)  
 - **0** required approving reviews — GitHub does **not** block self-merge  
+- **`test` required to pass** — the `plus-service tests` job (#238/#239). A red run blocks the merge for everyone, admins included  
 - Force-push and branch delete on `master` disabled  
 - Stale reviews dismissed when new commits land  
+
+The `test` check runs on **every** PR, not only ones touching `plus-service/`. That is deliberate: GitHub never reports a required check that a `paths:` filter excluded, so a filtered run reads as *pending forever* and makes unrelated PRs unmergeable. Do not add a `paths:` filter to that workflow's `pull_request` trigger.
 
 Agents: never force-push `master`; never commit straight to `master`.
 
