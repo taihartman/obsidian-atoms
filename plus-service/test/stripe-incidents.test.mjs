@@ -13,6 +13,7 @@ import assert from "node:assert/strict";
 import { createMemoryStore } from "../src/store/memory.mjs";
 import { createSqliteStore } from "../src/store/sqlite.mjs";
 import { createStore } from "../src/store.mjs";
+import { postgresStoreRows } from "./helpers/postgresTestStore.mjs";
 
 process.env.DOGFOOD_AUTO_GRANT = "0";
 process.env.ATOMS_PLUS_ENV = "development";
@@ -235,11 +236,15 @@ function runStoreSuite(name, create) {
 runStoreSuite("memory", () => createMemoryStore());
 runStoreSuite("sqlite", () => createSqliteStore(":memory:"));
 runStoreSuite("createStore-memory", () => createStore({ mode: "memory" }));
+// #239 — the production store, when a database is available. Absent locally;
+// absent in CI is a hard failure, not a skip. See helpers/postgresTestStore.mjs.
+for (const [name, create] of postgresStoreRows()) runStoreSuite(name, create);
 
 /**
- * Postgres is the production store and needs a live DB, so nothing above runs
- * it (same gap the #230 parity test names). Hold it to the same surface by
- * source scan so it can never silently lack a method.
+ * The source scan below predates #239, when nothing here executed postgres at
+ * all. The rows above now do — but only where a database exists, and this file
+ * is also read by contributors with no local postgres. Keep the scan: it holds
+ * the surface even in the run where the postgres rows are absent.
  */
 describe("#238 store parity", () => {
   it("all three stores define and export the incident methods", async () => {
