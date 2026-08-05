@@ -19,10 +19,14 @@
  *
  * KTD3 — skipping is silent locally and fatal in CI. See `postgresStoreRows`.
  */
+import { after } from "node:test";
 import pg from "pg";
 import { createPostgresStore } from "../../src/store/postgres.mjs";
 
 let counter = 0;
+
+/** Schemas created but not yet dropped, for the end-of-file sweep below. */
+const liveSchemas = new Set();
 
 function baseUrl() {
   return process.env.TEST_DATABASE_URL || "";
@@ -61,8 +65,17 @@ async function onAdminConnection(fn) {
 export async function createTestPostgresStore() {
   const schema = `t_${process.pid}_${++counter}`;
   await onAdminConnection((c) => c.query(`CREATE SCHEMA "${schema}"`));
+  liveSchemas.add(schema);
 
-  const store = await createPostgresStore(withSearchPath(baseUrl(), schema));
+  let store;
+  try {
+    store = await createPostgresStore(withSearchPath(baseUrl(), schema));
+  } catch (err) {
+    // A migration or connection failure here would otherwise strand the schema
+    // we just created, with no store to close.
+    await dropSchema(schema);
+    throw err;
+  }
 
   return {
     ...store,
@@ -71,12 +84,26 @@ export async function createTestPostgresStore() {
       // `search_path` is the schema being dropped, and dropping from the
       // store's own pool would race its own teardown.
       await store.close();
-      await onAdminConnection((c) =>
-        c.query(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`),
-      );
+      await dropSchema(schema);
     },
   };
 }
+
+async function dropSchema(schema) {
+  await onAdminConnection((c) =>
+    c.query(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`),
+  );
+  liveSchemas.delete(schema);
+}
+
+// Safety net. The store suites close their store on the last line of each test,
+// so a failing assertion skips that close and strands the schema. CI's postgres
+// container is ephemeral and forgives this; a developer pointing
+// TEST_DATABASE_URL at a persistent database does not, and the debris
+// accumulates silently. This file-level hook sweeps whatever is left.
+after(async () => {
+  for (const schema of [...liveSchemas]) await dropSchema(schema);
+});
 
 /**
  * KTD3 — the postgres rows are present only when a database is.

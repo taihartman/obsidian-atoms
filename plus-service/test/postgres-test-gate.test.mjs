@@ -14,23 +14,25 @@ import {
 } from "./helpers/postgresTestStore.mjs";
 import { askStoreModes, withStore } from "./helpers/askStore.mjs";
 
-const SAVED = {};
-
-beforeEach(() => {
-  SAVED.url = process.env.TEST_DATABASE_URL;
-  SAVED.ci = process.env.CI;
-  delete process.env.TEST_DATABASE_URL;
-  delete process.env.CI;
-});
-
-afterEach(() => {
-  if (SAVED.url === undefined) delete process.env.TEST_DATABASE_URL;
-  else process.env.TEST_DATABASE_URL = SAVED.url;
-  if (SAVED.ci === undefined) delete process.env.CI;
-  else process.env.CI = SAVED.ci;
-});
-
 describe("postgres store gate (#239 KTD3)", () => {
+  // Scoped to this block: only these tests need a stripped environment, and a
+  // file-level hook would silently strip it from every other test here too.
+  const SAVED = {};
+
+  beforeEach(() => {
+    SAVED.url = process.env.TEST_DATABASE_URL;
+    SAVED.ci = process.env.CI;
+    delete process.env.TEST_DATABASE_URL;
+    delete process.env.CI;
+  });
+
+  afterEach(() => {
+    if (SAVED.url === undefined) delete process.env.TEST_DATABASE_URL;
+    else process.env.TEST_DATABASE_URL = SAVED.url;
+    if (SAVED.ci === undefined) delete process.env.CI;
+    else process.env.CI = SAVED.ci;
+  });
+
   it("no database and not CI — skips quietly so local runs stay hermetic", () => {
     assert.deepEqual(postgresStoreRows(), []);
   });

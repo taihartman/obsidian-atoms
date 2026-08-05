@@ -74,11 +74,16 @@ jobs:
       # "no coverage" and "coverage passing" look identical from outside. If
       # that variable is ever renamed or dropped, the rows must not quietly
       # vanish behind a green check. This step proves the guard fires.
+      #
+      # One file is enough: the throw happens at import time, in
+      # `postgresStoreRows()` at the top level of every suite that takes a
+      # postgres row, before any test runs. Re-running all 289 tests to observe
+      # it would just pay for the suite twice.
       - name: Guard — a CI run with no database must fail loudly, not skip
         env:
           TEST_DATABASE_URL: ""
         run: |
-          if npm test > /tmp/guard.log 2>&1; then
+          if node --test test/security-auth-criticals.test.mjs > /tmp/guard.log 2>&1; then
             echo "::error::plus-service tests PASSED with no TEST_DATABASE_URL — the postgres rows skipped silently and postgres is untested"
             exit 1
           fi
