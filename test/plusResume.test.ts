@@ -37,6 +37,7 @@ import {
 import { refreshPlusEntitlementRecord } from "../src/platform/plusRefresh";
 import {
   refreshPlusSessionQuiet,
+  schedulePlusCheckoutResume,
   type PlusResumeHost,
 } from "../src/platform/plusResume";
 
@@ -100,6 +101,7 @@ function hostFor(app: LocalStorageLike): PlusResumeHost {
     app: app as PlusResumeHost["app"],
     settings: { plusBaseUrl: "https://plus.example" },
     registerInterval: (id: number) => id,
+    registerDomEvent: (() => {}) as PlusResumeHost["registerDomEvent"],
   };
 }
 
@@ -203,6 +205,41 @@ describe("#280 post-checkout readiness announcement", () => {
     expect(noticeCount).toBe(0);
     // Still awaiting — the poll must keep running.
     expect(isAwaitingCheckout(app)).toBe(true);
+  });
+
+  it("registers resume listeners through the plugin, not on the globals (#282)", () => {
+    const app = fakeApp();
+    setAwaitingCheckout(app, false);
+    const registered: string[] = [];
+    const globalListeners: string[] = [];
+    const g = globalThis as Record<string, unknown>;
+
+    g.document = {
+      hidden: false,
+      addEventListener: (t: string) => globalListeners.push(`document:${t}`),
+    };
+    g.window = {
+      addEventListener: (t: string) => globalListeners.push(`window:${t}`),
+      setInterval: () => 1,
+    };
+    try {
+      schedulePlusCheckoutResume({
+        ...hostFor(app),
+        registerDomEvent: ((el: unknown, type: string) => {
+          registered.push(`${el === g.document ? "document" : "window"}:${type}`);
+        }) as PlusResumeHost["registerDomEvent"],
+      });
+    } finally {
+      delete g.document;
+      delete g.window;
+    }
+
+    expect(registered).toEqual([
+      "document:visibilitychange",
+      "window:focus",
+    ]);
+    // Raw listeners outlive a plugin reload; the plugin-owned ones do not.
+    expect(globalListeners).toEqual([]);
   });
 
   it("does not couple two devices' polls to each other", async () => {

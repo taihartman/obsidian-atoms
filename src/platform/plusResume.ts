@@ -2,7 +2,7 @@
  * Poll Plus entitlement after Stripe Checkout (awaitingCheckout flag).
  */
 import { Notice } from "obsidian";
-import type { App } from "obsidian";
+import type { App, Plugin } from "obsidian";
 import {
   clearAwaitingCheckout,
   isAwaitingCheckout,
@@ -17,6 +17,13 @@ export type PlusResumeHost = {
   app: App & LocalStorageLike;
   settings: { plusBaseUrl: string };
   registerInterval: (id: number) => number;
+  /**
+   * #282 — the resume listeners are tied to the plugin lifecycle, not left on
+   * `document`/`window` forever. Same member `main.ts` already uses for its own
+   * listeners; a disable/enable mid-checkout would otherwise leave the old
+   * module instance still handling `visibilitychange`.
+   */
+  registerDomEvent: Plugin["registerDomEvent"];
 };
 
 const MAX_POLLS = 8;
@@ -91,10 +98,10 @@ export function schedulePlusCheckoutResume(host: PlusResumeHost): void {
   };
 
   if (typeof document !== "undefined") {
-    document.addEventListener("visibilitychange", onVisible);
+    host.registerDomEvent(document, "visibilitychange", onVisible);
   }
   if (typeof window !== "undefined") {
-    window.addEventListener("focus", onVisible);
+    host.registerDomEvent(window, "focus", onVisible);
   }
 
   if (isAwaitingCheckout(host.app)) {
