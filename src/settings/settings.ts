@@ -773,14 +773,16 @@ export class AtomsSettingTab extends PluginSettingTab {
       cls: "setting-item-description",
     });
 
-    // Everyday use first → billing → AI features → advanced
+    // The plan's main-screen table, in its order: who you are → what you capture → where it
+    // lands → what the model may say → who else can read it → when it runs → keys → advanced.
+    // Ask sits under Plus because it is the only cluster a signed-out install does not render.
+    this.renderPlusSection(containerEl);
     this.renderCaptureSection(containerEl);
     this.renderModelSection(containerEl);
-    this.renderAutoRunSection(containerEl);
-    this.renderPlusSection(containerEl);
-    this.renderAskSection(containerEl);
-    this.renderApiSection(containerEl);
     this.renderVocabularyEntry(containerEl);
+    this.renderAskSection(containerEl);
+    this.renderAutoRunSection(containerEl);
+    this.renderApiSection(containerEl);
     this.renderAdvancedEntry(containerEl);
   }
 
@@ -1270,11 +1272,12 @@ export class AtomsSettingTab extends PluginSettingTab {
     );
     const urlSet = Boolean(installUrl);
 
-    new Setting(containerEl)
-      .setName("Daily capture format")
-      .setDesc(
-        "Write top-level bullets in your daily note: “- thought…”. Today’s note is never auto-processed; use Atoms home → Preview after midnight (or past dailies).",
-      );
+    // The section's intro, not a row: it names no preference and offers no control, so it was a
+    // row with an empty right edge. As prose it is exempt from the row grammar.
+    containerEl.createEl("p", {
+      text: "Write top-level bullets in your daily note: “- thought…”. Today’s note is never auto-processed; use Atoms home → Preview after midnight (or past dailies).",
+      cls: "setting-item-description",
+    });
 
     // Optional on purpose: a value here outranks the constant forever, so a
     // user who fills it in with our own default stops receiving shipped link
@@ -1346,15 +1349,6 @@ export class AtomsSettingTab extends PluginSettingTab {
             );
             this.redisplay();
           }),
-      );
-
-    new Setting(containerEl)
-      .setName("Open today's daily")
-      .setDesc("Jump to (or create) today’s Daily Notes file — does not process it.")
-      .addButton((btn) =>
-        btn.setButtonText("Open today").onClick(() => {
-          void this.plugin.openTodaysDailyFromHome();
-        }),
       );
   }
 
@@ -1893,20 +1887,6 @@ export class AtomsSettingTab extends PluginSettingTab {
       desc: status.line,
       onOpen: () => this.openRoute("connect"),
     });
-
-    new Setting(containerEl)
-      .setName("Self-host Ask")
-      .setDesc(
-        "Run plus-service yourself + Plus URL override + OAuth MCP. Opens DIY guide.",
-      )
-      .addButton((btn) =>
-        btn.setButtonText("Docs").onClick(() => {
-          window.open(
-            "https://github.com/taihartman/obsidian-atoms/blob/master/docs/ask-self-host.md",
-            "_blank",
-          );
-        }),
-      );
   }
 }
 

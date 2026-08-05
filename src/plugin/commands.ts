@@ -171,6 +171,17 @@ export function registerAtomsCommands(plugin: AtomsPlugin): void {
     },
   });
 
+  // Atoms' own daily-note command. Obsidian's core Daily notes plugin ships one too, but that is
+  // a different code path the user can disable, so the capability this settings row used to offer
+  // needs a command Atoms itself registers.
+  plugin.addCommand({
+    id: "open-todays-daily",
+    name: "Open today's daily note",
+    callback: () => {
+      void plugin.openTodaysDailyFromHome();
+    },
+  });
+
   plugin.addCommand({
     id: "reconsider-capture",
     name: "Reconsider capture",

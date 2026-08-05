@@ -1,5 +1,9 @@
+import { existsSync } from "node:fs";
+import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { App } from "obsidian";
+import type { App, PluginManifest } from "obsidian";
+import AtomsPlugin from "../src/plugin/main";
+import { registerAtomsCommands } from "../src/plugin/commands";
 import {
   clampShortlistSize,
   logShortlistDiagnostics,
@@ -49,6 +53,26 @@ import {
 } from "./helpers/pipelineVault";
 
 afterEach(() => vi.restoreAllMocks());
+
+/**
+ * The real command table, registered against a real plugin instance. A capability a settings row
+ * used to offer only survives its deletion if the palette actually registers it, so R10 is
+ * checked against `registerAtomsCommands` rather than inferred.
+ */
+function registeredCommands(): Array<{ id: string; name: string; callback?: () => void }> {
+  // Constructed, not stubbed: the command table is registered against the real plugin, so a
+  // command that never reaches `registerAtomsCommands` cannot pass by being mocked in.
+  const plugin = new AtomsPlugin({} as App, {} as PluginManifest);
+  plugin.settings = { ...DEFAULT_SETTINGS };
+  const commands: Array<{ id: string; name: string; callback?: () => void }> = [];
+  Object.assign(plugin, {
+    app: { workspace: { getActiveViewOfType: () => null } },
+    addCommand: (cmd: { id: string; name: string; callback?: () => void }) =>
+      commands.push(cmd),
+  });
+  registerAtomsCommands(plugin);
+  return commands;
+}
 
 /**
  * A provider that keeps every `ShortlistContext` the run handed out, so a test can assert what
@@ -1108,5 +1132,108 @@ describe("Advanced destination (U6, R5)", () => {
     // The override redirects where egress goes; it cannot turn egress on.
     expect(tab.plugin.settings.plusBaseUrl).toBe("http://127.0.0.1:8787");
     expect(gateState(tab, local)).toEqual(before);
+  });
+});
+
+/**
+ * The main screen's row sequence, and the three action rows U9 removed.
+ *
+ * The plan's *"The resulting main screen"* table is the contract: fourteen rows, in one order,
+ * on a signed-in Plus install. Section headings are not rows and the Capture intro is prose, so
+ * neither is counted — `rowNames(tab, { headings: false })` is what the table is about.
+ */
+describe("main screen row grammar (U9)", () => {
+  const PLUS_SESSION: PlusSession = {
+    sessionToken: "sess_main",
+    email: "user@example.com",
+    status: "active",
+    periodEnd: "2099-01-01T00:00:00.000Z",
+  };
+
+  function plusTab() {
+    return settingTab({
+      session: PLUS_SESSION,
+      auth: {
+        mode: "plus",
+        sessionToken: PLUS_SESSION.sessionToken,
+        email: PLUS_SESSION.email,
+        status: "active",
+        remaining: 12,
+        periodEnd: PLUS_SESSION.periodEnd,
+      },
+    });
+  }
+
+  /** Rows 7–9 of the table: the Ask cluster, which only a Plus session renders. */
+  const ASK_ROWS = [
+    "Enable Ask mirror",
+    "Allow filing from Claude or ChatGPT",
+    "Connect Claude or ChatGPT",
+  ];
+
+  function expectedRows(account: string): string[] {
+    const vocabulary = `Tag vocabulary — ${DEFAULT_SETTINGS.activeVocabulary.length} active`;
+    return [
+      account,
+      "Custom shortcut link",
+      "Capture Atom shortcut",
+      "Atom folder",
+      "Hub projection",
+      vocabulary,
+      ...ASK_ROWS,
+      "Auto-run on open",
+      "Sync automatically on resume",
+      "Sync everything now",
+      "Anthropic API key",
+      "Advanced",
+    ];
+  }
+
+  it("renders the fourteen rows of the plan's table, in order, signed in to Plus", () => {
+    const { tab } = plusTab();
+    tab.display();
+
+    const rows = rowNames(tab, { headings: false });
+    expect(rows).toEqual(expectedRows("Plus · 12 filings left"));
+    expect(rows).toHaveLength(14);
+  });
+
+  it("renders eleven rows signed out — the Ask cluster is the only difference", () => {
+    const { tab } = settingTab();
+    tab.display();
+
+    const rows = rowNames(tab, { headings: false });
+    expect(rows).toEqual(
+      expectedRows("Set up automatic filing").filter((name) => !ASK_ROWS.includes(name)),
+    );
+    expect(rows).toHaveLength(11);
+  });
+
+  it("states the daily capture format as prose, not as a row", () => {
+    const { tab } = plusTab();
+    tab.display();
+
+    expect(rowNames(tab, { headings: false })).not.toContain("Daily capture format");
+    const prose = Array.from(
+      tab.containerEl.querySelectorAll("p.setting-item-description"),
+    ).map((el) => el.textContent ?? "");
+    expect(prose.some((text) => text.includes("Write top-level bullets"))).toBe(true);
+  });
+
+  it("keeps opening today's daily as a command, and off the settings screen", () => {
+    const commands = registeredCommands();
+    const daily = commands.find((c) => c.id === "open-todays-daily");
+    expect(daily, "no Atoms command opens today's daily note").toBeDefined();
+
+    const { tab } = plusTab();
+    tab.display();
+    expect(rowNames(tab, { headings: false })).not.toContain("Open today's daily");
+  });
+
+  it("leaves the self-host guide to documentation rather than a settings row", () => {
+    const { tab } = plusTab();
+    tab.display();
+    expect(rowNames(tab, { headings: false })).not.toContain("Self-host Ask");
+    expect(existsSync(path.resolve(__dirname, "../docs/ask-self-host.md"))).toBe(true);
   });
 });

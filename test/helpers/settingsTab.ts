@@ -141,11 +141,23 @@ export function dismissSheet(): void {
   sheet().close();
 }
 
-/** Every rendered row name on whatever screen is currently up, in document order. */
-export function rowNames(tab: AtomsSettingTab): string[] {
-  return Array.from(tab.containerEl.querySelectorAll(".setting-item-name")).map(
-    (el) => el.textContent ?? "",
-  );
+/**
+ * Every rendered row name on whatever screen is currently up, in document order.
+ *
+ * `settingHeading()` builds its heading out of a `Setting` too, so headings land in this list by
+ * default — which is what the existing membership assertions want. Pass `headings: false` to get
+ * the rows alone, the unit the plan's main-screen table counts.
+ */
+export function rowNames(
+  tab: AtomsSettingTab,
+  opts: { headings?: boolean } = {},
+): string[] {
+  const rows = Array.from(tab.containerEl.querySelectorAll(".setting-item"));
+  const kept =
+    opts.headings === false
+      ? rows.filter((el) => !el.classList.contains("setting-item-heading"))
+      : rows;
+  return kept.map((el) => el.querySelector(".setting-item-name")?.textContent ?? "");
 }
 
 /** The one rendered row carrying this name. Throws rather than silently acting on nothing. */

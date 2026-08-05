@@ -340,14 +340,13 @@ function onMainScreen(tab: AtomsSettingTab): boolean {
  * row carries the active count (U4) — both screens keep their own title.
  */
 /**
- * In rendered order. Connect sits where the Ask plumbing used to, which is above the vocabulary
- * entry — the plan's final table wants those two the other way round, but that is a section
- * ordering pass, not this unit's.
+ * In rendered order. U9's section-ordering pass put the vocabulary entry above Connect, which is
+ * the order the plan's main-screen table asks for.
  */
 const DESTINATIONS: Array<[entry: string, title: string]> = [
   ["Set up automatic filing", "Account"],
-  ["Connect Claude or ChatGPT", "Connect Claude or ChatGPT"],
   [`Tag vocabulary — ${DEFAULT_SETTINGS.activeVocabulary.length} active`, "Tag vocabulary"],
+  ["Connect Claude or ChatGPT", "Connect Claude or ChatGPT"],
   ["Advanced", "Advanced"],
 ];
 
@@ -434,12 +433,12 @@ describe("destination shell", () => {
  * `new Setting(` sites, so the guard is a ratchet rather than a flat ban: the count may fall,
  * never rise.
  *
- * U6 was the last destination unit and took it from 27 to 18. Zero is not reachable from here:
- * `settingHeading()` builds a heading rather than a row, two modals build their own button bars,
- * and the API key row's control is a `SecretComponent`, which `SettingControl` has no member for.
- * The rest belong to the clusters U7–U9 still own — lower it as they land.
+ * U6 was the last destination unit and took it from 27 to 18; U9 deleted three more rows and took
+ * it to 12. Zero is not reachable from here: `settingHeading()` builds a heading rather than a
+ * row, two modals build their own button bars, and the API key row's control is a
+ * `SecretComponent`, which `SettingControl` has no member for.
  */
-const DIRECT_SETTING_BUDGET = 15;
+const DIRECT_SETTING_BUDGET = 12;
 
 describe("row-grammar repository guard", () => {
   it("settings.ts does not grow new direct `new Setting(` sites", () => {
