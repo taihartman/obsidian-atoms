@@ -167,35 +167,36 @@ export function buildFieldNotesText(paragraphs, foot) {
 
 export function welcomeEmailContent(opts) {
   const { unsubUrl, postalAddress } = opts;
+  // Keep welcome close to one-to-one mail: one idea, one diagram, one link.
+  // Big promo blocks and link farms push Gmail toward Promotions (not guaranteed either way).
   const paragraphs = [
-    "This list is about a second brain you actually use: the five-second capture on a morning walk, and remembering it when it matters later.",
-    "How people run that in real life - Obsidian, Claude, the hooks that make it stick.",
-    "When something is worth saying, we will write. Not a drip. Not a changelog.",
-    "Want to be featured? Reply and show how you use Atoms day to day. Clear, real stories may land in a future note (we will ask before quoting you by name).",
+    "Thanks for joining Field notes.",
+    "This is the occasional letter about a second brain you actually use: the five-second capture on a morning walk, and remembering it when it matters later. Obsidian, Claude, the hooks that make it stick. How other people run it too.",
+    "Not a drip. Not a changelog. When something is worth saying, you will hear from us.",
+    "Want to be featured? Just reply to this email and show how you use Atoms day to day. Clear stories may show up in a future note. We will ask before using your name.",
   ];
   const html = buildFieldNotesHtml({
-    title: "You're on Field notes",
-    preheader: "A second brain you actually use - rare notes, not a drip.",
+    title: "You are on Field notes",
+    preheader: "Thanks for joining. Rare notes on a second brain in real life.",
     paragraphs,
     diagram: "loop",
-    cta: { label: "Open tryatoms.app", href: "https://tryatoms.app" },
+    // Text link, not a big sales button - slightly less "promo template"
     secondaryHref: {
-      label: "Setup guide",
-      href: "https://tryatoms.app/setup",
+      label: "tryatoms.app",
+      href: "https://tryatoms.app",
     },
     unsubUrl,
     postalAddress,
   });
   const text = buildFieldNotesText(
     [
-      "You're on Field notes.",
+      "You are on Field notes.",
       "",
       ...paragraphs,
       "",
       "Catch it → It is filed → It comes back",
       "",
-      "Try Atoms: https://tryatoms.app",
-      "Setup guide: https://tryatoms.app/setup",
+      "https://tryatoms.app",
     ],
     {
       unsubUrl,
@@ -203,7 +204,8 @@ export function welcomeEmailContent(opts) {
     },
   );
   return {
-    subject: "You're on Field notes",
+    // Personal, short - avoid "newsletter / subscribe / offer" vibes in subject
+    subject: "You are on Field notes",
     html,
     text,
   };

@@ -10,12 +10,35 @@ Emails should feel like tryatoms.app: near-black, surface cards, `#0a84ff` tint,
 
 ## What ships in code (welcome)
 
-- **Multipart:** `text` + `html` (always both).
+- **Multipart:** `text` + `html` (always both). Solid plain-text twin helps inbox placement.
 - **Theme:** dark background `#000`, card `#1c1c1e`, label white, muted gray, tint blue - same as site tokens.
 - **Layout:** single column, max ~560px, table-based (Outlook-safe).
 - **Built-in diagram:** “Catch it → It is filed → It comes back” as **HTML table cells** (no image). Works in Gmail.
-- **CTA:** pill button in tint blue.
+- **CTA:** keep light on welcome (text link, not a billboard of buttons). Broadcasts can use a pill when there is one clear next step.
 - **Footer:** why you’re getting this, unsubscribe, postal address.
+
+## Primary vs Promotions (Gmail)
+
+**We cannot force Primary.** Gmail (and Apple/Yahoo) classify mail. Field notes is permissioned marketing, so Promotions is common, especially early.
+
+What helps a little:
+
+| Do | Why |
+|---|---|
+| SPF/DKIM/DMARC on `mail.tryatoms.app` (already via Resend) | Authentication baseline |
+| One-to-one API sends (welcome), not huge cold blasts | Looks less like bulk |
+| Strong plain-text part + lean HTML | Less “template promo” |
+| Few links; personal Reply-To | More like a letter |
+| People open, reply, move to Primary once | Trains *their* Gmail |
+| Consistent From; low complaint rate | Reputation over time |
+
+What you cannot dodge:
+
+- Unsubscribe + postal (required) still signal “list mail.”
+- New volume on a domain takes warm-up time.
+- Asking subscribers to drag one message to **Primary** and click “Yes” on “Do this for future messages?” is the honest lever.
+
+Do **not** try dark patterns (fake “re:” subjects, hiding unsubscribe). That hurts reputation and is illegal for US marketing mail.
 
 ---
 
