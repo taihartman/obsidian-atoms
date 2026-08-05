@@ -19,7 +19,6 @@ import {
   stripeConfigured,
 } from "./stripe.mjs";
 import {
-  allowDevExchange,
   allowDogfoodCheckout,
   assertProductionReady,
   isProduction,
@@ -150,43 +149,126 @@ function escHtml(s) {
     .replace(/"/g, "&quot;");
 }
 
-/** Browser landing after magic-link email (or dogfood dev-exchange). */
-function renderExchangeHtml(res, out) {
-  if (!out) {
-    res.writeHead(400, {
-      "content-type": "text/html; charset=utf-8",
-      "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'",
-      "referrer-policy": "no-referrer",
-      "x-content-type-options": "nosniff",
-    });
-    res.end(`<!doctype html><meta charset=utf-8><title>Atoms Plus</title>
-<body style="font-family:system-ui;max-width:32rem;margin:2rem auto;padding:0 1rem">
-<h1>Link expired</h1>
-<p>Request a new sign-in link from Atoms Settings.</p>
-</body>`);
-    return;
-  }
-  const email = escHtml(out.account.email);
-  const status = escHtml(out.account.status);
-  const remaining = escHtml(String(out.account.remaining));
-  const session = escHtml(out.session);
-  res.writeHead(200, {
-    "content-type": "text/html; charset=utf-8",
-    "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'",
-    "referrer-policy": "no-referrer",
-    "x-content-type-options": "nosniff",
-  });
+/**
+ * #240 U5 — headers every magic-link landing render carries.
+ *
+ * The CSP is unchanged from the page it replaces: `default-src 'none'` with
+ * inline styles, and no script is ever added (KTD4). `no-store` is new and
+ * load-bearing — R14 makes this page deliberately re-loadable and its body
+ * carries a live `obsidian://…token=` anchor, so a cached copy is a cached
+ * magic token sitting in a shared or in-app browser cache.
+ */
+const LANDING_HEADERS = Object.freeze({
+  "content-type": "text/html; charset=utf-8",
+  "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'",
+  "referrer-policy": "no-referrer",
+  "cache-control": "no-store",
+  "x-content-type-options": "nosniff",
+});
+
+function writeLanding(res, status, bodyHtml) {
+  res.writeHead(status, { ...LANDING_HEADERS });
   res.end(`<!doctype html><meta charset=utf-8><title>Atoms Plus</title>
 <body style="font-family:system-ui;max-width:32rem;margin:2rem auto;padding:0 1rem">
-<h1>Signed in</h1>
-<p>Email: <strong>${email}</strong></p>
-<p>Status: <strong>${status}</strong> · remaining ${remaining}</p>
-<p><strong>Switch back to Obsidian</strong> → Settings → Atoms Plus → <strong>Refresh status</strong>.</p>
-<p style="color:#666;font-size:0.9rem">If Refresh does not pick up this device, advanced: paste session below once.</p>
-<details style="margin-top:1rem"><summary style="cursor:pointer;color:#666">Advanced: session token</summary>
-<pre style="background:#f4f4f5;padding:12px;border-radius:8px;word-break:break-all">${session}</pre>
-</details>
+${bodyHtml}
 </body>`);
+}
+
+/**
+ * R7 — the link is expired, already spent, or never existed. All three collapse
+ * to one message on purpose: the page cannot tell a stranger's guess from the
+ * user's own stale link, and the remedy is the same either way.
+ */
+function renderDeadLink(
+  res,
+  {
+    title = "Link expired",
+    detail = "Request a new sign-in link from Atoms Settings.",
+  } = {},
+) {
+  writeLanding(res, 400, `<h1>${escHtml(title)}</h1>
+<p>${escHtml(detail)}</p>`);
+}
+
+/**
+ * #240 U5/U6 seam — the fallback that signs in without the handoff.
+ *
+ * U5 owns the block's identity (`id="fallback"`), its copy, and its position:
+ * demoted below the troubleshooting details when a handoff was offered (R10),
+ * promoted to primary when the token is unbound and no handoff exists. U6 fills
+ * `<!-- U6 -->` with the `<form method="post">` that mints a pasteable session
+ * on an explicit submit (R17), and needs to change nothing else here — the
+ * caller already holds the token to put in its hidden field.
+ *
+ * @param {{ promoted: boolean }} opts
+ */
+function fallbackBlockHtml({ promoted }) {
+  const lead = promoted
+    ? "This link was requested by an older version of Atoms, which cannot hand the sign-in to Obsidian. Update Atoms and request a new link, or sign in here instead."
+    : "On a different device from the one running Obsidian? Sign in here and paste the result into Atoms Settings.";
+  return `<section id="fallback" style="margin-top:1.5rem;padding-top:1rem;border-top:1px solid #e4e4e7">
+<h2 style="font-size:1rem;margin:0 0 .5rem">Sign in without the handoff</h2>
+<p style="color:#666;font-size:0.9rem">${escHtml(lead)}</p>
+<!-- U6 -->
+</section>`;
+}
+
+/**
+ * R8 — both remedies, distinctly, for the user who tapped and saw nothing. The
+ * page renders once and cannot observe the outcome (R14), so this is a native
+ * `<details>` present in the initial HTML rather than any kind of transition.
+ */
+const TROUBLESHOOTING_HTML = `<details style="margin-top:1.5rem">
+<summary style="cursor:pointer;color:#666">Tapped it and nothing came forward?</summary>
+<ul style="color:#444;font-size:0.95rem;line-height:1.5">
+<li><strong>Obsidian is on another device.</strong> Open this email again on the device running Obsidian, and tap there.</li>
+<li><strong>Obsidian is on this device.</strong> Your mail app's built-in browser blocks links that open other apps. Open this page in your system browser and tap again, or use the sign-in option further down this page.</li>
+</ul>
+</details>`;
+
+/**
+ * #240 U5 — the pre-tap landing page for a token that can actually complete the
+ * handoff. Nothing here asserts an outcome: it states what is true at render
+ * time and stops (R14). No session is minted or printed (R11, R17).
+ *
+ * @param {import("node:http").ServerResponse} res
+ * @param {{ token: string, vault: string | null }} link
+ */
+function renderHandoffPage(res, { token, vault }) {
+  // KD7 — the vault rides along so a multi-vault device signs the right one in.
+  // Absent for a link minted before U3, which must render without it rather
+  // than printing an empty parameter or the word "undefined".
+  const href = `obsidian://atoms-signin?token=${encodeURIComponent(token)}${
+    vault ? `&vault=${encodeURIComponent(vault)}` : ""
+  }`;
+  const who = vault
+    ? `<p>This link was requested by <strong>${escHtml(vault)}</strong>.</p>`
+    : `<p>This link was requested from Atoms in Obsidian.</p>`;
+  writeLanding(
+    res,
+    200,
+    `<h1>Finish signing in</h1>
+${who}
+<a href="${escHtml(href)}" style="display:block;box-sizing:border-box;min-height:44px;padding:14px 16px;margin:1.25rem 0;border-radius:10px;background:#7c3aed;color:#fff;font-weight:600;text-align:center;text-decoration:none">Open Obsidian</a>
+<p style="color:#666;font-size:0.9rem">Obsidian will ask you to confirm first.</p>
+${TROUBLESHOOTING_HTML}
+${fallbackBlockHtml({ promoted: false })}`,
+  );
+}
+
+/**
+ * KD9 — the token carries no verifier hash, so it was minted by a plugin build
+ * that cannot complete U4's bound exchange. Offering the handoff here would be
+ * a dead end, so the fallback takes the primary position and the troubleshooting
+ * block is omitted: there is no button whose silence needs explaining.
+ */
+function renderUnboundPage(res) {
+  writeLanding(
+    res,
+    200,
+    `<h1>Finish signing in</h1>
+${fallbackBlockHtml({ promoted: true })}`,
+  );
 }
 
 async function handler(req, res) {
@@ -402,38 +484,49 @@ ${
       return json(res, 200, { ok: true });
     }
 
-    // GET /v1/auth/dev-exchange — dogfood alias (disabled in prod)
-    if (req.method === "GET" && path === "/v1/auth/dev-exchange") {
-      if (!allowDevExchange()) {
-        return json(res, 404, { message: "Not found" });
-      }
-      const out = await store.exchangeMagic(
-        url.searchParams.get("token") || "",
-        { skipVerifierCheck: true },
-      );
-      const pending = url.searchParams.get("pending") || "";
-      if (await maybeFinishOauthAfterExchange(res, store, out, pending)) {
-        return;
-      }
-      return renderExchangeHtml(res, out);
-    }
+    // #240 U5 — `GET /v1/auth/dev-exchange` is gone. It was a zero-caller
+    // duplicate of the body below that 404'd in production anyway, and a
+    // diverged duplicate of this exact logic is what #230 was. `allowDevExchange`
+    // stays exported from prodGate.mjs — the production-posture tests assert it.
 
     // GET /v1/auth/exchange?token= — email magic-link landing (browser)
-    // #240 U4 / KD9 — a browser holds no verifier, so this route says so
-    // outright rather than arriving without one and hoping. It redeems bound
-    // tokens on purpose: that skip is the whole mechanism of KD3's cross-device
-    // recovery, and U6 inherits it. Do not "harden" it into refusing a bound
-    // token — the plugin's POST route is where the binding is enforced.
     if (req.method === "GET" && path === "/v1/auth/exchange") {
-      const out = await store.exchangeMagic(
-        url.searchParams.get("token") || "",
-        { skipVerifierCheck: true },
-      );
-      const pending = url.searchParams.get("pending") || "";
-      if (await maybeFinishOauthAfterExchange(res, store, out, pending)) {
-        return;
+      const token = url.searchParams.get("token") || "";
+      const pendingId = url.searchParams.get("pending") || "";
+
+      // KTD12 — branch on `pending` *before* deciding whether to consume. The
+      // Ask OAuth authorize flow emails this same URL with `&pending=…` and
+      // needs the GET to spend the token and 302 to consent; the plain sign-in
+      // link must not be spent by a page load (R6). Resolving the pending
+      // record first is what closes the old hole where a stale `pending` burned
+      // the token and then printed the session as HTML.
+      if (pendingId) {
+        const pending = await store.mcpGetPending(pendingId);
+        if (!pending) {
+          return renderDeadLink(res, {
+            title: "Authorization expired",
+            detail:
+              "This Atoms Ask authorization request is no longer active. Start connecting again from your MCP client. Your sign-in link was not used.",
+          });
+        }
+        const out = await store.exchangeMagic(token, {
+          skipVerifierCheck: true,
+        });
+        if (await maybeFinishOauthAfterExchange(res, store, out, pendingId)) {
+          return;
+        }
+        // The pending record was live but the token was not: nothing to hand
+        // off, and never a session on the page.
+        return renderDeadLink(res);
       }
-      return renderExchangeHtml(res, out);
+
+      // R6/KD8 — the plugin sign-in link. Read the verdict without spending
+      // anything; the tap is what consumes, not the page load.
+      const peek = await store.peekMagic(token);
+      if (!peek.ok) return renderDeadLink(res);
+      // KD9 — the handoff is offered only to a token that can complete one.
+      if (!peek.verifierBound) return renderUnboundPage(res);
+      return renderHandoffPage(res, { token, vault: peek.vault });
     }
 
     // POST /v1/auth/exchange — plugin in-app exchange

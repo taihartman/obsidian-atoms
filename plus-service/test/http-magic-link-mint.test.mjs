@@ -132,7 +132,7 @@ describe("#240 U3 — mint records verifier hash and vault", () => {
     assert.equal(log.includes("Remote Vault"), false);
   });
 
-  it("a mint omitting both still succeeds and exchanges unbound", async () => {
+  it("a mint omitting both still succeeds and lands on the unbound page", async () => {
     const email = "unbound@ex.com";
     assert.equal((await mint({ email }, "10.0.0.2")).status, 200);
 
@@ -140,12 +140,16 @@ describe("#240 U3 — mint records verifier hash and vault", () => {
     assert.equal(row.verifierHash, null);
     assert.equal(row.vault, null);
 
+    // #240 U5 — an older build's link still reaches a working page, but the
+    // page offers the fallback instead of a handoff no build there can finish.
     const token = await tokenFromLog(email);
     const html = await fetch(
       `${BASE}/v1/auth/exchange?token=${encodeURIComponent(token)}`,
     );
     assert.equal(html.status, 200);
-    assert.match(await html.text(), /Signed in/);
+    const body = await html.text();
+    assert.match(body, /id="fallback"/);
+    assert.equal(body.includes("obsidian://"), false);
   });
 
   it("rejects an oversized or non-string verifierHash without storing it", async () => {

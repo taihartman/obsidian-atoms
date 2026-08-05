@@ -221,21 +221,23 @@ describe("#240 U4 — POST /v1/auth/exchange is verifier-bound", () => {
     assert.equal(store.peekMagic(token).status, "usable");
   });
 
-  it("KD9: the browser GET landing still redeems a bound token", async () => {
-    // The email-click path is a different route at a different trust level and
-    // skips the check by design (KD9). If this ever turns red because the abort
-    // was pushed into the store unconditionally, cross-device recovery is gone.
+  it("KD9: skipVerifierCheck still redeems a bound token", async () => {
+    // The web path is at a different trust level and skips the check by design
+    // (KD9). If this ever turns red because the abort was pushed into the store
+    // unconditionally, cross-device recovery is gone.
+    //
+    // Asserted at the store rather than through the GET landing: #240 U5 made
+    // that page non-consuming, so the caller of this skip is now U6's fallback
+    // POST. The rule being guarded is the store's, and it is unchanged.
     const token = plant({
       email: "browser@ex.com",
       verifierHash: challenge(`ver_${"b".repeat(40)}`),
       vault: "Elsewhere",
     });
 
-    const res = await fetch(
-      `${BASE}/v1/auth/exchange?token=${encodeURIComponent(token)}`,
-    );
-    assert.equal(res.status, 200);
-    assert.match(await res.text(), /Signed in/);
+    const out = store.exchangeMagic(token, { skipVerifierCheck: true });
+    assert.equal(out.account.email, "browser@ex.com");
+    assert.ok(out.session);
     assert.equal(store.peekMagic(token).status, "invalid");
   });
 });
