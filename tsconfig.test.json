@@ -29,6 +29,7 @@
 		"test/catchUp.test.ts",
 		"test/settings.test.ts",
 		"test/settingsRows.test.ts",
+		"test/helpers/settingsTab.ts",
 		"test/mocks/obsidian.ts",
 		"test/mocks/domAugmentations.ts",
 		"plus-pricing.json"

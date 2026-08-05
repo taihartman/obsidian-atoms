@@ -12,6 +12,15 @@ import {
   type ShortlistContext,
 } from "../src/pipeline/context";
 import { runWritePath } from "../src/pipeline/write";
+import { accountRowDescriptor, type AccountState } from "../src/settings/settings";
+import type { PlusSession } from "../src/platform/filingAuth";
+import {
+  destinationNames,
+  open,
+  rowNames,
+  settingTab,
+  type SettingTabOptions,
+} from "./helpers/settingsTab";
 import { DEFAULT_SETTINGS, type LinkerSettings } from "../src/shared/types";
 import {
   atomResult,
@@ -224,5 +233,133 @@ describe("shortlist diagnostics (R6)", () => {
     // ATOMS_DEV_COMMANDS is undefined outside an esbuild bundle — the Community-build case.
     logShortlistDiagnostics("process shortlist", rec.seen[0]!.stats);
     expect(spy).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * The Atoms Plus account cluster used to be four hand-maintained branches that each rendered
+ * their own Refresh status / Sign out / Account rows. These assert the replacement: one sealed
+ * state, one main-screen row per state, and one destination holding the management actions.
+ */
+describe("account row", () => {
+  const ACTIVE_SESSION: PlusSession = {
+    sessionToken: "sess_live",
+    email: "user@example.com",
+    status: "active",
+    remaining: 12,
+    periodEnd: "2026-09-01T00:00:00.000Z",
+  };
+
+  function activeTab() {
+    return settingTab({
+      session: ACTIVE_SESSION,
+      auth: {
+        mode: "plus",
+        sessionToken: ACTIVE_SESSION.sessionToken,
+        email: ACTIVE_SESSION.email,
+        status: "active",
+        remaining: 12,
+        periodEnd: ACTIVE_SESSION.periodEnd,
+      },
+    });
+  }
+
+  const STATES: Array<[string, SettingTabOptions, string]> = [
+    ["signed out", {}, "Set up automatic filing"],
+    [
+      "trial incomplete",
+      {
+        session: {
+          sessionToken: "sess_soft",
+          email: "user@example.com",
+          status: "inactive",
+        },
+      },
+      "Finish trial setup",
+    ],
+    [
+      "active",
+      {
+        session: ACTIVE_SESSION,
+        auth: {
+          mode: "plus",
+          sessionToken: "sess_live",
+          email: "user@example.com",
+          status: "active",
+          remaining: 12,
+        },
+      },
+      "Plus · 12 filings left",
+    ],
+    [
+      "exhausted",
+      {
+        session: { ...ACTIVE_SESSION, status: "exhausted", remaining: 0 },
+        auth: {
+          mode: "plus",
+          sessionToken: "sess_live",
+          email: "user@example.com",
+          status: "exhausted",
+          remaining: 0,
+        },
+      },
+      "Monthly limit reached",
+    ],
+  ];
+
+  it.each(STATES)("renders the %s main-screen label", (_name, opts, label) => {
+    const { tab } = settingTab(opts);
+    tab.display();
+
+    expect(destinationNames(tab)).toContain(label);
+    // One account row, not one per branch: no other state's label is on screen with it.
+    const others = STATES.map(([, , other]) => other).filter((other) => other !== label);
+    expect(rowNames(tab).filter((name) => others.includes(name))).toEqual([]);
+  });
+
+  it("holds Refresh status, Sign out, and Account exactly once in the destination", () => {
+    const { tab } = activeTab();
+    tab.display();
+    open(tab, "Plus · 12 filings left");
+
+    const names = rowNames(tab);
+    for (const once of ["Refresh status", "Sign out", "Account"]) {
+      expect(names.filter((name) => name === once)).toEqual([once]);
+    }
+    // The email is still shown, under the back row that already says "Account".
+    expect(names.filter((name) => name === "Signed in as")).toEqual(["Signed in as"]);
+    expect(tab.containerEl.textContent).toContain("user@example.com");
+    // And nowhere else: the main screen carries the account row alone.
+    tab.hide();
+    tab.display();
+    expect(rowNames(tab)).not.toContain("Refresh status");
+    expect(rowNames(tab)).not.toContain("Sign out");
+  });
+
+  it("offers account setup and no Manage row when signed out", () => {
+    const { tab } = settingTab();
+    tab.display();
+    open(tab, "Set up automatic filing");
+
+    const names = rowNames(tab);
+    expect(names).toContain("Email");
+    expect(names).toContain("Start free trial");
+    expect(names).toContain("Sign in on another device");
+    expect(names).toContain("Advanced: paste session");
+    expect(names).not.toContain("Manage subscription");
+    expect(names).not.toContain("Sign out");
+  });
+
+  it("closes the account state so a fifth state cannot be added without a branch", () => {
+    const signedOut: AccountState = { kind: "signedOut" };
+    expect(accountRowDescriptor(signedOut).name).toBe("Set up automatic filing");
+
+    // The compile error this expects is the guard: `accountRowDescriptor` switches on
+    // `AccountState` and closes with `const _exhaustive: never = state`, so a variant added to
+    // the union without a matching branch fails `typecheck:test` — and, because the switch lives
+    // in `src/`, `npm run build` as well.
+    // @ts-expect-error — "grandfathered" is not an account state.
+    const notAState: AccountState = { kind: "grandfathered" };
+    expect(notAState.kind).toBe("grandfathered");
   });
 });
