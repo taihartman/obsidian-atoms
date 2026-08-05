@@ -15,11 +15,14 @@ GitHub Action [`.github/workflows/tryatoms-pages.yml`](../../.github/workflows/t
 - `src/shared/plusPricing.ts` / `test/wwwPricing.test.ts`
 - the workflow file itself
 
-It builds `www/dist`, runs `test/wwwPricing.test.ts`, then:
+It builds `www/dist`, runs www tests, then:
 
 ```bash
-npx wrangler pages deploy www/dist --project-name=tryatoms --branch=master
+# cwd www/ so Wrangler finds ./functions beside ./dist
+( cd www && npx wrangler pages deploy dist --project-name=tryatoms --branch=master )
 ```
+
+Pages Functions live in `www/functions` (e.g. Atoms Notes `POST /api/subscribe`). Secrets for those functions are set on the Pages project — see `docs/runbooks/atoms-notes-list.md`.
 
 Manual run: Actions → **Deploy tryatoms.app** → **Run workflow**.
 
@@ -46,7 +49,7 @@ When the Action is unavailable:
 
 ```bash
 npm run build:www
-npx wrangler pages deploy www/dist --project-name=tryatoms --branch=master
+( cd www && npx wrangler pages deploy dist --project-name=tryatoms --branch=master )
 ```
 
 Requires `wrangler login` (or `CLOUDFLARE_API_TOKEN` in the environment).
