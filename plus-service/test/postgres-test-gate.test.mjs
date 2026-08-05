@@ -211,11 +211,30 @@ describe(
         const { rows } = await client.query("SELECT current_schema() AS s");
         assert.equal(rows[0].s, store.schemaForTest);
 
-        // The tables the migration created belong to that schema, not public.
-        const reg = await client.query(
-          "SELECT to_regclass('accounts')::text AS t",
+        // The migration's tables live in that schema and NOT in public.
+        //
+        // Do not assert on `to_regclass('accounts')::text` — it renders the
+        // name the way postgres would display it, which omits the schema
+        // precisely when the schema is on the search path, so it returns a
+        // bare "accounts" both when isolation works and when everything
+        // landed in public. Ask the catalog for the namespace instead.
+        const owned = await client.query(
+          `SELECT n.nspname AS schema
+             FROM pg_class c
+             JOIN pg_namespace n ON n.oid = c.relnamespace
+            WHERE c.relname = 'accounts' AND n.nspname = $1`,
+          [store.schemaForTest],
         );
-        assert.equal(reg.rows[0].t, `${store.schemaForTest}.accounts`);
+        assert.equal(owned.rows.length, 1, "accounts not in the minted schema");
+
+        const inPublic = await client.query(
+          "SELECT to_regclass('public.accounts') AS t",
+        );
+        assert.equal(
+          inPublic.rows[0].t,
+          null,
+          "migration leaked into public — search_path is not being honoured",
+        );
       } finally {
         await client.end();
         await store.close();
