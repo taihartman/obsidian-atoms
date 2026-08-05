@@ -109,6 +109,26 @@ required a new install marker because `Object.assign({}, DEFAULT_SETTINGS, raw)`
 that gates whether a command-palette command is registered is not a preference. Deleting it removes
 the marker work entirely. Governs R8.
 
+*Amended 2026-08-05 after reading [PR #297](https://github.com/taihartman/obsidian-atoms/pull/297),
+which this plan was originally written without checking.* The amendment **confirms** KTD5 rather
+than reversing it, and it changes U8's sequencing.
+
+#297 ships **Try filing…** — a Library long-press that runs the full Reconsider classify-and-apply
+path — and its PR body states the Home path *"does not require the experimental Reconsider settings
+flag."* Its entire diff touches `enableReconsiderCapture` in exactly one place: a docstring, `Gated
+by…` → `Command palette path — gated by…`. No code it adds reads the field.
+
+So #297 does not depend on the setting **existing**; it depends on the setting **not applying to its
+path**. That is the opposite of a dependency, and deleting the field satisfies #297's intent more
+completely than keeping it would. KTD5's original premise — that nothing depends on this setting —
+survives contact with #297.
+
+Keeping it is the worse outcome. Once #297 lands, the Library gesture runs Reconsider ungated on
+every platform while a toggle reading *"Experimental… Off by default"* still gates the command
+palette entry to the same function. A user who has used Try filing and then cannot find Reconsider
+in the palette has found a lie in the settings screen — the exact failure mode this plan exists to
+remove.
+
 **KTD6 — Deletion conservatism binds settings, not actions.** The rule exists because deleting a
 setting silently overrides a value someone chose. An action stores nothing, so removing one
 overrides nothing — it costs a click. This is what licenses removing three action rows while
@@ -383,13 +403,17 @@ part of the field it was compensating for.
 
 **Goal:** The command exists unconditionally.
 **Requirements:** R8, R10
-**Dependencies:** none
+**Dependencies:** [PR #297](https://github.com/taihartman/obsidian-atoms/pull/297) — **satisfied**,
+merged 2026-08-05 as `622f095` (see KTD5 amendment). Line numbers below are re-anchored against
+that merge — the `main.ts` sites moved +1.
 **Files:** `src/shared/types.ts`, `src/plugin/main.ts`, `src/settings/settings.ts`,
 `test/settings.test.ts`
 **Approach:**
 
-1. Remove the field (`src/shared/types.ts:171`, `:215`) and the settings row.
-2. Remove the guard at `src/plugin/main.ts:1986` and the stale comment above it at `:1983`.
+1. Remove the field (`src/shared/types.ts:171`, `:215`) and the settings row
+   (`src/settings/settings.ts:983-995`).
+2. Remove the guard at `src/plugin/main.ts:1987` and the comment above it at `:1984` — post-#297
+   that comment reads `Command palette path — gated by…`, and the whole block goes.
 3. No install marker and no default flip — that work is dissolved by KTD5, not deferred.
 
 **Test scenarios:**
@@ -452,7 +476,7 @@ did not exist in the built output.
 |---|---|---|
 | Foundation | U1, U2 | Everything else composes these; ship them before any row moves |
 | Collapse | U3, U4, U5, U6 | The four destinations and the consent merge — the bulk of the reduction |
-| Subtraction | U7, U8, U9 | Independent of the above; can land in parallel with Collapse |
+| Subtraction | U7, U8, U9 | Independent of the above; can land in parallel with Collapse. **U8 is gated on [#297](https://github.com/taihartman/obsidian-atoms/pull/297) merging** — see its Dependencies |
 | Lockstep | U10 | Depends on the final labels, so it lands last |
 
 ---
