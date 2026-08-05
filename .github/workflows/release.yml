@@ -34,6 +34,7 @@ jobs:
         run: npm ci
 
       - name: Tag matches package version
+        id: ver
         run: |
           TAG="${GITHUB_REF_NAME}"
           PKG="$(node -p "require('./package.json').version")"
@@ -41,6 +42,15 @@ jobs:
           echo "tag=$TAG package=$PKG manifest=$MANIFEST"
           test "$TAG" = "$PKG"
           test "$TAG" = "$MANIFEST"
+          # Beta: 0.6.77-beta.1 / 0.6.77-rc.1. Stable: 0.6.77 only.
+          # BRAT default = stable; BRAT "Enable betas" = prerelease too.
+          if echo "$TAG" | grep -qE -- '-(beta|rc)(\.|$)'; then
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+            echo "channel=beta"
+          else
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+            echo "channel=stable"
+          fi
 
       - name: Test
         run: npm test
@@ -76,3 +86,5 @@ jobs:
             SHA256SUMS.txt
           fail_on_unmatched_files: true
           generate_release_notes: true
+          # BRAT: enable "Betas" to pick prerelease tags; default BRAT = stable only.
+          prerelease: ${{ steps.ver.outputs.prerelease == 'true' }}

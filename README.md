@@ -52,21 +52,33 @@ It’s a **second brain inside your vault**, not a separate app and not a CRM. P
 
 ## Install
 
-### Community plugins (once listed)
+### Community plugins (stable / prod)
 
-1. Settings → **Community plugins** → turn on community plugins if needed.
-2. **Browse** → search **Atoms** → Install → Enable.
+Once listed in the directory (or when you install from a **stable** GitHub Release):
+
+1. Settings → **Community plugins** → Browse → **Atoms** → Install → Enable.
+2. Updates come from the **community plugin** channel (official builds), not BRAT betas.
 3. Continue with [First-run setup](#first-run-setup).
 
-### Beta / phone + desktop (BRAT — preferred)
+### BRAT (phone + desktop dogfood)
 
 1. Install [BRAT](https://obsidian.md/plugins?id=obsidian42-brat).
 2. BRAT → **Add beta plugin** → `taihartman/obsidian-atoms`.
-3. Enable **Atoms**. After each [GitHub Release](https://github.com/taihartman/obsidian-atoms/releases), use BRAT **Check for updates** (desktop and phone vaults that use the same install path).
+3. Enable **Atoms**. **Check for updates** after each [GitHub Release](https://github.com/taihartman/obsidian-atoms/releases).
+
+**Stable vs beta (GitHub tags):**
+
+| Channel | Tag / version shape | GitHub Release | Who gets it |
+|---|---|---|---|
+| **Stable** | `0.6.77` (no suffix) | **not** marked prerelease | BRAT default · community directory (when listed) |
+| **Beta** | `0.6.78-beta.1` or `-rc.1` | marked **prerelease** | BRAT only if **Enable betas** is on |
+
+- Dogfooders: BRAT → turn on **Enable betas** → Check for updates.
+- Everyone else: leave betas **off** (or use Community plugins) → only stable tags.
 
 ### Manual (GitHub Release)
 
-1. Download `main.js`, `manifest.json`, and `styles.css` from the latest [Release](https://github.com/taihartman/obsidian-atoms/releases).
+1. Download `main.js`, `manifest.json`, and `styles.css` from the latest **stable** [Release](https://github.com/taihartman/obsidian-atoms/releases) (skip “Pre-release” unless you want beta).
 2. Put them in `<Vault>/.obsidian/plugins/atoms/`.
 3. Settings → Community plugins → refresh → enable **Atoms**.
 
@@ -203,7 +215,7 @@ git tag 0.6.x
 git push origin 0.6.x
 ```
 
-The [Release](https://github.com/taihartman/obsidian-atoms/actions/workflows/release.yml) workflow builds, attests, and attaches assets. Do not upload laptop-built `main.js` for production tags.
+The [Release](https://github.com/taihartman/obsidian-atoms/actions/workflows/release.yml) workflow builds, attests, and attaches assets. Tag must equal `package.json` / `manifest.json` version. **Stable:** `git tag 0.6.77 && git push origin 0.6.77`. **Beta:** bump to `0.6.78-beta.1` in package+manifest, then tag the same string — CI marks the Release as prerelease for BRAT betas. Do not upload laptop-built `main.js` for production tags.
 
 (Previously `obsidian-ai-linker`; renamed with the product.)
 
