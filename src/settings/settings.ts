@@ -21,6 +21,7 @@ import {
 } from "../platform/autorun";
 import {
   CAPTURE_SHORTCUT_VERSION,
+  customCaptureShortcutUrl,
   labelInstallOrUpdate,
   openShortcutInstallUrl,
   readShortcutAck,
@@ -653,6 +654,23 @@ export class AtomsSettingTab extends PluginSettingTab {
     settingHeading(containerEl, "Capture");
 
     const acked = readShortcutAck((k) => loadLocal(this.app, k));
+    const custom = customCaptureShortcutUrl(
+      this.plugin.settings.captureShortcutInstallUrl,
+    );
+
+    // A stored link that is one of our own is not a customisation — it is the
+    // default, pasted in back when this field read as a required step. Clear it
+    // for real rather than only hiding it, so the empty box below is the truth
+    // on disk and a later edit to BUILTIN_INSTALL_URLS cannot resurrect a dead
+    // link as a custom one. Idempotent: fires once, then the value is "".
+    const storedUrl = (
+      this.plugin.settings.captureShortcutInstallUrl ?? ""
+    ).trim();
+    if (storedUrl && !custom) {
+      this.plugin.settings.captureShortcutInstallUrl = "";
+      void this.plugin.saveSettings();
+    }
+
     const installUrl = resolveCaptureShortcutInstallUrl(
       this.plugin.settings.captureShortcutInstallUrl,
     );
@@ -664,18 +682,35 @@ export class AtomsSettingTab extends PluginSettingTab {
         "Write top-level bullets in your daily note: “- thought…”. Today’s note is never auto-processed; use Atoms home → Preview after midnight (or past dailies).",
       );
 
+    // Optional on purpose: a value here outranks the constant forever, so a
+    // user who fills it in with our own default stops receiving shipped link
+    // updates. Keep the copy pointed at "leave this empty".
     new Setting(containerEl)
-      .setName("iCloud shortcut link")
+      .setName("Custom shortcut link")
       .setDesc(
-        "Paste the iCloud share link from Shortcuts (Share → Copy iCloud Link). Syncs with the vault. See docs/capture-shortcut.md for how to build the shortcut.",
+        custom
+          ? "Using your own link. Clear it (or press Use built-in) to go back to the shortcut Atoms ships and keep getting updates to it."
+          : `Optional — leave empty. Atoms ships the Capture Atom shortcut (v${CAPTURE_SHORTCUT_VERSION}) and keeps it current for you. Only paste here if you modified the shortcut and made your own iCloud link (Share → Copy iCloud Link). See docs/capture-shortcut.md.`,
       )
       .addText((text) =>
         text
-          .setPlaceholder("https://www.icloud.com/shortcuts/…")
-          .setValue(this.plugin.settings.captureShortcutInstallUrl)
+          .setPlaceholder("Using the shortcut Atoms ships")
+          .setValue(custom)
           .onChange(async (value) => {
             this.plugin.settings.captureShortcutInstallUrl = value.trim();
             await this.plugin.saveSettings();
+          }),
+      )
+      .addExtraButton((btn) =>
+        btn
+          .setIcon("rotate-ccw")
+          .setTooltip("Use the shortcut Atoms ships")
+          .setDisabled(!custom)
+          .onClick(async () => {
+            this.plugin.settings.captureShortcutInstallUrl = "";
+            await this.plugin.saveSettings();
+            new Notice("Back to the built-in Capture Atom shortcut");
+            this.redisplay();
           }),
       );
 
@@ -683,8 +718,8 @@ export class AtomsSettingTab extends PluginSettingTab {
       .setName("Capture Atom shortcut")
       .setDesc(
         urlSet
-          ? `Install or update Capture Atom, the iOS shortcut (v${CAPTURE_SHORTCUT_VERSION}). Opens your iCloud link — Shortcuts.app still needs confirm. Acked: ${acked ?? "never"}.`
-          : `No link yet — paste an iCloud URL above (or create the shortcut on your phone, then paste). Version tag: ${CAPTURE_SHORTCUT_VERSION}.`,
+          ? `Install or update Capture Atom, the iOS shortcut (v${CAPTURE_SHORTCUT_VERSION}). Opens ${custom ? "your custom link" : "the link Atoms ships"} — Shortcuts.app still needs confirm. Acked: ${acked ?? "never"}.`
+          : `No link to open — the built-in is unset in this build, so paste your own iCloud URL above. Version tag: ${CAPTURE_SHORTCUT_VERSION}.`,
       )
       .addButton((btn) =>
         btn
@@ -693,7 +728,7 @@ export class AtomsSettingTab extends PluginSettingTab {
           .onClick(() => {
             if (!urlSet) {
               new Notice(
-                "Paste an iCloud shortcut link above first (Shortcuts → Share → Copy iCloud Link).",
+                "No shortcut link to open — paste your own iCloud link above.",
               );
               return;
             }

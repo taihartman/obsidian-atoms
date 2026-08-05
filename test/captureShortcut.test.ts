@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  CAPTURE_SHORTCUT_INSTALL_URL,
   CAPTURE_SHORTCUT_VERSION,
+  customCaptureShortcutUrl,
   isAllowedCaptureShortcutUrl,
   labelInstallOrUpdate,
   needsInferredDateSignal,
@@ -105,6 +107,52 @@ describe("resolveCaptureShortcutInstallUrl", () => {
     expect(resolveCaptureShortcutInstallUrl(null)).toContain(
       "icloud.com/shortcuts/",
     );
+  });
+
+  it("treats whitespace-only settings as unset", () => {
+    expect(resolveCaptureShortcutInstallUrl("   ")).toBe(
+      CAPTURE_SHORTCUT_INSTALL_URL,
+    );
+  });
+
+  it("ignores a pasted copy of a link we ship, so the default keeps updating", () => {
+    // The trap this exists for: a user pastes our own default in, thinking the
+    // field is a required step. A settings value outranks the constant, so they
+    // would sit on that exact link forever while everyone else moves on.
+    const supersededBuiltin =
+      "https://www.icloud.com/shortcuts/e8bfe486b2bc458cb37af87c107771a2";
+    expect(resolveCaptureShortcutInstallUrl(supersededBuiltin)).toBe(
+      CAPTURE_SHORTCUT_INSTALL_URL,
+    );
+    expect(resolveCaptureShortcutInstallUrl(CAPTURE_SHORTCUT_INSTALL_URL)).toBe(
+      CAPTURE_SHORTCUT_INSTALL_URL,
+    );
+  });
+});
+
+describe("customCaptureShortcutUrl", () => {
+  it("reports a genuine custom link", () => {
+    const mine = "https://www.icloud.com/shortcuts/mineownshortcutid";
+    expect(customCaptureShortcutUrl(mine)).toBe(mine);
+  });
+
+  it("reports no custom link for empty, whitespace, and links we ship", () => {
+    for (const v of [
+      "",
+      "   ",
+      null,
+      undefined,
+      CAPTURE_SHORTCUT_INSTALL_URL,
+      "https://www.icloud.com/shortcuts/e8bfe486b2bc458cb37af87c107771a2",
+    ]) {
+      expect(customCaptureShortcutUrl(v)).toBe("");
+    }
+  });
+
+  it("trims, so a padded custom link is still the custom link", () => {
+    expect(
+      customCaptureShortcutUrl("  https://www.icloud.com/shortcuts/pad  "),
+    ).toBe("https://www.icloud.com/shortcuts/pad");
   });
 });
 

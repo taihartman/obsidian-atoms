@@ -2240,7 +2240,7 @@ export class AtomsHomeView extends ItemView {
         attrs: !this.installUrl()
           ? {
               title:
-                "Paste an iCloud link in Settings → Capture first",
+                "No shortcut link to open — add one in Settings → Capture",
             }
           : undefined,
         onClick: () => this.onInstallShortcut(),
@@ -2492,7 +2492,7 @@ export class AtomsHomeView extends ItemView {
     const url = this.installUrl();
     if (!url) {
       new Notice(
-        "Paste an iCloud shortcut link in Settings → Capture (Shortcuts → Share → Copy iCloud Link).",
+        "No shortcut link to open — add one in Settings → Capture.",
       );
       return;
     }

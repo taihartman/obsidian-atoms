@@ -15,6 +15,20 @@ export const CAPTURE_SHORTCUT_VERSION = "2.1.0";
 export const CAPTURE_SHORTCUT_INSTALL_URL =
   "https://www.icloud.com/shortcuts/bbd26339dc874a13b36b31620cf3c457";
 
+/**
+ * Every install URL we have ever shipped as the built-in, newest first.
+ *
+ * Pasting one of these into Settings → Capture is copying the default, not
+ * customising it — but a settings value wins over the constant forever, so that
+ * user silently stays on a superseded shortcut every time we ship a new link.
+ * Treating an exact match as "no custom link" puts them back on the default and
+ * keeps them there. Append the outgoing URL here whenever the constant moves.
+ */
+const BUILTIN_INSTALL_URLS: readonly string[] = [
+  CAPTURE_SHORTCUT_INSTALL_URL,
+  "https://www.icloud.com/shortcuts/e8bfe486b2bc458cb37af87c107771a2",
+];
+
 /** Device-local (never data.json). */
 export const LS_CAPTURE_SHORTCUT_ACK = "atoms-capture-shortcut-acked-version";
 
@@ -22,12 +36,25 @@ export const LS_CAPTURE_SHORTCUT_ACK = "atoms-capture-shortcut-acked-version";
 export const LS_INBOX_INFERRED_DATE_ACK =
   "atoms-inbox-inferred-date-acked-version";
 
-/** Prefer synced settings URL, then built-in constant. */
+/**
+ * The settings value only when it is genuinely the user's own link; "" when the
+ * field is empty or holds a link we shipped ourselves. Empty therefore means
+ * "on the built-in", which is what Settings renders and what decides whether a
+ * stored value still deserves to outrank the constant.
+ */
+export function customCaptureShortcutUrl(settingsUrl?: string | null): string {
+  const fromSettings = (settingsUrl ?? "").trim();
+  if (!fromSettings) return "";
+  if (BUILTIN_INSTALL_URLS.includes(fromSettings)) return "";
+  return fromSettings;
+}
+
+/** Prefer the user's own link, then the built-in constant. */
 export function resolveCaptureShortcutInstallUrl(
   settingsUrl?: string | null,
 ): string {
-  const fromSettings = (settingsUrl ?? "").trim();
-  if (fromSettings) return fromSettings;
+  const custom = customCaptureShortcutUrl(settingsUrl);
+  if (custom) return custom;
   return (CAPTURE_SHORTCUT_INSTALL_URL ?? "").trim();
 }
 
