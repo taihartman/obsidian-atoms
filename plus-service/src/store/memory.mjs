@@ -8,8 +8,11 @@ import {
   hashToken,
   id,
   isEntitledAccount,
+  normalizeStripeIncident,
   periodEndFromNow,
   publicAccount,
+  rowToIncident,
+  toMs,
 } from "./shared.mjs";
 import {
   aggregateMirrorTags,
@@ -42,6 +45,8 @@ export function createMemoryStore() {
   /** email+code → true */
   const promoByEmail = new Set();
   const processedEvents = new Set();
+  /** `kind|dayBucket|stripeId` → stripe incident row (#238 KTD2) */
+  const stripeIncidents = new Map();
   const stripeCustomers = new Map();
   /** idempotency_key → { responseJson, remaining, status } */
   const usageByKey = new Map();
@@ -955,6 +960,69 @@ export function createMemoryStore() {
       return true;
     },
     markEventProcessed: (id) => id && processedEvents.add(id),
+    recordStripeIncident(kind, opts = {}) {
+      const n = normalizeStripeIncident(kind, opts);
+      const key = `${n.kind}|${n.dayBucket}|${n.stripeId}`;
+      const at = new Date(n.now).toISOString();
+      let row = stripeIncidents.get(key);
+      if (!row) {
+        row = {
+          id: id("inc"),
+          kind: n.kind,
+          day_bucket: n.dayBucket,
+          stripe_id: n.stripeId,
+          email: n.email,
+          detail: n.detail,
+          occurrences: 1,
+          first_seen_at: at,
+          last_seen_at: at,
+          alerted_at: null,
+        };
+        stripeIncidents.set(key, row);
+      } else {
+        row.occurrences += 1;
+        row.last_seen_at = at;
+        if (n.email) row.email = n.email;
+        if (n.detail) row.detail = n.detail;
+      }
+      return rowToIncident(row);
+    },
+    /** Newest alert epoch ms for this kind at or after `sinceMs`, else null. */
+    lastStripeAlertAt(kind, sinceMs = 0) {
+      let best = null;
+      for (const r of stripeIncidents.values()) {
+        if (r.kind !== kind || !r.alerted_at) continue;
+        const ms = Date.parse(r.alerted_at);
+        if (ms < sinceMs) continue;
+        if (best === null || ms > best) best = ms;
+      }
+      return best;
+    },
+    markStripeIncidentAlerted(incidentId, opts = {}) {
+      const now = Number.isFinite(opts.now) ? opts.now : Date.now();
+      for (const r of stripeIncidents.values()) {
+        if (r.id !== incidentId) continue;
+        r.alerted_at = new Date(now).toISOString();
+        return rowToIncident(r);
+      }
+      return null;
+    },
+    listStripeIncidents({ since, kind, limit } = {}) {
+      const cutoff = toMs(since, 0);
+      const cap = Number.isFinite(limit) ? limit : 100;
+      return [...stripeIncidents.values()]
+        .filter(
+          (r) =>
+            (!kind || r.kind === kind) && Date.parse(r.last_seen_at) >= cutoff,
+        )
+        .sort(
+          (a, b) =>
+            Date.parse(b.last_seen_at) - Date.parse(a.last_seen_at) ||
+            Date.parse(b.first_seen_at) - Date.parse(a.first_seen_at),
+        )
+        .slice(0, cap)
+        .map(rowToIncident);
+    },
     setStripeCustomer(email, customerId) {
       const a = ensureAccount(email);
       a.stripeCustomerId = customerId;

@@ -190,6 +190,18 @@ export const config = {
   get magicLinkFrom() {
     return env("ATOMS_PLUS_EMAIL_FROM", "Atoms Plus <plus@tryatoms.app>");
   },
+  /** Operator address for Stripe incident alerts (#238). Required in production. */
+  get alertEmail() {
+    return env("ATOMS_PLUS_ALERT_EMAIL").trim();
+  },
+  /**
+   * Per-(kind, window) alert throttle. A rotated webhook secret fails every
+   * delivery, so one incident kind must not send one email per event.
+   */
+  get alertThrottleMs() {
+    const min = Number(env("ATOMS_PLUS_ALERT_THROTTLE_MIN", "60"));
+    return (Number.isFinite(min) && min > 0 ? min : 60) * 60 * 1000;
+  },
   /**
    * AES-256-GCM key for atom mirror at rest (64 hex chars or passphrase).
    * Required in production when Ask mirror is used (prodGate).

@@ -128,6 +128,17 @@ Public Streamable HTTP MCP endpoint (Plus host) that **Claude and ChatGPT** conn
 ### Ask MCP pairing code
 Short-lived, single-use code minted from a verified Plus plugin session so connector OAuth can bind `mcp_` tokens to the **Plus account email** without opening that inbox in the OAuth browser. Parallel to email + magic link on the authorize page. Does not create secondary emails or share the mirror with a second tenant. Requirements: `docs/plans/2026-08-04-002-feat-ask-mcp-pairing-plan.md`.
 
+## Plus (billing + entitlement)
+
+### Stripe incident
+A durable row in `stripe_incidents` recording one way the entitlement grant failed — deduped on `(kind, day bucket, Stripe id)` so a flood collapses to one row per kind per day. The record; the ops email is the **interrupt**. Kinds are frozen strings in `store/shared.mjs`; values are persisted and never renamed.
+
+### Incident class (A / B / C)
+Split by what an operator must do. **A** — unauthenticated garbage, no verified signature and so no Stripe id (`webhook_reject`). **B** — we processed the event and could not act (missing/mismatched email, unknown price, unattributable cancellation). **C** — Stripe delivered it and we never processed it (`missing_webhook`); invisible in-process, findable only by the sweep.
+
+### Reconciliation sweep (Stripe)
+Offline pass over Stripe's own event list asking `hasProcessedEvent` — "Stripe considered it delivered, we have no record." The oracle is our processing log, never account entitlement, which has other legitimate causes in both directions. Report-only by default; `--repair` is opt-in, restores entitlement only, and reports `repaired` only where a grant actually happened. Unrelated to Ask's **Delta reconcile**. Learning: `docs/solutions/architecture-patterns/a-signal-nobody-receives-is-not-a-signal.md`.
+
 ## Flagged ambiguities
 
 - “Linker” remains in some marker HTML comments (`<!--linker-->`) from early naming; product name is **Atoms**.

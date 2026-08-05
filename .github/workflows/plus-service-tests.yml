@@ -97,8 +97,12 @@ jobs:
                           # does not catch, so the check would fail open.
           echo "test files with live postgres coverage: $RAN"
           grep -o 'postgres-active .*' /tmp/test.log | sort -u || true
-          if [ "$RAN" -lt 5 ]; then
-            echo "::error::only $RAN test files opened a postgres store, expected at least 5 — a suite lost its postgres coverage"
+          # #238 added a seventh file (stripe-incidents). The floor moves with
+          # the file count — left at 5 it would have tolerated TWO files losing
+          # their rows instead of one, quietly widening the blind spot this
+          # step exists to close.
+          if [ "$RAN" -lt 6 ]; then
+            echo "::error::only $RAN test files opened a postgres store, expected at least 6 — a suite lost its postgres coverage"
             exit 1
           fi
         env:
