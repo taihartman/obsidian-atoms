@@ -66,9 +66,26 @@ The site now documents some of these settings by their exact current labels. `te
 - `STATUS.md` was already resolved to the post-merge state in the merge commit (in-flight row removed, "Recently merged" row added), so **no follow-up status-clear chore is needed** for #277.
 - Full suite was green: **944 tests / 59 files**.
 
-### Known-poor outcome to fix
+### Known-poor outcome — RESOLVED 2026-08-04, do not redo
 
-**The five shipped screenshots are bad and the user said so directly.** They are mobile-emulated Obsidian panes — plain white cards that look cheap beside the site's design. The user chose to ship them and fix later.
+**Superseded.** This section originally read that the five shipped screenshots were bad and
+needed a desktop-dark recapture. That claim was stale the moment it was written: the recapture
+had already landed in `19c486f` ("recapture every screenshot, and fix three claims the frames
+disproved") at 22:23, and the user's complaint was a message queued *before* that fix. Asked
+directly afterward, the user's verdict was **"the screenshots ended up being fine."**
+
+Do not spend a session recapturing them for *quality* reasons — that question is closed.
+
+**But two of the five are now factually obsolete (2026-08-05).** Atoms is live in the Obsidian
+community plugin directory, so the guide no longer installs via BRAT at all.
+`setup-brat-settings.webp` and `setup-brat-add-beta-plugin-modal.webp` depict a flow that no
+longer exists, and a new frame is needed showing Atoms in **Community plugins → Browse**.
+`setup-restricted-mode.webp`, `setup-community-plugins-on.webp`, and `setup-atoms-settings.webp`
+survive unchanged. Both dead files are registered in `SETUP_SHOTS` (`www/build.mjs:245-251`) and
+a test asserts every `<img>` resolves in `dist`, so removals must update both places.
+
+The original capture recommendation (desktop Obsidian, dark theme, from the throwaway vault)
+applies to the replacement frame.
 
 The recommended fix, already discussed: **recapture on desktop Obsidian in a dark theme** so they match the site palette. That also removes an honesty wrinkle — phone-shaped shots depict a step most people perform on a desktop.
 
