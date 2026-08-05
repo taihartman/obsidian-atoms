@@ -2,6 +2,7 @@
  * Shared store helpers (memory / sqlite / postgres).
  */
 import { randomBytes, createHash, timingSafeEqual } from "node:crypto";
+import { pkceChallengeS256 } from "./askHelpers.mjs";
 
 export function id(prefix) {
   return `${prefix}_${randomBytes(16).toString("hex")}`;
@@ -88,18 +89,6 @@ export const MAGIC_PEEK_MISS = Object.freeze({
  */
 
 /**
- * #240 U4 / KTD6 — `base64url(SHA-256(verifier))`, the value the plugin sends
- * at mint time. The encoding is not incidental: `src/platform/pkce.ts` emits
- * base64url, and a server that hashed to hex would refuse every device without
- * anything on either side being individually wrong.
- *
- * @param {string} verifier
- */
-export function hashVerifier(verifier) {
-  return createHash("sha256").update(String(verifier)).digest("base64url");
-}
-
-/**
  * #240 U4 step 6 — **the** verifier comparison. One comparison, two callers:
  * this unit's `POST /v1/auth/exchange` abort and U13's peek route. They must
  * never disagree, because a peek that says "usable" where the exchange would
@@ -126,7 +115,14 @@ export function verifierMatches(storedHash, presentedVerifier) {
   if (!stored) return true;
   const presented = String(presentedVerifier ?? "").trim();
   if (!presented) return false;
-  const a = Buffer.from(hashVerifier(presented));
+  // KTD6 — `base64url(SHA-256(verifier))`, the value the plugin sends at mint
+  // time. The encoding is the contract, not an implementation detail:
+  // `src/platform/pkce.ts` emits base64url, and a server that hashed to hex
+  // would refuse every device without either side being individually wrong.
+  // Hence the shared digest (#309) rather than a second one derived here.
+  // Borrow `pkceChallengeS256` only — never `verifyPkce`, whose non-S256
+  // branch is a plaintext compare this control must never accept.
+  const a = Buffer.from(pkceChallengeS256(presented));
   const b = Buffer.from(stored);
   // timingSafeEqual throws on unequal lengths, and a length difference is
   // already public (the digest length is fixed), so guard rather than compare.
