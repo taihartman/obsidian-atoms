@@ -1,0 +1,437 @@
+<!doctype html>
+<!-- Template. Do not edit www/dist/setup.html by hand. See www/build.mjs. -->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Setup · Atoms</title>
+    <meta
+      name="description"
+      content="Getting Atoms working from nothing: install it in Obsidian, capture from your phone, and ask your notes from Claude or ChatGPT."
+    />
+    <meta name="color-scheme" content="dark light" />
+    <link rel="canonical" href="https://tryatoms.app/setup" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="stylesheet" href="{{cssPath}}" />
+  </head>
+  <body>
+    <main class="legal guide">
+      <div class="wrap">
+        <a class="back" href="/">↳ Atoms</a>
+
+        <h1>Setting up Atoms</h1>
+        <p class="updated">Written against Obsidian 1.12.7 and BRAT 2.2.0.</p>
+
+        <p class="lead">
+          Three parts. Get it installed, get capture onto your phone, then wire
+          it into Claude or ChatGPT. The first part is the only one that is
+          fiddly, and it is fiddly once.
+        </p>
+
+        <nav class="guide-nav" aria-label="Setup steps">
+          <a href="#install">1 · Install</a>
+          <a href="#capture">2 · Capture</a>
+          <a href="#ask">3 · Ask</a>
+        </nav>
+
+        <!-- ---------------------------------------------------------- -->
+
+        <section id="install">
+          <h2>1 · Install</h2>
+
+          <p>
+            Atoms runs inside Obsidian, so Obsidian comes first. If you already
+            use it, start at step three. The whole thing takes about five
+            minutes, and you can do it on a computer or on your phone — the
+            menus are the same in both.
+          </p>
+
+          <h3>Get Obsidian</h3>
+          <p>
+            <a href="https://obsidian.md">Download Obsidian</a>. It is free, and
+            it is a notes app where your files live on your device as plain
+            text, not locked inside someone else's cloud.
+          </p>
+
+          <h3>Make a vault</h3>
+          <p>
+            A vault is just a folder that Obsidian watches. On first launch
+            Obsidian asks what you want to do — choose
+            <strong>Create new vault</strong>, give it a name, pick where it
+            lives, and click <strong>Create</strong>. If Obsidian is already
+            open, the vault switcher is the icon at the bottom of the left
+            sidebar.
+          </p>
+          <p class="fineprint">
+            This is the one step with no shortcut: a folder only becomes a vault
+            when Obsidian is told to treat it as one.
+          </p>
+
+          <h3>Turn on community plugins</h3>
+          <p>
+            A new vault starts in <strong>Restricted Mode</strong>, which blocks
+            every plugin. Nothing can be installed until you leave it, and it is
+            not obvious that you are in it.
+          </p>
+          <p>
+            Open <strong>Settings</strong> (the gear, bottom left) →
+            <strong>Community plugins</strong>. Past the wall of security
+            warnings there is one button:
+            <strong>Turn on community plugins</strong>.
+          </p>
+
+          <figure class="shot">
+            <img
+              src="/setup-restricted-mode.webp"
+              alt="Obsidian's Community plugins settings in Restricted Mode, with the Turn on community plugins button at the bottom"
+              width="780"
+              height="1688"
+              loading="lazy"
+            />
+            <figcaption>
+              Restricted Mode. The button you want is at the bottom.
+            </figcaption>
+          </figure>
+
+          <p>
+            The pane changes once you do. Now it offers
+            <strong>Browse</strong> and tells you that you have 0 plugins
+            installed.
+          </p>
+
+          <figure class="shot">
+            <img
+              src="/setup-community-plugins-on.webp"
+              alt="The same settings pane after leaving Restricted Mode, now showing a Browse button and zero installed plugins"
+              width="780"
+              height="1688"
+              loading="lazy"
+            />
+            <figcaption>After. Browse is what you want next.</figcaption>
+          </figure>
+
+          <h3>Install BRAT</h3>
+          <p>
+            Atoms is not in Obsidian's plugin directory yet, so it is installed
+            through <a href="https://obsidian.md/plugins?id=obsidian42-brat">BRAT</a>,
+            a plugin whose whole job is installing other plugins from GitHub and
+            keeping them current.
+          </p>
+          <p>
+            Hit <strong>Browse</strong>, search <span class="mono">BRAT</span>,
+            and install the one called <strong>BRAT</strong> by TfTHacker. Enable
+            it if it does not enable itself.
+          </p>
+
+          <h3>Point BRAT at Atoms</h3>
+          <p>
+            Open <strong>Settings → BRAT</strong> and press
+            <strong>Add beta plugin</strong>, the button under
+            <strong>Beta plugin list</strong>. On a computer the command
+            palette does the same thing:
+            <span class="mono">Ctrl/Cmd + P</span>, then
+            <strong>BRAT: Plugins: Add a beta plugin for testing</strong>. In
+            the box that appears, paste exactly:
+          </p>
+          <p class="guide-paste">
+            <span class="mono">taihartman/obsidian-atoms</span>
+          </p>
+          <p>
+            The field's own example shows a full GitHub address, and that form
+            works too — <span class="mono">owner/repository</span> is simply
+            less to type. Then open the version dropdown, which starts on
+            <strong>Select a version</strong>, and choose
+            <strong>Latest version</strong>. Ignore the optional GitHub token,
+            leave <strong>Enable after installing the plugin</strong> ticked,
+            and press <strong>Add plugin</strong>.
+          </p>
+
+          <figure class="shot">
+            <img
+              src="/setup-brat-add-beta-plugin-modal.webp"
+              alt="BRAT's Add beta plugin dialog, with a Repository field, a version selector set to Latest version, and an Enable after installing checkbox"
+              width="780"
+              height="1688"
+              loading="lazy"
+            />
+            <figcaption>
+              Paste the repository, choose Latest version, leave the tick, then
+              Add plugin.
+            </figcaption>
+          </figure>
+
+          <p>
+            BRAT downloads Atoms and switches it on for you. There is no separate
+            step to enable it. If it somehow arrives switched off, it is under
+            <strong>Settings → Community plugins → Installed plugins</strong>.
+          </p>
+
+          <h3>Check it worked</h3>
+          <p>
+            Open <strong>Settings → Atoms</strong>. If you see a version number
+            at the top, you are done with the hard part.
+          </p>
+
+          <figure class="shot">
+            <img
+              src="/setup-atoms-settings.webp"
+              alt="The Atoms settings pane, showing a version number at the top followed by the Capture section"
+              width="780"
+              height="1688"
+              loading="lazy"
+            />
+            <figcaption>
+              A version number here means Atoms is installed and running.
+            </figcaption>
+          </figure>
+
+          <p>
+            Same screen is where you add your own Anthropic API key, or start a
+            trial and let us handle the key.
+            {{trialFinePrint}}
+          </p>
+
+          <h3>Staying up to date</h3>
+          <p>
+            Atoms ships often, and BRAT already handles it:
+            <strong>Auto-update plugins at startup</strong> is on by default
+            under <strong>Settings → BRAT</strong>, so new versions arrive the
+            next time Obsidian starts. There is nothing to switch on — just know
+            that is where it lives. If you would rather decide for yourself,
+            turn it off and run BRAT's <strong>Check for updates</strong> by
+            hand.
+          </p>
+
+          <figure class="shot">
+            <img
+              src="/setup-brat-settings.webp"
+              alt="BRAT's settings pane showing toggles including auto-enable after installation and auto-update plugins at startup"
+              width="780"
+              height="1688"
+              loading="lazy"
+            />
+            <figcaption>
+              Auto-update at startup, already on. This is just where it lives.
+            </figcaption>
+          </figure>
+        </section>
+
+        <!-- ---------------------------------------------------------- -->
+
+        <section id="capture">
+          <h2>2 · Capture</h2>
+
+          <p>
+            Atoms only sorts what you actually wrote down, so capture has to be
+            faster than the thought. The rule is one line, no filing, no
+            deciding — you dump it, and Atoms works out later what it was.
+          </p>
+          <p>
+            Anywhere you can type into your daily note, you can capture: a
+            top-level bullet like
+            <span class="mono">- ordered the wrong lens again</span> is all a
+            capture is. The phone Shortcut just makes that fast enough to use
+            while walking.
+          </p>
+
+          <h3>iPhone and iPad</h3>
+          <p>
+            The plugin can install the Shortcut for you. Open
+            <strong>Settings → Atoms → Capture</strong> and tap
+            <strong>Install Capture Atom</strong>. That opens the shared
+            Shortcut; Shortcuts still asks you to confirm before adding it.
+          </p>
+          <p>
+            Then put it somewhere you will actually reach: add it to your Home
+            Screen, assign it to the Action Button, or set it as a Back Tap under
+            <strong>Settings → Accessibility → Touch → Back Tap</strong>. A
+            capture you have to go looking for is a capture you will not make.
+          </p>
+          <p>
+            Running it asks whether you want to type or dictate, then writes one
+            timestamped line into
+            <span class="mono">Atoms System/Inbox.md</span>. Next time Obsidian
+            opens, each line moves into the daily note for the date it was
+            captured. Nothing is deleted, and captures survive Obsidian being
+            force-quit.
+          </p>
+
+          <details class="guide-details">
+            <summary>Building the Shortcut by hand</summary>
+            <p>
+              Only needed if the link fails or you want to know what it does.
+              In Shortcuts, make a new shortcut named
+              <strong>Capture Atom</strong> with these actions in order.
+            </p>
+            <ol class="install">
+              <li>
+                <strong>Choose from Menu</strong> — two items,
+                <span class="mono">Type</span> and
+                <span class="mono">Voice</span>.
+              </li>
+              <li>
+                <em>Type branch:</em> <strong>Ask for Input</strong>, prompt
+                <span class="mono">What's on your mind?</span>, type Text.
+              </li>
+              <li>
+                <em>Type branch:</em> <strong>Set Variable</strong>
+                <span class="mono">Capture</span> to Provided Input.
+              </li>
+              <li><em>Voice branch:</em> <strong>Dictate Text</strong>.</li>
+              <li>
+                <em>Voice branch:</em> <strong>Set Variable</strong>
+                <span class="mono">Capture</span> to Dictated Text.
+              </li>
+              <li>
+                <strong>Replace Text</strong> — find
+                <span class="mono">\n</span>, replace with
+                <span class="mono">\n\t</span>, Regular Expression on, input
+                <span class="mono">Capture</span>.
+              </li>
+              <li>
+                <strong>Format Date</strong> — Current Date, Date Format
+                <strong>Custom</strong>, format string
+                <span class="mono">yyyy-MM-dd'T'HH:mm:ssZZZZZ</span>.
+              </li>
+              <li>
+                <strong>Text</strong> — <span class="mono">- </span> then the
+                formatted date, a space, then the replaced text. All one line.
+              </li>
+              <li>
+                <strong>Append to Bookmark</strong> (Obsidian) — bookmark
+                <strong>Atoms Inbox</strong>, Append, text from step 8.
+              </li>
+            </ol>
+            <p>
+              Two traps, both of which cost real time when this was built on
+              device. Set the format string on the
+              <strong>Format Date action</strong>, not by tapping the blue
+              Current Date chip — the chip's panel looks like the right place and
+              changes nothing. And use
+              <span class="mono">ZZZZZ</span>, not
+              <span class="mono">Z</span>: a single Z writes
+              <span class="mono">-0400</span> where the parser needs
+              <span class="mono">-04:00</span>. If your timestamps all say
+              12:00:00, the date variable got set to Date only — clear it and
+              re-insert without picking a component.
+            </p>
+          </details>
+
+          <h3>Android</h3>
+          <p>
+            There is no Android equivalent yet, and we would rather say so than
+            ship a recipe we have not run on a real device. The iOS version leans
+            on a Shortcuts action that appends to an Obsidian bookmark; Android
+            has no direct counterpart, so it needs a different design rather than
+            a translation.
+          </p>
+          <p>
+            Until then, capture the plain way: open your daily note and type a
+            top-level bullet. Atoms treats it identically — the Shortcut is a
+            convenience, not a requirement, and nothing about the sorting depends
+            on it.
+          </p>
+        </section>
+
+        <!-- ---------------------------------------------------------- -->
+
+        <section id="ask">
+          <h2>3 · Ask</h2>
+
+          <p>
+            This is the part people set up last and then use most. Once it is on,
+            you can ask Claude or ChatGPT about your own notes and get answers
+            with citations back to the atoms they came from.
+          </p>
+          <p>
+            It is off until you turn it on, and it only ever sends your atoms
+            folder — not your daily notes, and not the rest of your vault.
+          </p>
+
+          <h3>Turn on the mirror</h3>
+          <p>
+            In <strong>Settings → Atoms</strong>, switch on
+            <strong>Enable Ask mirror</strong> and accept the summary it shows
+            you. Your atoms are copied to the Atoms Plus service so an assistant
+            can search them. The copy goes one direction only: nothing is ever
+            written back over a note in your vault.
+          </p>
+
+          <h3>Add the connector</h3>
+          <p>
+            The same screen has an <strong>MCP connector URL</strong> with a
+            Copy button. It is the same address for both assistants:
+          </p>
+          <p class="guide-paste">
+            <span class="mono">https://plus.tryatoms.app/mcp</span>
+          </p>
+          <ul>
+            <li>
+              <strong>Claude</strong> — Settings → Connectors →
+              <strong>Add custom connector</strong>, then paste the URL.
+            </li>
+            <li>
+              <strong>ChatGPT</strong> — Settings → Apps &amp; connectors, turn
+              on Developer mode, add the URL, and complete the sign-in it
+              prompts for.
+            </li>
+          </ul>
+
+          <h3>Pair it</h3>
+          <p>
+            The connector's authorise page asks for a pairing code. Back in
+            <strong>Settings → Atoms</strong>, press
+            <strong>Get pairing code</strong> and paste what it gives you.
+          </p>
+          <p>
+            The code binds the connector to your Atoms Plus account, so the email
+            on your Claude or ChatGPT account does not need to match. Codes
+            expire quickly and are secrets — treat one like a password and do not
+            paste it anywhere else.
+          </p>
+
+          <h3>Then just ask</h3>
+          <p>
+            Ask the way you would ask a person who had read everything:
+            <em>what have I said about sleep this year</em>, or
+            <em>what did I think last time I tried this</em>. Answers cite the
+            atoms they came from, so you can open the note and read your own
+            words in context.
+          </p>
+          <p>
+            There is an optional
+            <strong>Allow filing from Claude or ChatGPT</strong> switch too. With
+            it on, you can tell the assistant to remember something and it queues
+            a new atom, which Obsidian writes into your vault the next time it
+            syncs.
+          </p>
+
+          <p class="fineprint">
+            What goes where, in full, is on the
+            <a href="/privacy">Privacy</a> page. Prefer to run the service
+            yourself? The DIY guide is in
+            <a
+              href="https://github.com/taihartman/obsidian-atoms/blob/master/docs/ask-self-host.md"
+              >the repository</a
+            >.
+          </p>
+        </section>
+
+        <div class="back-wrap">
+          <a class="back" href="/">↳ Back to Atoms</a>
+        </div>
+      </div>
+    </main>
+
+    <footer class="foot">
+      <div class="wrap">
+        <nav>
+          <a href="/">Atoms</a>
+          <a href="/privacy">Privacy</a>
+          <a href="/terms">Terms</a>
+          <a href="https://github.com/taihartman/obsidian-atoms">GitHub</a>
+        </nav>
+      </div>
+    </footer>
+  </body>
+</html>

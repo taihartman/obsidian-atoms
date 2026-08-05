@@ -8,6 +8,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
 
+
 ## How to claim (copy)
 
 1. Create/assign GitHub Issue  
@@ -22,6 +23,7 @@ States: `Queued` · `In progress` · `Blocked` · `In review` · `Done` (then re
 
 | Merged | Issue / PR | Summary |
 |---|---|---|
+| 2026-08-05 | #277 / #278 | `/setup` from-zero guide (install · iOS capture · Ask); landing `#install` shrinks to a pointer. **Follow-up: screenshots need recapturing on desktop dark — the shipped ones are poor** |
 | 2026-08-05 | #16 / #275 | Home Continue + pending parent handoff · **0.6.71** (community lint blockers) |
 | 2026-08-05 | #238 / #268 | Stripe reconcile + ops alerts (server-only) |
 | 2026-08-05 | #239 / #273 | First CI job that runs plus-service tests; real postgres coverage for the production store (test infra only, no plugin bump). Now a **required** check on `master` (see #238 tail) |
