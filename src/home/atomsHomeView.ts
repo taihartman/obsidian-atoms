@@ -150,6 +150,11 @@ import {
   openTodaysDaily,
 } from "../pipeline/daily";
 import {
+  dailyNotesFingerprint,
+  listSkippedLibraryEntries,
+  type SkippedLibraryEntry,
+} from "./skippedLibrary";
+import {
   INBOX_NOTE_PATH,
   inboxCounts,
   type InboxCounts,
@@ -176,7 +181,7 @@ const LS_UPDATE_NOTES_DISMISSED_Q = "atoms-update-notes-dismissed-q";
 const LS_ENTITY_INVITE_SNOOZE = "atoms-entity-invite-snooze";
 const LS_PERSON_INVITE_SNOOZE = "atoms-person-invite-snooze";
 
-type FilterMode = "all" | "linked";
+type FilterMode = "all" | "linked" | "skipped";
 
 /**
  * Undocumented core settings modal — used by many plugins to deep-link.
@@ -203,6 +208,9 @@ export class AtomsHomeView extends ItemView {
   plugin: AtomsPlugin;
   private filter: FilterMode = "all";
   private entries: AtomLibraryEntry[] = [];
+  private skippedEntries: SkippedLibraryEntry[] = [];
+  /** Daily path:mtime fingerprint; skip full Skipped re-scan when unchanged. */
+  private skippedFingerprint: string | null = null;
   private unprocessedCount = 0;
   /** Captures stuck in the capture inbox (drain health), null when clear. */
   private inboxStuck: InboxStuckSummary | null = null;
@@ -670,11 +678,21 @@ export class AtomsHomeView extends ItemView {
       const iso = `${y}-${m}-${d}`;
       const todayNote = withToday.notes.find((n) => n.date === iso);
       this.todayUnprocessedCount = todayNote?.unprocessed.length ?? 0;
+
+      const fp = dailyNotesFingerprint(this.app);
+      if (fp != null && fp === this.skippedFingerprint) {
+        /* keep this.skippedEntries */
+      } else {
+        this.skippedEntries = await listSkippedLibraryEntries(this.app);
+        this.skippedFingerprint = fp;
+      }
     } catch (e) {
       if (e instanceof DailyNotesDisabledError) {
         this.unprocessedCount = 0;
         this.todayUnprocessedCount = 0;
         this.peek = [];
+        this.skippedEntries = [];
+        this.skippedFingerprint = null;
       } else {
         throw e;
       }
@@ -722,9 +740,34 @@ export class AtomsHomeView extends ItemView {
   }
 
   private visibleEntries(): AtomLibraryEntry[] {
+    if (this.filter === "skipped") return [];
     return this.filter === "linked"
       ? filterLinkedOnly(this.entries)
       : this.entries;
+  }
+
+  private onReconsiderSkipped(entry: SkippedLibraryEntry): void {
+    void this.plugin.runReconsiderFromSkipped({
+      path: entry.path,
+      startLine: entry.startLine,
+      snippet: entry.snippet,
+      text: entry.text,
+    });
+  }
+
+  private showSkippedRowMenu(entry: SkippedLibraryEntry, ev: MouseEvent): void {
+    const menu = new Menu();
+    menu.addItem((i) =>
+      i
+        .setTitle("Open daily")
+        .onClick(() => void this.openPathInVault(entry.path)),
+    );
+    menu.addItem((i) =>
+      i
+        .setTitle("Try filing…")
+        .onClick(() => this.onReconsiderSkipped(entry)),
+    );
+    menu.showAtMouseEvent(ev);
   }
 
   private refreshResurfacePick(folder?: string): void {
@@ -2248,7 +2291,7 @@ export class AtomsHomeView extends ItemView {
     }
 
     // Library — secondary surface
-    if (!firstDay || this.entries.length > 0) {
+    if (!firstDay || this.entries.length > 0 || this.skippedEntries.length > 0) {
       const libHead = scroll.createDiv({ cls: "atoms-home-lib-head" });
       sectionLabel(libHead, "Library", {
         className: "atoms-home-section",
@@ -2258,6 +2301,7 @@ export class AtomsHomeView extends ItemView {
         modes: [
           { id: "all", label: "All" },
           { id: "linked", label: "Linked" },
+          { id: "skipped", label: "Skipped" },
         ],
         active: this.filter,
         onChange: (id) => {
@@ -2265,6 +2309,14 @@ export class AtomsHomeView extends ItemView {
           this.render();
         },
       });
+    }
+
+    for (const d of this.libraryPressDetach) d();
+    this.libraryPressDetach = [];
+
+    if (this.filter === "skipped") {
+      this.renderSkippedLibrary(scroll, firstDay);
+      return;
     }
 
     const visible = this.visibleEntries();
@@ -2286,8 +2338,6 @@ export class AtomsHomeView extends ItemView {
         });
       }
     } else {
-      for (const d of this.libraryPressDetach) d();
-      this.libraryPressDetach = [];
       const list = listGroup(scroll, { className: "atoms-home-list" });
       const now = Date.now();
       for (const e of visible) {
@@ -2339,6 +2389,78 @@ export class AtomsHomeView extends ItemView {
           text: formatRelativeTime(e.mtime, now),
         });
       }
+    }
+  }
+
+  private renderSkippedLibrary(scroll: HTMLElement, firstDay: boolean): void {
+    const rows = this.skippedEntries;
+    if (!rows.length) {
+      const empty = scroll.createDiv({ cls: "atoms-home-empty" });
+      if (!appHasDailyNotesPluginLoaded()) {
+        empty.createEl("p", {
+          text: "Enable Daily Notes to list set-aside captures.",
+        });
+      } else if (firstDay && this.entries.length === 0) {
+        empty.createEl("p", {
+          text: "Set-aside daily lines land here after Process.",
+        });
+      } else {
+        empty.createEl("p", { text: "Nothing set aside." });
+        empty.createEl("p", {
+          cls: "atoms-home-empty-hint",
+          text: "Daily lines Process skipped (not filed notes). Hold a row to try filing as a note.",
+        });
+      }
+      return;
+    }
+
+    scroll.createEl("p", {
+      cls: "atoms-home-empty-hint",
+      text: "Set-aside daily lines — hold to try filing · tap opens the daily",
+    });
+
+    const list = listGroup(scroll, { className: "atoms-home-list" });
+    const now = Date.now();
+    for (const e of rows) {
+      const row = listRow(list, {
+        className: "atoms-home-cell",
+        role: "button",
+      });
+      row.setAttr("tabindex", "0");
+      row.setAttr("title", e.snippet);
+      row.style.touchAction = "manipulation";
+      this.libraryPressDetach.push(
+        attachLongPress(row, {
+          onTap: () => {
+            void this.openPathInVault(e.path);
+          },
+          onLongPress: () => {
+            this.onReconsiderSkipped(e);
+          },
+          contextMenuAsLongPress: false,
+        }),
+      );
+      row.addEventListener("contextmenu", (ev) => {
+        ev.preventDefault();
+        this.showSkippedRowMenu(e, ev);
+      });
+      row.addEventListener("keydown", (ev) => {
+        if (ev.key === "Enter" || ev.key === " ") {
+          ev.preventDefault();
+          void this.openPathInVault(e.path);
+        }
+      });
+      const main = row.createDiv({ cls: "atoms-home-cell-main" });
+      main.createDiv({ cls: "atoms-home-cell-title", text: e.snippet });
+      const meta = main.createDiv({ cls: "atoms-home-cell-meta" });
+      meta.createSpan({
+        cls: "atoms-home-cell-source",
+        text: formatCueDate(e.date),
+      });
+      row.createDiv({
+        cls: "atoms-home-cell-time",
+        text: formatRelativeTime(e.sortKey, now),
+      });
     }
   }
 

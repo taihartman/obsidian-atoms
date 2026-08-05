@@ -7,8 +7,9 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| In review | [#294](https://github.com/taihartman/obsidian-atoms/issues/294) | taihartman | `fix/capture-shortcut-link-optional` | amend lane (no plan doc) | `src/settings/captureShortcut.ts`, `src/settings/settings.ts`, `src/home/atomsHomeView.ts` | Custom shortcut link is optional; every shipped built-in URL now un-pins. **Prepend, never append**, to `BUILTIN_INSTALL_URLS` when the link moves — the constant is its head |
-| In progress | [#240](https://github.com/taihartman/obsidian-atoms/issues/240) | taihartman (agent) | `feat/240-magic-link-handoff` | [`docs/plans/2026-08-05-240-feat-magic-link-plugin-handoff-plan.md`](docs/plans/2026-08-05-240-feat-magic-link-plugin-handoff-plan.md) | `src/platform/filingAuth.ts`, plus-service token exchange + landing page (settled by `ce-plan`) | Magic-link handoff replacing token copy/paste. **Implementation-ready plan, 13 units**; two doc-review rounds folded (round 1 F1–F29, round 2 16 findings). KD4 is peek → confirm → exchange, so cancel is inert; `GET /v1/auth/dev-exchange` is deleted. No implementation yet — `ce-work` next. Release gate is human-only: `obsidian://` from an in-app browser on iOS + Android |
+| In progress | [#287](https://github.com/taihartman/obsidian-atoms/issues/287) | taihartman | `feat/library-skipped-filter` | [plan](docs/plans/2026-08-05-002-feat-library-skipped-filter-plan.md) | `src/home/atomsHomeView.ts`, `src/home/skippedLibrary.ts`, `src/pipeline/reconsider.ts` | Library Skipped + try filing (Reconsider); Plus/BYOK · **0.6.77** |
+| In review | [#309](https://github.com/taihartman/obsidian-atoms/issues/309) | taihartman | `claude/optimistic-pascal-01fam8` | mechanical lane — no plan | `plus-service/src/store/askHelpers.mjs`, `plus-service/test/pkce-digest.test.mjs` | One PKCE S256 digest + encoding pin. Server-only, no plugin bump. **#240 must import `pkceChallengeS256`** — its plan said hex for `verifier_hash` (fixed on `feat/240-magic-link-handoff`) |
+| In progress | [#240](https://github.com/taihartman/obsidian-atoms/issues/240) | taihartman (agent) | `feat/240-magic-link-handoff` | [`docs/plans/2026-08-05-240-feat-magic-link-plugin-handoff-plan.md`](docs/plans/2026-08-05-240-feat-magic-link-plugin-handoff-plan.md) | `plus-service/src/{server.mjs,store/*}`, `src/platform/{pkce,plusClient,filingAuth}.ts`, `src/settings/settings.ts` | Magic-link handoff. **10 of 13 units done** — server lane complete (U1-U6, U13, 465 green), plugin U7/U8/U11 done (1001 green). **Left: U9, U10, U12** + shipping tail. Round-3 correction merged: `verifier_hash` is base64url — our `hashVerifier` already is, but it **duplicates `pkceChallengeS256` (#309) and must import it instead**. Postgres never ran locally (CI only); deliberate-mutation checks all blocked by the permission classifier. Release gate is human-only and now **hard-blocks the release**: iOS **and** Android |
 
 ## How to claim (copy)
 
@@ -24,6 +25,9 @@ States: `Queued` · `In progress` · `Blocked` · `In review` · `Done` (then re
 
 | Merged | Issue / PR | Summary |
 |---|---|---|
+| 2026-08-05 | #301 / #302 | Hero shows the loop closing — capture beat per storyline + promoted sub-line; verbatim match guarded by test (www-only) |
+| 2026-08-05 | #299 / #300 | `/setup` installs from the community directory, not BRAT; adds the Open Atoms step; guide tightened 1582→1332 words (www-only, no plugin bump) |
+| 2026-08-05 | #294 / #295 | Custom capture-shortcut link is optional, not a setup step · **0.6.76**. **Prepend, never append**, to `BUILTIN_INSTALL_URLS` when the link moves — the constant is its head |
 | 2026-08-05 | #288 / #289 | Library tap=vault; long-press Continue · **0.6.73** |
 | 2026-08-05 | #280 #282 / #281 | One "Atoms Plus is ready" notice per checkout, not one per in-flight poll; resume listeners tied to the plugin lifecycle · **0.6.72**. **#241 must land on top of this** — widening the poll window without the atomic announce is #280 again |
 | 2026-08-05 | #277 / #278 | `/setup` from-zero guide (install · iOS capture · Ask); landing `#install` shrinks to a pointer. **Follow-up: screenshots need recapturing on desktop dark — the shipped ones are poor** |

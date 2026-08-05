@@ -4,10 +4,25 @@
 import { createHash, randomInt } from "node:crypto";
 import { contentHash, decryptMirrorField, encryptMirrorField } from "../mirror/crypto.mjs";
 
+/**
+ * PKCE S256 verification for the Ask OAuth authorization code.
+ *
+ * The digest itself lives in `pkceChallengeS256` — the single home for
+ * "SHA-256, base64url" in this service. Any new verifier-style comparison
+ * (e.g. the #240 magic-link device verifier) must call that helper rather
+ * than re-deriving the digest, or the two encodings drift apart and a
+ * security compare silently starts answering false. `hashToken` in
+ * `store/shared.mjs` is sha256 **hex** and is not interchangeable with it.
+ *
+ * The `method !== "S256"` branch is a plaintext compare and exists only for
+ * rows whose stored method is not S256. It is unreachable over HTTP today:
+ * `/authorize` rejects any other method (`oauth/routes.mjs:180`) and the AS
+ * metadata advertises S256 only. Do not widen it, and do not reuse this
+ * function for a control that must never accept a plaintext compare.
+ */
 export function verifyPkce(codeVerifier, challenge, method = "S256") {
   if (method !== "S256") return challenge === codeVerifier;
-  const dig = createHash("sha256").update(codeVerifier).digest("base64url");
-  return dig === challenge;
+  return pkceChallengeS256(codeVerifier) === challenge;
 }
 
 /** Pair code TTL (KTD2). */
@@ -40,7 +55,16 @@ export function normalizePairCodeInput(raw) {
     .toUpperCase();
 }
 
-/** S256 code_challenge for tests / authorize. */
+/**
+ * The one PKCE S256 digest in this service: SHA-256 of the verifier,
+ * **base64url** (RFC 7636 §4.2). Used to mint a code_challenge and, via
+ * `verifyPkce`, to check one.
+ *
+ * The encoding is the contract, not an implementation detail — a caller that
+ * hashes hex and a caller that hashes base64url never match, and the failure
+ * shows up as a refused sign-in rather than as an error. `test/pkce-digest.test.mjs`
+ * pins it against the RFC vector and fails if it drifts to hex.
+ */
 export function pkceChallengeS256(verifier) {
   return createHash("sha256").update(verifier).digest("base64url");
 }

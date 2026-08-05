@@ -84,6 +84,7 @@ import {
   missNotice,
 } from "../pipeline/reconsider";
 import { ReconsiderModal } from "../pipeline/reconsiderModal";
+import { resolveSkippedCapture } from "../pipeline/reconsider";
 import { runWritePath, type WritePathReport } from "../pipeline/write";
 import type { ClassificationResult } from "../shared/types";
 import { mergeProposedTags } from "../pipeline/vocabulary";
@@ -1980,7 +1981,7 @@ export default class AtomsPlugin extends Plugin {
 
   /**
    * Soft-unfreeze: reclassify one noise/task capture under the cursor.
-   * Gated by settings.enableReconsiderCapture (default off).
+   * Command palette path — gated by settings.enableReconsiderCapture (default off).
    */
   async runReconsiderCapture() {
     if (!this.settings.enableReconsiderCapture) {
@@ -1996,10 +1997,40 @@ export default class AtomsPlugin extends Plugin {
 
     const file = view.file;
     const content = view.editor.getValue();
-    const cursor = view.editor.getCursor();
-    const line0 = cursor.line;
-
+    const line0 = view.editor.getCursor().line;
     const capture = findCaptureAtLine(content, line0);
+    await this.runReconsiderForCapture(file, capture);
+  }
+
+  /**
+   * Library Skipped row: try filing now (same Reconsider modal).
+   * Always available from home — no experimental flag (deliberate list gesture).
+   */
+  async runReconsiderFromSkipped(opts: {
+    path: string;
+    startLine: number;
+    snippet: string;
+    text?: string;
+  }): Promise<void> {
+    const file = this.app.vault.getAbstractFileByPath(opts.path);
+    if (!(file instanceof TFile)) {
+      new Notice(missNotice());
+      return;
+    }
+    const content = await this.app.vault.cachedRead(file);
+    const capture = resolveSkippedCapture(content, {
+      startLine: opts.startLine,
+      snippet: opts.snippet,
+      text: opts.text,
+    });
+    await this.runReconsiderForCapture(file, capture);
+  }
+
+  /** Shared classify → modal → Apply / Keep anyway for one skipped capture. */
+  private async runReconsiderForCapture(
+    file: TFile,
+    capture: ReturnType<typeof findCaptureAtLine>,
+  ): Promise<void> {
     const gate = gateReconsiderTarget(capture);
     if (!gate.ok) {
       if (gate.reason === "atom") {
@@ -2010,8 +2041,9 @@ export default class AtomsPlugin extends Plugin {
       return;
     }
 
-    const apiKey = this.requireApiKey();
-    if (!apiKey) return;
+    // Same auth as Process: BYOK or Atoms Plus (not BYOK-only).
+    const classifyAuth = this.requireClassifyAuth();
+    if (!classifyAuth) return;
 
     const nowKind = gate.capture.markerKind!;
     const loading = new ReconsiderModal(this.app, {
@@ -2024,11 +2056,14 @@ export default class AtomsPlugin extends Plugin {
 
     try {
       const ctx = this.contextProvider.buildContext();
+      const shortlist = shortlistOptionsFromSettings(this.settings);
       const outcome = await classifyCapture(gate.capture.text, ctx, {
-        apiKey,
+        apiKey: classifyAuth.apiKey,
         model: this.settings.model,
         activeVocabulary: this.settings.activeVocabulary,
         maxAttempts: 2,
+        plus: classifyAuth.plus,
+        ...shortlist,
         onAuthFailure: (msg) => new Notice(`Atoms: ${msg}`),
       });
 
@@ -2061,6 +2096,8 @@ export default class AtomsPlugin extends Plugin {
         if (!report.ok) {
           if (report.reason === "collision") {
             new Notice(collisionNotice());
+          } else if (report.reason === "stale") {
+            new Notice("Capture changed — open the daily and try again");
           } else if (report.reason === "no_change") {
             /* Apply should have been disabled */
           } else {

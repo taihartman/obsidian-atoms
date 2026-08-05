@@ -245,9 +245,9 @@ const PAGES = ["index", "privacy", "terms", "setup", "404"];
 const SETUP_SHOTS = [
   "setup-restricted-mode.webp",
   "setup-community-plugins-on.webp",
-  "setup-brat-settings.webp",
-  "setup-brat-add-beta-plugin-modal.webp",
+  "setup-community-browse-atoms.webp",
   "setup-atoms-settings.webp",
+  "setup-atoms-home.webp",
 ];
 
 const ASSETS = [

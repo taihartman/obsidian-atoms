@@ -322,23 +322,24 @@ describe("honesty floor", () => {
     }
   });
 
-  it("explains Obsidian before BRAT for newcomers", () => {
-    // The guarantee is that nobody meets the word BRAT before learning Atoms
-    // needs Obsidian and where to get it. The steps themselves moved to
-    // /setup, so the landing page owns the handoff and the guide owns the
-    // explanation — but between them the promise is unchanged.
+  it("explains Obsidian before asking anyone to install anything", () => {
+    // The guarantee is that nobody is sent to install something before learning
+    // Atoms needs Obsidian and where to get it. This used to be phrased against
+    // the word BRAT; the install route changed but the promise did not.
     const install = index.slice(
       index.indexOf('id="install"'),
       index.indexOf('id="privacy-summary"'),
     );
     expect(install).toContain("https://obsidian.md");
-    expect(install).toContain("BRAT");
+    expect(install).toContain("plugin directory");
     expect(install).toContain('href="/setup"');
     expect(index).toContain("New to Obsidian (free)?");
 
     const guide = flatten(dist("setup.html"));
     expect(guide).toContain("Download Obsidian");
-    expect(guide.indexOf("Obsidian")).toBeLessThan(guide.indexOf("BRAT"));
+    expect(guide.indexOf("Obsidian")).toBeLessThan(
+      guide.indexOf("Install Atoms"),
+    );
   });
 
   it("says Atoms is an Obsidian plugin above the fold", () => {
@@ -429,6 +430,26 @@ describe("recall claims stay within what ships", () => {
     expect(index.toLowerCase()).not.toContain("remind me");
   });
 
+  it("shows the same sentence going in and coming back, in every story", () => {
+    // The hero visual argues one thing: what you typed is what comes back,
+    // unedited. That argument is carried entirely by the two copies of the
+    // sentence being identical, so a copy edit to one of them turns the
+    // picture into a lie. Nothing else on the page would catch it.
+    const raw = dist("index.html");
+    const panels = [...raw.matchAll(/<div class="hero-panel" data-s="(\w+)">([\s\S]*?)<\/div>\s*<\/div>\s*<\/div>/g)];
+    expect(panels.length, "hero panels not found").toBe(3);
+    for (const [, story, html] of panels) {
+      const norm = (s: string | undefined) =>
+        s?.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
+      const typed = norm(html.match(/<p class="loop-note">([\s\S]*?)<\/p>/)?.[1])
+        ?.replace(/^-\s*/, "");
+      const returned = norm(html.match(/<blockquote>([\s\S]*?)<\/blockquote>/)?.[1]);
+      expect(typed, `${story}: no capture line`).toBeTruthy();
+      expect(returned, `${story}: no quoted answer`).toBeTruthy();
+      expect(typed, `${story}: capture and quote drifted apart`).toBe(returned);
+    }
+  });
+
   it("shows the graph inferring, not just matching", () => {
     // The hero question never mentions flowers; the link walk finds them.
     expect(index).toContain("gift ideas for Sam?");
@@ -510,13 +531,27 @@ describe("setup guide", () => {
     expect(setup).toContain("Turn on community plugins");
   });
 
-  it("gives the exact string to paste into BRAT", () => {
-    expect(setup).toContain("taihartman/obsidian-atoms");
-    // BRAT's own placeholder models a full https://GitHub.com/... address and
-    // accepts it, so the page must not claim a URL is wrong — it only says the
-    // short form is less to type. A .git clone URL is a different thing and is
-    // not what the field wants.
-    expect(setup).not.toContain("obsidian-atoms.git");
+  it("installs from the plugin directory, with no BRAT left anywhere", () => {
+    // Atoms shipped to the community directory, which made the BRAT walkthrough
+    // actively misdirecting — it sent every new reader to install a beta-plugin
+    // manager they do not need. This guards the whole path, not one string: a
+    // partial revert that leaves one BRAT step behind is the same defect.
+    expect(setup).not.toMatch(/brat/i);
+    expect(index).not.toMatch(/brat/i);
+    expect(setup).toContain("Install Atoms");
+  });
+
+  it("shows how to actually open Atoms, on both platforms", () => {
+    // The guide used to end at "a version number means it is installed", so a
+    // reader could finish the page having never seen the product. Desktop has
+    // the ribbon (src/plugin/main.ts), mobile has no ribbon at all.
+    expect(setup).toContain("Open Atoms");
+    expect(setup).toContain("Atoms: Open home");
+    expect(setup).toMatch(/no ribbon/i);
+    // The first draft said the phone's tab picker sits along the top. The
+    // captured frame disproved it — .workspace-drawer-tab-select renders at
+    // y=700 of an 844pt viewport. Guard the corrected direction.
+    expect(setup).toContain("view picker near the bottom");
   });
 
   it("publishes the same MCP connector URL the plugin hands out", () => {
