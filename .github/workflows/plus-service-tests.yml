@@ -1,0 +1,87 @@
+# #239 — the first CI job that runs plus-service tests at all.
+#
+# Before this, `release.yml` ran the root vitest suite on version tags and
+# nothing ran plus-service. Its tests gate pull requests from here on, and the
+# postgres rows run against a real server rather than memory or sqlite.
+name: plus-service tests
+
+on:
+  pull_request:
+    paths:
+      - "plus-service/**"
+      - ".github/workflows/plus-service-tests.yml"
+  push:
+    branches: [master]
+    paths:
+      - "plus-service/**"
+      - ".github/workflows/plus-service-tests.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    # KTD1 — a real postgres. The bugs this job exists to catch are
+    # engine-behaviour bugs (parameter binding, ON CONFLICT, TIMESTAMPTZ), so a
+    # JS reimplementation that accepts a query real postgres rejects would be a
+    # green check that means nothing.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: atoms
+          POSTGRES_PASSWORD: atoms
+          POSTGRES_DB: atoms_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U atoms -d atoms_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    defaults:
+      run:
+        working-directory: plus-service
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          # node:sqlite (src/store/sqlite.mjs) needs >= 22.5
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: plus-service/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Test — memory, sqlite, and postgres
+        run: npm test
+        env:
+          TEST_DATABASE_URL: postgres://atoms:atoms@localhost:5432/atoms_test
+          # DATABASE_URL is deliberately NOT set. createStore promotes a
+          # `memory` request to postgres when isProduction() and DATABASE_URL
+          # are both true (src/store.mjs), which would silently re-point the
+          # existing createStore-memory rows at the test database.
+
+      # KTD3 — the postgres rows are opt-in on TEST_DATABASE_URL, which makes
+      # "no coverage" and "coverage passing" look identical from outside. If
+      # that variable is ever renamed or dropped, the rows must not quietly
+      # vanish behind a green check. This step proves the guard fires.
+      - name: Guard — a CI run with no database must fail loudly, not skip
+        env:
+          TEST_DATABASE_URL: ""
+        run: |
+          if npm test > /tmp/guard.log 2>&1; then
+            echo "::error::plus-service tests PASSED with no TEST_DATABASE_URL — the postgres rows skipped silently and postgres is untested"
+            exit 1
+          fi
+          grep -q "TEST_DATABASE_URL" /tmp/guard.log \
+            || { echo "::error::run failed, but not for the expected missing-database reason"; exit 1; }
+          echo "Guard OK — the run failed and named TEST_DATABASE_URL."

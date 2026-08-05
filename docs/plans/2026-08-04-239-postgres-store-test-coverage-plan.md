@@ -168,6 +168,24 @@ Each unit is test-first: the test is written, run, and confirmed failing before 
 - U5's deliberate break → red; revert → green. Both pasted in the PR.
 - CI job green on the draft PR before review.
 
+## What changed once the branch was cut off master
+
+Three corrections to the plan above, recorded rather than silently absorbed.
+
+1. **`stripe_incidents` is not on master.** #238 is still open as PR #268, so this branch sees **two**
+   parameterised billing suites (`trial-checkout-session`, `security-auth-criticals`), not three, and
+   the baseline is **241 tests**, not the 319 the #238 branch reports. Branching off master keeps
+   #239 independently mergeable; the cost is that `stripe-incidents.test.mjs` needs its postgres row
+   added by whichever of the two PRs merges second. Noted on both PRs.
+2. **The close-hygiene gap was smaller than the review reported.** The file-wide counts (9 tests /
+   5 closes, 7 / 5) were accurate, but every test *inside* `runStoreSuite` already creates and
+   closes. The unclosed ones sit outside the parameterised suites and only ever construct memory
+   stores, so they never hold a postgres pool. No fix was needed — the claim was verified rather
+   than acted on.
+3. **U3 became an extraction, not three parallel edits.** `withStore` was byte-identical in all
+   three ask files, so the KTD6 fix lives once in `test/helpers/askStore.mjs` instead of three
+   times. That is what makes the silent fallback unrepeatable rather than merely repaired.
+
 ## Known residual risk
 
 A bare per-schema `search_path` drops `public` from the path. Verified that no SQL in

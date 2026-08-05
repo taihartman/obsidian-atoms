@@ -1,6 +1,6 @@
 import { describe, it, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { createStore } from "../src/store.mjs";
+import { askStoreModes, withStore } from "./helpers/askStore.mjs";
 import { pkceChallengeS256 } from "../src/store/askHelpers.mjs";
 import {
   decryptMirrorField,
@@ -9,25 +9,12 @@ import {
 
 const RESOURCE = "https://plus.tryatoms.app/mcp";
 
-async function withStore(mode, fn) {
-  const opts =
-    mode === "sqlite"
-      ? { mode: "sqlite", path: ":memory:" }
-      : { mode: "memory" };
-  const store = await createStore(opts);
-  try {
-    await fn(store);
-  } finally {
-    if (store.close) store.close();
-  }
-}
-
 function seedAccount(store, email, status = "active") {
   return store.grantPeriod(email, { remaining: 150, status, plan: "monthly" });
 }
 
 describe("ask mirror + mcp store", () => {
-  for (const mode of ["memory", "sqlite"]) {
+  for (const mode of askStoreModes()) {
     describe(mode, () => {
       it("upsert then fetch verbatim body", async () => {
         await withStore(mode, async (store) => {
@@ -258,7 +245,7 @@ describe("ask mirror + mcp store", () => {
     }
   });
 
-  for (const mode of ["memory", "sqlite"]) {
+  for (const mode of askStoreModes()) {
     describe(`pair codes (${mode})`, () => {
       it("mint then redeem once; remint invalidates prior", async () => {
         await withStore(mode, async (store) => {

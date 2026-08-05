@@ -7,6 +7,7 @@ import assert from "node:assert/strict";
 import { createMemoryStore } from "../src/store/memory.mjs";
 import { createSqliteStore } from "../src/store/sqlite.mjs";
 import { createStore } from "../src/store.mjs";
+import { postgresStoreRows } from "./helpers/postgresTestStore.mjs";
 
 process.env.DOGFOOD_AUTO_GRANT = "0";
 process.env.ATOMS_PLUS_ENV = "development";
@@ -172,6 +173,9 @@ function runStoreSuite(name, create) {
 runStoreSuite("memory", () => createMemoryStore());
 runStoreSuite("sqlite", () => createSqliteStore(":memory:"));
 runStoreSuite("createStore-memory", () => createStore({ mode: "memory" }));
+// #239 — the production store, when a database is available. Absent locally;
+// absent in CI is a hard failure, not a skip. See helpers/postgresTestStore.mjs.
+for (const [name, create] of postgresStoreRows()) runStoreSuite(name, create);
 
 describe("H1 exchange HTML escaping", () => {
   it("escapes email and session in exchange page", async () => {
