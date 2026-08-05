@@ -7,6 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
+| In progress | [#301](https://github.com/taihartman/obsidian-atoms/issues/301) | taihartman | `feat/hero-capture-loop` | light lane (no plan doc) | `www/src/index.html.tmpl`, `www/src/styles.css`, `test/wwwPricing.test.ts` | Hero shows the loop closing: capture beat + promoted sub-line. **The capture beat must switch with the storyline** — a tulip capture over a Priya answer breaks the verbatim match the visual exists to prove |
 | In review | [#294](https://github.com/taihartman/obsidian-atoms/issues/294) | taihartman | `fix/capture-shortcut-link-optional` | amend lane (no plan doc) | `src/settings/captureShortcut.ts`, `src/settings/settings.ts`, `src/home/atomsHomeView.ts` | Custom shortcut link is optional; every shipped built-in URL now un-pins. **Prepend, never append**, to `BUILTIN_INSTALL_URLS` when the link moves — the constant is its head |
 
 ## How to claim (copy)

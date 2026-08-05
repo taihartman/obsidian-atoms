@@ -1,0 +1,26 @@
+- main [ref=f8e2]:
+  - paragraph [ref=f8e3]: Atoms · An Obsidian plugin
+  - heading "You wrote it down. You never found it again." [level=1] [ref=f8e4]: You wrote it down.You never found it again.
+  - paragraph [ref=f8e5]: A thought goes in, in five seconds, and comes back the moment it matters.
+  - generic [ref=f8e6]:
+    - generic [ref=f8e7]:
+      - generic [ref=f8e8]:
+        - generic [ref=f8e9]: Your daily note
+        - generic [ref=f8e10]: March 12 · 8:41
+      - generic [ref=f8e11]: "- sam stopped at the tulip stand again, she loves the yellow ones"
+    - paragraph [ref=f8e12]:
+      - generic [ref=f8e13]: ↓
+      - text: then, when it matters
+    - img "A Claude chat answering a question from your own notes" [ref=f8e14]:
+      - generic [ref=f8e15]:
+        - generic [ref=f8e16]: ✱
+        - text: Claude
+      - generic [ref=f8e17]:
+        - paragraph [ref=f8e18]: gift ideas for Sam?
+        - paragraph [ref=f8e19]: ⌕ searched your atoms · followed links from Sam
+        - generic [ref=f8e20]:
+          - text: "From March, in your own words:"
+          - blockquote [ref=f8e21]: sam stopped at the tulip stand again, she loves the yellow ones
+          - text: Yellow tulips would be an easy win.
+        - paragraph [ref=f8e22]: ↳ Sam loves yellow tulips · March 12
+    - paragraph [ref=f8e23]: Same words, both times. Atoms never rewrites what you wrote.
