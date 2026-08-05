@@ -114,9 +114,15 @@ people who modified the recipe:
 
 Pasting a link Atoms itself ships is treated as *no* custom link — see
 `BUILTIN_INSTALL_URLS`. Users copied the default into that field thinking it was
-required, which pinned them to whatever link was current that day. **Append the
-outgoing URL to `BUILTIN_INSTALL_URLS` whenever `CAPTURE_SHORTCUT_INSTALL_URL`
-moves**, or those users get pinned again.
+required, which pinned them to whatever link was current that day. Matching
+ignores cosmetic differences (trailing slash, host case, empty `?`/`#`), since
+those are the same shortcut wearing a different string.
+
+**To ship a new link, prepend it to `BUILTIN_INSTALL_URLS`.**
+`CAPTURE_SHORTCUT_INSTALL_URL` is the head of that list, so there is no second
+edit to forget, and `test/captureShortcut.test.ts` freezes the full shipped set —
+dropping an entry fails there rather than silently re-pinning everyone who still
+stores it.
 
 `CAPTURE_SHORTCUT_VERSION` in `src/settings/captureShortcut.ts` is the
 shipped-recipe id; the ack is device-local

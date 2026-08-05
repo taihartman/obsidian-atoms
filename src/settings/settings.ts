@@ -657,20 +657,6 @@ export class AtomsSettingTab extends PluginSettingTab {
     const custom = customCaptureShortcutUrl(
       this.plugin.settings.captureShortcutInstallUrl,
     );
-
-    // A stored link that is one of our own is not a customisation — it is the
-    // default, pasted in back when this field read as a required step. Clear it
-    // for real rather than only hiding it, so the empty box below is the truth
-    // on disk and a later edit to BUILTIN_INSTALL_URLS cannot resurrect a dead
-    // link as a custom one. Idempotent: fires once, then the value is "".
-    const storedUrl = (
-      this.plugin.settings.captureShortcutInstallUrl ?? ""
-    ).trim();
-    if (storedUrl && !custom) {
-      this.plugin.settings.captureShortcutInstallUrl = "";
-      void this.plugin.saveSettings();
-    }
-
     const installUrl = resolveCaptureShortcutInstallUrl(
       this.plugin.settings.captureShortcutInstallUrl,
     );
@@ -697,7 +683,11 @@ export class AtomsSettingTab extends PluginSettingTab {
           .setPlaceholder("Using the shortcut Atoms ships")
           .setValue(custom)
           .onChange(async (value) => {
-            this.plugin.settings.captureShortcutInstallUrl = value.trim();
+            // Filter on the way in, not on the way out. Storing a link we ship
+            // would pin this device to it forever, and normalising at render
+            // instead would mean an unawaited write racing this awaited one.
+            this.plugin.settings.captureShortcutInstallUrl =
+              customCaptureShortcutUrl(value);
             await this.plugin.saveSettings();
           }),
       )

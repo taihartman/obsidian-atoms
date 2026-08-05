@@ -119,14 +119,35 @@ describe("resolveCaptureShortcutInstallUrl", () => {
     // The trap this exists for: a user pastes our own default in, thinking the
     // field is a required step. A settings value outranks the constant, so they
     // would sit on that exact link forever while everyone else moves on.
-    const supersededBuiltin =
-      "https://www.icloud.com/shortcuts/e8bfe486b2bc458cb37af87c107771a2";
-    expect(resolveCaptureShortcutInstallUrl(supersededBuiltin)).toBe(
-      CAPTURE_SHORTCUT_INSTALL_URL,
-    );
-    expect(resolveCaptureShortcutInstallUrl(CAPTURE_SHORTCUT_INSTALL_URL)).toBe(
-      CAPTURE_SHORTCUT_INSTALL_URL,
-    );
+    for (const shipped of SHIPPED_INSTALL_URLS) {
+      expect(resolveCaptureShortcutInstallUrl(shipped)).toBe(
+        CAPTURE_SHORTCUT_INSTALL_URL,
+      );
+    }
+  });
+});
+
+// Frozen on purpose. Every id here was CAPTURE_SHORTCUT_INSTALL_URL at some
+// point (git log -S <id> --follow src/settings/captureShortcut.ts), so someone
+// still stores each one. Dropping an entry re-pins those users silently — the
+// exact bug this module exists to fix — so removing one must fail here first.
+const SHIPPED_INSTALL_URLS = [
+  "https://www.icloud.com/shortcuts/bbd26339dc874a13b36b31620cf3c457",
+  "https://www.icloud.com/shortcuts/e8bfe486b2bc458cb37af87c107771a2",
+  "https://www.icloud.com/shortcuts/b1a910ea39094d7b857a983529e3bf8b",
+  "https://www.icloud.com/shortcuts/28a87317da06494896ef183ec846606f",
+  "https://www.icloud.com/shortcuts/e885d7c0d8f04a17803a2cc201f24409",
+];
+
+describe("shipped built-in history", () => {
+  it("still rescues every link we have ever shipped", () => {
+    for (const shipped of SHIPPED_INSTALL_URLS) {
+      expect(customCaptureShortcutUrl(shipped)).toBe("");
+    }
+  });
+
+  it("ships the newest link as the exported constant", () => {
+    expect(CAPTURE_SHORTCUT_INSTALL_URL).toBe(SHIPPED_INSTALL_URLS[0]);
   });
 });
 
@@ -153,6 +174,28 @@ describe("customCaptureShortcutUrl", () => {
     expect(
       customCaptureShortcutUrl("  https://www.icloud.com/shortcuts/pad  "),
     ).toBe("https://www.icloud.com/shortcuts/pad");
+  });
+
+  it("sees through cosmetic variants of a link we ship", () => {
+    // isAllowedCaptureShortcutUrl accepts a trailing slash, so these reach the
+    // field as-is. Matched exactly, each would pin the user permanently.
+    const id = "bbd26339dc874a13b36b31620cf3c457";
+    for (const variant of [
+      `https://www.icloud.com/shortcuts/${id}/`,
+      `https://WWW.iCloud.com/shortcuts/${id}`,
+      `https://www.icloud.com/shortcuts/${id}?`,
+      `https://www.icloud.com/shortcuts/${id}#`,
+    ]) {
+      expect(customCaptureShortcutUrl(variant)).toBe("");
+    }
+  });
+
+  it("keeps a genuine custom link verbatim, never canonicalised", () => {
+    // Canonicalisation decides only whether a value counts as custom. The link
+    // actually opened must stay byte-identical to what the user pasted.
+    const mine = "https://www.icloud.com/shortcuts/MyOwnShortcut/";
+    expect(customCaptureShortcutUrl(mine)).toBe(mine);
+    expect(resolveCaptureShortcutInstallUrl(mine)).toBe(mine);
   });
 });
 
