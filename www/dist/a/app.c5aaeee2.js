@@ -473,4 +473,82 @@
       else io.observe(el);
     }
   });
+
+  /* ---------------- Atoms Notes signup ---------------- */
+
+  const notesMsg = {
+    ok_new: "You're on the list. Check your email for a short welcome.",
+    ok_existing: "You're already on Atoms Notes. Glad you're here.",
+    invalid_email: "Enter a valid email address.",
+    rate_limited: "Too many tries. Wait a minute and try again.",
+    upstream_error: "Something went wrong. Try again in a moment.",
+    killed: "Signups are paused right now. Check back later.",
+    network: "Could not reach the server. Check your connection and try again.",
+  };
+
+  for (const form of document.querySelectorAll("[data-notes-form]")) {
+    const status = form.querySelector("[data-notes-status]");
+    const emailInput = form.querySelector('input[name="email"]');
+    const btn = form.querySelector('button[type="submit"]');
+    if (!status || !emailInput || !btn) continue;
+
+    form.addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      status.textContent = "";
+      status.className = "notes-status";
+      emailInput.setAttribute("aria-invalid", "false");
+
+      const email = String(emailInput.value || "").trim();
+      if (!email || !email.includes("@")) {
+        status.textContent = notesMsg.invalid_email;
+        status.classList.add("is-error");
+        emailInput.setAttribute("aria-invalid", "true");
+        emailInput.focus();
+        return;
+      }
+
+      btn.disabled = true;
+      status.textContent = "Joining…";
+      status.classList.add("is-pending");
+
+      const website = form.querySelector('input[name="website"]');
+      try {
+        const res = await fetch("/api/subscribe", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            email,
+            website: website ? website.value : "",
+          }),
+        });
+        let data = {};
+        try {
+          data = await res.json();
+        } catch {
+          data = {};
+        }
+        const code = data.code || (res.ok ? "ok_new" : "upstream_error");
+        status.classList.remove("is-pending");
+        if (res.ok && data.ok) {
+          status.textContent = notesMsg[code] || notesMsg.ok_new;
+          status.classList.add("is-ok");
+          if (code === "ok_new") emailInput.value = "";
+          status.focus?.();
+        } else {
+          status.textContent = notesMsg[code] || notesMsg.upstream_error;
+          status.classList.add("is-error");
+          if (code === "invalid_email") {
+            emailInput.setAttribute("aria-invalid", "true");
+            emailInput.focus();
+          }
+        }
+      } catch {
+        status.classList.remove("is-pending");
+        status.textContent = notesMsg.network;
+        status.classList.add("is-error");
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  }
 })();
