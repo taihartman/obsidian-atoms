@@ -16,7 +16,7 @@ issue: https://github.com/taihartman/obsidian-atoms/issues/240
 
 - **Objective:** the emailed sign-in link signs the plugin in on the device that opened it, with nothing typed and nothing copied.
 - **Product authority:** this Product Contract, issue #240, and the `CLAUDE.md` non-negotiables it inherits (log safety; secrets never in `data.json`). Sign-out teardown (#284) and cloud-copy wipe (#285) are siblings from the same dogfood session and are not active scope here.
-- **Open blockers:** one blocks planning — whether desktop Obsidian takes the deep link decides whether F2/AE4 are mislabelled or whether a desktop-only user is stranded (see Outstanding Questions). Three block release, all answered by the same real-device probe: whether `obsidian://` fires from mobile mail clients and in-app browsers on iOS and Android, whether the landing page can tell a successful handoff from a silent one, and whether a URI can be routed to a named vault on mobile.
+- **Open blockers:** none blocking planning — the desktop probe on 2026-08-05 settled the one that was (see Outstanding Questions). Release still gates on a physical-device test: the whole handoff is verified on desktop macOS only, and whether `obsidian://` fires from a mail client's in-app browser on iOS and Android is still unverified.
 
 ---
 
@@ -104,7 +104,7 @@ flowchart TB
   - **Steps:** A2 confirms the link is still valid without consuming it; A2 hands the magic token and the requesting vault's identity to Obsidian, then states the sign-in is finishing in Obsidian; A4 in that vault exchanges the token with A3, presenting the verifier it minted when the link was requested; A4 shows A1 the server-verified email; A1 approves; A4 stores the session and Settings reads signed in.
   - **Covers:** R1, R2, R3, R4, R6, R12, R14
 - F2. Handoff cannot reach Obsidian
-  - **Trigger:** the link opens where nothing takes the deep link — see the desktop question under Outstanding Questions before treating any specific device shape as this lane.
+  - **Trigger:** the link opens where nothing takes the deep link — no Obsidian installed, the scheme blocked, or the target vault's plugin too old to register the action. Not a device shape: desktop with Obsidian installed is an F1 success case, verified 2026-08-05.
   - **Actors:** A1, A2
   - **Steps:** A2 explains that the sign-in has to finish inside Obsidian and tells A1 to reopen this email on the device running Obsidian. The link stays unconsumed.
   - **Covers:** R6, R8, R14
@@ -131,9 +131,9 @@ flowchart TB
   - **Given** a link older than the magic token's lifetime
   - **When** the user opens it
   - **Then** the landing page says the link expired and tells the user to request a new one from Settings, and Obsidian is never opened.
-- AE4. Handoff finds no taker (device shape pending the desktop question in Outstanding Questions)
+- AE4. Handoff finds no taker
   - **Covers R8.**
-  - **Given** the user opens the email in a desktop browser on a machine where the handoff does not reach Obsidian
+  - **Given** the user opens the email on a machine with no Obsidian installed, or where the target vault's plugin does not register the action
   - **When** the page loads
   - **Then** it explains the sign-in finishes inside Obsidian and tells the user to reopen this email on the device running Obsidian — not a dead end, and not a token to copy.
 - AE5. Prefetched link
@@ -188,7 +188,7 @@ A real trial-account sign-in completed on a physical iOS device **and** a physic
 
 **Resolve before planning**
 
-- **Does desktop Obsidian take the deep link?** Two reviewers read the desktop lane oppositely and the fix depends on which is true. If it does, a desktop with Obsidian installed is the F1 success case and F2/AE4 currently mislabel it — the repo already uses `obsidian://open?path=` and a desktop deep link after Checkout elsewhere. If it does not, a desktop-only user is strictly worse off after this ships than before, because R10 deletes the paste field that was their working path and R8's only remedy sends them to the device they are already on. Scope Boundaries acknowledges only the wrong-device regression, not this one. Settle it with the same probe that de-risks the rest: register a trivial protocol handler and open an `obsidian://` URL from a real phone's mail client and from a desktop browser, before anything else is built. Then either fix F2/AE4's framing, or state desktop-to-desktop scope and add recovery copy for a failure on a device already running Obsidian.
+- None. The desktop-lane question was settled by probe on 2026-08-05 (see Probe results below); F2 and AE4 have been reframed accordingly, and no desktop-only user is stranded.
 
 **Deferred to planning**
 
@@ -196,10 +196,36 @@ A real trial-account sign-in completed on a physical iOS device **and** a physic
 
 **Risks**
 
-- Whether `obsidian://` reliably fires from mobile mail clients and in-app browsers on both iOS and Android is unverified, and it is the single biggest risk to this design. The release gate is a real-device test, echoing #230 where an automated test proved the mechanism but not the live path.
-- **Firing is not the only unverified half — detection is too.** A browser gives no callback telling the landing page whether the handoff was taken, so R8's fallback message rests on a timing heuristic that can fire after a *successful* handoff. The real-device gate must confirm both that the link fires and that the fallback does not appear when it succeeds (per R14).
-- Whether an `obsidian://` URI can be routed to a *named* vault on mobile is unverified — the repo's own QA fixture qualifies the `vault=` parameter with "when supported" (`docs/qa/testing-fixtures.md:86`). If mobile ignores it, KD7's named failure arrives: the right vault still reads signed out. R3 and AE6 join the same real-device release gate as the firing risk.
+- **Mobile is still the risk; desktop is not.** The whole mechanism is verified on desktop macOS (Probe results below) but unverified from a mail client's in-app browser on iOS and Android. The release gate stays a real-device test, echoing #230 where an automated test proved the mechanism but not the live path.
+- **Detection is real but narrow, and timing-dependent.** On desktop the page can tell the handoff was taken — but only via `document.hasFocus()`; `visibilityState` stayed `visible` throughout, so any check written against `visibilitychange` alone would wrongly report failure on the success path. Focus also returned to the browser within a few seconds, so the verdict depends on when it is sampled. R14's fallback must be a retry offer the user can dismiss, never an automatic failure verdict.
+- **A stale or action-less plugin swallows the link silently.** A vault whose installed build does not register the action produced no handler call, no error, and no user-visible signal — the exact "I tapped it and nothing happened" symptom #240 exists to kill. Same for an unrecognized vault name. This is what R13 must cover; the landing page cannot detect it either, since the OS did accept the URI.
+- Whether `vault=` routing works on **mobile** remains unverified — the repo's own QA fixture qualifies the parameter with "when supported" (`docs/qa/testing-fixtures.md:86`). It is confirmed on desktop. R3 and AE6 join the mobile release gate.
 - All three store backends delete the magic token unconditionally, including on the expired path (`postgres.mjs:343-347`, `sqlite.mjs:295-296`, `memory.mjs:213-217`) — the deletion *ordering* differs but the observable result does not. The real defect is that no code path can check a token without consuming it, which is what R9 and KD8 require changing.
+
+### Probe results — desktop macOS, 2026-08-05
+
+Run against Obsidian 1.12.7 with a throwaway `registerObsidianProtocolHandler("atoms-signin", …)` spike
+installed in the `test vault`, `demo-vault`, and `new vault` agent lanes, then reverted. Personal vaults
+untouched. **Everything below is macOS only.**
+
+- **The scheme is claimed and the handoff works.** `obsidian:` is bound at the LaunchServices level; firing
+  a link brings Obsidian forward from the background. A plugin-registered handler receives the action with
+  all query params intact, including an injected `action` key.
+- **A real desktop browser hands off.** A link fired from a page in Chrome reached the plugin handler. This
+  settles the F2/AE4 question in favour of "desktop with Obsidian installed is a success case". Caveat: this
+  machine may already have granted Chrome permission for `obsidian://`; a fresh browser profile may show a
+  one-time "Open Obsidian?" prompt first, which is untested.
+- **`vault=` routes a custom action to a named vault.** Control-tested: with one vault frontmost, a link
+  naming a *different* vault fired in the named one, not the focused one. KD7's mechanism works here.
+- **A closed vault is opened by the link**, and the handler then fires provided that vault's plugin
+  registers the action.
+- **Silent-drop cases:** a vault whose plugin lacks the action, and an unrecognized vault name, both produce
+  no handler call and no signal of any kind.
+- **Detection:** the page saw `blur` and `hasFocus() === false`, but `visibilityState` stayed `visible`.
+  Focus returned to the browser within seconds, so the verdict is sampling-time dependent.
+- **Storage scoping:** `app.saveLocalStorage` is vault-scoped (a value written in one vault reads `null` in
+  another), so R3's premise holds. Raw `window.localStorage` is *not* scoped and is shared across vaults —
+  an implementation trap, not a requirements problem.
 
 ### Sources / Research
 
