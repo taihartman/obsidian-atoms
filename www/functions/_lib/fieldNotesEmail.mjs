@@ -180,10 +180,10 @@ export function welcomeEmailContent(opts) {
     preheader: "Thanks for joining. Rare notes on a second brain in real life.",
     paragraphs,
     diagram: "loop",
-    // Text link, not a big sales button - slightly less "promo template"
+    cta: { label: "Open tryatoms.app", href: "https://tryatoms.app" },
     secondaryHref: {
-      label: "tryatoms.app",
-      href: "https://tryatoms.app",
+      label: "Setup guide",
+      href: "https://tryatoms.app/setup",
     },
     unsubUrl,
     postalAddress,
@@ -196,7 +196,8 @@ export function welcomeEmailContent(opts) {
       "",
       "Catch it → It is filed → It comes back",
       "",
-      "https://tryatoms.app",
+      "Try Atoms: https://tryatoms.app",
+      "Setup guide: https://tryatoms.app/setup",
     ],
     {
       unsubUrl,
