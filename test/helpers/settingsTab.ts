@@ -27,6 +27,12 @@ export interface SettingTabOptions {
   vaultTags?: string[];
   /** Device-local keys the tab should find already written (auto-run state, egress ack). */
   local?: Record<string, unknown>;
+  /**
+   * Plugin members the double should answer for real instead of with the recording no-op. Needed
+   * when a row's behavior depends on what the plugin *returns* — an action row's in-flight guard,
+   * for one, only engages on a promise.
+   */
+  plugin?: Record<string, unknown>;
 }
 
 /**
@@ -82,6 +88,7 @@ export function settingTab(opts: SettingTabOptions = {}): {
     // `fireAndForgetAsk`, which calls `.catch` on what it is given.
     syncAskMirror: () => Promise.resolve({ ok: false, message: "test double" }),
     applyAskOutbox: () => Promise.resolve(),
+    ...opts.plugin,
   };
   const calls: string[] = [];
   const plugin = new Proxy(known, {

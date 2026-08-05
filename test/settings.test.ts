@@ -998,6 +998,76 @@ describe("API key row (U6)", () => {
   });
 });
 
+/**
+ * Two rows on the main screen that the row grammar has to own rather than hand-roll: the one
+ * that starts a full sync (a double-tap used to start a second one on top of the first), and
+ * the teardown path that used to rebuild the whole screen on the way out.
+ */
+describe("closing Settings", () => {
+  const flush = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+  const KEY = "sk-ant-api03-looks-real-enough";
+
+  it("runs one full sync per press, not one per tap", async () => {
+    let started = 0;
+    let finish!: () => void;
+    const { tab } = settingTab({
+      plugin: {
+        runSyncEverythingNow: () => {
+          started += 1;
+          return new Promise<void>((resolve) => {
+            finish = resolve;
+          });
+        },
+      },
+    });
+    tab.display();
+
+    // drain → outbox → mirror → filing is long enough that an impatient second tap lands while
+    // the first run is still going.
+    press(tab, "Sync everything now", "Sync everything now");
+    press(tab, "Sync everything now", "Sync everything now");
+
+    expect(started).toBe(1);
+
+    finish();
+    await flush();
+
+    // And the row comes back rather than staying dead after the run.
+    press(tab, "Sync everything now", "Sync everything now");
+    expect(started).toBe(2);
+  });
+
+  it("declines an open sheet without rebuilding the screen it is leaving", async () => {
+    const urls: string[] = [];
+    const request: ConnectivityRequest = async (params) => {
+      urls.push(params.url);
+      return { status: 200, text: "", json: {}, arrayBuffer: new ArrayBuffer(0), headers: {} } as never;
+    };
+    const anthropicCalls = () => urls.filter((u) => u.includes("anthropic")).length;
+
+    const { tab } = settingTab({ session: PLUS_SESSION, apiKey: KEY, request });
+    tab.display();
+    await flush();
+    expect(anthropicCalls()).toBe(1);
+
+    flip(tab, "Ask mirror");
+    await flush();
+    expect(sheetOpen()).toBe(true);
+
+    tab.hide();
+    await flush();
+
+    // The decline still happens: no ack, mirror still off.
+    expect(sheetOpen()).toBe(false);
+    expect(tab.plugin.settings.askPrivacyAckAt).toBe("");
+    expect(tab.plugin.settings.askEnabled).toBe(false);
+    // But nothing re-renders on the way out, so the screen the user just closed asks Anthropic
+    // nothing on its way to being thrown away.
+    expect(anthropicCalls()).toBe(1);
+  });
+});
+
 describe("Connect Claude or ChatGPT destination (U6)", () => {
   const CONNECT_ROWS = [
     "MCP connector URL",

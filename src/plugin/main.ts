@@ -567,7 +567,7 @@ export default class AtomsPlugin extends Plugin {
   }
 
   /** Open/create today's daily and show it in the editor. */
-  async openTodaysDailyFromHome(): Promise<void> {
+  async openTodaysDailyNote(): Promise<void> {
     try {
       const { openTodaysDaily } = await import("../pipeline/daily");
       const file = await openTodaysDaily(this.app);

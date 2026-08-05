@@ -178,7 +178,7 @@ export function registerAtomsCommands(plugin: AtomsPlugin): void {
     id: "open-todays-daily",
     name: "Open today's daily note",
     callback: () => {
-      void plugin.openTodaysDailyFromHome();
+      void plugin.openTodaysDailyNote();
     },
   });
 

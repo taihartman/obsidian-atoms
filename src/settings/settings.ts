@@ -49,6 +49,7 @@ import {
 import {
   clearPlusSession,
   hasPlusSetupSession,
+  plusIsExhausted,
   readPlusSession,
   setAwaitingCheckout,
   writePlusSession,
@@ -134,8 +135,8 @@ export function deriveAccountState(
   auth: FilingAuth,
   session: PlusSession | null,
 ): AccountState {
+  if (plusIsExhausted(auth)) return { kind: "exhausted" };
   if (auth.mode === "plus") {
-    if (auth.status === "exhausted") return { kind: "exhausted" };
     return { kind: "active", status: auth.status, remaining: auth.remaining };
   }
   if (hasPlusSetupSession(session) && session?.status === "inactive") {
@@ -322,6 +323,13 @@ export class AtomsSettingTab extends PluginSettingTab {
    */
   private openSheet: ConsentSheetModal | null = null;
   /**
+   * Set for the duration of `hide()`. Closing Settings settles any open sheet as a decline, and
+   * every decline path ends in `redisplay()` — which would rebuild the screen the user just
+   * closed and, with the key cache freshly cleared, ask Anthropic about it again. The decline
+   * still runs; only its re-render is dropped.
+   */
+  private hiding = false;
+  /**
    * The last answer the API-key row got, and when. Keyed by the key it was about, so a new key
    * is always a fresh question and a re-render of the same key is not.
    */
@@ -355,6 +363,8 @@ export class AtomsSettingTab extends PluginSettingTab {
    * Full re-render while keeping scroll position (toggles/buttons must not jump to top).
    */
   private redisplay(): void {
+    // Nothing to keep on screen once the tab is closing; see `hiding`.
+    if (this.hiding) return;
     const scroller = this.settingsScrollEl();
     const top = scroller?.scrollTop ?? 0;
     this.display();
@@ -385,6 +395,7 @@ export class AtomsSettingTab extends PluginSettingTab {
    * rather than dropping the user back into whichever destination they last opened.
    */
   hide(): void {
+    this.hiding = true;
     this.route = "main";
     // A new visit re-asks whether the key works. Without this, a user who saved a key offline
     // would see that verdict forever — the row's only other trigger is saving the key again.
@@ -395,6 +406,8 @@ export class AtomsSettingTab extends PluginSettingTab {
     this.openSheet?.close();
     this.openSheet = null;
     super.hide();
+    // Cleared last, so the next visit re-renders normally.
+    this.hiding = false;
   }
 
   /**
@@ -532,7 +545,7 @@ export class AtomsSettingTab extends PluginSettingTab {
       this.plugin.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL;
     const mcpUrl = askMcpUrl(base);
 
-    const status = this.askMirrorStatus(session.email);
+    const status = this.mirrorStatusLine(session.email);
     containerEl.createEl("p", {
       text: status.line,
       cls: status.failing
@@ -1282,6 +1295,12 @@ export class AtomsSettingTab extends PluginSettingTab {
     // Optional on purpose: a value here outranks the constant forever, so a
     // user who fills it in with our own default stops receiving shipped link
     // updates. Keep the copy pointed at "leave this empty".
+    //
+    // Stays a direct `Setting` rather than a `settingRow`, and is not the ratchet's next
+    // target: R2 bans a row wearing two *grammars* — a toggle and a button, a chevron and a
+    // toggle — and a text field with a small inline reset is not one of those pairs. The reset
+    // only exists to clear the field beside it, so forcing this through the builder would mean
+    // splitting one coherent row in two.
     new Setting(containerEl)
       .setName("iCloud shortcut link")
       .setDesc(
@@ -1315,41 +1334,39 @@ export class AtomsSettingTab extends PluginSettingTab {
           }),
       );
 
-    new Setting(containerEl)
-      .setName("Capture Atom shortcut")
-      .setDesc(
-        urlSet
-          ? `Install or update Capture Atom, the iOS shortcut (v${CAPTURE_SHORTCUT_VERSION}). Opens ${custom ? "your custom link" : "the link Atoms ships"} — Shortcuts.app still needs confirm. Acked: ${acked ?? "never"}.`
-          : `No link to open — the built-in is unset in this build, so paste your own iCloud URL above. Version tag: ${CAPTURE_SHORTCUT_VERSION}.`,
-      )
-      .addButton((btn) =>
-        btn
-          .setButtonText(labelInstallOrUpdate(acked))
-          .setDisabled(!urlSet)
-          .onClick(() => {
-            if (!urlSet) {
-              new Notice(
-                "No shortcut link to open — paste your own iCloud link above.",
-              );
-              return;
-            }
-            const ok = openShortcutInstallUrl(installUrl);
-            if (!ok) {
-              new Notice(
-                "Shortcut link must be an https://www.icloud.com/shortcuts/… URL",
-              );
-              return;
-            }
-            writeShortcutAck(
-              (k, v) => this.app.saveLocalStorage(k, v),
-              CAPTURE_SHORTCUT_VERSION,
-            );
-            new Notice(
-              `Opened capture shortcut v${CAPTURE_SHORTCUT_VERSION} — add it in Shortcuts`,
-            );
-            this.redisplay();
-          }),
-      );
+    actionRow(containerEl, {
+      name: "Capture Atom shortcut",
+      desc: urlSet
+        ? `Install or update Capture Atom, the iOS shortcut (v${CAPTURE_SHORTCUT_VERSION}). Opens ${custom ? "your custom link" : "the link Atoms ships"} — Shortcuts.app still needs confirm. Acked: ${acked ?? "never"}.`
+        : `No link to open — the built-in is unset in this build, so paste your own iCloud URL above. Version tag: ${CAPTURE_SHORTCUT_VERSION}.`,
+      label: labelInstallOrUpdate(acked),
+      disabled: !urlSet,
+      onClick: () => {
+        // Kept behind the disabled button rather than removed: `urlSet` is read once at render,
+        // so this is the row's own answer if it is ever pressed without a link behind it.
+        if (!urlSet) {
+          new Notice(
+            "No shortcut link to open — paste your own iCloud link above.",
+          );
+          return;
+        }
+        const ok = openShortcutInstallUrl(installUrl);
+        if (!ok) {
+          new Notice(
+            "Shortcut link must be an https://www.icloud.com/shortcuts/… URL",
+          );
+          return;
+        }
+        writeShortcutAck(
+          (k, v) => this.app.saveLocalStorage(k, v),
+          CAPTURE_SHORTCUT_VERSION,
+        );
+        new Notice(
+          `Opened capture shortcut v${CAPTURE_SHORTCUT_VERSION} — add it in Shortcuts`,
+        );
+        this.redisplay();
+      },
+    });
   }
 
   private renderApiSection(containerEl: HTMLElement) {
@@ -1503,28 +1520,27 @@ export class AtomsSettingTab extends PluginSettingTab {
       });
     }
 
-    new Setting(containerEl)
-      .setName("Sync when you return to Obsidian")
-      .setDesc(
-        "When you return to Obsidian, drain the inbox, apply the Ask outbox, push the mirror, and file if automatic filing is on. Device-local only. Manual Sync everything now still works when this is off.",
-      )
-      .addToggle((toggle) =>
-        toggle.setValue(this.plugin.getResumeEnabled()).onChange((on) => {
-          this.plugin.setResumeEnabled(on);
-          this.redisplay();
-        }),
-      );
+    settingRow(containerEl, {
+      name: "Sync when you return to Obsidian",
+      desc: "When you return to Obsidian, drain the inbox, apply the Ask outbox, push the mirror, and file if automatic filing is on. Device-local only. Manual Sync everything now still works when this is off.",
+      control: {
+        kind: "toggle",
+        configure: (toggle) =>
+          toggle.setValue(this.plugin.getResumeEnabled()).onChange((on) => {
+            this.plugin.setResumeEnabled(on);
+            this.redisplay();
+          }),
+      },
+    });
 
-    new Setting(containerEl)
-      .setName("Sync everything now")
-      .setDesc(
-        "Run drain → outbox → mirror → filing now (ignores resume cooldowns). Filing still needs the catch-up notice on Atoms home when present.",
-      )
-      .addButton((btn) =>
-        btn.setButtonText("Sync everything now").setCta().onClick(() => {
-          void this.plugin.runSyncEverythingNow();
-        }),
-      );
+    actionRow(containerEl, {
+      name: "Sync everything now",
+      desc: "Run drain → outbox → mirror → filing now (ignores resume cooldowns). Filing still needs the catch-up notice on Atoms home when present.",
+      label: "Sync everything now",
+      // Returned rather than fire-and-forget: that is what engages `actionRow`'s in-flight
+      // guard, and a full sync is long enough that a second tap used to start a second one.
+      onClick: () => this.plugin.runSyncEverythingNow(),
+    });
 
     if (state.lastRunDay) {
       containerEl.createEl("p", {
@@ -1544,34 +1560,36 @@ export class AtomsSettingTab extends PluginSettingTab {
   private renderModelSection(containerEl: HTMLElement) {
     settingHeading(containerEl, "Filing");
 
-    new Setting(containerEl)
-      .setName("Atom folder")
-      .setDesc(
-        "Flat single folder for atom notes (e.g. Atoms). Paths with .. or subfolders are rejected.",
-      )
-      .addText((text) =>
-        text
-          .setPlaceholder("Atoms")
-          .setValue(this.plugin.settings.atomFolder)
-          .onChange(async (value) => {
-            this.plugin.settings.atomFolder = clampAtomFolder(value);
-            await this.plugin.saveSettings();
-          }),
-      );
+    settingRow(containerEl, {
+      name: "Atom folder",
+      desc: "Flat single folder for atom notes (e.g. Atoms). Paths with .. or subfolders are rejected.",
+      control: {
+        kind: "text",
+        configure: (text) =>
+          text
+            .setPlaceholder("Atoms")
+            .setValue(this.plugin.settings.atomFolder)
+            .onChange(async (value) => {
+              this.plugin.settings.atomFolder = clampAtomFolder(value);
+              await this.plugin.saveSettings();
+            }),
+      },
+    });
 
-    new Setting(containerEl)
-      .setName("List atoms in person notes")
-      .setDesc(
-        "When on, Process / Update / backfill write a managed section at the end of person hub notes listing linked atoms under your existing headings. Your text outside the markers is never changed. If Ask mirror is on, updated hub notes sync vault→cloud like other linked hubs. Off by default.",
-      )
-      .addToggle((toggle) =>
-        toggle
-          .setValue(this.plugin.settings.enableHubProjection === true)
-          .onChange(async (on) => {
-            this.plugin.settings.enableHubProjection = on;
-            await this.plugin.saveSettings();
-          }),
-      );
+    settingRow(containerEl, {
+      name: "List atoms in person notes",
+      desc: "When on, Process / Update / backfill write a managed section at the end of person hub notes listing linked atoms under your existing headings. Your text outside the markers is never changed. If Ask mirror is on, updated hub notes sync vault→cloud like other linked hubs. Off by default.",
+      control: {
+        kind: "toggle",
+        configure: (toggle) =>
+          toggle
+            .setValue(this.plugin.settings.enableHubProjection === true)
+            .onChange(async (on) => {
+              this.plugin.settings.enableHubProjection = on;
+              await this.plugin.saveSettings();
+            }),
+      },
+    });
   }
 
   /**
@@ -1715,15 +1733,15 @@ export class AtomsSettingTab extends PluginSettingTab {
   }
 
   /**
-   * Ask — remote MCP for Claude / ChatGPT (Plus). No in-plugin chat.
-   */
-  /**
    * What the mirror last did, from device-local stamps (N = last known server count).
    *
    * Read by two screens now — the main screen's entry row says it in one line, the destination
    * prints it above the rows that change it — so it is computed once here rather than twice.
+   *
+   * Named for the line it returns rather than for the mirror, because `askMirrorStatus` is
+   * already the network call this file imports from `platform/plusClient`.
    */
-  private askMirrorStatus(sessionEmail: string): { line: string; failing: boolean } {
+  private mirrorStatusLine(sessionEmail: string): { line: string; failing: boolean } {
     const lastOk = String(
       (this.app.loadLocalStorage(LS_ASK_MIRROR_LAST_SUCCESS) as unknown) ?? "",
     );
@@ -1765,6 +1783,9 @@ export class AtomsSettingTab extends PluginSettingTab {
     };
   }
 
+  /**
+   * Ask — remote MCP for Claude / ChatGPT (Plus). No in-plugin chat.
+   */
   private renderAskSection(containerEl: HTMLElement) {
     settingHeading(containerEl, "Ask (Claude + ChatGPT)");
     const session = readPlusSession(this.app);
@@ -1881,7 +1902,7 @@ export class AtomsSettingTab extends PluginSettingTab {
     // The plumbing — connector URL, pairing, sync, status, wipe — is one destination now. Its
     // entry row carries the mirror's status line, so the main screen still says at a glance
     // whether the cloud copy is current.
-    const status = this.askMirrorStatus(session.email);
+    const status = this.mirrorStatusLine(session.email);
     destinationRow(containerEl, {
       name: DESTINATION_TITLES.connect,
       desc: status.line,

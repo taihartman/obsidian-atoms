@@ -434,11 +434,17 @@ describe("destination shell", () => {
  * never rise.
  *
  * U6 was the last destination unit and took it from 27 to 18; U9 deleted three more rows and took
- * it to 12. Zero is not reachable from here: `settingHeading()` builds a heading rather than a
- * row, two modals build their own button bars, and the API key row's control is a
- * `SecretComponent`, which `SettingControl` has no member for.
+ * it to 12; converting the five rows the sync, filing, and capture sections had left behind took
+ * it to 7. Zero is not reachable from here: `settingHeading()` builds a heading rather than a row,
+ * three modals build their own button bars, the API key row's control is a `SecretComponent`
+ * (which `SettingControl` has no member for), and the iCloud shortcut link row pairs a text field
+ * with an inline reset — one grammar, but not one the builders express.
+ *
+ * The count is textual, so the prose standing over those last two exempt sites explaining *why*
+ * they are direct spends budget too. That is the intended trade: a site the ratchet cannot shrink
+ * should say so where the next reader is standing.
  */
-const DIRECT_SETTING_BUDGET = 12;
+const DIRECT_SETTING_BUDGET = 7;
 
 describe("row-grammar repository guard", () => {
   it("settings.ts does not grow new direct `new Setting(` sites", () => {
