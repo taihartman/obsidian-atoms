@@ -6,14 +6,35 @@
  * Prefer Settings → Capture → paste link (syncs via data.json).
  */
 
-export const CAPTURE_SHORTCUT_VERSION = "2.0.0";
+export const CAPTURE_SHORTCUT_VERSION = "2.1.0";
 
 /**
- * Built-in default install URL (iCloud share).
+ * Every install URL we have shipped as the built-in, newest first.
+ *
+ * Pasting one of these into Settings → Capture is copying the default, not
+ * customising it — but a settings value wins over the constant forever, so that
+ * user silently stays on a superseded shortcut every time we ship a new link.
+ * Treating a match as "no custom link" puts them back on the default and keeps
+ * them there.
+ *
+ * **To ship a new link, prepend it here** — the exported constant is the head of
+ * this list, so the outgoing URL cannot be dropped by forgetting a second edit.
+ * `captureShortcut.test.ts` freezes the full set: removing an entry fails there
+ * rather than silently re-pinning everyone still storing it.
+ */
+const BUILTIN_INSTALL_URLS: readonly [string, ...string[]] = [
+  "https://www.icloud.com/shortcuts/bbd26339dc874a13b36b31620cf3c457",
+  "https://www.icloud.com/shortcuts/e8bfe486b2bc458cb37af87c107771a2",
+  "https://www.icloud.com/shortcuts/b1a910ea39094d7b857a983529e3bf8b",
+  "https://www.icloud.com/shortcuts/28a87317da06494896ef183ec846606f",
+  "https://www.icloud.com/shortcuts/e885d7c0d8f04a17803a2cc201f24409",
+];
+
+/**
+ * Built-in default install URL (iCloud share) — the newest shipped link.
  * User settings override still wins — see resolveCaptureShortcutInstallUrl.
  */
-export const CAPTURE_SHORTCUT_INSTALL_URL =
-  "https://www.icloud.com/shortcuts/e8bfe486b2bc458cb37af87c107771a2";
+export const CAPTURE_SHORTCUT_INSTALL_URL: string = BUILTIN_INSTALL_URLS[0];
 
 /** Device-local (never data.json). */
 export const LS_CAPTURE_SHORTCUT_ACK = "atoms-capture-shortcut-acked-version";
@@ -22,12 +43,51 @@ export const LS_CAPTURE_SHORTCUT_ACK = "atoms-capture-shortcut-acked-version";
 export const LS_INBOX_INFERRED_DATE_ACK =
   "atoms-inbox-inferred-date-acked-version";
 
-/** Prefer synced settings URL, then built-in constant. */
+/**
+ * Comparison form only — never opened, never stored.
+ *
+ * `isAllowedCaptureShortcutUrl` accepts `…/shortcuts/<id>/`, so a shipped link
+ * pasted with a trailing slash, a stray `?`/`#`, or an odd-cased host is the
+ * same shortcut wearing a different string. Exact equality would read those as
+ * a custom link and pin the user permanently — the trap this module exists to
+ * close. Anything unparseable falls back to the trimmed input, which simply
+ * fails the match and is treated as custom.
+ */
+function canonicalShortcutUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+    const path = parsed.pathname.replace(/\/+$/, "");
+    return `${parsed.protocol}//${parsed.hostname.toLowerCase()}${path}`;
+  } catch {
+    return url;
+  }
+}
+
+/**
+ * The settings value only when it is genuinely the user's own link; "" when the
+ * field is empty or holds a link we shipped ourselves. Empty therefore means
+ * "on the built-in", which is what Settings renders and what decides whether a
+ * stored value still deserves to outrank the constant.
+ *
+ * Returns the user's string verbatim (trimmed) — canonicalisation decides only
+ * whether it counts as custom, never what gets opened.
+ */
+export function customCaptureShortcutUrl(settingsUrl?: string | null): string {
+  const fromSettings = (settingsUrl ?? "").trim();
+  if (!fromSettings) return "";
+  const canonical = canonicalShortcutUrl(fromSettings);
+  if (BUILTIN_INSTALL_URLS.some((u) => canonicalShortcutUrl(u) === canonical)) {
+    return "";
+  }
+  return fromSettings;
+}
+
+/** Prefer the user's own link, then the built-in constant. */
 export function resolveCaptureShortcutInstallUrl(
   settingsUrl?: string | null,
 ): string {
-  const fromSettings = (settingsUrl ?? "").trim();
-  if (fromSettings) return fromSettings;
+  const custom = customCaptureShortcutUrl(settingsUrl);
+  if (custom) return custom;
   return (CAPTURE_SHORTCUT_INSTALL_URL ?? "").trim();
 }
 

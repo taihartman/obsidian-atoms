@@ -110,6 +110,7 @@ import {
 } from "../resurface/resurface";
 import {
   actionRow,
+  attachLongPress,
   backLink,
   button,
   claimQuote,
@@ -216,6 +217,8 @@ export class AtomsHomeView extends ItemView {
   private peek: Array<{ text: string; date: string }> = [];
   private busy = false;
   private rootEl: HTMLElement | null = null;
+  /** Detach long-press bindings before re-render (clears mid-hold timers). */
+  private libraryPressDetach: Array<() => void> = [];
   private shortcutAcked: string | null = null;
   /** Ack for the "filed without a time" signal, keyed to the shortcut version. */
   private inferredDateAcked: string | null = null;
@@ -489,8 +492,8 @@ export class AtomsHomeView extends ItemView {
   private async openLandedAtom(path: string): Promise<void> {
     this.landPeak = null;
     this.clearRunUi();
-    await this.refresh();
-    await this.openAtomInHome(path);
+    await this.openPathInVault(path);
+    void this.refresh();
   }
 
   private fillProgressContent(el: HTMLElement): void {
@@ -2237,7 +2240,7 @@ export class AtomsHomeView extends ItemView {
         attrs: !this.installUrl()
           ? {
               title:
-                "Paste an iCloud link in Settings → Capture first",
+                "No shortcut link to open — add one in Settings → Capture",
             }
           : undefined,
         onClick: () => this.onInstallShortcut(),
@@ -2283,15 +2286,33 @@ export class AtomsHomeView extends ItemView {
         });
       }
     } else {
+      for (const d of this.libraryPressDetach) d();
+      this.libraryPressDetach = [];
       const list = listGroup(scroll, { className: "atoms-home-list" });
       const now = Date.now();
       for (const e of visible) {
+        // Tap → vault note (never in-home reader). Long-press / right-click → Continue.
         const row = listRow(list, {
           className: "atoms-home-cell",
           role: "button",
-          onClick: () => {
-            void this.openAtomInHome(e.path);
-          },
+        });
+        row.setAttr("tabindex", "0");
+        row.style.touchAction = "manipulation";
+        this.libraryPressDetach.push(
+          attachLongPress(row, {
+            onTap: () => {
+              void this.openPathInVault(e.path);
+            },
+            onLongPress: () => {
+              this.onContinueAtom(e.path, e.title);
+            },
+          }),
+        );
+        row.addEventListener("keydown", (ev) => {
+          if (ev.key === "Enter" || ev.key === " ") {
+            ev.preventDefault();
+            void this.openPathInVault(e.path);
+          }
         });
         const main = row.createDiv({ cls: "atoms-home-cell-main" });
         main.createDiv({ cls: "atoms-home-cell-title", text: e.title });
@@ -2471,7 +2492,7 @@ export class AtomsHomeView extends ItemView {
     const url = this.installUrl();
     if (!url) {
       new Notice(
-        "Paste an iCloud shortcut link in Settings → Capture (Shortcuts → Share → Copy iCloud Link).",
+        "No shortcut link to open — add one in Settings → Capture.",
       );
       return;
     }
