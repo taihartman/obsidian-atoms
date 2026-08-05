@@ -1,20 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { createStore } from "../src/store.mjs";
+import { askStoreModes, withStore } from "./helpers/askStore.mjs";
 import { assertMirrorPath } from "../src/store/askHelpers.mjs";
-
-async function withStore(mode, fn) {
-  const opts =
-    mode === "sqlite"
-      ? { mode: "sqlite", path: ":memory:" }
-      : { mode: "memory" };
-  const store = await createStore(opts);
-  try {
-    await fn(store);
-  } finally {
-    if (store.close) store.close();
-  }
-}
 
 function seed(store, email) {
   return store.grantPeriod(email, {
@@ -40,7 +27,7 @@ describe("assertMirrorPath", () => {
 });
 
 describe("mirror delete + reconcile", () => {
-  for (const mode of ["memory", "sqlite"]) {
+  for (const mode of askStoreModes()) {
     describe(mode, () => {
       it("delete existing path", async () => {
         await withStore(mode, async (store) => {

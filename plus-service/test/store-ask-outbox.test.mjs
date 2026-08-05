@@ -1,20 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { createStore } from "../src/store.mjs";
+import { askStoreModes, withStore } from "./helpers/askStore.mjs";
 import { OUTBOX_MAX_OPEN, OUTBOX_STALE_MS } from "../src/store/askHelpers.mjs";
-
-async function withStore(mode, fn) {
-  const opts =
-    mode === "sqlite"
-      ? { mode: "sqlite", path: ":memory:" }
-      : { mode: "memory" };
-  const store = await createStore(opts);
-  try {
-    await fn(store);
-  } finally {
-    if (store.close) store.close();
-  }
-}
 
 function seed(store, email) {
   return store.grantPeriod(email, {
@@ -25,7 +12,7 @@ function seed(store, email) {
 }
 
 describe("ask outbox store", () => {
-  for (const mode of ["memory", "sqlite"]) {
+  for (const mode of askStoreModes()) {
     describe(mode, () => {
       it("enqueue pull claim ack applied", async () => {
         await withStore(mode, async (store) => {
