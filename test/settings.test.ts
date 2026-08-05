@@ -123,8 +123,12 @@ async function processWith(
 }
 
 describe("deleted tuning keys (KTD8)", () => {
-  // The two tuning keys were removed from LinkerSettings; existing data.json files keep them.
-  const stale = { shortlistSize: 50, expandLinkedNotes: false } as Partial<LinkerSettings>;
+  // These keys were removed from LinkerSettings; existing data.json files keep them.
+  const stale = {
+    shortlistSize: 50,
+    expandLinkedNotes: false,
+    enableReconsiderCapture: false,
+  } as Partial<LinkerSettings>;
 
   it("a data.json still carrying them loads and has no effect on retrieval", async () => {
     const v = linkedVault();
@@ -135,12 +139,14 @@ describe("deleted tuning keys (KTD8)", () => {
     expect(rec.seen[0]!.stats.expanded).toBe(1);
   });
 
-  it("renders no row for either key", () => {
+  it("renders no row for any of them", () => {
     const { tab } = settingTab({ settings: stale });
     tab.display();
 
     expect(rowNames(tab)).not.toContain("Notes considered per capture");
     expect(rowNames(tab)).not.toContain("Also consider linked notes");
+    // Reconsider capture is now unconditional; a toggle would describe a gate that is gone.
+    expect(rowNames(tab)).not.toContain("Reconsider capture");
   });
 });
 

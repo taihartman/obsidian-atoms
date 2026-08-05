@@ -439,7 +439,7 @@ describe("destination shell", () => {
  * and the API key row's control is a `SecretComponent`, which `SettingControl` has no member for.
  * The rest belong to the clusters U7–U9 still own — lower it as they land.
  */
-const DIRECT_SETTING_BUDGET = 16;
+const DIRECT_SETTING_BUDGET = 15;
 
 describe("row-grammar repository guard", () => {
   it("settings.ts does not grow new direct `new Setting(` sites", () => {

@@ -1566,20 +1566,6 @@ export class AtomsSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName("Reconsider capture")
-      .setDesc(
-        "Experimental. Command palette → Reconsider capture: ask again about one skipped line (noise/task marker) under the cursor. Off by default.",
-      )
-      .addToggle((toggle) =>
-        toggle
-          .setValue(this.plugin.settings.enableReconsiderCapture === true)
-          .onChange(async (on) => {
-            this.plugin.settings.enableReconsiderCapture = on;
-            await this.plugin.saveSettings();
-          }),
-      );
-
-    new Setting(containerEl)
       .setName("Hub projection")
       .setDesc(
         "When on, Process / Update / backfill write a managed section at the end of person hub notes listing linked atoms under your existing headings. Your text outside the markers is never changed. If Ask mirror is on, updated hub notes sync vault→cloud like other linked hubs. Off by default.",

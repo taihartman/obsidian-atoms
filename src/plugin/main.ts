@@ -76,7 +76,6 @@ import {
   atomRefuseNotice,
   dailyDateForFile,
   findCaptureAtLine,
-  flagOffNotice,
   filedNotice,
   forceKeepAtomResult,
   collisionNotice,
@@ -1981,14 +1980,9 @@ export default class AtomsPlugin extends Plugin {
 
   /**
    * Soft-unfreeze: reclassify one noise/task capture under the cursor.
-   * Command palette path — gated by settings.enableReconsiderCapture (default off).
+   * Command palette path — same behaviour as Library long-press Try filing….
    */
   async runReconsiderCapture() {
-    if (!this.settings.enableReconsiderCapture) {
-      new Notice(flagOffNotice());
-      return;
-    }
-
     const view = this.app.workspace.getActiveViewOfType(MarkdownView);
     if (!view || !(view.file instanceof TFile)) {
       new Notice(missNotice());

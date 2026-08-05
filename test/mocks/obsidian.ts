@@ -19,7 +19,11 @@ export class PluginSettingTab {
   hide(): void {}
 }
 export class Notice {
-  constructor(_msg: string) {}
+  /** Every notice raised since the last reset — a test's handle on user-visible outcomes. */
+  static messages: string[] = [];
+  constructor(msg: string) {
+    Notice.messages.push(msg);
+  }
 }
 
 /**
@@ -430,5 +434,45 @@ export class Modal {
     this.onClose();
   }
 }
+/**
+ * Suggest modals are constructed by view code but never driven from unit tests — only the
+ * shape a subclass extends is modelled, so importing those modules does not blow up.
+ */
+export class SuggestModal<T> extends Modal {
+  setPlaceholder(_text: string): void {}
+  getSuggestions(_query: string): T[] {
+    return [];
+  }
+}
+export class FuzzySuggestModal<T> extends SuggestModal<T> {
+  getItems(): T[] {
+    return [];
+  }
+  getItemText(_item: T): string {
+    return "";
+  }
+  onChooseItem(_item: T, _evt: unknown): void {}
+}
+
+/** Passed to `getActiveViewOfType` as a token; tests stub what the workspace hands back. */
+export class MarkdownView {}
+
+/** Enough of the view base class that modules declaring an `ItemView` subclass can be imported. */
+export class ItemView {
+  app: unknown;
+  containerEl: HTMLElement = document.createElement("div");
+  contentEl: HTMLElement = this.containerEl.appendChild(document.createElement("div"));
+  constructor(public leaf?: unknown) {}
+  getViewType(): string {
+    return "";
+  }
+  getDisplayText(): string {
+    return "";
+  }
+  registerEvent(_ref: unknown): void {}
+  registerDomEvent(_el: unknown, _type: string, _cb: unknown): void {}
+}
+export type WorkspaceLeaf = unknown;
+
 export type App = unknown;
 export type EventRef = unknown;

@@ -157,11 +157,6 @@ export interface LinkerSettings {
    */
   plusBaseUrl: string;
   /**
-   * Feature flag: Reconsider capture (soft-unfreeze noise/task → reclassify).
-   * Off by default until dogfood-ready.
-   */
-  enableReconsiderCapture: boolean;
-  /**
    * Opt-in: write managed generated block into person hub notes.
    * Off by default; discloses vault write in Settings.
    */
@@ -200,7 +195,6 @@ export const DEFAULT_SETTINGS: LinkerSettings = {
   useDeviceLocalKeyFallback: false,
   captureShortcutInstallUrl: "",
   plusBaseUrl: "",
-  enableReconsiderCapture: false,
   enableHubProjection: false,
   askEnabled: false,
   askPrivacyAckAt: "",
