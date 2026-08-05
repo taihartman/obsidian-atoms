@@ -77,6 +77,25 @@ export function collectSkippedCaptures(
   return out;
 }
 
+/** Fingerprint daily paths+mtimes so home can skip re-scan when vault quiet. */
+export function dailyNotesFingerprint(
+  app: App,
+  today: Date = new Date(),
+): string | null {
+  if (!appHasDailyNotesPluginLoaded()) return null;
+  const todayStr = formatLocalDate(today);
+  const parts: string[] = [];
+  for (const file of Object.values(getAllDailyNotes())) {
+    const momentDate = getDateFromFile(file, "day");
+    if (!momentDate) continue;
+    const date = momentDate.format("YYYY-MM-DD");
+    if (date > todayStr) continue;
+    parts.push(`${file.path}:${file.stat.mtime}`);
+  }
+  parts.sort();
+  return parts.join("|");
+}
+
 /**
  * Vault scan of all dailies (including today). Never uses unmarked-only collector.
  */

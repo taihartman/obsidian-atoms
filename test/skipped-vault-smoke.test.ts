@@ -7,8 +7,10 @@ import { join } from "path";
 import { describe, expect, it } from "vitest";
 import { collectSkippedCaptures } from "../src/home/skippedLibrary";
 import { parseCaptures } from "../src/pipeline/parse";
-import { resolveSkippedCapture } from "../src/pipeline/unlabel";
-import { gateReconsiderTarget } from "../src/pipeline/reconsider";
+import {
+  gateReconsiderTarget,
+  resolveSkippedCapture,
+} from "../src/pipeline/reconsider";
 
 const VAULT = join(__dirname, "../test_vault/test vault");
 const PAST = join(VAULT, "Daily/2026-07-28.md");

@@ -84,7 +84,7 @@ import {
   missNotice,
 } from "../pipeline/reconsider";
 import { ReconsiderModal } from "../pipeline/reconsiderModal";
-import { resolveSkippedCapture } from "../pipeline/unlabel";
+import { resolveSkippedCapture } from "../pipeline/reconsider";
 import { runWritePath, type WritePathReport } from "../pipeline/write";
 import type { ClassificationResult } from "../shared/types";
 import { mergeProposedTags } from "../pipeline/vocabulary";
@@ -2096,6 +2096,8 @@ export default class AtomsPlugin extends Plugin {
         if (!report.ok) {
           if (report.reason === "collision") {
             new Notice(collisionNotice());
+          } else if (report.reason === "stale") {
+            new Notice("Capture changed — open the daily and try again");
           } else if (report.reason === "no_change") {
             /* Apply should have been disabled */
           } else {

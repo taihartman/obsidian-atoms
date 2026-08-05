@@ -150,6 +150,7 @@ import {
   openTodaysDaily,
 } from "../pipeline/daily";
 import {
+  dailyNotesFingerprint,
   listSkippedLibraryEntries,
   type SkippedLibraryEntry,
 } from "./skippedLibrary";
@@ -208,6 +209,8 @@ export class AtomsHomeView extends ItemView {
   private filter: FilterMode = "all";
   private entries: AtomLibraryEntry[] = [];
   private skippedEntries: SkippedLibraryEntry[] = [];
+  /** Daily path:mtime fingerprint; skip full Skipped re-scan when unchanged. */
+  private skippedFingerprint: string | null = null;
   private unprocessedCount = 0;
   /** Captures stuck in the capture inbox (drain health), null when clear. */
   private inboxStuck: InboxStuckSummary | null = null;
@@ -676,13 +679,20 @@ export class AtomsHomeView extends ItemView {
       const todayNote = withToday.notes.find((n) => n.date === iso);
       this.todayUnprocessedCount = todayNote?.unprocessed.length ?? 0;
 
-      this.skippedEntries = await listSkippedLibraryEntries(this.app);
+      const fp = dailyNotesFingerprint(this.app);
+      if (fp != null && fp === this.skippedFingerprint) {
+        /* keep this.skippedEntries */
+      } else {
+        this.skippedEntries = await listSkippedLibraryEntries(this.app);
+        this.skippedFingerprint = fp;
+      }
     } catch (e) {
       if (e instanceof DailyNotesDisabledError) {
         this.unprocessedCount = 0;
         this.todayUnprocessedCount = 0;
         this.peek = [];
         this.skippedEntries = [];
+        this.skippedFingerprint = null;
       } else {
         throw e;
       }

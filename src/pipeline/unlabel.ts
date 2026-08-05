@@ -1,7 +1,6 @@
 /**
- * Capture identity helpers for Library Skipped → Reconsider.
- * Pure strip/restore remain for tests / possible future power tools;
- * product UI promotes via Reconsider, not strip-to-queue.
+ * Pure strip/restore for skipped markers (tests / future power tools).
+ * Product UI promotes via Reconsider — see resolveSkippedCapture there.
  */
 
 import { TFile, type App } from "obsidian";
@@ -13,7 +12,13 @@ import {
   stripMarkersAfterCapture,
   captureTextsMatch,
 } from "./render";
-import { findCaptureAtLine, gateReconsiderTarget } from "./reconsider";
+import {
+  findCaptureAtLine,
+  gateReconsiderTarget,
+  resolveSkippedCapture,
+} from "./reconsider";
+
+export { resolveSkippedCapture } from "./reconsider";
 
 export type SkippedMarkerKind = Extract<MarkerKind, "noise" | "task">;
 
@@ -24,7 +29,10 @@ export type UnlabelContentResult =
       kind: SkippedMarkerKind;
       capture: Capture;
     }
-  | { ok: false; reason: "none" | "atom" | "unprocessed" | "not_skip" | "unchanged" };
+  | {
+      ok: false;
+      reason: "none" | "atom" | "unprocessed" | "not_skip" | "unchanged";
+    };
 
 export type RestoreContentResult =
   | { ok: true; content: string }
@@ -33,55 +41,11 @@ export type RestoreContentResult =
       reason: "none" | "already_marked" | "not_found" | "unchanged";
     };
 
-/**
- * Locate a noise|task capture. Prefer full `text` body match; fall back to
- * snippet (ellipsis stripped) + startLine. Never accept line number alone.
- */
-export function resolveSkippedCapture(
-  content: string,
-  opts: { startLine: number; snippet: string; text?: string },
-): Capture | null {
-  const bodyKey = (opts.text ?? opts.snippet.replace(/…$/, "")).trim();
-  const caps = parseCaptures(content).filter(
-    (c) =>
-      c.processed &&
-      (c.markerKind === "noise" || c.markerKind === "task"),
-  );
-
-  if (opts.text) {
-    const exact = caps.find((c) => captureTextsMatch(c.text, opts.text!));
-    if (exact) return exact;
-  }
-
-  const byLine = findCaptureAtLine(content, opts.startLine);
-  if (
-    byLine &&
-    (byLine.markerKind === "noise" || byLine.markerKind === "task") &&
-    byLine.processed &&
-    (captureTextsMatch(byLine.text, bodyKey) ||
-      byLine.text.replace(/\s+/g, " ").trim().startsWith(bodyKey.slice(0, 40)))
-  ) {
-    return byLine;
-  }
-
-  const snip = bodyKey;
-  for (const c of caps) {
-    if (
-      captureTextsMatch(c.text, snip) ||
-      c.text.replace(/\s+/g, " ").trim().startsWith(snip.slice(0, 40))
-    ) {
-      return c;
-    }
-  }
-  return null;
-}
-
 /** Pure strip of one noise|task marker region. */
 export function unlabelSkippedInContent(
   content: string,
   opts: { startLine: number; snippet: string; text?: string },
 ): UnlabelContentResult {
-  // Prefer full identity; fall back to line for refuse messages (atom at cursor).
   let capture = resolveSkippedCapture(content, opts);
   if (!capture) {
     const at = findCaptureAtLine(content, opts.startLine);
@@ -105,7 +69,12 @@ export function unlabelSkippedInContent(
 /** Pure restore prior noise|task marker when still unprocessed. */
 export function restoreSkippedInContent(
   content: string,
-  opts: { startLine: number; snippet: string; kind: SkippedMarkerKind; text?: string },
+  opts: {
+    startLine: number;
+    snippet: string;
+    kind: SkippedMarkerKind;
+    text?: string;
+  },
 ): RestoreContentResult {
   const bodyKey = (opts.text ?? opts.snippet.replace(/…$/, "")).trim();
   const caps = parseCaptures(content);
@@ -116,14 +85,16 @@ export function restoreSkippedInContent(
         (opts.text
           ? captureTextsMatch(c.text, opts.text)
           : captureTextsMatch(c.text, bodyKey) ||
-            c.text.replace(/\s+/g, " ").trim().startsWith(bodyKey.slice(0, 40))),
+            c.text
+              .replace(/\s+/g, " ")
+              .trim()
+              .startsWith(bodyKey.slice(0, 40))),
     ) ?? null;
   if (!capture) {
     const at = findCaptureAtLine(content, opts.startLine);
     if (at && !at.processed) capture = at;
   }
   if (!capture) {
-    // Already has a marker again?
     const marked = resolveSkippedCapture(content, opts);
     if (marked?.processed) return { ok: false, reason: "already_marked" };
     return { ok: false, reason: "not_found" };
@@ -139,6 +110,7 @@ export type VaultUnlabelResult =
   | { ok: true; kind: SkippedMarkerKind }
   | { ok: false; reason: string };
 
+/** Test/helper: strip via vault.process. Not used by product UI. */
 export async function applyUnlabelWrite(
   app: App,
   path: string,
@@ -159,6 +131,7 @@ export async function applyUnlabelWrite(
   return result;
 }
 
+/** Test/helper: restore via vault.process. Not used by product UI. */
 export async function applyRestoreWrite(
   app: App,
   path: string,
