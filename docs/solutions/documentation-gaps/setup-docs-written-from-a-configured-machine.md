@@ -48,6 +48,17 @@ oversight, and it recurs in the same shape:
 - **A string quoted from memory** — this page's first draft said the palette command was
   "BRAT: Add a beta plugin for testing". It is actually "BRAT: Plugins: Add a beta plugin for
   testing (with or without version)". Caught only by asking the running app.
+- **A default asserted rather than read.** The draft told readers to *turn on* BRAT's
+  **Auto-update plugins at startup**; it ships on (`updateAtStartup: true`). It also said to leave
+  the version dropdown on **Latest version**, which is not where it starts —
+  `selectLatestPluginVersionByDefault` is `false`, so the control opens on "Select a version" and
+  the reader must actually choose. Telling someone to enable what is already enabled, or to leave
+  alone what they must change, both read as "this author did not run it."
+- **A warning invented to sound helpful.** The draft claimed a full GitHub URL was "the usual thing
+  to get wrong" in BRAT's repository field. BRAT's own placeholder is
+  `Repository (example: https://GitHub.com/githubusername/repository-name)` — it models the URL and
+  accepts it. A confident caution about a non-problem is worse than no caution: it costs the
+  reader trust in everything around it.
 
 The unifying property: **none of these can fail a build, and none can be caught by reading.** Tests
 were green throughout. Review cannot catch them either, because a reviewer is also someone who
@@ -74,9 +85,18 @@ Two mechanical notes that cost time here:
   `obsidian://open?path=`, `open -a Obsidian <folder>`, the same after seeding a `.obsidian/`
   directory, and injecting the entry straight into `obsidian.json` (the entry persists, but a
   running Obsidian holds its vault list in memory). Budget one human click, or reuse a vault.
-- **Screenshot the DOM's text, not the picture.** Reading pane contents through `eval` confirms
-  which screen a capture actually shows, at a fraction of the cost of opening the PNG — and it is
-  what turns "I think this says X" into a quotable string.
+- **Read the DOM to get the words right; open the image to check the frame. They are different
+  questions.** Reading pane text through `eval` is what turns "I think it says X" into a quotable
+  string, and it is cheap. It says nothing about what the camera caught. On the first pass here
+  every DOM read was correct and **three of five screenshots were still wrong** — a CTA sliced off
+  the bottom edge, a settings drawer overlaying the content pane mid-transition, and one frame that
+  captured Obsidian's empty "New tab" view because the modal was still animating in. All three
+  would have shipped under captions describing something the reader could not see.
+
+  So: assert the target's geometry before capturing (`getBoundingClientRect()` inside the viewport,
+  the tab list *not* present, an explicit `scrollTop`), give the UI a real settle delay after any
+  action that reloads or animates, and then **look at the file**. The cost of opening a PNG is
+  bounded and one-time; a wrong screenshot in a setup guide is unbounded and lands on every reader.
 
 Full observed walkthrough: `docs/qa/2026-08-04-setup-walkthrough-findings.md`.
 

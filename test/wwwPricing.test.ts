@@ -510,10 +510,13 @@ describe("setup guide", () => {
     expect(setup).toContain("Turn on community plugins");
   });
 
-  it("gives the BRAT repository as owner/repo, the form the field accepts", () => {
+  it("gives the exact string to paste into BRAT", () => {
     expect(setup).toContain("taihartman/obsidian-atoms");
-    // A full URL is the common mistake, so the page must not model one.
-    expect(setup).not.toContain("https://github.com/taihartman/obsidian-atoms.git");
+    // BRAT's own placeholder models a full https://GitHub.com/... address and
+    // accepts it, so the page must not claim a URL is wrong — it only says the
+    // short form is less to type. A .git clone URL is a different thing and is
+    // not what the field wants.
+    expect(setup).not.toContain("obsidian-atoms.git");
   });
 
   it("publishes the same MCP connector URL the plugin hands out", () => {

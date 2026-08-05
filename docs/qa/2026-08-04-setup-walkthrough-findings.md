@@ -2,10 +2,19 @@
 
 **Date:** 2026-08-04
 **Vault:** `new vault/` (throwaway, gitignored) — genuinely empty, created via Obsidian's GUI
-**Obsidian:** 1.12.7 · **BRAT:** 2.2.0 · **Atoms installed:** 0.6.69
+**Obsidian:** 1.12.7 · **BRAT:** 2.2.0 · **Atoms installed:** 0.6.69, then 0.6.71 on the recapture
 **Screenshots:** `docs/qa/screenshots/setup-guide/` — 5 shots, all 780×1688 (390×844 @2x)
 
 Every label below is quoted from the live UI (read out of the DOM), not from memory.
+
+> **The screenshots were captured twice.** The first pass verified each screen by reading its DOM
+> text and did not open the resulting PNGs. Every DOM read was right and three of the five images
+> were still wrong: the Restricted Mode CTA was sliced off the bottom edge, the settings drawer
+> overlaid the content pane mid-transition, and the Add-beta-plugin frame caught Obsidian's empty
+> "New tab" view because the modal was still animating in. The second pass asserts the target's
+> geometry and settle state before capturing, and checks the file afterwards. The vault was reset
+> to Restricted Mode and zero plugins first, so shot 02 shows the "0 plugins installed" state a
+> newcomer actually sees rather than a vault with Atoms already in it.
 
 ---
 
@@ -63,9 +72,24 @@ thing, so the guide should mirror it exactly:
 The value to paste is `taihartman/obsidian-atoms` — owner/repo, not a URL. Leave version at
 **Latest version**; the GitHub token is optional and irrelevant for a public repo.
 
-**E · Updates come from a BRAT toggle, not a manual chore.** BRAT ships **Auto-update plugins
-at startup**. README currently tells users to run **Check for updates** by hand after each
-release. Recommending the toggle is strictly better guidance for a newcomer.
+**E · Updates already happen; nothing needs switching on.** BRAT ships with
+`updateAtStartup: true` — **Auto-update plugins at startup** is on out of the box. The README
+tells users to run **Check for updates** by hand after each release, which is the manual
+fallback, not the default behaviour. Read from a fresh BRAT 2.2.0 install:
+
+| BRAT setting | Ships as |
+|---|---|
+| `enableAfterInstall` (Auto-enable plugins after installation) | `true` |
+| `updateAtStartup` (Auto-update plugins at startup) | `true` |
+| `selectLatestPluginVersionByDefault` | **`false`** |
+
+That last one matters for the copy: the Add-plugin dialog's version control opens on
+**Select a version**, not on **Latest version**, so the reader has to choose it.
+
+**E2 · BRAT's repository field models a full URL and accepts one.** Its placeholder is
+`Repository (example: https://GitHub.com/githubusername/repository-name)`. Both that and the
+short `owner/repository` form work — `addPlugin("taihartman/obsidian-atoms")` installed cleanly.
+Any copy warning that a URL is "wrong" is inventing a problem.
 
 **F · The one-tap iOS path is inside the plugin.** Settings → Atoms → Capture has an **Install
 Capture Atom** button ("Install or update Capture Atom, the iOS shortcut (v2.0.0). Opens your
