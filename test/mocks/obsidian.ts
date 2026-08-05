@@ -342,7 +342,28 @@ export const moment = (input?: string) => ({
   // Carried so callers can recover the requested date from a moment-like value.
   _input: input ?? null,
 });
-export class SecretComponent {}
+/**
+ * Modelled rather than left a bare stub: rendering the real settings tab walks the API-key
+ * row, and a stub there threw before any later section rendered — which quietly turned every
+ * whole-tab test into a test of how far `display()` got.
+ */
+export class SecretComponent extends BaseComponent {
+  app: unknown;
+  containerEl: HTMLElement | undefined;
+  value = "";
+  constructor(app: unknown, containerEl?: HTMLElement) {
+    super();
+    this.app = app;
+    this.containerEl = containerEl;
+  }
+  setValue(value: string): this {
+    this.value = value;
+    return this;
+  }
+  onChange(_cb: (value: string) => unknown): this {
+    return this;
+  }
+}
 export class Modal {
   app: unknown;
   contentEl: {

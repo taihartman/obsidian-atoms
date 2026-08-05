@@ -1901,6 +1901,14 @@
   cursor: pointer;
 }
 
+/* Settings row grammar — a back row leaves a destination. Reversed so its chevron sits at the
+   leading edge beside the title, where "back" reads, rather than at the trailing edge where
+   "forward" does. */
+.atoms-setting-back {
+  cursor: pointer;
+  flex-direction: row-reverse;
+}
+
 /* Settings → Ask: full-width disabled MCP connector URL field */
 .atoms-settings-mcp-url-input {
   width: 100%;

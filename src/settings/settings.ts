@@ -29,7 +29,7 @@ import {
   writeShortcutAck,
 } from "./captureShortcut";
 import { clampAtomFolder } from "../pipeline/render";
-import { markDestructive } from "./rows";
+import { backRow, destinationRow, markDestructive } from "./rows";
 import {
   API_KEY_SECRET_ID_DEFAULT,
   LOCAL_STORAGE_API_KEY,
@@ -97,9 +97,34 @@ function loadLocal(app: App, key: string): unknown {
   return app.loadLocalStorage(key) as unknown;
 }
 
+/**
+ * Which screen the settings tab is showing. `main` is the list the user lands on; every other
+ * value is a destination reached from it.
+ *
+ * A destination is a re-render of `containerEl` under a different route, not a new Obsidian
+ * view and not a modal: the tab already empties and rebuilds itself on every toggle, so routing
+ * costs one field and a switch, while a second view type would need its own lifecycle,
+ * registration, and mobile back handling to say the same thing.
+ */
+export type SettingsRoute =
+  | "main"
+  | "account"
+  | "vocabulary"
+  | "connect"
+  | "advanced";
+
+/** Destination title, shown on its entry row and again on its back row. */
+const DESTINATION_TITLES: Record<Exclude<SettingsRoute, "main">, string> = {
+  account: "Account",
+  vocabulary: "Tag vocabulary",
+  connect: "Connect Claude or ChatGPT",
+  advanced: "Advanced",
+};
+
 export class AtomsSettingTab extends PluginSettingTab {
   plugin: AtomsPlugin;
   private customTagDraft = "";
+  private route: SettingsRoute = "main";
 
   constructor(app: App, plugin: AtomsPlugin) {
     super(app, plugin);
@@ -131,6 +156,28 @@ export class AtomsSettingTab extends PluginSettingTab {
   }
 
   /**
+   * Walk into a destination, or back out of one. Deliberately not `redisplay()`: that restores
+   * the scroll position, which is right for a toggle re-rendering the screen the user is
+   * already reading and wrong here — a destination is a screen they have not seen yet, so it
+   * starts at the top.
+   */
+  private openRoute(route: SettingsRoute): void {
+    this.route = route;
+    this.display();
+    const scroller = this.settingsScrollEl();
+    if (scroller) scroller.scrollTop = 0;
+  }
+
+  /**
+   * A visit to Settings ends when the tab is hidden, so the next one starts on the main list
+   * rather than dropping the user back into whichever destination they last opened.
+   */
+  hide(): void {
+    this.route = "main";
+    super.hide();
+  }
+
+  /**
    * Imperative settings UI. Declarative PluginSettingTab.getSettingDefinitions
    * (Obsidian 1.13+ settings search) is a separate migration — not this claim.
    */
@@ -138,6 +185,69 @@ export class AtomsSettingTab extends PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
 
+    const route = this.route;
+    switch (route) {
+      case "main":
+        this.renderMainScreen(containerEl);
+        return;
+      case "account":
+        this.renderDestination(containerEl, route, (el) => this.renderAccountDestination(el));
+        return;
+      case "vocabulary":
+        this.renderDestination(containerEl, route, (el) => this.renderVocabularyDestination(el));
+        return;
+      case "connect":
+        this.renderDestination(containerEl, route, (el) => this.renderConnectDestination(el));
+        return;
+      case "advanced":
+        this.renderDestination(containerEl, route, (el) => this.renderAdvancedDestination(el));
+        return;
+    }
+    // `noImplicitReturns` does not police a switch inside a void method, so a route added to
+    // `SettingsRoute` without a branch above would render a blank screen rather than fail to
+    // build. This makes it a compile error instead.
+    const _exhaustive: never = route;
+    return _exhaustive;
+  }
+
+  /** Back row first, then whatever that destination owns. */
+  private renderDestination(
+    containerEl: HTMLElement,
+    route: Exclude<SettingsRoute, "main">,
+    renderBody: (containerEl: HTMLElement) => void,
+  ): void {
+    backRow(containerEl, {
+      name: DESTINATION_TITLES[route],
+      onBack: () => this.openRoute("main"),
+    });
+    renderBody(containerEl);
+  }
+
+  /** Placeholder body for a destination whose rows have not moved in yet. */
+  private renderEmptyDestination(containerEl: HTMLElement): void {
+    containerEl.createEl("p", {
+      text: "Nothing here yet.",
+      cls: "setting-item-description",
+    });
+  }
+
+  private renderAccountDestination(containerEl: HTMLElement): void {
+    this.renderEmptyDestination(containerEl);
+  }
+
+  private renderVocabularyDestination(containerEl: HTMLElement): void {
+    this.renderEmptyDestination(containerEl);
+  }
+
+  private renderConnectDestination(containerEl: HTMLElement): void {
+    this.renderEmptyDestination(containerEl);
+  }
+
+  private renderAdvancedDestination(containerEl: HTMLElement): void {
+    this.renderEmptyDestination(containerEl);
+  }
+
+  private renderMainScreen(containerEl: HTMLElement): void {
     const version = this.plugin.manifest.version ?? "?";
     settingHeading(containerEl, "Atoms");
     containerEl.createEl("p", {
@@ -154,6 +264,21 @@ export class AtomsSettingTab extends PluginSettingTab {
     this.renderApiSection(containerEl);
     this.renderVocabularySection(containerEl);
     this.renderDevHints(containerEl);
+    this.renderDestinationEntries(containerEl);
+  }
+
+  /**
+   * The four ways off the main screen. Grouped in one block, and last, only because the rows
+   * they lead to have not moved yet — U3, U4, and U6 each relocate their destination's content
+   * and place its entry row where that content used to sit.
+   */
+  private renderDestinationEntries(containerEl: HTMLElement): void {
+    for (const route of ["account", "vocabulary", "connect", "advanced"] as const) {
+      destinationRow(containerEl, {
+        name: DESTINATION_TITLES[route],
+        onOpen: () => this.openRoute(route),
+      });
+    }
   }
 
   /**

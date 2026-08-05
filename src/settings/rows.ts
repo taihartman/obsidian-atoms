@@ -93,6 +93,25 @@ export function destinationRow(
   setting.settingEl.addEventListener("click", () => row.onOpen());
 }
 
+/**
+ * The way back out of a destination: `destinationRow` mirrored, chevron pointing the other way.
+ * Named for the destination it leaves, so the row doubles as that screen's title, and rendered
+ * first so leaving never means scrolling to the bottom.
+ *
+ * Not a sixth row kind — it is the return leg of the same navigation grammar `destinationRow`
+ * opens, which is why it shares that row's shape and carries no control of its own.
+ */
+export function backRow(
+  containerEl: HTMLElement,
+  row: RowInfo & { onBack: () => void },
+): void {
+  const setting = baseRow(containerEl, row);
+  setting.addExtraButton((chevron) => chevron.setIcon("chevron-left"));
+  setting.settingEl.addClass("atoms-setting-back");
+  setting.settingEl.addClass("mod-clickable");
+  setting.settingEl.addEventListener("click", () => row.onBack());
+}
+
 /** Something that happens now: one accent-text button, never a toggle. */
 export function actionRow(
   containerEl: HTMLElement,

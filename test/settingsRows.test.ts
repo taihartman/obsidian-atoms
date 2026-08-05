@@ -3,11 +3,14 @@ import path from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   actionRow,
+  backRow,
   destinationRow,
   destructiveRow,
   settingRow,
   statusRow,
 } from "../src/settings/rows";
+import { AtomsSettingTab, type SettingsRoute } from "../src/settings/settings";
+import { DEFAULT_SETTINGS } from "../src/shared/types";
 // Imported from the mock by path, not from "obsidian": vitest aliases the module but `tsc`
 // does not, so a bare "obsidian" import would typecheck against the real API and never see
 // the recorder's `controls`. Code under test still imports "obsidian" and gets this same
@@ -179,6 +182,25 @@ describe("row grammar", () => {
     expect(opened).toBe(2);
   });
 
+  it("backRow points the other way and returns on click, with no toggle", () => {
+    let went = 0;
+    backRow(container, {
+      name: "Account",
+      onBack: () => {
+        went += 1;
+      },
+    });
+
+    const chevron = controlEl(container).querySelector("[data-icon]");
+    expect(chevron?.getAttribute("data-icon")).toBe("chevron-left");
+    expect(row(container).classList.contains("atoms-setting-back")).toBe(true);
+    expect(controlEl(container).querySelector(".checkbox-container")).toBeNull();
+    expect(controlEl(container).querySelector("button.mod-cta")).toBeNull();
+
+    row(container).click();
+    expect(went).toBe(1);
+  });
+
   it("actionRow renders an accent button and no toggle", () => {
     let ran = 0;
     actionRow(container, {
@@ -243,12 +265,142 @@ describe("row grammar", () => {
         control: { kind: "toggle", configure: () => {} },
       }),
       destinationRow(container, { name: "B", onOpen: () => {} }),
+      backRow(container, { name: "B2", onBack: () => {} }),
       actionRow(container, { name: "C", label: "Go", onClick: () => {} }),
       destructiveRow(container, { name: "D", label: "Wipe", onClick: () => {} }),
       statusRow(container, { name: "E", value: "ok" }),
     ];
 
-    expect(returns).toEqual([undefined, undefined, undefined, undefined, undefined]);
+    expect(returns).toEqual([undefined, undefined, undefined, undefined, undefined, undefined]);
+  });
+});
+
+/**
+ * A settings tab standing in for the real one's collaborators. Unknown members answer with a
+ * no-op function rather than being enumerated: `display()` walks every section, so a literal
+ * double would have to grow a member for each new call in `settings.ts` and would fail as a
+ * missing-method crash — noise that says nothing about routing, which is what these assert.
+ */
+function settingTab(): { tab: AtomsSettingTab; scroller: HTMLElement } {
+  const app = {
+    loadLocalStorage: () => null,
+    saveLocalStorage: () => {},
+    vault: { getMarkdownFiles: () => [], adapter: {}, getAbstractFileByPath: () => null },
+    metadataCache: { getFileCache: () => null, resolvedLinks: {} },
+    workspace: { getActiveFile: () => null },
+  };
+  const known: Record<string, unknown> = {
+    app,
+    manifest: { version: "9.9.9" },
+    settings: { ...DEFAULT_SETTINGS },
+    resolveFilingAuth: () => ({ mode: "none" }),
+  };
+  const plugin = new Proxy(known, {
+    get: (target, prop: string) => (prop in target ? target[prop] : () => undefined),
+    has: () => true,
+  });
+
+  const tab = new AtomsSettingTab(app as never, plugin as never);
+  // `settingsScrollEl()` falls back to `containerEl.parentElement`, so the tab needs one for
+  // the scroll assertions to be about the tab rather than about a null scroller.
+  const scroller = document.createElement("div");
+  scroller.appendChild(tab.containerEl);
+  return { tab, scroller };
+}
+
+/** Rows the user can walk into, by name, on whatever screen is currently rendered. */
+function destinationNames(tab: AtomsSettingTab): string[] {
+  return Array.from(tab.containerEl.querySelectorAll(".atoms-setting-destination")).map(
+    (el) => el.querySelector(".setting-item-name")?.textContent ?? "",
+  );
+}
+
+function backRowEl(tab: AtomsSettingTab): HTMLElement | null {
+  const el = tab.containerEl.querySelector(".atoms-setting-back");
+  return el instanceof HTMLElement ? el : null;
+}
+
+/** The version line is rendered by the main screen and by nothing else. */
+function onMainScreen(tab: AtomsSettingTab): boolean {
+  return Array.from(tab.containerEl.querySelectorAll("p")).some((p) =>
+    p.textContent?.startsWith("Version 9.9.9"),
+  );
+}
+
+/** Walk into the destination whose entry row carries this name. */
+function open(tab: AtomsSettingTab, name: string): void {
+  const entry = Array.from(tab.containerEl.querySelectorAll(".atoms-setting-destination")).find(
+    (el) => el.querySelector(".setting-item-name")?.textContent === name,
+  );
+  if (!(entry instanceof HTMLElement)) throw new Error(`no destination row named ${name}`);
+  entry.click();
+}
+
+const DESTINATIONS = ["Account", "Tag vocabulary", "Connect Claude or ChatGPT", "Advanced"];
+
+describe("destination shell", () => {
+  it("opens on the main screen, listing every destination", () => {
+    const { tab } = settingTab();
+    tab.display();
+
+    expect(onMainScreen(tab)).toBe(true);
+    expect(backRowEl(tab)).toBeNull();
+    expect(destinationNames(tab)).toEqual(DESTINATIONS);
+  });
+
+  it.each(DESTINATIONS)("enters %s and comes back to the main screen", (name) => {
+    const { tab } = settingTab();
+    tab.display();
+
+    open(tab, name);
+    expect(onMainScreen(tab)).toBe(false);
+    // The back row leads the destination, so the user never has to scroll to leave.
+    const back = backRowEl(tab);
+    expect(back).not.toBeNull();
+    expect(back?.querySelector(".setting-item-name")?.textContent).toBe(name);
+    expect(tab.containerEl.firstElementChild).toBe(back);
+
+    back!.click();
+    expect(onMainScreen(tab)).toBe(true);
+    expect(backRowEl(tab)).toBeNull();
+  });
+
+  it("lands on the main screen again after the tab is closed and reopened", () => {
+    const { tab } = settingTab();
+    tab.display();
+    open(tab, "Advanced");
+    expect(onMainScreen(tab)).toBe(false);
+
+    tab.hide();
+    tab.display();
+
+    expect(onMainScreen(tab)).toBe(true);
+    expect(backRowEl(tab)).toBeNull();
+  });
+
+  it("renders a route change from the top instead of restoring the old scroll position", () => {
+    const { tab, scroller } = settingTab();
+    tab.display();
+    scroller.scrollTop = 420;
+
+    open(tab, "Account");
+    expect(scroller.scrollTop).toBe(0);
+
+    scroller.scrollTop = 260;
+    backRowEl(tab)!.click();
+    expect(scroller.scrollTop).toBe(0);
+  });
+
+  it("closes the route union so a new route cannot be added without a branch", () => {
+    const main: SettingsRoute = "main";
+    expect(main).toBe("main");
+
+    // The compile error this expects is the whole guard: `display()` switches on
+    // `SettingsRoute` and closes with `const _exhaustive: never = route`, so a value added to
+    // the union without a matching branch fails `typecheck:test` and `npm run build`.
+    // @ts-expect-error — "billing" is not a route.
+    const notARoute: SettingsRoute = "billing";
+    expect(notARoute).toBe("billing");
   });
 });
 
