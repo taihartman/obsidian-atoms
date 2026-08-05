@@ -112,16 +112,21 @@ constitution) and a hard-gate / caution / incidental classification. Headlines:
 - Two premise corrections: **"Sync automatically on resume" and "Also consider linked notes"
   already default ON.** Do not plan around them being off.
 
-### The one missing input
+### The inventory — landed, committed, ready to use
 
-The **49-setting inventory** — line, section, `setName`, `setDesc`, key, and where its default comes
-from. A subagent was dispatched to write it to
-`/tmp/compound-engineering-502/ce-brainstorm/settings-plain-language/grounding-inventory.md`
-(machine-local, ephemeral) and had not reported when the session ended. **Check that path; if it is
-absent or looks stale, just re-run the inventory** — it is one dispatch, not a research project.
+`docs/handoffs/2026-08-05-settings-inventory.md` — every setting with its line, section, verbatim
+`setName` and `setDesc`, the key it reads/writes, and where its default comes from, plus an
+`## Observations` section flagging pure tuning knobs, already-gated settings, and names referencing
+concepts absent from `CONCEPTS.md`.
 
-Two earlier scouts were dispatched as read-only agents and could not write their dossiers. If you
-delegate this, use an agent type that has write tools.
+**It catalogues 48 settings, not 49.** The 49th `.setName(` call site is line 109 — the body of the
+`settingHeading()` helper itself, not a setting. Do not go hunting for a missing row.
+
+One flagged discrepancy: the "Refresh status" row at line 226 precedes the `Atoms Plus` heading by
+raw line number because it is a private method defined earlier in the file, but it only renders
+inside that section at runtime. It is attributed to Atoms Plus by render order.
+
+The next step is the bucket assignment, which this table is the input for.
 
 Terrain already verified: `src/settings/settings.ts` is ~1505 lines with 49 `.setName(` calls and
 **11 real sections** created by the `settingHeading()` helper (`:108`), called at lines 158, 270,
