@@ -141,11 +141,11 @@ export async function upsertMarketingContact(opts) {
 export async function sendWelcomeEmail(opts) {
   const { apiKey, email, from, replyTo, postalAddress, unsubUrl } = opts;
   const lines = [
-    "You're on the Field notes list.",
+    "You're on Field notes.",
     "",
-    "Occasionally we'll send how people actually capture, file, and find things again - not a drip, not a changelog.",
+    "Occasionally we'll write about wiring Claude, ChatGPT, and Obsidian into a stack you can live with - the hooks, the friction, what actually works. Not a drip. Not a changelog.",
     "",
-    "One beat of the idea: something lands (a text, a photo, a half-thought). You capture it. Atoms files it as a note you can find later - and when you want, you deepen it.",
+    "Atoms is the middle: your captures stay yours in the vault, and tools like Claude can ask them when you want that.",
     "",
     "Try Atoms: https://tryatoms.app",
     "Setup guide: https://tryatoms.app/setup",
