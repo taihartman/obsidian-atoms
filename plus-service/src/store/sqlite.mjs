@@ -99,6 +99,10 @@ function migrate(db) {
       "ALTER TABLE sessions ADD COLUMN verified INTEGER NOT NULL DEFAULT 1",
     );
   }
+  const mirrorCols = db.prepare("PRAGMA table_info(atom_mirror)").all();
+  if (!mirrorCols.some((c) => c.name === "created")) {
+    db.exec("ALTER TABLE atom_mirror ADD COLUMN created TEXT");
+  }
 }
 
 export function createSqliteStore(dbPath = config.databasePath) {

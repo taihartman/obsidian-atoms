@@ -107,6 +107,9 @@ export async function createPostgresStore(databaseUrl) {
   await pool.query(
     `ALTER TABLE sessions ADD COLUMN IF NOT EXISTS verified BOOLEAN NOT NULL DEFAULT TRUE`,
   );
+  await pool.query(
+    `ALTER TABLE atom_mirror ADD COLUMN IF NOT EXISTS created TEXT`,
+  );
 
   const sessionTtlMs = () => config.sessionTtlDays * 24 * 60 * 60 * 1000;
 

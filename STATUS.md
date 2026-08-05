@@ -23,7 +23,10 @@ States: `Queued` · `In progress` · `Blocked` · `In review` · `Done` (then re
 
 | Merged | Issue / PR | Summary |
 |---|---|---|
-| 2026-08-04 | #256 / #262 | Ask MCP `list_tags` · Fly deploy after merge (no plugin bump) |
+| 2026-08-05 | #239 / #273 | First CI job that runs plus-service tests; real postgres coverage for the production store (test infra only, no plugin bump). Runs on PRs but does not yet *block* — `master` still has no required status checks |
+| 2026-08-05 | #257 #258 / #272 | Ask MCP `created` + list sort/filter + `list_pending` · **0.6.70** (Fly deploy still needed) |
+| 2026-08-04 | #222 / #266 | Catch-up on resume + Sync everything now · **0.6.67** |
+| 2026-08-04 | #256 / #262–#265 | Ask MCP `list_tags` + residuals · Fly live (no plugin bump until 0.6.67) |
 | 2026-08-04 | #255 #259 / #260 | Ask MCP `mirror_status` + absence wording · Fly live (no plugin bump) |
 | 2026-08-04 | #251 / #252 | Ask MCP pairing code + OAuth identity chooser · **0.6.66** (released; Fly already live) |
 | 2026-08-04 | #246 / #247 | Ask coordinator peel + wire the inert confirm-withdrawal hook · **0.6.65** (released) |

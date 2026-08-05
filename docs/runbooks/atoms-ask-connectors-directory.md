@@ -19,7 +19,7 @@
 | Scope | Tools |
 |-------|--------|
 | `atoms:read` | `mirror_status`, `list_tags`, `search_atoms`, `fetch_atom`, `neighbors`, `list_atoms` |
-| `atoms:write` | `create_atom`, `continue_atom`, `cancel_pending` |
+| `atoms:write` | `create_atom`, `continue_atom`, `cancel_pending`, `list_pending` |
 
 Consent **Allow** grants **both**.  
 **Reconnect** (Disconnect → OAuth again) if an old connector was linked before `atoms:write` shipped — otherwise write tools return `insufficient_scope`.

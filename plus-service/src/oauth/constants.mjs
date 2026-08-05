@@ -14,7 +14,7 @@ const CHATGPT_CALLBACK_ID = /^[A-Za-z0-9_-]+$/;
 export const COOKIE_NAME = "atoms_oauth_bs";
 /** Read tools: search, fetch, neighbors, list */
 export const SCOPE_READ = "atoms:read";
-/** Write tools: create_atom, continue_atom, cancel_pending (outbox queue) */
+/** Write tools: create_atom, continue_atom, cancel_pending, list_pending (outbox queue) */
 export const SCOPE_WRITE = "atoms:write";
 /** @deprecated use SCOPE_READ — kept for call sites */
 export const SCOPE_DEFAULT = SCOPE_READ;

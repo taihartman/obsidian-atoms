@@ -816,6 +816,97 @@ export class AtomsHomeView extends ItemView {
     card.createEl("p", { text: formatAskMirrorRefusalLine(serverCount) });
   }
 
+  /** One-time upgrade disclosure before resume-triggered filing (U14). */
+  private renderEgressCatchUpNotice(scroll: HTMLElement): void {
+    if (!this.plugin.isEgressNoticePending()) return;
+    const card = statusCard(scroll, {
+      tone: "wait",
+      className: "atoms-home-wait-card atoms-home-egress-catchup-notice",
+    });
+    card.createEl("p", {
+      cls: "atoms-home-card-eyebrow",
+      text: "New",
+    });
+    card.createEl("h2", { text: "Catches up when you reopen" });
+    card.createEl("p", {
+      text: "Filing now runs when you come back to Obsidian, not only on launch. Sync everything now can spend API even if automatic filing is off — same TLS path to Anthropic as before.",
+    });
+    const actions = actionRow(card, {
+      className: "atoms-home-wait-actions atoms-home-egress-catchup-actions",
+    });
+    button(actions, {
+      grade: "primary",
+      label: "Got it",
+      onClick: () => {
+        this.plugin.ackEgressNotice();
+        this.render();
+      },
+    });
+    button(actions, {
+      grade: "secondary",
+      label: "Sync now",
+      onClick: () => {
+        void this.plugin.runSyncEverythingNow();
+      },
+    });
+  }
+
+  private renderBacklogGate(scroll: HTMLElement): void {
+    const n = this.plugin.getBacklogGatePending?.() ?? 0;
+    if (n <= 0) return;
+    const card = statusCard(scroll, {
+      tone: "wait",
+      className: "atoms-home-wait-card atoms-home-backlog-gate",
+    });
+    card.createEl("p", {
+      cls: "atoms-home-card-eyebrow",
+      text: "Inbox",
+    });
+    card.createEl("h2", {
+      text: n === 1 ? "1 capture waiting" : `${n} captures waiting`,
+    });
+    card.createEl("p", {
+      text: "That’s a lot to file unattended. OK to catch up now, or wait until you Process yourself.",
+    });
+    const actions = actionRow(card, {
+      className: "atoms-home-wait-actions atoms-home-backlog-actions",
+    });
+    button(actions, {
+      grade: "primary",
+      label: "File them now",
+      onClick: () => {
+        this.plugin.answerBacklogGate(true);
+        this.render();
+      },
+    });
+    button(actions, {
+      grade: "secondary",
+      label: "Not now",
+      onClick: () => {
+        this.plugin.answerBacklogGate(false);
+        this.render();
+      },
+    });
+  }
+
+  private renderLastCatchupLine(scroll: HTMLElement): void {
+    const line = this.plugin.getLastCatchupLine();
+    if (!line) return;
+    const row = scroll.createDiv({ cls: "atoms-home-last-catchup-row" });
+    row.createEl("p", {
+      cls: "atoms-home-last-catchup",
+      text: line,
+    });
+    button(row, {
+      grade: "quiet",
+      label: "Sync everything",
+      className: "atoms-home-sync-everything",
+      onClick: () => {
+        void this.plugin.runSyncEverythingNow();
+      },
+    });
+  }
+
   private renderResurfaceCard(scroll: HTMLElement): void {
     const card = this.resurfaceCard;
     if (!card) return;
@@ -1776,6 +1867,9 @@ export class AtomsHomeView extends ItemView {
     // Settings → Atoms is not a surface a phone user opens routinely, so a
     // Settings-only refusal is indistinguishable from silence (U1).
     this.renderAskMirrorRefusal(scroll);
+    this.renderEgressCatchUpNotice(scroll);
+    this.renderBacklogGate(scroll);
+    this.renderLastCatchupLine(scroll);
 
     if (this.runPhase !== "idle") {
       const tone =

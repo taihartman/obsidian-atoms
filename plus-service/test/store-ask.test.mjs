@@ -1,6 +1,6 @@
 import { describe, it, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { createStore } from "../src/store.mjs";
+import { askStoreModes, withStore } from "./helpers/askStore.mjs";
 import { pkceChallengeS256 } from "../src/store/askHelpers.mjs";
 import {
   decryptMirrorField,
@@ -9,25 +9,12 @@ import {
 
 const RESOURCE = "https://plus.tryatoms.app/mcp";
 
-async function withStore(mode, fn) {
-  const opts =
-    mode === "sqlite"
-      ? { mode: "sqlite", path: ":memory:" }
-      : { mode: "memory" };
-  const store = await createStore(opts);
-  try {
-    await fn(store);
-  } finally {
-    if (store.close) store.close();
-  }
-}
-
 function seedAccount(store, email, status = "active") {
   return store.grantPeriod(email, { remaining: 150, status, plan: "monthly" });
 }
 
 describe("ask mirror + mcp store", () => {
-  for (const mode of ["memory", "sqlite"]) {
+  for (const mode of askStoreModes()) {
     describe(mode, () => {
       it("upsert then fetch verbatim body", async () => {
         await withStore(mode, async (store) => {
@@ -218,28 +205,21 @@ describe("ask mirror + mcp store", () => {
         await withStore(mode, async (store) => {
           await seedAccount(store, "i@ex.co", "active");
           const t = await store.mintMcpTokensForTest("i@ex.co", "c", RESOURCE);
-          const a = await store.getAccount("i@ex.co");
-          a.status = "inactive";
-          a.remaining = 0;
-          if (store.kind === "sqlite") {
-            // force persist if sqlite has save
-            await store.grantPeriod("i@ex.co", {
-              remaining: 0,
-              status: "inactive",
-              days: 1,
-            });
-          }
-          // memory: mutate in place already; sqlite grantPeriod may set inactive
-          const acct = await store.accountFromMcpToken(t.accessToken);
-          // after grantPeriod inactive — should be null
-          if (store.kind === "memory") {
-            assert.equal(acct, null);
-          } else {
-            assert.equal(
-              await store.accountFromMcpToken(t.accessToken),
-              null,
-            );
-          }
+          assert.ok(await store.accountFromMcpToken(t.accessToken));
+
+          // Persist through the public API. This test used to mutate the
+          // object returned by getAccount and branch on store.kind to decide
+          // whether that needed saving — which only worked because the memory
+          // store hands back a live reference. The mutation was a no-op on
+          // every other backend, so postgres reported an account that was
+          // still active (#239).
+          await store.grantPeriod("i@ex.co", {
+            remaining: 0,
+            status: "inactive",
+            days: 1,
+          });
+
+          assert.equal(await store.accountFromMcpToken(t.accessToken), null);
         });
       });
     });
@@ -258,7 +238,7 @@ describe("ask mirror + mcp store", () => {
     }
   });
 
-  for (const mode of ["memory", "sqlite"]) {
+  for (const mode of askStoreModes()) {
     describe(`pair codes (${mode})`, () => {
       it("mint then redeem once; remint invalidates prior", async () => {
         await withStore(mode, async (store) => {

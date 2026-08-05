@@ -156,6 +156,14 @@ export function registerAtomsCommands(plugin: AtomsPlugin): void {
   });
 
   plugin.addCommand({
+    id: "sync-everything-now",
+    name: "Sync everything now",
+    callback: () => {
+      void plugin.runSyncEverythingNow();
+    },
+  });
+
+  plugin.addCommand({
     id: "open-atom-graph",
     name: "Open atom graph",
     callback: () => {

@@ -104,6 +104,46 @@
   display: flex;
   gap: 10px;
   margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+/* Resume catch-up notices share wait-card chrome; slight spacing stack */
+.atoms-home-egress-catchup-notice,
+.atoms-home-backlog-gate {
+  margin-bottom: 12px;
+}
+
+/* Passive last-catch-up strip — secondary to hero cards.
+   Extra bottom margin so "Sync everything" doesn't sit on top of the next
+   home card (invite / resurface / Also about / library) on phone. */
+.atoms-home-last-catchup-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0 0 22px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--background-modifier-border) 80%, transparent);
+  background: color-mix(in srgb, var(--background-secondary) 70%, transparent);
+}
+
+.atoms-home-last-catchup {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  color: var(--text-muted);
+}
+
+.atoms-home-last-catchup-row .atoms-home-sync-everything,
+.atoms-home-last-catchup-row .atoms-ui-btn {
+  flex-shrink: 0;
+  min-height: 32px;
+  padding: 4px 10px;
+  font-size: 0.78rem;
+  font-weight: 600;
 }
 
 .atoms-home-btn {
@@ -484,14 +524,16 @@
   font-weight: 700;
   letter-spacing: -0.03em;
   line-height: 1.25;
-  margin: 0 0 12px;
+  /* Room before Also about strip on phone */
+  margin: 0 0 16px;
 }
 
 .atoms-home-also-about {
   display: flex;
   align-items: center;
   min-height: 44px;
-  margin: 0 0 14px;
+  /* Clear the open-title above and the claim body / citator below on mobile */
+  margin: 4px 0 20px;
   padding: 12px 14px;
   border-radius: 16px;
   border: 1px solid var(--background-modifier-border);
