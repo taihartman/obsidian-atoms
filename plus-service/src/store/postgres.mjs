@@ -10,6 +10,7 @@ import {
   hashToken,
   id,
   isEntitledAccount,
+  MAGIC_PEEK_MISS,
   normalizeStripeIncident,
   periodEndFromNow,
   publicAccount,
@@ -226,6 +227,33 @@ export async function createPostgresStore(databaseUrl) {
       ],
     );
     return token;
+  }
+
+  /**
+   * #240 U2 — answer whether a magic token is usable without spending it (R6,
+   * R9). Deliberately a bare pool query rather than exchangeMagic's checked-out
+   * client: no BEGIN, no FOR UPDATE, nothing that could carry a delete. The
+   * expired row stays put for U3's mint sweep (KTD13).
+   *
+   * @param {string} token
+   * @returns {Promise<MagicPeek>}
+   */
+  async function peekMagic(token) {
+    const { rows } = await pool.query(
+      "SELECT email, exp_ms, verifier_hash, vault FROM magic_tokens WHERE token = $1",
+      [hashToken(token)],
+    );
+    const row = rows[0];
+    if (!row) return MAGIC_PEEK_MISS.invalid;
+    if (Date.now() > Number(row.exp_ms)) return MAGIC_PEEK_MISS.expired;
+    return {
+      ok: true,
+      status: "usable",
+      email: row.email,
+      vault: row.vault ?? null,
+      verifierBound: !!row.verifier_hash,
+      verifierHash: row.verifier_hash ?? null,
+    };
   }
 
   async function magicRowsForTest() {
@@ -682,6 +710,7 @@ export async function createPostgresStore(databaseUrl) {
     createSession,
     startWithEmail,
     exchangeMagic,
+    peekMagic,
     accountFromSession,
     revokeSession,
     revokeAllSessionsForEmail,

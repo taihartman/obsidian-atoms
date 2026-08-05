@@ -11,6 +11,7 @@ import {
   hashToken,
   id,
   isEntitledAccount,
+  MAGIC_PEEK_MISS,
   normalizeStripeIncident,
   periodEndFromNow,
   publicAccount,
@@ -207,6 +208,30 @@ export function createSqliteStore(dbPath = config.databasePath) {
       opts.vault || null,
     );
     return token;
+  }
+
+  /**
+   * #240 U2 — answer whether a magic token is usable without spending it (R6,
+   * R9). A plain SELECT: no delete, and no transaction that could hold one.
+   * The expired row stays put for U3's mint sweep (KTD13).
+   *
+   * @param {string} token
+   * @returns {MagicPeek}
+   */
+  function peekMagic(token) {
+    const row = db
+      .prepare("SELECT * FROM magic_tokens WHERE token = ?")
+      .get(hashToken(token));
+    if (!row) return MAGIC_PEEK_MISS.invalid;
+    if (Date.now() > Number(row.exp_ms)) return MAGIC_PEEK_MISS.expired;
+    return {
+      ok: true,
+      status: "usable",
+      email: row.email,
+      vault: row.vault ?? null,
+      verifierBound: !!row.verifier_hash,
+      verifierHash: row.verifier_hash ?? null,
+    };
   }
 
   function magicRowsForTest() {
@@ -558,6 +583,7 @@ export function createSqliteStore(dbPath = config.databasePath) {
     createSession,
     startWithEmail,
     exchangeMagic,
+    peekMagic,
     accountFromSession,
     revokeSession,
     revokeAllSessionsForEmail,

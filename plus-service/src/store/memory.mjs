@@ -8,6 +8,7 @@ import {
   hashToken,
   id,
   isEntitledAccount,
+  MAGIC_PEEK_MISS,
   normalizeStripeIncident,
   periodEndFromNow,
   publicAccount,
@@ -244,6 +245,29 @@ export function createMemoryStore() {
     revokeAllSessionsForEmail(row.email);
     const session = createSession(row.email, { verified: true });
     return { session, account: a, vault: row.vault ?? null };
+  }
+
+  /**
+   * #240 U2 — answer whether a magic token is usable without spending it (R6,
+   * R9). Read-only by construction: an expired row reports expired and is left
+   * where it is, because KTD13 puts the sweep on the mint path precisely so a
+   * check can never be weaponised into a delete.
+   *
+   * @param {string} token
+   * @returns {MagicPeek}
+   */
+  function peekMagic(token) {
+    const row = magicTokens.get(hashToken(token));
+    if (!row) return MAGIC_PEEK_MISS.invalid;
+    if (Date.now() > row.exp) return MAGIC_PEEK_MISS.expired;
+    return {
+      ok: true,
+      status: "usable",
+      email: row.email,
+      vault: row.vault ?? null,
+      verifierBound: !!row.verifierHash,
+      verifierHash: row.verifierHash ?? null,
+    };
   }
 
   function magicRowsForTest() {
@@ -934,6 +958,7 @@ export function createMemoryStore() {
     createSession,
     startWithEmail,
     exchangeMagic,
+    peekMagic,
     accountFromSession,
     revokeSession,
     revokeAllSessionsForEmail,

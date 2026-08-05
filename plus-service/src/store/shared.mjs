@@ -18,6 +18,58 @@ export function hashToken(token) {
 }
 
 /**
+ * #240 U2 — what `peekMagic` reports. Uniform across the three backends: the
+ * same keys are present whatever the verdict, so a caller never has to tell an
+ * absent field from a null one, and the parity suite compares like with like.
+ *
+ * @typedef {object} MagicPeek
+ * @property {boolean} ok             usable, and only usable
+ * @property {"usable"|"expired"|"invalid"} status
+ * @property {string|null} email      the account the token signs in
+ * @property {string|null} vault      the vault that requested the link (R3, R18)
+ * @property {boolean} verifierBound  whether the row carries a verifier hash
+ * @property {string|null} verifierHash  the stored hash, for U4's factored
+ *   hash-compare — one comparison, two callers (U4's exchange and U13's peek
+ *   route). `verifierBound` stays alongside it so U5's anchor gate reads a
+ *   boolean rather than reasoning about null. This is an internal store value,
+ *   never an HTTP response field; U13 owns keeping it off the wire.
+ */
+
+/**
+ * The two ways a peek finds nothing to report. Frozen because every backend
+ * hands the same object back and a caller must not be able to edit the answer
+ * the next caller gets.
+ *
+ * `expired` deliberately carries no email or vault: the row is dead either way,
+ * so there is nothing a caller can do with them, and R7 only needs "say so and
+ * point at requesting a new link".
+ *
+ * There is no `refused` here on purpose. A refusal is decided by the route, not
+ * the store: the store reports `usable` with the hash, and U13 downgrades that
+ * to refused after the shared compare fails, attaching the vault it already has.
+ *
+ * @type {{ invalid: MagicPeek, expired: MagicPeek }}
+ */
+export const MAGIC_PEEK_MISS = Object.freeze({
+  invalid: Object.freeze({
+    ok: false,
+    status: "invalid",
+    email: null,
+    vault: null,
+    verifierBound: false,
+    verifierHash: null,
+  }),
+  expired: Object.freeze({
+    ok: false,
+    status: "expired",
+    email: null,
+    vault: null,
+    verifierBound: false,
+    verifierHash: null,
+  }),
+});
+
+/**
  * How long a checkout→session binding stays claimable. Stripe Checkout
  * Sessions expire after 24h, so a binding outliving that is only replay surface.
  */

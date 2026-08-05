@@ -259,6 +259,147 @@ function runStoreSuite(name, create) {
 
       if (store.close) await store.close();
     });
+
+    // ---- #240 U2: peekMagic answers without spending, in every backend ------
+
+    it("U2: peeking twice spends nothing — the exchange still succeeds after", async () => {
+      const store = await fresh();
+      const token = await store.createMagicToken("peek@ex.com", {
+        vault: "Peek Vault",
+      });
+
+      for (const _ of [1, 2]) {
+        const peek = await store.peekMagic(token);
+        assert.equal(peek.ok, true);
+        assert.equal(peek.status, "usable");
+        assert.equal(peek.email, "peek@ex.com");
+        // The row is still there after each peek — R6/R9: a validity check and
+        // a real exchange stay distinguishable.
+        assert.equal((await store.magicRowsForTest()).length, 1);
+      }
+
+      const out = await store.exchangeMagic(token);
+      assert.ok(String(out?.session).startsWith("sess_"));
+      assert.equal(out.vault, "Peek Vault");
+      assert.equal((await store.magicRowsForTest()).length, 0);
+
+      if (store.close) await store.close();
+    });
+
+    it("U2: peeking an expired token reports expired and leaves the row alone", async () => {
+      const store = await fresh();
+      const token = `mt_${"e".repeat(32)}`;
+      await store.writeMagicRowForTest(hashToken(token), {
+        email: "stale@ex.com",
+        expMs: Date.now() - 1000,
+        vault: "Stale Vault",
+      });
+
+      const peek = await store.peekMagic(token);
+      assert.equal(peek.ok, false);
+      assert.equal(peek.status, "expired");
+
+      // KTD13 — the sweep is U3's job on the mint path. A peek that cleans up
+      // is a peek that can be weaponised into a delete.
+      const rows = await store.magicRowsForTest();
+      assert.equal(rows.length, 1);
+      assert.equal(rows[0].key, hashToken(token));
+
+      // And it stays that way however many times it is asked.
+      assert.equal((await store.peekMagic(token)).status, "expired");
+      assert.equal((await store.magicRowsForTest()).length, 1);
+
+      if (store.close) await store.close();
+    });
+
+    it("U2: peeking an unknown token reports invalid without throwing", async () => {
+      const store = await fresh();
+
+      for (const bogus of [`mt_${"z".repeat(32)}`, "", "not-a-token"]) {
+        const peek = await store.peekMagic(bogus);
+        assert.equal(peek.ok, false);
+        assert.equal(peek.status, "invalid");
+        assert.equal(peek.email, null);
+        assert.equal(peek.vault, null);
+        assert.equal(peek.verifierBound, false);
+      }
+
+      if (store.close) await store.close();
+    });
+
+    it("U2: peek returns the requesting vault, and null when none was recorded", async () => {
+      const store = await fresh();
+
+      const named = await store.createMagicToken("named@ex.com", {
+        vault: "Zettel — Ünïcode ✓ vault",
+      });
+      const anon = await store.createMagicToken("anon@ex.com");
+
+      // R18 — the landing page names the requesting vault before the tap, so
+      // the name has to survive the peek intact.
+      assert.equal(
+        (await store.peekMagic(named)).vault,
+        "Zettel — Ünïcode ✓ vault",
+      );
+      assert.equal((await store.peekMagic(anon)).vault, null);
+
+      if (store.close) await store.close();
+    });
+
+    it("U2: peek reports verifier-bound, and hands back the hash for the shared compare", async () => {
+      const store = await fresh();
+
+      const verifier = `ver_${"d".repeat(43)}`;
+      const bound = await store.createMagicToken("bound@ex.com", {
+        verifierHash: hashToken(verifier),
+      });
+      const unbound = await store.createMagicToken("unbound@ex.com");
+
+      // U5 gates the handoff anchor on the boolean, so it never has to reason
+      // about null-vs-absent: an unbound row is an older plugin build.
+      const peek = await store.peekMagic(bound);
+      assert.equal(peek.verifierBound, true);
+      assert.equal((await store.peekMagic(unbound)).verifierBound, false);
+      assert.equal((await store.peekMagic(unbound)).verifierHash, null);
+
+      // U13's peek route feeds this hash to U4's factored compare — one
+      // comparison, two callers — so the store has to hand it back.
+      assert.equal(peek.verifierHash, hashToken(verifier));
+
+      // What must never appear, here or in the row, is the raw verifier: the
+      // device holds it and the server only ever sees its hash.
+      //
+      // The *hash* staying off the wire is a different guarantee at a different
+      // layer — the peek response body — and U13 owns asserting it on its own
+      // route. Handed off deliberately, not dropped.
+      assert.equal(JSON.stringify(peek).includes(verifier), false);
+      assert.equal(
+        JSON.stringify(await store.magicRowsForTest()).includes(verifier),
+        false,
+      );
+
+      if (store.close) await store.close();
+    });
+
+    it("U2/KTD11: a pre-deploy plaintext-keyed row is not usable from peek either", async () => {
+      const store = await fresh();
+      const token = `mt_${"b".repeat(32)}`;
+      await store.writeMagicRowForTest(token, {
+        email: "legacy@ex.com",
+        expMs: Date.now() + 15 * 60 * 1000,
+      });
+
+      // KTD14 re-keys on hashToken(token), so the peek misses it exactly as the
+      // exchange does — orphaned, not redeemable, by either door.
+      const peek = await store.peekMagic(token);
+      assert.equal(peek.ok, false);
+      assert.equal(peek.status, "invalid");
+      assert.equal(peek.email, null);
+
+      assert.equal((await store.magicRowsForTest()).length, 1);
+
+      if (store.close) await store.close();
+    });
   });
 }
 
@@ -366,6 +507,55 @@ if (postgresStoreRows().length) {
     });
   });
 }
+
+/**
+ * #240 U2 — the same scan `#238 store parity` runs in stripe-incidents.test.mjs
+ * (`test/stripe-incidents.test.mjs:249-284`). It holds the surface even in a run
+ * where the postgres suite rows are absent, which is every local run without a
+ * database: a backend that quietly never grew `peekMagic` would otherwise only
+ * be caught in CI.
+ */
+describe("#240 U2 store parity", () => {
+  it("all three stores define and export peekMagic", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { fileURLToPath } = await import("node:url");
+    const { dirname, join } = await import("node:path");
+    const storeDir = join(dirname(fileURLToPath(import.meta.url)), "../src/store");
+
+    for (const file of ["memory.mjs", "sqlite.mjs", "postgres.mjs"]) {
+      const src = readFileSync(join(storeDir, file), "utf8");
+      assert.match(
+        src,
+        /^\s+(async )?function peekMagic\(/m,
+        `${file} must define peekMagic`,
+      );
+      assert.match(
+        src,
+        /^\s+peekMagic,$/m,
+        `${file} must export peekMagic from its factory literal`,
+      );
+    }
+  });
+
+  it("no backend's peekMagic reaches for a delete", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { fileURLToPath } = await import("node:url");
+    const { dirname, join } = await import("node:path");
+    const storeDir = join(dirname(fileURLToPath(import.meta.url)), "../src/store");
+
+    // KTD13 — read-only by construction. The behavioural tests above prove the
+    // row survives; this proves the code has no delete to regress into.
+    for (const file of ["memory.mjs", "sqlite.mjs", "postgres.mjs"]) {
+      const src = readFileSync(join(storeDir, file), "utf8");
+      const start = src.indexOf("function peekMagic(");
+      assert.notEqual(start, -1, `${file} must define peekMagic`);
+      const end = src.indexOf("\n  }\n", start);
+      assert.notEqual(end, -1, `${file}'s peekMagic must close at one indent`);
+      const fn = src.slice(start, end);
+      assert.doesNotMatch(fn, /\bDELETE\b|\.delete\(|FOR UPDATE|BEGIN/i);
+    }
+  });
+});
 
 describe("H1 exchange HTML escaping", () => {
   it("escapes email and session in exchange page", async () => {
