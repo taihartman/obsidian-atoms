@@ -320,10 +320,6 @@ export class AtomsSettingTab extends PluginSettingTab {
     });
   }
 
-  private renderVocabularyDestination(containerEl: HTMLElement): void {
-    this.renderEmptyDestination(containerEl);
-  }
-
   private renderConnectDestination(containerEl: HTMLElement): void {
     this.renderEmptyDestination(containerEl);
   }
@@ -347,18 +343,31 @@ export class AtomsSettingTab extends PluginSettingTab {
     this.renderPlusSection(containerEl);
     this.renderAskSection(containerEl);
     this.renderApiSection(containerEl);
-    this.renderVocabularySection(containerEl);
+    this.renderVocabularyEntry(containerEl);
     this.renderDevHints(containerEl);
     this.renderDestinationEntries(containerEl);
   }
 
   /**
-   * The four ways off the main screen. Grouped in one block, and last, only because the rows
-   * they lead to have not moved yet — U3, U4, and U6 each relocate their destination's content
-   * and place its entry row where that content used to sit.
+   * The vocabulary is the one cluster with no ceiling: a row per active tag, per proposal, and
+   * per tag the vault already uses. On the main screen it is a single row carrying the only
+   * number a user reads it for — how many tags the model may apply.
+   */
+  private renderVocabularyEntry(containerEl: HTMLElement): void {
+    const active = this.plugin.settings.activeVocabulary.length;
+    destinationRow(containerEl, {
+      name: `${DESTINATION_TITLES.vocabulary} — ${active} active`,
+      onOpen: () => this.openRoute("vocabulary"),
+    });
+  }
+
+  /**
+   * The remaining ways off the main screen. Grouped in one block, and last, only because the
+   * rows they lead to have not moved yet — U6 relocates each destination's content and places
+   * its entry row where that content used to sit.
    */
   private renderDestinationEntries(containerEl: HTMLElement): void {
-    for (const route of ["vocabulary", "connect", "advanced"] as const) {
+    for (const route of ["connect", "advanced"] as const) {
       destinationRow(containerEl, {
         name: DESTINATION_TITLES[route],
         onOpen: () => this.openRoute(route),
@@ -1178,91 +1187,107 @@ export class AtomsSettingTab extends PluginSettingTab {
       );
   }
 
-  private renderVocabularySection(containerEl: HTMLElement) {
-    settingHeading(containerEl, "Tag vocabulary");
+  /**
+   * Active tags, anything a classify run proposed, and what the vault already uses. The three
+   * groups keep the behavior they had on the main screen; only their address changed.
+   */
+  private renderVocabularyDestination(containerEl: HTMLElement): void {
     containerEl.createEl("p", {
       text: "Active tags may be applied by the model. #person, #preferences, and #relationship always work (smart defaults). Proposed tags need one-tap approval. People: link to a hub note (e.g. Alex); atoms stay flat — use backlinks, not AI folders.",
       cls: "setting-item-description",
     });
 
+    settingHeading(containerEl, "Active");
     const active = [...this.plugin.settings.activeVocabulary].sort((a, b) =>
       a.localeCompare(b),
     );
 
     for (const tag of active) {
-      new Setting(containerEl)
-        .setName(`#${tag}`)
-        .setDesc("Active — eligible for classification")
-        .addToggle((toggle) =>
-          toggle.setValue(true).onChange(async (on) => {
-            if (!on) {
+      settingRow(containerEl, {
+        name: `#${tag}`,
+        desc: "Active — eligible for classification",
+        control: {
+          kind: "toggle",
+          configure: (toggle) =>
+            toggle.setValue(true).onChange(async (on) => {
+              if (on) return;
               this.plugin.settings.activeVocabulary = removeActiveTag(
                 tag,
                 this.plugin.settings.activeVocabulary,
               );
               await this.plugin.saveSettings();
               this.redisplay();
-            }
-          }),
-        );
+            }),
+        },
+      });
     }
 
-    new Setting(containerEl)
-      .setName("Add custom Active tag")
-      .setDesc("Lowercase, no # required.")
-      .addText((text) =>
-        text
-          .setPlaceholder("e.g. health")
-          .setValue(this.customTagDraft)
-          .onChange((v) => {
-            this.customTagDraft = v;
-          }),
-      )
-      .addButton((btn) =>
-        btn.setButtonText("Add").onClick(async () => {
-          const t = normalizeTag(this.customTagDraft);
-          if (!t) return;
-          this.plugin.settings.activeVocabulary = addCustomActiveTag(
-            t,
-            this.plugin.settings.activeVocabulary,
-          );
-          this.customTagDraft = "";
-          await this.plugin.saveSettings();
-          this.redisplay();
-        }),
-      );
+    // Field and button were one row, which the grammar allows only one right edge for. Splitting
+    // them keeps both rather than dropping the field or committing on every keystroke.
+    settingRow(containerEl, {
+      name: "Add a custom tag",
+      desc: "Lowercase, no # required.",
+      control: {
+        kind: "text",
+        configure: (text) =>
+          text
+            .setPlaceholder("e.g. health")
+            .setValue(this.customTagDraft)
+            .onChange((v) => {
+              this.customTagDraft = v;
+            }),
+      },
+    });
+    actionRow(containerEl, {
+      name: "Add to Active",
+      label: "Add",
+      onClick: async () => {
+        const t = normalizeTag(this.customTagDraft);
+        if (!t) return;
+        this.plugin.settings.activeVocabulary = addCustomActiveTag(
+          t,
+          this.plugin.settings.activeVocabulary,
+        );
+        this.customTagDraft = "";
+        await this.plugin.saveSettings();
+        this.redisplay();
+      },
+    });
 
     // Proposed tags awaiting approval
     const proposed = this.plugin.settings.proposedTags ?? [];
     if (proposed.length > 0) {
       settingHeading(containerEl, "Proposed (approve to activate)");
       for (const tag of proposed) {
-        new Setting(containerEl)
-          .setName(`#${tag}`)
-          .setDesc("From classify runs — not applied until approved")
-          .addButton((btn) =>
-            btn.setButtonText("Approve").setCta().onClick(async () => {
-              const next = approveProposedTag(
-                tag,
-                this.plugin.settings.activeVocabulary,
-                this.plugin.settings.proposedTags,
+        // Approve and dismiss were two buttons on one row; same split, same reason as above.
+        actionRow(containerEl, {
+          name: `#${tag}`,
+          desc: "From classify runs — not applied until approved",
+          label: "Approve",
+          onClick: async () => {
+            const next = approveProposedTag(
+              tag,
+              this.plugin.settings.activeVocabulary,
+              this.plugin.settings.proposedTags,
+            );
+            this.plugin.settings.activeVocabulary = next.activeVocabulary;
+            this.plugin.settings.proposedTags = next.proposedTags;
+            await this.plugin.saveSettings();
+            this.redisplay();
+          },
+        });
+        destructiveRow(containerEl, {
+          name: `Dismiss #${tag}`,
+          label: "Dismiss",
+          onClick: async () => {
+            this.plugin.settings.proposedTags =
+              this.plugin.settings.proposedTags.filter(
+                (t) => normalizeTag(t) !== normalizeTag(tag),
               );
-              this.plugin.settings.activeVocabulary = next.activeVocabulary;
-              this.plugin.settings.proposedTags = next.proposedTags;
-              await this.plugin.saveSettings();
-              this.redisplay();
-            }),
-          )
-          .addButton((btn) =>
-            btn.setButtonText("Dismiss").onClick(async () => {
-              this.plugin.settings.proposedTags =
-                this.plugin.settings.proposedTags.filter(
-                  (t) => normalizeTag(t) !== normalizeTag(tag),
-                );
-              await this.plugin.saveSettings();
-              this.redisplay();
-            }),
-          );
+            await this.plugin.saveSettings();
+            this.redisplay();
+          },
+        });
       }
     }
 
@@ -1286,19 +1311,19 @@ export class AtomsSettingTab extends PluginSettingTab {
 
     for (const { tag, count } of ranked) {
       if (activeSet.has(tag)) continue;
-      new Setting(containerEl)
-        .setName(`#${tag}`)
-        .setDesc(`${count} use(s) — tap to promote to Active`)
-        .addButton((btn) =>
-          btn.setButtonText("Activate").onClick(async () => {
-            this.plugin.settings.activeVocabulary = addCustomActiveTag(
-              tag,
-              this.plugin.settings.activeVocabulary,
-            );
-            await this.plugin.saveSettings();
-            this.redisplay();
-          }),
-        );
+      actionRow(containerEl, {
+        name: `#${tag}`,
+        desc: `${count} use(s) — tap to promote to Active`,
+        label: "Activate",
+        onClick: async () => {
+          this.plugin.settings.activeVocabulary = addCustomActiveTag(
+            tag,
+            this.plugin.settings.activeVocabulary,
+          );
+          await this.plugin.saveSettings();
+          this.redisplay();
+        },
+      });
     }
   }
 

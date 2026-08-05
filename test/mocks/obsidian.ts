@@ -153,6 +153,9 @@ export class ToggleComponent extends ValueComponent<boolean> {
     super(false);
     this.toggleEl = containerEl.appendChild(document.createElement("div"));
     this.toggleEl.classList.add("checkbox-container");
+    // Obsidian's real switch flips on a click of its own element. Mirroring that here is what
+    // lets a test reach a toggle through the rendered tab, with no handle on the component.
+    this.toggleEl.addEventListener("click", () => this.toggle());
   }
   setValue(value: boolean): this {
     this.value = value;
@@ -176,6 +179,9 @@ export class TextComponent extends ValueComponent<string> {
     super("");
     this.inputEl = containerEl.appendChild(document.createElement("input"));
     this.inputEl.type = "text";
+    // Same reason as ToggleComponent: typing into the rendered field must reach `onChange`
+    // without the test holding the component.
+    this.inputEl.addEventListener("input", () => this.fill(this.inputEl.value));
   }
   setValue(value: string): this {
     this.value = value;

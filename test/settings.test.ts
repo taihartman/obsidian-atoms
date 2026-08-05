@@ -12,13 +12,21 @@ import {
   type ShortlistContext,
 } from "../src/pipeline/context";
 import { runWritePath } from "../src/pipeline/write";
-import { accountRowDescriptor, type AccountState } from "../src/settings/settings";
+import {
+  accountRowDescriptor,
+  type AccountState,
+  type AtomsSettingTab,
+} from "../src/settings/settings";
 import type { PlusSession } from "../src/platform/filingAuth";
 import {
   destinationNames,
+  flip,
   open,
+  press,
+  row,
   rowNames,
   settingTab,
+  fill,
   type SettingTabOptions,
 } from "./helpers/settingsTab";
 import { DEFAULT_SETTINGS, type LinkerSettings } from "../src/shared/types";
@@ -361,5 +369,167 @@ describe("account row", () => {
     // @ts-expect-error — "grandfathered" is not an account state.
     const notAState: AccountState = { kind: "grandfathered" };
     expect(notAState.kind).toBe("grandfathered");
+  });
+});
+
+/**
+ * The vocabulary is the cluster that grows without bound — one row per active tag, per proposal,
+ * and per tag already used in the vault, which is how the settings screen was heading for ninety
+ * rows. These assert the replacement: one counted row on the main screen, and every capability
+ * still reachable one screen in.
+ */
+describe("tag vocabulary", () => {
+  const entry = (n: number) => `Tag vocabulary — ${n} active`;
+
+  /** Let the `await plugin.saveSettings()` inside a row's handler land before asserting. */
+  const flush = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+  /** The destination renders a back row; the main screen does not. */
+  const inDestination = (tab: AtomsSettingTab) =>
+    tab.containerEl.querySelector(".atoms-setting-back") !== null;
+
+  it("counts the active vocabulary on one main-screen row", () => {
+    const { tab } = settingTab({ settings: { activeVocabulary: ["idea", "question", "watch"] } });
+    tab.display();
+
+    expect(destinationNames(tab)).toContain(entry(3));
+    // The cluster itself left: not one per-tag row survives on the main screen.
+    expect(rowNames(tab).filter((name) => name.startsWith("#"))).toEqual([]);
+  });
+
+  it("stays one row however large the vocabulary grows", () => {
+    const { tab: big } = settingTab({
+      settings: { activeVocabulary: Array.from({ length: 60 }, (_, i) => `tag${i}`) },
+      vaultTags: ["gardening", "cooking"],
+    });
+    const { tab: small } = settingTab({ settings: { activeVocabulary: ["idea"] } });
+    big.display();
+    small.display();
+
+    expect(rowNames(big).length).toBe(rowNames(small).length);
+  });
+
+  it("holds every active tag in the destination", () => {
+    const { tab } = settingTab({ settings: { activeVocabulary: ["idea", "watch"] } });
+    tab.display();
+    open(tab, entry(2));
+
+    expect(rowNames(tab)).toEqual(expect.arrayContaining(["#idea", "#watch"]));
+  });
+
+  it("leaves the Proposed group out when nothing has been proposed", () => {
+    const { tab } = settingTab({
+      settings: { activeVocabulary: ["idea"], proposedTags: [] },
+    });
+    tab.display();
+    open(tab, entry(1));
+
+    // The intro prose explains proposals, so this is about the group heading and its rows.
+    expect(tab.containerEl.textContent).not.toContain("Proposed (approve to activate)");
+    expect(rowNames(tab).filter((name) => name.startsWith("Dismiss "))).toEqual([]);
+  });
+
+  it("renders the Proposed group when a classify run proposed something", () => {
+    const { tab } = settingTab({
+      settings: { activeVocabulary: ["idea"], proposedTags: ["gardening"] },
+    });
+    tab.display();
+    open(tab, entry(1));
+
+    expect(tab.containerEl.textContent).toContain("Proposed (approve to activate)");
+    // One right edge per row, so approve and dismiss are two rows rather than two buttons.
+    expect(rowNames(tab)).toContain("#gardening");
+    expect(rowNames(tab)).toContain("Dismiss #gardening");
+  });
+
+  it("approves a proposed tag into Active", async () => {
+    const { tab } = settingTab({
+      settings: { activeVocabulary: ["idea"], proposedTags: ["gardening"] },
+    });
+    tab.display();
+    open(tab, entry(1));
+    press(tab, "#gardening", "Approve");
+    await flush();
+
+    expect(inDestination(tab)).toBe(true);
+    expect(rowNames(tab)).not.toContain("Dismiss #gardening");
+    expect(row(tab, "#gardening").querySelector(".checkbox-container")).not.toBeNull();
+
+    tab.hide();
+    tab.display();
+    expect(destinationNames(tab)).toContain(entry(2));
+  });
+
+  it("dismisses a proposed tag without activating it", async () => {
+    const { tab } = settingTab({
+      settings: { activeVocabulary: ["idea"], proposedTags: ["gardening"] },
+    });
+    tab.display();
+    open(tab, entry(1));
+    press(tab, "Dismiss #gardening", "Dismiss");
+    await flush();
+
+    expect(rowNames(tab)).not.toContain("#gardening");
+    tab.hide();
+    tab.display();
+    expect(destinationNames(tab)).toContain(entry(1));
+  });
+
+  it("activates a tag found in the vault and updates the main-screen count", async () => {
+    const { tab } = settingTab({
+      settings: { activeVocabulary: ["idea"] },
+      vaultTags: ["gardening"],
+    });
+    tab.display();
+    expect(destinationNames(tab)).toContain(entry(1));
+
+    open(tab, entry(1));
+    expect(tab.containerEl.textContent).toContain("Found in your vault");
+    press(tab, "#gardening", "Activate");
+    await flush();
+
+    // The re-render keeps the user on the screen they were reading.
+    expect(inDestination(tab)).toBe(true);
+    // Promoted: the row now wears the Active toggle instead of an Activate button.
+    expect(row(tab, "#gardening").querySelector(".checkbox-container")).not.toBeNull();
+
+    tab.hide();
+    tab.display();
+    expect(destinationNames(tab)).toContain(entry(2));
+  });
+
+  it("deactivates an active tag from its toggle", async () => {
+    const { tab } = settingTab({ settings: { activeVocabulary: ["idea", "watch"] } });
+    tab.display();
+    open(tab, entry(2));
+    flip(tab, "#idea");
+    await flush();
+
+    expect(inDestination(tab)).toBe(true);
+    expect(rowNames(tab)).not.toContain("#idea");
+    expect(rowNames(tab)).toContain("#watch");
+  });
+
+  it("normalizes a custom tag before adding it", async () => {
+    const { tab } = settingTab({ settings: { activeVocabulary: [] } });
+    tab.display();
+    open(tab, entry(0));
+    fill(tab, "Add a custom tag", "  #Health  ");
+    press(tab, "Add to Active", "Add");
+    await flush();
+
+    expect(inDestination(tab)).toBe(true);
+    expect(rowNames(tab)).toContain("#health");
+  });
+
+  it("ignores an empty custom tag", async () => {
+    const { tab } = settingTab({ settings: { activeVocabulary: ["idea"] } });
+    tab.display();
+    open(tab, entry(1));
+    fill(tab, "Add a custom tag", "   #  ");
+    press(tab, "Add to Active", "Add");
+    await flush();
+
+    expect(rowNames(tab).filter((name) => name.startsWith("#"))).toEqual(["#idea"]);
   });
 });

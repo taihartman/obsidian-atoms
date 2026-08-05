@@ -11,6 +11,7 @@ import {
 } from "../src/settings/rows";
 import { AtomsSettingTab, type SettingsRoute } from "../src/settings/settings";
 import { destinationNames, open, settingTab } from "./helpers/settingsTab";
+import { DEFAULT_SETTINGS } from "../src/shared/types";
 // Imported from the mock by path, not from "obsidian": vitest aliases the module but `tsc`
 // does not, so a bare "obsidian" import would typecheck against the real API and never see
 // the recorder's `controls`. Code under test still imports "obsidian" and gets this same
@@ -334,12 +335,12 @@ function onMainScreen(tab: AtomsSettingTab): boolean {
 
 /**
  * Entry-row name paired with the title of the screen it opens. They match everywhere except
- * Account, whose entry row is named for the account's state (U3) while the screen it opens keeps
- * its own title.
+ * Account, whose entry row is named for the account's state (U3), and Tag vocabulary, whose entry
+ * row carries the active count (U4) — both screens keep their own title.
  */
 const DESTINATIONS: Array<[entry: string, title: string]> = [
   ["Set up automatic filing", "Account"],
-  ["Tag vocabulary", "Tag vocabulary"],
+  [`Tag vocabulary — ${DEFAULT_SETTINGS.activeVocabulary.length} active`, "Tag vocabulary"],
   ["Connect Claude or ChatGPT", "Connect Claude or ChatGPT"],
   ["Advanced", "Advanced"],
 ];
@@ -416,7 +417,7 @@ describe("destination shell", () => {
  * a flat ban: the count may fall, never rise. When it reaches zero, tighten the budget to 0 and
  * this becomes the flat ban the grammar wants.
  */
-const DIRECT_SETTING_BUDGET = 35;
+const DIRECT_SETTING_BUDGET = 31;
 
 describe("row-grammar repository guard", () => {
   it("settings.ts does not grow new direct `new Setting(` sites", () => {
