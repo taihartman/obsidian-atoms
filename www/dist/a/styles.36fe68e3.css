@@ -1280,6 +1280,96 @@ main[data-story="self"] .s-people {
   color: var(--faint);
 }
 
+/* ---------- setup guide ---------- */
+
+/*
+ * The guide is a legal-page variant: same measure and prose tiers, plus a
+ * step scale (h3) and phone-shaped screenshots. Shots are 390x844 @2x from
+ * the real walkthrough, so they are capped near their true width rather than
+ * blown up to fill the column.
+ */
+.guide h3 {
+  margin-top: 26px;
+  font-size: 1rem;
+  font-weight: 650;
+  color: var(--label);
+}
+
+.guide section {
+  margin-top: 40px;
+  padding-top: 8px;
+  border-top: 1px solid var(--sep-soft);
+}
+
+.guide-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 22px 0 4px;
+}
+
+.guide-nav a {
+  padding: 6px 12px;
+  border: 1px solid var(--sep);
+  border-radius: var(--r-pill);
+  font-size: 0.85rem;
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.guide-nav a:hover {
+  color: var(--label);
+  border-color: var(--label);
+}
+
+.shot {
+  margin: 18px 0 0;
+}
+
+.shot img {
+  display: block;
+  width: 100%;
+  max-width: 280px;
+  height: auto;
+  border: 1px solid var(--sep-soft);
+  border-radius: var(--r-md);
+}
+
+.shot figcaption {
+  margin-top: 8px;
+  font-size: 0.82rem;
+  color: var(--faint);
+}
+
+/* The one string a reader has to copy exactly, given room to be copied. */
+.guide-paste {
+  margin: 14px 0 0;
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 1px solid var(--sep-soft);
+  border-radius: var(--r-sm);
+}
+
+.guide-details {
+  margin-top: 18px;
+  padding: 14px 16px;
+  background: var(--surface);
+  border: 1px solid var(--sep-soft);
+  border-radius: var(--r-md);
+}
+
+.guide-details summary {
+  cursor: pointer;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--label);
+}
+
+.guide-details p,
+.guide-details li {
+  font-size: 0.9rem;
+}
+
 /* Was an inline style attribute, which the page's own style-src 'self' drops. */
 .back-wrap {
   margin-top: 20px;

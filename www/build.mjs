@@ -234,8 +234,29 @@ const GRAPHS = {
   },
 };
 
-const PAGES = ["index", "privacy", "terms", "404"];
-const ASSETS = ["_headers", "favicon.svg", "og.png", "robots.txt"];
+const PAGES = ["index", "privacy", "terms", "setup", "404"];
+
+/**
+ * The setup-* shots are lossless WebP straight from the real walkthrough
+ * (390x844 @2x). Lossless beats q88 on flat UI colour, so there is no
+ * quality tradeoff being made here — see
+ * docs/qa/2026-08-04-setup-walkthrough-findings.md.
+ */
+const SETUP_SHOTS = [
+  "setup-restricted-mode.webp",
+  "setup-community-plugins-on.webp",
+  "setup-brat-settings.webp",
+  "setup-brat-add-beta-plugin-modal.webp",
+  "setup-atoms-settings.webp",
+];
+
+const ASSETS = [
+  "_headers",
+  "favicon.svg",
+  "og.png",
+  "robots.txt",
+  ...SETUP_SHOTS,
+];
 
 /**
  * CSS and JS ship content-fingerprinted under /a/ with immutable caching, so

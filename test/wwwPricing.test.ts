@@ -10,15 +10,26 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "fs";
+import { existsSync, readFileSync } from "fs";
 import { join } from "path";
 import {
   PLUS_PRICING,
   trialFinePrint,
 } from "../src/shared/plusPricing";
+// build.mjs guards its own execution, so importing it here builds nothing.
+import { PAGES } from "../www/build.mjs";
 
 const repoRoot = join(__dirname, "..");
 const distDir = join(repoRoot, "www", "dist");
+
+/**
+ * Derived from the build's own page list rather than retyped here. These
+ * guarantees are structural — they hold for every page the site ships — and a
+ * hardcoded list silently stops covering the next page somebody adds, which is
+ * exactly how /setup would have shipped untested.
+ */
+const ALL_PAGES: string[] = PAGES.map((p: string) => `${p}.html`);
+const SCRIPTLESS_PAGES = ALL_PAGES.filter((p) => p !== "index.html");
 
 function dist(page: string): string {
   return readFileSync(join(distDir, page), "utf8");
@@ -40,8 +51,10 @@ const visible = index.replace(/<!--[\s\S]*?-->/g, " ");
 
 describe("www build output", () => {
   it("has no unsubstituted template tokens", () => {
-    for (const page of ["index.html", "privacy.html", "terms.html"]) {
-      expect(dist(page)).not.toMatch(/\{\{\w+\}\}/);
+    for (const page of ALL_PAGES) {
+      expect(dist(page), `unsubstituted token in ${page}`).not.toMatch(
+        /\{\{\w+\}\}/,
+      );
     }
   });
 
@@ -56,8 +69,8 @@ describe("www build output", () => {
     expect(scripts).toHaveLength(1);
     expect(scripts[0]).toMatch(/src="\/a\/app\.[0-9a-f]{8}\.js"/);
     expect(index).not.toMatch(/<script[^>]*>[^<]/);
-    for (const page of ["privacy.html", "terms.html"]) {
-      expect(dist(page)).not.toMatch(/<script/i);
+    for (const page of SCRIPTLESS_PAGES) {
+      expect(dist(page), `script tag in ${page}`).not.toMatch(/<script/i);
     }
   });
 
@@ -65,7 +78,7 @@ describe("www build output", () => {
     // style-src 'self' has no 'unsafe-inline', so an inline style attribute
     // is not a shortcut, it is dead code: the rule never applies and the only
     // symptom is a console violation nobody reads.
-    for (const page of ["index.html", "privacy.html", "terms.html", "404.html"]) {
+    for (const page of ALL_PAGES) {
       expect(dist(page), `inline style in ${page}`).not.toMatch(/<[^>]+\sstyle="/);
     }
   });
@@ -310,15 +323,22 @@ describe("honesty floor", () => {
   });
 
   it("explains Obsidian before BRAT for newcomers", () => {
+    // The guarantee is that nobody meets the word BRAT before learning Atoms
+    // needs Obsidian and where to get it. The steps themselves moved to
+    // /setup, so the landing page owns the handoff and the guide owns the
+    // explanation — but between them the promise is unchanged.
     const install = index.slice(
       index.indexOf('id="install"'),
       index.indexOf('id="privacy-summary"'),
     );
-    expect(install).toContain("Get Obsidian");
     expect(install).toContain("https://obsidian.md");
-    expect(install).toContain("skip to step 2");
     expect(install).toContain("BRAT");
+    expect(install).toContain('href="/setup"');
     expect(index).toContain("New to Obsidian (free)?");
+
+    const guide = flatten(dist("setup.html"));
+    expect(guide).toContain("Download Obsidian");
+    expect(guide.indexOf("Obsidian")).toBeLessThan(guide.indexOf("BRAT"));
   });
 
   it("says Atoms is an Obsidian plugin above the fold", () => {
@@ -471,5 +491,64 @@ describe("recall claims stay within what ships", () => {
 
   it("says resurfacing is pull only", () => {
     expect(index).toContain("If you do not open Atoms, nothing happens.");
+  });
+});
+
+/**
+ * The setup page exists because the short version dead-ended new users. These
+ * guard the specific facts that made it dead-end, so a future tidy-up cannot
+ * quietly drop them again.
+ */
+describe("setup guide", () => {
+  const setup = flatten(dist("setup.html"));
+
+  it("covers the Restricted Mode wall, which is where newcomers actually stop", () => {
+    // A fresh vault ships with community plugins blocked. The old copy said
+    // "install BRAT from community plugins" while they were off — verified
+    // against an empty vault in docs/qa/2026-08-04-setup-walkthrough-findings.md.
+    expect(setup).toContain("Restricted Mode");
+    expect(setup).toContain("Turn on community plugins");
+  });
+
+  it("gives the BRAT repository as owner/repo, the form the field accepts", () => {
+    expect(setup).toContain("taihartman/obsidian-atoms");
+    // A full URL is the common mistake, so the page must not model one.
+    expect(setup).not.toContain("https://github.com/taihartman/obsidian-atoms.git");
+  });
+
+  it("publishes the same MCP connector URL the plugin hands out", () => {
+    // Drift guard: the page cannot be the only place this address lives, or a
+    // service move silently strands every reader following the guide.
+    const client = readFileSync(
+      join(repoRoot, "src", "platform", "plusClient.ts"),
+      "utf8",
+    );
+    const base = client.match(
+      /DEFAULT_PLUS_BASE_URL\s*=\s*"([^"]+)"/,
+    )?.[1];
+    expect(base, "DEFAULT_PLUS_BASE_URL not found in plusClient.ts").toBeTruthy();
+    expect(setup).toContain(`${base}/mcp`);
+  });
+
+  it("says plainly that Android has no capture shortcut yet", () => {
+    // Honesty beats a recipe we cannot device-verify. If Android capture ever
+    // ships, this test should fail and be rewritten, not deleted quietly.
+    expect(setup).toContain("no Android equivalent yet");
+  });
+
+  it("references only screenshots that actually ship", () => {
+    // A broken image in a setup guide reads as an abandoned product.
+    const srcs = [...setup.matchAll(/<img[^>]+src="([^"]+)"/g)].map((m) => m[1]);
+    expect(srcs.length).toBeGreaterThan(0);
+    for (const src of srcs) {
+      expect(
+        existsSync(join(distDir, src.replace(/^\//, ""))),
+        `missing image ${src}`,
+      ).toBe(true);
+    }
+  });
+
+  it("is reachable from the landing page", () => {
+    expect(index).toContain('href="/setup"');
   });
 });
