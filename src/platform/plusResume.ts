@@ -2,7 +2,7 @@
  * Poll Plus entitlement after Stripe Checkout (awaitingCheckout flag).
  */
 import { Notice } from "obsidian";
-import type { App } from "obsidian";
+import type { App, Plugin } from "obsidian";
 import {
   clearAwaitingCheckout,
   isAwaitingCheckout,
@@ -17,6 +17,13 @@ export type PlusResumeHost = {
   app: App & LocalStorageLike;
   settings: { plusBaseUrl: string };
   registerInterval: (id: number) => number;
+  /**
+   * #282 — the resume listeners are tied to the plugin lifecycle, not left on
+   * `document`/`window` forever. Same member `main.ts` already uses for its own
+   * listeners; a disable/enable mid-checkout would otherwise leave the old
+   * module instance still handling `visibilitychange`.
+   */
+  registerDomEvent: Plugin["registerDomEvent"];
 };
 
 const MAX_POLLS = 8;
@@ -47,6 +54,21 @@ export async function refreshPlusSessionQuiet(
     status === "trialing" ||
     status === "exhausted"
   ) {
+    // #280 — announce exactly once per checkout. Four uncoordinated triggers
+    // feed this function (load, the 5s interval, `visibilitychange` and
+    // `focus`, the last two firing together on return from Stripe), so several
+    // polls are routinely in flight when entitlement flips. The guard at the
+    // top is a check-then-act across the `await` above: every caller already
+    // past it is committed, which is how one checkout produced seven notices.
+    //
+    // Re-read the flag here instead. Nothing below yields, so clear-and-notice
+    // is one synchronous block and only the first caller through can announce.
+    // Deliberately NOT solved by coalescing callers onto one shared promise:
+    // `plusFetchRequest` has no timeout, so a single hung request would then
+    // absorb every remaining poll and the user would be told nothing at all —
+    // and on a path whose whole job is telling a paying user their entitlement
+    // landed, silence is a worse failure than a duplicate notice.
+    if (!isAwaitingCheckout(host.app)) return true;
     clearAwaitingCheckout(host.app);
     new Notice("Atoms Plus is ready", 6000);
     return true;
@@ -76,10 +98,10 @@ export function schedulePlusCheckoutResume(host: PlusResumeHost): void {
   };
 
   if (typeof document !== "undefined") {
-    document.addEventListener("visibilitychange", onVisible);
+    host.registerDomEvent(document, "visibilitychange", onVisible);
   }
   if (typeof window !== "undefined") {
-    window.addEventListener("focus", onVisible);
+    host.registerDomEvent(window, "focus", onVisible);
   }
 
   if (isAwaitingCheckout(host.app)) {
