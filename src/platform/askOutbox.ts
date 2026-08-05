@@ -2,6 +2,7 @@
  * Ask outbox apply planner — create new Atoms/ files from Claude queue.
  */
 import type { ClassificationLink } from "../shared/types";
+import { relationReasonProse } from "../shared/relationReason";
 import {
   atomPathForTitle,
   clampAtomFolder,
@@ -62,14 +63,7 @@ export function buildAskAtomMarkdown(opts: {
   if (opts.parent?.trim()) {
     const p = sanitizeFilename(opts.parent.trim()).filename;
     const rel = (opts.relation || "continues").trim();
-    const reason =
-      rel === "revises"
-        ? `revises [[${p}]]`
-        : rel === "contradicts"
-          ? `contradicts [[${p}]]`
-          : rel === "adds_detail"
-            ? `adds detail to [[${p}]]`
-            : `continues [[${p}]]`;
+    const reason = relationReasonProse(rel, p);
     if (!links.some((l) => l.note.toLowerCase() === p.toLowerCase())) {
       links.unshift({ note: p, reason });
     } else {

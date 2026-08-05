@@ -34,6 +34,13 @@ import {
   hubTitlesFromAtomContents,
   runHubProjectionForHubs,
 } from "./runHubProjection";
+import { localDateYmd } from "./atomQuality";
+import {
+  clearContinueParent,
+  ensureContinueDistinctTitle,
+  ensureContinueParentLink,
+  readContinueParent,
+} from "../platform/continueParent";
 
 export interface WritePathEntry {
   dailyPath: string;
@@ -165,14 +172,39 @@ export async function runWritePath(
     });
   };
 
+  const todayYmd = localDateYmd();
+  const loadLs = (k: string) =>
+    typeof opts.app.loadLocalStorage === "function"
+      ? (opts.app.loadLocalStorage(k) as unknown)
+      : null;
+  const saveLs = (k: string, v: unknown) => {
+    if (typeof opts.app.saveLocalStorage === "function") {
+      opts.app.saveLocalStorage(k, v);
+    }
+  };
+
   try {
     for (let i = 0; i < slice.length; i++) {
       const { note, capture } = slice[i]!;
       opts.onProgress?.(i + 1, slice.length, { captureText: capture.text });
 
       // Scored against this capture, including atoms this run already wrote (R4).
-      const ctx = await run.getCandidates(capture);
+      let ctx = await run.getCandidates(capture);
       logShortlistDiagnostics("process shortlist", ctx.stats);
+
+      // Home Continue: today-only, re-read each capture; clear only after write success.
+      const pending = readContinueParent(loadLs);
+      let continueInjected: string | null = null;
+      if (pending && note.date === todayYmd) {
+        continueInjected = pending.title;
+        ctx = {
+          ...ctx,
+          continueParent: {
+            title: pending.title,
+            ...(pending.path ? { path: pending.path } : {}),
+          },
+        };
+      }
 
       let result: ClassificationResult | null = null;
       if (opts.fixtureResults && opts.fixtureResults[i]) {
@@ -206,6 +238,16 @@ export async function runWritePath(
         if (result.proposed_tags?.length) {
           proposedIncoming.push(...result.proposed_tags);
         }
+      }
+
+      if (continueInjected) {
+        result = ensureContinueDistinctTitle(
+          result,
+          continueInjected,
+          existingAtoms,
+          opts.atomFolder,
+        );
+        result = ensureContinueParentLink(result, continueInjected);
       }
 
       const personHubMiss = personHubMissAfterEnrich(
@@ -274,6 +316,10 @@ export async function runWritePath(
       if (writeResult.atomCreated) atomsCreated += 1;
       if (writeResult.atomSkippedCollision) collisions += 1;
       if (writeResult.markerAppended) markersAppended += 1;
+
+      if (continueInjected && writeResult.markerAppended) {
+        clearContinueParent(saveLs);
+      }
 
       // Make it scoreable for the captures still to come. Only newly created atoms:
       // a collision skip means the file was already in the corpus at seed time.

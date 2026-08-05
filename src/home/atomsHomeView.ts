@@ -125,6 +125,13 @@ import {
   textControl,
 } from "../ui";
 import {
+  clearContinueParent,
+  continueChipLabel,
+  readContinueParent,
+  writeContinueParent,
+  type ContinueParentPending,
+} from "../platform/continueParent";
+import {
   CAPTURE_SHORTCUT_VERSION,
   labelInstallOrUpdate,
   needsInferredDateSignal,
@@ -482,8 +489,8 @@ export class AtomsHomeView extends ItemView {
   private async openLandedAtom(path: string): Promise<void> {
     this.landPeak = null;
     this.clearRunUi();
-    await this.openPathInVault(path);
-    void this.refresh();
+    await this.refresh();
+    await this.openAtomInHome(path);
   }
 
   private fillProgressContent(el: HTMLElement): void {
@@ -1552,7 +1559,15 @@ export class AtomsHomeView extends ItemView {
 
   private async openAtomInHome(path: string): Promise<void> {
     const folder = this.plugin.settings.atomFolder || "Atoms";
-    const file = this.atomFileInputs.find((f) => f.path === path);
+    let file = this.atomFileInputs.find((f) => f.path === path);
+    if (!file) {
+      const af = this.app.vault.getAbstractFileByPath(path);
+      if (af instanceof TFile) {
+        const content = await this.app.vault.read(af);
+        file = { path, content, mtime: af.stat.mtime };
+        this.atomFileInputs = [...this.atomFileInputs, file];
+      }
+    }
     if (!file) {
       new Notice("Atoms: note not found");
       return;
@@ -1577,6 +1592,62 @@ export class AtomsHomeView extends ItemView {
       alsoAbout: this.buildAlsoAboutForPath(self.path),
     };
     this.render();
+  }
+
+  private readContinuePending(): ContinueParentPending | null {
+    return readContinueParent((k) => this.app.loadLocalStorage(k) as unknown);
+  }
+
+  private onContinueAtom(path: string, title: string): void {
+    writeContinueParent(
+      (k, v) => this.app.saveLocalStorage(k, v),
+      { title, path, setAt: Date.now() },
+    );
+    this.closeHomeOpen();
+    void this.onOpenToday();
+    this.render();
+    new Notice(`Continuing ${title} — write in today, then Process today`);
+  }
+
+  private onCancelContinue(): void {
+    clearContinueParent((k, v) => this.app.saveLocalStorage(k, v));
+    this.render();
+  }
+
+  private renderContinueChip(parent: HTMLElement): void {
+    const pending = this.readContinuePending();
+    if (!pending) return;
+    const chip = parent.createDiv({
+      cls: "atoms-home-continue-chip",
+      attr: {
+        role: "status",
+        "aria-live": "polite",
+        "aria-label": continueChipLabel(pending.title, 80),
+      },
+    });
+    const label = chip.createEl("button", {
+      cls: "atoms-home-continue-chip-title atoms-ui-ghost-btn",
+      text: continueChipLabel(pending.title),
+      attr: { "aria-label": `Open ${pending.title}` },
+    });
+    label.addEventListener("click", () => {
+      if (pending.path) void this.openAtomInHome(pending.path);
+    });
+    button(chip, {
+      grade: "quiet",
+      label: "Cancel",
+      className: "atoms-home-continue-cancel",
+      onClick: () => this.onCancelContinue(),
+    });
+    if (this.todayUnprocessedCount > 0 && this.runPhase === "idle") {
+      button(chip, {
+        grade: "secondary",
+        label: this.busy ? "…" : "Process today",
+        className: "atoms-home-continue-process",
+        disabled: this.busy,
+        onClick: () => void this.onProcess(true),
+      });
+    }
   }
 
   private renderHomeOpen(scroll: HTMLElement): void {
@@ -1681,7 +1752,16 @@ export class AtomsHomeView extends ItemView {
       maxLines: 8,
       className: "atoms-home-open-body",
     });
-    button(scroll, {
+    this.renderContinueChip(scroll);
+    const actions = actionRow(scroll, { className: "atoms-home-open-actions" });
+    button(actions, {
+      grade: "primary",
+      label: "Continue",
+      className: "atoms-home-continue-btn",
+      disabled: this.busy || this.runPhase !== "idle",
+      onClick: () => this.onContinueAtom(open.path, open.title),
+    });
+    button(actions, {
       grade: "secondary",
       label: "Open in vault",
       className: "atoms-home-open-vault",
@@ -1890,6 +1970,8 @@ export class AtomsHomeView extends ItemView {
     } else {
       this.progressMount = null;
     }
+
+    this.renderContinueChip(scroll);
 
     // Work first when past captures wait — automatic filing story (not homework-only).
     // Suppress while land peak is up (one hero: Done owns the screen).
@@ -2208,7 +2290,7 @@ export class AtomsHomeView extends ItemView {
           className: "atoms-home-cell",
           role: "button",
           onClick: () => {
-            void this.openPathInVault(e.path);
+            void this.openAtomInHome(e.path);
           },
         });
         const main = row.createDiv({ cls: "atoms-home-cell-main" });

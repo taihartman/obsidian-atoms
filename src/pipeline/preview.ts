@@ -25,6 +25,12 @@ import {
   personHubMissAfterEnrich,
   type PersonHub,
 } from "./enrich/people";
+import { localDateYmd } from "./atomQuality";
+import {
+  ensureContinueDistinctTitle,
+  ensureContinueParentLink,
+  readContinueParent,
+} from "../platform/continueParent";
 import {
   fingerprintPreviewKey,
   lookupPreviewCache,
@@ -266,6 +272,12 @@ export async function runDryRun(
     ? parsePreviewCache(opts.app.loadLocalStorage(LS_PREVIEW_CACHE))
     : null;
 
+  const todayYmd = localDateYmd();
+  const loadLs = (k: string) =>
+    typeof opts.app.loadLocalStorage === "function"
+      ? (opts.app.loadLocalStorage(k) as unknown)
+      : null;
+
   try {
     for (let i = 0; i < slice.length; i++) {
       const { note, capture } = slice[i]!;
@@ -273,8 +285,22 @@ export async function runDryRun(
 
       // Scored against this capture. Preview writes nothing, so no atom joins the
       // corpus mid-run — a previewed capture sees exactly the vault as it stands.
-      const ctx = await run.getCandidates(capture);
+      let ctx = await run.getCandidates(capture);
       logShortlistDiagnostics("preview shortlist", ctx.stats);
+
+      // Inject Continue parent for today's captures only; never clear pending on preview.
+      const pending = readContinueParent(loadLs);
+      let continueTitle: string | null = null;
+      if (pending && note.date === todayYmd) {
+        continueTitle = pending.title;
+        ctx = {
+          ...ctx,
+          continueParent: {
+            title: pending.title,
+            ...(pending.path ? { path: pending.path } : {}),
+          },
+        };
+      }
 
       let outcome: ClassifyOutcome;
       if (useCache && cacheStore) {
@@ -282,6 +308,7 @@ export async function runDryRun(
           capture.text,
           opts.model,
           opts.previewCacheQualityStamp!,
+          continueTitle ?? "none",
         );
         const hit = lookupPreviewCache(cacheStore, key);
         if (hit) {
@@ -304,6 +331,17 @@ export async function runDryRun(
             ...opts.classifyDeps,
           });
           if (outcome.ok) {
+            let result = outcome.result;
+            if (continueTitle) {
+              result = ensureContinueDistinctTitle(
+                result,
+                continueTitle,
+                new Set(),
+                opts.atomFolder,
+              );
+              result = ensureContinueParentLink(result, continueTitle);
+              outcome = { ...outcome, result };
+            }
             cacheStore = putPreviewCache(cacheStore, key, outcome.result);
             opts.app.saveLocalStorage(
               LS_PREVIEW_CACHE,
@@ -318,6 +356,17 @@ export async function runDryRun(
           activeVocabulary: opts.activeVocabulary,
           ...opts.classifyDeps,
         });
+        if (outcome.ok && continueTitle) {
+          let result = outcome.result;
+          result = ensureContinueDistinctTitle(
+            result,
+            continueTitle,
+            new Set(),
+            opts.atomFolder,
+          );
+          result = ensureContinueParentLink(result, continueTitle);
+          outcome = { ...outcome, result };
+        }
       }
 
       entries.push(

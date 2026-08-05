@@ -78,6 +78,12 @@ export const SYSTEM_PROMPT = `You classify fleeting captures from a daily-note i
 - Prefer one hard entity link with a substantive reason over only a broad hub.
 - Pure one-off logistics with no keepable list ("buy milk", lone "call dentist at 3") stay noise. A multi-item checklist is not pure logistics.
 
+## Continue parent (when present)
+- When the user context includes a **### Continue parent** block, the user intentionally continued that note.
+- You MUST include that exact title in links[] with reason continues/revises/contradicts/adds detail to [[…]] (pick the best fit; default continues).
+- Never reuse the parent title as this atom's title — invent a new short declarative claim.
+- Never rewrite or modify the parent body (you only output schema fields).
+
 ## title
 - Required non-empty string iff verdict is atom.
 - Empty string for task and noise.

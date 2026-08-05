@@ -139,11 +139,25 @@ export function boundContext(context) {
       ? /** @type {Record<string, unknown>} */ (context)
       : {};
   const { ranked, cap } = titleCap(c);
+  /** @type {{ title: string, path?: string } | null} */
+  let continueParent = null;
+  const cpRaw = c.continueParent;
+  if (cpRaw && typeof cpRaw === "object" && !Array.isArray(cpRaw)) {
+    const cp = /** @type {Record<string, unknown>} */ (cpRaw);
+    const title = typeof cp.title === "string" ? cp.title.trim() : "";
+    if (title) {
+      continueParent = { title: title.slice(0, MAX_TITLE_CHARS) };
+      if (typeof cp.path === "string" && cp.path.trim()) {
+        continueParent.path = cp.path.trim().slice(0, 240);
+      }
+    }
+  }
   return {
     titles: asStringList(c.titles, cap, MAX_TITLE_CHARS),
     tags: asStringList(c.tags, 80, 64),
     vocabulary: asStringList(c.vocabulary, 80, 64),
     personHubs: asStringList(c.personHubs, 40, 120),
+    continueParent,
     // Which cap regime applied — ranked shortlist or the legacy alphabetical 40. Not read when
     // building the prompt; it is here so a caller (and the suite) can tell the two apart from the
     // result, rather than inferring a regime from how many titles happened to survive.
@@ -186,14 +200,23 @@ export function buildContextUserMessage(context) {
   );
 }
 
-export function buildCaptureUserMessage(capture) {
-  return [
-    "## Capture to classify",
-    "",
-    capture,
-    "",
-    "Classify this single capture. Return only the schema fields.",
-  ].join("\n");
+export function buildCaptureUserMessage(capture, continueParent = null) {
+  const parts = ["## Capture to classify", "", capture, ""];
+  const title =
+    continueParent && typeof continueParent.title === "string"
+      ? continueParent.title.trim()
+      : "";
+  if (title) {
+    parts.push("### Continue parent", `Title: ${title}`);
+    const path =
+      continueParent && typeof continueParent.path === "string"
+        ? continueParent.path.trim()
+        : "";
+    if (path) parts.push(`Path: ${path}`);
+    parts.push("");
+  }
+  parts.push("Classify this single capture. Return only the schema fields.");
+  return parts.join("\n");
 }
 
 function reject(status, message) {
@@ -270,7 +293,7 @@ export function buildClassifyPayload(body) {
         content: [
           {
             type: "text",
-            text: buildCaptureUserMessage(capture),
+            text: buildCaptureUserMessage(capture, ctx.continueParent),
           },
         ],
       },

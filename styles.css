@@ -1898,3 +1898,34 @@
 .atoms-ask-mirror-error {
   color: var(--text-error);
 }
+
+/* Continue handoff chip (#16) */
+.atoms-home-continue-chip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--background-secondary) 88%, transparent);
+  border: 1px solid color-mix(in srgb, var(--background-modifier-border) 70%, transparent);
+}
+
+.atoms-home-continue-chip-title {
+  flex: 1 1 auto;
+  min-height: 44px;
+  min-width: 0;
+  text-align: left;
+  font-weight: 500;
+  color: var(--text-normal);
+}
+
+.atoms-home-continue-cancel,
+.atoms-home-continue-process {
+  min-height: 44px;
+}
+
+.atoms-home-open-actions {
+  margin-top: 14px;
+}

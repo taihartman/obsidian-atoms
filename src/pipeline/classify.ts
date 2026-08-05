@@ -54,6 +54,13 @@ export function contextForPlus(context: VaultContext): Record<string, unknown> {
       ...(stats.expanded === undefined ? {} : { expanded: stats.expanded }),
     };
   }
+  const cp = context.continueParent;
+  if (cp?.title?.trim()) {
+    out.continueParent = {
+      title: cp.title.trim(),
+      ...(cp.path?.trim() ? { path: cp.path.trim() } : {}),
+    };
+  }
   return out;
 }
 
@@ -73,6 +80,7 @@ export const CLASSIFICATION_PARITY_PHRASES = [
   "This product is NOT a task app",
   "The body is sacred and is written elsewhere, verbatim.",
   "task: **soft-retired / almost never**",
+  "Continue parent (when present)",
 ] as const;
 
 /**
@@ -264,6 +272,12 @@ export const SYSTEM_PROMPT = `You classify fleeting captures from a daily-note i
 - Prefer one hard entity link with a substantive reason over only a broad hub.
 - Pure one-off logistics with no keepable list ("buy milk", lone "call dentist at 3") stay noise. A multi-item checklist is not pure logistics.
 
+## Continue parent (when present)
+- When the user context includes a **### Continue parent** block, the user intentionally continued that note.
+- You MUST include that exact title in links[] with reason continues/revises/contradicts/adds detail to [[…]] (pick the best fit; default continues).
+- Never reuse the parent title as this atom's title — invent a new short declarative claim.
+- Never rewrite or modify the parent body (you only output schema fields).
+
 ## title
 - Required non-empty string iff verdict is atom.
 - Empty string for task and noise.
@@ -298,14 +312,20 @@ function hubsForEnrich(context: VaultContext): PersonHub[] {
   }));
 }
 
-export function buildCaptureUserMessage(capture: string): string {
-  return [
-    "## Capture to classify",
-    "",
-    capture,
-    "",
-    "Classify this single capture. Return only the schema fields.",
-  ].join("\n");
+export function buildCaptureUserMessage(
+  capture: string,
+  continueParent?: { title: string; path?: string } | null,
+): string {
+  const parts = ["## Capture to classify", "", capture, ""];
+  const title = continueParent?.title?.trim();
+  if (title) {
+    parts.push("### Continue parent", `Title: ${title}`);
+    const path = continueParent?.path?.trim();
+    if (path) parts.push(`Path: ${path}`);
+    parts.push("");
+  }
+  parts.push("Classify this single capture. Return only the schema fields.");
+  return parts.join("\n");
 }
 
 /**
@@ -559,7 +579,10 @@ export function buildMessagesRequest(opts: BuildRequestOptions): Record<string, 
   const cacheTtl = opts.cacheTtl ?? "5m";
   const stableText = buildContextPrefixBlock(opts.context) + CONTEXT_BLOCK_SEPARATOR;
   const titlesText = buildTitlesBlock(opts.context);
-  const captureText = buildCaptureUserMessage(opts.capture);
+  const captureText = buildCaptureUserMessage(
+    opts.capture,
+    opts.context.continueParent,
+  );
 
   return {
     model: opts.model,
