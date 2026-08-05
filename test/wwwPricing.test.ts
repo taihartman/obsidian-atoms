@@ -430,6 +430,26 @@ describe("recall claims stay within what ships", () => {
     expect(index.toLowerCase()).not.toContain("remind me");
   });
 
+  it("shows the same sentence going in and coming back, in every story", () => {
+    // The hero visual argues one thing: what you typed is what comes back,
+    // unedited. That argument is carried entirely by the two copies of the
+    // sentence being identical, so a copy edit to one of them turns the
+    // picture into a lie. Nothing else on the page would catch it.
+    const raw = dist("index.html");
+    const panels = [...raw.matchAll(/<div class="hero-panel" data-s="(\w+)">([\s\S]*?)<\/div>\s*<\/div>\s*<\/div>/g)];
+    expect(panels.length, "hero panels not found").toBe(3);
+    for (const [, story, html] of panels) {
+      const norm = (s: string | undefined) =>
+        s?.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
+      const typed = norm(html.match(/<p class="loop-note">([\s\S]*?)<\/p>/)?.[1])
+        ?.replace(/^-\s*/, "");
+      const returned = norm(html.match(/<blockquote>([\s\S]*?)<\/blockquote>/)?.[1]);
+      expect(typed, `${story}: no capture line`).toBeTruthy();
+      expect(returned, `${story}: no quoted answer`).toBeTruthy();
+      expect(typed, `${story}: capture and quote drifted apart`).toBe(returned);
+    }
+  });
+
   it("shows the graph inferring, not just matching", () => {
     // The hero question never mentions flowers; the link walk finds them.
     expect(index).toContain("gift ideas for Sam?");

@@ -354,6 +354,93 @@ p {
  * chip, serif answer — not as a text-message thread. Free of markdown syntax:
  * syntax is earned further down the page.
  */
+/* ---- hero capture beat -------------------------------------------------
+ * Beat one of the loop: the raw line you typed, before Atoms touches it.
+ * Deliberately a daily-note line and not a capture UI — the plugin has no
+ * capture surface (an iOS Shortcut appends one line), so an invented app
+ * screen would sell something that does not exist and would exclude Android.
+ *
+ * It carries the vault's own --surface rather than the Claude card's warm
+ * tone, because the point is that one of these is yours and one is not.
+ *
+ * .same marks the sentence that appears in BOTH beats. That match is the
+ * whole argument of the visual, and it is what non-negotiable 1 — the body
+ * is sacred, capture text lands verbatim — actually looks like. If you edit
+ * one copy of the sentence you must edit the other, or the picture lies.
+ * ---------------------------------------------------------------------- */
+.loop-beat {
+  margin: 30px 0 0;
+  background: var(--surface);
+  border: 1px solid var(--sep);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+}
+
+.loop-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--sep-soft);
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.loop-when {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 400;
+  color: var(--faint);
+}
+
+.loop-note {
+  margin: 0;
+  padding: 14px;
+  font-family: var(--font-mono);
+  font-size: 0.83rem;
+  line-height: 1.5;
+  color: var(--label);
+}
+
+.loop-dash {
+  color: var(--faint);
+}
+
+.same {
+  border-bottom: 1.5px solid rgba(217, 119, 87, 0.55);
+  padding-bottom: 1px;
+}
+
+.loop-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 10px 4px;
+  color: var(--faint);
+  font-size: 0.73rem;
+}
+
+.loop-link::before,
+.loop-link::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--sep-soft);
+}
+
+.loop-arrow {
+  font-family: var(--font-mono);
+  color: var(--tint-ink);
+}
+
+/* the card already carries the stage's top margin; the beat now owns it */
+.loop-link + .claude {
+  margin-top: 0;
+}
+
 .claude {
   margin: 30px 0 26px;
   background: #262624;
