@@ -9,7 +9,15 @@
  * Run: npm run build:www
  */
 
-import { readFileSync, writeFileSync, mkdirSync, rmSync, copyFileSync } from "fs";
+import {
+  readFileSync,
+  writeFileSync,
+  mkdirSync,
+  rmSync,
+  copyFileSync,
+  readdirSync,
+  existsSync,
+} from "fs";
 import { createHash } from "crypto";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
@@ -299,6 +307,18 @@ function build() {
 
   for (const asset of ASSETS) {
     copyFileSync(join(srcDir, asset), join(distDir, asset));
+  }
+
+  // Field notes illustration sources (SVG). Email HTML prefers PNG for Gmail;
+  // SVGs stay on-site as the editable source. See docs/field-notes-email.md.
+  const emailSrc = join(srcDir, "email");
+  if (existsSync(emailSrc)) {
+    const emailDist = join(distDir, "email");
+    mkdirSync(emailDist, { recursive: true });
+    for (const name of readdirSync(emailSrc)) {
+      if (name.startsWith(".")) continue;
+      copyFileSync(join(emailSrc, name), join(emailDist, name));
+    }
   }
 
   console.log(

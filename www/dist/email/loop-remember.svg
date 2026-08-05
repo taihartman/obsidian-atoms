@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1040" height="360" viewBox="0 0 1040 360" role="img" aria-label="Catch it, it is filed, it comes back">
+  <rect width="1040" height="360" fill="#000"/>
+  <rect x="40" y="80" width="280" height="200" rx="24" fill="#2c2c2e"/>
+  <rect x="380" y="80" width="280" height="200" rx="24" fill="#2c2c2e"/>
+  <rect x="720" y="80" width="280" height="200" rx="24" fill="#2c2c2e"/>
+  <text x="180" y="155" text-anchor="middle" fill="#fff" font-family="system-ui,sans-serif" font-size="28" font-weight="600">Catch it</text>
+  <text x="180" y="195" text-anchor="middle" fill="rgba(235,235,245,0.72)" font-family="system-ui,sans-serif" font-size="18">Five seconds</text>
+  <text x="520" y="155" text-anchor="middle" fill="#fff" font-family="system-ui,sans-serif" font-size="28" font-weight="600">It is filed</text>
+  <text x="520" y="195" text-anchor="middle" fill="rgba(235,235,245,0.72)" font-family="system-ui,sans-serif" font-size="18">Your words stay</text>
+  <text x="860" y="155" text-anchor="middle" fill="#fff" font-family="system-ui,sans-serif" font-size="28" font-weight="600">It comes back</text>
+  <text x="860" y="195" text-anchor="middle" fill="rgba(235,235,245,0.72)" font-family="system-ui,sans-serif" font-size="18">When it matters</text>
+  <path d="M330 180 H370" stroke="#0a84ff" stroke-width="4" stroke-linecap="round"/>
+  <path d="M360 168 L372 180 L360 192" fill="none" stroke="#0a84ff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M670 180 H710" stroke="#0a84ff" stroke-width="4" stroke-linecap="round"/>
+  <path d="M700 168 L712 180 L700 192" fill="none" stroke="#0a84ff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

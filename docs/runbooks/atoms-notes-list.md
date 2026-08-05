@@ -1,6 +1,8 @@
-# Atoms Notes — mailing list (tryatoms.app)
+# Field notes — mailing list (tryatoms.app)
 
-**Product:** rare use-case notes (capture→recall→deepen).  
+**Product name (user-facing):** Field notes  
+**Product:** occasional notes on a second brain in real life (capture that returns, Obsidian + Claude, how others run it). Invite their practice.  
+**Voice:** [`docs/voice.md`](../voice.md) — **read before every Broadcast or welcome edit.** Skill: `.agents/skills/atoms-voice/`.  
 **Plan:** `docs/plans/2026-08-05-001-feat-tryatoms-mailing-list-plan.md`  
 **Endpoint:** `POST https://tryatoms.app/api/subscribe` (Pages Function)  
 **Unsubscribe:** `GET /api/unsubscribe?e=&t=` (HMAC; linked from welcome)
@@ -40,13 +42,35 @@ npm run build:www
 ( cd www && npx wrangler pages deploy dist --project-name=tryatoms --branch=master )
 ```
 
-## Ongoing Broadcasts
+## Ongoing notes (preferred: agent skill)
 
-1. Resend → **Broadcasts** → new → audience = **Atoms Notes** segment only.
-2. Content: one real use-case story + soft CTA (tryatoms / setup / Plus).
-3. Include `{{{RESEND_UNSUBSCRIBE_URL}}}` and postal address.
-4. **Test email** to yourself first.
-5. Do not send to Plus auth contacts or generic “all contacts” unless they are on this segment via signup.
+**You:** feed the idea in chat.  
+**Agent:** skill **`field-notes`** → drafts JSON → test send → you approve → broadcast.
+
+```bash
+# secrets (example; agent usually loads RESEND from fly)
+export RESEND_API_KEY=...
+export ATOMS_NOTES_POSTAL_ADDRESS='Taitopia, 1029 Lyell Ave Unit #740, Rochester, NY 14606'
+export RESEND_MARKETING_SEGMENT_ID='3b2147b4-a1bf-4225-91a0-e24f6c5868e2'
+export ATOMS_NOTES_FROM='Field notes <notes@mail.tryatoms.app>'
+export ATOMS_NOTES_REPLY_TO='taihartmandevelopment@gmail.com'
+
+npm run field-notes:test -- --to 'you@gmail.com' --draft docs/field-notes/drafts/….json
+npm run field-notes:broadcast -- --draft docs/field-notes/drafts/….json --confirm   # only after explicit yes
+```
+
+Manual Resend UI still works if you prefer; voice + HTML rules unchanged.
+
+## Ongoing Broadcasts (manual fallback)
+
+1. Read **`docs/voice.md`** and **`docs/field-notes-email.md`**.
+2. Resend → **Broadcasts** → new → audience = **Atoms Notes** segment only (internal name).
+3. Content: one concrete real-life beat + optional diagram (PNG on tryatoms) + soft CTA + feature invite.
+4. Style: dark card / tint blue (match site). Or use `scripts/field-notes-send.mjs`.
+5. Include `{{{RESEND_UNSUBSCRIBE_URL}}}` and postal address.
+6. **Test email** on iPhone Mail + Gmail before audience send.
+7. Do not send to Plus auth contacts or generic “all contacts” unless they are on this segment via signup.
+8. No “use case,” no hype, no em dashes, no guilt language.
 
 ## First launch checklist
 
