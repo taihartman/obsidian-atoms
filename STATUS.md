@@ -7,7 +7,6 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| In progress | #257 #258 | taihartman | `feat/ask-mcp-created-list` | `docs/plans/2026-08-04-005-feat-ask-mcp-created-and-list-pending-plan.md` | `askMirror.ts`, `askHelpers.mjs`, store trio, `mcp/tools.mjs` | created+sort then list_pending; worktree `../obsidian_plugin-ask-mcp-created-list` |
 
 ## How to claim (copy)
 
@@ -23,6 +22,7 @@ States: `Queued` · `In progress` · `Blocked` · `In review` · `Done` (then re
 
 | Merged | Issue / PR | Summary |
 |---|---|---|
+| 2026-08-05 | #257 #258 / #272 | Ask MCP `created` + list sort/filter + `list_pending` · **0.6.70** (Fly deploy still needed) |
 | 2026-08-04 | #222 / #266 | Catch-up on resume + Sync everything now · **0.6.67** |
 | 2026-08-04 | #256 / #262–#265 | Ask MCP `list_tags` + residuals · Fly live (no plugin bump until 0.6.67) |
 | 2026-08-04 | #255 #259 / #260 | Ask MCP `mirror_status` + absence wording · Fly live (no plugin bump) |
