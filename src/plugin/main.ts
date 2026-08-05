@@ -518,7 +518,7 @@ export default class AtomsPlugin extends Plugin {
         activeVocabulary: this.settings.activeVocabulary,
         atomFolder: this.settings.atomFolder,
         // Retrieval size only — refresh forces `expandGraph: false` for itself (KTD7).
-        shortlistK: shortlistOptionsFromSettings(this.settings).shortlistK,
+        shortlistK: shortlistOptionsFromSettings().shortlistK,
         limit: opts?.limit,
         fixtureResults: opts?.fixtureResults,
         enableHubProjection: this.settings.enableHubProjection === true,
@@ -1041,7 +1041,7 @@ export default class AtomsPlugin extends Plugin {
         model: this.settings.model,
         activeVocabulary: this.settings.activeVocabulary,
         atomFolder: this.settings.atomFolder,
-        ...shortlistOptionsFromSettings(this.settings),
+        ...shortlistOptionsFromSettings(),
         maxCaptures: PER_LAUNCH_CAP,
         enableHubProjection: this.settings.enableHubProjection === true,
         // never includeToday on auto-run
@@ -1143,7 +1143,7 @@ export default class AtomsPlugin extends Plugin {
       apiKey,
       model: DEFAULT_BACKFILL_MODEL,
       atomFolder: this.settings.atomFolder,
-      shortlistK: shortlistOptionsFromSettings(this.settings).shortlistK,
+      shortlistK: shortlistOptionsFromSettings().shortlistK,
     });
     // Estimate-only: nothing will be submitted, so the corpus is released now.
     prepared.run.end();
@@ -1172,7 +1172,7 @@ export default class AtomsPlugin extends Plugin {
         apiKey,
         model,
         atomFolder: this.settings.atomFolder,
-        shortlistK: shortlistOptionsFromSettings(this.settings).shortlistK,
+        shortlistK: shortlistOptionsFromSettings().shortlistK,
       });
       this.lastBackfillEstimate = prepared.estimate;
 
@@ -1530,7 +1530,7 @@ export default class AtomsPlugin extends Plugin {
         model: this.settings.model,
         activeVocabulary: this.settings.activeVocabulary,
         atomFolder: this.settings.atomFolder,
-        ...shortlistOptionsFromSettings(this.settings),
+        ...shortlistOptionsFromSettings(),
         maxCaptures: 15,
         includeToday: opts?.includeToday,
         enableHubProjection: this.settings.enableHubProjection === true,
@@ -1651,7 +1651,7 @@ export default class AtomsPlugin extends Plugin {
         model: this.settings.model,
         activeVocabulary: this.settings.activeVocabulary,
         atomFolder: this.settings.atomFolder,
-        ...shortlistOptionsFromSettings(this.settings),
+        ...shortlistOptionsFromSettings(),
         maxCaptures: fixtures.length,
         fixtureResults: fixtures,
         enableHubProjection: this.settings.enableHubProjection === true,
@@ -1717,7 +1717,7 @@ export default class AtomsPlugin extends Plugin {
         model: this.settings.model,
         activeVocabulary: this.settings.activeVocabulary,
         atomFolder: this.settings.atomFolder,
-        ...shortlistOptionsFromSettings(this.settings),
+        ...shortlistOptionsFromSettings(),
         // Bound work for interactive use; remainder stays unmarked for next run.
         maxCaptures: 15,
         includeToday: opts?.includeToday,
@@ -2056,7 +2056,7 @@ export default class AtomsPlugin extends Plugin {
 
     try {
       const ctx = this.contextProvider.buildContext();
-      const shortlist = shortlistOptionsFromSettings(this.settings);
+      const shortlist = shortlistOptionsFromSettings();
       const outcome = await classifyCapture(gate.capture.text, ctx, {
         apiKey: classifyAuth.apiKey,
         model: this.settings.model,

@@ -10,6 +10,7 @@ import {
   MetadataContextProvider,
   MIN_SHORTLIST_K,
   type ShortlistContext,
+  type ShortlistRunOptions,
 } from "../src/pipeline/context";
 import { runWritePath } from "../src/pipeline/write";
 import {
@@ -94,7 +95,16 @@ const settings = (over: Partial<LinkerSettings> = {}): LinkerSettings => ({
   ...over,
 });
 
-async function processWith(v: VaultDouble, s: LinkerSettings) {
+/**
+ * `over` stands for the callers that still choose their own retrieval options in code — a catch-up
+ * passes `expandGraph: false`. Neither is a setting any more (KTD8), so a test that wants
+ * non-default retrieval asks for it the way production does: through the run options.
+ */
+async function processWith(
+  v: VaultDouble,
+  s: LinkerSettings,
+  over: Partial<ShortlistRunOptions> = {},
+) {
   const rec = recordingProvider(v.app);
   const classify = fakeClassify([atomResult("Espresso ground finer pulls sweeter")]);
   await runWritePath({
@@ -105,22 +115,39 @@ async function processWith(v: VaultDouble, s: LinkerSettings) {
     activeVocabulary: s.activeVocabulary,
     atomFolder: s.atomFolder,
     includeToday: true,
-    ...shortlistOptionsFromSettings(s),
+    ...shortlistOptionsFromSettings(),
+    ...over,
     classifyDeps: { request: classify.request as never },
   });
   return rec;
 }
 
-describe("shortlist size setting (R8)", () => {
-  it("defaults to the studied k when nothing is configured (KTD6)", () => {
-    expect(DEFAULT_SETTINGS.shortlistSize).toBe(DEFAULT_SHORTLIST_K);
+describe("deleted tuning keys (KTD8)", () => {
+  // The two tuning keys were removed from LinkerSettings; existing data.json files keep them.
+  const stale = { shortlistSize: 50, expandLinkedNotes: false } as Partial<LinkerSettings>;
+
+  it("a data.json still carrying them loads and has no effect on retrieval", async () => {
+    const v = linkedVault();
+    const rec = await processWith(v, settings(stale));
+
+    expect(rec.seen[0]!.stats.k).toBe(DEFAULT_SHORTLIST_K);
+    // expandLinkedNotes: false is equally inert — the walk still runs.
+    expect(rec.seen[0]!.stats.expanded).toBe(1);
+  });
+
+  it("renders no row for either key", () => {
+    const { tab } = settingTab({ settings: stale });
+    tab.display();
+
+    expect(rowNames(tab)).not.toContain("Notes considered per capture");
+    expect(rowNames(tab)).not.toContain("Also consider linked notes");
+  });
+});
+
+describe("shortlist size (R8)", () => {
+  it("is the studied k for every caller (KTD6)", () => {
     expect(clampShortlistSize(undefined)).toBe(DEFAULT_SHORTLIST_K);
     expect(shortlistOptionsFromSettings()).toEqual({
-      shortlistK: DEFAULT_SHORTLIST_K,
-      expandGraph: DEFAULT_GRAPH_EXPANSION,
-    });
-    // A data.json written before this version has neither key.
-    expect(shortlistOptionsFromSettings({})).toEqual({
       shortlistK: DEFAULT_SHORTLIST_K,
       expandGraph: DEFAULT_GRAPH_EXPANSION,
     });
@@ -150,29 +177,33 @@ describe("shortlist size setting (R8)", () => {
     expect(clampShortlistSize(0.4)).toBe(MIN_SHORTLIST_K);
   });
 
-  it("arrives at getCandidates, not merely in data.json", async () => {
+  it("arrives at getCandidates as the default, not merely in the options object", async () => {
     const v = linkedVault();
-    const rec = await processWith(v, settings({ shortlistSize: 1 }));
+    const rec = await processWith(v, settings());
 
     expect(rec.seen.length).toBeGreaterThan(0);
+    expect(rec.seen[0]!.stats.k).toBe(DEFAULT_SHORTLIST_K);
+  });
+
+  it("honours a k a caller chose in code, down to one scored slot", async () => {
+    const v = linkedVault();
+    const rec = await processWith(v, settings(), { shortlistK: 1 });
+
     expect(rec.seen[0]!.stats.k).toBe(1);
     // One scored slot honoured: only the expansion slots sit on top of it.
     expect(rec.seen[0]!.shortlist.filter((c) => c.score > 0)).toHaveLength(1);
   });
 
-  it("clamps an invalid stored size on the way into the run", async () => {
+  it("clamps a junk k on the way into the run", async () => {
     const v = linkedVault();
-    const rec = await processWith(
-      v,
-      settings({ shortlistSize: 0 as LinkerSettings["shortlistSize"] }),
-    );
+    const rec = await processWith(v, settings(), { shortlistK: clampShortlistSize(0) });
 
     expect(rec.seen[0]!.stats.k).toBe(MIN_SHORTLIST_K);
     expect(rec.seen[0]!.titles.length).toBeGreaterThan(0);
   });
 });
 
-describe("linked-notes setting on the daily path (R7)", () => {
+describe("linked-notes expansion on the daily path (R7)", () => {
   it("is on by default, and the daily path reaches a note BM25 scored zero", async () => {
     const v = linkedVault();
     const rec = await processWith(v, settings());
@@ -183,7 +214,7 @@ describe("linked-notes setting on the daily path (R7)", () => {
 
   it("off is honoured: no walk runs and the stats key is absent entirely", async () => {
     const v = linkedVault();
-    const rec = await processWith(v, settings({ expandLinkedNotes: false }));
+    const rec = await processWith(v, settings(), { expandGraph: false });
 
     expect(rec.beginOpts[0]).toMatchObject({ expandGraph: false });
     // Absent, not zero — the off case is byte-identical to the pre-expansion output.
@@ -193,12 +224,12 @@ describe("linked-notes setting on the daily path (R7)", () => {
 });
 
 describe("shortlist diagnostics (R6)", () => {
-  it("reports the counts the setting is tuned by", async () => {
+  it("reports the counts a run is diagnosed by", async () => {
     const v = linkedVault();
-    const rec = await processWith(v, settings({ shortlistSize: 50 }));
+    const rec = await processWith(v, settings());
     const payload = shortlistDiagnostics(rec.seen[0]!.stats);
 
-    expect(payload.k).toBe(50);
+    expect(payload.k).toBe(DEFAULT_SHORTLIST_K);
     expect(payload.expansion).toBe("on");
     expect(payload.slotsUsed).toBe(1);
     expect(payload.slotLimit).toBeGreaterThan(0);
@@ -209,7 +240,7 @@ describe("shortlist diagnostics (R6)", () => {
 
   it("drops the expansion counts to zero when the walk never ran", async () => {
     const v = linkedVault();
-    const rec = await processWith(v, settings({ expandLinkedNotes: false }));
+    const rec = await processWith(v, settings(), { expandGraph: false });
     const payload = shortlistDiagnostics(rec.seen[0]!.stats);
 
     expect(payload.expansion).toBe("off");

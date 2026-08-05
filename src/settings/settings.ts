@@ -17,9 +17,6 @@ import {
 import type AtomsPlugin from "../plugin/main";
 import {
   aggregateTagsFromFileCaches,
-  clampShortlistSize,
-  DEFAULT_SHORTLIST_K,
-  MIN_SHORTLIST_K,
 } from "../pipeline/context";
 import {
   readDeviceAutoRunState,
@@ -1564,42 +1561,6 @@ export class AtomsSettingTab extends PluginSettingTab {
           .setValue(this.plugin.settings.atomFolder)
           .onChange(async (value) => {
             this.plugin.settings.atomFolder = clampAtomFolder(value);
-            await this.plugin.saveSettings();
-          }),
-      );
-
-    new Setting(containerEl)
-      .setName("Notes considered per capture")
-      .setDesc(
-        "How many of your existing notes each capture is compared against before Atoms picks what to link. Raise it to search more of your vault; each capture then costs a little more to file. Default 400. Blank or unreadable resets to 400; anything under 1 is treated as 1.",
-      )
-      .addText((text) => {
-        text.inputEl.type = "number";
-        text.inputEl.min = String(MIN_SHORTLIST_K);
-        text
-          .setPlaceholder(String(DEFAULT_SHORTLIST_K))
-          .setValue(String(clampShortlistSize(this.plugin.settings.shortlistSize)))
-          .onChange(async (value) => {
-            this.plugin.settings.shortlistSize = clampShortlistSize(value);
-            await this.plugin.saveSettings();
-          });
-        // Typing "40" on the way to "400" must not fight the user, so the field is only
-        // rewritten once they leave it — showing the number that will actually be used.
-        text.inputEl.addEventListener("blur", () => {
-          text.setValue(String(clampShortlistSize(this.plugin.settings.shortlistSize)));
-        });
-      });
-
-    new Setting(containerEl)
-      .setName("Also consider linked notes")
-      .setDesc(
-        "When on, Atoms also considers notes linked from the ones a capture already matched, so a related note can be suggested even when it shares no words with what you wrote. On by default.",
-      )
-      .addToggle((toggle) =>
-        toggle
-          .setValue(this.plugin.settings.expandLinkedNotes !== false)
-          .onChange(async (on) => {
-            this.plugin.settings.expandLinkedNotes = on;
             await this.plugin.saveSettings();
           }),
       );
