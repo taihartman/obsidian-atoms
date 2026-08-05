@@ -462,6 +462,7 @@ export async function countInboxPending(app: App): Promise<number> {
   const file = app.vault.getAbstractFileByPath(INBOX_NOTE_PATH);
   if (!file || !("extension" in file)) return 0;
   try {
+    // Vault mocks in unit tests are plain objects, not real TFile instances.
     const content = await app.vault.cachedRead(file as TFile);
     return inboxCounts(content, new Date()).pending;
   } catch {
@@ -515,6 +516,7 @@ function vaultOf(app: App): InboxVault {
 export async function ensureInboxNote(app: App): Promise<TFile> {
   const vault = vaultOf(app);
   const existing = vault.getAbstractFileByPath(INBOX_NOTE_PATH);
+  // Vault mocks return plain path objects; live vault returns TFile.
   if (existing) return existing as TFile;
 
   if (!vault.getAbstractFileByPath(ATOMS_SYSTEM_FOLDER)) {

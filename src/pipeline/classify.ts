@@ -1018,29 +1018,13 @@ export function applyClassificationQuality(
 }
 
 /**
- * Safe console logging for spike / dev. Never dumps headers, bodies, or full errors.
- * No-ops in production Community builds (ATOMS_DEV_COMMANDS false/undefined).
+ * Dev diagnostics hook. Always a no-op — Community plugin scan forbids console
+ * and eslint-disable no-console. Keep the call sites so spike wiring stays stable.
  */
-export function logClassifyOutcome(label: string, outcome: ClassifyOutcome): void {
-  if (typeof ATOMS_DEV_COMMANDS === "undefined" || !ATOMS_DEV_COMMANDS) return;
-  // Dev-only (ATOMS_DEV_COMMANDS); silent in Community production builds.
-  if (outcome.ok) {
-    // eslint-disable-next-line no-console -- gated dev diagnostics
-    console.log(`[atoms] ${label}`, {
-      verdict: outcome.result.verdict,
-      title: outcome.result.title,
-      tags: outcome.result.tags,
-      proposed_tags: outcome.result.proposed_tags,
-      links: outcome.result.links,
-      usage: outcome.usage,
-      key: outcome.keyFingerprint,
-    });
-  } else {
-    // eslint-disable-next-line no-console -- gated dev diagnostics
-    console.log(`[atoms] ${label} FAILED`, {
-      reason: outcome.reason,
-      status: outcome.status,
-      message: outcome.message,
-    });
-  }
+export function logClassifyOutcome(
+  _label: string,
+  _outcome: ClassifyOutcome,
+): void {
+  void _label;
+  void _outcome;
 }

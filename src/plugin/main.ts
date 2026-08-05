@@ -30,12 +30,10 @@ import { runOpenAtomGraph } from "../graph/openAtomGraph";
 /** Injected by esbuild: true in watch/dev, false in production Community builds. */
 declare const ATOMS_DEV_COMMANDS: boolean;
 
-/** Dev-only console logging — silent in Community production builds. */
-function devLog(...args: unknown[]): void {
-  if (typeof ATOMS_DEV_COMMANDS !== "undefined" && ATOMS_DEV_COMMANDS) {
-    // eslint-disable-next-line no-console -- gated dev diagnostics
-    console.log(...args);
-  }
+/** Dev diagnostics hook — no-op (Community plugin scan forbids console). */
+function devLog(..._args: unknown[]): void {
+  void _args;
+  void ATOMS_DEV_COMMANDS;
 }
 import {
   classifyCapture,

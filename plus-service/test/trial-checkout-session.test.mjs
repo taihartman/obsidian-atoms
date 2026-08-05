@@ -13,6 +13,7 @@ import { createSqliteStore } from "../src/store/sqlite.mjs";
 import { createStore } from "../src/store.mjs";
 import { applyStripeEvent } from "../src/stripe.mjs";
 import { CHECKOUT_BINDING_TTL_MS } from "../src/store/shared.mjs";
+import { postgresStoreRows } from "./helpers/postgresTestStore.mjs";
 
 process.env.DOGFOOD_AUTO_GRANT = "0";
 process.env.ATOMS_PLUS_ENV = "development";
@@ -125,6 +126,9 @@ function runStoreSuite(name, create) {
 runStoreSuite("memory", () => createMemoryStore());
 runStoreSuite("sqlite", () => createSqliteStore(":memory:"));
 runStoreSuite("createStore-memory", () => createStore({ mode: "memory" }));
+// #239 — the production store, when a database is available. Absent locally;
+// absent in CI is a hard failure, not a skip. See helpers/postgresTestStore.mjs.
+for (const [name, create] of postgresStoreRows()) runStoreSuite(name, create);
 
 describe("#230 production trial webhook end-to-end", () => {
   it("checkout.session.completed leaves the original plugin session usable", async () => {
@@ -191,11 +195,11 @@ describe("#230 production trial webhook end-to-end", () => {
 });
 
 /**
- * The suite above can only run memory + sqlite; postgres is the production store
- * and needs a live DB, so nothing here executes it. That gap is real — it is how
- * a wrong parameter in the postgres binding survived a fully green run during
- * this fix. Until there is a postgres-backed integration job, at least hold the
- * three stores to the same method surface so one can never silently lack it.
+ * Kept after #239 closed the gap it was written for. The suite above now runs
+ * against real postgres wherever a database is available, but that row is
+ * absent on a developer's laptop — so this source-level check is the floor that
+ * holds on every run: it cannot catch a wrong parameter (only a live database
+ * can), but it does catch a store silently lacking a method entirely.
  */
 describe("#230 store parity", () => {
   it("all three stores define and export the checkout binding methods", async () => {

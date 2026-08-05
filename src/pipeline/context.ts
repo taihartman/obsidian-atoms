@@ -274,10 +274,13 @@ export function shortlistDiagnostics(stats: ShortlistStats): ShortlistDiagnostic
  *
  * Takes `stats`, not the `ShortlistContext` that carries them, so the titles are not even in scope.
  */
-export function logShortlistDiagnostics(label: string, stats: ShortlistStats): void {
-  if (typeof ATOMS_DEV_COMMANDS === "undefined" || !ATOMS_DEV_COMMANDS) return;
-  // eslint-disable-next-line no-console -- gated dev diagnostics
-  console.log(`[atoms] ${label}`, shortlistDiagnostics(stats));
+/** Dev diagnostics hook — no-op (Community plugin scan forbids console). */
+export function logShortlistDiagnostics(
+  _label: string,
+  _stats: ShortlistStats,
+): void {
+  void _label;
+  void _stats;
 }
 
 /** What a run needs to walk the vault graph. Built once per run, alongside the corpus. */

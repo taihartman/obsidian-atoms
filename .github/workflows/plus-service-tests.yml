@@ -1,0 +1,134 @@
+# #239 — the first CI job that runs plus-service tests at all.
+#
+# Before this, `release.yml` ran the root vitest suite on version tags and
+# nothing ran plus-service. Its tests now RUN on every pull request touching
+# plus-service, and the postgres rows run against a real server rather than
+# memory or sqlite.
+#
+# They do not yet BLOCK a merge: `master` branch protection lists no required
+# status checks (docs/collab.md § master branch protection; docs/security
+# H8), so a red run here is advisory until someone adds
+# `plus-service tests / test` to the required set. Note the interaction when
+# doing so — a required check with a `paths:` filter stays pending forever on
+# PRs that touch nothing under plus-service/.
+name: plus-service tests
+
+on:
+  pull_request:
+    paths:
+      - "plus-service/**"
+      - ".github/workflows/plus-service-tests.yml"
+  push:
+    branches: [master]
+    paths:
+      - "plus-service/**"
+      - ".github/workflows/plus-service-tests.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    # A stranded pg.Pool keeps the node process alive after the reporter
+    # finishes. pg reaps idle sockets after ~10s so this should never bind, but
+    # without it the default ceiling is six hours.
+    timeout-minutes: 15
+
+    # KTD1 — a real postgres. The bugs this job exists to catch are
+    # engine-behaviour bugs (parameter binding, ON CONFLICT, TIMESTAMPTZ), so a
+    # JS reimplementation that accepts a query real postgres rejects would be a
+    # green check that means nothing.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: atoms
+          POSTGRES_PASSWORD: atoms
+          POSTGRES_DB: atoms_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U atoms -d atoms_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    defaults:
+      run:
+        working-directory: plus-service
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          # node:sqlite (src/store/sqlite.mjs) needs >= 22.5
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: plus-service/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Test — memory, sqlite, and postgres
+        run: |
+          set -o pipefail
+          npm test 2>&1 | tee /tmp/test.log
+          # A floor on how much postgres actually ran. The guard step below
+          # proves what happens when the database is MISSING; nothing otherwise
+          # proves the rows executed when it is present. Delete one suite's
+          # postgres row and its coverage vanishes while everything stays green
+          # — the same "no coverage and coverage passing look identical"
+          # trapdoor, relocated from the env var to the call sites.
+          #
+          # Count files that actually OPENED a postgres store, not reporter
+          # text. An earlier version grepped '(postgres)' and was itself a
+          # false green: three of the six suites are named `describe(mode)`
+          # with no parentheses, so it counted 3 suites as 6 TAP lines and
+          # missed 25 of 38 postgres tests — two suites could lose all their
+          # coverage without moving the number. A suite name is forgeable; a
+          # marker emitted after a real connect-and-migrate is not.
+          RAN=$(grep -o 'postgres-active .*' /tmp/test.log | sort -u | wc -l | tr -d ' ')
+          RAN=${RAN:-0}   # grep prints nothing (not 0) on a missing file, and
+                          # `[` would then error inside an if — which set -e
+                          # does not catch, so the check would fail open.
+          echo "test files with live postgres coverage: $RAN"
+          grep -o 'postgres-active .*' /tmp/test.log | sort -u || true
+          if [ "$RAN" -lt 5 ]; then
+            echo "::error::only $RAN test files opened a postgres store, expected at least 5 — a suite lost its postgres coverage"
+            exit 1
+          fi
+        env:
+          TEST_DATABASE_URL: postgres://atoms:atoms@localhost:5432/atoms_test
+          # DATABASE_URL is deliberately NOT set. createStore promotes a
+          # `memory` request to postgres when isProduction() and DATABASE_URL
+          # are both true (src/store.mjs), which would silently re-point the
+          # existing createStore-memory rows at the test database.
+
+      # KTD3 — the postgres rows are opt-in on TEST_DATABASE_URL, which makes
+      # "no coverage" and "coverage passing" look identical from outside. If
+      # that variable is ever renamed or dropped, the rows must not quietly
+      # vanish behind a green check. This step proves the guard fires.
+      #
+      # One file is enough: the throw happens at import time, in
+      # `postgresStoreRows()` at the top level of every suite that takes a
+      # postgres row, before any test runs. Re-running all 289 tests to observe
+      # it would just pay for the suite twice.
+      - name: Guard — a CI run with no database must fail loudly, not skip
+        env:
+          TEST_DATABASE_URL: ""
+        run: |
+          if node --test test/security-auth-criticals.test.mjs > /tmp/guard.log 2>&1; then
+            echo "::error::plus-service tests PASSED with no TEST_DATABASE_URL — the postgres rows skipped silently and postgres is untested"
+            exit 1
+          fi
+          # Match the thrown sentence, not the bare identifier. The identifier
+          # appears in the helper's own source, which node prints in a code
+          # frame for any load-time crash there — so grepping for it would
+          # certify a gate that never fired.
+          grep -q "would go untested behind a green check" /tmp/guard.log \
+            || { echo "::error::run failed, but not for the expected missing-database reason"; exit 1; }
+          echo "Guard OK — the run failed with the missing-database error."

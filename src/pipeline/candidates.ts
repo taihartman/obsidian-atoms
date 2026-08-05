@@ -152,7 +152,7 @@ export async function buildCandidateCorpus(
       continue;
     }
 
-    const cache = app.metadataCache.getFileCache(file as TFile);
+    const cache = app.metadataCache.getFileCache(file);
     const tags = tagsFromCache(cache);
     const isAtom = file.path.startsWith(atomPrefix) && isLinkerGenerated(raw);
     const body = isAtom

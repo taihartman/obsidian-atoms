@@ -274,9 +274,16 @@ export async function runWritePath(
           );
           continue;
         }
-        content = await opts.app.vault.read(
-          file as import("obsidian").TFile,
-        );
+        if (!(file instanceof TFile)) {
+          pushFail(
+            note,
+            capture,
+            "missing_daily",
+            `Daily note missing or unreadable: ${note.path}`,
+          );
+          continue;
+        }
+        content = await opts.app.vault.read(file);
       }
 
       const { result: writeResult, newDailyContent } = await applyWrite(

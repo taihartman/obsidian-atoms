@@ -1625,13 +1625,13 @@ export class AtomsHomeView extends ItemView {
         "aria-label": continueChipLabel(pending.title, 80),
       },
     });
-    const label = chip.createEl("button", {
-      cls: "atoms-home-continue-chip-title atoms-ui-ghost-btn",
-      text: continueChipLabel(pending.title),
-      attr: { "aria-label": `Open ${pending.title}` },
-    });
-    label.addEventListener("click", () => {
-      if (pending.path) void this.openAtomInHome(pending.path);
+    button(chip, {
+      grade: "quiet",
+      label: continueChipLabel(pending.title),
+      className: "atoms-home-continue-chip-title",
+      onClick: () => {
+        if (pending.path) void this.openAtomInHome(pending.path);
+      },
     });
     button(chip, {
       grade: "quiet",
