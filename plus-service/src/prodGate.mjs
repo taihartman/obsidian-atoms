@@ -62,6 +62,11 @@ export function checkProductionReady() {
     !config.resendApiKey,
     "RESEND_API_KEY required in production (magic-link email)",
   );
+  need(
+    !config.alertEmail,
+    "ATOMS_PLUS_ALERT_EMAIL required in production (Stripe incident alerts — #238). " +
+      "Fix: fly secrets set ATOMS_PLUS_ALERT_EMAIL=ops@yourdomain.example",
+  );
 
   const storeMode = (config.storeMode || "memory").toLowerCase();
   need(

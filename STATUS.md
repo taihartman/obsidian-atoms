@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| In review | [#239](https://github.com/taihartman/obsidian-atoms/issues/239) | @taihartman (agent) | `test/239-postgres-store-coverage` | [plan](docs/plans/2026-08-04-239-postgres-store-test-coverage-plan.md) | `plus-service/test/*`, new `plus-service/test/helpers/`, new `.github/workflows/plus-service-tests.yml` | Test infra only; no `plus-service/src` change, no plugin bump, no Release. **Adds the first CI job that runs plus-service tests** (302 in CI incl. postgres, 252 locally). They *run* on PRs but do not yet *block* — `master` has no required status checks |
+| In review | [#238](https://github.com/taihartman/obsidian-atoms/issues/238) / [PR #268](https://github.com/taihartman/obsidian-atoms/pull/268) | @taihartman (agent) | `ops/plus-stripe-reconcile-alerts` | [plan](docs/plans/2026-08-04-238-stripe-reconcile-alerts-plan.md) | `plus-service/src/{stripe,server,email,config,alert,reconcile}.mjs`, `plus-service/src/store/*`, `plus-service/scripts/` | Server-only; no plugin bump, no Release. **Set `ATOMS_PLUS_ALERT_EMAIL` on Fly before deploying** — prodGate hard-fails without it |
 
 ## How to claim (copy)
 
@@ -23,6 +23,7 @@ States: `Queued` · `In progress` · `Blocked` · `In review` · `Done` (then re
 
 | Merged | Issue / PR | Summary |
 |---|---|---|
+| 2026-08-05 | #239 / #273 | First CI job that runs plus-service tests; real postgres coverage for the production store (test infra only, no plugin bump). Runs on PRs but does not yet *block* — `master` still has no required status checks |
 | 2026-08-05 | #257 #258 / #272 | Ask MCP `created` + list sort/filter + `list_pending` · **0.6.70** (Fly deploy still needed) |
 | 2026-08-04 | #222 / #266 | Catch-up on resume + Sync everything now · **0.6.67** |
 | 2026-08-04 | #256 / #262–#265 | Ask MCP `list_tags` + residuals · Fly live (no plugin bump until 0.6.67) |

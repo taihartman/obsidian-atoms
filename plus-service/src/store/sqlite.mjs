@@ -11,9 +11,12 @@ import {
   hashToken,
   id,
   isEntitledAccount,
+  normalizeStripeIncident,
   periodEndFromNow,
   publicAccount,
   rowToAccount,
+  rowToIncident,
+  toMs,
 } from "./shared.mjs";
 import {
   ASK_SQLITE_DDL,
@@ -66,6 +69,19 @@ function migrate(db) {
     CREATE TABLE IF NOT EXISTS stripe_customers (
       customer_id TEXT PRIMARY KEY,
       email TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS stripe_incidents (
+      id TEXT PRIMARY KEY,
+      kind TEXT NOT NULL,
+      day_bucket TEXT NOT NULL,
+      stripe_id TEXT NOT NULL DEFAULT '',
+      email TEXT,
+      detail TEXT,
+      occurrences INTEGER NOT NULL DEFAULT 1,
+      first_seen_at TEXT NOT NULL,
+      last_seen_at TEXT NOT NULL,
+      alerted_at TEXT,
+      UNIQUE (kind, day_bucket, stripe_id)
     );
     CREATE TABLE IF NOT EXISTS usage_events (
       idempotency_key TEXT PRIMARY KEY,
@@ -525,6 +541,65 @@ export function createSqliteStore(dbPath = config.databasePath) {
       db.prepare(
         "INSERT OR IGNORE INTO stripe_events (event_id, processed_at) VALUES (?, ?)",
       ).run(eventId, new Date().toISOString());
+    },
+    recordStripeIncident(kind, opts = {}) {
+      const n = normalizeStripeIncident(kind, opts);
+      const at = new Date(n.now).toISOString();
+      const row = db
+        .prepare(
+          `INSERT INTO stripe_incidents
+             (id, kind, day_bucket, stripe_id, email, detail, occurrences, first_seen_at, last_seen_at)
+           VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)
+           ON CONFLICT(kind, day_bucket, stripe_id) DO UPDATE SET
+             occurrences = occurrences + 1,
+             last_seen_at = excluded.last_seen_at,
+             email = COALESCE(excluded.email, email),
+             detail = COALESCE(excluded.detail, detail)
+           RETURNING *`,
+        )
+        .get(
+          id("inc"),
+          n.kind,
+          n.dayBucket,
+          n.stripeId,
+          n.email,
+          n.detail,
+          at,
+          at,
+        );
+      return rowToIncident(row);
+    },
+    /** Newest alert epoch ms for this kind at or after `sinceMs`, else null. */
+    lastStripeAlertAt(kind, sinceMs = 0) {
+      const r = db
+        .prepare(
+          `SELECT MAX(alerted_at) AS last FROM stripe_incidents
+            WHERE kind = ? AND alerted_at IS NOT NULL AND alerted_at >= ?`,
+        )
+        .get(kind, new Date(sinceMs).toISOString());
+      return r?.last ? Date.parse(r.last) : null;
+    },
+    markStripeIncidentAlerted(incidentId, opts = {}) {
+      const now = Number.isFinite(opts.now) ? opts.now : Date.now();
+      const row = db
+        .prepare(
+          "UPDATE stripe_incidents SET alerted_at = ? WHERE id = ? RETURNING *",
+        )
+        .get(new Date(now).toISOString(), incidentId);
+      return rowToIncident(row);
+    },
+    listStripeIncidents({ since, kind, limit } = {}) {
+      const cutoff = new Date(toMs(since, 0)).toISOString();
+      const cap = Number.isFinite(limit) ? limit : 100;
+      const rows = db
+        .prepare(
+          `SELECT * FROM stripe_incidents
+            WHERE (? IS NULL OR kind = ?) AND last_seen_at >= ?
+            ORDER BY last_seen_at DESC, first_seen_at DESC
+            LIMIT ?`,
+        )
+        .all(kind ?? null, kind ?? null, cutoff, cap);
+      return rows.map(rowToIncident);
     },
     setStripeCustomer(email, customerId) {
       const a = ensureAccount(email);
