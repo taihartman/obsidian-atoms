@@ -8,12 +8,14 @@ import {
   hashToken,
   id,
   isEntitledAccount,
+  MAGIC_EXCHANGE_REFUSED,
   MAGIC_PEEK_MISS,
   normalizeStripeIncident,
   periodEndFromNow,
   publicAccount,
   rowToIncident,
   toMs,
+  verifierMatches,
 } from "./shared.mjs";
 import {
   aggregateMirrorTags,
@@ -236,13 +238,24 @@ export function createMemoryStore() {
     return { ok: true, session, account: a };
   }
 
-  function exchangeMagic(token) {
+  /**
+   * @param {string} token
+   * @param {MagicExchangeOpts} [opts] #240 U4 — see the typedef: the caller
+   *   says either which verifier it holds or that no check applies to it.
+   */
+  function exchangeMagic(token, opts = {}) {
     const key = hashToken(token);
     const row = magicTokens.get(key);
     if (!row) return null;
     if (Date.now() > row.exp) {
       magicTokens.delete(key);
       return null;
+    }
+    // #240 U4 / KTD3 — between the read and the delete, so a refusal leaves
+    // the row where it is (R16). An expired bound row reported expired above,
+    // before ever reaching here.
+    if (!opts.skipVerifierCheck && !verifierMatches(row.verifierHash, opts.verifier)) {
+      return MAGIC_EXCHANGE_REFUSED;
     }
     magicTokens.delete(key);
     const a = ensureAccount(row.email);

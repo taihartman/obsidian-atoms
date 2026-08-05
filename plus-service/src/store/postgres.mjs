@@ -10,6 +10,7 @@ import {
   hashToken,
   id,
   isEntitledAccount,
+  MAGIC_EXCHANGE_REFUSED,
   MAGIC_PEEK_MISS,
   normalizeStripeIncident,
   periodEndFromNow,
@@ -17,6 +18,7 @@ import {
   rowToAccount,
   rowToIncident,
   toMs,
+  verifierMatches,
 } from "./shared.mjs";
 import {
   ASK_PG_DDL,
@@ -404,7 +406,12 @@ export async function createPostgresStore(databaseUrl) {
     return { ok: true, session, account: a };
   }
 
-  async function exchangeMagic(token) {
+  /**
+   * @param {string} token
+   * @param {MagicExchangeOpts} [opts] #240 U4 — see the typedef: the caller
+   *   says either which verifier it holds or that no check applies to it.
+   */
+  async function exchangeMagic(token, opts = {}) {
     const key = hashToken(token);
     const client = await pool.connect();
     let email;
@@ -422,11 +429,25 @@ export async function createPostgresStore(databaseUrl) {
       }
       email = row.email;
       vault = row.vault ?? null;
-      await client.query("DELETE FROM magic_tokens WHERE token = $1", [key]);
+      // #240 U4 / KTD3 — both checks run inside the FOR UPDATE lock and ahead
+      // of the delete. This used to delete first and only then test expiry, so
+      // a refusal and a redemption left the row in the same state; a refused
+      // handoff has to be non-destructive (R16).
       if (Date.now() > Number(row.exp_ms)) {
+        await client.query("DELETE FROM magic_tokens WHERE token = $1", [key]);
         await client.query("COMMIT");
         return null;
       }
+      if (
+        !opts.skipVerifierCheck &&
+        !verifierMatches(row.verifier_hash, opts.verifier)
+      ) {
+        // Nothing was written, so either statement would end the transaction;
+        // ROLLBACK says "this changed nothing" where a later reader will look.
+        await client.query("ROLLBACK");
+        return MAGIC_EXCHANGE_REFUSED;
+      }
+      await client.query("DELETE FROM magic_tokens WHERE token = $1", [key]);
       await client.query("COMMIT");
     } catch (e) {
       await client.query("ROLLBACK").catch(() => {});

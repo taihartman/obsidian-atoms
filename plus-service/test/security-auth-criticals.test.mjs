@@ -9,6 +9,7 @@ import { createSqliteStore } from "../src/store/sqlite.mjs";
 import { createPostgresStore } from "../src/store/postgres.mjs";
 import { createStore } from "../src/store.mjs";
 import { hashToken } from "../src/store/shared.mjs";
+import { createHash } from "node:crypto";
 import {
   createTestPostgresStore,
   postgresStoreRows,
@@ -185,7 +186,12 @@ function runStoreSuite(name, create) {
 
       // R3 — the vault name has to reach the caller, or a multi-vault device
       // cannot tell which vault asked for the link.
-      const out = await store.exchangeMagic(token);
+      //
+      // Redeemed through U4's check-skipping door because the stored hash here
+      // is a literal, not a digest of any verifier: no caller could present a
+      // matching one. What is under test is the column round-trip, and U4's
+      // own tests own the binding.
+      const out = await store.exchangeMagic(token, { skipVerifierCheck: true });
       assert.equal(out?.vault, "Work Vault");
       assert.ok(String(out.session).startsWith("sess_"));
 
@@ -233,7 +239,10 @@ function runStoreSuite(name, create) {
       assert.equal(JSON.stringify(rows).includes(token), false);
 
       // Insert and lookup must hash the same way, or nothing redeems at all.
-      assert.ok((await store.exchangeMagic(token))?.session);
+      // Check-skipping door, as above: the stored hash is a literal.
+      assert.ok(
+        (await store.exchangeMagic(token, { skipVerifierCheck: true }))?.session,
+      );
       assert.equal((await store.magicRowsForTest()).length, 0);
 
       if (store.close) await store.close();
@@ -479,6 +488,147 @@ function runStoreSuite(name, create) {
 
       if (store.close) await store.close();
     });
+
+    // ---- #240 U4: the exchange is verifier-bound, and a refusal deletes -----
+    //      nothing (R12, R16, KTD3). Every case below holds in all three
+    //      backends: sqlite and postgres used to delete before checking
+    //      anything, so "refused" and "consumed" were the same row state.
+
+    /**
+     * A verifier as the plugin mints one, and the hash the mint stores.
+     * The digest is computed here rather than through the store's own helper on
+     * purpose: `src/platform/pkce.ts` sends `base64url(SHA-256(verifier))` over
+     * the wire (KTD6), and a test that reused the server's encoder would stay
+     * green if the server ever hashed to hex while the plugin sent base64url —
+     * a mismatch nothing on device could recover from.
+     */
+    function bindable(seed) {
+      const verifier = `ver_${seed.repeat(10)}`;
+      const verifierHash = createHash("sha256")
+        .update(verifier)
+        .digest("base64url");
+      return { verifier, verifierHash };
+    }
+
+    it("U4/AE12: a wrong verifier is refused, and the right one still works after", async () => {
+      const store = await fresh();
+      const { verifier, verifierHash } = bindable("a");
+      const token = await store.createMagicToken("bound@ex.com", {
+        verifierHash,
+        vault: "Requesting Vault",
+      });
+
+      const refused = await store.exchangeMagic(token, {
+        verifier: "ver_wrong",
+      });
+      assert.equal(refused?.refused, true);
+      assert.equal(refused.reason, "verifier_mismatch");
+
+      // R16 — the whole point: the link is still there to tap again. A refusal
+      // that consumed the row would send the user back for a second email.
+      assert.equal((await store.magicRowsForTest()).length, 1);
+
+      const out = await store.exchangeMagic(token, { verifier });
+      assert.ok(String(out?.session).startsWith("sess_"));
+      assert.equal(out.vault, "Requesting Vault");
+      assert.equal((await store.magicRowsForTest()).length, 0);
+
+      if (store.close) await store.close();
+    });
+
+    it("U4: a bound token with no verifier presented is refused, not exchanged", async () => {
+      const store = await fresh();
+      const { verifier, verifierHash } = bindable("b");
+      const token = await store.createMagicToken("bound2@ex.com", {
+        verifierHash,
+      });
+
+      // Absent, empty, and whitespace all mean "this caller holds no verifier".
+      // KD9: on the plugin's route that is a refusal, never a pass.
+      for (const opts of [{}, { verifier: null }, { verifier: "" }, { verifier: "   " }]) {
+        const refused = await store.exchangeMagic(token, opts);
+        assert.equal(refused?.refused, true, JSON.stringify(opts));
+        assert.equal(refused.session, undefined);
+      }
+      assert.equal((await store.magicRowsForTest()).length, 1);
+
+      assert.ok((await store.exchangeMagic(token, { verifier }))?.session);
+
+      if (store.close) await store.close();
+    });
+
+    it("U4: an unbound row exchanges as it always did, verifier or not", async () => {
+      const store = await fresh();
+
+      // KD9's older-plugin-build path: nothing was bound at mint, so there is
+      // no check to apply and the exchange behaves exactly as before U4.
+      for (const opts of [undefined, {}, { verifier: "ver_irrelevant" }]) {
+        const token = await store.createMagicToken("legacy@ex.com");
+        const out = await store.exchangeMagic(token, opts);
+        assert.ok(String(out?.session).startsWith("sess_"), String(opts));
+      }
+
+      if (store.close) await store.close();
+    });
+
+    it("U4/KD9: the check-skipping call redeems a bound token with no verifier", async () => {
+      const store = await fresh();
+      const { verifierHash } = bindable("c");
+      const token = await store.createMagicToken("fallback@ex.com", {
+        verifierHash,
+        vault: "Other Device",
+      });
+
+      // This is the call U6's HTML fallback route makes, and it is the whole
+      // mechanism of KD3's cross-device recovery: every link a current build
+      // mints is bound, so a fallback honouring the check would recover
+      // nothing. The abort above is scoped to the plugin's route, deliberately
+      // not baked into the store — do not "harden" this into a refusal.
+      const out = await store.exchangeMagic(token, {
+        skipVerifierCheck: true,
+      });
+      assert.ok(String(out?.session).startsWith("sess_"));
+      assert.equal(out.vault, "Other Device");
+      assert.equal((await store.magicRowsForTest()).length, 0);
+
+      if (store.close) await store.close();
+    });
+
+    it("U4: an expired bound token reports expired, not verifier-mismatch", async () => {
+      const store = await fresh();
+      const { verifier, verifierHash } = bindable("d");
+      const token = `mt_${"e".repeat(32)}`;
+      await store.writeMagicRowForTest(hashToken(token), {
+        email: "stale-bound@ex.com",
+        expMs: Date.now() - 1000,
+        verifierHash,
+      });
+
+      // R7's message, not R5's: the link died of age, and telling the user to
+      // go back to the requesting vault and tap again would be a dead end.
+      // Holding the right verifier does not change that.
+      assert.equal(await store.exchangeMagic(token, { verifier }), null);
+      assert.equal(await store.exchangeMagic(token, { verifier: "ver_no" }), null);
+
+      if (store.close) await store.close();
+    });
+
+    it("U4: a refusal hands back no session and no magic token", async () => {
+      const store = await fresh();
+      const { verifierHash } = bindable("f");
+      const token = await store.createMagicToken("quiet@ex.com", {
+        verifierHash,
+        vault: "Quiet Vault",
+      });
+
+      const refused = await store.exchangeMagic(token, { verifier: "ver_no" });
+      const body = JSON.stringify(refused);
+      assert.equal(body.includes("sess_"), false);
+      assert.equal(body.includes(token), false);
+      assert.equal(refused.account, undefined);
+
+      if (store.close) await store.close();
+    });
   });
 }
 
@@ -530,7 +680,11 @@ describe("U1 legacy database upgrade (sqlite)", () => {
         verifierHash: "c".repeat(64),
         vault: "Upgraded Vault",
       });
-      assert.equal(store.exchangeMagic(token)?.vault, "Upgraded Vault");
+      // Check-skipping door: the hash above is a literal, not a real digest.
+      assert.equal(
+        store.exchangeMagic(token, { skipVerifierCheck: true })?.vault,
+        "Upgraded Vault",
+      );
       if (store.close) store.close();
     } finally {
       rmSync(dir, { recursive: true, force: true });

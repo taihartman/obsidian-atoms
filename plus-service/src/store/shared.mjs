@@ -1,7 +1,7 @@
 /**
  * Shared store helpers (memory / sqlite / postgres).
  */
-import { randomBytes, createHash } from "node:crypto";
+import { randomBytes, createHash, timingSafeEqual } from "node:crypto";
 
 export function id(prefix) {
   return `${prefix}_${randomBytes(16).toString("hex")}`;
@@ -67,6 +67,84 @@ export const MAGIC_PEEK_MISS = Object.freeze({
     verifierBound: false,
     verifierHash: null,
   }),
+});
+
+/**
+ * #240 U4 — how a caller of `exchangeMagic` states its relationship to the
+ * verifier. The two fields are not two spellings of one idea, and an absent
+ * `verifier` must never be read as `skipVerifierCheck`:
+ *
+ * - `verifier` — the plugin's `POST /v1/auth/exchange` presents what the
+ *   requesting device holds. Absent (or empty) against a **bound** row is a
+ *   refusal, which is exactly R5's "you are not the device that asked".
+ * - `skipVerifierCheck` — the web routes say no check applies at all. U6's
+ *   HTML fallback redeems **bound** tokens this way on purpose (KD9): every
+ *   link a current build mints is bound, so a fallback that honoured the check
+ *   would recover nothing, and KD3's cross-device recovery would be gone.
+ *
+ * @typedef {object} MagicExchangeOpts
+ * @property {string|null} [verifier] raw verifier presented by the caller
+ * @property {boolean} [skipVerifierCheck] this route is not verifier-bound
+ */
+
+/**
+ * #240 U4 / KTD6 — `base64url(SHA-256(verifier))`, the value the plugin sends
+ * at mint time. The encoding is not incidental: `src/platform/pkce.ts` emits
+ * base64url, and a server that hashed to hex would refuse every device without
+ * anything on either side being individually wrong.
+ *
+ * @param {string} verifier
+ */
+export function hashVerifier(verifier) {
+  return createHash("sha256").update(String(verifier)).digest("base64url");
+}
+
+/**
+ * #240 U4 step 6 — **the** verifier comparison. One comparison, two callers:
+ * this unit's `POST /v1/auth/exchange` abort and U13's peek route. They must
+ * never disagree, because a peek that says "usable" where the exchange would
+ * refuse sends the user through a tap that cannot succeed.
+ *
+ * A row with no stored hash matches anything, including nothing presented:
+ * that is KD9's older-plugin-build path, where no check applies because no
+ * device ever registered a verifier. It is **not** the mechanism that keeps
+ * U6's fallback route working — that route skips the check outright, for bound
+ * rows too, which is what lets it redeem the bound tokens every current build
+ * mints. Two independent rules; collapsing them deletes cross-device recovery.
+ *
+ * A bound row with nothing presented is a mismatch, not a pass.
+ *
+ * @param {string|null|undefined} storedHash  the row's `verifier_hash`
+ * @param {string|null|undefined} presentedVerifier  the raw verifier, if any
+ * @returns {boolean} whether the exchange/peek may proceed
+ */
+export function verifierMatches(storedHash, presentedVerifier) {
+  // U3's `optionalBoundedString` trims before storing, so the stored hash has
+  // no surrounding whitespace and an empty one was normalized to null at mint —
+  // null reads as unbound, never as "bound to the empty string".
+  const stored = String(storedHash ?? "").trim();
+  if (!stored) return true;
+  const presented = String(presentedVerifier ?? "").trim();
+  if (!presented) return false;
+  const a = Buffer.from(hashVerifier(presented));
+  const b = Buffer.from(stored);
+  // timingSafeEqual throws on unequal lengths, and a length difference is
+  // already public (the digest length is fixed), so guard rather than compare.
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
+/**
+ * #240 U4 — what a verifier-bound exchange hands back when it refuses. Frozen,
+ * and deliberately carries no session, account, email, or token: a refusal must
+ * be spendable by nobody and quotable into no log (R11).
+ *
+ * Distinguishable from the `null` an invalid or expired token returns, because
+ * the plugin renders R5's "open the vault that requested this link" for one and
+ * R7's "the link expired, request a new one" for the other.
+ */
+export const MAGIC_EXCHANGE_REFUSED = Object.freeze({
+  refused: true,
+  reason: "verifier_mismatch",
 });
 
 /**

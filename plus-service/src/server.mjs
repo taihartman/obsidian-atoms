@@ -118,6 +118,8 @@ function bearer(req) {
 
 /** #240 U3 — hex sha256 of the device verifier; a little slack over its 64. */
 const MAX_VERIFIER_HASH_CHARS = 128;
+/** #240 U4 — 32 random bytes base64url is 43 chars; the ceiling is generous. */
+const MAX_VERIFIER_CHARS = 256;
 /** #240 U3 — an Obsidian vault name is a folder name, not prose. */
 const MAX_VAULT_NAME_CHARS = 256;
 
@@ -407,6 +409,7 @@ ${
       }
       const out = await store.exchangeMagic(
         url.searchParams.get("token") || "",
+        { skipVerifierCheck: true },
       );
       const pending = url.searchParams.get("pending") || "";
       if (await maybeFinishOauthAfterExchange(res, store, out, pending)) {
@@ -416,9 +419,15 @@ ${
     }
 
     // GET /v1/auth/exchange?token= — email magic-link landing (browser)
+    // #240 U4 / KD9 — a browser holds no verifier, so this route says so
+    // outright rather than arriving without one and hoping. It redeems bound
+    // tokens on purpose: that skip is the whole mechanism of KD3's cross-device
+    // recovery, and U6 inherits it. Do not "harden" it into refusing a bound
+    // token — the plugin's POST route is where the binding is enforced.
     if (req.method === "GET" && path === "/v1/auth/exchange") {
       const out = await store.exchangeMagic(
         url.searchParams.get("token") || "",
+        { skipVerifierCheck: true },
       );
       const pending = url.searchParams.get("pending") || "";
       if (await maybeFinishOauthAfterExchange(res, store, out, pending)) {
@@ -431,9 +440,38 @@ ${
     if (req.method === "POST" && path === "/v1/auth/exchange") {
       const body = await readBody(req);
       const token = String(body.token || "").trim();
-      const out = await store.exchangeMagic(token);
+      // #240 U4 / KD9 — this route, and only this route, is bound to the
+      // verifier the requesting device registered at mint time (R12). The web
+      // routes above skip the check by design; see MagicExchangeOpts.
+      const verifier = optionalBoundedString(
+        body.verifier,
+        MAX_VERIFIER_CHARS,
+      );
+      if (!verifier.ok) {
+        return json(res, 400, { message: "Invalid verifier" });
+      }
+      // Read the verdict before spending anything: a token that fails below is
+      // either expired or unknown, and the exchange collapses both to null. The
+      // plugin needs them apart — R7's "request a new link" reads nothing like
+      // a link that never existed. Non-consuming by construction (KTD1).
+      const before = await store.peekMagic(token);
+      const out = await store.exchangeMagic(token, { verifier: verifier.value });
+      if (out?.refused) {
+        // R5 — a refusal the plugin can name: open the vault that asked for
+        // this link and tap again. Nothing spendable travels with it, and the
+        // link is still there to tap (R16).
+        return json(res, 403, {
+          result: "refused",
+          reason: out.reason,
+          message:
+            "This sign-in link belongs to a different vault. Open the vault that requested it and tap the link again.",
+        });
+      }
       if (!out) {
-        return json(res, 401, { message: "Invalid or expired magic link" });
+        return json(res, 401, {
+          result: before.status === "expired" ? "expired" : "invalid",
+          message: "Invalid or expired magic link",
+        });
       }
       const pub = store.publicAccount(out.account);
       return json(res, 200, {

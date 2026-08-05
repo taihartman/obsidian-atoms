@@ -11,6 +11,7 @@ import {
   hashToken,
   id,
   isEntitledAccount,
+  MAGIC_EXCHANGE_REFUSED,
   MAGIC_PEEK_MISS,
   normalizeStripeIncident,
   periodEndFromNow,
@@ -18,6 +19,7 @@ import {
   rowToAccount,
   rowToIncident,
   toMs,
+  verifierMatches,
 } from "./shared.mjs";
 import {
   ASK_SQLITE_DDL,
@@ -365,14 +367,31 @@ export function createSqliteStore(dbPath = config.databasePath) {
     return { ok: true, session, account: a };
   }
 
-  function exchangeMagic(token) {
+  /**
+   * @param {string} token
+   * @param {MagicExchangeOpts} [opts] #240 U4 — see the typedef: the caller
+   *   says either which verifier it holds or that no check applies to it.
+   */
+  function exchangeMagic(token, opts = {}) {
     const key = hashToken(token);
     const row = db
       .prepare("SELECT * FROM magic_tokens WHERE token = ?")
       .get(key);
     if (!row) return null;
+    // #240 U4 / KTD3 — this used to delete here, before it had even checked
+    // expiry, which made "refused" and "consumed" the same row state. The row
+    // is now removed only once it is actually going to be spent (or is dead).
+    if (Date.now() > row.exp_ms) {
+      db.prepare("DELETE FROM magic_tokens WHERE token = ?").run(key);
+      return null;
+    }
+    if (
+      !opts.skipVerifierCheck &&
+      !verifierMatches(row.verifier_hash, opts.verifier)
+    ) {
+      return MAGIC_EXCHANGE_REFUSED;
+    }
     db.prepare("DELETE FROM magic_tokens WHERE token = ?").run(key);
-    if (Date.now() > row.exp_ms) return null;
     let a = ensureAccount(row.email);
     if (
       config.dogfoodAutoGrant &&
