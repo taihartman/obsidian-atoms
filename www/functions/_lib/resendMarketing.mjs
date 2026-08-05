@@ -143,9 +143,11 @@ export async function sendWelcomeEmail(opts) {
   const lines = [
     "You're on Field notes.",
     "",
-    "Occasionally we'll write about wiring Claude, ChatGPT, and Obsidian into a stack you can live with - the hooks, the friction, what actually works. Not a drip. Not a changelog.",
+    "This list is about a second brain you actually use: the five-second capture on a morning walk, and remembering it when it matters later. How people run that in real life - Obsidian, Claude, the hooks that make it stick. How others do it too.",
     "",
-    "Atoms is the middle: your captures stay yours in the vault, and tools like Claude can ask them when you want that.",
+    "When something is worth saying, we'll write. Not a drip. Not a changelog.",
+    "",
+    "And we want yours: reply to any note with how you capture, remember, and expand. The best of that becomes the list.",
     "",
     "Try Atoms: https://tryatoms.app",
     "Setup guide: https://tryatoms.app/setup",
