@@ -215,9 +215,6 @@ export interface ShortlistStats {
   expanded?: number;
 }
 
-/** Dev-only console logging — silent in Community production builds. */
-declare const ATOMS_DEV_COMMANDS: boolean;
-
 /**
  * The whole diagnostic payload: numbers and one on/off word. No field can hold a string the user
  * wrote (R6). Every value here is derived arithmetic — nothing is copied from a capture or a note.
