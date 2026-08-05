@@ -7,8 +7,6 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| In progress | [#280](https://github.com/taihartman/obsidian-atoms/issues/280) | @taihartman (agent) | `fix/280-single-flight-plus-resume` | amend lane (no plan doc) | `src/platform/plusResume.ts`, new `test/plusResume.test.ts` | Duplicate "Atoms Plus is ready" Notices — check-then-act race, no single-flight guard. **Blocks #241**: widening that polling window without this makes the duplication worse |
-
 
 ## How to claim (copy)
 
@@ -24,6 +22,7 @@ States: `Queued` · `In progress` · `Blocked` · `In review` · `Done` (then re
 
 | Merged | Issue / PR | Summary |
 |---|---|---|
+| 2026-08-05 | #280 #282 / #281 | One "Atoms Plus is ready" notice per checkout, not one per in-flight poll; resume listeners tied to the plugin lifecycle · **0.6.72**. **#241 must land on top of this** — widening the poll window without the atomic announce is #280 again |
 | 2026-08-05 | #277 / #278 | `/setup` from-zero guide (install · iOS capture · Ask); landing `#install` shrinks to a pointer. **Follow-up: screenshots need recapturing on desktop dark — the shipped ones are poor** |
 | 2026-08-05 | #16 / #275 | Home Continue + pending parent handoff · **0.6.71** (community lint blockers) |
 | 2026-08-05 | #238 / #268 | Stripe reconcile + ops alerts (server-only) |
