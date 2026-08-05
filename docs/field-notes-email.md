@@ -114,5 +114,7 @@ import { buildFieldNotesHtml } from "./fieldNotesEmail.mjs";
 | `buildFieldNotesHtml` | Full note HTML for Broadcasts or future automation |
 | `loopDiagramHtml` | Built-in three-step diagram |
 | `figureHtml` | Hosted PNG block |
+| `scripts/field-notes-send.mjs` | CLI test + broadcast from a draft JSON |
+| skill **`field-notes`** | Idea → draft → test → (approve) → list |
 
-Skill: `.agents/skills/atoms-voice/` loads voice; for email HTML structure, also open this doc.
+Skills: **`field-notes`** (end-to-end send), **`atoms-voice`** (tone only).

@@ -42,12 +42,31 @@ npm run build:www
 ( cd www && npx wrangler pages deploy dist --project-name=tryatoms --branch=master )
 ```
 
-## Ongoing Broadcasts
+## Ongoing notes (preferred: agent skill)
+
+**You:** feed the idea in chat.  
+**Agent:** skill **`field-notes`** → drafts JSON → test send → you approve → broadcast.
+
+```bash
+# secrets (example; agent usually loads RESEND from fly)
+export RESEND_API_KEY=...
+export ATOMS_NOTES_POSTAL_ADDRESS='Taitopia, 1029 Lyell Ave Unit #740, Rochester, NY 14606'
+export RESEND_MARKETING_SEGMENT_ID='3b2147b4-a1bf-4225-91a0-e24f6c5868e2'
+export ATOMS_NOTES_FROM='Field notes <notes@mail.tryatoms.app>'
+export ATOMS_NOTES_REPLY_TO='taihartmandevelopment@gmail.com'
+
+npm run field-notes:test -- --to 'you@gmail.com' --draft docs/field-notes/drafts/….json
+npm run field-notes:broadcast -- --draft docs/field-notes/drafts/….json --confirm   # only after explicit yes
+```
+
+Manual Resend UI still works if you prefer; voice + HTML rules unchanged.
+
+## Ongoing Broadcasts (manual fallback)
 
 1. Read **`docs/voice.md`** and **`docs/field-notes-email.md`**.
 2. Resend → **Broadcasts** → new → audience = **Atoms Notes** segment only (internal name).
-3. Content: one concrete real-life beat + optional diagram (PNG on tryatoms) + soft CTA + invite “reply with how you run yours.”
-4. Style: dark card / tint blue (match site). Welcome already uses `fieldNotesEmail.mjs` HTML.
+3. Content: one concrete real-life beat + optional diagram (PNG on tryatoms) + soft CTA + feature invite.
+4. Style: dark card / tint blue (match site). Or use `scripts/field-notes-send.mjs`.
 5. Include `{{{RESEND_UNSUBSCRIBE_URL}}}` and postal address.
 6. **Test email** on iPhone Mail + Gmail before audience send.
 7. Do not send to Plus auth contacts or generic “all contacts” unless they are on this segment via signup.
