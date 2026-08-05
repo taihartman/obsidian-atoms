@@ -1889,6 +1889,18 @@
   margin-top: 10px;
 }
 
+/* Settings row grammar — a status row carries read-only state as muted trailing text,
+   with no control at its right edge. */
+.atoms-setting-status {
+  color: var(--text-muted);
+  text-align: right;
+}
+
+/* Settings row grammar — a destination row opens somewhere else; the whole row is the target. */
+.atoms-setting-destination {
+  cursor: pointer;
+}
+
 /* Settings → Ask: full-width disabled MCP connector URL field */
 .atoms-settings-mcp-url-input {
   width: 100%;
