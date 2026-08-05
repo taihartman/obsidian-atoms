@@ -23,12 +23,36 @@ const MAX_POLLS = 8;
 const INTERVAL_MS = 5000;
 
 /**
+ * One refresh in flight per app (#280). Four uncoordinated triggers feed this
+ * function — load, the 5s interval, `visibilitychange` and `focus` (the last
+ * two fire together on return from Stripe) — and the awaiting-checkout guard
+ * below is a check-then-act across an `await`: every caller already past it is
+ * committed to announcing readiness. When entitlement flipped, all of them
+ * announced, which is how one checkout produced seven identical notices.
+ *
+ * Keyed per app rather than module-global so two vaults never wait on each
+ * other's refresh.
+ */
+const inFlight = new WeakMap<object, Promise<boolean>>();
+
+/**
  * If awaiting checkout, refresh /v1/me. Clears flag when entitled.
+ * Concurrent callers share the first call's result and do not re-announce.
  * @returns true if entitlement became active/trialing/exhausted
  */
-export async function refreshPlusSessionQuiet(
+export function refreshPlusSessionQuiet(
   host: PlusResumeHost,
 ): Promise<boolean> {
+  const existing = inFlight.get(host.app);
+  if (existing) return existing;
+  const run = quietRefresh(host).finally(() => {
+    inFlight.delete(host.app);
+  });
+  inFlight.set(host.app, run);
+  return run;
+}
+
+async function quietRefresh(host: PlusResumeHost): Promise<boolean> {
   if (!isAwaitingCheckout(host.app)) return false;
   const session = readPlusSession(host.app);
   if (!session) {
