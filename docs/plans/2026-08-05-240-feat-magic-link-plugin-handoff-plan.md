@@ -233,7 +233,7 @@ A real trial-account sign-in completed on a physical iOS device **and** a physic
 **Raised by round-1 doc review and deliberately left open**
 
 - If the physical iOS/Android gate fails, what ships — the POST fallback promoted on mobile, or a block until #286?
-- Should the Definition of Done gate the BRAT release explicitly on the human device result, so "recorded as outstanding" cannot be read as "shippable"?
+- ~~Should the Definition of Done gate the BRAT release explicitly on the human device result, so "recorded as outstanding" cannot be read as "shippable"?~~ **Answered 2026-08-05 (user, pre-`ce-work`): yes, hard gate on both platforms.** Merge may proceed with the gate open; the release may not. Wording is in Definition of Done § Global. Do not relitigate.
 - Which rate-limit key shape and ceiling for the non-consuming checks, given scanners hit the landing page before the human — and does sharing a key let a scanner's 429 block the human's deliberate POST, or the plugin's peek? Two verified constraints narrow the answer more than this question originally admitted: `clientIp` returns the first element of a client-supplied `x-forwarded-for` (`plus-service/src/ratelimit.mjs:32-35`), so an IP key is forgeable **and** can be aimed at a victim's bucket; and `checkRateLimit`'s window is a module-level in-process `Map` (`ratelimit.mjs:7`), so any ceiling is per-instance, not per-deployment.
 - Should the fallback POST require re-entering the account email, so a link holder alone cannot mint a session before #286?
 - Does `registerObsidianProtocolHandler` deliver params to more than one registered plugin in the same vault?
@@ -869,7 +869,7 @@ A deliberate mutation check applies to U1, U2, and U4: break the postgres path o
 **Global**
 
 - Every requirement R1-R19 is implemented or explicitly deferred in writing.
-- All Verification Contract gates pass except the human-only release gate, which is recorded as outstanding.
+- All Verification Contract gates pass except the human-only release gate, which is recorded as outstanding. **Outstanding is not shippable.** Merge to `master` may proceed with the device gate open; **no BRAT release is cut until a magic link has been opened from a mail client's in-app browser on a physical iOS device *and* a physical Android device, both reaching the signed-in state.** Both must pass — one platform is not the gate. This feature exists to fix a mobile handoff, so an unverified mobile path is the specific failure this gate is designed against. If either device fails, the Outstanding Question on what ships (POST fallback promoted on mobile, or block until #286) is answered before release, not after.
 - No session token, magic token, or verifier appears in a URL the plugin constructs, a log line, or a surfaced error — with `redact` covering all three shapes, not only `sess_`.
 - Cancelling the confirmation makes no server call, and the link still works afterwards.
 - No surface offers an `obsidian://` handoff for a token that carries no verifier hash.
