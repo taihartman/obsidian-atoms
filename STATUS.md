@@ -7,7 +7,6 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| In review | [#299](https://github.com/taihartman/obsidian-atoms/issues/299) | taihartman | `feat/setup-community-install` | light lane (no plan doc) | `www/src/setup.html.tmpl`, `www/build.mjs`, `test/wwwPricing.test.ts` | De-BRAT `/setup` now that Atoms is in the community directory, and show readers how to actually open Atoms. Two BRAT screenshots die — they must come out of `SETUP_SHOTS` *and* the template together, or the ships-what-it-references test fails |
 | In review | [#294](https://github.com/taihartman/obsidian-atoms/issues/294) | taihartman | `fix/capture-shortcut-link-optional` | amend lane (no plan doc) | `src/settings/captureShortcut.ts`, `src/settings/settings.ts`, `src/home/atomsHomeView.ts` | Custom shortcut link is optional; every shipped built-in URL now un-pins. **Prepend, never append**, to `BUILTIN_INSTALL_URLS` when the link moves — the constant is its head |
 
 ## How to claim (copy)
@@ -24,6 +23,7 @@ States: `Queued` · `In progress` · `Blocked` · `In review` · `Done` (then re
 
 | Merged | Issue / PR | Summary |
 |---|---|---|
+| 2026-08-05 | #299 / #300 | `/setup` installs from the community directory, not BRAT; adds the Open Atoms step; guide tightened 1582→1332 words (www-only, no plugin bump) |
 | 2026-08-05 | #288 / #289 | Library tap=vault; long-press Continue · **0.6.73** |
 | 2026-08-05 | #280 #282 / #281 | One "Atoms Plus is ready" notice per checkout, not one per in-flight poll; resume listeners tied to the plugin lifecycle · **0.6.72**. **#241 must land on top of this** — widening the poll window without the atomic announce is #280 again |
 | 2026-08-05 | #277 / #278 | `/setup` from-zero guide (install · iOS capture · Ask); landing `#install` shrinks to a pointer. **Follow-up: screenshots need recapturing on desktop dark — the shipped ones are poor** |
