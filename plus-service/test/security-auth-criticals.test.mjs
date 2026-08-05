@@ -6,8 +6,14 @@ import { describe, it, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { createMemoryStore } from "../src/store/memory.mjs";
 import { createSqliteStore } from "../src/store/sqlite.mjs";
+import { createPostgresStore } from "../src/store/postgres.mjs";
 import { createStore } from "../src/store.mjs";
-import { postgresStoreRows } from "./helpers/postgresTestStore.mjs";
+import { hashToken } from "../src/store/shared.mjs";
+import {
+  createTestPostgresStore,
+  postgresStoreRows,
+  withSearchPath,
+} from "./helpers/postgresTestStore.mjs";
 
 process.env.DOGFOOD_AUTO_GRANT = "0";
 process.env.ATOMS_PLUS_ENV = "development";
@@ -160,6 +166,99 @@ function runStoreSuite(name, create) {
 
       if (store.close) await store.close();
     });
+
+    // ---- #240 U1: magic-token columns + KTD14 hashed key, in every backend --
+
+    it("U1: a magic row carries the verifier hash and the requesting vault", async () => {
+      const store = await fresh();
+      const verifierHash = "f".repeat(64);
+      const token = await store.createMagicToken("multi@ex.com", {
+        verifierHash,
+        vault: "Work Vault",
+      });
+
+      const rows = await store.magicRowsForTest();
+      assert.equal(rows.length, 1);
+      assert.equal(rows[0].email, "multi@ex.com");
+      assert.equal(rows[0].verifierHash, verifierHash);
+      assert.equal(rows[0].vault, "Work Vault");
+
+      // R3 — the vault name has to reach the caller, or a multi-vault device
+      // cannot tell which vault asked for the link.
+      const out = await store.exchangeMagic(token);
+      assert.equal(out?.vault, "Work Vault");
+      assert.ok(String(out.session).startsWith("sess_"));
+
+      if (store.close) await store.close();
+    });
+
+    it("U1: both new fields are optional — an older caller still works", async () => {
+      const store = await fresh();
+      const token = await store.createMagicToken("plain@ex.com");
+
+      const rows = await store.magicRowsForTest();
+      assert.equal(rows.length, 1);
+      assert.equal(rows[0].verifierHash, null);
+      assert.equal(rows[0].vault, null);
+
+      const out = await store.exchangeMagic(token);
+      assert.ok(out?.session);
+      assert.equal(out.vault, null);
+
+      if (store.close) await store.close();
+    });
+
+    it("U1: the vault name round-trips with a space and non-ASCII intact", async () => {
+      const store = await fresh();
+      const vault = "Zettel — Ünïcode ✓ vault";
+      const token = await store.createMagicToken("uni@ex.com", { vault });
+
+      assert.equal((await store.magicRowsForTest())[0].vault, vault);
+      assert.equal((await store.exchangeMagic(token))?.vault, vault);
+
+      if (store.close) await store.close();
+    });
+
+    it("U1/KTD14: the stored row holds only the token hash, never the token", async () => {
+      const store = await fresh();
+      const token = await store.createMagicToken("hashed@ex.com", {
+        verifierHash: "a".repeat(64),
+        vault: "Hashed Vault",
+      });
+
+      const rows = await store.magicRowsForTest();
+      assert.equal(rows.length, 1);
+      assert.equal(rows[0].key, hashToken(token));
+      // M9: the raw token must not survive anywhere in the row, under any column.
+      assert.equal(JSON.stringify(rows).includes(token), false);
+
+      // Insert and lookup must hash the same way, or nothing redeems at all.
+      assert.ok((await store.exchangeMagic(token))?.session);
+      assert.equal((await store.magicRowsForTest()).length, 0);
+
+      if (store.close) await store.close();
+    });
+
+    it("U1/KTD11: a pre-deploy plaintext-keyed row is not redeemable", async () => {
+      const store = await fresh();
+      const token = `mt_${"b".repeat(32)}`;
+      await store.writeMagicRowForTest(token, {
+        email: "legacy@ex.com",
+        expMs: Date.now() + 15 * 60 * 1000,
+      });
+
+      // KTD14's re-key orphans it: unreachable, not redeemable.
+      assert.equal(await store.exchangeMagic(token), null);
+
+      // And it is still sitting there — U3's mint sweep is what removes it,
+      // which is the difference between orphaned-and-swept and
+      // orphaned-and-immortal.
+      const rows = await store.magicRowsForTest();
+      assert.equal(rows.length, 1);
+      assert.equal(rows[0].key, token);
+
+      if (store.close) await store.close();
+    });
   });
 }
 
@@ -169,6 +268,104 @@ runStoreSuite("createStore-memory", () => createStore({ mode: "memory" }));
 // #239 — the production store, when a database is available. Absent locally;
 // absent in CI is a hard failure, not a skip. See helpers/postgresTestStore.mjs.
 for (const [name, create] of postgresStoreRows()) runStoreSuite(name, create);
+
+/**
+ * #240 U1 — an already-deployed database must gain the two columns on open.
+ * This cannot live in `runStoreSuite`: each backend's "old database" is a
+ * different artifact, and memory has none.
+ */
+describe("U1 legacy database upgrade (sqlite)", () => {
+  it("adds verifier_hash and vault to a pre-#240 magic_tokens table", async () => {
+    const { DatabaseSync } = await import("node:sqlite");
+    const { mkdtempSync, rmSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+
+    const dir = mkdtempSync(join(tmpdir(), "atoms-u1-"));
+    const dbPath = join(dir, "legacy.db");
+    try {
+      const legacy = new DatabaseSync(dbPath);
+      legacy.exec(`
+        CREATE TABLE magic_tokens (
+          token TEXT PRIMARY KEY,
+          email TEXT NOT NULL,
+          exp_ms INTEGER NOT NULL
+        );
+      `);
+      legacy
+        .prepare("INSERT INTO magic_tokens (token, email, exp_ms) VALUES (?, ?, ?)")
+        .run("mt_predeploy", "old@ex.com", Date.now() + 60_000);
+      legacy.close();
+
+      // Opening must upgrade rather than throw, and must not drop the old row.
+      const store = createSqliteStore(dbPath);
+      const rows = store.magicRowsForTest();
+      assert.equal(rows.length, 1);
+      assert.equal(rows[0].key, "mt_predeploy");
+      assert.equal(rows[0].verifierHash, null);
+      assert.equal(rows[0].vault, null);
+
+      // The upgraded table takes the new columns for real.
+      const token = store.createMagicToken("new@ex.com", {
+        verifierHash: "c".repeat(64),
+        vault: "Upgraded Vault",
+      });
+      assert.equal(store.exchangeMagic(token)?.vault, "Upgraded Vault");
+      if (store.close) store.close();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+// Same guarantee on the store that actually runs in production. Gated on a
+// database being present for the same reason the suite rows are (KTD3).
+if (postgresStoreRows().length) {
+  describe("U1 legacy database upgrade (postgres)", () => {
+    it("adds verifier_hash and vault to a pre-#240 magic_tokens table", async () => {
+      const pg = (await import("pg")).default;
+      const store = await createTestPostgresStore();
+      const url = withSearchPath(
+        process.env.TEST_DATABASE_URL,
+        store.schemaForTest,
+      );
+      const client = new pg.Client({ connectionString: url });
+      await client.connect();
+      let upgraded;
+      try {
+        // Rewind the schema to its pre-#240 shape, with a row already in it.
+        await client.query(
+          "ALTER TABLE magic_tokens DROP COLUMN verifier_hash, DROP COLUMN vault",
+        );
+        await client.query(
+          "INSERT INTO magic_tokens (token, email, exp_ms) VALUES ($1, $2, $3)",
+          ["mt_predeploy", "old@ex.com", Date.now() + 60_000],
+        );
+
+        // Re-running the migration is what a deploy does on an existing database.
+        upgraded = await createPostgresStore(url);
+        const rows = await upgraded.magicRowsForTest();
+        assert.equal(rows.length, 1);
+        assert.equal(rows[0].key, "mt_predeploy");
+        assert.equal(rows[0].verifierHash, null);
+        assert.equal(rows[0].vault, null);
+
+        const token = await upgraded.createMagicToken("new@ex.com", {
+          verifierHash: "c".repeat(64),
+          vault: "Upgraded Vault",
+        });
+        assert.equal(
+          (await upgraded.exchangeMagic(token))?.vault,
+          "Upgraded Vault",
+        );
+      } finally {
+        await client.end();
+        if (upgraded) await upgraded.close();
+        await store.close();
+      }
+    });
+  });
+}
 
 describe("H1 exchange HTML escaping", () => {
   it("escapes email and session in exchange page", async () => {

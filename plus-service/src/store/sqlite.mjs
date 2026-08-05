@@ -38,7 +38,9 @@ function migrate(db) {
     CREATE TABLE IF NOT EXISTS magic_tokens (
       token TEXT PRIMARY KEY,
       email TEXT NOT NULL,
-      exp_ms INTEGER NOT NULL
+      exp_ms INTEGER NOT NULL,
+      verifier_hash TEXT,
+      vault TEXT
     );
     CREATE TABLE IF NOT EXISTS sessions (
       token_hash TEXT PRIMARY KEY,
@@ -98,6 +100,14 @@ function migrate(db) {
     db.exec(
       "ALTER TABLE sessions ADD COLUMN verified INTEGER NOT NULL DEFAULT 1",
     );
+  }
+  // #240 U1 — already-deployed databases gain the magic-token columns on open.
+  const magicCols = db.prepare("PRAGMA table_info(magic_tokens)").all();
+  if (!magicCols.some((c) => c.name === "verifier_hash")) {
+    db.exec("ALTER TABLE magic_tokens ADD COLUMN verifier_hash TEXT");
+  }
+  if (!magicCols.some((c) => c.name === "vault")) {
+    db.exec("ALTER TABLE magic_tokens ADD COLUMN vault TEXT");
   }
   const mirrorCols = db.prepare("PRAGMA table_info(atom_mirror)").all();
   if (!mirrorCols.some((c) => c.name === "created")) {
@@ -177,12 +187,52 @@ export function createSqliteStore(dbPath = config.databasePath) {
     return saved;
   }
 
-  function createMagicToken(email) {
+  /**
+   * @param {string} email
+   * @param {{ verifierHash?: string, vault?: string }} [opts] #240 U1 — the
+   *   requesting device's verifier hash (R12) and the requesting vault's name
+   *   (R3). Both optional: a caller that passes neither still works.
+   */
+  function createMagicToken(email, opts = {}) {
     const token = id("mt");
+    // KTD14 — the `token` column holds `hashToken(token)`, as sessions do.
     db.prepare(
-      "INSERT INTO magic_tokens (token, email, exp_ms) VALUES (?, ?, ?)",
-    ).run(token, email.trim().toLowerCase(), Date.now() + 15 * 60 * 1000);
+      `INSERT INTO magic_tokens (token, email, exp_ms, verifier_hash, vault)
+       VALUES (?, ?, ?, ?, ?)`,
+    ).run(
+      hashToken(token),
+      email.trim().toLowerCase(),
+      Date.now() + 15 * 60 * 1000,
+      opts.verifierHash || null,
+      opts.vault || null,
+    );
     return token;
+  }
+
+  function magicRowsForTest() {
+    return db
+      .prepare("SELECT * FROM magic_tokens")
+      .all()
+      .map((r) => ({
+        key: r.token,
+        email: r.email,
+        expMs: Number(r.exp_ms),
+        verifierHash: r.verifier_hash ?? null,
+        vault: r.vault ?? null,
+      }));
+  }
+
+  function writeMagicRowForTest(key, row) {
+    db.prepare(
+      `INSERT INTO magic_tokens (token, email, exp_ms, verifier_hash, vault)
+       VALUES (?, ?, ?, ?, ?)`,
+    ).run(
+      key,
+      String(row.email).trim().toLowerCase(),
+      Number(row.expMs),
+      row.verifierHash || null,
+      row.vault || null,
+    );
   }
 
   /**
@@ -288,11 +338,12 @@ export function createSqliteStore(dbPath = config.databasePath) {
   }
 
   function exchangeMagic(token) {
+    const key = hashToken(token);
     const row = db
       .prepare("SELECT * FROM magic_tokens WHERE token = ?")
-      .get(token);
+      .get(key);
     if (!row) return null;
-    db.prepare("DELETE FROM magic_tokens WHERE token = ?").run(token);
+    db.prepare("DELETE FROM magic_tokens WHERE token = ?").run(key);
     if (Date.now() > row.exp_ms) return null;
     let a = ensureAccount(row.email);
     if (
@@ -311,7 +362,7 @@ export function createSqliteStore(dbPath = config.databasePath) {
     a = refreshAccountStatus(a);
     revokeAllSessionsForEmail(row.email);
     const session = createSession(row.email, { verified: true });
-    return { session, account: a };
+    return { session, account: a, vault: row.vault ?? null };
   }
 
   /**
@@ -502,6 +553,8 @@ export function createSqliteStore(dbPath = config.databasePath) {
   return {
     kind: "sqlite",
     createMagicToken,
+    magicRowsForTest,
+    writeMagicRowForTest,
     createSession,
     startWithEmail,
     exchangeMagic,

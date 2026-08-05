@@ -108,11 +108,21 @@ export function createMemoryStore() {
     return a;
   }
 
-  function createMagicToken(email) {
+  /**
+   * @param {string} email
+   * @param {{ verifierHash?: string, vault?: string }} [opts] #240 U1 — the
+   *   requesting device's verifier hash (R12) and the requesting vault's name
+   *   (R3). Both optional: a caller that passes neither still works.
+   */
+  function createMagicToken(email, opts = {}) {
     const token = id("mt");
-    magicTokens.set(token, {
+    // KTD14 — key on the hash, exactly as sessions are. The plaintext token
+    // only ever exists in the email and in the caller's hand.
+    magicTokens.set(hashToken(token), {
       email: email.trim().toLowerCase(),
       exp: Date.now() + 15 * 60 * 1000,
+      verifierHash: opts.verifierHash || null,
+      vault: opts.vault || null,
     });
     return token;
   }
@@ -208,13 +218,14 @@ export function createMemoryStore() {
   }
 
   function exchangeMagic(token) {
-    const row = magicTokens.get(token);
+    const key = hashToken(token);
+    const row = magicTokens.get(key);
     if (!row) return null;
     if (Date.now() > row.exp) {
-      magicTokens.delete(token);
+      magicTokens.delete(key);
       return null;
     }
-    magicTokens.delete(token);
+    magicTokens.delete(key);
     const a = ensureAccount(row.email);
     if (
       config.dogfoodAutoGrant &&
@@ -232,7 +243,26 @@ export function createMemoryStore() {
     refreshAccountStatus(a);
     revokeAllSessionsForEmail(row.email);
     const session = createSession(row.email, { verified: true });
-    return { session, account: a };
+    return { session, account: a, vault: row.vault ?? null };
+  }
+
+  function magicRowsForTest() {
+    return [...magicTokens].map(([key, r]) => ({
+      key,
+      email: r.email,
+      expMs: r.exp,
+      verifierHash: r.verifierHash ?? null,
+      vault: r.vault ?? null,
+    }));
+  }
+
+  function writeMagicRowForTest(key, row) {
+    magicTokens.set(key, {
+      email: String(row.email).trim().toLowerCase(),
+      exp: Number(row.expMs),
+      verifierHash: row.verifierHash || null,
+      vault: row.vault || null,
+    });
   }
 
   /**
@@ -899,6 +929,8 @@ export function createMemoryStore() {
   return {
     kind: "memory",
     createMagicToken,
+    magicRowsForTest,
+    writeMagicRowForTest,
     createSession,
     startWithEmail,
     exchangeMagic,

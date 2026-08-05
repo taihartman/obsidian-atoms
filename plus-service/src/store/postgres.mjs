@@ -38,7 +38,9 @@ CREATE TABLE IF NOT EXISTS accounts (
 CREATE TABLE IF NOT EXISTS magic_tokens (
   token TEXT PRIMARY KEY,
   email TEXT NOT NULL,
-  exp_ms BIGINT NOT NULL
+  exp_ms BIGINT NOT NULL,
+  verifier_hash TEXT,
+  vault TEXT
 );
 CREATE TABLE IF NOT EXISTS sessions (
   token_hash TEXT PRIMARY KEY,
@@ -109,6 +111,13 @@ export async function createPostgresStore(databaseUrl) {
   );
   await pool.query(
     `ALTER TABLE atom_mirror ADD COLUMN IF NOT EXISTS created TEXT`,
+  );
+  // #240 U1 — existing DBs created before the magic-token columns
+  await pool.query(
+    `ALTER TABLE magic_tokens ADD COLUMN IF NOT EXISTS verifier_hash TEXT`,
+  );
+  await pool.query(
+    `ALTER TABLE magic_tokens ADD COLUMN IF NOT EXISTS vault TEXT`,
   );
 
   const sessionTtlMs = () => config.sessionTtlDays * 24 * 60 * 60 * 1000;
@@ -196,13 +205,52 @@ export async function createPostgresStore(databaseUrl) {
     return rowToAccount(rows[0]);
   }
 
-  async function createMagicToken(email) {
+  /**
+   * @param {string} email
+   * @param {{ verifierHash?: string, vault?: string }} [opts] #240 U1 — the
+   *   requesting device's verifier hash (R12) and the requesting vault's name
+   *   (R3). Both optional: a caller that passes neither still works.
+   */
+  async function createMagicToken(email, opts = {}) {
     const token = id("mt");
+    // KTD14 — the `token` column holds `hashToken(token)`, as sessions do.
     await pool.query(
-      "INSERT INTO magic_tokens (token, email, exp_ms) VALUES ($1, $2, $3)",
-      [token, email.trim().toLowerCase(), Date.now() + 15 * 60 * 1000],
+      `INSERT INTO magic_tokens (token, email, exp_ms, verifier_hash, vault)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [
+        hashToken(token),
+        email.trim().toLowerCase(),
+        Date.now() + 15 * 60 * 1000,
+        opts.verifierHash || null,
+        opts.vault || null,
+      ],
     );
     return token;
+  }
+
+  async function magicRowsForTest() {
+    const { rows } = await pool.query("SELECT * FROM magic_tokens");
+    return rows.map((r) => ({
+      key: r.token,
+      email: r.email,
+      expMs: Number(r.exp_ms),
+      verifierHash: r.verifier_hash ?? null,
+      vault: r.vault ?? null,
+    }));
+  }
+
+  async function writeMagicRowForTest(key, row) {
+    await pool.query(
+      `INSERT INTO magic_tokens (token, email, exp_ms, verifier_hash, vault)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [
+        key,
+        String(row.email).trim().toLowerCase(),
+        Number(row.expMs),
+        row.verifierHash || null,
+        row.vault || null,
+      ],
+    );
   }
 
   /**
@@ -326,13 +374,15 @@ export async function createPostgresStore(databaseUrl) {
   }
 
   async function exchangeMagic(token) {
+    const key = hashToken(token);
     const client = await pool.connect();
     let email;
+    let vault = null;
     try {
       await client.query("BEGIN");
       const { rows } = await client.query(
         "SELECT * FROM magic_tokens WHERE token = $1 FOR UPDATE",
-        [token],
+        [key],
       );
       const row = rows[0];
       if (!row) {
@@ -340,7 +390,8 @@ export async function createPostgresStore(databaseUrl) {
         return null;
       }
       email = row.email;
-      await client.query("DELETE FROM magic_tokens WHERE token = $1", [token]);
+      vault = row.vault ?? null;
+      await client.query("DELETE FROM magic_tokens WHERE token = $1", [key]);
       if (Date.now() > Number(row.exp_ms)) {
         await client.query("COMMIT");
         return null;
@@ -370,7 +421,7 @@ export async function createPostgresStore(databaseUrl) {
     a = await refreshAccountStatus(a);
     await revokeAllSessionsForEmail(email);
     const session = await createSession(email, { verified: true });
-    return { session, account: a };
+    return { session, account: a, vault };
   }
 
   /**
@@ -626,6 +677,8 @@ export async function createPostgresStore(databaseUrl) {
   return {
     kind: "postgres",
     createMagicToken,
+    magicRowsForTest,
+    writeMagicRowForTest,
     createSession,
     startWithEmail,
     exchangeMagic,
