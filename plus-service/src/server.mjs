@@ -24,9 +24,13 @@ import {
   isProduction,
 } from "./prodGate.mjs";
 import { sendMagicLinkEmail } from "./email.mjs";
-import { INCIDENT_KIND } from "./store/shared.mjs";
+import { INCIDENT_KIND, verifierMatches } from "./store/shared.mjs";
 import { alertStripeIncident } from "./alert.mjs";
-import { checkRateLimit, clientIp } from "./ratelimit.mjs";
+import {
+  MAGIC_LINK_RATE_LIMITS,
+  checkRateLimit,
+  clientIp,
+} from "./ratelimit.mjs";
 import { handleMirrorRoutes } from "./mirror/http.mjs";
 import { handleMcpRequest } from "./mcp/handler.mjs";
 import {
@@ -51,12 +55,20 @@ const CORS_HEADERS = {
   "access-control-allow-methods": "GET, POST, OPTIONS",
 };
 
-function json(res, status, body) {
+/**
+ * @param {import("node:http").ServerResponse} res
+ * @param {number} status
+ * @param {unknown} body
+ * @param {Record<string, string>} [extraHeaders] per-route headers, e.g. #240
+ *   U13's `cache-control: no-store` on a response that names an account.
+ */
+function json(res, status, body, extraHeaders) {
   const data = JSON.stringify(body);
   res.writeHead(status, {
     "content-type": "application/json",
     "content-length": Buffer.byteLength(data),
     ...CORS_HEADERS,
+    ...extraHeaders,
   });
   res.end(data);
 }
@@ -120,6 +132,27 @@ function bearer(req) {
  * route that answers it cannot drift apart.
  */
 const FALLBACK_EXCHANGE_PATH = "/v1/auth/exchange/fallback";
+
+/**
+ * #240 U13 — every `POST /v1/auth/peek` response carries this, not only the
+ * `usable` one that names an account. A caching rule that depends on the
+ * verdict is a rule no intermediary — and no reviewer — can check at a glance.
+ */
+const NO_STORE = Object.freeze({ "cache-control": "no-store" });
+
+/**
+ * #240 U13 / KTD10 — the throttle for one magic-token surface. `surface` is a
+ * key of `MAGIC_LINK_RATE_LIMITS`, so the prefixes stay distinct by
+ * construction and a typo is `undefined` at boot rather than a fifth anonymous
+ * bucket silently shared with nothing.
+ *
+ * @param {import("node:http").IncomingMessage} req
+ * @param {keyof typeof MAGIC_LINK_RATE_LIMITS} surface
+ */
+function magicRateLimit(req, surface) {
+  const { key, limit } = MAGIC_LINK_RATE_LIMITS[surface];
+  return checkRateLimit(`${key}:${clientIp(req)}`, limit);
+}
 
 /** #240 U3 — hex sha256 of the device verifier; a little slack over its 64. */
 const MAX_VERIFIER_HASH_CHARS = 128;
@@ -195,9 +228,12 @@ function renderDeadLink(
   {
     title = "Link expired",
     detail = "Request a new sign-in link from Atoms Settings.",
+    // #240 U13 — the same two-line page serves the throttle, which is not a
+    // verdict about the link and must not answer 400.
+    status = 400,
   } = {},
 ) {
-  writeLanding(res, 400, `<h1>${escHtml(title)}</h1>
+  writeLanding(res, status, `<h1>${escHtml(title)}</h1>
 <p>${escHtml(detail)}</p>`);
 }
 
@@ -530,6 +566,17 @@ ${
 
     // GET /v1/auth/exchange?token= — email magic-link landing (browser)
     if (req.method === "GET" && path === "/v1/auth/exchange") {
+      // KTD10 — the scanner-facing surface, on its own key. HTML rather than
+      // JSON: whoever is here is a browser, and the throttle must not be the
+      // one response on this route that renders as a blob of text.
+      const rlLanding = magicRateLimit(req, "landing");
+      if (!rlLanding.ok) {
+        return renderDeadLink(res, {
+          status: 429,
+          title: "Too many requests",
+          detail: `Wait ${rlLanding.retryAfterSec} seconds and reload this page. Your sign-in link was not used.`,
+        });
+      }
       const token = url.searchParams.get("token") || "";
       const pendingId = url.searchParams.get("pending") || "";
 
@@ -570,6 +617,16 @@ ${
 
     // POST /v1/auth/exchange/fallback — the landing page's own form (KTD5)
     if (req.method === "POST" && path === FALLBACK_EXCHANGE_PATH) {
+      // KTD10 — its own key, so a bot looping the landing page above cannot
+      // take away the human's only remaining way in.
+      const rlFallback = magicRateLimit(req, "fallback");
+      if (!rlFallback.ok) {
+        return renderDeadLink(res, {
+          status: 429,
+          title: "Too many requests",
+          detail: `Wait ${rlFallback.retryAfterSec} seconds and try again. Your sign-in link was not used.`,
+        });
+      }
       // A scriptless form sends `application/x-www-form-urlencoded`, and
       // `readBody` is JSON-only and throws on anything else — which is why this
       // is a separate HTML-rendering route rather than a branch inside the
@@ -592,10 +649,101 @@ ${
       return renderFallbackSession(res, out);
     }
 
+    // POST /v1/auth/peek — the plugin's non-consuming, verifier-bound check
+    if (req.method === "POST" && path === "/v1/auth/peek") {
+      // KTD15 — the plugin must name the account before it may ask R4's
+      // question, and the only other way to learn it is to have already spent
+      // the token and revoked the account's other sessions. So: read-only.
+      // This route deletes nothing and mints nothing, and there is deliberately
+      // no path from here to `exchangeMagic` or to session issuance.
+      const body = await readBody(req);
+      const token = String(body.token || "").trim();
+      if (!token) return json(res, 400, { message: "Token required" }, NO_STORE);
+      const verifier = optionalBoundedString(body.verifier, MAX_VERIFIER_CHARS);
+      if (!verifier.ok) {
+        return json(res, 400, { message: "Invalid verifier" }, NO_STORE);
+      }
+      const rlPeek = magicRateLimit(req, "peek");
+      if (!rlPeek.ok) {
+        // No `result` here on purpose: U8 lets a stated verdict beat the status
+        // code, so a throttle labelled `invalid` would read as a decision about
+        // the link and send the user to request a new one for no reason.
+        return json(
+          res,
+          429,
+          { message: "Too many requests", retryAfterSec: rlPeek.retryAfterSec },
+          NO_STORE,
+        );
+      }
+
+      const peek = await store.peekMagic(token);
+      if (!peek.ok) {
+        // R7 apart from R5: expired routes "request a new link", invalid routes
+        // "this link is already spent or was never real".
+        return json(
+          res,
+          401,
+          {
+            result: peek.status === "expired" ? "expired" : "invalid",
+            message: "Invalid or expired magic link",
+          },
+          NO_STORE,
+        );
+      }
+
+      // KD9 / step 3 — an **unbound** row is refused here, even though
+      // `verifierMatches` passes it. That pass is right for the exchange, where
+      // an older build's token legitimately redeems; it is wrong here, because
+      // answering `usable` would hand an account email to any caller holding
+      // the link. So the binding is checked first, and the shared compare is
+      // still what decides every bound row — one comparison, two callers, so a
+      // peek can never say usable where the exchange would refuse.
+      const allowed =
+        peek.verifierBound && verifierMatches(peek.verifierHash, verifier.value);
+      if (!allowed) {
+        return json(
+          res,
+          403,
+          {
+            result: "refused",
+            reason: "verifier_mismatch",
+            // The requesting vault travels on a refusal too: it is the only
+            // server-attested vault name a refusing plugin will ever hold, and
+            // without it U9's refusal has nothing to name but the deep link's
+            // attacker-controlled `vault=` param. The **email** stays behind —
+            // naming the vault that asked is not naming the account.
+            ...(peek.vault ? { vault: peek.vault } : {}),
+            message:
+              "This sign-in link belongs to a different vault. Open the vault that requested it and tap the link again.",
+          },
+          NO_STORE,
+        );
+      }
+      return json(
+        res,
+        200,
+        {
+          result: "usable",
+          email: peek.email,
+          ...(peek.vault ? { vault: peek.vault } : {}),
+        },
+        NO_STORE,
+      );
+    }
+
     // POST /v1/auth/exchange — plugin in-app exchange
     if (req.method === "POST" && path === "/v1/auth/exchange") {
       const body = await readBody(req);
       const token = String(body.token || "").trim();
+      // KTD10 — the consuming plugin route, on its own key, so an exhausted
+      // peek or landing page never blocks the exchange the user just approved.
+      const rlExchange = magicRateLimit(req, "exchange");
+      if (!rlExchange.ok) {
+        return json(res, 429, {
+          message: "Too many requests",
+          retryAfterSec: rlExchange.retryAfterSec,
+        });
+      }
       // #240 U4 / KD9 — this route, and only this route, is bound to the
       // verifier the requesting device registered at mint time (R12). The web
       // routes above skip the check by design; see MagicExchangeOpts.
