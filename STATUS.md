@@ -7,6 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
+| In progress | [#299](https://github.com/taihartman/obsidian-atoms/issues/299) | taihartman | `feat/setup-community-install` | light lane (no plan doc) | `www/src/setup.html.tmpl`, `www/build.mjs`, `test/wwwPricing.test.ts` | De-BRAT `/setup` now that Atoms is in the community directory, and show readers how to actually open Atoms. Two BRAT screenshots die — they must come out of `SETUP_SHOTS` *and* the template together, or the ships-what-it-references test fails |
 | In review | [#294](https://github.com/taihartman/obsidian-atoms/issues/294) | taihartman | `fix/capture-shortcut-link-optional` | amend lane (no plan doc) | `src/settings/captureShortcut.ts`, `src/settings/settings.ts`, `src/home/atomsHomeView.ts` | Custom shortcut link is optional; every shipped built-in URL now un-pins. **Prepend, never append**, to `BUILTIN_INSTALL_URLS` when the link moves — the constant is its head |
 
 ## How to claim (copy)
