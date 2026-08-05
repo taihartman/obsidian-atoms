@@ -141,11 +141,11 @@ export async function upsertMarketingContact(opts) {
 export async function sendWelcomeEmail(opts) {
   const { apiKey, email, from, replyTo, postalAddress, unsubUrl } = opts;
   const lines = [
-    "You're on Atoms Notes.",
+    "You're on the Field notes list.",
     "",
-    "Rare notes on the capture -> recall -> deepen loop - real workflows, not a feature dump. About once a month or less.",
+    "Occasionally we'll send how people actually capture, file, and find things again - not a drip, not a changelog.",
     "",
-    "Here's the idea in one beat: something lands (a text, a photo, a half-thought). You capture it. Atoms files it as a note you can find later - and, when you want, you deepen it (calendar, recap, ask).",
+    "One beat of the idea: something lands (a text, a photo, a half-thought). You capture it. Atoms files it as a note you can find later - and when you want, you deepen it.",
     "",
     "Try Atoms: https://tryatoms.app",
     "Setup guide: https://tryatoms.app/setup",
@@ -157,7 +157,7 @@ export async function sendWelcomeEmail(opts) {
   const body = {
     from,
     to: [email],
-    subject: "You're on Atoms Notes",
+    subject: "You're on Field notes",
     text: lines.join("\n"),
     headers: {
       "List-Unsubscribe": `<${unsubUrl}>`,

@@ -38,7 +38,7 @@
     <link rel="canonical" href="https://tryatoms.app" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="stylesheet" href="/a/styles.35824038.css" />
-    <script src="/a/app.c5aaeee2.js" defer></script>
+    <script src="/a/app.e64289d6.js" defer></script>
   </head>
   <body>
     <!--
@@ -247,6 +247,53 @@
             note, titled in plain words and linked to the people and ideas it
             touches. You keep writing one line.
           </p>
+        </div>
+      </section>
+
+      <!-- List signup: early, after the claim (secondary to Get Atoms) -->
+      <section class="band band--notes" id="notes">
+        <div class="wrap">
+          <p class="eyebrow">Field notes</p>
+          <h2>Written when there's something worth saying.</h2>
+          <p class="lede">
+            How people actually capture, file, and find things again. A few
+            times a year - not a drip, not a changelog. Unsubscribe anytime.
+          </p>
+          <form class="notes-form" data-notes-form novalidate>
+            <label class="notes-label" for="notes-email-mid">Email</label>
+            <div class="notes-row">
+              <input
+                id="notes-email-mid"
+                class="notes-input"
+                name="email"
+                type="email"
+                autocomplete="email"
+                inputmode="email"
+                required
+                placeholder="you@example.com"
+              />
+              <input
+                class="notes-hp"
+                type="text"
+                name="website"
+                tabindex="-1"
+                autocomplete="off"
+                aria-hidden="true"
+              />
+              <button class="btn btn--primary" type="submit">
+                Keep me in the loop
+              </button>
+            </div>
+            <p class="notes-hint">
+              Rare. Practical. No sales sequences.
+            </p>
+            <p
+              class="notes-status"
+              data-notes-status
+              role="status"
+              aria-live="polite"
+            ></p>
+          </form>
         </div>
       </section>
 
@@ -750,49 +797,6 @@ Linked to <span class="wl">Energy</span> and <span class="wl">Meetings</span>.</
         </div>
       </section>
 
-      <!-- Atoms Notes list (mid-page; secondary to Get Atoms) -->
-      <section class="band band--notes" id="notes">
-        <div class="wrap">
-          <p class="eyebrow">Atoms Notes</p>
-          <h2>Real capture → recall workflows, rarely.</h2>
-          <p class="lede">
-            Occasional notes on how people run the loop - not a feature dump.
-            About once a month or less. Unsubscribe anytime.
-          </p>
-          <form class="notes-form" data-notes-form novalidate>
-            <label class="notes-label" for="notes-email-mid">Email</label>
-            <div class="notes-row">
-              <input
-                id="notes-email-mid"
-                class="notes-input"
-                name="email"
-                type="email"
-                autocomplete="email"
-                inputmode="email"
-                required
-                placeholder="you@example.com"
-              />
-              <!-- honeypot -->
-              <input
-                class="notes-hp"
-                type="text"
-                name="website"
-                tabindex="-1"
-                autocomplete="off"
-                aria-hidden="true"
-              />
-              <button class="btn btn--primary" type="submit">
-                Get use-case notes
-              </button>
-            </div>
-            <p class="notes-hint">
-              Rare notes on capture→recall - about monthly. Unsubscribe anytime.
-            </p>
-            <p class="notes-status" data-notes-status role="status" aria-live="polite"></p>
-          </form>
-        </div>
-      </section>
-
       <!-- Pricing -->
       <section class="band" id="pricing">
         <div class="wrap">
@@ -895,10 +899,9 @@ Linked to <span class="wl">Energy</span> and <span class="wl">Meetings</span>.</
     <footer class="foot">
       <div class="wrap">
         <div class="foot-notes">
-          <p class="foot-notes-title">Atoms Notes</p>
+          <p class="foot-notes-title">Field notes</p>
           <p class="foot-notes-copy">
-            Rare use-case notes on capture→recall. About monthly. Unsubscribe
-            anytime.
+            Occasional notes on capture and recall. Not a drip.
           </p>
           <form class="notes-form notes-form--foot" data-notes-form novalidate>
             <label class="visually-hidden" for="notes-email-foot">Email</label>
@@ -922,10 +925,15 @@ Linked to <span class="wl">Energy</span> and <span class="wl">Meetings</span>.</
                 aria-hidden="true"
               />
               <button class="btn btn--primary" type="submit">
-                Get use-case notes
+                Keep me in the loop
               </button>
             </div>
-            <p class="notes-status" data-notes-status role="status" aria-live="polite"></p>
+            <p
+              class="notes-status"
+              data-notes-status
+              role="status"
+              aria-live="polite"
+            ></p>
           </form>
         </div>
         <nav>

@@ -477,8 +477,8 @@
   /* ---------------- Atoms Notes signup ---------------- */
 
   const notesMsg = {
-    ok_new: "You're on the list. Check your email for a short welcome.",
-    ok_existing: "You're already on Atoms Notes. Glad you're here.",
+    ok_new: "You're in. Check your email for a short welcome.",
+    ok_existing: "You're already on the list. Glad you're here.",
     invalid_email: "Enter a valid email address.",
     rate_limited: "Too many tries. Wait a minute and try again.",
     upstream_error: "Something went wrong. Try again in a moment.",
