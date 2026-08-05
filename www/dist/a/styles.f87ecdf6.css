@@ -1313,6 +1313,12 @@ main[data-story="self"] .s-people {
   color: var(--muted);
 }
 
+.band--notes .lede--share {
+  margin-top: 0.85rem;
+  color: var(--label);
+  font-weight: 500;
+}
+
 .notes-form {
   margin-top: 1.25rem;
   max-width: 32rem;
