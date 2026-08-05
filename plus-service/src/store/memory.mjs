@@ -110,12 +110,30 @@ export function createMemoryStore() {
   }
 
   /**
+   * #240 U3 / KTD13 — drop every magic-token row past TTL, deliberately not
+   * scoped to any one email. The peek is read-only by construction (KTD1) and
+   * the exchange only ever runs for a token someone taps, so a mint is the last
+   * delete path a never-tapped row will ever see. Scoped to the minting email,
+   * the row of a user who requests one link and never comes back would hold
+   * their email, vault name, and verifier hash forever — exactly what KD7 says
+   * cannot happen. Strictly `< now` mirrors peekMagic's `now > exp`, so nothing
+   * a peek would still call usable is ever swept.
+   */
+  function sweepExpiredMagicTokens() {
+    const now = Date.now();
+    for (const [key, row] of magicTokens) {
+      if (row.exp < now) magicTokens.delete(key);
+    }
+  }
+
+  /**
    * @param {string} email
    * @param {{ verifierHash?: string, vault?: string }} [opts] #240 U1 — the
    *   requesting device's verifier hash (R12) and the requesting vault's name
    *   (R3). Both optional: a caller that passes neither still works.
    */
   function createMagicToken(email, opts = {}) {
+    sweepExpiredMagicTokens();
     const token = id("mt");
     // KTD14 — key on the hash, exactly as sessions are. The plaintext token
     // only ever exists in the email and in the caller's hand.

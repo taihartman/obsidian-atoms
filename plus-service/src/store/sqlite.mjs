@@ -195,6 +195,9 @@ export function createSqliteStore(dbPath = config.databasePath) {
    *   (R3). Both optional: a caller that passes neither still works.
    */
   function createMagicToken(email, opts = {}) {
+    // #240 U3 / KTD13 — every row past TTL, not only this email's. See the
+    // memory store's sweep for why the predicate carries no email.
+    db.prepare("DELETE FROM magic_tokens WHERE exp_ms < ?").run(Date.now());
     const token = id("mt");
     // KTD14 — the `token` column holds `hashToken(token)`, as sessions do.
     db.prepare(

@@ -250,12 +250,22 @@ function runStoreSuite(name, create) {
       // KTD14's re-key orphans it: unreachable, not redeemable.
       assert.equal(await store.exchangeMagic(token), null);
 
-      // And it is still sitting there — U3's mint sweep is what removes it,
-      // which is the difference between orphaned-and-swept and
-      // orphaned-and-immortal.
-      const rows = await store.magicRowsForTest();
-      assert.equal(rows.length, 1);
-      assert.equal(rows[0].key, token);
+      // It sits there while it is still inside its TTL...
+      assert.equal((await store.magicRowsForTest())[0].key, token);
+
+      // ...and a sibling orphan past its TTL is swept by the next mint
+      // (U3/KTD13). That is the difference between orphaned-and-swept and
+      // orphaned-and-immortal, and the mint is for a different email entirely.
+      const stale = `mt_${"c".repeat(32)}`;
+      await store.writeMagicRowForTest(stale, {
+        email: "legacy@ex.com",
+        expMs: Date.now() - 1,
+      });
+      await store.createMagicToken("someone-else@ex.com");
+
+      const keys = (await store.magicRowsForTest()).map((r) => r.key);
+      assert.equal(keys.includes(stale), false);
+      assert.equal(keys.includes(token), true);
 
       if (store.close) await store.close();
     });
@@ -396,7 +406,76 @@ function runStoreSuite(name, create) {
       assert.equal(peek.status, "invalid");
       assert.equal(peek.email, null);
 
+      // The peek itself never deletes (KTD1), so the row survives the check...
       assert.equal((await store.magicRowsForTest()).length, 1);
+
+      // ...and past TTL it is the mint sweep, not the peek, that removes it
+      // (U3/KTD13) — so a peek stays read-only and the row is still not immortal.
+      const stale = `mt_${"c".repeat(32)}`;
+      await store.writeMagicRowForTest(stale, {
+        email: "legacy@ex.com",
+        expMs: Date.now() - 1,
+      });
+      assert.equal((await store.peekMagic(stale)).status, "invalid");
+      assert.equal((await store.magicRowsForTest()).length, 2);
+
+      await store.createMagicToken("someone-else@ex.com");
+      const keys = (await store.magicRowsForTest()).map((r) => r.key);
+      assert.equal(keys.includes(stale), false);
+      assert.equal(keys.includes(token), true);
+
+      if (store.close) await store.close();
+    });
+
+    // ---- #240 U3: the mint sweeps expired rows, globally (KTD13) -----------
+
+    it("U3/KTD13: a mint sweeps an expired row belonging to a different email", async () => {
+      const store = await fresh();
+      // Nobody ever taps this one, and its owner never requests another link —
+      // the mint sweep is the only delete path it will ever see. Scoped to the
+      // minting email, this row would hold an email, a vault name, and a
+      // verifier hash forever, which is exactly what KD7 says cannot happen.
+      await store.writeMagicRowForTest("stale-other-email", {
+        email: "never-came-back@ex.com",
+        expMs: Date.now() - 60_000,
+        verifierHash: "d".repeat(64),
+        vault: "Abandoned Vault",
+      });
+
+      await store.createMagicToken("sweeper@ex.com");
+
+      const rows = await store.magicRowsForTest();
+      assert.equal(rows.length, 1);
+      assert.equal(rows[0].email, "sweeper@ex.com");
+      assert.equal(JSON.stringify(rows).includes("Abandoned Vault"), false);
+
+      if (store.close) await store.close();
+    });
+
+    it("U3/KTD13: the sweep takes expired rows only — live tokens still peek and exchange", async () => {
+      const store = await fresh();
+      const mine = await store.createMagicToken("live-mine@ex.com", {
+        vault: "Mine",
+      });
+      const theirs = await store.createMagicToken("live-theirs@ex.com", {
+        vault: "Theirs",
+      });
+      await store.writeMagicRowForTest("stale-row", {
+        email: "expired@ex.com",
+        expMs: Date.now() - 1,
+      });
+
+      // A third mint runs the sweep moments after both live rows were minted.
+      await store.createMagicToken("live-mine@ex.com");
+
+      assert.equal((await store.peekMagic(mine)).vault, "Mine");
+      assert.equal((await store.peekMagic(theirs)).vault, "Theirs");
+      assert.ok((await store.exchangeMagic(mine))?.session);
+      assert.ok((await store.exchangeMagic(theirs))?.session);
+      assert.equal(
+        (await store.magicRowsForTest()).some((r) => r.key === "stale-row"),
+        false,
+      );
 
       if (store.close) await store.close();
     });

@@ -213,6 +213,9 @@ export async function createPostgresStore(databaseUrl) {
    *   (R3). Both optional: a caller that passes neither still works.
    */
   async function createMagicToken(email, opts = {}) {
+    // #240 U3 / KTD13 — every row past TTL, not only this email's. See the
+    // memory store's sweep for why the predicate carries no email.
+    await pool.query("DELETE FROM magic_tokens WHERE exp_ms < $1", [Date.now()]);
     const token = id("mt");
     // KTD14 — the `token` column holds `hashToken(token)`, as sessions do.
     await pool.query(

@@ -116,6 +116,30 @@ function bearer(req) {
   return m ? m[1] : "";
 }
 
+/** #240 U3 — hex sha256 of the device verifier; a little slack over its 64. */
+const MAX_VERIFIER_HASH_CHARS = 128;
+/** #240 U3 — an Obsidian vault name is a folder name, not prose. */
+const MAX_VAULT_NAME_CHARS = 256;
+
+/**
+ * #240 U3 — an optional bounded string from a request body. Absent is fine: an
+ * older plugin build sends neither field and must keep working. Anything that
+ * is present but not a bounded string is a 400 rather than something we store,
+ * since both values sit beside the magic token until it dies (KD7).
+ *
+ * @param {unknown} value
+ * @param {number} max
+ * @returns {{ ok: true, value: string | null } | { ok: false }}
+ */
+function optionalBoundedString(value, max) {
+  if (value === undefined || value === null) return { ok: true, value: null };
+  if (typeof value !== "string") return { ok: false };
+  const trimmed = value.trim();
+  if (!trimmed) return { ok: true, value: null };
+  if (trimmed.length > max) return { ok: false };
+  return { ok: true, value: trimmed };
+}
+
 function escHtml(s) {
   return String(s ?? "")
     .replace(/&/g, "&amp;")
@@ -327,6 +351,19 @@ ${
       if (!email || !email.includes("@")) {
         return json(res, 400, { message: "Valid email required" });
       }
+      // #240 U3 — the requesting device's verifier hash (R12) and the vault
+      // that asked for the link (R3). Optional, and never logged.
+      const verifierHash = optionalBoundedString(
+        body.verifierHash,
+        MAX_VERIFIER_HASH_CHARS,
+      );
+      if (!verifierHash.ok) {
+        return json(res, 400, { message: "Invalid verifierHash" });
+      }
+      const vault = optionalBoundedString(body.vault, MAX_VAULT_NAME_CHARS);
+      if (!vault.ok) {
+        return json(res, 400, { message: "Invalid vault" });
+      }
       const rl = checkRateLimit(`ml:${clientIp(req)}`);
       if (!rl.ok) {
         return json(res, 429, {
@@ -341,7 +378,10 @@ ${
           retryAfterSec: rlEm.retryAfterSec,
         });
       }
-      const token = await store.createMagicToken(email);
+      const token = await store.createMagicToken(email, {
+        verifierHash: verifierHash.value,
+        vault: vault.value,
+      });
       // Browser-openable GET exchange (email click). Dev alias still works.
       const link = `${config.publicBaseUrl}/v1/auth/exchange?token=${encodeURIComponent(token)}`;
       const sent = await sendMagicLinkEmail({ to: email, link });
