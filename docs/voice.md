@@ -77,7 +77,7 @@ Grounded in shipped landing and home copy, `docs/design-handoff/tokens/README.md
 1. **One concrete beat** (a walk, a person, a moment you almost forgot).  
 2. **What the stack did** (capture → atom → ask / calendar / recap) without tool-worship.  
 3. **One soft next step** (tryatoms, setup, or “reply with yours”).  
-4. **Invite:** how do *you* run this? (Replies may be quoted later only with permission.)
+4. **Invite:** show how you use Atoms day to day - you may get featured (ask before naming).
 
 ### Subject lines
 

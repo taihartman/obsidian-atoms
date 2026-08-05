@@ -33,7 +33,7 @@ export function loopDiagramHtml() {
     </td>`;
   const arrow =
     `<td align="center" valign="middle" style="width:4%;padding:0 2px;color:${t.tint};font-size:18px;">→</td>`;
-  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:20px 0 8px;">
+  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:24px 0 28px;">
   <tr>
     ${cell("Catch it", "Five seconds. Walk, share sheet, one line.")}
     ${arrow}
@@ -91,17 +91,17 @@ export function buildFieldNotesHtml(opts) {
         : "";
 
   const cta = opts.cta
-    ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 24px;">
+    ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 12px;">
   <tr>
     <td align="center" style="border-radius:980px;background:${t.tint};">
-      <a href="${escapeAttr(opts.cta.href)}" style="display:inline-block;padding:12px 22px;font-size:15px;font-weight:600;color:#fff;text-decoration:none;border-radius:980px;">${escapeHtml(opts.cta.label)}</a>
+      <a href="${escapeAttr(opts.cta.href)}" style="display:inline-block;padding:14px 24px;font-size:15px;font-weight:600;color:#fff;text-decoration:none;border-radius:980px;">${escapeHtml(opts.cta.label)}</a>
     </td>
   </tr>
 </table>`
     : "";
 
   const secondary = opts.secondaryHref
-    ? `<p style="margin:0 0 20px;font-size:14px;line-height:1.5;"><a href="${escapeAttr(opts.secondaryHref.href)}" style="color:${t.tint};text-decoration:none;">${escapeHtml(opts.secondaryHref.label)}</a></p>`
+    ? `<p style="margin:0 0 8px;font-size:14px;line-height:1.5;text-align:center;"><a href="${escapeAttr(opts.secondaryHref.href)}" style="color:${t.tint};text-decoration:none;">${escapeHtml(opts.secondaryHref.label)}</a></p>`
     : "";
 
   return `<!DOCTYPE html>
@@ -169,9 +169,9 @@ export function welcomeEmailContent(opts) {
   const { unsubUrl, postalAddress } = opts;
   const paragraphs = [
     "This list is about a second brain you actually use: the five-second capture on a morning walk, and remembering it when it matters later.",
-    "How people run that in real life - Obsidian, Claude, the hooks that make it stick. How others do it too.",
+    "How people run that in real life - Obsidian, Claude, the hooks that make it stick.",
     "When something is worth saying, we will write. Not a drip. Not a changelog.",
-    "Reply anytime with how you capture, remember, and expand. The best of that becomes the list.",
+    "Want to be featured? Reply and show how you use Atoms day to day. Clear, real stories may land in a future note (we will ask before quoting you by name).",
   ];
   const html = buildFieldNotesHtml({
     title: "You're on Field notes",
