@@ -7,7 +7,6 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| In progress | #16 | taihartman | `feat/continue-atom` | `docs/plans/2026-08-04-006-feat-continue-existing-atom-plan.md` | `src/home/atomsHomeView.ts`, `src/platform/continueParent.ts`, `src/pipeline/classify.ts` | Home Continue + community lint; shipping release |
 
 ## How to claim (copy)
 
@@ -23,6 +22,8 @@ States: `Queued` · `In progress` · `Blocked` · `In review` · `Done` (then re
 
 | Merged | Issue / PR | Summary |
 |---|---|---|
+| 2026-08-05 | #16 / #275 | Home Continue + pending parent handoff · **0.6.71** (community lint blockers) |
+| 2026-08-05 | #238 / #268 | Stripe reconcile + ops alerts (server-only) |
 | 2026-08-05 | #239 / #273 | First CI job that runs plus-service tests; real postgres coverage for the production store (test infra only, no plugin bump). Runs on PRs but does not yet *block* — `master` still has no required status checks |
 | 2026-08-05 | #257 #258 / #272 | Ask MCP `created` + list sort/filter + `list_pending` · **0.6.70** (Fly deploy still needed) |
 | 2026-08-04 | #222 / #266 | Catch-up on resume + Sync everything now · **0.6.67** |
