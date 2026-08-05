@@ -2010,6 +2010,7 @@ export default class AtomsPlugin extends Plugin {
     path: string;
     startLine: number;
     snippet: string;
+    text?: string;
   }): Promise<void> {
     const file = this.app.vault.getAbstractFileByPath(opts.path);
     if (!(file instanceof TFile)) {
@@ -2020,6 +2021,7 @@ export default class AtomsPlugin extends Plugin {
     const capture = resolveSkippedCapture(content, {
       startLine: opts.startLine,
       snippet: opts.snippet,
+      text: opts.text,
     });
     await this.runReconsiderForCapture(file, capture);
   }

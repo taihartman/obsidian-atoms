@@ -741,6 +741,7 @@ export class AtomsHomeView extends ItemView {
       path: entry.path,
       startLine: entry.startLine,
       snippet: entry.snippet,
+      text: entry.text,
     });
   }
 

@@ -1,6 +1,7 @@
 /**
- * Strip-only unlabel for skipped (noise|task) captures — home Library path.
- * Body sacred; no classify. Promote remains Reconsider.
+ * Capture identity helpers for Library Skipped → Reconsider.
+ * Pure strip/restore remain for tests / possible future power tools;
+ * product UI promotes via Reconsider, not strip-to-queue.
  */
 
 import { TFile, type App } from "obsidian";
@@ -32,28 +33,47 @@ export type RestoreContentResult =
       reason: "none" | "already_marked" | "not_found" | "unchanged";
     };
 
+/**
+ * Locate a noise|task capture. Prefer full `text` body match; fall back to
+ * snippet (ellipsis stripped) + startLine. Never accept line number alone.
+ */
 export function resolveSkippedCapture(
   content: string,
-  opts: { startLine: number; snippet: string },
+  opts: { startLine: number; snippet: string; text?: string },
 ): Capture | null {
+  const bodyKey = (opts.text ?? opts.snippet.replace(/…$/, "")).trim();
+  const caps = parseCaptures(content).filter(
+    (c) =>
+      c.processed &&
+      (c.markerKind === "noise" || c.markerKind === "task"),
+  );
+
+  if (opts.text) {
+    const exact = caps.find((c) => captureTextsMatch(c.text, opts.text!));
+    if (exact) return exact;
+  }
+
   const byLine = findCaptureAtLine(content, opts.startLine);
-  if (byLine && captureTextsMatch(byLine.text, opts.snippet.replace(/…$/, ""))) {
+  if (
+    byLine &&
+    (byLine.markerKind === "noise" || byLine.markerKind === "task") &&
+    byLine.processed &&
+    (captureTextsMatch(byLine.text, bodyKey) ||
+      byLine.text.replace(/\s+/g, " ").trim().startsWith(bodyKey.slice(0, 40)))
+  ) {
     return byLine;
   }
-  if (byLine && byLine.startLine === opts.startLine) return byLine;
-  const caps = parseCaptures(content);
-  const snip = opts.snippet.replace(/…$/, "").trim();
+
+  const snip = bodyKey;
   for (const c of caps) {
     if (
-      c.processed &&
-      (c.markerKind === "noise" || c.markerKind === "task") &&
-      (captureTextsMatch(c.text, snip) ||
-        c.text.replace(/\s+/g, " ").trim().startsWith(snip.slice(0, 40)))
+      captureTextsMatch(c.text, snip) ||
+      c.text.replace(/\s+/g, " ").trim().startsWith(snip.slice(0, 40))
     ) {
       return c;
     }
   }
-  return byLine;
+  return null;
 }
 
 /** Pure strip of one noise|task marker region. */

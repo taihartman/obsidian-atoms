@@ -19,6 +19,9 @@ export interface SkippedLibraryEntry {
   date: string;
   startLine: number;
   endLine: number;
+  /** Full capture body for reconsider identity (not display). */
+  text: string;
+  /** Clamped one-line for library row. */
   snippet: string;
   markerKind: SkippedKind;
   /** Newest-first sort key (higher = newer). */
@@ -62,18 +65,14 @@ export function collectSkippedCaptures(
         date: n.date,
         startLine: c.startLine,
         endLine: c.endLine,
+        text: c.text,
         snippet: snippetFromCaptureText(c.text),
         markerKind: c.markerKind,
         sortKey: sortKeyFor(n.date, c.startLine),
       });
     }
   }
-  out.sort((a, b) => {
-    if (b.date !== a.date) return b.date < a.date ? -1 : 1;
-    return a.startLine - b.startLine;
-  });
-  // After date desc, within same day keep reading order; overall newest days first already
-  // Re-sort primarily by sortKey desc for true newest-first across days:
+  // Newest day first; within day, later bullets first (higher startLine).
   out.sort((a, b) => b.sortKey - a.sortKey);
   return out;
 }
