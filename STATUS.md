@@ -7,6 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
+| In progress | [#287](https://github.com/taihartman/obsidian-atoms/issues/287) | taihartman | `feat/library-skipped-filter` | [plan](docs/plans/2026-08-05-002-feat-library-skipped-filter-plan.md) | `src/home/atomsHomeView.ts`, `src/home/skippedLibrary.ts`, `src/pipeline/unlabel.ts`, `src/ui/longPress.ts` | Library Skipped tab + long-press unlabel; strip-only + Undo |
 | In review | [#294](https://github.com/taihartman/obsidian-atoms/issues/294) | taihartman | `fix/capture-shortcut-link-optional` | amend lane (no plan doc) | `src/settings/captureShortcut.ts`, `src/settings/settings.ts`, `src/home/atomsHomeView.ts` | Custom shortcut link is optional; every shipped built-in URL now un-pins. **Prepend, never append**, to `BUILTIN_INSTALL_URLS` when the link moves — the constant is its head |
 
 ## How to claim (copy)
