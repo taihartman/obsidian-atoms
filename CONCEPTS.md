@@ -139,6 +139,12 @@ Split by what an operator must do. **A** — unauthenticated garbage, no verifie
 ### Reconciliation sweep (Stripe)
 Offline pass over Stripe's own event list asking `hasProcessedEvent` — "Stripe considered it delivered, we have no record." The oracle is our processing log, never account entitlement, which has other legitimate causes in both directions. Report-only by default; `--repair` is opt-in, restores entitlement only, and reports `repaired` only where a grant actually happened. Unrelated to Ask's **Delta reconcile**. Learning: `docs/solutions/architecture-patterns/a-signal-nobody-receives-is-not-a-signal.md`.
 
+### Post-checkout resume poll
+Device-local poll that runs after Stripe Checkout until entitlement appears, then announces readiness once. Armed by the **awaiting-checkout** flag and driven by four deliberately uncoordinated triggers — load, a 5s interval, `visibilitychange`, and `focus`. The redundancy is the point: no request carries a timeout, so independent retries are what survive a cold-started backend. Two invariants pull opposite ways — announcing is *atomic* (one notice per checkout), reaching the backend is *redundant* (never one shared attempt). Silence is its worst failure, not duplication: this is the only thing that tells a paying user their entitlement landed. Learning: `docs/solutions/logic-errors/a-shared-promise-dedupes-the-retries-too.md`.
+
+### Awaiting checkout
+Device-local flag marking "this device opened Checkout and has not yet seen entitlement." Set only when checkout returned a URL, and cleared by whichever poll first observes an entitled status. Device-local, not account state — a checkout completed on another device never clears it here, which is why the **post-checkout resume poll** alone cannot rescue a cross-device signup.
+
 ## Flagged ambiguities
 
 - “Linker” remains in some marker HTML comments (`<!--linker-->`) from early naming; product name is **Atoms**.
