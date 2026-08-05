@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  LS_PLUS_SIGNIN_PENDING,
+  PENDING_SIGNIN_MAX_AGE_MS,
+  clearPendingSignIn,
   clearPlusSession,
+  latestPendingSignIn,
   parsePlusSession,
+  readPendingSignIns,
+  recordPendingSignIn,
   plusCanClassify,
   plusIsExhausted,
   readPlusSession,
@@ -122,5 +128,98 @@ describe("plus session storage", () => {
     expect(readPlusSession(app)?.email).toBe("u@example.com");
     clearPlusSession(app);
     expect(readPlusSession(app)).toBeNull();
+  });
+});
+
+describe("pending sign-in record (U7)", () => {
+  function makeApp() {
+    const store = new Map<string, string>();
+    return {
+      store,
+      app: {
+        loadLocalStorage: (k: string) => store.get(k),
+        saveLocalStorage: (k: string, v: string) => {
+          store.set(k, v);
+        },
+      },
+    };
+  }
+
+  it("round-trips the verifier and vault vault-locally", () => {
+    const { app, store } = makeApp();
+    recordPendingSignIn(app, {
+      verifier: "ver-1",
+      vault: "Remote Vault",
+      requestedAt: 1_000,
+    });
+    expect(readPendingSignIns(app, 2_000)).toEqual([
+      { verifier: "ver-1", vault: "Remote Vault", requestedAt: 1_000 },
+    ]);
+    // Vault-scoped adapter only: nothing may be reachable under another key.
+    expect([...store.keys()]).toEqual([LS_PLUS_SIGNIN_PENDING]);
+  });
+
+  it("still reads back 14 minutes later — retention outlives the token TTL (AE12)", () => {
+    const { app } = makeApp();
+    const at = 1_000_000;
+    recordPendingSignIn(app, { verifier: "ver-1", vault: "V", requestedAt: at });
+    const fourteenMinutes = 14 * 60 * 1000;
+    expect(readPendingSignIns(app, at + fourteenMinutes)[0]?.verifier).toBe("ver-1");
+  });
+
+  it("drops a record past its own generous staleness bound", () => {
+    const { app } = makeApp();
+    const at = 1_000_000;
+    recordPendingSignIn(app, { verifier: "ver-1", vault: "V", requestedAt: at });
+    expect(readPendingSignIns(app, at + PENDING_SIGNIN_MAX_AGE_MS + 1)).toEqual([]);
+  });
+
+  it("a second link request leaves the earlier verifier reachable", () => {
+    const { app } = makeApp();
+    recordPendingSignIn(app, { verifier: "ver-1", vault: "V", requestedAt: 1_000 });
+    recordPendingSignIn(app, { verifier: "ver-2", vault: "V", requestedAt: 2_000 });
+    const pending = readPendingSignIns(app, 3_000);
+    expect(pending.map((p) => p.verifier)).toEqual(["ver-2", "ver-1"]);
+    expect(latestPendingSignIn(app, 3_000)?.verifier).toBe("ver-2");
+  });
+
+  it("clearing the session clears the pending record", () => {
+    const { app } = makeApp();
+    recordPendingSignIn(app, { verifier: "ver-1", vault: "V", requestedAt: 1_000 });
+    clearPlusSession(app);
+    expect(readPendingSignIns(app, 2_000)).toEqual([]);
+  });
+
+  it("clearPendingSignIn forgets every verifier", () => {
+    const { app } = makeApp();
+    recordPendingSignIn(app, { verifier: "ver-1", vault: "V", requestedAt: 1_000 });
+    recordPendingSignIn(app, { verifier: "ver-2", vault: "V", requestedAt: 2_000 });
+    clearPendingSignIn(app);
+    expect(readPendingSignIns(app, 3_000)).toEqual([]);
+    expect(latestPendingSignIn(app, 3_000)).toBeNull();
+  });
+
+  it("a malformed stored value reads as absent rather than throwing", () => {
+    const { app, store } = makeApp();
+    store.set(LS_PLUS_SIGNIN_PENDING, "{not json");
+    expect(readPendingSignIns(app, 1)).toEqual([]);
+    store.set(LS_PLUS_SIGNIN_PENDING, JSON.stringify({ nope: true }));
+    expect(readPendingSignIns(app, 1)).toEqual([]);
+    store.set(
+      LS_PLUS_SIGNIN_PENDING,
+      JSON.stringify([{ verifier: "", vault: "V", requestedAt: 1 }, 7]),
+    );
+    expect(readPendingSignIns(app, 1)).toEqual([]);
+  });
+
+  it("survives a throwing storage adapter", () => {
+    const app = {
+      loadLocalStorage: () => {
+        throw new Error("no storage");
+      },
+      saveLocalStorage: () => {},
+    };
+    expect(readPendingSignIns(app, 1)).toEqual([]);
+    expect(latestPendingSignIn(app, 1)).toBeNull();
   });
 });
