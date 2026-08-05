@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  applyContinueEnsures,
   buildContinueParentBlock,
   clearContinueParent,
   continueChipLabel,
@@ -7,6 +8,7 @@ import {
   ensureContinueParentLink,
   parseContinueParent,
   readContinueParent,
+  withEligibleContinueParent,
   writeContinueParent,
 } from "../src/platform/continueParent";
 import { relationReasonProse } from "../src/shared/relationReason";
@@ -97,11 +99,34 @@ describe("ensureContinue*", () => {
   });
 
   it("order: distinct title then link", () => {
-    let r = atom({ title: "Parent", links: [] });
-    r = ensureContinueDistinctTitle(r, "Parent", new Set());
-    r = ensureContinueParentLink(r, "Parent");
+    const r = applyContinueEnsures(atom({ title: "Parent", links: [] }), "Parent", new Set());
     expect(r.title).toBe("Parent — continued");
     expect(r.links[0]!.note).toBe("Parent");
+  });
+
+  it("injects only for today's daily", () => {
+    const mem = new Map<string, unknown>();
+    writeContinueParent(
+      (k, v) => mem.set(k, v),
+      { title: "P", path: "Atoms/P.md", setAt: 1 },
+    );
+    const base = {
+      titles: [],
+      tags: [],
+      vocabulary: [],
+      personHubs: [],
+      personHubDetails: [],
+    };
+    const today = withEligibleContinueParent(base, "2026-08-04", "2026-08-04", (k) =>
+      mem.get(k),
+    );
+    expect(today.parentTitle).toBe("P");
+    expect(today.ctx.continueParent?.title).toBe("P");
+    const past = withEligibleContinueParent(base, "2026-08-01", "2026-08-04", (k) =>
+      mem.get(k),
+    );
+    expect(past.parentTitle).toBeNull();
+    expect(past.ctx.continueParent).toBeUndefined();
   });
 });
 

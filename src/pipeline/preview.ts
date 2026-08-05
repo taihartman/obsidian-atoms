@@ -27,9 +27,9 @@ import {
 } from "./enrich/people";
 import { localDateYmd } from "./atomQuality";
 import {
-  ensureContinueDistinctTitle,
-  ensureContinueParentLink,
-  readContinueParent,
+  appLoadLocal,
+  applyContinueEnsures,
+  withEligibleContinueParent,
 } from "../platform/continueParent";
 import {
   fingerprintPreviewKey,
@@ -273,10 +273,7 @@ export async function runDryRun(
     : null;
 
   const todayYmd = localDateYmd();
-  const loadLs = (k: string) =>
-    typeof opts.app.loadLocalStorage === "function"
-      ? (opts.app.loadLocalStorage(k) as unknown)
-      : null;
+  const loadLs = (k: string) => appLoadLocal(opts.app, k);
 
   try {
     for (let i = 0; i < slice.length; i++) {
@@ -289,29 +286,28 @@ export async function runDryRun(
       logShortlistDiagnostics("preview shortlist", ctx.stats);
 
       // Inject Continue parent for today's captures only; never clear pending on preview.
-      const pending = readContinueParent(loadLs);
-      let continueTitle: string | null = null;
-      if (pending && note.date === todayYmd) {
-        continueTitle = pending.title;
-        ctx = {
-          ...ctx,
-          continueParent: {
-            title: pending.title,
-            ...(pending.path ? { path: pending.path } : {}),
-          },
-        };
-      }
+      const injected = withEligibleContinueParent(
+        ctx,
+        note.date,
+        todayYmd,
+        loadLs,
+      );
+      ctx = injected.ctx;
+      const continueTitle = injected.parentTitle;
 
       let outcome: ClassifyOutcome;
+      let cacheKey: string | null = null;
+      let fromCache = false;
       if (useCache && cacheStore) {
-        const key = fingerprintPreviewKey(
+        cacheKey = fingerprintPreviewKey(
           capture.text,
           opts.model,
           opts.previewCacheQualityStamp!,
           continueTitle ?? "none",
         );
-        const hit = lookupPreviewCache(cacheStore, key);
+        const hit = lookupPreviewCache(cacheStore, cacheKey);
         if (hit) {
+          fromCache = true;
           outcome = {
             ok: true,
             result: hit,
@@ -330,24 +326,6 @@ export async function runDryRun(
             activeVocabulary: opts.activeVocabulary,
             ...opts.classifyDeps,
           });
-          if (outcome.ok) {
-            let result = outcome.result;
-            if (continueTitle) {
-              result = ensureContinueDistinctTitle(
-                result,
-                continueTitle,
-                new Set(),
-                opts.atomFolder,
-              );
-              result = ensureContinueParentLink(result, continueTitle);
-              outcome = { ...outcome, result };
-            }
-            cacheStore = putPreviewCache(cacheStore, key, outcome.result);
-            opts.app.saveLocalStorage(
-              LS_PREVIEW_CACHE,
-              serializePreviewCache(cacheStore),
-            );
-          }
         }
       } else {
         outcome = await classifyCapture(capture.text, ctx, {
@@ -356,17 +334,31 @@ export async function runDryRun(
           activeVocabulary: opts.activeVocabulary,
           ...opts.classifyDeps,
         });
-        if (outcome.ok && continueTitle) {
-          let result = outcome.result;
-          result = ensureContinueDistinctTitle(
-            result,
+      }
+
+      if (outcome.ok && continueTitle) {
+        outcome = {
+          ...outcome,
+          result: applyContinueEnsures(
+            outcome.result,
             continueTitle,
             new Set(),
             opts.atomFolder,
-          );
-          result = ensureContinueParentLink(result, continueTitle);
-          outcome = { ...outcome, result };
-        }
+          ),
+        };
+      }
+      if (
+        outcome.ok &&
+        useCache &&
+        cacheStore &&
+        cacheKey &&
+        !fromCache
+      ) {
+        cacheStore = putPreviewCache(cacheStore, cacheKey, outcome.result);
+        opts.app.saveLocalStorage(
+          LS_PREVIEW_CACHE,
+          serializePreviewCache(cacheStore),
+        );
       }
 
       entries.push(

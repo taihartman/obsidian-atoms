@@ -1,4 +1,4 @@
-import type { ClassificationResult } from "../shared/types";
+import type { ClassificationResult, VaultContext } from "../shared/types";
 import { relationReasonProse } from "../shared/relationReason";
 import { atomPathForTitle, sanitizeFilename } from "../pipeline/render";
 
@@ -9,6 +9,69 @@ export type ContinueParentPending = {
   path: string;
   setAt: number;
 };
+
+/** Safe LS load when App mocks omit loadLocalStorage. */
+export function appLoadLocal(
+  app: { loadLocalStorage?: (key: string) => unknown },
+  key: string,
+): unknown {
+  return typeof app.loadLocalStorage === "function"
+    ? app.loadLocalStorage(key)
+    : null;
+}
+
+export function appSaveLocal(
+  app: { saveLocalStorage?: (key: string, value: unknown) => void },
+  key: string,
+  value: unknown,
+): void {
+  if (typeof app.saveLocalStorage === "function") {
+    app.saveLocalStorage(key, value);
+  }
+}
+
+/**
+ * Today-only inject. Re-read pending each call so one-shot clear is live.
+ * Returns parent title when injected, else null. Preserves ShortlistContext fields.
+ */
+export function withEligibleContinueParent<T extends VaultContext>(
+  ctx: T,
+  noteDate: string,
+  todayYmd: string,
+  load: (key: string) => unknown,
+): { ctx: T; parentTitle: string | null } {
+  const pending = readContinueParent(load);
+  if (!pending || noteDate !== todayYmd) {
+    return { ctx, parentTitle: null };
+  }
+  return {
+    ctx: {
+      ...ctx,
+      continueParent: {
+        title: pending.title,
+        ...(pending.path ? { path: pending.path } : {}),
+      },
+    },
+    parentTitle: pending.title,
+  };
+}
+
+/** Distinct title then parent link (order is load-bearing). */
+export function applyContinueEnsures(
+  result: ClassificationResult,
+  parentTitle: string,
+  existingAtomPaths: ReadonlySet<string>,
+  atomFolder = "Atoms",
+): ClassificationResult {
+  let r = ensureContinueDistinctTitle(
+    result,
+    parentTitle,
+    existingAtomPaths,
+    atomFolder,
+  );
+  r = ensureContinueParentLink(r, parentTitle);
+  return r;
+}
 
 export function parseContinueParent(raw: unknown): ContinueParentPending | null {
   let obj: unknown = raw;

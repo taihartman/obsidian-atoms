@@ -36,10 +36,11 @@ import {
 } from "./runHubProjection";
 import { localDateYmd } from "./atomQuality";
 import {
+  appLoadLocal,
+  appSaveLocal,
+  applyContinueEnsures,
   clearContinueParent,
-  ensureContinueDistinctTitle,
-  ensureContinueParentLink,
-  readContinueParent,
+  withEligibleContinueParent,
 } from "../platform/continueParent";
 
 export interface WritePathEntry {
@@ -173,15 +174,8 @@ export async function runWritePath(
   };
 
   const todayYmd = localDateYmd();
-  const loadLs = (k: string) =>
-    typeof opts.app.loadLocalStorage === "function"
-      ? (opts.app.loadLocalStorage(k) as unknown)
-      : null;
-  const saveLs = (k: string, v: unknown) => {
-    if (typeof opts.app.saveLocalStorage === "function") {
-      opts.app.saveLocalStorage(k, v);
-    }
-  };
+  const loadLs = (k: string) => appLoadLocal(opts.app, k);
+  const saveLs = (k: string, v: unknown) => appSaveLocal(opts.app, k, v);
 
   try {
     for (let i = 0; i < slice.length; i++) {
@@ -193,18 +187,14 @@ export async function runWritePath(
       logShortlistDiagnostics("process shortlist", ctx.stats);
 
       // Home Continue: today-only, re-read each capture; clear only after write success.
-      const pending = readContinueParent(loadLs);
-      let continueInjected: string | null = null;
-      if (pending && note.date === todayYmd) {
-        continueInjected = pending.title;
-        ctx = {
-          ...ctx,
-          continueParent: {
-            title: pending.title,
-            ...(pending.path ? { path: pending.path } : {}),
-          },
-        };
-      }
+      const injected = withEligibleContinueParent(
+        ctx,
+        note.date,
+        todayYmd,
+        loadLs,
+      );
+      ctx = injected.ctx;
+      const continueInjected = injected.parentTitle;
 
       let result: ClassificationResult | null = null;
       if (opts.fixtureResults && opts.fixtureResults[i]) {
@@ -241,13 +231,12 @@ export async function runWritePath(
       }
 
       if (continueInjected) {
-        result = ensureContinueDistinctTitle(
+        result = applyContinueEnsures(
           result,
           continueInjected,
           existingAtoms,
           opts.atomFolder,
         );
-        result = ensureContinueParentLink(result, continueInjected);
       }
 
       const personHubMiss = personHubMissAfterEnrich(
