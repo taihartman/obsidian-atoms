@@ -146,7 +146,6 @@ import {
 } from "../settings/captureShortcut";
 import {
   DailyNotesDisabledError,
-  formatLocalDate,
   getPastDailyNotesWithUnmarkedCaptures,
   openTodaysDaily,
 } from "../pipeline/daily";
@@ -154,13 +153,6 @@ import {
   listSkippedLibraryEntries,
   type SkippedLibraryEntry,
 } from "./skippedLibrary";
-import {
-  applyRestoreWrite,
-  applyUnlabelWrite,
-  unlabelNoticeMessage,
-  UNDO_TTL_MS,
-  type SkippedMarkerKind,
-} from "../pipeline/unlabel";
 import {
   INBOX_NOTE_PATH,
   inboxCounts,
@@ -190,15 +182,6 @@ const LS_PERSON_INVITE_SNOOZE = "atoms-person-invite-snooze";
 
 type FilterMode = "all" | "linked" | "skipped";
 
-type LastSkippedUnlabel = {
-  path: string;
-  startLine: number;
-  snippet: string;
-  kind: SkippedMarkerKind;
-  date: string;
-  expires: number;
-};
-
 /**
  * Undocumented core settings modal — used by many plugins to deep-link.
  * Not on the public App type; keep a narrow local interface (no `any`).
@@ -225,8 +208,6 @@ export class AtomsHomeView extends ItemView {
   private filter: FilterMode = "all";
   private entries: AtomLibraryEntry[] = [];
   private skippedEntries: SkippedLibraryEntry[] = [];
-  /** Plugin-scoped Undo payload for last Skipped unlabel (TTL). */
-  private lastSkippedUnlabel: LastSkippedUnlabel | null = null;
   private unprocessedCount = 0;
   /** Captures stuck in the capture inbox (drain health), null when clear. */
   private inboxStuck: InboxStuckSummary | null = null;
@@ -755,76 +736,25 @@ export class AtomsHomeView extends ItemView {
       : this.entries;
   }
 
-  private showSkippedUnlabelNotice(entry: SkippedLibraryEntry, kind: SkippedMarkerKind): void {
-    const today = formatLocalDate(new Date());
-    const msg = unlabelNoticeMessage(entry.date, today);
-    this.lastSkippedUnlabel = {
+  private onReconsiderSkipped(entry: SkippedLibraryEntry): void {
+    void this.plugin.runReconsiderFromSkipped({
       path: entry.path,
       startLine: entry.startLine,
       snippet: entry.snippet,
-      kind,
-      date: entry.date,
-      expires: Date.now() + UNDO_TTL_MS,
-    };
-    const frag = document.createDocumentFragment();
-    const wrap = document.createElement("span");
-    wrap.appendChild(document.createTextNode(msg + " · "));
-    const btn = document.createElement("a");
-    btn.textContent = "Undo";
-    btn.href = "#";
-    btn.style.cursor = "pointer";
-    btn.addEventListener("click", (ev) => {
-      ev.preventDefault();
-      notice.hide();
-      void this.onUndoSkippedUnlabel();
     });
-    wrap.appendChild(btn);
-    frag.appendChild(wrap);
-    const notice = new Notice(frag, UNDO_TTL_MS);
-  }
-
-  private async onUnlabelSkipped(entry: SkippedLibraryEntry): Promise<void> {
-    const r = await applyUnlabelWrite(this.app, entry.path, {
-      startLine: entry.startLine,
-      snippet: entry.snippet,
-    });
-    if (!r.ok) {
-      new Notice("Could not unlabel — capture may have changed");
-      return;
-    }
-    this.showSkippedUnlabelNotice(entry, r.kind);
-    await this.loadData();
-    this.render();
-  }
-
-  private async onUndoSkippedUnlabel(): Promise<void> {
-    const u = this.lastSkippedUnlabel;
-    this.lastSkippedUnlabel = null;
-    if (!u || Date.now() > u.expires) {
-      new Notice("Undo expired");
-      return;
-    }
-    const r = await applyRestoreWrite(this.app, u.path, {
-      startLine: u.startLine,
-      snippet: u.snippet,
-      kind: u.kind,
-    });
-    if (!r.ok) {
-      new Notice("Could not restore — already reprocessed or moved");
-      return;
-    }
-    new Notice("Restored skip mark");
-    await this.loadData();
-    this.render();
   }
 
   private showSkippedRowMenu(entry: SkippedLibraryEntry, ev: MouseEvent): void {
     const menu = new Menu();
     menu.addItem((i) =>
-      i.setTitle("Open daily").onClick(() => void this.openPathInVault(entry.path)),
+      i
+        .setTitle("Open daily")
+        .onClick(() => void this.openPathInVault(entry.path)),
     );
     menu.addItem((i) =>
-      i.setTitle("Unlabel").onClick(() => void this.onUnlabelSkipped(entry)),
+      i
+        .setTitle("Try filing…")
+        .onClick(() => this.onReconsiderSkipped(entry)),
     );
     menu.showAtMouseEvent(ev);
   }
@@ -2467,7 +2397,7 @@ export class AtomsHomeView extends ItemView {
         empty.createEl("p", { text: "Nothing set aside." });
         empty.createEl("p", {
           cls: "atoms-home-empty-hint",
-          text: "Daily lines Process skips (not filed notes). Hold a row to return one to the queue.",
+          text: "Daily lines Process skipped (not filed notes). Hold a row to try filing as a note.",
         });
       }
       return;
@@ -2475,7 +2405,7 @@ export class AtomsHomeView extends ItemView {
 
     scroll.createEl("p", {
       cls: "atoms-home-empty-hint",
-      text: "Set-aside daily lines — hold to unlabel · tap opens the daily",
+      text: "Set-aside daily lines — hold to try filing · tap opens the daily",
     });
 
     const list = listGroup(scroll, { className: "atoms-home-list" });
@@ -2494,7 +2424,7 @@ export class AtomsHomeView extends ItemView {
             void this.openPathInVault(e.path);
           },
           onLongPress: () => {
-            void this.onUnlabelSkipped(e);
+            this.onReconsiderSkipped(e);
           },
           contextMenuAsLongPress: false,
         }),

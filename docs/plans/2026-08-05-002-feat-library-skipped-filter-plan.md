@@ -16,9 +16,9 @@ doc_review: "2026-08-05 ce-doc-review round 1 — safe_auto + best-judgment gate
 
 ## Goal Capsule
 
-Ship a calm Library **browser** for captures Process already marked noise or task, plus reversible **strip-only unlabel** so they re-enter the Process queue.
+Ship a calm Library **browser** for captures Process already marked noise or task. Gesture = **try filing now** (Reconsider classify → Apply / Keep anyway) — not strip-to-queue.
 
-This closes the **inventory + undo-skip** job — not “promote a wrong skip to atom.” Promote stays **Reconsider** (flag-gated, classify → Apply). Long-press alone must not read as permanent rescue; Process may re-skip an unchanged body.
+**Amended 2026-08-05:** strip-only unlabel + Undo dropped as product. If someone opens Skipped and long-presses, they want a note (or a clear still-skip answer), not “maybe Process later.”
 
 **Authority:** Issue #287 · this plan · CLAUDE.md · CONCEPTS.md · sibling #288 (gesture infra only).
 

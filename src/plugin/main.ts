@@ -84,6 +84,7 @@ import {
   missNotice,
 } from "../pipeline/reconsider";
 import { ReconsiderModal } from "../pipeline/reconsiderModal";
+import { resolveSkippedCapture } from "../pipeline/unlabel";
 import { runWritePath, type WritePathReport } from "../pipeline/write";
 import type { ClassificationResult } from "../shared/types";
 import { mergeProposedTags } from "../pipeline/vocabulary";
@@ -1980,7 +1981,7 @@ export default class AtomsPlugin extends Plugin {
 
   /**
    * Soft-unfreeze: reclassify one noise/task capture under the cursor.
-   * Gated by settings.enableReconsiderCapture (default off).
+   * Command palette path — gated by settings.enableReconsiderCapture (default off).
    */
   async runReconsiderCapture() {
     if (!this.settings.enableReconsiderCapture) {
@@ -1996,10 +1997,38 @@ export default class AtomsPlugin extends Plugin {
 
     const file = view.file;
     const content = view.editor.getValue();
-    const cursor = view.editor.getCursor();
-    const line0 = cursor.line;
-
+    const line0 = view.editor.getCursor().line;
     const capture = findCaptureAtLine(content, line0);
+    await this.runReconsiderForCapture(file, capture);
+  }
+
+  /**
+   * Library Skipped row: try filing now (same Reconsider modal).
+   * Always available from home — no experimental flag (deliberate list gesture).
+   */
+  async runReconsiderFromSkipped(opts: {
+    path: string;
+    startLine: number;
+    snippet: string;
+  }): Promise<void> {
+    const file = this.app.vault.getAbstractFileByPath(opts.path);
+    if (!(file instanceof TFile)) {
+      new Notice(missNotice());
+      return;
+    }
+    const content = await this.app.vault.cachedRead(file);
+    const capture = resolveSkippedCapture(content, {
+      startLine: opts.startLine,
+      snippet: opts.snippet,
+    });
+    await this.runReconsiderForCapture(file, capture);
+  }
+
+  /** Shared classify → modal → Apply / Keep anyway for one skipped capture. */
+  private async runReconsiderForCapture(
+    file: TFile,
+    capture: ReturnType<typeof findCaptureAtLine>,
+  ): Promise<void> {
     const gate = gateReconsiderTarget(capture);
     if (!gate.ok) {
       if (gate.reason === "atom") {

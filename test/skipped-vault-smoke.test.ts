@@ -1,45 +1,40 @@
 /**
- * Vault smoke for #287 — reads test_vault dailies (no Obsidian app).
- * Seeds expected QA287 markers if missing so CI without prior seed still passes list shape.
+ * Vault smoke for #287 — list Skipped population from test_vault dailies.
+ * Product gesture is Reconsider (try filing), not strip-to-queue.
  */
 import { readFileSync, writeFileSync, existsSync } from "fs";
 import { join } from "path";
 import { describe, expect, it } from "vitest";
 import { collectSkippedCaptures } from "../src/home/skippedLibrary";
 import { parseCaptures } from "../src/pipeline/parse";
-import {
-  restoreSkippedInContent,
-  unlabelNoticeMessage,
-  unlabelSkippedInContent,
-} from "../src/pipeline/unlabel";
+import { resolveSkippedCapture } from "../src/pipeline/unlabel";
+import { gateReconsiderTarget } from "../src/pipeline/reconsider";
 
-const VAULT = join(
-  __dirname,
-  "../test_vault/test vault",
-);
+const VAULT = join(__dirname, "../test_vault/test vault");
 const PAST = join(VAULT, "Daily/2026-07-28.md");
 const TODAY = join(VAULT, "Daily/2026-08-05.md");
 
 function ensureSeeds(): void {
   if (!existsSync(PAST)) return;
   let past = readFileSync(PAST, "utf8");
-  if (!past.includes("QA287 past noise")) {
+  // Always ensure a known noise+task pair for list/gate smoke
+  if (!past.includes("QA287 smoke noise")) {
     past +=
-      "\n- QA287 past noise keepable thought about calm libraries\n\t<!--linker:noise-->\n- QA287 past task buy oat milk for dogfood\n\t<!--linker:task-->\n";
+      "\n- QA287 smoke noise keepable thought about calm libraries\n\t<!--linker:noise-->\n- QA287 smoke task buy oat milk for dogfood\n\t<!--linker:task-->\n";
     writeFileSync(PAST, past);
   }
   if (existsSync(TODAY)) {
     let today = readFileSync(TODAY, "utf8");
-    if (!today.includes("QA287 today noise")) {
+    if (!today.includes("QA287 smoke today")) {
       today +=
-        "\n- QA287 today noise same-day unlabel copy check\n\t<!--linker:noise-->\n";
+        "\n- QA287 smoke today same-day row\n\t<!--linker:noise-->\n";
       writeFileSync(TODAY, today);
     }
   }
 }
 
-describe("vault smoke #287 Skipped unlabel", () => {
-  it("lists QA287 noise/task from test_vault dailies", () => {
+describe("vault smoke #287 Skipped list + reconsider gate", () => {
+  it("lists QA287 smoke noise/task from test_vault dailies", () => {
     if (!existsSync(PAST)) {
       console.warn("skip: test_vault missing");
       return;
@@ -58,56 +53,39 @@ describe("vault smoke #287 Skipped unlabel", () => {
       });
     }
     const qa = collectSkippedCaptures(notes).filter((e) =>
-      e.snippet.includes("QA287"),
+      e.snippet.includes("QA287 smoke"),
     );
     expect(qa.length).toBeGreaterThanOrEqual(2);
     expect(qa.some((e) => e.markerKind === "noise")).toBe(true);
     expect(qa.some((e) => e.markerKind === "task")).toBe(true);
   });
 
-  it("unlabel past noise → unprocessed; notice truth; restore round-trip", () => {
+  it("resolve + gate accepts smoke noise for Reconsider promote path", () => {
     if (!existsSync(PAST)) return;
     ensureSeeds();
     const past = readFileSync(PAST, "utf8");
-    const caps = parseCaptures(past);
-    const noise = caps.find(
-      (c) =>
-        c.markerKind === "noise" && c.text.includes("QA287 past noise"),
-    );
-    expect(noise).toBeTruthy();
-    const r = unlabelSkippedInContent(past, {
-      startLine: noise!.startLine,
-      snippet: noise!.text,
+    const entry = collectSkippedCaptures([
+      { path: "Daily/2026-07-28.md", date: "2026-07-28", content: past },
+    ]).find((e) => e.snippet.includes("QA287 smoke noise"));
+    expect(entry).toBeTruthy();
+    const cap = resolveSkippedCapture(past, {
+      startLine: entry!.startLine,
+      snippet: entry!.snippet,
     });
-    expect(r.ok).toBe(true);
-    if (!r.ok) return;
-    expect(r.kind).toBe("noise");
-    const after = parseCaptures(r.content).find((c) =>
-      c.text.includes("QA287 past noise"),
-    );
-    expect(after?.processed).toBe(false);
-    expect(after?.text).toContain("QA287 past noise");
-
-    expect(unlabelNoticeMessage("2026-07-28", "2026-08-05")).toMatch(
-      /next Process/,
-    );
-    expect(unlabelNoticeMessage("2026-08-05", "2026-08-05")).toMatch(
-      /Process today/,
-    );
-
-    const back = restoreSkippedInContent(r.content, {
-      startLine: noise!.startLine,
-      snippet: noise!.text,
-      kind: "noise",
-    });
-    expect(back.ok).toBe(true);
-    if (!back.ok) return;
-    const restored = parseCaptures(back.content).find((c) =>
-      c.text.includes("QA287 past noise"),
-    );
-    expect(restored?.markerKind).toBe("noise");
-
-    // Leave vault with one noise unlabeled so home Skipped can show delta in dogfood
-    writeFileSync(PAST, r.content);
+    const gate = gateReconsiderTarget(cap);
+    expect(gate.ok).toBe(true);
+    if (!gate.ok) return;
+    expect(gate.capture.markerKind).toBe("noise");
+    // Body still present for classify
+    expect(gate.capture.text).toContain("QA287 smoke noise");
+    // Atom markers must not appear as skipped rows
+    const atoms = parseCaptures(past).filter((c) => c.markerKind === "atom");
+    for (const a of atoms) {
+      expect(
+        collectSkippedCaptures([
+          { path: "x", date: "2026-07-28", content: past },
+        ]).some((e) => e.startLine === a.startLine),
+      ).toBe(false);
+    }
   });
 });
