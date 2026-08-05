@@ -15,6 +15,7 @@ on:
       - "package-lock.json"
       - "src/shared/plusPricing.ts"
       - "test/wwwPricing.test.ts"
+      - "test/wwwSubscribeCore.test.ts"
       - ".github/workflows/tryatoms-pages.yml"
   workflow_dispatch:
 
@@ -43,12 +44,13 @@ jobs:
         run: npm run build:www
 
       - name: Assert pricing + honesty floor
-        run: npx vitest run test/wwwPricing.test.ts
+        run: npx vitest run test/wwwPricing.test.ts test/wwwSubscribeCore.test.ts
 
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: "6577a026858cc2ae8626632ff6fcd4bf"
-          command: pages deploy www/dist --project-name=tryatoms --branch=master
+          # Functions live in www/functions (Atoms Notes POST /api/subscribe).
+          command: pages deploy www/dist --project-name=tryatoms --branch=master --functions-directory=www/functions
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}
