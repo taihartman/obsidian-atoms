@@ -1,6 +1,8 @@
-# Atoms Notes — mailing list (tryatoms.app)
+# Field notes — mailing list (tryatoms.app)
 
-**Product:** rare use-case notes (capture→recall→deepen).  
+**Product name (user-facing):** Field notes  
+**Product:** occasional notes on a second brain in real life (capture that returns, Obsidian + Claude, how others run it). Invite their practice.  
+**Voice:** [`docs/voice.md`](../voice.md) — **read before every Broadcast or welcome edit.** Skill: `.agents/skills/atoms-voice/`.  
 **Plan:** `docs/plans/2026-08-05-001-feat-tryatoms-mailing-list-plan.md`  
 **Endpoint:** `POST https://tryatoms.app/api/subscribe` (Pages Function)  
 **Unsubscribe:** `GET /api/unsubscribe?e=&t=` (HMAC; linked from welcome)
@@ -42,11 +44,13 @@ npm run build:www
 
 ## Ongoing Broadcasts
 
-1. Resend → **Broadcasts** → new → audience = **Atoms Notes** segment only.
-2. Content: one real use-case story + soft CTA (tryatoms / setup / Plus).
-3. Include `{{{RESEND_UNSUBSCRIBE_URL}}}` and postal address.
-4. **Test email** to yourself first.
-5. Do not send to Plus auth contacts or generic “all contacts” unless they are on this segment via signup.
+1. Read **`docs/voice.md`** (Field notes section).
+2. Resend → **Broadcasts** → new → audience = **Atoms Notes** segment only (internal name).
+3. Content: one concrete real-life beat + how the stack helped + soft CTA + invite “reply with how you run yours.”
+4. Include `{{{RESEND_UNSUBSCRIBE_URL}}}` and postal address.
+5. **Test email** to yourself first.
+6. Do not send to Plus auth contacts or generic “all contacts” unless they are on this segment via signup.
+7. No “use case,” no hype, no em dashes, no guilt language.
 
 ## First launch checklist
 
