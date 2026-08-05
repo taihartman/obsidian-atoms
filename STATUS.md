@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| In review | [#239](https://github.com/taihartman/obsidian-atoms/issues/239) | @taihartman (agent) | `test/239-postgres-store-coverage` | [plan](docs/plans/2026-08-04-239-postgres-store-test-coverage-plan.md) | `plus-service/test/*`, new `plus-service/test/helpers/`, new `.github/workflows/plus-service-tests.yml` | Test infra only; no `plus-service/src` change, no plugin bump, no Release. **Adds the first CI job that runs plus-service tests** — all 319 start gating PRs |
+| In review | [#239](https://github.com/taihartman/obsidian-atoms/issues/239) | @taihartman (agent) | `test/239-postgres-store-coverage` | [plan](docs/plans/2026-08-04-239-postgres-store-test-coverage-plan.md) | `plus-service/test/*`, new `plus-service/test/helpers/`, new `.github/workflows/plus-service-tests.yml` | Test infra only; no `plus-service/src` change, no plugin bump, no Release. **Adds the first CI job that runs plus-service tests** (302 in CI incl. postgres, 252 locally). They *run* on PRs but do not yet *block* — `master` has no required status checks |
 
 ## How to claim (copy)
 
