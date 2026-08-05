@@ -7,6 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
+| In progress | [#280](https://github.com/taihartman/obsidian-atoms/issues/280) | @taihartman (agent) | `fix/280-single-flight-plus-resume` | amend lane (no plan doc) | `src/platform/plusResume.ts`, new `test/plusResume.test.ts` | Duplicate "Atoms Plus is ready" Notices — check-then-act race, no single-flight guard. **Blocks #241**: widening that polling window without this makes the duplication worse |
 
 ## How to claim (copy)
 
