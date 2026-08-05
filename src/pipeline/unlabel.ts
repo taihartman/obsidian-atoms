@@ -100,21 +100,30 @@ export function unlabelSkippedInContent(
 /** Pure restore prior noise|task marker when still unprocessed. */
 export function restoreSkippedInContent(
   content: string,
-  opts: { startLine: number; snippet: string; kind: SkippedMarkerKind },
+  opts: { startLine: number; snippet: string; kind: SkippedMarkerKind; text?: string },
 ): RestoreContentResult {
-  const capture = resolveSkippedCapture(content, {
-    startLine: opts.startLine,
-    snippet: opts.snippet,
-  });
-  if (!capture) return { ok: false, reason: "not_found" };
-  if (capture.processed) {
-    if (capture.markerKind === "noise" || capture.markerKind === "task") {
-      return { ok: false, reason: "already_marked" };
-    }
-    if (capture.markerKind === "atom") {
-      return { ok: false, reason: "already_marked" };
-    }
+  const bodyKey = (opts.text ?? opts.snippet.replace(/…$/, "")).trim();
+  const caps = parseCaptures(content);
+  let capture =
+    caps.find(
+      (c) =>
+        !c.processed &&
+        (opts.text
+          ? captureTextsMatch(c.text, opts.text)
+          : captureTextsMatch(c.text, bodyKey) ||
+            c.text.replace(/\s+/g, " ").trim().startsWith(bodyKey.slice(0, 40))),
+    ) ?? null;
+  if (!capture) {
+    const at = findCaptureAtLine(content, opts.startLine);
+    if (at && !at.processed) capture = at;
   }
+  if (!capture) {
+    // Already has a marker again?
+    const marked = resolveSkippedCapture(content, opts);
+    if (marked?.processed) return { ok: false, reason: "already_marked" };
+    return { ok: false, reason: "not_found" };
+  }
+  if (capture.processed) return { ok: false, reason: "already_marked" };
   const marker = markerLineForDecision(opts.kind, "");
   const inserted = insertMarkerAfterCapture(content, capture, marker);
   if (!inserted.changed) return { ok: false, reason: "unchanged" };
