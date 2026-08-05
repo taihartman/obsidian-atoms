@@ -8,6 +8,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
 | In progress | [#287](https://github.com/taihartman/obsidian-atoms/issues/287) | taihartman | `feat/library-skipped-filter` | [plan](docs/plans/2026-08-05-002-feat-library-skipped-filter-plan.md) | `src/home/atomsHomeView.ts`, `src/home/skippedLibrary.ts`, `src/pipeline/reconsider.ts` | Library Skipped + try filing (Reconsider); Plus/BYOK · **0.6.77** |
+| In progress | [#304](https://github.com/taihartman/obsidian-atoms/issues/304) | taihartman | `feat/settings-row-grammar` | [plan](docs/plans/2026-08-05-002-feat-settings-row-grammar-plan.md) | `src/settings/settings.ts`, `src/settings/rows.ts`, `src/shared/types.ts`, `src/pipeline/context.ts`, `www/src/setup.html.tmpl` | Settings row grammar — 48 rows → 15. **Deletes `shortlistSize`, `expandLinkedNotes`, `enableReconsiderCapture` from `LinkerSettings`** — coordinate before touching those keys. `setup.html.tmpl` quotes settings labels verbatim; rename only in lockstep |
 
 ## How to claim (copy)
 
