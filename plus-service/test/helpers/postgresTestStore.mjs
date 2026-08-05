@@ -59,6 +59,32 @@ export function withSearchPath(url, schema) {
   return u.toString();
 }
 
+let announced = false;
+
+/**
+ * Emit one machine-readable marker per test file that actually opened a
+ * postgres store, so CI can floor the number of files with live postgres
+ * coverage.
+ *
+ * Counting reporter text instead was a false green: three of the six postgres
+ * suites are named with a bare `describe(mode)` and contain no parentheses, so
+ * a `grep -c '(postgres)'` saw 3 suites (as 6 TAP lines) and missed 25 of the
+ * 38 postgres tests entirely — deleting two whole suites' coverage left the
+ * count unchanged. A name is also trivially forgeable; a test called
+ * "…(postgres)" in a memory-only file counted the same as a real suite.
+ *
+ * This marker cannot be produced without a database: it is emitted only after
+ * `createPostgresStore` has connected and migrated. `node --test` runs one
+ * process per file, so `argv[1]` names the file and once-per-process is
+ * once-per-file.
+ */
+function announceOnce() {
+  if (announced) return;
+  announced = true;
+  const file = (process.argv[1] || "unknown").split("/").pop();
+  console.log(`[#239] postgres-active ${file}`);
+}
+
 async function onAdminConnection(fn) {
   const client = new pg.Client({ connectionString: baseUrl() });
   await client.connect();
@@ -91,6 +117,8 @@ export async function createTestPostgresStore() {
     await dropSchema(schema).catch(() => {});
     throw err;
   }
+
+  announceOnce();
 
   return {
     ...store,

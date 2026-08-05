@@ -80,13 +80,25 @@ jobs:
           # A floor on how much postgres actually ran. The guard step below
           # proves what happens when the database is MISSING; nothing otherwise
           # proves the rows executed when it is present. Delete one suite's
-          # postgres row and the suite count drops while everything stays green
+          # postgres row and its coverage vanishes while everything stays green
           # — the same "no coverage and coverage passing look identical"
           # trapdoor, relocated from the env var to the call sites.
-          RAN=$(grep -c '(postgres)' /tmp/test.log || true)
-          echo "postgres suites that ran: $RAN"
+          #
+          # Count files that actually OPENED a postgres store, not reporter
+          # text. An earlier version grepped '(postgres)' and was itself a
+          # false green: three of the six suites are named `describe(mode)`
+          # with no parentheses, so it counted 3 suites as 6 TAP lines and
+          # missed 25 of 38 postgres tests — two suites could lose all their
+          # coverage without moving the number. A suite name is forgeable; a
+          # marker emitted after a real connect-and-migrate is not.
+          RAN=$(grep -o 'postgres-active .*' /tmp/test.log | sort -u | wc -l | tr -d ' ')
+          RAN=${RAN:-0}   # grep prints nothing (not 0) on a missing file, and
+                          # `[` would then error inside an if — which set -e
+                          # does not catch, so the check would fail open.
+          echo "test files with live postgres coverage: $RAN"
+          grep -o 'postgres-active .*' /tmp/test.log | sort -u || true
           if [ "$RAN" -lt 5 ]; then
-            echo "::error::only $RAN postgres suites ran, expected at least 5 — a suite lost its postgres row"
+            echo "::error::only $RAN test files opened a postgres store, expected at least 5 — a suite lost its postgres coverage"
             exit 1
           fi
         env:

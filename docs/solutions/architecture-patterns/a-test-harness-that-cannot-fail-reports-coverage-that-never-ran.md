@@ -135,7 +135,41 @@ The same reasoning applies one level up: nothing proved the postgres rows *ran*
 when a database was present. Delete one suite's row and coverage shrinks
 silently. The job now floors the count of postgres suites that executed.
 
-### 6. Prove the harness fails, by breaking something on purpose
+### 6. Count what executed, not what was printed
+
+The floor above — "at least 5 postgres suites must have run" — was implemented as
+`grep -c '(postgres)'` over the reporter output. An adversarial pass then broke
+it, and it is the sharpest instance in this document because it is the *guard
+against the pattern* exhibiting the pattern.
+
+Three of the six postgres suites are named ``describe(`… (${mode})`)`` and match.
+The other three use a bare `describe(mode)` with no parentheses and never match.
+So the count of 6 was three suites × two TAP lines each, and **25 of the 38
+postgres tests were invisible to it**. Deleting two entire suites' postgres
+coverage left the number at 6 and the guard passing — exactly the trapdoor the
+step's own comment claimed to close. A suite *name* was also enough to satisfy
+it: a test titled `"binds the right parameter (postgres)"` in a memory-only file
+counted the same as a real suite.
+
+Reporter text is a description of work, not evidence of it. Count something only
+real execution can produce — here, a marker emitted after `createPostgresStore`
+has actually connected and migrated, one per test file, tallied with `sort -u`:
+
+```js
+function announceOnce() {
+  if (announced) return;
+  announced = true;
+  console.log(`[#239] postgres-active ${basename(process.argv[1])}`);
+}
+```
+
+Two related shell traps came with it. `grep` prints *nothing* — not `0` — when
+its file is missing, so `[ "$RAN" -lt 5 ]` errored; and because that error
+happens inside an `if` condition, `set -e` does not catch it and the check
+**passed**. The one branch whose entire job is to fail was failing open. Set
+`RAN=${RAN:-0}` and let a missing log abort the step.
+
+### 7. Prove the harness fails, by breaking something on purpose
 
 The acceptance bar for #239 was not "postgres has a test file" but "a wrong
 postgres query fails the job". That was demonstrated, not assumed: two
