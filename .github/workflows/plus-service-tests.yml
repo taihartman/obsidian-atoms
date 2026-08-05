@@ -5,19 +5,21 @@
 # plus-service, and the postgres rows run against a real server rather than
 # memory or sqlite.
 #
-# They do not yet BLOCK a merge: `master` branch protection lists no required
-# status checks (docs/collab.md § master branch protection; docs/security
-# H8), so a red run here is advisory until someone adds
-# `plus-service tests / test` to the required set. Note the interaction when
-# doing so — a required check with a `paths:` filter stays pending forever on
-# PRs that touch nothing under plus-service/.
+# They also BLOCK a merge as of #238: `test` is a required status check on
+# `master` with `enforce_admins` on (docs/collab.md § master branch protection;
+# docs/security H8). A red run here stops the merge for everyone, admins
+# included — which is why the `pull_request` trigger below carries no `paths:`
+# filter. See the note there before adding one back.
 name: plus-service tests
 
 on:
+  # No `paths:` filter here, deliberately. This check is REQUIRED on master
+  # (and `enforce_admins` is on, so nobody can click past it). A required check
+  # that is filtered out of a run is never reported at all — GitHub shows it as
+  # pending forever, and a docs-only PR would be unmergeable by anyone. Paying
+  # ~40s on every PR is the cost of the filter not being able to wedge the repo.
+  # The `push` trigger below keeps its filter: nothing gates merges there.
   pull_request:
-    paths:
-      - "plus-service/**"
-      - ".github/workflows/plus-service-tests.yml"
   push:
     branches: [master]
     paths:

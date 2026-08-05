@@ -24,7 +24,7 @@ States: `Queued` · `In progress` · `Blocked` · `In review` · `Done` (then re
 |---|---|---|
 | 2026-08-05 | #16 / #275 | Home Continue + pending parent handoff · **0.6.71** (community lint blockers) |
 | 2026-08-05 | #238 / #268 | Stripe reconcile + ops alerts (server-only) |
-| 2026-08-05 | #239 / #273 | First CI job that runs plus-service tests; real postgres coverage for the production store (test infra only, no plugin bump). Runs on PRs but does not yet *block* — `master` still has no required status checks |
+| 2026-08-05 | #239 / #273 | First CI job that runs plus-service tests; real postgres coverage for the production store (test infra only, no plugin bump). Now a **required** check on `master` (see #238 tail) |
 | 2026-08-05 | #257 #258 / #272 | Ask MCP `created` + list sort/filter + `list_pending` · **0.6.70** (Fly deploy still needed) |
 | 2026-08-04 | #222 / #266 | Catch-up on resume + Sync everything now · **0.6.67** |
 | 2026-08-04 | #256 / #262–#265 | Ask MCP `list_tags` + residuals · Fly live (no plugin bump until 0.6.67) |
