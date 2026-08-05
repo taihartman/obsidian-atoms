@@ -33,50 +33,79 @@ async function resendFetch(apiKey, path, init = {}) {
  *   email: string,
  *   segmentId: string,
  * }} opts
- * @returns {Promise<{ ok: true, contactId: string, created: boolean } | { ok: false, status: number, detail: string }>}
+ * @returns {Promise<
+ *   | { ok: true, contactId: string, sendWelcome: boolean }
+ *   | { ok: false, status: number, detail: string }
+ * >}
  */
 export async function upsertMarketingContact(opts) {
   const { apiKey, email, segmentId } = opts;
+  const emailPath = `/contacts/${encodeURIComponent(email)}`;
 
-  const created = await resendFetch(apiKey, "/contacts", {
-    method: "POST",
-    body: JSON.stringify({
-      email,
-      unsubscribed: false,
-    }),
-  });
+  const existing = await resendFetch(apiKey, emailPath, { method: "GET" });
+  let contactId = existing.json?.id || existing.json?.data?.id;
+  let wasUnsubscribed = Boolean(
+    existing.json?.unsubscribed ?? existing.json?.data?.unsubscribed,
+  );
+  let sendWelcome = false;
 
-  let contactId = created.json?.id || created.json?.data?.id;
-  let isNew = created.res.ok;
-
-  if (!created.res.ok) {
-    // Already exists - patch unsubscribed false (re-opt-in)
-    const patched = await resendFetch(apiKey, `/contacts/${encodeURIComponent(email)}`, {
-      method: "PATCH",
-      body: JSON.stringify({ unsubscribed: false }),
-    });
-    if (!patched.res.ok) {
-      return {
-        ok: false,
-        status: patched.res.status,
-        detail: (patched.text || "").slice(0, 200),
-      };
+  if (existing.res.ok && contactId) {
+    if (wasUnsubscribed) {
+      const patched = await resendFetch(apiKey, emailPath, {
+        method: "PATCH",
+        body: JSON.stringify({ unsubscribed: false }),
+      });
+      if (!patched.res.ok) {
+        return {
+          ok: false,
+          status: patched.res.status,
+          detail: (patched.text || "").slice(0, 200),
+        };
+      }
+      sendWelcome = true;
     }
-    contactId =
-      patched.json?.id ||
-      patched.json?.data?.id ||
-      email;
-    isNew = false;
+  } else {
+    const created = await resendFetch(apiKey, "/contacts", {
+      method: "POST",
+      body: JSON.stringify({
+        email,
+        unsubscribed: false,
+      }),
+    });
+    if (!created.res.ok) {
+      // Race: created elsewhere - try patch
+      const patched = await resendFetch(apiKey, emailPath, {
+        method: "PATCH",
+        body: JSON.stringify({ unsubscribed: false }),
+      });
+      if (!patched.res.ok) {
+        return {
+          ok: false,
+          status: created.res.status,
+          detail: (created.text || "").slice(0, 200),
+        };
+      }
+      contactId = patched.json?.id || patched.json?.data?.id || email;
+      sendWelcome = true;
+    } else {
+      contactId = created.json?.id || created.json?.data?.id || email;
+      sendWelcome = true;
+    }
   }
 
   if (segmentId) {
-    const segPath = contactId.includes("@")
+    const idForPath =
+      contactId && !String(contactId).includes("@")
+        ? contactId
+        : encodeURIComponent(email);
+    const segPath = String(contactId).includes("@")
       ? `/contacts/${encodeURIComponent(email)}/segments/${segmentId}`
-      : `/contacts/${contactId}/segments/${segmentId}`;
-    const seg = await resendFetch(apiKey, segPath, { method: "POST", body: "{}" });
-    // 409 / already in segment is fine
+      : `/contacts/${idForPath}/segments/${segmentId}`;
+    const seg = await resendFetch(apiKey, segPath, {
+      method: "POST",
+      body: "{}",
+    });
     if (!seg.res.ok && seg.res.status !== 409 && seg.res.status !== 422) {
-      // Try alternate path shape once
       const alt = await resendFetch(
         apiKey,
         `/contacts/${encodeURIComponent(email)}/segments/${segmentId}`,
@@ -92,7 +121,11 @@ export async function upsertMarketingContact(opts) {
     }
   }
 
-  return { ok: true, contactId: String(contactId), created: isNew };
+  return {
+    ok: true,
+    contactId: String(contactId || email),
+    sendWelcome,
+  };
 }
 
 /**
@@ -110,7 +143,7 @@ export async function sendWelcomeEmail(opts) {
   const lines = [
     "You're on Atoms Notes.",
     "",
-    "Rare notes on the capture → recall → deepen loop - real workflows, not a feature dump. About once a month or less.",
+    "Rare notes on the capture -> recall -> deepen loop - real workflows, not a feature dump. About once a month or less.",
     "",
     "Here's the idea in one beat: something lands (a text, a photo, a half-thought). You capture it. Atoms files it as a note you can find later - and, when you want, you deepen it (calendar, recap, ask).",
     "",

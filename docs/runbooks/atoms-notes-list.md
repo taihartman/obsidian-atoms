@@ -37,7 +37,7 @@ Manual:
 
 ```bash
 npm run build:www
-npx wrangler pages deploy www/dist --project-name=tryatoms --branch=master --functions-directory=www/functions
+( cd www && npx wrangler pages deploy dist --project-name=tryatoms --branch=master )
 ```
 
 ## Ongoing Broadcasts

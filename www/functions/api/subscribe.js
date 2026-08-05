@@ -1,5 +1,5 @@
 /**
- * POST /api/subscribe — Atoms Notes list signup (same-origin).
+ * POST /api/subscribe - Atoms Notes list signup (same-origin).
  * Env (Pages secrets): RESEND_API_KEY, ATOMS_NOTES_FROM, RESEND_MARKETING_SEGMENT_ID,
  *   ATOMS_NOTES_POSTAL_ADDRESS, optional ATOMS_NOTES_REPLY_TO, ATOMS_NOTES_KILL_SWITCH,
  *   ATOMS_NOTES_UNSUB_SECRET (HMAC for unsubscribe links).
@@ -14,6 +14,7 @@ import {
   sendWelcomeEmail,
   upsertMarketingContact,
 } from "../_lib/resendMarketing.mjs";
+import { hmacSign } from "../_lib/hmac.mjs";
 
 /** @type {Map<string, number[]>} */
 const rateStore = new Map();
@@ -27,27 +28,6 @@ function json(status, body, extraHeaders = {}) {
       ...extraHeaders,
     },
   });
-}
-
-function b64url(buf) {
-  const b =
-    typeof Buffer !== "undefined"
-      ? Buffer.from(buf).toString("base64")
-      : btoa(String.fromCharCode(...new Uint8Array(buf)));
-  return b.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-}
-
-async function hmacSign(secret, message) {
-  const enc = new TextEncoder();
-  const key = await crypto.subtle.importKey(
-    "raw",
-    enc.encode(secret),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"],
-  );
-  const sig = await crypto.subtle.sign("HMAC", key, enc.encode(message));
-  return b64url(sig);
 }
 
 async function unsubUrlFor(env, email, origin) {
@@ -115,24 +95,26 @@ export async function onRequestPost(context) {
     return json(502, { ok: false, code: CODES.upstream_error });
   }
 
-  const origin = new URL(request.url).origin;
-  const unsubUrl = await unsubUrlFor(env, parsed.email, origin);
-  const welcome = await sendWelcomeEmail({
-    apiKey,
-    email: parsed.email,
-    from,
-    replyTo: env.ATOMS_NOTES_REPLY_TO || undefined,
-    postalAddress: postal,
-    unsubUrl,
-  });
-  if (!welcome.ok) {
-    console.error("[atoms-notes] welcome", welcome.status, welcome.detail);
-    // On-list still success (R10b)
+  // Welcome on first join or re-opt-in after unsubscribe only.
+  if (contact.sendWelcome) {
+    const origin = new URL(request.url).origin;
+    const unsubUrl = await unsubUrlFor(env, parsed.email, origin);
+    const welcome = await sendWelcomeEmail({
+      apiKey,
+      email: parsed.email,
+      from,
+      replyTo: env.ATOMS_NOTES_REPLY_TO || undefined,
+      postalAddress: postal,
+      unsubUrl,
+    });
+    if (!welcome.ok) {
+      console.error("[atoms-notes] welcome", welcome.status, welcome.detail);
+    }
   }
 
   return json(200, {
     ok: true,
-    code: contact.created ? CODES.ok_new : CODES.ok_existing,
+    code: contact.sendWelcome ? CODES.ok_new : CODES.ok_existing,
   });
 }
 

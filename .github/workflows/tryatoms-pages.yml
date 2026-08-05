@@ -51,6 +51,8 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: "6577a026858cc2ae8626632ff6fcd4bf"
-          # Functions live in www/functions (Atoms Notes POST /api/subscribe).
-          command: pages deploy www/dist --project-name=tryatoms --branch=master --functions-directory=www/functions
+          # Run from www/ so Wrangler picks up www/functions next to dist/
+          # (Direct Upload looks for ./functions relative to cwd).
+          workingDirectory: www
+          command: pages deploy dist --project-name=tryatoms --branch=master
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}

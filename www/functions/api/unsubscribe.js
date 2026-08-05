@@ -1,29 +1,9 @@
 /**
- * GET /api/unsubscribe?e=&t= — one-click marketing opt-out (HMAC).
+ * GET /api/unsubscribe?e=&t= - one-click marketing opt-out (HMAC).
  */
 import { normalizeEmail, isValidEmail } from "../_lib/subscribeCore.mjs";
 import { unsubscribeContact } from "../_lib/resendMarketing.mjs";
-
-function b64url(buf) {
-  const b =
-    typeof Buffer !== "undefined"
-      ? Buffer.from(buf).toString("base64")
-      : btoa(String.fromCharCode(...new Uint8Array(buf)));
-  return b.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-}
-
-async function hmacSign(secret, message) {
-  const enc = new TextEncoder();
-  const key = await crypto.subtle.importKey(
-    "raw",
-    enc.encode(secret),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"],
-  );
-  const sig = await crypto.subtle.sign("HMAC", key, enc.encode(message));
-  return b64url(sig);
-}
+import { hmacSign } from "../_lib/hmac.mjs";
 
 function htmlPage(title, body) {
   return new Response(
