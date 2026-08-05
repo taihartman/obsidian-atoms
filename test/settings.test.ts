@@ -16,6 +16,7 @@ import {
   accountRowDescriptor,
   type AccountState,
   type AtomsSettingTab,
+  type ConnectivityRequest,
 } from "../src/settings/settings";
 import type { PlusSession } from "../src/platform/filingAuth";
 import {
@@ -795,5 +796,280 @@ describe("consent sheets", () => {
 
     expect(rowNames(tab)).not.toContain("Privacy acknowledgment");
     expect(rowNames(tab)).not.toContain("Data egress acknowledgment");
+  });
+});
+
+/** A signed-in Plus session, since Ask plumbing renders only behind one. */
+const PLUS_SESSION: PlusSession = {
+  sessionToken: "sess_live",
+  email: "user@example.com",
+  status: "active",
+  remaining: 12,
+  periodEnd: "2026-09-01T00:00:00.000Z",
+};
+
+/**
+ * U6 — the Anthropic API key row answers the question the deleted *Test connection* row used to:
+ * does this key work from this device? Four outcomes, not a boolean, because "wrong key" and
+ * "no network" want opposite things from the user.
+ */
+describe("API key row (U6)", () => {
+  const flush = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+  const KEY = "sk-ant-api03-looks-real-enough";
+
+  /** A request double that records what was asked for and answers Anthropic a fixed way. */
+  function network(anthropic: number | "offline") {
+    const urls: string[] = [];
+    const request: ConnectivityRequest = async (params) => {
+      urls.push(params.url);
+      if (anthropic === "offline") throw new Error("net::ERR_INTERNET_DISCONNECTED");
+      const status = params.url.includes("anthropic") ? anthropic : 200;
+      return { status, text: "", json: {}, arrayBuffer: new ArrayBuffer(0), headers: {} } as never;
+    };
+    const anthropicCalls = () => urls.filter((u) => u.includes("anthropic")).length;
+    return { request, anthropicCalls };
+  }
+
+  /** Everything the API key row says, status text included. */
+  const keyRowText = (tab: AtomsSettingTab) =>
+    row(tab, "Anthropic API key").textContent ?? "";
+
+  it("reports a malformed key inline, without claiming success or asking the network", async () => {
+    const net = network(200);
+    const { tab } = settingTab({ apiKey: "hunter2", request: net.request });
+    tab.display();
+    await flush();
+
+    expect(keyRowText(tab)).toContain("does not look like an Anthropic API key");
+    expect(keyRowText(tab)).not.toContain("works");
+    expect(net.anthropicCalls()).toBe(0);
+  });
+
+  it("distinguishes a key it could not check from a key that was rejected", async () => {
+    const offline = settingTab({ apiKey: KEY, request: network("offline").request });
+    offline.tab.display();
+    await flush();
+
+    const rejected = settingTab({ apiKey: KEY, request: network(401).request });
+    rejected.tab.display();
+    await flush();
+
+    expect(keyRowText(offline.tab)).toContain("Could not reach Anthropic");
+    expect(keyRowText(offline.tab)).not.toContain("rejected");
+    expect(keyRowText(rejected.tab)).toContain("rejected");
+    expect(keyRowText(rejected.tab)).not.toContain("Could not reach Anthropic");
+  });
+
+  it("says the key works when Anthropic answers", async () => {
+    const { tab } = settingTab({ apiKey: KEY, request: network(200).request });
+    tab.display();
+    await flush();
+
+    expect(keyRowText(tab)).toContain("works");
+  });
+
+  it("shows a checking state while the network check is in flight", async () => {
+    const { tab } = settingTab({ apiKey: KEY, request: network(200).request });
+    tab.display();
+
+    // Before the probes settle: neither terminal outcome, and visibly in progress.
+    expect(keyRowText(tab)).toContain("Checking");
+    expect(keyRowText(tab)).not.toContain("works");
+    expect(keyRowText(tab)).not.toContain("Could not reach");
+
+    await flush();
+    expect(keyRowText(tab)).toContain("works");
+  });
+
+  it("re-verifies a key already saved, with no re-entry", async () => {
+    const net = network(200);
+    const { tab } = settingTab({ apiKey: KEY, request: net.request });
+    tab.display();
+    await flush();
+
+    expect(net.anthropicCalls()).toBe(1);
+    expect(keyRowText(tab)).toContain("works");
+  });
+
+  it("does not re-check on every redisplay", async () => {
+    const net = network(200);
+    const { tab } = settingTab({ apiKey: KEY, request: net.request });
+    tab.display();
+    await flush();
+
+    // Any toggle elsewhere on the screen re-renders the whole tab.
+    flip(tab, "Sync automatically on resume");
+    flip(tab, "Sync automatically on resume");
+    flip(tab, "Sync automatically on resume");
+    await flush();
+
+    expect(net.anthropicCalls()).toBe(1);
+    expect(keyRowText(tab)).toContain("works");
+  });
+
+  it("re-checks on the next visit to Settings", async () => {
+    const net = network(200);
+    const { tab } = settingTab({ apiKey: KEY, request: net.request });
+    tab.display();
+    await flush();
+    expect(net.anthropicCalls()).toBe(1);
+
+    tab.hide();
+    tab.display();
+    await flush();
+
+    expect(net.anthropicCalls()).toBe(2);
+  });
+
+  it("keeps no standalone Test connection row on any screen", () => {
+    const { tab } = settingTab({ session: PLUS_SESSION });
+    tab.display();
+    const screens = destinationNames(tab);
+    expect(rowNames(tab)).not.toContain("Test connection");
+
+    for (const destination of screens) {
+      const fresh = settingTab({ session: PLUS_SESSION });
+      fresh.tab.display();
+      open(fresh.tab, destination);
+      expect(rowNames(fresh.tab)).not.toContain("Test connection");
+    }
+  });
+});
+
+describe("Connect Claude or ChatGPT destination (U6)", () => {
+  const CONNECT_ROWS = [
+    "MCP connector URL",
+    "Link Claude / ChatGPT",
+    "Sync now",
+    "Cloud mirror status",
+    "Wipe cloud copy",
+  ];
+
+  it("moves the Ask plumbing off the main screen, behind one entry row", () => {
+    const { tab } = settingTab({ session: PLUS_SESSION });
+    tab.display();
+
+    expect(destinationNames(tab)).toContain("Connect Claude or ChatGPT");
+    for (const name of CONNECT_ROWS) expect(rowNames(tab)).not.toContain(name);
+  });
+
+  it("holds every moved row", () => {
+    const { tab } = settingTab({ session: PLUS_SESSION });
+    tab.display();
+    open(tab, "Connect Claude or ChatGPT");
+
+    for (const name of CONNECT_ROWS) expect(rowNames(tab)).toContain(name);
+  });
+
+  it("still asks before wiping the cloud copy", async () => {
+    const { tab, calls } = settingTab({
+      session: PLUS_SESSION,
+      settings: { askEnabled: true, askPrivacyAckAt: "2026-08-01T10:00:00.000Z" },
+    });
+    tab.display();
+    open(tab, "Connect Claude or ChatGPT");
+
+    press(tab, "Wipe cloud copy", "Wipe");
+    expect(sheetOpen()).toBe(true);
+    expect(sheetText()).toContain("Wipe cloud copy?");
+
+    dismissSheet();
+    // Backing out of the confirmation wipes nothing and persists nothing.
+    expect(calls).not.toContain("saveSettings");
+  });
+});
+
+/**
+ * U6 / R5 — Advanced may hold only rows that neither enable nor disable money spend, cloud
+ * egress, or vault writes. Asserted by exercising whatever rows are actually there rather than
+ * by listing their names: a list passes forever, including the day a gate is moved in.
+ */
+describe("Advanced destination (U6, R5)", () => {
+  const flush = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+  function advanced(opts: SettingTabOptions = {}) {
+    const made = settingTab({ session: PLUS_SESSION, ...opts });
+    made.tab.display();
+    open(made.tab, "Advanced");
+    return made;
+  }
+
+  /** Every gate-bearing value on the device: what enables money spend, egress, or vault writes. */
+  function gateState(tab: AtomsSettingTab, local: Map<string, unknown>) {
+    return {
+      askEnabled: tab.plugin.settings.askEnabled,
+      askPrivacyAckAt: tab.plugin.settings.askPrivacyAckAt,
+      askWriteAckAt: tab.plugin.settings.askWriteAckAt,
+      autoRunEnabled: local.get(LS_AUTO_RUN_ENABLED),
+      egressAcked: local.get(LS_AUTO_RUN_EGRESS_ACK),
+    };
+  }
+
+  /** Touch every control on the screen the way a user could: flip it, type in it, press it. */
+  function exerciseEveryControl(tab: AtomsSettingTab): void {
+    for (const el of Array.from(tab.containerEl.querySelectorAll(".setting-item"))) {
+      if (el.classList.contains("atoms-setting-back")) continue;
+      for (const toggle of Array.from(el.querySelectorAll(".checkbox-container"))) {
+        (toggle as HTMLElement).click();
+      }
+      for (const input of Array.from(el.querySelectorAll("input"))) {
+        input.value = "exercised";
+        input.dispatchEvent(new Event("input"));
+      }
+      for (const button of Array.from(el.querySelectorAll("button"))) {
+        button.click();
+      }
+    }
+  }
+
+  it("holds the four rows and nothing else", () => {
+    const { tab } = advanced();
+    expect(rowNames(tab)).toEqual([
+      "Advanced",
+      "Model",
+      "Device-local key fallback",
+      "Plus service URL override",
+    ]);
+
+    const withFallback = advanced({ settings: { useDeviceLocalKeyFallback: true } });
+    expect(rowNames(withFallback.tab)).toContain("Device-local API key");
+  });
+
+  it("carries the caution that used to sit above these rows", () => {
+    const { tab } = advanced();
+    expect(tab.containerEl.textContent).toContain(
+      "Leave these alone unless you self-host or dogfood a local Plus server",
+    );
+  });
+
+  it("holds no control that enables or disables money, egress, or vault writes", async () => {
+    const { tab, local, calls } = advanced({
+      settings: { useDeviceLocalKeyFallback: true },
+    });
+    const before = gateState(tab, local);
+    // Only what the exercise itself provokes: rendering the main screen on the way in already
+    // read from the plugin, and a read is not an act.
+    const from = calls.length;
+
+    exerciseEveryControl(tab);
+    await flush();
+
+    expect(gateState(tab, local)).toEqual(before);
+    // Every gate acts through the plugin to do its work, so a screen of pure preferences
+    // reaches the plugin for persistence and for nothing else.
+    expect([...new Set(calls.slice(from))]).toEqual(["saveSettings"]);
+  });
+
+  it("keeps the one redirect it does hold inert on its own", async () => {
+    const { tab, local } = advanced();
+    const before = gateState(tab, local);
+
+    fill(tab, "Plus service URL override", "http://127.0.0.1:8787");
+    await flush();
+
+    // The override redirects where egress goes; it cannot turn egress on.
+    expect(tab.plugin.settings.plusBaseUrl).toBe("http://127.0.0.1:8787");
+    expect(gateState(tab, local)).toEqual(before);
   });
 });

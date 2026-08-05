@@ -356,17 +356,36 @@ export const moment = (input?: string) => ({
 export class SecretComponent extends BaseComponent {
   app: unknown;
   containerEl: HTMLElement | undefined;
+  /**
+   * A real input, for the same reason `TextComponent` has one: saving a secret id is what
+   * triggers the API-key check, so a test has to reach the field through the rendered row.
+   */
+  inputEl: HTMLInputElement;
   value = "";
+  private changeHandler: ((value: string) => unknown) | null = null;
   constructor(app: unknown, containerEl?: HTMLElement) {
     super();
     this.app = app;
     this.containerEl = containerEl;
+    this.inputEl = (containerEl ?? document.createElement("div")).appendChild(
+      document.createElement("input"),
+    );
+    this.inputEl.type = "password";
+    this.inputEl.addEventListener("input", () => this.fill(this.inputEl.value));
   }
   setValue(value: string): this {
     this.value = value;
+    this.inputEl.value = value;
     return this;
   }
-  onChange(_cb: (value: string) => unknown): this {
+  onChange(cb: (value: string) => unknown): this {
+    this.changeHandler = cb;
+    return this;
+  }
+  /** Test affordance: type into the field and fire `onChange`, as a real user would. */
+  fill(value: string): this {
+    this.setValue(value);
+    this.changeHandler?.(value);
     return this;
   }
 }

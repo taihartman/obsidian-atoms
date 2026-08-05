@@ -12,6 +12,7 @@ import {
 import { AtomsSettingTab, type SettingsRoute } from "../src/settings/settings";
 import { destinationNames, open, settingTab } from "./helpers/settingsTab";
 import { DEFAULT_SETTINGS } from "../src/shared/types";
+import type { PlusSession } from "../src/platform/filingAuth";
 // Imported from the mock by path, not from "obsidian": vitest aliases the module but `tsc`
 // does not, so a bare "obsidian" import would typecheck against the real API and never see
 // the recorder's `controls`. Code under test still imports "obsidian" and gets this same
@@ -338,16 +339,33 @@ function onMainScreen(tab: AtomsSettingTab): boolean {
  * Account, whose entry row is named for the account's state (U3), and Tag vocabulary, whose entry
  * row carries the active count (U4) — both screens keep their own title.
  */
+/**
+ * In rendered order. Connect sits where the Ask plumbing used to, which is above the vocabulary
+ * entry — the plan's final table wants those two the other way round, but that is a section
+ * ordering pass, not this unit's.
+ */
 const DESTINATIONS: Array<[entry: string, title: string]> = [
   ["Set up automatic filing", "Account"],
-  [`Tag vocabulary — ${DEFAULT_SETTINGS.activeVocabulary.length} active`, "Tag vocabulary"],
   ["Connect Claude or ChatGPT", "Connect Claude or ChatGPT"],
+  [`Tag vocabulary — ${DEFAULT_SETTINGS.activeVocabulary.length} active`, "Tag vocabulary"],
   ["Advanced", "Advanced"],
 ];
 
+/**
+ * A Plus session, because U6 moved the Ask plumbing behind the Connect entry row and the Ask
+ * section — that row included — renders only when the device has one.
+ */
+const SESSION: PlusSession = {
+  sessionToken: "sess_live",
+  email: "user@example.com",
+  status: "active",
+  remaining: 12,
+  periodEnd: "2026-09-01T00:00:00.000Z",
+};
+
 describe("destination shell", () => {
   it("opens on the main screen, listing every destination", () => {
-    const { tab } = settingTab();
+    const { tab } = settingTab({ session: SESSION });
     tab.display();
 
     expect(onMainScreen(tab)).toBe(true);
@@ -356,7 +374,7 @@ describe("destination shell", () => {
   });
 
   it.each(DESTINATIONS)("enters %s and comes back to the main screen", (entry, title) => {
-    const { tab } = settingTab();
+    const { tab } = settingTab({ session: SESSION });
     tab.display();
 
     open(tab, entry);
@@ -413,11 +431,15 @@ describe("destination shell", () => {
 
 /**
  * A signature only constrains rows built *through* a builder. `settings.ts` still holds direct
- * `new Setting(` sites that U3–U6 migrate into `rows.ts`, so the guard is a ratchet rather than
- * a flat ban: the count may fall, never rise. When it reaches zero, tighten the budget to 0 and
- * this becomes the flat ban the grammar wants.
+ * `new Setting(` sites, so the guard is a ratchet rather than a flat ban: the count may fall,
+ * never rise.
+ *
+ * U6 was the last destination unit and took it from 27 to 18. Zero is not reachable from here:
+ * `settingHeading()` builds a heading rather than a row, two modals build their own button bars,
+ * and the API key row's control is a `SecretComponent`, which `SettingControl` has no member for.
+ * The rest belong to the clusters U7–U9 still own — lower it as they land.
  */
-const DIRECT_SETTING_BUDGET = 27;
+const DIRECT_SETTING_BUDGET = 18;
 
 describe("row-grammar repository guard", () => {
   it("settings.ts does not grow new direct `new Setting(` sites", () => {

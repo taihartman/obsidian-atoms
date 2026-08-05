@@ -4,9 +4,16 @@ import {
   Modal,
   Notice,
   PluginSettingTab,
+  type RequestUrlParam,
+  type RequestUrlResponse,
   SecretComponent,
   Setting,
 } from "obsidian";
+import {
+  anthropicConnectivityOk,
+  runConnectivityTest,
+  type ConnectivityReport,
+} from "../platform/connectivity";
 import type AtomsPlugin from "../plugin/main";
 import {
   aggregateTagsFromFileCaches,
@@ -182,6 +189,82 @@ function settingHeading(containerEl: HTMLElement, name: string): void {
   new Setting(containerEl).setName(name).setHeading();
 }
 
+/**
+ * The request the API-key row's check goes through. Injectable so a test can answer it without a
+ * network; production leaves it unset and `runConnectivityTest` falls back to `requestUrl`.
+ */
+export type ConnectivityRequest = (
+  params: RequestUrlParam,
+) => Promise<RequestUrlResponse>;
+
+/**
+ * Everything the Anthropic API key row can say about the key it currently resolves.
+ *
+ * Four outcomes plus a pending state, not a boolean: "this key is wrong" and "this device is
+ * offline" ask opposite things of the user, and this row is the only place either is now
+ * reported — it replaced the standalone *Test connection* row.
+ */
+export type ApiKeyState =
+  | { kind: "absent" }
+  | { kind: "checking" }
+  | { kind: "malformed" }
+  | { kind: "unreachable" }
+  | { kind: "rejected" }
+  | { kind: "ok" };
+
+/**
+ * Whether a resolved secret is shaped like an Anthropic key at all. Checked before the request,
+ * so a typo is reported as a typo rather than spending a round trip to come back as a rejection.
+ */
+export function looksLikeAnthropicKey(key: string): boolean {
+  const trimmed = key.trim();
+  return trimmed.startsWith("sk-ant-") && trimmed.length >= 16;
+}
+
+/**
+ * Read the row's verdict off the structured report rather than re-deriving reachability.
+ *
+ * The Anthropic probe's HTTP status is the load-bearing part: 401/403 is a server that answered
+ * and refused the key, which is a different sentence from a probe that never got a status at all.
+ */
+export function apiKeyStateFromReport(report: ConnectivityReport): ApiKeyState {
+  const probe = report.probes.find((p) => p.id === "anthropic_api");
+  if (!probe) return { kind: "unreachable" };
+  const status = probe.detail?.status;
+  if (status === 401 || status === 403) return { kind: "rejected" };
+  if (anthropicConnectivityOk(probe)) return { kind: "ok" };
+  return { kind: "unreachable" };
+}
+
+/** One sentence per state — the row's whole report, in the row itself. */
+export function apiKeyStatusText(state: ApiKeyState): string {
+  switch (state.kind) {
+    case "absent":
+      return "No key saved on this device yet.";
+    case "checking":
+      return "Checking this key…";
+    case "malformed":
+      return "That does not look like an Anthropic API key — keys start with sk-ant-.";
+    case "unreachable":
+      return "Could not reach Anthropic from this device, so the key was not checked. Try again when you are online.";
+    case "rejected":
+      return "Anthropic answered, but rejected this key. Check that it is current and has credit.";
+    case "ok":
+      return "This key works — Anthropic answered from this device.";
+  }
+  const _exhaustive: never = state;
+  return _exhaustive;
+}
+
+/**
+ * How long a settled check stays good.
+ *
+ * Long enough that the flurry of `redisplay()` calls every other row on this screen triggers
+ * costs nothing — a check per toggle would be a request storm. Short enough that a user who
+ * fixes their connection while Settings is open sees the row catch up on the next re-render.
+ */
+const API_KEY_RECHECK_MS = 60_000;
+
 function loadLocal(app: App, key: string): unknown {
   return app.loadLocalStorage(key) as unknown;
 }
@@ -241,8 +324,24 @@ export class AtomsSettingTab extends PluginSettingTab {
    * already reset its route.
    */
   private openSheet: ConsentSheetModal | null = null;
+  /**
+   * The last answer the API-key row got, and when. Keyed by the key it was about, so a new key
+   * is always a fresh question and a re-render of the same key is not.
+   */
+  private apiKeyCheck: { key: string; state: ApiKeyState; at: number } | null =
+    null;
+  /**
+   * Where to write that answer. A field rather than a captured element because a check in flight
+   * outlives the row that started it: any toggle on the screen re-renders the tab, and the
+   * result must land on the row the user is now looking at.
+   */
+  private apiKeyStatusEl: HTMLElement | null = null;
 
-  constructor(app: App, plugin: AtomsPlugin) {
+  constructor(
+    app: App,
+    plugin: AtomsPlugin,
+    private readonly deps: { request?: ConnectivityRequest } = {},
+  ) {
     super(app, plugin);
     this.plugin = plugin;
   }
@@ -290,6 +389,10 @@ export class AtomsSettingTab extends PluginSettingTab {
    */
   hide(): void {
     this.route = "main";
+    // A new visit re-asks whether the key works. Without this, a user who saved a key offline
+    // would see that verdict forever — the row's only other trigger is saving the key again.
+    this.apiKeyCheck = null;
+    this.apiKeyStatusEl = null;
     // Closing Settings mid-decision is a decline, not a half-written ack: `close()` reaches the
     // sheet's `onClose`, which settles it the same way Escape does.
     this.openSheet?.close();
@@ -413,20 +516,256 @@ export class AtomsSettingTab extends PluginSettingTab {
     renderBody(containerEl);
   }
 
-  /** Placeholder body for a destination whose rows have not moved in yet. */
-  private renderEmptyDestination(containerEl: HTMLElement): void {
+  /**
+   * Everything it takes to connect Claude or ChatGPT to the mirror, and the wipe that undoes it.
+   *
+   * The destructive row sits beside what it destroys rather than in a general danger zone: the
+   * cloud copy is what these rows are about, so the way to delete it belongs with them.
+   */
+  private renderConnectDestination(containerEl: HTMLElement): void {
+    const session = readPlusSession(this.app);
+    if (!session) {
+      containerEl.createEl("p", {
+        text: "Sign in to Atoms Plus first.",
+        cls: "setting-item-description",
+      });
+      return;
+    }
+    const base =
+      this.plugin.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL;
+    const mcpUrl = askMcpUrl(base);
+
+    const status = this.askMirrorStatus(session.email);
     containerEl.createEl("p", {
-      text: "Nothing here yet.",
-      cls: "setting-item-description",
+      text: status.line,
+      cls: status.failing
+        ? "setting-item-description atoms-ask-mirror-error"
+        : "setting-item-description",
+    });
+
+    // An action row rather than a read-only field plus a Copy button: two affordances on one row
+    // is the thing the grammar forbids, and a disabled input cannot be selected on most
+    // platforms anyway — so the URL lives in the description, where it can be read and selected.
+    actionRow(containerEl, {
+      name: "MCP connector URL",
+      desc: `${mcpUrl} — same URL for both. Claude → Settings → Connectors → Add custom connector. ChatGPT → Settings → Apps & connectors (Developer mode) → add this URL → complete OAuth.`,
+      label: "Copy",
+      onClick: async () => {
+        try {
+          await navigator.clipboard.writeText(mcpUrl);
+          new Notice("MCP URL copied");
+        } catch {
+          new Notice(`MCP URL: ${mcpUrl}`);
+        }
+      },
+    });
+
+    actionRow(containerEl, {
+      name: "Link Claude / ChatGPT",
+      desc: "Generate a short pairing code for the connector authorize page. Your Claude/ChatGPT account email need not match Atoms Plus — the code binds the Plus account shown above. Codes expire quickly and are secrets (do not share). After pairing, disconnect/reconnect the connector if counts still look stale.",
+      label: "Get pairing code",
+      onClick: async () => {
+        if (!this.plugin.settings.askEnabled) {
+          new Notice("Enable Ask mirror first");
+          return;
+        }
+        const r = await askMcpPair(
+          { baseUrl: base, request: plusFetchRequest },
+          session.sessionToken,
+        );
+        if (!r.ok) {
+          new Notice(`Pairing: ${r.message}`);
+          return;
+        }
+        const raw = r.code.replace(/-/g, "");
+        const display =
+          raw.length === 8 ? `${raw.slice(0, 4)}-${raw.slice(4)}` : r.code;
+        try {
+          await navigator.clipboard.writeText(display);
+          new Notice(
+            `Pairing code ${display} copied — paste on the connector authorize page (expires soon)`,
+          );
+        } catch {
+          new Notice(
+            `Pairing code: ${display} — paste on the connector authorize page (expires soon)`,
+          );
+        }
+      },
+    });
+
+    actionRow(containerEl, {
+      name: "Sync now",
+      desc: "Full refresh from this device’s Atoms/ (orphans removed on Plus). Multi-device: incomplete vault here can delete cloud rows for atoms only on another device until Obsidian Sync catches up.",
+      label: "Sync now",
+      onClick: async () => {
+        const outcome = await this.plugin.syncAskMirror({ force: true });
+        // Four distinct outcomes. "joined" is not a zero-work success, and a refusal must never
+        // read as "reconciled" in the loudest channel the user is watching (R7). Failure is null
+        // here only because a forced push always toasts its own failure — it ignores the
+        // background dedupe flag precisely so this gesture is never silent.
+        const msg = syncNowNotice(outcome);
+        if (msg) new Notice(msg);
+        // Refresh either way so the status line reflects what just happened.
+        this.redisplay();
+      },
+    });
+
+    actionRow(containerEl, {
+      name: "Cloud mirror status",
+      desc: "Refresh server atom count (what Claude/ChatGPT can see).",
+      label: "Refresh",
+      onClick: async () => {
+        const r = await askMirrorStatus(
+          { baseUrl: base, request: plusFetchRequest },
+          session.sessionToken,
+        );
+        if (!r.ok) {
+          new Notice(`Ask: ${r.message}`);
+          return;
+        }
+        saveAskMirrorStatus((k, v) => this.app.saveLocalStorage(k, v), r);
+        const as = r.email ? ` as ${r.email}` : "";
+        new Notice(`Ask mirror: ${r.count} atom(s)${as}`);
+        this.redisplay();
+      },
+    });
+
+    destructiveRow(containerEl, {
+      name: "Wipe cloud copy",
+      desc: "Delete mirrored atoms, pending Ask writes (outbox), and revoke Ask connector tokens for this account. Does not delete vault files.",
+      label: "Wipe",
+      onClick: () => this.confirmWipeCloudCopy(base, session.sessionToken),
     });
   }
 
-  private renderConnectDestination(containerEl: HTMLElement): void {
-    this.renderEmptyDestination(containerEl);
+  /** The wipe itself, behind the confirmation it must never lose. */
+  private confirmWipeCloudCopy(base: string, sessionToken: string): void {
+    const modal = new Modal(this.app);
+    modal.titleEl.setText("Wipe cloud copy?");
+    modal.contentEl.createEl("p", {
+      text: "Wipe cloud atom mirror, pending Ask writes, and revoke Ask connector access (Claude + ChatGPT)? Local vault files are kept.",
+    });
+    new Setting(modal.contentEl)
+      .addButton((b) => b.setButtonText("Cancel").onClick(() => modal.close()))
+      .addButton((b) =>
+        markDestructive(b.setButtonText("Wipe"))
+          .setCta()
+          .onClick(() => {
+            modal.close();
+            void (async () => {
+              const r = await askMirrorWipe(
+                { baseUrl: base, request: plusFetchRequest },
+                sessionToken,
+              );
+              if (!r.ok) {
+                new Notice(`Ask: ${r.message}`);
+                return;
+              }
+              // One owner for the reset. Re-listing the keys here is how the wipe and the gate's
+              // readers drift — and a wipe that leaves a *parseable* count behind hands the gate
+              // a fabricated authority for the cloud it just emptied.
+              clearAskMirrorDeviceState((k, v) =>
+                this.app.saveLocalStorage(k, v),
+              );
+              await this.plugin.saveSettings();
+              new Notice("Ask mirror wiped");
+              this.redisplay();
+            })();
+          }),
+      );
+    modal.open();
   }
 
+  /**
+   * The four rows that are nobody's everyday business.
+   *
+   * R5 rules what may be here: no gate on money, cloud egress, or vault writes. *Model* affects
+   * what a capture costs but cannot enable spend, and *Plus service URL override* redirects where
+   * already-enabled egress goes rather than turning any on — inert until a main-screen gate is on.
+   * Both are here on the record rather than by silence.
+   */
   private renderAdvancedDestination(containerEl: HTMLElement): void {
-    this.renderEmptyDestination(containerEl);
+    containerEl.createEl("p", {
+      text: "Leave these alone unless you self-host or dogfood a local Plus server.",
+      cls: "setting-item-description",
+    });
+
+    settingRow(containerEl, {
+      name: "Model",
+      desc: "Anthropic model id. Default: claude-sonnet-5.",
+      control: {
+        kind: "text",
+        configure: (text) =>
+          text
+            .setPlaceholder("claude-sonnet-5")
+            .setValue(this.plugin.settings.model)
+            .onChange(async (value) => {
+              this.plugin.settings.model = value.trim() || "claude-sonnet-5";
+              await this.plugin.saveSettings();
+            }),
+      },
+    });
+
+    settingRow(containerEl, {
+      name: "Device-local key fallback",
+      desc: "Only if SecretStorage fails: non-synced local storage (still never data.json).",
+      control: {
+        kind: "toggle",
+        configure: (toggle) =>
+          toggle
+            .setValue(this.plugin.settings.useDeviceLocalKeyFallback)
+            .onChange(async (value) => {
+              this.plugin.settings.useDeviceLocalKeyFallback = value;
+              if (!value) {
+                this.app.saveLocalStorage(LOCAL_STORAGE_API_KEY, null);
+              }
+              await this.plugin.saveSettings();
+              this.redisplay();
+            }),
+      },
+    });
+
+    if (this.plugin.settings.useDeviceLocalKeyFallback) {
+      const stored = loadLocal(this.app, LOCAL_STORAGE_API_KEY);
+      const localKey = typeof stored === "string" ? stored : "";
+      settingRow(containerEl, {
+        name: "Device-local API key",
+        desc: "This device only. Prefer SecretStorage.",
+        control: {
+          kind: "text",
+          configure: (text) => {
+            text
+              .setPlaceholder("sk-ant-…")
+              .setValue(localKey)
+              .onChange((value) => {
+                this.app.saveLocalStorage(
+                  LOCAL_STORAGE_API_KEY,
+                  value.trim() ? value.trim() : null,
+                );
+              });
+            text.inputEl.type = "password";
+            text.inputEl.autocomplete = "off";
+          },
+        },
+      });
+    }
+
+    // Override only for local dogfood. Shipping builds leave this empty → DEFAULT_PLUS_BASE_URL.
+    settingRow(containerEl, {
+      name: "Plus service URL override",
+      desc: `Empty = production (${DEFAULT_PLUS_BASE_URL}). Local: http://127.0.0.1:8787`,
+      control: {
+        kind: "text",
+        configure: (text) =>
+          text
+            .setPlaceholder(DEFAULT_PLUS_BASE_URL)
+            .setValue(this.plugin.settings.plusBaseUrl)
+            .onChange(async (value) => {
+              this.plugin.settings.plusBaseUrl = value.trim();
+              await this.plugin.saveSettings();
+            }),
+      },
+    });
   }
 
   private renderMainScreen(containerEl: HTMLElement): void {
@@ -445,8 +784,7 @@ export class AtomsSettingTab extends PluginSettingTab {
     this.renderAskSection(containerEl);
     this.renderApiSection(containerEl);
     this.renderVocabularyEntry(containerEl);
-    this.renderDevHints(containerEl);
-    this.renderDestinationEntries(containerEl);
+    this.renderAdvancedEntry(containerEl);
   }
 
   /**
@@ -462,18 +800,12 @@ export class AtomsSettingTab extends PluginSettingTab {
     });
   }
 
-  /**
-   * The remaining ways off the main screen. Grouped in one block, and last, only because the
-   * rows they lead to have not moved yet — U6 relocates each destination's content and places
-   * its entry row where that content used to sit.
-   */
-  private renderDestinationEntries(containerEl: HTMLElement): void {
-    for (const route of ["connect", "advanced"] as const) {
-      destinationRow(containerEl, {
-        name: DESTINATION_TITLES[route],
-        onOpen: () => this.openRoute(route),
-      });
-    }
+  /** Where the dev hints used to sit, in the same place and with the same name. */
+  private renderAdvancedEntry(containerEl: HTMLElement): void {
+    destinationRow(containerEl, {
+      name: DESTINATION_TITLES.advanced,
+      onOpen: () => this.openRoute("advanced"),
+    });
   }
 
   /**
@@ -1036,7 +1368,10 @@ export class AtomsSettingTab extends PluginSettingTab {
       cls: "setting-item-description",
     });
 
-    new Setting(containerEl)
+    // Still a direct `new Setting(`: the control is a `SecretComponent`, which the row grammar's
+    // toggle/text/dropdown union does not carry, and the row needs its own element to report the
+    // check into. Both are reasons this one row cannot go through a builder as it stands.
+    const setting = new Setting(containerEl)
       .setName("Anthropic API key")
       .setDesc(
         "SecretStorage on this vault + device only (not synced). Switching vaults or clearing app data (e.g. emulator pm clear) drops the key — re-enter once per vault. Secret ids: lowercase alphanumeric with dashes.",
@@ -1047,63 +1382,73 @@ export class AtomsSettingTab extends PluginSettingTab {
           .onChange(async (value) => {
             this.plugin.settings.apiKeySecretId = value;
             await this.plugin.saveSettings();
+            // Saving is the moment the answer can change, so it is the moment to re-ask.
+            this.checkApiKey();
           }),
       );
-
-    new Setting(containerEl)
-      .setName("Test connection")
-      .setDesc(
-        "Checks whether Obsidian can reach the internet and the Anthropic API from this device. Safe — does not log your key.",
-      )
-      .addButton((btn) =>
-        btn.setButtonText("Test connection").onClick(() => {
-          void this.plugin.runTestConnection();
-        }),
-      );
-
-    new Setting(containerEl)
-      .setName("Device-local key fallback")
-      .setDesc(
-        "Only if SecretStorage fails: non-synced local storage (still never data.json).",
-      )
-      .addToggle((toggle) =>
-        toggle
-          .setValue(this.plugin.settings.useDeviceLocalKeyFallback)
-          .onChange(async (value) => {
-            this.plugin.settings.useDeviceLocalKeyFallback = value;
-            if (!value) {
-              this.app.saveLocalStorage(LOCAL_STORAGE_API_KEY, null);
-            }
-            await this.plugin.saveSettings();
-            this.redisplay();
-          }),
-      );
-
-    if (this.plugin.settings.useDeviceLocalKeyFallback) {
-      const stored = loadLocal(this.app, LOCAL_STORAGE_API_KEY);
-      const localKey = typeof stored === "string" ? stored : "";
-      new Setting(containerEl)
-        .setName("Device-local API key")
-        .setDesc("This device only. Prefer SecretStorage.")
-        .addText((text) => {
-          text
-            .setPlaceholder("sk-ant-…")
-            .setValue(localKey)
-            .onChange((value) => {
-              this.app.saveLocalStorage(
-                LOCAL_STORAGE_API_KEY,
-                value.trim() ? value.trim() : null,
-              );
-            });
-          text.inputEl.type = "password";
-          text.inputEl.autocomplete = "off";
-        });
-    }
+    this.apiKeyStatusEl = setting.descEl.createDiv({
+      cls: "atoms-api-key-status",
+    });
+    this.checkApiKey();
 
     containerEl.createEl("p", {
       text: `Tip: secret id example — ${API_KEY_SECRET_ID_DEFAULT}`,
       cls: "setting-item-description",
     });
+  }
+
+  /** Put the current verdict on the row, wherever that row is now. */
+  private paintApiKeyStatus(state: ApiKeyState): void {
+    if (this.apiKeyStatusEl) {
+      this.apiKeyStatusEl.setText(apiKeyStatusText(state));
+    }
+  }
+
+  /**
+   * Answer "does this key work?" on the row itself — on render as well as on save, because a save
+   * is the only other trigger and a key saved while offline would otherwise never be re-checked.
+   *
+   * Cached by the key it was about and expired by {@link API_KEY_RECHECK_MS}, so the re-renders
+   * every other row on this screen provokes reuse the answer instead of firing a request apiece.
+   * A check already in flight for the same key is likewise joined rather than duplicated.
+   */
+  private checkApiKey(): void {
+    const key = (this.plugin.getApiKey() ?? "").trim();
+    if (!key) {
+      this.apiKeyCheck = null;
+      this.paintApiKeyStatus({ kind: "absent" });
+      return;
+    }
+    if (!looksLikeAnthropicKey(key)) {
+      // A typo is not a network question — this costs no request.
+      this.apiKeyCheck = { key, state: { kind: "malformed" }, at: Date.now() };
+      this.paintApiKeyStatus({ kind: "malformed" });
+      return;
+    }
+
+    const cached = this.apiKeyCheck;
+    if (cached?.key === key) {
+      const fresh =
+        cached.state.kind === "checking" ||
+        Date.now() - cached.at < API_KEY_RECHECK_MS;
+      if (fresh) {
+        this.paintApiKeyStatus(cached.state);
+        return;
+      }
+    }
+
+    this.apiKeyCheck = { key, state: { kind: "checking" }, at: Date.now() };
+    this.paintApiKeyStatus({ kind: "checking" });
+    void runConnectivityTest({ apiKey: key, request: this.deps.request })
+      .then(apiKeyStateFromReport)
+      // A thrown probe is still an answer: it means this device could not ask.
+      .catch((): ApiKeyState => ({ kind: "unreachable" }))
+      .then((state) => {
+        // A newer key owns the row now; this result is about a question nobody is asking.
+        if (this.apiKeyCheck?.key !== key) return;
+        this.apiKeyCheck = { key, state, at: Date.now() };
+        this.paintApiKeyStatus(state);
+      });
   }
 
   private renderAutoRunSection(containerEl: HTMLElement) {
@@ -1207,19 +1552,6 @@ export class AtomsSettingTab extends PluginSettingTab {
 
   private renderModelSection(containerEl: HTMLElement) {
     settingHeading(containerEl, "Filing");
-
-    new Setting(containerEl)
-      .setName("Model")
-      .setDesc("Anthropic model id. Default: claude-sonnet-5.")
-      .addText((text) =>
-        text
-          .setPlaceholder("claude-sonnet-5")
-          .setValue(this.plugin.settings.model)
-          .onChange(async (value) => {
-            this.plugin.settings.model = value.trim() || "claude-sonnet-5";
-            await this.plugin.saveSettings();
-          }),
-      );
 
     new Setting(containerEl)
       .setName("Atom folder")
@@ -1444,12 +1776,57 @@ export class AtomsSettingTab extends PluginSettingTab {
   /**
    * Ask — remote MCP for Claude / ChatGPT (Plus). No in-plugin chat.
    */
+  /**
+   * What the mirror last did, from device-local stamps (N = last known server count).
+   *
+   * Read by two screens now — the main screen's entry row says it in one line, the destination
+   * prints it above the rows that change it — so it is computed once here rather than twice.
+   */
+  private askMirrorStatus(sessionEmail: string): { line: string; failing: boolean } {
+    const lastOk = String(
+      (this.app.loadLocalStorage(LS_ASK_MIRROR_LAST_SUCCESS) as unknown) ?? "",
+    );
+    const lastErr = String(
+      (this.app.loadLocalStorage(LS_ASK_MIRROR_LAST_ERROR) as unknown) ?? "",
+    ).trim();
+    const serverCount = formatAskMirrorServerCount(
+      (k) => this.app.loadLocalStorage(k) as unknown,
+    );
+    const relative = (iso: string) => {
+      if (!iso) return "never";
+      const t = Date.parse(iso);
+      if (!Number.isFinite(t)) return "never";
+      const sec = Math.round((Date.now() - t) / 1000);
+      if (sec < 60) return "just now";
+      if (sec < 3600) return `${Math.floor(sec / 60)}m ago`;
+      if (sec < 86400) return `${Math.floor(sec / 3600)}h ago`;
+      return `${Math.floor(sec / 86400)}d ago`;
+    };
+    // A refusal outranks a push error: the mirror did not converge and the
+    // user needs to know deletion was withheld, not that a request failed.
+    const refused =
+      readAskMirrorRefusal(
+        (k) => this.app.loadLocalStorage(k) as unknown,
+      ).count > 0;
+    const mirrorEmail =
+      readAskMirrorEmail((k) => this.app.loadLocalStorage(k) as unknown) ||
+      sessionEmail ||
+      "";
+    return {
+      line: formatAskMirrorStatusLine({
+        serverCount,
+        email: mirrorEmail,
+        relativeLastOk: relative(lastOk),
+        lastErr: refused ? "" : lastErr,
+        refused,
+      }),
+      failing: Boolean(lastErr) || refused,
+    };
+  }
+
   private renderAskSection(containerEl: HTMLElement) {
     settingHeading(containerEl, "Ask (Claude + ChatGPT)");
     const session = readPlusSession(this.app);
-    const base =
-      this.plugin.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL;
-    const mcpUrl = askMcpUrl(base);
 
     containerEl.createEl("p", {
       text: "Cloud copy of Atoms/ on Plus — for chat search in Claude or ChatGPT. When Obsidian is open online, hand-edits and deletes push automatically. Full orphan cleanup is Sync now. Not a second library you maintain by hand.",
@@ -1560,202 +1937,15 @@ export class AtomsSettingTab extends PluginSettingTab {
       });
     }
 
-    new Setting(containerEl)
-      .setName("MCP connector URL")
-      .setDesc(
-        "Same URL for both. Claude → Settings → Connectors → Add custom connector. ChatGPT → Settings → Apps & connectors (Developer mode) → add this URL → complete OAuth.",
-      )
-      .addText((text) => {
-        text.setValue(mcpUrl).setDisabled(true);
-        text.inputEl.classList.add("atoms-settings-mcp-url-input");
-      })
-      .addButton((btn) =>
-        btn.setButtonText("Copy").onClick(async () => {
-          try {
-            await navigator.clipboard.writeText(mcpUrl);
-            new Notice("MCP URL copied");
-          } catch {
-            new Notice("Could not copy — select the URL field and copy");
-          }
-        }),
-      );
-
-    // Status line from device-local stamps (N = last known server count)
-    const lastOk = String(
-      (this.app.loadLocalStorage(LS_ASK_MIRROR_LAST_SUCCESS) as unknown) ?? "",
-    );
-    const lastErr = String(
-      (this.app.loadLocalStorage(LS_ASK_MIRROR_LAST_ERROR) as unknown) ?? "",
-    ).trim();
-    const serverCount = formatAskMirrorServerCount(
-      (k) => this.app.loadLocalStorage(k) as unknown,
-    );
-    const relative = (iso: string) => {
-      if (!iso) return "never";
-      const t = Date.parse(iso);
-      if (!Number.isFinite(t)) return "never";
-      const sec = Math.round((Date.now() - t) / 1000);
-      if (sec < 60) return "just now";
-      if (sec < 3600) return `${Math.floor(sec / 60)}m ago`;
-      if (sec < 86400) return `${Math.floor(sec / 3600)}h ago`;
-      return `${Math.floor(sec / 86400)}d ago`;
-    };
-    // A refusal outranks a push error: the mirror did not converge and the
-    // user needs to know deletion was withheld, not that a request failed.
-    const refused =
-      readAskMirrorRefusal(
-        (k) => this.app.loadLocalStorage(k) as unknown,
-      ).count > 0;
-    const mirrorEmail =
-      readAskMirrorEmail((k) => this.app.loadLocalStorage(k) as unknown) ||
-      session.email ||
-      "";
-    const statusLine = formatAskMirrorStatusLine({
-      serverCount,
-      email: mirrorEmail,
-      relativeLastOk: relative(lastOk),
-      lastErr: refused ? "" : lastErr,
-      refused,
+    // The plumbing — connector URL, pairing, sync, status, wipe — is one destination now. Its
+    // entry row carries the mirror's status line, so the main screen still says at a glance
+    // whether the cloud copy is current.
+    const status = this.askMirrorStatus(session.email);
+    destinationRow(containerEl, {
+      name: DESTINATION_TITLES.connect,
+      desc: status.line,
+      onOpen: () => this.openRoute("connect"),
     });
-    containerEl.createEl("p", {
-      text: statusLine,
-      cls: lastErr || refused
-        ? "setting-item-description atoms-ask-mirror-error"
-        : "setting-item-description",
-    });
-
-    new Setting(containerEl)
-      .setName("Link Claude / ChatGPT")
-      .setDesc(
-        "Generate a short pairing code for the connector authorize page. Your Claude/ChatGPT account email need not match Atoms Plus — the code binds the Plus account shown above. Codes expire quickly and are secrets (do not share). After pairing, disconnect/reconnect the connector if counts still look stale.",
-      )
-      .addButton((btn) =>
-        btn.setButtonText("Get pairing code").onClick(async () => {
-          if (!this.plugin.settings.askEnabled) {
-            new Notice("Enable Ask mirror first");
-            return;
-          }
-          btn.setDisabled(true);
-          try {
-            const r = await askMcpPair(
-              { baseUrl: base, request: plusFetchRequest },
-              session.sessionToken,
-            );
-            if (!r.ok) {
-              new Notice(`Pairing: ${r.message}`);
-              return;
-            }
-            const raw = r.code.replace(/-/g, "");
-            const display =
-              raw.length === 8
-                ? `${raw.slice(0, 4)}-${raw.slice(4)}`
-                : r.code;
-            try {
-              await navigator.clipboard.writeText(display);
-              new Notice(
-                `Pairing code ${display} copied — paste on the connector authorize page (expires soon)`,
-              );
-            } catch {
-              new Notice(
-                `Pairing code: ${display} — paste on the connector authorize page (expires soon)`,
-              );
-            }
-          } finally {
-            btn.setDisabled(false);
-          }
-        }),
-      );
-
-    new Setting(containerEl)
-      .setName("Sync now")
-      .setDesc(
-        "Full refresh from this device’s Atoms/ (orphans removed on Plus). Multi-device: incomplete vault here can delete cloud rows for atoms only on another device until Obsidian Sync catches up.",
-      )
-      .addButton((btn) =>
-        btn.setButtonText("Sync now").setCta().onClick(async () => {
-          const outcome = await this.plugin.syncAskMirror({ force: true });
-          // Four distinct outcomes. "joined" is not a zero-work success, and a
-          // refusal must never read as "reconciled" in the loudest channel the
-          // user is watching (R7). Failure is null here only because a forced
-          // push always toasts its own failure — it ignores the background
-          // dedupe flag precisely so this gesture is never silent.
-          const msg = syncNowNotice(outcome);
-          if (msg) new Notice(msg);
-          // Refresh either way so the status line reflects what just happened.
-          this.redisplay();
-        }),
-      );
-
-    new Setting(containerEl)
-      .setName("Cloud mirror status")
-      .setDesc("Refresh server atom count (what Claude/ChatGPT can see).")
-      .addButton((btn) =>
-        btn.setButtonText("Refresh").onClick(async () => {
-          const r = await askMirrorStatus(
-            { baseUrl: base, request: plusFetchRequest },
-            session.sessionToken,
-          );
-          if (!r.ok) {
-            new Notice(`Ask: ${r.message}`);
-            return;
-          }
-          saveAskMirrorStatus(
-            (k, v) => this.app.saveLocalStorage(k, v),
-            r,
-          );
-          const as = r.email ? ` as ${r.email}` : "";
-          new Notice(`Ask mirror: ${r.count} atom(s)${as}`);
-          this.redisplay();
-        }),
-      );
-
-    new Setting(containerEl)
-      .setName("Wipe cloud copy")
-      .setDesc(
-        "Delete mirrored atoms, pending Ask writes (outbox), and revoke Ask connector tokens for this account. Does not delete vault files.",
-      )
-      .addButton((btn) =>
-        markDestructive(btn.setButtonText("Wipe"))
-          .onClick(() => {
-            const modal = new Modal(this.app);
-            modal.titleEl.setText("Wipe cloud copy?");
-            modal.contentEl.createEl("p", {
-              text: "Wipe cloud atom mirror, pending Ask writes, and revoke Ask connector access (Claude + ChatGPT)? Local vault files are kept.",
-            });
-            new Setting(modal.contentEl)
-              .addButton((b) =>
-                b.setButtonText("Cancel").onClick(() => modal.close()),
-              )
-              .addButton((b) =>
-                markDestructive(b.setButtonText("Wipe"))
-                  .setCta()
-                  .onClick(() => {
-                    modal.close();
-                    void (async () => {
-                      const r = await askMirrorWipe(
-                        { baseUrl: base, request: plusFetchRequest },
-                        session.sessionToken,
-                      );
-                      if (!r.ok) {
-                        new Notice(`Ask: ${r.message}`);
-                        return;
-                      }
-                      // One owner for the reset. Re-listing the keys here is
-                      // how the wipe and the gate's readers drift — and a wipe
-                      // that leaves a *parseable* count behind hands the gate a
-                      // fabricated authority for the cloud it just emptied.
-                      clearAskMirrorDeviceState((k, v) =>
-                        this.app.saveLocalStorage(k, v),
-                      );
-                      await this.plugin.saveSettings();
-                      new Notice("Ask mirror wiped");
-                      this.redisplay();
-                    })();
-                  }),
-              );
-            modal.open();
-          }),
-      );
 
     new Setting(containerEl)
       .setName("Self-host Ask")
@@ -1769,30 +1959,6 @@ export class AtomsSettingTab extends PluginSettingTab {
             "_blank",
           );
         }),
-      );
-  }
-
-  private renderDevHints(containerEl: HTMLElement) {
-    settingHeading(containerEl, "Advanced");
-    containerEl.createEl("p", {
-      text: "Leave these alone unless you self-host or dogfood a local Plus server.",
-      cls: "setting-item-description",
-    });
-
-    // Override only for local dogfood. Shipping builds leave this empty → DEFAULT_PLUS_BASE_URL.
-    new Setting(containerEl)
-      .setName("Plus service URL override")
-      .setDesc(
-        `Empty = production (${DEFAULT_PLUS_BASE_URL}). Local: http://127.0.0.1:8787`,
-      )
-      .addText((text) =>
-        text
-          .setPlaceholder(DEFAULT_PLUS_BASE_URL)
-          .setValue(this.plugin.settings.plusBaseUrl)
-          .onChange(async (value) => {
-            this.plugin.settings.plusBaseUrl = value.trim();
-            await this.plugin.saveSettings();
-          }),
       );
   }
 }
@@ -1928,12 +2094,11 @@ export class AskMirrorDeleteConfirmModal extends Modal {
         }),
       )
       .addButton((btn) =>
-        btn
-          .setButtonText("Delete from cloud")
-          .setWarning()
-          .onClick(() => {
-            this.answer("confirmed");
-          }),
+        // Through the helper like every other destructive button: it prefers `setDestructive`
+        // (Obsidian 1.13+) and falls back to `setWarning` against the manifest's 1.11.4 floor.
+        markDestructive(btn.setButtonText("Delete from cloud")).onClick(() => {
+          this.answer("confirmed");
+        }),
       );
   }
 

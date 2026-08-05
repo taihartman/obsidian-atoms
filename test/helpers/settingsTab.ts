@@ -1,4 +1,7 @@
-import { AtomsSettingTab } from "../../src/settings/settings";
+import {
+  AtomsSettingTab,
+  type ConnectivityRequest,
+} from "../../src/settings/settings";
 // `../mocks/obsidian` rather than `"obsidian"`: vitest aliases the module, `tsc` does not.
 import { Modal } from "../mocks/obsidian";
 import {
@@ -12,6 +15,10 @@ import { DEFAULT_SETTINGS, type LinkerSettings } from "../../src/shared/types";
 export interface SettingTabOptions {
   /** What `plugin.resolveFilingAuth()` reports. Defaults to no credentials at all. */
   auth?: FilingAuth;
+  /** What `plugin.getApiKey()` resolves to — the key the API-key row checks. */
+  apiKey?: string | null;
+  /** The request the API-key row's connectivity check goes through. Defaults to none. */
+  request?: ConnectivityRequest;
   /** Device-local Plus session the tab reads back through `readPlusSession`. */
   session?: PlusSession | null;
   /** Overrides merged over `DEFAULT_SETTINGS` for the plugin double. */
@@ -33,6 +40,12 @@ export function settingTab(opts: SettingTabOptions = {}): {
   scroller: HTMLElement;
   /** Device-local storage the tab reads and writes, for asserting on ack keys. */
   local: Map<string, unknown>;
+  /**
+   * Every plugin method the tab actually invoked, in order. A row that acts reaches the plugin
+   * to do it, so this is how a test can assert that a screen's rows do *nothing* — without
+   * naming the methods it hopes they did not call.
+   */
+  calls: string[];
 } {
   // A sheet left open by an earlier test would still be in `Modal.open` and in the document.
   for (const stale of [...Modal.open]) stale.close();
@@ -64,22 +77,32 @@ export function settingTab(opts: SettingTabOptions = {}): {
     manifest: { version: "9.9.9" },
     settings: { ...DEFAULT_SETTINGS, ...opts.settings },
     resolveFilingAuth: () => opts.auth ?? { mode: "none" },
+    getApiKey: () => opts.apiKey ?? null,
     // The Proxy's no-op fallback returns `undefined`, and these two are handed to
     // `fireAndForgetAsk`, which calls `.catch` on what it is given.
     syncAskMirror: () => Promise.resolve({ ok: false, message: "test double" }),
     applyAskOutbox: () => Promise.resolve(),
   };
+  const calls: string[] = [];
   const plugin = new Proxy(known, {
-    get: (target, prop: string) => (prop in target ? target[prop] : () => undefined),
+    get: (target, prop: string) =>
+      prop in target
+        ? target[prop]
+        : () => {
+            calls.push(prop);
+            return undefined;
+          },
     has: () => true,
   });
 
-  const tab = new AtomsSettingTab(app as never, plugin as never);
+  const tab = new AtomsSettingTab(app as never, plugin as never, {
+    request: opts.request,
+  });
   // `settingsScrollEl()` falls back to `containerEl.parentElement`, so the tab needs one for
   // the scroll assertions to be about the tab rather than about a null scroller.
   const scroller = document.createElement("div");
   scroller.appendChild(tab.containerEl);
-  return { tab, scroller, local };
+  return { tab, scroller, local, calls };
 }
 
 /** The one sheet currently up. Throws rather than letting an assertion pass against nothing. */

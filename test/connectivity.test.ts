@@ -7,6 +7,11 @@ import {
   runConnectivityTest,
   type ProbeResult,
 } from "../src/platform/connectivity";
+import {
+  apiKeyStateFromReport,
+  apiKeyStatusText,
+  looksLikeAnthropicKey,
+} from "../src/settings/settings";
 
 describe("probeHttpsBaseline", () => {
   it("treats HTTP 200 as success", async () => {
@@ -169,5 +174,43 @@ describe("runConnectivityTest", () => {
     expect(request).toHaveBeenCalledTimes(2);
     expect(report.probes).toHaveLength(2);
     expect(report.verdict).toBe("no_key");
+  });
+});
+
+/**
+ * U6 — the API-key row reads this report rather than re-deriving reachability. The three
+ * outcomes it renders have to be distinguishable *here*, or the row cannot tell a user whose
+ * key is wrong from a user whose network is down.
+ */
+describe("what the API key row reads off a report", () => {
+  const probe = async (status: number | "throw") => {
+    const request = vi.fn().mockImplementation(async () => {
+      if (status === "throw") throw new Error("net::ERR_INTERNET_DISCONNECTED");
+      return { status, json: {} };
+    });
+    return runConnectivityTest({ apiKey: "sk-ant-api03-key", request: request as never });
+  };
+
+  it("separates reachable-and-rejected from unreachable", async () => {
+    const rejected = await probe(401);
+    const offline = await probe("throw");
+
+    expect(apiKeyStateFromReport(rejected)).toEqual({ kind: "rejected" });
+    expect(apiKeyStateFromReport(offline)).toEqual({ kind: "unreachable" });
+    expect(apiKeyStateFromReport(await probe(200))).toEqual({ kind: "ok" });
+  });
+
+  it("knows an Anthropic key by shape before spending a request on it", () => {
+    expect(looksLikeAnthropicKey("sk-ant-api03-abcdefghij")).toBe(true);
+    expect(looksLikeAnthropicKey("  sk-ant-api03-abcdefghij  ")).toBe(true);
+    expect(looksLikeAnthropicKey("hunter2")).toBe(false);
+    expect(looksLikeAnthropicKey("sk-ant-")).toBe(false);
+    expect(looksLikeAnthropicKey("")).toBe(false);
+  });
+
+  it("gives every state its own sentence", () => {
+    const states = ["absent", "checking", "malformed", "unreachable", "rejected", "ok"] as const;
+    const said = states.map((kind) => apiKeyStatusText({ kind }));
+    expect(new Set(said).size).toBe(states.length);
   });
 });
