@@ -7,6 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
+| In progress | #257 #258 | taihartman | `feat/ask-mcp-created-list` | `docs/plans/2026-08-04-005-feat-ask-mcp-created-and-list-pending-plan.md` | `askMirror.ts`, `askHelpers.mjs`, store trio, `mcp/tools.mjs` | created+sort then list_pending; worktree `../obsidian_plugin-ask-mcp-created-list` |
 
 ## How to claim (copy)
 

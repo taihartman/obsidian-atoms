@@ -48,9 +48,12 @@ export function registerAskTools(mcp, ctx) {
     return checkRateLimit(`ask-write:${email}`, 30);
   }
 
-  /** Full-mirror scans (list_tags) — cheaper than write, still bounded. */
+  /** Full-mirror scans (list_tags / list_atoms) — cheaper than write, still bounded. */
   function listTagsRateOk() {
     return checkRateLimit(`ask-list-tags:${email}`, 60);
+  }
+  function listAtomsRateOk() {
+    return checkRateLimit(`ask-list-atoms:${email}`, 60);
   }
 
   function requireWrite() {
@@ -510,9 +513,9 @@ export function registerAskTools(mcp, ctx) {
       title: "Cancel pending write",
       annotations: { readOnlyHint: false, destructiveHint: true },
       description:
-        "Cancel a pending or claimed outbox write before Obsidian applies it. Cannot undo applied atoms.",
+        "Cancel a pending or claimed outbox write before Obsidian applies it. Cannot undo applied atoms. Use list_pending if you lost the outbox_id.",
       inputSchema: {
-        outbox_id: z.string().describe("outbox_id from create_atom/continue_atom"),
+        outbox_id: z.string().describe("outbox_id from create_atom/continue_atom/list_pending"),
       },
     },
     async ({ outbox_id }) => {
@@ -545,35 +548,116 @@ export function registerAskTools(mcp, ctx) {
   );
 
   mcp.registerTool(
+    "list_pending",
+    {
+      title: "List pending writes",
+      annotations: { readOnlyHint: true, destructiveHint: false },
+      description:
+        "List this account's non-terminal outbox writes (status pending or claimed). Use outbox_id with cancel_pending. Requires atoms:write. Does not include applied/cancelled/rejected rows.",
+      inputSchema: {},
+    },
+    async () => {
+      const denied = requireWrite();
+      if (denied) return denied;
+      const rl = writeRateOk();
+      if (!rl.ok) {
+        return jsonTool(
+          { error: "rate_limited", retryAfterSec: rl.retryAfterSec },
+          true,
+        );
+      }
+      const rows = (await store.outboxListOpen(email)) || [];
+      const pending = rows.map((r) => ({
+        outbox_id: r.id,
+        kind:
+          r.kind === "continue" || r.kind === "continue_atom"
+            ? "continue_atom"
+            : "create_atom",
+        status: r.status,
+        title: r.payload?.title ?? null,
+        created_at: r.created_at ?? null,
+        client_request_id: r.client_request_id ?? null,
+      }));
+      return jsonTool({
+        account: email,
+        pending,
+        count: pending.length,
+      });
+    },
+  );
+
+  mcp.registerTool(
     "list_atoms",
     {
       title: "List atoms",
       annotations: { readOnlyHint: true, destructiveHint: false },
       description:
-        "List mirrored atoms (title, path, tags, synced_at) with offset pagination. Includes server_count and last_synced_at for staleness. Use to enumerate the full mirror beyond search_atoms limit 25.",
+        "List mirrored atoms (title, path, tags, created, synced_at) with offset pagination. Default order is title ASC (unchanged). For newest-by-note-date use sort_by=created order=desc. Optional created_after/before (ISO or YYYY-MM-DD) and tags (all must match). Missing created sorts last on created sort.",
       inputSchema: {
         limit: z.number().int().min(1).max(50).optional(),
         offset: z.number().int().min(0).optional(),
+        sort_by: z.enum(["title", "created", "synced"]).optional(),
+        order: z.enum(["asc", "desc"]).optional(),
+        created_after: z
+          .string()
+          .optional()
+          .describe("Inclusive lower bound on created (ISO or YYYY-MM-DD)"),
+        created_before: z
+          .string()
+          .optional()
+          .describe("Inclusive upper bound on created (ISO or YYYY-MM-DD)"),
+        tags: z
+          .array(z.string())
+          .optional()
+          .describe("All tags must match (same as search_atoms)"),
       },
     },
-    async ({ limit, offset }) => {
+    async ({
+      limit,
+      offset,
+      sort_by,
+      order,
+      created_after,
+      created_before,
+      tags,
+    }) => {
+      const rl = listAtomsRateOk();
+      if (!rl.ok) {
+        return jsonTool(
+          { error: "rate_limited", retryAfterSec: rl.retryAfterSec },
+          true,
+        );
+      }
       const page = await store.mirrorList(email, {
         limit: limit ?? 25,
         offset: offset ?? 0,
+        sort_by,
+        order,
+        created_after,
+        created_before,
+        tags,
       });
       const st = await store.mirrorStatus(email);
+      const cov = page.created_coverage;
+      const lowCoverage =
+        cov &&
+        cov.total > 0 &&
+        sort_by === "created" &&
+        cov.with_created / cov.total < 0.5;
       return jsonTool({
         ...page,
         account: email,
         server_count: st?.count ?? page.total,
         last_synced_at: formatLastSynced(st?.updatedAt),
-        ...absenceMeta({ searched_fields: ["title", "path", "tags"] }),
+        ...absenceMeta({ searched_fields: ["title", "path", "tags", "created"] }),
         hint:
           page.next_offset != null
             ? `More results: call list_atoms with offset=${page.next_offset}`
             : page.total === 0
               ? EMPTY_HINT
-              : undefined,
+              : lowCoverage
+                ? "created_coverage is partial—many rows lack created until vault Sync now / re-push; do not claim global newest from this page alone"
+                : undefined,
       });
     },
   );

@@ -346,6 +346,7 @@ export async function handleMirrorRoutes({
         links: raw?.links,
         atomId: raw?.id || raw?.atomId,
         kind: checked.kind,
+        created: raw?.created,
       });
     }
     // Tenant email from session only — ignore body.email

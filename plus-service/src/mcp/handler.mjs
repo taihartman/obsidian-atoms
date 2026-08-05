@@ -273,6 +273,7 @@ const WRITE_TOOL_NAMES = new Set([
   "create_atom",
   "continue_atom",
   "cancel_pending",
+  "list_pending",
 ]);
 
 /**

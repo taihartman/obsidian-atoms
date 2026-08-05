@@ -239,6 +239,8 @@ describe("MCP modern era 2026-07-28", () => {
     const listTagsTool = result.tools.find((t) => t.name === "list_tags");
     assert.ok(listTagsTool, "list_tags must appear in tools/list");
     assert.ok(listTagsTool.title || listTagsTool.annotations?.title);
+    const listPendingTool = result.tools.find((t) => t.name === "list_pending");
+    assert.ok(listPendingTool, "list_pending must appear in tools/list");
     // cache hints when present (modern complete)
     if (result.ttlMs != null) {
       assert.ok(result.ttlMs >= 60_000, `ttlMs=${result.ttlMs}`);

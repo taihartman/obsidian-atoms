@@ -7,6 +7,7 @@ import {
   buildNeighborsGraph,
   buildSearchHits,
   normEmail,
+  paginateMirrorList,
   prepareMirrorRow,
   rowToPublicAtom,
   verifyPkce,
@@ -32,6 +33,7 @@ CREATE TABLE IF NOT EXISTS atom_mirror (
   links_json TEXT NOT NULL,
   content_hash TEXT NOT NULL,
   updated_at TEXT NOT NULL,
+  created TEXT,
   PRIMARY KEY (email, path)
 );
 CREATE INDEX IF NOT EXISTS idx_atom_mirror_email ON atom_mirror(email);
@@ -119,8 +121,8 @@ export function createAskSqliteMethods(db, deps) {
       "SELECT content_hash FROM atom_mirror WHERE email = ? AND path = ?",
     );
     const ins = db.prepare(`
-      INSERT INTO atom_mirror (email, atom_id, title, path, body_enc, tags_json, links_json, content_hash, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO atom_mirror (email, atom_id, title, path, body_enc, tags_json, links_json, content_hash, updated_at, created)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(email, path) DO UPDATE SET
         atom_id=excluded.atom_id,
         title=excluded.title,
@@ -128,7 +130,8 @@ export function createAskSqliteMethods(db, deps) {
         tags_json=excluded.tags_json,
         links_json=excluded.links_json,
         content_hash=excluded.content_hash,
-        updated_at=excluded.updated_at
+        updated_at=excluded.updated_at,
+        created=COALESCE(excluded.created, atom_mirror.created)
     `);
     for (const atom of list) {
       const row = prepareMirrorRow(email, atom);
@@ -147,6 +150,7 @@ export function createAskSqliteMethods(db, deps) {
         row.linksJson,
         row.contentHash,
         row.updatedAt,
+        row.created,
       );
       upserted += 1;
     }
@@ -409,6 +413,19 @@ export function createAskSqliteMethods(db, deps) {
   /**
    * Cancel pending or claimed outbox row (not applied/rejected).
    */
+  function outboxListOpen(email) {
+    const e = normEmail(email);
+    outboxReclaimStale(e);
+    const rows = db
+      .prepare(
+        `SELECT * FROM ask_outbox
+         WHERE email = ? AND status IN ('pending','claimed')
+         ORDER BY created_at ASC`,
+      )
+      .all(e);
+    return rows.map((r) => outboxRowFromDb(r));
+  }
+
   function outboxCancel(email, outboxId) {
     const e = normEmail(email);
     const oid = String(outboxId || "").trim();
@@ -457,42 +474,20 @@ export function createAskSqliteMethods(db, deps) {
   }
 
   /**
-   * List mirror atoms (title/path/tags), stable title order, offset pagination.
+   * List mirror atoms with sort/filter/pagination (see paginateMirrorList).
    */
   function mirrorList(email, opts = {}) {
     const e = normEmail(email);
-    const limit = Math.min(Math.max(Number(opts.limit) || 25, 1), 50);
-    const offset = Math.max(Number(opts.offset) || 0, 0);
+    // List columns only — never pull body_enc for pagination scans.
     const rows = db
       .prepare(
-        `SELECT * FROM atom_mirror WHERE email = ?
-         ORDER BY title COLLATE NOCASE ASC, path ASC
-         LIMIT ? OFFSET ?`,
+        `SELECT email, atom_id, title, path, tags_json, links_json,
+                content_hash, updated_at, created
+         FROM atom_mirror WHERE email = ?`,
       )
-      .all(e, limit, offset);
-    const total = db
-      .prepare(`SELECT COUNT(*) AS n FROM atom_mirror WHERE email = ?`)
-      .get(e);
-    const items = rows.map((r) => {
-      const pub = rowToPublicAtom(r, { includeBody: false });
-      return {
-        id: pub.id,
-        title: pub.title,
-        path: pub.path,
-        tags: pub.tags,
-        kind: pub.kind,
-        synced_at: pub.updatedAt ?? null,
-      };
-    });
-    const count = total?.n ?? 0;
-    const next_offset = offset + items.length < count ? offset + items.length : null;
-    return {
-      items,
-      total: count,
-      offset,
-      limit,
-      next_offset,
-    };
+      .all(e);
+    const pubs = rows.map((r) => rowToPublicAtom(r, { includeBody: false }));
+    return paginateMirrorList(pubs, opts);
   }
 
   /** Test-only: age a claimed row for stale-lease tests. */
@@ -787,6 +782,7 @@ export function createAskSqliteMethods(db, deps) {
     outboxGet,
     outboxPendingCount,
     outboxCancel,
+    outboxListOpen,
     outboxHasOpenTitle,
     mirrorList,
     _forceOutboxClaimedAt,
