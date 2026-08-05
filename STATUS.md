@@ -8,6 +8,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
 | In progress | [#287](https://github.com/taihartman/obsidian-atoms/issues/287) | taihartman | `feat/library-skipped-filter` | [plan](docs/plans/2026-08-05-002-feat-library-skipped-filter-plan.md) | `src/home/atomsHomeView.ts`, `src/home/skippedLibrary.ts`, `src/pipeline/reconsider.ts` | Library Skipped + try filing (Reconsider); Plus/BYOK · **0.6.77** |
+| In review | [#309](https://github.com/taihartman/obsidian-atoms/issues/309) | taihartman | `claude/optimistic-pascal-01fam8` | mechanical lane — no plan | `plus-service/src/store/askHelpers.mjs`, `plus-service/test/pkce-digest.test.mjs` | One PKCE S256 digest + encoding pin. Server-only, no plugin bump. **#240 must import `pkceChallengeS256`** — its plan said hex for `verifier_hash` (fixed on `feat/240-magic-link-handoff`) |
 
 ## How to claim (copy)
 
