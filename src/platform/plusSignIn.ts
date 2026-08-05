@@ -41,6 +41,14 @@ export const MAGIC_LINK_NETWORK_MESSAGE =
 export const MAGIC_LINK_UNKNOWN_MESSAGE =
   "Could not check this sign-in link. Tap it again, or request a new one from Settings → Atoms.";
 
+/**
+ * The peek has answered and the only thing left is the human. Live smoke found
+ * "Checking this sign-in link…" still sitting behind the open confirmation,
+ * which reads as work in progress when nothing is running (R19).
+ */
+export const SIGN_IN_AWAITING_CONFIRMATION_MESSAGE =
+  "Confirm the sign-in to finish.";
+
 /** Shown from the approval until the session lands (R19). */
 export const SIGNING_IN_APPROVED_MESSAGE = "Signing in…";
 
@@ -205,6 +213,7 @@ export async function completeSignInHandoff(
   approval: MagicHandoffApproval,
 ): Promise<void> {
   const { status } = approval;
+  status.update(SIGN_IN_AWAITING_CONFIRMATION_MESSAGE);
   const verdict = await host.confirmSignIn({
     kind: "plus-signin",
     email: approval.email,
@@ -260,6 +269,13 @@ export function createSignInHandoffQueue(opts: {
 
   let host: PlusSignInHost | null = null;
   let slot: { token: string; status: SignInStatusSurface } | null = null;
+  /**
+   * The surface the *previous* tap left behind. Terminal progress lines do not
+   * expire (that is the point — see `fail`), so live smoke found a finished
+   * handoff's "Left signed out" sitting beside a fresh confirmation. A new tap
+   * owns the screen and retires the last one, queued or long since finished.
+   */
+  let live: SignInStatusSurface | null = null;
 
   const run = async (token: string, status: SignInStatusSurface) => {
     if (!host) return;
@@ -277,8 +293,9 @@ export function createSignInHandoffQueue(opts: {
       const token =
         typeof params?.token === "string" ? params.token.trim() : "";
       if (!token) return;
-      slot?.status.hide();
+      live?.hide();
       const status = openStatus();
+      live = status;
       status.update(SIGNING_IN_MESSAGE);
       if (host) {
         slot = null;

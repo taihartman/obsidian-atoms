@@ -40,6 +40,7 @@ import {
   sanitizeVaultLabel,
   MAGIC_LINK_NETWORK_MESSAGE,
   MAGIC_LINK_RATE_LIMITED_MESSAGE,
+  SIGN_IN_AWAITING_CONFIRMATION_MESSAGE,
   SIGN_IN_DECLINED_MESSAGE,
   SIGNING_IN_APPROVED_MESSAGE,
   SIGNING_IN_MESSAGE,
@@ -288,6 +289,10 @@ describe("plusSignIn — every outcome says something", () => {
     expect(h.confirms).toEqual([{ kind: "plus-signin", email: "a@b.co" }]);
     // Declined by default in the harness, so the peek stands alone here.
     expect(exchange).not.toHaveBeenCalled();
+    // Nothing is running while the question is open, and the surface says so.
+    expect(h.surfaces[0].messages).toContain(
+      SIGN_IN_AWAITING_CONFIRMATION_MESSAGE,
+    );
   });
 
   it("surfaces the request-a-new-link message for an expired token", async () => {
@@ -448,6 +453,8 @@ describe("plusSignIn — the exchange runs only on approval (U10)", () => {
     await done;
     expect(h.surfaces[0].messages).toEqual([
       SIGNING_IN_MESSAGE,
+      // The peek is done, so "Checking…" is retired before the question lands.
+      SIGN_IN_AWAITING_CONFIRMATION_MESSAGE,
       SIGNING_IN_APPROVED_MESSAGE,
       signedInMessage("a@b.co"),
     ]);
@@ -634,6 +641,24 @@ describe("plusSignIn — cold-open queue", () => {
     expect(peek).toHaveBeenCalledTimes(1);
     expect(peek.mock.calls[0][1]).toMatchObject({ token: "tok_2" });
     expect(h.surfaces[0].hidden).toBe(true);
+  });
+
+  it("retires the previous tap's surface, even one that already finished", async () => {
+    const h = harness({
+      pending: [{ verifier: "v1", vault: "Notes", requestedAt: 1000 }],
+    });
+    peek.mockResolvedValue(usable);
+    h.queue.ready(h.host);
+
+    await h.queue.accept({ action: "atoms-signin", token: "tok_1" });
+    expect(h.surfaces[0].messages).toContain(SIGN_IN_DECLINED_MESSAGE);
+    expect(h.surfaces[0].hidden).toBe(false);
+
+    // Second tap: the finished outcome must not sit beside the new question.
+    await h.queue.accept({ action: "atoms-signin", token: "tok_1" });
+    expect(h.surfaces).toHaveLength(2);
+    expect(h.surfaces[0].hidden).toBe(true);
+    expect(h.surfaces[1].hidden).toBe(false);
   });
 });
 
