@@ -47,3 +47,6 @@ firepit-log.txt
 # compound-engineering local (machine-specific) config
 .compound-engineering/config.local.yaml
 graphify-out/
+
+# Throwaway vault used for the /setup install walkthrough
+new vault/

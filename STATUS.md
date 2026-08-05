@@ -8,6 +8,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
 | In progress | #16 | taihartman | `feat/continue-atom` | `docs/plans/2026-08-04-006-feat-continue-existing-atom-plan.md` | `src/home/atomsHomeView.ts`, `src/platform/continueParent.ts`, `src/pipeline/classify.ts` | Home Continue + community lint; shipping release |
+| In progress | #277 | taihartman | `docs/setup-guide` | `docs/plans/2026-08-04-005-docs-setup-guide-plan.md` | `www/src/setup.html.tmpl`, `www/src/index.html.tmpl`, `www/build.mjs`, `www/src/styles.css`, `test/wwwPricing.test.ts` | New `/setup` page: install · iOS capture · Ask. Site-only, no plugin code. U1 walkthrough done |
 
 ## How to claim (copy)
 
