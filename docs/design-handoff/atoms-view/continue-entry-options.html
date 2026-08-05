@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Continue entry — vault-first options</title>
+<style>
+  :root {
+    --bg: #000;
+    --card: #1c1c1e;
+    --elevated: #2c2c2e;
+    --sep: rgba(84, 84, 88, 0.55);
+    --label: #fff;
+    --secondary: rgba(235, 235, 245, 0.6);
+    --tertiary: rgba(235, 235, 245, 0.32);
+    --tint: #0a84ff;
+    --mind: #bf5af2;
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+    --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: var(--sans);
+    background: #0a0a0c;
+    color: var(--label);
+    line-height: 1.35;
+    padding: 32px 24px 80px;
+  }
+  h1 {
+    font-size: 1.35rem;
+    font-weight: 600;
+    margin: 0 0 8px;
+    letter-spacing: -0.02em;
+  }
+  .lede {
+    color: var(--secondary);
+    max-width: 52rem;
+    margin: 0 0 12px;
+    font-size: 0.95rem;
+  }
+  .lock {
+    display: inline-block;
+    background: var(--elevated);
+    border: 1px solid var(--sep);
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 0.8rem;
+    color: var(--secondary);
+    margin-bottom: 28px;
+  }
+  .lock strong { color: var(--label); font-weight: 600; }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 28px;
+    align-items: start;
+  }
+  .opt { max-width: 320px; }
+  .badge {
+    display: inline-block;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border-radius: 4px;
+    margin-bottom: 8px;
+  }
+  .badge-wrong { background: rgba(255, 69, 58, 0.2); color: #ff6961; }
+  .badge-ok { background: rgba(48, 209, 88, 0.15); color: #30d158; }
+  .badge-pick { background: rgba(10, 132, 255, 0.2); color: #64b5ff; }
+  .opt h2 {
+    font-size: 0.95rem;
+    font-weight: 600;
+    margin: 0 0 6px;
+  }
+  .opt p.why {
+    font-size: 0.78rem;
+    color: var(--secondary);
+    margin: 0 0 14px;
+    min-height: 2.6em;
+  }
+  /* Phone chrome */
+  .phone {
+    width: 280px;
+    border-radius: 28px;
+    border: 1px solid var(--sep);
+    background: var(--bg);
+    overflow: hidden;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.45);
+  }
+  .phone-bar {
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.65rem;
+    color: var(--tertiary);
+    border-bottom: 1px solid var(--sep);
+  }
+  .phone-body { padding: 10px 12px 16px; min-height: 420px; }
+  .hdr {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+    min-height: 36px;
+  }
+  .hdr .ico {
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    background: var(--elevated);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.85rem; color: var(--secondary);
+  }
+  .hdr h3 { flex: 1; margin: 0; font-size: 1.05rem; font-weight: 700; }
+  .sub {
+    font-size: 0.7rem;
+    color: var(--tertiary);
+    margin: -6px 0 12px;
+  }
+  .section {
+    font-size: 0.65rem;
+    font-weight: 600;
+    color: var(--tertiary);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin: 14px 0 6px;
+  }
+  .list {
+    background: var(--card);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .row {
+    display: flex;
+    align-items: center;
+    padding: 12px 14px;
+    min-height: 48px;
+    border-bottom: 1px solid var(--sep);
+    font-size: 0.88rem;
+    gap: 8px;
+  }
+  .row:last-child { border-bottom: none; }
+  .row .t { flex: 1; }
+  .row .meta { font-size: 0.7rem; color: var(--tertiary); }
+  .row.tap { outline: 1.5px solid var(--tint); outline-offset: -1px; }
+  .arrow { color: var(--tertiary); font-size: 0.75rem; }
+  .chip {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    background: var(--card);
+    border-radius: 12px;
+    padding: 10px 12px;
+    margin-bottom: 12px;
+    font-size: 0.8rem;
+  }
+  .chip .quiet {
+    color: var(--tint);
+    font-size: 0.75rem;
+    font-weight: 500;
+  }
+  .btn-row { display: flex; gap: 8px; margin-top: 12px; }
+  .btn {
+    flex: 1;
+    text-align: center;
+    padding: 11px 8px;
+    border-radius: 10px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    min-height: 44px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .btn-p { background: var(--tint); color: #fff; }
+  .btn-s { background: var(--elevated); color: var(--label); }
+  .btn-q { background: transparent; color: var(--secondary); border: 1px solid var(--sep); }
+  .quote {
+    font-family: var(--serif);
+    font-size: 0.95rem;
+    color: var(--label);
+    margin: 12px 0;
+    padding: 0 4px;
+    line-height: 1.45;
+  }
+  .quote::before { content: "“"; color: var(--tertiary); }
+  .quote::after { content: "”"; color: var(--tertiary); }
+  .editor {
+    background: var(--bg);
+    border: 1px solid var(--sep);
+    border-radius: 8px;
+    padding: 12px;
+    min-height: 160px;
+    margin-top: 8px;
+  }
+  .editor .fm {
+    font-size: 0.65rem;
+    color: var(--tertiary);
+    font-family: ui-monospace, monospace;
+    margin-bottom: 10px;
+  }
+  .editor .body {
+    font-family: var(--serif);
+    font-size: 0.9rem;
+    color: var(--label);
+  }
+  .cmd {
+    position: absolute;
+    left: 12px; right: 12px; top: 72px;
+    background: var(--elevated);
+    border-radius: 12px;
+    border: 1px solid var(--sep);
+    box-shadow: 0 16px 48px rgba(0,0,0,0.55);
+    overflow: hidden;
+    z-index: 2;
+  }
+  .cmd-search {
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--sep);
+    font-size: 0.85rem;
+    color: var(--secondary);
+  }
+  .cmd-search span { color: var(--label); }
+  .cmd-item {
+    padding: 11px 14px;
+    font-size: 0.82rem;
+    border-bottom: 1px solid var(--sep);
+  }
+  .cmd-item.hi { background: rgba(10, 132, 255, 0.25); }
+  .cmd-item .k { font-size: 0.65rem; color: var(--tertiary); float: right; }
+  .phone-wrap { position: relative; }
+  .flow {
+    font-size: 0.72rem;
+    color: var(--tertiary);
+    margin-top: 10px;
+    padding: 0 4px;
+  }
+  .flow b { color: var(--secondary); font-weight: 600; }
+  .rec {
+    margin-top: 36px;
+    max-width: 40rem;
+    padding: 16px 18px;
+    background: var(--card);
+    border-radius: 14px;
+    border: 1px solid var(--sep);
+  }
+  .rec h2 { font-size: 0.9rem; margin: 0 0 8px; }
+  .rec p { margin: 0; font-size: 0.85rem; color: var(--secondary); }
+  .split {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .pane-label {
+    font-size: 0.6rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--tertiary);
+    margin-bottom: 4px;
+  }
+  .citator {
+    font-size: 0.72rem;
+    color: var(--mind);
+    margin: 8px 0;
+  }
+</style>
+</head>
+<body>
+
+<h1>Continue entry — after vault-first Library</h1>
+<p class="lede">
+  Side-panel Library always opens the real Obsidian note. No in-home reader for library rows.
+  Question: where does <strong>Continue</strong> live so the handoff still works?
+</p>
+<p class="lock"><strong>Locked:</strong> Library tap → vault leaf. Land peak → vault leaf. No second body UI for the list.</p>
+
+<div class="grid">
+
+  <!-- WRONG -->
+  <div class="opt">
+    <span class="badge badge-wrong">Shipped wrong · 0.6.71</span>
+    <h2>Library opens home-open</h2>
+    <p class="why">Tap a library row → in-plugin reader. Feels like a second app. Blocks the real note.</p>
+    <div class="phone">
+      <div class="phone-bar">9:41</div>
+      <div class="phone-body">
+        <div class="hdr">
+          <div class="ico">‹</div>
+          <h3 style="font-size:0.95rem">Sleep debt is real</h3>
+        </div>
+        <p class="citator">later you wrote…</p>
+        <p class="quote">I keep underestimating how long recovery takes after travel.</p>
+        <div class="btn-row">
+          <div class="btn btn-p">Continue</div>
+          <div class="btn btn-s">Open in vault</div>
+        </div>
+        <p class="flow"><b>Problem:</b> extra hop. Side panel should have landed in vault already.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- BASELINE -->
+  <div class="opt">
+    <span class="badge badge-ok">Baseline · restore</span>
+    <h2>Library → vault note</h2>
+    <p class="why">Tap row → Obsidian editor on that atom. Same as before #16. Home stays home.</p>
+    <div class="phone">
+      <div class="phone-bar">9:41 · Atoms home</div>
+      <div class="phone-body">
+        <div class="hdr"><h3>Atoms</h3><div class="ico">◎</div></div>
+        <p class="sub">Filed when you open</p>
+        <div class="section">Library</div>
+        <div class="list">
+          <div class="row tap">
+            <span class="t">Sleep debt is real</span>
+            <span class="meta">2d</span>
+            <span class="arrow">→ vault</span>
+          </div>
+          <div class="row">
+            <span class="t">Cortisol after flights</span>
+            <span class="meta">5d</span>
+          </div>
+          <div class="row">
+            <span class="t">Pack light for Japan</span>
+            <span class="meta">1w</span>
+          </div>
+        </div>
+        <div class="editor" style="margin-top:14px">
+          <div class="pane-label">Editor leaf (same vault)</div>
+          <div class="fm">--- · generated-by: linker</div>
+          <div class="body">I keep underestimating how long recovery takes after travel.</div>
+        </div>
+        <p class="flow"><b>Correct default.</b> Continue needs another entry.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- A COMMAND -->
+  <div class="opt">
+    <span class="badge badge-pick">Option A · recommended</span>
+    <h2>Command: Continue this atom</h2>
+    <p class="why">While an atom is open in the editor, command palette arms pending + opens today. Zero library change.</p>
+    <div class="phone-wrap">
+      <div class="phone">
+        <div class="phone-bar">9:41 · editor</div>
+        <div class="phone-body">
+          <div class="pane-label">Active file: Atoms/Sleep debt is real.md</div>
+          <div class="editor">
+            <div class="fm">title · tags · links</div>
+            <div class="body">I keep underestimating how long recovery takes after travel.</div>
+          </div>
+          <div class="cmd">
+            <div class="cmd-search">Continue <span>this atom</span></div>
+            <div class="cmd-item hi">Continue this atom <span class="k">Atoms</span></div>
+            <div class="cmd-item">Process unprocessed</div>
+            <div class="cmd-item">Open Atoms home</div>
+          </div>
+          <p class="flow" style="margin-top:120px"><b>Then:</b> Notice “Continuing Sleep debt…” · today opens · chip on home.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- B CITATOR ONLY -->
+  <div class="opt">
+    <span class="badge badge-pick">Option B · thin</span>
+    <h2>Continue only on graph surfaces</h2>
+    <p class="why">Home-open stays for citator / Also about / mind-change. Continue button there only. Library never enters home-open.</p>
+    <div class="phone">
+      <div class="phone-bar">9:41 · from mind-change</div>
+      <div class="phone-body">
+        <div class="hdr">
+          <div class="ico">‹</div>
+          <h3 style="font-size:0.9rem">Then / Now</h3>
+        </div>
+        <p class="citator">revises · Sleep debt is real</p>
+        <p class="quote" style="font-size:0.85rem">Actually it might be cortisol after long flights.</p>
+        <div class="btn-row">
+          <div class="btn btn-p">Continue</div>
+          <div class="btn btn-s">Open in vault</div>
+        </div>
+        <p class="flow"><b>Risk:</b> hard to discover if you never open pairs.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- C BOTH -->
+  <div class="opt">
+    <span class="badge badge-pick">Option C · full</span>
+    <h2>Command + home-open Continue</h2>
+    <p class="why">A for vault users. B for people already in citator. Same handoff underneath.</p>
+    <div class="phone">
+      <div class="phone-bar">9:41 · home after Continue</div>
+      <div class="phone-body">
+        <div class="hdr"><h3>Atoms</h3></div>
+        <div class="chip">
+          <span>Continuing Sleep debt is real</span>
+          <span class="quiet">Cancel</span>
+          <span class="quiet">Process today</span>
+        </div>
+        <div class="section">Library</div>
+        <div class="list">
+          <div class="row"><span class="t">Sleep debt is real</span><span class="arrow">→ vault</span></div>
+          <div class="row"><span class="t">Cortisol after flights</span></div>
+        </div>
+        <p class="flow"><b>Chip</b> is the only new chrome on main home. List stays vault.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- D MOBILE LONG PRESS - rejected-ish -->
+  <div class="opt">
+    <span class="badge" style="background:var(--elevated);color:var(--tertiary)">Option D · skip</span>
+    <h2>Long-press library row</h2>
+    <p class="why">Secondary action Continue without stealing the tap. Desktop has no long-press habit. Skip for v1.</p>
+    <div class="phone">
+      <div class="phone-bar">9:41</div>
+      <div class="phone-body">
+        <div class="section">Library</div>
+        <div class="list">
+          <div class="row tap" style="flex-direction:column;align-items:stretch;gap:8px">
+            <div style="display:flex;justify-content:space-between">
+              <span class="t">Sleep debt is real</span>
+              <span class="meta">hold…</span>
+            </div>
+            <div style="display:flex;gap:8px">
+              <div class="btn btn-s" style="flex:1;font-size:0.75rem;min-height:40px">Open</div>
+              <div class="btn btn-p" style="flex:1;font-size:0.75rem;min-height:40px">Continue</div>
+            </div>
+          </div>
+        </div>
+        <p class="flow"><b>Skip:</b> invisible on desktop; teaches two gestures.</p>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="rec">
+  <h2>Recommendation</h2>
+  <p>
+    <strong>Restore Library + land → vault</strong> immediately (product regression).
+    Ship <strong>Option C</strong>: command <em>Continue this atom</em> when the active file is under Atoms/,
+    keep Continue on existing home-open surfaces (citator / pair). Main home only shows the pending chip.
+    No library reader. No long-press in v1.
+  </p>
+</div>
+
+</body>
+</html>

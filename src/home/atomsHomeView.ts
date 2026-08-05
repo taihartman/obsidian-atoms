@@ -110,6 +110,7 @@ import {
 } from "../resurface/resurface";
 import {
   actionRow,
+  attachLongPress,
   backLink,
   button,
   claimQuote,
@@ -489,8 +490,8 @@ export class AtomsHomeView extends ItemView {
   private async openLandedAtom(path: string): Promise<void> {
     this.landPeak = null;
     this.clearRunUi();
-    await this.refresh();
-    await this.openAtomInHome(path);
+    await this.openPathInVault(path);
+    void this.refresh();
   }
 
   private fillProgressContent(el: HTMLElement): void {
@@ -2286,12 +2287,25 @@ export class AtomsHomeView extends ItemView {
       const list = listGroup(scroll, { className: "atoms-home-list" });
       const now = Date.now();
       for (const e of visible) {
+        // Tap → vault note (never in-home reader). Long-press / right-click → Continue.
         const row = listRow(list, {
           className: "atoms-home-cell",
           role: "button",
-          onClick: () => {
-            void this.openAtomInHome(e.path);
+        });
+        row.setAttr("tabindex", "0");
+        attachLongPress(row, {
+          onTap: () => {
+            void this.openPathInVault(e.path);
           },
+          onLongPress: () => {
+            this.onContinueAtom(e.path, e.title);
+          },
+        });
+        row.addEventListener("keydown", (ev) => {
+          if (ev.key === "Enter" || ev.key === " ") {
+            ev.preventDefault();
+            void this.openPathInVault(e.path);
+          }
         });
         const main = row.createDiv({ cls: "atoms-home-cell-main" });
         main.createDiv({ cls: "atoms-home-cell-title", text: e.title });

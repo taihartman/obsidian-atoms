@@ -7,6 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
+| In progress | #288 | taihartman | `fix/library-vault-longpress-continue` | `docs/plans/2026-08-05-001-fix-library-vault-longpress-continue-plan.md` | `src/home/atomsHomeView.ts`, `src/ui/longPress.ts` | Library tap=vault; long-press=Continue · 0.6.73 |
 
 ## How to claim (copy)
 

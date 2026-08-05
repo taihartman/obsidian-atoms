@@ -1,4 +1,11 @@
 export {
+  attachLongPress,
+  LONG_PRESS_MS,
+  LONG_PRESS_SLOP_PX,
+  LongPressSession,
+} from "./longPress";
+export type { AttachLongPressOpts } from "./longPress";
+export {
   actionRow,
   backLink,
   button,
