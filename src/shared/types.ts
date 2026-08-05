@@ -92,6 +92,11 @@ export interface VaultContext {
   personHubs: string[];
   /** Alias-aware match keys for enrichPersonLinks (local only). */
   personHubDetails: PersonHubDetail[];
+  /**
+   * Home Continue handoff: optional parent for this capture only.
+   * Context-only (not a schema field). BYOK + Plus.
+   */
+  continueParent?: { title: string; path?: string };
 }
 
 /**

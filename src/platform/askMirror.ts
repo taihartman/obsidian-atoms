@@ -3,6 +3,7 @@
  * Structured links prefer frontmatter `atom-links:`; body is not mined for reasons.
  */
 import { parseLinkProse } from "../pipeline/parseLinkProse";
+import { relationReasonProse } from "../shared/relationReason";
 import type {
   ConfirmRequest,
   ConfirmVerdict,
@@ -242,15 +243,12 @@ export function linksFromAtomFile(opts: {
     const key = p.toLowerCase();
     const rel = (opts.relation || "").trim();
     const reason =
-      rel === "revises"
-        ? `revises [[${p}]]`
-        : rel === "contradicts"
-          ? `contradicts [[${p}]]`
-          : rel === "adds_detail"
-            ? `adds detail to [[${p}]]`
-            : rel === "continues"
-              ? `continues [[${p}]]`
-              : undefined;
+      rel === "revises" ||
+      rel === "contradicts" ||
+      rel === "adds_detail" ||
+      rel === "continues"
+        ? relationReasonProse(rel, p)
+        : undefined;
     const prev = byNote.get(key);
     if (!prev) {
       byNote.set(key, reason ? { note: p, reason } : { note: p });

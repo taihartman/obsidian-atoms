@@ -185,4 +185,25 @@ describe("U7 shortlist + expansion + cache split", () => {
     assert.doesNotMatch(blocks[0].text, /### Note titles/);
     assert.match(blocks[1].text, /### Note titles/);
   });
+
+  it("renders Continue parent on the capture message when context carries it", () => {
+    const built = buildClassifyPayload({
+      capture: "actually it might be cortisol",
+      context: {
+        titles: rankedTitles(3),
+        ranked: true,
+        k: 3,
+        continueParent: {
+          title: "Sleep debt is real",
+          path: "Atoms/Sleep debt is real.md",
+        },
+      },
+    });
+    assert.equal(built.ok, true);
+    const captureMsg = built.payload.messages[1].content[0].text;
+    assert.match(captureMsg, /### Continue parent/);
+    assert.match(captureMsg, /Title: Sleep debt is real/);
+    assert.match(captureMsg, /Path: Atoms\/Sleep debt is real\.md/);
+    assert.match(built.payload.system, /Continue parent \(when present\)/);
+  });
 });

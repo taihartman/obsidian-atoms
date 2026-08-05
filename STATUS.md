@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| In review | [#238](https://github.com/taihartman/obsidian-atoms/issues/238) / [PR #268](https://github.com/taihartman/obsidian-atoms/pull/268) | @taihartman (agent) | `ops/plus-stripe-reconcile-alerts` | [plan](docs/plans/2026-08-04-238-stripe-reconcile-alerts-plan.md) | `plus-service/src/{stripe,server,email,config,alert,reconcile}.mjs`, `plus-service/src/store/*`, `plus-service/scripts/` | Server-only; no plugin bump, no Release. **Set `ATOMS_PLUS_ALERT_EMAIL` on Fly before deploying** — prodGate hard-fails without it |
+| In progress | #16 | taihartman | `feat/continue-atom` | `docs/plans/2026-08-04-006-feat-continue-existing-atom-plan.md` | `src/home/atomsHomeView.ts`, `src/platform/continueParent.ts`, `src/pipeline/classify.ts` | Home Continue + community lint; shipping release |
 
 ## How to claim (copy)
 

@@ -25,6 +25,12 @@ import {
   personHubMissAfterEnrich,
   type PersonHub,
 } from "./enrich/people";
+import { localDateYmd } from "./atomQuality";
+import {
+  appLoadLocal,
+  applyContinueEnsures,
+  withEligibleContinueParent,
+} from "../platform/continueParent";
 import {
   fingerprintPreviewKey,
   lookupPreviewCache,
@@ -266,6 +272,9 @@ export async function runDryRun(
     ? parsePreviewCache(opts.app.loadLocalStorage(LS_PREVIEW_CACHE))
     : null;
 
+  const todayYmd = localDateYmd();
+  const loadLs = (k: string) => appLoadLocal(opts.app, k);
+
   try {
     for (let i = 0; i < slice.length; i++) {
       const { note, capture } = slice[i]!;
@@ -273,18 +282,32 @@ export async function runDryRun(
 
       // Scored against this capture. Preview writes nothing, so no atom joins the
       // corpus mid-run — a previewed capture sees exactly the vault as it stands.
-      const ctx = await run.getCandidates(capture);
+      let ctx = await run.getCandidates(capture);
       logShortlistDiagnostics("preview shortlist", ctx.stats);
 
+      // Inject Continue parent for today's captures only; never clear pending on preview.
+      const injected = withEligibleContinueParent(
+        ctx,
+        note.date,
+        todayYmd,
+        loadLs,
+      );
+      ctx = injected.ctx;
+      const continueTitle = injected.parentTitle;
+
       let outcome: ClassifyOutcome;
+      let cacheKey: string | null = null;
+      let fromCache = false;
       if (useCache && cacheStore) {
-        const key = fingerprintPreviewKey(
+        cacheKey = fingerprintPreviewKey(
           capture.text,
           opts.model,
           opts.previewCacheQualityStamp!,
+          continueTitle ?? "none",
         );
-        const hit = lookupPreviewCache(cacheStore, key);
+        const hit = lookupPreviewCache(cacheStore, cacheKey);
         if (hit) {
+          fromCache = true;
           outcome = {
             ok: true,
             result: hit,
@@ -303,13 +326,6 @@ export async function runDryRun(
             activeVocabulary: opts.activeVocabulary,
             ...opts.classifyDeps,
           });
-          if (outcome.ok) {
-            cacheStore = putPreviewCache(cacheStore, key, outcome.result);
-            opts.app.saveLocalStorage(
-              LS_PREVIEW_CACHE,
-              serializePreviewCache(cacheStore),
-            );
-          }
         }
       } else {
         outcome = await classifyCapture(capture.text, ctx, {
@@ -318,6 +334,31 @@ export async function runDryRun(
           activeVocabulary: opts.activeVocabulary,
           ...opts.classifyDeps,
         });
+      }
+
+      if (outcome.ok && continueTitle) {
+        outcome = {
+          ...outcome,
+          result: applyContinueEnsures(
+            outcome.result,
+            continueTitle,
+            new Set(),
+            opts.atomFolder,
+          ),
+        };
+      }
+      if (
+        outcome.ok &&
+        useCache &&
+        cacheStore &&
+        cacheKey &&
+        !fromCache
+      ) {
+        cacheStore = putPreviewCache(cacheStore, cacheKey, outcome.result);
+        opts.app.saveLocalStorage(
+          LS_PREVIEW_CACHE,
+          serializePreviewCache(cacheStore),
+        );
       }
 
       entries.push(

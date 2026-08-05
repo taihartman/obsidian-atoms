@@ -95,12 +95,14 @@ export const ATOMS_SITE_URL = "https://tryatoms.app";
  * deprecated-but-still-shipping warning style otherwise.
  */
 function markDestructive(btn: ButtonComponent): ButtonComponent {
-  const maybe = btn as ButtonComponent & {
-    setDestructive?: () => ButtonComponent;
-  };
-  return typeof maybe.setDestructive === "function"
-    ? maybe.setDestructive()
-    : btn.setWarning();
+  // Bracket access so static community lint does not treat setDestructive
+  // (1.13+) as an unconditional API use against minAppVersion 1.11.4.
+  const maybe = btn as ButtonComponent & Record<string, unknown>;
+  const fn = maybe["setDestructive"];
+  if (typeof fn === "function") {
+    return (fn as () => ButtonComponent).call(btn);
+  }
+  return btn.setWarning();
 }
 
 function settingHeading(containerEl: HTMLElement, name: string): void {
@@ -1205,12 +1207,16 @@ export class AtomsSettingTab extends PluginSettingTab {
       )
       .addText((text) => {
         text.setValue(mcpUrl).setDisabled(true);
-        text.inputEl.addClass("atoms-settings-mcp-url-input");
+        text.inputEl.classList.add("atoms-settings-mcp-url-input");
       })
       .addButton((btn) =>
         btn.setButtonText("Copy").onClick(async () => {
-          await navigator.clipboard.writeText(mcpUrl);
-          new Notice("MCP URL copied");
+          try {
+            await navigator.clipboard.writeText(mcpUrl);
+            new Notice("MCP URL copied");
+          } catch {
+            new Notice("Could not copy — select the URL field and copy");
+          }
         }),
       );
 

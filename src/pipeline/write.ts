@@ -34,6 +34,14 @@ import {
   hubTitlesFromAtomContents,
   runHubProjectionForHubs,
 } from "./runHubProjection";
+import { localDateYmd } from "./atomQuality";
+import {
+  appLoadLocal,
+  appSaveLocal,
+  applyContinueEnsures,
+  clearContinueParent,
+  withEligibleContinueParent,
+} from "../platform/continueParent";
 
 export interface WritePathEntry {
   dailyPath: string;
@@ -165,14 +173,28 @@ export async function runWritePath(
     });
   };
 
+  const todayYmd = localDateYmd();
+  const loadLs = (k: string) => appLoadLocal(opts.app, k);
+  const saveLs = (k: string, v: unknown) => appSaveLocal(opts.app, k, v);
+
   try {
     for (let i = 0; i < slice.length; i++) {
       const { note, capture } = slice[i]!;
       opts.onProgress?.(i + 1, slice.length, { captureText: capture.text });
 
       // Scored against this capture, including atoms this run already wrote (R4).
-      const ctx = await run.getCandidates(capture);
+      let ctx = await run.getCandidates(capture);
       logShortlistDiagnostics("process shortlist", ctx.stats);
+
+      // Home Continue: today-only, re-read each capture; clear only after write success.
+      const injected = withEligibleContinueParent(
+        ctx,
+        note.date,
+        todayYmd,
+        loadLs,
+      );
+      ctx = injected.ctx;
+      const continueInjected = injected.parentTitle;
 
       let result: ClassificationResult | null = null;
       if (opts.fixtureResults && opts.fixtureResults[i]) {
@@ -206,6 +228,15 @@ export async function runWritePath(
         if (result.proposed_tags?.length) {
           proposedIncoming.push(...result.proposed_tags);
         }
+      }
+
+      if (continueInjected) {
+        result = applyContinueEnsures(
+          result,
+          continueInjected,
+          existingAtoms,
+          opts.atomFolder,
+        );
       }
 
       const personHubMiss = personHubMissAfterEnrich(
@@ -243,9 +274,16 @@ export async function runWritePath(
           );
           continue;
         }
-        content = await opts.app.vault.read(
-          file as import("obsidian").TFile,
-        );
+        if (!(file instanceof TFile)) {
+          pushFail(
+            note,
+            capture,
+            "missing_daily",
+            `Daily note missing or unreadable: ${note.path}`,
+          );
+          continue;
+        }
+        content = await opts.app.vault.read(file);
       }
 
       const { result: writeResult, newDailyContent } = await applyWrite(
@@ -274,6 +312,10 @@ export async function runWritePath(
       if (writeResult.atomCreated) atomsCreated += 1;
       if (writeResult.atomSkippedCollision) collisions += 1;
       if (writeResult.markerAppended) markersAppended += 1;
+
+      if (continueInjected && writeResult.markerAppended) {
+        clearContinueParent(saveLs);
+      }
 
       // Make it scoreable for the captures still to come. Only newly created atoms:
       // a collision skip means the file was already in the corpus at seed time.

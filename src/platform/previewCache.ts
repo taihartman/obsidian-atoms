@@ -24,8 +24,10 @@ export function fingerprintPreviewKey(
   captureText: string,
   modelId: string,
   qualityStamp: string | number,
+  continueParentTitle: string = "none",
 ): string {
-  const input = `${qualityStamp}\n${modelId}\n${captureText}`;
+  const parent = (continueParentTitle || "none").trim() || "none";
+  const input = `${qualityStamp}\n${modelId}\n${parent}\n${captureText}`;
   let h = 0x811c9dc5;
   for (let i = 0; i < input.length; i++) {
     h ^= input.charCodeAt(i);
