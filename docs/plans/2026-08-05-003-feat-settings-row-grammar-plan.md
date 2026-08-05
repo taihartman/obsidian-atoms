@@ -71,6 +71,7 @@ defect, and it is the thing this plan fixes. Row-count reduction is a consequenc
 | **R8** | Exactly three persisted fields leave `LinkerSettings` — two tuning settings (`shortlistSize`, `expandLinkedNotes`) and one feature gate (`enableReconsiderCapture`, per KTD5); every other reduction is a collapse or an action removal |
 | **R9** | Labels quoted verbatim by `www/src/setup.html.tmpl` change only in lockstep with that file, guarded by a test |
 | **R10** | Behavior reachable today stays reachable — a deleted *action* row must leave its capability available elsewhere |
+| **R11** | The surviving main-screen row *labels* read in plain language — no unglossed product jargon. Setting *descriptions* stay deferred |
 
 ---
 
@@ -607,8 +608,8 @@ deleted action's survivor is a capability this plugin registers.
 
 ### U10. Website lockstep and label-binding test
 
-**Goal:** The setup guide cannot drift from the labels it quotes.
-**Requirements:** R9
+**Goal:** The surviving labels read in plain language, and the setup guide cannot drift from them.
+**Requirements:** R9, R11
 **Dependencies:** U3, U5, U6
 **Files:** `www/src/setup.html.tmpl`, `src/settings/captureShortcut.ts`,
 `test/wwwPricing.test.ts` or a new `test/wwwSetupLabels.test.ts`
@@ -624,7 +625,15 @@ deleted action's survivor is a capability this plugin registers.
    `src/settings/captureShortcut.ts:130-132` as one arm of a conditional return
    (`"Install Capture Atom" | "Update Capture Atom"`, chosen by whether the shortcut has been
    acked). The other four resolve in `settings.ts` (`:1177`, `:1203`, `:1229`, `:1298`).
-4. Assert the guide side against the **built** `www/dist/setup.html`, not the `.tmpl` source.
+4. **Plain-language pass over the 14 surviving row labels (R11).** Do this *before* step 3's
+   bindings, so a label is renamed once and bound once. Scope is labels only — descriptions stay
+   deferred. The rule: a label names what the row does to the user's stuff, not what the subsystem
+   is called internally. Candidates the inventory and the problem frame both name — *Hub
+   projection*, *Ask mirror*, *Auto-run on open*, *Atom folder* — but judge all 14 against the rule
+   rather than only the flagged four. A label already quoted by the setup guide changes only in
+   lockstep with it, which this unit owns. `egress` is not a user-facing word; if a survivor needs
+   it, it needs a `CONCEPTS.md` entry instead (already flagged in the inventory's Observations).
+5. Assert the guide side against the **built** `www/dist/setup.html`, not the `.tmpl` source.
    `package.json` already runs `pretest: npm run build:www`, so the built output exists at test time
    and the existing `wwwPricing` guard reads it. Asserting template-vs-source leaves exactly the gap
    that let the #302 test pass.
@@ -675,9 +684,17 @@ the `setup.html.tmpl` edits forced by label changes.
 
 ### Deferred to follow-up work
 
-- Rewriting the remaining setting *descriptions* for plain language. The restructure is the
-  load-bearing fix; a copy pass over the survivors is a smaller, separate change and is easier to
-  judge once there are 14 rows instead of 90.
+- Rewriting the remaining setting *descriptions* for plain language. **Labels are no longer
+  deferred — R11 and U10 bring them into this change** (user decision, 2026-08-05): jargon was one
+  of the four reported failure modes, the labels are where it lives, and U10 is already editing both
+  sides of the setup-guide lockstep, so splitting label and description work costs a second lockstep
+  round for nothing. Descriptions remain deferred and are easier to judge once there are 14 rows
+  instead of 90. File them as their own issue and reference it from the PR, so `Closes #304` does
+  not retire a failure mode nothing addressed.
+- A **consequence affordance** in the grammar — a mark distinguishing rows that spend money, egress,
+  or write to the vault from ordinary preferences. Considered and deliberately not taken now: it
+  widens session-settled KTD1, and the R11 label pass attacks the same target more directly. The
+  verification contract's outcome check decides whether it is still wanted, with evidence.
 - `CONCEPTS.md` entries for "shortlist" and "egress", flagged in the inventory's Observations. The
   shortlist term disappears from the UI in U7; egress survives and still wants a definition.
 
@@ -734,11 +751,13 @@ the `setup.html.tmpl` edits forced by label changes.
    `LinkerSettings`, their readers — including the eight `main.ts` call sites — and the UI
 6. The setup guide matches its labels' owning source files, guarded by a test whose mutation failure
    is captured in the PR
-7. The outcome check ran: the four failure modes were re-posed against the shipped screen and the
+7. Every surviving main-screen label reads in plain language (R11); the deferred *description*
+   rewrite is filed as its own issue and referenced from the PR
+8. The outcome check ran: the four failure modes were re-posed against the shipped screen and the
    answers are recorded
-8. Shipping tail complete: `ce-simplify-code`, `ce-code-review`, `ce-compound`, `world-class-qa`
+9. Shipping tail complete: `ce-simplify-code`, `ce-code-review`, `ce-compound`, `world-class-qa`
    including its adversarial half
-9. PR body carries `Closes #304`, core user stories, edge cases, and the screenshot evidence table
+10. PR body carries `Closes #304`, core user stories, edge cases, and the screenshot evidence table
 
 ---
 
