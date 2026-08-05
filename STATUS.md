@@ -7,6 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
+| In progress | #16 | taihartman | `feat/continue-atom` | `docs/plans/2026-08-04-006-feat-continue-existing-atom-plan.md` | `src/home/atomsHomeView.ts`, `src/home/continueParent.ts`, `src/pipeline/classify.ts`, `src/pipeline/write.ts`, `plus-service/src/classifyTemplate.mjs` | Home Continue + pending parent + classify context; create-only child |
 
 ## How to claim (copy)
 
