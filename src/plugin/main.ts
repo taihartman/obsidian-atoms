@@ -174,6 +174,12 @@ import { closeOpenConsentSheet } from "../settings/consent";
 
 export default class AtomsPlugin extends Plugin {
   settings!: LinkerSettings;
+  /**
+   * The settings tab while it is on screen, so `onExternalSettingsChange` can re-render what a
+   * remote withdrawal just invalidated (#323). The tab registers and clears itself, so this is
+   * null whenever Settings is closed and there is nothing to refresh.
+   */
+  settingTab: AtomsSettingTab | null = null;
   contextProvider!: MetadataContextProvider;
   /**
    * #240 KTD8 — one slot for a sign-in deep link that lands before settings
@@ -1422,6 +1428,32 @@ export default class AtomsPlugin extends Plugin {
     this.settings = Object.assign({}, DEFAULT_SETTINGS, raw);
     this.settings.atomFolder = clampAtomFolder(this.settings.atomFolder);
     if (stripped) await this.saveSettings();
+  }
+
+  /**
+   * #323 — Obsidian fires this when `data.json` changes underneath a running plugin, which is
+   * what Sync replicating another device's write looks like from here. Without it there is no
+   * re-read path at all (`loadData()` is called once, above), so every consent gate keeps
+   * answering to the copy loaded at startup: a withdrawal on the phone leaves this device
+   * mirroring note bodies under a consent that no longer exists on disk.
+   *
+   * The invariant that makes this hold: never alias `plugin.settings`. Gates read it through
+   * the plugin at the moment of egress, so re-pointing it here closes them all at once.
+   */
+  async onExternalSettingsChange(): Promise<void> {
+    try {
+      await this.loadSettings();
+    } catch (err) {
+      // A file caught mid-write must not be read as a blank — that shape is indistinguishable
+      // from a withdrawal, and inventing one would be its own bug. Keeping the last good copy
+      // leaves the gate where the user put it until a readable file arrives. Never rethrow:
+      // this runs inside Obsidian's caller.
+      void err;
+      return;
+    }
+    // The screen was rendered against the state we just replaced; a Review row still showing a
+    // consent that is gone on disk is the same defect wearing a different coat.
+    this.settingTab?.refreshFromExternalSettings();
   }
 
   async saveSettings() {

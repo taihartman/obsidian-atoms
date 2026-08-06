@@ -472,6 +472,9 @@ export class AtomsSettingTab extends PluginSettingTab {
     // sheet's `onClose`, which settles it the same way Escape does.
     this.openSheet?.close();
     this.openSheet = null;
+    // Off screen: an external change has nothing to re-render, and the next `display()` reads
+    // the reloaded settings anyway.
+    if (this.plugin.settingTab === this) this.plugin.settingTab = null;
     super.hide();
     // Not cleared here — `display()` owns that, so continuations landing after this returns
     // still find the tab closed.
@@ -576,10 +579,20 @@ export class AtomsSettingTab extends PluginSettingTab {
    * Imperative settings UI. Declarative PluginSettingTab.getSettingDefinitions
    * (Obsidian 1.13+ settings search) is a separate migration — not this claim.
    */
+  /**
+   * Re-render because `data.json` changed underneath us — a consent withdrawn on another
+   * device (#323). `redisplay()` already declines while the tab is closing.
+   */
+  refreshFromExternalSettings(): void {
+    this.redisplay();
+  }
+
   display(): void {
     // A real render is what re-opens the tab, whether it is Obsidian showing it again or a
     // route walk. Anything that arrived late from the last visit has already been dropped.
     this.hiding = false;
+    // On screen from here, so an external settings change knows there is something to refresh.
+    this.plugin.settingTab = this;
     const { containerEl } = this;
     containerEl.empty();
 
