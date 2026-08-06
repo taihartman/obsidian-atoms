@@ -83,7 +83,11 @@ See `docs/qa/README.md` § Product dogfood honesty. Example learning: entity orb
   4. First open: Use existing vault → Documents → **AtomsMobileQA** → Trust plugins.
   5. API key: set in **this vault** on the emulator (Settings → Atoms). Emulator key ≠ desktop key.
 - **Reuse (mandatory):** **Do not** `pm clear md.obsidian` or delete `AtomsMobileQA` between QA runs unless the fixture is corrupt. Update plugin files in place; append captures / Process; screenshot.
-- **Open Atoms home:** command palette / ribbon **Open home** (`atoms:open-home`). URI `obsidian://command?vault=AtomsMobileQA&id=atoms:open-home` when supported.
+- **Open Atoms home:** command palette / ribbon **Open home** (`atoms:open-home`). URI `obsidian://command?vault=AtomsMobileQA&id=atoms:open-home` — measured on **desktop 1.13.4** (2026-08-05, #240 U12), not yet on a phone: `vault=<name>` routing works and switches the active vault, and a plugin-registered action fires from a cold app launch. Three device results came with it, all of which apply to any `obsidian://` URI rather than to Atoms specifically:
+  - **1.13+ gates every external link.** An action arriving at a *running* app raises **"Run action from external link?"** (Allow once / Always allow / Cancel) before the plugin sees it. It is answered once per action per app session, and a URI that launched a cold app was not gated.
+  - **An unknown `vault=` name wedges the app.** `obsidian://open?vault=NoSuchVaultXYZ` — no plugin involved — left Obsidian unresponsive to the CLI until it was force-restarted. Never fire a URI at a vault name that may not exist on the device.
+  - **Launch Services can go stale.** After Obsidian auto-updated mid-session, every `obsidian://` URI was silently dropped until `lsregister -f /Applications/Obsidian.app` plus a restart. A URI that "does nothing" is this before it is ever a plugin bug.
+  - **Still unmeasured on iOS/Android:** `crypto.subtle` in the mobile webview, and what a mail client's in-app browser does with an `obsidian://` anchor. Human-only.
 - **Evidence:** screenshots under `docs/qa/screenshots/entity-orbits-mobile/` (or feature folder).
 
 ### API key persistence (why it “disappears”)

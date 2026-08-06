@@ -19,15 +19,18 @@ import {
   stripeConfigured,
 } from "./stripe.mjs";
 import {
-  allowDevExchange,
   allowDogfoodCheckout,
   assertProductionReady,
   isProduction,
 } from "./prodGate.mjs";
 import { sendMagicLinkEmail } from "./email.mjs";
-import { INCIDENT_KIND } from "./store/shared.mjs";
+import { INCIDENT_KIND, verifierMatches } from "./store/shared.mjs";
 import { alertStripeIncident } from "./alert.mjs";
-import { checkRateLimit, clientIp } from "./ratelimit.mjs";
+import {
+  MAGIC_LINK_RATE_LIMITS,
+  checkRateLimit,
+  clientIp,
+} from "./ratelimit.mjs";
 import { handleMirrorRoutes } from "./mirror/http.mjs";
 import { handleMcpRequest } from "./mcp/handler.mjs";
 import {
@@ -52,12 +55,20 @@ const CORS_HEADERS = {
   "access-control-allow-methods": "GET, POST, OPTIONS",
 };
 
-function json(res, status, body) {
+/**
+ * @param {import("node:http").ServerResponse} res
+ * @param {number} status
+ * @param {unknown} body
+ * @param {Record<string, string>} [extraHeaders] per-route headers, e.g. #240
+ *   U13's `cache-control: no-store` on a response that names an account.
+ */
+function json(res, status, body, extraHeaders) {
   const data = JSON.stringify(body);
   res.writeHead(status, {
     "content-type": "application/json",
     "content-length": Buffer.byteLength(data),
     ...CORS_HEADERS,
+    ...extraHeaders,
   });
   res.end(data);
 }
@@ -116,6 +127,59 @@ function bearer(req) {
   return m ? m[1] : "";
 }
 
+/**
+ * #240 U6 — the fallback's own route. Named once so the form's `action` and the
+ * route that answers it cannot drift apart.
+ */
+const FALLBACK_EXCHANGE_PATH = "/v1/auth/exchange/fallback";
+
+/**
+ * #240 U13 — every `POST /v1/auth/peek` response carries this, not only the
+ * `usable` one that names an account. A caching rule that depends on the
+ * verdict is a rule no intermediary — and no reviewer — can check at a glance.
+ */
+const NO_STORE = Object.freeze({ "cache-control": "no-store" });
+
+/**
+ * #240 U13 / KTD10 — the throttle for one magic-token surface. `surface` is a
+ * key of `MAGIC_LINK_RATE_LIMITS`, so the prefixes stay distinct by
+ * construction and a typo is `undefined` at boot rather than a fifth anonymous
+ * bucket silently shared with nothing.
+ *
+ * @param {import("node:http").IncomingMessage} req
+ * @param {keyof typeof MAGIC_LINK_RATE_LIMITS} surface
+ */
+function magicRateLimit(req, surface) {
+  const { key, limit } = MAGIC_LINK_RATE_LIMITS[surface];
+  return checkRateLimit(`${key}:${clientIp(req)}`, limit);
+}
+
+/** #240 U3 — base64url sha256 of the device verifier (43 chars); slack over it. */
+const MAX_VERIFIER_HASH_CHARS = 128;
+/** #240 U4 — 32 random bytes base64url is 43 chars; the ceiling is generous. */
+const MAX_VERIFIER_CHARS = 256;
+/** #240 U3 — an Obsidian vault name is a folder name, not prose. */
+const MAX_VAULT_NAME_CHARS = 256;
+
+/**
+ * #240 U3 — an optional bounded string from a request body. Absent is fine: an
+ * older plugin build sends neither field and must keep working. Anything that
+ * is present but not a bounded string is a 400 rather than something we store,
+ * since both values sit beside the magic token until it dies (KD7).
+ *
+ * @param {unknown} value
+ * @param {number} max
+ * @returns {{ ok: true, value: string | null } | { ok: false }}
+ */
+function optionalBoundedString(value, max) {
+  if (value === undefined || value === null) return { ok: true, value: null };
+  if (typeof value !== "string") return { ok: false };
+  const trimmed = value.trim();
+  if (!trimmed) return { ok: true, value: null };
+  if (trimmed.length > max) return { ok: false };
+  return { ok: true, value: trimmed };
+}
+
 function escHtml(s) {
   return String(s ?? "")
     .replace(/&/g, "&amp;")
@@ -124,43 +188,162 @@ function escHtml(s) {
     .replace(/"/g, "&quot;");
 }
 
-/** Browser landing after magic-link email (or dogfood dev-exchange). */
-function renderExchangeHtml(res, out) {
-  if (!out) {
-    res.writeHead(400, {
-      "content-type": "text/html; charset=utf-8",
-      "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'",
-      "referrer-policy": "no-referrer",
-      "x-content-type-options": "nosniff",
-    });
-    res.end(`<!doctype html><meta charset=utf-8><title>Atoms Plus</title>
-<body style="font-family:system-ui;max-width:32rem;margin:2rem auto;padding:0 1rem">
-<h1>Link expired</h1>
-<p>Request a new sign-in link from Atoms Settings.</p>
-</body>`);
-    return;
-  }
-  const email = escHtml(out.account.email);
-  const status = escHtml(out.account.status);
-  const remaining = escHtml(String(out.account.remaining));
-  const session = escHtml(out.session);
-  res.writeHead(200, {
-    "content-type": "text/html; charset=utf-8",
-    "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'",
-    "referrer-policy": "no-referrer",
-    "x-content-type-options": "nosniff",
-  });
+/**
+ * #240 U5 — headers every magic-link landing render carries.
+ *
+ * The CSP keeps `default-src 'none'` with inline styles, and no script is ever
+ * added (KTD4). `form-action 'self'` is stated explicitly for U6's fallback
+ * form: `default-src` is not a fallback for `form-action`, so the submit was
+ * already permitted — naming it pins the only destination the form may ever
+ * post to rather than leaving that to a directive that does not govern it.
+ * `no-store` is load-bearing — R14 makes this page deliberately re-loadable and
+ * its body carries a live `obsidian://…token=` anchor and, after a submit, a
+ * session token, so a cached copy is a cached credential sitting in a shared or
+ * in-app browser cache.
+ */
+const LANDING_HEADERS = Object.freeze({
+  "content-type": "text/html; charset=utf-8",
+  "content-security-policy":
+    "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'",
+  "referrer-policy": "no-referrer",
+  "cache-control": "no-store",
+  "x-content-type-options": "nosniff",
+});
+
+function writeLanding(res, status, bodyHtml) {
+  res.writeHead(status, { ...LANDING_HEADERS });
   res.end(`<!doctype html><meta charset=utf-8><title>Atoms Plus</title>
 <body style="font-family:system-ui;max-width:32rem;margin:2rem auto;padding:0 1rem">
-<h1>Signed in</h1>
-<p>Email: <strong>${email}</strong></p>
-<p>Status: <strong>${status}</strong> · remaining ${remaining}</p>
-<p><strong>Switch back to Obsidian</strong> → Settings → Atoms Plus → <strong>Refresh status</strong>.</p>
-<p style="color:#666;font-size:0.9rem">If Refresh does not pick up this device, advanced: paste session below once.</p>
-<details style="margin-top:1rem"><summary style="cursor:pointer;color:#666">Advanced: session token</summary>
-<pre style="background:#f4f4f5;padding:12px;border-radius:8px;word-break:break-all">${session}</pre>
-</details>
+${bodyHtml}
 </body>`);
+}
+
+/**
+ * R7 — the link is expired, already spent, or never existed. All three collapse
+ * to one message on purpose: the page cannot tell a stranger's guess from the
+ * user's own stale link, and the remedy is the same either way.
+ */
+function renderDeadLink(
+  res,
+  {
+    title = "Link expired",
+    detail = "Request a new sign-in link from Atoms Settings.",
+    // #240 U13 — the same two-line page serves the throttle, which is not a
+    // verdict about the link and must not answer 400.
+    status = 400,
+  } = {},
+) {
+  writeLanding(res, status, `<h1>${escHtml(title)}</h1>
+<p>${escHtml(detail)}</p>`);
+}
+
+/**
+ * #240 U5/U6 seam — the fallback that signs in without the handoff.
+ *
+ * U5 owns the block's identity (`id="fallback"`), its copy, and its position:
+ * demoted below the troubleshooting details when a handoff was offered (R10),
+ * promoted to primary when the token is unbound and no handoff exists. U6 fills
+ * it with the `<form method="post">` that mints a pasteable session on an
+ * explicit submit (R17) — a form, not a link, because mail scanners and
+ * prefetchers issue GETs and a POST requires the human (KTD5).
+ *
+ * @param {{ promoted: boolean, token: string }} opts
+ */
+function fallbackBlockHtml({ promoted, token }) {
+  const lead = promoted
+    ? "This link was requested by an older version of Atoms, which cannot hand the sign-in to Obsidian. Update Atoms and request a new link, or sign in here instead."
+    : "On a different device from the one running Obsidian? Sign in here and paste the result into Atoms Settings.";
+  return `<section id="fallback" style="margin-top:1.5rem;padding-top:1rem;border-top:1px solid #e4e4e7">
+<h2 style="font-size:1rem;margin:0 0 .5rem">Sign in without the handoff</h2>
+<p style="color:#666;font-size:0.9rem">${escHtml(lead)}</p>
+<form method="post" action="${FALLBACK_EXCHANGE_PATH}">
+<input type="hidden" name="token" value="${escHtml(token)}">
+<button type="submit" style="display:block;box-sizing:border-box;width:100%;min-height:44px;padding:14px 16px;border-radius:10px;border:1px solid #7c3aed;background:#fff;color:#7c3aed;font-weight:600;font-size:1rem">Sign in here</button>
+</form>
+</section>`;
+}
+
+/**
+ * #240 U6 — the session the fallback just minted, for pasting into Settings.
+ *
+ * R15 — the copy this replaces ended by telling the user to switch back to
+ * Obsidian and tap **Refresh status**, which is the no-op by construction this
+ * whole issue exists because of. U11 removes that sentence from the plugin;
+ * nothing else removes it from here.
+ *
+ * @param {import("node:http").ServerResponse} res
+ * @param {{ session: string, account: any }} out
+ */
+function renderFallbackSession(res, out) {
+  const pub = store.publicAccount(out.account);
+  writeLanding(
+    res,
+    200,
+    `<h1>Signed in</h1>
+<p>Email: <strong>${escHtml(pub.email)}</strong></p>
+<p>Status: <strong>${escHtml(pub.status)}</strong> · remaining ${escHtml(String(pub.remaining))}</p>
+<p>Copy the session below, then in Obsidian open <strong>Settings → Atoms Plus → Advanced: paste session</strong> and paste it there.</p>
+<p style="word-break:break-all;font-family:ui-monospace,monospace;background:#f4f4f5;border-radius:8px;padding:12px">${escHtml(out.session)}</p>
+<p style="color:#666;font-size:0.9rem">This session signs in the vault you paste it into. Treat it like a password, and close this page when you are done.</p>`,
+  );
+}
+
+/**
+ * R8 — both remedies, distinctly, for the user who tapped and saw nothing. The
+ * page renders once and cannot observe the outcome (R14), so this is a native
+ * `<details>` present in the initial HTML rather than any kind of transition.
+ */
+const TROUBLESHOOTING_HTML = `<details style="margin-top:1.5rem">
+<summary style="cursor:pointer;color:#666">Tapped it and nothing came forward?</summary>
+<ul style="color:#444;font-size:0.95rem;line-height:1.5">
+<li><strong>Obsidian is on another device.</strong> Open this email again on the device running Obsidian, and tap there.</li>
+<li><strong>Obsidian is on this device.</strong> Your mail app's built-in browser blocks links that open other apps. Open this page in your system browser and tap again, or use the sign-in option further down this page.</li>
+</ul>
+</details>`;
+
+/**
+ * #240 U5 — the pre-tap landing page for a token that can actually complete the
+ * handoff. Nothing here asserts an outcome: it states what is true at render
+ * time and stops (R14). No session is minted or printed (R11, R17).
+ *
+ * @param {import("node:http").ServerResponse} res
+ * @param {{ token: string, vault: string | null }} link
+ */
+function renderHandoffPage(res, { token, vault }) {
+  // KD7 — the vault rides along so a multi-vault device signs the right one in.
+  // Absent for a link minted before U3, which must render without it rather
+  // than printing an empty parameter or the word "undefined".
+  const href = `obsidian://atoms-signin?token=${encodeURIComponent(token)}${
+    vault ? `&vault=${encodeURIComponent(vault)}` : ""
+  }`;
+  const who = vault
+    ? `<p>This link was requested by <strong>${escHtml(vault)}</strong>.</p>`
+    : `<p>This link was requested from Atoms in Obsidian.</p>`;
+  writeLanding(
+    res,
+    200,
+    `<h1>Finish signing in</h1>
+${who}
+<a href="${escHtml(href)}" style="display:block;box-sizing:border-box;min-height:44px;padding:14px 16px;margin:1.25rem 0;border-radius:10px;background:#7c3aed;color:#fff;font-weight:600;text-align:center;text-decoration:none">Open Obsidian</a>
+<p style="color:#666;font-size:0.9rem">Obsidian will ask you to confirm first.</p>
+${TROUBLESHOOTING_HTML}
+${fallbackBlockHtml({ promoted: false, token })}`,
+  );
+}
+
+/**
+ * KD9 — the token carries no verifier hash, so it was minted by a plugin build
+ * that cannot complete U4's bound exchange. Offering the handoff here would be
+ * a dead end, so the fallback takes the primary position and the troubleshooting
+ * block is omitted: there is no button whose silence needs explaining.
+ */
+function renderUnboundPage(res, { token }) {
+  writeLanding(
+    res,
+    200,
+    `<h1>Finish signing in</h1>
+${fallbackBlockHtml({ promoted: true, token })}`,
+  );
 }
 
 async function handler(req, res) {
@@ -327,6 +510,19 @@ ${
       if (!email || !email.includes("@")) {
         return json(res, 400, { message: "Valid email required" });
       }
+      // #240 U3 — the requesting device's verifier hash (R12) and the vault
+      // that asked for the link (R3). Optional, and never logged.
+      const verifierHash = optionalBoundedString(
+        body.verifierHash,
+        MAX_VERIFIER_HASH_CHARS,
+      );
+      if (!verifierHash.ok) {
+        return json(res, 400, { message: "Invalid verifierHash" });
+      }
+      const vault = optionalBoundedString(body.vault, MAX_VAULT_NAME_CHARS);
+      if (!vault.ok) {
+        return json(res, 400, { message: "Invalid vault" });
+      }
       const rl = checkRateLimit(`ml:${clientIp(req)}`);
       if (!rl.ok) {
         return json(res, 429, {
@@ -341,7 +537,10 @@ ${
           retryAfterSec: rlEm.retryAfterSec,
         });
       }
-      const token = await store.createMagicToken(email);
+      const token = await store.createMagicToken(email, {
+        verifierHash: verifierHash.value,
+        vault: vault.value,
+      });
       // Browser-openable GET exchange (email click). Dev alias still works.
       const link = `${config.publicBaseUrl}/v1/auth/exchange?token=${encodeURIComponent(token)}`;
       const sent = await sendMagicLinkEmail({ to: email, link });
@@ -360,40 +559,223 @@ ${
       return json(res, 200, { ok: true });
     }
 
-    // GET /v1/auth/dev-exchange — dogfood alias (disabled in prod)
-    if (req.method === "GET" && path === "/v1/auth/dev-exchange") {
-      if (!allowDevExchange()) {
-        return json(res, 404, { message: "Not found" });
-      }
-      const out = await store.exchangeMagic(
-        url.searchParams.get("token") || "",
-      );
-      const pending = url.searchParams.get("pending") || "";
-      if (await maybeFinishOauthAfterExchange(res, store, out, pending)) {
-        return;
-      }
-      return renderExchangeHtml(res, out);
-    }
+    // #240 U5 — `GET /v1/auth/dev-exchange` is gone. It was a zero-caller
+    // duplicate of the body below that 404'd in production anyway, and a
+    // diverged duplicate of this exact logic is what #230 was. `allowDevExchange`
+    // stays exported from prodGate.mjs — the production-posture tests assert it.
 
     // GET /v1/auth/exchange?token= — email magic-link landing (browser)
     if (req.method === "GET" && path === "/v1/auth/exchange") {
-      const out = await store.exchangeMagic(
-        url.searchParams.get("token") || "",
-      );
-      const pending = url.searchParams.get("pending") || "";
-      if (await maybeFinishOauthAfterExchange(res, store, out, pending)) {
-        return;
+      // KTD10 — the scanner-facing surface, on its own key. HTML rather than
+      // JSON: whoever is here is a browser, and the throttle must not be the
+      // one response on this route that renders as a blob of text.
+      const rlLanding = magicRateLimit(req, "landing");
+      if (!rlLanding.ok) {
+        return renderDeadLink(res, {
+          status: 429,
+          title: "Too many requests",
+          detail: `Wait ${rlLanding.retryAfterSec} seconds and reload this page. Your sign-in link was not used.`,
+        });
       }
-      return renderExchangeHtml(res, out);
+      const token = url.searchParams.get("token") || "";
+      const pendingId = url.searchParams.get("pending") || "";
+
+      // KTD12 — branch on `pending` *before* deciding whether to consume. The
+      // Ask OAuth authorize flow emails this same URL with `&pending=…` and
+      // needs the GET to spend the token and 302 to consent; the plain sign-in
+      // link must not be spent by a page load (R6). Resolving the pending
+      // record first is what closes the old hole where a stale `pending` burned
+      // the token and then printed the session as HTML.
+      if (pendingId) {
+        const pending = await store.mcpGetPending(pendingId);
+        if (!pending) {
+          return renderDeadLink(res, {
+            title: "Authorization expired",
+            detail:
+              "This Atoms Ask authorization request is no longer active. Start connecting again from your MCP client. Your sign-in link was not used.",
+          });
+        }
+        const out = await store.exchangeMagic(token, {
+          skipVerifierCheck: true,
+        });
+        if (await maybeFinishOauthAfterExchange(res, store, out, pendingId)) {
+          return;
+        }
+        // The pending record was live but the token was not: nothing to hand
+        // off, and never a session on the page.
+        return renderDeadLink(res);
+      }
+
+      // R6/KD8 — the plugin sign-in link. Read the verdict without spending
+      // anything; the tap is what consumes, not the page load.
+      const peek = await store.peekMagic(token);
+      if (!peek.ok) return renderDeadLink(res);
+      // KD9 — the handoff is offered only to a token that can complete one.
+      if (!peek.verifierBound) return renderUnboundPage(res, { token });
+      return renderHandoffPage(res, { token, vault: peek.vault });
+    }
+
+    // POST /v1/auth/exchange/fallback — the landing page's own form (KTD5)
+    if (req.method === "POST" && path === FALLBACK_EXCHANGE_PATH) {
+      // KTD10 — its own key, so a bot looping the landing page above cannot
+      // take away the human's only remaining way in.
+      const rlFallback = magicRateLimit(req, "fallback");
+      if (!rlFallback.ok) {
+        return renderDeadLink(res, {
+          status: 429,
+          title: "Too many requests",
+          detail: `Wait ${rlFallback.retryAfterSec} seconds and try again. Your sign-in link was not used.`,
+        });
+      }
+      // A scriptless form sends `application/x-www-form-urlencoded`, and
+      // `readBody` is JSON-only and throws on anything else — which is why this
+      // is a separate HTML-rendering route rather than a branch inside the
+      // plugin's JSON exchange above.
+      const form = new URLSearchParams(await readRawBody(req));
+      const token = (form.get("token") || "").trim();
+
+      // KD9 — this route skips the verifier check entirely, for bound and
+      // unbound tokens alike, by design. It presents no verifier because the
+      // browser holding this page is not the device that requested the link.
+      // Every link a current build mints is bound, so a fallback that honored
+      // the check would recover nothing and KD3's cross-device path would be
+      // dead on arrival. This is not a loophole to tighten later: it closes
+      // with #286, which deletes this route and the paste field together.
+      const out = await store.exchangeMagic(token, { skipVerifierCheck: true });
+      // Expired, already spent, and never-existed all collapse to R7's one
+      // message here — a browser is not the plugin and has no use for the
+      // distinction. Nothing was consumed on the way in either way.
+      if (!out) return renderDeadLink(res);
+      return renderFallbackSession(res, out);
+    }
+
+    // POST /v1/auth/peek — the plugin's non-consuming, verifier-bound check
+    if (req.method === "POST" && path === "/v1/auth/peek") {
+      // KTD15 — the plugin must name the account before it may ask R4's
+      // question, and the only other way to learn it is to have already spent
+      // the token and revoked the account's other sessions. So: read-only.
+      // This route deletes nothing and mints nothing, and there is deliberately
+      // no path from here to `exchangeMagic` or to session issuance.
+      const body = await readBody(req);
+      const token = String(body.token || "").trim();
+      if (!token) return json(res, 400, { message: "Token required" }, NO_STORE);
+      const verifier = optionalBoundedString(body.verifier, MAX_VERIFIER_CHARS);
+      if (!verifier.ok) {
+        return json(res, 400, { message: "Invalid verifier" }, NO_STORE);
+      }
+      const rlPeek = magicRateLimit(req, "peek");
+      if (!rlPeek.ok) {
+        // No `result` here on purpose: U8 lets a stated verdict beat the status
+        // code, so a throttle labelled `invalid` would read as a decision about
+        // the link and send the user to request a new one for no reason.
+        return json(
+          res,
+          429,
+          { message: "Too many requests", retryAfterSec: rlPeek.retryAfterSec },
+          NO_STORE,
+        );
+      }
+
+      const peek = await store.peekMagic(token);
+      if (!peek.ok) {
+        // R7 apart from R5: expired routes "request a new link", invalid routes
+        // "this link is already spent or was never real".
+        return json(
+          res,
+          401,
+          {
+            result: peek.status === "expired" ? "expired" : "invalid",
+            message: "Invalid or expired magic link",
+          },
+          NO_STORE,
+        );
+      }
+
+      // KD9 / step 3 — an **unbound** row is refused here, even though
+      // `verifierMatches` passes it. That pass is right for the exchange, where
+      // an older build's token legitimately redeems; it is wrong here, because
+      // answering `usable` would hand an account email to any caller holding
+      // the link. So the binding is checked first, and the shared compare is
+      // still what decides every bound row — one comparison, two callers, so a
+      // peek can never say usable where the exchange would refuse.
+      const allowed =
+        peek.verifierBound && verifierMatches(peek.verifierHash, verifier.value);
+      if (!allowed) {
+        return json(
+          res,
+          403,
+          {
+            result: "refused",
+            reason: "verifier_mismatch",
+            // The requesting vault travels on a refusal too: it is the only
+            // server-attested vault name a refusing plugin will ever hold, and
+            // without it U9's refusal has nothing to name but the deep link's
+            // attacker-controlled `vault=` param. The **email** stays behind —
+            // naming the vault that asked is not naming the account.
+            ...(peek.vault ? { vault: peek.vault } : {}),
+            message:
+              "This sign-in link belongs to a different vault. Open the vault that requested it and tap the link again.",
+          },
+          NO_STORE,
+        );
+      }
+      return json(
+        res,
+        200,
+        {
+          result: "usable",
+          email: peek.email,
+          ...(peek.vault ? { vault: peek.vault } : {}),
+        },
+        NO_STORE,
+      );
     }
 
     // POST /v1/auth/exchange — plugin in-app exchange
     if (req.method === "POST" && path === "/v1/auth/exchange") {
       const body = await readBody(req);
       const token = String(body.token || "").trim();
-      const out = await store.exchangeMagic(token);
+      // KTD10 — the consuming plugin route, on its own key, so an exhausted
+      // peek or landing page never blocks the exchange the user just approved.
+      const rlExchange = magicRateLimit(req, "exchange");
+      if (!rlExchange.ok) {
+        return json(res, 429, {
+          message: "Too many requests",
+          retryAfterSec: rlExchange.retryAfterSec,
+        });
+      }
+      // #240 U4 / KD9 — this route, and only this route, is bound to the
+      // verifier the requesting device registered at mint time (R12). The web
+      // routes above skip the check by design; see MagicExchangeOpts.
+      const verifier = optionalBoundedString(
+        body.verifier,
+        MAX_VERIFIER_CHARS,
+      );
+      if (!verifier.ok) {
+        return json(res, 400, { message: "Invalid verifier" });
+      }
+      // Read the verdict before spending anything: a token that fails below is
+      // either expired or unknown, and the exchange collapses both to null. The
+      // plugin needs them apart — R7's "request a new link" reads nothing like
+      // a link that never existed. Non-consuming by construction (KTD1).
+      const before = await store.peekMagic(token);
+      const out = await store.exchangeMagic(token, { verifier: verifier.value });
+      if (out?.refused) {
+        // R5 — a refusal the plugin can name: open the vault that asked for
+        // this link and tap again. Nothing spendable travels with it, and the
+        // link is still there to tap (R16).
+        return json(res, 403, {
+          result: "refused",
+          reason: out.reason,
+          message:
+            "This sign-in link belongs to a different vault. Open the vault that requested it and tap the link again.",
+        });
+      }
       if (!out) {
-        return json(res, 401, { message: "Invalid or expired magic link" });
+        return json(res, 401, {
+          result: before.status === "expired" ? "expired" : "invalid",
+          message: "Invalid or expired magic link",
+        });
       }
       const pub = store.publicAccount(out.account);
       return json(res, 200, {

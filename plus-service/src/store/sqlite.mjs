@@ -11,12 +11,15 @@ import {
   hashToken,
   id,
   isEntitledAccount,
+  MAGIC_EXCHANGE_REFUSED,
+  MAGIC_PEEK_MISS,
   normalizeStripeIncident,
   periodEndFromNow,
   publicAccount,
   rowToAccount,
   rowToIncident,
   toMs,
+  verifierMatches,
 } from "./shared.mjs";
 import {
   ASK_SQLITE_DDL,
@@ -38,7 +41,9 @@ function migrate(db) {
     CREATE TABLE IF NOT EXISTS magic_tokens (
       token TEXT PRIMARY KEY,
       email TEXT NOT NULL,
-      exp_ms INTEGER NOT NULL
+      exp_ms INTEGER NOT NULL,
+      verifier_hash TEXT,
+      vault TEXT
     );
     CREATE TABLE IF NOT EXISTS sessions (
       token_hash TEXT PRIMARY KEY,
@@ -98,6 +103,14 @@ function migrate(db) {
     db.exec(
       "ALTER TABLE sessions ADD COLUMN verified INTEGER NOT NULL DEFAULT 1",
     );
+  }
+  // #240 U1 — already-deployed databases gain the magic-token columns on open.
+  const magicCols = db.prepare("PRAGMA table_info(magic_tokens)").all();
+  if (!magicCols.some((c) => c.name === "verifier_hash")) {
+    db.exec("ALTER TABLE magic_tokens ADD COLUMN verifier_hash TEXT");
+  }
+  if (!magicCols.some((c) => c.name === "vault")) {
+    db.exec("ALTER TABLE magic_tokens ADD COLUMN vault TEXT");
   }
   const mirrorCols = db.prepare("PRAGMA table_info(atom_mirror)").all();
   if (!mirrorCols.some((c) => c.name === "created")) {
@@ -177,12 +190,79 @@ export function createSqliteStore(dbPath = config.databasePath) {
     return saved;
   }
 
-  function createMagicToken(email) {
+  /**
+   * @param {string} email
+   * @param {{ verifierHash?: string, vault?: string }} [opts] #240 U1 — the
+   *   requesting device's verifier hash (R12) and the requesting vault's name
+   *   (R3). Both optional: a caller that passes neither still works.
+   */
+  function createMagicToken(email, opts = {}) {
+    // #240 U3 / KTD13 — every row past TTL, not only this email's. See the
+    // memory store's sweep for why the predicate carries no email.
+    db.prepare("DELETE FROM magic_tokens WHERE exp_ms < ?").run(Date.now());
     const token = id("mt");
+    // KTD14 — the `token` column holds `hashToken(token)`, as sessions do.
     db.prepare(
-      "INSERT INTO magic_tokens (token, email, exp_ms) VALUES (?, ?, ?)",
-    ).run(token, email.trim().toLowerCase(), Date.now() + 15 * 60 * 1000);
+      `INSERT INTO magic_tokens (token, email, exp_ms, verifier_hash, vault)
+       VALUES (?, ?, ?, ?, ?)`,
+    ).run(
+      hashToken(token),
+      email.trim().toLowerCase(),
+      Date.now() + 15 * 60 * 1000,
+      opts.verifierHash || null,
+      opts.vault || null,
+    );
     return token;
+  }
+
+  /**
+   * #240 U2 — answer whether a magic token is usable without spending it (R6,
+   * R9). A plain SELECT: no delete, and no transaction that could hold one.
+   * The expired row stays put for U3's mint sweep (KTD13).
+   *
+   * @param {string} token
+   * @returns {MagicPeek}
+   */
+  function peekMagic(token) {
+    const row = db
+      .prepare("SELECT * FROM magic_tokens WHERE token = ?")
+      .get(hashToken(token));
+    if (!row) return MAGIC_PEEK_MISS.invalid;
+    if (Date.now() > Number(row.exp_ms)) return MAGIC_PEEK_MISS.expired;
+    return {
+      ok: true,
+      status: "usable",
+      email: row.email,
+      vault: row.vault ?? null,
+      verifierBound: !!row.verifier_hash,
+      verifierHash: row.verifier_hash ?? null,
+    };
+  }
+
+  function magicRowsForTest() {
+    return db
+      .prepare("SELECT * FROM magic_tokens")
+      .all()
+      .map((r) => ({
+        key: r.token,
+        email: r.email,
+        expMs: Number(r.exp_ms),
+        verifierHash: r.verifier_hash ?? null,
+        vault: r.vault ?? null,
+      }));
+  }
+
+  function writeMagicRowForTest(key, row) {
+    db.prepare(
+      `INSERT INTO magic_tokens (token, email, exp_ms, verifier_hash, vault)
+       VALUES (?, ?, ?, ?, ?)`,
+    ).run(
+      key,
+      String(row.email).trim().toLowerCase(),
+      Number(row.expMs),
+      row.verifierHash || null,
+      row.vault || null,
+    );
   }
 
   /**
@@ -287,13 +367,31 @@ export function createSqliteStore(dbPath = config.databasePath) {
     return { ok: true, session, account: a };
   }
 
-  function exchangeMagic(token) {
+  /**
+   * @param {string} token
+   * @param {MagicExchangeOpts} [opts] #240 U4 — see the typedef: the caller
+   *   says either which verifier it holds or that no check applies to it.
+   */
+  function exchangeMagic(token, opts = {}) {
+    const key = hashToken(token);
     const row = db
       .prepare("SELECT * FROM magic_tokens WHERE token = ?")
-      .get(token);
+      .get(key);
     if (!row) return null;
-    db.prepare("DELETE FROM magic_tokens WHERE token = ?").run(token);
-    if (Date.now() > row.exp_ms) return null;
+    // #240 U4 / KTD3 — this used to delete here, before it had even checked
+    // expiry, which made "refused" and "consumed" the same row state. The row
+    // is now removed only once it is actually going to be spent (or is dead).
+    if (Date.now() > row.exp_ms) {
+      db.prepare("DELETE FROM magic_tokens WHERE token = ?").run(key);
+      return null;
+    }
+    if (
+      !opts.skipVerifierCheck &&
+      !verifierMatches(row.verifier_hash, opts.verifier)
+    ) {
+      return MAGIC_EXCHANGE_REFUSED;
+    }
+    db.prepare("DELETE FROM magic_tokens WHERE token = ?").run(key);
     let a = ensureAccount(row.email);
     if (
       config.dogfoodAutoGrant &&
@@ -311,7 +409,7 @@ export function createSqliteStore(dbPath = config.databasePath) {
     a = refreshAccountStatus(a);
     revokeAllSessionsForEmail(row.email);
     const session = createSession(row.email, { verified: true });
-    return { session, account: a };
+    return { session, account: a, vault: row.vault ?? null };
   }
 
   /**
@@ -502,9 +600,12 @@ export function createSqliteStore(dbPath = config.databasePath) {
   return {
     kind: "sqlite",
     createMagicToken,
+    magicRowsForTest,
+    writeMagicRowForTest,
     createSession,
     startWithEmail,
     exchangeMagic,
+    peekMagic,
     accountFromSession,
     revokeSession,
     revokeAllSessionsForEmail,

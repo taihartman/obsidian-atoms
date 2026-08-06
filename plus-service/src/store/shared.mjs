@@ -1,7 +1,8 @@
 /**
  * Shared store helpers (memory / sqlite / postgres).
  */
-import { randomBytes, createHash } from "node:crypto";
+import { randomBytes, createHash, timingSafeEqual } from "node:crypto";
+import { pkceChallengeS256 } from "./askHelpers.mjs";
 
 export function id(prefix) {
   return `${prefix}_${randomBytes(16).toString("hex")}`;
@@ -16,6 +17,131 @@ export function periodEndFromNow(days) {
 export function hashToken(token) {
   return createHash("sha256").update(token).digest("hex");
 }
+
+/**
+ * #240 U2 — what `peekMagic` reports. Uniform across the three backends: the
+ * same keys are present whatever the verdict, so a caller never has to tell an
+ * absent field from a null one, and the parity suite compares like with like.
+ *
+ * @typedef {object} MagicPeek
+ * @property {boolean} ok             usable, and only usable
+ * @property {"usable"|"expired"|"invalid"} status
+ * @property {string|null} email      the account the token signs in
+ * @property {string|null} vault      the vault that requested the link (R3, R18)
+ * @property {boolean} verifierBound  whether the row carries a verifier hash
+ * @property {string|null} verifierHash  the stored hash, for U4's factored
+ *   hash-compare — one comparison, two callers (U4's exchange and U13's peek
+ *   route). `verifierBound` stays alongside it so U5's anchor gate reads a
+ *   boolean rather than reasoning about null. This is an internal store value,
+ *   never an HTTP response field; U13 owns keeping it off the wire.
+ */
+
+/**
+ * The two ways a peek finds nothing to report. Frozen because every backend
+ * hands the same object back and a caller must not be able to edit the answer
+ * the next caller gets.
+ *
+ * `expired` deliberately carries no email or vault: the row is dead either way,
+ * so there is nothing a caller can do with them, and R7 only needs "say so and
+ * point at requesting a new link".
+ *
+ * There is no `refused` here on purpose. A refusal is decided by the route, not
+ * the store: the store reports `usable` with the hash, and U13 downgrades that
+ * to refused after the shared compare fails, attaching the vault it already has.
+ *
+ * @type {{ invalid: MagicPeek, expired: MagicPeek }}
+ */
+export const MAGIC_PEEK_MISS = Object.freeze({
+  invalid: Object.freeze({
+    ok: false,
+    status: "invalid",
+    email: null,
+    vault: null,
+    verifierBound: false,
+    verifierHash: null,
+  }),
+  expired: Object.freeze({
+    ok: false,
+    status: "expired",
+    email: null,
+    vault: null,
+    verifierBound: false,
+    verifierHash: null,
+  }),
+});
+
+/**
+ * #240 U4 — how a caller of `exchangeMagic` states its relationship to the
+ * verifier. The two fields are not two spellings of one idea, and an absent
+ * `verifier` must never be read as `skipVerifierCheck`:
+ *
+ * - `verifier` — the plugin's `POST /v1/auth/exchange` presents what the
+ *   requesting device holds. Absent (or empty) against a **bound** row is a
+ *   refusal, which is exactly R5's "you are not the device that asked".
+ * - `skipVerifierCheck` — the web routes say no check applies at all. U6's
+ *   HTML fallback redeems **bound** tokens this way on purpose (KD9): every
+ *   link a current build mints is bound, so a fallback that honoured the check
+ *   would recover nothing, and KD3's cross-device recovery would be gone.
+ *
+ * @typedef {object} MagicExchangeOpts
+ * @property {string|null} [verifier] raw verifier presented by the caller
+ * @property {boolean} [skipVerifierCheck] this route is not verifier-bound
+ */
+
+/**
+ * #240 U4 step 6 — **the** verifier comparison. One comparison, two callers:
+ * this unit's `POST /v1/auth/exchange` abort and U13's peek route. They must
+ * never disagree, because a peek that says "usable" where the exchange would
+ * refuse sends the user through a tap that cannot succeed.
+ *
+ * A row with no stored hash matches anything, including nothing presented:
+ * that is KD9's older-plugin-build path, where no check applies because no
+ * device ever registered a verifier. It is **not** the mechanism that keeps
+ * U6's fallback route working — that route skips the check outright, for bound
+ * rows too, which is what lets it redeem the bound tokens every current build
+ * mints. Two independent rules; collapsing them deletes cross-device recovery.
+ *
+ * A bound row with nothing presented is a mismatch, not a pass.
+ *
+ * @param {string|null|undefined} storedHash  the row's `verifier_hash`
+ * @param {string|null|undefined} presentedVerifier  the raw verifier, if any
+ * @returns {boolean} whether the exchange/peek may proceed
+ */
+export function verifierMatches(storedHash, presentedVerifier) {
+  // U3's `optionalBoundedString` trims before storing, so the stored hash has
+  // no surrounding whitespace and an empty one was normalized to null at mint —
+  // null reads as unbound, never as "bound to the empty string".
+  const stored = String(storedHash ?? "").trim();
+  if (!stored) return true;
+  const presented = String(presentedVerifier ?? "").trim();
+  if (!presented) return false;
+  // KTD6 — `base64url(SHA-256(verifier))`, the value the plugin sends at mint
+  // time. The encoding is the contract, not an implementation detail:
+  // `src/platform/pkce.ts` emits base64url, and a server that hashed to hex
+  // would refuse every device without either side being individually wrong.
+  // Hence the shared digest (#309) rather than a second one derived here.
+  // Borrow `pkceChallengeS256` only — never `verifyPkce`, whose non-S256
+  // branch is a plaintext compare this control must never accept.
+  const a = Buffer.from(pkceChallengeS256(presented));
+  const b = Buffer.from(stored);
+  // timingSafeEqual throws on unequal lengths, and a length difference is
+  // already public (the digest length is fixed), so guard rather than compare.
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
+/**
+ * #240 U4 — what a verifier-bound exchange hands back when it refuses. Frozen,
+ * and deliberately carries no session, account, email, or token: a refusal must
+ * be spendable by nobody and quotable into no log (R11).
+ *
+ * Distinguishable from the `null` an invalid or expired token returns, because
+ * the plugin renders R5's "open the vault that requested this link" for one and
+ * R7's "the link expired, request a new one" for the other.
+ */
+export const MAGIC_EXCHANGE_REFUSED = Object.freeze({
+  refused: true,
+  reason: "verifier_mismatch",
+});
 
 /**
  * How long a checkout→session binding stays claimable. Stripe Checkout
