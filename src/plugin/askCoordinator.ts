@@ -107,13 +107,24 @@ export class AskCoordinator {
   }
 
   /**
-   * Whether the mirror may push *right now*. Read live at every gate rather than
-   * captured, because `data.json` syncs: a withdrawal on another device replaces
-   * `plugin.settings` underneath a pass that is already running (#323).
+   * Whether the mirror may push *right now*. The one home for the egress predicate:
+   * a second copy is how a future condition gets added to one gate and missed at the
+   * other. Read live at every call rather than captured, because `data.json` syncs —
+   * a withdrawal on another device replaces `plugin.settings` underneath a pass that
+   * is already running (#323).
    */
-  private mirrorPermitted(): boolean {
+  mirrorPermitted(): boolean {
     const p = this.plugin;
     return p.settings.askEnabled && Boolean(p.settings.askPrivacyAckAt);
+  }
+
+  /** Forget the debounced push this device owes itself; keeps no timer alive. */
+  private clearDebouncedPush(): void {
+    if (this.askMirrorDebounceTimer != null) {
+      window.clearTimeout(this.askMirrorDebounceTimer);
+      this.askMirrorDebounceTimer = null;
+    }
+    this.askMirrorDirty = false;
   }
 
   /**
@@ -128,11 +139,7 @@ export class AskCoordinator {
   cancelPendingSync(): void {
     this.askMirrorFlight.followUp = false;
     this.askMirrorFlight.forceFollowUp = false;
-    if (this.askMirrorDebounceTimer != null) {
-      window.clearTimeout(this.askMirrorDebounceTimer);
-      this.askMirrorDebounceTimer = null;
-    }
-    this.askMirrorDirty = false;
+    this.clearDebouncedPush();
   }
 
   /** Debounced best-effort push after vault or pipeline writes. */
@@ -245,15 +252,8 @@ export class AskCoordinator {
     return runMirrorSingleFlight(
       {
         state: this.askMirrorFlight,
-        onBegin: () => {
-          // Absorb pending debounce into this run (avoids Process + 2s
-          // double push).
-          if (this.askMirrorDebounceTimer != null) {
-            window.clearTimeout(this.askMirrorDebounceTimer);
-            this.askMirrorDebounceTimer = null;
-          }
-          this.askMirrorDirty = false;
-        },
+        // Absorb pending debounce into this run (avoids Process + 2s double push).
+        onBegin: () => this.clearDebouncedPush(),
         once: (force) => this.runSyncOnce(force),
       },
       Boolean(opts?.force),

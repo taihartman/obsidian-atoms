@@ -196,6 +196,11 @@ export default class AtomsPlugin extends Plugin {
    * finished. The constructor only stores this reference, so it is safe this early.
    */
   ask: AskCoordinator = new AskCoordinator(this);
+  /**
+   * Bumped before every save, so an external read that resolves after a local write can
+   * tell the copy it is holding is already stale. See `onExternalSettingsChange`.
+   */
+  private settingsGeneration = 0;
   /** Last classify outcome for CLI/dev inspection (no secrets). */
   lastClassifyOutcome: ClassifyOutcome | null = null;
   /** Last dry-run report for CLI inspection (no vault writes). */
@@ -1512,25 +1517,21 @@ export default class AtomsPlugin extends Plugin {
     }
     // Consent may have just been withdrawn elsewhere. Closing the gates is not enough on its
     // own: a mirror pass already inside its single-flight loop owes itself a follow-up that
-    // never re-enters `sync()`. Cancel what is owed. Unconditional rather than keyed on a
-    // before→after transition, so it holds whatever this device previously believed.
-    if (!this.settings.askEnabled || !this.settings.askPrivacyAckAt) {
-      this.ask.cancelPendingSync();
-    }
+    // never re-enters `sync()`. Cancel what is owed. Asked through the coordinator rather
+    // than re-derived here, so the egress predicate keeps exactly one home. Unconditional
+    // rather than keyed on a before→after transition, so it holds whatever this device
+    // previously believed.
+    if (!this.ask.mirrorPermitted()) this.ask.cancelPendingSync();
+    // Everything below only decides whether to rebuild an open Settings screen.
+    if (!this.settingTab) return;
     // The screen was rendered against the state we just replaced; a Review row still showing a
     // consent that is gone on disk is the same defect wearing a different coat. Rebuilding it
     // costs a full `containerEl.empty()` and re-render, so skip that when the file changed in
     // ways this screen cannot show — including `loadSettings`' own legacy-hash write bouncing
     // back through this hook.
     if (JSON.stringify(this.settings) === before) return;
-    this.settingTab?.refreshFromExternalSettings();
+    this.settingTab.refreshFromExternalSettings();
   }
-
-  /**
-   * Bumped before every save so a concurrent external read can tell that the copy it is
-   * holding is already stale. See `onExternalSettingsChange`.
-   */
-  private settingsGeneration = 0;
 
   async saveSettings() {
     this.settingsGeneration += 1;
