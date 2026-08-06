@@ -8,7 +8,7 @@ cwd: "/Users/a515138832/StudioProjects/obsidian_plugin/.claude/worktrees/nervous
 resume_focus: "Run the two-device Sync smoke, then mark PR #330 ready"
 repository: "taihartman/obsidian-atoms"
 branch: "fix/ask-consent-cross-device"
-head: "c4543b2"
+head: "fix/ask-consent-cross-device @ 0.6.81-beta.1"
 worktree_path: "/Users/a515138832/StudioProjects/obsidian_plugin/.claude/worktrees/nervous-hodgkin-cb3f8c"
 ---
 
@@ -20,7 +20,8 @@ worktree_path: "/Users/a515138832/StudioProjects/obsidian_plugin/.claude/worktre
 ## State
 
 [PR #330](https://github.com/taihartman/obsidian-atoms/pull/330) — **still draft, deliberately**,
-at `c4543b2`. 1247 tests green, build clean, version 0.6.80 (uncontested; master was 0.6.79).
+rebased onto master. 1254 tests green, build clean, version **0.6.81** — 0.6.80 was taken by #337 as a stable release while this branch
+was in review, so this rebased onto that and bumped past it.
 Working tree clean, branch pushed. CI was pending at handoff — check it.
 
 ## What landed
@@ -50,7 +51,7 @@ nothing has driven two real vaults through real Obsidian Sync. The unit tests pr
 mechanism against a stubbed network; they cannot prove the thing the issue is about.
 
 1. Install the branch build on a desktop and a phone sharing one vault. Confirm
-   **Settings → Atoms → Version 0.6.80** on both.
+   **Settings → Atoms → Version 0.6.81-beta.1** on both.
 2. Grant Ask consent, let a mirror pass run, confirm atoms reach the cloud.
 3. On the phone, withdraw the privacy ack. **Do not touch the desktop.**
 4. On the desktop: the Settings screen should rebuild itself, and no further push should leave.
