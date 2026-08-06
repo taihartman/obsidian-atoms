@@ -5,8 +5,10 @@
 ## Verdict
 
 **Ready to merge.** All five user stories passed against the live plugin in the throwaway vault, on
-Obsidian 1.13.4. One finding, doc-only, fixed in this pass. Craft passed. Adversarial half run — see
-§ Adversarial.
+Obsidian 1.13.4; craft passed. The adversarial half then found **four real holes** — two of them
+consent-safety bugs that could write a grant the user never made, or reverse one they had just
+withdrawn. All four are fixed, guarded by tests that failed before their fix, and re-proven live.
+Build clean, **1275 tests pass**. See § Adversarial.
 
 ## Charter
 
@@ -168,12 +170,91 @@ Obsidian's `saveLocalStorage` deletes the entry for any falsy value — probed d
 correct and unchanged (`readEgressAckVersion` → null either way); the comment misdescribed what lands
 on disk. Corrected.
 
-No P0 or P1 found.
+The constructive pass found no P0 or P1. **The adversarial pass found two** (H1, H2 in § Adversarial)
+— which is the point of running it: a pass built to confirm the stories keeps confirming them.
 
 ## Adversarial
 
-Run via `adversarial-qa` against this build — scenarios and outcomes recorded in the section the
-skill appends. Fold its scenario list forward for the next consent change.
+Run against 0.6.81. **18 scenarios, 4 proven holes, all 4 fixed and re-verified live.** This is the
+half that earned the pass — the constructive stories were all green, and the gate still had two
+ways to write a consent nobody granted.
+
+### Scenario ledger
+
+| Scenario | Verdict |
+|---|---|
+| Close Settings tab with a sheet open | solid |
+| `openRoute()` with a sheet open | solid for consent; **holed** for scroll (H3) |
+| Home sheet + home leaf detached underneath | **holed (H1)** |
+| Home sheet stacked under a Settings Review, withdraw then accept | **holed (H2)** |
+| Double-fire "I understand" | solid — `answered` latch, one write |
+| Cancel then "I understand" on the detached button | solid — decline wins |
+| Withdraw pressed twice in one sheet | solid |
+| Three full enable→withdraw cycles | solid — no key drift |
+| Already enabled, toggle on again | solid — no re-pose, ack survives off→on |
+| Stale Review handler fired after its row is gone | solid — withdrawal is idempotent |
+| Abandon a home enable, immediately enable from Settings | solid |
+| Notice seeded while the sheet is open, then accept, then withdraw | solid — withdrawal reaches the grant it never saw arrive |
+| Notice-only device, withdraw from Review | solid |
+| Notice → withdraw → `Sync everything now` again | solid — no silent re-grant; filing blocked with an explanatory notice |
+| Future/unknown stamp `"2027-01-01"` | solid on the gate; **holed** on copy (H4) |
+| Downgrade — an older build's `=== true` against a stamped string | solid, fail-safe denies |
+| 13 corrupt/degenerate ack values | solid — all read unacknowledged |
+| `enabled=true`, no ack, no notice | solid — auto-run does not run |
+
+### Proven holes and their fixes
+
+**H1 — the consent sheet outlived the screen that posed it, and still granted.** Home's
+`confirmEnableAutomaticFiling` opened a sheet and kept no handle. Detaching every home leaf left the
+sheet up; accepting it wrote the ack and enabled filing. Worse: disabling the plugin left the sheet
+up too, so accepting armed paid unattended filing **for the moment the plugin came back**.
+
+**H2 — a withdrawal silently reversed.** Same root cause, cross-surface. `app:open-settings` opens
+over a home sheet; Settings' own settle logic only knew about its own handle. Home sheet open →
+Settings → Review → **Withdraw** (keys cleared) → the stale home sheet is still there → "I
+understand" → re-granted.
+
+**Fix for both:** the "one consent sheet at a time" rule moved **into `ConsentSheetModal`**
+(`src/settings/consent.ts`) as a module-level latch, plus an exported `closeOpenConsentSheet()`
+called from `AtomsHomeView.onClose()` and registered on plugin unload. Settings had three
+hand-maintained settle sites and every new call site had to remember a fourth; the latch means none
+of them has to. This also structurally settles the open merge note about #330's
+`refreshFromExternalSettings()` — it would have been that unremembering fourth site.
+
+**H3 — a destination opened mid-page.** `openRoute()` closed the sheet first; that decline
+re-rendered the outgoing screen, queueing a scroll restore that landed *after* the synchronous
+`scrollTop = 0`. Fixed by setting the existing `hiding` latch around the close.
+
+**H4 — the Review row's copy lied on a downgraded device.** A two-way branch told a device holding a
+*later* stamp plus a notice it had acknowledged "against **earlier** wording". Now a three-way
+branch: "earlier" for the upgrade case (the grant named no wording at all), "different" for the
+downgrade case.
+
+### Live re-verification of the fixes (0.6.81)
+
+Every hole was proven live, so every fix was re-proven live rather than trusted to its unit guard.
+
+| Repro | Result |
+|---|---|
+| V1 — pose from home, detach every home leaf | **closed** — 0 modals, all keys null |
+| V2 — pose from home, disable the plugin | **closed** — 0 modals, keys null; re-enable leaves nothing armed |
+| V3 — home sheet, Settings over it, Review then Withdraw | **closed** — exactly one sheet open (the Review); keys cleared; no leftover sheet to accept |
+| V4 — scroll to 900, open sheet, tap a destination | **closed** — `scrollTop` 0 immediately and at 250 ms |
+| V5 — the two stranded-record strings | **closed** — "against different wording" (downgrade) / "against earlier wording" (upgrade), transcribed verbatim |
+
+**Ordinary paths re-checked after the latch**, because a single-sheet rule that breaks the normal
+flow is worse than the bug it fixes: enable from Settings, enable from home, clean withdraw, and
+repeated open/Cancel/open all behave. The latch releases correctly on every close path.
+
+**Method caveat:** V1–V3 posed home's sheet by calling `confirmEnableAutomaticFiling()` — the
+verbatim body of the filing card's `enable_auto` handler — because this vault has neither BYOK nor
+Plus, so the hero renders `Try Atoms Plus` / `Use My Own Key` rather than the filing button. Same
+code path, one click short of a full user gesture.
+
+### Regression guards
+
+`test/consentGate.adversarial.test.ts` — 19 cases. The 16 attacks that held are locked so they stay
+held; H1 (×2), H2, H3 and H4 (×2) each have a guard that **failed before its fix**.
 
 ## Not tested
 
@@ -190,5 +271,7 @@ skill appends. Fold its scenario list forward for the next consent change.
 ## Merge decision
 
 **Ready.** The behavioural contract is proven live on both surfaces and on the upgrade path,
-including the negative case. The one finding was a comment, and it is fixed. The gaps above are named
-rather than papered over, and none of them touch the change's own claim.
+including the negative case. Four adversarial holes were found, fixed at the primitive rather than
+patched per call site, and re-proven live; the ordinary enable and withdraw paths were re-checked
+afterwards so the fix does not cost more than the bug. The gaps above are named rather than papered
+over, and none of them touch the change's own claim.

@@ -73,6 +73,30 @@ export function egressConsentSpec(
  * settled yet — which makes Escape, a click outside, and Settings closing all declines, and
  * leaves an accepted sheet accepted.
  */
+/**
+ * At most one consent sheet exists at a time, and it never outlives the screen that posed it.
+ *
+ * Settings kept its own handle and settled it from three places, which worked until a fourth
+ * surface posed a sheet without one: home's card left its sheet with no owner, so the sheet
+ * survived its own leaf being detached — and survived the plugin being disabled — and accepting
+ * from that orphan still armed paid unattended filing. Worse, a home sheet left on screen could
+ * be accepted *after* a withdrawal made in Settings in front of it, silently reversing it.
+ *
+ * Holding the latch in the modal rather than at each call site is what makes that unrepeatable:
+ * every present and future caller inherits it without remembering to.
+ */
+let openSheet: ConsentSheetModal | null = null;
+
+/**
+ * Settle any open consent sheet as a decline.
+ *
+ * Called when a surface that may have posed one goes away — a view closing, the plugin
+ * unloading. A sheet with nothing behind it can still be clicked.
+ */
+export function closeOpenConsentSheet(): void {
+  openSheet?.close();
+}
+
 export class ConsentSheetModal extends Modal {
   private answered = false;
 
@@ -84,6 +108,11 @@ export class ConsentSheetModal extends Modal {
   }
 
   onOpen() {
+    // A sheet never stacks over another: the older one settles as a decline before this one
+    // paints, so a stale sheet can never be accepted over a decision made in front of it.
+    if (openSheet && openSheet !== this) openSheet.close();
+    openSheet = this;
+
     const { contentEl } = this;
     contentEl.empty();
     const reviewing = this.spec.granted !== undefined;
@@ -117,6 +146,7 @@ export class ConsentSheetModal extends Modal {
   }
 
   onClose() {
+    if (openSheet === this) openSheet = null;
     this.contentEl.empty();
     // Closing without choosing is a decline, never consent — and never a withdrawal either.
     this.answer("declined");

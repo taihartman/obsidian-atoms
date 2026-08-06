@@ -19,6 +19,7 @@ import {
 } from "../pipeline/context";
 import {
   readDeviceAutoRunState,
+  readEgressAckVersion,
   writeAutoRunEnabled,
   writeEgressAck,
 } from "../platform/autorun";
@@ -422,6 +423,11 @@ export class AtomsSettingTab extends PluginSettingTab {
     // it, and accepting it from inside a destination still wrote the ack — a consent granted
     // on a screen the user had already left. `hide()` has always done this; this is the one
     // other screen change, and it was the one that did not.
+    // That decline re-renders the screen we are leaving, which queues a restore of *its* scroll
+    // position — and the queued restore lands after the `scrollTop = 0` below, dropping the user
+    // mid-page on a screen they have not seen. `hiding` is the latch that already suppresses a
+    // re-render nobody will look at; `display()` clears it.
+    this.hiding = true;
     this.openSheet?.close();
     this.openSheet = null;
     this.route = route;
@@ -1680,9 +1686,16 @@ export class AtomsSettingTab extends PluginSettingTab {
     if (state.egressAcked || noticeAcked) {
       // Say which consent is actually on record. A device carrying only the notice never saw
       // the unioned disclosure, and this row must not claim on its behalf that it did.
+      //
+      // "earlier" is the upgrade case, where the stale grant named no wording at all. A stamp
+      // that exists but is not ours is the downgrade case — the wording it names is *later*
+      // than this build's, so "earlier" would be its own small lie.
+      const strandedStamp = readEgressAckVersion(load) != null;
       const record = state.egressAcked
         ? "Acknowledged on this device"
-        : "Acknowledged on this device for Sync everything now, against earlier wording";
+        : strandedStamp
+          ? "Acknowledged on this device for Sync everything now, against different wording"
+          : "Acknowledged on this device for Sync everything now, against earlier wording";
       this.actionRow(containerEl, {
         action: `ack:review:${EGRESS_ACK_TITLE}`,
         name: EGRESS_ACK_TITLE,

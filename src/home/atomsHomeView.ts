@@ -141,7 +141,11 @@ import {
   resolveCaptureShortcutInstallUrl,
   writeShortcutAck,
 } from "../settings/captureShortcut";
-import { ConsentSheetModal, egressConsentSpec } from "../settings/consent";
+import {
+  closeOpenConsentSheet,
+  ConsentSheetModal,
+  egressConsentSpec,
+} from "../settings/consent";
 import {
   DailyNotesDisabledError,
   getPastDailyNotesWithUnmarkedCaptures,
@@ -349,6 +353,9 @@ export class AtomsHomeView extends ItemView {
       window.clearTimeout(this.refreshTimer);
       this.refreshTimer = null;
     }
+    // The filing card can pose a consent sheet, and a sheet with no view behind it is still
+    // clickable — accepting one armed unattended sends from a screen the user had already closed.
+    closeOpenConsentSheet();
     this.rootEl = null;
   }
 
