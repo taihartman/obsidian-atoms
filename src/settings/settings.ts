@@ -1868,8 +1868,17 @@ export class AtomsSettingTab extends PluginSettingTab {
       },
     });
 
-    // Proposed tags awaiting approval
-    const proposed = this.plugin.settings.proposedTags ?? [];
+    // Proposed tags awaiting approval.
+    //
+    // Normalized here, not trusted from settings: `mergeProposedTags` writes a deduped, lowercased
+    // array, but `loadSettings` assigns `data.json` straight through, so a hand edit or an older
+    // build can leave `["design", "Design"]` behind. Two rows would render, the row name would
+    // count two, and the confirm — which counts the *normalized* set it dismisses — would say one.
+    // The row's whole job is to state its own reach before it is pressed, so the name and the
+    // sheet have to reach the same number by construction, not by trusting the stored array.
+    const proposed = [
+      ...new Set((this.plugin.settings.proposedTags ?? []).map(normalizeTag)),
+    ].filter(Boolean);
     if (proposed.length > 0) {
       settingHeading(containerEl, "Proposed (approve to activate)");
       for (const tag of proposed) {

@@ -696,6 +696,29 @@ describe("tag vocabulary", () => {
     expect(proposedSection(tab)).toEqual(["#watch", "#media", "2 proposals waiting"]);
   });
 
+  /**
+   * `mergeProposedTags` never writes a duplicate or a mixed-case tag, but `loadSettings` assigns
+   * `data.json` straight through, so a hand edit or an older build can. The row counted the raw
+   * array while the confirm counted the normalized set it actually dismisses, so the two numbers
+   * disagreed — "4 proposals waiting" opening a sheet that offered to dismiss 2, then clearing all
+   * four. A row whose only job is to state its own reach cannot understate it.
+   */
+  it("counts the same number in the row and the sheet when settings hold duplicates", () => {
+    const { tab } = settingTab({
+      settings: {
+        activeVocabulary: ["idea"],
+        proposedTags: ["design", "Design", "  #PACKING  ", "packing", ""],
+      },
+    });
+    tab.display();
+    open(tab, entry(1));
+
+    expect(proposedSection(tab)).toEqual(["#design", "#packing", "2 proposals waiting"]);
+    press(tab, "2 proposals waiting", "Dismiss all");
+    expect(sheetText()).toContain("Dismiss 2 proposals?");
+    dismissSheet();
+  });
+
   it("activates a tag found in the vault and updates the main-screen count", async () => {
     const { tab } = settingTab({
       settings: { activeVocabulary: ["idea"] },
