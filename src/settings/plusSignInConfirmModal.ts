@@ -2,11 +2,14 @@
  * #240 U10 — the sign-in confirmation, and the surface every handoff outcome
  * lands on.
  *
- * Two rules shape this file. **Cancel is the safe option and it is first**,
- * because `exchangeMagic` revokes the account's other sessions before it mints
- * (KD4) — asking after the exchange would make cancel the destructive choice.
- * And **a refusal is a modal, not a toast**: R5 demands a visible refusal, and a
- * `Notice` competes with the user still switching back from their mail app.
+ * Two rules shape this file. **Cancel is the safe option and it is first**.
+ * #240's KD4 justified that with `exchangeMagic` revoking the account's other
+ * sessions before minting; #320 narrowed that revoke to unverified sessions, so
+ * the ordering now rests on the surviving reason: the exchange **spends** a
+ * single-use token, and asking afterwards would make cancel the choice that
+ * costs the user their link. And **a refusal is a modal, not a toast**: R5
+ * demands a visible refusal, and a `Notice` competes with the user still
+ * switching back from their mail app.
  */
 import { Modal, Notice, Setting } from "obsidian";
 import type { App } from "obsidian";
@@ -25,7 +28,16 @@ export type SignInConfirmCopy = {
    * they discover afterwards (R4).
    */
   lines: string[];
-  /** The sign-out consequence. Also present in `lines`; that identity is asserted. */
+  /**
+   * What signing in here does to the account's other devices. Also present in
+   * `lines`; that identity is asserted.
+   *
+   * #320 KTD7 — kept as a field rather than deleted. Before the narrowing it
+   * warned that other devices were signed out; now it tells the truth (they
+   * stay) and points at the control that signs them out on purpose. The user
+   * still learns where the recovery path is, at the moment the old promise
+   * used to appear.
+   */
   disclosure: string;
   /** Safe option, listed first. */
   declineLabel: string;
@@ -38,7 +50,7 @@ export type SignInConfirmCopy = {
  */
 export function signInConfirmCopy(request: SignInConfirmRequest): SignInConfirmCopy {
   const disclosure =
-    "Signing in here signs this account out on your other devices. They can sign back in with a new link.";
+    "Your other devices stay signed in. To sign them out, use “Sign out all devices” in Settings → Atoms.";
   return {
     title: "Sign in to Atoms Plus?",
     lines: [

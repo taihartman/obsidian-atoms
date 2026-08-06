@@ -50,9 +50,14 @@ describe("PlusSignInConfirmModal — copy", () => {
     expect(copy.lines.join(" ")).not.toMatch(/mt_|sess_/);
   });
 
-  it("states the sign-out consequence, and states it above the buttons", () => {
+  it("states what happens to the other devices, above the buttons", () => {
     const copy = signInConfirmCopy(request);
-    expect(copy.disclosure).toMatch(/signs this account out on your other devices/i);
+    // #320 — signing in no longer evicts them, so the old promise would be a
+    // lie. The line still has to earn its place: it names the control that
+    // does sign them out, at the moment the user is thinking about it.
+    expect(copy.disclosure).toMatch(/other devices stay signed in/i);
+    expect(copy.disclosure).not.toMatch(/signs this account out/i);
+    expect(copy.disclosure).toMatch(/sign out all devices/i);
     // Identity, not similarity: the disclosure is one of the rendered lines,
     // and every line renders before the two buttons.
     expect(copy.lines).toContain(copy.disclosure);
