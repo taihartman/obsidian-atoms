@@ -136,6 +136,30 @@ The one that mattered, end to end:
 | Confirm | none, and fine at ×1 | none, not fine at ×12 | confirm sheet naming the count |
 | Copy | n/a | "a later run can propose them again" (false for that batch) | no desc; the sheet states permanence at the tap |
 
+**The bound has a twin: the *count*.** Adversarial QA on the shipped version found the same class of
+error one level down. The row's name counted `settings.proposedTags.length` — the raw stored array —
+while the confirm counted `rendered.size`, the normalized set it actually dismisses. Those are the
+same number for every array the plugin itself writes, because `mergeProposedTags` dedupes and
+lowercases. They are *not* the same number for an array that reached `data.json` another way, and
+`loadSettings` assigns `data.json` straight through:
+
+```text
+proposedTags = ["design", "Design", "  #PACKING  ", "packing"]
+  row   : "4 proposals waiting"
+  sheet : "Dismiss 2 proposals?"     ← then cleared all four
+```
+
+A bulk action states its reach in a number, so **that number is part of the bound, not decoration**.
+Derive it from the same set the handler acts on — here by normalizing at the render boundary rather
+than trusting the stored array — so the two cannot drift. The tell is generic: if a label's count and
+a handler's scope are computed from the same data by *different* expressions, they are one malformed
+input away from disagreeing, and the disagreement always favours destroying more than the label
+promised.
+
+Note where it was caught. The unit tests all passed, because they seeded the array the way the merge
+path writes it. It took the break-it half of QA, deliberately feeding a `data.json` the plugin would
+never produce, to separate "the two expressions agree" from "the two expressions are the same bound."
+
 **Secondary learning — the ratchet did the design work.** Writing the confirm inline would have been
 a second hand-rolled modal in `src/settings/settings.ts`, and the row-grammar repository guard in
 `test/settingsRows.test.ts` failed it: `settings.ts constructs Setting directly 6 times (budget 5)`.
