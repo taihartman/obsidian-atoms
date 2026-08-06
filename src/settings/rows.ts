@@ -1,6 +1,8 @@
 import {
+  type App,
   type ButtonComponent,
   type DropdownComponent,
+  Modal,
   Setting,
   type TextComponent,
   type ToggleComponent,
@@ -227,6 +229,54 @@ export function actionRow(containerEl: HTMLElement, row: ButtonRow): void {
 /** Something that destroys data: one destructive button, never accent, never a toggle. */
 export function destructiveRow(containerEl: HTMLElement, row: ButtonRow): void {
   buttonRow(containerEl, row, markDestructive);
+}
+
+/** The question a destructive row asks before it acts. */
+export interface ConfirmSheet {
+  app: App;
+  title: string;
+  body: string;
+  /** The way out — "Cancel", "Keep". Never styled destructive. */
+  cancelLabel: string;
+  /** The destructive answer, styled to match the row that opened the sheet. */
+  confirmLabel: string;
+  /** Runs after the sheet closes; the row stays held until its promise settles. */
+  onConfirm: () => Promise<void>;
+}
+
+/**
+ * A destructive question, and the promise that keeps its row held until it is answered.
+ *
+ * Returning before the answer is what lets one destructive row stack two sheets on a double-tap,
+ * so the promise settles on the *action* when the user confirms and on `onClose` otherwise —
+ * Cancel, Escape, and a click outside all arrive as `close()`, so one branch covers all three.
+ *
+ * Lives here rather than beside either caller because a confirm sheet is the destructive row's
+ * other half: the row declares the kind, the sheet asks the question, and the two settings
+ * confirms that existed independently had already drifted into the same shape twice.
+ */
+export function confirmSheet(sheet: ConfirmSheet): Promise<void> {
+  return new Promise<void>((resolve) => {
+    const modal = new Modal(sheet.app);
+    modal.titleEl.setText(sheet.title);
+    modal.contentEl.createEl("p", { text: sheet.body });
+    let confirmed = false;
+    modal.onClose = () => {
+      if (!confirmed) resolve();
+    };
+    new Setting(modal.contentEl)
+      .addButton((b) => b.setButtonText(sheet.cancelLabel).onClick(() => modal.close()))
+      .addButton((b) =>
+        markDestructive(b.setButtonText(sheet.confirmLabel))
+          .setCta()
+          .onClick(() => {
+            confirmed = true;
+            modal.close();
+            void sheet.onConfirm().finally(resolve);
+          }),
+      );
+    modal.open();
+  });
 }
 
 /** Read-only state: muted trailing text, no control, and no description paragraph. */

@@ -53,6 +53,7 @@ import {
   actionRow,
   backRow,
   type ButtonRowSpec,
+  confirmSheet,
   destinationRow,
   destructiveRow,
   InFlightActions,
@@ -1905,17 +1906,11 @@ export class AtomsSettingTab extends PluginSettingTab {
       this.destructiveRow(containerEl, {
         action: "tags:dismiss-proposed",
         name: `${proposed.length} ${proposed.length === 1 ? "proposal" : "proposals"} waiting`,
-        // Not "a later run can propose them again": a processed capture carries a sentinel and is
-        // never classified twice, so a dismissed tag returns only from a capture yet to be written.
-        desc: "None of them are applied. Dismissing is not undo — a tag comes back only if a later capture proposes it.",
+        // No desc: every Approve row above already says these are inert until approved, and the
+        // one fact this row adds — that dismissal does not come back — belongs at the tap, in the
+        // confirm, not as a standing warning under a button nobody has reached for yet.
         label: "Dismiss all",
-        onClick: async () => {
-          this.plugin.settings.proposedTags = this.plugin.settings.proposedTags.filter(
-            (t) => !rendered.has(normalizeTag(t)),
-          );
-          await this.plugin.saveSettings();
-          this.redisplay();
-        },
+        onClick: () => this.confirmDismissProposedTags(rendered),
       });
     }
 
@@ -1970,6 +1965,37 @@ export class AtomsSettingTab extends PluginSettingTab {
         },
       });
     }
+  }
+
+  /**
+   * The queue dismissal, behind the question a bulk destructive row cannot skip.
+   *
+   * One tap was defensible while dismissal was per-tag; a row that clears a dozen proposals at
+   * once is not, because they do not come back — a processed capture carries a sentinel and is
+   * never classified twice. `rendered` is the set the row drew, so a classify run that merged
+   * new proposals into the queue while this screen sat open survives both the question and the
+   * dismissal.
+   *
+   * Returns a promise settling when the question is answered, so `destructiveRow`'s in-flight
+   * guard covers the whole confirm lifetime rather than releasing the moment the sheet opens —
+   * same reason as `confirmWipeCloudCopy`, and the same double-tap it prevents.
+   */
+  private confirmDismissProposedTags(rendered: Set<string>): Promise<void> {
+    const n = rendered.size;
+    return confirmSheet({
+      app: this.app,
+      title: n === 1 ? "Dismiss 1 proposal?" : `Dismiss ${n} proposals?`,
+      body: `${n === 1 ? "This tag" : `These ${n} tags`} will not be offered again unless a later capture proposes ${n === 1 ? "it" : "them"}. Nothing already tagged changes.`,
+      cancelLabel: "Keep",
+      confirmLabel: "Dismiss",
+      onConfirm: async () => {
+        this.plugin.settings.proposedTags = this.plugin.settings.proposedTags.filter(
+          (t) => !rendered.has(normalizeTag(t)),
+        );
+        await this.plugin.saveSettings();
+        this.redisplay();
+      },
+    });
   }
 
   /**

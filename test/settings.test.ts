@@ -625,6 +625,7 @@ describe("tag vocabulary", () => {
     tab.display();
     open(tab, entry(1));
     press(tab, "2 proposals waiting", "Dismiss all");
+    pressSheet("Dismiss");
     await flush();
 
     expect(inDestination(tab)).toBe(true);
@@ -635,6 +636,40 @@ describe("tag vocabulary", () => {
     tab.hide();
     tab.display();
     expect(destinationNames(tab)).toContain(entry(1));
+  });
+
+  /**
+   * One tap was defensible while dismissal was per-tag. A row that clears the whole queue is not,
+   * because dismissal does not come back: a processed capture carries a sentinel and is never
+   * classified twice.
+   */
+  it("asks before dismissing the queue, and keeps it when the answer is no", async () => {
+    const { tab, plugin } = settingTab({
+      settings: { activeVocabulary: ["idea"], proposedTags: ["gardening", "cooking"] },
+    });
+    tab.display();
+    open(tab, entry(1));
+    press(tab, "2 proposals waiting", "Dismiss all");
+
+    expect(sheetText()).toContain("Dismiss 2 proposals?");
+    dismissSheet();
+    await flush();
+
+    expect(plugin.settings.proposedTags).toEqual(["gardening", "cooking"]);
+    expect(rowNames(tab)).toContain("2 proposals waiting");
+  });
+
+  it("counts the question in the singular when one proposal is waiting", () => {
+    const { tab } = settingTab({
+      settings: { activeVocabulary: ["idea"], proposedTags: ["gardening"] },
+    });
+    tab.display();
+    open(tab, entry(1));
+    press(tab, "1 proposal waiting", "Dismiss all");
+
+    expect(sheetText()).toContain("Dismiss 1 proposal?");
+    expect(sheetText()).toContain("This tag will not be offered again");
+    dismissSheet();
   });
 
   /**
@@ -654,6 +689,7 @@ describe("tag vocabulary", () => {
     // A classify run lands while the screen sits open.
     plugin.settings.proposedTags = ["gardening", "cooking", "watch", "media"];
     press(tab, "2 proposals waiting", "Dismiss all");
+    pressSheet("Dismiss");
     await flush();
 
     expect(plugin.settings.proposedTags).toEqual(["watch", "media"]);
