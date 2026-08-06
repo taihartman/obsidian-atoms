@@ -113,4 +113,115 @@ describe("#323 cross-device consent", () => {
     await expect(plugin.onExternalSettingsChange()).resolves.toBeUndefined();
     expect(plugin.settings.askPrivacyAckAt).toBe(GRANTED.askPrivacyAckAt);
   });
+
+  /**
+   * F4 — the *non-throwing* shape of the same mid-write file. `loadSettings` coalesces a
+   * missing read to `{}`, which is right on a fresh install and catastrophic at runtime: it
+   * resets every setting to defaults and the next save pushes that wipe to every device.
+   */
+  it.each([
+    ["null", null],
+    ["a bare string", "not an object"],
+  ])("does not wipe settings when the external read comes back as %s", async (_label, bad) => {
+    const { plugin } = pluginOnSyncedVault({
+      ...GRANTED,
+      plusBaseUrl: "https://plus.example",
+      atomFolder: "Atoms",
+    });
+    await plugin.loadSettings();
+    let saves = 0;
+    Object.assign(plugin, {
+      loadData: async () => bad,
+      saveData: async () => {
+        saves += 1;
+      },
+    });
+
+    await plugin.onExternalSettingsChange();
+
+    expect(plugin.settings.askPrivacyAckAt).toBe(GRANTED.askPrivacyAckAt);
+    expect(plugin.settings.plusBaseUrl).toBe("https://plus.example");
+    // Nothing was applied, so nothing may be persisted — a save here is how the wipe
+    // would reach the other devices.
+    expect(saves).toBe(0);
+  });
+
+  /**
+   * F2 — read-modify-write lost update on a synced file. The hook's read can resolve *after*
+   * a local withdrawal has already mutated `settings` and started its own save. Re-pointing
+   * settings at the copy the read is holding would leave memory more permissive than disk,
+   * and the next save would push the resurrected grant back out through Sync.
+   */
+  it("discards an external read that a local write overtook", async () => {
+    const { plugin } = pluginOnSyncedVault(GRANTED);
+    await plugin.loadSettings();
+
+    let releaseRead = () => {};
+    const readInFlight = new Promise<void>((resolve) => {
+      releaseRead = resolve;
+    });
+    Object.assign(plugin, {
+      // The pre-withdrawal bytes: what a read that started before the local write returns.
+      loadData: async () => {
+        await readInFlight;
+        return { ...GRANTED };
+      },
+    });
+
+    const hook = plugin.onExternalSettingsChange();
+    // The user withdraws on *this* device while that read is outstanding.
+    plugin.settings.askPrivacyAckAt = "";
+    await plugin.saveSettings();
+    releaseRead();
+    await hook;
+
+    expect(plugin.settings.askPrivacyAckAt).toBe("");
+  });
+
+  /**
+   * F3 — the same aliasing mistake, one field over. `plusSignIn` stores the host object once
+   * and reads `plusBaseUrl` from it much later, at token-exchange time. Every settings load
+   * replaces `plugin.settings`, so a host holding the object rather than a getter would keep
+   * signing in against whichever base URL existed at startup.
+   */
+  it("reads plusBaseUrl live, so sign-in follows a settings reload", async () => {
+    const { plugin, syncWrites } = pluginOnSyncedVault({
+      ...GRANTED,
+      plusBaseUrl: "https://old.example",
+    });
+    await plugin.loadSettings();
+    // Captured once, the way plusSignIn captures it.
+    const host = plugin.plusSignInHost();
+    expect(host.settings.plusBaseUrl).toBe("https://old.example");
+
+    syncWrites({ ...GRANTED, plusBaseUrl: "https://new.example" });
+    await plugin.onExternalSettingsChange();
+
+    expect(host.settings.plusBaseUrl).toBe("https://new.example");
+  });
+
+  /**
+   * F1's other half. Closing the gate is not enough on its own: a mirror pass already inside
+   * its single-flight loop owes itself a follow-up that never re-enters the gate in `sync()`.
+   * `askCoordinator.test.ts` proves what cancelling does; this proves the hook asks for it.
+   */
+  it("cancels pending mirror work when the reloaded state may not push", async () => {
+    const { plugin, syncWrites } = pluginOnSyncedVault(GRANTED);
+    await plugin.loadSettings();
+    let cancels = 0;
+    plugin.ask = {
+      cancelPendingSync: () => {
+        cancels += 1;
+      },
+    } as unknown as typeof plugin.ask;
+
+    syncWrites(WITHDRAWN);
+    await plugin.onExternalSettingsChange();
+    expect(cancels).toBe(1);
+
+    // A grant owes no cancellation — that would drop a legitimate follow-up.
+    syncWrites(GRANTED);
+    await plugin.onExternalSettingsChange();
+    expect(cancels).toBe(1);
+  });
 });
