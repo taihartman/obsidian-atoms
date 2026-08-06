@@ -74,6 +74,15 @@ A For you cue when a hard supersession pair exists (`revises` / `contradicts` in
 ### Citator ribbon
 One-line subsequent-history chips on Atoms home when an open atom participates in hard supersession edges. Home product chrome only — not injected into the Obsidian editor.
 
+### Row grammar (settings)
+The rule that every settings row visibly declares what kind of thing it is, through its right edge. Five kinds: **setting** (toggle or input — the only kind that may carry a toggle), **destination** (chevron), **action** (accent button), **destructive** (warning button), **status** (muted text, no control). No row wears two kinds. A section-intro paragraph is prose, not a row, and is exempt.
+
+### Destination (settings)
+A settings sub-screen reached from a chevron row and left by a back row. A re-render of the same settings surface under a route value — not a new Obsidian view, and not a modal used as navigation. Leaving and reopening settings always returns to the main screen.
+
+### Consent sheet
+The disclosure a gated feature presents **at the moment it is enabled**, replacing a permanent acknowledgment row. Only an explicit accept records the acknowledgment; Escape, clicking outside, and closing the settings tab all count as declining and leave the feature off. Each granted acknowledgment stays inspectable and revocable afterwards from a Review row, whether or not the feature it gates is currently on. The egress, Ask-privacy, and vault-write consents are three separate sheets and never authorize one another.
+
 ## People (linking)
 
 ### Person hub

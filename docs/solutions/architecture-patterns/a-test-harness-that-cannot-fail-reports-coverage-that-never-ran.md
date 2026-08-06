@@ -214,3 +214,10 @@ The last question is the cheapest and the most decisive. See
 for the same shape in a runtime guard, and
 [security-fix-repair-wired-into-only-one-branch](../logic-errors/security-fix-repair-wired-into-only-one-branch.md)
 for the #230 bug that motivated this work.
+
+**One level in:** a check can also fail correctly on one axis and be blind on
+others, which is harder to catch precisely because it *does* go red sometimes.
+[a-property-test-is-only-as-strong-as-its-observers](../logic-errors/a-property-test-is-only-as-strong-as-its-observers.md)
+covers that case — a settings guard that iterated every rendered row, passed
+while the requirement it enforced was violated three separate ways, and was
+trusted more than a narrower assertion would have been.
