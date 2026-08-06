@@ -272,6 +272,19 @@ export function writeEgressNoticeAcked(
   save(LS_EGRESS_NOTICE, true);
 }
 
+/**
+ * Take the catch-up notice back.
+ *
+ * The counterpart `writeEgressNoticeAcked` never had: this notice is one of the two device-local
+ * booleans that satisfy the egress gate, so a withdrawal that clears only the other one leaves
+ * the paid path open under a consent the user just revoked.
+ */
+export function clearEgressNoticeAcked(
+  save: (key: string, data: unknown) => void,
+): void {
+  save(LS_EGRESS_NOTICE, false);
+}
+
 export type LastCatchupRecord = {
   at: number;
   drained?: number;

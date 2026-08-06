@@ -126,7 +126,11 @@ describe("collectPersonInvites", () => {
           "2026-07-22",
         ),
       ],
-      { personHubTitles: ["Nichita"], vaultTitles: ["Nichita"] },
+      {
+        personHubTitles: ["Nichita"],
+        vaultTitles: ["Nichita"],
+        now: new Date("2026-07-23"),
+      },
     );
     expect(invites.length).toBeGreaterThanOrEqual(1);
     expect(invites[0]!.displayName).toBe("Mom");
@@ -142,7 +146,11 @@ describe("collectPersonInvites", () => {
           "Dom was wearing the trainer shoes",
         ),
       ],
-      { personHubTitles: [], vaultTitles: [] },
+      {
+        personHubTitles: [],
+        vaultTitles: [],
+        now: new Date("2026-07-23"),
+      },
     );
     const dom = invites.find((i) => i.displayName === "Dom");
     expect(dom?.memberPaths.length).toBe(2);
@@ -155,6 +163,9 @@ describe("collectPersonInvites", () => {
         personHubTitles: [],
         vaultTitles: [],
         snoozedNames: ["mom"],
+        // Without an injected clock this passed vacuously: the fixture aged out
+        // of the recency window, so nothing reached the snooze check at all.
+        now: new Date("2026-07-23"),
       },
     );
     expect(invites.some((i) => i.displayName === "Mom")).toBe(false);

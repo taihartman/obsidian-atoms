@@ -11,7 +11,7 @@ import {
 } from "obsidian";
 import {
   anthropicConnectivityOk,
-  runConnectivityTest,
+  runApiKeyReachabilityCheck,
   type ConnectivityReport,
 } from "../platform/connectivity";
 import type AtomsPlugin from "../plugin/main";
@@ -23,6 +23,7 @@ import {
   writeAutoRunEnabled,
   writeEgressAck,
 } from "../platform/autorun";
+import { clearEgressNoticeAcked } from "../platform/resume";
 import {
   CAPTURE_SHORTCUT_VERSION,
   customCaptureShortcutUrl,
@@ -189,7 +190,7 @@ function settingHeading(containerEl: HTMLElement, name: string): void {
 
 /**
  * The request the API-key row's check goes through. Injectable so a test can answer it without a
- * network; production leaves it unset and `runConnectivityTest` falls back to `requestUrl`.
+ * network; production leaves it unset and `runApiKeyReachabilityCheck` falls back to `requestUrl`.
  */
 export type ConnectivityRequest = (
   params: RequestUrlParam,
@@ -263,6 +264,15 @@ export function apiKeyStatusText(state: ApiKeyState): string {
  */
 const API_KEY_RECHECK_MS = 60_000;
 
+/**
+ * How long a check may claim to still be in flight.
+ *
+ * `requestUrl` has no timeout of its own, so a probe that never settles never resolves the
+ * promise the row is waiting on. Past this, the next render asks again rather than repainting
+ * a "Checking" that is not going to change.
+ */
+const API_KEY_CHECK_TIMEOUT_MS = 15_000;
+
 function loadLocal(app: App, key: string): unknown {
   return app.loadLocalStorage(key) as unknown;
 }
@@ -323,10 +333,16 @@ export class AtomsSettingTab extends PluginSettingTab {
    */
   private openSheet: ConsentSheetModal | null = null;
   /**
-   * Set for the duration of `hide()`. Closing Settings settles any open sheet as a decline, and
-   * every decline path ends in `redisplay()` — which would rebuild the screen the user just
-   * closed and, with the key cache freshly cleared, ask Anthropic about it again. The decline
-   * still runs; only its re-render is dropped.
+   * Set by `hide()` and cleared by the next `display()`. Closing Settings settles any open sheet
+   * as a decline, and every decline path ends in `redisplay()` — which would rebuild the screen
+   * the user just closed and, with the key cache freshly cleared, ask Anthropic about it again.
+   * The decline still runs; only its re-render is dropped.
+   *
+   * A latch rather than a flag held for the body of `hide()`, because half the doors into
+   * `redisplay()` are `await`ed continuations — a refresh whose request is still in flight, a
+   * toggle whose save has not landed — and those resolve long after `hide()` has returned. The
+   * next real visit calls `display()`, which is the only thing that clears it; an exception
+   * thrown inside `hide()` therefore cannot strand the tab non-rendering either.
    */
   private hiding = false;
   /**
@@ -406,8 +422,8 @@ export class AtomsSettingTab extends PluginSettingTab {
     this.openSheet?.close();
     this.openSheet = null;
     super.hide();
-    // Cleared last, so the next visit re-renders normally.
-    this.hiding = false;
+    // Not cleared here — `display()` owns that, so continuations landing after this returns
+    // still find the tab closed.
   }
 
   /**
@@ -418,6 +434,9 @@ export class AtomsSettingTab extends PluginSettingTab {
    * time the sheet opens and an unhandled dismissal is the path that silently grants consent.
    */
   private presentConsent(spec: ConsentSheetSpec): void {
+    // One sheet at a time: an unclosed predecessor would be orphaned by the assignment below,
+    // outliving the handle that is meant to be able to settle it as a decline.
+    this.openSheet?.close();
     const sheet = new ConsentSheetModal(this.app, {
       ...spec,
       onVerdict: (verdict) => {
@@ -467,17 +486,38 @@ export class AtomsSettingTab extends PluginSettingTab {
   private async setAskMirrorEnabled(enabled: boolean): Promise<void> {
     this.plugin.settings.askEnabled = enabled;
     if (!enabled) this.plugin.settings.askWriteAckAt = "";
-    await this.plugin.saveSettings();
-    if (enabled) fireAndForgetAsk(this.plugin.syncAskMirror({ force: false }));
+    // Ahead of the save, so a withdrawal that lands during it has already destroyed the DOM
+    // whose handlers still close over the state this gesture was rendered under.
     this.redisplay();
+    await this.plugin.saveSettings();
+    // Read live rather than from `enabled`: the save is an await, and a withdrawal landing
+    // inside it turns both the consent and the mirror off. The push is the egress itself, so
+    // it answers to the state now, not to the gesture that started it.
+    if (this.askMirrorPermitted()) {
+      fireAndForgetAsk(this.plugin.syncAskMirror({ force: false }));
+    }
+  }
+
+  /** Whether the mirror may push right now: enabled, and under a privacy ack still granted. */
+  private askMirrorPermitted(): boolean {
+    return (
+      this.plugin.settings.askEnabled &&
+      Boolean(this.plugin.settings.askPrivacyAckAt)
+    );
   }
 
   /** Grant (timestamp) or withdraw ("") the consent for Claude or ChatGPT to write here. */
   private async setAskWriteAck(at: string): Promise<void> {
     this.plugin.settings.askWriteAckAt = at;
-    await this.plugin.saveSettings();
-    if (at) fireAndForgetAsk(this.plugin.applyAskOutbox());
+    // Ahead of the save, so a withdrawal that lands during it has already replaced the screen
+    // whose handlers still hold the granted state.
     this.redisplay();
+    await this.plugin.saveSettings();
+    // Live, for the same reason the mirror push is: applying the outbox writes files, and the
+    // ack authorizing that may have been withdrawn while this was waiting on disk.
+    if (this.plugin.settings.askWriteAckAt) {
+      fireAndForgetAsk(this.plugin.applyAskOutbox());
+    }
   }
 
   /**
@@ -485,6 +525,9 @@ export class AtomsSettingTab extends PluginSettingTab {
    * (Obsidian 1.13+ settings search) is a separate migration — not this claim.
    */
   display(): void {
+    // A real render is what re-opens the tab, whether it is Obsidian showing it again or a
+    // route walk. Anything that arrived late from the last visit has already been dropped.
+    this.hiding = false;
     const { containerEl } = this;
     containerEl.empty();
 
@@ -648,51 +691,72 @@ export class AtomsSettingTab extends PluginSettingTab {
     });
   }
 
-  /** The wipe itself, behind the confirmation it must never lose. */
-  private confirmWipeCloudCopy(base: string, sessionToken: string): void {
-    const modal = new Modal(this.app);
-    modal.titleEl.setText("Wipe cloud copy?");
-    modal.contentEl.createEl("p", {
-      text: "Wipe cloud atom mirror, pending Ask writes, and revoke Ask connector access (Claude + ChatGPT)? Local vault files are kept.",
+  /**
+   * The wipe itself, behind the confirmation it must never lose.
+   *
+   * Returns a promise settling when the question is answered, so `destructiveRow`'s in-flight
+   * guard covers the whole confirm lifetime. Returning `void` left the one destructive row on
+   * the screen able to stack two confirm modals on a double-tap.
+   */
+  private confirmWipeCloudCopy(base: string, sessionToken: string): Promise<void> {
+    return new Promise<void>((resolve) => {
+      const modal = new Modal(this.app);
+      modal.titleEl.setText("Wipe cloud copy?");
+      modal.contentEl.createEl("p", {
+        text: "Wipe cloud atom mirror, pending Ask writes, and revoke Ask connector access (Claude + ChatGPT)? Local vault files are kept.",
+      });
+      // Cancel, Escape, and a click outside all arrive here. The wipe path closes the modal too,
+      // and settles on the request instead — the row must stay held for that, not just for the
+      // question.
+      let wiping = false;
+      modal.onClose = () => {
+        if (!wiping) resolve();
+      };
+      new Setting(modal.contentEl)
+        .addButton((b) => b.setButtonText("Cancel").onClick(() => modal.close()))
+        .addButton((b) =>
+          markDestructive(b.setButtonText("Wipe"))
+            .setCta()
+            .onClick(() => {
+              wiping = true;
+              modal.close();
+              void (async () => {
+                const r = await askMirrorWipe(
+                  { baseUrl: base, request: plusFetchRequest },
+                  sessionToken,
+                );
+                if (!r.ok) {
+                  new Notice(`Ask: ${r.message}`);
+                  return;
+                }
+                // One owner for the reset. Re-listing the keys here is how the wipe and the
+                // gate's readers drift — and a wipe that leaves a *parseable* count behind hands
+                // the gate a fabricated authority for the cloud it just emptied.
+                clearAskMirrorDeviceState((k, v) =>
+                  this.app.saveLocalStorage(k, v),
+                );
+                await this.plugin.saveSettings();
+                new Notice("Ask mirror wiped");
+                this.redisplay();
+              })().finally(resolve);
+            }),
+        );
+      modal.open();
     });
-    new Setting(modal.contentEl)
-      .addButton((b) => b.setButtonText("Cancel").onClick(() => modal.close()))
-      .addButton((b) =>
-        markDestructive(b.setButtonText("Wipe"))
-          .setCta()
-          .onClick(() => {
-            modal.close();
-            void (async () => {
-              const r = await askMirrorWipe(
-                { baseUrl: base, request: plusFetchRequest },
-                sessionToken,
-              );
-              if (!r.ok) {
-                new Notice(`Ask: ${r.message}`);
-                return;
-              }
-              // One owner for the reset. Re-listing the keys here is how the wipe and the gate's
-              // readers drift — and a wipe that leaves a *parseable* count behind hands the gate
-              // a fabricated authority for the cloud it just emptied.
-              clearAskMirrorDeviceState((k, v) =>
-                this.app.saveLocalStorage(k, v),
-              );
-              await this.plugin.saveSettings();
-              new Notice("Ask mirror wiped");
-              this.redisplay();
-            })();
-          }),
-      );
-    modal.open();
   }
 
   /**
-   * The four rows that are nobody's everyday business.
+   * The two rows that are nobody's everyday business.
    *
    * R5 rules what may be here: no gate on money, cloud egress, or vault writes. *Model* affects
    * what a capture costs but cannot enable spend, and *Plus service URL override* redirects where
    * already-enabled egress goes rather than turning any on — inert until a main-screen gate is on.
    * Both are here on the record rather than by silence.
+   *
+   * The device-local key rows are *not* here, though they read as plumbing: `getApiKey()` falls
+   * back to that key, so the pair is a complete credential path that enables Anthropic spend —
+   * and the toggle is also the only thing that deletes the stored key. R5 puts both on the main
+   * screen, under the API-key section.
    */
   private renderAdvancedDestination(containerEl: HTMLElement): void {
     containerEl.createEl("p", {
@@ -715,50 +779,6 @@ export class AtomsSettingTab extends PluginSettingTab {
             }),
       },
     });
-
-    settingRow(containerEl, {
-      name: "Device-local key fallback",
-      desc: "Only if SecretStorage fails: non-synced local storage (still never data.json).",
-      control: {
-        kind: "toggle",
-        configure: (toggle) =>
-          toggle
-            .setValue(this.plugin.settings.useDeviceLocalKeyFallback)
-            .onChange(async (value) => {
-              this.plugin.settings.useDeviceLocalKeyFallback = value;
-              if (!value) {
-                this.app.saveLocalStorage(LOCAL_STORAGE_API_KEY, null);
-              }
-              await this.plugin.saveSettings();
-              this.redisplay();
-            }),
-      },
-    });
-
-    if (this.plugin.settings.useDeviceLocalKeyFallback) {
-      const stored = loadLocal(this.app, LOCAL_STORAGE_API_KEY);
-      const localKey = typeof stored === "string" ? stored : "";
-      settingRow(containerEl, {
-        name: "Device-local API key",
-        desc: "This device only. Prefer SecretStorage.",
-        control: {
-          kind: "text",
-          configure: (text) => {
-            text
-              .setPlaceholder("sk-ant-…")
-              .setValue(localKey)
-              .onChange((value) => {
-                this.app.saveLocalStorage(
-                  LOCAL_STORAGE_API_KEY,
-                  value.trim() ? value.trim() : null,
-                );
-              });
-            text.inputEl.type = "password";
-            text.inputEl.autocomplete = "off";
-          },
-        },
-      });
-    }
 
     // Override only for local dogfood. Shipping builds leave this empty → DEFAULT_PLUS_BASE_URL.
     settingRow(containerEl, {
@@ -1133,6 +1153,9 @@ export class AtomsSettingTab extends PluginSettingTab {
         kind: "text",
         configure: (text) => {
           text.setPlaceholder("sess_…").inputEl.dataset.plusSession = "1";
+          // A Plus bearer token, treated the way the API key field treats a key.
+          text.inputEl.type = "password";
+          text.inputEl.autocomplete = "off";
         },
       },
     });
@@ -1403,6 +1426,53 @@ export class AtomsSettingTab extends PluginSettingTab {
       text: `Tip: secret id example — ${API_KEY_SECRET_ID_DEFAULT}`,
       cls: "setting-item-description",
     });
+
+    // Plumbing by tone, a credential path by effect: `getApiKey()` falls back to this key, so
+    // the pair below can enable Anthropic spend on its own — which R5 keeps on the main screen
+    // rather than behind Advanced. The toggle is also the only thing that deletes the key.
+    settingRow(containerEl, {
+      name: "Device-local key fallback",
+      desc: "Only if SecretStorage fails: non-synced local storage (still never data.json). Turning this off deletes the key stored on this device.",
+      control: {
+        kind: "toggle",
+        configure: (toggle) =>
+          toggle
+            .setValue(this.plugin.settings.useDeviceLocalKeyFallback)
+            .onChange(async (value) => {
+              this.plugin.settings.useDeviceLocalKeyFallback = value;
+              if (!value) {
+                this.app.saveLocalStorage(LOCAL_STORAGE_API_KEY, null);
+              }
+              await this.plugin.saveSettings();
+              this.redisplay();
+            }),
+      },
+    });
+
+    if (this.plugin.settings.useDeviceLocalKeyFallback) {
+      const stored = loadLocal(this.app, LOCAL_STORAGE_API_KEY);
+      const localKey = typeof stored === "string" ? stored : "";
+      settingRow(containerEl, {
+        name: "Device-local API key",
+        desc: "This device only. Prefer SecretStorage.",
+        control: {
+          kind: "text",
+          configure: (text) => {
+            text
+              .setPlaceholder("sk-ant-…")
+              .setValue(localKey)
+              .onChange((value) => {
+                this.app.saveLocalStorage(
+                  LOCAL_STORAGE_API_KEY,
+                  value.trim() ? value.trim() : null,
+                );
+              });
+            text.inputEl.type = "password";
+            text.inputEl.autocomplete = "off";
+          },
+        },
+      });
+    }
   }
 
   /** Put the current verdict on the row, wherever that row is now. */
@@ -1436,9 +1506,14 @@ export class AtomsSettingTab extends PluginSettingTab {
 
     const cached = this.apiKeyCheck;
     if (cached?.key === key) {
+      const age = Date.now() - cached.at;
+      // A check in flight is joined rather than duplicated — but only while it is plausibly
+      // still in flight. A request that never settles would otherwise leave the row reading
+      // "Checking" for the life of the tab, since nothing else ever expires that state.
       const fresh =
-        cached.state.kind === "checking" ||
-        Date.now() - cached.at < API_KEY_RECHECK_MS;
+        cached.state.kind === "checking"
+          ? age < API_KEY_CHECK_TIMEOUT_MS
+          : age < API_KEY_RECHECK_MS;
       if (fresh) {
         this.paintApiKeyStatus(cached.state);
         return;
@@ -1447,7 +1522,7 @@ export class AtomsSettingTab extends PluginSettingTab {
 
     this.apiKeyCheck = { key, state: { kind: "checking" }, at: Date.now() };
     this.paintApiKeyStatus({ kind: "checking" });
-    void runConnectivityTest({ apiKey: key, request: this.deps.request })
+    void runApiKeyReachabilityCheck({ apiKey: key, request: this.deps.request })
       .then(apiKeyStateFromReport)
       // A thrown probe is still an answer: it means this device could not ask.
       .catch((): ApiKeyState => ({ kind: "unreachable" }))
@@ -1514,6 +1589,10 @@ export class AtomsSettingTab extends PluginSettingTab {
               if (verdict !== "withdrawn") return;
               writeEgressAck(save, false);
               writeAutoRunEnabled(save, false);
+              // Two device-local booleans satisfy the egress gate, and this row is the only
+              // surface that withdraws either. Clearing one would leave the other still
+              // permitting "Sync everything now" — which the disclosure just above names.
+              clearEgressNoticeAcked(save);
               this.redisplay();
             },
           }),
@@ -1784,6 +1863,45 @@ export class AtomsSettingTab extends PluginSettingTab {
   }
 
   /**
+   * The Ask privacy ack on record, and the way back out of it.
+   *
+   * Its own method because it renders in two places — under the mirror toggle when signed in,
+   * and on its own when signed out — and both must be the same row. Rendered off the timestamp
+   * alone, never off the session or the toggle above it.
+   */
+  private renderAskPrivacyAckRecord(containerEl: HTMLElement): void {
+    if (!this.plugin.settings.askPrivacyAckAt) return;
+    this.renderAckRecord(containerEl, {
+      name: ASK_PRIVACY_ACK_TITLE,
+      at: this.plugin.settings.askPrivacyAckAt,
+      disclosure: ASK_PRIVACY_DISCLOSURE,
+      onWithdraw: async () => {
+        this.plugin.settings.askPrivacyAckAt = "";
+        this.plugin.settings.askEnabled = false;
+        // Withdrawing consent to store bodies in the cloud also withdraws consent for the
+        // cloud to write back into the vault: the narrower ack cannot outlive the one it
+        // was granted on top of.
+        this.plugin.settings.askWriteAckAt = "";
+        // Before the save, so any handler still holding the granted state loses its DOM while
+        // this is waiting on disk.
+        this.redisplay();
+        await this.plugin.saveSettings();
+      },
+    });
+  }
+
+  /** The vault-write ack on record. Withdrawing it leaves the mirror exactly as it was. */
+  private renderAskWriteAckRecord(containerEl: HTMLElement): void {
+    if (!this.plugin.settings.askWriteAckAt) return;
+    this.renderAckRecord(containerEl, {
+      name: ASK_WRITE_ACK_TITLE,
+      at: this.plugin.settings.askWriteAckAt,
+      disclosure: ASK_WRITE_DISCLOSURE,
+      onWithdraw: () => this.setAskWriteAck(""),
+    });
+  }
+
+  /**
    * Ask — remote MCP for Claude / ChatGPT (Plus). No in-plugin chat.
    */
   private renderAskSection(containerEl: HTMLElement) {
@@ -1800,6 +1918,12 @@ export class AtomsSettingTab extends PluginSettingTab {
         text: "Sign in to Atoms Plus above first.",
         cls: "setting-item-description",
       });
+      // Signing out leaves both acks on record — deliberately, so signing back in does not
+      // re-ask. A consent on record with no way out is not a consent, and the next sign-in may
+      // be a *different* Plus account, so the withdrawal surface outlives the session exactly
+      // as the egress ack's does.
+      this.renderAskPrivacyAckRecord(containerEl);
+      this.renderAskWriteAckRecord(containerEl);
       return;
     }
 
@@ -1815,7 +1939,10 @@ export class AtomsSettingTab extends PluginSettingTab {
               void this.setAskMirrorEnabled(false);
               return;
             }
-            if (ack) {
+            // Live rather than the render-time `ack` above: this handler can outlive the
+            // screen it was built on — a withdrawal elsewhere leaves it holding a consent that
+            // no longer exists, and it would re-enable the mirror without asking.
+            if (this.plugin.settings.askPrivacyAckAt) {
               void this.setAskMirrorEnabled(true);
               return;
             }
@@ -1835,23 +1962,7 @@ export class AtomsSettingTab extends PluginSettingTab {
       },
     });
 
-    if (ack) {
-      this.renderAckRecord(containerEl, {
-        name: ASK_PRIVACY_ACK_TITLE,
-        at: this.plugin.settings.askPrivacyAckAt,
-        disclosure: ASK_PRIVACY_DISCLOSURE,
-        onWithdraw: async () => {
-          this.plugin.settings.askPrivacyAckAt = "";
-          this.plugin.settings.askEnabled = false;
-          // Withdrawing consent to store bodies in the cloud also withdraws consent for the
-          // cloud to write back into the vault: the narrower ack cannot outlive the one it
-          // was granted on top of.
-          this.plugin.settings.askWriteAckAt = "";
-          await this.plugin.saveSettings();
-          this.redisplay();
-        },
-      });
-    }
+    this.renderAskPrivacyAckRecord(containerEl);
 
     const writeAck = Boolean(this.plugin.settings.askWriteAckAt);
     settingRow(containerEl, {
@@ -1868,7 +1979,13 @@ export class AtomsSettingTab extends PluginSettingTab {
                 void this.setAskWriteAck("");
                 return;
               }
-              if (!this.plugin.settings.askEnabled) {
+              // Both preconditions checked here rather than resting on the invariant that the
+              // mirror cannot be on without the privacy ack: this is the write site, and the
+              // narrower consent must never be granted on top of one that is gone.
+              if (
+                !this.plugin.settings.askEnabled ||
+                !this.plugin.settings.askPrivacyAckAt
+              ) {
                 new Notice("Turn on Ask mirror first");
                 this.redisplay();
                 return;
@@ -1888,16 +2005,7 @@ export class AtomsSettingTab extends PluginSettingTab {
       },
     });
 
-    if (writeAck) {
-      this.renderAckRecord(containerEl, {
-        name: ASK_WRITE_ACK_TITLE,
-        at: this.plugin.settings.askWriteAckAt,
-        disclosure: ASK_WRITE_DISCLOSURE,
-        // The narrower of the two Ask consents: withdrawing it stops vault writes and leaves
-        // the mirror exactly as it was.
-        onWithdraw: () => this.setAskWriteAck(""),
-      });
-    }
+    this.renderAskWriteAckRecord(containerEl);
 
     // The plumbing — connector URL, pairing, sync, status, wipe — is one destination now. Its
     // entry row carries the mirror's status line, so the main screen still says at a glance

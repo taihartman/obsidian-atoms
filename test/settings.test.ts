@@ -42,8 +42,16 @@ import {
 import {
   LS_AUTO_RUN_EGRESS_ACK,
   LS_AUTO_RUN_ENABLED,
+  readEgressPermitted,
 } from "../src/platform/autorun";
-import { DEFAULT_SETTINGS, type LinkerSettings } from "../src/shared/types";
+import { LS_EGRESS_NOTICE } from "../src/platform/resume";
+// `../mocks/obsidian` rather than `"obsidian"`: vitest aliases the module, `tsc` does not.
+import { Modal } from "./mocks/obsidian";
+import {
+  DEFAULT_SETTINGS,
+  LOCAL_STORAGE_API_KEY,
+  type LinkerSettings,
+} from "../src/shared/types";
 import {
   atomResult,
   fakeClassify,
@@ -635,6 +643,9 @@ describe("consent sheets", () => {
 
   const ACKED = "2026-08-01T10:00:00.000Z";
 
+  const ASK_PRIVACY_ACK_ROW = "Ask privacy acknowledgment";
+  const ASK_WRITE_ACK_ROW = "Vault write acknowledgment";
+
   describe("declining", () => {
     it("leaves auto-run off and writes no egress ack", async () => {
       const { tab, local } = askTab();
@@ -732,6 +743,28 @@ describe("consent sheets", () => {
       expect(row(tab, "Ask privacy acknowledgment").textContent).toContain("2026-08-01");
     });
 
+    it("keeps both Ask acks reviewable after signing out of Plus", async () => {
+      // Signing out deliberately leaves both acks on record. A consent on record with no way
+      // out is not withdrawable at all — and signing into a *different* Plus account would
+      // resume mirroring under it.
+      const { tab } = settingTab({
+        session: null,
+        settings: { askPrivacyAckAt: ACKED, askWriteAckAt: ACKED, askEnabled: true },
+      });
+      tab.display();
+
+      expect(rowNames(tab)).toContain(ASK_PRIVACY_ACK_ROW);
+      expect(rowNames(tab)).toContain(ASK_WRITE_ACK_ROW);
+
+      press(tab, ASK_PRIVACY_ACK_ROW, "Review");
+      pressSheet("Withdraw acknowledgment");
+      await flush();
+
+      expect(persisted(tab).askPrivacyAckAt).toBe("");
+      expect(persisted(tab).askWriteAckAt).toBe("");
+      expect(persisted(tab).askEnabled).toBe(false);
+    });
+
     it("keeps no acknowledgment row for an ack that was never granted", () => {
       const { tab } = askTab();
 
@@ -753,6 +786,28 @@ describe("consent sheets", () => {
 
       expect(local.get(LS_AUTO_RUN_EGRESS_ACK)).not.toBe(true);
       expect(local.get(LS_AUTO_RUN_ENABLED)).not.toBe(true);
+    });
+
+    it("revokes the catch-up notice too, so no device-local path is still permitted", async () => {
+      // Both booleans granted: the auto-run ack from this row, and the catch-up notice from the
+      // "Got it" card on Atoms home. Withdrawing here has to answer for both, because the
+      // disclosure this row shows names "Sync everything now" — the button the notice permits.
+      const { tab, local } = askTab(
+        {},
+        {
+          [LS_AUTO_RUN_EGRESS_ACK]: true,
+          [LS_AUTO_RUN_ENABLED]: true,
+          [LS_EGRESS_NOTICE]: true,
+        },
+      );
+      press(tab, "Data egress acknowledgment", "Review");
+      pressSheet("Withdraw acknowledgment");
+      await flush();
+
+      const load = (key: string) => local.get(key) ?? null;
+      expect(readEgressPermitted(load, { catchUp: false })).toBe(false);
+      // The manual catch-up path is the one the withdrawn disclosure named by name.
+      expect(readEgressPermitted(load, { catchUp: true })).toBe(false);
     });
 
     it("clears the vault-write ack when the privacy ack is withdrawn", async () => {
@@ -798,6 +853,57 @@ describe("consent sheets", () => {
       expect(persisted(tab).askEnabled).toBe(true);
     });
 
+    it("cannot be undone by a handler still holding the ack it rendered with", async () => {
+      const { tab } = askTab({ askPrivacyAckAt: ACKED, askEnabled: false });
+      // The mirror toggle as a half-finished gesture holds it: live when the user reached for
+      // it, and about to be replaced by the withdrawal on the row below.
+      const stale = row(tab, "Ask mirror").querySelector(".checkbox-container");
+      if (!(stale instanceof HTMLElement)) throw new Error("no Ask mirror toggle");
+
+      press(tab, "Ask privacy acknowledgment", "Review");
+      pressSheet("Withdraw acknowledgment");
+      await flush();
+
+      stale.click();
+      await flush();
+
+      // The consent is gone, so the toggle has nothing to enable the mirror on.
+      expect(persisted(tab).askPrivacyAckAt).toBe("");
+      expect(persisted(tab).askEnabled).toBe(false);
+    });
+
+    it("beats an enable whose save was still in flight, and its push with it", async () => {
+      let release!: () => void;
+      const pendingSave = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      let pushes = 0;
+      const { tab } = settingTab({
+        session: SESSION,
+        settings: { askPrivacyAckAt: ACKED, askEnabled: false },
+        plugin: {
+          saveSettings: () => pendingSave,
+          syncAskMirror: () => {
+            pushes += 1;
+            return Promise.resolve({ ok: true, message: "" });
+          },
+        },
+      });
+      tab.display();
+
+      // Enable, then withdraw while the enable is still waiting on its own write to disk.
+      flip(tab, "Ask mirror");
+      press(tab, "Ask privacy acknowledgment", "Review");
+      pressSheet("Withdraw acknowledgment");
+      release();
+      await flush();
+
+      expect(tab.plugin.settings.askPrivacyAckAt).toBe("");
+      expect(tab.plugin.settings.askEnabled).toBe(false);
+      // The push is the egress. It must not leave under a consent already withdrawn.
+      expect(pushes).toBe(0);
+    });
+
     it("keeps filing disabled while the Ask mirror is off", () => {
       const { tab } = askTab({ askPrivacyAckAt: ACKED, askEnabled: false });
 
@@ -819,9 +925,11 @@ describe("consent sheets", () => {
 
       expect(local.get(LS_AUTO_RUN_EGRESS_ACK)).toBe(true);
       expect(local.get(LS_AUTO_RUN_ENABLED)).toBe(true);
-      // R7: an egress accept authorizes nothing on the Ask side.
+      // R7: an egress accept authorizes nothing on the Ask side — neither ack, and not the
+      // mirror those acks gate.
       expect(persisted(tab).askPrivacyAckAt).toBe("");
       expect(persisted(tab).askWriteAckAt).toBe("");
+      expect(persisted(tab).askEnabled).toBe(false);
     });
 
     it("writes the privacy ack and enables the mirror, and nothing else", async () => {
@@ -833,9 +941,11 @@ describe("consent sheets", () => {
 
       expect(persisted(tab).askPrivacyAckAt).not.toBe("");
       expect(persisted(tab).askEnabled).toBe(true);
-      // R7: agreeing to cloud storage does not authorize writes into the vault, or egress.
+      // R7: agreeing to cloud storage does not authorize writes into the vault, or egress —
+      // neither the ack for it nor the unattended runs it would permit.
       expect(persisted(tab).askWriteAckAt).toBe("");
       expect(local.get(LS_AUTO_RUN_EGRESS_ACK)).not.toBe(true);
+      expect(local.get(LS_AUTO_RUN_ENABLED)).not.toBe(true);
     });
 
     it("writes the vault-write ack and nothing else", async () => {
@@ -983,6 +1093,29 @@ describe("API key row (U6)", () => {
     expect(net.anthropicCalls()).toBe(2);
   });
 
+  it("costs nothing to open Settings — no baseline ping, and no billable request", async () => {
+    const seen: Array<{ url: string; body?: unknown }> = [];
+    const request: ConnectivityRequest = async (params) => {
+      seen.push({ url: params.url, body: params.body });
+      return { status: 200, text: "", json: {}, arrayBuffer: new ArrayBuffer(0), headers: {} } as never;
+    };
+    const { tab } = settingTab({ apiKey: KEY, request });
+    tab.display();
+    await flush();
+
+    // The GitHub baseline answers a question this row never asks — it reads the Anthropic
+    // probe alone — so on this path it is pure egress for nothing.
+    expect(seen.filter((r) => r.url.includes("api.github.com"))).toEqual([]);
+
+    const anthropic = seen.filter((r) => r.url.includes("anthropic"));
+    expect(anthropic).toHaveLength(1);
+    const body = JSON.parse(String(anthropic[0]?.body ?? "{}")) as Record<string, unknown>;
+    // Rejected at validation rather than answered: a request that reaches Anthropic proves the
+    // key without buying tokens. A real one bills the user for every visit to Settings.
+    expect(body.messages).toBeUndefined();
+    expect(body.max_tokens).toBeUndefined();
+  });
+
   it("keeps no standalone Test connection row on any screen", () => {
     const { tab } = settingTab({ session: PLUS_SESSION });
     tab.display();
@@ -1036,6 +1169,40 @@ describe("closing Settings", () => {
     // And the row comes back rather than staying dead after the run.
     press(tab, "Sync everything now", "Sync everything now");
     expect(started).toBe(2);
+  });
+
+  it("stays gone when a continuation lands after the tab is closed", async () => {
+    let release!: () => void;
+    const pendingSave = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const urls: string[] = [];
+    const request: ConnectivityRequest = async (params) => {
+      urls.push(params.url);
+      return { status: 200, text: "", json: {}, arrayBuffer: new ArrayBuffer(0), headers: {} } as never;
+    };
+    const anthropicCalls = () => urls.filter((u) => u.includes("anthropic")).length;
+
+    const { tab } = settingTab({
+      session: PLUS_SESSION,
+      apiKey: KEY,
+      request,
+      settings: { askPrivacyAckAt: "2026-08-01T10:00:00.000Z", askEnabled: true },
+      plugin: { saveSettings: () => pendingSave },
+    });
+    tab.display();
+    await flush();
+    expect(anthropicCalls()).toBe(1);
+
+    // A gesture that waits on something — here a write to disk, in the app a network round
+    // trip — and a user who leaves Settings before it comes back.
+    flip(tab, "Ask mirror");
+    tab.hide();
+    release();
+    await flush();
+
+    // Nothing re-renders for a tab that is gone, and nothing re-asks Anthropic about it.
+    expect(anthropicCalls()).toBe(1);
   });
 
   it("declines an open sheet without rebuilding the screen it is leaving", async () => {
@@ -1109,6 +1276,22 @@ describe("Connect Claude or ChatGPT destination (U6)", () => {
     // Backing out of the confirmation wipes nothing and persists nothing.
     expect(calls).not.toContain("saveSettings");
   });
+
+  it("asks once on a double-tap, not twice", () => {
+    const { tab } = settingTab({
+      session: PLUS_SESSION,
+      settings: { askEnabled: true, askPrivacyAckAt: "2026-08-01T10:00:00.000Z" },
+    });
+    tab.display();
+    open(tab, "Connect Claude or ChatGPT");
+
+    // The one destructive row on the screen. Two confirm modals over each other is a question
+    // the user answers once and a wipe they authorized once.
+    press(tab, "Wipe cloud copy", "Wipe");
+    press(tab, "Wipe cloud copy", "Wipe");
+
+    expect(Modal.open).toHaveLength(1);
+  });
 });
 
 /**
@@ -1126,7 +1309,13 @@ describe("Advanced destination (U6, R5)", () => {
     return made;
   }
 
-  /** Every gate-bearing value on the device: what enables money spend, egress, or vault writes. */
+  /**
+   * Every gate-bearing value on the device: what enables money spend, egress, or vault writes.
+   *
+   * The credential path counts. This snapshot once tracked the acks and the toggles alone, and
+   * a screen holding the device-local key fallback — which `getApiKey()` falls back to, and
+   * which therefore enables Anthropic spend by itself — passed the R5 property test anyway.
+   */
   function gateState(tab: AtomsSettingTab, local: Map<string, unknown>) {
     return {
       askEnabled: tab.plugin.settings.askEnabled,
@@ -1134,6 +1323,8 @@ describe("Advanced destination (U6, R5)", () => {
       askWriteAckAt: tab.plugin.settings.askWriteAckAt,
       autoRunEnabled: local.get(LS_AUTO_RUN_ENABLED),
       egressAcked: local.get(LS_AUTO_RUN_EGRESS_ACK),
+      deviceLocalKeyFallback: tab.plugin.settings.useDeviceLocalKeyFallback,
+      deviceLocalKey: local.get(LOCAL_STORAGE_API_KEY),
     };
   }
 
@@ -1154,17 +1345,16 @@ describe("Advanced destination (U6, R5)", () => {
     }
   }
 
-  it("holds the four rows and nothing else", () => {
+  it("holds the two rows and nothing else", () => {
     const { tab } = advanced();
-    expect(rowNames(tab)).toEqual([
-      "Advanced",
-      "Model",
-      "Device-local key fallback",
-      "Plus service URL override",
-    ]);
+    expect(rowNames(tab)).toEqual(["Advanced", "Model", "Plus service URL override"]);
+  });
 
-    const withFallback = advanced({ settings: { useDeviceLocalKeyFallback: true } });
-    expect(rowNames(withFallback.tab)).toContain("Device-local API key");
+  it("keeps the device-local key path out — it is a credential path, not plumbing", () => {
+    // `getApiKey()` falls back to that key, so the pair enables Anthropic spend on its own.
+    const { tab } = advanced({ settings: { useDeviceLocalKeyFallback: true } });
+    expect(rowNames(tab)).not.toContain("Device-local key fallback");
+    expect(rowNames(tab)).not.toContain("Device-local API key");
   });
 
   it("carries the caution that used to sit above these rows", () => {
@@ -1255,20 +1445,23 @@ describe("main screen row grammar (U9)", () => {
       "Sync when you return to Obsidian",
       "Sync everything now",
       "Anthropic API key",
+      // A credential path that enables Anthropic spend, so R5 keeps it on the main screen
+      // rather than in Advanced — with the key row itself appearing only once it is on.
+      "Device-local key fallback",
       "Advanced",
     ];
   }
 
-  it("renders the fourteen rows of the plan's table, in order, signed in to Plus", () => {
+  it("renders the fifteen rows of the plan's table, in order, signed in to Plus", () => {
     const { tab } = plusTab();
     tab.display();
 
     const rows = rowNames(tab, { headings: false });
     expect(rows).toEqual(expectedRows("Plus · 12 filings left"));
-    expect(rows).toHaveLength(14);
+    expect(rows).toHaveLength(15);
   });
 
-  it("renders eleven rows signed out — the Ask cluster is the only difference", () => {
+  it("renders twelve rows signed out — the Ask cluster is the only difference", () => {
     const { tab } = settingTab();
     tab.display();
 
@@ -1276,7 +1469,18 @@ describe("main screen row grammar (U9)", () => {
     expect(rows).toEqual(
       expectedRows("Set up automatic filing").filter((name) => !ASK_ROWS.includes(name)),
     );
-    expect(rows).toHaveLength(11);
+    expect(rows).toHaveLength(12);
+  });
+
+  it("adds the device-local key row under its toggle, and nowhere else", () => {
+    const { tab } = settingTab({ settings: { useDeviceLocalKeyFallback: true } });
+    tab.display();
+
+    const rows = rowNames(tab, { headings: false });
+    expect(rows).toHaveLength(13);
+    expect(rows.indexOf("Device-local API key")).toBe(
+      rows.indexOf("Device-local key fallback") + 1,
+    );
   });
 
   it("states the daily capture format as prose, not as a row", () => {

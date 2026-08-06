@@ -50,6 +50,21 @@ describe("probeAnthropicApi", () => {
     expect(r.detail?.status).toBe(200);
   });
 
+  it("bills the user only when asked to", async () => {
+    const request = vi.fn(async () => ({ status: 400, json: {} }));
+    const body = async (opts?: { billable?: boolean }) => {
+      request.mockClear();
+      await probeAnthropicApi("sk-test", request as never, opts);
+      const calls = request.mock.calls as unknown as Array<[{ body?: string }]>;
+      return JSON.parse(calls[0]?.[0]?.body ?? "{}") as Record<string, unknown>;
+    };
+
+    // The explicit Test connection command: a real one-token message, which is charged for.
+    expect(await body()).toMatchObject({ messages: expect.anything() });
+    // The render-time key check: rejected at validation, so it proves the path for free.
+    expect(await body({ billable: false })).toEqual({});
+  });
+
   it("network throw is not reachable", async () => {
     const request = vi.fn(async () => {
       throw new Error("net::ERR_FAILED");

@@ -104,6 +104,7 @@ import {
   localDateString,
   PER_LAUNCH_CAP,
   readDeviceAutoRunState,
+  readEgressPermitted,
   shouldRunAutoProcess,
   shouldStampLastRunDay,
   waitForVaultIndexReady,
@@ -983,9 +984,7 @@ export default class AtomsPlugin extends Plugin {
       catchUp?.bypassEnabled === true ? true : state.enabled;
     // For catch-up filing, egress notice already gated; treat auto-run ack OR
     // catch-up notice as sufficient privacy for the paid path.
-    const egressOk =
-      state.egressAcked ||
-      (catchUp != null && readEgressNoticeAcked(load));
+    const egressOk = readEgressPermitted(load, { catchUp: catchUp != null });
 
     if (
       !shouldRunAutoProcess({

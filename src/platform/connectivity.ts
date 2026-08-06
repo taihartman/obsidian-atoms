@@ -98,6 +98,7 @@ export async function probeHttpsBaseline(
 export async function probeAnthropicApi(
   apiKey: string | null,
   request: RequestFn = requestUrl,
+  opts: { billable?: boolean } = {},
 ): Promise<ProbeResult> {
   const label = "Anthropic API";
   const t0 = Date.now();
@@ -109,12 +110,18 @@ export async function probeAnthropicApi(
     headers["x-api-key"] = apiKey.trim();
   }
 
-  // Minimal invalid body — we only care that TLS + HTTP complete.
-  const body = JSON.stringify({
-    model: "claude-sonnet-5",
-    max_tokens: 1,
-    messages: [{ role: "user", content: "ping" }],
-  });
+  // A real one-token message, which the account is charged for, or a body Anthropic rejects at
+  // validation, which it is not. Both prove the same thing — TLS + HTTP completed, and the key
+  // was accepted or refused — because 400 already counts as reachable below and auth is
+  // answered before the body is read. Only a probe a user explicitly asked for should bill them.
+  const body =
+    opts.billable === false
+      ? JSON.stringify({})
+      : JSON.stringify({
+          model: "claude-sonnet-5",
+          max_tokens: 1,
+          messages: [{ role: "user", content: "ping" }],
+        });
 
   try {
     const res = await request({
@@ -247,6 +254,25 @@ export async function runConnectivityTest(opts: {
   probes.push(await probeHttpsBaseline(request));
   probes.push(await probeAnthropicApi(opts.apiKey, request));
   return buildConnectivityReport(probes, Boolean(opts.apiKey?.trim()));
+}
+
+/**
+ * Does this key reach Anthropic — asked the way a render can afford to ask.
+ *
+ * Two departures from {@link runConnectivityTest}, both because this runs on every render of the
+ * settings screen rather than on a button the user pressed: the body is non-billable, and the
+ * GitHub baseline is dropped, since the only reader of this report ({@link apiKeyStateFromReport})
+ * looks at the Anthropic probe alone. The report's own `verdict` and `userMessage` are therefore
+ * about one probe and are not shown to anyone.
+ */
+export async function runApiKeyReachabilityCheck(opts: {
+  apiKey: string | null;
+  request?: RequestFn;
+}): Promise<ConnectivityReport> {
+  const probe = await probeAnthropicApi(opts.apiKey, opts.request ?? requestUrl, {
+    billable: false,
+  });
+  return buildConnectivityReport([probe], Boolean(opts.apiKey?.trim()));
 }
 
 /** Console-safe dump (no API key). */
