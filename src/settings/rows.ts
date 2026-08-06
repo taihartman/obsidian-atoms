@@ -5,6 +5,12 @@ import {
   type TextComponent,
   type ToggleComponent,
 } from "obsidian";
+// One home for the 1.11.4-safe destructive style. It lives outside this module because the
+// sign-in confirmation (#240 U10) needs the same answer without pulling in the row grammar;
+// re-exported so `destructiveRow`'s neighbours can keep importing it from here.
+import { markDestructive } from "./destructiveButton";
+
+export { markDestructive };
 
 /**
  * Row grammar for the Atoms settings tab: five row kinds, five right edges.
@@ -36,23 +42,6 @@ export type SettingControl =
   | { kind: "toggle"; configure: (toggle: ToggleComponent) => void }
   | { kind: "text"; configure: (text: TextComponent) => void }
   | { kind: "dropdown"; configure: (dropdown: DropdownComponent) => void };
-
-/**
- * `setDestructive()` only exists from Obsidian 1.13, but the manifest supports 1.11.4. Calling
- * it on an older installer threw mid-render and killed the whole Atoms settings tab for anyone
- * with a stored Plus session — every control below "Wipe cloud copy" simply vanished. Prefer it
- * where present, fall back to the deprecated-but-still-shipping warning style otherwise.
- */
-export function markDestructive(btn: ButtonComponent): ButtonComponent {
-  // Bracket access so static community lint does not treat setDestructive
-  // (1.13+) as an unconditional API use against minAppVersion 1.11.4.
-  const maybe = btn as ButtonComponent & Record<string, unknown>;
-  const fn = maybe["setDestructive"];
-  if (typeof fn === "function") {
-    return (fn as () => ButtonComponent).call(btn);
-  }
-  return btn.setWarning();
-}
 
 function baseRow(containerEl: HTMLElement, info: RowInfo): Setting {
   const setting = new Setting(containerEl).setName(info.name);

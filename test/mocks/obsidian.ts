@@ -1,5 +1,17 @@
 /** Minimal stub so unit tests can import modules that depend on `obsidian`. */
 import "./domAugmentations";
+import { activeCapture, noteUiString } from "./uiCapture";
+
+/**
+ * The order-sensitive recorder, re-exported from here because a test importing it alongside
+ * `Setting` should not have to know it lives in a second file. The DOM-backed classes below
+ * report into it; see `./uiCapture` for why the state itself sits outside this module.
+ */
+export {
+  captureObsidianUi,
+  stopCapturingObsidianUi,
+  type UiCapture,
+} from "./uiCapture";
 
 export function requestUrl(_opts: unknown): Promise<unknown> {
   throw new Error("requestUrl mock not configured — inject deps.request in tests");
@@ -21,9 +33,23 @@ export class PluginSettingTab {
 export class Notice {
   /** Every notice raised since the last reset — a test's handle on user-visible outcomes. */
   static messages: string[] = [];
-  constructor(msg: string) {
+  message: string;
+  constructor(msg: string, _timeout?: number) {
+    this.message = msg;
     Notice.messages.push(msg);
+    activeCapture()?.notices.push(msg);
   }
+  /**
+   * Progress replaces itself inside one notice rather than stacking (`createSignInStatusSurface`),
+   * so every message it carried is recorded — that is what lets a test tell a toast from a modal.
+   */
+  setMessage(msg: string): this {
+    this.message = msg;
+    Notice.messages.push(msg);
+    activeCapture()?.notices.push(msg);
+    return this;
+  }
+  hide(): void {}
 }
 
 /**
@@ -95,16 +121,32 @@ class BaseComponent {
   }
 }
 
+/**
+ * Claim this button's place in the running capture at construction, so `ui.buttons` is ordered
+ * by when buttons were *built* rather than by when they happened to be labelled.
+ */
+function registerCapturedButton(): { text: string; click: () => unknown } | null {
+  const capture = activeCapture();
+  if (!capture) return null;
+  const entry = { text: "", click: (() => {}) as () => unknown };
+  capture.buttons.push(entry);
+  return entry;
+}
+
 export class ButtonComponent extends BaseComponent {
   buttonEl: HTMLButtonElement;
   /** Last `onClick` handler, so a test can fire a row's action without a synthetic event. */
   clickHandler: ((evt?: unknown) => unknown) | null = null;
+  /** This button's slot in the running capture, so its label and handler stay reachable in order. */
+  private readonly captured = registerCapturedButton();
   constructor(containerEl: HTMLElement) {
     super();
     this.buttonEl = containerEl.appendChild(document.createElement("button"));
   }
   setButtonText(text: string): this {
     this.buttonEl.textContent = text;
+    noteUiString(text);
+    if (this.captured) this.captured.text = text;
     return this;
   }
   setIcon(icon: string): this {
@@ -146,6 +188,7 @@ export class ButtonComponent extends BaseComponent {
   }
   onClick(callback: (evt?: unknown) => unknown): this {
     this.clickHandler = callback;
+    if (this.captured) this.captured.click = () => callback();
     this.buttonEl.addEventListener("click", (evt) => callback(evt));
     return this;
   }
@@ -222,6 +265,7 @@ export class TextComponent extends ValueComponent<string> {
     super("");
     this.inputEl = containerEl.appendChild(document.createElement("input"));
     this.inputEl.type = "text";
+    activeCapture()?.inputs.push(this.inputEl);
     // Same reason as ToggleComponent: typing into the rendered field must reach `onChange`
     // without the test holding the component.
     this.inputEl.addEventListener("input", () => this.fill(this.inputEl.value));
@@ -233,6 +277,7 @@ export class TextComponent extends ValueComponent<string> {
   }
   setPlaceholder(placeholder: string): this {
     this.inputEl.placeholder = placeholder;
+    noteUiString(placeholder);
     return this;
   }
   override setDisabled(disabled: boolean): this {
@@ -306,12 +351,14 @@ export class Setting {
 
   setName(name: string | DocumentFragment): this {
     this.nameEl.textContent = "";
+    noteUiString(name);
     if (typeof name === "string") this.nameEl.textContent = name;
     else this.nameEl.appendChild(name);
     return this;
   }
   setDesc(desc: string | DocumentFragment): this {
     this.descEl.textContent = "";
+    noteUiString(desc);
     if (typeof desc === "string") this.descEl.textContent = desc;
     else this.descEl.appendChild(desc);
     return this;

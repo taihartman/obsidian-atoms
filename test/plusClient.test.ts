@@ -9,6 +9,7 @@ import {
   createCheckout,
   exchangeMagicToken,
   getEntitlement,
+  peekMagicToken,
   requestMagicLink,
   startPlusAccount,
   SESSION_REJECTED_MESSAGE,
@@ -361,4 +362,209 @@ describe("plusClient", () => {
     });
   });
 
+  // #240 U8 (R12) — the three Plus calls that carry the PKCE binding. The
+  // verifier never leaves the device except in these bodies, and never appears
+  // in a message we hand a caller.
+  describe("magic-link verifier binding", () => {
+    // Realistic shapes: the server mints tokens as `id("mt")` —
+    // `mt_` + randomBytes(16).toString("hex") (plus-service/src/store/shared.mjs:6),
+    // and the verifier is 32 bytes base64url (src/platform/pkce.ts).
+    const TOKEN = "mt_9f3c1ab27d0e4f5a8b6c7d8e9f0a1b2c";
+    // Exactly 43 characters — what 32 base64url bytes actually produce, so the
+    // redactor is proved at the real boundary rather than above it.
+    const VERIFIER = "8F3aafSYtLJGccHWkbz8rdFo9ULSbzeOTNiPyxZxPHY";
+    const SESSION = "sess_supersecretdevicesession";
+
+    it("requestMagicLink sends the verifier hash and vault", async () => {
+      const request = mockRequest((p) => {
+        expect(p.url).toBe("https://plus.test/v1/auth/magic-link");
+        expect(JSON.parse(String(p.body))).toEqual({
+          email: "a@b.co",
+          verifierHash: "hash123",
+          vault: "test vault",
+        });
+        return { status: 200, json: { ok: true } };
+      });
+      const r = await requestMagicLink({ baseUrl: base, request }, "a@b.co", {
+        verifierHash: "hash123",
+        vault: "test vault",
+      });
+      expect(r).toEqual({ ok: true });
+    });
+
+    it("exchangeMagicToken sends the verifier", async () => {
+      const request = mockRequest((p) => {
+        expect(p.url).toBe("https://plus.test/v1/auth/exchange");
+        expect(JSON.parse(String(p.body))).toEqual({
+          token: TOKEN,
+          verifier: VERIFIER,
+        });
+        return { status: 200, json: { session: SESSION, email: "a@b.co" } };
+      });
+      const r = await exchangeMagicToken({ baseUrl: base, request }, TOKEN, {
+        verifier: VERIFIER,
+      });
+      expect(r.ok).toBe(true);
+    });
+
+    it("peekMagicToken posts the token and verifier and parses usable", async () => {
+      const request = mockRequest((p) => {
+        expect(p.url).toBe("https://plus.test/v1/auth/peek");
+        expect(p.method).toBe("POST");
+        expect(JSON.parse(String(p.body))).toEqual({
+          token: TOKEN,
+          verifier: VERIFIER,
+        });
+        return {
+          status: 200,
+          json: { result: "usable", email: "a@b.co", vault: "test vault" },
+        };
+      });
+      const r = await peekMagicToken({ baseUrl: base, request }, {
+        token: TOKEN,
+        verifier: VERIFIER,
+      });
+      expect(r.ok).toBe(true);
+      if (r.ok) {
+        expect(r.verdict).toBe("usable");
+        expect(r.email).toBe("a@b.co");
+        expect(r.vault).toBe("test vault");
+      }
+    });
+
+    it("a refused peek carries the wrong-vault code and the recorded vault, never the email", async () => {
+      const request = mockRequest(() => ({
+        status: 200,
+        json: { result: "refused", vault: "Other vault" },
+      }));
+      const r = await peekMagicToken({ baseUrl: base, request }, {
+        token: TOKEN,
+        verifier: VERIFIER,
+      });
+      expect(r.ok).toBe(false);
+      if (!r.ok) {
+        expect(r.code).toBe("refused");
+        expect(r.verdict).toBe("refused");
+        expect(r.vault).toBe("Other vault");
+        expect(r).not.toHaveProperty("email");
+      }
+    });
+
+    it("expired and invalid peeks stay distinguishable from a refusal", async () => {
+      for (const verdict of ["expired", "invalid"] as const) {
+        const request = mockRequest(() => ({
+          status: 200,
+          json: { result: verdict },
+        }));
+        const r = await peekMagicToken({ baseUrl: base, request }, {
+          token: TOKEN,
+          verifier: VERIFIER,
+        });
+        expect(r.ok).toBe(false);
+        if (!r.ok) {
+          expect(r.code).toBe(verdict);
+          expect(r.verdict).toBe(verdict);
+        }
+      }
+    });
+
+    // The peek and the exchange answer with the same vocabulary, so U9 routes
+    // one outcome table rather than two.
+    it("the exchange maps a refusal and an expiry to the same codes as the peek", async () => {
+      const refused = await exchangeMagicToken(
+        {
+          baseUrl: base,
+          request: mockRequest(() => ({
+            status: 403,
+            json: { result: "refused", vault: "Other vault" },
+          })),
+        },
+        TOKEN,
+        { verifier: VERIFIER },
+      );
+      expect(refused.ok).toBe(false);
+      if (!refused.ok) expect(refused.code).toBe("refused");
+
+      const expired = await exchangeMagicToken(
+        {
+          baseUrl: base,
+          request: mockRequest(() => ({
+            status: 400,
+            json: { result: "expired" },
+          })),
+        },
+        TOKEN,
+        { verifier: VERIFIER },
+      );
+      expect(expired.ok).toBe(false);
+      if (!expired.ok) expect(expired.code).toBe("expired");
+    });
+
+    it("a network failure keeps the network code on both the peek and the exchange", async () => {
+      const request: RequestFn = async () => {
+        throw new Error("offline");
+      };
+      const peek = await peekMagicToken({ baseUrl: base, request }, {
+        token: TOKEN,
+        verifier: VERIFIER,
+      });
+      expect(peek.ok).toBe(false);
+      if (!peek.ok) expect(peek.code).toBe("network");
+
+      const ex = await exchangeMagicToken({ baseUrl: base, request }, TOKEN, {
+        verifier: VERIFIER,
+      });
+      expect(ex.ok).toBe(false);
+      if (!ex.ok) expect(ex.code).toBe("network");
+    });
+
+    // Covers AE8. The redactor had never seen a magic token before this change.
+    it("redacts a magic token, a verifier and a session token from one message", async () => {
+      const leaky = `boom token=${TOKEN} verifier=${VERIFIER} session=${SESSION}`;
+      const request = mockRequest(() => ({
+        status: 500,
+        json: { message: leaky },
+      }));
+      const r = await exchangeMagicToken({ baseUrl: base, request }, TOKEN, {
+        verifier: VERIFIER,
+      });
+      expect(r.ok).toBe(false);
+      if (!r.ok) {
+        expect(r.message).not.toContain(TOKEN);
+        expect(r.message).not.toContain(VERIFIER);
+        expect(r.message).not.toContain(SESSION);
+        expect(r.message).toContain("[redacted]");
+      }
+    });
+
+    it("no error message from any of the three calls leaks the secrets it was given", async () => {
+      const leaky = `bad ${TOKEN} ${VERIFIER} ${SESSION}`;
+      const failing = mockRequest(() => ({
+        status: 500,
+        json: { message: leaky },
+      }));
+      const throwing: RequestFn = async () => {
+        throw new Error(leaky);
+      };
+      for (const request of [failing, throwing]) {
+        const cfg = { baseUrl: base, request };
+        const results = [
+          await requestMagicLink(cfg, "a@b.co", {
+            verifierHash: "hash123",
+            vault: "test vault",
+          }),
+          await exchangeMagicToken(cfg, TOKEN, { verifier: VERIFIER }),
+          await peekMagicToken(cfg, { token: TOKEN, verifier: VERIFIER }),
+        ];
+        for (const r of results) {
+          expect(r.ok).toBe(false);
+          if (!r.ok) {
+            expect(r.message).not.toContain(TOKEN);
+            expect(r.message).not.toContain(VERIFIER);
+            expect(r.message).not.toContain(SESSION);
+          }
+        }
+      }
+    });
+  });
 });

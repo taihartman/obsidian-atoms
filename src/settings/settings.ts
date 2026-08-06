@@ -1,6 +1,5 @@
 import {
   App,
-  type ButtonComponent,
   Modal,
   Notice,
   PluginSettingTab,
@@ -33,6 +32,7 @@ import {
   resolveCaptureShortcutInstallUrl,
   writeShortcutAck,
 } from "./captureShortcut";
+import { markDestructive } from "./destructiveButton";
 import { clampAtomFolder } from "../pipeline/render";
 import {
   actionRow,
@@ -41,7 +41,6 @@ import {
   destinationRow,
   destructiveRow,
   InFlightActions,
-  markDestructive,
   settingRow,
   statusRow,
 } from "./rows";
@@ -52,14 +51,17 @@ import {
 import {
   clearPlusSession,
   hasPlusSetupSession,
+  latestPendingSignIn,
   plusIsExhausted,
   readPlusSession,
+  recordPendingSignIn,
   setAwaitingCheckout,
   writePlusSession,
   type FilingAuth,
   type PlusEntitlementStatus,
   type PlusSession,
 } from "../platform/filingAuth";
+import { generateVerifier, hasWebCrypto, s256Challenge } from "../platform/pkce";
 import {
   clearPlusRefreshRecord,
   plusRefreshPresentation,
@@ -899,26 +901,73 @@ export class AtomsSettingTab extends PluginSettingTab {
     return record.kind === "ok";
   }
 
-  /** Shared magic-link request — signed-out form and the expired-session row. */
+  /**
+   * Copy for the sign-in-link row. Three honest states: a device that cannot
+   * complete the handoff at all says so up front and names the fallback (R19);
+   * otherwise the emailed link is only described once one has been requested,
+   * since before that there is no email to send anyone to (R15).
+   */
+  private signInLinkDesc(): string {
+    if (!hasWebCrypto()) {
+      return "This device can't sign itself in from an emailed link. Send one anyway, then finish with Advanced: paste session below.";
+    }
+    return latestPendingSignIn(this.app)
+      ? "Link sent — open it in the email on this device and Obsidian signs itself in. Send another if it has expired."
+      : "Already subscribed? We'll email a one-time link. Open it on this device and Obsidian signs itself in.";
+  }
+
+  /** This vault's name — what the link is bound to, and what the landing page shows. */
+  private vaultName(): string {
+    const vault = (this.app as { vault?: { getName?: () => string } }).vault;
+    return vault?.getName?.() ?? "";
+  }
+
+  /**
+   * Shared magic-link request — signed-out form and the expired-session row.
+   *
+   * Every request mints a fresh device-held verifier and registers its hash
+   * against the token, so only this vault can redeem the link. The record is
+   * prepended, never replaced: tapping twice must leave the first link still
+   * redeemable (U7).
+   *
+   * A device with no WebCrypto still gets its link — locking sign-in out would
+   * be worse than the paste fallback — but the link goes unbound, so the landing
+   * page will offer no handoff. That outcome is announced, never swallowed: a
+   * silent unbound send drops the user in exactly the dead end #240 exists to
+   * remove (R19). The capability is probed rather than caught, so any other
+   * failure still surfaces instead of being read as "this device can't".
+   */
   private async sendPlusMagicLink(email: string): Promise<void> {
     const base =
       this.plugin.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL;
+    const vault = this.vaultName();
+    const canSignInFromLink = hasWebCrypto();
+    let verifier: string | null = null;
+    let verifierHash: string | undefined;
+    if (canSignInFromLink) {
+      verifier = generateVerifier();
+      verifierHash = await s256Challenge(verifier);
+    }
     const r = await requestMagicLink(
       { baseUrl: base, request: plusFetchRequest },
       email,
+      { verifierHash, vault },
     );
     if (!r.ok) {
       new Notice(`Atoms Plus: ${r.message}`);
       return;
     }
+    if (verifier) recordPendingSignIn(this.app, { verifier, vault });
     new Notice(
-      "Check your email for a sign-in link. Then return here and tap Refresh status.",
+      canSignInFromLink
+        ? "Sign-in link sent. Open it in your email on this device and Obsidian signs itself in."
+        : "Sign-in link sent, but this device can't sign itself in from a link. Open the link, then paste the session it shows you into Advanced: paste session below.",
       10000,
     );
   }
 
   /**
-   * Inline result of the last "Refresh status" press. Expired sessions get the
+   * Inline result of the last entitlement refresh. An expired session gets the
    * sign-in link right here — no hunting for "Advanced: paste session".
    */
   private renderPlusRefreshOutcome(containerEl: HTMLElement): void {
@@ -1165,8 +1214,8 @@ export class AtomsSettingTab extends PluginSettingTab {
     });
 
     settingRow(containerEl, {
-      name: "Sign in on another device",
-      desc: "Already subscribed? Email a one-time link. Open it, then tap Refresh status here.",
+      name: "Sign in with a link",
+      desc: this.signInLinkDesc(),
       control: {
         kind: "text",
         configure: (text) => {
@@ -1179,20 +1228,23 @@ export class AtomsSettingTab extends PluginSettingTab {
       action: "plus:magic-link",
       name: "Send sign-in link",
       label: "Send sign-in link",
-      onClick: () => {
+      onClick: async () => {
         const email = this.accountInput(containerEl, "plus-magic-email");
         if (!email.includes("@")) {
           new Notice("Enter a valid email first");
           return;
         }
-        return this.sendPlusMagicLink(email);
+        await this.sendPlusMagicLink(email);
+        // The row's copy turns into the "open the email" form once a link exists.
+        this.redisplay();
       },
     });
 
-    // Restore fallback — only when the sign-in link plus Refresh status did not take.
+    // Advanced: paste session — the different-device fallback, kept below the
+    // link row until #286 replaces it (KD3, R10).
     settingRow(containerEl, {
       name: "Advanced: paste session",
-      desc: "Only if Refresh status does not work after the sign-in link.",
+      desc: "Only if your email opens on a different device from Obsidian. Sign in there, then paste the session it gives you.",
       control: {
         kind: "text",
         configure: (text) => {

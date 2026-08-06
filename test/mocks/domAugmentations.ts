@@ -11,6 +11,7 @@
  * Signatures follow `obsidian.d.ts`; the prototype is written through a loose alias so this
  * file does not have to restate the library's overloads.
  */
+import { noteUiString } from "./uiCapture";
 
 /** Subset of Obsidian's `DomElementInfo` that the plugin passes. */
 export interface DomElementInfo {
@@ -83,6 +84,10 @@ const sugar: Record<string, unknown> = {
     this.parentNode?.removeChild(this);
   },
   setText(this: HTMLElement, text: string): void {
+    // The one funnel every `createEl({ text })` and explicit `setText` passes through, so a
+    // capturing test sees prose in the order it was drawn without the mock keeping a second
+    // copy of the DOM. Inert unless a capture is running.
+    noteUiString(text);
     this.textContent = text;
   },
   appendText(this: HTMLElement, text: string): void {

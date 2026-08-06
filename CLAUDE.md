@@ -20,6 +20,8 @@ Turn **past** daily captures into a trusted second brain: classify → flat atom
 | `docs/u1-spike-findings.md` | Spike-verified API/SecretStorage notes |
 | `docs/solutions/` | Documented solutions to past problems (bugs, patterns, workflows), by category with YAML frontmatter (`module`, `tags`, `problem_type`) — relevant when implementing or debugging in those areas |
 | `CONCEPTS.md` | Shared domain vocabulary (entities, named processes, status concepts) — relevant when orienting or discussing domain terms |
+| `docs/voice.md` | Product voice (plugin + tryatoms + Field notes). Skill **`atoms-voice`**. |
+| `docs/field-notes-email.md` + skill **`field-notes`** | Field notes mailing list: idea → draft → test send → (approve) broadcast. Source: `.agents/skills/field-notes/` (also linked from `.claude/skills/`). |
 
 Where an **active feature plan** and amendments conflict, **that plan wins**. Amendments explain rationale for plan KTDs.  
 **Constitution** (`CLAUDE.md` non-negotiables + `architecture.md` north star) changes **only via PR** — never silent mid-feature edits.
@@ -95,8 +97,11 @@ Without the Advanced toggle, `obsidian` prints “Command line interface is not 
 
 | Lane | When | Action |
 |---|---|---|
-| **Release** | Intentional ship only (“release it” / user asks) | Tag + GitHub Release assets (`main.js`, `manifest.json`, `styles.css`) — BRAT pulls from there |
-| **Every master merge** | Plugin code lands | No agent vault copy step. Humans update via BRAT when they want the build |
+| **Stable release** | “release it” / prod / BRAT default | Tag `X.Y.Z` (= package+manifest) → CI Release **not** prerelease → BRAT (betas **off**) + Community when listed |
+| **Beta release** | “beta” / dogfood-only | Bump to `X.Y.Z-beta.N` (or `-rc.N`) in package+manifest+versions → tag same string → CI **prerelease** → BRAT only if **Enable betas** |
+| **Every master merge** | Plugin code lands | No tag unless asked. No agent vault copy. Humans update via BRAT when they want |
+
+**Full recipes:** [`docs/runbooks/plugin-release-beta-stable.md`](docs/runbooks/plugin-release-beta-stable.md). Tag must equal package/manifest version or CI fails.
 
 **Agent rule:** Do **not** install plugin bits into personal/Remote Vault. Do **not** cut a GitHub Release unless asked. After merge, clear `STATUS.md` and stop — phone/desktop dogfood is human + BRAT.
 
@@ -189,13 +194,13 @@ After **implementation** on any non-trivial change (feature or fix), **always** 
 4. **`world-class-qa`** — pre-merge product QA (project adapter: `docs/qa/`). Proves changed behavior with evidence; not unit tests alone. Ends with **`adversarial-qa`** (break-it pass) per that skill’s hard gate.  
 5. **PR** — body must include **`Closes #<issue>`** (auto-close the hard-claim Issue; “Issue #N” alone is not enough) + distilled **Core user stories** + **Edge cases & testing** (link full report under `docs/qa/YYYY-MM-DD-*-world-class-qa.md`)
   6. **PR evidence (non-negotiable):** mark every **Test plan** checkbox only after it ran; for **UI / product-facing** changes, attach **screenshots** (or a short clip) of the live vault smoke — commit under `docs/qa/screenshots/<branch-or-feature>/` and link them in the PR body Evidence table using **absolute** `https://raw.githubusercontent.com/<owner>/<repo>/<branch>/…` URLs (PR descriptions do **not** render repo-relative image paths — they show a broken icon). Capture via `obsidian vault="test vault" dev:screenshot path=…` after `./scripts/install-to-vault.sh`. Docs-only / pure logic: write `N/A — no UI` instead of fake images. Leaving the template boxes unchecked after “done” is a shipping-tail bug.
-  7. **After merge to `master`:** clear `STATUS.md`. **Release** only when the user asks (“release it”) — GitHub Release assets for BRAT / manual install. No post-merge phone/Remote Vault plugin copy.
+  7. **After merge to `master`:** clear `STATUS.md` (PR if branch-protected). **Release** only when the user asks — follow **stable vs beta** in [`docs/runbooks/plugin-release-beta-stable.md`](docs/runbooks/plugin-release-beta-stable.md). No post-merge phone/Remote Vault plugin copy.
 
 **Done means:** simplify + code-review + compound + world-class-qa (incl. adversarial half) ran, or an explicit, recorded skip for pure mechanical churn (renames, version-only bumps with no logic, docs-only); PR Test plan boxes match real evidence; UI PRs include vault screenshots in the body.  
 **Not done:** “tests green + committed” alone, or a PR whose Test plan is still all `- [ ]` after the agent claimed verify.  
 **QA not merge-ready:** checklist handoff or BLOCKED when Obsidian/CLI prereqs missing — state gaps in the report; do not label code-read as world-class QA.  
 LFG / `ce-work` / agent sessions must not stop at implement — the shipping tail is part of the work, not optional polish.  
-**Master landed:** STATUS cleared; humans pull via **BRAT** (or Release assets) when they want the build on desktop/phone.
+**Master landed:** STATUS cleared; humans pull via **BRAT** (stable or Enable betas) or Community plugins when listed.
 
 ## Out of scope (unless constitution/plan explicitly opens it)
 

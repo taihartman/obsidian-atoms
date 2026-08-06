@@ -45,6 +45,8 @@ export const LS_PLUS_SESSION = "atoms-plus-session";
 export const LS_PLUS_LIMIT_DISMISS_DAY = "atoms-plus-limit-dismiss-day";
 /** Set while Stripe Checkout is open — drives resume poll (not classify). */
 export const LS_PLUS_AWAITING_CHECKOUT = "atoms-plus-awaiting-checkout";
+/** Verifiers minted for outstanding magic-link sign-in requests (U7). */
+export const LS_PLUS_SIGNIN_PENDING = "atoms-plus-signin-pending";
 
 /**
  * Prefer Plus when session is present and entitlement is active/trialing.
@@ -176,6 +178,98 @@ export function writePlusSession(app: LocalStorageLike, session: PlusSession): v
 export function clearPlusSession(app: LocalStorageLike): void {
   app.saveLocalStorage(LS_PLUS_SESSION, "");
   clearAwaitingCheckout(app);
+  clearPendingSignIn(app);
+}
+
+/**
+ * Device-held verifier for one outstanding magic-link sign-in request (U7).
+ * Never leaves this vault's local storage; only its SHA-256 goes to the server.
+ */
+export type PendingSignIn = {
+  /** Raw PKCE verifier — presented at peek and at exchange, never logged. */
+  verifier: string;
+  /** Vault that requested the link, for the refusal copy in another vault. */
+  vault: string;
+  /** Epoch ms the link was requested. */
+  requestedAt: number;
+};
+
+/**
+ * Generous staleness bound — a day, not the token's 15-minute TTL. The record
+ * is retained until sign-in completes or the session is cleared; expiring it at
+ * the TTL would break the retry a refused user is told to make (AE12). This
+ * bound only stops an abandoned verifier lingering forever.
+ */
+export const PENDING_SIGNIN_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * How many outstanding verifiers stay reachable. Tapping **Send sign-in link**
+ * twice must not strand the earlier link: the older verifier survives so a flow
+ * started against it can still peek.
+ */
+export const PENDING_SIGNIN_MAX = 5;
+
+/** Newest first; stale and malformed entries read as absent. */
+export function readPendingSignIns(
+  app: LocalStorageLike,
+  now: number = Date.now(),
+): PendingSignIn[] {
+  let parsed: unknown;
+  try {
+    const raw = app.loadLocalStorage(LS_PLUS_SIGNIN_PENDING);
+    if (typeof raw === "string") {
+      if (!raw.trim()) return [];
+      parsed = JSON.parse(raw);
+    } else {
+      parsed = raw;
+    }
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(parsed)) return [];
+  const live: PendingSignIn[] = [];
+  for (const item of parsed) {
+    const entry = parsePendingSignIn(item);
+    if (entry && now - entry.requestedAt <= PENDING_SIGNIN_MAX_AGE_MS) live.push(entry);
+  }
+  return live.sort((a, b) => b.requestedAt - a.requestedAt);
+}
+
+/** Most recent live request — what fresh Settings copy and a new mint read. */
+export function latestPendingSignIn(
+  app: LocalStorageLike,
+  now: number = Date.now(),
+): PendingSignIn | null {
+  return readPendingSignIns(app, now)[0] ?? null;
+}
+
+/** Prepend a freshly minted verifier without discarding still-live earlier ones. */
+export function recordPendingSignIn(
+  app: LocalStorageLike,
+  entry: { verifier: string; vault: string; requestedAt?: number },
+): void {
+  const requestedAt = entry.requestedAt ?? Date.now();
+  const next = parsePendingSignIn({ ...entry, requestedAt });
+  if (!next) return;
+  const kept = readPendingSignIns(app, requestedAt).filter(
+    (p) => p.verifier !== next.verifier,
+  );
+  const all = [next, ...kept].slice(0, PENDING_SIGNIN_MAX);
+  app.saveLocalStorage(LS_PLUS_SIGNIN_PENDING, JSON.stringify(all));
+}
+
+export function clearPendingSignIn(app: LocalStorageLike): void {
+  app.saveLocalStorage(LS_PLUS_SIGNIN_PENDING, "");
+}
+
+function parsePendingSignIn(raw: unknown): PendingSignIn | null {
+  if (!raw || typeof raw !== "object") return null;
+  const o = raw as Record<string, unknown>;
+  const verifier = typeof o.verifier === "string" ? o.verifier.trim() : "";
+  const vault = typeof o.vault === "string" ? o.vault.trim() : "";
+  const requestedAt = typeof o.requestedAt === "number" ? o.requestedAt : NaN;
+  if (!verifier || !vault || !Number.isFinite(requestedAt)) return null;
+  return { verifier, vault, requestedAt };
 }
 
 /** Soft session present (may be inactive — setup / Finish trial). */

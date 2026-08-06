@@ -1306,6 +1306,128 @@ main[data-story="self"] .s-people {
   font-weight: 600;
 }
 
+/* ---------- Atoms Notes signup ---------- */
+
+.band--notes .lede {
+  max-width: 36rem;
+  color: var(--muted);
+}
+
+.band--notes .lede--share {
+  margin-top: 0.85rem;
+  color: var(--label);
+  font-weight: 500;
+}
+
+.notes-form {
+  margin-top: 1.25rem;
+  max-width: 32rem;
+}
+
+.notes-label {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin-bottom: 0.4rem;
+}
+
+.notes-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: stretch;
+}
+
+.notes-input {
+  flex: 1 1 12rem;
+  min-width: 0;
+  padding: 0.7rem 0.85rem;
+  border-radius: 10px;
+  border: 1px solid var(--sep);
+  background: var(--surface, #1c1c1e);
+  color: var(--label);
+  font: inherit;
+  font-size: 1rem;
+}
+
+.notes-input:focus {
+  outline: 2px solid color-mix(in srgb, var(--accent, #0a84ff) 70%, transparent);
+  outline-offset: 1px;
+}
+
+.notes-input[aria-invalid="true"] {
+  border-color: #ff453a;
+}
+
+.notes-hp {
+  position: absolute;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.notes-hint {
+  margin: 0.55rem 0 0;
+  font-size: 0.85rem;
+  color: var(--faint);
+}
+
+.notes-status {
+  margin: 0.65rem 0 0;
+  font-size: 0.9rem;
+  min-height: 1.25em;
+}
+
+.notes-status.is-ok {
+  color: var(--label);
+}
+
+.notes-status.is-error {
+  color: #ff453a;
+}
+
+.notes-status.is-pending {
+  color: var(--muted);
+}
+
+.foot-notes {
+  margin-bottom: 1.75rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid var(--sep-soft);
+  max-width: 28rem;
+}
+
+.foot-notes-title {
+  margin: 0 0 0.35rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--label);
+}
+
+.foot-notes-copy {
+  margin: 0 0 0.75rem;
+  font-size: 0.85rem;
+  color: var(--faint);
+}
+
+.notes-form--foot .notes-row .btn {
+  flex: 0 0 auto;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 /* ---------- footer ---------- */
 
 .foot-note {

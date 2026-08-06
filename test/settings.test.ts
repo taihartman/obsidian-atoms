@@ -20,10 +20,15 @@ import { runWritePath } from "../src/pipeline/write";
 import {
   accountRowDescriptor,
   type AccountState,
-  type AtomsSettingTab,
+  AtomsSettingTab,
   type ConnectivityRequest,
 } from "../src/settings/settings";
-import type { PlusSession } from "../src/platform/filingAuth";
+import {
+  readPendingSignIns,
+  type PlusSession,
+} from "../src/platform/filingAuth";
+import { s256Challenge } from "../src/platform/pkce";
+import { requestMagicLink } from "../src/platform/plusClient";
 import {
   destinationNames,
   dismissSheet,
@@ -48,7 +53,13 @@ import {
 } from "../src/platform/autorun";
 import { LS_EGRESS_NOTICE } from "../src/platform/resume";
 // `../mocks/obsidian` rather than `"obsidian"`: vitest aliases the module, `tsc` does not.
-import { Modal, Notice } from "./mocks/obsidian";
+import {
+  captureObsidianUi,
+  Modal,
+  Notice,
+  stopCapturingObsidianUi,
+  type UiCapture,
+} from "./mocks/obsidian";
 import {
   API_KEY_SECRET_ID_DEFAULT,
   DEFAULT_SETTINGS,
@@ -64,6 +75,16 @@ import {
 } from "./helpers/pipelineVault";
 
 afterEach(() => vi.restoreAllMocks());
+
+/** Only the network call is faked — the verifier, its hash and the record are real. */
+vi.mock("../src/platform/plusClient", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("../src/platform/plusClient")>();
+  return {
+    ...actual,
+    requestMagicLink: vi.fn(async () => ({ ok: true as const })),
+  };
+});
 
 /**
  * The real command table, registered against a real plugin instance. A capability a settings row
@@ -433,7 +454,9 @@ describe("account row", () => {
     const names = rowNames(tab);
     expect(names).toContain("Email");
     expect(names).toContain("Start free trial");
-    expect(names).toContain("Sign in on another device");
+    // Renamed by #240: the emailed link now signs *this* device in, so "another device" is the
+    // paste fallback's job rather than this row's.
+    expect(names).toContain("Sign in with a link");
     expect(names).toContain("Advanced: paste session");
     expect(names).not.toContain("Manage subscription");
     expect(names).not.toContain("Sign out");
@@ -1786,5 +1809,232 @@ describe("adversarial regressions", () => {
       expect(local.get(LS_AUTO_RUN_EGRESS_ACK)).not.toBe(true);
       expect(local.get(LS_AUTO_RUN_ENABLED)).not.toBe(true);
     });
+  });
+});
+
+/* ------------------------------------------------------------------ *
+ * Signed-out Atoms Plus panel — magic-link handoff copy (R10, R15)
+ * ------------------------------------------------------------------ */
+
+const VAULT = "Vault A";
+const SIGN_IN_ROW = "Sign in with a link";
+const PASTE_ROW = "Advanced: paste session";
+
+type FakeApp = ReturnType<typeof fakeLocalApp>;
+
+function fakeLocalApp(seed: Record<string, string> = {}) {
+  const store: Record<string, string> = { ...seed };
+  return {
+    store,
+    loadLocalStorage: (key: string) => store[key] ?? null,
+    saveLocalStorage: (key: string, value: string) => {
+      store[key] = value;
+    },
+    vault: { getName: () => VAULT },
+  };
+}
+
+function fakeTab(app: FakeApp) {
+  const plugin = {
+    settings: { ...DEFAULT_SETTINGS, plusBaseUrl: "https://plus.test" },
+    manifest: { version: "9.9.9" },
+    resolveFilingAuth: () => ({ mode: "none" as const }),
+  };
+  const tab = new AtomsSettingTab(app as never, plugin as never);
+  (tab as unknown as { app: unknown }).app = app;
+  return tab;
+}
+
+/**
+ * Render the whole signed-out Plus panel and collect every string it drew.
+ *
+ * The rows moved: the main screen now carries one Atoms Plus row that opens the Account
+ * destination, and everything this panel used to show inline renders there instead. So this
+ * drives `renderAccountDestination` — same copy, one tap in. A real element, because the tab
+ * builds its rows through the DOM now.
+ */
+function renderSignedOutPanel(app: FakeApp): UiCapture {
+  const ui = captureObsidianUi();
+  const containerEl = document.createElement("div");
+  const tab = fakeTab(app);
+  (tab as unknown as { containerEl: unknown }).containerEl = containerEl;
+  (
+    tab as unknown as { renderAccountDestination: (el: HTMLElement) => void }
+  ).renderAccountDestination(containerEl);
+  return ui;
+}
+
+/** A description sits immediately after the name it belongs to. */
+function descAfter(ui: UiCapture, name: string): string {
+  const i = ui.strings.indexOf(name);
+  expect(i, `panel never rendered a row named "${name}"`).toBeGreaterThanOrEqual(0);
+  return ui.strings[i + 1] ?? "";
+}
+
+function pendingSeed(requestedAt = Date.now()) {
+  return {
+    "atoms-plus-signin-pending": JSON.stringify([
+      { verifier: "v".repeat(43), vault: VAULT, requestedAt },
+    ]),
+  };
+}
+
+const sendLink = (tab: ReturnType<typeof fakeTab>, email: string) =>
+  (
+    tab as unknown as { sendPlusMagicLink: (e: string) => Promise<void> }
+  ).sendPlusMagicLink(email);
+
+const magicLinkMock = requestMagicLink as unknown as ReturnType<typeof vi.fn>;
+
+/** A platform with randomness but no `crypto.subtle` — the mobile-webview case. */
+function stubNoWebCrypto(): void {
+  vi.stubGlobal("crypto", {
+    getRandomValues: (a: Uint8Array) => a,
+  });
+}
+
+describe("signed-out Plus panel copy (R15, AE11)", () => {
+  afterEach(() => {
+    stopCapturingObsidianUi();
+    vi.unstubAllGlobals();
+  });
+
+  it("points at Refresh status nowhere on the panel, in either state", () => {
+    for (const app of [fakeLocalApp(), fakeLocalApp(pendingSeed())]) {
+      const ui = renderSignedOutPanel(app);
+      // The assertion is only meaningful if the panel really rendered: both the
+      // sign-in-link row and the paste row have to be among the strings checked.
+      expect(ui.strings).toContain(SIGN_IN_ROW);
+      expect(ui.strings).toContain(PASTE_ROW);
+      const offenders = ui.strings.filter((s) => s.includes("Refresh status"));
+      expect(offenders).toEqual([]);
+    }
+  });
+
+  it("describes the emailed link only once a link has been requested", () => {
+    const before = descAfter(renderSignedOutPanel(fakeLocalApp()), SIGN_IN_ROW);
+    expect(before).toMatch(/email a one-time link/i);
+    expect(before).not.toMatch(/sent/i);
+
+    const after = descAfter(
+      renderSignedOutPanel(fakeLocalApp(pendingSeed())),
+      SIGN_IN_ROW,
+    );
+    expect(after).toMatch(/open it in the email on this device/i);
+  });
+
+  it("ignores a pending record too old to still matter", () => {
+    const stale = pendingSeed(Date.now() - 3 * 24 * 60 * 60 * 1000);
+    const desc = descAfter(renderSignedOutPanel(fakeLocalApp(stale)), SIGN_IN_ROW);
+    expect(desc).not.toMatch(/open it in the email on this device/i);
+  });
+
+  it("keeps the paste field below the link row, as the different-device fallback (AE9, R10)", () => {
+    const ui = renderSignedOutPanel(fakeLocalApp());
+    expect(ui.strings.indexOf(PASTE_ROW)).toBeGreaterThan(
+      ui.strings.indexOf(SIGN_IN_ROW),
+    );
+    expect(descAfter(ui, PASTE_ROW)).toMatch(/different device/i);
+    expect(ui.buttons.map((b) => b.text)).toContain("Save session");
+  });
+
+  it("says up front when this device cannot sign itself in from a link (R19)", () => {
+    stubNoWebCrypto();
+    const desc = descAfter(renderSignedOutPanel(fakeLocalApp()), SIGN_IN_ROW);
+    expect(desc).toMatch(/Advanced: paste session/);
+    // It must not promise the automatic sign-in it cannot deliver.
+    expect(desc).not.toMatch(/signs itself in\./);
+  });
+
+  it("renders no session token", () => {
+    const ui = renderSignedOutPanel(fakeLocalApp(pendingSeed()));
+    // The `sess_…` placeholder is fine; an actual token value is not.
+    expect(ui.strings.filter((s) => /sess_[A-Za-z0-9]/.test(s))).toEqual([]);
+  });
+});
+
+describe("requesting a sign-in link (R15, U7 binding)", () => {
+  afterEach(() => {
+    stopCapturingObsidianUi();
+    vi.unstubAllGlobals();
+    magicLinkMock.mockClear();
+  });
+
+  it("sends a fresh verifier hash and the vault, and keeps the verifier local", async () => {
+    const app = fakeLocalApp();
+    captureObsidianUi();
+    await sendLink(fakeTab(app), "a@b.co");
+
+    const call = magicLinkMock.mock.calls[0]!;
+    expect(call[1]).toBe("a@b.co");
+    expect(call[2]).toMatchObject({ vault: VAULT });
+    expect(call[2].verifierHash).toMatch(/^[A-Za-z0-9_-]{43}$/);
+
+    const pending = readPendingSignIns(app);
+    expect(pending).toHaveLength(1);
+    expect(pending[0]!.vault).toBe(VAULT);
+    expect(await s256Challenge(pending[0]!.verifier)).toBe(call[2].verifierHash);
+    // Only the hash crosses the wire.
+    expect(JSON.stringify(call)).not.toContain(pending[0]!.verifier);
+  });
+
+  it("a second request does not strand the link already in flight", async () => {
+    const app = fakeLocalApp();
+    captureObsidianUi();
+    const tab = fakeTab(app);
+    await sendLink(tab, "a@b.co");
+    await sendLink(tab, "a@b.co");
+
+    const pending = readPendingSignIns(app);
+    expect(pending).toHaveLength(2);
+    expect(new Set(pending.map((p) => p.verifier)).size).toBe(2);
+  });
+
+  it("tells the user to open the link on this device, not to tap Refresh status", async () => {
+    const ui = captureObsidianUi();
+    await sendLink(fakeTab(fakeLocalApp()), "a@b.co");
+
+    expect(ui.notices).toHaveLength(1);
+    expect(ui.notices[0]).toMatch(/this device/i);
+    expect(ui.notices[0]).not.toContain("Refresh status");
+  });
+
+  it("sends the link unbound where the handoff cannot work, and says so (R19)", async () => {
+    stubNoWebCrypto();
+    const app = fakeLocalApp();
+    const ui = captureObsidianUi();
+    await sendLink(fakeTab(app), "a@b.co");
+
+    // The link still goes out — locking sign-in out would be worse than pasting.
+    expect(magicLinkMock).toHaveBeenCalledTimes(1);
+    expect(magicLinkMock.mock.calls[0]![2].verifierHash).toBeUndefined();
+    // Nothing to redeem with, so nothing is recorded as redeemable.
+    expect(readPendingSignIns(app)).toEqual([]);
+    // And the user is told where to go instead, in their own terms.
+    expect(ui.notices).toHaveLength(1);
+    expect(ui.notices[0]).toMatch(/Advanced: paste session/);
+    expect(ui.notices[0]).not.toMatch(/crypto|verifier/i);
+  });
+
+  it("does not cry platform trouble on a device that can do the handoff", async () => {
+    const ui = captureObsidianUi();
+    await sendLink(fakeTab(fakeLocalApp()), "a@b.co");
+
+    expect(ui.notices[0]).not.toMatch(/paste session/i);
+    expect(ui.notices[0]).not.toMatch(/can't/i);
+  });
+
+  it("records nothing when the service refuses the request", async () => {
+    magicLinkMock.mockImplementationOnce(async () => ({
+      ok: false as const,
+      kind: "http" as const,
+      status: 429,
+      message: "Too many requests",
+    }));
+    const app = fakeLocalApp();
+    captureObsidianUi();
+    await sendLink(fakeTab(app), "a@b.co");
+
+    expect(readPendingSignIns(app)).toEqual([]);
   });
 });

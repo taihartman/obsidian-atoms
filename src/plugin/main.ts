@@ -165,10 +165,23 @@ import {
 import { isEligibleForUpdate } from "../pipeline/atomQuality";
 import { formatUpdateSummary } from "../home/runProgress";
 import { stripLegacyAskMirrorHashes } from "../platform/askMirror";
+import { createSignInHandoffQueue } from "../platform/plusSignIn";
+import {
+  askSignInApproval,
+  createSignInStatusSurface,
+} from "../settings/plusSignInConfirmModal";
 
 export default class AtomsPlugin extends Plugin {
   settings!: LinkerSettings;
   contextProvider!: MetadataContextProvider;
+  /**
+   * #240 KTD8 — one slot for a sign-in deep link that lands before settings
+   * are loaded. Built in the field initializer so the handler registered above
+   * `onload`'s first `await` has somewhere to put what it receives.
+   */
+  private signInHandoff = createSignInHandoffQueue({
+    openStatus: () => createSignInStatusSurface(this.app),
+  });
   /** Ask mirror + outbox orchestration (single owner of inFlight state). */
   ask!: AskCoordinator;
   /** Last classify outcome for CLI/dev inspection (no secrets). */
@@ -215,7 +228,21 @@ export default class AtomsPlugin extends Plugin {
   private pendingResumeWhenReady = false;
 
   async onload() {
+    // #240 KTD8 — registration needs no settings and must not race a cold open,
+    // so it happens above the first `await`. The handler only captures params;
+    // the flow that needs `settings` drains once `loadSettings()` resolves.
+    this.registerObsidianProtocolHandler("atoms-signin", (params) => {
+      void this.signInHandoff.accept(params as unknown as Record<string, string>);
+    });
+
     await this.loadSettings();
+    void this.signInHandoff.ready({
+      app: this.app,
+      settings: this.settings,
+      // The only gate in front of the exchange (#240 U10 / R4): the modal owns
+      // the question, `platform/plusSignIn` owns what a "confirmed" spends.
+      confirmSignIn: (request) => askSignInApproval(this.app, request),
+    });
     this.contextProvider = new MetadataContextProvider(
       this.app,
       () => this.settings.activeVocabulary,

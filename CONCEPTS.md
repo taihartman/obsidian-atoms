@@ -2,6 +2,11 @@
 
 Shared domain vocabulary for this project — entities, named processes, and status concepts with project-specific meaning. Seeded with core domain vocabulary, then accretes as ce-compound and ce-compound-refresh process learnings; direct edits are fine. Glossary only, not a spec or catch-all.
 
+## Product surfaces
+
+### Field notes
+The public marketing email list on tryatoms.app (user-facing name). Occasional maker notes on a second brain in real life - not a changelog drip. Voice and promise: `docs/voice.md`. Ops: `docs/runbooks/atoms-notes-list.md`. Engineering env keys may still say `ATOMS_NOTES_*`; Resend segment may still be named “Atoms Notes.”
+
 ## Capture pipeline
 
 ### Capture

@@ -86,8 +86,19 @@ export type PlusApiError = {
   /**
    * Structured code when known. `auth` means our service rejected the session;
    * `upstream` is a 401/403 we cannot attribute (gateway, proxy, WAF).
+   * `refused` / `expired` / `invalid` are the magic-link verdicts (#240 R12) —
+   * the peek and the exchange answer with the same vocabulary so a caller can
+   * tell "wrong vault" from "link expired" from a network failure.
    */
-  code?: "exhausted" | "auth" | "upstream" | "network" | "unknown";
+  code?:
+    | "exhausted"
+    | "auth"
+    | "upstream"
+    | "network"
+    | "refused"
+    | "expired"
+    | "invalid"
+    | "unknown";
 };
 
 /** Shown when the service answers with something we cannot read as JSON. */
@@ -116,11 +127,26 @@ export function upstreamRefusedMessage(status: number): string {
   return `Atoms Plus refused this request (HTTP ${status}) for an unexpected reason. Your session on this device looks fine — try again in a moment.`;
 }
 
+/**
+ * Strip every secret shape that can reach a user-visible message.
+ *
+ * The magic token and the device verifier (#240 R12) are new arrivals here —
+ * before this change nothing carried either into the plugin, so the helper had
+ * never been taught their shapes (fanout-review finding M1). The token is
+ * `id("mt")` from `plus-service/src/store/shared.mjs:6`: `mt_` followed by
+ * 32 hex characters. The verifier is 32 bytes base64url (`pkce.ts`), i.e. a
+ * 43-character unpadded run — matched by shape rather than by value, since a
+ * message can carry a verifier this call never held. That last rule is
+ * deliberately greedy: over-redacting a long opaque token in an error string
+ * costs a reader nothing, under-redacting one costs a secret.
+ */
 function redact(msg: string): string {
   return msg
     .replace(/sk-ant-[a-zA-Z0-9_-]+/g, "[redacted]")
     .replace(/Bearer\s+\S+/gi, "Bearer [redacted]")
     .replace(/sess_[a-zA-Z0-9_-]+/g, "[redacted]")
+    .replace(/mt_[a-fA-F0-9]{8,}/g, "[redacted]")
+    .replace(/[A-Za-z0-9_-]{43,}/g, "[redacted]")
     .slice(0, 200);
 }
 
@@ -296,14 +322,106 @@ function parseEntitlement(
   };
 }
 
+/**
+ * What the service says about a handoff it was shown (#240 R12, KTD15).
+ * `refused` is the wrong-vault answer: this token was minted for a different
+ * device's verifier, so no session may land here.
+ */
+export type MagicVerdict = "usable" | "expired" | "invalid" | "refused";
+
+/** Verdicts that are not a green light, mapped 1:1 onto `PlusApiError.code`. */
+type MagicRefusal = Exclude<MagicVerdict, "usable">;
+
+/**
+ * A peek answers, or explains why it will not. The refusal carries the
+ * *server-recorded* requesting vault (never the `vault=` a caller supplied)
+ * and never the account email — naming the vault that asked for a link is not
+ * the same disclosure as naming the account.
+ */
+export type MagicPeekResult =
+  | { ok: true; verdict: "usable"; email: string; vault?: string }
+  | (PlusApiError & { verdict?: MagicRefusal; vault?: string });
+
+export const MAGIC_LINK_REFUSED_MESSAGE =
+  "This sign-in link was requested by a different vault, so it was not used here. The link still works — open it from the vault that asked for it.";
+
+export const MAGIC_LINK_EXPIRED_MESSAGE =
+  "This sign-in link has expired. Request a new one from Settings → Atoms.";
+
+export const MAGIC_LINK_INVALID_MESSAGE =
+  "This sign-in link is no longer valid. Request a new one from Settings → Atoms.";
+
+const MAGIC_REFUSAL_MESSAGES: Record<MagicRefusal, string> = {
+  refused: MAGIC_LINK_REFUSED_MESSAGE,
+  expired: MAGIC_LINK_EXPIRED_MESSAGE,
+  invalid: MAGIC_LINK_INVALID_MESSAGE,
+};
+
+/**
+ * The verdict the service stated, or null when it stated none. Read from
+ * `result` (the peek's field) or `verdict`, so one reader serves both routes.
+ */
+function parseMagicVerdict(json: Record<string, unknown>): MagicVerdict | null {
+  const raw = json.result ?? json.verdict;
+  return raw === "usable" ||
+    raw === "expired" ||
+    raw === "invalid" ||
+    raw === "refused"
+    ? raw
+    : null;
+}
+
+/** Server-recorded requesting vault, when the service named one. */
+function parseVault(json: Record<string, unknown>): string | undefined {
+  return typeof json.vault === "string" && json.vault.trim()
+    ? json.vault
+    : undefined;
+}
+
+/**
+ * One error shape for a stated refusal, so the peek and the exchange hand back
+ * the same code for the same situation and U9 routes a single outcome table.
+ * The message is ours, never the service's — it can carry no secret.
+ */
+function magicRefusalError(
+  status: number,
+  verdict: MagicRefusal,
+  json: Record<string, unknown>,
+): PlusApiError & { verdict: MagicRefusal; vault?: string } {
+  const vault = parseVault(json);
+  return {
+    ok: false,
+    status,
+    code: verdict,
+    verdict,
+    message: MAGIC_REFUSAL_MESSAGES[verdict],
+    ...(vault ? { vault } : {}),
+  };
+}
+
+/**
+ * Ask for a sign-in link (#240 R12).
+ *
+ * `verifierHash` binds the minted token to this device's verifier and `vault`
+ * records which vault asked, so a handoff that lands elsewhere is refused with
+ * a name to show. Both are optional: the service treats an absent value as an
+ * unbound token, which is the older-build path.
+ */
 export async function requestMagicLink(
   cfg: PlusClientConfig,
   email: string,
+  opts?: { verifierHash?: string; vault?: string },
 ): Promise<{ ok: true } | PlusApiError> {
+  const verifierHash = opts?.verifierHash?.trim();
+  const vault = opts?.vault?.trim();
   const res = await plusRequest(cfg, {
     path: "/v1/auth/magic-link",
     method: "POST",
-    body: { email: email.trim() },
+    body: {
+      email: email.trim(),
+      ...(verifierHash ? { verifierHash } : {}),
+      ...(vault ? { vault } : {}),
+    },
   });
   if (!res.ok) return res;
   if (res.status < 200 || res.status >= 300) {
@@ -375,17 +493,74 @@ export async function startPlusAccount(
   };
 }
 
+/**
+ * Non-consuming check of a handoff (#240 KTD15). Deletes nothing and mints
+ * nothing, so a refused or expired link survives to be opened again from the
+ * vault that asked for it.
+ */
+export async function peekMagicToken(
+  cfg: PlusClientConfig,
+  opts: { token: string; verifier?: string },
+): Promise<MagicPeekResult> {
+  const verifier = opts.verifier?.trim();
+  const res = await plusRequest(cfg, {
+    path: "/v1/auth/peek",
+    method: "POST",
+    body: {
+      token: opts.token.trim(),
+      ...(verifier ? { verifier } : {}),
+    },
+  });
+  if (!res.ok) return res;
+  const verdict = parseMagicVerdict(res.json);
+  if (verdict && verdict !== "usable") {
+    return magicRefusalError(res.status, verdict, res.json);
+  }
+  if (res.status < 200 || res.status >= 300) {
+    return mapError(res.status, res.json);
+  }
+  const email = typeof res.json.email === "string" ? res.json.email : "";
+  // A 2xx that names no verdict and no account is not a green light: acting on
+  // it would send the user into a confirmation with nothing to confirm.
+  if (verdict !== "usable" || !email) {
+    return {
+      ok: false,
+      status: res.status,
+      code: "unknown",
+      message: UNREADABLE_RESPONSE_MESSAGE,
+    };
+  }
+  const vault = parseVault(res.json);
+  return { ok: true, verdict: "usable", email, ...(vault ? { vault } : {}) };
+}
+
+/**
+ * Spend a handoff for a session (#240 R12). `verifier` is what proves this is
+ * the device that asked for the link; a mismatch is refused server-side
+ * without consuming the token.
+ */
 export async function exchangeMagicToken(
   cfg: PlusClientConfig,
   token: string,
+  opts?: { verifier?: string },
 ): Promise<{ ok: true; session: PlusSession } | PlusApiError> {
+  const verifier = opts?.verifier?.trim();
   const res = await plusRequest(cfg, {
     path: "/v1/auth/exchange",
     method: "POST",
-    body: { token: token.trim() },
+    body: {
+      token: token.trim(),
+      ...(verifier ? { verifier } : {}),
+    },
   });
   if (!res.ok) return res;
   if (res.status < 200 || res.status >= 300) {
+    // A stated verdict wins over the status code, so the refusal reads the
+    // same here as it does from the peek.
+    const verdict = parseMagicVerdict(res.json);
+    if (verdict && verdict !== "usable") {
+      return magicRefusalError(res.status, verdict, res.json);
+    }
     return mapError(res.status, res.json);
   }
   const sessionToken =

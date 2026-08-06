@@ -10,12 +10,15 @@ import {
   hashToken,
   id,
   isEntitledAccount,
+  MAGIC_EXCHANGE_REFUSED,
+  MAGIC_PEEK_MISS,
   normalizeStripeIncident,
   periodEndFromNow,
   publicAccount,
   rowToAccount,
   rowToIncident,
   toMs,
+  verifierMatches,
 } from "./shared.mjs";
 import {
   ASK_PG_DDL,
@@ -38,7 +41,9 @@ CREATE TABLE IF NOT EXISTS accounts (
 CREATE TABLE IF NOT EXISTS magic_tokens (
   token TEXT PRIMARY KEY,
   email TEXT NOT NULL,
-  exp_ms BIGINT NOT NULL
+  exp_ms BIGINT NOT NULL,
+  verifier_hash TEXT,
+  vault TEXT
 );
 CREATE TABLE IF NOT EXISTS sessions (
   token_hash TEXT PRIMARY KEY,
@@ -109,6 +114,13 @@ export async function createPostgresStore(databaseUrl) {
   );
   await pool.query(
     `ALTER TABLE atom_mirror ADD COLUMN IF NOT EXISTS created TEXT`,
+  );
+  // #240 U1 — existing DBs created before the magic-token columns
+  await pool.query(
+    `ALTER TABLE magic_tokens ADD COLUMN IF NOT EXISTS verifier_hash TEXT`,
+  );
+  await pool.query(
+    `ALTER TABLE magic_tokens ADD COLUMN IF NOT EXISTS vault TEXT`,
   );
 
   const sessionTtlMs = () => config.sessionTtlDays * 24 * 60 * 60 * 1000;
@@ -196,13 +208,82 @@ export async function createPostgresStore(databaseUrl) {
     return rowToAccount(rows[0]);
   }
 
-  async function createMagicToken(email) {
+  /**
+   * @param {string} email
+   * @param {{ verifierHash?: string, vault?: string }} [opts] #240 U1 — the
+   *   requesting device's verifier hash (R12) and the requesting vault's name
+   *   (R3). Both optional: a caller that passes neither still works.
+   */
+  async function createMagicToken(email, opts = {}) {
+    // #240 U3 / KTD13 — every row past TTL, not only this email's. See the
+    // memory store's sweep for why the predicate carries no email.
+    await pool.query("DELETE FROM magic_tokens WHERE exp_ms < $1", [Date.now()]);
     const token = id("mt");
+    // KTD14 — the `token` column holds `hashToken(token)`, as sessions do.
     await pool.query(
-      "INSERT INTO magic_tokens (token, email, exp_ms) VALUES ($1, $2, $3)",
-      [token, email.trim().toLowerCase(), Date.now() + 15 * 60 * 1000],
+      `INSERT INTO magic_tokens (token, email, exp_ms, verifier_hash, vault)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [
+        hashToken(token),
+        email.trim().toLowerCase(),
+        Date.now() + 15 * 60 * 1000,
+        opts.verifierHash || null,
+        opts.vault || null,
+      ],
     );
     return token;
+  }
+
+  /**
+   * #240 U2 — answer whether a magic token is usable without spending it (R6,
+   * R9). Deliberately a bare pool query rather than exchangeMagic's checked-out
+   * client: no BEGIN, no FOR UPDATE, nothing that could carry a delete. The
+   * expired row stays put for U3's mint sweep (KTD13).
+   *
+   * @param {string} token
+   * @returns {Promise<MagicPeek>}
+   */
+  async function peekMagic(token) {
+    const { rows } = await pool.query(
+      "SELECT email, exp_ms, verifier_hash, vault FROM magic_tokens WHERE token = $1",
+      [hashToken(token)],
+    );
+    const row = rows[0];
+    if (!row) return MAGIC_PEEK_MISS.invalid;
+    if (Date.now() > Number(row.exp_ms)) return MAGIC_PEEK_MISS.expired;
+    return {
+      ok: true,
+      status: "usable",
+      email: row.email,
+      vault: row.vault ?? null,
+      verifierBound: !!row.verifier_hash,
+      verifierHash: row.verifier_hash ?? null,
+    };
+  }
+
+  async function magicRowsForTest() {
+    const { rows } = await pool.query("SELECT * FROM magic_tokens");
+    return rows.map((r) => ({
+      key: r.token,
+      email: r.email,
+      expMs: Number(r.exp_ms),
+      verifierHash: r.verifier_hash ?? null,
+      vault: r.vault ?? null,
+    }));
+  }
+
+  async function writeMagicRowForTest(key, row) {
+    await pool.query(
+      `INSERT INTO magic_tokens (token, email, exp_ms, verifier_hash, vault)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [
+        key,
+        String(row.email).trim().toLowerCase(),
+        Number(row.expMs),
+        row.verifierHash || null,
+        row.vault || null,
+      ],
+    );
   }
 
   /**
@@ -325,14 +406,21 @@ export async function createPostgresStore(databaseUrl) {
     return { ok: true, session, account: a };
   }
 
-  async function exchangeMagic(token) {
+  /**
+   * @param {string} token
+   * @param {MagicExchangeOpts} [opts] #240 U4 — see the typedef: the caller
+   *   says either which verifier it holds or that no check applies to it.
+   */
+  async function exchangeMagic(token, opts = {}) {
+    const key = hashToken(token);
     const client = await pool.connect();
     let email;
+    let vault = null;
     try {
       await client.query("BEGIN");
       const { rows } = await client.query(
         "SELECT * FROM magic_tokens WHERE token = $1 FOR UPDATE",
-        [token],
+        [key],
       );
       const row = rows[0];
       if (!row) {
@@ -340,11 +428,26 @@ export async function createPostgresStore(databaseUrl) {
         return null;
       }
       email = row.email;
-      await client.query("DELETE FROM magic_tokens WHERE token = $1", [token]);
+      vault = row.vault ?? null;
+      // #240 U4 / KTD3 — both checks run inside the FOR UPDATE lock and ahead
+      // of the delete. This used to delete first and only then test expiry, so
+      // a refusal and a redemption left the row in the same state; a refused
+      // handoff has to be non-destructive (R16).
       if (Date.now() > Number(row.exp_ms)) {
+        await client.query("DELETE FROM magic_tokens WHERE token = $1", [key]);
         await client.query("COMMIT");
         return null;
       }
+      if (
+        !opts.skipVerifierCheck &&
+        !verifierMatches(row.verifier_hash, opts.verifier)
+      ) {
+        // Nothing was written, so either statement would end the transaction;
+        // ROLLBACK says "this changed nothing" where a later reader will look.
+        await client.query("ROLLBACK");
+        return MAGIC_EXCHANGE_REFUSED;
+      }
+      await client.query("DELETE FROM magic_tokens WHERE token = $1", [key]);
       await client.query("COMMIT");
     } catch (e) {
       await client.query("ROLLBACK").catch(() => {});
@@ -370,7 +473,7 @@ export async function createPostgresStore(databaseUrl) {
     a = await refreshAccountStatus(a);
     await revokeAllSessionsForEmail(email);
     const session = await createSession(email, { verified: true });
-    return { session, account: a };
+    return { session, account: a, vault };
   }
 
   /**
@@ -626,9 +729,12 @@ export async function createPostgresStore(databaseUrl) {
   return {
     kind: "postgres",
     createMagicToken,
+    magicRowsForTest,
+    writeMagicRowForTest,
     createSession,
     startWithEmail,
     exchangeMagic,
+    peekMagic,
     accountFromSession,
     revokeSession,
     revokeAllSessionsForEmail,

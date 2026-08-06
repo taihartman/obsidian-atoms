@@ -60,7 +60,7 @@ export ATOMS_PLUS_STORE=postgres
 npm start   # exits 1 if any gate fails
 ```
 
-In production: no free checkout grants, no `/v1/auth/dev-exchange`, minimal `/health`, Postgres meter.
+In production: no free checkout grants, minimal `/health`, Postgres meter. (`/v1/auth/dev-exchange` is gone everywhere, not just in production — #240 deleted it as a zero-caller duplicate of the magic-link landing.)
 
 ## Stripe test mode
 
@@ -101,8 +101,11 @@ OpenCode Stripe MCP is often **live** OAuth — create catalog with `sk_test_` v
 
 | Method | Path | Auth |
 |--------|------|------|
-| POST | `/v1/auth/magic-link` | body `{ email }` |
-| POST | `/v1/auth/exchange` | body `{ token }` → session |
+| POST | `/v1/auth/magic-link` | body `{ email, verifierHash?, vault? }` |
+| POST | `/v1/auth/peek` | body `{ token, verifier? }` → verdict, no session |
+| POST | `/v1/auth/exchange` | body `{ token, verifier? }` → session |
+| GET | `/v1/auth/exchange?token=` | browser landing; renders, consumes nothing |
+| POST | `/v1/auth/exchange/fallback` | form `token=` → pasteable session (HTML) |
 | GET | `/v1/me` | Bearer session |
 | POST | `/v1/classify` | Bearer; body `{ capture, context, messagesRequest }` |
 | POST | `/v1/billing/checkout` | Bearer; `{ kind: start_trial\|subscribe_monthly\|subscribe_yearly\|topup_50 }` |
@@ -111,6 +114,12 @@ OpenCode Stripe MCP is often **live** OAuth — create catalog with `sk_test_` v
 | POST | `/v1/promo` | Bearer; `{ code }` |
 
 **402** when quota exhausted (no BYOK pitch in message).
+
+### Magic-link handoff (#240)
+
+The plugin mints a device verifier, sends its hash at `magic-link` time, and presents the raw verifier at `peek` and `exchange`. `POST /v1/auth/peek` answers `result: usable | expired | invalid | refused` — the same vocabulary the exchange uses, so the plugin routes one outcome table. It returns the requesting vault on `usable` **and** `refused`, the account email on `usable` only, never a session or the token itself, and always `Cache-Control: no-store`. It consumes nothing: peek as often as you like, the link still exchanges.
+
+Every magic-token surface is rate-limited on its own per-IP key (`MAGIC_LINK_RATE_LIMITS` in `src/ratelimit.mjs`), so a scanner hammering the landing page cannot 429 the peek, the exchange, or the fallback form. The keys are per-instance and the IP is client-supplied, so they brake undirected volume — they are not an authorization control.
 
 ## Env
 
