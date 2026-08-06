@@ -8,6 +8,7 @@ import {
   hashToken,
   id,
   isEntitledAccount,
+  logSessionCapEviction,
   MAGIC_EXCHANGE_REFUSED,
   MAGIC_PEEK_MISS,
   normalizeStripeIncident,
@@ -179,6 +180,39 @@ export function createMemoryStore() {
   }
 
   /**
+   * #320 R6 / KTD3 — a soft ceiling on live verified sessions, applied at
+   * exchange time by revoking the oldest beyond the cap. Soft on purpose: the
+   * promote paths raise the count outside this call, so it bounds sign-ins
+   * rather than asserting a global invariant.
+   *
+   * KTD4 — "oldest" is read off the expiry, not a creation timestamp, because
+   * every session gets the same TTL and expiry order therefore *is* creation
+   * order. Change ATOMS_PLUS_SESSION_TTL_DAYS and sessions minted on either side
+   * of the change sort against each other wrongly until the older ones expire.
+   *
+   * The ordering field is this backend's own: these rows carry `exp`, not
+   * `exp_ms`. A comparator copied from the SQL stores would yield NaN, sort as
+   * 0, and fall back to Map insertion order — which equals creation order today,
+   * so it would look correct while reading no timestamp at all.
+   */
+  function enforceSessionCapForEmail(email) {
+    const key = email.trim().toLowerCase();
+    const now = Date.now();
+    const live = [];
+    for (const row of sessions.values()) {
+      if (row.email === key && row.verified && !row.revoked && row.exp >= now) {
+        live.push(row);
+      }
+    }
+    const excess = live.length - config.maxSessionsPerEmail;
+    if (excess <= 0) return 0;
+    live.sort((a, b) => a.exp - b.exp);
+    for (const row of live.slice(0, excess)) row.revoked = true;
+    logSessionCapEviction(key, excess);
+    return excess;
+  }
+
+  /**
    * Remember which plugin session opened this Stripe Checkout. The webhook that
    * grants the trial has no session context of its own, and grantPeriod revokes
    * every unverified session for the email — without this binding the paying
@@ -279,6 +313,9 @@ export function createMemoryStore() {
     // startWithEmail must not survive an exchange. Do not widen it back.
     revokeUnverifiedSessionsForEmail(row.email);
     const session = createSession(row.email, { verified: true });
+    // #320 R6 — after the mint, never before: the new session has to be inside
+    // the cap it is counted against, not its own eviction victim.
+    enforceSessionCapForEmail(row.email);
     return { session, account: a, vault: row.vault ?? null };
   }
 
@@ -313,6 +350,33 @@ export function createMemoryStore() {
       verifierHash: r.verifierHash ?? null,
       vault: r.vault ?? null,
     }));
+  }
+
+  /**
+   * #320 U2 — the session equivalent of the magic-token seam above. The cap
+   * orders by expiry, and every production path stamps `exp` as
+   * `Date.now() + sessionTtlMs()`, so without a way to plant a row with an
+   * arbitrary expiry there is no test for eviction order, for expired rows, or
+   * for anything but the tie the real mint produces. The only alternative is
+   * moving the TTL mid-test, which is exactly the corruption KTD4 warns about.
+   */
+  function sessionRowsForTest() {
+    return [...sessions].map(([key, r]) => ({
+      key,
+      email: r.email,
+      expMs: r.exp,
+      revoked: r.revoked === true,
+      verified: r.verified === true,
+    }));
+  }
+
+  function writeSessionRowForTest(key, row) {
+    sessions.set(key, {
+      email: String(row.email).trim().toLowerCase(),
+      exp: Number(row.expMs),
+      revoked: row.revoked === true,
+      verified: row.verified !== false,
+    });
   }
 
   function writeMagicRowForTest(key, row) {
@@ -990,6 +1054,8 @@ export function createMemoryStore() {
     createMagicToken,
     magicRowsForTest,
     writeMagicRowForTest,
+    sessionRowsForTest,
+    writeSessionRowForTest,
     createSession,
     startWithEmail,
     exchangeMagic,
@@ -998,6 +1064,7 @@ export function createMemoryStore() {
     revokeSession,
     revokeAllSessionsForEmail,
     revokeUnverifiedSessionsForEmail,
+    enforceSessionCapForEmail,
     bindCheckoutSession,
     promoteCheckoutSession,
     markSessionVerified,

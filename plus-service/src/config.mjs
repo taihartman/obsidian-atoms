@@ -156,6 +156,18 @@ export const config = {
   get sessionTtlDays() {
     return Number(env("ATOMS_PLUS_SESSION_TTL_DAYS", "60"));
   },
+  /**
+   * #320 KTD3 — soft ceiling on live *verified* sessions per email, enforced at
+   * exchange time by evicting the oldest. Clamped, unlike its neighbours: this
+   * value feeds an eviction, so a bad override signs real devices out. `0` would
+   * make every freshly minted session its own victim, and a non-numeric override
+   * would put NaN into the comparator, so both fall back rather than propagate.
+   */
+  get maxSessionsPerEmail() {
+    const raw = Math.floor(Number(env("ATOMS_PLUS_MAX_SESSIONS", "10")));
+    if (!Number.isFinite(raw)) return 10;
+    return Math.max(1, raw);
+  },
   get maxCaptureChars() {
     return Number(env("ATOMS_PLUS_MAX_CAPTURE_CHARS", "8000"));
   },

@@ -10,6 +10,7 @@ import {
   hashToken,
   id,
   isEntitledAccount,
+  logSessionCapEviction,
   MAGIC_EXCHANGE_REFUSED,
   MAGIC_PEEK_MISS,
   normalizeStripeIncident,
@@ -272,6 +273,44 @@ export async function createPostgresStore(databaseUrl) {
     }));
   }
 
+  /**
+   * #320 U2 — the session equivalent of the magic-token seam above. The cap
+   * orders by expiry, and every production path stamps `exp_ms` as
+   * `Date.now() + sessionTtlMs()`, so without a way to plant a row with an
+   * arbitrary expiry there is no test for eviction order, for expired rows, or
+   * for anything but the tie the real mint produces. The only alternative is
+   * moving the TTL mid-test, which is exactly the corruption KTD4 warns about.
+   */
+  async function sessionRowsForTest() {
+    const { rows } = await pool.query("SELECT * FROM sessions");
+    return rows.map((r) => ({
+      key: r.token_hash,
+      email: r.email,
+      expMs: Number(r.exp_ms),
+      revoked: r.revoked === true,
+      verified: r.verified === true,
+    }));
+  }
+
+  async function writeSessionRowForTest(key, row) {
+    await pool.query(
+      `INSERT INTO sessions (token_hash, email, exp_ms, revoked, verified)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (token_hash) DO UPDATE
+         SET email = EXCLUDED.email,
+             exp_ms = EXCLUDED.exp_ms,
+             revoked = EXCLUDED.revoked,
+             verified = EXCLUDED.verified`,
+      [
+        key,
+        String(row.email).trim().toLowerCase(),
+        Number(row.expMs),
+        row.revoked === true,
+        row.verified !== false,
+      ],
+    );
+  }
+
   async function writeMagicRowForTest(key, row) {
     await pool.query(
       `INSERT INTO magic_tokens (token, email, exp_ms, verifier_hash, vault)
@@ -313,6 +352,35 @@ export async function createPostgresStore(databaseUrl) {
       "UPDATE sessions SET revoked = TRUE WHERE email = $1 AND verified = FALSE",
       [email.trim().toLowerCase()],
     );
+  }
+
+  /**
+   * #320 R6 / KTD3 — a soft ceiling on live verified sessions, applied at
+   * exchange time by revoking the oldest beyond the cap. Soft on purpose: the
+   * promote paths raise the count outside this call, so it bounds sign-ins
+   * rather than asserting a global invariant.
+   *
+   * KTD4 — "oldest" is read off `exp_ms`, not a creation timestamp, because
+   * every session gets the same TTL and expiry order therefore *is* creation
+   * order. Change ATOMS_PLUS_SESSION_TTL_DAYS and sessions minted on either side
+   * of the change sort against each other wrongly until the older ones expire.
+   */
+  async function enforceSessionCapForEmail(email) {
+    const key = email.trim().toLowerCase();
+    const { rows } = await pool.query(
+      `SELECT token_hash FROM sessions
+        WHERE email = $1 AND verified = TRUE AND revoked = FALSE AND exp_ms >= $2
+        ORDER BY exp_ms ASC`,
+      [key, Date.now()],
+    );
+    const excess = rows.length - config.maxSessionsPerEmail;
+    if (excess <= 0) return 0;
+    await pool.query(
+      "UPDATE sessions SET revoked = TRUE WHERE token_hash = ANY($1)",
+      [rows.slice(0, excess).map((r) => r.token_hash)],
+    );
+    logSessionCapEviction(key, excess);
+    return excess;
   }
 
   /**
@@ -477,6 +545,9 @@ export async function createPostgresStore(databaseUrl) {
     // startWithEmail must not survive an exchange. Do not widen it back.
     await revokeUnverifiedSessionsForEmail(email);
     const session = await createSession(email, { verified: true });
+    // #320 R6 — after the mint, never before: the new session has to be inside
+    // the cap it is counted against, not its own eviction victim.
+    await enforceSessionCapForEmail(email);
     return { session, account: a, vault };
   }
 
@@ -735,6 +806,8 @@ export async function createPostgresStore(databaseUrl) {
     createMagicToken,
     magicRowsForTest,
     writeMagicRowForTest,
+    sessionRowsForTest,
+    writeSessionRowForTest,
     createSession,
     startWithEmail,
     exchangeMagic,
@@ -743,6 +816,7 @@ export async function createPostgresStore(databaseUrl) {
     revokeSession,
     revokeAllSessionsForEmail,
     revokeUnverifiedSessionsForEmail,
+    enforceSessionCapForEmail,
     bindCheckoutSession,
     promoteCheckoutSession,
     markSessionVerified,

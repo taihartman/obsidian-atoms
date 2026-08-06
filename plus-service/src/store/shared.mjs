@@ -19,6 +19,23 @@ export function hashToken(token) {
 }
 
 /**
+ * #320 R6 — a cap eviction silently signs a live device out. Without a line in
+ * the log, "why did my desktop sign out?" is unanswerable, and indistinguishable
+ * from a compromise. Redacted to a fingerprint per the repo's log-safety rule:
+ * a raw email never reaches the log, and neither does a token.
+ *
+ * One helper rather than three console lines so the redaction cannot drift
+ * between backends.
+ */
+export function logSessionCapEviction(email, evicted) {
+  const fingerprint = createHash("sha256")
+    .update(String(email).trim().toLowerCase())
+    .digest("hex")
+    .slice(0, 12);
+  console.log(`[plus] session cap evicted ${evicted} for acct:${fingerprint}`);
+}
+
+/**
  * #240 U2 — what `peekMagic` reports. Uniform across the three backends: the
  * same keys are present whatever the verdict, so a caller never has to tell an
  * absent field from a null one, and the parity suite compares like with like.
