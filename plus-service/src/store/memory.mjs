@@ -520,6 +520,27 @@ export function createMemoryStore() {
     return ex / bucket.size;
   }
 
+  function mirrorListMissingExpand(email, limit = 50) {
+    const e = normEmail(email);
+    const lim = Math.min(Math.max(Number(limit) || 50, 1), 200);
+    const bucket = atomMirror.get(e);
+    if (!bucket) return [];
+    const out = [];
+    for (const row of bucket.values()) {
+      if (row.expandEnc) continue;
+      const pub = rowToPublicAtom(row, { includeBody: true });
+      out.push({
+        path: row.path,
+        title: row.title,
+        tags: pub?.tags || [],
+        body: pub?.text || "",
+        contentHash: row.contentHash,
+      });
+      if (out.length >= lim) break;
+    }
+    return out;
+  }
+
   function mirrorFetch(email, idOrTitle) {
     const e = normEmail(email);
     const key = String(idOrTitle || "").trim();
@@ -1058,6 +1079,7 @@ export function createMemoryStore() {
     mirrorUpsert,
     mirrorSetExpand,
     mirrorExpandCoverage,
+    mirrorListMissingExpand,
     mirrorFetch,
     mirrorSearch,
     mirrorNeighbors,

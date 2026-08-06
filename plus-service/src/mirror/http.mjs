@@ -3,7 +3,10 @@
  */
 import { checkRateLimit, clientIp } from "../ratelimit.mjs";
 import { config } from "../config.mjs";
-import { enqueueMirrorExpand } from "../ask/expandSearch.mjs";
+import {
+  backfillExpandForEmail,
+  enqueueMirrorExpand,
+} from "../ask/expandSearch.mjs";
 import { assertMirrorPath } from "../store/askHelpers.mjs";
 
 const MAX_ATOMS_PER_UPSERT = 100;
@@ -121,6 +124,43 @@ export async function handleMirrorRoutes({
   if (req.method === "POST" && path === "/v1/ask/mirror/wipe") {
     await store.mirrorWipe(a.email);
     json(res, 200, { ok: true, count: 0 });
+    return true;
+  }
+
+  // Expand backfill: populate search expansion for rows missing expand_enc.
+  // Entitled sess_ only; rate-limited; never returns phrase text.
+  if (req.method === "POST" && path === "/v1/ask/mirror/expand-backfill") {
+    if (!entitled(a)) {
+      json(res, 403, { message: "Plus entitlement required for Ask" });
+      return true;
+    }
+    const rl = checkRateLimit(`expand-backfill:${a.email}`, 6);
+    if (!rl.ok) {
+      json(res, 429, {
+        message: "Expand backfill rate limited — try again later",
+        retryAfterSec: rl.retryAfterSec,
+      });
+      return true;
+    }
+    let body = {};
+    try {
+      body = await readBody(req);
+    } catch {
+      body = {};
+    }
+    const limit = body?.limit;
+    const result = await backfillExpandForEmail(store, a.email, { limit });
+    let coverage = 0;
+    if (typeof store.mirrorExpandCoverage === "function") {
+      coverage = Number(await store.mirrorExpandCoverage(a.email)) || 0;
+    }
+    json(res, 200, {
+      ok: Boolean(result.ok),
+      attempted: result.attempted ?? 0,
+      expanded: result.expanded ?? 0,
+      expand_coverage: coverage,
+      reason: result.reason,
+    });
     return true;
   }
 

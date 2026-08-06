@@ -27,15 +27,30 @@ describe("parseExpandResponse", () => {
 
   it("rejects empty garbage", () => {
     assert.deepEqual(parseExpandResponse(""), []);
-    assert.deepEqual(parseExpandResponse("not useful"), []);
+    assert.deepEqual(parseExpandResponse("short"), []); // < 8 chars
   });
 
-  it("drops generic fluff without corpus overlap", () => {
+  it("drops only generic fluff templates", () => {
     const p = parseExpandResponse(["how to improve", "what is success"], {
       title: "Zebra habitat",
       bodySlice: "zebras live in savanna",
     });
     assert.equal(p.length, 0);
+  });
+
+  it("keeps paraphrase phrases that do not share tokens with the body", () => {
+    const p = parseExpandResponse(
+      [
+        "how to stop viewers from clicking away",
+        "keep people watching past the first seconds",
+      ],
+      {
+        title: "Ross's retention framework- stack open loops and manufacture stakes",
+        bodySlice: "stack open loops and manufacture stakes in the first seconds",
+      },
+    );
+    assert.ok(p.length >= 1, "paraphrases must survive without corpus word overlap");
+    assert.ok(p.some((x) => /viewers|clicking|watching/i.test(x)));
   });
 });
 

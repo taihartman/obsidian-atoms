@@ -74,29 +74,32 @@ export const config = {
   get askExpandEnabled() {
     return env("ASK_EXPAND_ENABLED", "1") !== "0";
   },
+  /** Prefer Plus classify model when ASK_EXPAND_MODEL unset (avoid hard-coded Haiku ids). */
   get askExpandModel() {
-    return env("ASK_EXPAND_MODEL", env("ATOMS_PLUS_MODEL", "claude-haiku-4-5-20251001"));
+    const explicit = env("ASK_EXPAND_MODEL", "");
+    if (explicit) return explicit;
+    return env("ATOMS_PLUS_MODEL", "claude-sonnet-4-5-20250929");
   },
   get askExpandTimeoutMs() {
-    const n = Number(env("ASK_EXPAND_TIMEOUT_MS", "8000"));
-    return Number.isFinite(n) && n >= 1000 ? n : 8000;
+    const n = Number(env("ASK_EXPAND_TIMEOUT_MS", "12000"));
+    return Number.isFinite(n) && n >= 1000 ? n : 12000;
   },
   get askExpandConcurrency() {
-    const n = Number(env("ASK_EXPAND_CONCURRENCY", "2"));
-    return Number.isFinite(n) && n >= 1 ? Math.min(n, 8) : 2;
+    const n = Number(env("ASK_EXPAND_CONCURRENCY", "3"));
+    return Number.isFinite(n) && n >= 1 ? Math.min(n, 8) : 3;
   },
   get askExpandPerEmailPerHour() {
-    const n = Number(env("ASK_EXPAND_PER_EMAIL_PER_HOUR", "60"));
-    return Number.isFinite(n) && n >= 0 ? n : 60;
+    const n = Number(env("ASK_EXPAND_PER_EMAIL_PER_HOUR", "200"));
+    return Number.isFinite(n) && n >= 0 ? n : 200;
   },
-  /** Min expand_coverage to advertise retrieval=lexical_expanded. */
+  /** Min expand_coverage to advertise retrieval=lexical_expanded (default any nonzero). */
   get askExpandCoverageFloor() {
-    const n = Number(env("ASK_EXPAND_COVERAGE_FLOOR", "0.5"));
-    return Number.isFinite(n) && n >= 0 && n <= 1 ? n : 0.5;
+    const n = Number(env("ASK_EXPAND_COVERAGE_FLOOR", "0.01"));
+    return Number.isFinite(n) && n >= 0 && n <= 1 ? n : 0.01;
   },
   get askExpandPerUpsertCap() {
-    const n = Number(env("ASK_EXPAND_PER_UPSERT_CAP", "10"));
-    return Number.isFinite(n) && n >= 0 ? n : 10;
+    const n = Number(env("ASK_EXPAND_PER_UPSERT_CAP", "40"));
+    return Number.isFinite(n) && n >= 0 ? n : 40;
   },
   get includedFilings() {
     return Number(

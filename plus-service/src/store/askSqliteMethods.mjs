@@ -211,6 +211,30 @@ export function createAskSqliteMethods(db, deps) {
     return Number(row?.ex || 0) / n;
   }
 
+  function mirrorListMissingExpand(email, limit = 50) {
+    const e = normEmail(email);
+    const lim = Math.min(Math.max(Number(limit) || 50, 1), 200);
+    const rows = db
+      .prepare(
+        `SELECT path, title, tags_json, body_enc, content_hash
+         FROM atom_mirror
+         WHERE email = ? AND (expand_enc IS NULL OR expand_enc = '')
+         ORDER BY updated_at DESC
+         LIMIT ?`,
+      )
+      .all(e, lim);
+    return rows.map((r) => {
+      const pub = rowToPublicAtom(r, { includeBody: true });
+      return {
+        path: r.path,
+        title: r.title,
+        tags: pub?.tags || [],
+        body: pub?.text || "",
+        contentHash: r.content_hash,
+      };
+    });
+  }
+
   function mirrorFetch(email, idOrTitle) {
     const e = normEmail(email);
     const key = String(idOrTitle || "").trim();
@@ -824,6 +848,7 @@ export function createAskSqliteMethods(db, deps) {
     mirrorUpsert,
     mirrorSetExpand,
     mirrorExpandCoverage,
+    mirrorListMissingExpand,
     mirrorFetch,
     mirrorSearch,
     mirrorNeighbors,

@@ -798,6 +798,42 @@ export async function askMirrorWipe(
   return { ok: true };
 }
 
+/** Populate search-expansion phrases for mirror rows missing them (best-effort). */
+export async function askMirrorExpandBackfill(
+  cfg: PlusClientConfig,
+  sessionToken: string,
+  opts?: { limit?: number },
+): Promise<
+  | {
+      ok: true;
+      attempted: number;
+      expanded: number;
+      expand_coverage: number;
+    }
+  | PlusApiError
+> {
+  const res = await plusRequest(cfg, {
+    path: "/v1/ask/mirror/expand-backfill",
+    method: "POST",
+    sessionToken,
+    body: { limit: opts?.limit ?? 50 },
+  });
+  if (!res.ok) return res;
+  if (res.status < 200 || res.status >= 300) {
+    return mapError(res.status, res.json);
+  }
+  return {
+    ok: true,
+    attempted:
+      typeof res.json.attempted === "number" ? res.json.attempted : 0,
+    expanded: typeof res.json.expanded === "number" ? res.json.expanded : 0,
+    expand_coverage:
+      typeof res.json.expand_coverage === "number"
+        ? res.json.expand_coverage
+        : 0,
+  };
+}
+
 export async function askMirrorStatus(
   cfg: PlusClientConfig,
   sessionToken: string,

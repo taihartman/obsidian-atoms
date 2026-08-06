@@ -402,6 +402,16 @@ export class AskCoordinator {
         ...(result.refusalReason ? { reason: result.refusalReason } : {}),
       };
     }
+    // Best-effort: fill search-expansion phrases for rows that still lack them
+    // (first deploy / soft-fail). Never block Sync success on expand quality.
+    try {
+      const { askMirrorExpandBackfill } = await import(
+        "../platform/plusClient"
+      );
+      await askMirrorExpandBackfill(cfg, token, { limit: 50 });
+    } catch {
+      /* ignore */
+    }
     return {
       kind: "worked",
       uploaded: result.uploaded,
