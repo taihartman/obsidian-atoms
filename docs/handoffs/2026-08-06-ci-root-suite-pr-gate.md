@@ -127,7 +127,7 @@ they were deliberately left uncommitted.
   - `60a5d83 ci: gate the root suite on pull_request`
 - Recently merged to master: `5a1e34f` (#324), `cb08567` (#304).
 - Diff vs `origin/master`: 3 files, +197 / -0.
-- WIP snapshot commit: `88f75e9` — `wip: handoff snapshot — ci-root-suite-pr-gate`
+- WIP snapshot commit: `3848761` — `wip: handoff snapshot — ci-root-suite-pr-gate`
 
 ## How to resume
 
