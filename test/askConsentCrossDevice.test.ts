@@ -82,6 +82,23 @@ describe("#323 cross-device consent", () => {
     expect(refreshes).toBe(1);
   });
 
+  it("does not rebuild the screen when the synced file changed nothing this device holds", async () => {
+    const { plugin } = pluginOnSyncedVault(GRANTED);
+    await plugin.loadSettings();
+    let refreshes = 0;
+    plugin.settingTab = {
+      refreshFromExternalSettings: () => {
+        refreshes += 1;
+      },
+    } as unknown as typeof plugin.settingTab;
+
+    // Same bytes back — what `loadSettings`' own legacy-hash write looks like bouncing through
+    // this hook, and what an unrelated device's no-op write looks like.
+    await plugin.onExternalSettingsChange();
+
+    expect(refreshes).toBe(0);
+  });
+
   it("leaves settings untouched when the external file is unreadable", async () => {
     const { plugin } = pluginOnSyncedVault(GRANTED);
     await plugin.loadSettings();
