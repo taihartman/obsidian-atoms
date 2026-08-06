@@ -268,6 +268,7 @@ const SETUP_SHOTS = [
 
 const ASSETS = [
   "_headers",
+  "_redirects",
   "favicon.svg",
   "og.png",
   "robots.txt",
