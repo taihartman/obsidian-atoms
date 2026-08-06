@@ -2,6 +2,8 @@
  * Ask mirror HTTP routes (Plus session auth).
  */
 import { checkRateLimit, clientIp } from "../ratelimit.mjs";
+import { config } from "../config.mjs";
+import { enqueueMirrorExpand } from "../ask/expandSearch.mjs";
 import { assertMirrorPath } from "../store/askHelpers.mjs";
 
 const MAX_ATOMS_PER_UPSERT = 100;
@@ -358,14 +360,9 @@ export async function handleMirrorRoutes({
       // Expand off the request path — do not return bodies/needExpand to client.
       const { upserted, skipped } = result;
       if (typeof store.mirrorSetExpand === "function" && needExpand.length) {
-        const { enqueueMirrorExpand } = await import("../ask/expandSearch.mjs");
-        const { config } = await import("../config.mjs");
         const cap = config.askExpandPerUpsertCap;
-        let n = 0;
-        for (const job of needExpand) {
-          if (n >= cap) break;
-          enqueueMirrorExpand(store, job);
-          n += 1;
+        for (let n = 0; n < needExpand.length && n < cap; n += 1) {
+          enqueueMirrorExpand(store, needExpand[n]);
         }
       }
       const st = await store.mirrorStatus(a.email);
