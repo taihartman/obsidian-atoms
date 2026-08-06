@@ -5,10 +5,8 @@
  * the same disclosure, in the same chrome. The seam is `egressConsentSpec`: one place where the
  * egress title and disclosure are paired, which both surfaces build their sheet from.
  *
- * The home half drives `confirmEnableAutomaticFiling` off the prototype with a two-field stub
- * rather than standing up an `AtomsHomeView`. That is deliberate: the method reads `this.app`
- * and `this.plugin` and nothing else, and the alternative is a full `ItemView` + `AtomsPlugin`
- * harness for a claim about four lines.
+ * The home half goes through `raiseHomeConsent` (test/helpers/homeView.ts), which explains the
+ * two-field prototype stub it drives the confirm with.
  */
 import { afterEach, describe, expect, it } from "vitest";
 import { Modal } from "./mocks/obsidian";
@@ -20,7 +18,7 @@ import {
   egressConsentSpec,
   type ConsentVerdict,
 } from "../src/settings/consent";
-import { AtomsHomeView } from "../src/home/atomsHomeView";
+import { raiseHomeConsent } from "./helpers/homeView";
 
 afterEach(() => {
   for (const open of [...Modal.open]) open.close();
@@ -33,24 +31,10 @@ function sheetButtons(): string[] {
   );
 }
 
-/**
- * Home's confirm, run against the two fields it actually touches. Returns the log of
- * `enableAutomaticFilingFromHome` calls, which is the device-local ack write in disguise.
- */
+/** Home's confirm. Returns the log of enables, which is the device-local ack write in disguise. */
 function openHomeConsent(): string[] {
   const enabled: string[] = [];
-  const view = Object.create(AtomsHomeView.prototype) as {
-    app: unknown;
-    plugin: unknown;
-    confirmEnableAutomaticFiling(): void;
-  };
-  view.app = {};
-  view.plugin = {
-    enableAutomaticFilingFromHome: async () => {
-      enabled.push("enabled");
-    },
-  };
-  view.confirmEnableAutomaticFiling();
+  raiseHomeConsent(() => enabled.push("enabled"));
   return enabled;
 }
 

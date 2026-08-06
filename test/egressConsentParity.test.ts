@@ -13,9 +13,9 @@
  * it could be emptied to `""` and two blank sheets would still "match". The clause assertions
  * below are what makes gutting the copy red as well as diverging it.
  *
- * Home's half drives `confirmEnableAutomaticFiling` off the prototype with the two-field stub
- * `test/homeEgressConsent.test.ts` proved — the method reads `this.app` and `this.plugin` and
- * nothing else, so a full `ItemView` + `AtomsPlugin` harness would buy nothing.
+ * Home's half goes through `raiseHomeConsent` (test/helpers/homeView.ts) — the same two-field
+ * prototype stub `test/homeEgressConsent.test.ts` drives, which is what makes this a comparison
+ * of the two real surfaces rather than of two harnesses.
  */
 import { afterEach, describe, expect, it } from "vitest";
 import { Modal } from "./mocks/obsidian";
@@ -27,7 +27,7 @@ import {
   LS_AUTO_RUN_EGRESS_ACK,
   LS_AUTO_RUN_ENABLED,
 } from "../src/platform/autorun";
-import { AtomsHomeView } from "../src/home/atomsHomeView";
+import { raiseHomeConsent } from "./helpers/homeView";
 
 afterEach(() => {
   for (const open of [...Modal.open]) open.close();
@@ -57,18 +57,7 @@ function renderedConsent(): { title: string; disclosure: string } {
  */
 function homeConsent(): Map<string, unknown> {
   const local = new Map<string, unknown>();
-  const view = Object.create(AtomsHomeView.prototype) as {
-    app: unknown;
-    plugin: unknown;
-    confirmEnableAutomaticFiling(): void;
-  };
-  view.app = {};
-  view.plugin = {
-    enableAutomaticFilingFromHome: async () => {
-      enableAutomaticFiling((k, v) => local.set(k, v));
-    },
-  };
-  view.confirmEnableAutomaticFiling();
+  raiseHomeConsent(() => enableAutomaticFiling((k, v) => local.set(k, v)));
   return local;
 }
 

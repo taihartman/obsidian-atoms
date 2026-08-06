@@ -89,7 +89,7 @@ export class ConsentSheetModal extends Modal {
     const reviewing = this.spec.granted !== undefined;
     contentEl.createEl("h2", { text: this.spec.title });
     contentEl.createEl("p", { text: `I understand: ${this.spec.disclosure}` });
-    if (this.spec.granted !== undefined) {
+    if (reviewing) {
       contentEl.createEl("p", {
         text: this.spec.granted,
         cls: "setting-item-description",

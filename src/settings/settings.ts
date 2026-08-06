@@ -43,13 +43,6 @@ import {
   EGRESS_ACK_TITLE,
   egressConsentSpec,
 } from "./consent";
-// The consent primitive lives in `./consent` so surfaces outside this tab can raise a sheet
-// without importing the settings screen.
-export {
-  ConsentSheetModal,
-  type ConsentSheetSpec,
-  type ConsentVerdict,
-} from "./consent";
 import { clampAtomFolder } from "../pipeline/render";
 import {
   actionRow,
