@@ -140,7 +140,7 @@ export function registerAskTools(mcp, ctx) {
     {
       title: "Search atoms",
       description:
-        "Search mirrored atoms by title, tags, and body. Higher score = better match. Optional tags filter (all must match). Snippets are truncated and non-authoritative—use fetch_atom before claiming what a note contains. Results include status (live|superseded|contradicted).",
+        "Search mirrored atoms by title, tags, and body. Each hit has confidence high|medium (primary signal for agents); weak matches are omitted. Empty results mean no confident lexical match in this mirror—not that the topic is absent from the vault. Optional tags filter (all must match). Snippets are truncated and non-authoritative—use fetch_atom before claiming what a note contains. Results include status (live|superseded|contradicted). Numeric score is for ranking only—do not threshold on it.",
       annotations: { readOnlyHint: true, destructiveHint: false },
       inputSchema: {
         query: z.string().describe("Search query"),
@@ -170,10 +170,10 @@ export function registerAskTools(mcp, ctx) {
         if (st.count === 0) emptyHint = EMPTY_HINT;
         else if (tagFilter)
           emptyHint =
-            "no matches for this query in this account's mirror_scope—call list_tags before concluding the tag is absent; confirm account via mirror_status if unexpected";
+            "no confident lexical match for this query+tags in this account's mirror_scope—call list_tags before concluding the tag is absent; does not mean the topic is absent from the vault; confirm account via mirror_status if unexpected";
         else
           emptyHint =
-            "no matches for this query in this account's mirror_scope—confirm account via mirror_status if unexpected";
+            "no confident lexical match for this query in this account's mirror_scope—not a claim the topic is absent from the vault; confirm account via mirror_status if unexpected";
         return {
           content: [
             {
