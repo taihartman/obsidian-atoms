@@ -22,7 +22,11 @@ import {
   writeAutoRunEnabled,
   writeEgressAck,
 } from "../platform/autorun";
-import { clearEgressNoticeAcked, LAST_CATCHUP_LABEL } from "../platform/resume";
+import {
+  clearEgressNoticeAcked,
+  LAST_CATCHUP_LABEL,
+  readEgressNoticeAcked,
+} from "../platform/resume";
 import {
   CAPTURE_SHORTCUT_VERSION,
   customCaptureShortcutUrl,
@@ -1663,16 +1667,26 @@ export class AtomsSettingTab extends PluginSettingTab {
       },
     });
 
-    // Rendered from the ack itself rather than from the toggle above it: an ack recorded
-    // against a feature that is currently off is still a live consent, and still revocable.
-    if (state.egressAcked) {
+    // Rendered from the grants themselves rather than from the toggle above it: a consent
+    // recorded against a feature that is currently off is still live, and still revocable.
+    //
+    // Gated on *either* device-local grant, not on the egress stamp alone. Two booleans satisfy
+    // the egress gate — the stamped ack and the catch-up notice — and this row is the only
+    // surface that withdraws either. Keying it to the stamp would mean a device whose ack went
+    // stale (a legacy grant, or any future EGRESS_ACK_VERSION bump) loses this row while its
+    // notice keeps permitting catch-up filing: a grant that still spends, with nothing left on
+    // screen to take it back.
+    const noticeAcked = readEgressNoticeAcked(load);
+    if (state.egressAcked || noticeAcked) {
+      // Say which consent is actually on record. A device carrying only the notice never saw
+      // the unioned disclosure, and this row must not claim on its behalf that it did.
+      const record = state.egressAcked
+        ? "Acknowledged on this device"
+        : "Acknowledged on this device for Sync everything now, against earlier wording";
       this.actionRow(containerEl, {
         action: `ack:review:${EGRESS_ACK_TITLE}`,
         name: EGRESS_ACK_TITLE,
-        // Device-local, and stored as a disclosure version rather than a timestamp — so this
-        // row only ever appears for an ack granted against the wording currently on screen.
-        // A stale stamp reads as unacknowledged, which hides this row and re-prompts instead.
-        desc: "Acknowledged on this device",
+        desc: record,
         label: "Review",
         onClick: () =>
           this.presentConsent(
@@ -1680,12 +1694,11 @@ export class AtomsSettingTab extends PluginSettingTab {
               if (verdict !== "withdrawn") return;
               writeEgressAck(save, false);
               writeAutoRunEnabled(save, false);
-              // Two device-local booleans satisfy the egress gate, and this row is the only
-              // surface that withdraws either. Clearing one would leave the other still
-              // permitting "Sync everything now" — which the disclosure just above names.
+              // Clearing one grant would leave the other still permitting "Sync everything
+              // now" — which the disclosure just above names.
               clearEgressNoticeAcked(save);
               this.redisplay();
-            }, "Acknowledged on this device."),
+            }, `${record}.`),
           ),
       });
     }

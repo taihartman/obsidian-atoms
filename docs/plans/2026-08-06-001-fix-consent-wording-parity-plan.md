@@ -245,11 +245,22 @@ release behavior, not a regression.
      the disclosure verbatim against the shipped version, so editing the copy without bumping
      `EGRESS_ACK_VERSION` goes red. Without that, U6 is a comment.
 
-   **Known edge, accepted:** a device with a legacy ack *and* the catch-up notice
-   (`LS_EGRESS_NOTICE`) loses the Settings Review row — the only surface that withdraws the notice —
-   while the notice keeps permitting "Sync everything now". That is not a new lie: the notice was
-   granted against its own disclosure in `resume.ts`, which the user did see. Pre-existing for anyone
-   who acked the notice but never the egress sheet; U6 widens who it applies to, not what it does.
+   **Caught in code review and fixed — do not re-introduce.** The first cut gated the Settings
+   Review row on `state.egressAcked` alone. That meant a device holding a legacy ack *and* the
+   catch-up notice (`LS_EGRESS_NOTICE`) lost the row — the only surface that withdraws either
+   grant — while `readEgressPermitted` kept honoring the notice on every catch-up pass, including
+   the unattended one a foreground resume runs (`main.ts:1018` passes `catchUp != null`). The grant
+   survived the upgrade, kept spending, and had nothing left on screen to take it back. Three
+   independent reviewers (correctness, security, and the cross-model Grok pass at confidence 100)
+   found it separately.
+
+   The row is now gated on **either** grant and names which one is on record — a notice-only device
+   reads "for Sync everything now, against earlier wording", because it never saw the unioned text
+   and this row must not claim otherwise. `test/settings.test.ts` pins the whole sequence, asserting
+   the gate open *before* the withdrawal so a shut gate cannot masquerade as a working one.
+
+   **Still true, and deliberate:** the notice itself is not version-stamped. It carries its own
+   disclosure in `resume.ts`, which that user did see. Stamping it is follow-up work, not this PR's.
 
 ## Out of scope
 

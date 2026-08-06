@@ -14,8 +14,13 @@ export const LS_AUTO_RUN_EGRESS_ACK = "atoms-auto-run-egress-ack";
  * so a device that accepted through the old home modal kept granting unattended sends while
  * Settings reported an acknowledgment for wording that user never saw (#315). Stamping the ack
  * makes staleness detectable: anything other than this exact string — an older stamp, or the
- * legacy boolean — reads as unacknowledged, and the next automatic-filing attempt re-prompts once
- * against the current text. The one-time re-prompt is expected release behavior.
+ * legacy boolean — reads as unacknowledged, and unattended filing stops until the user accepts
+ * the current text once. Nothing raises that sheet on its own: the re-prompt is the next enable
+ * the user performs, from home's filing card or the Settings toggle. Losing automatic filing
+ * silently at the upgrade boundary is expected release behavior, and belongs in release notes.
+ *
+ * Staleness reaches this ack only. `readEgressPermitted` below also honors the catch-up notice,
+ * which carries its own separate disclosure and its own un-stamped boolean.
  *
  * **Bump this whenever `EGRESS_DISCLOSURE` (src/settings/consent.ts) changes what it discloses.**
  * `egressConsentParity.test.ts` freezes the two together, so forgetting the bump fails there

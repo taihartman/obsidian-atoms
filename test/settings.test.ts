@@ -792,6 +792,38 @@ describe("consent sheets", () => {
     });
 
     /**
+     * The upgrade state U6 nearly stranded: a legacy ack *plus* a granted catch-up notice.
+     *
+     * Invalidating the stamp does not revoke the notice — `readEgressPermitted` honors it on
+     * every catch-up pass, including the unattended one a foreground resume runs. So the grant
+     * survives the upgrade and keeps spending. Gating this row on the stamp alone would take
+     * away the one surface that withdraws that grant, leaving the user paying for a consent
+     * they cannot reach. The row has to key on either grant, and say which one it is.
+     */
+    it("still offers Review when only the catch-up notice is granted", () => {
+      const { tab, local } = askTab({}, {
+        [LS_AUTO_RUN_EGRESS_ACK]: true,
+        [LS_AUTO_RUN_ENABLED]: true,
+        [LS_EGRESS_NOTICE]: true,
+      });
+      const load = (key: string) => local.get(key) ?? null;
+
+      // Asserted open first: a `false` after withdrawal proves nothing if the gate was shut all
+      // along. The notice is what still permits the paid catch-up path here.
+      expect(readEgressPermitted(load, { catchUp: true })).toBe(true);
+
+      expect(rowNames(tab)).toContain("What Atoms sends to Anthropic");
+      // The row must not claim they acknowledged wording they never saw.
+      expect(row(tab, "What Atoms sends to Anthropic").textContent).toContain("earlier wording");
+
+      press(tab, "What Atoms sends to Anthropic", "Review");
+      pressSheet("Withdraw acknowledgment");
+
+      expect(readEgressPermitted(load, { catchUp: true })).toBe(false);
+      expect(readEgressPermitted(load, { catchUp: false })).toBe(false);
+    });
+
+    /**
      * U6 / KTD4 — the half of #315 the wording fix cannot reach.
      *
      * A device that accepted through the old home modal stores a bare `true`: consent to
