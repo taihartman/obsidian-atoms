@@ -60,6 +60,17 @@ Everything below is **done and pushed**. Do not redo it.
   the PR body with absolute `raw.githubusercontent.com` URLs.
 - **STATUS.md** carries the in-flight row for both issues.
 
+> **Update 2026-08-06, later session — steps 1–3 are done.** The `world-class-qa` pass ran in
+> `test vault` (ten stories, desktop + a real 390×844 `is-phone` window) and ended in its
+> `adversarial-qa` gate (fourteen scenarios). Report:
+> [`docs/qa/2026-08-06-342-proposed-tags-world-class-qa.md`](../qa/2026-08-06-342-proposed-tags-world-class-qa.md).
+> The render-vs-live P1 is proven live in two shapes. One hole was found and fixed on this branch
+> (`582a928`): the row counted the raw stored array while the confirm counted the normalized set it
+> dismisses, so a malformed `data.json` made the two disagree. One P3 copy nuance is reported, not
+> changed — see the report's **Findings → H2**. **The CI blocker below is resolved:** runs *had*
+> fired (both checks green on `a0c7665`); the PR is now out of draft. Steps left are 4 (merge) and
+> 5 (clear STATUS).
+
 ## Next steps
 
 1. **Run `world-class-qa` on this branch**, scoped to the changed surface — the Tag vocabulary
