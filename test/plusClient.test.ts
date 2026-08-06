@@ -11,6 +11,7 @@ import {
   getEntitlement,
   peekMagicToken,
   requestMagicLink,
+  signOutAllDevices,
   startPlusAccount,
   SESSION_REJECTED_MESSAGE,
   UNREADABLE_RESPONSE_MESSAGE,
@@ -258,6 +259,79 @@ describe("plusClient", () => {
     const r = await getEntitlement({ baseUrl: base, request }, "sess");
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.code).toBe("network");
+  });
+
+  describe("#320 signOutAllDevices", () => {
+    it("posts to the sign-out-all route with the session as bearer", async () => {
+      const request = mockRequest((p) => {
+        expect(p.url).toBe("https://plus.test/v1/auth/sign-out-all");
+        expect(p.method).toBe("POST");
+        expect(p.headers?.authorization).toBe("Bearer sess_desktop");
+        return { status: 200, json: { ok: true } };
+      });
+      const r = await signOutAllDevices(
+        { baseUrl: base, request },
+        "sess_desktop",
+      );
+      expect(r.ok).toBe(true);
+    });
+
+    // The route's own 401 sentence reaches the user verbatim, the same way
+    // `/v1/promo`'s does: `isSessionRejectedMessage` only claims a 401 that says
+    // "invalid session" or "expired", and "sign in with a magic link to sign out
+    // all devices" is both more specific and more actionable than the shared
+    // one. It stays `unknown` on purpose — `auth` is the code that would fake a
+    // local sign-out off a server refusal.
+    it("a 401 surfaces the service's own instruction", async () => {
+      const request = mockRequest(() => ({
+        status: 401,
+        json: { message: "Sign in with a magic link to sign out all devices" },
+      }));
+      const r = await signOutAllDevices({ baseUrl: base, request }, "sess_old");
+      expect(r.ok).toBe(false);
+      if (!r.ok) {
+        expect(r.code).toBe("unknown");
+        expect(r.message).toContain("Sign in with a magic link");
+        expect(r.message).not.toBe(SESSION_REJECTED_MESSAGE);
+      }
+    });
+
+    it("a 401 with no body at all is reported as an upstream refusal", async () => {
+      // A gateway or WAF, not the service: blaming the session would be a lie.
+      const request = mockRequest(() => ({ status: 401, json: undefined }));
+      const r = await signOutAllDevices({ baseUrl: base, request }, "sess_x");
+      expect(r.ok).toBe(false);
+      if (!r.ok) expect(r.code).toBe("upstream");
+    });
+
+    it("a 5xx comes back refused rather than thrown", async () => {
+      const request = mockRequest(() => ({ status: 502, json: undefined }));
+      const r = await signOutAllDevices({ baseUrl: base, request }, "sess_x");
+      expect(r.ok).toBe(false);
+      if (!r.ok) expect(r.code).toBe("unknown");
+    });
+
+    it("a network throw comes back as network, not an exception", async () => {
+      const request: RequestFn = async () => {
+        throw new Error("offline");
+      };
+      const r = await signOutAllDevices({ baseUrl: base, request }, "sess_x");
+      expect(r.ok).toBe(false);
+      if (!r.ok) expect(r.code).toBe("network");
+    });
+
+    it("never puts the session token in the refusal it hands back", async () => {
+      const session = "sess_secret_do_not_log";
+      const request: RequestFn = async () => {
+        throw new Error(`connect failed for ${session}`);
+      };
+      const r = await signOutAllDevices({ baseUrl: base, request }, session);
+      expect(r.ok).toBe(false);
+      if (!r.ok) {
+        expect(r.message).not.toContain(session);
+        expect(r.message).toContain("[redacted]");
+      }
+    });
   });
 
   it("askMirrorStatus parses email", async () => {
