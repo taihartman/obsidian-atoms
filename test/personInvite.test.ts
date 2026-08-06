@@ -11,6 +11,16 @@ import {
   resolvePersonInviteName,
 } from "../src/pipeline/personInvite";
 
+/**
+ * The fixtures below carry fixed `sourceDate`s, and `collectPersonInvites`
+ * measures recency against a 14-day window. Read off the real clock they age
+ * out and the suite starts failing on a date rather than on a change — which is
+ * exactly what happened on 2026-08-06. Several calls in this file already pass
+ * their own `now`; these anchor the rest to the same kind of fixed instant.
+ * Chosen so the oldest fixture (2026-07-20) still sits inside the window.
+ */
+const NOW = new Date("2026-08-02T12:00:00Z");
+
 const atom = (
   path: string,
   title: string,
@@ -126,7 +136,7 @@ describe("collectPersonInvites", () => {
           "2026-07-22",
         ),
       ],
-      { personHubTitles: ["Nichita"], vaultTitles: ["Nichita"] },
+      { now: NOW, personHubTitles: ["Nichita"], vaultTitles: ["Nichita"] },
     );
     expect(invites.length).toBeGreaterThanOrEqual(1);
     expect(invites[0]!.displayName).toBe("Mom");
@@ -142,7 +152,7 @@ describe("collectPersonInvites", () => {
           "Dom was wearing the trainer shoes",
         ),
       ],
-      { personHubTitles: [], vaultTitles: [] },
+      { now: NOW, personHubTitles: [], vaultTitles: [] },
     );
     const dom = invites.find((i) => i.displayName === "Dom");
     expect(dom?.memberPaths.length).toBe(2);
@@ -152,6 +162,7 @@ describe("collectPersonInvites", () => {
     const invites = collectPersonInvites(
       [atom("Atoms/m.md", "Mom plan", "Mom wants dinner")],
       {
+        now: NOW,
         personHubTitles: [],
         vaultTitles: [],
         snoozedNames: ["mom"],
@@ -232,7 +243,7 @@ skipped the gym because nichita likes it
           "Nichita loves pajamas a lot",
         ),
       ],
-      { personHubTitles: ["Nichita"], vaultTitles: ["Nichita"] },
+      { now: NOW, personHubTitles: ["Nichita"], vaultTitles: ["Nichita"] },
     );
     expect(invites.some((i) => i.displayName === "Nichita")).toBe(false);
   });
