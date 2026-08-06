@@ -6,6 +6,7 @@ import {
   backRow,
   destinationRow,
   destructiveRow,
+  formRow,
   InFlightActions,
   settingRow,
   statusRow,
@@ -278,6 +279,233 @@ describe("row grammar", () => {
     expect(controlEl(container).querySelector("button, input, select, .checkbox-container")).toBeNull();
   });
 
+  it("formRow renders exactly one input and exactly one button", () => {
+    formRow(container, {
+      name: "Email",
+      desc: "Where the sign-in link goes.",
+      placeholder: "you@example.com",
+      submit: {
+        action: "plus:start-trial",
+        label: "Start free trial",
+        inFlight,
+        onSubmit: () => {},
+      },
+    });
+
+    expect(row(container).classList.contains("atoms-setting-form")).toBe(true);
+    expect(controlEl(container).querySelectorAll("input")).toHaveLength(1);
+    expect(controlEl(container).querySelectorAll("button")).toHaveLength(1);
+    expect(controlEl(container).children).toHaveLength(2);
+    expect(controlEl(container).querySelector("input")?.placeholder).toBe("you@example.com");
+    expect(controlEl(container).querySelector("button")?.textContent).toBe("Start free trial");
+    // The field leads and the button commits it, never the other way round.
+    expect(controlEl(container).firstElementChild?.tagName).toBe("INPUT");
+    expect(controlEl(container).querySelector(".checkbox-container")).toBeNull();
+  });
+
+  /**
+   * The `action` id is not rendered anywhere, so it is asserted where it matters: the guard has
+   * to know the run under the id the caller declared, or a rebuilt row starts a second one.
+   */
+  it("formRow registers its run under the declared action id", () => {
+    formRow(container, {
+      name: "Email",
+      submit: {
+        action: "plus:start-trial",
+        label: "Start free trial",
+        inFlight,
+        onSubmit: () => new Promise<void>(() => {}),
+      },
+    });
+
+    expect(inFlight.pending("plus:start-trial")).toBeUndefined();
+    controlEl(container).querySelector("button")!.click();
+    expect(inFlight.pending("plus:start-trial")).toBeDefined();
+  });
+
+  /**
+   * `formRow` is the only kind allowed to pair a field with a button. Asserted over the other
+   * builders rather than trusted to review, because the rejected alternative — an optional
+   * `button` on `settingRow` — is exactly one PR away and would leave this file green.
+   */
+  it("no other row kind pairs an input with a button", () => {
+    const build: Array<[string, (el: HTMLElement) => void]> = [
+      [
+        "settingRow",
+        (el) => settingRow(el, { name: "A", control: { kind: "text", configure: () => {} } }),
+      ],
+      ["destinationRow", (el) => destinationRow(el, { name: "B", onOpen: () => {} })],
+      ["backRow", (el) => backRow(el, { name: "B2", onBack: () => {} })],
+      [
+        "actionRow",
+        (el) => actionRow(el, { name: "C", label: "Go", action: "c", inFlight, onClick: () => {} }),
+      ],
+      [
+        "destructiveRow",
+        (el) =>
+          destructiveRow(el, { name: "D", label: "Wipe", action: "d", inFlight, onClick: () => {} }),
+      ],
+      ["statusRow", (el) => statusRow(el, { name: "E", value: "ok" })],
+    ];
+
+    for (const [name, render] of build) {
+      const el = document.createElement("div");
+      render(el);
+      const control = controlEl(el);
+      const paired =
+        control.querySelector("input") !== null && control.querySelector("button") !== null;
+      expect(paired, `${name} paired an input with a button — that grammar is formRow's`).toBe(
+        false,
+      );
+    }
+  });
+
+  it.each([
+    ["an empty field", "", ""],
+    ["a whitespace-only field", "   ", ""],
+    ["a token pasted with surrounding whitespace", "  sess_live_abc \n", "sess_live_abc"],
+    ["a clean value", "sess_live_abc", "sess_live_abc"],
+  ])("formRow submits the trimmed value from %s", (_case, typed, expected) => {
+    const submitted: string[] = [];
+    let captured: TextComponent | null = null;
+    formRow(container, {
+      name: "Advanced: paste session",
+      configure: (text) => {
+        captured = text as unknown as TextComponent;
+      },
+      submit: {
+        action: "plus:save-session",
+        label: "Save session",
+        inFlight,
+        onSubmit: (value) => {
+          submitted.push(value);
+        },
+      },
+    });
+
+    captured!.fill(typed);
+    controlEl(container).querySelector("button")!.click();
+
+    // `startsWith("sess_")` on the caller's side only survives a trimmed string.
+    expect(submitted).toEqual([expected]);
+  });
+
+  it("formRow leaves Enter in the field alone rather than submitting", () => {
+    let submits = 0;
+    formRow(container, {
+      name: "Email",
+      submit: {
+        action: "plus:start-trial",
+        label: "Start free trial",
+        inFlight,
+        onSubmit: () => {
+          submits += 1;
+        },
+      },
+    });
+
+    const input = controlEl(container).querySelector("input")!;
+    input.value = "user@example.com";
+    input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+
+    // The button used to live in its own row, where Enter did nothing. It still does nothing.
+    expect(submits).toBe(0);
+  });
+
+  it("formRow configures the field itself, password type included", () => {
+    formRow(container, {
+      name: "API key",
+      configure: (text) => {
+        text.inputEl.type = "password";
+        text.setValue("sk-ant-secret");
+      },
+      submit: {
+        action: "key:save",
+        label: "Save",
+        inFlight,
+        onSubmit: () => {},
+      },
+    });
+
+    const input = controlEl(container).querySelector("input")!;
+    expect(input.type).toBe("password");
+    expect(input.value).toBe("sk-ant-secret");
+    // `configure` sets the field up; it never adds a second control.
+    expect(controlEl(container).children).toHaveLength(2);
+  });
+
+  it("formRow holds its button on a double-tap and leaves the field editable", async () => {
+    let submits = 0;
+    let release!: () => void;
+    const pending = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    formRow(container, {
+      name: "Sign in with a link",
+      submit: {
+        action: "plus:magic-link",
+        label: "Send sign-in link",
+        inFlight,
+        onSubmit: () => {
+          submits += 1;
+          return pending;
+        },
+      },
+    });
+
+    const button = controlEl(container).querySelector("button")!;
+    const input = controlEl(container).querySelector("input")!;
+    button.click();
+    expect(button.disabled).toBe(true);
+    // The field is not part of the guard: a user must be able to fix a typo while it sends.
+    expect(input.disabled).toBe(false);
+    button.click();
+    expect(submits).toBe(1);
+
+    release();
+    await pending;
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(button.disabled).toBe(false);
+  });
+
+  it("formRow renders disabled when rebuilt mid-flight and joins the run already going", async () => {
+    let submits = 0;
+    let release!: () => void;
+    const pending = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const spec = {
+      name: "Sign in with a link",
+      submit: {
+        action: "plus:magic-link",
+        label: "Send sign-in link",
+        inFlight,
+        onSubmit: () => {
+          submits += 1;
+          return pending;
+        },
+      },
+    };
+
+    formRow(container, spec);
+    controlEl(container).querySelector("button")!.click();
+
+    // The `redisplay()` the action's own handler triggers, mid-flight.
+    container.empty();
+    formRow(container, spec);
+    const rebuilt = controlEl(container).querySelector("button")!;
+    expect(rebuilt.disabled).toBe(true);
+    // Reaching it the way a stale gesture would, past the disabled state.
+    rebuilt.click();
+    expect(submits).toBe(1);
+
+    release();
+    await pending;
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    // Released by the run it inherited, not left dead until the next render.
+    expect(rebuilt.disabled).toBe(false);
+  });
+
   it("no builder hands back a chainable a caller could add a second affordance to", () => {
     const returns = [
       settingRow(container, {
@@ -300,10 +528,22 @@ describe("row grammar", () => {
         inFlight,
         onClick: () => {},
       }),
-      statusRow(container, { name: "E", value: "ok" }),
+      formRow(container, {
+        name: "E",
+        submit: { action: "e", label: "Send", inFlight, onSubmit: () => {} },
+      }),
+      statusRow(container, { name: "F", value: "ok" }),
     ];
 
-    expect(returns).toEqual([undefined, undefined, undefined, undefined, undefined, undefined]);
+    expect(returns).toEqual([
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+    ]);
   });
 
   /**
