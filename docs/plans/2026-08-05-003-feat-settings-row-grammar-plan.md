@@ -33,6 +33,42 @@ of which gate anything.
 
 ---
 
+## Amendment — 2026-08-05, after code review
+
+**The device-local API key rows move to the main screen, and the row counts below change with
+them.** `ce-code-review`'s security lens found that `useDeviceLocalKeyFallback` plus the key field it
+gates are a *complete credential path*: `getApiKey()` falls back to the device-local key, so pasting
+one there is what lets the plugin call Anthropic and bill the user, and turning the toggle off is
+also the only thing that deletes the stored key. **R5 keeps every money and egress gate on the main
+screen**, and this plan's own R5 carve-out (U6 step 3) reasoned about only *Model* and *Plus service
+URL override* — it never examined the key rows while specifying them into Advanced. The plan
+contradicted itself; R5 wins. *(User decision, 2026-08-05.)*
+
+Superseding the text below wherever they disagree:
+
+| Claim in the original text | Corrected |
+|---|---|
+| Main screen: 14 rows (11 signed out) | **15 / 12** by default; **16 / 13** with the key fallback on, since the key field renders only behind its toggle |
+| Advanced holds exactly four rows | **Two** — Model and Plus service URL override |
+| Advanced contains the device-local key rows | They are on the main screen, under *Your API key (optional)* |
+
+Definition of done items 1 and 2 read against these numbers. The R5 property test was widened to
+snapshot credential state as well as the ack and auto-run flags — that blind spot is precisely why it
+passed while a credential path sat behind Advanced, and a list-shaped assertion would never have
+caught it either.
+
+Two further code-review outcomes worth recording here, because both contradict something this plan
+assumed:
+
+- **Withdrawing the egress ack did not revoke egress.** A second device-local boolean
+  (`atoms-egress-notice-v1`, granted by a card on Atoms home) also satisfied the gate and nothing
+  could clear it. KTD4 promises withdrawal as a first-class affordance, so this branch fixes it.
+- **The 14-row figure was always the no-consent baseline.** KTD4's `Acknowledged … · Review` rows are
+  required by this plan and appear once a user grants a consent, so a fully-consented screen shows
+  more. The resulting-screen table never covered that state; it counts the default one.
+
+---
+
 ## Problem frame
 
 Asked which of four failure modes applies during the #304 scoping conversation on 2026-08-05, the
