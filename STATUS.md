@@ -8,6 +8,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
 | In progress | [#331](https://github.com/taihartman/obsidian-atoms/issues/331) | taihartman | `feat/331-ask-search-atoms-agent-signal` | [plan](docs/plans/2026-08-06-002-feat-ask-search-atoms-agent-signal-plan.md) | `plus-service/src/store/askHelpers.mjs`, `plus-service/src/mcp/tools.mjs`, `plus-service/src/mcp/instructions.mjs` | search_atoms confidence + true empties; no plugin bump |
+| In progress | [#315](https://github.com/taihartman/obsidian-atoms/issues/315) [#314](https://github.com/taihartman/obsidian-atoms/issues/314) | taihartman | `fix/consent-wording-parity` | [plan](docs/plans/2026-08-06-001-fix-consent-wording-parity-plan.md) | `src/settings/settings.ts`, `src/settings/consent.ts` (new), `src/home/atomsHomeView.ts` | Home and Settings write the **same** egress ack behind different text. Fix is a **union**, not a swap — each string has clauses the other lacks. **Splits `settings.ts`** — coordinate with #320/#323 before U1 |
 | In progress | [#307](https://github.com/taihartman/obsidian-atoms/issues/307) | taihartman | `feat/tryatoms-mailing-list` | [plan](docs/plans/2026-08-05-001-feat-tryatoms-mailing-list-plan.md) | `www/**`, `.github/workflows/tryatoms-pages.yml` | Atoms Notes list + Pages Function subscribe; no plugin bump |
 
 ## How to claim (copy)
