@@ -171,11 +171,10 @@ export class AskCoordinator {
   async applyOutbox(): Promise<AskOutboxOutcome> {
     const p = this.plugin;
     const idle: AskOutboxOutcome = { kind: "worked", landed: 0, rejected: 0 };
-    if (
-      !p.settings.askEnabled ||
-      !p.settings.askPrivacyAckAt ||
-      !p.settings.askWriteAckAt
-    ) {
+    // The shared half asked through `mirrorPermitted()`, not re-derived: a hand-written
+    // second copy is exactly how the next condition added to the gate misses this path.
+    // The write ack is this path's own — it authorizes cloud data landing in the vault.
+    if (!this.mirrorPermitted() || !p.settings.askWriteAckAt) {
       return idle;
     }
     const host = await this.createOutboxHost();
@@ -264,12 +263,19 @@ export class AskCoordinator {
     force: boolean,
   ): Promise<Exclude<MirrorSyncOutcome, { kind: "joined" }>> {
     const p = this.plugin;
-    // The last gate before egress, and the only one a follow-up pass ever crosses:
-    // `runMirrorSingleFlight` loops back into `once()`, never into `sync()`, so the
-    // check at the top of `sync()` only ever answers for the *first* pass. A consent
-    // withdrawn on another device mid-run would otherwise be followed by a second
-    // pass uploading note bodies under it (#323 F1). Silent — `sync()` owns the
-    // notice for the forced gesture, and a follow-up has no user behind it.
+    // The only gate a *follow-up* pass ever crosses: `runMirrorSingleFlight` loops back
+    // into `once()`, never into `sync()`, so the check at the top of `sync()` answers
+    // for the first pass alone. Without this one, a consent withdrawn mid-run was
+    // followed by a second pass uploading note bodies under it (#323 F1). Silent —
+    // `sync()` owns the notice for the forced gesture, and a follow-up has no user
+    // behind it.
+    //
+    // Per pass, not per request: `runAskMirrorSync` below scans the vault and then
+    // upserts in chunks, and nothing re-checks between them. A withdrawal landing
+    // inside that stretch still ships the rest of this pass. Closing that needs a live
+    // predicate threaded into the mirror host and is deliberately not this change —
+    // but do not read this gate as "the last check before the upload", because the
+    // upload is several awaits further on.
     if (!this.mirrorPermitted()) {
       return { kind: "failed", message: MIRROR_OFF };
     }
