@@ -41,12 +41,28 @@ Living map for driving Atoms during QA. Update when commands, home cards, or set
 ### Settings → Atoms
 
 - **Entrypoint:** Settings tab id `atoms`.
-- **Contains:** Version, API key / SecretStorage id, auto-run ack + enable, model, atom folder, vocab, capture shortcut URL. Then the **Ask (Claude + ChatGPT)** section: Privacy acknowledgment, Enable Ask mirror, Allow filing, MCP connector URL, **Ask mirror status line**, **Sync now**, Cloud mirror status (Refresh), Wipe cloud copy, Self-host Ask, Plus service URL override.
-- **Source:** `src/settings/settings.ts` (not `src/settings.ts` — moved in the hybrid-src layout).
-- **Ask mirror status line:** `src/settings/settings.ts:1160-1168`, rendered via `formatAskMirrorRefusalLine` (`src/platform/askMirror.ts:431-439`). Refusal text: `Ask mirror: {N} · sync refused — vault scan incomplete · Sync now to retry` (class `atoms-ask-mirror-error`). Same string renders on Atoms home as `.atoms-home-ask-mirror-refusal`.
-- **Sync now:** `src/settings/settings.ts:1179-1195` → `plugin.syncAskMirror({ force: true })`; toasts one of four outcomes via `syncNowNotice` (`src/plugin/catchUp.ts:62`). The forced path is the only one that can open `AskMirrorDeleteConfirmModal` (`askMirror.ts:621-647`); a non-forced delta refusal never shows a modal (`askMirror.ts:842-844`).
-- **Plus service URL override:** `src/settings/settings.ts:1303`. Free text, no host validation — point it at a local `plus-service` (`http://127.0.0.1:8790`) to drive Ask mirror QA without a cloud account.
-- **KNOWN DEFECT (Obsidian 1.12.7):** the tab throws at `settings.ts:1225`/`:1239` (`ButtonComponent.setDestructive` is typed in `obsidian.d.ts` but is not a runtime function) and **stops rendering after "Wipe cloud copy"** — Self-host Ask and Plus service URL override are unreachable in the UI. Set `plusBaseUrl` via `obsidian eval` instead. Pre-existing on `master`; see `docs/qa/2026-08-01-fix-mirror-delete-gate-and-outbox-ack-world-class-qa.md` § F1.
+- **Source:** `src/settings/settings.ts` (not `src/settings.ts` — moved in the hybrid-src layout); row primitives in `src/settings/rows.ts`.
+- **Shape:** one **main screen** plus **four destinations**. A destination is not a modal and not a new view — the tab re-renders `containerEl` under a route (`SettingsRoute` in `settings.ts`: `main | account | vocabulary | connect | advanced`). You walk in by clicking a `destinationRow` (class `.atoms-setting-destination`, whole row is the target) and back out via the back row at the top (`.atoms-setting-back`). Closing and reopening Settings resets to `main`.
+
+**Main screen rows, in order** (`renderMainScreen`): account entry → `iCloud shortcut link` → `Capture Atom shortcut` → `Atom folder` → `List atoms in person notes` → `Tag vocabulary — N active` → *(Plus only)* `Ask mirror`, `Allow filing from Claude or ChatGPT`, `Connect Claude or ChatGPT` → `File automatically when Obsidian opens` → `Sync when you return to Obsidian` → `Sync everything now` → `Anthropic API key` → `Device-local key fallback` → `Advanced`. Fifteen rows signed in to Plus, twelve signed out. Two more appear only once this device has stamps: `Last auto-run day (this device)` and `Last catch-up` (status rows, no control).
+
+Everything else on this screen is prose and carries no control — six paragraphs signed out: the version line, the Capture intro, the Ask intro, `Sign in to Atoms Plus above first.`, the auto-run intro, and the API-key intro. A section intro is exempt from the row grammar by design; a status *fact* is not, and is a status row.
+
+**Destinations**
+
+| Destination | Reached from | Contains |
+|---|---|---|
+| **Account** | The first row — `Set up automatic filing` signed out, `Plus · N filings left` signed in. Name varies by `accountRowDescriptor` state. | Signed out: `Skip the API key`, `Email`, `Start free trial`, `Sign in on another device`, `Send sign-in link`, `Advanced: paste session`, `Save session`. Signed in: `Manage subscription`, `Sign out`. |
+| **Tag vocabulary** | `Tag vocabulary — N active` | Active group (one toggle row per tag), `Add a custom tag`, Proposed group (`#tag` Approve + `Dismiss #tag`) when proposals exist, then **Found in your vault** — one `Activate` row per vault tag not yet active. All-active vaults show `Every tag your vault uses is already active.`; a never-tagged vault shows `No tags found in vault yet.` |
+| **Connect Claude or ChatGPT** | The `Connect Claude or ChatGPT` row (Plus session only; signed out the destination prints `Sign in to Atoms Plus first.` and nothing else) | Ask mirror status line (prose) → `MCP connector URL` (Copy) → `Link Claude / ChatGPT` (Get pairing code) → `Sync now` → `Cloud mirror status` (Refresh) → `Wipe cloud copy` (Wipe, confirms first). |
+| **Advanced** | The last row, `Advanced` | `Model`, `Plus service URL override`. |
+
+- **Ask mirror status line:** `mirrorStatusLine` in `settings.ts`, printed as prose at the top of the Connect destination and echoed on the main screen's entry row. Refusal text from `formatAskMirrorRefusalLine` (`src/platform/askMirror.ts`): `Ask mirror: {N} · sync refused — vault scan incomplete · Sync now to retry` (class `atoms-ask-mirror-error`). Same string renders on Atoms home as `.atoms-home-ask-mirror-refusal`.
+- **Sync now:** Connect destination → `plugin.syncAskMirror({ force: true })`; toasts one of four outcomes via `syncNowNotice` (`src/plugin/catchUp.ts`). The forced path is the only one that can open `AskMirrorDeleteConfirmModal`; a non-forced delta refusal never shows a modal.
+- **Plus service URL override:** Advanced destination. Free text, no host validation — point it at a local `plus-service` (`http://127.0.0.1:8787`) to drive Ask mirror QA without a cloud account. Reachable in the UI now; `obsidian eval` is no longer required.
+- **Self-host Ask:** no longer a row. The guide is `docs/ask-self-host.md`, asserted by a test so the row cannot come back without the doc.
+- **Acknowledgments are not permanent rows.** The auto-run egress ack and the two Ask acks are consent sheets shown at enable time. A `… acknowledgment` row with a `Review` button exists only once that ack has been granted, and Review is where it is withdrawn.
+- **RESOLVED (was KNOWN DEFECT, Obsidian 1.12.7):** the tab used to throw on `ButtonComponent.setDestructive` and stop rendering. `markDestructive` in `src/settings/rows.ts` now calls it only when it is a runtime function and falls back to `setWarning()`. Verified 2026-08-05 on app 1.13.4 / installer 1.12.7: a `destructiveRow` renders `mod-destructive` with no throw, and every destination renders to its last row. Historical context: `docs/qa/2026-08-01-fix-mirror-delete-gate-and-outbox-ack-world-class-qa.md` § F1.
 
 ### Process / Preview (manual)
 

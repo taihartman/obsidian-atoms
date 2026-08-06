@@ -31,6 +31,7 @@ import {
   open,
   press,
   pressSheet,
+  prose,
   row,
   rowNames,
   settingTab,
@@ -42,12 +43,14 @@ import {
 import {
   LS_AUTO_RUN_EGRESS_ACK,
   LS_AUTO_RUN_ENABLED,
+  LS_LAST_RUN_DAY,
   readEgressPermitted,
 } from "../src/platform/autorun";
 import { LS_EGRESS_NOTICE } from "../src/platform/resume";
 // `../mocks/obsidian` rather than `"obsidian"`: vitest aliases the module, `tsc` does not.
 import { Modal } from "./mocks/obsidian";
 import {
+  API_KEY_SECRET_ID_DEFAULT,
   DEFAULT_SETTINGS,
   LOCAL_STORAGE_API_KEY,
   type LinkerSettings,
@@ -574,6 +577,31 @@ describe("tag vocabulary", () => {
     tab.hide();
     tab.display();
     expect(destinationNames(tab)).toContain(entry(2));
+  });
+
+  it("says so when every tag the vault uses is already active", () => {
+    const { tab } = settingTab({
+      settings: { activeVocabulary: ["gardening", "cooking"] },
+      vaultTags: ["gardening", "cooking"],
+    });
+    tab.display();
+    open(tab, entry(2));
+
+    // The ranking is non-empty but every entry is filtered out as already active, so the
+    // "Found in your vault" heading would otherwise sit over nothing.
+    expect(rowNames(tab).filter((name) => name.startsWith("#")).sort()).toEqual([
+      "#cooking",
+      "#gardening",
+    ]);
+    expect(tab.containerEl.textContent).toContain("Every tag your vault uses is already active.");
+  });
+
+  it("keeps the never-tagged empty state distinct from the all-active one", () => {
+    const { tab } = settingTab({ settings: { activeVocabulary: ["idea"] }, vaultTags: [] });
+    tab.display();
+    open(tab, entry(1));
+
+    expect(tab.containerEl.textContent).toContain("No tags found in vault yet.");
   });
 
   it("deactivates an active tag from its toggle", async () => {
@@ -1533,5 +1561,46 @@ describe("main screen row grammar (U9)", () => {
     tab.display();
     expect(rowNames(tab, { headings: false })).not.toContain("Self-host Ask");
     expect(existsSync(path.resolve(__dirname, "../docs/ask-self-host.md"))).toBe(true);
+  });
+
+  /**
+   * A status fact has a name and a value, which is what `statusRow` is for. Rendered as a loose
+   * paragraph it drifts out of the grammar and reads as prose the user has to parse.
+   */
+  describe("status facts", () => {
+    it("names the last auto-run day on a status row", () => {
+      const { tab } = settingTab({
+        session: PLUS_SESSION,
+        local: { [LS_LAST_RUN_DAY]: "2026-07-29" },
+      });
+      tab.display();
+
+      const rows = rowNames(tab, { headings: false });
+      expect(rows).toContain("Last auto-run day (this device)");
+      expect(row(tab, "Last auto-run day (this device)").textContent).toContain("2026-07-29");
+      expect(prose(tab).some((t) => t.startsWith("Last auto-run day"))).toBe(false);
+    });
+
+    it("names the last catch-up on a status row", () => {
+      const { tab } = settingTab({
+        session: PLUS_SESSION,
+        plugin: { getLastCatchupLine: () => "Last catch-up 18m ago: caught up" },
+      });
+      tab.display();
+
+      expect(rowNames(tab, { headings: false })).toContain("Last catch-up");
+      expect(row(tab, "Last catch-up").textContent).toContain("18m ago: caught up");
+      expect(prose(tab).some((t) => t.startsWith("Last catch-up"))).toBe(false);
+    });
+
+    it("keeps the secret-id example with the key row instead of splitting the pair below it", () => {
+      const { tab } = plusTab();
+      tab.display();
+
+      // The tip belongs to the field it describes, so it lives in that row — not as a paragraph
+      // wedged between the key row and the fallback toggle that answers for the same key.
+      expect(row(tab, "Anthropic API key").textContent).toContain(API_KEY_SECRET_ID_DEFAULT);
+      expect(prose(tab).some((t) => t.startsWith("Tip: secret id example"))).toBe(false);
+    });
   });
 });

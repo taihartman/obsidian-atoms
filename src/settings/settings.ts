@@ -23,7 +23,7 @@ import {
   writeAutoRunEnabled,
   writeEgressAck,
 } from "../platform/autorun";
-import { clearEgressNoticeAcked } from "../platform/resume";
+import { clearEgressNoticeAcked, LAST_CATCHUP_LABEL } from "../platform/resume";
 import {
   CAPTURE_SHORTCUT_VERSION,
   customCaptureShortcutUrl,
@@ -1324,7 +1324,7 @@ export class AtomsSettingTab extends PluginSettingTab {
     // toggle — and a text field with a small inline reset is not one of those pairs. The reset
     // only exists to clear the field beside it, so forcing this through the builder would mean
     // splitting one coherent row in two.
-    new Setting(containerEl)
+    const shortcutUrlRow = new Setting(containerEl)
       .setName("iCloud shortcut link")
       .setDesc(
         custom
@@ -1356,6 +1356,10 @@ export class AtomsSettingTab extends PluginSettingTab {
             this.redisplay();
           }),
       );
+    // The reset icon shares the control edge with the field, and the field loses: unclassed, it
+    // collapsed to about 54px and showed "Usi" of its placeholder. The class is what `styles.css`
+    // needs to give the input back its width.
+    shortcutUrlRow.settingEl.addClass("atoms-capture-shortcut-url");
 
     actionRow(containerEl, {
       name: "Capture Atom shortcut",
@@ -1405,7 +1409,10 @@ export class AtomsSettingTab extends PluginSettingTab {
     const setting = new Setting(containerEl)
       .setName("Anthropic API key")
       .setDesc(
-        "SecretStorage on this vault + device only (not synced). Switching vaults or clearing app data (e.g. emulator pm clear) drops the key — re-enter once per vault. Secret ids: lowercase alphanumeric with dashes.",
+        // The secret-id example lives here rather than in a paragraph below the row: as prose it
+        // sat between this row and the fallback toggle that answers for the same key, splitting
+        // a pair that belongs together. It describes this field, so it belongs to this field.
+        `SecretStorage on this vault + device only (not synced). Switching vaults or clearing app data (e.g. emulator pm clear) drops the key — re-enter once per vault. Secret ids: lowercase alphanumeric with dashes, e.g. ${API_KEY_SECRET_ID_DEFAULT}.`,
       )
       .addComponent((el) =>
         new SecretComponent(this.app, el)
@@ -1421,11 +1428,6 @@ export class AtomsSettingTab extends PluginSettingTab {
       cls: "atoms-api-key-status",
     });
     this.checkApiKey();
-
-    containerEl.createEl("p", {
-      text: `Tip: secret id example — ${API_KEY_SECRET_ID_DEFAULT}`,
-      cls: "setting-item-description",
-    });
 
     // Plumbing by tone, a credential path by effect: `getApiKey()` falls back to this key, so
     // the pair below can enable Anthropic spend on its own — which R5 keeps on the main screen
@@ -1621,17 +1623,21 @@ export class AtomsSettingTab extends PluginSettingTab {
       onClick: () => this.plugin.runSyncEverythingNow(),
     });
 
+    // Both are name-plus-value facts, which is what `statusRow` is for. As paragraphs they read
+    // as prose the user has to parse for the value buried in it.
     if (state.lastRunDay) {
-      containerEl.createEl("p", {
-        text: `Last auto-run day (this device): ${state.lastRunDay}`,
-        cls: "setting-item-description",
+      statusRow(containerEl, {
+        name: "Last auto-run day (this device)",
+        value: state.lastRunDay,
       });
     }
     const catchLine = this.plugin.getLastCatchupLine();
     if (catchLine) {
-      containerEl.createEl("p", {
-        text: catchLine,
-        cls: "setting-item-description",
+      statusRow(containerEl, {
+        name: LAST_CATCHUP_LABEL,
+        // The formatter owns one line for Atoms home, which prints it whole. Splitting it on
+        // the label it single-sources keeps the two surfaces saying the same thing.
+        value: catchLine.slice(LAST_CATCHUP_LABEL.length + 1),
       });
     }
   }
@@ -1783,18 +1789,24 @@ export class AtomsSettingTab extends PluginSettingTab {
       cache: this.app.metadataCache.getFileCache(f),
     }));
     const counts = aggregateTagsFromFileCaches(caches);
-    const ranked = tagCountsSorted(counts).slice(0, 30);
     const activeSet = new Set(active.map(normalizeTag));
+    // Filtered before the empty state is decided, not inside the render loop: a vault whose
+    // every tag is already active ranks non-empty and still renders no rows, which used to
+    // leave this heading sitting over nothing.
+    const promotable = tagCountsSorted(counts)
+      .slice(0, 30)
+      .filter(({ tag }) => !activeSet.has(tag));
 
-    if (ranked.length === 0) {
+    if (promotable.length === 0) {
       containerEl.createEl("p", {
-        text: "No tags found in vault yet.",
+        text: counts.size
+          ? "Every tag your vault uses is already active."
+          : "No tags found in vault yet.",
         cls: "setting-item-description",
       });
     }
 
-    for (const { tag, count } of ranked) {
-      if (activeSet.has(tag)) continue;
+    for (const { tag, count } of promotable) {
       actionRow(containerEl, {
         name: `#${tag}`,
         desc: `${count} use(s) — tap to promote to Active`,

@@ -447,6 +447,12 @@ export function recordQuarantineFail(
   };
 }
 
+/**
+ * The name half of the catch-up fact. Exported so the settings status row can carry it as a row
+ * name and split it back off the line, rather than re-spelling the prefix in a second place.
+ */
+export const LAST_CATCHUP_LABEL = "Last catch-up";
+
 export function formatLastCatchupLine(
   rec: LastCatchupRecord | null,
   now: number = Date.now(),
@@ -469,5 +475,5 @@ export function formatLastCatchupLine(
     parts.push(`${filingInLastHour} in the last hour`);
   }
   const detail = parts.length ? parts.join(" · ") : "caught up";
-  return `Last catch-up ${when}: ${detail}`;
+  return `${LAST_CATCHUP_LABEL} ${when}: ${detail}`;
 }

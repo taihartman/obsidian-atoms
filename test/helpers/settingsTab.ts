@@ -184,6 +184,16 @@ export function rowNames(
   return kept.map((el) => el.querySelector(".setting-item-name")?.textContent ?? "");
 }
 
+/**
+ * Every loose paragraph on the rendered screen — the text that is *not* a row. Section intros
+ * belong here by design; a status fact does not.
+ */
+export function prose(tab: AtomsSettingTab): string[] {
+  return Array.from(tab.containerEl.querySelectorAll("p.setting-item-description")).map(
+    (el) => el.textContent ?? "",
+  );
+}
+
 /** The one rendered row carrying this name. Throws rather than silently acting on nothing. */
 export function row(tab: AtomsSettingTab, name: string): HTMLElement {
   const found = Array.from(tab.containerEl.querySelectorAll(".setting-item")).filter(

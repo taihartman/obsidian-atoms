@@ -1909,6 +1909,25 @@
   flex-direction: row-reverse;
 }
 
+/* The one settings row pairing a text field with an inline reset icon. Obsidian sizes the
+   control edge to its contents, so the icon squeezed the input down to about 54px — enough for
+   "Usi" of a placeholder reading "Using the shortcut Atoms ships". Let the control edge grow and
+   give the field a floor wide enough to read that placeholder whole; it wraps under the name on
+   a narrow (phone) screen rather than shrinking again. */
+.atoms-capture-shortcut-url .setting-item-control {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  /* The field's floor plus the reset icon and the gap, so the name column yields instead of the
+     field — its description wraps, the placeholder cannot. */
+  min-width: 312px;
+}
+
+.atoms-capture-shortcut-url .setting-item-control input[type="text"] {
+  flex: 1 1 260px;
+  min-width: 260px;
+}
+
 /* Ask mirror push failure in Settings */
 .atoms-ask-mirror-error {
   color: var(--text-error);
