@@ -453,7 +453,10 @@ export class AtomsSettingTab extends PluginSettingTab {
     this.openSheet?.close();
     this.openSheet = null;
     // Off screen: an external change has nothing to re-render, and the next `display()` reads
-    // the reloaded settings anyway.
+    // the reloaded settings anyway. The identity check is ordering defense, not ceremony — a
+    // `display()` that lands before the outgoing tab's `hide()` would otherwise be deregistered
+    // by the tab it replaced. `hiding` cannot stand in for this field: it starts false, so
+    // before the first `display()` it would claim a screen that was never opened.
     if (this.plugin.settingTab === this) this.plugin.settingTab = null;
     super.hide();
     // Not cleared here — `display()` owns that, so continuations landing after this returns
@@ -556,10 +559,6 @@ export class AtomsSettingTab extends PluginSettingTab {
   }
 
   /**
-   * Imperative settings UI. Declarative PluginSettingTab.getSettingDefinitions
-   * (Obsidian 1.13+ settings search) is a separate migration — not this claim.
-   */
-  /**
    * Re-render because `data.json` changed underneath us — a consent withdrawn on another
    * device (#323). `redisplay()` already declines while the tab is closing.
    */
@@ -567,6 +566,10 @@ export class AtomsSettingTab extends PluginSettingTab {
     this.redisplay();
   }
 
+  /**
+   * Imperative settings UI. Declarative PluginSettingTab.getSettingDefinitions
+   * (Obsidian 1.13+ settings search) is a separate migration — not this claim.
+   */
   display(): void {
     // A real render is what re-opens the tab, whether it is Obsidian showing it again or a
     // route walk. Anything that arrived late from the last visit has already been dropped.

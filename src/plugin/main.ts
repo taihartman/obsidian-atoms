@@ -1435,6 +1435,7 @@ export default class AtomsPlugin extends Plugin {
    * the plugin at the moment of egress, so re-pointing it here closes them all at once.
    */
   async onExternalSettingsChange(): Promise<void> {
+    const before = JSON.stringify(this.settings ?? null);
     try {
       await this.loadSettings();
     } catch (err) {
@@ -1442,11 +1443,19 @@ export default class AtomsPlugin extends Plugin {
       // from a withdrawal, and inventing one would be its own bug. Keeping the last good copy
       // leaves the gate where the user put it until a readable file arrives. Never rethrow:
       // this runs inside Obsidian's caller.
+      //
+      // Deliberately not `devLog`: it is a no-op everywhere (the Community plugin scan forbids
+      // `console`), so it would buy no diagnostics, and it dereferences an esbuild-injected
+      // const that does not exist under vitest.
       void err;
       return;
     }
     // The screen was rendered against the state we just replaced; a Review row still showing a
-    // consent that is gone on disk is the same defect wearing a different coat.
+    // consent that is gone on disk is the same defect wearing a different coat. Rebuilding it
+    // costs a full `containerEl.empty()` and re-render, so skip that when the file changed in
+    // ways this screen cannot show — including `loadSettings`' own legacy-hash write bouncing
+    // back through this hook.
+    if (JSON.stringify(this.settings) === before) return;
     this.settingTab?.refreshFromExternalSettings();
   }
 
