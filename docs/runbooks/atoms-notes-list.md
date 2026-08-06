@@ -3,9 +3,18 @@
 **Product name (user-facing):** Field notes  
 **Product:** occasional notes on a second brain in real life (capture that returns, Obsidian + Claude, how others run it). Invite their practice.  
 **Voice:** [`docs/voice.md`](../voice.md) — **read before every Broadcast or welcome edit.** Skill: `.agents/skills/atoms-voice/`.  
-**Plan:** `docs/plans/2026-08-05-001-feat-tryatoms-mailing-list-plan.md`  
+**Plan (list):** `docs/plans/2026-08-05-001-feat-tryatoms-mailing-list-plan.md`  
+**Plan (archive):** `docs/plans/2026-08-06-003-feat-field-notes-archive-plan.md`  
+**Public archive:** `https://tryatoms.app/notes/` (per-note `/notes/<slug>/`)  
 **Endpoint:** `POST https://tryatoms.app/api/subscribe` (Pages Function)  
 **Unsubscribe:** `GET /api/unsubscribe?e=&t=` (HMAC; linked from welcome)
+
+## Send = publish (two clocks)
+
+1. **Broadcast OK** → Resend queues email; CLI writes `docs/field-notes/published/<basename>.json`  
+2. **Live site** → commit that file, merge **master**, wait for Pages deploy, open `/notes/<slug>/`
+
+Never treat Resend-only as “web is live.” `test` mode does not publish.
 
 ## One-time Resend setup
 
