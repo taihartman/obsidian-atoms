@@ -531,7 +531,7 @@ describe("tag vocabulary", () => {
 
     // The intro prose explains proposals, so this is about the group heading and its rows.
     expect(tab.containerEl.textContent).not.toContain("Proposed (approve to activate)");
-    expect(rowNames(tab).filter((name) => name.startsWith("Dismiss "))).toEqual([]);
+    expect(rowNames(tab).filter((name) => name.endsWith("waiting"))).toEqual([]);
   });
 
   it("renders the Proposed group when a classify run proposed something", () => {
@@ -542,9 +542,32 @@ describe("tag vocabulary", () => {
     open(tab, entry(1));
 
     expect(tab.containerEl.textContent).toContain("Proposed (approve to activate)");
-    // One right edge per row, so approve and dismiss are two rows rather than two buttons.
     expect(rowNames(tab)).toContain("#gardening");
-    expect(rowNames(tab)).toContain("Dismiss #gardening");
+    // The one dismissal for the queue counts in the singular when the queue holds one.
+    expect(rowNames(tab)).toContain("1 proposal waiting");
+  });
+
+  /**
+   * The section used to cost two full-width rows per proposal — the second one's whole content
+   * being its own Dismiss button — so the row count, not just the row names, is the assertion
+   * that would have caught it (#342).
+   */
+  it("spends one row per proposal plus one dismissal for the queue", () => {
+    const { tab } = settingTab({
+      settings: {
+        activeVocabulary: ["idea"],
+        proposedTags: ["gardening", "cooking", "watch"],
+      },
+    });
+    tab.display();
+    open(tab, entry(1));
+
+    expect(rowNames(tab)).toContain("3 proposals waiting");
+    expect(rowNames(tab).filter((name) => name.startsWith("Dismiss "))).toEqual([]);
+    // Every proposal renders exactly once, under its own name and no other.
+    for (const tag of ["gardening", "cooking", "watch"]) {
+      expect(rowNames(tab).filter((name) => name.includes(tag))).toEqual([`#${tag}`]);
+    }
   });
 
   it("approves a proposed tag into Active", async () => {
@@ -557,7 +580,8 @@ describe("tag vocabulary", () => {
     await flush();
 
     expect(inDestination(tab)).toBe(true);
-    expect(rowNames(tab)).not.toContain("Dismiss #gardening");
+    // The queue is empty, so its dismissal goes with it rather than sitting over nothing.
+    expect(rowNames(tab).filter((name) => name.endsWith("waiting"))).toEqual([]);
     expect(row(tab, "#gardening").querySelector(".checkbox-container")).not.toBeNull();
 
     tab.hide();
@@ -565,16 +589,32 @@ describe("tag vocabulary", () => {
     expect(destinationNames(tab)).toContain(entry(2));
   });
 
-  it("dismisses a proposed tag without activating it", async () => {
+  it("approves one proposal and leaves the rest of the queue waiting", async () => {
     const { tab } = settingTab({
-      settings: { activeVocabulary: ["idea"], proposedTags: ["gardening"] },
+      settings: { activeVocabulary: ["idea"], proposedTags: ["gardening", "cooking"] },
     });
     tab.display();
     open(tab, entry(1));
-    press(tab, "Dismiss #gardening", "Dismiss");
+    press(tab, "#gardening", "Approve");
     await flush();
 
-    expect(rowNames(tab)).not.toContain("#gardening");
+    expect(rowNames(tab)).toContain("1 proposal waiting");
+    expect(rowNames(tab)).toContain("#cooking");
+  });
+
+  it("dismisses the whole queue without activating anything", async () => {
+    const { tab } = settingTab({
+      settings: { activeVocabulary: ["idea"], proposedTags: ["gardening", "cooking"] },
+    });
+    tab.display();
+    open(tab, entry(1));
+    press(tab, "2 proposals waiting", "Dismiss all");
+    await flush();
+
+    expect(inDestination(tab)).toBe(true);
+    // Gone from the screen, and gone without being promoted: the count is still 1.
+    expect(tab.containerEl.textContent).not.toContain("Proposed (approve to activate)");
+    expect(rowNames(tab)).not.toContain("#cooking");
     tab.hide();
     tab.display();
     expect(destinationNames(tab)).toContain(entry(1));

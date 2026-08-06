@@ -1872,7 +1872,6 @@ export class AtomsSettingTab extends PluginSettingTab {
     if (proposed.length > 0) {
       settingHeading(containerEl, "Proposed (approve to activate)");
       for (const tag of proposed) {
-        // Approve and dismiss were two buttons on one row; same split, same reason as above.
         this.actionRow(containerEl, {
           action: `tags:approve:${tag}`,
           name: `#${tag}`,
@@ -1890,20 +1889,23 @@ export class AtomsSettingTab extends PluginSettingTab {
             this.redisplay();
           },
         });
-        this.destructiveRow(containerEl, {
-          action: `tags:dismiss:${tag}`,
-          name: `Dismiss #${tag}`,
-          label: "Dismiss",
-          onClick: async () => {
-            this.plugin.settings.proposedTags =
-              this.plugin.settings.proposedTags.filter(
-                (t) => normalizeTag(t) !== normalizeTag(tag),
-              );
-            await this.plugin.saveSettings();
-            this.redisplay();
-          },
-        });
       }
+      // Dismissal is one row for the queue, not one per tag. Per-tag Dismiss could not share the
+      // Approve row — no primitive carries two kinds — so it rented a whole second full-width row
+      // whose entire content was its own button label, doubling the section's height to clear
+      // something that was already inert: a proposal is never applied until it is approved. The
+      // count is in the name so the reach of the button is legible before it is pressed.
+      this.destructiveRow(containerEl, {
+        action: "tags:dismiss-proposed",
+        name: `${proposed.length} ${proposed.length === 1 ? "proposal" : "proposals"} waiting`,
+        desc: "None of them are applied. A later classify run can propose the same tags again.",
+        label: "Dismiss all",
+        onClick: async () => {
+          this.plugin.settings.proposedTags = [];
+          await this.plugin.saveSettings();
+          this.redisplay();
+        },
+      });
     }
 
     // Found in vault
