@@ -68,9 +68,13 @@ issue's wording, not the plan's, and it is wrong.
 - **The `settings.ts` split is ungated** (KTD2). Measured against both open branches: #322 touches
   lines 31–511 (56 ins), #330 touches 455–574 (13 ins). Our edits are at 295–300 and 2182+, clear of
   both. **Rebase onto master after #330 lands** — it is small, green, and nearest to merging.
-- **Bump the version files last.** #330 and #322 both bump `manifest.json` / `package.json` /
-  `versions.json`. #315 is user-visible and needs a bump too, so whoever lands last resolves three
-  one-line conflicts. Bump immediately before merge, not at the start of implementation.
+- **Bump the version files last, and re-derive the number from `master` — never resolve a version
+  conflict by picking a side.** #330 and #322 both bump `manifest.json` / `package.json` /
+  `versions.json`; #315 needs a bump too. Verified: master is **0.6.79**, #330 is **0.6.80**, and
+  #322 is **0.6.78-beta.2** because it branched before #304 landed — its `versions.json` has no
+  0.6.79 entry at all, so taking its side moves the version backwards. (0.6.79 is unreleased —
+  latest stable 0.6.77, latest prerelease `0.6.78-beta.1`.) **Ours is 0.6.81 if #330 lands first**,
+  which is why the number is derived at merge time, not written now.
 - **#314 is exactly two strings** — `EGRESS_ACK_TITLE` and `ASK_PRIVACY_ACK_TITLE`. #304's QA
   (`docs/qa/2026-08-05-feat-settings-row-grammar-world-class-qa.md:140`) says explicitly: do not
   re-review the screen. Anything beyond those two labels goes back on #314.
