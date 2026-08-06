@@ -18,9 +18,12 @@
 	//
 	// The settings row-grammar tests joined for the same reason: their assertions are
 	// type-level (an illegal row must fail to compile), and an assertion in an unchecked
-	// file asserts nothing — cost 1 above, repeated. The rendering harness they run on is
-	// checked too, so a mock that drifts from `obsidian.d.ts` breaks the build rather than
-	// leaving tests passing against a fiction.
+	// file asserts nothing — cost 1 above, repeated. The rendering harness and the mock are
+	// listed too, which buys their internal consistency and their use of the `src/` types they
+	// touch. What it does NOT buy: the mock is a standalone module implementing no declared
+	// interface, so `tsc` never compares it against `obsidian.d.ts` — a mock that drifts from
+	// the real API still compiles clean. Only production code is checked against the real
+	// `.d.ts`, and a drifted mock shows up as tests passing against a fiction.
 	"extends": "./tsconfig.json",
 	"include": [
 		"src/**/*.ts",

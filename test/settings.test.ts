@@ -800,11 +800,16 @@ describe("consent sheets", () => {
           [LS_EGRESS_NOTICE]: true,
         },
       );
+      const load = (key: string) => local.get(key) ?? null;
+      // Asserted open first: two `false`s taken only after a withdrawal cannot tell a withdrawal
+      // that worked from a gate that never opened, and a gate stuck shut fails closed — quietly,
+      // for everyone who acked.
+      expect(readEgressPermitted(load, { catchUp: false })).toBe(true);
+
       press(tab, "Data egress acknowledgment", "Review");
       pressSheet("Withdraw acknowledgment");
       await flush();
 
-      const load = (key: string) => local.get(key) ?? null;
       expect(readEgressPermitted(load, { catchUp: false })).toBe(false);
       // The manual catch-up path is the one the withdrawn disclosure named by name.
       expect(readEgressPermitted(load, { catchUp: true })).toBe(false);
@@ -1328,10 +1333,24 @@ describe("Advanced destination (U6, R5)", () => {
     };
   }
 
-  /** Touch every control on the screen the way a user could: flip it, type in it, press it. */
+  /**
+   * Touch every control on the screen the way a user could: flip it, type in it, press it.
+   *
+   * The screen is re-queried after each row rather than snapshotted once: a handler that calls
+   * `redisplay()` replaces every element, and a snapshot would spend the rest of the run
+   * clicking detached nodes while never touching the screen the user is looking at. Rows already
+   * exercised are remembered by element identity, so a re-render's fresh rows are exercised too
+   * and the walk still terminates.
+   */
   function exerciseEveryControl(tab: AtomsSettingTab): void {
-    for (const el of Array.from(tab.containerEl.querySelectorAll(".setting-item"))) {
-      if (el.classList.contains("atoms-setting-back")) continue;
+    const exercised = new Set<Element>();
+    for (let guard = 0; guard < 200; guard += 1) {
+      const el = Array.from(tab.containerEl.querySelectorAll(".setting-item")).find(
+        (candidate) =>
+          !candidate.classList.contains("atoms-setting-back") && !exercised.has(candidate),
+      );
+      if (!el) return;
+      exercised.add(el);
       for (const toggle of Array.from(el.querySelectorAll(".checkbox-container"))) {
         (toggle as HTMLElement).click();
       }
@@ -1343,6 +1362,7 @@ describe("Advanced destination (U6, R5)", () => {
         button.click();
       }
     }
+    throw new Error("screen never settled: 200 rows exercised and it is still re-rendering");
   }
 
   it("holds the two rows and nothing else", () => {
@@ -1380,6 +1400,10 @@ describe("Advanced destination (U6, R5)", () => {
     // Every gate acts through the plugin to do its work, so a screen of pure preferences
     // reaches the plugin for persistence and for nothing else.
     expect([...new Set(calls.slice(from))]).toEqual(["saveSettings"]);
+    // A gate reached from here would ask for consent before it moved a value, and an unanswered
+    // sheet moves nothing — so the values matching above is not on its own proof of no gate.
+    // The sheet appearing at all is.
+    expect(sheetOpen()).toBe(false);
   });
 
   it("keeps the one redirect it does hold inert on its own", async () => {

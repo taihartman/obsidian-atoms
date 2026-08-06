@@ -78,6 +78,7 @@ export function settingTab(opts: SettingTabOptions = {}): {
     },
     workspace: { getActiveFile: () => null },
   };
+  const calls: string[] = [];
   const known: Record<string, unknown> = {
     app,
     manifest: { version: "9.9.9" },
@@ -90,8 +91,24 @@ export function settingTab(opts: SettingTabOptions = {}): {
     applyAskOutbox: () => Promise.resolve(),
     ...opts.plugin,
   };
-  const calls: string[] = [];
-  const plugin = new Proxy(known, {
+  // Recording only the *unknown* members would leave `calls` blind exactly where it matters:
+  // `syncAskMirror` pushes the vault to the cloud and is answered for real, so a whitelist
+  // assertion built on an unwrapped `known` could not see the one call it exists to forbid.
+  // Every function member is wrapped instead — the invocation is recorded and the real value
+  // still comes back, so behavior that depends on the return (an in-flight promise guard, say)
+  // is unchanged.
+  const recorded: Record<string, unknown> = Object.fromEntries(
+    Object.entries(known).map(([name, value]) => [
+      name,
+      typeof value === "function"
+        ? (...args: unknown[]) => {
+            calls.push(name);
+            return Reflect.apply(value as (...a: unknown[]) => unknown, plugin, args);
+          }
+        : value,
+    ]),
+  );
+  const plugin: Record<string, unknown> = new Proxy(recorded, {
     get: (target, prop: string) =>
       prop in target
         ? target[prop]

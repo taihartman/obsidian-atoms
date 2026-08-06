@@ -6,13 +6,17 @@
  *
  * So every quoted label is asserted from both ends:
  *
- *   1. the plugin side, through what the settings tab actually *renders* (or the function that
- *      produces the string) — a source grep would pass on a literal that never reaches a screen
+ *   1. the plugin side, through what the settings tab actually *renders* — never through the
+ *      function that produces the string. A producer assertion is #302 with one indirection
+ *      added: the helper keeps returning the right label while the row it feeds is handed some
+ *      other literal, and the guide names a button nobody can find.
  *   2. the guide side, against the BUILT page in `www/dist` rather than the `.tmpl` source
  *
  * Point 2 is the whole reason this file exists. `package.json` runs `build:www` as `pretest`, so
  * dist is current at test time; asserting the template instead would leave exactly the gap that
- * let #302's guard pass against a string the shipped page never contained.
+ * let #302's guard pass against a string the shipped page never contained. It also means a bare
+ * `npx vitest run` — or watch mode — skips `pretest` and reads whatever `www/dist/setup.html` was
+ * built last: run this file through `npm test` or the guide half proves nothing.
  */
 
 import { describe, it, expect } from "vitest";
@@ -66,12 +70,17 @@ function buttonLabels(tab: ReturnType<typeof plusTab>["tab"], name: string): str
 }
 
 describe("setup guide quotes labels the plugin still renders", () => {
-  it("names the capture button captureShortcut.ts hands the row", () => {
-    // Owning source: src/settings/captureShortcut.ts. The string is one arm of a conditional —
-    // an un-acked shortcut says Install, an acked one says Update — so the guide's step, which
-    // is written for a first install, is bound to the un-acked arm specifically.
+  it("names the capture button the shortcut row actually renders", () => {
+    // Owning source: src/settings/captureShortcut.ts, rendered by settings.ts's capture row. The
+    // string is one arm of a conditional — an un-acked shortcut says Install, an acked one says
+    // Update — so the guide's step, which is written for a first install, is bound to the
+    // un-acked arm specifically. Hence the default tab: no ack recorded.
+    const { tab } = settingTab();
+    tab.display();
+
     const label = labelInstallOrUpdate(null);
     expect(label).toBe("Install Capture Atom");
+    expect(buttonLabels(tab, "Capture Atom shortcut")).toContain(label);
     expect(guide.includes(label), "guide does not name the capture button").toBe(true);
   });
 

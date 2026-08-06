@@ -435,16 +435,25 @@ describe("destination shell", () => {
  *
  * U6 was the last destination unit and took it from 27 to 18; U9 deleted three more rows and took
  * it to 12; converting the five rows the sync, filing, and capture sections had left behind took
- * it to 7. Zero is not reachable from here: `settingHeading()` builds a heading rather than a row,
+ * it to 6. Zero is not reachable from here: `settingHeading()` builds a heading rather than a row,
  * three modals build their own button bars, the API key row's control is a `SecretComponent`
  * (which `SettingControl` has no member for), and the iCloud shortcut link row pairs a text field
  * with an inline reset — one grammar, but not one the builders express.
  *
- * The count is textual, so the prose standing over those last two exempt sites explaining *why*
- * they are direct spends budget too. That is the intended trade: a site the ratchet cannot shrink
- * should say so where the next reader is standing.
+ * Comments are stripped before counting. They were not, and the prose over an exempt site naming
+ * `new Setting(` spent a slot: the budget said 7 against 6 real sites, so deleting that comment
+ * bought a free seventh construction with the guard still green.
  */
-const DIRECT_SETTING_BUDGET = 7;
+const DIRECT_SETTING_BUDGET = 6;
+
+/** Source with comments removed, so only code counts against the ratchet. */
+function withoutComments(source: string): string {
+  return source
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    // Whole-line `//` only: a mid-line strip would cut a line at the `//` of a URL literal and
+    // hide any real construction sitting after it.
+    .replace(/^[ \t]*\/\/.*$/gm, "");
+}
 
 describe("row-grammar repository guard", () => {
   it("settings.ts does not grow new direct `new Setting(` sites", () => {
@@ -452,7 +461,7 @@ describe("row-grammar repository guard", () => {
       path.resolve(__dirname, "../src/settings/settings.ts"),
       "utf8",
     );
-    const direct = source.match(/new Setting\(/g)?.length ?? 0;
+    const direct = withoutComments(source).match(/new Setting\(/g)?.length ?? 0;
 
     expect(
       direct,
