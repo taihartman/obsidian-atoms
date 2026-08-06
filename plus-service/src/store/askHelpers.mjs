@@ -480,37 +480,127 @@ function iso(v) {
   return v ? String(v) : new Date().toISOString();
 }
 
+/** Function words only — names and distinctive tokens stay (R2). */
+const SEARCH_STOPWORDS = new Set([
+  "a",
+  "an",
+  "the",
+  "and",
+  "or",
+  "of",
+  "to",
+  "in",
+  "on",
+  "for",
+  "with",
+  "is",
+  "are",
+  "was",
+  "were",
+  "be",
+  "been",
+  "it",
+  "this",
+  "that",
+  "at",
+  "as",
+  "by",
+  "from",
+  "into",
+  "about",
+  "than",
+  "then",
+  "so",
+  "if",
+  "not",
+  "no",
+  "do",
+  "does",
+  "did",
+  "can",
+  "could",
+  "should",
+  "would",
+  "will",
+  "just",
+  "very",
+  "also",
+  "too",
+  "my",
+  "your",
+  "our",
+  "their",
+  "me",
+  "you",
+  "we",
+  "they",
+  "i",
+]);
+
 /**
- * Score candidate for search (higher = better).
- * Exact title > title prefix > title contains (earlier better) > tags > body TF.
+ * Content words for coverage scoring (KTD1).
+ * @param {string} query
+ * @returns {string[]}
+ */
+export function contentWords(query) {
+  return String(query || "")
+    .trim()
+    .toLowerCase()
+    .split(/\s+/)
+    .filter((w) => w.length >= 2 && !SEARCH_STOPWORDS.has(w));
+}
+
+/**
+ * Score candidate for search (higher = better) + agent confidence.
+ * Exact title > title prefix > title contains > tags > body TF.
+ * Multi-word: coverage-aware (no sparse hit*12 junk).
  * @param {{ title: string, path: string, tags: string[], body: string }} doc
  * @param {string} query
+ * @returns {{ score: number, confidence: 'high'|'medium'|null }}
  */
 export function scoreSearch(doc, query) {
   const q = query.trim().toLowerCase();
-  if (!q) return 0;
+  if (!q) return { score: 0, confidence: null };
   const title = (doc.title || "").toLowerCase();
   const path = (doc.path || "").toLowerCase();
   const tags = (doc.tags || []).map((t) => String(t).toLowerCase());
   const body = (doc.body || "").toLowerCase();
   let score = 0;
 
-  if (title === q) score += 1000;
-  else if (title.startsWith(q)) score += 400;
-  else {
+  let titleExact = false;
+  let titlePrefix = false;
+  let titleContains = false;
+  if (title === q) {
+    score += 1000;
+    titleExact = true;
+  } else if (title.startsWith(q)) {
+    score += 400;
+    titlePrefix = true;
+  } else {
     const ti = title.indexOf(q);
-    if (ti >= 0) score += 200 - Math.min(ti, 100);
+    if (ti >= 0) {
+      score += 200 - Math.min(ti, 100);
+      titleContains = true;
+    }
   }
 
   if (path.includes(q)) score += 30;
 
+  let tagExact = false;
+  let tagContains = false;
   for (const t of tags) {
-    if (t === q) score += 150;
-    else if (t.includes(q)) score += 40;
+    if (t === q) {
+      score += 150;
+      tagExact = true;
+    } else if (t.includes(q)) {
+      score += 40;
+      tagContains = true;
+    }
   }
 
-  // Body: occurrence count (capped) + early position bonus
+  let bodyPhrase = false;
   if (body.includes(q)) {
+    bodyPhrase = true;
     let count = 0;
     let from = 0;
     let first = -1;
@@ -525,17 +615,65 @@ export function scoreSearch(doc, query) {
     if (first >= 0 && first < 200) score += 15;
   }
 
-  const words = q.split(/\s+/).filter((w) => w.length > 1);
-  if (words.length > 1) {
-    let hit = 0;
+  const words = contentWords(q);
+  let coverage = 0;
+  let matched = 0;
+  let titleWordHits = 0;
+  let tagWordHits = 0;
+  let bodyWordHits = 0;
+  let longBodyWordHits = 0;
+  if (words.length > 0) {
     for (const w of words) {
-      if (title.includes(w)) hit += 2;
-      else if (body.includes(w)) hit += 1;
+      let hit = false;
+      if (title.includes(w)) {
+        titleWordHits += 1;
+        hit = true;
+      }
+      if (tags.some((t) => t === w || t.includes(w))) {
+        tagWordHits += 1;
+        hit = true;
+      }
+      if (body.includes(w)) {
+        bodyWordHits += 1;
+        if (w.length >= 4) longBodyWordHits += 1;
+        hit = true;
+      }
+      if (hit) matched += 1;
     }
-    score += hit * 12;
+    coverage = matched / words.length;
+    if (words.length > 1) {
+      score += Math.round(coverage * 80);
+      score += titleWordHits * 24 + tagWordHits * 18 + bodyWordHits * 6;
+    }
   }
 
-  return score;
+  /** @type {'high'|'medium'|null} */
+  let confidence = null;
+  if (titleExact || titlePrefix || tagExact || (titleContains && q.length >= 3)) {
+    confidence = "high";
+  } else if (titleContains || tagContains) {
+    confidence = "medium";
+  } else if (words.length <= 1) {
+    if (bodyPhrase || titleWordHits || tagWordHits || bodyWordHits) {
+      confidence = "medium";
+    }
+  } else {
+    const fields =
+      (titleWordHits > 0 ? 1 : 0) +
+      (tagWordHits > 0 ? 1 : 0) +
+      (bodyWordHits > 0 ? 1 : 0);
+    const coverageOk = coverage >= 0.5 || (matched >= 3 && fields >= 2);
+    const bodyStrong =
+      coverage >= 0.67 && longBodyWordHits >= 2 && matched >= 2;
+    if (coverageOk && (titleWordHits > 0 || tagWordHits > 0)) {
+      confidence = "medium";
+    } else if (bodyStrong) {
+      confidence = "medium";
+    }
+  }
+
+  if (confidence == null) score = 0;
+  return { score, confidence };
 }
 
 /**
@@ -627,21 +765,65 @@ export function aggregateMirrorTags(tagLists, opts = {}) {
 }
 
 /**
+ * Prefer capture region (before first blank line) when query lives there (R12).
+ * @param {string} body
+ * @param {string} query
+ */
+function snippetSource(body, query) {
+  const text = body || "";
+  const blank = text.search(/\n\s*\n/);
+  if (blank < 0) return text;
+  const head = text.slice(0, blank);
+  const q = query.trim().toLowerCase();
+  if (!q) return head || text;
+  if (head.toLowerCase().includes(q)) return head;
+  const words = contentWords(q);
+  if (
+    words.length &&
+    words.some((w) => head.toLowerCase().includes(w)) &&
+    !words.every((w) => text.slice(blank).toLowerCase().includes(w) && !head.toLowerCase().includes(w))
+  ) {
+    if (words.filter((w) => head.toLowerCase().includes(w)).length >= Math.ceil(words.length / 2)) {
+      return head;
+    }
+  }
+  return text;
+}
+
+/**
  * @param {string} body
  * @param {string} query
  * @param {number} max
  */
 export function makeSnippet(body, query, max = 240) {
-  const text = body || "";
+  const text = snippetSource(body, query);
   const q = query.trim().toLowerCase();
   let start = 0;
   if (q) {
     const idx = text.toLowerCase().indexOf(q);
     if (idx >= 0) start = Math.max(0, idx - 40);
+    else {
+      for (const w of contentWords(q)) {
+        const i = text.toLowerCase().indexOf(w);
+        if (i >= 0) {
+          start = Math.max(0, i - 40);
+          break;
+        }
+      }
+    }
   }
-  let snip = text.slice(start, start + max);
+  let end = Math.min(text.length, start + max);
+  if (end < text.length) {
+    const sp = text.lastIndexOf(" ", end);
+    if (sp > start + Math.floor(max * 0.5)) end = sp;
+  }
+  if (start > 0) {
+    const sp = text.indexOf(" ", start);
+    if (sp > start && sp < end) start = sp + 1;
+  }
+  let snip = text.slice(start, end);
   if (start > 0) snip = "…" + snip;
-  if (start + max < text.length) snip = snip + "…";
+  if (end < text.length) snip = snip + "…";
   return snip.replace(/\s+/g, " ").trim();
 }
 
@@ -771,11 +953,11 @@ export function buildSearchHits(pubs, query, limit = 8, opts = {}) {
   const scored = [];
   for (const pub of pubs || []) {
     if (!matchesTagFilter(pub.tags, tagFilter)) continue;
-    const s = scoreSearch(
+    const { score: s, confidence } = scoreSearch(
       { title: pub.title, path: pub.path, tags: pub.tags, body: pub.text },
       query,
     );
-    if (s <= 0) continue;
+    if (!confidence || s <= 0) continue;
     const rev = revisionStatusFor(pub.title, inboundIndex);
     /** @type {Record<string, unknown>} */
     const hit = {
@@ -785,6 +967,7 @@ export function buildSearchHits(pubs, query, limit = 8, opts = {}) {
       kind: pub.kind === "hub" ? "hub" : "atom",
       tags: pub.tags,
       score: s,
+      confidence,
       status: rev.status,
       authoritative: false,
       created: pub.created ?? null,

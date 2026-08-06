@@ -162,6 +162,14 @@ describe("mcp unmisreadable shape helpers", () => {
     assert.match(ASK_MCP_INSTRUCTIONS, /superseded/);
     assert.match(ASK_MCP_INSTRUCTIONS, /mirror_scope/);
     assert.match(ASK_MCP_INSTRUCTIONS, /revision_participant/);
+    assert.match(ASK_MCP_INSTRUCTIONS, /confidence/);
+    assert.match(ASK_MCP_INSTRUCTIONS, /no confident lexical match/);
+  });
+
+  it("search hits expose confidence high|medium", () => {
+    const pubs = [{ title: "Solo", path: "Atoms/S.md", text: "x", links: [] }];
+    const hits = buildSearchHits(pubs, "Solo", 8);
+    assert.equal(hits[0].confidence, "high");
   });
 });
 

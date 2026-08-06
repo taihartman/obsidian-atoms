@@ -17,6 +17,7 @@ Mirror scope:
 - not_found means not in this mirror (or hub linked but not synced)—see in_this_mirror, hub_linked_not_synced, reason. exists_outside_mirror is a legacy alias for hub_linked_not_synced only; false does not mean globally absent.
 
 Read rules:
+- search_atoms returns only confident matches (confidence: high|medium). Weak lexical coincidences are omitted. Empty results mean no confident lexical match in this mirror—not that the topic is absent from the vault or second brain (vocabulary-mismatched notes can still exist). Prefer higher confidence when choosing what to fetch_atom. Numeric score is ranking-only—do not threshold on it.
 - search_atoms snippets are truncated and non-authoritative (snippet_truncated: true, authoritative: false). Do not claim what a note contains or does not contain from a snippet. Call fetch_atom for body quotes and content claims.
 - Before concluding a tags: filter found nothing, call list_tags—empty search may mean the tag is absent from this mirror, present but unmatched, or only in unsynced vault notes.
 - fetch_atom text is authoritative for that note's body. synced_at is when the cloud mirror last received that row—if it is hours old, vault may have newer content not yet pushed. created is note frontmatter date when known (null until re-synced after that field shipped).
