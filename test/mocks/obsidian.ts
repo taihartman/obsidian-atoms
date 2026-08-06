@@ -43,9 +43,48 @@ export interface RecordedControl {
   component: unknown;
 }
 
+/**
+ * Every time a component has been handed to `then` since the last reset — which, inside a
+ * promise chain, is the machinery adopting it as a thenable. See {@link BaseComponent.then}.
+ */
+let componentThenCalls = 0;
+
+/** How many times a component was treated as a thenable since {@link resetThenCalls}. */
+export function thenCalls(): number {
+  return componentThenCalls;
+}
+
+export function resetThenCalls(): void {
+  componentThenCalls = 0;
+}
+
+/**
+ * Past this many adoptions, {@link BaseComponent.then} settles with a non-thenable.
+ *
+ * Obsidian's real `then` never stops, so modelling it faithfully would hang the whole vitest
+ * run instead of failing one assertion. The cap is high enough that no legitimate chaining call
+ * reaches it and low enough that a regressed test still finishes.
+ */
+const THEN_ADOPTION_CAP = 20;
+
 class BaseComponent {
   disabled = false;
   tooltip: string | null = null;
+  /**
+   * Obsidian components are thenables: `then(cb)` runs `cb(this)` and hands `this` back —
+   * "Facilitates chaining" in `obsidian.d.ts`, on `BaseComponent` since 0.9.7.
+   *
+   * Modelled because it is the entire shape of a renderer-freezing bug class. A component
+   * returned out of a `.then`/`.finally` callback is adopted by the promise machinery, which
+   * calls this method, is resolved with the same thenable, and starts over — a microtask loop
+   * that never yields, with no re-render and no growing stack to see. A mock without `then`
+   * cannot catch that, which is how one shipped past 1091 green tests.
+   */
+  then(cb: (component: unknown) => unknown): this {
+    componentThenCalls += 1;
+    cb(componentThenCalls > THEN_ADOPTION_CAP ? undefined : this);
+    return this;
+  }
   setDisabled(disabled: boolean): this {
     this.disabled = disabled;
     return this;

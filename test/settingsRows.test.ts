@@ -20,6 +20,8 @@ import type { PlusSession } from "../src/platform/filingAuth";
 import {
   PluginSettingTab,
   Setting,
+  resetThenCalls,
+  thenCalls,
   type ButtonComponent,
   type TextComponent,
   type ToggleComponent,
@@ -317,6 +319,35 @@ describe("row grammar", () => {
       if (!(button instanceof HTMLButtonElement)) throw new Error("no button rendered");
 
       button.click();
+      expect(button.disabled).toBe(false);
+    });
+
+    /**
+     * The guard must never hand its own button back to the promise chain.
+     *
+     * `setDisabled` returns the `ButtonComponent`, and every Obsidian component is a thenable,
+     * so `.finally(() => btn.setDisabled(false))` — an arrow whose implicit return is that
+     * component — is adopted by the promise machinery, which calls `then`, is resolved with the
+     * same thenable, and repeats forever. Obsidian 1.13.4 pinned the renderer at 100% CPU on
+     * Dismiss and Activate with no re-render and no growing stack; force-quit was the only way
+     * out. Asserted as "the component was never treated as a thenable" rather than as a timeout,
+     * because the loop starves the event loop and a timing assertion would never run.
+     */
+    it("re-enables the button without feeding it back to the promise chain", async () => {
+      resetThenCalls();
+      build(container, {
+        name: "Refresh status",
+        label: "Refresh status",
+        onClick: async () => {},
+      });
+      const button = container.querySelector("button");
+      if (!(button instanceof HTMLButtonElement)) throw new Error("no button rendered");
+
+      button.click();
+      // A macrotask, so every microtask the click queued has drained before this asserts.
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      expect(thenCalls()).toBe(0);
       expect(button.disabled).toBe(false);
     });
   });

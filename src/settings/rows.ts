@@ -138,10 +138,23 @@ function runRowAction(btn: ButtonComponent, onClick: RowAction): void {
   const pending = onClick();
   if (!(pending instanceof Promise)) return;
   btn.setDisabled(true);
-  // Re-enabled from a `finally` so a rejected action leaves a usable row rather than a dead one.
-  // The rejection is absorbed here: the action reports its own failures (Notices), and letting
-  // it escape a fire-and-forget handler would only surface as an unhandled rejection.
-  void pending.finally(() => btn.setDisabled(false)).catch(() => {});
+  /**
+   * A statement, never an expression — `() => btn.setDisabled(false)` froze the renderer.
+   *
+   * `setDisabled` returns the `ButtonComponent`, and every Obsidian component is a thenable
+   * (`BaseComponent.then(cb)` runs `cb(this)` and hands `this` back, for chaining). An arrow
+   * whose implicit return is that component therefore resolves this chain *with a thenable*,
+   * so the promise machinery calls `then`, is handed the same component again, and repeats —
+   * a microtask loop that never yields. Obsidian pinned at 100% CPU with no re-render, no
+   * growing stack, and no recovery short of force-quit.
+   */
+  const release = (): void => {
+    btn.setDisabled(false);
+  };
+  // Both arms, so a rejected action leaves a usable row rather than a dead one, and the
+  // rejection is absorbed rather than escaping a fire-and-forget handler as an unhandled one.
+  // (The action reports its own failures through Notices.)
+  void pending.then(release, release);
 }
 
 function buttonRow(
