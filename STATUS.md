@@ -7,7 +7,6 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| In progress | [#331](https://github.com/taihartman/obsidian-atoms/issues/331) | taihartman | `feat/331-ask-search-atoms-agent-signal` | [plan](docs/plans/2026-08-06-002-feat-ask-search-atoms-agent-signal-plan.md) | `plus-service/src/store/askHelpers.mjs`, `plus-service/src/mcp/tools.mjs`, `plus-service/src/mcp/instructions.mjs` | search_atoms confidence + true empties; no plugin bump |
 | In progress | [#307](https://github.com/taihartman/obsidian-atoms/issues/307) | taihartman | `feat/tryatoms-mailing-list` | [plan](docs/plans/2026-08-05-001-feat-tryatoms-mailing-list-plan.md) | `www/**`, `.github/workflows/tryatoms-pages.yml` | Atoms Notes list + Pages Function subscribe; no plugin bump |
 
 ## How to claim (copy)
@@ -24,6 +23,7 @@ States: `Queued` · `In progress` · `Blocked` · `In review` · `Done` (then re
 
 | Merged | Issue / PR | Summary |
 |---|---|---|
+| 2026-08-06 | #331 / #332 | Ask `search_atoms` confidence + true empties (Fly deployed; no plugin bump) |
 | 2026-08-06 | #325 / #326 | Root `npm test` + `npm run build` now run on `pull_request` (infra only, no plugin bump). **Not yet a required check** — branch protection on `master` still requires only `test` (plus-service), so `test + build` reports without blocking until an admin adds it |
 | 2026-08-05 | #309 / #310 | One PKCE S256 digest, pinned to base64url (server-only, no plugin bump). **#240 must import `pkceChallengeS256` — never `hashToken`, which is hex.** Its plan said hex for `verifier_hash`; corrected on `feat/240-magic-link-handoff` (`a692e2f`, rides on #298) |
 | 2026-08-05 | #287 / #297 | Library **Skipped** filter + long-press **Try filing…** (Reconsider; Plus/BYOK) · **0.6.77**. The Home path is deliberately **not** behind `enableReconsiderCapture` — #304's U8 removes the leftover flag |
