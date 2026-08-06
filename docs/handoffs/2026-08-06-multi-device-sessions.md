@@ -1,116 +1,119 @@
 ---
-handoff_date: 2026-08-06
-branch: feat/320-multi-device-sessions
-worktree: /Users/a515138832/StudioProjects/obsidian_plugin
-base: master
-tracking: https://github.com/taihartman/obsidian-atoms/pull/322
-status: in-progress
+artifact_contract: "ce-handoff/v1"
+created_at: "2026-08-06T02:45:00Z"
+title: "#320 multi-device sessions — U1–U7 implemented, shipping tail is next"
+summary: "All seven implementation units for #320 are committed and pushed; what remains is simplify, code review, world-class QA, compound, and marking PR #322 ready."
+keywords: ["320", "multi-device-sessions", "sign-out-all", "session-cap", "shipping-tail", "plus-service"]
+cwd: "/Users/a515138832/StudioProjects/obsidian_plugin"
+resume_focus: "Run the shipping tail and mark PR #322 ready with evidence"
+repository: "taihartman/obsidian-atoms"
+branch: "feat/320-multi-device-sessions"
+head: "9b63625"
+worktree_path: "/Users/a515138832/StudioProjects/obsidian_plugin"
 ---
 
-# Handoff — #320 multi-device sessions: implement U1–U7
+# Handoff — #320 multi-device sessions: implementation done, shipping tail next
 
-You are picking up this work in a fresh session. Read this file top to bottom, run the **How to resume** commands to land on the right branch and worktree, then **start executing Next steps immediately** — step 1 is your current task. Do not ask the user what to work on and do not summarize this doc back to them; just begin, and report what you did. Everything you need is below.
+Implementation is **complete**. Do not re-plan it and do not re-implement any unit.
+What is left is the mandatory shipping tail from `CLAUDE.md`, then the PR.
 
 ## Goal
 
-A paying Atoms Plus customer cannot be signed in on desktop and phone at the same time: `exchangeMagic` revokes **every** session for the email — verified ones included — right before minting, so each sign-in evicts the other device permanently. You are narrowing that revoke so devices coexist, and adding an explicit **"Sign out all devices"** control to replace the account-recovery property the broad revoke was silently providing. Both halves ship in one PR.
+A paying Atoms Plus customer could not be signed in on desktop and phone at once:
+`exchangeMagic` revoked **every** session for the email — verified ones included —
+immediately before minting, so each sign-in permanently evicted the other device.
+The revoke is now narrowed, and an explicit **"Sign out all devices"** control
+replaces the account-recovery property the broad revoke was silently providing.
+Both halves ship in one PR (KTD1).
 
-## Current status
+## Current state
 
-- **The plan is committed and is your authority:** `docs/plans/2026-08-06-001-feat-multi-device-sessions-plan.md` — 10 requirements, 8 KTDs, 7 implementation units, every unit carrying explicit test scenarios. Read it before writing code.
-- **It has already been through doc review** (coherence, feasibility, security-lens). Every finding was applied. The six substantive ones are summarized under *Decisions & constraints* — inherit them, don't rediscover them.
-- **Nothing is implemented yet except U1's three lines**, which are committed on this branch as a WIP snapshot: `revokeAllSessionsForEmail` → `revokeUnverifiedSessionsForEmail` inside `exchangeMagic` at `plus-service/src/store/memory.mjs:276`, `sqlite.mjs:410`, `postgres.mjs:474`. Keep that change; do not re-author it.
-- **The claim is live:** issue #320 assigned, `STATUS.md` row added, draft PR #322 open.
-- **Prototype evidence already gathered — do not re-derive any of this:**
-  - `plus-service` suite is 476/476 both before and after the three-line swap.
-  - The C1 session-fixation test passes for the *right* reason: its prior session comes from `startWithEmail`, which is unverified.
-  - Mutation-tested both directions — deleting the revoke turns exactly C1 red; restoring `revokeAll` turns a multi-device probe red.
-  - A scratch probe confirmed two exchanges leave two live verified sessions that can both file.
+**Done — all seven units, one commit each, pushed to `origin`.**
 
-## Next steps
+| Unit | Commit | What landed |
+|---|---|---|
+| U1 | `8aa5532` | `exchangeMagic` calls `revokeUnverifiedSessionsForEmail`; regression tests for a surviving verified session, another email untouched, and KTD8 |
+| U2 | `3fe9a21` | `config.maxSessionsPerEmail` (clamped), `enforceSessionCapForEmail` ×3 stores, session test seam ×3 stores, redacted eviction log |
+| U3 | `045ea6d` | `POST /v1/auth/sign-out-all` — sessions + MCP grants + checkout bindings; new HTTP test file |
+| U4 | `82165e2` | `signOutAllDevices` client helper |
+| U5 | `63ec66c` | Settings row (active + exhausted via one helper) and `PlusSignOutAllConfirmModal` |
+| U6 | `9b63625` | Sign-in disclosure corrected; supersession notes in the #240 plan |
+| U7 | `9b63625` | `0.6.78-beta.1` → `0.6.78-beta.2` in manifest, package, versions |
 
-1. **Implement U1** — commit the revoke narrowing with its regression tests. Per U1's Execution note, temporarily revert the three staged lines long enough to watch the new surviving-verified-session test fail, then restore them. The point is seeing the red, not rewriting the fix. Add the KTD8 test too (a payment-promoted session survives a later exchange).
-2. **Implement U2** — the session cap. This is bigger than it looks: it needs a config value with a floor clamp, one new store method per backend with a **backend-specific ordering field**, and a new `writeSessionRowForTest` / `sessionRowsForTest` seam across all three stores because the expired-row test cannot otherwise be written.
-3. **Implement U3** — `POST /v1/auth/sign-out-all`. Also grew: it revokes sessions, revokes MCP grants, and clears checkout bindings. All three are required (R10).
-4. **Implement U4** — the `signOutAllDevices` client helper, modelled on `signOutPlus`.
-5. **Implement U5** — the Settings control and confirm modal, in both the active and exhausted branches via one shared row helper.
-6. **Implement U6** — correct the now-false sign-in disclosure copy, its docstring rationale, its test regex, and add a supersession note to the #240 plan.
-7. **Implement U7** — bump `manifest.json`, `package.json`, `versions.json` together.
-8. **Run the shipping tail:** `ce-simplify-code` → `ce-code-review` with the cross-model peer routed to grok (`.compound-engineering/config.local.yaml` already sets `cross_model_peer: grok`) → `world-class-qa` including its `adversarial-qa` gate → `ce-compound`. Then mark PR #322 ready with real evidence.
+Diff vs `master`: 23 files, +2233/-26. Worktree clean at `9b63625`.
+
+**Verification already performed — do not redo it:**
+
+- `plus-service`: **516/516** passing (476 baseline + 40 new). `npm test` in `plus-service/`.
+- Root vitest: **1095/1095** across 70 files. `npm test` at repo root.
+- `npm run build` (tsc + esbuild) clean.
+- **Mutation checks, all against the permanent suite, all restored afterwards:**
+  - restoring `revokeAllSessionsForEmail` → the two new #320 U1 tests red on all three store arms
+  - deleting the exchange revoke entirely → C1 red
+  - reversing the memory cap comparator → the eleventh-sign-in test red
+  - dropping the MCP revoke, or the binding clear, from the route → each turns its own R10 test red
+  - deleting the `verdict !== "confirmed"` gate in Settings → exactly the cancel and dismiss tests red, nothing else
+
+**Not done — this is your work:**
+
+1. **`ce-simplify-code`** on the branch diff.
+2. **`ce-code-review`**, cross-model peer routed to grok. `.compound-engineering/config.local.yaml` already sets `cross_model_peer: grok`. Give the peer a *narrow* brief naming two or three files — a 57KB diff burns its whole turn budget just reading (see the global rule).
+3. **`world-class-qa`**, ending in its `adversarial-qa` gate. Project adapter: `docs/qa/`. This needs Obsidian open on the throwaway vault: `./scripts/install-to-vault.sh` then `./scripts/verify.sh`. UI changed (a new Settings row and a new modal), so the PR needs **screenshots** committed under `docs/qa/screenshots/<branch>/` and linked with absolute `raw.githubusercontent.com` URLs — repo-relative paths render broken in PR bodies.
+4. **`ce-compound`** — the durable learning. The strongest candidate is the U2 near-miss: a comparator copied between backends would have produced a green cap test that read no timestamp at all, because `NaN` sorts as `0` and Map insertion order happens to equal creation order.
+5. **PR #322** — currently draft. Mark ready. Body needs `Closes #320`, distilled core user stories, edge cases, and a real Evidence table.
+
+## Decisions already settled — do not relitigate
+
+- Both halves ship in one PR (KTD1). After U1, `revokeAllSessionsForEmail` has zero production callers until U3's route re-earns it.
+- "Sign out all devices" signs out the calling device too (KTD2). One code path, no carve-out.
+- Soft cap of 10 verified sessions, oldest evicted at exchange time (KTD3).
+- **KTD8 — payment-promoted sessions are deliberately not carved out.** `POST /v1/billing/checkout` accepts unverified soft sessions on purpose and `promoteCheckoutSession` flips them to verified, so they now survive the narrowing. Carving them out would kill the desktop session of anyone who pays on desktop then signs in on phone, which is #320 verbatim on the most common paying path. The test is named for the decision so a reviewer sees an accepted consequence rather than an oversight.
+- The row appears in both the active and exhausted Settings branches (Q1).
+
+## Decisions made during implementation — these are new since the plan
+
+- **`signOutAllDevices` keeps `code: "unknown"` on a 401**, not `"auth"`. `isSessionRejectedMessage` (`src/platform/plusClient.ts:117`) only claims messages saying "invalid session" or "expired"; the route's own sentence is more actionable, and this matches `/v1/promo`'s existing 401 shape. `"auth"` is also the code that would tempt a caller into faking a local sign-out off a server refusal.
+- **`revokeAllSessionsForEmail` and `clearCheckoutBindingsForEmail` now return counts.** The route logs the session count with an account fingerprint.
+- **`accountFingerprint` was added to `plus-service/src/store/shared.mjs`** as the one permitted form of account identity in a log. `logSessionCapEviction` uses it too.
+- **The rate-limit test mints a fresh session between calls.** Seeding N+1 up front does not work: the first success revokes them all, so calls 2..N would 401 before reaching the limiter.
+- **`renderPlusPanel` in `test/settings.test.ts` counts `redisplay()` rather than performing it.** The real one re-renders the whole tab and wants an Obsidian DOM.
 
 ## Key files
 
-- `docs/plans/2026-08-06-001-feat-multi-device-sessions-plan.md` — your authority; units, test scenarios, Verification Contract, Definition of Done
-- `plus-service/src/store/memory.mjs:276` · `sqlite.mjs:410` · `postgres.mjs:474` — the narrowed revoke (U1)
-- `plus-service/src/store/memory.mjs:167,174` — `revokeAllSessionsForEmail` and its narrow sibling
-- `plus-service/src/store/memory.mjs:203-226` — `promoteCheckoutSession` / `markSessionVerified`; both set `verified = true; revoked = false`
-- `plus-service/src/server.mjs:586-591` — the per-device `/v1/auth/sign-out`; insert the new route just after it
-- `plus-service/src/server.mjs:832-852` — `POST /v1/promo`, the auth pattern to copy (`requireVerified`, 401 with an instruction)
-- `plus-service/src/config.mjs:156-158` — `sessionTtlDays` (60); add the cap value alongside
-- `plus-service/test/security-auth-criticals.test.mjs:59-81` — the C1 test; `:636-641` the three-store matrix; `:758-798` the source-scanning parity test
-- `plus-service/test/http-auth-peek.test.mjs:13-40` — the spawn-server-plus-shared-sqlite harness U3's test must copy
-- `src/platform/plusClient.ts:738-753` — `signOutPlus`, the template for U4
-- `src/settings/settings.ts:302-505` — `renderPlusSection` and its four early-returning branches
-- `src/settings/plusSignInConfirmModal.ts:37-52` — `signInConfirmCopy`, whose disclosure is now false (U6)
-- `src/settings/destructiveButton.ts:16` — `markDestructive`, mandatory for destructive buttons
+- `docs/plans/2026-08-06-001-feat-multi-device-sessions-plan.md` — the authority: 10 requirements, 8 KTDs, Verification Contract, Definition of Done. Sections U1–U7 at lines 199–433.
+- `plus-service/src/store/{memory,sqlite,postgres}.mjs` — `enforceSessionCapForEmail`, `clearCheckoutBindingsForEmail`, the session test seam, and the narrowed revoke with its do-not-widen comment.
+- `plus-service/src/server.mjs` — the new route, immediately after `/v1/auth/sign-out`. The KTD5 asymmetry comment is there.
+- `plus-service/test/http-auth-sign-out-all.test.mjs` — new: spawned server, assertions against store state rather than the response body.
+- `plus-service/test/security-auth-criticals.test.mjs` — the store-level #320 cases plus the `#320 U2 store parity` scan, which pins both the method surface and the expiry field each backend orders by.
+- `src/settings/settings.ts` — `renderSignOutAllRow`, called from the exhausted and active branches.
+- `src/settings/plusSignOutAllConfirmModal.ts` — new modal, `signOutAllConfirmCopy` split out for assertion.
 
-## Decisions & constraints
+## Traps that will cost you time
 
-**Settled by the user — do NOT relitigate:**
+- **The postgres arm is CI-only.** It keys off `TEST_DATABASE_URL`, not `DATABASE_URL`, returns `[]` silently when unset locally, and throws under CI. There is no docker or local `pg` on this machine. Do not claim local postgres coverage in the PR.
+- **The root vitest suite does not run on PRs** — only `plus-service-tests.yml` does, scoped to `plus-service/`. U4–U7 are covered only by the root suite, which runs on a version tag. Run `npm test` at the repo root before tagging.
+- **Never `git checkout --` a file to undo a mutation experiment.** It reverts to HEAD, which during this session silently discarded an hour of uncommitted U2 work in `memory.mjs`. Use `cp` to a backup and restore from that.
+- **`plusClient.ts` uses `fetch`, not `requestUrl`,** deliberately (`plusClient.ts:4-6`). Desktop `requestUrl` fails to localhost. Do not "fix" it.
+- **`markDestructive` is mandatory** for destructive buttons; `setDestructive()` is 1.13+ against a `minAppVersion` of 1.11.4 and previously blanked the settings tab.
+- **Fly deploy runs from the repo root**, never `plus-service/`, and must precede any plugin release. Confirm with `fly releases -a atoms-plus`, not the exit code.
+- **Do not touch the personal Remote Vault.** Dogfood on `test_vault/` or `docs/media/demo-vault/`.
+- **No AI attribution** in commits or the PR body.
 
-- **Both halves ship in one PR** (KTD1). Part 1 alone leaves a 60-day window with no way to evict a live session, and after U1 `revokeAllSessionsForEmail` has *zero* production callers — U3's route is what re-earns the export.
-- **"Sign out all devices" signs out the calling device too** (KTD2), chosen over revoke-others-keep-current. One code path, no carve-out. The plugin must clear local session state after a 200, or the vault reads "signed in" while every call 401s.
-- **Soft cap of 10 verified sessions, oldest evicted** (KTD3), chosen over no cap and over a hard cap that refuses the sign-in.
-- **Both the active and exhausted Settings branches get the control** (Q1, resolved). Extract the row once — those branches each `return` early, so two pasted copies will drift.
+## Open questions
 
-**What doc review caught that the first draft got wrong — inherit these:**
-
-- **`verified: true` does not mean "proved email ownership."** `POST /v1/billing/checkout` accepts unverified soft sessions on purpose (`server.mjs:854-857`), and `promoteCheckoutSession` then flips the row to verified. Those sessions now survive the narrowing. **Accepted deliberately (KTD8)** — carving them out would kill the desktop session of anyone who pays on desktop then signs in on phone, which is #320 verbatim on the most common paying path.
-- **The recovery control was undoable.** `promoteCheckoutSession` sets `revoked = false` with no check on *why* a row was revoked, and checkout bindings live 24h — so a retried webhook resurrects a session the user explicitly evicted, and after U1 nothing reaps it again. U3 clears bindings (R10).
-- **MCP grants survived it entirely.** They authenticate off `mcpAccess`/`mcpRefresh`, not `sessions`. `mcpRevokeForEmail` is already called on `revokeSubscription` and `mirrorWipe`, so omitting it was the inconsistency. U3 calls it (R10), and U5's copy must say connected apps are disconnected.
-- **The rate-limit test is unreachable the obvious way.** KTD2 means the caller's own session dies on first success, so a second call 401s *before* the limiter. The limiter bounds session farming, not repeat calls — seed sessions directly in the test.
-- **The memory store has no `exp_ms`.** Its rows are `{ email, exp, revoked, verified }`. A shared `a.exp_ms - b.exp_ms` comparator yields `NaN`, sorts as 0, and falls back to Map insertion order — which equals creation order today, so the cap test would pass against code that read no timestamp. Order by `row.exp` in memory, `exp_ms` in the SQL stores.
-- **R6's cap is a soft ceiling at exchange time, not a global invariant.** The promote paths raise the count outside it by design.
-
-**Hard constraints and traps that will cost you time:**
-
-- **`plusClient.ts` uses `fetch`, not `requestUrl`**, against the CLAUDE.md rule. It is a documented exception (`plusClient.ts:4-6`) — desktop `requestUrl` fails to localhost. Do not "fix" it.
-- **`markDestructive` is mandatory** for destructive buttons. Calling `setDestructive()` directly is 1.13+ against a `minAppVersion` of 1.11.4 and previously blanked the whole settings tab.
-- **The postgres arm keys off `TEST_DATABASE_URL`**, not `DATABASE_URL`. It returns `[]` silently when unset locally and **throws** under CI. There is no docker or local `pg` on this machine, so U1/U2's postgres arm is CI-verified only — do not claim local coverage for it.
-- **The root vitest suite does not run on PRs.** Only `plus-service-tests.yml` does, scoped to `plus-service`. U4/U5/U6 are only covered by the root suite, which runs on a version tag. Run `npm test` at the repo root locally before tagging.
-- **Fly deploy runs from the repo root**, never `plus-service/`, and must precede any plugin release. An earlier attempt exited 0 having deployed nothing — confirm with `fly releases -a atoms-plus`, not the exit code.
-- **Do not touch the personal Remote Vault.** Dogfood on `test_vault/` or `docs/media/demo-vault/` only.
-- **No AI attribution in commits or the PR body.** PR body needs `Closes #320`.
-
-## Open questions / blockers
-
-- **Q2** (plan): does the confirm modal need a typed confirmation rather than two-button consent? Recommendation in the plan is no; decide when you build U5.
-- **Q4** (plan): should the 10-session cap be disclosed in user-facing copy? Currently silent, with the U2 log line making it diagnosable.
-- **Not a blocker, but unrun:** the iOS + Android physical-device release gate for stable `0.6.78` is human-only and still outstanding from #240. `crypto.subtle` on the mobile webview remains assumed, never verified.
-
-## Git state
-
-- Branch `feat/320-multi-device-sessions` (base `master`), pushed to `origin`.
-- Last real commit: `0421008 docs(plan): #320 multi-device sessions plan, doc-reviewed`
-- WIP snapshot commit: the branch tip, subject `wip: handoff snapshot — multi-device-sessions`. It carries the three-line U1 revoke narrowing, this doc, and the removal of an earlier duplicate handoff doc. (Named by subject rather than SHA — the SHA changed when this doc was amended into the same commit.)
-- Diff since base: 6 files changed, +633/-3
+- **Q2** (plan): the confirm modal uses two-button consent, not a typed confirmation. The plan recommended this; it is now built that way. Revisit only if review objects.
+- **Q4** (plan): the 10-session cap is not disclosed in user-facing copy. The eviction log line makes it diagnosable. Still open.
+- **Unrun, not a blocker:** the iOS + Android physical-device release gate for stable `0.6.78` is human-only and still outstanding from #240. `crypto.subtle` on the mobile webview remains assumed.
 
 ## How to resume
-
-Check out the work exactly here — this is your branch and worktree. This is the **main checkout**, deliberately not a sibling worktree: `test_vault/` is gitignored (`.gitignore:41`) and `scripts/verify.sh:7` defaults its vault to `$ROOT/test_vault/test vault`, so a fresh worktree would have no vault to verify against.
 
 ```bash
 cd /Users/a515138832/StudioProjects/obsidian_plugin
 git fetch origin && git switch feat/320-multi-device-sessions && git pull --ff-only
-cd plus-service && npm ci && npm test    # server suite: expect 476+ passing
-cd .. && npm install && npm test         # root vitest suite (does NOT run on PRs)
 ```
 
-For any unit touching the plugin, verify through the CLI with Obsidian open on the throwaway vault:
+This is the **main checkout**, deliberately not a sibling worktree: `test_vault/` is
+gitignored and `scripts/verify.sh` defaults its vault to `$ROOT/test_vault/test vault`,
+so a fresh worktree would have no vault to verify against.
 
-```bash
-./scripts/install-to-vault.sh
-./scripts/verify.sh
-```
-
-Then continue from **Next steps** above.
+Then start at **Not done, step 1**.
