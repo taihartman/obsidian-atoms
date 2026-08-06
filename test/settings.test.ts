@@ -353,6 +353,13 @@ describe("shortlist diagnostics (R6)", () => {
  * state, one main-screen row per state, and one destination holding the management actions.
  */
 describe("account row", () => {
+  /** Every button label on the named row — how a form row's one button is asserted. */
+  function buttonLabels(tab: AtomsSettingTab, name: string): string[] {
+    return Array.from(row(tab, name).querySelectorAll("button")).map(
+      (el) => el.textContent ?? "",
+    );
+  }
+
   const ACTIVE_SESSION: PlusSession = {
     sessionToken: "sess_live",
     email: "user@example.com",
@@ -452,15 +459,78 @@ describe("account row", () => {
     tab.display();
     open(tab, "Set up automatic filing");
 
-    const names = rowNames(tab);
-    expect(names).toContain("Email");
-    expect(names).toContain("Start free trial");
-    // Renamed by #240: the emailed link now signs *this* device in, so "another device" is the
-    // paste fallback's job rather than this row's.
-    expect(names).toContain("Sign in with a link");
-    expect(names).toContain("Advanced: paste session");
-    expect(names).not.toContain("Manage subscription");
-    expect(names).not.toContain("Sign out");
+    // The exact list, not a membership check: each field and the one button that commits it is
+    // now a single row, and a regression that re-splits a pair shows up here as an extra row.
+    // "Start free trial" survives as the button label on the Email row, never as a row name.
+    expect(rowNames(tab)).toEqual([
+      "Account",
+      "Skip the API key",
+      "Email",
+      // Renamed by #240: the emailed link now signs *this* device in, so "another device" is the
+      // paste fallback's job rather than this row's.
+      "Sign in with a link",
+      "Advanced: paste session",
+    ]);
+    expect(buttonLabels(tab, "Email")).toEqual(["Start free trial"]);
+    expect(buttonLabels(tab, "Sign in with a link")).toEqual(["Send sign-in link"]);
+    expect(buttonLabels(tab, "Advanced: paste session")).toEqual(["Save session"]);
+  });
+
+  /**
+   * The three account pairs are one row each, so the button submits the field beside it rather
+   * than reading it back out of the DOM. These assert the value actually arrives — the handlers
+   * are stubbed because what is under test is the wiring, not what a trial or a session does.
+   */
+  describe("each account form row submits its own field", () => {
+    afterEach(() => stopCapturingObsidianUi());
+
+    /** The signed-out account screen, with `name` on the tab replaced by a recorder. */
+    function accountScreen(name: string) {
+      const { tab } = settingTab();
+      tab.display();
+      open(tab, "Set up automatic filing");
+      const handler = vi.fn(async () => {});
+      // An own property shadowing the prototype method: the row's `onSubmit` resolves
+      // `this.<name>` at press time, so stubbing after the render is enough.
+      (tab as unknown as Record<string, unknown>)[name] = handler;
+      return { tab, handler };
+    }
+
+    it("hands the typed email to the trial", () => {
+      const { tab, handler } = accountScreen("startTrial");
+      fill(tab, "Email", "buyer@example.com");
+      press(tab, "Email", "Start free trial");
+
+      expect(handler).toHaveBeenCalledWith("buyer@example.com");
+    });
+
+    it("hands the typed email to the sign-in link", () => {
+      const { tab, handler } = accountScreen("sendPlusMagicLink");
+      fill(tab, "Sign in with a link", "back@example.com");
+      press(tab, "Sign in with a link", "Send sign-in link");
+
+      expect(handler).toHaveBeenCalledWith("back@example.com");
+    });
+
+    it("refuses a sign-in link for an address without an @", () => {
+      const { tab, handler } = accountScreen("sendPlusMagicLink");
+      const ui = captureObsidianUi();
+
+      fill(tab, "Sign in with a link", "nobody");
+      press(tab, "Sign in with a link", "Send sign-in link");
+
+      expect(handler).not.toHaveBeenCalled();
+      expect(ui.notices).toEqual(["Enter a valid email first"]);
+    });
+
+    it("trims the pasted session before the sess_ check ever sees it", () => {
+      const { tab, handler } = accountScreen("savePastedSession");
+      // A token pasted out of an email arrives with the whitespace around it.
+      fill(tab, "Advanced: paste session", "  sess_live  ");
+      press(tab, "Advanced: paste session", "Save session");
+
+      expect(handler).toHaveBeenCalledWith("sess_live");
+    });
   });
 
   it("closes the account state so a fifth state cannot be added without a branch", () => {

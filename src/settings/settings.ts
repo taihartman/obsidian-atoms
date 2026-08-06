@@ -56,6 +56,7 @@ import {
   confirmSheet,
   destinationRow,
   destructiveRow,
+  formRow,
   InFlightActions,
   settingRow,
   statusRow,
@@ -322,6 +323,15 @@ const DESTINATION_TITLES: Record<Exclude<SettingsRoute, "main">, string> = {
   advanced: "Advanced",
 };
 
+/**
+ * A `formRow` as a caller writes it, minus the registry the tab supplies. Derived from the
+ * builder rather than declared beside it so the two cannot drift.
+ */
+type FormRowSpec = Parameters<typeof formRow>[1];
+type TabFormRow = Omit<FormRowSpec, "submit"> & {
+  submit: Omit<FormRowSpec["submit"], "inFlight">;
+};
+
 export class AtomsSettingTab extends PluginSettingTab {
   plugin: AtomsPlugin;
   private customTagDraft = "";
@@ -365,7 +375,7 @@ export class AtomsSettingTab extends PluginSettingTab {
   private readonly inFlight = new InFlightActions();
 
   /**
-   * The two button-row builders, bound to this tab's registry. Wrapped rather than passed at
+   * The button-carrying row builders, bound to this tab's registry. Wrapped rather than passed at
    * each of the two dozen call sites so a row cannot be built without a guard, and so `rows.ts`
    * stays a set of free functions with no idea a settings tab exists.
    */
@@ -375,6 +385,13 @@ export class AtomsSettingTab extends PluginSettingTab {
 
   private destructiveRow(containerEl: HTMLElement, row: ButtonRowSpec): void {
     destructiveRow(containerEl, { ...row, inFlight: this.inFlight });
+  }
+
+  private formRow(containerEl: HTMLElement, row: TabFormRow): void {
+    formRow(containerEl, {
+      ...row,
+      submit: { ...row.submit, inFlight: this.inFlight },
+    });
   }
 
   constructor(
@@ -1063,12 +1080,6 @@ export class AtomsSettingTab extends PluginSettingTab {
     this.redisplay();
   }
 
-  /** Value of the account destination's text input carrying this dataset flag. */
-  private accountInput(containerEl: HTMLElement, flag: string): string {
-    const input = containerEl.querySelector(`input[data-${flag}]`);
-    return input instanceof HTMLInputElement ? input.value.trim() : "";
-  }
-
   private accountState(): AccountState {
     return deriveAccountState(
       this.plugin.resolveFilingAuth(),
@@ -1196,76 +1207,57 @@ export class AtomsSettingTab extends PluginSettingTab {
       },
     });
 
-    settingRow(containerEl, {
+    this.formRow(containerEl, {
       name: "Email",
       desc: "Start a free trial (card required). Checkout opens in your browser — then return to Obsidian.",
-      control: {
-        kind: "text",
-        configure: (text) => {
-          text.setPlaceholder("you@example.com").inputEl.dataset.plusEmail = "1";
-        },
+      placeholder: "you@example.com",
+      submit: {
+        action: "plus:start-trial",
+        label: "Start free trial",
+        onSubmit: (email) => this.startTrial(email),
       },
-    });
-    this.actionRow(containerEl, {
-      action: "plus:start-trial",
-      name: "Start free trial",
-      label: "Start free trial",
-      onClick: () => this.startTrial(containerEl),
     });
 
-    settingRow(containerEl, {
+    this.formRow(containerEl, {
       name: "Sign in with a link",
       desc: this.signInLinkDesc(),
-      control: {
-        kind: "text",
-        configure: (text) => {
-          text.setPlaceholder("you@example.com").inputEl.dataset.plusMagicEmail =
-            "1";
+      placeholder: "you@example.com",
+      submit: {
+        action: "plus:magic-link",
+        label: "Send sign-in link",
+        onSubmit: async (email) => {
+          if (!email.includes("@")) {
+            new Notice("Enter a valid email first");
+            return;
+          }
+          await this.sendPlusMagicLink(email);
+          // The row's copy turns into the "open the email" form once a link exists.
+          this.redisplay();
         },
-      },
-    });
-    this.actionRow(containerEl, {
-      action: "plus:magic-link",
-      name: "Send sign-in link",
-      label: "Send sign-in link",
-      onClick: async () => {
-        const email = this.accountInput(containerEl, "plus-magic-email");
-        if (!email.includes("@")) {
-          new Notice("Enter a valid email first");
-          return;
-        }
-        await this.sendPlusMagicLink(email);
-        // The row's copy turns into the "open the email" form once a link exists.
-        this.redisplay();
       },
     });
 
     // Advanced: paste session — the different-device fallback, kept below the
     // link row until #286 replaces it (KD3, R10).
-    settingRow(containerEl, {
+    this.formRow(containerEl, {
       name: "Advanced: paste session",
       desc: "Only if your email opens on a different device from Obsidian. Sign in there, then paste the session it gives you.",
-      control: {
-        kind: "text",
-        configure: (text) => {
-          text.setPlaceholder("sess_…").inputEl.dataset.plusSession = "1";
-          // A Plus bearer token, treated the way the API key field treats a key.
-          text.inputEl.type = "password";
-          text.inputEl.autocomplete = "off";
-        },
+      placeholder: "sess_…",
+      configure: (text) => {
+        // A Plus bearer token, treated the way the API key field treats a key.
+        text.inputEl.type = "password";
+        text.inputEl.autocomplete = "off";
       },
-    });
-    this.actionRow(containerEl, {
-      action: "plus:save-session",
-      name: "Save session",
-      label: "Save session",
-      onClick: () => this.savePastedSession(containerEl),
+      submit: {
+        action: "plus:save-session",
+        label: "Save session",
+        onSubmit: (sessionToken) => this.savePastedSession(sessionToken),
+      },
     });
   }
 
   /** Start a Plus account for the typed email and open its trial checkout. */
-  private async startTrial(containerEl: HTMLElement): Promise<void> {
-    const email = this.accountInput(containerEl, "plus-email");
+  private async startTrial(email: string): Promise<void> {
     if (!email.includes("@")) {
       new Notice("Enter a valid email first");
       return;
@@ -1315,8 +1307,7 @@ export class AtomsSettingTab extends PluginSettingTab {
   }
 
   /** Adopt a session token pasted by hand, after verifying it against the Plus service. */
-  private async savePastedSession(containerEl: HTMLElement): Promise<void> {
-    const sessionToken = this.accountInput(containerEl, "plus-session");
+  private async savePastedSession(sessionToken: string): Promise<void> {
     if (!sessionToken.startsWith("sess_")) {
       new Notice("Session should look like sess_…");
       return;
