@@ -24,7 +24,11 @@ import {
   isProduction,
 } from "./prodGate.mjs";
 import { sendMagicLinkEmail } from "./email.mjs";
-import { INCIDENT_KIND, verifierMatches } from "./store/shared.mjs";
+import {
+  accountFingerprint,
+  INCIDENT_KIND,
+  verifierMatches,
+} from "./store/shared.mjs";
 import { alertStripeIncident } from "./alert.mjs";
 import {
   MAGIC_LINK_RATE_LIMITS,
@@ -588,6 +592,49 @@ ${
       const session = bearer(req);
       if (session && store.revokeSession) await store.revokeSession(session);
       return json(res, 200, { ok: true });
+    }
+
+    // POST /v1/auth/sign-out-all — #320 R3/R4/R10. Path matching is `===`, so
+    // the sibling above never claims this one.
+    if (req.method === "POST" && path === "/v1/auth/sign-out-all") {
+      // KTD5 — deliberately stricter than that sibling, which answers 200 to
+      // anything, including no header at all. Per-device sign-out is idempotent
+      // cleanup and a wrong token costs nothing. This revokes an entire
+      // account's access including its connected apps, so a caller who is not
+      // who they say they are has to be told no, rather than told "ok" about
+      // something that did not happen to them.
+      const a = await store.accountFromSession(bearer(req), {
+        requireVerified: true,
+      });
+      if (!a) {
+        return json(res, 401, {
+          message: "Sign in with a magic link to sign out all devices",
+        });
+      }
+      // KTD6 — keyed on the authenticated account rather than the IP. What is
+      // worth bounding is session farming against one account, and the caller's
+      // own session dies on the first success, so a repeat call 401s above
+      // before it ever reaches this line.
+      const rl = checkRateLimit(`signout_all:${a.email}`);
+      if (!rl.ok) {
+        return json(res, 429, {
+          message: "Too many requests",
+          retryAfterSec: rl.retryAfterSec,
+        });
+      }
+      // R10 — all three, or "sign out all devices" is a claim the product does
+      // not honour. Connected apps authenticate off their own MCP grants and
+      // not off the sessions table, and a live checkout binding can resurrect
+      // one session hours later.
+      const revoked = await store.revokeAllSessionsForEmail(a.email);
+      if (store.mcpRevokeForEmail) await store.mcpRevokeForEmail(a.email);
+      if (store.clearCheckoutBindingsForEmail) {
+        await store.clearCheckoutBindingsForEmail(a.email);
+      }
+      console.log(
+        `[plus] sign-out-all ${accountFingerprint(a.email)} sessions=${revoked}`,
+      );
+      return json(res, 200, { ok: true }, NO_STORE);
     }
 
     // #240 U5 — `GET /v1/auth/dev-exchange` is gone. It was a zero-caller

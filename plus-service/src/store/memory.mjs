@@ -165,11 +165,17 @@ export function createMemoryStore() {
     return session;
   }
 
+  /** @returns {number} rows newly revoked — #320 U3 logs the count. */
   function revokeAllSessionsForEmail(email) {
     const key = email.trim().toLowerCase();
+    let revoked = 0;
     for (const row of sessions.values()) {
-      if (row.email === key) row.revoked = true;
+      if (row.email === key && !row.revoked) {
+        row.revoked = true;
+        revoked += 1;
+      }
     }
+    return revoked;
   }
 
   function revokeUnverifiedSessionsForEmail(email) {
@@ -247,6 +253,27 @@ export function createMemoryStore() {
     row.verified = true;
     row.revoked = false;
     return true;
+  }
+
+  /**
+   * #320 R10 — a sign-out that leaves bindings behind is advisory, not durable.
+   * `promoteCheckoutSession` clears `revoked` with no check on *why* the row was
+   * revoked, and a binding lives 24 hours, so a webhook landing or being retried
+   * after the user evicts every device resurrects exactly one session and marks
+   * it verified — and after U1's narrowing nothing reaps it again.
+   *
+   * @returns {number} bindings dropped
+   */
+  function clearCheckoutBindingsForEmail(email) {
+    const key = email.trim().toLowerCase();
+    let cleared = 0;
+    for (const [checkoutId, bound] of checkoutBindings) {
+      if (bound.email === key) {
+        checkoutBindings.delete(checkoutId);
+        cleared += 1;
+      }
+    }
+    return cleared;
   }
 
   /** Promote soft session after checkout; clears revoke from grantPeriod. */
@@ -1066,6 +1093,7 @@ export function createMemoryStore() {
     revokeUnverifiedSessionsForEmail,
     enforceSessionCapForEmail,
     bindCheckoutSession,
+    clearCheckoutBindingsForEmail,
     promoteCheckoutSession,
     markSessionVerified,
     tryConsumeFiling,

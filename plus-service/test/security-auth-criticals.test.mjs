@@ -296,6 +296,77 @@ function runStoreSuite(name, create) {
       if (store.close) await store.close();
     });
 
+    /**
+     * #320 U3 R10 — the store half of "sign out all devices". The route is
+     * covered over HTTP in `http-auth-sign-out-all.test.mjs`; what belongs here
+     * is the durability property, on all three backends.
+     */
+    it("#320 R10: a cleared binding survives a late webhook", async () => {
+      const store = await fresh();
+      const payer = await store.startWithEmail("durable@ex.com");
+      assert.equal(payer.ok, true);
+      assert.equal(
+        await store.bindCheckoutSession(
+          "cs_durable",
+          "durable@ex.com",
+          payer.session,
+        ),
+        true,
+      );
+      await store.grantPeriod("durable@ex.com", {
+        remaining: 5,
+        status: "active",
+      });
+      assert.equal(await store.markSessionVerified(payer.session), true);
+
+      // The trio the route runs.
+      assert.equal(await store.revokeAllSessionsForEmail("durable@ex.com"), 1);
+      assert.equal(
+        await store.clearCheckoutBindingsForEmail("durable@ex.com"),
+        1,
+      );
+
+      // The webhook lands, or is retried, after the user evicted everything.
+      // Without the clear it resurrects this exact session and marks it
+      // verified — and after U1's narrowing nothing reaps it again.
+      assert.equal(
+        await store.promoteCheckoutSession("cs_durable", "durable@ex.com"),
+        false,
+      );
+      assert.equal(await store.accountFromSession(payer.session), null);
+
+      if (store.close) await store.close();
+    });
+
+    it("#320 R10: clearing bindings leaves another account's checkout alone", async () => {
+      const store = await fresh();
+      const mine = await store.startWithEmail("mine@ex.com");
+      const theirs = await store.startWithEmail("theirs@ex.com");
+      await store.bindCheckoutSession("cs_mine", "mine@ex.com", mine.session);
+      await store.bindCheckoutSession(
+        "cs_theirs",
+        "theirs@ex.com",
+        theirs.session,
+      );
+      await store.grantPeriod("theirs@ex.com", {
+        remaining: 5,
+        status: "active",
+      });
+
+      assert.equal(await store.clearCheckoutBindingsForEmail("mine@ex.com"), 1);
+
+      assert.equal(
+        await store.promoteCheckoutSession("cs_theirs", "theirs@ex.com"),
+        true,
+      );
+      const alive = await store.accountFromSession(theirs.session, {
+        requireVerified: true,
+      });
+      assert.equal(alive?.email, "theirs@ex.com");
+
+      if (store.close) await store.close();
+    });
+
     it("C1: dogfood markSessionVerified restores checkout caller only", async () => {
       const store = await fresh();
       const attacker = await store.startWithEmail("pay@ex.com");
@@ -1031,6 +1102,7 @@ describe("#320 U2 store parity", () => {
         "enforceSessionCapForEmail",
         "writeSessionRowForTest",
         "sessionRowsForTest",
+        "clearCheckoutBindingsForEmail",
       ]) {
         assert.match(
           src,

@@ -314,10 +314,12 @@ export function createSqliteStore(dbPath = config.databasePath) {
     return session;
   }
 
+  /** @returns {number} rows newly revoked — #320 U3 logs the count. */
   function revokeAllSessionsForEmail(email) {
-    db.prepare("UPDATE sessions SET revoked = 1 WHERE email = ?").run(
-      email.trim().toLowerCase(),
-    );
+    const info = db
+      .prepare("UPDATE sessions SET revoked = 1 WHERE email = ? AND revoked = 0")
+      .run(email.trim().toLowerCase());
+    return Number(info.changes || 0);
   }
 
   function revokeUnverifiedSessionsForEmail(email) {
@@ -408,6 +410,22 @@ export function createSqliteStore(dbPath = config.databasePath) {
       String(checkoutId),
     );
     return Boolean(r);
+  }
+
+  /**
+   * #320 R10 — a sign-out that leaves bindings behind is advisory, not durable.
+   * `promoteCheckoutSession` clears `revoked` with no check on *why* the row was
+   * revoked, and a binding lives 24 hours, so a webhook landing or being retried
+   * after the user evicts every device resurrects exactly one session and marks
+   * it verified — and after U1's narrowing nothing reaps it again.
+   *
+   * @returns {number} bindings dropped
+   */
+  function clearCheckoutBindingsForEmail(email) {
+    const info = db
+      .prepare("DELETE FROM checkout_bindings WHERE email = ?")
+      .run(email.trim().toLowerCase());
+    return Number(info.changes || 0);
   }
 
   /** Promote soft session after checkout; clears revoke from grantPeriod. */
@@ -686,6 +704,7 @@ export function createSqliteStore(dbPath = config.databasePath) {
     revokeUnverifiedSessionsForEmail,
     enforceSessionCapForEmail,
     bindCheckoutSession,
+    clearCheckoutBindingsForEmail,
     promoteCheckoutSession,
     markSessionVerified,
     tryConsumeFiling,

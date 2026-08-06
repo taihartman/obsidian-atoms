@@ -28,11 +28,23 @@ export function hashToken(token) {
  * between backends.
  */
 export function logSessionCapEviction(email, evicted) {
-  const fingerprint = createHash("sha256")
+  console.log(
+    `[plus] session cap evicted ${evicted} for ${accountFingerprint(email)}`,
+  );
+}
+
+/**
+ * #320 — the only form of an account identity that may reach a log. Short
+ * enough to read in a tail, long enough to correlate two lines about the same
+ * user, and one-way, so support can answer "did we sign this account out?"
+ * without the log ever holding an email address.
+ */
+export function accountFingerprint(email) {
+  const digest = createHash("sha256")
     .update(String(email).trim().toLowerCase())
     .digest("hex")
     .slice(0, 12);
-  console.log(`[plus] session cap evicted ${evicted} for acct:${fingerprint}`);
+  return `acct:${digest}`;
 }
 
 /**

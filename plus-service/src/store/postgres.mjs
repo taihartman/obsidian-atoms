@@ -340,11 +340,13 @@ export async function createPostgresStore(databaseUrl) {
     return session;
   }
 
+  /** @returns {Promise<number>} rows newly revoked — #320 U3 logs the count. */
   async function revokeAllSessionsForEmail(email) {
-    await pool.query(
-      "UPDATE sessions SET revoked = TRUE WHERE email = $1",
+    const res = await pool.query(
+      "UPDATE sessions SET revoked = TRUE WHERE email = $1 AND revoked = FALSE",
       [email.trim().toLowerCase()],
     );
+    return res.rowCount || 0;
   }
 
   async function revokeUnverifiedSessionsForEmail(email) {
@@ -450,6 +452,23 @@ export async function createPostgresStore(databaseUrl) {
     } finally {
       client.release();
     }
+  }
+
+  /**
+   * #320 R10 — a sign-out that leaves bindings behind is advisory, not durable.
+   * `promoteCheckoutSession` clears `revoked` with no check on *why* the row was
+   * revoked, and a binding lives 24 hours, so a webhook landing or being retried
+   * after the user evicts every device resurrects exactly one session and marks
+   * it verified — and after U1's narrowing nothing reaps it again.
+   *
+   * @returns {Promise<number>} bindings dropped
+   */
+  async function clearCheckoutBindingsForEmail(email) {
+    const res = await pool.query(
+      "DELETE FROM checkout_bindings WHERE email = $1",
+      [email.trim().toLowerCase()],
+    );
+    return res.rowCount || 0;
   }
 
   /** Promote soft session after checkout; clears revoke from grantPeriod. */
@@ -818,6 +837,7 @@ export async function createPostgresStore(databaseUrl) {
     revokeUnverifiedSessionsForEmail,
     enforceSessionCapForEmail,
     bindCheckoutSession,
+    clearCheckoutBindingsForEmail,
     promoteCheckoutSession,
     markSessionVerified,
     tryConsumeFiling,
