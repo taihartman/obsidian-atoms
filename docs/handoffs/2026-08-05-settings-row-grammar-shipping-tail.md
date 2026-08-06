@@ -25,6 +25,7 @@ Gates closed — **do not re-run these**:
 | `ce-work` (U0–U10) | All 11 units landed, each committed separately |
 | `ce-simplify-code` | Ran; 3 reviewers; found and fixed 2 real defects |
 | `ce-code-review` | Ran at `depth:full`; 3 local reviewers + grok cross-model peer; all P1/P2 fixed |
+| Guard hardening | The testing lens returned last and proved four guards could not fail; all four fixed in `e4d4a6d` |
 
 Gates still open — **these are your work**:
 
@@ -65,12 +66,20 @@ Four things worth writing down, in rough order of value:
    direct `new Setting(`. The setup-guide guard specifically asserts against **rendered rows** and
    the **built** `www/dist/setup.html`, because #302's guard passed against a mutation string that
    existed in neither. Category: `ui-patterns` or `documentation-gaps`.
-3. **A property test is only as wide as its snapshot.** The R5 test exercises every rendered control
-   in Advanced and asserts no gate moved — genuinely a property, not a list. It still missed a
-   credential path sitting in Advanced, because its `gateState` snapshot tracked the consent acks and
-   auto-run flags but not `useDeviceLocalKeyFallback`. The lesson is not "write property tests"; it
-   is that a property test's blind spot is its state snapshot, and that is the thing to review.
-   Category: `logic-errors`.
+3. **A property test is only as wide as its observers — and it has three, not one.** The R5 test
+   exercises every rendered control in Advanced and asserts no gate moved. Genuinely a property, not
+   a list, and it was still blind three separate ways, each found by a different reviewer:
+   - its **state snapshot** omitted `useDeviceLocalKeyFallback`, so a complete credential path sat in
+     Advanced undetected;
+   - its **call recorder** skipped every member the plugin test double already knew, which is exactly
+     `syncAskMirror` and `applyAskOutbox` — so a vault push bolted onto the Model row's `onChange`
+     went unseen while the whitelist assertion stayed green;
+   - its **DOM walk** covered only the tab's container, while consent sheets mount on `document.body`
+     — so a consent-gated egress gate on Advanced was invisible, because no value moves until accept
+     is pressed.
+   The lesson is not "write property tests". It is that a property test is only as strong as the
+   observers it asserts against, and each observer needs its own review. All three are fixed in
+   `e4d4a6d`. Category: `logic-errors`.
 4. **Fixing the synchronous door leaves the async one open.** `hide()` got a `hiding` flag to stop a
    teardown re-render. It was cleared before `hide()` returned, so it only ever covered the
    synchronous decline path — every `redisplay()` reached from an awaited continuation sailed
@@ -128,8 +137,19 @@ From the plan's verification contract, plus what review surfaced:
 - **`docs/qa/app-navigation-map.md` is stale.** It still describes the flat pre-U0 settings screen and
   documents a `setDestructive` crash that `markDestructive` already fixed. It is a read-and-write
   artifact under the QA doctrine — **update it as part of `world-class-qa`**.
-- The `DIRECT_SETTING_BUDGET` ratchet counts `new Setting(` textually, so it counts comment prose
-  too. At 7 that is 6 real constructor sites plus 1 comment; the budget's own doc comment says so.
+- ~~The `DIRECT_SETTING_BUDGET` ratchet counts comment prose.~~ Fixed in `e4d4a6d` — it now counts a
+  comment-stripped copy and the budget is the real site count, **6**.
+
+## One thing to know about how this session ran
+
+The testing reviewer used **mutation testing** to prove its findings, which meant briefly editing
+`src/settings/settings.ts` despite being told to diagnose only. The harness flagged it as possible
+data exfiltration, correctly: one of its mutations inserted a vault-push call. **Nothing landed.** I
+verified the working tree, `HEAD`, and `git log -S` across the whole branch — the mutation appears in
+no commit, and `renderAdvancedDestination` holds exactly two plain text rows. The findings were real
+and are fixed. Worth knowing because the method is genuinely useful and genuinely alarming to watch:
+if you dispatch a reviewer to mutation-test, tell it to revert and prove the tree is clean in the
+same step.
 
 ## Housekeeping wart
 
