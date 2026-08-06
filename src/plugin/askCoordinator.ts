@@ -29,6 +29,8 @@ import {
 } from "./catchUp";
 import type { MirrorSyncOutcome } from "../shared/mirrorOutcome";
 
+/** Why a push stopped when consent is not in place. One string, two gates. */
+const MIRROR_OFF = "Ask mirror is off";
 
 /**
  * Single owner of Ask orchestration state still living on the plugin after #226.
@@ -104,10 +106,38 @@ export class AskCoordinator {
     );
   }
 
+  /**
+   * Whether the mirror may push *right now*. Read live at every gate rather than
+   * captured, because `data.json` syncs: a withdrawal on another device replaces
+   * `plugin.settings` underneath a pass that is already running (#323).
+   */
+  private mirrorPermitted(): boolean {
+    const p = this.plugin;
+    return p.settings.askEnabled && Boolean(p.settings.askPrivacyAckAt);
+  }
+
+  /**
+   * Drop every push this device still owes itself. Called when the external-settings
+   * hook lands a state the mirror may not push under.
+   *
+   * The single-flight flags are documented as owned by `runMirrorSingleFlight`, and
+   * they are — but clearing them is monotonic in the safe direction: it can only
+   * cancel work, never start it, and the run's own `finally` clears them again.
+   * Setting either one from outside would be the violation.
+   */
+  cancelPendingSync(): void {
+    this.askMirrorFlight.followUp = false;
+    this.askMirrorFlight.forceFollowUp = false;
+    if (this.askMirrorDebounceTimer != null) {
+      window.clearTimeout(this.askMirrorDebounceTimer);
+      this.askMirrorDebounceTimer = null;
+    }
+    this.askMirrorDirty = false;
+  }
+
   /** Debounced best-effort push after vault or pipeline writes. */
   scheduleSync(): void {
-    const p = this.plugin;
-    if (!p.settings.askEnabled || !p.settings.askPrivacyAckAt) {
+    if (!this.mirrorPermitted()) {
       return;
     }
     // Coalesce into the in-flight run instead of a second post-run debounce.
@@ -208,10 +238,9 @@ export class AskCoordinator {
    * force: full reconcile (keepPaths orphan delete). Never early-return before delete/reconcile.
    */
   async sync(opts?: { force?: boolean }): Promise<MirrorSyncOutcome> {
-    const p = this.plugin;
-    if (!p.settings.askEnabled || !p.settings.askPrivacyAckAt) {
+    if (!this.mirrorPermitted()) {
       if (opts?.force) new Notice("Enable Ask and acknowledge privacy first");
-      return { kind: "failed", message: "Ask mirror is off" };
+      return { kind: "failed", message: MIRROR_OFF };
     }
     return runMirrorSingleFlight(
       {
@@ -235,6 +264,15 @@ export class AskCoordinator {
     force: boolean,
   ): Promise<Exclude<MirrorSyncOutcome, { kind: "joined" }>> {
     const p = this.plugin;
+    // The last gate before egress, and the only one a follow-up pass ever crosses:
+    // `runMirrorSingleFlight` loops back into `once()`, never into `sync()`, so the
+    // check at the top of `sync()` only ever answers for the *first* pass. A consent
+    // withdrawn on another device mid-run would otherwise be followed by a second
+    // pass uploading note bodies under it (#323 F1). Silent — `sync()` owns the
+    // notice for the forced gesture, and a follow-up has no user behind it.
+    if (!this.mirrorPermitted()) {
+      return { kind: "failed", message: MIRROR_OFF };
+    }
     const { readPlusSession } = await import("../platform/filingAuth");
     const session = readPlusSession(p.app);
     if (!session) {

@@ -581,8 +581,15 @@ export class AtomsSettingTab extends PluginSettingTab {
   /**
    * Re-render because `data.json` changed underneath us — a consent withdrawn on another
    * device (#323). `redisplay()` already declines while the tab is closing.
+   *
+   * The sheet settles first, for the reason `hide()` and `openRoute()` settle it: the state
+   * it was posed under has just been replaced, so accepting it would write an ack answering a
+   * question that is no longer on screen. Leaving it open would float a consent decision above
+   * a rebuilt DOM that already shows the remote withdrawal.
    */
   refreshFromExternalSettings(): void {
+    this.openSheet?.close();
+    this.openSheet = null;
     this.redisplay();
   }
 
