@@ -132,6 +132,36 @@ describe("scoreSearch confidence", () => {
     assert.ok(bodyHit.confidence);
     assert.ok(titleHit.score > bodyHit.score);
   });
+
+  it("multi-word all content words in title is high", () => {
+    const r = scoreSearch(
+      {
+        title: "open loops and manufacture stakes for retention",
+        path: "a.md",
+        tags: [],
+        body: "x",
+      },
+      "open loops manufacture stakes",
+    );
+    assert.equal(r.confidence, "high");
+  });
+
+  it("Ross-shaped expand-only paraphrase is medium", () => {
+    const r = scoreSearch(
+      {
+        title: "Ross's retention framework- stack open loops and manufacture stakes",
+        path: "Atoms/R.md",
+        tags: [],
+        body: "stack open loops and manufacture stakes in the first seconds",
+        expand:
+          "how to stop viewers from clicking away\nhow to keep people watching past the first seconds",
+      },
+      "how to stop viewers from clicking away",
+    );
+    assert.equal(r.confidence, "medium");
+    assert.ok(r.expandStrong);
+    assert.ok(r.match_signals?.includes("expand"));
+  });
 });
 
 describe("buildSearchHits floor", () => {
@@ -173,6 +203,71 @@ describe("buildSearchHits floor", () => {
     assert.equal(hits.length, 1);
     assert.equal(hits[0].confidence, "high");
     assert.ok(typeof hits[0].score === "number");
+  });
+
+  it("relative floor drops weak tail below half top", () => {
+    const pubs = [
+      {
+        id: "1",
+        title: "Newsletter idea share routine",
+        path: "Atoms/N.md",
+        text: "newsletter use case Atoms app",
+        tags: [],
+        links: [],
+      },
+      {
+        id: "2",
+        title: "Personal notes Social Nichita",
+        path: "Hubs/N.md",
+        text: "app notes about social",
+        tags: [],
+        links: [],
+      },
+    ];
+    const hits = buildSearchHits(pubs, "newsletter use case Atoms app", 8);
+    assert.ok(hits.length >= 1);
+    assert.equal(hits[0].title, "Newsletter idea share routine");
+    // companion must not ride if far below top (score geometry)
+    const titles = hits.map((h) => h.title);
+    if (hits.length > 1) {
+      const top = hits[0].score;
+      for (const h of hits.slice(1)) {
+        assert.ok(h.score >= 0.5 * top || (h.match_signals || []).includes("expand"));
+      }
+    }
+    assert.ok(titles.includes("Newsletter idea share routine"));
+  });
+
+  it("AE4b expand hit survives stronger off-intent title", () => {
+    const pubs = [
+      {
+        id: "noise",
+        title: "how to stop viewers from clicking away guide",
+        path: "Atoms/Noise.md",
+        text: "unrelated noise about UI buttons",
+        tags: [],
+        links: [],
+      },
+      {
+        id: "ross",
+        title: "Ross's retention framework- stack open loops and manufacture stakes",
+        path: "Atoms/R.md",
+        text: "stack open loops and manufacture stakes",
+        expand:
+          "how to stop viewers from clicking away\nkeep viewers watching",
+        tags: [],
+        links: [],
+      },
+    ];
+    // Force expand-only on ross by querying a paraphrase that is only in expand
+    // and also appears in noise title — both may score; expandStrong keeps ross.
+    const hits = buildSearchHits(
+      pubs,
+      "how to stop viewers from clicking away",
+      8,
+    );
+    const ross = hits.find((h) => String(h.title).includes("Ross"));
+    assert.ok(ross, "expand-backed Ross hit must remain");
   });
 
   it("AE5 superseded still returns with status", () => {

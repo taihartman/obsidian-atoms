@@ -70,6 +70,34 @@ export const config = {
   get anthropicVersion() {
     return env("ANTHROPIC_VERSION", "2023-06-01");
   },
+  /** Ask search: index-time expand on mirror upsert (0 disables). */
+  get askExpandEnabled() {
+    return env("ASK_EXPAND_ENABLED", "1") !== "0";
+  },
+  get askExpandModel() {
+    return env("ASK_EXPAND_MODEL", env("ATOMS_PLUS_MODEL", "claude-haiku-4-5-20251001"));
+  },
+  get askExpandTimeoutMs() {
+    const n = Number(env("ASK_EXPAND_TIMEOUT_MS", "8000"));
+    return Number.isFinite(n) && n >= 1000 ? n : 8000;
+  },
+  get askExpandConcurrency() {
+    const n = Number(env("ASK_EXPAND_CONCURRENCY", "2"));
+    return Number.isFinite(n) && n >= 1 ? Math.min(n, 8) : 2;
+  },
+  get askExpandPerEmailPerHour() {
+    const n = Number(env("ASK_EXPAND_PER_EMAIL_PER_HOUR", "60"));
+    return Number.isFinite(n) && n >= 0 ? n : 60;
+  },
+  /** Min expand_coverage to advertise retrieval=lexical_expanded. */
+  get askExpandCoverageFloor() {
+    const n = Number(env("ASK_EXPAND_COVERAGE_FLOOR", "0.5"));
+    return Number.isFinite(n) && n >= 0 && n <= 1 ? n : 0.5;
+  },
+  get askExpandPerUpsertCap() {
+    const n = Number(env("ASK_EXPAND_PER_UPSERT_CAP", "10"));
+    return Number.isFinite(n) && n >= 0 ? n : 10;
+  },
   get includedFilings() {
     return Number(
       env("ATOMS_PLUS_INCLUDED", String(pricing.includedFilingsPerPeriod ?? 150)),

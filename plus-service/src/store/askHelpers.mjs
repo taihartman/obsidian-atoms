@@ -361,7 +361,19 @@ export function rowToPublicAtom(row, { includeBody = true } = {}) {
     updatedAt: iso(row.updated_at ?? row.updatedAt),
     created,
   };
-  if (includeBody) out.text = text;
+  if (includeBody) {
+    out.text = text;
+    const expandEnc =
+      row.expand_enc ?? row.expandEnc ?? row.search_expand_enc ?? "";
+    if (expandEnc) {
+      try {
+        const ex = decryptMirrorField(expandEnc);
+        if (ex && String(ex).trim()) out.expand = String(ex);
+      } catch {
+        /* leave unset */
+      }
+    }
+  }
   return out;
 }
 
@@ -550,13 +562,36 @@ export function contentWords(query) {
     .filter((w) => w.length >= 2 && !SEARCH_STOPWORDS.has(w));
 }
 
+/** Relative floor vs top score among confident hits (KTD3). */
+export const SEARCH_REL_FLOOR = 0.5;
+
+/**
+ * Count non-overlapping occurrences of needle in hay (cap 20).
+ * @param {string} hay
+ * @param {string} needle
+ */
+function countOccurrences(hay, needle) {
+  if (!needle || !hay) return { count: 0, first: -1 };
+  let count = 0;
+  let from = 0;
+  let first = -1;
+  while (count < 20) {
+    const i = hay.indexOf(needle, from);
+    if (i < 0) break;
+    if (first < 0) first = i;
+    count += 1;
+    from = i + needle.length;
+  }
+  return { count, first };
+}
+
 /**
  * Score candidate for search (higher = better) + agent confidence.
- * Exact title > title prefix > title contains > tags > body TF.
- * Multi-word: coverage-aware (no sparse hit*12 junk).
- * @param {{ title: string, path: string, tags: string[], body: string }} doc
+ * Exact title > title prefix > title contains > tags > expand/body TF.
+ * Multi-word: coverage-aware (no sparse hit*12 junk). Expand field optional.
+ * @param {{ title: string, path: string, tags: string[], body: string, expand?: string }} doc
  * @param {string} query
- * @returns {{ score: number, confidence: 'high'|'medium'|null }}
+ * @returns {{ score: number, confidence: 'high'|'medium'|null, expandStrong?: boolean, match_signals?: string[] }}
  */
 export function scoreSearch(doc, query) {
   const q = query.trim().toLowerCase();
@@ -565,6 +600,7 @@ export function scoreSearch(doc, query) {
   const path = (doc.path || "").toLowerCase();
   const tags = (doc.tags || []).map((t) => String(t).toLowerCase());
   const body = (doc.body || "").toLowerCase();
+  const expand = String(doc.expand || "").toLowerCase();
   let score = 0;
 
   let titleExact = false;
@@ -601,18 +637,16 @@ export function scoreSearch(doc, query) {
   let bodyPhrase = false;
   if (body.includes(q)) {
     bodyPhrase = true;
-    let count = 0;
-    let from = 0;
-    let first = -1;
-    while (count < 20) {
-      const i = body.indexOf(q, from);
-      if (i < 0) break;
-      if (first < 0) first = i;
-      count += 1;
-      from = i + q.length;
-    }
+    const { count, first } = countOccurrences(body, q);
     score += 20 + count * 8;
     if (first >= 0 && first < 200) score += 15;
+  }
+
+  let expandPhrase = false;
+  if (expand && expand.includes(q)) {
+    expandPhrase = true;
+    const { count } = countOccurrences(expand, q);
+    score += 20 + count * 8;
   }
 
   const words = contentWords(q);
@@ -621,7 +655,9 @@ export function scoreSearch(doc, query) {
   let titleWordHits = 0;
   let tagWordHits = 0;
   let bodyWordHits = 0;
+  let expandWordHits = 0;
   let longBodyWordHits = 0;
+  let longExpandWordHits = 0;
   if (words.length > 0) {
     for (const w of words) {
       let hit = false;
@@ -638,42 +674,95 @@ export function scoreSearch(doc, query) {
         if (w.length >= 4) longBodyWordHits += 1;
         hit = true;
       }
+      if (expand && expand.includes(w)) {
+        expandWordHits += 1;
+        if (w.length >= 4) longExpandWordHits += 1;
+        hit = true;
+      }
       if (hit) matched += 1;
     }
     coverage = matched / words.length;
     if (words.length > 1) {
       score += Math.round(coverage * 80);
-      score += titleWordHits * 24 + tagWordHits * 18 + bodyWordHits * 6;
+      score +=
+        titleWordHits * 24 +
+        tagWordHits * 18 +
+        expandWordHits * 12 +
+        bodyWordHits * 6;
+    } else if (expandWordHits && !titleWordHits && !tagWordHits && !bodyWordHits) {
+      score += expandWordHits * 12;
     }
   }
 
+  const expandStrong =
+    (expandPhrase && words.length >= 2) ||
+    (expandWordHits >= 2 &&
+      longExpandWordHits >= 2 &&
+      coverage >= 0.5 &&
+      words.length > 1);
+
+  const allTitleWords =
+    words.length > 1 && titleWordHits === words.length && words.length > 0;
+  const multiHighCoverage =
+    words.length > 1 && coverage >= 0.85 && titleWordHits >= 2;
+
   /** @type {'high'|'medium'|null} */
   let confidence = null;
-  if (titleExact || titlePrefix || tagExact || (titleContains && q.length >= 3)) {
+  if (
+    titleExact ||
+    titlePrefix ||
+    tagExact ||
+    (titleContains && q.length >= 3) ||
+    allTitleWords ||
+    multiHighCoverage
+  ) {
     confidence = "high";
   } else if (titleContains || tagContains) {
     confidence = "medium";
   } else if (words.length <= 1) {
-    if (bodyPhrase || titleWordHits || tagWordHits || bodyWordHits) {
+    if (
+      bodyPhrase ||
+      expandPhrase ||
+      titleWordHits ||
+      tagWordHits ||
+      bodyWordHits ||
+      expandWordHits
+    ) {
       confidence = "medium";
     }
   } else {
     const fields =
       (titleWordHits > 0 ? 1 : 0) +
       (tagWordHits > 0 ? 1 : 0) +
-      (bodyWordHits > 0 ? 1 : 0);
+      (bodyWordHits > 0 ? 1 : 0) +
+      (expandWordHits > 0 ? 1 : 0);
     const coverageOk = coverage >= 0.5 || (matched >= 3 && fields >= 2);
     const bodyStrong =
       coverage >= 0.67 && longBodyWordHits >= 2 && matched >= 2;
     if (coverageOk && (titleWordHits > 0 || tagWordHits > 0)) {
       confidence = "medium";
-    } else if (bodyStrong) {
+    } else if (bodyStrong || expandStrong) {
       confidence = "medium";
     }
   }
 
   if (confidence == null) score = 0;
-  return { score, confidence };
+
+  /** @type {string[]} */
+  const match_signals = [];
+  if (titleExact || titlePrefix || titleContains || titleWordHits > 0) {
+    match_signals.push("title");
+  }
+  if (tagExact || tagContains || tagWordHits > 0) match_signals.push("tag");
+  if (bodyPhrase || bodyWordHits > 0) match_signals.push("body");
+  if (expandPhrase || expandWordHits > 0) match_signals.push("expand");
+
+  return {
+    score,
+    confidence,
+    expandStrong: Boolean(expandStrong || expandPhrase),
+    match_signals,
+  };
 }
 
 /**
@@ -949,12 +1038,25 @@ export function buildSearchHits(pubs, query, limit = 8, opts = {}) {
   const lim = Math.min(Math.max(Number(limit) || 8, 1), 25);
   const tagFilter = opts.tags;
   const includeSnippets = opts.snippets !== false;
+  const relFloor =
+    opts.relFloor == null ? SEARCH_REL_FLOOR : Number(opts.relFloor);
   const inboundIndex = buildInboundIndex(pubs);
   const scored = [];
   for (const pub of pubs || []) {
     if (!matchesTagFilter(pub.tags, tagFilter)) continue;
-    const { score: s, confidence } = scoreSearch(
-      { title: pub.title, path: pub.path, tags: pub.tags, body: pub.text },
+    const {
+      score: s,
+      confidence,
+      expandStrong,
+      match_signals,
+    } = scoreSearch(
+      {
+        title: pub.title,
+        path: pub.path,
+        tags: pub.tags,
+        body: pub.text,
+        expand: pub.expand,
+      },
       query,
     );
     if (!confidence || s <= 0) continue;
@@ -973,18 +1075,39 @@ export function buildSearchHits(pubs, query, limit = 8, opts = {}) {
       created: pub.created ?? null,
       synced_at: pub.updatedAt ?? null,
     };
+    if (match_signals?.length) hit.match_signals = match_signals;
     if (includeSnippets) {
       hit.snippet = makeSnippet(pub.text, query);
       hit.snippet_truncated = true;
     }
     if (rev.status === "superseded") hit.superseded_by = rev.superseded_by;
     if (rev.status === "contradicted") hit.contradicted_by = rev.contradicted_by;
-    scored.push({ score: s, hit });
+    scored.push({ score: s, hit, expandStrong: Boolean(expandStrong) });
   }
   scored.sort(
     (a, b) => b.score - a.score || String(a.hit.title).localeCompare(String(b.hit.title)),
   );
-  return scored.slice(0, lim).map((x) => x.hit);
+  // Relative floor only among medium hits (vs top medium). High title/tag hits
+  // always stay — otherwise a 1000 title score drops every body/expand medium.
+  let filtered = scored;
+  if (scored.length >= 2 && Number.isFinite(relFloor) && relFloor > 0) {
+    const highs = scored.filter((x) => x.hit.confidence === "high");
+    const mediums = scored.filter((x) => x.hit.confidence === "medium");
+    if (mediums.length >= 2) {
+      const topMed = mediums[0].score;
+      const floor = relFloor * topMed;
+      const keptMed = mediums.filter(
+        (x) => x.expandStrong || x.score >= floor,
+      );
+      filtered = [...highs, ...(keptMed.length ? keptMed : [mediums[0]])];
+      filtered.sort(
+        (a, b) =>
+          b.score - a.score ||
+          String(a.hit.title).localeCompare(String(b.hit.title)),
+      );
+    }
+  }
+  return filtered.slice(0, lim).map((x) => x.hit);
 }
 
 /**

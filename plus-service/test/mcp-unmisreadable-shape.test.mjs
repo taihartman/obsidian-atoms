@@ -163,7 +163,8 @@ describe("mcp unmisreadable shape helpers", () => {
     assert.match(ASK_MCP_INSTRUCTIONS, /mirror_scope/);
     assert.match(ASK_MCP_INSTRUCTIONS, /revision_participant/);
     assert.match(ASK_MCP_INSTRUCTIONS, /confidence/);
-    assert.match(ASK_MCP_INSTRUCTIONS, /no confident lexical match/);
+    assert.match(ASK_MCP_INSTRUCTIONS, /no confident match/);
+    assert.match(ASK_MCP_INSTRUCTIONS, /expand_coverage/);
   });
 
   it("search hits expose confidence high|medium", () => {
