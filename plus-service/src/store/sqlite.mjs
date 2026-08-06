@@ -407,6 +407,10 @@ export function createSqliteStore(dbPath = config.databasePath) {
       });
     }
     a = refreshAccountStatus(a);
+    // #320 — unverified only, deliberately. Revoking *every* session here is
+    // what made desktop and phone evict each other on every sign-in. The
+    // property this call still has to preserve is C1: a soft session minted by
+    // startWithEmail must not survive an exchange. Do not widen it back.
     revokeUnverifiedSessionsForEmail(row.email);
     const session = createSession(row.email, { verified: true });
     return { session, account: a, vault: row.vault ?? null };

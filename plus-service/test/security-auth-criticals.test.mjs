@@ -80,6 +80,91 @@ function runStoreSuite(name, create) {
       if (store.close) await store.close();
     });
 
+    // #320 U1 — the property the narrowing exists to create, and the one no
+    // test covered before it. While exchangeMagic revoked *every* session for
+    // the email, signing in on a phone permanently evicted the desktop.
+    it("#320: a verified session on another device survives a new exchange", async () => {
+      const store = await fresh();
+      await store.grantPeriod("multi@ex.com", {
+        remaining: 5,
+        status: "active",
+      });
+
+      const desktop = await store.exchangeMagic(
+        await store.createMagicToken("multi@ex.com"),
+      );
+      const phone = await store.exchangeMagic(
+        await store.createMagicToken("multi@ex.com"),
+      );
+      assert.ok(desktop?.session && phone?.session);
+      assert.notEqual(desktop.session, phone.session);
+
+      const stillLive = await store.accountFromSession(desktop.session, {
+        requireVerified: true,
+      });
+      assert.equal(stillLive?.email, "multi@ex.com");
+
+      // Resolving is not the claim — both devices must still be able to work.
+      assert.equal(
+        (await store.tryConsumeFiling(desktop.session, "device-desktop")).ok,
+        true,
+      );
+      assert.equal(
+        (await store.tryConsumeFiling(phone.session, "device-phone")).ok,
+        true,
+      );
+
+      if (store.close) await store.close();
+    });
+
+    it("#320: an exchange leaves another email's session alone", async () => {
+      const store = await fresh();
+      const bystander = await store.startWithEmail("bystander@ex.com");
+      assert.equal(bystander.ok, true);
+
+      await store.exchangeMagic(await store.createMagicToken("signer@ex.com"));
+
+      const alive = await store.accountFromSession(bystander.session);
+      assert.equal(alive?.email, "bystander@ex.com");
+
+      if (store.close) await store.close();
+    });
+
+    // KTD8 (#320) — a session that proved *payment* and never email ownership
+    // survives too. This is an accepted consequence, not an oversight: carving
+    // it out would evict the desktop session of anyone who pays on desktop and
+    // then signs in on their phone, which is #320 verbatim on the most common
+    // paying path.
+    it("#320 KTD8: a payment-promoted session survives a later exchange", async () => {
+      const store = await fresh();
+      const payer = await store.startWithEmail("payer@ex.com");
+      assert.equal(payer.ok, true);
+      assert.equal(
+        await store.bindCheckoutSession("cs_320", "payer@ex.com", payer.session),
+        true,
+      );
+
+      await store.grantPeriod("payer@ex.com", {
+        remaining: 5,
+        status: "active",
+      });
+      // The grant revoked it as unverified; the webhook then promotes it back.
+      assert.equal(await store.accountFromSession(payer.session), null);
+      assert.equal(
+        await store.promoteCheckoutSession("cs_320", "payer@ex.com"),
+        true,
+      );
+
+      await store.exchangeMagic(await store.createMagicToken("payer@ex.com"));
+
+      const promoted = await store.accountFromSession(payer.session, {
+        requireVerified: true,
+      });
+      assert.equal(promoted?.email, "payer@ex.com");
+
+      if (store.close) await store.close();
+    });
+
     it("C1: dogfood markSessionVerified restores checkout caller only", async () => {
       const store = await fresh();
       const attacker = await store.startWithEmail("pay@ex.com");

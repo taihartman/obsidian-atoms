@@ -471,6 +471,10 @@ export async function createPostgresStore(databaseUrl) {
       });
     }
     a = await refreshAccountStatus(a);
+    // #320 — unverified only, deliberately. Revoking *every* session here is
+    // what made desktop and phone evict each other on every sign-in. The
+    // property this call still has to preserve is C1: a soft session minted by
+    // startWithEmail must not survive an exchange. Do not widen it back.
     await revokeUnverifiedSessionsForEmail(email);
     const session = await createSession(email, { verified: true });
     return { session, account: a, vault };
