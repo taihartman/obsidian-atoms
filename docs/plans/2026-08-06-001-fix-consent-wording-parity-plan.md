@@ -206,8 +206,14 @@ release behavior, not a regression.
    - both call sites build their modal from `egressConsentSpec` (U3's factory), and a modal opened
      from it renders `EGRESS_DISCLOSURE` itself rather than an equal-looking literal — **this is the
      drift guard**;
-   - home accept writes the egress ack **and** the auto-run-enabled flag; the settings sheet writes
-     only the ack; home decline writes neither.
+   - home accept and the settings toggle write the **same pair** — the egress ack *and* the
+     auto-run-enabled flag; home decline/dismiss writes neither. (Corrected during U5: an earlier
+     draft of this unit claimed the settings sheet writes only the ack. It does not —
+     `settings.ts:1664-1665` writes both, because that toggle *is* an enable, the same action home
+     performs. Assert the two resulting device-local states are equal, so if either side ever grows
+     a third write the other has to account for it. The real asymmetry is elsewhere: the Review
+     row's *withdrawal* also calls `clearEgressNoticeAcked`, which home has no counterpart for —
+     out of scope here, already covered in `test/settings.test.ts`.)
 
    Use the existing `captureObsidianUi` harness in `test/mocks/obsidian.ts` (precedent:
    `test/plusSignInConfirmModal.test.ts`). **Do not** stand up an `AtomsHomeView` harness — no test
@@ -224,8 +230,8 @@ surface on two devices disagreeing about state.
 
 ## Test plan
 
-- Unit: home decline writes neither key; home accept writes the egress ack **and** the
-  auto-run-enabled flag; the settings egress sheet writes only the ack.
+- Unit: home decline/dismiss writes neither key; home accept and the settings toggle write the same
+  pair (egress ack + auto-run-enabled), asserted as state equality.
 - Unit: the disclosure-identity parity assertion in U5 — both call sites go through
   `egressConsentSpec`, and the rendered body is `EGRESS_DISCLOSURE` itself.
 - Unit: `test/settings.test.ts` green against the new labels (U4).
