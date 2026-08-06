@@ -15,7 +15,8 @@ import { runWritePath } from "../src/pipeline/write";
 import { AtomsSettingTab } from "../src/settings/settings";
 import { readPendingSignIns } from "../src/platform/filingAuth";
 import { s256Challenge } from "../src/platform/pkce";
-import { requestMagicLink } from "../src/platform/plusClient";
+import { requestMagicLink, signOutAllDevices } from "../src/platform/plusClient";
+import { askSignOutAllApproval } from "../src/settings/plusSignOutAllConfirmModal";
 import {
   captureObsidianUi,
   stopCapturingObsidianUi,
@@ -39,6 +40,19 @@ vi.mock("../src/platform/plusClient", async (importOriginal) => {
   return {
     ...actual,
     requestMagicLink: vi.fn(async () => ({ ok: true as const })),
+    signOutAllDevices: vi.fn(async () => ({ ok: true as const })),
+  };
+});
+
+/** #320 U5 — the verdict is the thing under test; the dialog itself is not. */
+vi.mock("../src/settings/plusSignOutAllConfirmModal", async (importOriginal) => {
+  const actual =
+    await importOriginal<
+      typeof import("../src/settings/plusSignOutAllConfirmModal")
+    >();
+  return {
+    ...actual,
+    askSignOutAllApproval: vi.fn(async () => "declined" as const),
   };
 });
 
@@ -268,19 +282,28 @@ function fakeLocalApp(seed: Record<string, string> = {}) {
   };
 }
 
-function fakeTab(app: FakeApp) {
+function fakeTab(app: FakeApp, auth: unknown = { mode: "none" as const }) {
   const plugin = {
     settings: { ...DEFAULT_SETTINGS, plusBaseUrl: "https://plus.test" },
     manifest: { version: "9.9.9" },
-    resolveFilingAuth: () => ({ mode: "none" as const }),
+    resolveFilingAuth: () => auth,
   };
   const tab = new AtomsSettingTab(app as never, plugin as never);
   (tab as unknown as { app: unknown }).app = app;
   return tab;
 }
 
+let redisplayCount = 0;
+
 /** Render the whole signed-out Plus panel and collect every string it drew. */
 function renderSignedOutPanel(app: FakeApp): UiCapture {
+  return renderPlusPanel(app);
+}
+
+function renderPlusPanel(
+  app: FakeApp,
+  auth: unknown = { mode: "none" as const },
+): UiCapture {
   const ui = captureObsidianUi();
   const containerEl = {
     createEl: (_tag: string, opts?: { text?: string }) => {
@@ -289,9 +312,20 @@ function renderSignedOutPanel(app: FakeApp): UiCapture {
     },
     querySelector: () => null,
     empty: () => {},
+    // `redisplay()` walks for a scroll parent before re-rendering; the success
+    // path of the sign-out-all row is the only case here that reaches it.
+    closest: () => null,
+    parentElement: null,
   };
-  const tab = fakeTab(app);
+  const tab = fakeTab(app, auth);
   (tab as unknown as { containerEl: unknown }).containerEl = containerEl;
+  // Counted rather than performed: `redisplay` re-renders the whole tab, which
+  // wants a real Obsidian DOM. What a test here can honestly claim is that the
+  // panel asked to re-render, not what Obsidian then drew.
+  redisplayCount = 0;
+  (tab as unknown as { redisplay: () => void }).redisplay = () => {
+    redisplayCount += 1;
+  };
   (
     tab as unknown as { renderPlusSection: (el: unknown) => void }
   ).renderPlusSection(containerEl);
@@ -470,5 +504,148 @@ describe("requesting a sign-in link (R15, U7 binding)", () => {
     await sendLink(fakeTab(app), "a@b.co");
 
     expect(readPendingSignIns(app)).toEqual([]);
+  });
+});
+
+/* ------------------------------------------------------------------
+ * #320 U5 — "Sign out all devices" appears wherever a verified session does
+ * ------------------------------------------------------------------ */
+
+const SIGN_OUT_ALL_ROW = "Sign out all devices";
+
+/** A device holding a verified Plus session, as sign-in leaves it. */
+function signedInApp(status = "active") {
+  return fakeLocalApp({
+    "atoms-plus-session": JSON.stringify({
+      sessionToken: "sess_" + "d".repeat(32),
+      email: "a@b.co",
+      status,
+    }),
+  });
+}
+
+describe("#320 Sign out all devices row", () => {
+  it("renders in the active branch", () => {
+    const ui = renderPlusPanel(signedInApp(), {
+      mode: "plus",
+      status: "active",
+    });
+    expect(ui.strings).toContain(SIGN_OUT_ALL_ROW);
+  });
+
+  it("renders in the exhausted branch — an expired plan still needs it", () => {
+    const ui = renderPlusPanel(signedInApp("exhausted"), {
+      mode: "plus",
+      status: "exhausted",
+    });
+    expect(ui.strings).toContain(SIGN_OUT_ALL_ROW);
+  });
+
+  it("renders identically in both branches", () => {
+    // The two branches each `return` early, so nothing but this assertion holds
+    // a second copy of the row in step with the first.
+    const active = renderPlusPanel(signedInApp(), {
+      mode: "plus",
+      status: "active",
+    });
+    const exhausted = renderPlusPanel(signedInApp("exhausted"), {
+      mode: "plus",
+      status: "exhausted",
+    });
+    expect(descAfter(active, SIGN_OUT_ALL_ROW)).toBe(
+      descAfter(exhausted, SIGN_OUT_ALL_ROW),
+    );
+  });
+
+  it("says what it does before the user taps it", () => {
+    const ui = renderPlusPanel(signedInApp(), {
+      mode: "plus",
+      status: "active",
+    });
+    const desc = descAfter(ui, SIGN_OUT_ALL_ROW);
+    expect(desc).toMatch(/including this device/i);
+    expect(desc).toMatch(/connected apps/i);
+  });
+
+  it("does not render signed out — there is no session to authenticate it", () => {
+    const ui = renderSignedOutPanel(fakeLocalApp());
+    expect(ui.strings).not.toContain(SIGN_OUT_ALL_ROW);
+  });
+
+  it("does not render for a soft session that never proved the email", () => {
+    const ui = renderPlusPanel(signedInApp("inactive"), { mode: "none" });
+    expect(ui.strings).not.toContain(SIGN_OUT_ALL_ROW);
+  });
+});
+
+const approvalMock = askSignOutAllApproval as unknown as ReturnType<typeof vi.fn>;
+const signOutAllMock = signOutAllDevices as unknown as ReturnType<typeof vi.fn>;
+
+async function tapSignOutAll(app: FakeApp, status = "active") {
+  const ui = renderPlusPanel(app, { mode: "plus", status });
+  const btn = ui.buttons.find((b) => b.text === "Sign Out Everywhere");
+  expect(btn, "the panel never drew a Sign Out Everywhere button").toBeTruthy();
+  await btn!.click();
+  return ui;
+}
+
+describe("#320 Sign out all devices — the consent gate", () => {
+  it("cancelling issues no network call at all", async () => {
+    approvalMock.mockResolvedValueOnce("declined");
+    signOutAllMock.mockClear();
+    const app = signedInApp();
+
+    await tapSignOutAll(app);
+
+    // A counter, not the absence of a side effect: a call that happened and
+    // failed would leave the same local state as a call that never happened.
+    expect(signOutAllMock).not.toHaveBeenCalled();
+    expect(app.store["atoms-plus-session"]).toBeTruthy();
+  });
+
+  it("dismissing the dialog issues no network call either", async () => {
+    approvalMock.mockResolvedValueOnce("dismissed");
+    signOutAllMock.mockClear();
+    const app = signedInApp();
+
+    await tapSignOutAll(app);
+
+    expect(signOutAllMock).not.toHaveBeenCalled();
+    expect(app.store["atoms-plus-session"]).toBeTruthy();
+  });
+
+  it("confirming calls the route once with this device's session, then clears it", async () => {
+    approvalMock.mockResolvedValueOnce("confirmed");
+    signOutAllMock.mockClear();
+    signOutAllMock.mockResolvedValueOnce({ ok: true });
+    const app = signedInApp();
+
+    await tapSignOutAll(app);
+
+    expect(signOutAllMock).toHaveBeenCalledTimes(1);
+    expect(signOutAllMock.mock.calls[0]![1]).toBe("sess_" + "d".repeat(32));
+    // The call revoked this session too (KTD2), so holding the local record
+    // would read as signed in while every request 401s.
+    expect(app.store["atoms-plus-session"]).toBeFalsy();
+    expect(redisplayCount).toBe(1);
+  });
+
+  it("a refused call leaves the local session intact", async () => {
+    approvalMock.mockResolvedValueOnce("confirmed");
+    signOutAllMock.mockClear();
+    signOutAllMock.mockResolvedValueOnce({
+      ok: false,
+      status: 500,
+      code: "unknown",
+      message: "Plus request failed (HTTP 500)",
+    });
+    const app = signedInApp();
+
+    const ui = await tapSignOutAll(app);
+
+    // Faking a local sign-out off a server refusal would tell the user their
+    // other devices are out when they are still live.
+    expect(app.store["atoms-plus-session"]).toBeTruthy();
+    expect(ui.notices.join(" ")).toMatch(/HTTP 500/);
   });
 });
