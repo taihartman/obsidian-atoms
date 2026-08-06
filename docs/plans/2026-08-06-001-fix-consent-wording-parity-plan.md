@@ -75,10 +75,21 @@ the start of implementation.
 | #330 | 0.6.80 |
 | #322 | **0.6.78-beta.2** ← branched before #304 landed |
 
-#322's `versions.json` tail ends at `0.6.78-beta.2` and has no `0.6.79` entry at all. Taking its side
-would move the plugin version *backwards* and drop the 0.6.79 mapping. (0.6.79 is on master but
-**not released** — latest stable is 0.6.77, latest prerelease `0.6.78-beta.1` — so this is a
-regression against master, not against a shipped build. The rule is unchanged either way.)
+Taking #322's side is wrong **three** ways at once, all inside one three-line conflict a reviewer
+would plausibly wave through:
+
+```
+master  … "0.6.77", "0.6.78-beta.1", "0.6.79"
+#322    … "0.6.77", "0.6.78",        "0.6.78-beta.1", "0.6.78-beta.2"
+```
+
+1. `manifest.json` moves **backwards**, 0.6.79 → 0.6.78-beta.2.
+2. The **`0.6.79` mapping disappears** from `versions.json`.
+3. A **fictional stable `0.6.78`** appears — verified `"0.6.78":` occurs 0× on master and 1× on #322.
+   No stable 0.6.78 was ever cut; releases go 0.6.77 stable, then `0.6.78-beta.1` prerelease.
+
+(0.6.79 is on master but **not released** — latest stable 0.6.77, latest prerelease `0.6.78-beta.1`.
+So this is a regression against master, not against a shipped build. The rule is unchanged.)
 
 Concretely: #330 lands at 0.6.80, so **ours is 0.6.81 unless #322 lands first**. Which is exactly why
 the number is derived at merge time and not written now.
