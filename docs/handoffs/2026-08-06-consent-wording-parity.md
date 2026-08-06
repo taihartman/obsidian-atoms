@@ -65,10 +65,12 @@ issue's wording, not the plan's, and it is wrong.
 ## Decisions & constraints
 
 - **Union, not swap** (KTD1 above). The whole reason this isn't a one-line import.
-- **The `settings.ts` split is ungated** (KTD2). Measured, not assumed: `feat/320-multi-device-sessions`
-  is 56 insertions / 0 deletions with every hunk between lines 31 and 511. Our block move at 2182+
-  cannot conflict. Only the constants at 295–300 sit near their `+304,52` insertion.
-  **Rebase onto master after #320 lands** — that was offered to the other session in writing.
+- **The `settings.ts` split is ungated** (KTD2). Measured against both open branches: #322 touches
+  lines 31–511 (56 ins), #330 touches 455–574 (13 ins). Our edits are at 295–300 and 2182+, clear of
+  both. **Rebase onto master after #330 lands** — it is small, green, and nearest to merging.
+- **Bump the version files last.** #330 and #322 both bump `manifest.json` / `package.json` /
+  `versions.json`. #315 is user-visible and needs a bump too, so whoever lands last resolves three
+  one-line conflicts. Bump immediately before merge, not at the start of implementation.
 - **#314 is exactly two strings** — `EGRESS_ACK_TITLE` and `ASK_PRIVACY_ACK_TITLE`. #304's QA
   (`docs/qa/2026-08-05-feat-settings-row-grammar-world-class-qa.md:140`) says explicitly: do not
   re-review the screen. Anything beyond those two labels goes back on #314.
@@ -93,13 +95,21 @@ issue's wording, not the plan's, and it is wrong.
 
 ## Open questions / blockers
 
-- **Awaiting the #320 session's reply** to three questions sent 2026-08-06 ~10:52: whether their
-  `settings.ts` diff is settled, whether **#328 and #322 are stacked or one is stale** (both are open
-  and both titled for #320), and where the two-device rig stands. None of this blocks steps 1–2.
-- **Not ours, still open:** the required-check flip (`test + build` is not in master's required set,
-  so it reports without blocking); the 0.6.79 release, which is **beta-or-nothing** because the
-  human-only #240 iOS/Android device test has never run and `crypto.subtle` on the mobile webview is
-  unverified; #316 and its scan for other vacuously-passing tests; #323, owned by the other session.
+- **Answered 2026-08-06 ~11:15 by the #323 session — nothing here blocks steps 1–2.** Their branch is
+  `fix/ask-consent-cross-device` (#330), *not* `feat/320-multi-device-sessions`. **#322 belongs to a
+  prior session** — a complete 2236-line #320 implementation, still open, built 01:39–02:41 UTC.
+  **#328 was redundant and is being closed** (they resumed from the wrong handoff and re-derived U1).
+  The rig is **not up and #323 did not need it**: confirmed by construction, since `loadData()` had a
+  single call site, no `onExternalSettingsChange` handler existed, and every gate reads the in-memory
+  copy — nothing repopulated `plugin.settings` after startup. The rig is now a verification step
+  (does Sync actually fire the hook), not the decider.
+- **The required-check flip is DONE.** Verified: master's required contexts are
+  `["test","test + build"]`, and #330 was the first PR to exercise the gate, both green. Any earlier
+  note in this repo saying it is outstanding is stale — the merge button is trustworthy again.
+- **Not ours, still open:** the 0.6.79 release, **beta-or-nothing** because the human-only #240
+  iOS/Android device test has never run and `crypto.subtle` on the mobile webview is unverified;
+  #316 and its scan for other vacuously-passing tests; **#322**, a 2236-line #320 PR from a prior
+  session sitting open and unreviewed.
 - **Untracked verification debt from #304** with no issue behind it: Escape/click-outside were driven
   with synthetic DOM events and want one manual confirmation; the Plus destination rows, the
   signed-in 15-row count, and the Account async rows were never driven live. The user was offered a

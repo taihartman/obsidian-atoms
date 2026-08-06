@@ -48,26 +48,27 @@ constants into a new `src/settings/consent.ts`, re-exported where needed. Settin
 import from there. Pure move plus one string edit — no behavior change to the three other sheets
 (Ask privacy, vault write), which must keep writing exactly their own field (`settings.ts:290` comment).
 
-**Conflict risk — measured, and smaller than it looks.** The #320/#323 session's branch
-`feat/320-multi-device-sessions` ([PR #322](https://github.com/taihartman/obsidian-atoms/pull/322))
-does touch `src/settings/settings.ts`, but its diff is **56 insertions and zero deletions**, with
-every hunk between lines 31 and 511:
+**Conflict risk — measured against both open branches.** Two in-flight PRs touch
+`src/settings/settings.ts`, and neither goes near our two spots:
 
-```
-@@ -30,0  +31      import { markDestructive } …
-@@ -58,0  +60
-@@ -301,0 +304,52   (the Account rows)
-@@ -389,0 +444
-@@ -455,0 +511
-```
+| PR | Branch | `settings.ts` hunks | Total |
+|---|---|---|---|
+| [#322](https://github.com/taihartman/obsidian-atoms/pull/322) (#320) | `feat/320-multi-device-sessions` | 31, 60, 304 (+52), 444, 511 | 56 ins / 0 del |
+| [#330](https://github.com/taihartman/obsidian-atoms/pull/330) (#323) | `fix/ask-consent-cross-device` | 455 (+3), 562 (+8), 574 (+2) | 13 ins |
 
-Our work is a string edit at 295–300 and a ~150-line block removal at 2182+. **Nothing past line 511
-is touched by them, so lifting `ConsentSheetModal` out cannot textually conflict.** One adjacency to
-watch: their 52-line insertion lands after line 301, within context range of the constants at
-295–300. Rebase on `master` after #322 lands, or expect one trivial hunk to resolve there.
+Our work is a string edit at **295–300** and a ~150-line block removal at **2182+**. Nothing above
+295 or below 574 is touched by either, so lifting `ConsentSheetModal` out cannot textually conflict.
+The one adjacency is #322's 52-line insertion after line 301, within context range of our constants.
 
-**Revised decision: proceed with the split.** Do not gate U1 on the other session. Do tell them it is
-coming — a mid-air rebase surprise is the avoidable half of this.
+**Decision: proceed with the split.** Do not gate U1 on either session.
+
+**The real collision is the version files, not `settings.ts`.** #330 and #322 both bump
+`manifest.json`, `package.json`, and `versions.json`. #315 is user-visible and needs a bump too, so
+whoever lands last resolves three one-line conflicts. Bump **last**, immediately before merge, not at
+the start of implementation.
+
+**Rebase on `master` after #330 lands** — it is small, green, and closest to merging. Not after #322,
+which is a prior session's 2236-line #320 implementation, still open and not on the near path.
 
 ## KTD3 — #314 is exactly two labels
 
