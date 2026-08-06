@@ -4,7 +4,11 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     include: ["test/**/*.test.ts"],
-    environment: "node",
+    // A DOM, because settings rows are asserted on what they render. happy-dom over jsdom:
+    // it is the lighter and faster of the two, and nothing here needs jsdom's fuller
+    // fidelity — the plugin only builds elements, reads text, and clicks. Obsidian's
+    // `HTMLElement` sugar is installed by `test/mocks/domAugmentations.ts`.
+    environment: "happy-dom",
   },
   resolve: {
     alias: {

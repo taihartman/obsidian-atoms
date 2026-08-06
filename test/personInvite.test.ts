@@ -162,6 +162,8 @@ describe("collectPersonInvites", () => {
     const invites = collectPersonInvites(
       [atom("Atoms/m.md", "Mom plan", "Mom wants dinner")],
       {
+        // Without an injected clock this passed vacuously: the fixture aged out
+        // of the recency window, so nothing reached the snooze check at all.
         now: NOW,
         personHubTitles: [],
         vaultTitles: [],

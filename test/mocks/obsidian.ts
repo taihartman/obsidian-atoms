@@ -1,120 +1,421 @@
 /** Minimal stub so unit tests can import modules that depend on `obsidian`. */
+import "./domAugmentations";
+import { activeCapture, noteUiString } from "./uiCapture";
+
+/**
+ * The order-sensitive recorder, re-exported from here because a test importing it alongside
+ * `Setting` should not have to know it lives in a second file. The DOM-backed classes below
+ * report into it; see `./uiCapture` for why the state itself sits outside this module.
+ */
+export {
+  captureObsidianUi,
+  stopCapturingObsidianUi,
+  type UiCapture,
+} from "./uiCapture";
+
 export function requestUrl(_opts: unknown): Promise<unknown> {
   throw new Error("requestUrl mock not configured — inject deps.request in tests");
 }
 
 export class Plugin {}
-export class PluginSettingTab {}
-
-/**
- * Opt-in recorder for what a settings render actually put on screen. Off by
- * default so every existing test keeps the old inert `Setting`; a test that
- * calls `captureObsidianUi()` gets every name, description, placeholder and
- * button label the render produced, which is what a panel-wide copy assertion
- * needs.
- */
-export type UiCapture = {
-  /** Every string rendered into the panel, in render order. */
-  strings: string[];
-  buttons: { text: string; click: () => unknown }[];
-  inputs: { dataset: Record<string, string>; value: string }[];
-  notices: string[];
-};
-
-let capture: UiCapture | null = null;
-
-export function captureObsidianUi(): UiCapture {
-  capture = { strings: [], buttons: [], inputs: [], notices: [] };
-  return capture;
+export class PluginSettingTab {
+  app: unknown;
+  plugin: unknown;
+  /** Real element, so a tab's `display()` renders into something a test can read back. */
+  containerEl: HTMLElement = document.createElement("div");
+  constructor(app?: unknown, plugin?: unknown) {
+    this.app = app;
+    this.plugin = plugin;
+  }
+  display(): void {}
+  hide(): void {}
 }
-
-export function stopCapturingObsidianUi(): void {
-  capture = null;
-}
-
-function note(value: unknown): void {
-  if (capture && typeof value === "string") capture.strings.push(value);
-}
-
-function makeButton() {
-  const entry = { text: "", click: (() => {}) as () => unknown };
-  capture?.buttons.push(entry);
-  const btn = {
-    setButtonText(text: string) {
-      entry.text = text;
-      note(text);
-      return btn;
-    },
-    setCta: () => btn,
-    setWarning: () => btn,
-    setTooltip: () => btn,
-    setIcon: () => btn,
-    setDisabled: () => btn,
-    onClick(fn: () => unknown) {
-      entry.click = fn;
-      return btn;
-    },
-  };
-  return btn;
-}
-
-function makeText() {
-  const inputEl = { dataset: {} as Record<string, string>, value: "" };
-  capture?.inputs.push(inputEl);
-  const text = {
-    inputEl,
-    setPlaceholder(placeholder: string) {
-      note(placeholder);
-      return text;
-    },
-    setValue(v: string) {
-      inputEl.value = v;
-      return text;
-    },
-    onChange: () => text,
-  };
-  return text;
-}
-
 export class Notice {
+  /** Every notice raised since the last reset — a test's handle on user-visible outcomes. */
+  static messages: string[] = [];
   message: string;
   constructor(msg: string, _timeout?: number) {
     this.message = msg;
-    capture?.notices.push(msg);
+    Notice.messages.push(msg);
+    activeCapture()?.notices.push(msg);
   }
-  /** Every message a Notice carried, so a test can tell a toast from a modal. */
-  setMessage(msg: string) {
+  /**
+   * Progress replaces itself inside one notice rather than stacking (`createSignInStatusSurface`),
+   * so every message it carried is recorded — that is what lets a test tell a toast from a modal.
+   */
+  setMessage(msg: string): this {
     this.message = msg;
-    capture?.notices.push(msg);
+    Notice.messages.push(msg);
+    activeCapture()?.notices.push(msg);
     return this;
   }
-  hide() {}
+  hide(): void {}
 }
+
+/**
+ * The row grammar is asserted on rendered output, so `Setting` is a DOM-backed recorder
+ * rather than a no-op chainable: it builds the element skeleton Obsidian does
+ * (`setting-item` > `setting-item-info` {name, desc} + `setting-item-control`) and records
+ * every control added, in order, as {@link Setting.controls}.
+ *
+ * Only the surface the plugin calls is modelled, and only where `obsidian.d.ts` has it —
+ * `Setting` has no `setWarning`, for instance; that lives on `ButtonComponent`, deprecated
+ * there in favour of `setDestructive`.
+ */
+export type ControlKind = "button" | "extraButton" | "toggle" | "text" | "dropdown" | "component";
+
+export interface RecordedControl {
+  kind: ControlKind;
+  component: unknown;
+}
+
+/**
+ * Every time a component has been handed to `then` since the last reset — which, inside a
+ * promise chain, is the machinery adopting it as a thenable. See {@link BaseComponent.then}.
+ */
+let componentThenCalls = 0;
+
+/** How many times a component was treated as a thenable since {@link resetThenCalls}. */
+export function thenCalls(): number {
+  return componentThenCalls;
+}
+
+export function resetThenCalls(): void {
+  componentThenCalls = 0;
+}
+
+/**
+ * Past this many adoptions, {@link BaseComponent.then} settles with a non-thenable.
+ *
+ * Obsidian's real `then` never stops, so modelling it faithfully would hang the whole vitest
+ * run instead of failing one assertion. The cap is high enough that no legitimate chaining call
+ * reaches it and low enough that a regressed test still finishes.
+ */
+const THEN_ADOPTION_CAP = 20;
+
+class BaseComponent {
+  disabled = false;
+  tooltip: string | null = null;
+  /**
+   * Obsidian components are thenables: `then(cb)` runs `cb(this)` and hands `this` back —
+   * "Facilitates chaining" in `obsidian.d.ts`, on `BaseComponent` since 0.9.7.
+   *
+   * Modelled because it is the entire shape of a renderer-freezing bug class. A component
+   * returned out of a `.then`/`.finally` callback is adopted by the promise machinery, which
+   * calls this method, is resolved with the same thenable, and starts over — a microtask loop
+   * that never yields, with no re-render and no growing stack to see. A mock without `then`
+   * cannot catch that, which is how one shipped past 1091 green tests.
+   */
+  then(cb: (component: unknown) => unknown): this {
+    componentThenCalls += 1;
+    cb(componentThenCalls > THEN_ADOPTION_CAP ? undefined : this);
+    return this;
+  }
+  setDisabled(disabled: boolean): this {
+    this.disabled = disabled;
+    return this;
+  }
+  setTooltip(tooltip: string): this {
+    this.tooltip = tooltip;
+    return this;
+  }
+}
+
+/**
+ * Claim this button's place in the running capture at construction, so `ui.buttons` is ordered
+ * by when buttons were *built* rather than by when they happened to be labelled.
+ */
+function registerCapturedButton(): { text: string; click: () => unknown } | null {
+  const capture = activeCapture();
+  if (!capture) return null;
+  const entry = { text: "", click: (() => {}) as () => unknown };
+  capture.buttons.push(entry);
+  return entry;
+}
+
+export class ButtonComponent extends BaseComponent {
+  buttonEl: HTMLButtonElement;
+  /** Last `onClick` handler, so a test can fire a row's action without a synthetic event. */
+  clickHandler: ((evt?: unknown) => unknown) | null = null;
+  /** This button's slot in the running capture, so its label and handler stay reachable in order. */
+  private readonly captured = registerCapturedButton();
+  constructor(containerEl: HTMLElement) {
+    super();
+    this.buttonEl = containerEl.appendChild(document.createElement("button"));
+  }
+  setButtonText(text: string): this {
+    this.buttonEl.textContent = text;
+    noteUiString(text);
+    if (this.captured) this.captured.text = text;
+    return this;
+  }
+  setIcon(icon: string): this {
+    this.buttonEl.setAttribute("data-icon", icon);
+    return this;
+  }
+  setClass(cls: string): this {
+    this.buttonEl.classList.add(cls);
+    return this;
+  }
+  setCta(): this {
+    this.buttonEl.classList.add("mod-cta");
+    return this;
+  }
+  removeCta(): this {
+    this.buttonEl.classList.remove("mod-cta");
+    return this;
+  }
+  /** @deprecated mirrors the API — prefer {@link ButtonComponent.setDestructive}. */
+  setWarning(): this {
+    this.buttonEl.classList.add("mod-warning");
+    return this;
+  }
+  setDestructive(): this {
+    this.buttonEl.classList.add("mod-destructive");
+    return this;
+  }
+  removeDestructive(): this {
+    this.buttonEl.classList.remove("mod-destructive");
+    return this;
+  }
+  override setDisabled(disabled: boolean): this {
+    this.buttonEl.disabled = disabled;
+    return super.setDisabled(disabled);
+  }
+  override setTooltip(tooltip: string): this {
+    this.buttonEl.setAttribute("aria-label", tooltip);
+    return super.setTooltip(tooltip);
+  }
+  onClick(callback: (evt?: unknown) => unknown): this {
+    this.clickHandler = callback;
+    if (this.captured) this.captured.click = () => callback();
+    this.buttonEl.addEventListener("click", (evt) => callback(evt));
+    return this;
+  }
+}
+
+export class ExtraButtonComponent extends BaseComponent {
+  extraSettingsEl: HTMLElement;
+  clickHandler: (() => unknown) | null = null;
+  constructor(containerEl: HTMLElement) {
+    super();
+    this.extraSettingsEl = containerEl.appendChild(document.createElement("div"));
+    this.extraSettingsEl.classList.add("extra-setting-button");
+  }
+  setIcon(icon: string): this {
+    this.extraSettingsEl.setAttribute("data-icon", icon);
+    return this;
+  }
+  override setTooltip(tooltip: string): this {
+    this.extraSettingsEl.setAttribute("aria-label", tooltip);
+    return super.setTooltip(tooltip);
+  }
+  onClick(callback: () => unknown): this {
+    this.clickHandler = callback;
+    this.extraSettingsEl.addEventListener("click", () => callback());
+    return this;
+  }
+}
+
+class ValueComponent<T> extends BaseComponent {
+  protected value: T;
+  protected changeHandler: ((value: T) => unknown) | null = null;
+  constructor(initial: T) {
+    super();
+    this.value = initial;
+  }
+  getValue(): T {
+    return this.value;
+  }
+  onChange(callback: (value: T) => unknown): this {
+    this.changeHandler = callback;
+    return this;
+  }
+}
+
+export class ToggleComponent extends ValueComponent<boolean> {
+  toggleEl: HTMLElement;
+  constructor(containerEl: HTMLElement) {
+    super(false);
+    this.toggleEl = containerEl.appendChild(document.createElement("div"));
+    this.toggleEl.classList.add("checkbox-container");
+    // Obsidian's real switch flips on a click of its own element. Mirroring that here is what
+    // lets a test reach a toggle through the rendered tab, with no handle on the component.
+    this.toggleEl.addEventListener("click", () => this.toggle());
+  }
+  setValue(value: boolean): this {
+    this.value = value;
+    this.toggleEl.classList.toggle("is-enabled", value);
+    this.changeHandler?.(value);
+    return this;
+  }
+  override setDisabled(disabled: boolean): this {
+    this.toggleEl.classList.toggle("is-disabled", disabled);
+    return super.setDisabled(disabled);
+  }
+  /** Test affordance: flip the switch the way a click would, firing `onChange`. */
+  toggle(): this {
+    return this.setValue(!this.value);
+  }
+}
+
+export class TextComponent extends ValueComponent<string> {
+  inputEl: HTMLInputElement;
+  constructor(containerEl: HTMLElement) {
+    super("");
+    this.inputEl = containerEl.appendChild(document.createElement("input"));
+    this.inputEl.type = "text";
+    activeCapture()?.inputs.push(this.inputEl);
+    // Same reason as ToggleComponent: typing into the rendered field must reach `onChange`
+    // without the test holding the component.
+    this.inputEl.addEventListener("input", () => this.fill(this.inputEl.value));
+  }
+  setValue(value: string): this {
+    this.value = value;
+    this.inputEl.value = value;
+    return this;
+  }
+  setPlaceholder(placeholder: string): this {
+    this.inputEl.placeholder = placeholder;
+    noteUiString(placeholder);
+    return this;
+  }
+  override setDisabled(disabled: boolean): this {
+    this.inputEl.disabled = disabled;
+    return super.setDisabled(disabled);
+  }
+  /** Test affordance: type into the field and fire `onChange`, as a real user would. */
+  fill(value: string): this {
+    this.setValue(value);
+    this.changeHandler?.(value);
+    return this;
+  }
+}
+
+export class DropdownComponent extends ValueComponent<string> {
+  selectEl: HTMLSelectElement;
+  constructor(containerEl: HTMLElement) {
+    super("");
+    this.selectEl = containerEl.appendChild(document.createElement("select"));
+  }
+  addOption(value: string, display: string): this {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = display;
+    this.selectEl.appendChild(option);
+    return this;
+  }
+  addOptions(options: Record<string, string>): this {
+    for (const [value, display] of Object.entries(options)) this.addOption(value, display);
+    return this;
+  }
+  setValue(value: string): this {
+    this.value = value;
+    this.selectEl.value = value;
+    return this;
+  }
+}
+
 export class Setting {
-  constructor(_containerEl?: unknown) {}
-  setName(name?: unknown) {
-    note(name);
+  settingEl: HTMLElement;
+  infoEl: HTMLElement;
+  nameEl: HTMLElement;
+  descEl: HTMLElement;
+  controlEl: HTMLElement;
+  components: unknown[] = [];
+  /** Every control added to this row, in the order it was added. */
+  controls: RecordedControl[] = [];
+
+  constructor(containerEl: HTMLElement = document.createElement("div")) {
+    this.settingEl = containerEl.appendChild(document.createElement("div"));
+    this.settingEl.classList.add("setting-item");
+    this.infoEl = this.settingEl.appendChild(document.createElement("div"));
+    this.infoEl.classList.add("setting-item-info");
+    this.nameEl = this.infoEl.appendChild(document.createElement("div"));
+    this.nameEl.classList.add("setting-item-name");
+    this.descEl = this.infoEl.appendChild(document.createElement("div"));
+    this.descEl.classList.add("setting-item-description");
+    this.controlEl = this.settingEl.appendChild(document.createElement("div"));
+    this.controlEl.classList.add("setting-item-control");
+  }
+
+  /** Rendered row name, as a reader sees it. */
+  get name(): string {
+    return this.nameEl.textContent ?? "";
+  }
+
+  /** Rendered row description, as a reader sees it. */
+  get desc(): string {
+    return this.descEl.textContent ?? "";
+  }
+
+  setName(name: string | DocumentFragment): this {
+    this.nameEl.textContent = "";
+    noteUiString(name);
+    if (typeof name === "string") this.nameEl.textContent = name;
+    else this.nameEl.appendChild(name);
     return this;
   }
-  setDesc(desc?: unknown) {
-    note(desc);
+  setDesc(desc: string | DocumentFragment): this {
+    this.descEl.textContent = "";
+    noteUiString(desc);
+    if (typeof desc === "string") this.descEl.textContent = desc;
+    else this.descEl.appendChild(desc);
     return this;
   }
-  setHeading() {
+  setClass(cls: string): this {
+    this.settingEl.classList.add(cls);
     return this;
   }
-  addButton(cb?: (btn: unknown) => void) {
-    if (capture && cb) cb(makeButton());
+  setTooltip(tooltip: string): this {
+    this.settingEl.setAttribute("aria-label", tooltip);
     return this;
   }
-  addText(cb?: (text: unknown) => void) {
-    if (capture && cb) cb(makeText());
+  setHeading(): this {
+    this.settingEl.classList.add("setting-item-heading");
     return this;
   }
-  addToggle() {
+  setDisabled(disabled: boolean): this {
+    this.settingEl.classList.toggle("is-disabled", disabled);
     return this;
   }
-  addComponent() {
+
+  private record<T>(kind: ControlKind, component: T, cb: (component: T) => unknown): this {
+    this.components.push(component);
+    this.controls.push({ kind, component });
+    cb(component);
+    return this;
+  }
+
+  addButton(cb: (component: ButtonComponent) => unknown): this {
+    return this.record("button", new ButtonComponent(this.controlEl), cb);
+  }
+  addExtraButton(cb: (component: ExtraButtonComponent) => unknown): this {
+    return this.record("extraButton", new ExtraButtonComponent(this.controlEl), cb);
+  }
+  addToggle(cb: (component: ToggleComponent) => unknown): this {
+    return this.record("toggle", new ToggleComponent(this.controlEl), cb);
+  }
+  addText(cb: (component: TextComponent) => unknown): this {
+    return this.record("text", new TextComponent(this.controlEl), cb);
+  }
+  addDropdown(cb: (component: DropdownComponent) => unknown): this {
+    return this.record("dropdown", new DropdownComponent(this.controlEl), cb);
+  }
+  addComponent<T>(cb: (el: HTMLElement) => T): this {
+    const component = cb(this.controlEl);
+    this.components.push(component);
+    this.controls.push({ kind: "component", component });
+    return this;
+  }
+  then(cb: (setting: this) => unknown): this {
+    cb(this);
+    return this;
+  }
+  clear(): this {
+    this.controlEl.textContent = "";
+    this.components = [];
+    this.controls = [];
     return this;
   }
 }
@@ -137,48 +438,127 @@ export const moment = (input?: string) => ({
   // Carried so callers can recover the requested date from a moment-like value.
   _input: input ?? null,
 });
-export class SecretComponent {}
-type ModalEl = {
-  empty: () => void;
-  addClass: () => void;
-  createEl: (
-    tag?: string,
-    opts?: { text?: string; cls?: string },
-  ) => ModalEl & { setText: (text: string) => void; style: Record<string, string> };
-};
-
-function makeModalEl(): ModalEl {
-  const el: ModalEl = {
-    empty: () => {},
-    addClass: () => {},
-    // Text goes through `note` so a capturing test can assert what a modal
-    // actually rendered, and in what order relative to its buttons.
-    createEl: (_tag?: string, opts?: { text?: string; cls?: string }) => {
-      note(opts?.text);
-      return Object.assign(makeModalEl(), {
-        setText: (text: string) => note(text),
-        style: {} as Record<string, string>,
-      });
-    },
-  };
-  return el;
+/**
+ * Modelled rather than left a bare stub: rendering the real settings tab walks the API-key
+ * row, and a stub there threw before any later section rendered — which quietly turned every
+ * whole-tab test into a test of how far `display()` got.
+ */
+export class SecretComponent extends BaseComponent {
+  app: unknown;
+  containerEl: HTMLElement | undefined;
+  /**
+   * A real input, for the same reason `TextComponent` has one: saving a secret id is what
+   * triggers the API-key check, so a test has to reach the field through the rendered row.
+   */
+  inputEl: HTMLInputElement;
+  value = "";
+  private changeHandler: ((value: string) => unknown) | null = null;
+  constructor(app: unknown, containerEl?: HTMLElement) {
+    super();
+    this.app = app;
+    this.containerEl = containerEl;
+    this.inputEl = (containerEl ?? document.createElement("div")).appendChild(
+      document.createElement("input"),
+    );
+    this.inputEl.type = "password";
+    this.inputEl.addEventListener("input", () => this.fill(this.inputEl.value));
+  }
+  setValue(value: string): this {
+    this.value = value;
+    this.inputEl.value = value;
+    return this;
+  }
+  onChange(cb: (value: string) => unknown): this {
+    this.changeHandler = cb;
+    return this;
+  }
+  /** Test affordance: type into the field and fire `onChange`, as a real user would. */
+  fill(value: string): this {
+    this.setValue(value);
+    this.changeHandler?.(value);
+    return this;
+  }
 }
-
+/**
+ * DOM-backed, because consent now lives in a sheet: a test has to read the disclosure a modal
+ * renders and press its buttons, and the previous stub swallowed both. `open()`/`close()` run
+ * the lifecycle hooks exactly once per visit, so "dismissed" (Escape, click-outside, the tab
+ * closing — all of which reach Obsidian as `close()`) stays distinguishable from "accepted".
+ */
 export class Modal {
   app: unknown;
-  contentEl: ModalEl;
+  containerEl: HTMLElement;
+  contentEl: HTMLElement;
+  titleEl: HTMLElement;
+  private isOpen = false;
+  /** Modals currently open, oldest first — a test's handle on a sheet it never constructed. */
+  static open: Modal[] = [];
   constructor(app: unknown) {
     this.app = app;
-    this.contentEl = makeModalEl();
-  }
-  /** Obsidian renders on open; tests need the same trigger. */
-  open() {
-    this.onOpen();
+    this.containerEl = document.createElement("div");
+    this.containerEl.classList.add("modal-container");
+    this.titleEl = this.containerEl.appendChild(document.createElement("div"));
+    this.titleEl.classList.add("modal-title");
+    this.contentEl = this.containerEl.appendChild(document.createElement("div"));
+    this.contentEl.classList.add("modal-content");
   }
   onOpen() {}
   onClose() {}
-  /** Inert, as before: dismissal is driven by calling `onClose` directly. */
-  close() {}
+  open() {
+    if (this.isOpen) return;
+    this.isOpen = true;
+    Modal.open.push(this);
+    document.body.appendChild(this.containerEl);
+    this.onOpen();
+  }
+  close() {
+    if (!this.isOpen) return;
+    this.isOpen = false;
+    const at = Modal.open.indexOf(this);
+    if (at >= 0) Modal.open.splice(at, 1);
+    this.containerEl.remove();
+    this.onClose();
+  }
 }
+/**
+ * Suggest modals are constructed by view code but never driven from unit tests — only the
+ * shape a subclass extends is modelled, so importing those modules does not blow up.
+ */
+export class SuggestModal<T> extends Modal {
+  setPlaceholder(_text: string): void {}
+  getSuggestions(_query: string): T[] {
+    return [];
+  }
+}
+export class FuzzySuggestModal<T> extends SuggestModal<T> {
+  getItems(): T[] {
+    return [];
+  }
+  getItemText(_item: T): string {
+    return "";
+  }
+  onChooseItem(_item: T, _evt: unknown): void {}
+}
+
+/** Passed to `getActiveViewOfType` as a token; tests stub what the workspace hands back. */
+export class MarkdownView {}
+
+/** Enough of the view base class that modules declaring an `ItemView` subclass can be imported. */
+export class ItemView {
+  app: unknown;
+  containerEl: HTMLElement = document.createElement("div");
+  contentEl: HTMLElement = this.containerEl.appendChild(document.createElement("div"));
+  constructor(public leaf?: unknown) {}
+  getViewType(): string {
+    return "";
+  }
+  getDisplayText(): string {
+    return "";
+  }
+  registerEvent(_ref: unknown): void {}
+  registerDomEvent(_el: unknown, _type: string, _cb: unknown): void {}
+}
+export type WorkspaceLeaf = unknown;
+
 export type App = unknown;
 export type EventRef = unknown;

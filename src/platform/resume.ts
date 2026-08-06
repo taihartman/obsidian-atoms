@@ -272,6 +272,19 @@ export function writeEgressNoticeAcked(
   save(LS_EGRESS_NOTICE, true);
 }
 
+/**
+ * Take the catch-up notice back.
+ *
+ * The counterpart `writeEgressNoticeAcked` never had: this notice is one of the two device-local
+ * booleans that satisfy the egress gate, so a withdrawal that clears only the other one leaves
+ * the paid path open under a consent the user just revoked.
+ */
+export function clearEgressNoticeAcked(
+  save: (key: string, data: unknown) => void,
+): void {
+  save(LS_EGRESS_NOTICE, false);
+}
+
 export type LastCatchupRecord = {
   at: number;
   drained?: number;
@@ -434,6 +447,12 @@ export function recordQuarantineFail(
   };
 }
 
+/**
+ * The name half of the catch-up fact. Exported so the settings status row can carry it as a row
+ * name and split it back off the line, rather than re-spelling the prefix in a second place.
+ */
+export const LAST_CATCHUP_LABEL = "Last catch-up";
+
 export function formatLastCatchupLine(
   rec: LastCatchupRecord | null,
   now: number = Date.now(),
@@ -456,5 +475,5 @@ export function formatLastCatchupLine(
     parts.push(`${filingInLastHour} in the last hour`);
   }
   const detail = parts.length ? parts.join(" · ") : "caught up";
-  return `Last catch-up ${when}: ${detail}`;
+  return `${LAST_CATCHUP_LABEL} ${when}: ${detail}`;
 }

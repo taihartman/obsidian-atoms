@@ -139,10 +139,6 @@ export function atomRefuseNotice(): string {
   return "This one already became a note. Open it or edit the daily yourself.";
 }
 
-export function flagOffNotice(): string {
-  return "Turn on Reconsider capture in Settings → Atoms.";
-}
-
 export function collisionNotice(): string {
   return "Couldn’t file — a note with that claim already exists.";
 }

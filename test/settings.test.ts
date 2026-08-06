@@ -1,5 +1,9 @@
+import { existsSync } from "node:fs";
+import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { App } from "obsidian";
+import type { App, PluginManifest } from "obsidian";
+import AtomsPlugin from "../src/plugin/main";
+import { registerAtomsCommands } from "../src/plugin/commands";
 import {
   clampShortlistSize,
   logShortlistDiagnostics,
@@ -10,18 +14,58 @@ import {
   MetadataContextProvider,
   MIN_SHORTLIST_K,
   type ShortlistContext,
+  type ShortlistRunOptions,
 } from "../src/pipeline/context";
 import { runWritePath } from "../src/pipeline/write";
-import { AtomsSettingTab } from "../src/settings/settings";
-import { readPendingSignIns } from "../src/platform/filingAuth";
+import {
+  accountRowDescriptor,
+  type AccountState,
+  AtomsSettingTab,
+  type ConnectivityRequest,
+} from "../src/settings/settings";
+import {
+  readPendingSignIns,
+  type PlusSession,
+} from "../src/platform/filingAuth";
 import { s256Challenge } from "../src/platform/pkce";
 import { requestMagicLink } from "../src/platform/plusClient";
 import {
+  destinationNames,
+  dismissSheet,
+  flip,
+  open,
+  press,
+  pressSheet,
+  prose,
+  row,
+  rowNames,
+  settingTab,
+  sheetOpen,
+  sheetText,
+  fill,
+  type SettingTabOptions,
+} from "./helpers/settingsTab";
+import {
+  LS_AUTO_RUN_EGRESS_ACK,
+  LS_AUTO_RUN_ENABLED,
+  LS_LAST_RUN_DAY,
+  readEgressPermitted,
+} from "../src/platform/autorun";
+import { LS_EGRESS_NOTICE } from "../src/platform/resume";
+// `../mocks/obsidian` rather than `"obsidian"`: vitest aliases the module, `tsc` does not.
+import {
   captureObsidianUi,
+  Modal,
+  Notice,
   stopCapturingObsidianUi,
   type UiCapture,
 } from "./mocks/obsidian";
-import { DEFAULT_SETTINGS, type LinkerSettings } from "../src/shared/types";
+import {
+  API_KEY_SECRET_ID_DEFAULT,
+  DEFAULT_SETTINGS,
+  LOCAL_STORAGE_API_KEY,
+  type LinkerSettings,
+} from "../src/shared/types";
 import {
   atomResult,
   fakeClassify,
@@ -41,6 +85,26 @@ vi.mock("../src/platform/plusClient", async (importOriginal) => {
     requestMagicLink: vi.fn(async () => ({ ok: true as const })),
   };
 });
+
+/**
+ * The real command table, registered against a real plugin instance. A capability a settings row
+ * used to offer only survives its deletion if the palette actually registers it, so R10 is
+ * checked against `registerAtomsCommands` rather than inferred.
+ */
+function registeredCommands(): Array<{ id: string; name: string; callback?: () => void }> {
+  // Constructed, not stubbed: the command table is registered against the real plugin, so a
+  // command that never reaches `registerAtomsCommands` cannot pass by being mocked in.
+  const plugin = new AtomsPlugin({} as App, {} as PluginManifest);
+  plugin.settings = { ...DEFAULT_SETTINGS };
+  const commands: Array<{ id: string; name: string; callback?: () => void }> = [];
+  Object.assign(plugin, {
+    app: { workspace: { getActiveViewOfType: () => null } },
+    addCommand: (cmd: { id: string; name: string; callback?: () => void }) =>
+      commands.push(cmd),
+  });
+  registerAtomsCommands(plugin);
+  return commands;
+}
 
 /**
  * A provider that keeps every `ShortlistContext` the run handed out, so a test can assert what
@@ -87,7 +151,16 @@ const settings = (over: Partial<LinkerSettings> = {}): LinkerSettings => ({
   ...over,
 });
 
-async function processWith(v: VaultDouble, s: LinkerSettings) {
+/**
+ * `over` stands for the callers that still choose their own retrieval options in code — a catch-up
+ * passes `expandGraph: false`. Neither is a setting any more (KTD8), so a test that wants
+ * non-default retrieval asks for it the way production does: through the run options.
+ */
+async function processWith(
+  v: VaultDouble,
+  s: LinkerSettings,
+  over: Partial<ShortlistRunOptions> = {},
+) {
   const rec = recordingProvider(v.app);
   const classify = fakeClassify([atomResult("Espresso ground finer pulls sweeter")]);
   await runWritePath({
@@ -98,22 +171,45 @@ async function processWith(v: VaultDouble, s: LinkerSettings) {
     activeVocabulary: s.activeVocabulary,
     atomFolder: s.atomFolder,
     includeToday: true,
-    ...shortlistOptionsFromSettings(s),
+    ...shortlistOptionsFromSettings(),
+    ...over,
     classifyDeps: { request: classify.request as never },
   });
   return rec;
 }
 
-describe("shortlist size setting (R8)", () => {
-  it("defaults to the studied k when nothing is configured (KTD6)", () => {
-    expect(DEFAULT_SETTINGS.shortlistSize).toBe(DEFAULT_SHORTLIST_K);
+describe("deleted tuning keys (KTD8)", () => {
+  // These keys were removed from LinkerSettings; existing data.json files keep them.
+  const stale = {
+    shortlistSize: 50,
+    expandLinkedNotes: false,
+    enableReconsiderCapture: false,
+  } as Partial<LinkerSettings>;
+
+  it("a data.json still carrying them loads and has no effect on retrieval", async () => {
+    const v = linkedVault();
+    const rec = await processWith(v, settings(stale));
+
+    expect(rec.seen[0]!.stats.k).toBe(DEFAULT_SHORTLIST_K);
+    // expandLinkedNotes: false is equally inert — the walk still runs.
+    expect(rec.seen[0]!.stats.expanded).toBe(1);
+  });
+
+  it("renders no row for any of them", () => {
+    const { tab } = settingTab({ settings: stale });
+    tab.display();
+
+    expect(rowNames(tab)).not.toContain("Notes considered per capture");
+    expect(rowNames(tab)).not.toContain("Also consider linked notes");
+    // Reconsider capture is now unconditional; a toggle would describe a gate that is gone.
+    expect(rowNames(tab)).not.toContain("Reconsider capture");
+  });
+});
+
+describe("shortlist size (R8)", () => {
+  it("is the studied k for every caller (KTD6)", () => {
     expect(clampShortlistSize(undefined)).toBe(DEFAULT_SHORTLIST_K);
     expect(shortlistOptionsFromSettings()).toEqual({
-      shortlistK: DEFAULT_SHORTLIST_K,
-      expandGraph: DEFAULT_GRAPH_EXPANSION,
-    });
-    // A data.json written before this version has neither key.
-    expect(shortlistOptionsFromSettings({})).toEqual({
       shortlistK: DEFAULT_SHORTLIST_K,
       expandGraph: DEFAULT_GRAPH_EXPANSION,
     });
@@ -143,29 +239,33 @@ describe("shortlist size setting (R8)", () => {
     expect(clampShortlistSize(0.4)).toBe(MIN_SHORTLIST_K);
   });
 
-  it("arrives at getCandidates, not merely in data.json", async () => {
+  it("arrives at getCandidates as the default, not merely in the options object", async () => {
     const v = linkedVault();
-    const rec = await processWith(v, settings({ shortlistSize: 1 }));
+    const rec = await processWith(v, settings());
 
     expect(rec.seen.length).toBeGreaterThan(0);
+    expect(rec.seen[0]!.stats.k).toBe(DEFAULT_SHORTLIST_K);
+  });
+
+  it("honours a k a caller chose in code, down to one scored slot", async () => {
+    const v = linkedVault();
+    const rec = await processWith(v, settings(), { shortlistK: 1 });
+
     expect(rec.seen[0]!.stats.k).toBe(1);
     // One scored slot honoured: only the expansion slots sit on top of it.
     expect(rec.seen[0]!.shortlist.filter((c) => c.score > 0)).toHaveLength(1);
   });
 
-  it("clamps an invalid stored size on the way into the run", async () => {
+  it("clamps a junk k on the way into the run", async () => {
     const v = linkedVault();
-    const rec = await processWith(
-      v,
-      settings({ shortlistSize: 0 as LinkerSettings["shortlistSize"] }),
-    );
+    const rec = await processWith(v, settings(), { shortlistK: clampShortlistSize(0) });
 
     expect(rec.seen[0]!.stats.k).toBe(MIN_SHORTLIST_K);
     expect(rec.seen[0]!.titles.length).toBeGreaterThan(0);
   });
 });
 
-describe("linked-notes setting on the daily path (R7)", () => {
+describe("linked-notes expansion on the daily path (R7)", () => {
   it("is on by default, and the daily path reaches a note BM25 scored zero", async () => {
     const v = linkedVault();
     const rec = await processWith(v, settings());
@@ -176,7 +276,7 @@ describe("linked-notes setting on the daily path (R7)", () => {
 
   it("off is honoured: no walk runs and the stats key is absent entirely", async () => {
     const v = linkedVault();
-    const rec = await processWith(v, settings({ expandLinkedNotes: false }));
+    const rec = await processWith(v, settings(), { expandGraph: false });
 
     expect(rec.beginOpts[0]).toMatchObject({ expandGraph: false });
     // Absent, not zero — the off case is byte-identical to the pre-expansion output.
@@ -186,12 +286,12 @@ describe("linked-notes setting on the daily path (R7)", () => {
 });
 
 describe("shortlist diagnostics (R6)", () => {
-  it("reports the counts the setting is tuned by", async () => {
+  it("reports the counts a run is diagnosed by", async () => {
     const v = linkedVault();
-    const rec = await processWith(v, settings({ shortlistSize: 50 }));
+    const rec = await processWith(v, settings());
     const payload = shortlistDiagnostics(rec.seen[0]!.stats);
 
-    expect(payload.k).toBe(50);
+    expect(payload.k).toBe(DEFAULT_SHORTLIST_K);
     expect(payload.expansion).toBe("on");
     expect(payload.slotsUsed).toBe(1);
     expect(payload.slotLimit).toBeGreaterThan(0);
@@ -202,7 +302,7 @@ describe("shortlist diagnostics (R6)", () => {
 
   it("drops the expansion counts to zero when the walk never ran", async () => {
     const v = linkedVault();
-    const rec = await processWith(v, settings({ expandLinkedNotes: false }));
+    const rec = await processWith(v, settings(), { expandGraph: false });
     const payload = shortlistDiagnostics(rec.seen[0]!.stats);
 
     expect(payload.expansion).toBe("off");
@@ -246,6 +346,1472 @@ describe("shortlist diagnostics (R6)", () => {
   });
 });
 
+/**
+ * The Atoms Plus account cluster used to be four hand-maintained branches that each rendered
+ * their own Refresh status / Sign out / Account rows. These assert the replacement: one sealed
+ * state, one main-screen row per state, and one destination holding the management actions.
+ */
+describe("account row", () => {
+  const ACTIVE_SESSION: PlusSession = {
+    sessionToken: "sess_live",
+    email: "user@example.com",
+    status: "active",
+    remaining: 12,
+    periodEnd: "2026-09-01T00:00:00.000Z",
+  };
+
+  function activeTab() {
+    return settingTab({
+      session: ACTIVE_SESSION,
+      auth: {
+        mode: "plus",
+        sessionToken: ACTIVE_SESSION.sessionToken,
+        email: ACTIVE_SESSION.email,
+        status: "active",
+        remaining: 12,
+        periodEnd: ACTIVE_SESSION.periodEnd,
+      },
+    });
+  }
+
+  const STATES: Array<[string, SettingTabOptions, string]> = [
+    ["signed out", {}, "Set up automatic filing"],
+    [
+      "trial incomplete",
+      {
+        session: {
+          sessionToken: "sess_soft",
+          email: "user@example.com",
+          status: "inactive",
+        },
+      },
+      "Finish trial setup",
+    ],
+    [
+      "active",
+      {
+        session: ACTIVE_SESSION,
+        auth: {
+          mode: "plus",
+          sessionToken: "sess_live",
+          email: "user@example.com",
+          status: "active",
+          remaining: 12,
+        },
+      },
+      "Plus · 12 filings left",
+    ],
+    [
+      "exhausted",
+      {
+        session: { ...ACTIVE_SESSION, status: "exhausted", remaining: 0 },
+        auth: {
+          mode: "plus",
+          sessionToken: "sess_live",
+          email: "user@example.com",
+          status: "exhausted",
+          remaining: 0,
+        },
+      },
+      "Monthly limit reached",
+    ],
+  ];
+
+  it.each(STATES)("renders the %s main-screen label", (_name, opts, label) => {
+    const { tab } = settingTab(opts);
+    tab.display();
+
+    expect(destinationNames(tab)).toContain(label);
+    // One account row, not one per branch: no other state's label is on screen with it.
+    const others = STATES.map(([, , other]) => other).filter((other) => other !== label);
+    expect(rowNames(tab).filter((name) => others.includes(name))).toEqual([]);
+  });
+
+  it("holds Refresh status, Sign out, and Account exactly once in the destination", () => {
+    const { tab } = activeTab();
+    tab.display();
+    open(tab, "Plus · 12 filings left");
+
+    const names = rowNames(tab);
+    for (const once of ["Refresh status", "Sign out", "Account"]) {
+      expect(names.filter((name) => name === once)).toEqual([once]);
+    }
+    // The email is still shown, under the back row that already says "Account".
+    expect(names.filter((name) => name === "Signed in as")).toEqual(["Signed in as"]);
+    expect(tab.containerEl.textContent).toContain("user@example.com");
+    // And nowhere else: the main screen carries the account row alone.
+    tab.hide();
+    tab.display();
+    expect(rowNames(tab)).not.toContain("Refresh status");
+    expect(rowNames(tab)).not.toContain("Sign out");
+  });
+
+  it("offers account setup and no Manage row when signed out", () => {
+    const { tab } = settingTab();
+    tab.display();
+    open(tab, "Set up automatic filing");
+
+    const names = rowNames(tab);
+    expect(names).toContain("Email");
+    expect(names).toContain("Start free trial");
+    // Renamed by #240: the emailed link now signs *this* device in, so "another device" is the
+    // paste fallback's job rather than this row's.
+    expect(names).toContain("Sign in with a link");
+    expect(names).toContain("Advanced: paste session");
+    expect(names).not.toContain("Manage subscription");
+    expect(names).not.toContain("Sign out");
+  });
+
+  it("closes the account state so a fifth state cannot be added without a branch", () => {
+    const signedOut: AccountState = { kind: "signedOut" };
+    expect(accountRowDescriptor(signedOut).name).toBe("Set up automatic filing");
+
+    // The compile error this expects is the guard: `accountRowDescriptor` switches on
+    // `AccountState` and closes with `const _exhaustive: never = state`, so a variant added to
+    // the union without a matching branch fails `typecheck:test` — and, because the switch lives
+    // in `src/`, `npm run build` as well.
+    // @ts-expect-error — "grandfathered" is not an account state.
+    const notAState: AccountState = { kind: "grandfathered" };
+    expect(notAState.kind).toBe("grandfathered");
+  });
+});
+
+/**
+ * The vocabulary is the cluster that grows without bound — one row per active tag, per proposal,
+ * and per tag already used in the vault, which is how the settings screen was heading for ninety
+ * rows. These assert the replacement: one counted row on the main screen, and every capability
+ * still reachable one screen in.
+ */
+describe("tag vocabulary", () => {
+  const entry = (n: number) => `Tag vocabulary — ${n} active`;
+
+  /** Let the `await plugin.saveSettings()` inside a row's handler land before asserting. */
+  const flush = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+  /** The destination renders a back row; the main screen does not. */
+  const inDestination = (tab: AtomsSettingTab) =>
+    tab.containerEl.querySelector(".atoms-setting-back") !== null;
+
+  it("counts the active vocabulary on one main-screen row", () => {
+    const { tab } = settingTab({ settings: { activeVocabulary: ["idea", "question", "watch"] } });
+    tab.display();
+
+    expect(destinationNames(tab)).toContain(entry(3));
+    // The cluster itself left: not one per-tag row survives on the main screen.
+    expect(rowNames(tab).filter((name) => name.startsWith("#"))).toEqual([]);
+  });
+
+  it("stays one row however large the vocabulary grows", () => {
+    const { tab: big } = settingTab({
+      settings: { activeVocabulary: Array.from({ length: 60 }, (_, i) => `tag${i}`) },
+      vaultTags: ["gardening", "cooking"],
+    });
+    const { tab: small } = settingTab({ settings: { activeVocabulary: ["idea"] } });
+    big.display();
+    small.display();
+
+    expect(rowNames(big).length).toBe(rowNames(small).length);
+  });
+
+  it("holds every active tag in the destination", () => {
+    const { tab } = settingTab({ settings: { activeVocabulary: ["idea", "watch"] } });
+    tab.display();
+    open(tab, entry(2));
+
+    expect(rowNames(tab)).toEqual(expect.arrayContaining(["#idea", "#watch"]));
+  });
+
+  it("leaves the Proposed group out when nothing has been proposed", () => {
+    const { tab } = settingTab({
+      settings: { activeVocabulary: ["idea"], proposedTags: [] },
+    });
+    tab.display();
+    open(tab, entry(1));
+
+    // The intro prose explains proposals, so this is about the group heading and its rows.
+    expect(tab.containerEl.textContent).not.toContain("Proposed (approve to activate)");
+    expect(rowNames(tab).filter((name) => name.startsWith("Dismiss "))).toEqual([]);
+  });
+
+  it("renders the Proposed group when a classify run proposed something", () => {
+    const { tab } = settingTab({
+      settings: { activeVocabulary: ["idea"], proposedTags: ["gardening"] },
+    });
+    tab.display();
+    open(tab, entry(1));
+
+    expect(tab.containerEl.textContent).toContain("Proposed (approve to activate)");
+    // One right edge per row, so approve and dismiss are two rows rather than two buttons.
+    expect(rowNames(tab)).toContain("#gardening");
+    expect(rowNames(tab)).toContain("Dismiss #gardening");
+  });
+
+  it("approves a proposed tag into Active", async () => {
+    const { tab } = settingTab({
+      settings: { activeVocabulary: ["idea"], proposedTags: ["gardening"] },
+    });
+    tab.display();
+    open(tab, entry(1));
+    press(tab, "#gardening", "Approve");
+    await flush();
+
+    expect(inDestination(tab)).toBe(true);
+    expect(rowNames(tab)).not.toContain("Dismiss #gardening");
+    expect(row(tab, "#gardening").querySelector(".checkbox-container")).not.toBeNull();
+
+    tab.hide();
+    tab.display();
+    expect(destinationNames(tab)).toContain(entry(2));
+  });
+
+  it("dismisses a proposed tag without activating it", async () => {
+    const { tab } = settingTab({
+      settings: { activeVocabulary: ["idea"], proposedTags: ["gardening"] },
+    });
+    tab.display();
+    open(tab, entry(1));
+    press(tab, "Dismiss #gardening", "Dismiss");
+    await flush();
+
+    expect(rowNames(tab)).not.toContain("#gardening");
+    tab.hide();
+    tab.display();
+    expect(destinationNames(tab)).toContain(entry(1));
+  });
+
+  it("activates a tag found in the vault and updates the main-screen count", async () => {
+    const { tab } = settingTab({
+      settings: { activeVocabulary: ["idea"] },
+      vaultTags: ["gardening"],
+    });
+    tab.display();
+    expect(destinationNames(tab)).toContain(entry(1));
+
+    open(tab, entry(1));
+    expect(tab.containerEl.textContent).toContain("Found in your vault");
+    press(tab, "#gardening", "Activate");
+    await flush();
+
+    // The re-render keeps the user on the screen they were reading.
+    expect(inDestination(tab)).toBe(true);
+    // Promoted: the row now wears the Active toggle instead of an Activate button.
+    expect(row(tab, "#gardening").querySelector(".checkbox-container")).not.toBeNull();
+
+    tab.hide();
+    tab.display();
+    expect(destinationNames(tab)).toContain(entry(2));
+  });
+
+  it("says so when every tag the vault uses is already active", () => {
+    const { tab } = settingTab({
+      settings: { activeVocabulary: ["gardening", "cooking"] },
+      vaultTags: ["gardening", "cooking"],
+    });
+    tab.display();
+    open(tab, entry(2));
+
+    // The ranking is non-empty but every entry is filtered out as already active, so the
+    // "Found in your vault" heading would otherwise sit over nothing.
+    expect(rowNames(tab).filter((name) => name.startsWith("#")).sort()).toEqual([
+      "#cooking",
+      "#gardening",
+    ]);
+    expect(tab.containerEl.textContent).toContain("Every tag your vault uses is already active.");
+  });
+
+  it("keeps the never-tagged empty state distinct from the all-active one", () => {
+    const { tab } = settingTab({ settings: { activeVocabulary: ["idea"] }, vaultTags: [] });
+    tab.display();
+    open(tab, entry(1));
+
+    expect(tab.containerEl.textContent).toContain("No tags found in vault yet.");
+  });
+
+  it("deactivates an active tag from its toggle", async () => {
+    const { tab } = settingTab({ settings: { activeVocabulary: ["idea", "watch"] } });
+    tab.display();
+    open(tab, entry(2));
+    flip(tab, "#idea");
+    await flush();
+
+    expect(inDestination(tab)).toBe(true);
+    expect(rowNames(tab)).not.toContain("#idea");
+    expect(rowNames(tab)).toContain("#watch");
+  });
+
+  it("normalizes a custom tag before adding it", async () => {
+    const { tab } = settingTab({ settings: { activeVocabulary: [] } });
+    tab.display();
+    open(tab, entry(0));
+    fill(tab, "Add a custom tag", "  #Health  ");
+    press(tab, "Add to Active", "Add");
+    await flush();
+
+    expect(inDestination(tab)).toBe(true);
+    expect(rowNames(tab)).toContain("#health");
+  });
+
+  it("ignores an empty custom tag", async () => {
+    const { tab } = settingTab({ settings: { activeVocabulary: ["idea"] } });
+    tab.display();
+    open(tab, entry(1));
+    fill(tab, "Add a custom tag", "   #  ");
+    press(tab, "Add to Active", "Add");
+    await flush();
+
+    expect(rowNames(tab).filter((name) => name.startsWith("#"))).toEqual(["#idea"]);
+  });
+});
+
+/**
+ * U5 — the three permanent acknowledgment rows are gone; consent is a sheet at enable time.
+ *
+ * Ordered decline → dismissal → withdrawal → happy path on purpose. The happy path is the one
+ * that would pass by accident: the toggle has already flipped visually by the time the sheet
+ * opens, so every path that is *not* an explicit accept is the one that can silently enable
+ * egress, cloud storage, or vault writes.
+ */
+describe("consent sheets", () => {
+  const flush = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+  const SESSION: PlusSession = {
+    sessionToken: "sess_live",
+    email: "user@example.com",
+    status: "active",
+    remaining: 12,
+    periodEnd: "2026-09-01T00:00:00.000Z",
+  };
+
+  /** A tab with an Atoms Plus session, because the Ask section renders only behind one. */
+  function askTab(settings: Partial<LinkerSettings> = {}, local: Record<string, unknown> = {}) {
+    const made = settingTab({ session: SESSION, settings, local });
+    made.tab.display();
+    return made;
+  }
+
+  /** What the plugin double persisted, read back the way the tab wrote it. */
+  const persisted = (tab: AtomsSettingTab) => tab.plugin.settings;
+
+  const ACKED = "2026-08-01T10:00:00.000Z";
+
+  const ASK_PRIVACY_ACK_ROW = "Ask privacy acknowledgment";
+  const ASK_WRITE_ACK_ROW = "Vault write acknowledgment";
+
+  describe("declining", () => {
+    it("leaves auto-run off and writes no egress ack", async () => {
+      const { tab, local } = askTab();
+      flip(tab, "File automatically when Obsidian opens");
+      await flush();
+
+      expect(sheetOpen()).toBe(true);
+      pressSheet("Cancel");
+      await flush();
+
+      expect(sheetOpen()).toBe(false);
+      expect(local.get(LS_AUTO_RUN_EGRESS_ACK)).not.toBe(true);
+      expect(local.get(LS_AUTO_RUN_ENABLED)).not.toBe(true);
+      expect(row(tab, "File automatically when Obsidian opens").querySelector(".is-enabled")).toBeNull();
+    });
+
+    it("leaves the Ask mirror off and writes no privacy ack", async () => {
+      const { tab } = askTab();
+      flip(tab, "Ask mirror");
+      await flush();
+      pressSheet("Cancel");
+      await flush();
+
+      expect(persisted(tab).askPrivacyAckAt).toBe("");
+      expect(persisted(tab).askEnabled).toBe(false);
+    });
+
+    it("leaves filing off and writes no vault-write ack", async () => {
+      const { tab } = askTab({ askPrivacyAckAt: ACKED, askEnabled: true });
+      flip(tab, "Allow filing from Claude or ChatGPT");
+      await flush();
+      pressSheet("Cancel");
+      await flush();
+
+      expect(persisted(tab).askWriteAckAt).toBe("");
+    });
+  });
+
+  describe("dismissing", () => {
+    it("treats Escape or a click outside as a decline on every sheet", async () => {
+      const { tab, local } = askTab({ askPrivacyAckAt: ACKED, askEnabled: true });
+
+      flip(tab, "File automatically when Obsidian opens");
+      await flush();
+      dismissSheet();
+      await flush();
+      expect(local.get(LS_AUTO_RUN_EGRESS_ACK)).not.toBe(true);
+      expect(local.get(LS_AUTO_RUN_ENABLED)).not.toBe(true);
+
+      flip(tab, "Allow filing from Claude or ChatGPT");
+      await flush();
+      dismissSheet();
+      await flush();
+      expect(persisted(tab).askWriteAckAt).toBe("");
+    });
+
+    it("treats a privacy sheet dismissal as a decline", async () => {
+      const { tab } = askTab();
+      flip(tab, "Ask mirror");
+      await flush();
+      dismissSheet();
+      await flush();
+
+      expect(persisted(tab).askPrivacyAckAt).toBe("");
+      expect(persisted(tab).askEnabled).toBe(false);
+    });
+
+    it("closes an open sheet when the settings tab closes, writing no ack", async () => {
+      const { tab } = askTab();
+      flip(tab, "Ask mirror");
+      await flush();
+
+      tab.hide();
+      await flush();
+
+      expect(sheetOpen()).toBe(false);
+      expect(persisted(tab).askPrivacyAckAt).toBe("");
+      expect(persisted(tab).askEnabled).toBe(false);
+    });
+  });
+
+  describe("the acknowledgment record", () => {
+    it("shows the egress ack even while auto-run is off, and still offers Review", () => {
+      const { tab } = askTab({}, { [LS_AUTO_RUN_EGRESS_ACK]: true, [LS_AUTO_RUN_ENABLED]: false });
+
+      expect(rowNames(tab)).toContain("Data egress acknowledgment");
+      press(tab, "Data egress acknowledgment", "Review");
+      expect(sheetText()).toContain("Withdraw acknowledgment");
+    });
+
+    it("shows the Ask privacy ack even while the mirror is off", () => {
+      const { tab } = askTab({ askPrivacyAckAt: ACKED, askEnabled: false });
+
+      expect(rowNames(tab)).toContain("Ask privacy acknowledgment");
+      expect(row(tab, "Ask privacy acknowledgment").textContent).toContain("2026-08-01");
+    });
+
+    it("keeps both Ask acks reviewable after signing out of Plus", async () => {
+      // Signing out deliberately leaves both acks on record. A consent on record with no way
+      // out is not withdrawable at all — and signing into a *different* Plus account would
+      // resume mirroring under it.
+      const { tab } = settingTab({
+        session: null,
+        settings: { askPrivacyAckAt: ACKED, askWriteAckAt: ACKED, askEnabled: true },
+      });
+      tab.display();
+
+      expect(rowNames(tab)).toContain(ASK_PRIVACY_ACK_ROW);
+      expect(rowNames(tab)).toContain(ASK_WRITE_ACK_ROW);
+
+      press(tab, ASK_PRIVACY_ACK_ROW, "Review");
+      pressSheet("Withdraw acknowledgment");
+      await flush();
+
+      expect(persisted(tab).askPrivacyAckAt).toBe("");
+      expect(persisted(tab).askWriteAckAt).toBe("");
+      expect(persisted(tab).askEnabled).toBe(false);
+    });
+
+    it("keeps no acknowledgment row for an ack that was never granted", () => {
+      const { tab } = askTab();
+
+      expect(rowNames(tab)).not.toContain("Data egress acknowledgment");
+      expect(rowNames(tab)).not.toContain("Ask privacy acknowledgment");
+      expect(rowNames(tab)).not.toContain("Vault write acknowledgment");
+    });
+  });
+
+  describe("withdrawing", () => {
+    it("clears the egress ack and force-disables auto-run", async () => {
+      const { tab, local } = askTab({}, {
+        [LS_AUTO_RUN_EGRESS_ACK]: true,
+        [LS_AUTO_RUN_ENABLED]: true,
+      });
+      press(tab, "Data egress acknowledgment", "Review");
+      pressSheet("Withdraw acknowledgment");
+      await flush();
+
+      expect(local.get(LS_AUTO_RUN_EGRESS_ACK)).not.toBe(true);
+      expect(local.get(LS_AUTO_RUN_ENABLED)).not.toBe(true);
+    });
+
+    it("revokes the catch-up notice too, so no device-local path is still permitted", async () => {
+      // Both booleans granted: the auto-run ack from this row, and the catch-up notice from the
+      // "Got it" card on Atoms home. Withdrawing here has to answer for both, because the
+      // disclosure this row shows names "Sync everything now" — the button the notice permits.
+      const { tab, local } = askTab(
+        {},
+        {
+          [LS_AUTO_RUN_EGRESS_ACK]: true,
+          [LS_AUTO_RUN_ENABLED]: true,
+          [LS_EGRESS_NOTICE]: true,
+        },
+      );
+      const load = (key: string) => local.get(key) ?? null;
+      // Asserted open first: two `false`s taken only after a withdrawal cannot tell a withdrawal
+      // that worked from a gate that never opened, and a gate stuck shut fails closed — quietly,
+      // for everyone who acked.
+      expect(readEgressPermitted(load, { catchUp: false })).toBe(true);
+
+      press(tab, "Data egress acknowledgment", "Review");
+      pressSheet("Withdraw acknowledgment");
+      await flush();
+
+      expect(readEgressPermitted(load, { catchUp: false })).toBe(false);
+      // The manual catch-up path is the one the withdrawn disclosure named by name.
+      expect(readEgressPermitted(load, { catchUp: true })).toBe(false);
+    });
+
+    it("clears the vault-write ack when the privacy ack is withdrawn", async () => {
+      const { tab } = askTab({
+        askPrivacyAckAt: ACKED,
+        askEnabled: true,
+        askWriteAckAt: ACKED,
+      });
+      press(tab, "Ask privacy acknowledgment", "Review");
+      pressSheet("Withdraw acknowledgment");
+      await flush();
+
+      expect(persisted(tab).askPrivacyAckAt).toBe("");
+      expect(persisted(tab).askEnabled).toBe(false);
+      expect(persisted(tab).askWriteAckAt).toBe("");
+    });
+
+    it("clears the vault-write ack when the mirror is turned off", async () => {
+      const { tab } = askTab({
+        askPrivacyAckAt: ACKED,
+        askEnabled: true,
+        askWriteAckAt: ACKED,
+      });
+      flip(tab, "Ask mirror");
+      await flush();
+
+      expect(persisted(tab).askEnabled).toBe(false);
+      expect(persisted(tab).askWriteAckAt).toBe("");
+    });
+
+    it("withdraws the vault-write ack on its own without touching the privacy ack", async () => {
+      const { tab } = askTab({
+        askPrivacyAckAt: ACKED,
+        askEnabled: true,
+        askWriteAckAt: ACKED,
+      });
+      press(tab, "Vault write acknowledgment", "Review");
+      pressSheet("Withdraw acknowledgment");
+      await flush();
+
+      expect(persisted(tab).askWriteAckAt).toBe("");
+      expect(persisted(tab).askPrivacyAckAt).toBe(ACKED);
+      expect(persisted(tab).askEnabled).toBe(true);
+    });
+
+    it("cannot be undone by a handler still holding the ack it rendered with", async () => {
+      const { tab } = askTab({ askPrivacyAckAt: ACKED, askEnabled: false });
+      // The mirror toggle as a half-finished gesture holds it: live when the user reached for
+      // it, and about to be replaced by the withdrawal on the row below.
+      const stale = row(tab, "Ask mirror").querySelector(".checkbox-container");
+      if (!(stale instanceof HTMLElement)) throw new Error("no Ask mirror toggle");
+
+      press(tab, "Ask privacy acknowledgment", "Review");
+      pressSheet("Withdraw acknowledgment");
+      await flush();
+
+      stale.click();
+      await flush();
+
+      // The consent is gone, so the toggle has nothing to enable the mirror on.
+      expect(persisted(tab).askPrivacyAckAt).toBe("");
+      expect(persisted(tab).askEnabled).toBe(false);
+    });
+
+    it("beats an enable whose save was still in flight, and its push with it", async () => {
+      let release!: () => void;
+      const pendingSave = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      let pushes = 0;
+      const { tab } = settingTab({
+        session: SESSION,
+        settings: { askPrivacyAckAt: ACKED, askEnabled: false },
+        plugin: {
+          saveSettings: () => pendingSave,
+          syncAskMirror: () => {
+            pushes += 1;
+            return Promise.resolve({ ok: true, message: "" });
+          },
+        },
+      });
+      tab.display();
+
+      // Enable, then withdraw while the enable is still waiting on its own write to disk.
+      flip(tab, "Ask mirror");
+      press(tab, "Ask privacy acknowledgment", "Review");
+      pressSheet("Withdraw acknowledgment");
+      release();
+      await flush();
+
+      expect(tab.plugin.settings.askPrivacyAckAt).toBe("");
+      expect(tab.plugin.settings.askEnabled).toBe(false);
+      // The push is the egress. It must not leave under a consent already withdrawn.
+      expect(pushes).toBe(0);
+    });
+
+    it("keeps filing disabled while the Ask mirror is off", () => {
+      const { tab } = askTab({ askPrivacyAckAt: ACKED, askEnabled: false });
+
+      expect(
+        row(tab, "Allow filing from Claude or ChatGPT").querySelector(".is-disabled"),
+      ).not.toBeNull();
+    });
+  });
+
+  describe("accepting", () => {
+    it("writes the egress ack and enables auto-run", async () => {
+      const { tab, local } = askTab();
+      flip(tab, "File automatically when Obsidian opens");
+      await flush();
+
+      expect(sheetText()).toContain("Anthropic");
+      pressSheet("I understand");
+      await flush();
+
+      expect(local.get(LS_AUTO_RUN_EGRESS_ACK)).toBe(true);
+      expect(local.get(LS_AUTO_RUN_ENABLED)).toBe(true);
+      // R7: an egress accept authorizes nothing on the Ask side — neither ack, and not the
+      // mirror those acks gate.
+      expect(persisted(tab).askPrivacyAckAt).toBe("");
+      expect(persisted(tab).askWriteAckAt).toBe("");
+      expect(persisted(tab).askEnabled).toBe(false);
+    });
+
+    it("writes the privacy ack and enables the mirror, and nothing else", async () => {
+      const { tab, local } = askTab();
+      flip(tab, "Ask mirror");
+      await flush();
+      pressSheet("I understand");
+      await flush();
+
+      expect(persisted(tab).askPrivacyAckAt).not.toBe("");
+      expect(persisted(tab).askEnabled).toBe(true);
+      // R7: agreeing to cloud storage does not authorize writes into the vault, or egress —
+      // neither the ack for it nor the unattended runs it would permit.
+      expect(persisted(tab).askWriteAckAt).toBe("");
+      expect(local.get(LS_AUTO_RUN_EGRESS_ACK)).not.toBe(true);
+      expect(local.get(LS_AUTO_RUN_ENABLED)).not.toBe(true);
+    });
+
+    it("writes the vault-write ack and nothing else", async () => {
+      const { tab, local } = askTab({ askPrivacyAckAt: ACKED, askEnabled: true });
+      flip(tab, "Allow filing from Claude or ChatGPT");
+      await flush();
+      pressSheet("I understand");
+      await flush();
+
+      expect(persisted(tab).askWriteAckAt).not.toBe("");
+      // R7: the privacy ack is untouched — it was already granted, and stays exactly as granted.
+      expect(persisted(tab).askPrivacyAckAt).toBe(ACKED);
+      expect(local.get(LS_AUTO_RUN_EGRESS_ACK)).not.toBe(true);
+    });
+  });
+
+  it("keeps no permanent acknowledgment toggle on the screen", () => {
+    const { tab } = askTab();
+
+    expect(rowNames(tab)).not.toContain("Privacy acknowledgment");
+    expect(rowNames(tab)).not.toContain("Data egress acknowledgment");
+  });
+});
+
+/** A signed-in Plus session, since Ask plumbing renders only behind one. */
+const PLUS_SESSION: PlusSession = {
+  sessionToken: "sess_live",
+  email: "user@example.com",
+  status: "active",
+  remaining: 12,
+  periodEnd: "2026-09-01T00:00:00.000Z",
+};
+
+/**
+ * U6 — the Anthropic API key row answers the question the deleted *Test connection* row used to:
+ * does this key work from this device? Four outcomes, not a boolean, because "wrong key" and
+ * "no network" want opposite things from the user.
+ */
+describe("API key row (U6)", () => {
+  const flush = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+  const KEY = "sk-ant-api03-looks-real-enough";
+
+  /** A request double that records what was asked for and answers Anthropic a fixed way. */
+  function network(anthropic: number | "offline") {
+    const urls: string[] = [];
+    const request: ConnectivityRequest = async (params) => {
+      urls.push(params.url);
+      if (anthropic === "offline") throw new Error("net::ERR_INTERNET_DISCONNECTED");
+      const status = params.url.includes("anthropic") ? anthropic : 200;
+      return { status, text: "", json: {}, arrayBuffer: new ArrayBuffer(0), headers: {} } as never;
+    };
+    const anthropicCalls = () => urls.filter((u) => u.includes("anthropic")).length;
+    return { request, anthropicCalls };
+  }
+
+  /** Everything the API key row says, status text included. */
+  const keyRowText = (tab: AtomsSettingTab) =>
+    row(tab, "Anthropic API key").textContent ?? "";
+
+  it("reports a malformed key inline, without claiming success or asking the network", async () => {
+    const net = network(200);
+    const { tab } = settingTab({ apiKey: "hunter2", request: net.request });
+    tab.display();
+    await flush();
+
+    expect(keyRowText(tab)).toContain("does not look like an Anthropic API key");
+    expect(keyRowText(tab)).not.toContain("works");
+    expect(net.anthropicCalls()).toBe(0);
+  });
+
+  it("distinguishes a key it could not check from a key that was rejected", async () => {
+    const offline = settingTab({ apiKey: KEY, request: network("offline").request });
+    offline.tab.display();
+    await flush();
+
+    const rejected = settingTab({ apiKey: KEY, request: network(401).request });
+    rejected.tab.display();
+    await flush();
+
+    expect(keyRowText(offline.tab)).toContain("Could not reach Anthropic");
+    expect(keyRowText(offline.tab)).not.toContain("rejected");
+    expect(keyRowText(rejected.tab)).toContain("rejected");
+    expect(keyRowText(rejected.tab)).not.toContain("Could not reach Anthropic");
+  });
+
+  it("says the key works when Anthropic answers", async () => {
+    const { tab } = settingTab({ apiKey: KEY, request: network(200).request });
+    tab.display();
+    await flush();
+
+    expect(keyRowText(tab)).toContain("works");
+  });
+
+  it("shows a checking state while the network check is in flight", async () => {
+    const { tab } = settingTab({ apiKey: KEY, request: network(200).request });
+    tab.display();
+
+    // Before the probes settle: neither terminal outcome, and visibly in progress.
+    expect(keyRowText(tab)).toContain("Checking");
+    expect(keyRowText(tab)).not.toContain("works");
+    expect(keyRowText(tab)).not.toContain("Could not reach");
+
+    await flush();
+    expect(keyRowText(tab)).toContain("works");
+  });
+
+  it("re-verifies a key already saved, with no re-entry", async () => {
+    const net = network(200);
+    const { tab } = settingTab({ apiKey: KEY, request: net.request });
+    tab.display();
+    await flush();
+
+    expect(net.anthropicCalls()).toBe(1);
+    expect(keyRowText(tab)).toContain("works");
+  });
+
+  it("does not re-check on every redisplay", async () => {
+    const net = network(200);
+    const { tab } = settingTab({ apiKey: KEY, request: net.request });
+    tab.display();
+    await flush();
+
+    // Any toggle elsewhere on the screen re-renders the whole tab.
+    flip(tab, "Sync when you return to Obsidian");
+    flip(tab, "Sync when you return to Obsidian");
+    flip(tab, "Sync when you return to Obsidian");
+    await flush();
+
+    expect(net.anthropicCalls()).toBe(1);
+    expect(keyRowText(tab)).toContain("works");
+  });
+
+  it("re-checks on the next visit to Settings", async () => {
+    const net = network(200);
+    const { tab } = settingTab({ apiKey: KEY, request: net.request });
+    tab.display();
+    await flush();
+    expect(net.anthropicCalls()).toBe(1);
+
+    tab.hide();
+    tab.display();
+    await flush();
+
+    expect(net.anthropicCalls()).toBe(2);
+  });
+
+  it("costs nothing to open Settings — no baseline ping, and no billable request", async () => {
+    const seen: Array<{ url: string; body?: unknown }> = [];
+    const request: ConnectivityRequest = async (params) => {
+      seen.push({ url: params.url, body: params.body });
+      return { status: 200, text: "", json: {}, arrayBuffer: new ArrayBuffer(0), headers: {} } as never;
+    };
+    const { tab } = settingTab({ apiKey: KEY, request });
+    tab.display();
+    await flush();
+
+    // The GitHub baseline answers a question this row never asks — it reads the Anthropic
+    // probe alone — so on this path it is pure egress for nothing.
+    expect(seen.filter((r) => r.url.includes("api.github.com"))).toEqual([]);
+
+    const anthropic = seen.filter((r) => r.url.includes("anthropic"));
+    expect(anthropic).toHaveLength(1);
+    const body = JSON.parse(String(anthropic[0]?.body ?? "{}")) as Record<string, unknown>;
+    // Rejected at validation rather than answered: a request that reaches Anthropic proves the
+    // key without buying tokens. A real one bills the user for every visit to Settings.
+    expect(body.messages).toBeUndefined();
+    expect(body.max_tokens).toBeUndefined();
+  });
+
+  it("keeps no standalone Test connection row on any screen", () => {
+    const { tab } = settingTab({ session: PLUS_SESSION });
+    tab.display();
+    const screens = destinationNames(tab);
+    expect(rowNames(tab)).not.toContain("Test connection");
+
+    for (const destination of screens) {
+      const fresh = settingTab({ session: PLUS_SESSION });
+      fresh.tab.display();
+      open(fresh.tab, destination);
+      expect(rowNames(fresh.tab)).not.toContain("Test connection");
+    }
+  });
+});
+
+/**
+ * Two rows on the main screen that the row grammar has to own rather than hand-roll: the one
+ * that starts a full sync (a double-tap used to start a second one on top of the first), and
+ * the teardown path that used to rebuild the whole screen on the way out.
+ */
+describe("closing Settings", () => {
+  const flush = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+  const KEY = "sk-ant-api03-looks-real-enough";
+
+  it("runs one full sync per press, not one per tap", async () => {
+    let started = 0;
+    let finish!: () => void;
+    const { tab } = settingTab({
+      plugin: {
+        runSyncEverythingNow: () => {
+          started += 1;
+          return new Promise<void>((resolve) => {
+            finish = resolve;
+          });
+        },
+      },
+    });
+    tab.display();
+
+    // drain → outbox → mirror → filing is long enough that an impatient second tap lands while
+    // the first run is still going.
+    press(tab, "Sync everything now", "Sync everything now");
+    press(tab, "Sync everything now", "Sync everything now");
+
+    expect(started).toBe(1);
+
+    finish();
+    await flush();
+
+    // And the row comes back rather than staying dead after the run.
+    press(tab, "Sync everything now", "Sync everything now");
+    expect(started).toBe(2);
+  });
+
+  it("stays gone when a continuation lands after the tab is closed", async () => {
+    let release!: () => void;
+    const pendingSave = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const urls: string[] = [];
+    const request: ConnectivityRequest = async (params) => {
+      urls.push(params.url);
+      return { status: 200, text: "", json: {}, arrayBuffer: new ArrayBuffer(0), headers: {} } as never;
+    };
+    const anthropicCalls = () => urls.filter((u) => u.includes("anthropic")).length;
+
+    const { tab } = settingTab({
+      session: PLUS_SESSION,
+      apiKey: KEY,
+      request,
+      settings: { askPrivacyAckAt: "2026-08-01T10:00:00.000Z", askEnabled: true },
+      plugin: { saveSettings: () => pendingSave },
+    });
+    tab.display();
+    await flush();
+    expect(anthropicCalls()).toBe(1);
+
+    // A gesture that waits on something — here a write to disk, in the app a network round
+    // trip — and a user who leaves Settings before it comes back.
+    flip(tab, "Ask mirror");
+    tab.hide();
+    release();
+    await flush();
+
+    // Nothing re-renders for a tab that is gone, and nothing re-asks Anthropic about it.
+    expect(anthropicCalls()).toBe(1);
+  });
+
+  it("declines an open sheet without rebuilding the screen it is leaving", async () => {
+    const urls: string[] = [];
+    const request: ConnectivityRequest = async (params) => {
+      urls.push(params.url);
+      return { status: 200, text: "", json: {}, arrayBuffer: new ArrayBuffer(0), headers: {} } as never;
+    };
+    const anthropicCalls = () => urls.filter((u) => u.includes("anthropic")).length;
+
+    const { tab } = settingTab({ session: PLUS_SESSION, apiKey: KEY, request });
+    tab.display();
+    await flush();
+    expect(anthropicCalls()).toBe(1);
+
+    flip(tab, "Ask mirror");
+    await flush();
+    expect(sheetOpen()).toBe(true);
+
+    tab.hide();
+    await flush();
+
+    // The decline still happens: no ack, mirror still off.
+    expect(sheetOpen()).toBe(false);
+    expect(tab.plugin.settings.askPrivacyAckAt).toBe("");
+    expect(tab.plugin.settings.askEnabled).toBe(false);
+    // But nothing re-renders on the way out, so the screen the user just closed asks Anthropic
+    // nothing on its way to being thrown away.
+    expect(anthropicCalls()).toBe(1);
+  });
+});
+
+describe("Connect Claude or ChatGPT destination (U6)", () => {
+  const CONNECT_ROWS = [
+    "MCP connector URL",
+    "Link Claude / ChatGPT",
+    "Sync now",
+    "Cloud mirror status",
+    "Wipe cloud copy",
+  ];
+
+  it("moves the Ask plumbing off the main screen, behind one entry row", () => {
+    const { tab } = settingTab({ session: PLUS_SESSION });
+    tab.display();
+
+    expect(destinationNames(tab)).toContain("Connect Claude or ChatGPT");
+    for (const name of CONNECT_ROWS) expect(rowNames(tab)).not.toContain(name);
+  });
+
+  it("holds every moved row", () => {
+    const { tab } = settingTab({ session: PLUS_SESSION });
+    tab.display();
+    open(tab, "Connect Claude or ChatGPT");
+
+    for (const name of CONNECT_ROWS) expect(rowNames(tab)).toContain(name);
+  });
+
+  it("still asks before wiping the cloud copy", async () => {
+    const { tab, calls } = settingTab({
+      session: PLUS_SESSION,
+      settings: { askEnabled: true, askPrivacyAckAt: "2026-08-01T10:00:00.000Z" },
+    });
+    tab.display();
+    open(tab, "Connect Claude or ChatGPT");
+
+    press(tab, "Wipe cloud copy", "Wipe");
+    expect(sheetOpen()).toBe(true);
+    expect(sheetText()).toContain("Wipe cloud copy?");
+
+    dismissSheet();
+    // Backing out of the confirmation wipes nothing and persists nothing.
+    expect(calls).not.toContain("saveSettings");
+  });
+
+  it("asks once on a double-tap, not twice", () => {
+    const { tab } = settingTab({
+      session: PLUS_SESSION,
+      settings: { askEnabled: true, askPrivacyAckAt: "2026-08-01T10:00:00.000Z" },
+    });
+    tab.display();
+    open(tab, "Connect Claude or ChatGPT");
+
+    // The one destructive row on the screen. Two confirm modals over each other is a question
+    // the user answers once and a wipe they authorized once.
+    press(tab, "Wipe cloud copy", "Wipe");
+    press(tab, "Wipe cloud copy", "Wipe");
+
+    expect(Modal.open).toHaveLength(1);
+  });
+});
+
+/**
+ * U6 / R5 — Advanced may hold only rows that neither enable nor disable money spend, cloud
+ * egress, or vault writes. Asserted by exercising whatever rows are actually there rather than
+ * by listing their names: a list passes forever, including the day a gate is moved in.
+ */
+describe("Advanced destination (U6, R5)", () => {
+  const flush = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+  function advanced(opts: SettingTabOptions = {}) {
+    const made = settingTab({ session: PLUS_SESSION, ...opts });
+    made.tab.display();
+    open(made.tab, "Advanced");
+    return made;
+  }
+
+  /**
+   * Every gate-bearing value on the device: what enables money spend, egress, or vault writes.
+   *
+   * The credential path counts. This snapshot once tracked the acks and the toggles alone, and
+   * a screen holding the device-local key fallback — which `getApiKey()` falls back to, and
+   * which therefore enables Anthropic spend by itself — passed the R5 property test anyway.
+   */
+  function gateState(tab: AtomsSettingTab, local: Map<string, unknown>) {
+    return {
+      askEnabled: tab.plugin.settings.askEnabled,
+      askPrivacyAckAt: tab.plugin.settings.askPrivacyAckAt,
+      askWriteAckAt: tab.plugin.settings.askWriteAckAt,
+      autoRunEnabled: local.get(LS_AUTO_RUN_ENABLED),
+      egressAcked: local.get(LS_AUTO_RUN_EGRESS_ACK),
+      deviceLocalKeyFallback: tab.plugin.settings.useDeviceLocalKeyFallback,
+      deviceLocalKey: local.get(LOCAL_STORAGE_API_KEY),
+    };
+  }
+
+  /**
+   * Touch every control on the screen the way a user could: flip it, type in it, press it.
+   *
+   * The screen is re-queried after each row rather than snapshotted once: a handler that calls
+   * `redisplay()` replaces every element, and a snapshot would spend the rest of the run
+   * clicking detached nodes while never touching the screen the user is looking at. Rows already
+   * exercised are remembered by element identity, so a re-render's fresh rows are exercised too
+   * and the walk still terminates.
+   */
+  function exerciseEveryControl(tab: AtomsSettingTab): void {
+    const exercised = new Set<Element>();
+    for (let guard = 0; guard < 200; guard += 1) {
+      const el = Array.from(tab.containerEl.querySelectorAll(".setting-item")).find(
+        (candidate) =>
+          !candidate.classList.contains("atoms-setting-back") && !exercised.has(candidate),
+      );
+      if (!el) return;
+      exercised.add(el);
+      for (const toggle of Array.from(el.querySelectorAll(".checkbox-container"))) {
+        (toggle as HTMLElement).click();
+      }
+      for (const input of Array.from(el.querySelectorAll("input"))) {
+        input.value = "exercised";
+        input.dispatchEvent(new Event("input"));
+      }
+      for (const button of Array.from(el.querySelectorAll("button"))) {
+        button.click();
+      }
+    }
+    throw new Error("screen never settled: 200 rows exercised and it is still re-rendering");
+  }
+
+  it("holds the two rows and nothing else", () => {
+    const { tab } = advanced();
+    expect(rowNames(tab)).toEqual(["Advanced", "Model", "Plus service URL override"]);
+  });
+
+  it("keeps the device-local key path out — it is a credential path, not plumbing", () => {
+    // `getApiKey()` falls back to that key, so the pair enables Anthropic spend on its own.
+    const { tab } = advanced({ settings: { useDeviceLocalKeyFallback: true } });
+    expect(rowNames(tab)).not.toContain("Device-local key fallback");
+    expect(rowNames(tab)).not.toContain("Device-local API key");
+  });
+
+  it("carries the caution that used to sit above these rows", () => {
+    const { tab } = advanced();
+    expect(tab.containerEl.textContent).toContain(
+      "Leave these alone unless you self-host or dogfood a local Plus server",
+    );
+  });
+
+  it("holds no control that enables or disables money, egress, or vault writes", async () => {
+    const { tab, local, calls } = advanced({
+      settings: { useDeviceLocalKeyFallback: true },
+    });
+    const before = gateState(tab, local);
+    // Only what the exercise itself provokes: rendering the main screen on the way in already
+    // read from the plugin, and a read is not an act.
+    const from = calls.length;
+
+    exerciseEveryControl(tab);
+    await flush();
+
+    expect(gateState(tab, local)).toEqual(before);
+    // Every gate acts through the plugin to do its work, so a screen of pure preferences
+    // reaches the plugin for persistence and for nothing else.
+    expect([...new Set(calls.slice(from))]).toEqual(["saveSettings"]);
+    // A gate reached from here would ask for consent before it moved a value, and an unanswered
+    // sheet moves nothing — so the values matching above is not on its own proof of no gate.
+    // The sheet appearing at all is.
+    expect(sheetOpen()).toBe(false);
+  });
+
+  it("keeps the one redirect it does hold inert on its own", async () => {
+    const { tab, local } = advanced();
+    const before = gateState(tab, local);
+
+    fill(tab, "Plus service URL override", "http://127.0.0.1:8787");
+    await flush();
+
+    // The override redirects where egress goes; it cannot turn egress on.
+    expect(tab.plugin.settings.plusBaseUrl).toBe("http://127.0.0.1:8787");
+    expect(gateState(tab, local)).toEqual(before);
+  });
+});
+
+/**
+ * The main screen's row sequence, and the three action rows U9 removed.
+ *
+ * The plan's *"The resulting main screen"* table is the contract: fourteen rows, in one order,
+ * on a signed-in Plus install. Section headings are not rows and the Capture intro is prose, so
+ * neither is counted — `rowNames(tab, { headings: false })` is what the table is about.
+ */
+describe("main screen row grammar (U9)", () => {
+  const PLUS_SESSION: PlusSession = {
+    sessionToken: "sess_main",
+    email: "user@example.com",
+    status: "active",
+    periodEnd: "2099-01-01T00:00:00.000Z",
+  };
+
+  function plusTab() {
+    return settingTab({
+      session: PLUS_SESSION,
+      auth: {
+        mode: "plus",
+        sessionToken: PLUS_SESSION.sessionToken,
+        email: PLUS_SESSION.email,
+        status: "active",
+        remaining: 12,
+        periodEnd: PLUS_SESSION.periodEnd,
+      },
+    });
+  }
+
+  /** Rows 7–9 of the table: the Ask cluster, which only a Plus session renders. */
+  const ASK_ROWS = [
+    "Ask mirror",
+    "Allow filing from Claude or ChatGPT",
+    "Connect Claude or ChatGPT",
+  ];
+
+  function expectedRows(account: string): string[] {
+    const vocabulary = `Tag vocabulary — ${DEFAULT_SETTINGS.activeVocabulary.length} active`;
+    return [
+      account,
+      "iCloud shortcut link",
+      "Capture Atom shortcut",
+      "Atom folder",
+      "List atoms in person notes",
+      vocabulary,
+      ...ASK_ROWS,
+      "File automatically when Obsidian opens",
+      "Sync when you return to Obsidian",
+      "Sync everything now",
+      "Anthropic API key",
+      // A credential path that enables Anthropic spend, so R5 keeps it on the main screen
+      // rather than in Advanced — with the key row itself appearing only once it is on.
+      "Device-local key fallback",
+      "Advanced",
+    ];
+  }
+
+  it("renders the fifteen rows of the plan's table, in order, signed in to Plus", () => {
+    const { tab } = plusTab();
+    tab.display();
+
+    const rows = rowNames(tab, { headings: false });
+    expect(rows).toEqual(expectedRows("Plus · 12 filings left"));
+    expect(rows).toHaveLength(15);
+  });
+
+  it("renders twelve rows signed out — the Ask cluster is the only difference", () => {
+    const { tab } = settingTab();
+    tab.display();
+
+    const rows = rowNames(tab, { headings: false });
+    expect(rows).toEqual(
+      expectedRows("Set up automatic filing").filter((name) => !ASK_ROWS.includes(name)),
+    );
+    expect(rows).toHaveLength(12);
+  });
+
+  it("adds the device-local key row under its toggle, and nowhere else", () => {
+    const { tab } = settingTab({ settings: { useDeviceLocalKeyFallback: true } });
+    tab.display();
+
+    const rows = rowNames(tab, { headings: false });
+    expect(rows).toHaveLength(13);
+    expect(rows.indexOf("Device-local API key")).toBe(
+      rows.indexOf("Device-local key fallback") + 1,
+    );
+  });
+
+  it("states the daily capture format as prose, not as a row", () => {
+    const { tab } = plusTab();
+    tab.display();
+
+    expect(rowNames(tab, { headings: false })).not.toContain("Daily capture format");
+    const prose = Array.from(
+      tab.containerEl.querySelectorAll("p.setting-item-description"),
+    ).map((el) => el.textContent ?? "");
+    expect(prose.some((text) => text.includes("Write top-level bullets"))).toBe(true);
+  });
+
+  it("keeps opening today's daily as a command, and off the settings screen", () => {
+    const commands = registeredCommands();
+    const daily = commands.find((c) => c.id === "open-todays-daily");
+    expect(daily, "no Atoms command opens today's daily note").toBeDefined();
+
+    const { tab } = plusTab();
+    tab.display();
+    expect(rowNames(tab, { headings: false })).not.toContain("Open today's daily");
+  });
+
+  it("leaves the self-host guide to documentation rather than a settings row", () => {
+    const { tab } = plusTab();
+    tab.display();
+    expect(rowNames(tab, { headings: false })).not.toContain("Self-host Ask");
+    expect(existsSync(path.resolve(__dirname, "../docs/ask-self-host.md"))).toBe(true);
+  });
+
+  /**
+   * A status fact has a name and a value, which is what `statusRow` is for. Rendered as a loose
+   * paragraph it drifts out of the grammar and reads as prose the user has to parse.
+   */
+  describe("status facts", () => {
+    it("names the last auto-run day on a status row", () => {
+      const { tab } = settingTab({
+        session: PLUS_SESSION,
+        local: { [LS_LAST_RUN_DAY]: "2026-07-29" },
+      });
+      tab.display();
+
+      const rows = rowNames(tab, { headings: false });
+      expect(rows).toContain("Last auto-run day (this device)");
+      expect(row(tab, "Last auto-run day (this device)").textContent).toContain("2026-07-29");
+      expect(prose(tab).some((t) => t.startsWith("Last auto-run day"))).toBe(false);
+    });
+
+    it("names the last catch-up on a status row", () => {
+      const { tab } = settingTab({
+        session: PLUS_SESSION,
+        plugin: { getLastCatchupLine: () => "Last catch-up 18m ago: caught up" },
+      });
+      tab.display();
+
+      expect(rowNames(tab, { headings: false })).toContain("Last catch-up");
+      expect(row(tab, "Last catch-up").textContent).toContain("18m ago: caught up");
+      expect(prose(tab).some((t) => t.startsWith("Last catch-up"))).toBe(false);
+    });
+
+    it("keeps the secret-id example with the key row instead of splitting the pair below it", () => {
+      const { tab } = plusTab();
+      tab.display();
+
+      // The tip belongs to the field it describes, so it lives in that row — not as a paragraph
+      // wedged between the key row and the fallback toggle that answers for the same key.
+      expect(row(tab, "Anthropic API key").textContent).toContain(API_KEY_SECRET_ID_DEFAULT);
+      expect(prose(tab).some((t) => t.startsWith("Tip: secret id example"))).toBe(false);
+    });
+  });
+});
+
+/**
+ * Holes found by an adversarial pass, each one live-reproduced before it was fixed. Kept
+ * together because they share a cause: a settings screen that can be rebuilt or walked away
+ * from, and state that assumed it would not be.
+ */
+describe("adversarial regressions", () => {
+  const flush = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+  /** 40 tags, one file each, so every count ties and the sort falls back to alphabetical. */
+  const many = Array.from(
+    { length: 40 },
+    (_, i) => `zqa${String(i + 1).padStart(2, "0")}`,
+  );
+
+  describe("Found in your vault", () => {
+    /**
+     * The list capped at 30 rows *before* dropping the ones already active, so the budget went
+     * to rows that were then thrown away. At 30 active tags the section rendered empty — under
+     * a sentence claiming every tag in the vault was already active — while the unactivated
+     * ones sat below the cut, permanently unreachable. The default vocabulary is 13.
+     */
+    function vocabularyTab(active: string[], vaultTags: string[]) {
+      const { tab } = settingTab({ settings: { activeVocabulary: active }, vaultTags });
+      tab.display();
+      open(tab, `Tag vocabulary — ${active.length} active`);
+      return tab;
+    }
+
+    it("still offers an unactivated tag when 30 more-used tags are already active", () => {
+      const tab = vocabularyTab(many.slice(0, 30), many);
+
+      const offered = rowNames(tab).filter((n) => n.startsWith("#zqa"));
+      expect(offered).toContain("#zqa31");
+      expect(offered).toContain("#zqa40");
+    });
+
+    it("does not claim every vault tag is active while ten of them are not", () => {
+      const tab = vocabularyTab(many.slice(0, 30), many);
+
+      expect(prose(tab).join(" ")).not.toContain(
+        "Every tag your vault uses is already active.",
+      );
+    });
+
+    it("caps the list at 30 promotable rows and says how many it is not showing", () => {
+      const tab = vocabularyTab([], many);
+
+      // 40 unactivated, 30 rendered: the cap still holds, it just no longer eats the answer.
+      expect(rowNames(tab).filter((n) => n.startsWith("#zqa"))).toHaveLength(30);
+      expect(prose(tab).join(" ")).toContain(
+        "Showing the 30 most-used of 40 tags you have not activated yet",
+      );
+    });
+
+    it("still tells the two silences apart", () => {
+      // Genuinely nothing left to promote.
+      const all = vocabularyTab(many, many);
+      expect(rowNames(all).filter((n) => n.startsWith("#zqa"))).toHaveLength(40);
+      expect(prose(all).join(" ")).toContain("Every tag your vault uses is already active.");
+
+      // Nothing found at all — a different fact, and a different sentence.
+      const none = vocabularyTab([], []);
+      expect(prose(none).join(" ")).toContain("No tags found in vault yet.");
+      expect(prose(none).join(" ")).not.toContain("already active");
+    });
+  });
+
+  describe("Add to Active", () => {
+    function vocabularyTab() {
+      const { tab } = settingTab({ settings: { activeVocabulary: ["alpha"] } });
+      tab.display();
+      open(tab, "Tag vocabulary — 1 active");
+      Notice.messages.length = 0;
+      return tab;
+    }
+
+    const draft = (tab: AtomsSettingTab): string => {
+      const input = row(tab, "Add a custom tag").querySelector("input");
+      if (!(input instanceof HTMLInputElement)) throw new Error("no draft field");
+      return input.value;
+    };
+
+    it.each([
+      ["a tag that normalizes to nothing", "###"],
+      ["whitespace", "   "],
+      ["a tag past the length cap", "a".repeat(300)],
+      ["emoji", "🔥🔥"],
+    ])("refuses %s out loud and adds nothing", async (_label, typed) => {
+      const tab = vocabularyTab();
+      fill(tab, "Add a custom tag", typed);
+      press(tab, "Add to Active", "Add");
+      await flush();
+
+      // The defect was the silence, not the refusal: `normalizeTag("###")` returned "" and the
+      // handler returned with no Notice, no row, and the text still sitting in the field.
+      expect(Notice.messages).toHaveLength(1);
+      expect(Notice.messages[0]).toMatch(/^Atoms: /);
+      expect(tab.plugin.settings.activeVocabulary).toEqual(["alpha"]);
+      // Left in the field on purpose — the user is being asked to fix it, not to retype it.
+      expect(draft(tab)).toBe(typed);
+    });
+
+    it("still accepts an ordinary tag, and clears the field when it lands", async () => {
+      const tab = vocabularyTab();
+      fill(tab, "Add a custom tag", "#Health");
+      press(tab, "Add to Active", "Add");
+      await flush();
+
+      expect(tab.plugin.settings.activeVocabulary).toEqual(["alpha", "health"]);
+      expect(Notice.messages).toHaveLength(0);
+      expect(draft(tab)).toBe("");
+    });
+  });
+
+  describe("automatic filing toggle", () => {
+    /**
+     * The twin of the Ask mirror test above ("cannot be undone by a handler still holding the
+     * ack it rendered with"). This side captured `readDeviceAutoRunState(load)` at render time
+     * and consumed the snapshot in its `onChange`, so a handler built before a withdrawal still
+     * believed it held the ack. No egress followed — `shouldRunAutoProcess` re-checks — but the
+     * asymmetry between the two toggles is the exact bug this change exists to kill.
+     */
+    it("cannot be enabled by a handler still holding the ack it rendered with", async () => {
+      const { tab, local } = settingTab({ local: { [LS_AUTO_RUN_EGRESS_ACK]: true } });
+      tab.display();
+
+      const stale = row(tab, "File automatically when Obsidian opens").querySelector(
+        ".checkbox-container",
+      );
+      if (!(stale instanceof HTMLElement)) throw new Error("no auto-run toggle");
+
+      press(tab, "Data egress acknowledgment", "Review");
+      pressSheet("Withdraw acknowledgment");
+      await flush();
+
+      stale.click();
+      await flush();
+
+      expect(local.get(LS_AUTO_RUN_EGRESS_ACK)).not.toBe(true);
+      expect(local.get(LS_AUTO_RUN_ENABLED)).not.toBe(true);
+    });
+  });
+
+  describe("walking into a destination", () => {
+    /**
+     * `hide()` has always settled an open sheet as a decline, on the rule that a sheet must not
+     * outlive the screen that posed it. `openRoute()` — the one other screen change — did not,
+     * so a sheet a main-screen toggle raised survived the walk, and accepting it from inside a
+     * destination still wrote the ack.
+     */
+    it("settles a sheet the screen behind it posed", async () => {
+      const { tab } = settingTab();
+      tab.display();
+      flip(tab, "File automatically when Obsidian opens");
+      await flush();
+      expect(sheetOpen()).toBe(true);
+
+      open(tab, "Advanced");
+      await flush();
+
+      expect(sheetOpen()).toBe(false);
+    });
+
+    it("does not let that sheet write an ack from the screen the user left", async () => {
+      const { tab, local } = settingTab();
+      tab.display();
+      flip(tab, "File automatically when Obsidian opens");
+      await flush();
+
+      open(tab, "Advanced");
+      await flush();
+
+      // The user is looking at Advanced now. Accept whatever is still up — an orphaned sheet
+      // grants a consent on behalf of a screen that is no longer on the display.
+      if (sheetOpen()) {
+        pressSheet("I understand");
+        await flush();
+      }
+
+      expect(local.get(LS_AUTO_RUN_EGRESS_ACK)).not.toBe(true);
+      expect(local.get(LS_AUTO_RUN_ENABLED)).not.toBe(true);
+    });
+  });
+});
+
 /* ------------------------------------------------------------------ *
  * Signed-out Atoms Plus panel — magic-link handoff copy (R10, R15)
  * ------------------------------------------------------------------ */
@@ -279,22 +1845,22 @@ function fakeTab(app: FakeApp) {
   return tab;
 }
 
-/** Render the whole signed-out Plus panel and collect every string it drew. */
+/**
+ * Render the whole signed-out Plus panel and collect every string it drew.
+ *
+ * The rows moved: the main screen now carries one Atoms Plus row that opens the Account
+ * destination, and everything this panel used to show inline renders there instead. So this
+ * drives `renderAccountDestination` — same copy, one tap in. A real element, because the tab
+ * builds its rows through the DOM now.
+ */
 function renderSignedOutPanel(app: FakeApp): UiCapture {
   const ui = captureObsidianUi();
-  const containerEl = {
-    createEl: (_tag: string, opts?: { text?: string }) => {
-      if (opts?.text) ui.strings.push(opts.text);
-      return {};
-    },
-    querySelector: () => null,
-    empty: () => {},
-  };
+  const containerEl = document.createElement("div");
   const tab = fakeTab(app);
   (tab as unknown as { containerEl: unknown }).containerEl = containerEl;
   (
-    tab as unknown as { renderPlusSection: (el: unknown) => void }
-  ).renderPlusSection(containerEl);
+    tab as unknown as { renderAccountDestination: (el: HTMLElement) => void }
+  ).renderAccountDestination(containerEl);
   return ui;
 }
 

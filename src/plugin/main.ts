@@ -76,7 +76,6 @@ import {
   atomRefuseNotice,
   dailyDateForFile,
   findCaptureAtLine,
-  flagOffNotice,
   filedNotice,
   forceKeepAtomResult,
   collisionNotice,
@@ -105,6 +104,7 @@ import {
   localDateString,
   PER_LAUNCH_CAP,
   readDeviceAutoRunState,
+  readEgressPermitted,
   shouldRunAutoProcess,
   shouldStampLastRunDay,
   waitForVaultIndexReady,
@@ -545,7 +545,7 @@ export default class AtomsPlugin extends Plugin {
         activeVocabulary: this.settings.activeVocabulary,
         atomFolder: this.settings.atomFolder,
         // Retrieval size only — refresh forces `expandGraph: false` for itself (KTD7).
-        shortlistK: shortlistOptionsFromSettings(this.settings).shortlistK,
+        shortlistK: shortlistOptionsFromSettings().shortlistK,
         limit: opts?.limit,
         fixtureResults: opts?.fixtureResults,
         enableHubProjection: this.settings.enableHubProjection === true,
@@ -595,7 +595,7 @@ export default class AtomsPlugin extends Plugin {
   }
 
   /** Open/create today's daily and show it in the editor. */
-  async openTodaysDailyFromHome(): Promise<void> {
+  async openTodaysDailyNote(): Promise<void> {
     try {
       const { openTodaysDaily } = await import("../pipeline/daily");
       const file = await openTodaysDaily(this.app);
@@ -701,38 +701,42 @@ export default class AtomsPlugin extends Plugin {
       return { ran: false, reason: "in_flight" };
     }
 
-    try {
-      const { countInboxPending } = await import("../pipeline/inbox");
-      this.lastInboxPendingCount = await countInboxPending(this.app);
-    } catch {
-      /* keep last */
-    }
-
-    const decision = decideResumeStages(this.stageInput(load, { ...opts, now }));
-
-    if (
-      !decision.stages.drain.run &&
-      !decision.stages.outbox.run &&
-      !decision.stages.mirror.run &&
-      !decision.stages.filing.run
-    ) {
-      const reason =
-        (!decision.stages.drain.run &&
-          "reason" in decision.stages.drain &&
-          decision.stages.drain.reason) ||
-        "blocked";
-      if (opts.manual && reason === "vault_not_ready") {
-        new Notice("Atoms: vault still loading — try Sync everything now again");
-      }
-      return { ran: false, reason: String(reason) };
-    }
-
+    // Claimed here rather than once the stage decision is in: the two `await`s below meant a
+    // same-tick double press — two taps on Sync everything now, or a manual run racing a resume
+    // — both read the flag while it was still false and both ran a full pass. The `finally`
+    // releases it, so the early returns between here and there stay correct.
     this.catchUpInFlight = true;
     let drained = 0;
     let outbox = 0;
     let mirrored = 0;
     let filed = 0;
     try {
+      try {
+        const { countInboxPending } = await import("../pipeline/inbox");
+        this.lastInboxPendingCount = await countInboxPending(this.app);
+      } catch {
+        /* keep last */
+      }
+
+      const decision = decideResumeStages(this.stageInput(load, { ...opts, now }));
+
+      if (
+        !decision.stages.drain.run &&
+        !decision.stages.outbox.run &&
+        !decision.stages.mirror.run &&
+        !decision.stages.filing.run
+      ) {
+        const reason =
+          (!decision.stages.drain.run &&
+            "reason" in decision.stages.drain &&
+            decision.stages.drain.reason) ||
+          "blocked";
+        if (opts.manual && reason === "vault_not_ready") {
+          new Notice("Atoms: vault still loading — try Sync everything now again");
+        }
+        return { ran: false, reason: String(reason) };
+      }
+
       if (decision.stages.drain.run) {
         try {
           const r = await this.drainInboxOnce();
@@ -1011,9 +1015,7 @@ export default class AtomsPlugin extends Plugin {
       catchUp?.bypassEnabled === true ? true : state.enabled;
     // For catch-up filing, egress notice already gated; treat auto-run ack OR
     // catch-up notice as sufficient privacy for the paid path.
-    const egressOk =
-      state.egressAcked ||
-      (catchUp != null && readEgressNoticeAcked(load));
+    const egressOk = readEgressPermitted(load, { catchUp: catchUp != null });
 
     if (
       !shouldRunAutoProcess({
@@ -1068,7 +1070,7 @@ export default class AtomsPlugin extends Plugin {
         model: this.settings.model,
         activeVocabulary: this.settings.activeVocabulary,
         atomFolder: this.settings.atomFolder,
-        ...shortlistOptionsFromSettings(this.settings),
+        ...shortlistOptionsFromSettings(),
         maxCaptures: PER_LAUNCH_CAP,
         enableHubProjection: this.settings.enableHubProjection === true,
         // never includeToday on auto-run
@@ -1170,7 +1172,7 @@ export default class AtomsPlugin extends Plugin {
       apiKey,
       model: DEFAULT_BACKFILL_MODEL,
       atomFolder: this.settings.atomFolder,
-      shortlistK: shortlistOptionsFromSettings(this.settings).shortlistK,
+      shortlistK: shortlistOptionsFromSettings().shortlistK,
     });
     // Estimate-only: nothing will be submitted, so the corpus is released now.
     prepared.run.end();
@@ -1199,7 +1201,7 @@ export default class AtomsPlugin extends Plugin {
         apiKey,
         model,
         atomFolder: this.settings.atomFolder,
-        shortlistK: shortlistOptionsFromSettings(this.settings).shortlistK,
+        shortlistK: shortlistOptionsFromSettings().shortlistK,
       });
       this.lastBackfillEstimate = prepared.estimate;
 
@@ -1557,7 +1559,7 @@ export default class AtomsPlugin extends Plugin {
         model: this.settings.model,
         activeVocabulary: this.settings.activeVocabulary,
         atomFolder: this.settings.atomFolder,
-        ...shortlistOptionsFromSettings(this.settings),
+        ...shortlistOptionsFromSettings(),
         maxCaptures: 15,
         includeToday: opts?.includeToday,
         enableHubProjection: this.settings.enableHubProjection === true,
@@ -1678,7 +1680,7 @@ export default class AtomsPlugin extends Plugin {
         model: this.settings.model,
         activeVocabulary: this.settings.activeVocabulary,
         atomFolder: this.settings.atomFolder,
-        ...shortlistOptionsFromSettings(this.settings),
+        ...shortlistOptionsFromSettings(),
         maxCaptures: fixtures.length,
         fixtureResults: fixtures,
         enableHubProjection: this.settings.enableHubProjection === true,
@@ -1744,7 +1746,7 @@ export default class AtomsPlugin extends Plugin {
         model: this.settings.model,
         activeVocabulary: this.settings.activeVocabulary,
         atomFolder: this.settings.atomFolder,
-        ...shortlistOptionsFromSettings(this.settings),
+        ...shortlistOptionsFromSettings(),
         // Bound work for interactive use; remainder stays unmarked for next run.
         maxCaptures: 15,
         includeToday: opts?.includeToday,
@@ -2008,14 +2010,9 @@ export default class AtomsPlugin extends Plugin {
 
   /**
    * Soft-unfreeze: reclassify one noise/task capture under the cursor.
-   * Command palette path — gated by settings.enableReconsiderCapture (default off).
+   * Command palette path — same behaviour as Library long-press Try filing….
    */
   async runReconsiderCapture() {
-    if (!this.settings.enableReconsiderCapture) {
-      new Notice(flagOffNotice());
-      return;
-    }
-
     const view = this.app.workspace.getActiveViewOfType(MarkdownView);
     if (!view || !(view.file instanceof TFile)) {
       new Notice(missNotice());
@@ -2083,7 +2080,7 @@ export default class AtomsPlugin extends Plugin {
 
     try {
       const ctx = this.contextProvider.buildContext();
-      const shortlist = shortlistOptionsFromSettings(this.settings);
+      const shortlist = shortlistOptionsFromSettings();
       const outcome = await classifyCapture(gate.capture.text, ctx, {
         apiKey: classifyAuth.apiKey,
         model: this.settings.model,

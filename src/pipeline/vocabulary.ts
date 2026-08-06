@@ -99,6 +99,51 @@ export function addCustomActiveTag(
   return sortTags([...activeVocabulary.map(normalizeTag), normalizeTag(tag)]);
 }
 
+/**
+ * Longest tag the user may type. Active tags are not just a label on a note — `eligibleTags()`
+ * hands them to the classify prompt, so an unbounded field is an unbounded prompt. 48 characters
+ * fits any real tag (`project-alpha-migration-2026` is 28) and refuses a pasted paragraph.
+ */
+export const MAX_CUSTOM_TAG_LENGTH = 48;
+
+/**
+ * Letters, then letters / digits / `-` `_` `/`, in any script. Deliberately narrower than what
+ * Obsidian itself renders: emoji and punctuation are legal in a vault tag but end up quoted into
+ * the classify prompt, and a leading digit is not a tag Obsidian accepts either.
+ */
+const CUSTOM_TAG_SHAPE = /^\p{L}[\p{L}\p{N}_\-/]*$/u;
+
+export type CustomTagCheck =
+  | { ok: true; tag: string }
+  | { ok: false; reason: string };
+
+/**
+ * Whether a typed tag may enter Active, and what to tell the user when it may not.
+ *
+ * Separate from `normalizeTag`, which many callers rely on to be a pure lowercase-and-strip and
+ * which must keep accepting whatever a vault or a model already produced. This is the gate on
+ * the one path where a human types something new.
+ */
+export function checkCustomTag(raw: string): CustomTagCheck {
+  const tag = normalizeTag(raw);
+  if (!tag) {
+    return { ok: false, reason: "Type a tag first — letters, then letters, numbers, - _ or /." };
+  }
+  if (tag.length > MAX_CUSTOM_TAG_LENGTH) {
+    return {
+      ok: false,
+      reason: `That tag is ${tag.length} characters — keep it under ${MAX_CUSTOM_TAG_LENGTH}.`,
+    };
+  }
+  if (!CUSTOM_TAG_SHAPE.test(tag)) {
+    return {
+      ok: false,
+      reason: `“${tag}” is not a usable tag — start with a letter, then letters, numbers, - _ or /.`,
+    };
+  }
+  return { ok: true, tag };
+}
+
 export interface TagCount {
   tag: string;
   count: number;

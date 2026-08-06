@@ -1,4 +1,5 @@
 import type { App, EventRef } from "obsidian";
+import { readEgressNoticeAcked } from "./resume";
 
 /** Device-local keys — never data.json (KTD7 / R13). */
 export const LS_AUTO_RUN_ENABLED = "atoms-auto-run-enabled";
@@ -86,6 +87,22 @@ export function writeEgressAck(
   acked: boolean,
 ): void {
   save(LS_AUTO_RUN_EGRESS_ACK, acked);
+}
+
+/**
+ * Every device-local way the paid, unattended path can be permitted, in one place.
+ *
+ * Two booleans grant it — the auto-run egress ack, and the catch-up notice a manual run may
+ * lean on — and a withdrawal surface that knows about only one of them leaves the other still
+ * granting what the user just took back. Composed here so the gate and the withdrawal read the
+ * same list.
+ */
+export function readEgressPermitted(
+  load: (key: string) => unknown,
+  opts: { catchUp: boolean },
+): boolean {
+  if (readDeviceAutoRunState(load).egressAcked) return true;
+  return opts.catchUp && readEgressNoticeAcked(load);
 }
 
 /**

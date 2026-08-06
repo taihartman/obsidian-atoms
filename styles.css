@@ -1889,9 +1889,43 @@
   margin-top: 10px;
 }
 
-/* Settings → Ask: full-width disabled MCP connector URL field */
-.atoms-settings-mcp-url-input {
-  width: 100%;
+/* Settings row grammar — a status row carries read-only state as muted trailing text,
+   with no control at its right edge. */
+.atoms-setting-status {
+  color: var(--text-muted);
+  text-align: right;
+}
+
+/* Settings row grammar — a destination row opens somewhere else; the whole row is the target. */
+.atoms-setting-destination {
+  cursor: pointer;
+}
+
+/* Settings row grammar — a back row leaves a destination. Reversed so its chevron sits at the
+   leading edge beside the title, where "back" reads, rather than at the trailing edge where
+   "forward" does. */
+.atoms-setting-back {
+  cursor: pointer;
+  flex-direction: row-reverse;
+}
+
+/* The one settings row pairing a text field with an inline reset icon. Obsidian sizes the
+   control edge to its contents, so the icon squeezed the input down to about 54px — enough for
+   "Usi" of a placeholder reading "Using the shortcut Atoms ships". Let the control edge grow and
+   give the field a floor wide enough to read that placeholder whole; it wraps under the name on
+   a narrow (phone) screen rather than shrinking again. */
+.atoms-capture-shortcut-url .setting-item-control {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  /* The field's floor plus the reset icon and the gap, so the name column yields instead of the
+     field — its description wraps, the placeholder cannot. */
+  min-width: 312px;
+}
+
+.atoms-capture-shortcut-url .setting-item-control input[type="text"] {
+  flex: 1 1 260px;
+  min-width: 260px;
 }
 
 /* Ask mirror push failure in Settings */

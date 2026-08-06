@@ -7,8 +7,8 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
+| In progress | [#304](https://github.com/taihartman/obsidian-atoms/issues/304) | taihartman | `feat/settings-row-grammar` | [plan](docs/plans/2026-08-05-003-feat-settings-row-grammar-plan.md) | `src/settings/settings.ts`, `src/settings/rows.ts`, `src/shared/types.ts`, `src/pipeline/context.ts`, `www/src/setup.html.tmpl` | Settings row grammar — 48 rows → 15. **Deletes `shortlistSize`, `expandLinkedNotes`** from `LinkerSettings`, and `enableReconsiderCapture` once #297 has landed (it has) — coordinate before touching those keys. `setup.html.tmpl` quotes settings labels verbatim; rename only in lockstep |
 | In progress | [#307](https://github.com/taihartman/obsidian-atoms/issues/307) | taihartman | `feat/tryatoms-mailing-list` | [plan](docs/plans/2026-08-05-001-feat-tryatoms-mailing-list-plan.md) | `www/**`, `.github/workflows/tryatoms-pages.yml` | Atoms Notes list + Pages Function subscribe; no plugin bump |
-| In progress | [#287](https://github.com/taihartman/obsidian-atoms/issues/287) | taihartman | `feat/library-skipped-filter` | [plan](docs/plans/2026-08-05-002-feat-library-skipped-filter-plan.md) | `src/home/atomsHomeView.ts`, `src/home/skippedLibrary.ts`, `src/pipeline/reconsider.ts` | Library Skipped + try filing (Reconsider); Plus/BYOK · **0.6.77** |
 
 ## How to claim (copy)
 
@@ -25,9 +25,11 @@ States: `Queued` · `In progress` · `Blocked` · `In review` · `Done` (then re
 | Merged | Issue / PR | Summary |
 |---|---|---|
 | 2026-08-05 | #309 / #310 | One PKCE S256 digest, pinned to base64url (server-only, no plugin bump). **#240 must import `pkceChallengeS256` — never `hashToken`, which is hex.** Its plan said hex for `verifier_hash`; corrected on `feat/240-magic-link-handoff` (`a692e2f`, rides on #298) |
+| 2026-08-05 | #287 / #297 | Library **Skipped** filter + long-press **Try filing…** (Reconsider; Plus/BYOK) · **0.6.77**. The Home path is deliberately **not** behind `enableReconsiderCapture` — #304's U8 removes the leftover flag |
 | 2026-08-05 | #301 / #302 | Hero shows the loop closing — capture beat per storyline + promoted sub-line; verbatim match guarded by test (www-only) |
 | 2026-08-05 | #299 / #300 | `/setup` installs from the community directory, not BRAT; adds the Open Atoms step; guide tightened 1582→1332 words (www-only, no plugin bump) |
 | 2026-08-05 | #294 / #295 | Custom capture-shortcut link is optional, not a setup step · **0.6.76**. **Prepend, never append**, to `BUILTIN_INSTALL_URLS` when the link moves — the constant is its head |
+| 2026-08-05 | #292 / #293 | Built-in capture shortcut points at the current iCloud link; shortcut CTA re-armed (2.1.0) · **0.6.75** |
 | 2026-08-05 | #288 / #289 | Library tap=vault; long-press Continue · **0.6.73** |
 | 2026-08-05 | #280 #282 / #281 | One "Atoms Plus is ready" notice per checkout, not one per in-flight poll; resume listeners tied to the plugin lifecycle · **0.6.72**. **#241 must land on top of this** — widening the poll window without the atomic announce is #280 again |
 | 2026-08-05 | #277 / #278 | `/setup` from-zero guide (install · iOS capture · Ask); landing `#install` shrinks to a pointer. **Follow-up: screenshots need recapturing on desktop dark — the shipped ones are poor** |

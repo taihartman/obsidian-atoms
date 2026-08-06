@@ -7,6 +7,11 @@ import {
   runConnectivityTest,
   type ProbeResult,
 } from "../src/platform/connectivity";
+import {
+  apiKeyStateFromReport,
+  apiKeyStatusText,
+  looksLikeAnthropicKey,
+} from "../src/settings/settings";
 
 describe("probeHttpsBaseline", () => {
   it("treats HTTP 200 as success", async () => {
@@ -43,6 +48,21 @@ describe("probeAnthropicApi", () => {
     const r = await probeAnthropicApi("sk-test", request as never);
     expect(r.ok).toBe(true);
     expect(r.detail?.status).toBe(200);
+  });
+
+  it("bills the user only when asked to", async () => {
+    const request = vi.fn(async () => ({ status: 400, json: {} }));
+    const body = async (opts?: { billable?: boolean }) => {
+      request.mockClear();
+      await probeAnthropicApi("sk-test", request as never, opts);
+      const calls = request.mock.calls as unknown as Array<[{ body?: string }]>;
+      return JSON.parse(calls[0]?.[0]?.body ?? "{}") as Record<string, unknown>;
+    };
+
+    // The explicit Test connection command: a real one-token message, which is charged for.
+    expect(await body()).toMatchObject({ messages: expect.anything() });
+    // The render-time key check: rejected at validation, so it proves the path for free.
+    expect(await body({ billable: false })).toEqual({});
   });
 
   it("network throw is not reachable", async () => {
@@ -169,5 +189,43 @@ describe("runConnectivityTest", () => {
     expect(request).toHaveBeenCalledTimes(2);
     expect(report.probes).toHaveLength(2);
     expect(report.verdict).toBe("no_key");
+  });
+});
+
+/**
+ * U6 — the API-key row reads this report rather than re-deriving reachability. The three
+ * outcomes it renders have to be distinguishable *here*, or the row cannot tell a user whose
+ * key is wrong from a user whose network is down.
+ */
+describe("what the API key row reads off a report", () => {
+  const probe = async (status: number | "throw") => {
+    const request = vi.fn().mockImplementation(async () => {
+      if (status === "throw") throw new Error("net::ERR_INTERNET_DISCONNECTED");
+      return { status, json: {} };
+    });
+    return runConnectivityTest({ apiKey: "sk-ant-api03-key", request: request as never });
+  };
+
+  it("separates reachable-and-rejected from unreachable", async () => {
+    const rejected = await probe(401);
+    const offline = await probe("throw");
+
+    expect(apiKeyStateFromReport(rejected)).toEqual({ kind: "rejected" });
+    expect(apiKeyStateFromReport(offline)).toEqual({ kind: "unreachable" });
+    expect(apiKeyStateFromReport(await probe(200))).toEqual({ kind: "ok" });
+  });
+
+  it("knows an Anthropic key by shape before spending a request on it", () => {
+    expect(looksLikeAnthropicKey("sk-ant-api03-abcdefghij")).toBe(true);
+    expect(looksLikeAnthropicKey("  sk-ant-api03-abcdefghij  ")).toBe(true);
+    expect(looksLikeAnthropicKey("hunter2")).toBe(false);
+    expect(looksLikeAnthropicKey("sk-ant-")).toBe(false);
+    expect(looksLikeAnthropicKey("")).toBe(false);
+  });
+
+  it("gives every state its own sentence", () => {
+    const states = ["absent", "checking", "malformed", "unreachable", "rejected", "ok"] as const;
+    const said = states.map((kind) => apiKeyStatusText({ kind }));
+    expect(new Set(said).size).toBe(states.length);
   });
 });

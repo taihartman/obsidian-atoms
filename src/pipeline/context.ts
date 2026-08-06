@@ -2,7 +2,6 @@ import type { App, TFile } from "obsidian";
 import type {
   Capture,
   ClassificationLink,
-  LinkerSettings,
   VaultContext,
 } from "../shared/types";
 import { buildCandidateCorpus, type CandidateCorpus, type CandidateNote } from "./candidates";
@@ -29,14 +28,14 @@ import {
 /** Shortlist size when nothing configures it (KTD6). */
 export const DEFAULT_SHORTLIST_K = 400;
 
-/** Smallest shortlist a *setting* may ask for. Zero is reachable in code, never from Settings. */
+/** Smallest shortlist a *typed* value may ask for. Zero is reachable in code, never from input. */
 export const MIN_SHORTLIST_K = 1;
 
 /**
- * The only way a configured shortlist size reaches the pipeline (R8).
+ * Coerce an untrusted shortlist size into one the pipeline can run (R8).
  *
- * Nothing at all — blank field, letters, `NaN`, a `data.json` synced from a version that never
- * had the setting — resolves to the default rather than to zero, because a silent zero would hand
+ * Nothing at all — blank field, letters, `NaN`, a `data.json` key nothing reads any more —
+ * resolves to the default rather than to zero, because a silent zero would hand
  * classify an empty note list and look exactly like a vault with nothing in it. A number below the
  * floor (0, negative) clamps up instead; fractions round down. There is no ceiling: a large value
  * simply scores the whole corpus, which is where this pipeline started.
@@ -174,17 +173,17 @@ export interface ShortlistRunOptions {
 }
 
 /**
- * Translate stored settings into run options (R7, R8).
+ * The run options every daily-filing caller uses (R7, R8).
  *
- * Absent fields fall back to the studied defaults, so a vault whose `data.json` predates this
- * version behaves exactly as it did before the settings existed.
+ * Both were once settings and are now constants: the studied defaults are what the pipeline is
+ * tuned for, and a stale `shortlistSize` / `expandLinkedNotes` left in an existing `data.json` is
+ * read by nothing (KTD8). Callers that genuinely differ — a catch-up, which must pass
+ * `expandGraph: false` — still build `ShortlistRunOptions` themselves.
  */
-export function shortlistOptionsFromSettings(
-  settings?: Partial<Pick<LinkerSettings, "shortlistSize" | "expandLinkedNotes">>,
-): ShortlistRunOptions {
+export function shortlistOptionsFromSettings(): ShortlistRunOptions {
   return {
-    shortlistK: clampShortlistSize(settings?.shortlistSize),
-    expandGraph: settings?.expandLinkedNotes ?? DEFAULT_GRAPH_EXPANSION,
+    shortlistK: DEFAULT_SHORTLIST_K,
+    expandGraph: DEFAULT_GRAPH_EXPANSION,
   };
 }
 

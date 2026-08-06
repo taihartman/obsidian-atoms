@@ -136,14 +136,6 @@ export interface LinkerSettings {
   model: string;
   /** Flat folder for atom files (R3). */
   atomFolder: string;
-  /**
-   * How many existing notes a capture is scored against before classify sees them (R8).
-   * Stored as typed; every read runs it through `clampShortlistSize`, so a junk value in
-   * `data.json` (hand-edited, or synced from a future version) can never reach the pipeline.
-   */
-  shortlistSize: number;
-  /** Also offer notes linked from the ones a capture matched (R7). */
-  expandLinkedNotes: boolean;
   /** Active tag vocabulary (syncs via data.json — KTD7). */
   activeVocabulary: string[];
   /** Proposed tags awaiting one-tap approval (H3). */
@@ -165,11 +157,6 @@ export interface LinkerSettings {
    */
   plusBaseUrl: string;
   /**
-   * Feature flag: Reconsider capture (soft-unfreeze noise/task → reclassify).
-   * Off by default until dogfood-ready.
-   */
-  enableReconsiderCapture: boolean;
-  /**
    * Opt-in: write managed generated block into person hub notes.
    * Off by default; discloses vault write in Settings.
    */
@@ -189,10 +176,6 @@ export const DEFAULT_SETTINGS: LinkerSettings = {
   apiKeySecretId: "",
   model: "claude-sonnet-5",
   atomFolder: "Atoms",
-  // Mirrors DEFAULT_SHORTLIST_K (KTD6); a test pins the two together. Not imported from
-  // `pipeline/context` because that module already imports these types.
-  shortlistSize: 400,
-  expandLinkedNotes: true,
   activeVocabulary: [
     "idea",
     "question",
@@ -212,7 +195,6 @@ export const DEFAULT_SETTINGS: LinkerSettings = {
   useDeviceLocalKeyFallback: false,
   captureShortcutInstallUrl: "",
   plusBaseUrl: "",
-  enableReconsiderCapture: false,
   enableHubProjection: false,
   askEnabled: false,
   askPrivacyAckAt: "",
