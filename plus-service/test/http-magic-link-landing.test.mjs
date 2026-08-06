@@ -197,6 +197,49 @@ describe("#240 U5 — the landing page offers a handoff and spends nothing", () 
     assert.equal(/vault=(&|"|')/.test(html), false);
   });
 
+  it("strips invisible reordering characters from the rendered vault name", async () => {
+    // `escHtml` stops markup, but a vault name is prose chosen by whoever
+    // minted the link, and the two things markup-escaping does not touch are
+    // length and invisible reordering. RLO and the zero-width ranges render as
+    // nothing while rearranging the text around them, which is how "requested
+    // by X" gets to read as a vault the visitor trusts.
+    const token = plantBound({
+      email: "bidi@ex.com",
+      vault: "Work\u202Ekrow\u200BVault",
+    });
+    const { res, html } = await land(token);
+
+    assert.equal(res.status, 200);
+    // Only the rendered name is sanitized. The obsidian:// href still carries
+    // the real name percent-encoded, because the plugin re-sanitizes whatever
+    // arrives and never presents the deep link's `vault=` as attested anyway.
+    const shown = /<strong>([\s\S]*?)<\/strong>/.exec(html)?.[1] ?? "";
+    for (const invisible of ["\u202E", "\u200B", "\u2066"]) {
+      assert.equal(shown.includes(invisible), false, "invisible char survived");
+    }
+    // Stripped runs collapse to a single space, as in the plugin's twin — the
+    // spoof reads as three plain words instead of one reordered name.
+    assert.equal(shown, "Work krow Vault");
+  });
+
+  it("caps a very long vault name rather than rendering all of it", async () => {
+    const token = plantBound({ email: "long@ex.com", vault: "V".repeat(250) });
+    const { html } = await land(token);
+
+    // The stored ceiling is 256; the *rendered* one is 80 including an ellipsis.
+    const shown = /<strong>([\s\S]*?)<\/strong>/.exec(html)?.[1] ?? "";
+    assert.ok(shown.length <= 80, `rendered ${shown.length} chars`);
+    assert.match(shown, /^V+…$/);
+  });
+
+  it("renders a legitimate non-Latin vault name untouched", async () => {
+    // The sanitizer strips, never rejects — a real vault must still read right.
+    const token = plantBound({ email: "jp@ex.com", vault: "研究ノート" });
+    const { html } = await land(token);
+
+    assert.equal(html.includes("研究ノート"), true);
+  });
+
   it("AE9: an unbound link renders no handoff at all and promotes the fallback", async () => {
     // An older plugin build minted no verifier hash, so no build on that device
     // could complete U4's bound exchange — the anchor would be a dead end.
