@@ -46,6 +46,7 @@ import {
   type SettingTabOptions,
 } from "./helpers/settingsTab";
 import {
+  EGRESS_ACK_VERSION,
   LS_AUTO_RUN_EGRESS_ACK,
   LS_AUTO_RUN_ENABLED,
   LS_LAST_RUN_DAY,
@@ -694,7 +695,7 @@ describe("consent sheets", () => {
 
   const ACKED = "2026-08-01T10:00:00.000Z";
 
-  const ASK_PRIVACY_ACK_ROW = "Ask privacy acknowledgment";
+  const ASK_PRIVACY_ACK_ROW = "What Ask stores and shares";
   const ASK_WRITE_ACK_ROW = "Vault write acknowledgment";
 
   describe("declining", () => {
@@ -708,7 +709,7 @@ describe("consent sheets", () => {
       await flush();
 
       expect(sheetOpen()).toBe(false);
-      expect(local.get(LS_AUTO_RUN_EGRESS_ACK)).not.toBe(true);
+      expect(local.get(LS_AUTO_RUN_EGRESS_ACK)).not.toBe(EGRESS_ACK_VERSION);
       expect(local.get(LS_AUTO_RUN_ENABLED)).not.toBe(true);
       expect(row(tab, "File automatically when Obsidian opens").querySelector(".is-enabled")).toBeNull();
     });
@@ -743,7 +744,7 @@ describe("consent sheets", () => {
       await flush();
       dismissSheet();
       await flush();
-      expect(local.get(LS_AUTO_RUN_EGRESS_ACK)).not.toBe(true);
+      expect(local.get(LS_AUTO_RUN_EGRESS_ACK)).not.toBe(EGRESS_ACK_VERSION);
       expect(local.get(LS_AUTO_RUN_ENABLED)).not.toBe(true);
 
       flip(tab, "Allow filing from Claude or ChatGPT");
@@ -780,18 +781,83 @@ describe("consent sheets", () => {
 
   describe("the acknowledgment record", () => {
     it("shows the egress ack even while auto-run is off, and still offers Review", () => {
-      const { tab } = askTab({}, { [LS_AUTO_RUN_EGRESS_ACK]: true, [LS_AUTO_RUN_ENABLED]: false });
+      const { tab } = askTab(
+        {},
+        { [LS_AUTO_RUN_EGRESS_ACK]: EGRESS_ACK_VERSION, [LS_AUTO_RUN_ENABLED]: false },
+      );
 
-      expect(rowNames(tab)).toContain("Data egress acknowledgment");
-      press(tab, "Data egress acknowledgment", "Review");
+      expect(rowNames(tab)).toContain("What Atoms sends to Anthropic");
+      press(tab, "What Atoms sends to Anthropic", "Review");
       expect(sheetText()).toContain("Withdraw acknowledgment");
+    });
+
+    /**
+     * The upgrade state U6 nearly stranded: a legacy ack *plus* a granted catch-up notice.
+     *
+     * Invalidating the stamp does not revoke the notice — `readEgressPermitted` honors it on
+     * every catch-up pass, including the unattended one a foreground resume runs. So the grant
+     * survives the upgrade and keeps spending. Gating this row on the stamp alone would take
+     * away the one surface that withdraws that grant, leaving the user paying for a consent
+     * they cannot reach. The row has to key on either grant, and say which one it is.
+     */
+    it("still offers Review when only the catch-up notice is granted", () => {
+      const { tab, local } = askTab({}, {
+        [LS_AUTO_RUN_EGRESS_ACK]: true,
+        [LS_AUTO_RUN_ENABLED]: true,
+        [LS_EGRESS_NOTICE]: true,
+      });
+      const load = (key: string) => local.get(key) ?? null;
+
+      // Asserted open first: a `false` after withdrawal proves nothing if the gate was shut all
+      // along. The notice is what still permits the paid catch-up path here.
+      expect(readEgressPermitted(load, { catchUp: true })).toBe(true);
+
+      expect(rowNames(tab)).toContain("What Atoms sends to Anthropic");
+      // The row must not claim they acknowledged wording they never saw.
+      expect(row(tab, "What Atoms sends to Anthropic").textContent).toContain("earlier wording");
+
+      press(tab, "What Atoms sends to Anthropic", "Review");
+      pressSheet("Withdraw acknowledgment");
+
+      expect(readEgressPermitted(load, { catchUp: true })).toBe(false);
+      expect(readEgressPermitted(load, { catchUp: false })).toBe(false);
+    });
+
+    /**
+     * U6 / KTD4 — the half of #315 the wording fix cannot reach.
+     *
+     * A device that accepted through the old home modal stores a bare `true`: consent to
+     * *something*, recorded against no wording at all. Reporting that as "Acknowledged on this
+     * device" under the current disclosure is the lie the issue names, so a legacy stamp has to
+     * read as unacknowledged — no row, toggle off, and the next enable poses the sheet again.
+     */
+    it("does not report a legacy ack as acknowledged, and re-prompts instead", async () => {
+      const { tab, local } = askTab({}, {
+        [LS_AUTO_RUN_EGRESS_ACK]: true,
+        [LS_AUTO_RUN_ENABLED]: true,
+      });
+
+      expect(rowNames(tab)).not.toContain("What Atoms sends to Anthropic");
+      expect(
+        row(tab, "File automatically when Obsidian opens").querySelector(".is-enabled"),
+      ).toBeNull();
+
+      flip(tab, "File automatically when Obsidian opens");
+      await flush();
+      expect(sheetOpen()).toBe(true);
+      pressSheet("I understand");
+      await flush();
+
+      // Accepting once replaces the wordless record with one that names what was shown.
+      expect(local.get(LS_AUTO_RUN_EGRESS_ACK)).toBe(EGRESS_ACK_VERSION);
+      expect(rowNames(tab)).toContain("What Atoms sends to Anthropic");
     });
 
     it("shows the Ask privacy ack even while the mirror is off", () => {
       const { tab } = askTab({ askPrivacyAckAt: ACKED, askEnabled: false });
 
-      expect(rowNames(tab)).toContain("Ask privacy acknowledgment");
-      expect(row(tab, "Ask privacy acknowledgment").textContent).toContain("2026-08-01");
+      expect(rowNames(tab)).toContain("What Ask stores and shares");
+      expect(row(tab, "What Ask stores and shares").textContent).toContain("2026-08-01");
     });
 
     it("keeps both Ask acks reviewable after signing out of Plus", async () => {
@@ -819,8 +885,8 @@ describe("consent sheets", () => {
     it("keeps no acknowledgment row for an ack that was never granted", () => {
       const { tab } = askTab();
 
-      expect(rowNames(tab)).not.toContain("Data egress acknowledgment");
-      expect(rowNames(tab)).not.toContain("Ask privacy acknowledgment");
+      expect(rowNames(tab)).not.toContain("What Atoms sends to Anthropic");
+      expect(rowNames(tab)).not.toContain("What Ask stores and shares");
       expect(rowNames(tab)).not.toContain("Vault write acknowledgment");
     });
   });
@@ -828,14 +894,14 @@ describe("consent sheets", () => {
   describe("withdrawing", () => {
     it("clears the egress ack and force-disables auto-run", async () => {
       const { tab, local } = askTab({}, {
-        [LS_AUTO_RUN_EGRESS_ACK]: true,
+        [LS_AUTO_RUN_EGRESS_ACK]: EGRESS_ACK_VERSION,
         [LS_AUTO_RUN_ENABLED]: true,
       });
-      press(tab, "Data egress acknowledgment", "Review");
+      press(tab, "What Atoms sends to Anthropic", "Review");
       pressSheet("Withdraw acknowledgment");
       await flush();
 
-      expect(local.get(LS_AUTO_RUN_EGRESS_ACK)).not.toBe(true);
+      expect(local.get(LS_AUTO_RUN_EGRESS_ACK)).not.toBe(EGRESS_ACK_VERSION);
       expect(local.get(LS_AUTO_RUN_ENABLED)).not.toBe(true);
     });
 
@@ -846,7 +912,7 @@ describe("consent sheets", () => {
       const { tab, local } = askTab(
         {},
         {
-          [LS_AUTO_RUN_EGRESS_ACK]: true,
+          [LS_AUTO_RUN_EGRESS_ACK]: EGRESS_ACK_VERSION,
           [LS_AUTO_RUN_ENABLED]: true,
           [LS_EGRESS_NOTICE]: true,
         },
@@ -857,7 +923,7 @@ describe("consent sheets", () => {
       // for everyone who acked.
       expect(readEgressPermitted(load, { catchUp: false })).toBe(true);
 
-      press(tab, "Data egress acknowledgment", "Review");
+      press(tab, "What Atoms sends to Anthropic", "Review");
       pressSheet("Withdraw acknowledgment");
       await flush();
 
@@ -872,7 +938,7 @@ describe("consent sheets", () => {
         askEnabled: true,
         askWriteAckAt: ACKED,
       });
-      press(tab, "Ask privacy acknowledgment", "Review");
+      press(tab, "What Ask stores and shares", "Review");
       pressSheet("Withdraw acknowledgment");
       await flush();
 
@@ -916,7 +982,7 @@ describe("consent sheets", () => {
       const stale = row(tab, "Ask mirror").querySelector(".checkbox-container");
       if (!(stale instanceof HTMLElement)) throw new Error("no Ask mirror toggle");
 
-      press(tab, "Ask privacy acknowledgment", "Review");
+      press(tab, "What Ask stores and shares", "Review");
       pressSheet("Withdraw acknowledgment");
       await flush();
 
@@ -949,7 +1015,7 @@ describe("consent sheets", () => {
 
       // Enable, then withdraw while the enable is still waiting on its own write to disk.
       flip(tab, "Ask mirror");
-      press(tab, "Ask privacy acknowledgment", "Review");
+      press(tab, "What Ask stores and shares", "Review");
       pressSheet("Withdraw acknowledgment");
       release();
       await flush();
@@ -979,7 +1045,8 @@ describe("consent sheets", () => {
       pressSheet("I understand");
       await flush();
 
-      expect(local.get(LS_AUTO_RUN_EGRESS_ACK)).toBe(true);
+      // The stamp, not `true` — the record names the wording the sheet just showed (U6/KTD4).
+      expect(local.get(LS_AUTO_RUN_EGRESS_ACK)).toBe(EGRESS_ACK_VERSION);
       expect(local.get(LS_AUTO_RUN_ENABLED)).toBe(true);
       // R7: an egress accept authorizes nothing on the Ask side — neither ack, and not the
       // mirror those acks gate.
@@ -1000,7 +1067,7 @@ describe("consent sheets", () => {
       // R7: agreeing to cloud storage does not authorize writes into the vault, or egress —
       // neither the ack for it nor the unattended runs it would permit.
       expect(persisted(tab).askWriteAckAt).toBe("");
-      expect(local.get(LS_AUTO_RUN_EGRESS_ACK)).not.toBe(true);
+      expect(local.get(LS_AUTO_RUN_EGRESS_ACK)).not.toBe(EGRESS_ACK_VERSION);
       expect(local.get(LS_AUTO_RUN_ENABLED)).not.toBe(true);
     });
 
@@ -1014,7 +1081,7 @@ describe("consent sheets", () => {
       expect(persisted(tab).askWriteAckAt).not.toBe("");
       // R7: the privacy ack is untouched — it was already granted, and stays exactly as granted.
       expect(persisted(tab).askPrivacyAckAt).toBe(ACKED);
-      expect(local.get(LS_AUTO_RUN_EGRESS_ACK)).not.toBe(true);
+      expect(local.get(LS_AUTO_RUN_EGRESS_ACK)).not.toBe(EGRESS_ACK_VERSION);
     });
   });
 
@@ -1022,7 +1089,7 @@ describe("consent sheets", () => {
     const { tab } = askTab();
 
     expect(rowNames(tab)).not.toContain("Privacy acknowledgment");
-    expect(rowNames(tab)).not.toContain("Data egress acknowledgment");
+    expect(rowNames(tab)).not.toContain("What Atoms sends to Anthropic");
   });
 });
 
@@ -1750,7 +1817,9 @@ describe("adversarial regressions", () => {
      * asymmetry between the two toggles is the exact bug this change exists to kill.
      */
     it("cannot be enabled by a handler still holding the ack it rendered with", async () => {
-      const { tab, local } = settingTab({ local: { [LS_AUTO_RUN_EGRESS_ACK]: true } });
+      const { tab, local } = settingTab({
+        local: { [LS_AUTO_RUN_EGRESS_ACK]: EGRESS_ACK_VERSION },
+      });
       tab.display();
 
       const stale = row(tab, "File automatically when Obsidian opens").querySelector(
@@ -1758,14 +1827,14 @@ describe("adversarial regressions", () => {
       );
       if (!(stale instanceof HTMLElement)) throw new Error("no auto-run toggle");
 
-      press(tab, "Data egress acknowledgment", "Review");
+      press(tab, "What Atoms sends to Anthropic", "Review");
       pressSheet("Withdraw acknowledgment");
       await flush();
 
       stale.click();
       await flush();
 
-      expect(local.get(LS_AUTO_RUN_EGRESS_ACK)).not.toBe(true);
+      expect(local.get(LS_AUTO_RUN_EGRESS_ACK)).not.toBe(EGRESS_ACK_VERSION);
       expect(local.get(LS_AUTO_RUN_ENABLED)).not.toBe(true);
     });
   });
@@ -1806,7 +1875,7 @@ describe("adversarial regressions", () => {
         await flush();
       }
 
-      expect(local.get(LS_AUTO_RUN_EGRESS_ACK)).not.toBe(true);
+      expect(local.get(LS_AUTO_RUN_EGRESS_ACK)).not.toBe(EGRESS_ACK_VERSION);
       expect(local.get(LS_AUTO_RUN_ENABLED)).not.toBe(true);
     });
   });

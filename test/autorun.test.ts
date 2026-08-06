@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   canBuildContext,
+  egressAckIsCurrent,
   enableAutomaticFiling,
+  readEgressAckVersion,
+  EGRESS_ACK_VERSION,
   localDateString,
   readDeviceAutoRunState,
   shouldRunAutoProcess,
@@ -117,7 +120,7 @@ describe("device-local storage (not data.json)", () => {
     writeLastRunDay(save, "2026-07-14");
 
     expect(store[LS_AUTO_RUN_ENABLED]).toBe(true);
-    expect(store[LS_AUTO_RUN_EGRESS_ACK]).toBe(true);
+    expect(store[LS_AUTO_RUN_EGRESS_ACK]).toBe(EGRESS_ACK_VERSION);
     expect(store[LS_LAST_RUN_DAY]).toBe("2026-07-14");
 
     const state = readDeviceAutoRunState(load);
@@ -133,6 +136,58 @@ describe("device-local storage (not data.json)", () => {
     );
   });
 
+  /**
+   * U6 / KTD4 — the ack has to say *what* was consented to, or it cannot go stale.
+   *
+   * The legacy `true` is the case that matters: those devices granted unattended egress against
+   * the old home modal's wording, and reading them as acknowledged is exactly the consent record
+   * #315 called wrong.
+   */
+  describe("egress ack staleness", () => {
+    const stored = (v: unknown) => (k: string) =>
+      k === LS_AUTO_RUN_EGRESS_ACK ? v : null;
+
+    it("reads the version an accept stored", () => {
+      const store: Record<string, unknown> = {};
+      writeEgressAck((k, v) => {
+        store[k] = v;
+      }, true);
+      const load = (k: string) => store[k] ?? null;
+
+      expect(readEgressAckVersion(load)).toBe(EGRESS_ACK_VERSION);
+      expect(readDeviceAutoRunState(load).egressAcked).toBe(true);
+    });
+
+    it("treats the legacy boolean as never acknowledged", () => {
+      expect(readEgressAckVersion(stored(true))).toBeNull();
+      expect(readDeviceAutoRunState(stored(true)).egressAcked).toBe(false);
+    });
+
+    it("treats a stamp from older wording as never acknowledged", () => {
+      expect(egressAckIsCurrent("2020-01-01")).toBe(false);
+      expect(readDeviceAutoRunState(stored("2020-01-01")).egressAcked).toBe(false);
+    });
+
+    it("withdrawal clears it", () => {
+      const store: Record<string, unknown> = {};
+      const save = (k: string, v: unknown) => {
+        store[k] = v;
+      };
+      writeEgressAck(save, true);
+      writeEgressAck(save, false);
+
+      expect(store[LS_AUTO_RUN_EGRESS_ACK]).toBe(false);
+      expect(readDeviceAutoRunState((k) => store[k] ?? null).egressAcked).toBe(false);
+    });
+
+    it("rejects blank and non-string stamps", () => {
+      for (const junk of ["", "   ", 1, null, undefined, {}]) {
+        expect(readEgressAckVersion(stored(junk))).toBeNull();
+        expect(readDeviceAutoRunState(stored(junk)).egressAcked).toBe(false);
+      }
+    });
+  });
+
   it("enableAutomaticFiling sets ack + enabled", () => {
     const store: Record<string, unknown> = {};
     const save = (k: string, v: unknown) => {
@@ -140,7 +195,7 @@ describe("device-local storage (not data.json)", () => {
     };
     enableAutomaticFiling(save);
     expect(store[LS_AUTO_RUN_ENABLED]).toBe(true);
-    expect(store[LS_AUTO_RUN_EGRESS_ACK]).toBe(true);
+    expect(store[LS_AUTO_RUN_EGRESS_ACK]).toBe(EGRESS_ACK_VERSION);
   });
 });
 

@@ -170,6 +170,7 @@ import {
   askSignInApproval,
   createSignInStatusSurface,
 } from "../settings/plusSignInConfirmModal";
+import { closeOpenConsentSheet } from "../settings/consent";
 
 export default class AtomsPlugin extends Plugin {
   settings!: LinkerSettings;
@@ -234,6 +235,11 @@ export default class AtomsPlugin extends Plugin {
     this.registerObsidianProtocolHandler("atoms-signin", (params) => {
       void this.signInHandoff.accept(params as unknown as Record<string, string>);
     });
+
+    // Disabling the plugin does not close a consent sheet it left on screen, and that sheet
+    // still writes: accepting one after a disable armed paid unattended filing for the moment
+    // the plugin came back. Settled here so no call site has to remember.
+    this.register(() => closeOpenConsentSheet());
 
     await this.loadSettings();
     void this.signInHandoff.ready({

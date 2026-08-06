@@ -46,6 +46,16 @@ Living map for driving Atoms during QA. Update when commands, home cards, or set
 
 **Main screen rows, in order** (`renderMainScreen`): account entry → `iCloud shortcut link` → `Capture Atom shortcut` → `Atom folder` → `List atoms in person notes` → `Tag vocabulary — N active` → *(Plus only)* `Ask mirror`, `Allow filing from Claude or ChatGPT`, `Connect Claude or ChatGPT` → `File automatically when Obsidian opens` → `Sync when you return to Obsidian` → `Sync everything now` → `Anthropic API key` → `Device-local key fallback` → `Advanced`. Fifteen rows signed in to Plus, twelve signed out. Two more appear only once this device has stamps: `Last auto-run day (this device)` and `Last catch-up` (status rows, no control).
 
+**Consent record rows (conditional, `Review` button).** Each granted acknowledgment renders its own row named after the sheet that took it, and `Review` reopens that sheet in withdraw shape (`Close` + `Withdraw acknowledgment`). They appear only while the consent is on record, so a clean device shows none of them:
+
+| Row | Renders when | Description |
+|---|---|---|
+| `What Atoms sends to Anthropic` | the device-local egress ack **or** the catch-up notice is on record — printed right below `File automatically when Obsidian opens` | `Acknowledged on this device`, or `Acknowledged on this device for Sync everything now, against earlier wording` when only the notice grants (a legacy/stale ack) |
+| `What Ask stores and shares` | `settings.askPrivacyAckAt` set — in the Ask section, and it survives sign-out | `Acknowledged YYYY-MM-DD` |
+| `Vault write acknowledgment` | `settings.askWriteAckAt` set — in the Ask section, survives sign-out | `Acknowledged YYYY-MM-DD` |
+
+The egress row is the one that is easy to get wrong: it is keyed to *either* grant, not to the stamped ack alone, so a device holding only the catch-up notice keeps a way to take that notice back.
+
 Everything else on this screen is prose and carries no control — six paragraphs signed out: the version line, the Capture intro, the Ask intro, `Sign in to Atoms Plus above first.`, the auto-run intro, and the API-key intro. A section intro is exempt from the row grammar by design; a status *fact* is not, and is a status row.
 
 **Destinations**

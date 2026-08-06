@@ -19,10 +19,15 @@ import {
 } from "../pipeline/context";
 import {
   readDeviceAutoRunState,
+  readEgressAckVersion,
   writeAutoRunEnabled,
   writeEgressAck,
 } from "../platform/autorun";
-import { clearEgressNoticeAcked, LAST_CATCHUP_LABEL } from "../platform/resume";
+import {
+  clearEgressNoticeAcked,
+  LAST_CATCHUP_LABEL,
+  readEgressNoticeAcked,
+} from "../platform/resume";
 import {
   CAPTURE_SHORTCUT_VERSION,
   customCaptureShortcutUrl,
@@ -33,6 +38,16 @@ import {
   writeShortcutAck,
 } from "./captureShortcut";
 import { markDestructive } from "./destructiveButton";
+import {
+  ASK_PRIVACY_ACK_TITLE,
+  ASK_PRIVACY_DISCLOSURE,
+  ASK_WRITE_ACK_TITLE,
+  ASK_WRITE_DISCLOSURE,
+  ConsentSheetModal,
+  type ConsentSheetSpec,
+  EGRESS_ACK_TITLE,
+  egressConsentSpec,
+} from "./consent";
 import { clampAtomFolder } from "../pipeline/render";
 import {
   actionRow,
@@ -283,27 +298,6 @@ function loadLocal(app: App, key: string): unknown {
 }
 
 /**
- * The three consents, and the three disclosures that carry them (KTD7).
- *
- * They are never unified. The egress ack covers this vault's own key sending captures to
- * Anthropic; the Ask privacy ack covers bodies stored on Atoms Plus servers, decryptable at
- * rest in v1; the write ack covers Claude or ChatGPT creating files in the vault. Merging any
- * two would let agreeing to one silently authorize another, so each has its own sheet and each
- * sheet writes exactly its own field.
- */
-const EGRESS_ACK_TITLE = "Data egress acknowledgment";
-const EGRESS_DISCLOSURE =
-  'Atoms will send my vault title graph and each capture to the Anthropic API over TLS, unattended — when Obsidian opens, when it returns to the foreground, and when I tap "Sync everything now", which classifies even when automatic filing is turned off.';
-
-const ASK_PRIVACY_ACK_TITLE = "Ask privacy acknowledgment";
-const ASK_PRIVACY_DISCLOSURE =
-  "(1) only Atoms/ leaves this device; (2) bodies are stored on Atoms Plus servers; (3) the host can decrypt at rest in v1 (not zero-knowledge); (4) when I chat in Claude, Anthropic receives tool results (titles, snippets, bodies); when I chat in ChatGPT, OpenAI receives them; (5) Wipe deletes the cloud mirror, pending outbox writes, and connector tokens; (6) turning Ask off does not wipe.";
-
-const ASK_WRITE_ACK_TITLE = "Vault write acknowledgment";
-const ASK_WRITE_DISCLOSURE =
-  "Claude or ChatGPT can queue new atom bodies to Atoms Plus, and this vault will write them as new files under my Atoms folder. New files only — existing bodies are never rewritten. This is a separate consent from the Ask privacy acknowledgment, and turning it off stops the writes without touching the mirror.";
-
-/**
  * Which screen the settings tab is showing. `main` is the list the user lands on; every other
  * value is a destination reached from it.
  *
@@ -429,6 +423,11 @@ export class AtomsSettingTab extends PluginSettingTab {
     // it, and accepting it from inside a destination still wrote the ack — a consent granted
     // on a screen the user had already left. `hide()` has always done this; this is the one
     // other screen change, and it was the one that did not.
+    // That decline re-renders the screen we are leaving, which queues a restore of *its* scroll
+    // position — and the queued restore lands after the `scrollTop = 0` below, dropping the user
+    // mid-page on a screen they have not seen. `hiding` is the latch that already suppresses a
+    // re-render nobody will look at; `display()` clears it.
+    this.hiding = true;
     this.openSheet?.close();
     this.openSheet = null;
     this.route = route;
@@ -1661,46 +1660,59 @@ export class AtomsSettingTab extends PluginSettingTab {
               this.redisplay();
               return;
             }
-            this.presentConsent({
-              title: EGRESS_ACK_TITLE,
-              disclosure: EGRESS_DISCLOSURE,
-              onVerdict: (verdict) => {
+            this.presentConsent(
+              egressConsentSpec((verdict) => {
                 // Anything short of an explicit accept leaves the toggle exactly where the
                 // sheet found it: off, and unacknowledged.
                 writeEgressAck(save, verdict === "accepted");
                 writeAutoRunEnabled(save, verdict === "accepted");
                 this.redisplay();
-              },
-            });
+              }),
+            );
           }),
       },
     });
 
-    // Rendered from the ack itself rather than from the toggle above it: an ack recorded
-    // against a feature that is currently off is still a live consent, and still revocable.
-    if (state.egressAcked) {
+    // Rendered from the grants themselves rather than from the toggle above it: a consent
+    // recorded against a feature that is currently off is still live, and still revocable.
+    //
+    // Gated on *either* device-local grant, not on the egress stamp alone. Two booleans satisfy
+    // the egress gate — the stamped ack and the catch-up notice — and this row is the only
+    // surface that withdraws either. Keying it to the stamp would mean a device whose ack went
+    // stale (a legacy grant, or any future EGRESS_ACK_VERSION bump) loses this row while its
+    // notice keeps permitting catch-up filing: a grant that still spends, with nothing left on
+    // screen to take it back.
+    const noticeAcked = readEgressNoticeAcked(load);
+    if (state.egressAcked || noticeAcked) {
+      // Say which consent is actually on record. A device carrying only the notice never saw
+      // the unioned disclosure, and this row must not claim on its behalf that it did.
+      //
+      // "earlier" is the upgrade case, where the stale grant named no wording at all. A stamp
+      // that exists but is not ours is the downgrade case — the wording it names is *later*
+      // than this build's, so "earlier" would be its own small lie.
+      const strandedStamp = readEgressAckVersion(load) != null;
+      const record = state.egressAcked
+        ? "Acknowledged on this device"
+        : strandedStamp
+          ? "Acknowledged on this device for Sync everything now, against different wording"
+          : "Acknowledged on this device for Sync everything now, against earlier wording";
       this.actionRow(containerEl, {
         action: `ack:review:${EGRESS_ACK_TITLE}`,
         name: EGRESS_ACK_TITLE,
-        // Device-local, and stored as a boolean — there is no timestamp to name here.
-        desc: "Acknowledged on this device",
+        desc: record,
         label: "Review",
         onClick: () =>
-          this.presentConsent({
-            title: EGRESS_ACK_TITLE,
-            disclosure: EGRESS_DISCLOSURE,
-            granted: "Acknowledged on this device.",
-            onVerdict: (verdict) => {
+          this.presentConsent(
+            egressConsentSpec((verdict) => {
               if (verdict !== "withdrawn") return;
               writeEgressAck(save, false);
               writeAutoRunEnabled(save, false);
-              // Two device-local booleans satisfy the egress gate, and this row is the only
-              // surface that withdraws either. Clearing one would leave the other still
-              // permitting "Sync everything now" — which the disclosure just above names.
+              // Clearing one grant would leave the other still permitting "Sync everything
+              // now" — which the disclosure just above names.
               clearEgressNoticeAcked(save);
               this.redisplay();
-            },
-          }),
+            }, `${record}.`),
+          ),
       });
     }
 
@@ -2152,87 +2164,6 @@ export class AtomsSettingTab extends PluginSettingTab {
       desc: status.line,
       onOpen: () => this.openRoute("connect"),
     });
-  }
-}
-
-/** How a consent sheet ended. Only `accepted` grants; only `withdrawn` revokes. */
-export type ConsentVerdict = "accepted" | "declined" | "withdrawn";
-
-/** What a consent sheet says, and who hears how it ended. */
-export interface ConsentSheetSpec {
-  title: string;
-  disclosure: string;
-  /** Set when reviewing an ack already granted — the sheet then offers withdrawal, not accept. */
-  granted?: string;
-  onVerdict: (verdict: ConsentVerdict) => void;
-}
-
-/**
- * A disclosure at the moment of decision, and the surface that takes it back (KTD4).
- *
- * The three permanent acknowledgment toggles this replaces were the only controls that could
- * clear an ack, so the review shape carries `Withdraw acknowledgment`: a consent that can be
- * granted but not withdrawn would be worse than the row it replaced.
- *
- * `answered` is what separates accept from dismissal. `onClose` fires for *every* close,
- * including the one an accept triggers, so it settles as `declined` only when nothing has
- * settled yet — which makes Escape, a click outside, and Settings closing all declines, and
- * leaves an accepted sheet accepted.
- */
-export class ConsentSheetModal extends Modal {
-  private answered = false;
-
-  constructor(
-    app: App,
-    private readonly spec: ConsentSheetSpec,
-  ) {
-    super(app);
-  }
-
-  onOpen() {
-    const { contentEl } = this;
-    contentEl.empty();
-    const reviewing = this.spec.granted !== undefined;
-    contentEl.createEl("h2", { text: this.spec.title });
-    contentEl.createEl("p", { text: `I understand: ${this.spec.disclosure}` });
-    if (this.spec.granted !== undefined) {
-      contentEl.createEl("p", {
-        text: this.spec.granted,
-        cls: "setting-item-description",
-      });
-    }
-
-    const buttons = new Setting(contentEl).addButton((btn) =>
-      // "Close" reads as leaving a record alone; "Cancel" as abandoning a decision.
-      btn.setButtonText(reviewing ? "Close" : "Cancel").onClick(() => this.answer("declined")),
-    );
-    if (reviewing) {
-      buttons.addButton((btn) =>
-        markDestructive(btn.setButtonText("Withdraw acknowledgment")).onClick(() =>
-          this.answer("withdrawn"),
-        ),
-      );
-      return;
-    }
-    buttons.addButton((btn) =>
-      btn
-        .setButtonText("I understand")
-        .setCta()
-        .onClick(() => this.answer("accepted")),
-    );
-  }
-
-  onClose() {
-    this.contentEl.empty();
-    // Closing without choosing is a decline, never consent — and never a withdrawal either.
-    this.answer("declined");
-  }
-
-  private answer(verdict: ConsentVerdict): void {
-    if (this.answered) return;
-    this.answered = true;
-    this.spec.onVerdict(verdict);
-    this.close();
   }
 }
 

@@ -7,6 +7,27 @@ export const LS_LAST_RUN_DAY = "atoms-last-run-day";
 /** One-time egress ack required before first unattended send (plan privacy). */
 export const LS_AUTO_RUN_EGRESS_ACK = "atoms-auto-run-egress-ack";
 
+/**
+ * Which disclosure a stored egress ack was granted against (KTD4).
+ *
+ * The key used to hold a bare `true`, which recorded that someone consented but not to *what* —
+ * so a device that accepted through the old home modal kept granting unattended sends while
+ * Settings reported an acknowledgment for wording that user never saw (#315). Stamping the ack
+ * makes staleness detectable: anything other than this exact string — an older stamp, or the
+ * legacy boolean — reads as unacknowledged, and unattended filing stops until the user accepts
+ * the current text once. Nothing raises that sheet on its own: the re-prompt is the next enable
+ * the user performs, from home's filing card or the Settings toggle. Losing automatic filing
+ * silently at the upgrade boundary is expected release behavior, and belongs in release notes.
+ *
+ * Staleness reaches this ack only. `readEgressPermitted` below also honors the catch-up notice,
+ * which carries its own separate disclosure and its own un-stamped boolean.
+ *
+ * **Bump this whenever `EGRESS_DISCLOSURE` (src/settings/consent.ts) changes what it discloses.**
+ * `egressConsentParity.test.ts` freezes the two together, so forgetting the bump fails there
+ * rather than silently leaving every existing device holding consent to text nobody read.
+ */
+export const EGRESS_ACK_VERSION = "2026-08-06";
+
 /** Cap sequential API calls per launch so a month away doesn't fire ~150 (H7). */
 export const PER_LAUNCH_CAP = 15;
 
@@ -64,8 +85,31 @@ export function readDeviceAutoRunState(
   const enabled = load(LS_AUTO_RUN_ENABLED) === true;
   const last = load(LS_LAST_RUN_DAY);
   const lastRunDay = typeof last === "string" && last ? last : null;
-  const egressAcked = load(LS_AUTO_RUN_EGRESS_ACK) === true;
+  const egressAcked = egressAckIsCurrent(readEgressAckVersion(load));
   return { enabled, lastRunDay, egressAcked };
+}
+
+/**
+ * The disclosure version a stored ack names, or null when nothing usable is stored.
+ *
+ * A legacy `true` is deliberately null rather than "some old version": it names no wording at
+ * all, which is the condition KTD4 exists to clear.
+ */
+export function readEgressAckVersion(
+  load: (key: string) => unknown,
+): string | null {
+  const v = load(LS_AUTO_RUN_EGRESS_ACK);
+  if (typeof v === "string" && v.trim()) return v.trim();
+  return null;
+}
+
+/** Acked against the disclosure this build actually shows. Anything else is not consent. */
+export function egressAckIsCurrent(
+  acked: string | null | undefined,
+  shipped: string = EGRESS_ACK_VERSION,
+): boolean {
+  if (acked == null || acked === "") return false;
+  return acked === shipped;
 }
 
 export function writeAutoRunEnabled(
@@ -82,11 +126,20 @@ export function writeLastRunDay(
   save(LS_LAST_RUN_DAY, day);
 }
 
+/**
+ * Record — or clear — the egress ack.
+ *
+ * Accepting stores the disclosure version, not `true`, so the record says what was agreed to.
+ * Withdrawing keeps passing `false`: the cleared shape is unchanged. Obsidian's own
+ * `saveLocalStorage` drops the entry for any falsy value, so what lands on disk is an absent
+ * key — which reads as unacknowledged through the same path a stale stamp does.
+ */
 export function writeEgressAck(
   save: (key: string, data: unknown) => void,
   acked: boolean,
+  version: string = EGRESS_ACK_VERSION,
 ): void {
-  save(LS_AUTO_RUN_EGRESS_ACK, acked);
+  save(LS_AUTO_RUN_EGRESS_ACK, acked ? version : false);
 }
 
 /**

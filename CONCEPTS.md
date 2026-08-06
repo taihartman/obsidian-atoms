@@ -89,7 +89,20 @@ The rule that every settings row visibly declares what kind of thing it is, thro
 A settings sub-screen reached from a chevron row and left by a back row. A re-render of the same settings surface under a route value — not a new Obsidian view, and not a modal used as navigation. Leaving and reopening settings always returns to the main screen.
 
 ### Consent sheet
-The disclosure a gated feature presents **at the moment it is enabled**, replacing a permanent acknowledgment row. Only an explicit accept records the acknowledgment; Escape, clicking outside, and closing the settings tab all count as declining and leave the feature off. Each granted acknowledgment stays inspectable and revocable afterwards from a Review row, whether or not the feature it gates is currently on. The egress, Ask-privacy, and vault-write consents are three separate sheets and never authorize one another.
+The disclosure a gated feature presents **at the moment it is enabled**, replacing a permanent acknowledgment row. Only an explicit accept records the acknowledgment; Escape, clicking outside, and closing the settings tab all count as declining and leave the feature off. Each granted acknowledgment stays inspectable and revocable afterwards from a Review row, whether or not the feature it gates is currently on, and whether or not the wording it was granted against is still current — for as long as that acknowledgment still permits anything. The egress, Ask-privacy, and vault-write consents are three separate sheets and never authorize one another.
+
+### Egress permission
+The device-local permission to send capture text to the paid classification API. It is satisfied by **either** of two independent acknowledgments — the egress consent sheet, or the catch-up notice — so the notice alone keeps the catch-up path open even when the consent-sheet grant has lapsed.
+
+Because it is a union, revoking it is not the mirror of granting it. Enabling a gated feature may demand the strictest, current-wording grant; the Review row that revokes must appear while **any** grant still permits, and withdrawing clears all of them at once. A revocation surface keyed to one member of the union is a live grant with nothing on screen to take it back.
+
+### Catch-up notice
+The egress grant carried by the run that files a backlog on demand (Sync everything now). It is a separate record with its own disclosure — not the same acknowledgment the consent sheet writes — and it is not wording-versioned. It permits **any** catch-up pass, including the unattended one that runs when you return to Obsidian, so it is not the manual-only grant its name suggests. It outlives turning automatic filing off, and only an explicit withdrawal clears it.
+
+### Acknowledgment wording version
+A consent record that stores the wording it was granted against, not merely that it was granted. Rewriting a disclosure retires every acknowledgment stamped against the old text, so the feature it gates stops counting as consented and asks again.
+
+A retired acknowledgment stops permitting on its own, so nothing is stranded by retiring it. But where a retired grant sits alongside a still-live one, the Review row must remain — labelled as being against earlier wording — so the user is never told they agreed to text they did not read.
 
 ## People (linking)
 
