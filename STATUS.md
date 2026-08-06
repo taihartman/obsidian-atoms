@@ -7,7 +7,6 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| In progress | [#325](https://github.com/taihartman/obsidian-atoms/issues/325) | taihartman | `ci/root-suite-pr-gate` | n/a — infra | `.github/workflows/**` | Root `npm test` + `npm run build` on `pull_request`. Today only `plus-service-tests.yml` gates PRs (scoped to `plus-service/`), so plugin PRs merge on a check that ignores them; the root suite first runs at tag time. **No `paths:` filter** — `pretest` runs `build:www`, so the suite spans plugin + www |
 | In progress | [#307](https://github.com/taihartman/obsidian-atoms/issues/307) | taihartman | `feat/tryatoms-mailing-list` | [plan](docs/plans/2026-08-05-001-feat-tryatoms-mailing-list-plan.md) | `www/**`, `.github/workflows/tryatoms-pages.yml` | Atoms Notes list + Pages Function subscribe; no plugin bump |
 
 ## How to claim (copy)
@@ -24,6 +23,7 @@ States: `Queued` · `In progress` · `Blocked` · `In review` · `Done` (then re
 
 | Merged | Issue / PR | Summary |
 |---|---|---|
+| 2026-08-06 | #325 / #326 | Root `npm test` + `npm run build` now run on `pull_request` (infra only, no plugin bump). **Not yet a required check** — branch protection on `master` still requires only `test` (plus-service), so `test + build` reports without blocking until an admin adds it |
 | 2026-08-05 | #309 / #310 | One PKCE S256 digest, pinned to base64url (server-only, no plugin bump). **#240 must import `pkceChallengeS256` — never `hashToken`, which is hex.** Its plan said hex for `verifier_hash`; corrected on `feat/240-magic-link-handoff` (`a692e2f`, rides on #298) |
 | 2026-08-05 | #287 / #297 | Library **Skipped** filter + long-press **Try filing…** (Reconsider; Plus/BYOK) · **0.6.77**. The Home path is deliberately **not** behind `enableReconsiderCapture` — #304's U8 removes the leftover flag |
 | 2026-08-05 | #301 / #302 | Hero shows the loop closing — capture beat per storyline + promoted sub-line; verbatim match guarded by test (www-only) |
