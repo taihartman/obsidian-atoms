@@ -235,7 +235,7 @@ describe("navigation", () => {
     // second entrance until it earns a higher position on the page.
     expect(bar).toContain('href="#backfill"');
     expect(bar).toContain("Catch up");
-    expect(bar).toContain('href="#notes"');
+    expect(bar).toContain('href="/notes/"');
     expect(bar).toContain("Field notes");
   });
 

@@ -54,7 +54,11 @@
 
     const navLinks = new Map();
     for (const a of topbar.querySelectorAll(".topbar-links a")) {
-      const section = document.querySelector(a.getAttribute("href"));
+      const href = a.getAttribute("href") || "";
+      // Archive (and any off-home) pages use absolute paths like /notes/ —
+      // only in-page #hashes are valid querySelector targets for scroll-spy.
+      if (!href.startsWith("#")) continue;
+      const section = document.querySelector(href);
       if (section) navLinks.set(section, a);
     }
 

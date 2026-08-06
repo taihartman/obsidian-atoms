@@ -21,11 +21,19 @@ import {
 import { createHash } from "crypto";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
+import {
+  escapeAttr,
+  escapeHtml,
+  formatNoteDate,
+  loadPublishedNotes,
+  renderNoteBodyHtml,
+} from "./lib/fieldNotesContent.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(here, "..");
 const srcDir = join(here, "src");
 const distDir = join(here, "dist");
+const publishedDir = join(repoRoot, "docs/field-notes/published");
 
 const pricing = JSON.parse(
   readFileSync(join(repoRoot, "plus-pricing.json"), "utf8"),
@@ -305,6 +313,9 @@ function build() {
     writeFileSync(join(distDir, `${page}.html`), render(template, values), "utf8");
   }
 
+  const notes = loadPublishedNotes(publishedDir);
+  buildFieldNotesArchive(values, notes);
+
   for (const asset of ASSETS) {
     copyFileSync(join(srcDir, asset), join(distDir, asset));
   }
@@ -322,8 +333,180 @@ function build() {
   }
 
   console.log(
-    `[www] built ${PAGES.length} pages -> www/dist  ($${pricing.monthlyUsd}/mo, ${pricing.includedFilingsPerPeriod} filings, ${pricing.trialDays}d trial)`,
+    `[www] built ${PAGES.length} pages + ${notes.length} field notes -> www/dist  ($${pricing.monthlyUsd}/mo, ${pricing.includedFilingsPerPeriod} filings, ${pricing.trialDays}d trial)`,
   );
+}
+
+function archiveTopbar(current) {
+  const fn =
+    current === "notes"
+      ? `<a href="/notes/" aria-current="page" class="is-current">Field notes</a>`
+      : `<a href="/notes/">Field notes</a>`;
+  return `<nav class="topbar" aria-label="Site">
+      <div class="topbar-in">
+        <a class="topbar-mark" href="/">
+          <span class="sentinel" aria-hidden="true">↳</span> Atoms
+        </a>
+        <ul class="topbar-links">
+          <li><a href="/#how">How it works</a></li>
+          <li><a href="/#ask">Ask</a></li>
+          <li>${fn}</li>
+          <li><a href="/#backfill">Catch up</a></li>
+          <li><a href="/#pricing">Pricing</a></li>
+        </ul>
+        <a class="btn btn--primary btn--bar" href="/#pricing">Get Atoms</a>
+      </div>
+    </nav>`;
+}
+
+function notesSignupForm(idPrefix) {
+  return `<form class="notes-form" data-notes-form novalidate>
+            <label class="notes-label" for="${idPrefix}-email">Email</label>
+            <div class="notes-row">
+              <input
+                id="${idPrefix}-email"
+                class="notes-input"
+                name="email"
+                type="email"
+                autocomplete="email"
+                inputmode="email"
+                required
+                placeholder="you@example.com"
+              />
+              <input
+                class="notes-hp"
+                type="text"
+                name="website"
+                tabindex="-1"
+                autocomplete="off"
+                aria-hidden="true"
+              />
+              <button class="btn btn--primary" type="submit">
+                Keep me in the loop
+              </button>
+            </div>
+            <p class="notes-hint">
+              Rare notes by email. Your stories welcome. Reply anytime after you
+              join.
+            </p>
+            <p
+              class="notes-status"
+              data-notes-status
+              role="status"
+              aria-live="polite"
+            ></p>
+          </form>`;
+}
+
+function shellPage({ title, description, canonical, cssPath, jsPath, topbar, body }) {
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>${escapeHtml(title)}</title>
+    <meta name="description" content="${escapeAttr(description)}" />
+    <meta name="color-scheme" content="dark light" />
+    <link rel="canonical" href="${escapeAttr(canonical)}" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="stylesheet" href="${escapeAttr(cssPath)}" />
+  </head>
+  <body class="notes-archive">
+    ${topbar}
+    ${body}
+    <script src="${escapeAttr(jsPath)}" defer></script>
+  </body>
+</html>
+`;
+}
+
+function buildFieldNotesArchive(values, notes) {
+  const notesRoot = join(distDir, "notes");
+  mkdirSync(notesRoot, { recursive: true });
+
+  let listHtml;
+  if (!notes.length) {
+    listHtml = `<p class="notes-empty">No notes published yet. Join the list and the first one lands in your inbox.</p>`;
+  } else {
+    listHtml = `<ul class="notes-list">
+${notes
+  .map(
+    (n) => `      <li>
+        <a class="notes-card" href="/notes/${escapeAttr(n.slug)}/">
+          <span class="notes-card-title">${escapeHtml(n.title)}</span>
+          <time class="notes-card-date" datetime="${escapeAttr(n.date)}">${escapeHtml(formatNoteDate(n.date))}</time>
+          <span class="notes-card-tease">${escapeHtml(n.tease || "")}</span>
+        </a>
+      </li>`,
+  )
+  .join("\n")}
+    </ul>`;
+  }
+
+  const indexBody = `<main class="notes-main">
+      <div class="wrap">
+        <p class="eyebrow">Field notes</p>
+        <h1>Field notes</h1>
+        <p class="lede">
+          Occasional maker notes on a second brain in real life. Read any issue
+          here. New ones also arrive by email.
+        </p>
+        ${listHtml}
+        <section class="notes-signup" aria-label="Subscribe to Field notes">
+          <h2 class="notes-signup-title">Get the next one by email</h2>
+          ${notesSignupForm("notes-idx")}
+        </section>
+      </div>
+    </main>`;
+
+  writeFileSync(
+    join(notesRoot, "index.html"),
+    shellPage({
+      title: "Field notes · Atoms",
+      description:
+        "Occasional maker notes on a second brain in real life. Read past Field notes from Atoms.",
+      canonical: "https://tryatoms.app/notes/",
+      cssPath: values.cssPath,
+      jsPath: values.jsPath,
+      topbar: archiveTopbar("notes"),
+      body: indexBody,
+    }),
+    "utf8",
+  );
+
+  for (const n of notes) {
+    const dir = join(notesRoot, n.slug);
+    mkdirSync(dir, { recursive: true });
+    const metaDesc = String(n.tease || n.paragraphs[0] || n.title).slice(0, 160);
+    const issueBody = `<main class="notes-main notes-main--issue">
+      <div class="wrap">
+        <p class="notes-crumb"><a href="/notes/">← All Field notes</a></p>
+        <h1>${escapeHtml(n.title)}</h1>
+        <p class="notes-meta"><time datetime="${escapeAttr(n.date)}">${escapeHtml(formatNoteDate(n.date))}</time></p>
+        <article class="notes-body">
+${renderNoteBodyHtml(n)}
+        </article>
+        <section class="notes-signup" aria-label="Subscribe to Field notes">
+          <h2 class="notes-signup-title">Get the next one by email</h2>
+          <p class="notes-email-primary">New notes also arrive by email when you join the list.</p>
+          ${notesSignupForm(`notes-${n.slug}`)}
+        </section>
+      </div>
+    </main>`;
+    writeFileSync(
+      join(dir, "index.html"),
+      shellPage({
+        title: `${n.title} · Field notes · Atoms`,
+        description: metaDesc,
+        canonical: `https://tryatoms.app/notes/${n.slug}/`,
+        cssPath: values.cssPath,
+        jsPath: values.jsPath,
+        topbar: archiveTopbar("issue"),
+        body: issueBody,
+      }),
+      "utf8",
+    );
+  }
 }
 
 // Only build when run directly, so tests can import render() cleanly.
@@ -331,4 +514,12 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   build();
 }
 
-export { tokens, trialFinePrint, PAGES, buildGraph, GRAPHS };
+export {
+  tokens,
+  trialFinePrint,
+  PAGES,
+  buildGraph,
+  GRAPHS,
+  buildFieldNotesArchive,
+  publishedDir,
+};

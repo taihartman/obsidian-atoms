@@ -29,16 +29,18 @@
  *   fly ssh console -a atoms-plus -C 'printenv RESEND_API_KEY'
  */
 
-import { readFileSync } from "fs";
-import { dirname, join } from "path";
+import { mkdirSync, readFileSync, writeFileSync } from "fs";
+import { basename, dirname, join } from "path";
 import { fileURLToPath } from "url";
 import {
   buildFieldNotesHtml,
   buildFieldNotesText,
 } from "../www/functions/_lib/fieldNotesEmail.mjs";
+import { promoteDraftToPublished } from "../www/lib/fieldNotesContent.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, "..");
+const publishedDir = join(root, "docs/field-notes/published");
 
 function arg(name, fallback) {
   const i = process.argv.indexOf(name);
@@ -222,9 +224,34 @@ async function main() {
     process.exit(1);
   }
 
+  let publishedPath = null;
+  try {
+    const draftPath = arg("--draft");
+    const { filename, note } = promoteDraftToPublished(draft, basename(draftPath));
+    mkdirSync(publishedDir, { recursive: true });
+    publishedPath = join(publishedDir, filename);
+    writeFileSync(publishedPath, JSON.stringify(note, null, 2) + "\n", "utf8");
+  } catch (e) {
+    console.error(
+      "broadcast sent but publish to docs/field-notes/published/ failed:",
+      e?.message || e,
+    );
+    console.error(
+      "Email is live. Fix the draft filename (YYYY-MM-DD-<slug>.json), re-run promote, commit, and deploy master so /notes/ updates.",
+    );
+    process.exit(1);
+  }
+
   console.log(
     JSON.stringify(
-      { ok: true, mode: "broadcast", broadcast_id: bid, segment_id: segmentId },
+      {
+        ok: true,
+        mode: "broadcast",
+        broadcast_id: bid,
+        segment_id: segmentId,
+        published: publishedPath,
+        next: "Commit published JSON, merge to master (Pages deploy), then verify https://tryatoms.app/notes/<slug>/",
+      },
       null,
       2,
     ),

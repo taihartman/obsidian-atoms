@@ -10,12 +10,16 @@ on:
     branches: [master]
     paths:
       - "www/**"
+      - "docs/field-notes/**"
       - "plus-pricing.json"
       - "package.json"
       - "package-lock.json"
       - "src/shared/plusPricing.ts"
       - "test/wwwPricing.test.ts"
       - "test/wwwSubscribeCore.test.ts"
+      - "test/wwwFieldNotesArchive.test.ts"
+      - "test/fieldNotesContent.test.ts"
+      - "scripts/field-notes-send.mjs"
       - ".github/workflows/tryatoms-pages.yml"
   workflow_dispatch:
 
@@ -43,8 +47,8 @@ jobs:
       - name: Build www
         run: npm run build:www
 
-      - name: Assert pricing + honesty floor
-        run: npx vitest run test/wwwPricing.test.ts test/wwwSubscribeCore.test.ts
+      - name: Assert pricing + honesty floor + Field notes archive
+        run: npx vitest run test/wwwPricing.test.ts test/wwwSubscribeCore.test.ts test/fieldNotesContent.test.ts test/wwwFieldNotesArchive.test.ts
 
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3
