@@ -65,6 +65,8 @@
 
 html {
   -webkit-text-size-adjust: 100%;
+  /* Keep the top bar from jumping sideways when home has a scrollbar and /notes/ does not. */
+  scrollbar-gutter: stable;
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -150,8 +152,17 @@ a:hover {
   border-bottom-color: var(--sep-soft);
 }
 
+/* Archive has no hero under the bar — always show the edge (matches scrolled home). */
+body.notes-archive .topbar {
+  border-bottom-color: var(--sep-soft);
+}
+
 @supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
   .topbar.is-stuck {
+    background: color-mix(in srgb, var(--bg) 86%, transparent);
+  }
+
+  body.notes-archive .topbar {
     background: color-mix(in srgb, var(--bg) 86%, transparent);
   }
 }
@@ -1606,4 +1617,177 @@ main[data-story="self"] .s-people {
   .band {
     padding: 64px 0;
   }
+}
+
+/* ---------- Field notes archive ---------- */
+
+body.notes-archive {
+  min-height: 100vh;
+}
+
+.notes-main {
+  padding: 88px 0 64px;
+}
+
+.notes-main .lede {
+  max-width: 36rem;
+  color: var(--muted);
+  margin-bottom: 2rem;
+}
+
+.notes-list {
+  list-style: none;
+  margin: 0 0 2.5rem;
+  padding: 0;
+  max-width: 36rem;
+}
+
+.notes-list li {
+  border-bottom: 1px solid var(--sep, rgba(84, 84, 88, 0.55));
+}
+
+/* Signup already has border-top — last card must not double the rule. */
+.notes-list li:last-child {
+  border-bottom: none;
+}
+
+.notes-card {
+  display: block;
+  padding: 1rem 0;
+  text-decoration: none;
+  color: inherit;
+}
+
+.notes-card:hover .notes-card-title {
+  color: var(--tint, #0a84ff);
+}
+
+.notes-card-title {
+  display: block;
+  font-weight: 600;
+  font-size: 1.05rem;
+  color: var(--label);
+}
+
+.notes-card-date {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin-top: 0.25rem;
+}
+
+.notes-card-tease {
+  display: block;
+  font-size: 0.92rem;
+  color: var(--muted);
+  margin-top: 0.4rem;
+  line-height: 1.45;
+}
+
+.notes-empty {
+  max-width: 32rem;
+  color: var(--muted);
+  margin: 0 0 2rem;
+}
+
+.notes-crumb {
+  margin: 0 0 1rem;
+  font-size: 0.9rem;
+}
+
+.notes-crumb a {
+  color: var(--tint, #0a84ff);
+  text-decoration: none;
+}
+
+.notes-meta {
+  color: var(--muted);
+  font-size: 0.9rem;
+  margin: 0 0 1.5rem;
+}
+
+.notes-body {
+  max-width: 36rem;
+  margin-bottom: 2.5rem;
+}
+
+.notes-p {
+  margin: 0 0 1rem;
+  font-size: 1.05rem;
+  line-height: 1.55;
+  color: var(--label);
+}
+
+.notes-loop {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: stretch;
+  margin: 1.5rem 0;
+  padding: 1rem;
+  background: var(--surface, #1c1c1e);
+  border-radius: 12px;
+  border: 1px solid var(--sep, rgba(84, 84, 88, 0.55));
+}
+
+.notes-loop-step {
+  flex: 1 1 6rem;
+  min-width: 5.5rem;
+}
+
+.notes-loop-step strong {
+  display: block;
+  font-size: 0.9rem;
+  margin-bottom: 0.35rem;
+}
+
+.notes-loop-step span {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.notes-loop-arrow {
+  color: var(--tint, #0a84ff);
+  align-self: center;
+  font-size: 1.1rem;
+}
+
+.notes-figure {
+  margin: 1.25rem 0;
+}
+
+.notes-figure img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border-radius: 12px;
+}
+
+.notes-cta {
+  margin: 1.25rem 0 0;
+}
+
+.notes-secondary {
+  margin: 0.75rem 0 0;
+  font-size: 0.95rem;
+}
+
+.notes-signup {
+  max-width: 32rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--sep, rgba(84, 84, 88, 0.55));
+}
+
+.notes-signup-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin: 0 0 0.5rem;
+}
+
+.notes-email-primary {
+  color: var(--muted);
+  font-size: 0.95rem;
+  margin: 0 0 0.75rem;
 }

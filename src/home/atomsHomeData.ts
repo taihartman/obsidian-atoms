@@ -448,36 +448,29 @@ export function shouldShowWaitCard(unprocessedCount: number): boolean {
 export interface InboxStuckSummary {
   /** Calm one-liner naming each stuck state, load-bearing states first. */
   text: string;
-  /** Captures the drain had to date from their neighbours; drives the shortcut signal. */
-  inferredDates: number;
 }
 
 /**
  * What to surface in Atoms home for captures stuck in the inbox. Returns null
- * when nothing is stuck — silence is the healthy state. Held (future-dated) and
- * inferred-date captures are named distinctly from pending and from each other:
- * pending clears itself on the next drain, held waits for its day, and an
- * inferred date means the drain guessed the day and dropped the time — the one
- * state pointing at a repair the user can actually make, so it leads.
+ * when nothing is stuck — silence is the healthy state.
+ *
+ * Only **held** (future-dated) and **pending** (waiting to file) are stuck.
+ * Inferred dates / missing times are not: the drain intentionally files without
+ * a time when the stamp is absent or unreadable, and untimed bullets are a
+ * normal daily shape. Times from the capture shortcut are a nice-to-have, not
+ * a requirement — never alarm on them here.
  */
 export function inboxStuckSummary(counts: {
   pending: number;
   held: number;
-  inferredDates: number;
+  /** Ignored — kept so callers may pass full InboxCounts without stripping. */
+  inferredDates?: number;
 }): InboxStuckSummary | null {
   const pending = Math.max(0, counts.pending);
   const held = Math.max(0, counts.held);
-  const inferredDates = Math.max(0, counts.inferredDates);
-  if (pending + held + inferredDates === 0) return null;
+  if (pending + held === 0) return null;
 
   const parts: string[] = [];
-  if (inferredDates > 0) {
-    parts.push(
-      inferredDates === 1
-        ? "1 filed without a time"
-        : `${inferredDates} filed without times`,
-    );
-  }
   if (held > 0) {
     parts.push(
       held === 1 ? "1 held for a future day" : `${held} held for a future day`,
@@ -488,7 +481,7 @@ export function inboxStuckSummary(counts: {
       pending === 1 ? "1 waiting to file" : `${pending} waiting to file`,
     );
   }
-  return { text: parts.join(" · "), inferredDates };
+  return { text: parts.join(" · ") };
 }
 
 /** Count linker atoms with atoms-quality missing or below CURRENT (batch cap separate). */

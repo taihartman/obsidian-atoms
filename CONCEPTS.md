@@ -7,6 +7,9 @@ Shared domain vocabulary for this project — entities, named processes, and sta
 ### Field notes
 The public marketing email list on tryatoms.app (user-facing name). Occasional maker notes on a second brain in real life - not a changelog drip. Voice and promise: `docs/voice.md`. Ops: `docs/runbooks/atoms-notes-list.md`. Engineering env keys may still say `ATOMS_NOTES_*`; Resend segment may still be named “Atoms Notes.”
 
+### Field notes archive
+Public tryatoms.app pages at `/notes/` listing full past Field notes (same substance as email). SSOT: `docs/field-notes/published/`. Send = publish JSON; live after master Pages deploy. Plan: `docs/plans/2026-08-06-003-feat-field-notes-archive-plan.md`.
+
 ## Capture pipeline
 
 ### Capture

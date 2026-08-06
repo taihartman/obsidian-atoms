@@ -235,8 +235,12 @@ describe("navigation", () => {
     // second entrance until it earns a higher position on the page.
     expect(bar).toContain('href="#backfill"');
     expect(bar).toContain("Catch up");
-    expect(bar).toContain('href="#notes"');
+    expect(bar).toContain('href="/notes/"');
     expect(bar).toContain("Field notes");
+    // Field notes is last in the link list (after product sections + pricing).
+    const notesAt = bar.indexOf('href="/notes/"');
+    const pricingAt = bar.indexOf('href="#pricing"');
+    expect(notesAt).toBeGreaterThan(pricingAt);
   });
 
   it("sends the primary call to action to the price, not past it", () => {

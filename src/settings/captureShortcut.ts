@@ -39,10 +39,6 @@ export const CAPTURE_SHORTCUT_INSTALL_URL: string = BUILTIN_INSTALL_URLS[0];
 /** Device-local (never data.json). */
 export const LS_CAPTURE_SHORTCUT_ACK = "atoms-capture-shortcut-acked-version";
 
-/** Device-local (never data.json). Re-arms when the shipped shortcut version changes. */
-export const LS_INBOX_INFERRED_DATE_ACK =
-  "atoms-inbox-inferred-date-acked-version";
-
 /**
  * Comparison form only — never opened, never stored.
  *
@@ -91,12 +87,7 @@ export function resolveCaptureShortcutInstallUrl(
   return (CAPTURE_SHORTCUT_INSTALL_URL ?? "").trim();
 }
 
-/**
- * Ack version stored under `key`, or null when nothing usable is stored.
- *
- * Shared by the two acks below; each keeps its own key and its own meaning —
- * acking the shortcut says nothing about the inferred-date signal.
- */
+/** Ack version stored under `key`, or null when nothing usable is stored. */
 function readAckVersion(
   load: (key: string) => unknown,
   key: string,
@@ -143,36 +134,6 @@ export function writeShortcutAck(
   version: string = CAPTURE_SHORTCUT_VERSION,
 ): void {
   save(LS_CAPTURE_SHORTCUT_ACK, version);
-}
-
-export function readInferredDateAck(
-  load: (key: string) => unknown,
-): string | null {
-  return readAckVersion(load, LS_INBOX_INFERRED_DATE_ACK);
-}
-
-export function writeInferredDateAck(
-  save: (key: string, value: unknown) => void,
-  version: string = CAPTURE_SHORTCUT_VERSION,
-): void {
-  save(LS_INBOX_INFERRED_DATE_ACK, version);
-}
-
-/**
- * True when home should surface "these captures were filed without a time".
- *
- * Keyed to the shortcut version rather than a plain boolean: the inbox is
- * append-only and never cleaned, so the read-time count stays true forever. A
- * permanent dismiss would silently re-create the dead end this signal exists to
- * remove; a version-keyed one re-arms once the shipped shortcut moves on.
- */
-export function needsInferredDateSignal(
-  inferredDates: number,
-  acked: string | null | undefined,
-  shipped: string = CAPTURE_SHORTCUT_VERSION,
-): boolean {
-  if (inferredDates <= 0) return false;
-  return ackIsStale(acked, shipped);
 }
 
 /** Only iCloud Shortcuts share links may be opened from the plugin. */

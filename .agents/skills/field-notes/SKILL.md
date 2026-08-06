@@ -89,11 +89,20 @@ node scripts/field-notes-send.mjs broadcast --draft docs/field-notes/drafts/<fil
 
 Never broadcast without explicit approval. Never use `--confirm` “to be helpful.”
 
-### 5. After send
+### 5. After broadcast (send = publish SSOT)
 
-- Report broadcast id / test id  
-- Remind: replies hit Reply-To Gmail; feature with permission  
-- If they want edits, update JSON and re-test (new +alias)
+Successful `broadcast --confirm` also writes `docs/field-notes/published/YYYY-MM-DD-<slug>.json`.
+
+**Live web is not automatic.** Checklist before calling it done:
+
+1. Report broadcast id + published path  
+2. Commit published JSON (and any draft) on the feature branch / master  
+3. Merge to **master** so Pages deploys (`tryatoms-pages` workflow)  
+4. Verify `https://tryatoms.app/notes/<slug>/` and `/notes/`  
+5. Remind: replies hit Reply-To Gmail; feature with permission  
+
+`test` mode never writes `published/`.  
+Draft basename must be `YYYY-MM-DD-<slug>.json` or promote fails after send (email already live — fix and commit manually).
 
 ## Defaults
 
