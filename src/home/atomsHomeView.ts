@@ -135,13 +135,10 @@ import {
 import {
   CAPTURE_SHORTCUT_VERSION,
   labelInstallOrUpdate,
-  needsInferredDateSignal,
   needsShortcutCta,
   openShortcutInstallUrl,
-  readInferredDateAck,
   readShortcutAck,
   resolveCaptureShortcutInstallUrl,
-  writeInferredDateAck,
   writeShortcutAck,
 } from "../settings/captureShortcut";
 import {
@@ -228,8 +225,6 @@ export class AtomsHomeView extends ItemView {
   /** Detach long-press bindings before re-render (clears mid-hold timers). */
   private libraryPressDetach: Array<() => void> = [];
   private shortcutAcked: string | null = null;
-  /** Ack for the "filed without a time" signal, keyed to the shortcut version. */
-  private inferredDateAcked: string | null = null;
   private refreshTimer: number | null = null;
   /** Session-only skips for From-the-brain Next (not durable). */
   private resurfaceSkipPaths = new Set<string>();
@@ -657,9 +652,6 @@ export class AtomsHomeView extends ItemView {
     this.refreshResurfacePick(folder);
 
     this.shortcutAcked = readShortcutAck((k) => this.app.loadLocalStorage(k));
-    this.inferredDateAcked = readInferredDateAck((k) =>
-      this.app.loadLocalStorage(k),
-    );
 
     this.inboxStuck = await this.loadInboxStuck();
 
@@ -720,23 +712,11 @@ export class AtomsHomeView extends ItemView {
     }
   }
 
-  /**
-   * Summarize the last-read counts, honouring the inferred-date ack.
-   *
-   * The inbox is append-only, so that count never falls on its own — zeroing it
-   * here is what makes Dismiss stick, while keeping inboxStuckSummary a pure
-   * function of counts. Recomputed rather than re-read so Dismiss is instant.
-   */
+  /** Summarize last-read inbox counts (held / pending only). */
   private summarizeInboxStuck(): InboxStuckSummary | null {
     const counts = this.inboxStuckCounts;
     if (!counts) return null;
-    const silenced = !needsInferredDateSignal(
-      counts.inferredDates,
-      this.inferredDateAcked,
-    );
-    return inboxStuckSummary(
-      silenced ? { ...counts, inferredDates: 0 } : counts,
-    );
+    return inboxStuckSummary(counts);
   }
 
   private visibleEntries(): AtomLibraryEntry[] {
@@ -2138,8 +2118,7 @@ export class AtomsHomeView extends ItemView {
       }
     }
 
-    // Drain health: a capture the drain could not route stays invisible until
-    // someone opens the inbox note — surface it here instead. Silent when clear.
+    // Drain health: held / pending only. Missing times are normal — never alarm.
     if (this.inboxStuck && this.runPhase === "idle" && !this.landPeak) {
       const stuck = flatCard(scroll, {
         className: "atoms-home-inbox-stuck",
@@ -2149,56 +2128,6 @@ export class AtomsHomeView extends ItemView {
         text: "Inbox",
       });
       stuck.createEl("p", { text: this.inboxStuck.text });
-
-      // Name the repair, not the button: reinstalling the shortcut re-opens the
-      // user's own iCloud link and brings the same misconfiguration back. Scoped
-      // to "these" on purpose — the Date-component-only trap emits a valid
-      // 12:00:00 stamp and never reaches this card.
-      if (this.inboxStuck.inferredDates > 0) {
-        stuck.createEl("p", {
-          cls: "atoms-home-inbox-cause",
-          text:
-            this.inboxStuck.inferredDates === 1
-              ? "Your capture shortcut is sending a timestamp Atoms can't read, so this one took the date of the captures around it."
-              : "Your capture shortcut is sending a timestamp Atoms can't read, so these took the date of the captures around them.",
-        });
-        stuck.createEl("p", {
-          cls: "atoms-home-inbox-fix",
-          text: "Set Format String on the Format Date action — not on the Current Date variable.",
-        });
-        const actions = actionRow(stuck, {
-          className: "atoms-home-inbox-actions",
-        });
-        button(actions, {
-          grade: "primary",
-          label: "Open capture settings",
-          onClick: () => openPluginSettingsTab(this.app, "atoms"),
-        });
-        // Only when a link exists — a permanently-dead button is exactly what
-        // made the old card a dead end. And not when the shortcut banner is
-        // already on screen: it renders the same action a few pixels below, and
-        // two adjacent buttons for one action just muddy which is authoritative.
-        if (this.installUrl() && !this.showShortcutBanner()) {
-          button(actions, {
-            grade: "secondary",
-            label: labelInstallOrUpdate(this.shortcutAcked),
-            onClick: () => this.onInstallShortcut(),
-          });
-        }
-        button(actions, {
-          grade: "quiet",
-          label: "Dismiss",
-          onClick: () => {
-            writeInferredDateAck(
-              (k, v) => this.app.saveLocalStorage(k, v),
-              CAPTURE_SHORTCUT_VERSION,
-            );
-            this.inferredDateAcked = CAPTURE_SHORTCUT_VERSION;
-            this.inboxStuck = this.summarizeInboxStuck();
-            this.render();
-          },
-        });
-      }
     }
 
     // One hero: Ready when pending; person invite > packing Make > Together / resurface
