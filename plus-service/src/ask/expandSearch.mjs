@@ -5,7 +5,22 @@
 import { config } from "../config.mjs";
 
 const GENERIC_PHRASE_RE =
-  /^(how to improve|what is success|key takeaways|summary of this|main points|important notes)\b/i;
+  /^(how to improve|what is success|key takeaways|summary of this|main points|important notes|overview of the note|general thoughts)\b/i;
+
+/** @type {{ ok: number, fail: Record<string, number> }} */
+const expandStats = { ok: 0, fail: {} };
+
+/**
+ * @param {string} reason
+ */
+function bumpFail(reason) {
+  const k = String(reason || "unknown").slice(0, 40);
+  expandStats.fail[k] = (expandStats.fail[k] || 0) + 1;
+  // Counters only — never body/prompt/phrases
+  console.info(
+    `[plus] expand fail reason=${k} ok=${expandStats.ok} fails=${JSON.stringify(expandStats.fail)}`,
+  );
+}
 
 /**
  * @param {string} title
@@ -14,13 +29,16 @@ const GENERIC_PHRASE_RE =
  */
 export function buildExpandPrompt(title, tags, bodySlice) {
   const tagLine = (tags || []).filter(Boolean).slice(0, 12).join(", ");
-  return `You help index a personal note for search. Given the note title, tags, and body excerpt, output 3 to 5 short search phrases or questions a user might ask that this note answers. Prefer concrete topical paraphrases, not generic fluff.
+  return `You help index a personal note for search. Given the note title, tags, and body excerpt, output 3 to 5 short search phrases or questions a user might ask that this note answers.
+
+Critical: use everyday paraphrase wording the user might type later — not the note's own jargon. It is good if phrases share few words with the title.
 
 Rules:
-- JSON array of strings only, no markdown
+- Reply with a JSON array of strings only (no markdown fences)
 - Each phrase at most 120 characters
-- Do not invent facts not supported by the note
-- Do not include the exact title alone as a phrase
+- Do not invent facts unsupported by the note
+- Do not output the exact title alone
+- Prefer concrete how/what/why questions and plain synonyms
 
 Title: ${String(title || "").slice(0, 300)}
 Tags: ${tagLine || "(none)"}
@@ -38,31 +56,40 @@ export function parseExpandResponse(raw, ctx = {}) {
   if (Array.isArray(raw)) {
     list = raw.map((x) => String(x ?? "").trim());
   } else {
-    const s = String(raw ?? "").trim();
+    let s = String(raw ?? "").trim();
     if (!s) return [];
+    // Strip common markdown fences
+    s = s.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
     try {
       const j = JSON.parse(s);
       if (Array.isArray(j)) list = j.map((x) => String(x ?? "").trim());
-      else list = s.split(/\n+/).map((l) => l.replace(/^[-*]\s*/, "").trim());
+      else list = s.split(/\n+/).map((l) => l.replace(/^[-*\d.)\s]+/, "").trim());
     } catch {
-      list = s.split(/\n+/).map((l) => l.replace(/^[-*]\s*/, "").trim());
+      // Try to extract a JSON array substring
+      const m = s.match(/\[[\s\S]*\]/);
+      if (m) {
+        try {
+          const j = JSON.parse(m[0]);
+          if (Array.isArray(j)) list = j.map((x) => String(x ?? "").trim());
+        } catch {
+          list = s.split(/\n+/).map((l) => l.replace(/^[-*\d.)\s]+/, "").trim());
+        }
+      } else {
+        list = s.split(/\n+/).map((l) => l.replace(/^[-*\d.)\s]+/, "").trim());
+      }
     }
   }
 
-  const title = String(ctx.title || "").toLowerCase();
-  const tags = (ctx.tags || []).map((t) => String(t).toLowerCase());
-  const body = String(ctx.bodySlice || "").toLowerCase();
-  const corpus = `${title} ${tags.join(" ")} ${body}`;
-
+  const title = String(ctx.title || "").trim().toLowerCase();
   const out = [];
+  const seen = new Set();
   for (const p of list) {
-    if (!p || p.length > 120) continue;
+    if (!p || p.length < 8 || p.length > 120) continue;
     if (GENERIC_PHRASE_RE.test(p)) continue;
-    const words = p
-      .toLowerCase()
-      .split(/\s+/)
-      .filter((w) => w.length >= 4);
-    if (words.length && !words.some((w) => corpus.includes(w))) continue;
+    const low = p.toLowerCase();
+    if (title && low === title) continue;
+    if (seen.has(low)) continue;
+    seen.add(low);
     out.push(p);
     if (out.length >= 5) break;
   }
@@ -93,7 +120,7 @@ export async function generateExpandPhrases(atom) {
       },
       body: JSON.stringify({
         model,
-        max_tokens: 300,
+        max_tokens: 400,
         temperature: 0,
         messages: [{ role: "user", content: prompt }],
       }),
@@ -110,7 +137,11 @@ export async function generateExpandPhrases(atom) {
     const phrases = parseExpandResponse(text, { title, tags, bodySlice });
     if (!phrases.length) return { ok: false, reason: "empty_parse" };
     return { ok: true, phrases };
-  } catch {
+  } catch (err) {
+    const name = err instanceof Error ? err.name : "";
+    if (name === "TimeoutError" || name === "AbortError") {
+      return { ok: false, reason: "timeout" };
+    }
     return { ok: false, reason: "network_or_timeout" };
   }
 }
@@ -165,7 +196,10 @@ function pumpExpandPool() {
  */
 export function enqueueMirrorExpand(store, job) {
   if (!config.askExpandEnabled) return;
-  if (!checkExpandRateLimit(job.email)) return;
+  if (!checkExpandRateLimit(job.email)) {
+    bumpFail("rate_limit");
+    return;
+  }
   pool.queue.push(async () => {
     try {
       const result = await generateExpandPhrases({
@@ -173,14 +207,72 @@ export function enqueueMirrorExpand(store, job) {
         tags: job.tags,
         body: job.body,
       });
-      if (!result.ok) return;
+      if (!result.ok) {
+        bumpFail(result.reason);
+        return;
+      }
       const text = result.phrases.join("\n");
-      await store.mirrorSetExpand(job.email, job.path, job.contentHash, text);
+      const set = await store.mirrorSetExpand(
+        job.email,
+        job.path,
+        job.contentHash,
+        text,
+      );
+      if (set?.updated) {
+        expandStats.ok += 1;
+      } else {
+        bumpFail("set_noop");
+      }
     } catch {
-      /* counters only — no content logs */
+      bumpFail("exception");
     }
   });
   pumpExpandPool();
+}
+
+/**
+ * Expand missing rows for one account (sync backfill). Returns counts only.
+ * @param {{ mirrorListMissingExpand?: Function, mirrorSetExpand: Function }} store
+ * @param {string} email
+ * @param {{ limit?: number }} [opts]
+ */
+export async function backfillExpandForEmail(store, email, opts = {}) {
+  const limit = Math.min(Math.max(Number(opts.limit) || 50, 1), 200);
+  if (!config.askExpandEnabled) {
+    return { ok: false, reason: "disabled", attempted: 0, expanded: 0 };
+  }
+  if (typeof store.mirrorListMissingExpand !== "function") {
+    return { ok: false, reason: "no_list", attempted: 0, expanded: 0 };
+  }
+  const missing = await store.mirrorListMissingExpand(email, limit);
+  let expanded = 0;
+  let attempted = 0;
+  for (const row of missing || []) {
+    if (!checkExpandRateLimit(email)) break;
+    attempted += 1;
+    const result = await generateExpandPhrases({
+      title: row.title,
+      tags: row.tags,
+      body: row.body,
+    });
+    if (!result.ok) {
+      bumpFail(result.reason);
+      continue;
+    }
+    const set = await store.mirrorSetExpand(
+      email,
+      row.path,
+      row.contentHash,
+      result.phrases.join("\n"),
+    );
+    if (set?.updated) {
+      expanded += 1;
+      expandStats.ok += 1;
+    } else {
+      bumpFail("set_noop");
+    }
+  }
+  return { ok: true, attempted, expanded, remaining_cap: limit };
 }
 
 /**
@@ -204,6 +296,14 @@ export function expandCoverageOf(pubs) {
 export function retrievalModeForCoverage(coverage) {
   if (!config.askExpandEnabled) return "lexical";
   const floor = config.askExpandCoverageFloor;
-  if (coverage >= floor) return "lexical_expanded";
+  // Any nonzero coverage means expand is live and scoring; floor defaults low.
+  if (coverage > 0 && coverage >= floor) return "lexical_expanded";
   return "lexical";
+}
+
+export function getExpandStats() {
+  return {
+    ok: expandStats.ok,
+    fail: { ...expandStats.fail },
+  };
 }

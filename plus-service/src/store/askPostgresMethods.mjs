@@ -197,13 +197,41 @@ export function createAskPostgresMethods(pool, deps) {
     const e = normEmail(email);
     const { rows } = await pool.query(
       `SELECT COUNT(*)::int AS n,
-              COUNT(expand_enc) FILTER (WHERE expand_enc IS NOT NULL AND expand_enc <> '')::int AS e
+              COUNT(*) FILTER (WHERE expand_enc IS NOT NULL AND btrim(expand_enc) <> '')::int AS e
        FROM atom_mirror WHERE email = $1`,
       [e],
     );
     const n = rows[0]?.n || 0;
     if (!n) return 0;
     return (rows[0]?.e || 0) / n;
+  }
+
+  /**
+   * Rows missing expand for backfill. Decrypts body server-side only.
+   * @param {string} email
+   * @param {number} limit
+   */
+  async function mirrorListMissingExpand(email, limit = 50) {
+    const e = normEmail(email);
+    const lim = Math.min(Math.max(Number(limit) || 50, 1), 200);
+    const { rows } = await pool.query(
+      `SELECT path, title, tags_json, body_enc, content_hash
+       FROM atom_mirror
+       WHERE email = $1 AND (expand_enc IS NULL OR btrim(expand_enc) = '')
+       ORDER BY updated_at DESC
+       LIMIT $2`,
+      [e, lim],
+    );
+    return rows.map((r) => {
+      const pub = rowToPublicAtom(r, { includeBody: true });
+      return {
+        path: r.path,
+        title: r.title,
+        tags: pub?.tags || [],
+        body: pub?.text || "",
+        contentHash: r.content_hash,
+      };
+    });
   }
 
   async function mirrorFetch(email, idOrTitle) {
@@ -870,6 +898,7 @@ export function createAskPostgresMethods(pool, deps) {
     mirrorUpsert,
     mirrorSetExpand,
     mirrorExpandCoverage,
+    mirrorListMissingExpand,
     mirrorFetch,
     mirrorSearch,
     mirrorNeighbors,
