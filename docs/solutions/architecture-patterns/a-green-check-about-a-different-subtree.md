@@ -106,6 +106,16 @@ That third shape is the hardest to notice, because every local property of the c
 There is no broken assertion to find and no silent skip in the log. The defect is entirely in the
 *relationship* between the check and the change, which lives nowhere in either.
 
+**Adding the workflow is the easy half.** A workflow that runs but is not in the branch's
+**required-check** set is advisory: it goes red, the merge proceeds anyway, and within a few PRs
+people stop reading it. That is not a smaller version of this bug — it is the *neighbouring* one
+([a-signal-nobody-receives-is-not-a-signal](a-signal-nobody-receives-is-not-a-signal.md)), and
+shipping the workflow without the flip trades one failure for the other while feeling finished.
+
+The flip needs repo admin (Settings → Branches → require status checks). If you cannot do it
+yourself, the gap is not closed when your PR merges — it is closed when someone with admin adds the
+check. Say that out loud rather than letting a merged workflow imply otherwise.
+
 The fix (#325) is unremarkable — the value was in noticing:
 
 ```yaml
