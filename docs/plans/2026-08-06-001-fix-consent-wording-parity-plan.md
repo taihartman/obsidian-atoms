@@ -48,9 +48,26 @@ constants into a new `src/settings/consent.ts`, re-exported where needed. Settin
 import from there. Pure move plus one string edit — no behavior change to the three other sheets
 (Ask privacy, vault write), which must keep writing exactly their own field (`settings.ts:290` comment).
 
-**Conflict risk — read before starting.** The #320/#323 session is working in `src/settings/`. A file
-split there is exactly the shape that conflicts badly. Confirm with them before the move, or keep the
-constants in place and export them if they are mid-flight.
+**Conflict risk — measured, and smaller than it looks.** The #320/#323 session's branch
+`feat/320-multi-device-sessions` ([PR #322](https://github.com/taihartman/obsidian-atoms/pull/322))
+does touch `src/settings/settings.ts`, but its diff is **56 insertions and zero deletions**, with
+every hunk between lines 31 and 511:
+
+```
+@@ -30,0  +31      import { markDestructive } …
+@@ -58,0  +60
+@@ -301,0 +304,52   (the Account rows)
+@@ -389,0 +444
+@@ -455,0 +511
+```
+
+Our work is a string edit at 295–300 and a ~150-line block removal at 2182+. **Nothing past line 511
+is touched by them, so lifting `ConsentSheetModal` out cannot textually conflict.** One adjacency to
+watch: their 52-line insertion lands after line 301, within context range of the constants at
+295–300. Rebase on `master` after #322 lands, or expect one trivial hunk to resolve there.
+
+**Revised decision: proceed with the split.** Do not gate U1 on the other session. Do tell them it is
+coming — a mid-air rebase surprise is the avoidable half of this.
 
 ## KTD3 — #314 is exactly two labels
 
