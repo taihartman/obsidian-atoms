@@ -114,11 +114,24 @@ master  … "0.6.77", "0.6.78-beta.1", "0.6.79"
 (0.6.79 is on master but **not released** — latest stable 0.6.77, latest prerelease `0.6.78-beta.1`.
 So this is a regression against master, not against a shipped build. The rule is unchanged.)
 
-Concretely: #330 lands at 0.6.80, so **ours is 0.6.81 unless #322 lands first**. Which is exactly why
-the number is derived at merge time and not written now.
+**Update 2026-08-06 (from the #323 session): #330 went back to draft.** Its code review found the fix
+incomplete — `runSyncOnce` (`askCoordinator.ts:234`) has no consent gate, and `catchUp.ts:74-88`
+re-enters it without going through `sync()`, so a mid-pass withdrawal still gets a second body
+upload. Verified: `gh pr view 330` reports `isDraft: true`. It is **no longer the near-path merge**.
 
-**Rebase on `master` after #330 lands** — it is small, green, and closest to merging. Not after #322,
-which is a prior session's 2236-line #320 implementation, still open and not on the near path.
+**So rebase on `master` directly — do not wait on #330.** The version collision is back in play
+between equals: master is 0.6.79, so **whoever lands first takes 0.6.80 and the other re-derives**.
+Still derived at merge time, never written now, and never resolved by picking a side.
+
+**Merge note for whoever lands second.** #330 adds `refreshFromExternalSettings()`, which rebuilds the
+settings DOM via `redisplay()` **without settling an open consent sheet**. That method does not exist
+on master or on this branch — it arrives with #330 — so it is not ours to fix, but it lands directly
+on the seam we just extracted. This branch has exactly three paths that settle `openSheet` before
+tearing down the screen: `openRoute()` (`settings.ts:428`), `hide()` (`:449`), and `presentConsent()`
+(`:466`, one-sheet-at-a-time). An externally-driven refresh would be a **fourth** DOM teardown and
+currently settles nothing, leaving a live consent sheet floating above a rebuilt screen — the sheet's
+accept would then write an ack against a screen state the user can no longer see. Whoever merges
+should make that path settle the sheet the same way the other three do.
 
 ## KTD3 — #314 is exactly two labels
 
