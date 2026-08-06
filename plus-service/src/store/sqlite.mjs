@@ -407,7 +407,7 @@ export function createSqliteStore(dbPath = config.databasePath) {
       });
     }
     a = refreshAccountStatus(a);
-    revokeAllSessionsForEmail(row.email);
+    revokeUnverifiedSessionsForEmail(row.email);
     const session = createSession(row.email, { verified: true });
     return { session, account: a, vault: row.vault ?? null };
   }
