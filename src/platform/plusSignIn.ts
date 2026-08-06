@@ -21,6 +21,8 @@ import {
   exchangeMagicToken,
   peekMagicToken,
   plusFetchRequest,
+  type MagicVerdict,
+  type PlusApiError,
   type PlusClientConfig,
 } from "./plusClient";
 
@@ -122,15 +124,19 @@ function refusalMessage(vault?: string): string {
   return `This sign-in link was requested by the vault “${named}”, so it was not used here. The link still works — open “${named}” and tap it again.`;
 }
 
-type PeekFailure = {
-  status: number;
-  code?: string;
-  message: string;
-  verdict?: string;
+/**
+ * The non-ok answer from either magic-link call. The peek and the exchange
+ * speak one vocabulary (R12), so one shape explains both — `failureMessage`
+ * runs over a peek verdict and over an exchange error without caring which.
+ * Typed from the client's own exports rather than restated loosely, so a
+ * mistyped verdict is a compile error instead of a silently unmatched branch.
+ */
+type MagicLinkFailure = PlusApiError & {
+  verdict?: Exclude<MagicVerdict, "usable">;
   vault?: string;
 };
 
-function failureMessage(err: PeekFailure): string {
+function failureMessage(err: MagicLinkFailure): string {
   if (err.verdict === "refused" || err.code === "refused") {
     return refusalMessage(err.vault);
   }
@@ -164,7 +170,7 @@ export async function runSignInHandoff(
   }
 
   const cfg = plusConfig(host);
-  let lastRefusal: PeekFailure | null = null;
+  let lastRefusal: MagicLinkFailure | null = null;
   for (const entry of pending) {
     const result = await peekMagicToken(cfg, {
       token,
@@ -180,7 +186,7 @@ export async function runSignInHandoff(
       });
       return;
     }
-    const failure = result as PeekFailure;
+    const failure = result as MagicLinkFailure;
     if (failure.verdict === "refused" || failure.code === "refused") {
       lastRefusal = failure;
       continue;
@@ -190,7 +196,7 @@ export async function runSignInHandoff(
   }
   status.fail(
     failureMessage(
-      lastRefusal ?? { status: 403, code: "refused", message: "" },
+      lastRefusal ?? { ok: false, status: 403, code: "refused", message: "" },
     ),
   );
 }
@@ -232,7 +238,7 @@ export async function completeSignInHandoff(
   if (!result.ok) {
     // The device stays signed out and the pending verifier survives, so the
     // user's next tap can still complete.
-    status.fail(failureMessage(result as PeekFailure));
+    status.fail(failureMessage(result as MagicLinkFailure));
     return;
   }
 

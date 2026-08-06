@@ -724,12 +724,20 @@ if (postgresStoreRows().length) {
         assert.equal(rows[0].verifierHash, null);
         assert.equal(rows[0].vault, null);
 
+        // A real verifier/digest pair, not a literal: the upgraded table has to
+        // honour the U4 check, not merely hold the column. The sqlite twin
+        // above redeems through U6's check-skipping door because its hash is a
+        // literal; here the check actually runs and has to pass.
+        const verifier = `ver_${"c".repeat(10)}`;
+        const verifierHash = createHash("sha256")
+          .update(verifier)
+          .digest("base64url");
         const token = await upgraded.createMagicToken("new@ex.com", {
-          verifierHash: "c".repeat(64),
+          verifierHash,
           vault: "Upgraded Vault",
         });
         assert.equal(
-          (await upgraded.exchangeMagic(token))?.vault,
+          (await upgraded.exchangeMagic(token, { verifier }))?.vault,
           "Upgraded Vault",
         );
       } finally {
