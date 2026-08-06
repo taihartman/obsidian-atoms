@@ -40,6 +40,24 @@ export interface ConsentSheetSpec {
 }
 
 /**
+ * The egress consent, as one spec both surfaces build their sheet from.
+ *
+ * Settings and the Atoms home filing card ask for the same device-local ack, so the title and
+ * the disclosure are paired in exactly one place — a second call site that assembled its own
+ * pair could drift from this one and still write the same ack, which is how a user ends up
+ * holding a consent record for wording they never saw.
+ *
+ * `granted` is the only difference between the two: Settings passes it when reviewing an ack
+ * already on record, and the sheet then offers withdrawal instead of accept.
+ */
+export function egressConsentSpec(
+  onVerdict: (verdict: ConsentVerdict) => void,
+  granted?: string,
+): ConsentSheetSpec {
+  return { title: EGRESS_ACK_TITLE, disclosure: EGRESS_DISCLOSURE, granted, onVerdict };
+}
+
+/**
  * A disclosure at the moment of decision, and the surface that takes it back (KTD4).
  *
  * The three permanent acknowledgment toggles this replaces were the only controls that could

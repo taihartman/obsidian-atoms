@@ -144,6 +144,7 @@ import {
   writeInferredDateAck,
   writeShortcutAck,
 } from "../settings/captureShortcut";
+import { ConsentSheetModal, egressConsentSpec } from "../settings/consent";
 import {
   DailyNotesDisabledError,
   getPastDailyNotesWithUnmarkedCaptures,
@@ -2636,27 +2637,23 @@ export class AtomsHomeView extends ItemView {
     this.render();
   }
 
-  /** Privacy confirm then device-local ack + enable (U3). */
+  /**
+   * The egress consent, in the same sheet Settings raises.
+   *
+   * This used to be a modal of its own, with its own wording and its own "Enable" button — but
+   * it writes the same device-local ack Settings writes, so a user could grant here and hold a
+   * record for a disclosure they never read. It takes the shared chrome as-is, labels included.
+   */
   private confirmEnableAutomaticFiling(): void {
-    const modal = new Modal(this.app);
-    modal.titleEl.setText("Automatic filing");
-    modal.contentEl.createEl("p", {
-      text: "When you open Obsidian, Atoms can send past daily captures and vault titles to Anthropic over TLS to file them. Today’s daily note is never auto-touched. This setting stays on this device only.",
-    });
-    new Setting(modal.contentEl)
-      .addButton((b) =>
-        b.setButtonText("Cancel").onClick(() => modal.close()),
-      )
-      .addButton((b) =>
-        b
-          .setButtonText("Enable")
-          .setCta()
-          .onClick(() => {
-            modal.close();
-            void this.plugin.enableAutomaticFilingFromHome();
-          }),
-      );
-    modal.open();
+    new ConsentSheetModal(
+      this.app,
+      egressConsentSpec((verdict) => {
+        // `accepted` and nothing else: `declined` covers Cancel, Escape, and a click outside,
+        // and a withdrawal is not an enable either.
+        if (verdict !== "accepted") return;
+        void this.plugin.enableAutomaticFilingFromHome();
+      }),
+    ).open();
   }
 
   private async onPreview(includeToday: boolean): Promise<void> {

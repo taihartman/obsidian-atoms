@@ -41,7 +41,7 @@ import {
   ConsentSheetModal,
   type ConsentSheetSpec,
   EGRESS_ACK_TITLE,
-  EGRESS_DISCLOSURE,
+  egressConsentSpec,
 } from "./consent";
 // The consent primitive lives in `./consent` so surfaces outside this tab can raise a sheet
 // without importing the settings screen.
@@ -1657,17 +1657,15 @@ export class AtomsSettingTab extends PluginSettingTab {
               this.redisplay();
               return;
             }
-            this.presentConsent({
-              title: EGRESS_ACK_TITLE,
-              disclosure: EGRESS_DISCLOSURE,
-              onVerdict: (verdict) => {
+            this.presentConsent(
+              egressConsentSpec((verdict) => {
                 // Anything short of an explicit accept leaves the toggle exactly where the
                 // sheet found it: off, and unacknowledged.
                 writeEgressAck(save, verdict === "accepted");
                 writeAutoRunEnabled(save, verdict === "accepted");
                 this.redisplay();
-              },
-            });
+              }),
+            );
           }),
       },
     });
@@ -1682,11 +1680,8 @@ export class AtomsSettingTab extends PluginSettingTab {
         desc: "Acknowledged on this device",
         label: "Review",
         onClick: () =>
-          this.presentConsent({
-            title: EGRESS_ACK_TITLE,
-            disclosure: EGRESS_DISCLOSURE,
-            granted: "Acknowledged on this device.",
-            onVerdict: (verdict) => {
+          this.presentConsent(
+            egressConsentSpec((verdict) => {
               if (verdict !== "withdrawn") return;
               writeEgressAck(save, false);
               writeAutoRunEnabled(save, false);
@@ -1695,8 +1690,8 @@ export class AtomsSettingTab extends PluginSettingTab {
               // permitting "Sync everything now" — which the disclosure just above names.
               clearEgressNoticeAcked(save);
               this.redisplay();
-            },
-          }),
+            }, "Acknowledged on this device."),
+          ),
       });
     }
 
