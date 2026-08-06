@@ -255,6 +255,24 @@ export function destructiveRow(containerEl: HTMLElement, row: ButtonRow): void {
   buttonRow(containerEl, row, markDestructive);
 }
 
+/** A form row's shape: the field, and the one button that commits it. */
+export type FormRowSpec = RowInfo & {
+  placeholder?: string;
+  /** Field-level setup — password type, autocomplete, initial value. Never adds a control. */
+  configure?: (text: TextComponent) => void;
+  submit: {
+    /** Same contract as `ButtonRowSpec.action`: the identity the in-flight guard tracks. */
+    action: string;
+    label: string;
+    onSubmit: (value: string) => void | Promise<void>;
+  };
+};
+
+/** A spec plus the registry that outlives the render it was built in. */
+type FormRow = Omit<FormRowSpec, "submit"> & {
+  submit: FormRowSpec["submit"] & { inFlight: InFlightActions };
+};
+
 /**
  * A field and the one button that commits it, in a single row.
  *
@@ -270,21 +288,7 @@ export function destructiveRow(containerEl: HTMLElement, row: ButtonRow): void {
  * In flight, the button is held and the field stays editable: the guard is `actionRow`'s, so a
  * rebuild mid-flight renders the button disabled and pressing it joins the run already going.
  */
-export function formRow(
-  containerEl: HTMLElement,
-  row: RowInfo & {
-    placeholder?: string;
-    /** Field-level setup — password type, autocomplete, initial value. Never adds a control. */
-    configure?: (text: TextComponent) => void;
-    submit: {
-      /** Same contract as `ButtonRowSpec.action`: the identity the in-flight guard tracks. */
-      action: string;
-      label: string;
-      onSubmit: (value: string) => void | Promise<void>;
-      inFlight: InFlightActions;
-    };
-  },
-): void {
+export function formRow(containerEl: HTMLElement, row: FormRow): void {
   const setting = baseRow(containerEl, row);
   setting.settingEl.addClass("atoms-setting-form");
   // Captured rather than returned: the submit handler needs the live field, and handing the

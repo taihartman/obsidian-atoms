@@ -57,6 +57,7 @@ import {
   destinationRow,
   destructiveRow,
   formRow,
+  type FormRowSpec,
   InFlightActions,
   settingRow,
   statusRow,
@@ -300,6 +301,17 @@ function loadLocal(app: App, key: string): unknown {
 }
 
 /**
+ * Whether to spend a request on what was typed into an email form, saying so when the answer is
+ * no. Shared by the trial and the sign-in link so the two cannot drift into refusing the same
+ * address with two different sentences.
+ */
+function requireEmail(email: string): boolean {
+  if (email.includes("@")) return true;
+  new Notice("Enter a valid email first");
+  return false;
+}
+
+/**
  * Which screen the settings tab is showing. `main` is the list the user lands on; every other
  * value is a destination reached from it.
  *
@@ -321,15 +333,6 @@ const DESTINATION_TITLES: Record<Exclude<SettingsRoute, "main">, string> = {
   vocabulary: "Tag vocabulary",
   connect: "Connect Claude or ChatGPT",
   advanced: "Advanced",
-};
-
-/**
- * A `formRow` as a caller writes it, minus the registry the tab supplies. Derived from the
- * builder rather than declared beside it so the two cannot drift.
- */
-type FormRowSpec = Parameters<typeof formRow>[1];
-type TabFormRow = Omit<FormRowSpec, "submit"> & {
-  submit: Omit<FormRowSpec["submit"], "inFlight">;
 };
 
 export class AtomsSettingTab extends PluginSettingTab {
@@ -387,7 +390,7 @@ export class AtomsSettingTab extends PluginSettingTab {
     destructiveRow(containerEl, { ...row, inFlight: this.inFlight });
   }
 
-  private formRow(containerEl: HTMLElement, row: TabFormRow): void {
+  private formRow(containerEl: HTMLElement, row: FormRowSpec): void {
     formRow(containerEl, {
       ...row,
       submit: { ...row.submit, inFlight: this.inFlight },
@@ -1225,15 +1228,7 @@ export class AtomsSettingTab extends PluginSettingTab {
       submit: {
         action: "plus:magic-link",
         label: "Send sign-in link",
-        onSubmit: async (email) => {
-          if (!email.includes("@")) {
-            new Notice("Enter a valid email first");
-            return;
-          }
-          await this.sendPlusMagicLink(email);
-          // The row's copy turns into the "open the email" form once a link exists.
-          this.redisplay();
-        },
+        onSubmit: (email) => this.requestSignInLink(email),
       },
     });
 
@@ -1256,12 +1251,20 @@ export class AtomsSettingTab extends PluginSettingTab {
     });
   }
 
+  /**
+   * Send a sign-in link to the typed email, then rebuild: the row's copy turns into the "open
+   * the email" form once a link exists. The expired-session row calls `sendPlusMagicLink`
+   * directly — it already has an address, so it has nothing to check and no form to redraw.
+   */
+  private async requestSignInLink(email: string): Promise<void> {
+    if (!requireEmail(email)) return;
+    await this.sendPlusMagicLink(email);
+    this.redisplay();
+  }
+
   /** Start a Plus account for the typed email and open its trial checkout. */
   private async startTrial(email: string): Promise<void> {
-    if (!email.includes("@")) {
-      new Notice("Enter a valid email first");
-      return;
-    }
+    if (!requireEmail(email)) return;
     try {
       const base =
         this.plugin.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL;

@@ -77,6 +77,13 @@ import {
 
 afterEach(() => vi.restoreAllMocks());
 
+/** Every button label on the named row — how a form row's one button is asserted. */
+function buttonLabels(tab: AtomsSettingTab, name: string): string[] {
+  return Array.from(row(tab, name).querySelectorAll("button")).map(
+    (el) => el.textContent ?? "",
+  );
+}
+
 /** Only the network call is faked — the verifier, its hash and the record are real. */
 vi.mock("../src/platform/plusClient", async (importOriginal) => {
   const actual =
@@ -353,13 +360,6 @@ describe("shortlist diagnostics (R6)", () => {
  * state, one main-screen row per state, and one destination holding the management actions.
  */
 describe("account row", () => {
-  /** Every button label on the named row — how a form row's one button is asserted. */
-  function buttonLabels(tab: AtomsSettingTab, name: string): string[] {
-    return Array.from(row(tab, name).querySelectorAll("button")).map(
-      (el) => el.textContent ?? "",
-    );
-  }
-
   const ACTIVE_SESSION: PlusSession = {
     sessionToken: "sess_live",
     email: "user@example.com",
@@ -1984,10 +1984,6 @@ describe("adversarial regressions", () => {
       if (!(input instanceof HTMLInputElement)) throw new Error("no draft field");
       return input.value;
     };
-
-    /** Every button label on the named row — how a form row's one button is asserted. */
-    const buttonLabels = (tab: AtomsSettingTab, name: string): string[] =>
-      Array.from(row(tab, name).querySelectorAll("button")).map((el) => el.textContent ?? "");
 
     it("renders the field and the button that commits it as one row", () => {
       const tab = vocabularyTab();
