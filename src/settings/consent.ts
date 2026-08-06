@@ -10,7 +10,7 @@ import { markDestructive } from "./destructiveButton";
  * two would let agreeing to one silently authorize another, so each has its own sheet and each
  * sheet writes exactly its own field.
  */
-export const EGRESS_ACK_TITLE = "Data egress acknowledgment";
+export const EGRESS_ACK_TITLE = "What Atoms sends to Anthropic";
 // One string, two surfaces: Settings and the Atoms home egress card ask for the same
 // device-local consent, so they say the same words. The clauses are numbered rather than run
 // together because a four-clause sentence is the wall of text people click through, and the two
@@ -19,7 +19,7 @@ export const EGRESS_ACK_TITLE = "Data egress acknowledgment";
 export const EGRESS_DISCLOSURE =
   '(1) Atoms sends my vault title graph and each capture to the Anthropic API over TLS, unattended — when Obsidian opens and when it returns to the foreground; (2) tapping "Sync everything now" classifies even when automatic filing is turned off; (3) today’s daily note is never auto-touched; (4) this setting stays on this device only.';
 
-export const ASK_PRIVACY_ACK_TITLE = "Ask privacy acknowledgment";
+export const ASK_PRIVACY_ACK_TITLE = "What Ask stores and shares";
 export const ASK_PRIVACY_DISCLOSURE =
   "(1) only Atoms/ leaves this device; (2) bodies are stored on Atoms Plus servers; (3) the host can decrypt at rest in v1 (not zero-knowledge); (4) when I chat in Claude, Anthropic receives tool results (titles, snippets, bodies); when I chat in ChatGPT, OpenAI receives them; (5) Wipe deletes the cloud mirror, pending outbox writes, and connector tokens; (6) turning Ask off does not wipe.";
 

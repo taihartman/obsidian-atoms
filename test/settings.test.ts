@@ -694,7 +694,7 @@ describe("consent sheets", () => {
 
   const ACKED = "2026-08-01T10:00:00.000Z";
 
-  const ASK_PRIVACY_ACK_ROW = "Ask privacy acknowledgment";
+  const ASK_PRIVACY_ACK_ROW = "What Ask stores and shares";
   const ASK_WRITE_ACK_ROW = "Vault write acknowledgment";
 
   describe("declining", () => {
@@ -782,16 +782,16 @@ describe("consent sheets", () => {
     it("shows the egress ack even while auto-run is off, and still offers Review", () => {
       const { tab } = askTab({}, { [LS_AUTO_RUN_EGRESS_ACK]: true, [LS_AUTO_RUN_ENABLED]: false });
 
-      expect(rowNames(tab)).toContain("Data egress acknowledgment");
-      press(tab, "Data egress acknowledgment", "Review");
+      expect(rowNames(tab)).toContain("What Atoms sends to Anthropic");
+      press(tab, "What Atoms sends to Anthropic", "Review");
       expect(sheetText()).toContain("Withdraw acknowledgment");
     });
 
     it("shows the Ask privacy ack even while the mirror is off", () => {
       const { tab } = askTab({ askPrivacyAckAt: ACKED, askEnabled: false });
 
-      expect(rowNames(tab)).toContain("Ask privacy acknowledgment");
-      expect(row(tab, "Ask privacy acknowledgment").textContent).toContain("2026-08-01");
+      expect(rowNames(tab)).toContain("What Ask stores and shares");
+      expect(row(tab, "What Ask stores and shares").textContent).toContain("2026-08-01");
     });
 
     it("keeps both Ask acks reviewable after signing out of Plus", async () => {
@@ -819,8 +819,8 @@ describe("consent sheets", () => {
     it("keeps no acknowledgment row for an ack that was never granted", () => {
       const { tab } = askTab();
 
-      expect(rowNames(tab)).not.toContain("Data egress acknowledgment");
-      expect(rowNames(tab)).not.toContain("Ask privacy acknowledgment");
+      expect(rowNames(tab)).not.toContain("What Atoms sends to Anthropic");
+      expect(rowNames(tab)).not.toContain("What Ask stores and shares");
       expect(rowNames(tab)).not.toContain("Vault write acknowledgment");
     });
   });
@@ -831,7 +831,7 @@ describe("consent sheets", () => {
         [LS_AUTO_RUN_EGRESS_ACK]: true,
         [LS_AUTO_RUN_ENABLED]: true,
       });
-      press(tab, "Data egress acknowledgment", "Review");
+      press(tab, "What Atoms sends to Anthropic", "Review");
       pressSheet("Withdraw acknowledgment");
       await flush();
 
@@ -857,7 +857,7 @@ describe("consent sheets", () => {
       // for everyone who acked.
       expect(readEgressPermitted(load, { catchUp: false })).toBe(true);
 
-      press(tab, "Data egress acknowledgment", "Review");
+      press(tab, "What Atoms sends to Anthropic", "Review");
       pressSheet("Withdraw acknowledgment");
       await flush();
 
@@ -872,7 +872,7 @@ describe("consent sheets", () => {
         askEnabled: true,
         askWriteAckAt: ACKED,
       });
-      press(tab, "Ask privacy acknowledgment", "Review");
+      press(tab, "What Ask stores and shares", "Review");
       pressSheet("Withdraw acknowledgment");
       await flush();
 
@@ -916,7 +916,7 @@ describe("consent sheets", () => {
       const stale = row(tab, "Ask mirror").querySelector(".checkbox-container");
       if (!(stale instanceof HTMLElement)) throw new Error("no Ask mirror toggle");
 
-      press(tab, "Ask privacy acknowledgment", "Review");
+      press(tab, "What Ask stores and shares", "Review");
       pressSheet("Withdraw acknowledgment");
       await flush();
 
@@ -949,7 +949,7 @@ describe("consent sheets", () => {
 
       // Enable, then withdraw while the enable is still waiting on its own write to disk.
       flip(tab, "Ask mirror");
-      press(tab, "Ask privacy acknowledgment", "Review");
+      press(tab, "What Ask stores and shares", "Review");
       pressSheet("Withdraw acknowledgment");
       release();
       await flush();
@@ -1022,7 +1022,7 @@ describe("consent sheets", () => {
     const { tab } = askTab();
 
     expect(rowNames(tab)).not.toContain("Privacy acknowledgment");
-    expect(rowNames(tab)).not.toContain("Data egress acknowledgment");
+    expect(rowNames(tab)).not.toContain("What Atoms sends to Anthropic");
   });
 });
 
@@ -1758,7 +1758,7 @@ describe("adversarial regressions", () => {
       );
       if (!(stale instanceof HTMLElement)) throw new Error("no auto-run toggle");
 
-      press(tab, "Data egress acknowledgment", "Review");
+      press(tab, "What Atoms sends to Anthropic", "Review");
       pressSheet("Withdraw acknowledgment");
       await flush();
 
