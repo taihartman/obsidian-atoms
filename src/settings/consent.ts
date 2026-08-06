@@ -16,6 +16,10 @@ export const EGRESS_ACK_TITLE = "What Atoms sends to Anthropic";
 // together because a four-clause sentence is the wall of text people click through, and the two
 // risks lead — (3) and (4) are scope limits, and reading those first would soften what the sheet
 // exists to disclose.
+//
+// **Changing what this discloses means bumping `EGRESS_ACK_VERSION`** (src/platform/autorun.ts).
+// Devices store the version they accepted; leaving it alone leaves every existing device holding
+// a consent record for wording it never saw — the #315 bug wearing new text.
 export const EGRESS_DISCLOSURE =
   '(1) Atoms sends my vault title graph and each capture to the Anthropic API over TLS, unattended — when Obsidian opens and when it returns to the foreground; (2) tapping "Sync everything now" classifies even when automatic filing is turned off; (3) today’s daily note is never auto-touched; (4) this setting stays on this device only.';
 

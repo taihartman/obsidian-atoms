@@ -1676,7 +1676,9 @@ export class AtomsSettingTab extends PluginSettingTab {
       this.actionRow(containerEl, {
         action: `ack:review:${EGRESS_ACK_TITLE}`,
         name: EGRESS_ACK_TITLE,
-        // Device-local, and stored as a boolean — there is no timestamp to name here.
+        // Device-local, and stored as a disclosure version rather than a timestamp — so this
+        // row only ever appears for an ack granted against the wording currently on screen.
+        // A stale stamp reads as unacknowledged, which hides this row and re-prompts instead.
         desc: "Acknowledged on this device",
         label: "Review",
         onClick: () =>

@@ -22,6 +22,7 @@ import { Modal } from "./mocks/obsidian";
 import { dismissSheet, flip, pressSheet, settingTab, sheet } from "./helpers/settingsTab";
 import { EGRESS_ACK_TITLE, EGRESS_DISCLOSURE } from "../src/settings/consent";
 import {
+  EGRESS_ACK_VERSION,
   enableAutomaticFiling,
   LS_AUTO_RUN_EGRESS_ACK,
   LS_AUTO_RUN_ENABLED,
@@ -123,6 +124,38 @@ describe("egress consent — the two surfaces", () => {
   });
 });
 
+/**
+ * Every wording this build has ever asked for consent against, keyed by the stamp devices store.
+ *
+ * This is the half of U6 that makes the stamp mean anything. Version-stamping the ack only helps
+ * if changing the words forces the version to move — otherwise a future edit ships new text under
+ * the old stamp and every existing device silently keeps a consent record for wording it never
+ * saw, which is #315 again. Exact strings, not substrings: a softened clause is the edit that
+ * matters, and `expectFourClauses` above deliberately tolerates rewording.
+ *
+ * **To change the disclosure:** bump `EGRESS_ACK_VERSION` and add its text here. Never edit an
+ * existing entry — it is the record of what those devices actually agreed to.
+ */
+const FROZEN_CONSENT: Readonly<Record<string, { title: string; disclosure: string }>> = {
+  "2026-08-06": {
+    title: "What Atoms sends to Anthropic",
+    disclosure:
+      '(1) Atoms sends my vault title graph and each capture to the Anthropic API over TLS, unattended — when Obsidian opens and when it returns to the foreground; (2) tapping "Sync everything now" classifies even when automatic filing is turned off; (3) today’s daily note is never auto-touched; (4) this setting stays on this device only.',
+  },
+};
+
+describe("egress consent — the ack version", () => {
+  it("names the wording currently shipped", () => {
+    const frozen = FROZEN_CONSENT[EGRESS_ACK_VERSION];
+    expect(
+      frozen,
+      `EGRESS_ACK_VERSION "${EGRESS_ACK_VERSION}" has no frozen wording — add its text to FROZEN_CONSENT`,
+    ).toBeDefined();
+    expect(EGRESS_ACK_TITLE).toBe(frozen.title);
+    expect(EGRESS_DISCLOSURE).toBe(frozen.disclosure);
+  });
+});
+
 describe("egress consent — what an accept writes", () => {
   it("leaves the same device-local state from home as from Settings", async () => {
     const fromHome = homeConsent();
@@ -138,7 +171,8 @@ describe("egress consent — what an accept writes", () => {
     // ack *and* the enabled flag. Asserted as equality so that if either side ever grows a
     // third write, the other has to account for it.
     expect(Object.fromEntries(fromHome)).toEqual({
-      [LS_AUTO_RUN_EGRESS_ACK]: true,
+      // The ack records the disclosure it was granted against, not a bare `true` — U6/KTD4.
+      [LS_AUTO_RUN_EGRESS_ACK]: EGRESS_ACK_VERSION,
       [LS_AUTO_RUN_ENABLED]: true,
     });
     expect(Object.fromEntries(fromSettings)).toEqual(Object.fromEntries(fromHome));

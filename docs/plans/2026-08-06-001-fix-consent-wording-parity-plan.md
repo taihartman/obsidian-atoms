@@ -232,7 +232,24 @@ release behavior, not a regression.
    `test/plusSignInConfirmModal.test.ts`). **Do not** stand up an `AtomsHomeView` harness — no test
    imports `src/home/atomsHomeView.ts` today, `confirmEnableAutomaticFiling()` is private on a
    2671-line `ItemView`, and a full `AtomsPlugin` stub is why U5 has no seam without U3's factory.
-6. **U6 — version-stamp the egress ack** (KTD4). Optional; drop-able without unpicking U1–U5.
+6. **U6 — version-stamp the egress ack** (KTD4). Was sequenced last and drop-able; **the user chose
+   to build it**, so it ships with U1–U5. `LS_AUTO_RUN_EGRESS_ACK` now stores `EGRESS_ACK_VERSION`
+   (`src/platform/autorun.ts`) instead of `true`; `readEgressAckVersion` + `egressAckIsCurrent` feed
+   `readDeviceAutoRunState`, so the gate, the toggle, and the Review row all read staleness through
+   the one path they already shared. Three things this unit **decides**:
+   - **The legacy `true` reads as null, not as "some old version."** It names no wording at all,
+     which is the exact condition KTD4 exists to clear.
+   - **Withdrawal keeps writing `false`.** The cleared shape is unchanged, so nothing downstream has
+     to learn a second way to be un-acked.
+   - **The stamp is enforced, not documented.** `egressConsentParity.test.ts` freezes the title and
+     the disclosure verbatim against the shipped version, so editing the copy without bumping
+     `EGRESS_ACK_VERSION` goes red. Without that, U6 is a comment.
+
+   **Known edge, accepted:** a device with a legacy ack *and* the catch-up notice
+   (`LS_EGRESS_NOTICE`) loses the Settings Review row — the only surface that withdraws the notice —
+   while the notice keeps permitting "Sync everything now". That is not a new lie: the notice was
+   granted against its own disclosure in `resume.ts`, which the user did see. Pre-existing for anyone
+   who acked the notice but never the egress sheet; U6 widens who it applies to, not what it does.
 
 ## Out of scope
 
