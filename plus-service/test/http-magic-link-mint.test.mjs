@@ -111,7 +111,8 @@ after(() => {
 describe("#240 U3 — mint records verifier hash and vault", () => {
   it("stores both against the token, and neither reaches the log", async () => {
     const email = "bound@ex.com";
-    const verifierHash = "a".repeat(64);
+    // 43 chars of base64url — the shape `s256Challenge` actually emits.
+    const verifierHash = "a".repeat(43);
     const res = await mint(
       { email, verifierHash, vault: "Remote Vault" },
       "10.0.0.1",
@@ -157,6 +158,12 @@ describe("#240 U3 — mint records verifier hash and vault", () => {
       ["oversized", { email: "bad1@ex.com", verifierHash: "a".repeat(4096) }],
       ["non-string", { email: "bad2@ex.com", verifierHash: { hash: "x" } }],
       ["numeric", { email: "bad3@ex.com", verifierHash: 12345 }],
+      // 64 hex chars is the shape this branch's plan originally specified and
+      // #309/#310 corrected. It can never satisfy `verifierMatches`, so a link
+      // minted with it is guaranteed to refuse — reject it at the door.
+      ["hex-shaped", { email: "bad6@ex.com", verifierHash: "a".repeat(64) }],
+      ["short", { email: "bad7@ex.com", verifierHash: "abc" }],
+      ["non-base64url", { email: "bad8@ex.com", verifierHash: "!".repeat(43) }],
       ["oversized vault", { email: "bad4@ex.com", vault: "v".repeat(4096) }],
       ["non-string vault", { email: "bad5@ex.com", vault: ["v"] }],
     ]) {
@@ -177,7 +184,7 @@ describe("#240 U3 — mint records verifier hash and vault", () => {
       last = await mint(
         {
           email: `rl${i}@ex.com`,
-          verifierHash: "b".repeat(64),
+          verifierHash: "b".repeat(43),
           vault: "Rate Vault",
         },
         ip,

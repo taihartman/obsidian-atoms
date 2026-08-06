@@ -189,6 +189,27 @@ function escHtml(s) {
 }
 
 /**
+ * #240 — the twin of the plugin's `sanitizeVaultLabel`, for the one surface the
+ * plugin never sees. `escHtml` stops markup, but a vault name is *prose chosen
+ * by whoever minted the link*, and the two things markup-escaping does not
+ * touch are length and invisible reordering: the zero-width ranges and the bidi
+ * overrides render as nothing while rearranging the text around them. That is
+ * how "requested by X" gets to read as a vault the visitor trusts. Stripped and
+ * capped at render rather than rejected at mint, so no legitimate non-Latin
+ * vault name is ever turned away.
+ */
+const VAULT_LABEL_CONTROL_CHARS =
+  /[\u0000-\u001F\u007F\u200B-\u200F\u202A-\u202E\u2066-\u2069]+/g;
+
+export function vaultLabel(raw) {
+  const flat = String(raw ?? "")
+    .replace(VAULT_LABEL_CONTROL_CHARS, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return flat.length > 80 ? `${flat.slice(0, 79)}…` : flat;
+}
+
+/**
  * #240 U5 — headers every magic-link landing render carries.
  *
  * The CSP keeps `default-src 'none'` with inline styles, and no script is ever
@@ -317,7 +338,7 @@ function renderHandoffPage(res, { token, vault }) {
     vault ? `&vault=${encodeURIComponent(vault)}` : ""
   }`;
   const who = vault
-    ? `<p>This link was requested by <strong>${escHtml(vault)}</strong>.</p>`
+    ? `<p>This link was requested by <strong>${escHtml(vaultLabel(vault))}</strong>.</p>`
     : `<p>This link was requested from Atoms in Obsidian.</p>`;
   writeLanding(
     res,
@@ -517,6 +538,16 @@ ${
         MAX_VERIFIER_HASH_CHARS,
       );
       if (!verifierHash.ok) {
+        return json(res, 400, { message: "Invalid verifierHash" });
+      }
+      // The only producer is the plugin's `s256Challenge`, which emits an
+      // unpadded base64url SHA-256 — always 43 characters. Anything else cannot
+      // be matched by `verifierMatches` at exchange time, so storing it would
+      // only mint a link that is guaranteed to refuse. Fail at the door instead.
+      if (
+        verifierHash.value &&
+        !/^[A-Za-z0-9_-]{43}$/.test(verifierHash.value)
+      ) {
         return json(res, 400, { message: "Invalid verifierHash" });
       }
       const vault = optionalBoundedString(body.vault, MAX_VAULT_NAME_CHARS);
