@@ -1820,42 +1820,40 @@ export class AtomsSettingTab extends PluginSettingTab {
       });
     }
 
-    // Field and button were one row, which the grammar allows only one right edge for. Splitting
-    // them keeps both rather than dropping the field or committing on every keystroke.
-    settingRow(containerEl, {
+    // The field and the one button that commits it, in one card. `customTagDraft` stays: flipping
+    // any active tag above off calls `redisplay()`, and restoring the draft through `configure` is
+    // what puts a half-typed tag back after that rebuild. `onSubmit` receiving the value answers a
+    // different question — what is being added, not what survives a re-render.
+    this.formRow(containerEl, {
       name: "Add a custom tag",
       desc: "Lowercase, no # required.",
-      control: {
-        kind: "text",
-        configure: (text) =>
-          text
-            .setPlaceholder("e.g. health")
-            .setValue(this.customTagDraft)
-            .onChange((v) => {
-              this.customTagDraft = v;
-            }),
-      },
-    });
-    this.actionRow(containerEl, {
-      action: "tags:add-custom",
-      name: "Add to Active",
-      label: "Add",
-      onClick: async () => {
-        const checked = checkCustomTag(this.customTagDraft);
-        if (!checked.ok) {
-          // Said out loud, and the draft left in the field to be corrected. Returning in
-          // silence left the text sitting there with nothing happening — a dead end the user
-          // could only read as the button being broken.
-          new Notice(`Atoms: ${checked.reason}`);
-          return;
-        }
-        this.plugin.settings.activeVocabulary = addCustomActiveTag(
-          checked.tag,
-          this.plugin.settings.activeVocabulary,
-        );
-        this.customTagDraft = "";
-        await this.plugin.saveSettings();
-        this.redisplay();
+      placeholder: "e.g. health",
+      configure: (text) =>
+        text.setValue(this.customTagDraft).onChange((v) => {
+          this.customTagDraft = v;
+        }),
+      submit: {
+        action: "tags:add-custom",
+        // Not shortened to "Add" the way the account labels were: the row name is the field's
+        // label now, so the verb is the only thing left saying *which* list the tag joins.
+        label: "Add to Active",
+        onSubmit: async (typed) => {
+          const checked = checkCustomTag(typed);
+          if (!checked.ok) {
+            // Said out loud, and the draft left in the field to be corrected. Returning in
+            // silence left the text sitting there with nothing happening — a dead end the user
+            // could only read as the button being broken.
+            new Notice(`Atoms: ${checked.reason}`);
+            return;
+          }
+          this.plugin.settings.activeVocabulary = addCustomActiveTag(
+            checked.tag,
+            this.plugin.settings.activeVocabulary,
+          );
+          this.customTagDraft = "";
+          await this.plugin.saveSettings();
+          this.redisplay();
+        },
       },
     });
 

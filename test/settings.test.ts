@@ -854,7 +854,7 @@ describe("tag vocabulary", () => {
     tab.display();
     open(tab, entry(0));
     fill(tab, "Add a custom tag", "  #Health  ");
-    press(tab, "Add to Active", "Add");
+    press(tab, "Add a custom tag", "Add to Active");
     await flush();
 
     expect(inDestination(tab)).toBe(true);
@@ -866,7 +866,7 @@ describe("tag vocabulary", () => {
     tab.display();
     open(tab, entry(1));
     fill(tab, "Add a custom tag", "   #  ");
-    press(tab, "Add to Active", "Add");
+    press(tab, "Add a custom tag", "Add to Active");
     await flush();
 
     expect(rowNames(tab).filter((name) => name.startsWith("#"))).toEqual(["#idea"]);
@@ -1985,6 +1985,40 @@ describe("adversarial regressions", () => {
       return input.value;
     };
 
+    /** Every button label on the named row — how a form row's one button is asserted. */
+    const buttonLabels = (tab: AtomsSettingTab, name: string): string[] =>
+      Array.from(row(tab, name).querySelectorAll("button")).map((el) => el.textContent ?? "");
+
+    it("renders the field and the button that commits it as one row", () => {
+      const tab = vocabularyTab();
+
+      // The exact list, not a membership check: a regression that re-splits the pair back into a
+      // field row plus a button row named "Add to Active" shows up here as an extra row.
+      expect(rowNames(tab, { headings: false })).toEqual([
+        "Tag vocabulary",
+        "#alpha",
+        "Add a custom tag",
+      ]);
+      expect(buttonLabels(tab, "Add a custom tag")).toEqual(["Add to Active"]);
+    });
+
+    /**
+     * The trap the doc-review caught: `customTagDraft` does not fall out just because `onSubmit`
+     * now receives the value. Flipping any active tag off calls `redisplay()`, and the draft is
+     * what the rebuilt field is seeded from — delete it and a half-typed tag silently vanishes.
+     */
+    it("keeps a half-typed tag when deactivating another tag rebuilds the screen", async () => {
+      const { tab } = settingTab({ settings: { activeVocabulary: ["alpha", "beta"] } });
+      tab.display();
+      open(tab, "Tag vocabulary — 2 active");
+      fill(tab, "Add a custom tag", "healt");
+      flip(tab, "#beta");
+      await flush();
+
+      expect(tab.plugin.settings.activeVocabulary).toEqual(["alpha"]);
+      expect(draft(tab)).toBe("healt");
+    });
+
     it.each([
       ["a tag that normalizes to nothing", "###"],
       ["whitespace", "   "],
@@ -1993,7 +2027,7 @@ describe("adversarial regressions", () => {
     ])("refuses %s out loud and adds nothing", async (_label, typed) => {
       const tab = vocabularyTab();
       fill(tab, "Add a custom tag", typed);
-      press(tab, "Add to Active", "Add");
+      press(tab, "Add a custom tag", "Add to Active");
       await flush();
 
       // The defect was the silence, not the refusal: `normalizeTag("###")` returned "" and the
@@ -2008,7 +2042,7 @@ describe("adversarial regressions", () => {
     it("still accepts an ordinary tag, and clears the field when it lands", async () => {
       const tab = vocabularyTab();
       fill(tab, "Add a custom tag", "#Health");
-      press(tab, "Add to Active", "Add");
+      press(tab, "Add a custom tag", "Add to Active");
       await flush();
 
       expect(tab.plugin.settings.activeVocabulary).toEqual(["alpha", "health"]);
