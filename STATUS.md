@@ -8,6 +8,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
 | In progress | [#336](https://github.com/taihartman/obsidian-atoms/issues/336) | taihartman | `fix/336-no-missing-time-alarm` | debug lane | `src/home/atomsHomeData.ts`, `src/home/atomsHomeView.ts`, `src/settings/captureShortcut.ts` | Missing times are normal; drop Home repair card · plugin bump |
+| In review | [#323](https://github.com/taihartman/obsidian-atoms/issues/323) | taihartman | `fix/ask-consent-cross-device` | — (confirmed by construction, no plan needed) | `src/plugin/askCoordinator.ts`, `src/plugin/main.ts`, `src/settings/settings.ts` | **Consent bypass on shipped code** — a withdrawal synced from another device never reached `plugin.settings`, and the follow-up mirror pass crossed no gate · **0.6.81** (`0.6.81-beta.1` cut off the branch tip for the two-device Sync smoke, which is the release gate) |
 
 ## How to claim (copy)
 
