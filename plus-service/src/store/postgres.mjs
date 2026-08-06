@@ -471,7 +471,7 @@ export async function createPostgresStore(databaseUrl) {
       });
     }
     a = await refreshAccountStatus(a);
-    await revokeAllSessionsForEmail(email);
+    await revokeUnverifiedSessionsForEmail(email);
     const session = await createSession(email, { verified: true });
     return { session, account: a, vault };
   }
