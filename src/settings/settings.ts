@@ -37,8 +37,10 @@ import { clampAtomFolder } from "../pipeline/render";
 import {
   actionRow,
   backRow,
+  type ButtonRowSpec,
   destinationRow,
   destructiveRow,
+  InFlightActions,
   markDestructive,
   settingRow,
   statusRow,
@@ -98,6 +100,7 @@ import { requestUrl } from "obsidian";
 import {
   addCustomActiveTag,
   approveProposedTag,
+  checkCustomTag,
   normalizeTag,
   removeActiveTag,
   tagCountsSorted,
@@ -357,6 +360,25 @@ export class AtomsSettingTab extends PluginSettingTab {
    * result must land on the row the user is now looking at.
    */
   private apiKeyStatusEl: HTMLElement | null = null;
+  /**
+   * What is running right now, by action rather than by button. Lives on the tab because every
+   * button is minted fresh by `display()`: a guard held on the component dies at the next
+   * `redisplay()` or `openRoute()`, which is one impatient tap-back-and-in away.
+   */
+  private readonly inFlight = new InFlightActions();
+
+  /**
+   * The two button-row builders, bound to this tab's registry. Wrapped rather than passed at
+   * each of the two dozen call sites so a row cannot be built without a guard, and so `rows.ts`
+   * stays a set of free functions with no idea a settings tab exists.
+   */
+  private actionRow(containerEl: HTMLElement, row: ButtonRowSpec): void {
+    actionRow(containerEl, { ...row, inFlight: this.inFlight });
+  }
+
+  private destructiveRow(containerEl: HTMLElement, row: ButtonRowSpec): void {
+    destructiveRow(containerEl, { ...row, inFlight: this.inFlight });
+  }
 
   constructor(
     app: App,
@@ -400,6 +422,13 @@ export class AtomsSettingTab extends PluginSettingTab {
    * starts at the top.
    */
   private openRoute(route: SettingsRoute): void {
+    // Walking to another screen settles an open sheet the same way closing Settings does: a
+    // decline. Without this the sheet a main-screen row posed outlived the screen that posed
+    // it, and accepting it from inside a destination still wrote the ack — a consent granted
+    // on a screen the user had already left. `hide()` has always done this; this is the one
+    // other screen change, and it was the one that did not.
+    this.openSheet?.close();
+    this.openSheet = null;
     this.route = route;
     this.display();
     const scroller = this.settingsScrollEl();
@@ -465,7 +494,8 @@ export class AtomsSettingTab extends PluginSettingTab {
     },
   ): void {
     const day = record.at.slice(0, 10);
-    actionRow(containerEl, {
+    this.actionRow(containerEl, {
+      action: `ack:review:${record.name}`,
       name: record.name,
       desc: `Acknowledged ${day}`,
       label: "Review",
@@ -599,7 +629,8 @@ export class AtomsSettingTab extends PluginSettingTab {
     // An action row rather than a read-only field plus a Copy button: two affordances on one row
     // is the thing the grammar forbids, and a disabled input cannot be selected on most
     // platforms anyway — so the URL lives in the description, where it can be read and selected.
-    actionRow(containerEl, {
+    this.actionRow(containerEl, {
+      action: "ask:copy-mcp-url",
       name: "MCP connector URL",
       desc: `${mcpUrl} — same URL for both. Claude → Settings → Connectors → Add custom connector. ChatGPT → Settings → Apps & connectors (Developer mode) → add this URL → complete OAuth.`,
       label: "Copy",
@@ -613,7 +644,8 @@ export class AtomsSettingTab extends PluginSettingTab {
       },
     });
 
-    actionRow(containerEl, {
+    this.actionRow(containerEl, {
+      action: "ask:pairing-code",
       name: "Link Claude / ChatGPT",
       desc: "Generate a short pairing code for the connector authorize page. Your Claude/ChatGPT account email need not match Atoms Plus — the code binds the Plus account shown above. Codes expire quickly and are secrets (do not share). After pairing, disconnect/reconnect the connector if counts still look stale.",
       label: "Get pairing code",
@@ -646,7 +678,8 @@ export class AtomsSettingTab extends PluginSettingTab {
       },
     });
 
-    actionRow(containerEl, {
+    this.actionRow(containerEl, {
+      action: "ask:sync-now",
       name: "Sync now",
       desc: "Full refresh from this device’s Atoms/ (orphans removed on Plus). Multi-device: incomplete vault here can delete cloud rows for atoms only on another device until Obsidian Sync catches up.",
       label: "Sync now",
@@ -663,7 +696,8 @@ export class AtomsSettingTab extends PluginSettingTab {
       },
     });
 
-    actionRow(containerEl, {
+    this.actionRow(containerEl, {
+      action: "ask:mirror-status",
       name: "Cloud mirror status",
       desc: "Refresh server atom count (what Claude/ChatGPT can see).",
       label: "Refresh",
@@ -683,7 +717,8 @@ export class AtomsSettingTab extends PluginSettingTab {
       },
     });
 
-    destructiveRow(containerEl, {
+    this.destructiveRow(containerEl, {
+      action: "ask:wipe-cloud-copy",
       name: "Wipe cloud copy",
       desc: "Delete mirrored atoms, pending Ask writes (outbox), and revoke Ask connector tokens for this account. Does not delete vault files.",
       label: "Wipe",
@@ -892,7 +927,8 @@ export class AtomsSettingTab extends PluginSettingTab {
     const view = plusRefreshPresentation(record);
     const email = record.email;
     if (view.recovery === "magic-link" && email) {
-      actionRow(containerEl, {
+      this.actionRow(containerEl, {
+        action: "plus:magic-link",
         name: view.title,
         desc: view.detail,
         label: "Send me a sign-in link",
@@ -1052,7 +1088,8 @@ export class AtomsSettingTab extends PluginSettingTab {
     }
 
     if (state.kind === "trialIncomplete") {
-      actionRow(containerEl, {
+      this.actionRow(containerEl, {
+        action: "plus:trial-checkout",
         name: "Finish trial setup",
         desc: "Complete Stripe checkout (card for the 14-day trial). Return here and status updates automatically.",
         label: "Finish trial setup",
@@ -1060,7 +1097,8 @@ export class AtomsSettingTab extends PluginSettingTab {
       });
     }
     if (state.kind === "exhausted") {
-      actionRow(containerEl, {
+      this.actionRow(containerEl, {
+        action: "plus:top-up-checkout",
         name: "Get more filings",
         desc: "Buy additional filings now instead of waiting for your next billing date.",
         label: "Get more",
@@ -1068,21 +1106,24 @@ export class AtomsSettingTab extends PluginSettingTab {
       });
     }
 
-    actionRow(containerEl, {
+    this.actionRow(containerEl, {
+      action: "plus:refresh-status",
       name: "Refresh status",
       desc: "After checkout, a top-up, or a sign-in link, pull the latest plan from the Plus service.",
       label: "Refresh status",
       onClick: () => this.refreshAndRedisplay(),
     });
     if (state.kind !== "trialIncomplete") {
-      actionRow(containerEl, {
+      this.actionRow(containerEl, {
+        action: "plus:billing-portal",
         name: "Manage subscription",
         desc: "Change plan, update your card, or cancel in the billing portal.",
         label: "Manage subscription",
         onClick: () => this.openBillingPortal(),
       });
     }
-    destructiveRow(containerEl, {
+    this.destructiveRow(containerEl, {
+      action: "plus:sign-out",
       name: "Sign out",
       desc: "Remove the Plus session from this device only.",
       label: "Sign out",
@@ -1096,7 +1137,8 @@ export class AtomsSettingTab extends PluginSettingTab {
   }
 
   private renderSignedOutAccount(containerEl: HTMLElement): void {
-    actionRow(containerEl, {
+    this.actionRow(containerEl, {
+      action: "plus:see-plans",
       name: "Skip the API key",
       desc: "Atoms Plus files your captures for you. Or keep using your own key. It’s free forever, and the full app stays yours either way.",
       label: "See plans",
@@ -1115,7 +1157,8 @@ export class AtomsSettingTab extends PluginSettingTab {
         },
       },
     });
-    actionRow(containerEl, {
+    this.actionRow(containerEl, {
+      action: "plus:start-trial",
       name: "Start free trial",
       label: "Start free trial",
       onClick: () => this.startTrial(containerEl),
@@ -1132,7 +1175,8 @@ export class AtomsSettingTab extends PluginSettingTab {
         },
       },
     });
-    actionRow(containerEl, {
+    this.actionRow(containerEl, {
+      action: "plus:magic-link",
       name: "Send sign-in link",
       label: "Send sign-in link",
       onClick: () => {
@@ -1159,7 +1203,8 @@ export class AtomsSettingTab extends PluginSettingTab {
         },
       },
     });
-    actionRow(containerEl, {
+    this.actionRow(containerEl, {
+      action: "plus:save-session",
       name: "Save session",
       label: "Save session",
       onClick: () => this.savePastedSession(containerEl),
@@ -1361,7 +1406,8 @@ export class AtomsSettingTab extends PluginSettingTab {
     // needs to give the input back its width.
     shortcutUrlRow.settingEl.addClass("atoms-capture-shortcut-url");
 
-    actionRow(containerEl, {
+    this.actionRow(containerEl, {
+      action: "shortcut:install",
       name: "Capture Atom shortcut",
       desc: urlSet
         ? `Install or update Capture Atom, the iOS shortcut (v${CAPTURE_SHORTCUT_VERSION}). Opens ${custom ? "your custom link" : "the link Atoms ships"} — Shortcuts.app still needs confirm. Acked: ${acked ?? "never"}.`
@@ -1554,7 +1600,11 @@ export class AtomsSettingTab extends PluginSettingTab {
         kind: "toggle",
         configure: (toggle) =>
           toggle.setValue(state.enabled && state.egressAcked).onChange((on) => {
-            if (!on || state.egressAcked) {
+            // Re-read rather than trusting the render-time `state` above, exactly as the Ask
+            // mirror toggle does: this handler can outlive the screen it was built on, and a
+            // withdrawal elsewhere would leave it holding an ack that no longer exists.
+            const acked = readDeviceAutoRunState(load).egressAcked;
+            if (!on || acked) {
               writeAutoRunEnabled(save, on);
               this.redisplay();
               return;
@@ -1577,7 +1627,8 @@ export class AtomsSettingTab extends PluginSettingTab {
     // Rendered from the ack itself rather than from the toggle above it: an ack recorded
     // against a feature that is currently off is still a live consent, and still revocable.
     if (state.egressAcked) {
-      actionRow(containerEl, {
+      this.actionRow(containerEl, {
+        action: `ack:review:${EGRESS_ACK_TITLE}`,
         name: EGRESS_ACK_TITLE,
         // Device-local, and stored as a boolean — there is no timestamp to name here.
         desc: "Acknowledged on this device",
@@ -1614,7 +1665,8 @@ export class AtomsSettingTab extends PluginSettingTab {
       },
     });
 
-    actionRow(containerEl, {
+    this.actionRow(containerEl, {
+      action: "catchup:sync-everything",
       name: "Sync everything now",
       desc: "Run drain → outbox → mirror → filing now (ignores resume cooldowns). Filing still needs the catch-up notice on Atoms home when present.",
       label: "Sync everything now",
@@ -1728,14 +1780,21 @@ export class AtomsSettingTab extends PluginSettingTab {
             }),
       },
     });
-    actionRow(containerEl, {
+    this.actionRow(containerEl, {
+      action: "tags:add-custom",
       name: "Add to Active",
       label: "Add",
       onClick: async () => {
-        const t = normalizeTag(this.customTagDraft);
-        if (!t) return;
+        const checked = checkCustomTag(this.customTagDraft);
+        if (!checked.ok) {
+          // Said out loud, and the draft left in the field to be corrected. Returning in
+          // silence left the text sitting there with nothing happening — a dead end the user
+          // could only read as the button being broken.
+          new Notice(`Atoms: ${checked.reason}`);
+          return;
+        }
         this.plugin.settings.activeVocabulary = addCustomActiveTag(
-          t,
+          checked.tag,
           this.plugin.settings.activeVocabulary,
         );
         this.customTagDraft = "";
@@ -1750,7 +1809,8 @@ export class AtomsSettingTab extends PluginSettingTab {
       settingHeading(containerEl, "Proposed (approve to activate)");
       for (const tag of proposed) {
         // Approve and dismiss were two buttons on one row; same split, same reason as above.
-        actionRow(containerEl, {
+        this.actionRow(containerEl, {
+          action: `tags:approve:${tag}`,
           name: `#${tag}`,
           desc: "From classify runs — not applied until approved",
           label: "Approve",
@@ -1766,7 +1826,8 @@ export class AtomsSettingTab extends PluginSettingTab {
             this.redisplay();
           },
         });
-        destructiveRow(containerEl, {
+        this.destructiveRow(containerEl, {
+          action: `tags:dismiss:${tag}`,
           name: `Dismiss #${tag}`,
           label: "Dismiss",
           onClick: async () => {
@@ -1790,24 +1851,35 @@ export class AtomsSettingTab extends PluginSettingTab {
     }));
     const counts = aggregateTagsFromFileCaches(caches);
     const activeSet = new Set(active.map(normalizeTag));
-    // Filtered before the empty state is decided, not inside the render loop: a vault whose
-    // every tag is already active ranks non-empty and still renders no rows, which used to
-    // leave this heading sitting over nothing.
-    const promotable = tagCountsSorted(counts)
-      .slice(0, 30)
-      .filter(({ tag }) => !activeSet.has(tag));
+    // Filtered before the cap, not after. Slicing first spends the 30-row budget on rows that
+    // are then thrown away, so a vault with 30 active tags showed an empty list — under the
+    // sentence claiming every tag was already active — while unactivated ones sat below the
+    // cut. The default vocabulary is 13 and grows one tap at a time; 30 is not exotic.
+    const unactivated = tagCountsSorted(counts).filter(
+      ({ tag }) => !activeSet.has(tag),
+    );
+    const promotable = unactivated.slice(0, 30);
 
     if (promotable.length === 0) {
+      // Two different silences, and the sentence has to tell them apart: a vault with no tags
+      // at all, versus one whose every tag is already active. Neither can be reached while
+      // something is still promotable, because both are read off the filtered list.
       containerEl.createEl("p", {
         text: counts.size
           ? "Every tag your vault uses is already active."
           : "No tags found in vault yet.",
         cls: "setting-item-description",
       });
+    } else if (unactivated.length > promotable.length) {
+      containerEl.createEl("p", {
+        text: `Showing the ${promotable.length} most-used of ${unactivated.length} tags you have not activated yet.`,
+        cls: "setting-item-description",
+      });
     }
 
     for (const { tag, count } of promotable) {
-      actionRow(containerEl, {
+      this.actionRow(containerEl, {
+        action: `tags:activate:${tag}`,
         name: `#${tag}`,
         desc: `${count} use(s) — tap to promote to Active`,
         label: "Activate",

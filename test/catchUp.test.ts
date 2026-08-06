@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import AtomsPlugin from "../src/plugin/main";
 import {
   applyOutboxItemToVault,
   runAskOutboxApply,
@@ -568,5 +569,72 @@ describe("syncNowNotice is honest about a joined push", () => {
     expect(line).not.toMatch(/joined it/);
     expect(line).toMatch(/already running/);
     expect(line).toMatch(/again/);
+  });
+});
+
+/**
+ * The pass's own single-flight claim, which is not the same latch as `runMirrorSingleFlight`
+ * above: this one guards the whole drain → outbox → mirror → filing pass.
+ *
+ * The flag was read at the top and written seventy lines later, with two `await`s between, so
+ * two presses landing in the same tick both read it while it was still false and both ran a
+ * full pass. Exercised through the real method rather than a copy of its logic, because the
+ * bug was entirely in *where* the write sat relative to the awaits.
+ */
+describe("runCatchUpPass single-flight", () => {
+  /**
+   * The smallest `this` the method touches before it returns. `vaultIndexReady: false` makes
+   * `decideResumeStages` block every stage, so the first call returns early — after the awaits
+   * that the second call has to survive.
+   */
+  function fakePlugin() {
+    return {
+      catchUpInFlight: false,
+      app: { loadLocalStorage: () => null, saveLocalStorage: () => {} },
+      vaultIndexReady: false,
+      lastInboxPendingCount: 0,
+      lastResumePassAt: 0,
+      drainStartedAt: null,
+      filingStartedAt: null,
+      waivedFilingStamps: [] as number[],
+      pendingNewDrainWork: 0,
+      waiverUsedThisSignal: false,
+      stageInput: (AtomsPlugin.prototype as never as {
+        stageInput: (...a: unknown[]) => unknown;
+      }).stageInput,
+    };
+  }
+
+  const runPass = (
+    self: ReturnType<typeof fakePlugin>,
+  ): Promise<{ ran: boolean; reason: string }> =>
+    (
+      AtomsPlugin.prototype as never as {
+        runCatchUpPass: (o: { manual: boolean; silent: boolean }) => Promise<{
+          ran: boolean;
+          reason: string;
+        }>;
+      }
+    ).runCatchUpPass.call(self, { manual: false, silent: true });
+
+  it("turns away a second press landing in the same tick", async () => {
+    const self = fakePlugin();
+
+    // No `await` between them: exactly what a double tap on Sync everything now produces, and
+    // what a manual run racing a resume signal produces.
+    const first = runPass(self);
+    const second = runPass(self);
+
+    expect((await second).reason).toBe("in_flight");
+    await first;
+  });
+
+  it("releases the claim when the pass returns early, so the next press is not refused", async () => {
+    const self = fakePlugin();
+
+    expect((await runPass(self)).ran).toBe(false);
+    expect(self.catchUpInFlight).toBe(false);
+    // The early return sits inside the `try`, so its `finally` still clears the claim.
+    expect((await runPass(self)).reason).not.toBe("in_flight");
   });
 });

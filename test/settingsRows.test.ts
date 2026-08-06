@@ -6,11 +6,20 @@ import {
   backRow,
   destinationRow,
   destructiveRow,
+  InFlightActions,
   settingRow,
   statusRow,
 } from "../src/settings/rows";
 import { AtomsSettingTab, type SettingsRoute } from "../src/settings/settings";
-import { destinationNames, open, settingTab } from "./helpers/settingsTab";
+import {
+  destinationNames,
+  // Aliased: this file already has a local `row()` reader, and `press`/`flip` read better
+  // alongside it under names that say they act on a rendered row.
+  flip as flipRow,
+  open,
+  press as pressRow,
+  settingTab,
+} from "./helpers/settingsTab";
 import { DEFAULT_SETTINGS } from "../src/shared/types";
 import type { PlusSession } from "../src/platform/filingAuth";
 // Imported from the mock by path, not from "obsidian": vitest aliases the module but `tsc`
@@ -106,9 +115,12 @@ function row(container: HTMLElement): HTMLElement {
 
 describe("row grammar", () => {
   let container: HTMLElement;
+  /** Fresh per test: the registry outlives a render by design, so it must not outlive a case. */
+  let inFlight: InFlightActions;
 
   beforeEach(() => {
     container = document.createElement("div");
+    inFlight = new InFlightActions();
   });
 
   it("settingRow renders exactly its one toggle and no button", () => {
@@ -210,6 +222,8 @@ describe("row grammar", () => {
     actionRow(container, {
       name: "Process unprocessed captures",
       label: "Process",
+      action: "process",
+      inFlight,
       onClick: () => {
         ran += 1;
       },
@@ -232,6 +246,8 @@ describe("row grammar", () => {
       name: "Wipe cloud copy",
       desc: "Deletes every atom this device mirrored.",
       label: "Wipe",
+      action: "wipe",
+      inFlight,
       onClick: () => {
         wiped += 1;
       },
@@ -270,8 +286,20 @@ describe("row grammar", () => {
       }),
       destinationRow(container, { name: "B", onOpen: () => {} }),
       backRow(container, { name: "B2", onBack: () => {} }),
-      actionRow(container, { name: "C", label: "Go", onClick: () => {} }),
-      destructiveRow(container, { name: "D", label: "Wipe", onClick: () => {} }),
+      actionRow(container, {
+        name: "C",
+        label: "Go",
+        action: "c",
+        inFlight,
+        onClick: () => {},
+      }),
+      destructiveRow(container, {
+        name: "D",
+        label: "Wipe",
+        action: "d",
+        inFlight,
+        onClick: () => {},
+      }),
       statusRow(container, { name: "E", value: "ok" }),
     ];
 
@@ -294,7 +322,13 @@ describe("row grammar", () => {
         const pending = new Promise<void>((resolve, reject) => {
           finish = settle === "resolve" ? resolve : () => reject(new Error("boom"));
         });
-        build(container, { name: "Refresh status", label: "Refresh status", onClick: () => pending });
+        build(container, {
+          name: "Refresh status",
+          label: "Refresh status",
+          action: "refresh",
+          inFlight,
+          onClick: () => pending,
+        });
         const button = container.querySelector("button");
         if (!(button instanceof HTMLButtonElement)) throw new Error("no button rendered");
 
@@ -314,7 +348,13 @@ describe("row grammar", () => {
     );
 
     it("leaves a synchronous click alone", () => {
-      build(container, { name: "Open", label: "Open", onClick: () => {} });
+      build(container, {
+        name: "Open",
+        label: "Open",
+        action: "open",
+        inFlight,
+        onClick: () => {},
+      });
       const button = container.querySelector("button");
       if (!(button instanceof HTMLButtonElement)) throw new Error("no button rendered");
 
@@ -338,6 +378,8 @@ describe("row grammar", () => {
       build(container, {
         name: "Refresh status",
         label: "Refresh status",
+        action: "refresh",
+        inFlight,
         onClick: async () => {},
       });
       const button = container.querySelector("button");
@@ -350,8 +392,272 @@ describe("row grammar", () => {
       expect(thenCalls()).toBe(0);
       expect(button.disabled).toBe(false);
     });
+
+    /**
+     * The guard has to survive the button it was armed on.
+     *
+     * Every button is minted fresh by `display()`, so state held on the component died at the
+     * next render — and after the destination split, re-rendering is an ordinary impatient
+     * gesture rather than something a user has to go looking for. `Get more filings` reaches
+     * `createCheckout`, which sends no idempotency key: two presses are two Stripe Checkout
+     * Sessions, and a user who completes both pays twice. Same shape on `Send sign-in link`
+     * (two emails) and `Get pairing code` (two live pairing secrets).
+     */
+    it("renders the rebuilt row disabled while its action is still in flight", () => {
+      let calls = 0;
+      let release!: () => void;
+      const pending = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const row = {
+        name: "Get more filings",
+        label: "Get more",
+        action: "plus:top-up-checkout",
+        inFlight,
+        onClick: () => {
+          calls += 1;
+          return pending;
+        },
+      };
+
+      build(container, row);
+      container.querySelector("button")!.click();
+      expect(calls).toBe(1);
+
+      // The render that used to hand back a fresh, enabled button.
+      container.empty();
+      build(container, row);
+      const rebuilt = container.querySelector("button");
+      if (!(rebuilt instanceof HTMLButtonElement)) throw new Error("no button rendered");
+      expect(rebuilt.disabled).toBe(true);
+      release();
+    });
+
+    it("releases the rebuilt row when the run it inherited finishes", async () => {
+      let release!: () => void;
+      const pending = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const row = {
+        name: "Get more filings",
+        label: "Get more",
+        action: "plus:top-up-checkout",
+        inFlight,
+        onClick: () => pending,
+      };
+
+      build(container, row);
+      container.querySelector("button")!.click();
+      container.empty();
+      build(container, row);
+
+      release();
+      await pending;
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      // Not left dead until the *next* render: the inherited run is what re-enables it.
+      expect(container.querySelector("button")?.disabled).toBe(false);
+    });
+
+    it("joins the run in flight rather than starting a second one", async () => {
+      let calls = 0;
+      let release!: () => void;
+      const pending = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const row = {
+        name: "Get more filings",
+        label: "Get more",
+        action: "plus:top-up-checkout",
+        inFlight,
+        onClick: () => {
+          calls += 1;
+          return pending;
+        },
+      };
+
+      build(container, row);
+      container.querySelector("button")!.click();
+      container.empty();
+      build(container, row);
+      // Reaching the rebuilt button the way a stale gesture would, past its disabled state.
+      container.querySelector("button")!.click();
+
+      release();
+      await pending;
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      expect(calls).toBe(1);
+    });
+
+    it("lets the action run again once the first run has settled", async () => {
+      let calls = 0;
+      const row = {
+        name: "Get more filings",
+        label: "Get more",
+        action: "plus:top-up-checkout",
+        inFlight,
+        onClick: async () => {
+          calls += 1;
+        },
+      };
+
+      build(container, row);
+      container.querySelector("button")!.click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      container.empty();
+      build(container, row);
+      const second = container.querySelector("button");
+      if (!(second instanceof HTMLButtonElement)) throw new Error("no button rendered");
+      // The guard is not a one-shot latch: a settled action releases its identity.
+      expect(second.disabled).toBe(false);
+      second.click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      expect(calls).toBe(2);
+    });
+
+    it("keeps one action's run from disabling a different action", () => {
+      const pending = new Promise<void>(() => {});
+      build(container, {
+        name: "Get more filings",
+        label: "Get more",
+        action: "plus:top-up-checkout",
+        inFlight,
+        onClick: () => pending,
+      });
+      container.querySelector("button")!.click();
+
+      const other = document.createElement("div");
+      build(other, {
+        name: "Refresh status",
+        label: "Refresh status",
+        action: "plus:refresh-status",
+        inFlight,
+        onClick: () => pending,
+      });
+
+      // Identity is the key, so a busy checkout must not freeze the row beside it.
+      expect(other.querySelector("button")?.disabled).toBe(false);
+    });
+
+    it("releases the action even when its run rejects", async () => {
+      let calls = 0;
+      const row = {
+        name: "Get more filings",
+        label: "Get more",
+        action: "plus:top-up-checkout",
+        inFlight,
+        onClick: () => {
+          calls += 1;
+          return Promise.reject(new Error("network"));
+        },
+      };
+
+      build(container, row);
+      container.querySelector("button")!.click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      // A failed request must leave a usable row, not wedge its action forever.
+      container.empty();
+      build(container, row);
+      const retry = container.querySelector("button");
+      if (!(retry instanceof HTMLButtonElement)) throw new Error("no button rendered");
+      expect(retry.disabled).toBe(false);
+      retry.click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(calls).toBe(2);
+    });
   });
 });
+
+/**
+ * The same guard, reached the way a user reaches it: through a whole settings tab that rebuilds
+ * itself. `redisplay()` and `openRoute()` are the two rebuilds, and before the registry moved
+ * off the component both handed back a fresh, enabled button mid-flight.
+ */
+describe("in-flight guard across a settings-tab rebuild", () => {
+  const flush = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+  it("survives the re-render a toggle on the same screen causes", async () => {
+    let calls = 0;
+    let release!: () => void;
+    const pending = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const { tab } = settingTab({
+      plugin: {
+        runSyncEverythingNow: () => {
+          calls += 1;
+          return pending;
+        },
+      },
+    });
+    tab.display();
+
+    pressRow(tab, "Sync everything now", "Sync everything now");
+    await flush();
+    expect(calls).toBe(1);
+
+    flipRow(tab, "Sync when you return to Obsidian");
+    await flush();
+
+    pressRow(tab, "Sync everything now", "Sync everything now");
+    await flush();
+    release();
+    await flush();
+
+    expect(calls).toBe(1);
+  });
+
+  it("survives walking out of a destination and back into it", async () => {
+    let pushes = 0;
+    let release!: () => void;
+    const pending = new Promise<{ ok: boolean; message: string }>((resolve) => {
+      release = () => resolve({ ok: true, message: "" });
+    });
+    const { tab } = settingTab({
+      session: MIRROR_SESSION,
+      settings: { askPrivacyAckAt: "2026-08-01T10:00:00.000Z", askEnabled: true },
+      plugin: {
+        syncAskMirror: () => {
+          pushes += 1;
+          return pending;
+        },
+      },
+    });
+    tab.display();
+    open(tab, "Connect Claude or ChatGPT");
+    await flush();
+
+    pressRow(tab, "Sync now", "Sync now");
+    await flush();
+    expect(pushes).toBe(1);
+
+    const back = backRowEl(tab);
+    if (!back) throw new Error("no back row");
+    back.click();
+    open(tab, "Connect Claude or ChatGPT");
+    await flush();
+
+    pressRow(tab, "Sync now", "Sync now");
+    await flush();
+    release();
+    await flush();
+
+    // A second push would re-send the whole vault mirror, deletes included.
+    expect(pushes).toBe(1);
+  });
+});
+
+const MIRROR_SESSION: PlusSession = {
+  sessionToken: "sess_live",
+  email: "user@example.com",
+  status: "active",
+  remaining: 12,
+  periodEnd: "2026-09-01T00:00:00.000Z",
+};
 
 function backRowEl(tab: AtomsSettingTab): HTMLElement | null {
   const el = tab.containerEl.querySelector(".atoms-setting-back");

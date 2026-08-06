@@ -674,38 +674,42 @@ export default class AtomsPlugin extends Plugin {
       return { ran: false, reason: "in_flight" };
     }
 
-    try {
-      const { countInboxPending } = await import("../pipeline/inbox");
-      this.lastInboxPendingCount = await countInboxPending(this.app);
-    } catch {
-      /* keep last */
-    }
-
-    const decision = decideResumeStages(this.stageInput(load, { ...opts, now }));
-
-    if (
-      !decision.stages.drain.run &&
-      !decision.stages.outbox.run &&
-      !decision.stages.mirror.run &&
-      !decision.stages.filing.run
-    ) {
-      const reason =
-        (!decision.stages.drain.run &&
-          "reason" in decision.stages.drain &&
-          decision.stages.drain.reason) ||
-        "blocked";
-      if (opts.manual && reason === "vault_not_ready") {
-        new Notice("Atoms: vault still loading — try Sync everything now again");
-      }
-      return { ran: false, reason: String(reason) };
-    }
-
+    // Claimed here rather than once the stage decision is in: the two `await`s below meant a
+    // same-tick double press — two taps on Sync everything now, or a manual run racing a resume
+    // — both read the flag while it was still false and both ran a full pass. The `finally`
+    // releases it, so the early returns between here and there stay correct.
     this.catchUpInFlight = true;
     let drained = 0;
     let outbox = 0;
     let mirrored = 0;
     let filed = 0;
     try {
+      try {
+        const { countInboxPending } = await import("../pipeline/inbox");
+        this.lastInboxPendingCount = await countInboxPending(this.app);
+      } catch {
+        /* keep last */
+      }
+
+      const decision = decideResumeStages(this.stageInput(load, { ...opts, now }));
+
+      if (
+        !decision.stages.drain.run &&
+        !decision.stages.outbox.run &&
+        !decision.stages.mirror.run &&
+        !decision.stages.filing.run
+      ) {
+        const reason =
+          (!decision.stages.drain.run &&
+            "reason" in decision.stages.drain &&
+            decision.stages.drain.reason) ||
+          "blocked";
+        if (opts.manual && reason === "vault_not_ready") {
+          new Notice("Atoms: vault still loading — try Sync everything now again");
+        }
+        return { ran: false, reason: String(reason) };
+      }
+
       if (decision.stages.drain.run) {
         try {
           const r = await this.drainInboxOnce();

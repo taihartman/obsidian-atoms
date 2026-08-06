@@ -48,7 +48,7 @@ import {
 } from "../src/platform/autorun";
 import { LS_EGRESS_NOTICE } from "../src/platform/resume";
 // `../mocks/obsidian` rather than `"obsidian"`: vitest aliases the module, `tsc` does not.
-import { Modal } from "./mocks/obsidian";
+import { Modal, Notice } from "./mocks/obsidian";
 import {
   API_KEY_SECRET_ID_DEFAULT,
   DEFAULT_SETTINGS,
@@ -1601,6 +1601,190 @@ describe("main screen row grammar (U9)", () => {
       // wedged between the key row and the fallback toggle that answers for the same key.
       expect(row(tab, "Anthropic API key").textContent).toContain(API_KEY_SECRET_ID_DEFAULT);
       expect(prose(tab).some((t) => t.startsWith("Tip: secret id example"))).toBe(false);
+    });
+  });
+});
+
+/**
+ * Holes found by an adversarial pass, each one live-reproduced before it was fixed. Kept
+ * together because they share a cause: a settings screen that can be rebuilt or walked away
+ * from, and state that assumed it would not be.
+ */
+describe("adversarial regressions", () => {
+  const flush = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+  /** 40 tags, one file each, so every count ties and the sort falls back to alphabetical. */
+  const many = Array.from(
+    { length: 40 },
+    (_, i) => `zqa${String(i + 1).padStart(2, "0")}`,
+  );
+
+  describe("Found in your vault", () => {
+    /**
+     * The list capped at 30 rows *before* dropping the ones already active, so the budget went
+     * to rows that were then thrown away. At 30 active tags the section rendered empty — under
+     * a sentence claiming every tag in the vault was already active — while the unactivated
+     * ones sat below the cut, permanently unreachable. The default vocabulary is 13.
+     */
+    function vocabularyTab(active: string[], vaultTags: string[]) {
+      const { tab } = settingTab({ settings: { activeVocabulary: active }, vaultTags });
+      tab.display();
+      open(tab, `Tag vocabulary — ${active.length} active`);
+      return tab;
+    }
+
+    it("still offers an unactivated tag when 30 more-used tags are already active", () => {
+      const tab = vocabularyTab(many.slice(0, 30), many);
+
+      const offered = rowNames(tab).filter((n) => n.startsWith("#zqa"));
+      expect(offered).toContain("#zqa31");
+      expect(offered).toContain("#zqa40");
+    });
+
+    it("does not claim every vault tag is active while ten of them are not", () => {
+      const tab = vocabularyTab(many.slice(0, 30), many);
+
+      expect(prose(tab).join(" ")).not.toContain(
+        "Every tag your vault uses is already active.",
+      );
+    });
+
+    it("caps the list at 30 promotable rows and says how many it is not showing", () => {
+      const tab = vocabularyTab([], many);
+
+      // 40 unactivated, 30 rendered: the cap still holds, it just no longer eats the answer.
+      expect(rowNames(tab).filter((n) => n.startsWith("#zqa"))).toHaveLength(30);
+      expect(prose(tab).join(" ")).toContain(
+        "Showing the 30 most-used of 40 tags you have not activated yet",
+      );
+    });
+
+    it("still tells the two silences apart", () => {
+      // Genuinely nothing left to promote.
+      const all = vocabularyTab(many, many);
+      expect(rowNames(all).filter((n) => n.startsWith("#zqa"))).toHaveLength(40);
+      expect(prose(all).join(" ")).toContain("Every tag your vault uses is already active.");
+
+      // Nothing found at all — a different fact, and a different sentence.
+      const none = vocabularyTab([], []);
+      expect(prose(none).join(" ")).toContain("No tags found in vault yet.");
+      expect(prose(none).join(" ")).not.toContain("already active");
+    });
+  });
+
+  describe("Add to Active", () => {
+    function vocabularyTab() {
+      const { tab } = settingTab({ settings: { activeVocabulary: ["alpha"] } });
+      tab.display();
+      open(tab, "Tag vocabulary — 1 active");
+      Notice.messages.length = 0;
+      return tab;
+    }
+
+    const draft = (tab: AtomsSettingTab): string => {
+      const input = row(tab, "Add a custom tag").querySelector("input");
+      if (!(input instanceof HTMLInputElement)) throw new Error("no draft field");
+      return input.value;
+    };
+
+    it.each([
+      ["a tag that normalizes to nothing", "###"],
+      ["whitespace", "   "],
+      ["a tag past the length cap", "a".repeat(300)],
+      ["emoji", "🔥🔥"],
+    ])("refuses %s out loud and adds nothing", async (_label, typed) => {
+      const tab = vocabularyTab();
+      fill(tab, "Add a custom tag", typed);
+      press(tab, "Add to Active", "Add");
+      await flush();
+
+      // The defect was the silence, not the refusal: `normalizeTag("###")` returned "" and the
+      // handler returned with no Notice, no row, and the text still sitting in the field.
+      expect(Notice.messages).toHaveLength(1);
+      expect(Notice.messages[0]).toMatch(/^Atoms: /);
+      expect(tab.plugin.settings.activeVocabulary).toEqual(["alpha"]);
+      // Left in the field on purpose — the user is being asked to fix it, not to retype it.
+      expect(draft(tab)).toBe(typed);
+    });
+
+    it("still accepts an ordinary tag, and clears the field when it lands", async () => {
+      const tab = vocabularyTab();
+      fill(tab, "Add a custom tag", "#Health");
+      press(tab, "Add to Active", "Add");
+      await flush();
+
+      expect(tab.plugin.settings.activeVocabulary).toEqual(["alpha", "health"]);
+      expect(Notice.messages).toHaveLength(0);
+      expect(draft(tab)).toBe("");
+    });
+  });
+
+  describe("automatic filing toggle", () => {
+    /**
+     * The twin of the Ask mirror test above ("cannot be undone by a handler still holding the
+     * ack it rendered with"). This side captured `readDeviceAutoRunState(load)` at render time
+     * and consumed the snapshot in its `onChange`, so a handler built before a withdrawal still
+     * believed it held the ack. No egress followed — `shouldRunAutoProcess` re-checks — but the
+     * asymmetry between the two toggles is the exact bug this change exists to kill.
+     */
+    it("cannot be enabled by a handler still holding the ack it rendered with", async () => {
+      const { tab, local } = settingTab({ local: { [LS_AUTO_RUN_EGRESS_ACK]: true } });
+      tab.display();
+
+      const stale = row(tab, "File automatically when Obsidian opens").querySelector(
+        ".checkbox-container",
+      );
+      if (!(stale instanceof HTMLElement)) throw new Error("no auto-run toggle");
+
+      press(tab, "Data egress acknowledgment", "Review");
+      pressSheet("Withdraw acknowledgment");
+      await flush();
+
+      stale.click();
+      await flush();
+
+      expect(local.get(LS_AUTO_RUN_EGRESS_ACK)).not.toBe(true);
+      expect(local.get(LS_AUTO_RUN_ENABLED)).not.toBe(true);
+    });
+  });
+
+  describe("walking into a destination", () => {
+    /**
+     * `hide()` has always settled an open sheet as a decline, on the rule that a sheet must not
+     * outlive the screen that posed it. `openRoute()` — the one other screen change — did not,
+     * so a sheet a main-screen toggle raised survived the walk, and accepting it from inside a
+     * destination still wrote the ack.
+     */
+    it("settles a sheet the screen behind it posed", async () => {
+      const { tab } = settingTab();
+      tab.display();
+      flip(tab, "File automatically when Obsidian opens");
+      await flush();
+      expect(sheetOpen()).toBe(true);
+
+      open(tab, "Advanced");
+      await flush();
+
+      expect(sheetOpen()).toBe(false);
+    });
+
+    it("does not let that sheet write an ack from the screen the user left", async () => {
+      const { tab, local } = settingTab();
+      tab.display();
+      flip(tab, "File automatically when Obsidian opens");
+      await flush();
+
+      open(tab, "Advanced");
+      await flush();
+
+      // The user is looking at Advanced now. Accept whatever is still up — an orphaned sheet
+      // grants a consent on behalf of a screen that is no longer on the display.
+      if (sheetOpen()) {
+        pressSheet("I understand");
+        await flush();
+      }
+
+      expect(local.get(LS_AUTO_RUN_EGRESS_ACK)).not.toBe(true);
+      expect(local.get(LS_AUTO_RUN_ENABLED)).not.toBe(true);
     });
   });
 });

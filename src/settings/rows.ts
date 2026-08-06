@@ -118,16 +118,66 @@ export function backRow(
  */
 type RowAction = () => void | Promise<void>;
 
+/**
+ * What is currently running, keyed by *what it does* rather than by which button started it.
+ *
+ * A `ButtonComponent` is minted fresh on every render, so a guard stored on one dies the moment
+ * anything rebuilds the screen — and after the destination split, rebuilding is an ordinary
+ * gesture: press *Get more filings*, see nothing happen yet, tap back, walk in again, press
+ * again. That used to open a second Stripe Checkout Session (`createCheckout` sends no
+ * idempotency key), send a second sign-in email, or mint a second live pairing secret. Owning
+ * the state at the tab level instead means a rebuilt row for an action already in flight renders
+ * disabled, and pressing it joins the run in progress rather than starting another.
+ */
+export class InFlightActions {
+  private readonly running = new Map<string, Promise<void>>();
+
+  /** The run already under way for this action, if any — what a rebuilt row waits on. */
+  pending(action: string): Promise<void> | undefined {
+    return this.running.get(action);
+  }
+
+  /**
+   * Start `onClick` under `action`, or hand back the run already in flight without starting a
+   * second one. Synchronous actions pass straight through: there is no window to double-press.
+   */
+  run(action: string, onClick: RowAction): void | Promise<void> {
+    const already = this.running.get(action);
+    if (already) return already;
+    const started = onClick();
+    if (!(started instanceof Promise)) return started;
+    // Identity-checked before deleting, so a slow run that settles after a newer one started
+    // cannot clear the newer one's claim. Both arms settle: a rejected action must release its
+    // action rather than wedge it forever, and this promise is handed to rows that did not
+    // start it, so it absorbs the rejection rather than depending on who happens to watch.
+    const release = (): void => {
+      if (this.running.get(action) === tracked) this.running.delete(action);
+    };
+    const tracked: Promise<void> = started.then(release, release);
+    this.running.set(action, tracked);
+    return tracked;
+  }
+}
+
 /** A button row's shape, shared by the accent and destructive kinds. */
-type ButtonRow = RowInfo & {
+export type ButtonRowSpec = RowInfo & {
   label: string;
+  /**
+   * Stable identity of what this button does — the key the in-flight guard tracks. Required
+   * rather than optional so a new money or identity path cannot be added unguarded by omission.
+   * Rows that repeat per item (one per tag, say) must carry the item in the id.
+   */
+  action: string;
   onClick: RowAction;
   disabled?: boolean;
   tooltip?: string;
 };
 
+/** A spec plus the registry that outlives the render it was built in. */
+type ButtonRow = ButtonRowSpec & { inFlight: InFlightActions };
+
 /**
- * Run a row's action, and hold its button down for as long as that takes.
+ * Hold a button down for as long as the promise it is watching takes.
  *
  * The guard lives here rather than in the caller because the alternative is handing back the
  * `ButtonComponent` so each caller can disable it — exactly the chainable escape hatch the
@@ -163,9 +213,20 @@ function buttonRow(
   style: (btn: ButtonComponent) => ButtonComponent,
 ): void {
   baseRow(containerEl, row).addButton((btn) => {
-    style(btn.setButtonText(row.label)).onClick(() => runRowAction(btn, row.onClick));
+    style(btn.setButtonText(row.label)).onClick(() =>
+      runRowAction(btn, () => row.inFlight.run(row.action, row.onClick)),
+    );
     if (row.tooltip !== undefined) btn.setTooltip(row.tooltip);
-    if (row.disabled) btn.setDisabled(true);
+    if (row.disabled) {
+      btn.setDisabled(true);
+      return;
+    }
+    // Built while its action is already running — most often because that action's own
+    // `redisplay()` rebuilt the screen mid-flight. Watching the run in progress is what makes
+    // the guard survive the rebuild, and releases the button when the run actually finishes
+    // rather than leaving it dead until the next render.
+    const inFlight = row.inFlight.pending(row.action);
+    if (inFlight) runRowAction(btn, () => inFlight);
   });
 }
 
