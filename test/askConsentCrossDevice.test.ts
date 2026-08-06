@@ -209,11 +209,11 @@ describe("#323 cross-device consent", () => {
     const { plugin, syncWrites } = pluginOnSyncedVault(GRANTED);
     await plugin.loadSettings();
     let cancels = 0;
-    plugin.ask = {
-      cancelPendingSync: () => {
-        cancels += 1;
-      },
-    } as unknown as typeof plugin.ask;
+    // Only the cancellation is stubbed. `mirrorPermitted()` stays the real one, so this
+    // asserts the hook's actual decision rather than a predicate copied into the test.
+    plugin.ask.cancelPendingSync = () => {
+      cancels += 1;
+    };
 
     syncWrites(WITHDRAWN);
     await plugin.onExternalSettingsChange();
