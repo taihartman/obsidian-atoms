@@ -57,11 +57,20 @@ open their #320 draft.
    status checks on `master`), the workflow reports without blocking — which is the advisory failure
    mode `docs/solutions/architecture-patterns/a-green-check-about-a-different-subtree.md` explicitly
    names. Saying "the CI gap is fixed" after merging #326 alone would be wrong.
-3. **Surface the release decision for 0.6.79.** Still unresolved. This session's recommendation,
-   unchanged: **beta first**, because the change touches consent gates and six review passes found
-   nine defects in it, two severe. Master's automation already cuts betas (`0.6.78-beta.1` was cut by
-   `github-actions[bot]` from `release.yml` on a version tag). **Do not cut a release unless the user
-   asks** — that is a hard project rule.
+3. **Surface the release decision for 0.6.79 — but the channel is already decided by an older
+   blocker.** Corrected 2026-08-06 by the session holding #320/#323. **Stable is hard-blocked
+   regardless of anything on this branch**: the **iOS + Android physical-device release-gate test for
+   #240 has never been run**, and `crypto.subtle` on the mobile webview is still **assumed, never
+   verified** — if it is missing, sign-in dies at "Send sign-in link" before an email goes out. That
+   test is human-only. Source: `docs/handoffs/2026-08-06-multi-device-sessions-next.md` § *Not done,
+   and not started*.
+
+   So the only live question is **beta or nothing**, not beta-vs-stable. This session's #304-based
+   reasoning (consent gates touched; six review passes found nine defects, two severe) and the #323
+   consent-divergence risk both **raise the cost of shipping stable wrong**; neither one *creates* the
+   block. Do not present either as the reason stable is off the table. Master's automation already
+   cuts betas (`0.6.78-beta.1`, by `github-actions[bot]` from `release.yml` on a version tag).
+   **Do not cut a release unless the user asks** — hard project rule.
 4. **After #326 merges:** clear its #325 row from `STATUS.md` on a small branch + PR, exactly as
    #324 did for #304. That is the project's mandated post-merge step.
 
@@ -103,9 +112,11 @@ Do **not** relitigate any of these.
 - **#323 — cross-device consent divergence. Unproven, and the highest-value open risk.** The Ask
   acknowledgments live in `data.json` (Obsidian Sync replicates it) while `plugin.settings` is read
   once at load, so withdrawing consent on one device may leave another still mirroring under a
-  revoked consent. Needs a two-device rig. **Owned by the other session**, who will have the rig for
-  #320. If it holds it is a live consent bypass on already-shipped code, and it bears on the 0.6.79
-  release channel decision.
+  revoked consent. Needs a two-device rig. **Claimed 2026-08-06 by the session holding #320**, which
+  needs the same rig to prove multi-device sign-in works at all — one rig answers both. Both will
+  appear on their `STATUS.md` row. **Not yours; do not start it.** If it holds it is a live consent
+  bypass on already-shipped code. It bears on how bad a wrong stable release would be — it is *not*
+  what blocks stable (see Next step 3).
 - The three decisions in Next steps 1–3 are all the user's, not yours.
 
 ## Housekeeping wart — read before staging anything
