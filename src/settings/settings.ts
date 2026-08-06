@@ -1895,13 +1895,24 @@ export class AtomsSettingTab extends PluginSettingTab {
       // whose entire content was its own button label, doubling the section's height to clear
       // something that was already inert: a proposal is never applied until it is approved. The
       // count is in the name so the reach of the button is legible before it is pressed.
+      //
+      // It clears exactly the proposals rendered above it, never the live array. A Process or
+      // auto-run merges into `settings.proposedTags` without redisplaying an open settings tab, so
+      // an unscoped clear would destroy tags that arrived after this row was drawn — more than the
+      // count in its own name promised, and unseen. Per-tag dismissal was bounded for free; a bulk
+      // one has to say so.
+      const rendered = new Set(proposed.map(normalizeTag));
       this.destructiveRow(containerEl, {
         action: "tags:dismiss-proposed",
         name: `${proposed.length} ${proposed.length === 1 ? "proposal" : "proposals"} waiting`,
-        desc: "None of them are applied. A later classify run can propose the same tags again.",
+        // Not "a later run can propose them again": a processed capture carries a sentinel and is
+        // never classified twice, so a dismissed tag returns only from a capture yet to be written.
+        desc: "None of them are applied. Dismissing is not undo — a tag comes back only if a later capture proposes it.",
         label: "Dismiss all",
         onClick: async () => {
-          this.plugin.settings.proposedTags = [];
+          this.plugin.settings.proposedTags = this.plugin.settings.proposedTags.filter(
+            (t) => !rendered.has(normalizeTag(t)),
+          );
           await this.plugin.saveSettings();
           this.redisplay();
         },
