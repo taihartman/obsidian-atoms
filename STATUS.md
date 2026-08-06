@@ -7,6 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
+| In progress | [#325](https://github.com/taihartman/obsidian-atoms/issues/325) | taihartman | `ci/root-suite-pr-gate` | n/a — infra | `.github/workflows/**` | Root `npm test` + `npm run build` on `pull_request`. Today only `plus-service-tests.yml` gates PRs (scoped to `plus-service/`), so plugin PRs merge on a check that ignores them; the root suite first runs at tag time. **No `paths:` filter** — `pretest` runs `build:www`, so the suite spans plugin + www |
 | In progress | [#307](https://github.com/taihartman/obsidian-atoms/issues/307) | taihartman | `feat/tryatoms-mailing-list` | [plan](docs/plans/2026-08-05-001-feat-tryatoms-mailing-list-plan.md) | `www/**`, `.github/workflows/tryatoms-pages.yml` | Atoms Notes list + Pages Function subscribe; no plugin bump |
 
 ## How to claim (copy)

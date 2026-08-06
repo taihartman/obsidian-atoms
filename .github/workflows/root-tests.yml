@@ -1,0 +1,65 @@
+# Root suite — the plugin's own tests and build, gated on every PR.
+#
+# Why this exists (#325): `plus-service-tests.yml` runs on `pull_request` but is
+# scoped to `working-directory: plus-service`, and `release.yml` runs the root
+# `npm test` / `npm run build` only on a version tag. So a PR touching nothing
+# under `plus-service/` still showed a green check, and that check had no
+# relation to the diff — the plugin's ~1200 tests, the DIRECT_SETTING_BUDGET
+# ratchet, the sealed-account-state guard, and the setup-guide lockstep all
+# first ran at tag time, which is the most expensive place to find a failure and
+# the one place a failure blocks a release.
+#
+# It had already cost one: #317's person-invite fixtures were dated against the
+# wall clock, aged out at UTC midnight on 2026-08-06, and surfaced during the
+# 0.6.78-beta.1 release rather than on the PR that introduced them.
+#
+# Deliberately NO `paths:` filter. A scoping assumption is what created the gap,
+# and a `src/**` filter would rebuild it one level down: `pretest` runs
+# `build:www`, so this suite legitimately spans the plugin *and* `www/`.
+
+name: root tests
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: read
+
+concurrency:
+  # A newer push to the same ref supersedes an in-flight run.
+  group: root-tests-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: test + build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      # `npm ci` from a clean checkout is a stronger claim than a warm working
+      # tree — it is the install a release actually performs.
+      - name: Install
+        run: npm ci
+
+      # `pretest` runs `build:www`, so this covers the www build too, and the
+      # setup-guide lockstep asserts against the built `www/dist/setup.html`
+      # rather than the template.
+      - name: Test
+        run: npm test
+
+      # Independent of the tests: root build is
+      # `tsc -noEmit -skipLibCheck && esbuild production`, so a typecheck-only
+      # failure has the same tag-time-only hole without this step.
+      - name: Production build
+        run: npm run build
