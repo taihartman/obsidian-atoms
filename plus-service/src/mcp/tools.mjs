@@ -140,7 +140,7 @@ export function registerAskTools(mcp, ctx) {
     {
       title: "Search atoms",
       description:
-        "Search mirrored atoms by title, tags, and body. Each hit has confidence high|medium (primary signal for agents); weak matches are omitted. Empty results mean no confident lexical match in this mirror—not that the topic is absent from the vault. Optional tags filter (all must match). Snippets are truncated and non-authoritative—use fetch_atom before claiming what a note contains. Results include status (live|superseded|contradicted). Numeric score is for ranking only—do not threshold on it.",
+        "Search mirrored atoms by title, tags, body, and server search-expansion phrases when available. Each response includes retrieval (lexical|lexical_expanded) and expand_coverage (0–1). Hits have confidence high|medium and optional match_signals (title|tag|body|expand). Weak matches are omitted. Empty results mean no confident match in this mirror under the active retrieval mode—not that the topic is absent from the vault. Never tell the user they have no notes on a topic from one empty search alone. Medium expand/body hits are first-class—do not skip them only because confidence is not high. Optional tags filter (all must match). Snippets are truncated and non-authoritative—use fetch_atom before claiming what a note contains. Numeric score is ranking only.",
       annotations: { readOnlyHint: true, destructiveHint: false },
       inputSchema: {
         query: z.string().describe("Search query"),
@@ -164,16 +164,31 @@ export function registerAskTools(mcp, ctx) {
         snippets,
       });
       const scope = absenceMeta();
+      let expand_coverage = 0;
+      let retrieval = "lexical";
+      try {
+        const { retrievalModeForCoverage } = await import(
+          "../ask/expandSearch.mjs"
+        );
+        if (typeof store.mirrorExpandCoverage === "function") {
+          expand_coverage = Number(await store.mirrorExpandCoverage(email)) || 0;
+        }
+        retrieval = retrievalModeForCoverage(expand_coverage);
+      } catch {
+        /* keep lexical */
+      }
+      const modeNote =
+        retrieval === "lexical_expanded"
+          ? "no confident match under lexical+expansion scoring"
+          : "no confident lexical match";
       if (!hits.length) {
         const tagFilter = Array.isArray(tags) && tags.length > 0;
         let emptyHint;
         if (st.count === 0) emptyHint = EMPTY_HINT;
         else if (tagFilter)
-          emptyHint =
-            "no confident lexical match for this query+tags in this account's mirror_scope—call list_tags before concluding the tag is absent; does not mean the topic is absent from the vault; confirm account via mirror_status if unexpected";
+          emptyHint = `${modeNote} for this query+tags in this account's mirror_scope—call list_tags before concluding the tag is absent; does not mean the topic is absent from the vault; confirm account via mirror_status if unexpected`;
         else
-          emptyHint =
-            "no confident lexical match for this query in this account's mirror_scope—not a claim the topic is absent from the vault; confirm account via mirror_status if unexpected";
+          emptyHint = `${modeNote} for this query in this account's mirror_scope—not a claim the topic is absent from the vault; confirm account via mirror_status if unexpected`;
         return {
           content: [
             {
@@ -182,6 +197,8 @@ export function registerAskTools(mcp, ctx) {
                 results: [],
                 account: email,
                 mirror_count: st.count,
+                retrieval,
+                expand_coverage,
                 ...scope,
                 hint: emptyHint,
               }),
@@ -200,6 +217,8 @@ export function registerAskTools(mcp, ctx) {
                 mirror_count: st.count,
                 returned: hits.length,
                 limit: limit ?? 8,
+                retrieval,
+                expand_coverage,
                 ...scope,
               },
               null,

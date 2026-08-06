@@ -2,6 +2,7 @@
  * Ask mirror + MCP OAuth methods for SQLite DatabaseSync.
  */
 import { hashToken, id } from "./shared.mjs";
+import { encryptMirrorField } from "../mirror/crypto.mjs";
 import {
   aggregateMirrorTags,
   buildNeighborsGraph,
@@ -34,6 +35,7 @@ CREATE TABLE IF NOT EXISTS atom_mirror (
   content_hash TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   created TEXT,
+  expand_enc TEXT,
   PRIMARY KEY (email, path)
 );
 CREATE INDEX IF NOT EXISTS idx_atom_mirror_email ON atom_mirror(email);
@@ -117,12 +119,14 @@ export function createAskSqliteMethods(db, deps) {
     const list = Array.isArray(atoms) ? atoms : [];
     let upserted = 0;
     let skipped = 0;
+    /** @type {{ email: string, path: string, title: string, tags: string[], body: string, contentHash: string }[]} */
+    const needExpand = [];
     const sel = db.prepare(
-      "SELECT content_hash FROM atom_mirror WHERE email = ? AND path = ?",
+      "SELECT content_hash, expand_enc FROM atom_mirror WHERE email = ? AND path = ?",
     );
     const ins = db.prepare(`
-      INSERT INTO atom_mirror (email, atom_id, title, path, body_enc, tags_json, links_json, content_hash, updated_at, created)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO atom_mirror (email, atom_id, title, path, body_enc, tags_json, links_json, content_hash, updated_at, created, expand_enc)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
       ON CONFLICT(email, path) DO UPDATE SET
         atom_id=excluded.atom_id,
         title=excluded.title,
@@ -131,13 +135,26 @@ export function createAskSqliteMethods(db, deps) {
         links_json=excluded.links_json,
         content_hash=excluded.content_hash,
         updated_at=excluded.updated_at,
-        created=COALESCE(excluded.created, atom_mirror.created)
+        created=COALESCE(excluded.created, atom_mirror.created),
+        expand_enc=NULL
     `);
     for (const atom of list) {
       const row = prepareMirrorRow(email, atom);
+      const body = String(atom.body ?? atom.text ?? "");
+      const tags = Array.isArray(atom.tags) ? atom.tags.map(String) : [];
       const prev = sel.get(row.email, row.path);
       if (prev && prev.content_hash === row.contentHash) {
         skipped += 1;
+        if (!prev.expand_enc) {
+          needExpand.push({
+            email: row.email,
+            path: row.path,
+            title: row.title,
+            tags,
+            body,
+            contentHash: row.contentHash,
+          });
+        }
         continue;
       }
       ins.run(
@@ -153,8 +170,45 @@ export function createAskSqliteMethods(db, deps) {
         row.created,
       );
       upserted += 1;
+      needExpand.push({
+        email: row.email,
+        path: row.path,
+        title: row.title,
+        tags,
+        body,
+        contentHash: row.contentHash,
+      });
     }
-    return { upserted, skipped };
+    return { upserted, skipped, needExpand };
+  }
+
+  function mirrorSetExpand(email, path, contentHash, expandPlain) {
+    const e = normEmail(email);
+    const p = String(path || "").trim();
+    const hash = String(contentHash || "");
+    if (!e || !p || !hash) return { ok: false, updated: 0 };
+    const enc = encryptMirrorField(String(expandPlain || ""));
+    const info = db
+      .prepare(
+        `UPDATE atom_mirror SET expand_enc = ?
+         WHERE email = ? AND path = ? AND content_hash = ?`,
+      )
+      .run(enc, e, p, hash);
+    return { ok: true, updated: info.changes || 0 };
+  }
+
+  function mirrorExpandCoverage(email) {
+    const e = normEmail(email);
+    const row = db
+      .prepare(
+        `SELECT COUNT(*) AS n,
+                SUM(CASE WHEN expand_enc IS NOT NULL AND expand_enc != '' THEN 1 ELSE 0 END) AS ex
+         FROM atom_mirror WHERE email = ?`,
+      )
+      .get(e);
+    const n = Number(row?.n || 0);
+    if (!n) return 0;
+    return Number(row?.ex || 0) / n;
   }
 
   function mirrorFetch(email, idOrTitle) {
@@ -768,6 +822,8 @@ export function createAskSqliteMethods(db, deps) {
 
   return {
     mirrorUpsert,
+    mirrorSetExpand,
+    mirrorExpandCoverage,
     mirrorFetch,
     mirrorSearch,
     mirrorNeighbors,

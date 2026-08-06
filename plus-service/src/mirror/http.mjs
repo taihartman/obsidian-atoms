@@ -352,8 +352,24 @@ export async function handleMirrorRoutes({
     // Tenant email from session only — ignore body.email
     try {
       const result = await store.mirrorUpsert(a.email, cleaned);
+      const needExpand = Array.isArray(result?.needExpand)
+        ? result.needExpand
+        : [];
+      // Expand off the request path — do not return bodies/needExpand to client.
+      const { upserted, skipped } = result;
+      if (typeof store.mirrorSetExpand === "function" && needExpand.length) {
+        const { enqueueMirrorExpand } = await import("../ask/expandSearch.mjs");
+        const { config } = await import("../config.mjs");
+        const cap = config.askExpandPerUpsertCap;
+        let n = 0;
+        for (const job of needExpand) {
+          if (n >= cap) break;
+          enqueueMirrorExpand(store, job);
+          n += 1;
+        }
+      }
       const st = await store.mirrorStatus(a.email);
-      json(res, 200, { ok: true, ...result, ...st });
+      json(res, 200, { ok: true, upserted, skipped, ...st });
     } catch (err) {
       json(res, 400, {
         message: err instanceof Error ? err.message : "upsert failed",
