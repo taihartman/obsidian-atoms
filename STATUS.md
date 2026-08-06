@@ -7,7 +7,6 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| In progress | [#304](https://github.com/taihartman/obsidian-atoms/issues/304) | taihartman | `feat/settings-row-grammar` | [plan](docs/plans/2026-08-05-003-feat-settings-row-grammar-plan.md) | `src/settings/settings.ts`, `src/settings/rows.ts`, `src/shared/types.ts`, `src/pipeline/context.ts`, `www/src/setup.html.tmpl` | Settings row grammar — 48 rows → 15. **Deletes `shortlistSize`, `expandLinkedNotes`** from `LinkerSettings`, and `enableReconsiderCapture` once #297 has landed (it has) — coordinate before touching those keys. `setup.html.tmpl` quotes settings labels verbatim; rename only in lockstep |
 | In progress | [#307](https://github.com/taihartman/obsidian-atoms/issues/307) | taihartman | `feat/tryatoms-mailing-list` | [plan](docs/plans/2026-08-05-001-feat-tryatoms-mailing-list-plan.md) | `www/**`, `.github/workflows/tryatoms-pages.yml` | Atoms Notes list + Pages Function subscribe; no plugin bump |
 
 ## How to claim (copy)
