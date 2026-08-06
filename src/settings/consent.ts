@@ -11,8 +11,13 @@ import { markDestructive } from "./destructiveButton";
  * sheet writes exactly its own field.
  */
 export const EGRESS_ACK_TITLE = "Data egress acknowledgment";
+// One string, two surfaces: Settings and the Atoms home egress card ask for the same
+// device-local consent, so they say the same words. The clauses are numbered rather than run
+// together because a four-clause sentence is the wall of text people click through, and the two
+// risks lead — (3) and (4) are scope limits, and reading those first would soften what the sheet
+// exists to disclose.
 export const EGRESS_DISCLOSURE =
-  'Atoms will send my vault title graph and each capture to the Anthropic API over TLS, unattended — when Obsidian opens, when it returns to the foreground, and when I tap "Sync everything now", which classifies even when automatic filing is turned off.';
+  '(1) Atoms sends my vault title graph and each capture to the Anthropic API over TLS, unattended — when Obsidian opens and when it returns to the foreground; (2) tapping "Sync everything now" classifies even when automatic filing is turned off; (3) today’s daily note is never auto-touched; (4) this setting stays on this device only.';
 
 export const ASK_PRIVACY_ACK_TITLE = "Ask privacy acknowledgment";
 export const ASK_PRIVACY_DISCLOSURE =
