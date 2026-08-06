@@ -752,6 +752,30 @@ export async function signOutPlus(
   return { ok: true };
 }
 
+/**
+ * #320 — sign out every device on the account, this one included (KTD2). The
+ * service also revokes the account's MCP grants and clears its checkout
+ * bindings, so a caller that succeeds here has to clear local session state:
+ * anything the vault still holds is dead, and leaving it in place reads as
+ * "signed in" while every call 401s.
+ */
+export async function signOutAllDevices(
+  cfg: PlusClientConfig,
+  sessionToken: string,
+): Promise<{ ok: true } | PlusApiError> {
+  const res = await plusRequest(cfg, {
+    path: "/v1/auth/sign-out-all",
+    method: "POST",
+    sessionToken,
+    body: {},
+  });
+  if (!res.ok) return res;
+  if (res.status < 200 || res.status >= 300) {
+    return mapError(res.status, res.json);
+  }
+  return { ok: true };
+}
+
 export async function askMirrorUpsert(
   cfg: PlusClientConfig,
   sessionToken: string,

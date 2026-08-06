@@ -80,6 +80,293 @@ function runStoreSuite(name, create) {
       if (store.close) await store.close();
     });
 
+    // #320 U1 — the property the narrowing exists to create, and the one no
+    // test covered before it. While exchangeMagic revoked *every* session for
+    // the email, signing in on a phone permanently evicted the desktop.
+    it("#320: a verified session on another device survives a new exchange", async () => {
+      const store = await fresh();
+      await store.grantPeriod("multi@ex.com", {
+        remaining: 5,
+        status: "active",
+      });
+
+      const desktop = await store.exchangeMagic(
+        await store.createMagicToken("multi@ex.com"),
+      );
+      const phone = await store.exchangeMagic(
+        await store.createMagicToken("multi@ex.com"),
+      );
+      assert.ok(desktop?.session && phone?.session);
+      assert.notEqual(desktop.session, phone.session);
+
+      const stillLive = await store.accountFromSession(desktop.session, {
+        requireVerified: true,
+      });
+      assert.equal(stillLive?.email, "multi@ex.com");
+
+      // Resolving is not the claim — both devices must still be able to work.
+      assert.equal(
+        (await store.tryConsumeFiling(desktop.session, "device-desktop")).ok,
+        true,
+      );
+      assert.equal(
+        (await store.tryConsumeFiling(phone.session, "device-phone")).ok,
+        true,
+      );
+
+      if (store.close) await store.close();
+    });
+
+    it("#320: an exchange leaves another email's session alone", async () => {
+      const store = await fresh();
+      const bystander = await store.startWithEmail("bystander@ex.com");
+      assert.equal(bystander.ok, true);
+
+      await store.exchangeMagic(await store.createMagicToken("signer@ex.com"));
+
+      const alive = await store.accountFromSession(bystander.session);
+      assert.equal(alive?.email, "bystander@ex.com");
+
+      if (store.close) await store.close();
+    });
+
+    // KTD8 (#320) — a session that proved *payment* and never email ownership
+    // survives too. This is an accepted consequence, not an oversight: carving
+    // it out would evict the desktop session of anyone who pays on desktop and
+    // then signs in on their phone, which is #320 verbatim on the most common
+    // paying path.
+    it("#320 KTD8: a payment-promoted session survives a later exchange", async () => {
+      const store = await fresh();
+      const payer = await store.startWithEmail("payer@ex.com");
+      assert.equal(payer.ok, true);
+      assert.equal(
+        await store.bindCheckoutSession("cs_320", "payer@ex.com", payer.session),
+        true,
+      );
+
+      await store.grantPeriod("payer@ex.com", {
+        remaining: 5,
+        status: "active",
+      });
+      // The grant revoked it as unverified; the webhook then promotes it back.
+      assert.equal(await store.accountFromSession(payer.session), null);
+      assert.equal(
+        await store.promoteCheckoutSession("cs_320", "payer@ex.com"),
+        true,
+      );
+
+      await store.exchangeMagic(await store.createMagicToken("payer@ex.com"));
+
+      const promoted = await store.accountFromSession(payer.session, {
+        requireVerified: true,
+      });
+      assert.equal(promoted?.email, "payer@ex.com");
+
+      if (store.close) await store.close();
+    });
+
+    /**
+     * #320 U2 — the cap tests plant their sessions through the test seam rather
+     * than minting ten of them, because every real mint gets the same TTL: ten
+     * sessions created inside one millisecond share an `exp`, and "the oldest"
+     * would then be whatever the backend's tie-break happens to be. Staggered
+     * expiries make the ordering the assertion instead of an accident.
+     */
+    async function plantSessions(store, email, count, opts = {}) {
+      const base = opts.base ?? Date.now() + 60_000;
+      const tokens = [];
+      for (let i = 0; i < count; i += 1) {
+        const token = `sess_${opts.prefix ?? "cap"}_${i}`;
+        tokens.push(token);
+        await store.writeSessionRowForTest(hashToken(token), {
+          email,
+          expMs: base + i * 1000, // index 0 is the oldest
+          verified: opts.verified !== false,
+        });
+      }
+      return tokens;
+    }
+
+    async function liveVerifiedCount(store, email) {
+      const rows = await store.sessionRowsForTest();
+      const now = Date.now();
+      return rows.filter(
+        (r) => r.email === email && r.verified && !r.revoked && r.expMs >= now,
+      ).length;
+    }
+
+    it("#320 R6: ten live verified sessions are all kept", async () => {
+      const store = await fresh();
+      await store.grantPeriod("cap@ex.com", { remaining: 50, status: "active" });
+      const planted = await plantSessions(store, "cap@ex.com", 9);
+
+      const out = await store.exchangeMagic(
+        await store.createMagicToken("cap@ex.com"),
+      );
+      assert.ok(out?.session);
+
+      for (const token of planted) {
+        const a = await store.accountFromSession(token, {
+          requireVerified: true,
+        });
+        assert.equal(a?.email, "cap@ex.com", `${token} should still be live`);
+      }
+      assert.equal(await liveVerifiedCount(store, "cap@ex.com"), 10);
+
+      if (store.close) await store.close();
+    });
+
+    it("#320 R6: the eleventh sign-in evicts the oldest, and still succeeds", async () => {
+      const store = await fresh();
+      await store.grantPeriod("cap@ex.com", { remaining: 50, status: "active" });
+      const planted = await plantSessions(store, "cap@ex.com", 10);
+
+      const out = await store.exchangeMagic(
+        await store.createMagicToken("cap@ex.com"),
+      );
+      // KTD3's anti-dead-end property: the cap never refuses the sign-in.
+      assert.ok(out?.session);
+
+      assert.equal(await store.accountFromSession(planted[0]), null);
+      for (const token of planted.slice(1)) {
+        assert.ok(
+          await store.accountFromSession(token, { requireVerified: true }),
+          `${token} should have survived`,
+        );
+      }
+      assert.ok(
+        await store.accountFromSession(out.session, { requireVerified: true }),
+      );
+      assert.equal(await liveVerifiedCount(store, "cap@ex.com"), 10);
+
+      if (store.close) await store.close();
+    });
+
+    it("#320 R6: eviction never reaches another email's sessions", async () => {
+      const store = await fresh();
+      await store.grantPeriod("cap@ex.com", { remaining: 50, status: "active" });
+      await store.grantPeriod("other@ex.com", {
+        remaining: 50,
+        status: "active",
+      });
+      await plantSessions(store, "cap@ex.com", 10);
+      const [bystander] = await plantSessions(store, "other@ex.com", 1, {
+        prefix: "other",
+        base: Date.now() + 1000, // older than every capped row
+      });
+
+      await store.exchangeMagic(await store.createMagicToken("cap@ex.com"));
+
+      const alive = await store.accountFromSession(bystander, {
+        requireVerified: true,
+      });
+      assert.equal(alive?.email, "other@ex.com");
+      assert.equal(await liveVerifiedCount(store, "other@ex.com"), 1);
+
+      if (store.close) await store.close();
+    });
+
+    it("#320 R6: revoked and expired rows do not count toward the cap", async () => {
+      const store = await fresh();
+      await store.grantPeriod("cap@ex.com", { remaining: 50, status: "active" });
+      const live = await plantSessions(store, "cap@ex.com", 9);
+      // Five dead rows for the same email: expired, and one already revoked.
+      for (let i = 0; i < 5; i += 1) {
+        await store.writeSessionRowForTest(hashToken(`sess_dead_${i}`), {
+          email: "cap@ex.com",
+          expMs: Date.now() - 60_000,
+          verified: true,
+          revoked: i === 0,
+        });
+      }
+
+      const out = await store.exchangeMagic(
+        await store.createMagicToken("cap@ex.com"),
+      );
+      assert.ok(out?.session);
+
+      for (const token of live) {
+        assert.ok(
+          await store.accountFromSession(token, { requireVerified: true }),
+          `${token} should not have been evicted by dead rows`,
+        );
+      }
+      assert.equal(await liveVerifiedCount(store, "cap@ex.com"), 10);
+
+      if (store.close) await store.close();
+    });
+
+    /**
+     * #320 U3 R10 — the store half of "sign out all devices". The route is
+     * covered over HTTP in `http-auth-sign-out-all.test.mjs`; what belongs here
+     * is the durability property, on all three backends.
+     */
+    it("#320 R10: a cleared binding survives a late webhook", async () => {
+      const store = await fresh();
+      const payer = await store.startWithEmail("durable@ex.com");
+      assert.equal(payer.ok, true);
+      assert.equal(
+        await store.bindCheckoutSession(
+          "cs_durable",
+          "durable@ex.com",
+          payer.session,
+        ),
+        true,
+      );
+      await store.grantPeriod("durable@ex.com", {
+        remaining: 5,
+        status: "active",
+      });
+      assert.equal(await store.markSessionVerified(payer.session), true);
+
+      // The trio the route runs.
+      assert.equal(await store.revokeAllSessionsForEmail("durable@ex.com"), 1);
+      assert.equal(
+        await store.clearCheckoutBindingsForEmail("durable@ex.com"),
+        1,
+      );
+
+      // The webhook lands, or is retried, after the user evicted everything.
+      // Without the clear it resurrects this exact session and marks it
+      // verified — and after U1's narrowing nothing reaps it again.
+      assert.equal(
+        await store.promoteCheckoutSession("cs_durable", "durable@ex.com"),
+        false,
+      );
+      assert.equal(await store.accountFromSession(payer.session), null);
+
+      if (store.close) await store.close();
+    });
+
+    it("#320 R10: clearing bindings leaves another account's checkout alone", async () => {
+      const store = await fresh();
+      const mine = await store.startWithEmail("mine@ex.com");
+      const theirs = await store.startWithEmail("theirs@ex.com");
+      await store.bindCheckoutSession("cs_mine", "mine@ex.com", mine.session);
+      await store.bindCheckoutSession(
+        "cs_theirs",
+        "theirs@ex.com",
+        theirs.session,
+      );
+      await store.grantPeriod("theirs@ex.com", {
+        remaining: 5,
+        status: "active",
+      });
+
+      assert.equal(await store.clearCheckoutBindingsForEmail("mine@ex.com"), 1);
+
+      assert.equal(
+        await store.promoteCheckoutSession("cs_theirs", "theirs@ex.com"),
+        true,
+      );
+      const alive = await store.accountFromSession(theirs.session, {
+        requireVerified: true,
+      });
+      assert.equal(alive?.email, "theirs@ex.com");
+
+      if (store.close) await store.close();
+    });
+
     it("C1: dogfood markSessionVerified restores checkout caller only", async () => {
       const store = await fresh();
       const attacker = await store.startWithEmail("pay@ex.com");
@@ -793,6 +1080,89 @@ describe("#240 U2 store parity", () => {
       assert.notEqual(end, -1, `${file}'s peekMagic must close at one indent`);
       const fn = src.slice(start, end);
       assert.doesNotMatch(fn, /\bDELETE\b|\.delete\(|FOR UPDATE|BEGIN/i);
+    }
+  });
+});
+
+/**
+ * #320 U2 — same scan, new surface. The sibling scanner in
+ * `stripe-incidents.test.mjs` is scoped to the incident methods and is left
+ * alone: it holds a different surface, not a general one.
+ */
+describe("#320 U2 store parity", () => {
+  it("all three stores define and export the cap method and the session seam", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { fileURLToPath } = await import("node:url");
+    const { dirname, join } = await import("node:path");
+    const storeDir = join(dirname(fileURLToPath(import.meta.url)), "../src/store");
+
+    for (const file of ["memory.mjs", "sqlite.mjs", "postgres.mjs"]) {
+      const src = readFileSync(join(storeDir, file), "utf8");
+      for (const method of [
+        "enforceSessionCapForEmail",
+        "writeSessionRowForTest",
+        "sessionRowsForTest",
+        "clearCheckoutBindingsForEmail",
+      ]) {
+        assert.match(
+          src,
+          new RegExp(`^\\s+(async )?function ${method}\\(`, "m"),
+          `${file} must define ${method}`,
+        );
+        assert.match(
+          src,
+          new RegExp(`^\\s+${method},$`, "m"),
+          `${file} must export ${method} from its factory literal`,
+        );
+      }
+    }
+  });
+
+  it("each backend orders the cap by its own expiry field", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { fileURLToPath } = await import("node:url");
+    const { dirname, join } = await import("node:path");
+    const storeDir = join(dirname(fileURLToPath(import.meta.url)), "../src/store");
+
+    // The memory store's rows carry `exp`; the SQL stores carry `exp_ms`. A
+    // comparator copied across yields NaN, sorts as 0, and silently falls back
+    // to insertion order — which equals creation order today, so the behavioural
+    // tests above would pass against code that read no timestamp at all.
+    const capOf = (file) => {
+      const src = readFileSync(join(storeDir, file), "utf8");
+      const start = src.indexOf("function enforceSessionCapForEmail(");
+      assert.notEqual(start, -1, `${file} must define enforceSessionCapForEmail`);
+      const end = src.indexOf("\n  }\n", start);
+      return src.slice(start, end);
+    };
+
+    assert.doesNotMatch(capOf("memory.mjs"), /exp_ms/);
+    assert.match(capOf("memory.mjs"), /\.exp\b/);
+    for (const file of ["sqlite.mjs", "postgres.mjs"]) {
+      assert.match(capOf(file), /ORDER BY exp_ms ASC/);
+    }
+  });
+});
+
+describe("#320 U2 session cap config", () => {
+  it("clamps a hostile or unusable override", async () => {
+    const { config } = await import("../src/config.mjs");
+    const prev = process.env.ATOMS_PLUS_MAX_SESSIONS;
+    try {
+      assert.equal(config.maxSessionsPerEmail, 10);
+      // 0 would make every freshly minted session its own eviction victim.
+      process.env.ATOMS_PLUS_MAX_SESSIONS = "0";
+      assert.equal(config.maxSessionsPerEmail, 1);
+      process.env.ATOMS_PLUS_MAX_SESSIONS = "-5";
+      assert.equal(config.maxSessionsPerEmail, 1);
+      process.env.ATOMS_PLUS_MAX_SESSIONS = "4.7";
+      assert.equal(config.maxSessionsPerEmail, 4);
+      // NaN must not reach the comparator; fall back to the default.
+      process.env.ATOMS_PLUS_MAX_SESSIONS = "not-a-number";
+      assert.equal(config.maxSessionsPerEmail, 10);
+    } finally {
+      if (prev === undefined) delete process.env.ATOMS_PLUS_MAX_SESSIONS;
+      else process.env.ATOMS_PLUS_MAX_SESSIONS = prev;
     }
   });
 });

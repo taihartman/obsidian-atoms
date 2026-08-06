@@ -11,6 +11,7 @@ import {
   hashToken,
   id,
   isEntitledAccount,
+  logSessionCapEviction,
   MAGIC_EXCHANGE_REFUSED,
   MAGIC_PEEK_MISS,
   normalizeStripeIncident,
@@ -252,6 +253,40 @@ export function createSqliteStore(dbPath = config.databasePath) {
       }));
   }
 
+  /**
+   * #320 U2 — the session equivalent of the magic-token seam above. The cap
+   * orders by expiry, and every production path stamps `exp_ms` as
+   * `Date.now() + sessionTtlMs()`, so without a way to plant a row with an
+   * arbitrary expiry there is no test for eviction order, for expired rows, or
+   * for anything but the tie the real mint produces. The only alternative is
+   * moving the TTL mid-test, which is exactly the corruption KTD4 warns about.
+   */
+  function sessionRowsForTest() {
+    return db
+      .prepare("SELECT * FROM sessions")
+      .all()
+      .map((r) => ({
+        key: r.token_hash,
+        email: r.email,
+        expMs: Number(r.exp_ms),
+        revoked: !!r.revoked,
+        verified: !!r.verified,
+      }));
+  }
+
+  function writeSessionRowForTest(key, row) {
+    db.prepare(
+      `INSERT OR REPLACE INTO sessions (token_hash, email, exp_ms, revoked, verified)
+       VALUES (?, ?, ?, ?, ?)`,
+    ).run(
+      key,
+      String(row.email).trim().toLowerCase(),
+      Number(row.expMs),
+      row.revoked === true ? 1 : 0,
+      row.verified !== false ? 1 : 0,
+    );
+  }
+
   function writeMagicRowForTest(key, row) {
     db.prepare(
       `INSERT INTO magic_tokens (token, email, exp_ms, verifier_hash, vault)
@@ -279,16 +314,48 @@ export function createSqliteStore(dbPath = config.databasePath) {
     return session;
   }
 
+  /** @returns {number} rows newly revoked — #320 U3 logs the count. */
   function revokeAllSessionsForEmail(email) {
-    db.prepare("UPDATE sessions SET revoked = 1 WHERE email = ?").run(
-      email.trim().toLowerCase(),
-    );
+    const info = db
+      .prepare("UPDATE sessions SET revoked = 1 WHERE email = ? AND revoked = 0")
+      .run(email.trim().toLowerCase());
+    return Number(info.changes || 0);
   }
 
   function revokeUnverifiedSessionsForEmail(email) {
     db.prepare(
       "UPDATE sessions SET revoked = 1 WHERE email = ? AND verified = 0",
     ).run(email.trim().toLowerCase());
+  }
+
+  /**
+   * #320 R6 / KTD3 — a soft ceiling on live verified sessions, applied at
+   * exchange time by revoking the oldest beyond the cap. Soft on purpose: the
+   * promote paths raise the count outside this call, so it bounds sign-ins
+   * rather than asserting a global invariant.
+   *
+   * KTD4 — "oldest" is read off `exp_ms`, not a creation timestamp, because
+   * every session gets the same TTL and expiry order therefore *is* creation
+   * order. Change ATOMS_PLUS_SESSION_TTL_DAYS and sessions minted on either side
+   * of the change sort against each other wrongly until the older ones expire.
+   */
+  function enforceSessionCapForEmail(email) {
+    const key = email.trim().toLowerCase();
+    const rows = db
+      .prepare(
+        `SELECT token_hash FROM sessions
+          WHERE email = ? AND verified = 1 AND revoked = 0 AND exp_ms >= ?
+          ORDER BY exp_ms ASC`,
+      )
+      .all(key, Date.now());
+    const excess = rows.length - config.maxSessionsPerEmail;
+    if (excess <= 0) return 0;
+    const revoke = db.prepare(
+      "UPDATE sessions SET revoked = 1 WHERE token_hash = ?",
+    );
+    for (const row of rows.slice(0, excess)) revoke.run(row.token_hash);
+    logSessionCapEviction(key, excess);
+    return excess;
   }
 
   /**
@@ -343,6 +410,22 @@ export function createSqliteStore(dbPath = config.databasePath) {
       String(checkoutId),
     );
     return Boolean(r);
+  }
+
+  /**
+   * #320 R10 — a sign-out that leaves bindings behind is advisory, not durable.
+   * `promoteCheckoutSession` clears `revoked` with no check on *why* the row was
+   * revoked, and a binding lives 24 hours, so a webhook landing or being retried
+   * after the user evicts every device resurrects exactly one session and marks
+   * it verified — and after U1's narrowing nothing reaps it again.
+   *
+   * @returns {number} bindings dropped
+   */
+  function clearCheckoutBindingsForEmail(email) {
+    const info = db
+      .prepare("DELETE FROM checkout_bindings WHERE email = ?")
+      .run(email.trim().toLowerCase());
+    return Number(info.changes || 0);
   }
 
   /** Promote soft session after checkout; clears revoke from grantPeriod. */
@@ -407,8 +490,15 @@ export function createSqliteStore(dbPath = config.databasePath) {
       });
     }
     a = refreshAccountStatus(a);
-    revokeAllSessionsForEmail(row.email);
+    // #320 — unverified only, deliberately. Revoking *every* session here is
+    // what made desktop and phone evict each other on every sign-in. The
+    // property this call still has to preserve is C1: a soft session minted by
+    // startWithEmail must not survive an exchange. Do not widen it back.
+    revokeUnverifiedSessionsForEmail(row.email);
     const session = createSession(row.email, { verified: true });
+    // #320 R6 — after the mint, never before: the new session has to be inside
+    // the cap it is counted against, not its own eviction victim.
+    enforceSessionCapForEmail(row.email);
     return { session, account: a, vault: row.vault ?? null };
   }
 
@@ -602,6 +692,8 @@ export function createSqliteStore(dbPath = config.databasePath) {
     createMagicToken,
     magicRowsForTest,
     writeMagicRowForTest,
+    sessionRowsForTest,
+    writeSessionRowForTest,
     createSession,
     startWithEmail,
     exchangeMagic,
@@ -610,7 +702,9 @@ export function createSqliteStore(dbPath = config.databasePath) {
     revokeSession,
     revokeAllSessionsForEmail,
     revokeUnverifiedSessionsForEmail,
+    enforceSessionCapForEmail,
     bindCheckoutSession,
+    clearCheckoutBindingsForEmail,
     promoteCheckoutSession,
     markSessionVerified,
     tryConsumeFiling,

@@ -9,6 +9,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 |---|---|---|---|---|---|---|
 | In progress | [#307](https://github.com/taihartman/obsidian-atoms/issues/307) | taihartman | `feat/tryatoms-mailing-list` | [plan](docs/plans/2026-08-05-001-feat-tryatoms-mailing-list-plan.md) | `www/**`, `.github/workflows/tryatoms-pages.yml` | Atoms Notes list + Pages Function subscribe; no plugin bump |
 | In progress | [#287](https://github.com/taihartman/obsidian-atoms/issues/287) | taihartman | `feat/library-skipped-filter` | [plan](docs/plans/2026-08-05-002-feat-library-skipped-filter-plan.md) | `src/home/atomsHomeView.ts`, `src/home/skippedLibrary.ts`, `src/pipeline/reconsider.ts` | Library Skipped + try filing (Reconsider); Plus/BYOK · **0.6.77** |
+| In progress | [#320](https://github.com/taihartman/obsidian-atoms/issues/320) | taihartman | `feat/320-multi-device-sessions` | [plan](docs/plans/2026-08-06-001-feat-multi-device-sessions-plan.md) | `plus-service/src/store/{memory,sqlite,postgres}.mjs`, `plus-service/src/server.mjs`, `src/settings/plusSignInConfirmModal.ts` | Narrow `exchangeMagic` revoke (desktop + phone coexist) **+ "Sign out all devices"** — both halves land together; part 1 alone leaves a 60-day unrevocable window. Security-adjacent auth · plugin bump |
 
 ## How to claim (copy)
 

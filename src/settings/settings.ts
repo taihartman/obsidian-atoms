@@ -28,6 +28,7 @@ import {
   writeShortcutAck,
 } from "./captureShortcut";
 import { markDestructive } from "./destructiveButton";
+import { askSignOutAllApproval } from "./plusSignOutAllConfirmModal";
 import { clampAtomFolder } from "../pipeline/render";
 import {
   API_KEY_SECRET_ID_DEFAULT,
@@ -56,6 +57,7 @@ import {
   startPlusAccount,
   createCheckout,
   createBillingPortal,
+  signOutAllDevices,
   signOutPlus,
   askMcpUrl,
   askMcpPair,
@@ -299,6 +301,58 @@ export class AtomsSettingTab extends PluginSettingTab {
    * Atoms Plus — mock SSOT docs/design-handoff/atoms-plus/index.html (v3).
    * No ambient remaining meters. Checkout needs Plus service (U6).
    */
+  /**
+   * #320 U5 — "Sign out all devices", rendered identically in the two branches
+   * that hold a verified session: active, and exhausted. An expired plan is
+   * exactly when someone may need to evict a device, so leaving it out of the
+   * exhausted branch would hide the control behind a billing state.
+   *
+   * One helper rather than two pasted rows: `renderPlusSection`'s branches each
+   * `return` early, so a second copy has nothing holding it in step with the
+   * first. The soft/inactive and signed-out branches deliberately do not call
+   * this — there is no verified session there to authenticate the call with.
+   */
+  private renderSignOutAllRow(containerEl: HTMLElement) {
+    new Setting(containerEl)
+      .setName("Sign out all devices")
+      .setDesc(
+        "Sign out everywhere, including this device, and disconnect connected apps.",
+      )
+      .addButton((btn) =>
+        markDestructive(btn.setButtonText("Sign Out Everywhere")).onClick(
+          async () => {
+            const session = readPlusSession(this.app);
+            if (!session) {
+              new Notice("No Plus session on this device");
+              return;
+            }
+            const verdict = await askSignOutAllApproval(this.app, session.email);
+            if (verdict !== "confirmed") return;
+            const base =
+              this.plugin.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL;
+            const r = await signOutAllDevices(
+              { baseUrl: base, request: plusFetchRequest },
+              session.sessionToken,
+            );
+            if (!r.ok) {
+              // A refusal must not fake a local sign-out. The account is still
+              // signed in everywhere, so this vault stays signed in too — the
+              // alternative reads as success and leaves the other devices live.
+              new Notice(`Atoms Plus: ${r.message}`);
+              return;
+            }
+            // The call revoked this session along with the rest (KTD2), so the
+            // local record is already dead; leaving it would read as "signed
+            // in" while every request 401s.
+            clearPlusSession(this.app);
+            clearPlusRefreshRecord(this.app);
+            new Notice("Atoms Plus signed out on all devices");
+            this.redisplay();
+          },
+        ),
+      );
+  }
+
   private renderPlusSection(containerEl: HTMLElement) {
     settingHeading(containerEl, "Atoms Plus");
     this.renderPlusRefreshOutcome(containerEl);
@@ -387,6 +441,7 @@ export class AtomsSettingTab extends PluginSettingTab {
             this.redisplay();
           }),
         );
+      this.renderSignOutAllRow(containerEl);
       return;
     }
 
@@ -453,6 +508,7 @@ export class AtomsSettingTab extends PluginSettingTab {
             this.redisplay();
           }),
         );
+      this.renderSignOutAllRow(containerEl);
       containerEl.createEl("p", {
         text: "To use your own API key instead, add it under API Key. Plus is optional.",
         cls: "setting-item-description",
