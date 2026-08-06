@@ -154,7 +154,7 @@ function magicRateLimit(req, surface) {
   return checkRateLimit(`${key}:${clientIp(req)}`, limit);
 }
 
-/** #240 U3 — hex sha256 of the device verifier; a little slack over its 64. */
+/** #240 U3 — base64url sha256 of the device verifier (43 chars); slack over it. */
 const MAX_VERIFIER_HASH_CHARS = 128;
 /** #240 U4 — 32 random bytes base64url is 43 chars; the ceiling is generous. */
 const MAX_VERIFIER_CHARS = 256;

@@ -541,6 +541,22 @@ describe("plusSignIn — hostile input and secrets", () => {
     expect(cleaned).not.toContain("\n");
   });
 
+  it("strips invisible bidi and zero-width characters from a vault name", () => {
+    // These render as nothing but reorder the text around them, so a hostile
+    // name can *look* like the vault the user trusts in the one sentence they
+    // read before approving. RLO is the classic spoof; the isolates and the
+    // zero-width joiners do the same job more quietly.
+    const spoofed = sanitizeVaultLabel(
+      "Work" + "\u202E" + "krow" + "\u200B" + "Vault" + "\u2066" + "!",
+    );
+    for (const invisible of ["\u202E", "\u200B", "\u2066"]) {
+      expect(spoofed).not.toContain(invisible);
+    }
+    // A legitimate non-Latin name survives untouched — this strips, never rejects.
+    expect(sanitizeVaultLabel("研究ノート")).toBe("研究ノート");
+    expect(sanitizeVaultLabel("Café Notes")).toBe("Café Notes");
+  });
+
   it("ignores a malformed or token-less deep link without throwing", async () => {
     const h = harness({
       pending: [{ verifier: "v1", vault: "Notes", requestedAt: 1000 }],
@@ -659,6 +675,108 @@ describe("plusSignIn — cold-open queue", () => {
     expect(h.surfaces).toHaveLength(2);
     expect(h.surfaces[0].hidden).toBe(true);
     expect(h.surfaces[1].hidden).toBe(false);
+  });
+});
+
+/**
+ * The cold-open tests above each await one tap before firing the next, so none
+ * of them ever has two handoffs alive at once. The real protocol handler is
+ * `void`-dispatched, and a confirmation parks for as long as the user takes to
+ * answer — which is exactly the window a second tap arrives in.
+ */
+describe("plusSignIn — a superseded handoff must not spend its token", () => {
+  /** A confirmation that stays open until the test answers it. */
+  function deferredConfirms() {
+    const opened: ((verdict: ConfirmVerdict) => void)[] = [];
+    const confirmSignIn = () =>
+      new Promise<ConfirmVerdict>((resolve) => opened.push(resolve));
+    return { opened, confirmSignIn };
+  }
+
+  function raceHarness() {
+    const app = fakeApp();
+    recordPendingSignIn(app, {
+      verifier: "v1",
+      vault: "Notes",
+      requestedAt: NOW - 60_000,
+    });
+    const { opened, confirmSignIn } = deferredConfirms();
+    const surfaces: Surface[] = [];
+    const host: PlusSignInHost = {
+      app: app as PlusSignInHost["app"],
+      settings: { plusBaseUrl: "https://plus.test" },
+      confirmSignIn,
+    };
+    const queue = createSignInHandoffQueue({
+      openStatus: () => {
+        const surface: Surface = {
+          messages: [],
+          failed: [],
+          hidden: false,
+          update: (m: string) => surface.messages.push(m),
+          fail: (m: string) => {
+            surface.failed.push(m);
+            surface.messages.push(m);
+          },
+          hide: () => {
+            surface.hidden = true;
+          },
+        };
+        surfaces.push(surface);
+        return surface;
+      },
+    });
+    return { app, host, queue, surfaces, opened };
+  }
+
+  it("exchanges only the newest tap when both confirmations are approved", async () => {
+    const h = raceHarness();
+    peek.mockResolvedValue(usable);
+    exchange.mockResolvedValue(session);
+    await h.queue.ready(h.host);
+
+    // Two taps, neither awaited: the first parks on its confirmation while the
+    // second arrives — the window the OS actually delivers a re-tap in.
+    const first = h.queue.accept({ action: "atoms-signin", token: "tok_1" });
+    await Promise.resolve();
+    const second = h.queue.accept({ action: "atoms-signin", token: "tok_2" });
+    await Promise.resolve();
+    expect(h.opened).toHaveLength(2);
+
+    // The user approves the stale dialog too — the dangerous case.
+    h.opened[0]("confirmed");
+    h.opened[1]("confirmed");
+    await Promise.all([first, second]);
+
+    // One spend, and it is the token the user last tapped. Two exchanges would
+    // revoke each other and strand this device on a dead session.
+    expect(exchange).toHaveBeenCalledTimes(1);
+    expect(exchange.mock.calls[0][1]).toBe("tok_2");
+    // The superseded run says nothing: its surface was already retired.
+    expect(h.surfaces[0].failed).toEqual([]);
+    expect(h.surfaces[0].messages).not.toContain(SIGN_IN_DECLINED_MESSAGE);
+    expect(readPlusSession(h.app)?.sessionToken).toBe("sess_secret_value");
+  });
+
+  it("does not spend a superseded token even when the stale answer is a decline", async () => {
+    const h = raceHarness();
+    peek.mockResolvedValue(usable);
+    exchange.mockResolvedValue(session);
+    await h.queue.ready(h.host);
+
+    const first = h.queue.accept({ action: "atoms-signin", token: "tok_1" });
+    await Promise.resolve();
+    const second = h.queue.accept({ action: "atoms-signin", token: "tok_2" });
+    await Promise.resolve();
+
+    h.opened[0]("declined");
+    h.opened[1]("confirmed");
+    await Promise.all([first, second]);
+
+    expect(exchange).toHaveBeenCalledTimes(1);
+    expect(exchange.mock.calls[0][1]).toBe("tok_2");
+    // A stale decline must not overwrite the live run's outcome.
+    expect(h.surfaces[0].messages).not.toContain(SIGN_IN_DECLINED_MESSAGE);
   });
 });
 

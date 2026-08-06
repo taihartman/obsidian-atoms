@@ -9,6 +9,7 @@ import { createSqliteStore } from "../src/store/sqlite.mjs";
 import { createPostgresStore } from "../src/store/postgres.mjs";
 import { createStore } from "../src/store.mjs";
 import { hashToken } from "../src/store/shared.mjs";
+import { pkceChallengeS256 } from "../src/store/askHelpers.mjs";
 import { createHash } from "node:crypto";
 import {
   createTestPostgresStore,
@@ -724,16 +725,14 @@ if (postgresStoreRows().length) {
         assert.equal(rows[0].verifierHash, null);
         assert.equal(rows[0].vault, null);
 
-        // A real verifier/digest pair, not a literal: the upgraded table has to
-        // honour the U4 check, not merely hold the column. The sqlite twin
-        // above redeems through U6's check-skipping door because its hash is a
-        // literal; here the check actually runs and has to pass.
-        const verifier = `ver_${"c".repeat(10)}`;
-        const verifierHash = createHash("sha256")
-          .update(verifier)
-          .digest("base64url");
+        // A real verifier, digested by the one function the exchange compares
+        // against: the upgraded table has to honour the U4 check, not merely
+        // hold the column, which is the actual deploy-day question. The old
+        // `"c".repeat(64)` literal could never be presented against — nothing
+        // digests to it — so the exchange refused and `?.vault` read undefined.
+        const verifier = "legacy-upgrade-verifier";
         const token = await upgraded.createMagicToken("new@ex.com", {
-          verifierHash,
+          verifierHash: pkceChallengeS256(verifier),
           vault: "Upgraded Vault",
         });
         assert.equal(

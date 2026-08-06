@@ -55,6 +55,14 @@ export const SIGN_IN_AWAITING_CONFIRMATION_MESSAGE =
 export const SIGNING_IN_APPROVED_MESSAGE = "Signing in…";
 
 /**
+ * The exchange succeeded but the session could not be stored on this device.
+ * The link is already spent, so the generic "tap it again" copy would be a lie —
+ * the only way forward is a fresh link from Settings.
+ */
+export const SIGN_IN_STORAGE_FAILED_MESSAGE =
+  "Signed in, but this device could not save the session. Request a new sign-in link from Settings → Atoms and try again.";
+
+/**
  * Cancelling is a choice, not a failure — and the peek consumed nothing, so the
  * link genuinely still works. Saying so is what keeps a cancel recoverable.
  */
@@ -92,6 +100,13 @@ export type MagicHandoffApproval = {
   vault?: string;
   /** Same surface, so the confirmation's progress replaces the peek's. */
   status: SignInStatusSurface;
+  /**
+   * False once a newer deep link has superseded this handoff. Checked after the
+   * confirmation resolves, because that await can park for as long as the user
+   * takes to answer — ample time for a second tap to arrive. Defaults to always
+   * current so a direct caller with no queue behind it is unaffected.
+   */
+  isCurrent?: () => boolean;
 };
 
 export type PlusSignInHost = {
@@ -104,8 +119,18 @@ export type PlusSignInHost = {
   confirmSignIn: (request: SignInConfirmRequest) => Promise<ConfirmVerdict>;
 };
 
-/** Control characters, including DEL — never rendered, never logged. */
-const CONTROL_CHARS = /[\u0000-\u001F\u007F]+/g;
+/**
+ * Control characters, including DEL — never rendered, never logged.
+ *
+ * The later ranges are invisible-but-active Unicode: zero-width spaces and
+ * joiners, and the bidi overrides and isolates. They render as nothing while
+ * reordering the text around them, which is how a vault name gets to *look*
+ * like a different vault name in the one sentence a user reads before
+ * approving (R5). Stripped at render rather than rejected at mint, so no
+ * legitimate non-Latin vault name is ever turned away.
+ */
+const CONTROL_CHARS =
+  /[\u0000-\u001F\u007F\u200B-\u200F\u202A-\u202E\u2066-\u2069]+/g;
 
 /**
  * The deep link's `vault=` is attacker-controlled prose — any web page can fire
@@ -160,6 +185,7 @@ export async function runSignInHandoff(
   host: PlusSignInHost,
   token: string,
   status: SignInStatusSurface,
+  isCurrent: () => boolean = () => true,
 ): Promise<void> {
   const pending = readPendingSignIns(host.app);
   if (pending.length === 0) {
@@ -183,6 +209,7 @@ export async function runSignInHandoff(
         email: result.email,
         ...(result.vault ? { vault: result.vault } : {}),
         status,
+        isCurrent,
       });
       return;
     }
@@ -218,12 +245,18 @@ export async function completeSignInHandoff(
   host: Pick<PlusSignInHost, "app" | "settings" | "confirmSignIn">,
   approval: MagicHandoffApproval,
 ): Promise<void> {
-  const { status } = approval;
+  const { status, isCurrent = () => true } = approval;
   status.update(SIGN_IN_AWAITING_CONFIRMATION_MESSAGE);
   const verdict = await host.confirmSignIn({
     kind: "plus-signin",
     email: approval.email,
   });
+  // A newer tap owns the screen now (KTD8). This answer is for a handoff the
+  // user has already moved on from, so it must not spend its token: two
+  // exchanges for one account revoke each other, and the loser would write a
+  // session the server has already killed. Silent by design — the surface this
+  // run was using is hidden, and the newer run owns the messaging.
+  if (!isCurrent()) return;
   if (verdict !== "confirmed") {
     // Nothing to undo, because nothing was spent: no exchange, no revoke, no
     // request of any kind (AE2). A dismissal is counted here, not consented to.
@@ -242,10 +275,19 @@ export async function completeSignInHandoff(
     return;
   }
 
-  writePlusSession(host.app, result.session);
-  // The link is spent and the session is stored, so the verifiers it was
-  // redeemed against have no further use.
-  clearPendingSignIn(host.app);
+  try {
+    writePlusSession(host.app, result.session);
+    // The link is spent and the session is stored, so the verifiers it was
+    // redeemed against have no further use.
+    clearPendingSignIn(host.app);
+  } catch {
+    // The exchange already succeeded, so the link is spent and the other
+    // devices are signed out — "tap it again" is advice that cannot work here.
+    // Say what actually happened instead of falling through to the generic
+    // unknown-failure copy.
+    status.fail(SIGN_IN_STORAGE_FAILED_MESSAGE);
+    return;
+  }
   status.update(signedInMessage(result.session.email || approval.email));
 }
 
@@ -282,15 +324,24 @@ export function createSignInHandoffQueue(opts: {
    * owns the screen and retires the last one, queued or long since finished.
    */
   let live: SignInStatusSurface | null = null;
+  /**
+   * Bumped by every tap. `live?.hide()` retires the previous *Notice*, but a run
+   * parked on its confirmation modal keeps going and would still spend its token
+   * on the user's answer — two exchanges for one account revoke each other, so
+   * the loser writes a session the server has already killed. A run compares the
+   * generation it started with against this and stands down when superseded.
+   */
+  let generation = 0;
 
   const run = async (token: string, status: SignInStatusSurface) => {
     if (!host) return;
+    const mine = generation;
     try {
-      await runSignInHandoff(host, token, status);
+      await runSignInHandoff(host, token, status, () => generation === mine);
     } catch {
       // Never let a deep link throw out of the protocol handler, and never
       // surface the thrown text — it is the one place a token could leak.
-      status.fail(MAGIC_LINK_UNKNOWN_MESSAGE);
+      if (generation === mine) status.fail(MAGIC_LINK_UNKNOWN_MESSAGE);
     }
   };
 
@@ -299,6 +350,7 @@ export function createSignInHandoffQueue(opts: {
       const token =
         typeof params?.token === "string" ? params.token.trim() : "";
       if (!token) return;
+      generation += 1;
       live?.hide();
       const status = openStatus();
       live = status;
