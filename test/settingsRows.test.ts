@@ -772,8 +772,9 @@ describe("destination shell", () => {
  *
  * U6 was the last destination unit and took it from 27 to 18; U9 deleted three more rows and took
  * it to 12; converting the five rows the sync, filing, and capture sections had left behind took
- * it to 6. Zero is not reachable from here: `settingHeading()` builds a heading rather than a row,
- * three modals build their own button bars, the API key row's control is a `SecretComponent`
+ * it to 6; extracting `ConsentSheetModal` into `consent.ts` took it to 5. Zero is not reachable
+ * from here: `settingHeading()` builds a heading rather than a row, two modals build their own
+ * button bars, the API key row's control is a `SecretComponent`
  * (which `SettingControl` has no member for), and the iCloud shortcut link row pairs a text field
  * with an inline reset — one grammar, but not one the builders express.
  *
@@ -781,7 +782,7 @@ describe("destination shell", () => {
  * `new Setting(` spent a slot: the budget said 7 against 6 real sites, so deleting that comment
  * bought a free seventh construction with the guard still green.
  */
-const DIRECT_SETTING_BUDGET = 6;
+const DIRECT_SETTING_BUDGET = 5;
 
 /** Source with comments removed, so only code counts against the ratchet. */
 function withoutComments(source: string): string {
