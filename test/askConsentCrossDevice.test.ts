@@ -29,7 +29,9 @@ function pluginOnSyncedVault(disk: Record<string, unknown>) {
   const syncWrites = (next: Record<string, unknown>) => {
     onDisk = { ...next };
   };
-  return { plugin, syncWrites };
+  /** What the next device to sync would pick up. */
+  const readDisk = () => ({ ...onDisk });
+  return { plugin, syncWrites, readDisk };
 }
 
 const GRANTED = {
@@ -176,6 +178,103 @@ describe("#323 cross-device consent", () => {
     await hook;
 
     expect(plugin.settings.askPrivacyAckAt).toBe("");
+  });
+
+  /**
+   * The other half of F2, and the sharper one. `saveSettings()` persists the *whole* settings
+   * object and bumps the generation, so any unrelated local write — the hourly auto-run
+   * merging `proposedTags` needs no user gesture at all — can overtake the read that is
+   * carrying a remote withdrawal. Discarding that read wholesale would erase the withdrawal
+   * from memory and from disk at once, and Sync would hand the resurrected grant back to the
+   * device that just revoked it. Consent only ever moves toward closed here.
+   */
+  it("keeps a remote withdrawal that an unrelated local save overtook", async () => {
+    const { plugin, readDisk } = pluginOnSyncedVault(GRANTED);
+    await plugin.loadSettings();
+    let cancels = 0;
+    plugin.ask.cancelPendingSync = () => {
+      cancels += 1;
+    };
+
+    let releaseRead = () => {};
+    const readInFlight = new Promise<void>((resolve) => {
+      releaseRead = resolve;
+    });
+    Object.assign(plugin, {
+      // The phone's withdrawal, which this read is the first thing on the device to carry.
+      loadData: async () => {
+        await readInFlight;
+        return { ...WITHDRAWN };
+      },
+    });
+
+    const hook = plugin.onExternalSettingsChange();
+    // Something local and entirely unrelated saves mid-read. It writes the still-granted
+    // in-memory copy straight over the withdrawal on disk.
+    plugin.settings.activeVocabulary = "changed-by-something-else";
+    await plugin.saveSettings();
+    releaseRead();
+    await hook;
+
+    expect(plugin.settings.askPrivacyAckAt).toBe("");
+    expect(plugin.settings.askWriteAckAt).toBe("");
+    // The unrelated writer's field survives — only consent crosses the race.
+    expect(plugin.settings.activeVocabulary).toBe("changed-by-something-else");
+    // And it reaches disk, or the next writer pushes the grant back out to every device.
+    expect(readDisk().askPrivacyAckAt).toBe("");
+    expect(cancels).toBe(1);
+  });
+
+  it("does not let a remote grant cross that race, only a withdrawal", async () => {
+    const { plugin } = pluginOnSyncedVault(WITHDRAWN);
+    await plugin.loadSettings();
+
+    let releaseRead = () => {};
+    const readInFlight = new Promise<void>((resolve) => {
+      releaseRead = resolve;
+    });
+    Object.assign(plugin, {
+      loadData: async () => {
+        await readInFlight;
+        return { ...GRANTED };
+      },
+    });
+
+    const hook = plugin.onExternalSettingsChange();
+    plugin.settings.activeVocabulary = "changed-by-something-else";
+    await plugin.saveSettings();
+    releaseRead();
+    await hook;
+
+    // A grant is not urgent and not safe to infer from a read that lost its race.
+    expect(plugin.settings.askPrivacyAckAt).toBe("");
+  });
+
+  it("leaves a standing consent alone when the read that lost the race also shows it granted", async () => {
+    const { plugin } = pluginOnSyncedVault(GRANTED);
+    await plugin.loadSettings();
+
+    let releaseRead = () => {};
+    const readInFlight = new Promise<void>((resolve) => {
+      releaseRead = resolve;
+    });
+    Object.assign(plugin, {
+      loadData: async () => {
+        await readInFlight;
+        return { ...GRANTED };
+      },
+    });
+
+    const hook = plugin.onExternalSettingsChange();
+    plugin.settings.activeVocabulary = "changed-by-something-else";
+    await plugin.saveSettings();
+    releaseRead();
+    await hook;
+
+    // Failing closed is the safe direction, but silently revoking a consent nobody withdrew
+    // stops the mirror for no reason the user can see. Only an actual withdrawal crosses.
+    expect(plugin.settings.askPrivacyAckAt).toBe(GRANTED.askPrivacyAckAt);
+    expect(plugin.settings.askEnabled).toBe(true);
   });
 
   /**
