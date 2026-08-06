@@ -92,7 +92,7 @@ A paying Atoms Plus customer cannot be signed in on desktop and phone at the sam
 
 - Branch `feat/320-multi-device-sessions` (base `master`), pushed to `origin`.
 - Last real commit: `0421008 docs(plan): #320 multi-device sessions plan, doc-reviewed`
-- WIP snapshot commit: `b7b29e0` — `wip: handoff snapshot — multi-device-sessions` (carries the three-line U1 revoke narrowing, this doc, and the removal of an earlier duplicate handoff doc)
+- WIP snapshot commit: the branch tip, subject `wip: handoff snapshot — multi-device-sessions`. It carries the three-line U1 revoke narrowing, this doc, and the removal of an earlier duplicate handoff doc. (Named by subject rather than SHA — the SHA changed when this doc was amended into the same commit.)
 - Diff since base: 6 files changed, +633/-3
 
 ## How to resume
