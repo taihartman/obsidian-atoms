@@ -65,6 +65,8 @@
 
 html {
   -webkit-text-size-adjust: 100%;
+  /* Keep the top bar from jumping sideways when home has a scrollbar and /notes/ does not. */
+  scrollbar-gutter: stable;
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -150,8 +152,17 @@ a:hover {
   border-bottom-color: var(--sep-soft);
 }
 
+/* Archive has no hero under the bar — always show the edge (matches scrolled home). */
+body.notes-archive .topbar {
+  border-bottom-color: var(--sep-soft);
+}
+
 @supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
   .topbar.is-stuck {
+    background: color-mix(in srgb, var(--bg) 86%, transparent);
+  }
+
+  body.notes-archive .topbar {
     background: color-mix(in srgb, var(--bg) 86%, transparent);
   }
 }
