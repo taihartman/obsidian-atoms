@@ -8,7 +8,6 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
 | In progress | [#336](https://github.com/taihartman/obsidian-atoms/issues/336) | taihartman | `fix/336-no-missing-time-alarm` | debug lane | `src/home/atomsHomeData.ts`, `src/home/atomsHomeView.ts`, `src/settings/captureShortcut.ts` | Missing times are normal; drop Home repair card · plugin bump |
-| In progress | [#315](https://github.com/taihartman/obsidian-atoms/issues/315) [#314](https://github.com/taihartman/obsidian-atoms/issues/314) | taihartman | `fix/consent-wording-parity` | [plan](docs/plans/2026-08-06-001-fix-consent-wording-parity-plan.md) | `src/settings/settings.ts`, `src/settings/consent.ts` (new), `src/home/atomsHomeView.ts` | Home and Settings write the **same** egress ack behind different text. Fix is a **union**, not a swap — each string has clauses the other lacks. Splits `settings.ts`; measured clear of #322 (31–511) and #330 (455–574). **U1–U6 implemented** (U6 = ack version-stamp); simplify, code-review, compound and world-class-qa all done. **Merged `master` (0.6.80) in, so this takes 0.6.81.** #330's `refreshFromExternalSettings()` is still unmerged — it redisplays without settling an open consent sheet, and whoever lands second owns that fix |
 | In progress | [#307](https://github.com/taihartman/obsidian-atoms/issues/307) | taihartman | `feat/tryatoms-mailing-list` | [plan](docs/plans/2026-08-05-001-feat-tryatoms-mailing-list-plan.md) | `www/**`, `.github/workflows/tryatoms-pages.yml` | Atoms Notes list + Pages Function subscribe; no plugin bump |
 
 ## How to claim (copy)
@@ -25,6 +24,7 @@ States: `Queued` · `In progress` · `Blocked` · `In review` · `Done` (then re
 
 | Merged | Issue / PR | Summary |
 |---|---|---|
+| 2026-08-06 | #315 #314 / #329 | One egress disclosure for home and Settings; the ack records the wording it was granted against · **0.6.81**. Adversarial QA found a consent sheet that outlived the screen that posed it — `ConsentSheetModal` now holds a single-sheet latch, which also settles the fourth-settle-site problem #330 would have introduced |
 | 2026-08-06 | #334 / #335 | Field notes public archive on tryatoms (`/notes/`); www-only |
 | 2026-08-06 | #331 / #332 | Ask `search_atoms` confidence + true empties (Fly deployed; no plugin bump) |
 | 2026-08-06 | #325 / #326 | Root `npm test` + `npm run build` now run on `pull_request` (infra only, no plugin bump). **Not yet a required check** — branch protection on `master` still requires only `test` (plus-service), so `test + build` reports without blocking until an admin adds it |
