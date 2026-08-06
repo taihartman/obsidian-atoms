@@ -7,7 +7,6 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| In progress | [#336](https://github.com/taihartman/obsidian-atoms/issues/336) | taihartman | `fix/336-no-missing-time-alarm` | debug lane | `src/home/atomsHomeData.ts`, `src/home/atomsHomeView.ts`, `src/settings/captureShortcut.ts` | Missing times are normal; drop Home repair card · plugin bump |
 | In progress | [#307](https://github.com/taihartman/obsidian-atoms/issues/307) | taihartman | `feat/tryatoms-mailing-list` | [plan](docs/plans/2026-08-05-001-feat-tryatoms-mailing-list-plan.md) | `www/**`, `.github/workflows/tryatoms-pages.yml` | Atoms Notes list + Pages Function subscribe; no plugin bump |
 
 ## How to claim (copy)
@@ -29,6 +28,7 @@ States: `Queued` · `In progress` · `Blocked` · `In review` · `Done` (then re
 | 2026-08-06 | #347 #348 / #349 | A field and the button that commits it are one row — `formRow`, a **sixth** row kind, composed not configured; four pairs, 8 rows → 4; `accountInput` and the three `dataset.plus*` markers deleted. Back chevron moved to the row's leading edge in the **base** rule — desktop had the same 236px gutter, so it was never an `is-phone` fix · **0.6.83**. **Adversarial QA caught a regression worth remembering:** Obsidian stacks settings rows only under `is-phone`, so an `is-phone`-gated rule leaves `is-tablet` with neither — the merged inputs squeezed to 76–98px on iPad. Fixed with a 164px floor, not a second stacking gate. Follow-ups open: #350, #351 |
 | 2026-08-06 | #342 #346 / #345 | Proposed tags stop renting a row each for Dismiss; one section-level **N proposals waiting / Dismiss all** row, scoped to the proposals it rendered · **0.6.82** |
 | 2026-08-06 | #315 #314 / #329 | One egress disclosure for Home and Settings — a **union** of both strings, not a swap · **0.6.81** |
+| 2026-08-06 | #336 / #337 | Home: stop alarming on missing capture times · **0.6.80** |
 | 2026-08-06 | #334 / #335 | Field notes public archive on tryatoms (`/notes/`); www-only |
 | 2026-08-06 | #331 / #332 | Ask `search_atoms` confidence + true empties (Fly deployed; no plugin bump) |
 | 2026-08-06 | #325 / #326 | Root `npm test` + `npm run build` now run on `pull_request` (infra only, no plugin bump). **Not yet a required check** — branch protection on `master` still requires only `test` (plus-service), so `test + build` reports without blocking until an admin adds it |
