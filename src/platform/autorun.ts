@@ -130,8 +130,9 @@ export function writeLastRunDay(
  * Record — or clear — the egress ack.
  *
  * Accepting stores the disclosure version, not `true`, so the record says what was agreed to.
- * Withdrawing keeps writing `false`: the cleared shape is unchanged, and it reads as
- * unacknowledged through the same path a stale stamp does.
+ * Withdrawing keeps passing `false`: the cleared shape is unchanged. Obsidian's own
+ * `saveLocalStorage` drops the entry for any falsy value, so what lands on disk is an absent
+ * key — which reads as unacknowledged through the same path a stale stamp does.
  */
 export function writeEgressAck(
   save: (key: string, data: unknown) => void,
