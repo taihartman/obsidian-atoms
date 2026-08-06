@@ -4,6 +4,7 @@
 import { z } from "zod";
 import { hasWriteScope } from "../oauth/constants.mjs";
 import { checkRateLimit } from "../ratelimit.mjs";
+import { retrievalModeForCoverage } from "../ask/expandSearch.mjs";
 import {
   validateOutboxPayload,
   OUTBOX_RELATIONS,
@@ -165,18 +166,10 @@ export function registerAskTools(mcp, ctx) {
       });
       const scope = absenceMeta();
       let expand_coverage = 0;
-      let retrieval = "lexical";
-      try {
-        const { retrievalModeForCoverage } = await import(
-          "../ask/expandSearch.mjs"
-        );
-        if (typeof store.mirrorExpandCoverage === "function") {
-          expand_coverage = Number(await store.mirrorExpandCoverage(email)) || 0;
-        }
-        retrieval = retrievalModeForCoverage(expand_coverage);
-      } catch {
-        /* keep lexical */
+      if (typeof store.mirrorExpandCoverage === "function") {
+        expand_coverage = Number(await store.mirrorExpandCoverage(email)) || 0;
       }
+      const retrieval = retrievalModeForCoverage(expand_coverage);
       const modeNote =
         retrieval === "lexical_expanded"
           ? "no confident match under lexical+expansion scoring"
