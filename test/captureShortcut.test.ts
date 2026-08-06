@@ -5,12 +5,9 @@ import {
   customCaptureShortcutUrl,
   isAllowedCaptureShortcutUrl,
   labelInstallOrUpdate,
-  needsInferredDateSignal,
   needsShortcutCta,
-  readInferredDateAck,
   readShortcutAck,
   resolveCaptureShortcutInstallUrl,
-  writeInferredDateAck,
   writeShortcutAck,
 } from "../src/settings/captureShortcut";
 
@@ -41,55 +38,6 @@ describe("ack storage helpers", () => {
     expect(readShortcutAck(load)).toBeNull();
     writeShortcutAck(save, "1.0.0");
     expect(readShortcutAck(load)).toBe("1.0.0");
-  });
-});
-
-describe("inferred-date signal ack", () => {
-  const store = () => {
-    const s: Record<string, unknown> = {};
-    return {
-      load: (k: string) => s[k],
-      save: (k: string, v: unknown) => {
-        s[k] = v;
-      },
-    };
-  };
-
-  it("round-trips its own ack version, separate from the shortcut ack", () => {
-    const { load, save } = store();
-    expect(readInferredDateAck(load)).toBeNull();
-    writeInferredDateAck(save, "1.0.0");
-    expect(readInferredDateAck(load)).toBe("1.0.0");
-    // Dismissing the signal must not silence the install/update CTA.
-    expect(readShortcutAck(load)).toBeNull();
-  });
-
-  it("defaults to the shipped shortcut version", () => {
-    const { load, save } = store();
-    writeInferredDateAck(save);
-    expect(readInferredDateAck(load)).toBe(CAPTURE_SHORTCUT_VERSION);
-  });
-
-  it("stays silent when nothing was inferred, acked or not", () => {
-    expect(needsInferredDateSignal(0, null)).toBe(false);
-    expect(needsInferredDateSignal(-1, null)).toBe(false);
-    expect(needsInferredDateSignal(0, "0.9.0", "1.0.0")).toBe(false);
-  });
-
-  it("fires when captures were inferred and nothing is acked", () => {
-    expect(needsInferredDateSignal(1, null)).toBe(true);
-    expect(needsInferredDateSignal(3, "")).toBe(true);
-  });
-
-  it("stays quiet once acked against the shipped version", () => {
-    expect(needsInferredDateSignal(2, CAPTURE_SHORTCUT_VERSION)).toBe(false);
-  });
-
-  it("re-arms after the shipped shortcut version moves on", () => {
-    // The inbox is append-only, so a read-time count stays true forever. A
-    // permanent dismiss would silently re-create the dead end; version-keying
-    // brings the signal back once the user's shortcut is updated.
-    expect(needsInferredDateSignal(2, "0.9.0", "1.0.0")).toBe(true);
   });
 });
 

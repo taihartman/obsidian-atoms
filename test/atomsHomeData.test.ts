@@ -563,7 +563,6 @@ describe("inbox stuck-drain indicator", () => {
     });
     const s = inboxStuckSummary(counts);
     expect(s?.text).toBe("1 waiting to file");
-    expect(s?.inferredDates).toBe(0);
   });
 
   it("carries no unparseable count at all — that state healed away", () => {
@@ -576,21 +575,24 @@ describe("inbox stuck-drain indicator", () => {
     expect("unparseable" in counts).toBe(false);
   });
 
-  it("names inferred-date captures, ahead of held and pending", () => {
+  it("stays silent on inferred dates alone — missing times are normal", () => {
+    // Drain may still write inferred-date markers for audit; Home must not
+    // treat them as stuck or blame the capture shortcut.
+    expect(
+      inboxStuckSummary({ pending: 0, held: 0, inferredDates: 3 }),
+    ).toBeNull();
+    expect(
+      inboxStuckSummary({ pending: 0, held: 0, inferredDates: 1 }),
+    ).toBeNull();
+  });
+
+  it("names held and pending only — never inferred dates", () => {
     const s = inboxStuckSummary({ pending: 2, held: 1, inferredDates: 3 });
-    expect(s?.text).toBe(
-      "3 filed without times · 1 held for a future day · 2 waiting to file",
-    );
-    expect(s?.inferredDates).toBe(3);
+    expect(s?.text).toBe("1 held for a future day · 2 waiting to file");
+    expect(s?.text).not.toMatch(/without a? ?times?/);
   });
 
-  it("uses the singular for a single inferred-date capture", () => {
-    const s = inboxStuckSummary({ pending: 0, held: 0, inferredDates: 1 });
-    expect(s?.text).toBe("1 filed without a time");
-    expect(s?.inferredDates).toBe(1);
-  });
-
-  it("names future-dated held captures distinctly from inferred dates", () => {
+  it("names future-dated held captures without mentioning missing times", () => {
     const content = ["- no stamp here", "- 2026-08-01T08:00-04:00 next month", ""].join(
       "\n",
     );
@@ -602,11 +604,12 @@ describe("inbox stuck-drain indicator", () => {
       inferredDates: 0,
     });
     const s = inboxStuckSummary({ pending: 0, held: 1, inferredDates: 1 });
-    expect(s?.text).toBe("1 filed without a time · 1 held for a future day");
+    expect(s?.text).toBe("1 held for a future day");
     expect(s?.text).not.toContain("waiting to file");
+    expect(s?.text).not.toMatch(/without a? ?times?/);
   });
 
-  it("stays silent when all three counts are zero", () => {
+  it("stays silent when pending and held are zero", () => {
     expect(
       inboxStuckSummary({ pending: 0, held: 0, inferredDates: 0 }),
     ).toBeNull();
