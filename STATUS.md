@@ -8,6 +8,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
 | In progress | [#307](https://github.com/taihartman/obsidian-atoms/issues/307) | taihartman | `feat/tryatoms-mailing-list` | [plan](docs/plans/2026-08-05-001-feat-tryatoms-mailing-list-plan.md) | `www/**`, `.github/workflows/tryatoms-pages.yml` | Atoms Notes list + Pages Function subscribe; no plugin bump |
+| In progress | [#320](https://github.com/taihartman/obsidian-atoms/issues/320) + [#323](https://github.com/taihartman/obsidian-atoms/issues/323) | taihartman | `feat/multi-device-sessions` | prototype first, then plan | `plus-service/src/store/{memory,sqlite,postgres}.mjs`, `plus-service/src/server.mjs`, `src/plugin/askCoordinator.ts`, `src/settings/settings.ts` | #320 narrow the `exchangeMagic` revoke to unverified-only + add "Sign out all devices". #323 rides the same two-device rig — cross-device consent divergence. **Do not start either separately.** Auth surface: `revokeAllSessionsForEmail` / `askMirrorPermitted` are mine |
 
 ## How to claim (copy)
 
