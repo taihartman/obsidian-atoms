@@ -1635,6 +1635,11 @@ body.notes-archive {
   border-bottom: 1px solid var(--sep, rgba(84, 84, 88, 0.55));
 }
 
+/* Signup already has border-top — last card must not double the rule. */
+.notes-list li:last-child {
+  border-bottom: none;
+}
+
 .notes-card {
   display: block;
   padding: 1rem 0;

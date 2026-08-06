@@ -350,9 +350,9 @@ function archiveTopbar(current) {
         <ul class="topbar-links">
           <li><a href="/#how">How it works</a></li>
           <li><a href="/#ask">Ask</a></li>
-          <li>${fn}</li>
           <li><a href="/#backfill">Catch up</a></li>
           <li><a href="/#pricing">Pricing</a></li>
+          <li>${fn}</li>
         </ul>
         <a class="btn btn--primary btn--bar" href="/#pricing">Get Atoms</a>
       </div>
