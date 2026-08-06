@@ -1469,6 +1469,36 @@ export default class AtomsPlugin extends Plugin {
   }
 
   /**
+   * Take only the consent this external read says is gone, leaving every other field to the
+   * local write that won the race. Mutates in place rather than replacing the object for that
+   * reason: the winner's copy is the newer one everywhere except here.
+   *
+   * Only an *explicitly* falsy value counts. An absent key is the same ambiguity the blank-file
+   * guards refuse to resolve — it could mean withdrawn or it could mean a partial read, and a
+   * withdrawal is not something to invent. A grant never crosses this branch in either case.
+   */
+  private async adoptExternalWithdrawal(next: Partial<LinkerSettings>): Promise<void> {
+    let changed = false;
+    const revoke = <K extends "askEnabled" | "askPrivacyAckAt" | "askWriteAckAt">(
+      key: K,
+      cleared: LinkerSettings[K],
+    ) => {
+      if (!(key in next) || next[key] || !this.settings[key]) return;
+      this.settings[key] = cleared;
+      changed = true;
+    };
+    revoke("askEnabled", false);
+    revoke("askPrivacyAckAt", "");
+    revoke("askWriteAckAt", "");
+    if (!changed) return;
+    // Persist now. The save that won the race has already put the grant back on disk, so
+    // leaving this in memory alone would let the next writer push it out to every device.
+    await this.saveSettings();
+    if (!this.ask.mirrorPermitted()) this.ask.cancelPendingSync();
+    this.settingTab?.refreshFromExternalSettings();
+  }
+
+  /**
    * #323 — Obsidian fires this when `data.json` changes underneath a running plugin, which is
    * what Sync replicating another device's write looks like from here. Without it there is no
    * re-read path at all (`loadData()` is called once, above), so every consent gate keeps
@@ -1480,16 +1510,11 @@ export default class AtomsPlugin extends Plugin {
    */
   async onExternalSettingsChange(): Promise<void> {
     const before = JSON.stringify(this.settings ?? null);
-    // A local write that starts while we are reading is the newer truth, and it is the one
-    // gesture that can be *more* restrictive than disk — a withdrawal mutates `this.settings`
-    // and then awaits `saveData`. Re-pointing settings at the copy we read before it would
-    // resurrect the grant in memory, and the next save would push that back out through Sync
-    // to every device.
-    //
-    // Discarding our read loses nothing: that local save has already written what memory
-    // holds, so the two agree once it lands, and a genuinely newer remote copy still arrives
-    // later as its own external change. Erring toward the local gesture is also the safe
-    // direction — it is the one the user is watching.
+    // A local save that starts while we are reading has already persisted what memory holds,
+    // so applying the older copy we read would undo it. `saveSettings()` writes the whole
+    // settings object, so the loser of that race loses everything, not just the field the
+    // writer touched. The generation tells us the race happened; see the mismatch branch
+    // below for the one thing that still crosses it.
     const generation = this.settingsGeneration;
     let raw: unknown;
     try {
@@ -1506,13 +1531,24 @@ export default class AtomsPlugin extends Plugin {
       void err;
       return;
     }
-    if (generation !== this.settingsGeneration) return;
     // The non-throwing shape of the same mid-write file. `?? {}` would turn it into a full
     // reset to DEFAULT_SETTINGS at runtime — consent fails closed, but `plusBaseUrl`,
     // `atomFolder`, and the active vocabulary are gone, and the next save persists that wipe
     // everywhere. Treat it exactly like the throw: keep the last good copy.
     if (raw == null || typeof raw !== "object") return;
-    if (this.applyLoadedSettings(raw as Partial<LinkerSettings>)) {
+    const next = raw as Partial<LinkerSettings>;
+    if (generation !== this.settingsGeneration) {
+      // A local save overtook this read, so its copy is the newer one for every ordinary
+      // field. Consent is not an ordinary field: the local writer persists whatever memory
+      // held, which is still a *grant* if this read is the first thing carrying the remote
+      // withdrawal. Dropping the read wholesale would therefore erase a withdrawal from
+      // memory and from disk at once, and Sync would carry the resurrected grant back to the
+      // device that just revoked it. So one thing crosses the race — the withdrawal, never
+      // the grant. Consent only ever moves toward closed here.
+      await this.adoptExternalWithdrawal(next);
+      return;
+    }
+    if (this.applyLoadedSettings(next)) {
       await this.saveSettings();
     }
     // Consent may have just been withdrawn elsewhere. Closing the gates is not enough on its
