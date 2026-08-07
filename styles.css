@@ -1909,6 +1909,38 @@
   flex-direction: row-reverse;
 }
 
+/* Phone: keep a row's right edge on the row.
+   Obsidian stacks every settings row it does not recognise as inline. Three rules in `app.css`
+   share one gate — `.setting-item:not(:is(.mod-toggle, .mod-navigable, .mod-action,
+   .setting-item-heading))` — setting the row to `flex-direction: column` and its control to
+   `width: 100%`. `addToggle()` adds `mod-toggle`, which is why toggle rows were the only ones
+   that still looked right; these rows carry `mod-clickable`, which is not on that list. So a
+   destination row became a tall card with its chevron orphaned on a second line, the back row
+   put its chevron *below* the name rather than at the leading edge, and the status row dropped
+   its trailing text. Re-assert the axis and let the control shrink back to its own contents.
+
+   Specificity is a deliberate tie with Obsidian's (0,4,0) row rule, won on source order because
+   the plugin sheet loads after `app.css`; the control selectors are (0,5,0) and win outright.
+   `align-items` is left alone so it stays `flex-start`, matching the toggle rows.
+
+   The gate is `is-phone`, not `is-mobile`: `emulateMobile(true)` at a desktop-width window
+   resolves to `is-tablet` and this bug does not reproduce there. Verify at a real phone width. */
+.is-phone .modal .setting-item.atoms-setting-destination,
+.is-phone .modal .setting-item.atoms-setting-status-row {
+  flex-direction: row;
+}
+
+.is-phone .modal .setting-item.atoms-setting-back {
+  flex-direction: row-reverse;
+}
+
+.is-phone .modal .setting-item.atoms-setting-destination .setting-item-control,
+.is-phone .modal .setting-item.atoms-setting-back .setting-item-control,
+.is-phone .modal .setting-item.atoms-setting-status-row .setting-item-control {
+  width: auto;
+  justify-content: flex-end;
+}
+
 /* The one settings row pairing a text field with an inline reset icon. Obsidian sizes the
    control edge to its contents, so the icon squeezed the input down to about 54px — enough for
    "Usi" of a placeholder reading "Using the shortcut Atoms ships". Let the control edge grow and

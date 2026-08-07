@@ -83,10 +83,22 @@ A For you cue when a hard supersession pair exists (`revises` / `contradicts` in
 One-line subsequent-history chips on Atoms home when an open atom participates in hard supersession edges. Home product chrome only — not injected into the Obsidian editor.
 
 ### Row grammar (settings)
-The rule that every settings row visibly declares what kind of thing it is, through its right edge. Five kinds: **setting** (toggle or input — the only kind that may carry a toggle), **destination** (chevron), **action** (accent button), **destructive** (warning button), **status** (muted text, no control). No row wears two kinds. A section-intro paragraph is prose, not a row, and is exempt.
+The rule that every settings row visibly declares what kind of thing it is, through its right edge. Five kinds: **setting** (toggle or input — the only kind that may carry a toggle), **destination** (chevron), **action** (accent button), **destructive** (warning button), **status** (muted text, no control). No row wears two kinds. A section-intro paragraph is prose, not a row, and is exempt. A **confirm sheet** is not a sixth kind — it is what a destructive row may open, and it lives beside the row primitives rather than in the screen that calls it.
+
+The rule governs how a row is drawn, not whether the surface is really a settings screen. Applied mechanically to a list of inbox items, it produced one row per item plus a second row per item carrying nothing but its own button label — the shape [#342](https://github.com/taihartman/obsidian-atoms/issues/342) removed. When a section is a queue rather than a set of settings, give the section one control instead of giving every item two rows.
 
 ### Destination (settings)
 A settings sub-screen reached from a chevron row and left by a back row. A re-render of the same settings surface under a route value — not a new Obsidian view, and not a modal used as navigation. Leaving and reopening settings always returns to the main screen.
+
+### Confirm sheet
+The question a destructive row asks before it acts — the destructive row's other half: the row declares the kind, the sheet asks the question. Distinct from a **consent sheet**, which authorizes an ongoing capability; a confirm sheet authorizes one act and records nothing. It names what will be destroyed and how much of it, and it holds its row for the whole exchange, so a double-tap cannot stack two questions. Cancel, Escape, and clicking outside are all the same answer: no.
+
+Not every destructive row gets one. The line is reversibility: a recoverable act (signing out) goes straight through, an act whose result cannot be got back (wiping the cloud copy, dismissing the proposed queue) asks first — and that judgment is made about the act at its real size, not about the smaller act it may have replaced.
+
+### Proposed tag
+A tag a classify run suggested but that is not yet in the active vocabulary. Inert: it is never applied to an atom until approved, so a queue of them changes nothing on its own. It is an inbox item, not a setting — which is why the settings row grammar governs how it is *drawn* but not what its section is *for*.
+
+Dismissal is close to permanent even though nothing is destroyed in the vault: a processed capture carries a marker and is never classified twice, so a dismissed tag returns only if some capture not yet written proposes it again.
 
 ### Consent sheet
 The disclosure a gated feature presents **at the moment it is enabled**, replacing a permanent acknowledgment row. Only an explicit accept records the acknowledgment; Escape, clicking outside, and closing the settings tab all count as declining and leave the feature off. Each granted acknowledgment stays inspectable and revocable afterwards from a Review row, whether or not the feature it gates is currently on, and whether or not the wording it was granted against is still current — for as long as that acknowledgment still permits anything. The egress, Ask-privacy, and vault-write consents are three separate sheets and never authorize one another.

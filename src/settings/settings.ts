@@ -53,6 +53,7 @@ import {
   actionRow,
   backRow,
   type ButtonRowSpec,
+  confirmSheet,
   destinationRow,
   destructiveRow,
   InFlightActions,
@@ -1867,12 +1868,20 @@ export class AtomsSettingTab extends PluginSettingTab {
       },
     });
 
-    // Proposed tags awaiting approval
-    const proposed = this.plugin.settings.proposedTags ?? [];
+    // Proposed tags awaiting approval.
+    //
+    // Normalized here, not trusted from settings: `mergeProposedTags` writes a deduped, lowercased
+    // array, but `loadSettings` assigns `data.json` straight through, so a hand edit or an older
+    // build can leave `["design", "Design"]` behind. Two rows would render, the row name would
+    // count two, and the confirm — which counts the *normalized* set it dismisses — would say one.
+    // The row's whole job is to state its own reach before it is pressed, so the name and the
+    // sheet have to reach the same number by construction, not by trusting the stored array.
+    const proposed = [
+      ...new Set((this.plugin.settings.proposedTags ?? []).map(normalizeTag)),
+    ].filter(Boolean);
     if (proposed.length > 0) {
       settingHeading(containerEl, "Proposed (approve to activate)");
       for (const tag of proposed) {
-        // Approve and dismiss were two buttons on one row; same split, same reason as above.
         this.actionRow(containerEl, {
           action: `tags:approve:${tag}`,
           name: `#${tag}`,
@@ -1890,20 +1899,28 @@ export class AtomsSettingTab extends PluginSettingTab {
             this.redisplay();
           },
         });
-        this.destructiveRow(containerEl, {
-          action: `tags:dismiss:${tag}`,
-          name: `Dismiss #${tag}`,
-          label: "Dismiss",
-          onClick: async () => {
-            this.plugin.settings.proposedTags =
-              this.plugin.settings.proposedTags.filter(
-                (t) => normalizeTag(t) !== normalizeTag(tag),
-              );
-            await this.plugin.saveSettings();
-            this.redisplay();
-          },
-        });
       }
+      // Dismissal is one row for the queue, not one per tag. Per-tag Dismiss could not share the
+      // Approve row — no primitive carries two kinds — so it rented a whole second full-width row
+      // whose entire content was its own button label, doubling the section's height to clear
+      // something that was already inert: a proposal is never applied until it is approved. The
+      // count is in the name so the reach of the button is legible before it is pressed.
+      //
+      // It clears exactly the proposals rendered above it, never the live array. A Process or
+      // auto-run merges into `settings.proposedTags` without redisplaying an open settings tab, so
+      // an unscoped clear would destroy tags that arrived after this row was drawn — more than the
+      // count in its own name promised, and unseen. Per-tag dismissal was bounded for free; a bulk
+      // one has to say so.
+      const rendered = new Set(proposed.map(normalizeTag));
+      this.destructiveRow(containerEl, {
+        action: "tags:dismiss-proposed",
+        name: `${proposed.length} ${proposed.length === 1 ? "proposal" : "proposals"} waiting`,
+        // No desc: every Approve row above already says these are inert until approved, and the
+        // one fact this row adds — that dismissal does not come back — belongs at the tap, in the
+        // confirm, not as a standing warning under a button nobody has reached for yet.
+        label: "Dismiss all",
+        onClick: () => this.confirmDismissProposedTags(rendered),
+      });
     }
 
     // Found in vault
@@ -1957,6 +1974,37 @@ export class AtomsSettingTab extends PluginSettingTab {
         },
       });
     }
+  }
+
+  /**
+   * The queue dismissal, behind the question a bulk destructive row cannot skip.
+   *
+   * One tap was defensible while dismissal was per-tag; a row that clears a dozen proposals at
+   * once is not, because they do not come back — a processed capture carries a sentinel and is
+   * never classified twice. `rendered` is the set the row drew, so a classify run that merged
+   * new proposals into the queue while this screen sat open survives both the question and the
+   * dismissal.
+   *
+   * Returns a promise settling when the question is answered, so `destructiveRow`'s in-flight
+   * guard covers the whole confirm lifetime rather than releasing the moment the sheet opens —
+   * same reason as `confirmWipeCloudCopy`, and the same double-tap it prevents.
+   */
+  private confirmDismissProposedTags(rendered: Set<string>): Promise<void> {
+    const n = rendered.size;
+    return confirmSheet({
+      app: this.app,
+      title: n === 1 ? "Dismiss 1 proposal?" : `Dismiss ${n} proposals?`,
+      body: `${n === 1 ? "This tag" : `These ${n} tags`} will not be offered again unless a later capture proposes ${n === 1 ? "it" : "them"}. Nothing already tagged changes.`,
+      cancelLabel: "Keep",
+      confirmLabel: "Dismiss",
+      onConfirm: async () => {
+        this.plugin.settings.proposedTags = this.plugin.settings.proposedTags.filter(
+          (t) => !rendered.has(normalizeTag(t)),
+        );
+        await this.plugin.saveSettings();
+        this.redisplay();
+      },
+    });
   }
 
   /**

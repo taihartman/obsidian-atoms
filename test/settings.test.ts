@@ -493,6 +493,20 @@ describe("tag vocabulary", () => {
   const inDestination = (tab: AtomsSettingTab) =>
     tab.containerEl.querySelector(".atoms-setting-back") !== null;
 
+  /**
+   * Every row rendered under the Proposed heading, in order, up to the next heading. Row *count*
+   * is the assertion #342 needed, and only a slice of the screen can carry it without breaking
+   * every time an unrelated section gains a row.
+   */
+  const proposedSection = (tab: AtomsSettingTab): string[] => {
+    const names = rowNames(tab);
+    const start = names.indexOf("Proposed (approve to activate)");
+    if (start === -1) return [];
+    const rest = names.slice(start + 1);
+    const end = rest.indexOf("Found in your vault");
+    return end === -1 ? rest : rest.slice(0, end);
+  };
+
   it("counts the active vocabulary on one main-screen row", () => {
     const { tab } = settingTab({ settings: { activeVocabulary: ["idea", "question", "watch"] } });
     tab.display();
@@ -531,7 +545,7 @@ describe("tag vocabulary", () => {
 
     // The intro prose explains proposals, so this is about the group heading and its rows.
     expect(tab.containerEl.textContent).not.toContain("Proposed (approve to activate)");
-    expect(rowNames(tab).filter((name) => name.startsWith("Dismiss "))).toEqual([]);
+    expect(rowNames(tab).filter((name) => name.endsWith("waiting"))).toEqual([]);
   });
 
   it("renders the Proposed group when a classify run proposed something", () => {
@@ -542,9 +556,34 @@ describe("tag vocabulary", () => {
     open(tab, entry(1));
 
     expect(tab.containerEl.textContent).toContain("Proposed (approve to activate)");
-    // One right edge per row, so approve and dismiss are two rows rather than two buttons.
     expect(rowNames(tab)).toContain("#gardening");
-    expect(rowNames(tab)).toContain("Dismiss #gardening");
+    // The one dismissal for the queue counts in the singular when the queue holds one.
+    expect(rowNames(tab)).toContain("1 proposal waiting");
+  });
+
+  /**
+   * The section used to cost two full-width rows per proposal — the second one's whole content
+   * being its own Dismiss button — so the row *count*, not just the row names, is the assertion
+   * that would have caught it (#342). Asserting the exact rendered list rather than filtering by
+   * name is deliberate: a regression that brought the second row back under some other wording
+   * would slip past any filter keyed to the word "Dismiss".
+   */
+  it("spends one row per proposal plus one dismissal for the queue", () => {
+    const { tab } = settingTab({
+      settings: {
+        activeVocabulary: ["idea"],
+        proposedTags: ["gardening", "cooking", "watch"],
+      },
+    });
+    tab.display();
+    open(tab, entry(1));
+
+    expect(proposedSection(tab)).toEqual([
+      "#gardening",
+      "#cooking",
+      "#watch",
+      "3 proposals waiting",
+    ]);
   });
 
   it("approves a proposed tag into Active", async () => {
@@ -557,7 +596,8 @@ describe("tag vocabulary", () => {
     await flush();
 
     expect(inDestination(tab)).toBe(true);
-    expect(rowNames(tab)).not.toContain("Dismiss #gardening");
+    // The queue is empty, so its dismissal goes with it rather than sitting over nothing.
+    expect(rowNames(tab).filter((name) => name.endsWith("waiting"))).toEqual([]);
     expect(row(tab, "#gardening").querySelector(".checkbox-container")).not.toBeNull();
 
     tab.hide();
@@ -565,19 +605,118 @@ describe("tag vocabulary", () => {
     expect(destinationNames(tab)).toContain(entry(2));
   });
 
-  it("dismisses a proposed tag without activating it", async () => {
+  it("approves one proposal and leaves the rest of the queue waiting", async () => {
+    const { tab } = settingTab({
+      settings: { activeVocabulary: ["idea"], proposedTags: ["gardening", "cooking"] },
+    });
+    tab.display();
+    open(tab, entry(1));
+    press(tab, "#gardening", "Approve");
+    await flush();
+
+    expect(rowNames(tab)).toContain("1 proposal waiting");
+    expect(rowNames(tab)).toContain("#cooking");
+  });
+
+  it("dismisses the whole queue without activating anything", async () => {
+    const { tab, plugin } = settingTab({
+      settings: { activeVocabulary: ["idea"], proposedTags: ["gardening", "cooking"] },
+    });
+    tab.display();
+    open(tab, entry(1));
+    press(tab, "2 proposals waiting", "Dismiss all");
+    pressSheet("Dismiss");
+    await flush();
+
+    expect(inDestination(tab)).toBe(true);
+    expect(tab.containerEl.textContent).not.toContain("Proposed (approve to activate)");
+    // Dropped, not promoted: the queue is empty and Active gained nothing.
+    expect(plugin.settings.proposedTags).toEqual([]);
+    expect(plugin.settings.activeVocabulary).toEqual(["idea"]);
+    tab.hide();
+    tab.display();
+    expect(destinationNames(tab)).toContain(entry(1));
+  });
+
+  /**
+   * One tap was defensible while dismissal was per-tag. A row that clears the whole queue is not,
+   * because dismissal does not come back: a processed capture carries a sentinel and is never
+   * classified twice.
+   */
+  it("asks before dismissing the queue, and keeps it when the answer is no", async () => {
+    const { tab, plugin } = settingTab({
+      settings: { activeVocabulary: ["idea"], proposedTags: ["gardening", "cooking"] },
+    });
+    tab.display();
+    open(tab, entry(1));
+    press(tab, "2 proposals waiting", "Dismiss all");
+
+    expect(sheetText()).toContain("Dismiss 2 proposals?");
+    dismissSheet();
+    await flush();
+
+    expect(plugin.settings.proposedTags).toEqual(["gardening", "cooking"]);
+    expect(rowNames(tab)).toContain("2 proposals waiting");
+  });
+
+  it("counts the question in the singular when one proposal is waiting", () => {
     const { tab } = settingTab({
       settings: { activeVocabulary: ["idea"], proposedTags: ["gardening"] },
     });
     tab.display();
     open(tab, entry(1));
-    press(tab, "Dismiss #gardening", "Dismiss");
+    press(tab, "1 proposal waiting", "Dismiss all");
+
+    expect(sheetText()).toContain("Dismiss 1 proposal?");
+    expect(sheetText()).toContain("This tag will not be offered again");
+    dismissSheet();
+  });
+
+  /**
+   * A Process or auto-run merges into `settings.proposedTags` without redisplaying an open
+   * settings tab, so the row can be looking at a smaller queue than the one it would clear. It
+   * dismisses what it rendered and nothing else — otherwise a button labelled "2 proposals
+   * waiting" silently destroys four, including two the user never saw.
+   */
+  it("dismisses only the proposals it rendered, not ones that arrived since", async () => {
+    const { tab, plugin } = settingTab({
+      settings: { activeVocabulary: ["idea"], proposedTags: ["gardening", "cooking"] },
+    });
+    tab.display();
+    open(tab, entry(1));
+    expect(rowNames(tab)).toContain("2 proposals waiting");
+
+    // A classify run lands while the screen sits open.
+    plugin.settings.proposedTags = ["gardening", "cooking", "watch", "media"];
+    press(tab, "2 proposals waiting", "Dismiss all");
+    pressSheet("Dismiss");
     await flush();
 
-    expect(rowNames(tab)).not.toContain("#gardening");
-    tab.hide();
+    expect(plugin.settings.proposedTags).toEqual(["watch", "media"]);
+    expect(proposedSection(tab)).toEqual(["#watch", "#media", "2 proposals waiting"]);
+  });
+
+  /**
+   * `mergeProposedTags` never writes a duplicate or a mixed-case tag, but `loadSettings` assigns
+   * `data.json` straight through, so a hand edit or an older build can. The row counted the raw
+   * array while the confirm counted the normalized set it actually dismisses, so the two numbers
+   * disagreed — "4 proposals waiting" opening a sheet that offered to dismiss 2, then clearing all
+   * four. A row whose only job is to state its own reach cannot understate it.
+   */
+  it("counts the same number in the row and the sheet when settings hold duplicates", () => {
+    const { tab } = settingTab({
+      settings: {
+        activeVocabulary: ["idea"],
+        proposedTags: ["design", "Design", "  #PACKING  ", "packing", ""],
+      },
+    });
     tab.display();
-    expect(destinationNames(tab)).toContain(entry(1));
+    open(tab, entry(1));
+
+    expect(proposedSection(tab)).toEqual(["#design", "#packing", "2 proposals waiting"]);
+    press(tab, "2 proposals waiting", "Dismiss all");
+    expect(sheetText()).toContain("Dismiss 2 proposals?");
+    dismissSheet();
   });
 
   it("activates a tag found in the vault and updates the main-screen count", async () => {

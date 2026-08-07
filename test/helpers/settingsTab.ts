@@ -52,6 +52,11 @@ export function settingTab(opts: SettingTabOptions = {}): {
    * naming the methods it hopes they did not call.
    */
   calls: string[];
+  /**
+   * The plugin double itself, for the assertion a rendered screen cannot carry: that a row wrote
+   * what it claimed to `settings` and left the neighbouring field alone.
+   */
+  plugin: { settings: LinkerSettings };
 } {
   // A sheet left open by an earlier test would still be in `Modal.open` and in the document.
   for (const stale of [...Modal.open]) stale.close();
@@ -126,7 +131,7 @@ export function settingTab(opts: SettingTabOptions = {}): {
   // the scroll assertions to be about the tab rather than about a null scroller.
   const scroller = document.createElement("div");
   scroller.appendChild(tab.containerEl);
-  return { tab, scroller, local, calls };
+  return { tab, scroller, local, calls, plugin: plugin as unknown as { settings: LinkerSettings } };
 }
 
 /** The one sheet currently up. Throws rather than letting an assertion pass against nothing. */
