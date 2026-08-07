@@ -1,40 +1,32 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1040" height="440" viewBox="0 0 1040 440" role="img" aria-label="The guy from the climbing wall, with a blank where his name should be">
+<svg xmlns="http://www.w3.org/2000/svg" width="1040" height="440" viewBox="0 0 1040 440" role="img" aria-label="Everything I remembered about him, and a blank line where his name should be">
   <!--
-    Field notes illustration set. One plate, no nested cards, no arrows.
-    Amber = a person. Blue = the system answering. Everything else is grey.
-    Every plate has one light source; type is the illustration.
+    Field notes illustration set. Three rules, and they are all subtractive:
 
-    This is deliberately the same composition as fn-ask-dom, emptied out: same
-    label line, same bar, same slot for the answer. The reader meets the hollow
-    version first and the filled version later, so the second one lands as a
-    payoff instead of a new picture. Do not "vary" it - the rhyme is the point.
+    1. Flat plate. No glow, no gradient wash, no coloured halo behind anything.
+       A soft tinted glow behind a focal element is the single clearest tell of
+       a generated dark-UI illustration. Never add one.
+    2. No accent bar beside text. A coloured vertical rule to the left of a
+       block is the banned bookend/pull-quote pattern (CLAUDE.md), whatever it
+       is attached to.
+    3. The picture is made of words. This product is notes, so the honest
+       illustration is real text - what someone actually said, actually
+       remembered, actually got back - not a diagram of it.
+
+    Only details the letter itself establishes. Inventing a specific that is
+    not in the copy puts a false memory in the author's mouth.
+
+    Colour appears once in the whole set (one amber tag in fn-messy-filed).
+    Everything else is white at three opacities. Restraint is the house style.
   -->
-  <defs>
-    <linearGradient id="plate" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#17171b"/>
-      <stop offset="1" stop-color="#0f0f12"/>
-    </linearGradient>
-    <radialGradient id="warmGlow" cx="50%" cy="50%" r="50%">
-      <stop offset="0" stop-color="#ff9f0a" stop-opacity="0.11"/>
-      <stop offset="1" stop-color="#ff9f0a" stop-opacity="0"/>
-    </radialGradient>
-    <linearGradient id="personBar" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#ffb340"/>
-      <stop offset="1" stop-color="#ff9f0a"/>
-    </linearGradient>
-  </defs>
+  <rect x="0.5" y="0.5" width="1039" height="439" rx="28" fill="#121214" stroke="rgba(84,84,88,0.38)"/>
 
-  <rect x="0.5" y="0.5" width="1039" height="439" rx="28" fill="url(#plate)" stroke="rgba(84,84,88,0.38)"/>
+  <g font-family="system-ui,-apple-system,&quot;Helvetica Neue&quot;,sans-serif" font-size="34" fill="rgba(235,235,245,0.72)">
+    <text x="96" y="130">two weeks ago</text>
+    <text x="96" y="200">traded beta on a hard problem</text>
+    <text x="96" y="270">he pulled it, clean</text>
+  </g>
 
-  <!-- how you actually have him filed -->
-  <text x="96" y="150" fill="rgba(235,235,245,0.55)" font-family="system-ui,-apple-system,&quot;Helvetica Neue&quot;,sans-serif" font-size="32">the guy from the climbing wall</text>
-
-  <!-- and the slot where the name is not -->
-  <ellipse cx="150" cy="262" rx="230" ry="150" fill="url(#warmGlow)"/>
-  <rect x="96" y="196" width="5" height="132" rx="2.5" fill="url(#personBar)"/>
-  <!-- exactly the box "Dom" fills in fn-ask-dom, with the word taken out. A
-       short definite blank reads as a missing word; a long trailing rule just
-       reads as a divider. -->
-  <rect x="136" y="226" width="204" height="80" rx="10" fill="rgba(235,235,245,0.08)" stroke="rgba(235,235,245,0.14)"/>
-  <text x="140" y="360" fill="rgba(235,235,245,0.4)" font-family="system-ui,-apple-system,&quot;Helvetica Neue&quot;,sans-serif" font-size="28">no name attached</text>
+  <!-- the one line memory did not keep -->
+  <line x1="96" y1="344" x2="452" y2="344" stroke="rgba(235,235,245,0.22)" stroke-width="2" stroke-linecap="round"/>
+  <text x="486" y="352" font-family="system-ui,-apple-system,&quot;Helvetica Neue&quot;,sans-serif" font-size="30" fill="rgba(235,235,245,0.34)">his name</text>
 </svg>

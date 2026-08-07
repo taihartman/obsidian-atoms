@@ -58,13 +58,15 @@ Long notes always get a `tldr`. Featured invite near the end: “Want to be feat
 
 **Illustrations (required for story notes).** These are the part readers judge first and the part that most easily reads as AI slop. The house style, learned the hard way on the Dom letter:
 
-- **One container, ever.** The SVG draws a single dark plate (`#121214`, `rx="28"`, hairline `rgba(84,84,88,0.38)`) on a transparent canvas, and `figureHtml` puts **no frame around it**. The first Dom set stacked four boxes deep — letter card, figure frame, black SVG background, inner card — and that nesting alone is what made it look like a stock SaaS diagram. If you find yourself drawing a card inside the plate, stop.
-- **No box → arrow → box.** A blue arrow between two rounded rectangles is the single most generic thing you can draw. Show one idea per figure, or one continuous gesture.
-- **Colour carries meaning, not decoration.** Amber `#ff9f0a` = a person. Blue `#0a84ff` = the system answering, used once and small. Everything else is grey. Two accent colours in one figure is usually one too many.
-- **Type is the illustration.** These letters are about words; rendering the actual words at real size beats an icon. `system-ui, -apple-system, 'Helvetica Neue', sans-serif` resolves to SF in the renderer.
-- **Mind the display size.** Canvas is 1040px wide and shows at 520 in mail, so anything under ~26px in the SVG is illegible. Big answer text ~104px, titles ~56px, labels 26–30px.
-- **Make the set rhyme, don't just vary it.** The Dom letter runs the same composition twice — `fn-face-no-name` is `fn-ask-dom` emptied out, same label line, same bar, same slot — so the second one lands as a payoff rather than a new picture. `fn-messy-filed` breaks the pattern with a gesture. A repeated frame the reader learns beats three unrelated drawings.
-- **Negative space is the tryatoms look.** When a figure feels weak the fix is usually removing an element, not adding one.
+- **The picture is made of words.** This product is notes, so the honest illustration is real text — what someone actually mumbled, actually remembered, actually got back — not a diagram of it. Reach for a graphic only when words genuinely cannot carry the beat.
+- **No glow.** No radial halo, no coloured wash behind a focal element, no "light source". A soft tinted glow on a dark plate is the single clearest tell of a generated illustration. This was added once and rejected on sight.
+- **No accent bar beside text.** A coloured vertical rule to the left of a block is the banned bookend/pull-quote pattern from CLAUDE.md, whatever you attach it to. It does not stop being that because the thing beside it is a name instead of a quote.
+- **One container, ever.** A single flat plate: `#121214`, `rx="28"`, hairline `rgba(84,84,88,0.38)`, transparent canvas, and `figureHtml` puts **no frame around it**. The first Dom set stacked four boxes deep — letter card, figure frame, black SVG background, inner card — and that nesting alone made it look like stock SaaS art. If you are drawing a card inside the plate, stop.
+- **No box → arrow → box.** A blue arrow between two rounded rectangles is the single most generic thing you can draw.
+- **Colour is almost absent.** The whole three-figure set uses one amber tag, once. Everything else is white at three opacities. Amber `#ff9f0a` = a person; blue `#0a84ff` = the system answering. If you are reaching for a second accent, you are decorating.
+- **Only details the copy establishes.** Writing "tuesday night" into a figure when the letter never says Tuesday puts a false memory in the author's mouth. Pull specifics from the draft, not from your imagination.
+- **Mind the display size.** Canvas is 1040px wide and shows at 520 in mail, so nothing under ~26px is legible. Big answers ~132px, titles ~56px, body 30–34px, labels 26–28px.
+- **Let scale and emptiness do the work.** The strongest figure in the set is a small question and an enormous name. The second strongest is three remembered details and one blank line. When a figure feels weak, remove an element rather than adding one.
 
 Then:
 
@@ -77,15 +79,11 @@ Then:
    npm run build:www   # copies www/src/email/* into www/dist/email/
    ( cd www && npx wrangler pages deploy dist --project-name=tryatoms --branch=master )
    ```
-   Then **cache-bust the `src` with a content hash**, because the edge pins `/email/*.png` for 4h and will happily serve the old image after a deploy — you would review last week's art without knowing:
-   ```jsonc
-   { "type": "figure", "src": "https://tryatoms.app/email/foo.png?v=6852857c", "alt": "..." }
-   ```
-   `md5 -q www/src/email/foo.png | cut -c1-8`. The web archive drops the query, so published pages stay clean. Verify before judging any send:
+   Then **verify the live bytes**, every time:
    ```bash
-   curl -s -o /dev/null -w '%{size_download}\n' 'https://tryatoms.app/email/foo.png?v=<hash>'
-   stat -f%z www/src/email/foo.png
+   scripts/check-email-assets.sh docs/field-notes/drafts/<file>.json
    ```
+   The edge pins `/email/*.png` for 4h **and ignores the query string in its cache key**, so `?v=<hash>` does not bust it — a brand new query URL was measured serving the previous image. Bytes are the only honest check. A stale entry clears after a revalidation pass or two, which is why the script retries. If it says STALE, do not send: you would be reviewing last week's art without knowing.
 
 Legacy `paragraphs` + trailing `diagram`/`figure` still render, but **new drafts must use `blocks`.**
 

@@ -57,25 +57,26 @@ Gmail and many clients **strip or block SVG**. Reliable path:
 
 | Token | Hex |
 |---|---|
-| Figure plate | `#121214`, `rx="28"` |
+| Figure plate | `#121214` flat, `rx="28"` |
 | Plate hairline | `rgba(84,84,88,0.38)` |
 | Text | `#ffffff` |
-| Muted | `rgba(235,235,245,0.42–0.55)` |
-| The system answering | `#0a84ff` (once, small) |
-| A person | `#ff9f0a` |
+| Muted | `rgba(235,235,245,0.28–0.72)` — three steps, that is the whole palette |
+| A person | `#ff9f0a`, used once in the set |
+| The system answering | `#0a84ff`, currently unused — earn it |
 
-**House style** (established on the 2026-08-07 Dom letter; `www/src/email/fn-*.svg` are the reference set):
+**House style** (established on the 2026-08-07 Dom letter; `www/src/email/fn-*.svg` are the reference set). It is mostly a list of things not to do, and that is deliberate:
 
-- **One container.** The SVG draws a single plate — `#121214`, `rx="28"`, hairline `rgba(84,84,88,0.38)` — on a transparent 1040-wide canvas. `figureHtml` deliberately adds **no frame**. The first version of that set nested four boxes (letter card → figure frame → black SVG bg → inner card) and read as a stock SaaS diagram purely because of the nesting.
-- **No box → arrow → box.** One idea per figure, or one continuous gesture. A blue arrow between two rounded rectangles is the most generic mark available.
-- **Colour means something.** Amber `#ff9f0a` = a person. Blue `#0a84ff` = the system answering, once and small. Everything else grey. Two accents in one figure is usually one too many.
-- **Type is the illustration.** Use `system-ui, -apple-system, 'Helvetica Neue', sans-serif`; it resolves to SF in the renderer.
-- **Size for 520px.** The canvas shows at half size in mail, so nothing below ~26px is legible. Answers ~104px, titles ~56px, labels 26–30px.
-- When a figure feels weak, remove an element rather than adding one.
+- **The picture is made of words.** Notes are the product, so the illustration is real text — the actual mumble, the actual answer — not a diagram of it.
+- **No glow, no wash, no halo.** A soft tinted glow behind a focal element on a dark plate is the clearest tell of generated art. Flat plate, always.
+- **No accent bar beside text.** A coloured vertical rule to the left of a block is the banned bookend/pull-quote pattern, whatever it sits next to.
+- **One container.** A single flat plate (`#121214`, `rx="28"`, hairline `rgba(84,84,88,0.38)`) on a transparent canvas; `figureHtml` adds no frame. The first version of this set nested four boxes and read as stock SaaS art purely because of that.
+- **No box → arrow → box.**
+- **Colour is almost absent.** One amber tag in the whole set. Everything else is white at three opacities.
+- **Only details the copy establishes** — an invented specific is a false memory in the author's mouth.
+- **Size for 520px.** Nothing under ~26px survives. Answers ~132px, titles ~56px, body 30–34px.
+- **Scale and emptiness do the work.** A small question and an enormous name; three remembered details and one blank line.
 
-- **Let the set rhyme.** `fn-face-no-name.svg` is `fn-ask-dom.svg` with the answer removed — same label line, same bar, same slot, amber bar instead of blue, a redaction block where the word goes. The reader meets the hollow frame first, so the filled one later reads as a payoff. `fn-messy-filed.svg` breaks the pattern deliberately.
-
-**Starter files:** `fn-ask-dom.svg` / `fn-face-no-name.svg` (the rhyming pair), `fn-messy-filed.svg` (gestural). `loop-remember.svg` predates the house style — do not copy its card-and-arrow layout.
+**Starter files:** `fn-ask-dom.svg` (scale contrast), `fn-face-no-name.svg` (a list with one line missing), `fn-messy-filed.svg` (before and after, in the words themselves). `loop-remember.svg` predates the house style — do not copy its card-and-arrow layout.
 
 ### Export PNG (local)
 
@@ -88,18 +89,13 @@ The script rasterizes with Chrome. **Do not use `magick`**: with librsvg absent 
 
 Then `npm run build:www` and deploy so `https://tryatoms.app/email/foo.png` resolves.
 
-**Cache-bust redrawn figures.** The Pages edge pins `/email/*.png` for 4h, and a path whose cache entry was populated recently will keep serving the old image after a deploy — you review last week's art and never know. Sometimes a second request revalidates; sometimes it does not. So a draft references the figure with a content hash:
-
-```json
-{ "type": "figure", "src": "https://tryatoms.app/email/foo.png?v=6852857c", "alt": "..." }
-```
-
-`md5 -q www/src/email/foo.png | cut -c1-8`. The web archive drops the query (`normalizeFigureSrc` keeps only the pathname), so published pages stay clean — guarded by a test. Verify before judging any send:
+**Confirm redrawn figures are actually live.** The Pages edge pins `/email/*.png` for 4h **and ignores the query string in its cache key** — a brand-new `?v=<hash>` URL was measured serving the previous image, so cache-busting by query does not work here. Compare bytes instead, and retry; a stale entry clears after a revalidation pass or two:
 
 ```bash
-curl -s -o /dev/null -w '%{size_download}\n' 'https://tryatoms.app/email/foo.png?v=<hash>'
-stat -f%z www/src/email/foo.png
+scripts/check-email-assets.sh docs/field-notes/drafts/<file>.json
 ```
+
+It exits non-zero while any figure is stale. Do not send on a STALE result — you would review last week's art without knowing it.
 
 ### Using a figure in a Broadcast (Resend UI)
 
@@ -144,7 +140,7 @@ Legacy flat `paragraphs` + trailing `diagram`/`figure` still work for welcome an
 - [ ] Dark card layout (or Resend theme tuned to black / #1c1c1e / #0a84ff)  
 - [ ] `{{{RESEND_UNSUBSCRIBE_URL}}}` + postal line  
 - [ ] Test on iPhone Mail + Gmail before audience send  
-- [ ] Live PNG byte count matches local before judging the test send  
+- [ ] `scripts/check-email-assets.sh <draft>` passes before judging the test send  
 - [ ] Body renders sans-serif, not Times (a `"` in a font stack breaks `style="..."`)  
 
 ---
