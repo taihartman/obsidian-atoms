@@ -5,12 +5,17 @@
  *     one model call per row (a 200-atom first sync 502'd on Fly's proxy).
  * F2: a barely-expanded index must not advertise `retrieval: lexical_expanded`
  *     (KTD1/R22 — "do not emit it solely because the column exists").
- * F3: body-plaintext egress is off unless an operator turns it on.
+ * F3: body-plaintext egress never happens by accident. As of #340 the flag is
+ *     on by default (the disclosure now names this egress and every device
+ *     re-prompts), so what is pinned here is the pair of gates that outlived
+ *     the default: an operator can still turn it off, and a deployment with no
+ *     Anthropic key is inert regardless.
  */
 import { describe, it, before, after } from "node:test";
 import assert from "node:assert/strict";
 import {
   backfillExpandForEmail,
+  generateExpandPhrases,
   retrievalModeForCoverage,
 } from "../src/ask/expandSearch.mjs";
 import { config } from "../src/config.mjs";
@@ -44,20 +49,52 @@ function withEnv(vars, fn) {
   return out;
 }
 
-describe("F3 — expand (body plaintext egress) is off by default", () => {
-  it("stays off when ASK_EXPAND_ENABLED is unset", () => {
+describe("F3 — body plaintext egress never happens by accident", () => {
+  // #340 flipped this default to on. The old assertion (off when unset) was the
+  // guard while the shipped disclosure did not name body egress; that is no
+  // longer true, so re-pinning it here would only pin a stale fact. What has to
+  // stay true is that an operator keeps a working off switch.
+  it("is on by default now that the disclosure names this egress", () => {
     withEnv({ ASK_EXPAND_ENABLED: undefined }, () => {
-      assert.equal(config.askExpandEnabled, false);
+      assert.equal(config.askExpandEnabled, true);
     });
   });
 
-  it("turns on only when an operator sets it", () => {
-    withEnv({ ASK_EXPAND_ENABLED: "1" }, () => {
-      assert.equal(config.askExpandEnabled, true);
-    });
+  it("an operator can still turn it off, and only 0 does it", () => {
     withEnv({ ASK_EXPAND_ENABLED: "0" }, () => {
       assert.equal(config.askExpandEnabled, false);
     });
+    withEnv({ ASK_EXPAND_ENABLED: "1" }, () => {
+      assert.equal(config.askExpandEnabled, true);
+    });
+  });
+
+  // The second gate, and the one the flag default cannot reach: a deployment
+  // that never configured a key sends nothing, however the flag reads.
+  it("sends nothing when the deployment has no Anthropic key", async () => {
+    let fetched = false;
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = async () => {
+      fetched = true;
+      return { ok: false, status: 500 };
+    };
+    try {
+      await withEnv(
+        { ASK_EXPAND_ENABLED: "1", ANTHROPIC_API_KEY: undefined },
+        async () => {
+          const out = await generateExpandPhrases({
+            title: "A",
+            tags: [],
+            body: "body plaintext that must not leave",
+          });
+          assert.equal(out.ok, false);
+          assert.equal(out.reason, "no_key");
+        },
+      );
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+    assert.equal(fetched, false, "no key must mean no request at all");
   });
 });
 

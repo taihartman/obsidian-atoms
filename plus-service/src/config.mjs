@@ -71,23 +71,27 @@ export const config = {
     return env("ANTHROPIC_VERSION", "2023-06-01");
   },
   /**
-   * Ask search: index-time expand on mirror upsert (1 enables).
+   * Ask search: index-time expand on mirror upsert (0 disables).
    *
-   * Off by default, deliberately. This is the first Ask path that sends note
-   * **body plaintext** to Anthropic — classify is titles-only — and the consent
-   * record it would ride on (`askPrivacyAckAt`) is a bare timestamp with no
-   * version field, so a device that accepted the older six-clause Ask privacy
-   * copy (which never mentioned body egress) still reads as granted. There is
-   * no way to invalidate those grants today.
+   * **On by default as of 0.6.87 (#340).** This is the first Ask path that
+   * sends note **body plaintext** to Anthropic — classify is titles-only — so
+   * it was held off by default until the consent it rides on could be made
+   * honest. `askPrivacyAckAt` used to be a bare timestamp with no version, so
+   * a device that accepted the six-clause Ask privacy copy (which never
+   * mentioned body egress) still read as granted, with no way to invalidate it.
    *
-   * Before flipping this default to "1": ship an *ask ack version* (the shape
-   * `EGRESS_ACK_VERSION` in `src/platform/autorun.ts` already uses), so bumping
-   * the version re-prompts every existing device. Until then only an operator
-   * setting `ASK_EXPAND_ENABLED=1` on a self-hosted/dogfood instance gets it.
-   * See #339, plan R18.
+   * #360 shipped the ack version, and #340 bumped `ASK_PRIVACY_ACK_VERSION` to
+   * "2026-08-07" against seven-clause wording whose clause (4) discloses this
+   * egress by name. Every existing device re-prompts before its mirror moves
+   * again, which is the condition this default was waiting on.
+   *
+   * Two gates still stand in front of the egress, and neither is this flag:
+   * a deployment with no `ANTHROPIC_API_KEY` is inert (`expandSearch.mjs:104`
+   * returns `no_key`), and an operator who wants it off sets
+   * `ASK_EXPAND_ENABLED=0`. See #339, plan R18.
    */
   get askExpandEnabled() {
-    return env("ASK_EXPAND_ENABLED", "0") !== "0";
+    return env("ASK_EXPAND_ENABLED", "1") !== "0";
   },
   /** Prefer Plus classify model when ASK_EXPAND_MODEL unset (avoid hard-coded Haiku ids). */
   get askExpandModel() {
