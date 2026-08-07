@@ -7,24 +7,6 @@ import { config } from "../config.mjs";
 const GENERIC_PHRASE_RE =
   /^(how to improve|what is success|key takeaways|summary of this|main points|important notes|overview of the note|general thoughts)\b/i;
 
-/** KTD6 grounding: a shared token this long is what makes a phrase "not generic". */
-const MIN_GROUNDING_TOKEN = 4;
-
-/**
- * Lowercased tokens of at least `MIN_GROUNDING_TOKEN` characters.
- * @param {string} text
- * @returns {Set<string>}
- */
-function longTokens(text) {
-  const out = new Set();
-  for (const t of String(text || "")
-    .toLowerCase()
-    .split(/[^a-z0-9]+/)) {
-    if (t.length >= MIN_GROUNDING_TOKEN) out.add(t);
-  }
-  return out;
-}
-
 /** @param {string} email */
 function normEmail(email) {
   return String(email || "").toLowerCase();
@@ -104,33 +86,19 @@ export function parseExpandResponse(raw, ctx = {}) {
   }
 
   const title = String(ctx.title || "").trim().toLowerCase();
-  // KTD6 anti-generic: a kept phrase must share at least one >=4-char token
-  // with title ∪ tags ∪ bodySlice. A phrase grounded in nothing the note says
-  // is model filler, and it costs recall precision for every later query.
-  // No source (a caller that passed no ctx) means no grounding to check
-  // against, so the rule stands down rather than dropping everything.
-  const grounding = longTokens(
-    [
-      ctx.title || "",
-      (Array.isArray(ctx.tags) ? ctx.tags : []).join(" "),
-      ctx.bodySlice || "",
-    ].join(" "),
-  );
+  // Deliberately NO source-token-overlap check here. KTD6 once asked for one
+  // (keep a phrase only if it shares a >=4-char token with title ∪ tags ∪
+  // bodySlice); it shipped, killed recall, and was removed in 8c367b7 —
+  // overlap with the note's own text is definitionally what a paraphrase
+  // lacks, so requiring it drops exactly the phrases this feature exists to
+  // produce (buildExpandPrompt above asks the model for them). The
+  // anti-generic goal is carried by GENERIC_PHRASE_RE and the max-5 cap.
+  // Re-implemented by mistake in 0526ff3 and reverted again; do not add a third.
   const out = [];
   const seen = new Set();
   for (const p of list) {
     if (!p || p.length < 8 || p.length > 120) continue;
     if (GENERIC_PHRASE_RE.test(p)) continue;
-    if (grounding.size) {
-      let grounded = false;
-      for (const t of longTokens(p)) {
-        if (grounding.has(t)) {
-          grounded = true;
-          break;
-        }
-      }
-      if (!grounded) continue;
-    }
     const low = p.toLowerCase();
     if (title && low === title) continue;
     if (seen.has(low)) continue;

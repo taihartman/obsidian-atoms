@@ -188,6 +188,8 @@ This claim ships three layers in one phased PR sequence:
   - Expand alone never yields `high`.
   - `parseExpandResponse`: max 5 phrases, each ≤ 120 chars; drop empty; drop phrases with no token overlap of length ≥ 4 with title∪tags∪bodySlice (anti-generic); reject vault-generic templates (`how to improve`, `what is success`, etc. small deny list).
 
+  **Correction 2026-08-07 — the token-overlap clause is withdrawn.** The "no token overlap of length ≥ 4 with title∪tags∪bodySlice" rule above was implemented, shipped, and found to kill paraphrase recall in production; it was reverted in `8c367b7`, re-implemented by mistake during the #340 review in `0526ff3`, and reverted again. Lexical overlap with the source is the wrong mechanism for the anti-generic goal: overlap with the note's own words is definitionally what a paraphrase lacks, and `buildExpandPrompt` explicitly asks the model for phrases that share few words with the title — so the gate discarded exactly the output that complied. Measured against the repo's Ross fixture it drops the acceptance phrase "how to stop viewers from clicking away", and 0 of 5 realistic paraphrases survive it. The anti-generic intent is carried by `GENERIC_PHRASE_RE` and the max-5 phrase cap instead. Do not re-add a source-overlap check; the rest of KTD6 (scorer weights, `expandStrong`, length and count bounds) stands.
+
 - **KTD7. Backfill (R10).** `plus-service/scripts/backfill-ask-expand.mjs` (or npm script): walk accounts/rows missing expand, decrypt body, expand, write. Rate-limit. Document for Fly one-shot. Optional: search path if expand null and `ASK_EXPAND_LAZY=1` — default off to avoid search latency spikes.
 
 - **KTD8. Phase B hybrid sketch (R13–R15) — deferred plan only if gate fires.**  

@@ -38,26 +38,12 @@ describe("parseExpandResponse", () => {
     assert.equal(p.length, 0);
   });
 
-  it("KTD6: drops an ungrounded phrase, keeps a grounded paraphrase", () => {
-    const ctx = {
-      title: "Sourdough starter feeding schedule",
-      tags: ["baking"],
-      bodySlice:
-        "feed the starter every twelve hours with equal flour and water",
-    };
-    const p = parseExpandResponse(
-      [
-        // Shares no >=4-char token with title ∪ tags ∪ bodySlice: model filler.
-        "best way to negotiate a car lease",
-        // Paraphrase, but grounded on "starter" / "flour".
-        "how often should I feed my starter flour",
-      ],
-      ctx,
-    );
-    assert.deepEqual(p, ["how often should I feed my starter flour"]);
-  });
-
   it("keeps paraphrase phrases that do not share tokens with the body", () => {
+    // Asserted by identity, not by a regex any one survivor could satisfy: an
+    // earlier version checked only `length >= 1` plus a loose pattern, so a
+    // source-overlap filter could drop the pure paraphrase and still pass.
+    // "how to stop viewers from clicking away" shares no >=4-char token with
+    // the title or body below — that is exactly what the feature must keep.
     const p = parseExpandResponse(
       [
         "how to stop viewers from clicking away",
@@ -68,8 +54,14 @@ describe("parseExpandResponse", () => {
         bodySlice: "stack open loops and manufacture stakes in the first seconds",
       },
     );
-    assert.ok(p.length >= 1, "paraphrases must survive without corpus word overlap");
-    assert.ok(p.some((x) => /viewers|clicking|watching/i.test(x)));
+    assert.ok(
+      p.includes("how to stop viewers from clicking away"),
+      `zero-overlap paraphrase must survive verbatim; got ${JSON.stringify(p)}`,
+    );
+    assert.deepEqual(p, [
+      "how to stop viewers from clicking away",
+      "keep people watching past the first seconds",
+    ]);
   });
 });
 
