@@ -4,8 +4,18 @@ branch: claude/settings-form-rows-back-chevron
 worktree: /Users/a515138832/StudioProjects/obsidian_plugin-settings-row-grammar
 base: fix/342-proposed-tags-dismiss-row (stacked — see below)
 tracking: https://github.com/taihartman/obsidian-atoms/issues/347 · https://github.com/taihartman/obsidian-atoms/issues/348 · https://github.com/taihartman/obsidian-atoms/pull/349
-status: code complete; QA is the only gate left
+status: complete — QA ran and passed; the only thing left is #345's CI, which is not this work's to fix
 ---
+
+> **Superseded, same day.** This doc was written expecting the QA gate to fall to a fresh session. It
+> did not — `world-class-qa` and `adversarial-qa` both ran, the adversarial half found and fixed an
+> iPad regression (`25e395c`), the report is at
+> [`docs/qa/2026-08-06-347-348-settings-form-rows-world-class-qa.md`](../qa/2026-08-06-347-348-settings-form-rows-world-class-qa.md),
+> and [PR #349](https://github.com/taihartman/obsidian-atoms/pull/349) is out of draft with its Test
+> plan checked against real evidence. **Next steps 1–3 below are done.** What survives is
+> **Next step 4** (rebase onto `master` after #345 merges, then clear `STATUS.md`), the optional grok
+> peer pass in Next step 2, and the two user-owned blockers. Everything else here is kept for the
+> driving facts and the decision record.
 
 # Handoff — #347 + #348 code is done; world-class-qa is what remains
 
