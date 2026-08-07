@@ -35,7 +35,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.TextStyle
@@ -79,16 +78,17 @@ fun QuickCaptureScreen(
         }
     }
 
-    // Full bleed width — only bottom corners rounded
+    // Floating card under the status bar — inset + fully rounded (not flat to the top edge)
     Surface(
         modifier =
             Modifier
-                .fillMaxWidth()
-                .statusBarsPadding(),
-        shape = RoundedCornerShape(bottomStart = 16.dp, bottomEnd = 16.dp),
+                .statusBarsPadding()
+                .padding(horizontal = 12.dp, vertical = 8.dp)
+                .fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
         color = extras.card,
         tonalElevation = 0.dp,
-        shadowElevation = 12.dp,
+        shadowElevation = 16.dp,
     ) {
         Column(
             modifier =
