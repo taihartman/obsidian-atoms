@@ -1730,23 +1730,13 @@ body.notes-archive {
   margin-top: 0.5rem;
 }
 
-.notes-skip {
-  margin: 0 0 1.25rem;
-  font-size: 0.95rem;
-}
-
-.notes-skip a {
-  color: var(--tint, #0a84ff);
-  text-decoration: none;
-}
-
+/* Short version leads the note (see fieldNotesEmail.mjs) - no jump link. */
 .notes-tldr {
-  margin: 2rem 0 1.25rem;
+  margin: 0.5rem 0 1.75rem;
   padding: 1rem 1.1rem;
   background: var(--elev, #2c2c2e);
   border-radius: 12px;
   border: 1px solid var(--sep, rgba(84, 84, 88, 0.55));
-  scroll-margin-top: 1.5rem;
 }
 
 .notes-tldr-label {

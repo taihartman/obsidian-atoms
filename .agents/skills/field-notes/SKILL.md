@@ -45,13 +45,15 @@ Write:
   - `{ "type": "p", "text": "..." }` — short paras (2–4 sentences max each)
   - `{ "type": "h2", "text": "..." }` — plain section titles (2–3; break the scroll). Not shouty all-caps kicker labels.
   - `{ "type": "figure", "src": "https://tryatoms.app/email/<name>.png", "alt": "..." }` — **inline** illustrations between sections
-  - `{ "type": "tldr", "lines": ["...", "..."] }` — quiet short-version box near the end. Auto-adds a top **Short version ↓** jump link.
+  - `{ "type": "tldr", "lines": ["...", "..."] }` — quiet short-version box. **Always renders first**, above the story, in email and on the web. The renderer hoists it, so draft order cannot get this wrong.
   - `{ "type": "loop" }` — only when the three-step loop truly serves; optional, never default footer
 - `cta`: usually Open tryatoms.app  
 
 **Never:** colored pull-quote / bookend cards (left border bars, “highlight” quote boxes). They read as AI template. A sharp one-line beat is just a normal paragraph.
 
-**Structure recipe:** open beat → figure → h2 → figure → tight argument → `tldr` → close + featured invite.  
+**Never:** in-message jump links (`href="#..."`). Gmail strips fragment links, so “Short version ↓” is a dead link for most readers. There is no `skip` block type — a short version earns its place by being read first, not by being linked to.
+
+**Structure recipe:** `tldr` → open beat → figure → h2 → figure → tight argument → close + featured invite.  
 Long notes always get a `tldr`. Featured invite near the end: “Want to be featured? Reply and show how you use Atoms…”
 
 **Illustrations (required for story notes):**

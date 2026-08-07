@@ -77,7 +77,7 @@ describe("fieldNotesContent", () => {
     expect(html).not.toContain("unsubscribe");
   });
 
-  it("renders blocks with h2, tldr, skip link, and inline figure", () => {
+  it("renders blocks with h2, tldr, and inline figure", () => {
     const html = renderNoteBodyHtml({
       blocks: [
         { type: "p", text: "Open" },
@@ -92,12 +92,26 @@ describe("fieldNotesContent", () => {
     });
     expect(html).toContain('class="notes-h2"');
     expect(html).toContain("Two seconds");
-    expect(html).toContain("notes-skip");
-    expect(html).toContain('id="fn-tldr"');
     expect(html).toContain("Got Dom back.");
     expect(html).toContain("fn-ask-dom.png");
     expect(html).not.toContain("notes-pull");
     expect(html).not.toContain("notes-loop");
+  });
+
+  // The archive mirrors the email: short version first, no jump link anywhere.
+  it("leads with the short version and ships no jump link", () => {
+    const html = renderNoteBodyHtml({
+      blocks: [
+        { type: "p", text: "Open" },
+        { type: "tldr", lines: ["Got Dom back."] },
+        { type: "skip", label: "Short version ↓", target: "fn-tldr" },
+      ],
+    });
+    expect(html.indexOf("Got Dom back.")).toBeLessThan(html.indexOf("Open"));
+    expect(html).not.toContain("notes-skip");
+    expect(html).not.toContain('href="#');
+    expect(html).not.toContain('id="fn-tldr"');
+    expect(html).not.toContain("Short version ↓");
   });
 
   it("promoteDraftToPublished allowlists fields and requires basename", () => {

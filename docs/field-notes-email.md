@@ -104,14 +104,16 @@ Draft JSON prefers **`blocks`** (email + web archive share the model):
 | `p` | Short paragraph |
 | `h2` | Plain section title (not all-caps kicker) |
 | `figure` | Inline PNG (`https://tryatoms.app/email/….png`) between sections |
-| `tldr` | Quiet short-version box; auto top jump link “Short version ↓” |
+| `tldr` | Quiet short-version box. Always hoisted to the **top**, above the story |
 | `loop` | Built-in three-step diagram — **opt-in**, not a default footer |
 
 **Banned:** pull-quote / bookend cards (colored left bars, highlight quote boxes). AI-template look. Use a normal `p` for a one-line beat.
 
+**Banned: in-message jump links.** Gmail strips or rewrites `href="#anchor"`, so a “Short version ↓” link is dead for most readers, and a short version placed after the long version is decoration anyway. `normalizeBlocks` / `renderBlocksEmailHtml` hoist `tldr` to the front on both surfaces; there is no `skip` block type and nothing carries an `id` for linking. Tests guard both (`test/fieldNotesEmail.test.ts`, `test/fieldNotesContent.test.ts`).
+
 Legacy flat `paragraphs` + trailing `diagram`/`figure` still work for welcome and old notes.
 
-**Rule of thumb:** 2–3 `h2`s, at least one inline `figure`, and a `tldr` on anything longer than a welcome. Story first; loop only when it earns the slot.
+**Rule of thumb:** 2–3 `h2`s, at least one inline `figure`, and a `tldr` on anything longer than a welcome. Short version first, then the story; loop only when it earns the slot.
 
 ## Resend Broadcast checklist
 

@@ -1,10 +1,15 @@
 /**
  * Field notes published JSON → web-safe fragments (build + tests).
  * Not for Pages Functions runtime. Email HTML stays in fieldNotesEmail.mjs.
+ *
+ * Block order is shared with email (hoistTldrFirst) so the two surfaces cannot
+ * drift into telling the same story in a different order.
  */
 
 import { readdirSync, readFileSync } from "fs";
 import { basename, join } from "path";
+
+import { hoistTldrFirst } from "../functions/_lib/fieldNotesEmail.mjs";
 
 export const PUBLISHED_BASENAME_RE =
   /^(\d{4}-\d{2}-\d{2})-([a-z0-9]+(?:-[a-z0-9]+)*)\.json$/;
@@ -166,7 +171,7 @@ function loopDiagramWebHtml() {
  */
 export function renderNoteBodyHtml(note) {
   const parts = [];
-  const blocks =
+  const blocks = hoistTldrFirst(
     Array.isArray(note.blocks) && note.blocks.length
       ? note.blocks
       : [
@@ -175,25 +180,12 @@ export function renderNoteBodyHtml(note) {
           ...(note.figure?.src && note.figure?.alt
             ? [{ type: "figure", src: note.figure.src, alt: note.figure.alt }]
             : []),
-        ];
-
-  const hasTldr = blocks.some((b) => b?.type === "tldr");
-  const hasSkip = blocks.some((b) => b?.type === "skip");
-  if (hasTldr && !hasSkip) {
-    parts.push(
-      `<p class="notes-skip"><a href="#fn-tldr">Short version ↓</a></p>`,
-    );
-  }
+        ],
+  );
 
   for (const b of blocks) {
     if (!b || !b.type) continue;
-    if (b.type === "skip") {
-      const label = b.label || "Short version ↓";
-      const target = b.target || "fn-tldr";
-      parts.push(
-        `<p class="notes-skip"><a href="#${escapeAttr(target)}">${escapeHtml(label)}</a></p>`,
-      );
-    } else if (b.type === "p" && b.text) {
+    if (b.type === "p" && b.text) {
       parts.push(`<p class="notes-p">${escapeHtml(b.text)}</p>`);
     } else if (b.type === "h2" && b.text) {
       parts.push(`<h2 class="notes-h2">${escapeHtml(b.text)}</h2>`);
@@ -203,7 +195,7 @@ export function renderNoteBodyHtml(note) {
         .map((line) => `<p class="notes-tldr-p">${escapeHtml(line)}</p>`)
         .join("");
       parts.push(
-        `<aside class="notes-tldr" id="fn-tldr"><div class="notes-tldr-label">Short version</div>${inner}</aside>`,
+        `<aside class="notes-tldr"><div class="notes-tldr-label">Short version</div>${inner}</aside>`,
       );
     } else if (b.type === "loop") {
       parts.push(loopDiagramWebHtml());

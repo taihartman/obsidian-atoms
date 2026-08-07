@@ -5,6 +5,13 @@
   "tease": "A guy at the climbing gym, a half-sentence in the car, and the moment the note came back.",
   "blocks": [
     {
+      "type": "tldr",
+      "lines": [
+        "Met someone at the gym. Forgot his name. Asked my notes who I'd met there. Got Dom back in two seconds, walked over, and said hi.",
+        "Capture is easy. Getting the note back when it matters is the hard part. That's what Atoms is for."
+      ]
+    },
+    {
       "type": "p",
       "text": "Two weeks ago I met a guy at my climbing gym. We ended up on the same hard problem, trading beta for a while. Then he pulled it. Clean. I still remember where I was standing."
     },
@@ -74,13 +81,6 @@
     {
       "type": "p",
       "text": "The version of me who couldn't be bothered to write it down properly is why the version of me two weeks later crossed the gym instead of nodding and walking away."
-    },
-    {
-      "type": "tldr",
-      "lines": [
-        "Met someone at the gym. Forgot his name. Asked my notes who I'd met there. Got Dom back in two seconds, walked over, and said hi.",
-        "Capture is easy. Getting the note back when it matters is the hard part. That's what Atoms is for."
-      ]
     },
     {
       "type": "p",

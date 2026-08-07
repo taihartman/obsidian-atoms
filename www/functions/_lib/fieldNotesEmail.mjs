@@ -4,8 +4,13 @@
  * Table layout + inline CSS only - email clients ignore stylesheets.
  * Prefer hosted PNG for illustrations (Gmail strips SVG); see docs/field-notes-email.md.
  *
- * Body model: prefer `blocks` (p / h2 / pull / figure / loop) so notes are not a wall of text.
+ * Body model: prefer `blocks` (p / h2 / tldr / figure / loop) so notes are not a wall of text.
  * Legacy `paragraphs` + trailing diagram/figure still work.
+ *
+ * No in-message jump links. Gmail strips or rewrites `href="#anchor"`, so a
+ * "Short version ↓" link is a dead link in the client most readers use. The
+ * short version earns its keep by being read first, so `normalizeBlocks` hoists
+ * `tldr` to the top and nothing links to it. See docs/field-notes-email.md.
  */
 
 export const EMAIL_THEME = {
@@ -29,10 +34,24 @@ export const EMAIL_THEME = {
  *   type: 'p'|'h2'|'tldr',
  *   text?: string,
  *   lines?: string[],
- * } | { type: 'figure', src: string, alt: string, width?: number } | { type: 'loop' } | { type: 'skip', label?: string, target?: string }} FieldNotesBlock
+ * } | { type: 'figure', src: string, alt: string, width?: number } | { type: 'loop' }} FieldNotesBlock
  *
  * Never use colored pull-quote / bookend cards. They read as AI template.
+ * There is no `skip` type: jump links do not work in mail (see file header).
  */
+
+/**
+ * A short version placed after the long version is decoration, not a summary.
+ * Hoisting it makes that unrepresentable no matter what order a draft uses.
+ * @param {FieldNotesBlock[]} blocks
+ * @returns {FieldNotesBlock[]}
+ */
+export function hoistTldrFirst(blocks) {
+  const list = (blocks || []).filter(Boolean);
+  const i = list.findIndex((b) => b?.type === "tldr");
+  if (i <= 0) return list;
+  return [list[i], ...list.slice(0, i), ...list.slice(i + 1)];
+}
 
 /**
  * Prefer blocks. Fall back to paragraphs (+ optional trailing loop/figure).
@@ -41,7 +60,7 @@ export const EMAIL_THEME = {
  */
 export function normalizeBlocks(draft) {
   if (Array.isArray(draft?.blocks) && draft.blocks.length) {
-    return draft.blocks.filter(Boolean);
+    return hoistTldrFirst(draft.blocks);
   }
   /** @type {FieldNotesBlock[]} */
   const out = [];
@@ -76,8 +95,6 @@ export function blocksToTextLines(blocks) {
       lines.push(`[${b.alt}]`);
     } else if (b.type === "loop") {
       lines.push("Catch it → It is filed → It comes back");
-    } else if (b.type === "skip") {
-      /* nav only */
     }
   }
   return lines;
@@ -89,10 +106,6 @@ export function firstProseFromBlocks(blocks) {
     if (b?.type === "p" && b.text) return String(b.text);
   }
   return "";
-}
-
-export function noteHasTldr(blocks) {
-  return (blocks || []).some((b) => b?.type === "tldr");
 }
 
 /**
@@ -140,23 +153,9 @@ export function figureHtml(opts) {
 export function renderBlocksEmailHtml(blocks) {
   const t = EMAIL_THEME;
   const parts = [];
-  const hasTldr = noteHasTldr(blocks);
-  // Auto skip-link when a tldr exists and draft didn't add one
-  const hasSkip = (blocks || []).some((b) => b?.type === "skip");
-  if (hasTldr && !hasSkip) {
-    parts.push(
-      `<p style="margin:0 0 20px;font-size:14px;line-height:1.45;"><a href="#fn-tldr" style="color:${t.tint};text-decoration:none;">Short version ↓</a></p>`,
-    );
-  }
-  for (const b of blocks || []) {
+  for (const b of hoistTldrFirst(blocks)) {
     if (!b || !b.type) continue;
-    if (b.type === "skip") {
-      const label = b.label || "Short version ↓";
-      const target = b.target || "fn-tldr";
-      parts.push(
-        `<p style="margin:0 0 20px;font-size:14px;line-height:1.45;"><a href="#${escapeAttr(target)}" style="color:${t.tint};text-decoration:none;">${escapeHtml(label)}</a></p>`,
-      );
-    } else if (b.type === "p" && b.text) {
+    if (b.type === "p" && b.text) {
       parts.push(
         `<p style="margin:0 0 16px;font-size:16px;line-height:1.55;color:${t.label};">${escapeHtml(b.text)}</p>`,
       );
@@ -173,7 +172,7 @@ export function renderBlocksEmailHtml(blocks) {
         )
         .join("");
       parts.push(
-        `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:28px 0 20px;" id="fn-tldr">
+        `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:4px 0 26px;">
   <tr>
     <td style="padding:16px 18px;background:${t.elev};border-radius:12px;border:1px solid ${t.sep};">
       <div style="font-size:12px;letter-spacing:0.04em;text-transform:uppercase;color:${t.faint};margin:0 0 10px;">Short version</div>
