@@ -24,6 +24,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.tryatoms.capture.ui.CaptureScreen
 import app.tryatoms.capture.ui.CaptureViewModel
 import app.tryatoms.capture.ui.theme.AtomsTheme
+import app.tryatoms.capture.widget.CaptureWidget
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 class OpenPersistableTree : ActivityResultContract<Uri?, Uri?>() {
     override fun createIntent(
@@ -120,6 +125,13 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         viewModel.onResume()
+        // Refresh home widget layout after installs (OEMs cache old Glance trees)
+        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+            try {
+                CaptureWidget.updateAll(applicationContext)
+            } catch (_: Exception) {
+            }
+        }
     }
 
     private fun openAllFilesSettings() {
