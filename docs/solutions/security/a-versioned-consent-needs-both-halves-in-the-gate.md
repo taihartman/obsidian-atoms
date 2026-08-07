@@ -11,6 +11,8 @@ symptoms:
   - "The Settings row that could have withdrawn the stale record did not render at all"
   - "The outbox kept writing cloud-queued files into the vault on its 60-second timer, with no user gesture"
   - "Every test was green, because no fixture could produce the state"
+  - "A version bump would have re-opened vault writes under a consent granted against superseded terms"
+  - "An outbox pass kept creating files after the user withdrew, because consent was checked once"
 root_cause: security_issue
 resolution_type: code_fix
 severity: high
@@ -91,6 +93,47 @@ different reviewer on the same diff:
   that force-clears the version whenever its timestamp clears — regardless of whether the version
   key appears in the payload — stops the skew from ever landing in memory. Keep it *as well as* the
   both-halves predicate: one prevents the state, the other refuses to spend it.
+
+## The two follow-on bugs versioning creates, which the first fix does not cover
+
+Adding staleness to a consent creates a *new state* — "on record but not current" — and every
+piece of code that reasoned about "granted / not granted" now has a third case it has never seen.
+Two of those surfaced only under an adversarial pass, after the both-halves fix was already in.
+
+**1. A dependent consent must die when the one it sits on goes stale, not only when it is
+withdrawn.** The Ask write ack is granted on top of the privacy ack. The code said so — *"the
+narrower ack cannot outlive the one it was granted on top of"* — and enforced it at exactly one
+call site: the privacy withdrawal button. Staleness is a *second* way the broader consent stops
+being current, and it goes through no button at all. So the next version bump would leave every
+device holding `privacy=stale, write=current`; the user re-reads the new privacy wording, accepts,
+and the write gate reopens instantly with its own sheet never re-posed. **Put the pairing at the
+boundary where settings land, and run it again immediately before a re-grant** — while the old ack
+is still visibly stale. Enforcing an invariant at one call site is enforcing it nowhere.
+
+**2. A gate checked once per pass is not checked.** The outbox asked for consent, then handed ten
+network round trips to a loop that knew nothing about consent — so a withdrawal landing after item
+one still let items two through ten write files into the vault. The mirror push had carried a
+second gate for this exact reason since an earlier bug; the path that actually *creates files* had
+none, because nobody had asked "what if it changes mid-pass" about that one. **If a permission can
+change during a pass, re-ask it per item** — and re-ask before claiming the next item, so a
+withdrawal costs the user nothing further.
+
+The general shape: **when you add a way for permission to be lost, enumerate every loop and every
+dependent grant that was written when there was only one way to lose it.**
+
+## Untrusted fields with trusted types
+
+`data.json` is typed `string` and can hold anything — a hand edit, a restored backup, a third-party
+sync client. Two failures came from believing the type:
+
+- `Boolean(at)` accepted `true` and `"yes"` as live consent. A consent's *when* has to parse as a
+  time, not merely be truthy.
+- Those same values then threw inside the row that renders the record. That row runs **before** the
+  next consent section paints, so one bad value removed *both* withdrawal surfaces: gate open, and
+  nothing left on screen to shut it — the precise failure the predicates exist to prevent.
+
+Coerce at the boundary **and** guard in the predicate. Boundary alone leaves objects built in
+tests and future callers unprotected; predicate alone leaves the renderer throwing.
 
 ## How to know you have this bug
 
