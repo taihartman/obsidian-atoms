@@ -27,7 +27,6 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.core.view.WindowCompat
 import app.tryatoms.capture.data.CaptureRepository
 import app.tryatoms.capture.data.InboxWriter
-import app.tryatoms.capture.overlay.CaptureOverlayController
 import app.tryatoms.capture.ui.QuickCaptureScreen
 import app.tryatoms.capture.ui.theme.AtomsTheme
 import app.tryatoms.capture.widget.CaptureHomeWidget
@@ -37,10 +36,9 @@ import kotlinx.coroutines.withContext
 import java.util.Locale
 
 /**
- * Always opens the capture strip — never the hub.
- *
- * Prefer system overlay (pass-through touches). If overlay permission is off,
- * fall back to a top floating activity strip (still not MainActivity).
+ * Capture strip only — never the hub.
+ * Top floating window (wrap-content). Reliable path; no system-overlay for now
+ * (overlay was crashing on lifecycle attach).
  */
 class QuickCaptureActivity : ComponentActivity() {
     private val repo by lazy { CaptureRepository(this) }
@@ -48,7 +46,6 @@ class QuickCaptureActivity : ComponentActivity() {
     private var fieldValue by mutableStateOf(TextFieldValue(""))
     private var busy by mutableStateOf(false)
     private var error by mutableStateOf<String?>(null)
-    private var useOverlay = false
 
     private val speechLauncher =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -59,58 +56,16 @@ class QuickCaptureActivity : ComponentActivity() {
                     ?.firstOrNull()
                     ?.trim()
             if (spoken.isNullOrEmpty()) return@registerForActivityResult
-            if (useOverlay) {
-                CaptureOverlayController.appendSpeech(spoken)
-            } else {
-                val base = fieldValue.text
-                val merged =
-                    if (base.isBlank()) spoken else base.trimEnd() + " " + spoken
-                fieldValue =
-                    TextFieldValue(text = merged, selection = TextRange(merged.length))
-                error = null
-            }
+            val base = fieldValue.text
+            val merged =
+                if (base.isBlank()) spoken else base.trimEnd() + " " + spoken
+            fieldValue =
+                TextFieldValue(text = merged, selection = TextRange(merged.length))
+            error = null
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        // Hard guarantee: this component is QuickCapture, not MainActivity
-        if (intent?.component?.className?.contains("MainActivity") == true) {
-            // should never happen
-        }
-
-        useOverlay = CaptureOverlayController.canDrawOverlays(this)
-
-        if (useOverlay) {
-            // Invisible host + system overlay strip
-            makeHostInvisible()
-            CaptureOverlayController.show(
-                context = this,
-                speechLauncher = speechLauncher,
-                onDismiss = { finish() },
-            )
-            return
-        }
-
-        // Fallback: floating top activity (no hub). Prompt once for overlay.
-        Toast
-            .makeText(
-                this,
-                "Tip: allow Display over other apps so you can use the phone under the strip",
-                Toast.LENGTH_LONG,
-            ).show()
-        CaptureOverlayController.requestOverlayPermission(this)
-        showActivityStrip()
-    }
-
-    override fun onDestroy() {
-        if (useOverlay && isFinishing) {
-            CaptureOverlayController.hide(applicationContext)
-        }
-        super.onDestroy()
-    }
-
-    private fun showActivityStrip() {
         configureTopFloatingWindow()
         setContent {
             val dark = isSystemInDarkTheme()
@@ -218,21 +173,6 @@ class QuickCaptureActivity : ComponentActivity() {
             w.navigationBarColor = AndroidColor.TRANSPARENT
         }
         WindowCompat.setDecorFitsSystemWindows(w, false)
-    }
-
-    private fun makeHostInvisible() {
-        val w = window
-        w.setFormat(PixelFormat.TRANSLUCENT)
-        w.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
-        w.addFlags(
-            WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
-        )
-        w.setLayout(1, 1)
-        w.setGravity(Gravity.TOP or Gravity.START)
-        @Suppress("DEPRECATION")
-        w.statusBarColor = AndroidColor.TRANSPARENT
-        setContentView(android.view.View(this))
     }
 
     companion object {
