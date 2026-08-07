@@ -4,5 +4,8 @@
     <string name="shortcut_capture_short">Capture</string>
     <string name="shortcut_capture_long">Capture to Atoms</string>
     <string name="widget_description">One-tap capture into your Obsidian vault</string>
+    <string name="widget_label">Atoms Capture</string>
+    <string name="widget_label_legacy">Atoms Capture (old — remove me)</string>
     <string name="widget_loading">Capture</string>
 </resources>
+
