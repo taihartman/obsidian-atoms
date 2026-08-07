@@ -1,29 +1,24 @@
 import Foundation
 
-/// Runs **Atoms Capture Append** with a **pre-stamped** inbox line.
-///
-/// Shortcut is append-only (no Type/Voice). Companion owns capture UX + stamp.
+/// Runs **Capture Atom** (system Shortcut card = iOS “overlay”).
+/// Pass capture **body** only — Capture Atom owns stamp + append.
 public enum ShortcutHandoff {
     public static func runURL(
-        shortcutName: String = DeliverySettings.appendShortcutName,
-        stampedLine: String
+        shortcutName: String = DeliverySettings.captureAtomName,
+        body: String? = nil
     ) -> URL? {
         var components = URLComponents()
         components.scheme = "shortcuts"
         components.host = "run-shortcut"
-        components.queryItems = [
-            URLQueryItem(name: "name", value: shortcutName),
-            URLQueryItem(name: "input", value: "text"),
-            URLQueryItem(name: "text", value: stampedLine),
-        ]
+        var items = [URLQueryItem(name: "name", value: shortcutName)]
+        if let body {
+            let trimmed = body.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty {
+                items.append(URLQueryItem(name: "input", value: "text"))
+                items.append(URLQueryItem(name: "text", value: trimmed))
+            }
+        }
+        components.queryItems = items
         return components.url
-    }
-
-    public static func stampedLine(
-        body: String,
-        at date: Date = Date(),
-        timeZone: TimeZone = .current
-    ) throws -> String {
-        try CaptureLine.format(body: body, at: date, timeZone: timeZone).line
     }
 }

@@ -1,19 +1,19 @@
 import AppIntents
 import UIKit
+import AtomsCaptureCore
 
-/// Opens the quick-capture strip (not the setup hub) — widget / Action Button / Control Center.
+/// Runs **Capture Atom** (not the setup hub) — Action Button / Siri / Shortcuts.
 struct CaptureThoughtIntent: AppIntent {
     static var title: LocalizedStringResource = "Capture thought"
     static var description = IntentDescription(
-        "Open the Atoms Capture strip to save a thought."
+        "Open Capture Atom to save a thought into your vault inbox."
     )
-    static var openAppWhenRun: Bool = true
+    /// Don’t need our UI — Shortcuts presents Capture Atom.
+    static var openAppWhenRun: Bool = false
 
     @MainActor
     func perform() async throws -> some IntentResult {
-        AppModel.shared.presentQuickCapture()
-        // Also poke the URL path for cold start reliability.
-        if let url = URL(string: "atomscapture://capture") {
+        if let url = ShortcutHandoff.runURL(body: nil) {
             await UIApplication.shared.open(url)
         }
         return .result()
@@ -26,7 +26,7 @@ struct AtomsCaptureShortcuts: AppShortcutsProvider {
             intent: CaptureThoughtIntent(),
             phrases: [
                 "Capture with \(.applicationName)",
-                "New thought in \(.applicationName)",
+                "Capture a thought with \(.applicationName)",
             ],
             shortTitle: "Capture",
             systemImageName: "plus.circle"

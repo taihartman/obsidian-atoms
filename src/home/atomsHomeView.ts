@@ -133,15 +133,16 @@ import {
   type ContinueParentPending,
 } from "../platform/continueParent";
 import {
+  companionGuideVersion,
   labelGetCompanion,
+  needsCompanionGuideCta,
   openCompanionDocs,
+  readCompanionGuideAck,
+  writeCompanionGuideAck,
 } from "../shared/mobileInstall";
 import {
-  CAPTURE_SHORTCUT_VERSION,
-  needsShortcutCta,
   readShortcutAck,
   resolveCaptureShortcutInstallUrl,
-  writeShortcutAck,
 } from "../settings/captureShortcut";
 import {
   closeOpenConsentSheet,
@@ -232,6 +233,7 @@ export class AtomsHomeView extends ItemView {
   /** Detach long-press bindings before re-render (clears mid-hold timers). */
   private libraryPressDetach: Array<() => void> = [];
   private shortcutAcked: string | null = null;
+  private companionGuideAcked: string | null = null;
   private refreshTimer: number | null = null;
   /** Session-only skips for From-the-brain Next (not durable). */
   private resurfaceSkipPaths = new Set<string>();
@@ -569,10 +571,9 @@ export class AtomsHomeView extends ItemView {
     );
   }
 
-  private showShortcutBanner(): boolean {
-    if (!this.installUrl()) return false;
-    if (this.isFirstDay()) return false; // setup card owns Install
-    return needsShortcutCta(this.shortcutAcked);
+  private showCompanionBanner(): boolean {
+    if (this.isFirstDay()) return false; // setup card owns Get Atoms Capture
+    return needsCompanionGuideCta(this.companionGuideAcked);
   }
 
   /**
@@ -662,6 +663,9 @@ export class AtomsHomeView extends ItemView {
     this.refreshResurfacePick(folder);
 
     this.shortcutAcked = readShortcutAck((k) => this.app.loadLocalStorage(k));
+    this.companionGuideAcked = readCompanionGuideAck((k) =>
+      this.app.loadLocalStorage(k),
+    );
 
     this.inboxStuck = await this.loadInboxStuck();
 
@@ -2171,22 +2175,19 @@ export class AtomsHomeView extends ItemView {
       this.renderUpdateNotesStrip(scroll);
     }
 
-    if (this.showShortcutBanner()) {
+    if (this.showCompanionBanner()) {
       const banner = scroll.createDiv({ cls: "atoms-home-update-banner" });
       const text = banner.createDiv();
       text.createEl("strong", {
-        text:
-          this.shortcutAcked == null
-            ? "Atoms Capture"
-            : "Capture companion",
+        text: "Atoms Capture",
       });
       text.createEl("span", {
-        text: "phone",
+        text: "phone companion",
         cls: "atoms-home-update-meta",
       });
       button(banner, {
         grade: "secondary",
-        label: this.shortcutAcked == null ? "Get app" : "Guide",
+        label: labelGetCompanion(this.companionGuideAcked),
         className: "atoms-home-update-btn",
         onClick: () => this.onInstallCompanion(),
       });
@@ -2217,7 +2218,7 @@ export class AtomsHomeView extends ItemView {
       });
       button(actions, {
         grade: "secondary",
-        label: labelGetCompanion(this.shortcutAcked),
+        label: labelGetCompanion(this.companionGuideAcked),
         onClick: () => this.onInstallCompanion(),
       });
     }
@@ -2417,7 +2418,7 @@ export class AtomsHomeView extends ItemView {
     }
     menu.addItem((i) =>
       i
-        .setTitle(labelGetCompanion(this.shortcutAcked))
+        .setTitle(labelGetCompanion(this.companionGuideAcked))
         .onClick(() => this.onInstallCompanion()),
     );
     menu.addItem((i) =>
@@ -2542,18 +2543,16 @@ export class AtomsHomeView extends ItemView {
     modal.open();
   }
 
-  /** Primary mobile path: companion guide (shortcut ships from companion hub). */
+  /** Primary mobile path: companion guide (Capture Atom ships from companion hub). */
   private onInstallCompanion(): void {
-    const ok = openCompanionDocs("ios");
+    const ok = openCompanionDocs();
     if (!ok) {
       new Notice("Could not open the Atoms Capture guide.");
       return;
     }
-    writeShortcutAck(
-      (k, v) => this.app.saveLocalStorage(k, v),
-      CAPTURE_SHORTCUT_VERSION,
-    );
-    this.shortcutAcked = CAPTURE_SHORTCUT_VERSION;
+    const ver = companionGuideVersion();
+    writeCompanionGuideAck((k, v) => this.app.saveLocalStorage(k, v), ver);
+    this.companionGuideAcked = ver;
     new Notice(
       "Opened Atoms Capture guide — install the companion for quick capture",
     );

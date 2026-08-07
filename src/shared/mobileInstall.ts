@@ -113,19 +113,42 @@ export const APPEND_SHORTCUT_ALL_URLS = MOBILE_INSTALL.atomsCaptureAppend.urls;
 
 export const IOS_COMPANION_DOCS_URL = MOBILE_INSTALL.iosCompanion.docsUrl;
 export const ANDROID_COMPANION_DOCS_URL = MOBILE_INSTALL.androidCompanion.docsUrl;
+export const IOS_COMPANION_VERSION = MOBILE_INSTALL.iosCompanion.version;
+export const ANDROID_COMPANION_VERSION = MOBILE_INSTALL.androidCompanion.version;
 
-/** Open companion setup docs (iOS + Android links in notice path). */
-export function openCompanionDocs(platform: "ios" | "android" | "both" = "both"): boolean {
+/** Device-local ack for opening the companion guide (not the Capture Atom shortcut). */
+export const LS_COMPANION_GUIDE_ACK = "atoms-companion-guide-acked-version";
+
+export type CompanionPlatform = "ios" | "android" | "both";
+
+/** Prefer mobile UA when available; desktop → both docs. */
+export function detectCompanionPlatform(): CompanionPlatform {
+  const ua =
+    typeof navigator !== "undefined" && typeof navigator.userAgent === "string"
+      ? navigator.userAgent
+      : "";
+  if (/Android/i.test(ua)) return "android";
+  if (/iPhone|iPad|iPod/i.test(ua)) return "ios";
+  return "both";
+}
+
+/** Open companion setup docs. */
+export function openCompanionDocs(
+  platform: CompanionPlatform = detectCompanionPlatform(),
+): boolean {
   try {
     if (platform === "ios" || platform === "both") {
       window.open(IOS_COMPANION_DOCS_URL, "_blank");
     }
-    if (platform === "android") {
-      window.open(ANDROID_COMPANION_DOCS_URL, "_blank");
-    }
-    if (platform === "both") {
-      // iOS already opened; Android in same gesture is aggressive — prefer iOS docs
-      // which point at the monorepo companion folder. User can find Android from README index.
+    if (platform === "android" || platform === "both") {
+      // Slight delay so two tabs aren't blocked as one gesture on some WebViews.
+      if (platform === "both") {
+        window.setTimeout(() => {
+          window.open(ANDROID_COMPANION_DOCS_URL, "_blank");
+        }, 200);
+      } else {
+        window.open(ANDROID_COMPANION_DOCS_URL, "_blank");
+      }
     }
     return true;
   } catch {
@@ -133,9 +156,42 @@ export function openCompanionDocs(platform: "ios" | "android" | "both" = "both")
   }
 }
 
+export function companionGuideVersion(
+  platform: CompanionPlatform = detectCompanionPlatform(),
+): string {
+  if (platform === "android") return ANDROID_COMPANION_VERSION;
+  // iOS or both: iOS version is the banner key (desktop users get iOS+Android docs).
+  return IOS_COMPANION_VERSION;
+}
+
+export function readCompanionGuideAck(
+  load: (key: string) => unknown,
+): string | null {
+  const v = load(LS_COMPANION_GUIDE_ACK);
+  if (typeof v === "string" && v.trim()) return v.trim();
+  return null;
+}
+
+export function writeCompanionGuideAck(
+  save: (key: string, value: unknown) => void,
+  version: string = companionGuideVersion(),
+): void {
+  save(LS_COMPANION_GUIDE_ACK, version);
+}
+
+export function needsCompanionGuideCta(
+  acked: string | null | undefined,
+  shipped: string = companionGuideVersion(),
+): boolean {
+  if (!shipped) return false;
+  if (acked == null || acked === "") return true;
+  return acked !== shipped;
+}
+
 export function labelGetCompanion(
   acked: string | null | undefined,
+  shipped: string = companionGuideVersion(),
 ): "Get Atoms Capture" | "Companion guide" {
-  if (acked == null || acked === "") return "Get Atoms Capture";
+  if (needsCompanionGuideCta(acked, shipped)) return "Get Atoms Capture";
   return "Companion guide";
 }

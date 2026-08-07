@@ -29,8 +29,11 @@ import {
   readEgressNoticeAcked,
 } from "../platform/resume";
 import {
+  companionGuideVersion,
   labelGetCompanion,
   openCompanionDocs,
+  readCompanionGuideAck,
+  writeCompanionGuideAck,
 } from "../shared/mobileInstall";
 import {
   CAPTURE_SHORTCUT_VERSION,
@@ -1491,7 +1494,8 @@ export class AtomsSettingTab extends PluginSettingTab {
   private renderCaptureSection(containerEl: HTMLElement) {
     settingHeading(containerEl, "Capture");
 
-    const acked = readShortcutAck((k) => loadLocal(this.app, k));
+    const shortcutAcked = readShortcutAck((k) => loadLocal(this.app, k));
+    const companionAcked = readCompanionGuideAck((k) => loadLocal(this.app, k));
     const custom = customCaptureShortcutUrl(
       this.plugin.settings.captureShortcutInstallUrl,
     );
@@ -1500,43 +1504,31 @@ export class AtomsSettingTab extends PluginSettingTab {
     );
     const urlSet = Boolean(installUrl);
 
-    // The section's intro, not a row: it names no preference and offers no control, so it was a
-    // row with an empty right edge. As prose it is exempt from the row grammar.
     containerEl.createEl("p", {
       text: "Write top-level bullets in your daily note: “- thought…”. Today’s note is never auto-processed; use Atoms home → Preview after midnight (or past dailies).",
       cls: "setting-item-description",
     });
 
-    // Optional on purpose: a value here outranks the constant forever, so a
-    // user who fills it in with our own default stops receiving shipped link
-    // updates. Keep the copy pointed at "leave this empty".
-    //
-    // Stays a direct `Setting` rather than a `settingRow`, and is not the ratchet's next
-    // target: R2 bans a row wearing two *grammars* — a toggle and a button, a chevron and a
-    // toggle — and a text field with a small inline reset is not one of those pairs. The reset
-    // only exists to clear the field beside it, so forcing this through the builder would mean
-    // splitting one coherent row in two.
-    // Primary path: companion app (setup + quick capture). Shortcut links stay in
-    // mobile-install.json and ship inside the companion hub — not the main CTA here.
+    // Primary path: companion app. Capture Atom shortcut installs from the companion hub.
     this.actionRow(containerEl, {
       action: "companion:install",
       name: "Atoms Capture companion",
       desc:
-        "Phone app for fast capture. On iOS it walks you through the Capture Atom shortcut (system overlay-style card). On Android it is the overlay + widget. Links stay current via mobile-install.json in the repo.",
-      label: labelGetCompanion(acked),
+        "Phone app for setup + quick capture. On iOS: Capture Atom shortcut (system card). On Android: overlay + widget. Install links: mobile-install.json.",
+      label: labelGetCompanion(companionAcked),
       disabled: false,
       onClick: () => {
-        const ok = openCompanionDocs("ios");
+        const ok = openCompanionDocs();
         if (!ok) {
           new Notice("Could not open the companion guide.");
           return;
         }
-        writeShortcutAck(
+        writeCompanionGuideAck(
           (k, v) => this.app.saveLocalStorage(k, v),
-          CAPTURE_SHORTCUT_VERSION,
+          companionGuideVersion(),
         );
         new Notice(
-          "Opened Atoms Capture guide — install the companion, then the shortcut from its hub",
+          "Opened Atoms Capture guide — install the companion, then Capture Atom from its hub",
         );
         this.redisplay();
       },
@@ -1578,9 +1570,9 @@ export class AtomsSettingTab extends PluginSettingTab {
       action: "shortcut:install",
       name: "Install Capture Atom only",
       desc: urlSet
-        ? `Opens the Capture Atom iCloud link (v${CAPTURE_SHORTCUT_VERSION}) without the companion. Acked: ${acked ?? "never"}.`
+        ? `Opens the Capture Atom iCloud link (v${CAPTURE_SHORTCUT_VERSION}) without the companion. Acked: ${shortcutAcked ?? "never"}.`
         : `No link — check mobile-install.json Capture Atom urls.`,
-      label: labelInstallOrUpdate(acked),
+      label: labelInstallOrUpdate(shortcutAcked),
       disabled: !urlSet,
       onClick: () => {
         if (!urlSet) {

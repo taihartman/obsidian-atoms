@@ -1,17 +1,17 @@
 import Foundation
 
-/// Sync delivery uses one slim iCloud shortcut (append only). Companion owns type/voice.
+/// Sync delivery uses **Capture Atom** (mobile-install.json SSOT).
 public final class DeliverySettings: @unchecked Sendable {
-    /// Must match mobile-install.json → atomsCaptureAppend.name
-    public static let appendShortcutName = "Atoms Capture Append"
+    /// mobile-install.json → captureAtom.name
+    public static let captureAtomName = "Capture Atom"
 
-    /// Must match mobile-install.json → atomsCaptureAppend.urls[0] (SSOT in repo root).
-    public static let appendShortcutICloudURL =
-        "https://www.icloud.com/shortcuts/9f7425ab9eb94884b610667a69a8e38b"
+    /// mobile-install.json → captureAtom.urls[0]
+    public static let captureAtomICloudURL =
+        "https://www.icloud.com/shortcuts/d6ee1009562c4a9a9694f36a5f0c0187"
 
     private let defaults: UserDefaults
     private let modeKey = "delivery_mode"
-    private let shortcutReadyKey = "append_shortcut_ready_ack"
+    private let shortcutReadyKey = "capture_atom_ready_ack"
 
     public init(defaults: UserDefaults? = nil, suiteName: String? = VaultStore.defaultSuiteName) {
         if let defaults {
@@ -34,14 +34,18 @@ public final class DeliverySettings: @unchecked Sendable {
         set { defaults.set(newValue.rawValue, forKey: modeKey) }
     }
 
-    public var shortcutName: String { Self.appendShortcutName }
+    public var shortcutName: String { Self.captureAtomName }
 
     public var hasInstallURL: Bool {
-        Self.appendShortcutICloudURL.hasPrefix("https://www.icloud.com/shortcuts/")
+        Self.captureAtomICloudURL.hasPrefix("https://www.icloud.com/shortcuts/")
     }
 
     public var shortcutReadyAcknowledged: Bool {
         get { defaults.bool(forKey: shortcutReadyKey) }
         set { defaults.set(newValue, forKey: shortcutReadyKey) }
     }
+
+    // Back-compat names used by older call sites
+    public static var appendShortcutName: String { captureAtomName }
+    public static var appendShortcutICloudURL: String { captureAtomICloudURL }
 }

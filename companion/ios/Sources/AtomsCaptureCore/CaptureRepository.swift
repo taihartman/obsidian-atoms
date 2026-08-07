@@ -1,6 +1,6 @@
 import Foundation
 
-/// Single write façade for hub, sheet, intents, and Live Activity actions.
+/// Single write façade for hub, sheet, intents.
 public final class CaptureRepository: @unchecked Sendable {
     public typealias OpenURL = (URL) -> Bool
 
@@ -39,14 +39,19 @@ public final class CaptureRepository: @unchecked Sendable {
         case .files:
             return captureToFiles(body: body, at: date, timeZone: timeZone)
         case .syncShortcut:
-            return captureToAppendShortcut(body: body, at: date, timeZone: timeZone)
+            return openCaptureAtom(body: body)
         case .auto:
             if store.isLinked {
                 let files = captureToFiles(body: body, at: date, timeZone: timeZone)
                 if case .inVault = files { return files }
             }
-            return captureToAppendShortcut(body: body, at: date, timeZone: timeZone)
+            return openCaptureAtom(body: body)
         }
+    }
+
+    /// Open Capture Atom with no body — Type/Voice card (widget / Action Button).
+    public func openCaptureAtomUI() -> DeliveryStatus {
+        openCaptureAtom(body: nil)
     }
 
     private func captureToFiles(
@@ -72,26 +77,14 @@ public final class CaptureRepository: @unchecked Sendable {
         return writer.append(body: body, vaultRoot: url, at: date, timeZone: timeZone)
     }
 
-    private func captureToAppendShortcut(
-        body: String,
-        at date: Date,
-        timeZone: TimeZone
-    ) -> DeliveryStatus {
-        let line: String
-        do {
-            line = try ShortcutHandoff.stampedLine(body: body, at: date, timeZone: timeZone)
-        } catch {
-            return .failed(reason: error.localizedDescription)
+    private func openCaptureAtom(body: String?) -> DeliveryStatus {
+        guard let url = ShortcutHandoff.runURL(body: body) else {
+            return .failed(reason: "Could not build Capture Atom URL.")
         }
-
-        guard let url = ShortcutHandoff.runURL(stampedLine: line) else {
-            return .failed(reason: "Could not build Shortcut URL.")
-        }
-
         let opened = openURL(url)
         if !opened {
             return .failed(
-                reason: "Could not open “\(DeliverySettings.appendShortcutName)”. Install it once from the hub (Install button), then try again."
+                reason: "Could not open Capture Atom. Install it once from the hub, then try again."
             )
         }
         return .handedToShortcut

@@ -7,12 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		006F9C7540A9A13DC29CF6D5 /* CaptureActivityController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8F1D0A68439E7763DBF88BC /* CaptureActivityController.swift */; };
 		04FCFAC08445D1AA7309937D /* AtomsCaptureWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 051789598A2C9BD2B629EFF2 /* AtomsCaptureWidget.swift */; };
 		2BD503CE36E5920315D28B6A /* AtomsCaptureActivity.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = EF6FC9C6792D002BEE6F7004 /* AtomsCaptureActivity.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		321D9BC024CD248EDC55C233 /* AtomsCaptureCore in Frameworks */ = {isa = PBXBuildFile; productRef = 295BB5B4140FDB858C1E5866 /* AtomsCaptureCore */; };
-		440B5839C6A085077B189B98 /* CaptureOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 759DD10216D0B71D43C51D96 /* CaptureOverlay.swift */; };
-		5A728DA12CF7D74C0F68563B /* SpeechSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDECF79E0D9BAE75ECE37A89 /* SpeechSession.swift */; };
 		6269231EDC9AF91F824D9EED /* CaptureLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB94E1570FA9EC3D54E0E010 /* CaptureLiveActivity.swift */; };
 		88C821D5EA5739B05F729B9B /* AtomsCaptureWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = A73E78499D5DE41B2B16DE52 /* AtomsCaptureWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		9C1889AF63AD6BAAE7151BD7 /* HubView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49E5D12AD73F22EA708343EA /* HubView.swift */; };
@@ -21,8 +18,6 @@
 		ADDDBEBEBF9DFA220DCE3FC9 /* AtomsCaptureCore in Frameworks */ = {isa = PBXBuildFile; productRef = 10066B89EBD03A23187F608B /* AtomsCaptureCore */; };
 		B55571B4CA4AD9A460029F7C /* AtomsCaptureCore in Frameworks */ = {isa = PBXBuildFile; productRef = F270F831BCFD29BCC6FDE8D0 /* AtomsCaptureCore */; };
 		BD8CC3B82B09601752B58646 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43C12490306292CA6C1D7E4E /* Theme.swift */; };
-		C46BC133AE2C5052D41EAF05 /* CaptureSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 315C2844B8D6BE022B7FE0BA /* CaptureSheet.swift */; };
-		EAAD8FD878474FEDF31EB259 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63A02896E20B5954E7470C19 /* RootView.swift */; };
 		EB8115B654BDB6EC4786C2E8 /* AtomsCaptureApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F767DA708DCCFC464595193C /* AtomsCaptureApp.swift */; };
 /* End PBXBuildFile section */
 
@@ -62,25 +57,20 @@
 		051789598A2C9BD2B629EFF2 /* AtomsCaptureWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AtomsCaptureWidget.swift; sourceTree = "<group>"; };
 		21A801D7B6042F2881FFD985 /* AtomsCaptureWidget.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = AtomsCaptureWidget.entitlements; sourceTree = "<group>"; };
 		2A86253E92E4051B42AF0FEC /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
-		315C2844B8D6BE022B7FE0BA /* CaptureSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureSheet.swift; sourceTree = "<group>"; };
 		43C12490306292CA6C1D7E4E /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		49E5D12AD73F22EA708343EA /* HubView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HubView.swift; sourceTree = "<group>"; };
 		4AE4703055AFDA35E37CE57C /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		4CD8B474B6474DF26E192978 /* ios */ = {isa = PBXFileReference; lastKnownFileType = folder; name = ios; path = .; sourceTree = SOURCE_ROOT; };
 		5DDF25E838BC75F85B9825B8 /* AtomsCapture.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = AtomsCapture.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		63A02896E20B5954E7470C19 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		69DC7F7637F30A80A216072F /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		6BA1FE5397675A3D8CCECF1A /* CaptureIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureIntent.swift; sourceTree = "<group>"; };
-		759DD10216D0B71D43C51D96 /* CaptureOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureOverlay.swift; sourceTree = "<group>"; };
 		8465DEC52B6E7A88EBC0B50D /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		A73E78499D5DE41B2B16DE52 /* AtomsCaptureWidget.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = AtomsCaptureWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		A73ECD857F7D7BA46DE2FFE2 /* AtomsCaptureActivity.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = AtomsCaptureActivity.entitlements; sourceTree = "<group>"; };
 		C750F24D70C7D5C586F440E8 /* AtomsCapture.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = AtomsCapture.entitlements; sourceTree = "<group>"; };
 		DB94E1570FA9EC3D54E0E010 /* CaptureLiveActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureLiveActivity.swift; sourceTree = "<group>"; };
-		EDECF79E0D9BAE75ECE37A89 /* SpeechSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechSession.swift; sourceTree = "<group>"; };
 		EF6FC9C6792D002BEE6F7004 /* AtomsCaptureActivity.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = AtomsCaptureActivity.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		F767DA708DCCFC464595193C /* AtomsCaptureApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AtomsCaptureApp.swift; sourceTree = "<group>"; };
-		F8F1D0A68439E7763DBF88BC /* CaptureActivityController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureActivityController.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -127,14 +117,9 @@
 				69DC7F7637F30A80A216072F /* Assets.xcassets */,
 				C750F24D70C7D5C586F440E8 /* AtomsCapture.entitlements */,
 				F767DA708DCCFC464595193C /* AtomsCaptureApp.swift */,
-				F8F1D0A68439E7763DBF88BC /* CaptureActivityController.swift */,
 				6BA1FE5397675A3D8CCECF1A /* CaptureIntent.swift */,
-				759DD10216D0B71D43C51D96 /* CaptureOverlay.swift */,
-				315C2844B8D6BE022B7FE0BA /* CaptureSheet.swift */,
 				49E5D12AD73F22EA708343EA /* HubView.swift */,
 				2A86253E92E4051B42AF0FEC /* Info.plist */,
-				63A02896E20B5954E7470C19 /* RootView.swift */,
-				EDECF79E0D9BAE75ECE37A89 /* SpeechSession.swift */,
 				43C12490306292CA6C1D7E4E /* Theme.swift */,
 			);
 			path = AtomsCapture;
@@ -323,13 +308,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				EB8115B654BDB6EC4786C2E8 /* AtomsCaptureApp.swift in Sources */,
-				006F9C7540A9A13DC29CF6D5 /* CaptureActivityController.swift in Sources */,
 				A9B8EBF418576132EBC5BAD7 /* CaptureIntent.swift in Sources */,
-				440B5839C6A085077B189B98 /* CaptureOverlay.swift in Sources */,
-				C46BC133AE2C5052D41EAF05 /* CaptureSheet.swift in Sources */,
 				9C1889AF63AD6BAAE7151BD7 /* HubView.swift in Sources */,
-				EAAD8FD878474FEDF31EB259 /* RootView.swift in Sources */,
-				5A728DA12CF7D74C0F68563B /* SpeechSession.swift in Sources */,
 				BD8CC3B82B09601752B58646 /* Theme.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

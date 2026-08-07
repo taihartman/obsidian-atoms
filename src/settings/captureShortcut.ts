@@ -5,6 +5,7 @@
  */
 
 import {
+  APPEND_SHORTCUT_ALL_URLS,
   CAPTURE_ATOM_ALL_URLS,
   CAPTURE_ATOM_INSTALL_URL,
   CAPTURE_ATOM_VERSION,
@@ -13,7 +14,11 @@ import {
 /** @deprecated Prefer CAPTURE_ATOM_VERSION — kept for existing imports. */
 export const CAPTURE_SHORTCUT_VERSION = CAPTURE_ATOM_VERSION;
 
-const BUILTIN_INSTALL_URLS: readonly [string, ...string[]] = CAPTURE_ATOM_ALL_URLS;
+/** Capture Atom + Append history — pasting either must not pin as “custom”. */
+const BUILTIN_INSTALL_URLS: readonly [string, ...string[]] = [
+  ...CAPTURE_ATOM_ALL_URLS,
+  ...APPEND_SHORTCUT_ALL_URLS,
+];
 
 /** @deprecated Prefer CAPTURE_ATOM_INSTALL_URL */
 export const CAPTURE_SHORTCUT_INSTALL_URL: string = CAPTURE_ATOM_INSTALL_URL;

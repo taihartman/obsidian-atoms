@@ -1,5 +1,5 @@
 {
-  "$comment": "SSOT for companion + shortcut install links. Plugin: src/shared/mobileInstall.ts. iOS companion: DeliverySettings mirrors atomsCaptureAppend.urls[0] + name. Prepend new URLs; never delete old shortcut ids. When you ship a new iCloud link, prepend it here and bump version — companion constant must match head URL.",
+  "$comment": "SSOT for companion + shortcut install links. Plugin: src/shared/mobileInstall.ts. iOS companion DeliverySettings mirrors captureAtom.name + urls[0]. Prepend new URLs; never delete old shortcut ids.",
   "captureAtom": {
     "name": "Capture Atom",
     "version": "2.2.0",

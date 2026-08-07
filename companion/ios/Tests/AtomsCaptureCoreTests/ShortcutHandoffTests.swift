@@ -2,18 +2,25 @@ import XCTest
 @testable import AtomsCaptureCore
 
 final class ShortcutHandoffTests: XCTestCase {
-    func testRunURLSendsStampedLineToAppendShortcut() throws {
-        let line = "- 2026-07-28T17:23:34-04:00 hello"
-        let url = try XCTUnwrap(ShortcutHandoff.runURL(stampedLine: line))
+    func testRunURLTargetsCaptureAtom() throws {
+        let url = try XCTUnwrap(ShortcutHandoff.runURL(body: "hello"))
         XCTAssertEqual(url.scheme, "shortcuts")
         let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
         let dict = Dictionary(uniqueKeysWithValues: items.map { ($0.name, $0.value ?? "") })
-        XCTAssertEqual(dict["name"], "Atoms Capture Append")
+        XCTAssertEqual(dict["name"], "Capture Atom")
         XCTAssertEqual(dict["input"], "text")
-        XCTAssertEqual(dict["text"], line)
+        XCTAssertEqual(dict["text"], "hello")
     }
 
-    func testRepositoryHandsStampedBody() throws {
+    func testRunURLWithoutBody() throws {
+        let url = try XCTUnwrap(ShortcutHandoff.runURL(body: nil))
+        let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
+        XCTAssertEqual(items.count, 1)
+        XCTAssertEqual(items[0].name, "name")
+        XCTAssertEqual(items[0].value, "Capture Atom")
+    }
+
+    func testRepositoryOpensCaptureAtom() {
         let settings = DeliverySettings(defaults: UserDefaults(suiteName: "test.s.\(UUID().uuidString)")!)
         settings.mode = .syncShortcut
         var opened: URL?
@@ -26,20 +33,18 @@ final class ShortcutHandoffTests: XCTestCase {
         guard case .handedToShortcut = status else {
             return XCTFail("\(status)")
         }
-        let text = URLComponents(url: opened!, resolvingAgainstBaseURL: false)?
-            .queryItems?.first(where: { $0.name == "text" })?.value
-        XCTAssertTrue(text?.hasPrefix("- ") == true)
-        XCTAssertTrue(text?.contains("hi there") == true)
         let name = URLComponents(url: opened!, resolvingAgainstBaseURL: false)?
             .queryItems?.first(where: { $0.name == "name" })?.value
-        XCTAssertEqual(name, "Atoms Capture Append")
+        XCTAssertEqual(name, "Capture Atom")
+        let text = URLComponents(url: opened!, resolvingAgainstBaseURL: false)?
+            .queryItems?.first(where: { $0.name == "text" })?.value
+        XCTAssertEqual(text, "hi there")
     }
 
-    func testShortcutNameConstant() {
-        XCTAssertEqual(DeliverySettings.appendShortcutName, "Atoms Capture Append")
-    }
-
-    func testInstallURLIsSet() {
-        XCTAssertTrue(DeliverySettings.appendShortcutICloudURL.contains("9f7425ab9eb94884b610667a69a8e38b"))
+    func testInstallURLIsCaptureAtomV22() {
+        XCTAssertEqual(DeliverySettings.captureAtomName, "Capture Atom")
+        XCTAssertTrue(
+            DeliverySettings.captureAtomICloudURL.contains("d6ee1009562c4a9a9694f36a5f0c0187")
+        )
     }
 }

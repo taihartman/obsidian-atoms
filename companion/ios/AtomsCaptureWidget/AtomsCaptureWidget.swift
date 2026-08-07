@@ -48,7 +48,7 @@ struct AtomsCaptureWidgetEntryView: View {
             Text("Capture")
                 .font(.headline)
                 .foregroundStyle(label)
-            Text(entry.vaultName ?? "Atoms Inbox")
+            Text(entry.vaultName ?? "Capture Atom")
                 .font(.caption2)
                 .foregroundStyle(secondary)
                 .lineLimit(1)
@@ -58,7 +58,8 @@ struct AtomsCaptureWidgetEntryView: View {
         .containerBackground(for: .widget) {
             card
         }
-        .widgetURL(URL(string: "atomscapture://capture"))
+        // SSOT name via ShortcutHandoff (DeliverySettings.captureAtomName)
+        .widgetURL(ShortcutHandoff.runURL(body: nil))
     }
 }
 
@@ -71,7 +72,7 @@ struct AtomsCaptureWidget: Widget {
             AtomsCaptureWidgetEntryView(entry: entry)
         }
         .configurationDisplayName("Atoms Capture")
-        .description("One tap to capture a thought into your vault inbox.")
+        .description("Opens Capture Atom — type or speak into your vault inbox.")
         .supportedFamilies([.systemSmall, .systemMedium])
     }
 }
