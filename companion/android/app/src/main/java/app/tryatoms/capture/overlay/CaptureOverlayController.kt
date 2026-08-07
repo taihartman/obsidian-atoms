@@ -33,7 +33,7 @@ import app.tryatoms.capture.data.CaptureRepository
 import app.tryatoms.capture.data.InboxWriter
 import app.tryatoms.capture.ui.QuickCaptureScreen
 import app.tryatoms.capture.ui.theme.AtomsTheme
-import app.tryatoms.capture.widget.CaptureWidget
+import app.tryatoms.capture.widget.CaptureHomeWidget
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -268,7 +268,7 @@ object CaptureOverlayController {
                 is InboxWriter.WriteResult.Ok -> {
                     repo.markCaptureDone("Saved · ${result.stamp} · ${result.preview}")
                     withContext(Dispatchers.IO) {
-                        CaptureWidget.updateAll(app)
+                        CaptureHomeWidget.updateAll(app)
                     }
                     Toast.makeText(app, "Saved", Toast.LENGTH_SHORT).show()
                     hide(app)

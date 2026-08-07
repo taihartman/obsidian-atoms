@@ -30,7 +30,7 @@ import app.tryatoms.capture.data.InboxWriter
 import app.tryatoms.capture.overlay.CaptureOverlayController
 import app.tryatoms.capture.ui.QuickCaptureScreen
 import app.tryatoms.capture.ui.theme.AtomsTheme
-import app.tryatoms.capture.widget.CaptureWidget
+import app.tryatoms.capture.widget.CaptureHomeWidget
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -144,7 +144,7 @@ class QuickCaptureActivity : ComponentActivity() {
                                             "Saved · ${result.stamp} · ${result.preview}",
                                         )
                                         withContext(Dispatchers.IO) {
-                                            CaptureWidget.updateAll(this@QuickCaptureActivity)
+                                            CaptureHomeWidget.updateAll(this@QuickCaptureActivity)
                                         }
                                         Toast
                                             .makeText(

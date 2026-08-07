@@ -29,20 +29,14 @@ import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
 import app.tryatoms.capture.QuickCaptureActivity
 
-/**
- * Home chip v2 (new provider class so launchers drop the broken v1 cache).
- * One line: Capture +
- * Tap → QuickCaptureActivity only.
- */
+/** Home chip: “Capture” + “+”. Tap opens QuickCapture only. */
 class CaptureHomeWidget : GlanceAppWidget() {
     override suspend fun provideGlance(
         context: Context,
         id: GlanceId,
     ) {
         provideContent {
-            GlanceTheme {
-                Content()
-            }
+            GlanceTheme { Content() }
         }
     }
 
@@ -52,6 +46,11 @@ class CaptureHomeWidget : GlanceAppWidget() {
             val widget = CaptureHomeWidget()
             manager.getGlanceIds(CaptureHomeWidget::class.java).forEach { id ->
                 widget.update(context, id)
+            }
+            // Refresh any leftover legacy pins
+            val legacy = CaptureWidget()
+            manager.getGlanceIds(CaptureWidget::class.java).forEach { id ->
+                legacy.update(context, id)
             }
         }
     }
@@ -105,8 +104,7 @@ class CaptureHomeWidgetReceiver : GlanceAppWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = CaptureHomeWidget()
 }
 
-/** @deprecated kept so old pins don't crash; remove after users re-pin */
-@Deprecated("Use CaptureHomeWidget")
+/** Legacy provider — same UI; remove home pin labeled “old”. */
 class CaptureWidget : GlanceAppWidget() {
     override suspend fun provideGlance(
         context: Context,
@@ -114,21 +112,8 @@ class CaptureWidget : GlanceAppWidget() {
     ) {
         CaptureHomeWidget().provideGlance(context, id)
     }
-
-    companion object {
-        suspend fun updateAll(context: Context) {
-            CaptureHomeWidget.updateAll(context)
-            // also refresh any leftover v1 ids
-            val manager = GlanceAppWidgetManager(context)
-            val legacy = CaptureWidget()
-            manager.getGlanceIds(CaptureWidget::class.java).forEach { id ->
-                legacy.update(context, id)
-            }
-        }
-    }
 }
 
-@Deprecated("Use CaptureHomeWidgetReceiver")
 class CaptureWidgetReceiver : GlanceAppWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = CaptureWidget()
 }

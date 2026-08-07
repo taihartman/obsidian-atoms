@@ -16,7 +16,7 @@ import app.tryatoms.capture.data.VaultLocator
 import app.tryatoms.capture.data.VaultStore
 import app.tryatoms.capture.domain.DiscoveredVault
 import app.tryatoms.capture.domain.VaultRef
-import app.tryatoms.capture.widget.CaptureWidget
+import app.tryatoms.capture.widget.CaptureHomeWidget
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -149,7 +149,7 @@ class CaptureViewModel(
     fun selectDiscoveredVault(vault: DiscoveredVault) {
         store.setFileVault(vault.absolutePath, vault.name)
         viewModelScope.launch {
-            withContext(Dispatchers.IO) { CaptureWidget.updateAll(getApplication()) }
+            withContext(Dispatchers.IO) { CaptureHomeWidget.updateAll(getApplication()) }
         }
         banner.value =
             "Using ${vault.name}. Long-press home → Widgets → Atoms Capture for one-tap capture." to false
@@ -234,7 +234,7 @@ class CaptureViewModel(
                     draft.value = ""
                     repo.markCaptureDone("Saved · ${result.stamp} · ${result.preview}")
                     withContext(Dispatchers.IO) {
-                        CaptureWidget.updateAll(getApplication())
+                        CaptureHomeWidget.updateAll(getApplication())
                     }
                     banner.value =
                         "Saved. Add the home-screen Capture widget for one-tap next time." to false
