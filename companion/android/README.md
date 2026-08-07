@@ -30,14 +30,18 @@ adb shell am start -n app.tryatoms.capture/.MainActivity
 
 ## Dogfood
 
-1. On the phone, create or pick a **throwaway vault folder** (not personal Remote Vault for agent tests).
-2. Open **Atoms Capture** → **Link vault folder** → select that folder.
-3. Type a capture → **Capture**.
-4. Confirm `Atoms System/Inbox.md` contains:
+1. Prefer a **throwaway vault** for agent tests (not personal Remote Vault).
+2. Open **Atoms Capture**. The app scans for folders with `.obsidian` (Documents / Downloads / storage).
+3. If it finds one: tap **Use {name}** → system picker opens on that folder → **Use this folder** once.
+4. If none: **Browse for vault** opens the picker starting in Documents.
+5. Type a capture → **Capture**.
+6. Confirm `Atoms System/Inbox.md` contains:
    ```text
    - 2026-…T…:…:…±HH:MM your text
    ```
-5. Open the same folder as a vault in Obsidian with Atoms installed → drain should file the line into the daily for the stamp’s date.
+7. Open the same folder as a vault in Obsidian with Atoms installed → drain should file the line into the daily for the stamp’s date.
+
+**Note:** Android 13+ may hide shared folders from automatic scan without broader storage access. In that case the picker still starts in Documents — one confirmation, not a scavenger hunt.
 
 ## Checklist (in-app)
 

@@ -15,6 +15,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.outlined.Circle
 import androidx.compose.material.icons.outlined.FolderOpen
+import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -33,6 +34,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import app.tryatoms.capture.domain.DiscoveredVault
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -40,7 +42,9 @@ fun CaptureScreen(
     state: CaptureUiState,
     onDraftChange: (String) -> Unit,
     onCapture: () -> Unit,
+    onUseDiscoveredVault: (DiscoveredVault) -> Unit,
     onPickVault: () -> Unit,
+    onRescan: () -> Unit,
     onUnlinkVault: () -> Unit,
     onDismissBanner: () -> Unit,
 ) {
@@ -90,6 +94,16 @@ fun CaptureScreen(
                 )
             }
 
+            if (!state.vaultLinked) {
+                VaultDiscoveryCard(
+                    vaults = state.discoveredVaults,
+                    scanning = state.scanning,
+                    onUse = onUseDiscoveredVault,
+                    onBrowse = onPickVault,
+                    onRescan = onRescan,
+                )
+            }
+
             OutlinedTextField(
                 value = state.draft,
                 onValueChange = onDraftChange,
@@ -130,7 +144,90 @@ fun CaptureScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
-            Spacer(Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(24.dp))
+        }
+    }
+}
+
+@Composable
+private fun VaultDiscoveryCard(
+    vaults: List<DiscoveredVault>,
+    scanning: Boolean,
+    onUse: (DiscoveredVault) -> Unit,
+    onBrowse: () -> Unit,
+    onRescan: () -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors =
+            CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.55f),
+            ),
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    if (scanning) {
+                        "Looking for vaults…"
+                    } else if (vaults.isEmpty()) {
+                        "No vault found automatically"
+                    } else if (vaults.size == 1) {
+                        "Found your vault"
+                    } else {
+                        "Found ${vaults.size} vaults"
+                    },
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                TextButton(onClick = onRescan, enabled = !scanning) {
+                    Icon(
+                        Icons.Outlined.Refresh,
+                        contentDescription = "Scan again",
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
+            }
+
+            if (vaults.isEmpty() && !scanning) {
+                Text(
+                    "We’ll open the folder picker in Documents. " +
+                        "Select the folder that contains your notes (it has a hidden .obsidian folder).",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                )
+                Button(onClick = onBrowse, modifier = Modifier.fillMaxWidth()) {
+                    Text("Browse for vault")
+                }
+            } else {
+                vaults.take(5).forEach { vault ->
+                    val hint =
+                        when {
+                            vault.score >= 11 -> "Atoms ready"
+                            else -> "Obsidian vault"
+                        }
+                    Button(
+                        onClick = { onUse(vault) },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text("Use ${vault.name}")
+                    }
+                    Text(
+                        "$hint · then tap “Use this folder”",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                    )
+                }
+                TextButton(onClick = onBrowse) {
+                    Text("Choose a different folder")
+                }
+            }
         }
     }
 }
@@ -159,7 +256,7 @@ private fun SetupChecklist(
             ChecklistRow(
                 done = vaultLinked,
                 label = "Link your Obsidian vault",
-                detail = "Pick the folder that contains your notes",
+                detail = "We’ll suggest vaults we find on this phone",
             )
             ChecklistRow(
                 done = firstCaptureDone,
@@ -274,7 +371,7 @@ private fun VaultRow(
                 modifier = Modifier.size(18.dp),
             )
             Spacer(modifier = Modifier.size(8.dp))
-            Text(if (linked) "Change vault folder" else "Link vault folder")
+            Text(if (linked) "Change vault folder" else "Browse for vault")
         }
         if (linked) {
             TextButton(onClick = onUnlink) {

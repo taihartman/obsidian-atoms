@@ -6,14 +6,16 @@ import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import app.tryatoms.capture.data.InboxWriter
+import app.tryatoms.capture.data.VaultLocator
 import app.tryatoms.capture.data.VaultStore
+import app.tryatoms.capture.domain.DiscoveredVault
+import app.tryatoms.capture.domain.VaultPaths
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -25,6 +27,8 @@ data class CaptureUiState(
     val busy: Boolean = false,
     val banner: String? = null,
     val bannerIsError: Boolean = false,
+    val discoveredVaults: List<DiscoveredVault> = emptyList(),
+    val scanning: Boolean = false,
 ) {
     val vaultLinked: Boolean get() = treeUri != null
 }
@@ -34,27 +38,49 @@ class CaptureViewModel(
 ) : AndroidViewModel(app) {
     private val store = VaultStore(app)
     private val writer = InboxWriter(app)
+    private val locator = VaultLocator(app)
 
     private val draft = MutableStateFlow("")
     private val busy = MutableStateFlow(false)
     private val banner = MutableStateFlow<Pair<String, Boolean>?>(null)
+    private val discovered = MutableStateFlow<List<DiscoveredVault>>(emptyList())
+    private val scanning = MutableStateFlow(false)
+
+    private data class Transient(
+        val draft: String,
+        val busy: Boolean,
+        val banner: Pair<String, Boolean>?,
+        val discovered: List<DiscoveredVault>,
+        val scanning: Boolean,
+    )
+
+    private val transient =
+        combine(draft, busy, banner, discovered, scanning) { d, b, ban, found, scan ->
+            Transient(d, b, ban, found, scan)
+        }
 
     val uiState: StateFlow<CaptureUiState> =
-        combine(store.state, draft, busy, banner) { vault, text, isBusy, ban ->
+        combine(store.state, transient) { vault, t ->
             CaptureUiState(
-                draft = text,
+                draft = t.draft,
                 treeUri = vault.treeUri,
                 firstCaptureDone = vault.firstCaptureDone,
                 lastStatus = vault.lastStatus,
-                busy = isBusy,
-                banner = ban?.first,
-                bannerIsError = ban?.second == true,
+                busy = t.busy,
+                banner = t.banner?.first,
+                bannerIsError = t.banner?.second == true,
+                discoveredVaults = t.discovered,
+                scanning = t.scanning,
             )
         }.stateIn(
             viewModelScope,
             SharingStarted.WhileSubscribed(5_000),
             CaptureUiState(),
         )
+
+    init {
+        refreshDiscoveredVaults()
+    }
 
     fun onDraftChange(value: String) {
         draft.value = value
@@ -63,6 +89,24 @@ class CaptureViewModel(
     fun clearBanner() {
         banner.value = null
     }
+
+    fun refreshDiscoveredVaults() {
+        viewModelScope.launch {
+            scanning.value = true
+            val found =
+                withContext(Dispatchers.IO) {
+                    locator.discover()
+                }
+            discovered.value = found
+            scanning.value = false
+        }
+    }
+
+    /** Initial URI for the system folder picker (vault path or Documents). */
+    fun pickerInitialUri(preferred: DiscoveredVault? = null): Uri =
+        preferred?.treeUri
+            ?: discovered.value.firstOrNull()?.treeUri
+            ?: VaultPaths.documentsTreeUri()
 
     fun onVaultPicked(uri: Uri) {
         viewModelScope.launch {

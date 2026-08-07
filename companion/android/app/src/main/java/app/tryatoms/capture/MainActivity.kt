@@ -42,9 +42,13 @@ class MainActivity : ComponentActivity() {
                         state = state,
                         onDraftChange = viewModel::onDraftChange,
                         onCapture = viewModel::capture,
-                        onPickVault = {
-                            openTree.launch(null)
+                        onUseDiscoveredVault = { vault ->
+                            openTree.launch(vault.treeUri ?: viewModel.pickerInitialUri(vault))
                         },
+                        onPickVault = {
+                            openTree.launch(viewModel.pickerInitialUri())
+                        },
+                        onRescan = viewModel::refreshDiscoveredVaults,
                         onUnlinkVault = viewModel::unlinkVault,
                         onDismissBanner = viewModel::clearBanner,
                     )
