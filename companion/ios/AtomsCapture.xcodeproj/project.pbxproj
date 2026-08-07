@@ -1,0 +1,658 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		006F9C7540A9A13DC29CF6D5 /* CaptureActivityController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8F1D0A68439E7763DBF88BC /* CaptureActivityController.swift */; };
+		04FCFAC08445D1AA7309937D /* AtomsCaptureWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 051789598A2C9BD2B629EFF2 /* AtomsCaptureWidget.swift */; };
+		2BD503CE36E5920315D28B6A /* AtomsCaptureActivity.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = EF6FC9C6792D002BEE6F7004 /* AtomsCaptureActivity.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		321D9BC024CD248EDC55C233 /* AtomsCaptureCore in Frameworks */ = {isa = PBXBuildFile; productRef = 295BB5B4140FDB858C1E5866 /* AtomsCaptureCore */; };
+		5A728DA12CF7D74C0F68563B /* SpeechSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDECF79E0D9BAE75ECE37A89 /* SpeechSession.swift */; };
+		6269231EDC9AF91F824D9EED /* CaptureLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB94E1570FA9EC3D54E0E010 /* CaptureLiveActivity.swift */; };
+		88C821D5EA5739B05F729B9B /* AtomsCaptureWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = A73E78499D5DE41B2B16DE52 /* AtomsCaptureWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		9C1889AF63AD6BAAE7151BD7 /* HubView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49E5D12AD73F22EA708343EA /* HubView.swift */; };
+		A43EE6E12F78149930FFAC87 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 69DC7F7637F30A80A216072F /* Assets.xcassets */; };
+		A9B8EBF418576132EBC5BAD7 /* CaptureIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6BA1FE5397675A3D8CCECF1A /* CaptureIntent.swift */; };
+		ADDDBEBEBF9DFA220DCE3FC9 /* AtomsCaptureCore in Frameworks */ = {isa = PBXBuildFile; productRef = 10066B89EBD03A23187F608B /* AtomsCaptureCore */; };
+		B55571B4CA4AD9A460029F7C /* AtomsCaptureCore in Frameworks */ = {isa = PBXBuildFile; productRef = F270F831BCFD29BCC6FDE8D0 /* AtomsCaptureCore */; };
+		BD8CC3B82B09601752B58646 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43C12490306292CA6C1D7E4E /* Theme.swift */; };
+		C46BC133AE2C5052D41EAF05 /* CaptureSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 315C2844B8D6BE022B7FE0BA /* CaptureSheet.swift */; };
+		EAAD8FD878474FEDF31EB259 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63A02896E20B5954E7470C19 /* RootView.swift */; };
+		EB8115B654BDB6EC4786C2E8 /* AtomsCaptureApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F767DA708DCCFC464595193C /* AtomsCaptureApp.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		A3233114F02CB1EDB9A702D9 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 14D1D2330D8F0F07F88C6B76 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 56677992A89FFB235A47115B;
+			remoteInfo = AtomsCaptureActivity;
+		};
+		F8E118FF800E5F29FEB2EAAD /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 14D1D2330D8F0F07F88C6B76 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 0FF69AC0CFFAD8D618C84CF3;
+			remoteInfo = AtomsCaptureWidget;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		1594E6E55565F50A491BEBF4 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				88C821D5EA5739B05F729B9B /* AtomsCaptureWidget.appex in Embed Foundation Extensions */,
+				2BD503CE36E5920315D28B6A /* AtomsCaptureActivity.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		051789598A2C9BD2B629EFF2 /* AtomsCaptureWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AtomsCaptureWidget.swift; sourceTree = "<group>"; };
+		21A801D7B6042F2881FFD985 /* AtomsCaptureWidget.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = AtomsCaptureWidget.entitlements; sourceTree = "<group>"; };
+		2A86253E92E4051B42AF0FEC /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		315C2844B8D6BE022B7FE0BA /* CaptureSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureSheet.swift; sourceTree = "<group>"; };
+		43C12490306292CA6C1D7E4E /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
+		49E5D12AD73F22EA708343EA /* HubView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HubView.swift; sourceTree = "<group>"; };
+		4AE4703055AFDA35E37CE57C /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		4CD8B474B6474DF26E192978 /* ios */ = {isa = PBXFileReference; lastKnownFileType = folder; name = ios; path = .; sourceTree = SOURCE_ROOT; };
+		5DDF25E838BC75F85B9825B8 /* AtomsCapture.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = AtomsCapture.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		63A02896E20B5954E7470C19 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		69DC7F7637F30A80A216072F /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		6BA1FE5397675A3D8CCECF1A /* CaptureIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureIntent.swift; sourceTree = "<group>"; };
+		8465DEC52B6E7A88EBC0B50D /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		A73E78499D5DE41B2B16DE52 /* AtomsCaptureWidget.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = AtomsCaptureWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		A73ECD857F7D7BA46DE2FFE2 /* AtomsCaptureActivity.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = AtomsCaptureActivity.entitlements; sourceTree = "<group>"; };
+		C750F24D70C7D5C586F440E8 /* AtomsCapture.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = AtomsCapture.entitlements; sourceTree = "<group>"; };
+		DB94E1570FA9EC3D54E0E010 /* CaptureLiveActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureLiveActivity.swift; sourceTree = "<group>"; };
+		EDECF79E0D9BAE75ECE37A89 /* SpeechSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechSession.swift; sourceTree = "<group>"; };
+		EF6FC9C6792D002BEE6F7004 /* AtomsCaptureActivity.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = AtomsCaptureActivity.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		F767DA708DCCFC464595193C /* AtomsCaptureApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AtomsCaptureApp.swift; sourceTree = "<group>"; };
+		F8F1D0A68439E7763DBF88BC /* CaptureActivityController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureActivityController.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		5E1B5A2645E099EA19C47930 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				ADDDBEBEBF9DFA220DCE3FC9 /* AtomsCaptureCore in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		CA103F9950B8E6EDF42C8ADF /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B55571B4CA4AD9A460029F7C /* AtomsCaptureCore in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		FDC166C13F7476ED2A52DE4D /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				321D9BC024CD248EDC55C233 /* AtomsCaptureCore in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		4691F9743767954FC31D2F00 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				5DDF25E838BC75F85B9825B8 /* AtomsCapture.app */,
+				EF6FC9C6792D002BEE6F7004 /* AtomsCaptureActivity.appex */,
+				A73E78499D5DE41B2B16DE52 /* AtomsCaptureWidget.appex */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		7DB457A661D131A620CAC197 /* AtomsCapture */ = {
+			isa = PBXGroup;
+			children = (
+				69DC7F7637F30A80A216072F /* Assets.xcassets */,
+				C750F24D70C7D5C586F440E8 /* AtomsCapture.entitlements */,
+				F767DA708DCCFC464595193C /* AtomsCaptureApp.swift */,
+				F8F1D0A68439E7763DBF88BC /* CaptureActivityController.swift */,
+				6BA1FE5397675A3D8CCECF1A /* CaptureIntent.swift */,
+				315C2844B8D6BE022B7FE0BA /* CaptureSheet.swift */,
+				49E5D12AD73F22EA708343EA /* HubView.swift */,
+				2A86253E92E4051B42AF0FEC /* Info.plist */,
+				63A02896E20B5954E7470C19 /* RootView.swift */,
+				EDECF79E0D9BAE75ECE37A89 /* SpeechSession.swift */,
+				43C12490306292CA6C1D7E4E /* Theme.swift */,
+			);
+			path = AtomsCapture;
+			sourceTree = "<group>";
+		};
+		7F380314627809422A6BBA04 /* AtomsCaptureWidget */ = {
+			isa = PBXGroup;
+			children = (
+				21A801D7B6042F2881FFD985 /* AtomsCaptureWidget.entitlements */,
+				051789598A2C9BD2B629EFF2 /* AtomsCaptureWidget.swift */,
+				8465DEC52B6E7A88EBC0B50D /* Info.plist */,
+			);
+			path = AtomsCaptureWidget;
+			sourceTree = "<group>";
+		};
+		A75040CBA6A969AB7D025857 = {
+			isa = PBXGroup;
+			children = (
+				7DB457A661D131A620CAC197 /* AtomsCapture */,
+				E56E34016239A1E33C55463C /* AtomsCaptureActivity */,
+				7F380314627809422A6BBA04 /* AtomsCaptureWidget */,
+				DB942A1EBCC5464FE3D292E7 /* Packages */,
+				4691F9743767954FC31D2F00 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		DB942A1EBCC5464FE3D292E7 /* Packages */ = {
+			isa = PBXGroup;
+			children = (
+				4CD8B474B6474DF26E192978 /* ios */,
+			);
+			name = Packages;
+			sourceTree = "<group>";
+		};
+		E56E34016239A1E33C55463C /* AtomsCaptureActivity */ = {
+			isa = PBXGroup;
+			children = (
+				A73ECD857F7D7BA46DE2FFE2 /* AtomsCaptureActivity.entitlements */,
+				DB94E1570FA9EC3D54E0E010 /* CaptureLiveActivity.swift */,
+				4AE4703055AFDA35E37CE57C /* Info.plist */,
+			);
+			path = AtomsCaptureActivity;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		0B9A61F8F18A58E8FE26895F /* AtomsCapture */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 14137DBAB39D9761C4B392DC /* Build configuration list for PBXNativeTarget "AtomsCapture" */;
+			buildPhases = (
+				EB11087503EB4E4E1A6DC214 /* Sources */,
+				09CA9CD8539660E76E3B19E3 /* Resources */,
+				5E1B5A2645E099EA19C47930 /* Frameworks */,
+				1594E6E55565F50A491BEBF4 /* Embed Foundation Extensions */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				97BB9E2C570578724600119C /* PBXTargetDependency */,
+				99FCDC2C4F66C93F0B845E9D /* PBXTargetDependency */,
+			);
+			name = AtomsCapture;
+			packageProductDependencies = (
+				10066B89EBD03A23187F608B /* AtomsCaptureCore */,
+			);
+			productName = AtomsCapture;
+			productReference = 5DDF25E838BC75F85B9825B8 /* AtomsCapture.app */;
+			productType = "com.apple.product-type.application";
+		};
+		0FF69AC0CFFAD8D618C84CF3 /* AtomsCaptureWidget */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 03F9CBF9141619DAFE4F5F34 /* Build configuration list for PBXNativeTarget "AtomsCaptureWidget" */;
+			buildPhases = (
+				4A7D193C3F674928BEBF03E8 /* Sources */,
+				CA103F9950B8E6EDF42C8ADF /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = AtomsCaptureWidget;
+			packageProductDependencies = (
+				F270F831BCFD29BCC6FDE8D0 /* AtomsCaptureCore */,
+			);
+			productName = AtomsCaptureWidget;
+			productReference = A73E78499D5DE41B2B16DE52 /* AtomsCaptureWidget.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+		56677992A89FFB235A47115B /* AtomsCaptureActivity */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 4E0E2BC2AE062149ED5DBEF3 /* Build configuration list for PBXNativeTarget "AtomsCaptureActivity" */;
+			buildPhases = (
+				65081314157F6895FC46DC56 /* Sources */,
+				FDC166C13F7476ED2A52DE4D /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = AtomsCaptureActivity;
+			packageProductDependencies = (
+				295BB5B4140FDB858C1E5866 /* AtomsCaptureCore */,
+			);
+			productName = AtomsCaptureActivity;
+			productReference = EF6FC9C6792D002BEE6F7004 /* AtomsCaptureActivity.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		14D1D2330D8F0F07F88C6B76 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					0B9A61F8F18A58E8FE26895F = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Automatic;
+					};
+					0FF69AC0CFFAD8D618C84CF3 = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Automatic;
+					};
+					56677992A89FFB235A47115B = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = D6F170848B47E4C362403C5A /* Build configuration list for PBXProject "AtomsCapture" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = A75040CBA6A969AB7D025857;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				2025108E1BC26BB44E83D095 /* XCLocalSwiftPackageReference "." */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 4691F9743767954FC31D2F00 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				0B9A61F8F18A58E8FE26895F /* AtomsCapture */,
+				0FF69AC0CFFAD8D618C84CF3 /* AtomsCaptureWidget */,
+				56677992A89FFB235A47115B /* AtomsCaptureActivity */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		09CA9CD8539660E76E3B19E3 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A43EE6E12F78149930FFAC87 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		4A7D193C3F674928BEBF03E8 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				04FCFAC08445D1AA7309937D /* AtomsCaptureWidget.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		65081314157F6895FC46DC56 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				6269231EDC9AF91F824D9EED /* CaptureLiveActivity.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		EB11087503EB4E4E1A6DC214 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				EB8115B654BDB6EC4786C2E8 /* AtomsCaptureApp.swift in Sources */,
+				006F9C7540A9A13DC29CF6D5 /* CaptureActivityController.swift in Sources */,
+				A9B8EBF418576132EBC5BAD7 /* CaptureIntent.swift in Sources */,
+				C46BC133AE2C5052D41EAF05 /* CaptureSheet.swift in Sources */,
+				9C1889AF63AD6BAAE7151BD7 /* HubView.swift in Sources */,
+				EAAD8FD878474FEDF31EB259 /* RootView.swift in Sources */,
+				5A728DA12CF7D74C0F68563B /* SpeechSession.swift in Sources */,
+				BD8CC3B82B09601752B58646 /* Theme.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		97BB9E2C570578724600119C /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 0FF69AC0CFFAD8D618C84CF3 /* AtomsCaptureWidget */;
+			targetProxy = F8E118FF800E5F29FEB2EAAD /* PBXContainerItemProxy */;
+		};
+		99FCDC2C4F66C93F0B845E9D /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 56677992A89FFB235A47115B /* AtomsCaptureActivity */;
+			targetProxy = A3233114F02CB1EDB9A702D9 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		10B350747A4FE8E84B8169D8 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = AtomsCaptureWidget/AtomsCaptureWidget.entitlements;
+				CURRENT_PROJECT_VERSION = 1;
+				INFOPLIST_FILE = AtomsCaptureWidget/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = app.tryatoms.capture.widget;
+				PRODUCT_NAME = AtomsCaptureWidget;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		173E5D761A651F894A3D7BCE /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = AtomsCaptureActivity/AtomsCaptureActivity.entitlements;
+				CURRENT_PROJECT_VERSION = 1;
+				INFOPLIST_FILE = AtomsCaptureActivity/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = app.tryatoms.capture.activity;
+				PRODUCT_NAME = AtomsCaptureActivity;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		23DF2B540F98B20DE7E1DBF2 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = AtomsCaptureWidget/AtomsCaptureWidget.entitlements;
+				CURRENT_PROJECT_VERSION = 1;
+				INFOPLIST_FILE = AtomsCaptureWidget/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = app.tryatoms.capture.widget;
+				PRODUCT_NAME = AtomsCaptureWidget;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		8D6166A3559B8D088E6B14FF /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = AtomsCapture/AtomsCapture.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CURRENT_PROJECT_VERSION = 1;
+				INFOPLIST_FILE = AtomsCapture/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = app.tryatoms.capture;
+				PRODUCT_NAME = "Atoms Capture";
+				SDKROOT = iphoneos;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		B977F13C5CEE12B33CC4B538 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.9;
+			};
+			name = Debug;
+		};
+		BD6CDA963641065E81D45724 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = AtomsCaptureActivity/AtomsCaptureActivity.entitlements;
+				CURRENT_PROJECT_VERSION = 1;
+				INFOPLIST_FILE = AtomsCaptureActivity/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = app.tryatoms.capture.activity;
+				PRODUCT_NAME = AtomsCaptureActivity;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		D67897A067F84A56301EDA53 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = "";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.9;
+			};
+			name = Release;
+		};
+		E887D84E83135DCE21D8D2EF /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = AtomsCapture/AtomsCapture.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CURRENT_PROJECT_VERSION = 1;
+				INFOPLIST_FILE = AtomsCapture/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = app.tryatoms.capture;
+				PRODUCT_NAME = "Atoms Capture";
+				SDKROOT = iphoneos;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		03F9CBF9141619DAFE4F5F34 /* Build configuration list for PBXNativeTarget "AtomsCaptureWidget" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				10B350747A4FE8E84B8169D8 /* Debug */,
+				23DF2B540F98B20DE7E1DBF2 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		14137DBAB39D9761C4B392DC /* Build configuration list for PBXNativeTarget "AtomsCapture" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				8D6166A3559B8D088E6B14FF /* Debug */,
+				E887D84E83135DCE21D8D2EF /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		4E0E2BC2AE062149ED5DBEF3 /* Build configuration list for PBXNativeTarget "AtomsCaptureActivity" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				173E5D761A651F894A3D7BCE /* Debug */,
+				BD6CDA963641065E81D45724 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		D6F170848B47E4C362403C5A /* Build configuration list for PBXProject "AtomsCapture" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B977F13C5CEE12B33CC4B538 /* Debug */,
+				D67897A067F84A56301EDA53 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		2025108E1BC26BB44E83D095 /* XCLocalSwiftPackageReference "." */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = .;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		10066B89EBD03A23187F608B /* AtomsCaptureCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = AtomsCaptureCore;
+		};
+		295BB5B4140FDB858C1E5866 /* AtomsCaptureCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = AtomsCaptureCore;
+		};
+		F270F831BCFD29BCC6FDE8D0 /* AtomsCaptureCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = AtomsCaptureCore;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 14D1D2330D8F0F07F88C6B76 /* Project object */;
+}
