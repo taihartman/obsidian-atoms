@@ -255,6 +255,35 @@ private fun VaultChooserCard(
                 return@FlatCard
             }
 
+            // The Play build has no all-files permission to offer, so the folder
+            // picker is the whole story there rather than the fallback.
+            if (!state.fileScanSupported) {
+                Text(
+                    "Pick the folder that holds your Obsidian vault. Atoms reads and writes " +
+                        "inside that folder and nowhere else.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = extras.secondaryText,
+                )
+                Button(
+                    onClick = onFindVaultsSaf,
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 48.dp),
+                    shape = AtomsShapes.button,
+                    colors = atomsPrimaryButtonColors(),
+                ) {
+                    Icon(
+                        Icons.Outlined.FolderOpen,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(modifier = Modifier.size(8.dp))
+                    Text("Folder picker", style = MaterialTheme.typography.labelLarge)
+                }
+                return@FlatCard
+            }
+
             if (!state.hasAllFilesAccess) {
                 Text(
                     "Allow file access once and we’ll find Obsidian vaults on this phone automatically.",

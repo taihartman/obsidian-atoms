@@ -28,6 +28,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
+import app.tryatoms.capture.data.FileTreeAccess
 import app.tryatoms.capture.tile.CaptureTileService
 import app.tryatoms.capture.ui.CaptureScreen
 import app.tryatoms.capture.ui.CaptureViewModel
@@ -205,6 +206,12 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun openAllFilesSettings() {
+        // The Play build never shows the button that leads here, and it holds no
+        // all-files permission to grant, so it must never ask for one either.
+        if (!FileTreeAccess.SUPPORTED) {
+            viewModel.refreshAllFilesAndScan()
+            return
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             try {
                 val intent =

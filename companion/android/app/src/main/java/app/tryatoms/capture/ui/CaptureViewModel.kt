@@ -3,16 +3,14 @@ package app.tryatoms.capture.ui
 import android.app.Application
 import android.content.Intent
 import android.net.Uri
-import android.os.Build
-import android.os.Environment
 import android.provider.DocumentsContract
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import app.tryatoms.capture.data.CaptureRepository
+import app.tryatoms.capture.data.FileTreeAccess
 import app.tryatoms.capture.data.InboxWriter
 import app.tryatoms.capture.data.SafVaultScanner
-import app.tryatoms.capture.data.VaultLocator
 import app.tryatoms.capture.data.VaultStore
 import app.tryatoms.capture.domain.DiscoveredVault
 import app.tryatoms.capture.domain.VaultRef
@@ -41,6 +39,8 @@ data class CaptureUiState(
     val listedVaults: List<VaultRef> = emptyList(),
     val hasAccessRoot: Boolean = false,
     val hasAllFilesAccess: Boolean = false,
+    /** False in the Play build, which has no all-files permission to offer. */
+    val fileScanSupported: Boolean = FileTreeAccess.SUPPORTED,
     val scanning: Boolean = false,
 )
 
@@ -57,7 +57,7 @@ class CaptureViewModel(
     private val discovered = MutableStateFlow<List<DiscoveredVault>>(emptyList())
     private val listed = MutableStateFlow<List<VaultRef>>(emptyList())
     private val scanning = MutableStateFlow(false)
-    private val allFiles = MutableStateFlow(hasAllFilesAccess())
+    private val allFiles = MutableStateFlow(FileTreeAccess.granted())
 
     private data class UiBits(
         val draft: String,
@@ -114,7 +114,7 @@ class CaptureViewModel(
                 homeWidgetAdded = store.current().homeWidgetAdded,
                 lastStatus = store.current().lastStatus,
                 hasAccessRoot = store.current().accessRootUri != null,
-                hasAllFilesAccess = hasAllFilesAccess(),
+                hasAllFilesAccess = FileTreeAccess.granted(),
             ),
         )
 
@@ -148,12 +148,16 @@ class CaptureViewModel(
 
     fun onPickerCancelled() {
         banner.value =
-            "Folder picker closed without a choice. Prefer Allow file access — " +
-            "that finds Remote Vault automatically." to true
+            if (FileTreeAccess.SUPPORTED) {
+                "Folder picker closed without a choice. Prefer Allow file access, " +
+                    "which finds Remote Vault automatically."
+            } else {
+                "Folder picker closed without a choice. Pick the folder your vault lives in."
+            } to true
     }
 
     fun refreshAllFilesAndScan() {
-        val granted = hasAllFilesAccess()
+        val granted = FileTreeAccess.granted()
         allFiles.value = granted
         if (granted) {
             viewModelScope.launch { runFileScan(autoSelectSingle = !store.current().vaultLinked) }
@@ -266,7 +270,7 @@ class CaptureViewModel(
         scanning.value = true
         val found =
             withContext(Dispatchers.IO) {
-                VaultLocator.discover()
+                FileTreeAccess.discover()
             }
         discovered.value = found
         scanning.value = false
@@ -305,7 +309,11 @@ class CaptureViewModel(
         when {
             vaults.isEmpty() -> {
                 banner.value =
-                    "No vaults in that folder. Prefer Allow file access." to true
+                    if (FileTreeAccess.SUPPORTED) {
+                        "No vaults in that folder. Prefer Allow file access."
+                    } else {
+                        "No vaults in that folder. Try the folder one level up."
+                    } to true
             }
             vaults.size == 1 && autoSelectSingle -> {
                 val v = vaults.first()
@@ -332,14 +340,6 @@ class CaptureViewModel(
                 emptyList()
             }
         if (grants.isNotEmpty()) store.restoreRootIfMissing(grants)
-    }
-
-    private fun hasAllFilesAccess(): Boolean {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            Environment.isExternalStorageManager()
-        } else {
-            true
-        }
     }
 
     private fun guessName(treeUri: Uri): String? {
