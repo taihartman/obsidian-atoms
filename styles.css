@@ -1967,6 +1967,29 @@
   flex: 1 0 100%;
 }
 
+/* Everywhere else: the field keeps a readable floor rather than yielding to its button.
+   Tablet is the case this exists for. Obsidian's row stacking is gated on `.is-phone`, and
+   `.is-mobile` — the class that does cover both phone and tablet — carries no row layout of its
+   own, so on `is-tablet` neither that nor the phone rule above fires: the field and the button
+   share one content-sized control edge and the field takes whatever the button leaves. Measured
+   at a 1100px window: Email 98px, "Sign in with a link" 76px, against 172px for a plain text row
+   in the same modal — `you@example.com` fits in none of that.
+   A floor and not a second stacking gate, because a tablet has the room to keep the row inline,
+   which is what Obsidian does with every other row there. It costs desktop nothing (the field is
+   already 164px there) and it also catches a narrowed desktop window, which a platform-class gate
+   would miss. The name column yields instead — its description wraps, the placeholder cannot.
+   The floor stands down below 700px because that is where the name column runs out of give and
+   the row overflows instead: 164px of field beside the widest of these buttons ("Send sign-in
+   link", 157px) stops fitting at about 690. No real tablet lives down there — Obsidian switches
+   to `is-phone` under 600, and the narrowest iPad is 744pt — so what the query really protects is
+   a hand-narrowed desktop window, where a squeezed field beats a clipped description. */
+@media (min-width: 700px) {
+  .modal .setting-item.atoms-setting-form .setting-item-control input {
+    /* The placeholder's own width — 130px of text plus the field's 16px padding either side. */
+    min-width: 164px;
+  }
+}
+
 /* The one settings row pairing a text field with an inline reset icon. Obsidian sizes the
    control edge to its contents, so the icon squeezed the input down to about 54px — enough for
    "Usi" of a placeholder reading "Using the shortcut Atoms ships". Let the control edge grow and
