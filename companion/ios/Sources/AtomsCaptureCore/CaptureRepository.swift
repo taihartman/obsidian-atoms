@@ -27,14 +27,7 @@ public final class CaptureRepository: @unchecked Sendable {
         self.resolveURL = resolveURL ?? { try store.resolveURL() }
         self.startAccess = startAccess ?? { $0.startAccessingSecurityScopedResource() }
         self.stopAccess = stopAccess ?? { $0.stopAccessingSecurityScopedResource() }
-        self.openURL = openURL ?? { url in
-            #if os(iOS)
-            // Fallback when UIKit open is not injected (should be injected from app).
-            return false
-            #else
-            return false
-            #endif
-        }
+        self.openURL = openURL ?? { _ in false }
     }
 
     public func capture(
@@ -46,14 +39,13 @@ public final class CaptureRepository: @unchecked Sendable {
         case .files:
             return captureToFiles(body: body, at: date, timeZone: timeZone)
         case .syncShortcut:
-            return captureToShortcut(body: body, at: date, timeZone: timeZone)
+            return captureToAppendShortcut(body: body, at: date, timeZone: timeZone)
         case .auto:
             if store.isLinked {
                 let files = captureToFiles(body: body, at: date, timeZone: timeZone)
                 if case .inVault = files { return files }
-                // Fall through to Shortcut so Sync users are not stuck.
             }
-            return captureToShortcut(body: body, at: date, timeZone: timeZone)
+            return captureToAppendShortcut(body: body, at: date, timeZone: timeZone)
         }
     }
 
@@ -80,7 +72,7 @@ public final class CaptureRepository: @unchecked Sendable {
         return writer.append(body: body, vaultRoot: url, at: date, timeZone: timeZone)
     }
 
-    private func captureToShortcut(
+    private func captureToAppendShortcut(
         body: String,
         at date: Date,
         timeZone: TimeZone
@@ -92,14 +84,14 @@ public final class CaptureRepository: @unchecked Sendable {
             return .failed(reason: error.localizedDescription)
         }
 
-        guard let url = ShortcutHandoff.runURL(shortcutName: settings.shortcutName, text: line) else {
+        guard let url = ShortcutHandoff.runURL(stampedLine: line) else {
             return .failed(reason: "Could not build Shortcut URL.")
         }
 
         let opened = openURL(url)
         if !opened {
             return .failed(
-                reason: "Could not open Shortcuts. Install “\(settings.shortcutName)” once from the hub, then try again."
+                reason: "Could not open “\(DeliverySettings.appendShortcutName)”. Install it once from the hub (Install button), then try again."
             )
         }
         return .handedToShortcut

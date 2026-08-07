@@ -1,18 +1,18 @@
 import AppIntents
 import UIKit
 
+/// Opens the quick-capture strip (not the setup hub) — widget / Action Button / Control Center.
 struct CaptureThoughtIntent: AppIntent {
     static var title: LocalizedStringResource = "Capture thought"
     static var description = IntentDescription(
-        "Open Atoms Capture to save a thought into your vault inbox."
+        "Open the Atoms Capture strip to save a thought."
     )
     static var openAppWhenRun: Bool = true
 
     @MainActor
     func perform() async throws -> some IntentResult {
-        AppModel.shared.presentCapture()
-        // Widget / external callers may still use the URL scheme; Intent path
-        // sets showCapture directly so cold start does not depend on self-open.
+        AppModel.shared.presentQuickCapture()
+        // Also poke the URL path for cold start reliability.
         if let url = URL(string: "atomscapture://capture") {
             await UIApplication.shared.open(url)
         }

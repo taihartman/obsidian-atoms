@@ -4,23 +4,19 @@ struct RootView: View {
     @EnvironmentObject private var appModel: AppModel
 
     var body: some View {
-        NavigationStack {
+        ZStack {
+            // Always keep hub underneath so cold-start has a root.
             HubView()
-                .navigationTitle("Atoms Capture")
-                .toolbar {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button {
-                            appModel.showCapture = true
-                        } label: {
-                            Label("Capture", systemImage: "plus.circle.fill")
-                        }
-                        .tint(AtomsTheme.tint)
-                    }
-                }
+                .opacity(appModel.surface == .hub ? 1 : 0)
+                .allowsHitTesting(appModel.surface == .hub)
+
+            if appModel.surface == .quickCapture {
+                // Android QuickCapture parity: dim + top strip only — not the setup hub.
+                CaptureOverlay()
+                    .transition(.opacity)
+                    .zIndex(1)
+            }
         }
-        .sheet(isPresented: $appModel.showCapture) {
-            CaptureSheet()
-                .environmentObject(appModel)
-        }
+        .animation(.easeOut(duration: 0.15), value: appModel.surface)
     }
 }

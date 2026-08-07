@@ -1,24 +1,24 @@
 import Foundation
 
-/// Builds the URL that runs a Shortcuts.app shortcut with the stamped capture line as text input.
+/// Runs **Atoms Capture Append** with a **pre-stamped** inbox line.
 ///
-/// The companion formats the full inbox line (stamp + body). The Shortcut should only:
-/// **Receive Text Input → Append to Bookmark (Atoms Inbox)**.
-/// That is the only free way into an Obsidian Sync Remote Vault from another app on iOS.
+/// Shortcut is append-only (no Type/Voice). Companion owns capture UX + stamp.
 public enum ShortcutHandoff {
-    public static func runURL(shortcutName: String, text: String) -> URL? {
+    public static func runURL(
+        shortcutName: String = DeliverySettings.appendShortcutName,
+        stampedLine: String
+    ) -> URL? {
         var components = URLComponents()
         components.scheme = "shortcuts"
         components.host = "run-shortcut"
         components.queryItems = [
             URLQueryItem(name: "name", value: shortcutName),
             URLQueryItem(name: "input", value: "text"),
-            URLQueryItem(name: "text", value: text),
+            URLQueryItem(name: "text", value: stampedLine),
         ]
         return components.url
     }
 
-    /// Full stamped line ready to append (bookmark adds its own trailing newline).
     public static func stampedLine(
         body: String,
         at date: Date = Date(),

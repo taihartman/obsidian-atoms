@@ -29,6 +29,10 @@ import {
   readEgressNoticeAcked,
 } from "../platform/resume";
 import {
+  labelGetCompanion,
+  openCompanionDocs,
+} from "../shared/mobileInstall";
+import {
   CAPTURE_SHORTCUT_VERSION,
   customCaptureShortcutUrl,
   labelInstallOrUpdate,
@@ -1512,21 +1516,45 @@ export class AtomsSettingTab extends PluginSettingTab {
     // toggle — and a text field with a small inline reset is not one of those pairs. The reset
     // only exists to clear the field beside it, so forcing this through the builder would mean
     // splitting one coherent row in two.
+    // Primary path: companion app (setup + quick capture). Shortcut links stay in
+    // mobile-install.json and ship inside the companion hub — not the main CTA here.
+    this.actionRow(containerEl, {
+      action: "companion:install",
+      name: "Atoms Capture companion",
+      desc:
+        "Phone app for fast capture. On iOS it walks you through the Capture Atom shortcut (system overlay-style card). On Android it is the overlay + widget. Links stay current via mobile-install.json in the repo.",
+      label: labelGetCompanion(acked),
+      disabled: false,
+      onClick: () => {
+        const ok = openCompanionDocs("ios");
+        if (!ok) {
+          new Notice("Could not open the companion guide.");
+          return;
+        }
+        writeShortcutAck(
+          (k, v) => this.app.saveLocalStorage(k, v),
+          CAPTURE_SHORTCUT_VERSION,
+        );
+        new Notice(
+          "Opened Atoms Capture guide — install the companion, then the shortcut from its hub",
+        );
+        this.redisplay();
+      },
+    });
+
+    // Advanced: power users who only want the Shortcut without the companion.
     const shortcutUrlRow = new Setting(containerEl)
-      .setName("iCloud shortcut link")
+      .setName("Capture Atom shortcut (advanced)")
       .setDesc(
         custom
-          ? "Using your own link. Clear it (or press Use built-in) to go back to the shortcut Atoms ships and keep getting updates to it."
-          : `Optional — leave empty. Atoms ships the Capture Atom shortcut (v${CAPTURE_SHORTCUT_VERSION}) and keeps it current for you. Only paste here if you modified the shortcut and made your own iCloud link (Share → Copy iCloud Link). See docs/capture-shortcut.md.`,
+          ? "Using your own iCloud link. Clear it to use the built-in Capture Atom URL from mobile-install.json."
+          : `Optional. Prefer Get Atoms Capture above. Built-in Capture Atom v${CAPTURE_SHORTCUT_VERSION} — only paste a link if you forked the recipe.`,
       )
       .addText((text) =>
         text
           .setPlaceholder("Using the shortcut Atoms ships")
           .setValue(custom)
           .onChange(async (value) => {
-            // Filter on the way in, not on the way out. Storing a link we ship
-            // would pin this device to it forever, and normalising at render
-            // instead would mean an unawaited write racing this awaited one.
             this.plugin.settings.captureShortcutInstallUrl =
               customCaptureShortcutUrl(value);
             await this.plugin.saveSettings();
@@ -1544,26 +1572,19 @@ export class AtomsSettingTab extends PluginSettingTab {
             this.redisplay();
           }),
       );
-    // The reset icon shares the control edge with the field, and the field loses: unclassed, it
-    // collapsed to about 54px and showed "Usi" of its placeholder. The class is what `styles.css`
-    // needs to give the input back its width.
     shortcutUrlRow.settingEl.addClass("atoms-capture-shortcut-url");
 
     this.actionRow(containerEl, {
       action: "shortcut:install",
-      name: "Capture Atom shortcut",
+      name: "Install Capture Atom only",
       desc: urlSet
-        ? `Install or update Capture Atom, the iOS shortcut (v${CAPTURE_SHORTCUT_VERSION}). Opens ${custom ? "your custom link" : "the link Atoms ships"} — Shortcuts.app still needs confirm. Acked: ${acked ?? "never"}.`
-        : `No link to open — the built-in is unset in this build, so paste your own iCloud URL above. Version tag: ${CAPTURE_SHORTCUT_VERSION}.`,
+        ? `Opens the Capture Atom iCloud link (v${CAPTURE_SHORTCUT_VERSION}) without the companion. Acked: ${acked ?? "never"}.`
+        : `No link — check mobile-install.json Capture Atom urls.`,
       label: labelInstallOrUpdate(acked),
       disabled: !urlSet,
       onClick: () => {
-        // Kept behind the disabled button rather than removed: `urlSet` is read once at render,
-        // so this is the row's own answer if it is ever pressed without a link behind it.
         if (!urlSet) {
-          new Notice(
-            "No shortcut link to open — paste your own iCloud link above.",
-          );
+          new Notice("No shortcut link to open.");
           return;
         }
         const ok = openShortcutInstallUrl(installUrl);
@@ -1578,7 +1599,7 @@ export class AtomsSettingTab extends PluginSettingTab {
           CAPTURE_SHORTCUT_VERSION,
         );
         new Notice(
-          `Opened capture shortcut v${CAPTURE_SHORTCUT_VERSION} — add it in Shortcuts`,
+          `Opened Capture Atom v${CAPTURE_SHORTCUT_VERSION} — add it in Shortcuts`,
         );
         this.redisplay();
       },

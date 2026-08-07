@@ -11,6 +11,7 @@
 		04FCFAC08445D1AA7309937D /* AtomsCaptureWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 051789598A2C9BD2B629EFF2 /* AtomsCaptureWidget.swift */; };
 		2BD503CE36E5920315D28B6A /* AtomsCaptureActivity.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = EF6FC9C6792D002BEE6F7004 /* AtomsCaptureActivity.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		321D9BC024CD248EDC55C233 /* AtomsCaptureCore in Frameworks */ = {isa = PBXBuildFile; productRef = 295BB5B4140FDB858C1E5866 /* AtomsCaptureCore */; };
+		440B5839C6A085077B189B98 /* CaptureOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 759DD10216D0B71D43C51D96 /* CaptureOverlay.swift */; };
 		5A728DA12CF7D74C0F68563B /* SpeechSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDECF79E0D9BAE75ECE37A89 /* SpeechSession.swift */; };
 		6269231EDC9AF91F824D9EED /* CaptureLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB94E1570FA9EC3D54E0E010 /* CaptureLiveActivity.swift */; };
 		88C821D5EA5739B05F729B9B /* AtomsCaptureWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = A73E78499D5DE41B2B16DE52 /* AtomsCaptureWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
@@ -70,6 +71,7 @@
 		63A02896E20B5954E7470C19 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		69DC7F7637F30A80A216072F /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		6BA1FE5397675A3D8CCECF1A /* CaptureIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureIntent.swift; sourceTree = "<group>"; };
+		759DD10216D0B71D43C51D96 /* CaptureOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureOverlay.swift; sourceTree = "<group>"; };
 		8465DEC52B6E7A88EBC0B50D /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		A73E78499D5DE41B2B16DE52 /* AtomsCaptureWidget.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = AtomsCaptureWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		A73ECD857F7D7BA46DE2FFE2 /* AtomsCaptureActivity.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = AtomsCaptureActivity.entitlements; sourceTree = "<group>"; };
@@ -127,6 +129,7 @@
 				F767DA708DCCFC464595193C /* AtomsCaptureApp.swift */,
 				F8F1D0A68439E7763DBF88BC /* CaptureActivityController.swift */,
 				6BA1FE5397675A3D8CCECF1A /* CaptureIntent.swift */,
+				759DD10216D0B71D43C51D96 /* CaptureOverlay.swift */,
 				315C2844B8D6BE022B7FE0BA /* CaptureSheet.swift */,
 				49E5D12AD73F22EA708343EA /* HubView.swift */,
 				2A86253E92E4051B42AF0FEC /* Info.plist */,
@@ -322,6 +325,7 @@
 				EB8115B654BDB6EC4786C2E8 /* AtomsCaptureApp.swift in Sources */,
 				006F9C7540A9A13DC29CF6D5 /* CaptureActivityController.swift in Sources */,
 				A9B8EBF418576132EBC5BAD7 /* CaptureIntent.swift in Sources */,
+				440B5839C6A085077B189B98 /* CaptureOverlay.swift in Sources */,
 				C46BC133AE2C5052D41EAF05 /* CaptureSheet.swift in Sources */,
 				9C1889AF63AD6BAAE7151BD7 /* HubView.swift in Sources */,
 				EAAD8FD878474FEDF31EB259 /* RootView.swift in Sources */,

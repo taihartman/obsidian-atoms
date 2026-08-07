@@ -61,11 +61,11 @@ public enum DeliveryMode: String, CaseIterable, Codable, Sendable {
     public var blurb: String {
         switch self {
         case .syncShortcut:
-            return "Best for Sync Remote Vault. One-time slim Shortcut appends into Obsidian; the companion owns type/voice/widget."
+            return "Obsidian Sync via Append Atom shortcut (install once from the hub)."
         case .files:
-            return "Writes directly when the vault is a folder in Files. Sync’s private sandbox usually cannot use this."
+            return "Direct write to a Files-visible vault folder."
         case .auto:
-            return "Uses Files when linked; otherwise hands off to the Sync Shortcut."
+            return "Files if linked, else Append Atom."
         }
     }
 }

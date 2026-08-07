@@ -1,7 +1,13 @@
 # Atoms Capture (iOS POC)
 
-Thin companion app: **type or speak → save** appends a stamped line to  
-`Atoms System/Inbox.md` in a **Files-visible** Obsidian vault folder.
+Setup hub + widget for phone capture. **Day-to-day capture on iOS** prefers the
+**Capture Atom** system Shortcut (overlay-style card). This app installs that
+path and optional Files write.
+
+**Install links SSOT:** repo-root [`mobile-install.json`](../../mobile-install.json)
+(plugin + companion). When you ship a new iCloud shortcut link, **prepend** it
+there and mirror `atomsCaptureAppend.urls[0]` / name in
+`DeliverySettings.swift`.
 
 - Spec: [`docs/plans/2026-08-07-003-feat-ios-companion-capture-poc-plan.md`](../../docs/plans/2026-08-07-003-feat-ios-companion-capture-poc-plan.md)
 - Issue: [#379](https://github.com/taihartman/obsidian-atoms/issues/379)

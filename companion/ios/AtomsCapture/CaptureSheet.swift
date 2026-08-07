@@ -1,9 +1,11 @@
 import SwiftUI
 import AtomsCaptureCore
 
+/// Quick-capture surface — parity with Android QuickCaptureScreen strip.
 struct CaptureSheet: View {
     @EnvironmentObject private var appModel: AppModel
     @Environment(\.dismiss) private var dismiss
+    @FocusState private var focused: Bool
 
     @StateObject private var speech = SpeechSession()
     @State private var text = ""
@@ -11,82 +13,132 @@ struct CaptureSheet: View {
     @State private var busy = false
     @State private var activity: CaptureActivityController?
 
-    var body: some View {
-        NavigationStack {
-            VStack(alignment: .leading, spacing: 16) {
-                TextField("What’s on your mind?", text: $text, axis: .vertical)
-                    .lineLimit(4...12)
-                    .padding(12)
-                    .background(AtomsTheme.card.opacity(0.35))
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
+    private var ready: Bool {
+        appModel.delivery.mode == .files
+            ? appModel.store.isLinked
+            : appModel.delivery.shortcutReadyAcknowledged || true // allow try; fail honestly
+    }
 
-                HStack(spacing: 12) {
+    var body: some View {
+        VStack(spacing: 0) {
+            // Floating dark card
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(titleText)
+                            .font(.system(size: 18, weight: .regular, design: .serif))
+                            .foregroundStyle(AtomsTheme.label)
+                        if !speech.isListening {
+                            Text(subtitleText)
+                                .font(.caption)
+                                .foregroundStyle(AtomsTheme.tertiary)
+                        }
+                    }
+                    Spacer()
+                    Button {
+                        teardown()
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(AtomsTheme.secondary)
+                            .frame(width: 36, height: 36)
+                            .background(AtomsTheme.elevated)
+                            .clipShape(Circle())
+                    }
+                }
+
+                TextField("Type freely…", text: $text, axis: .vertical)
+                    .lineLimit(3...8)
+                    .font(.body)
+                    .foregroundStyle(AtomsTheme.label)
+                    .focused($focused)
+                    .padding(12)
+                    .background(AtomsTheme.elevated)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .disabled(busy)
+
+                HStack(spacing: 10) {
                     Button {
                         toggleListen()
                     } label: {
-                        Label(
-                            speech.isListening ? "Stop" : "Listen",
-                            systemImage: speech.isListening ? "stop.circle.fill" : "mic.circle.fill"
-                        )
+                        Image(systemName: speech.isListening ? "stop.fill" : "mic.fill")
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundStyle(speech.isListening ? AtomsTheme.person : AtomsTheme.label)
+                            .frame(width: 48, height: 48)
+                            .background(AtomsTheme.elevated)
+                            .clipShape(Circle())
                     }
-                    .buttonStyle(.bordered)
-                    .tint(speech.isListening ? .orange : AtomsTheme.tint)
-
-                    Spacer()
+                    .disabled(busy)
 
                     Button {
                         save()
                     } label: {
                         if busy {
-                            ProgressView()
+                            ProgressView().tint(.white)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 48)
                         } else {
-                            Text("Save")
-                                .fontWeight(.semibold)
+                            Label("Capture", systemImage: "checkmark")
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 48)
                         }
                     }
-                    .buttonStyle(.borderedProminent)
-                    .tint(AtomsTheme.tint)
+                    .buttonStyle(AtomsPrimaryButtonStyle(
+                        enabled: !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !busy
+                    ))
                     .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || busy)
                 }
 
                 if let err = speech.lastError {
                     Text(err)
                         .font(.caption)
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(AtomsTheme.error)
                 }
-
                 if let status {
                     Text(statusLabel(status))
-                        .font(.subheadline)
-                        .foregroundStyle(status.isSuccess ? .green : .orange)
+                        .font(.caption)
+                        .foregroundStyle(status.isSuccess ? AtomsTheme.done : AtomsTheme.error)
                 }
+            }
+            .padding(16)
+            .background(AtomsTheme.card)
+            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .shadow(color: .black.opacity(0.45), radius: 24, y: 8)
+            .padding(.horizontal, 12)
+            .padding(.top, 8)
 
-                Spacer()
-            }
-            .padding()
-            .navigationTitle("Capture")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") {
-                        speech.stop()
-                        activity?.end()
-                        dismiss()
-                    }
-                }
-            }
-            .onChange(of: speech.liveText) { _, newValue in
-                if speech.isListening {
-                    text = newValue
-                    activity?.update(phase: .listening, preview: newValue)
-                }
-            }
-            .onDisappear {
-                speech.stop()
-                activity?.end()
-                activity = nil
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.primary.opacity(0.35).ignoresSafeArea())
+        .onAppear { focused = true }
+        .onChange(of: speech.liveText) { _, newValue in
+            if speech.isListening {
+                text = newValue
+                activity?.update(phase: .listening, preview: newValue)
             }
         }
+        .onChange(of: speech.isListening) { _, listening in
+            if listening {
+                focused = false
+            } else {
+                focused = true
+            }
+        }
+        .onDisappear { teardown() }
+    }
+
+    private var titleText: String {
+        if speech.isListening { return "Listening…" }
+        return "What’s on your mind?"
+    }
+
+    private var subtitleText: String {
+        if appModel.delivery.mode == .files, let name = appModel.store.displayName {
+            return name
+        }
+        return "Atoms Inbox · Sync"
     }
 
     private func toggleListen() {
@@ -95,10 +147,7 @@ struct CaptureSheet: View {
             activity?.end()
             activity = nil
         } else {
-            if activity == nil {
-                activity = CaptureActivityController()
-            }
-            // Field is SSOT — seed speech so Listen does not wipe typed text.
+            if activity == nil { activity = CaptureActivityController() }
             speech.liveText = text
             activity?.start(preview: text)
             speech.start()
@@ -113,18 +162,15 @@ struct CaptureSheet: View {
         let body = text
         let repo = appModel.repository
         Task {
-            let result = await Task.detached {
-                repo.capture(body: body)
-            }.value
+            let result = await Task.detached { repo.capture(body: body) }.value
             status = result
             busy = false
             switch result {
             case .inVault, .handedToShortcut:
                 activity?.update(phase: .inVault, preview: body)
                 text = ""
-                try? await Task.sleep(nanoseconds: 800_000_000)
-                activity?.end()
-                activity = nil
+                try? await Task.sleep(nanoseconds: 700_000_000)
+                teardown()
                 dismiss()
             case .failed:
                 activity?.update(phase: .failed, preview: body)
@@ -132,14 +178,17 @@ struct CaptureSheet: View {
         }
     }
 
+    private func teardown() {
+        speech.stop()
+        activity?.end()
+        activity = nil
+    }
+
     private func statusLabel(_ status: DeliveryStatus) -> String {
         switch status {
-        case .inVault:
-            return "In vault"
-        case .handedToShortcut:
-            return "Handed to Shortcut"
-        case .failed(let reason):
-            return "Failed: \(reason)"
+        case .inVault: return "In vault"
+        case .handedToShortcut: return "Handed to Shortcut"
+        case .failed(let reason): return "Failed: \(reason)"
         }
     }
 }

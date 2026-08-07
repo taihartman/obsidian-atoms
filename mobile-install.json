@@ -1,0 +1,37 @@
+{
+  "$comment": "SSOT for companion + shortcut install links. Plugin: src/shared/mobileInstall.ts. iOS companion: DeliverySettings mirrors atomsCaptureAppend.urls[0] + name. Prepend new URLs; never delete old shortcut ids. When you ship a new iCloud link, prepend it here and bump version — companion constant must match head URL.",
+  "captureAtom": {
+    "name": "Capture Atom",
+    "version": "2.1.0",
+    "role": "Daily iOS capture UI (system Shortcut card). Preferred one-second path on iOS.",
+    "urls": [
+      "https://www.icloud.com/shortcuts/bbd26339dc874a13b36b31620cf3c457",
+      "https://www.icloud.com/shortcuts/e8bfe486b2bc458cb37af87c107771a2",
+      "https://www.icloud.com/shortcuts/b1a910ea39094d7b857a983529e3bf8b",
+      "https://www.icloud.com/shortcuts/28a87317da06494896ef183ec846606f",
+      "https://www.icloud.com/shortcuts/e885d7c0d8f04a17803a2cc201f24409"
+    ]
+  },
+  "atomsCaptureAppend": {
+    "name": "Atoms Capture Append",
+    "version": "1.0.0",
+    "role": "Append-only (pre-stamped line from companion or automation).",
+    "urls": [
+      "https://www.icloud.com/shortcuts/9f7425ab9eb94884b610667a69a8e38b"
+    ]
+  },
+  "iosCompanion": {
+    "name": "Atoms Capture",
+    "version": "0.1.0-poc",
+    "role": "iOS setup hub + widget; day-to-day capture uses Capture Atom shortcut.",
+    "docsUrl": "https://github.com/taihartman/obsidian-atoms/blob/master/companion/ios/README.md",
+    "bundleId": "app.tryatoms.capture.tai"
+  },
+  "androidCompanion": {
+    "name": "Atoms Capture",
+    "version": "0.2.0-poc",
+    "role": "Android hub + overlay + widget.",
+    "docsUrl": "https://github.com/taihartman/obsidian-atoms/blob/master/companion/android/README.md",
+    "applicationId": "app.tryatoms.capture"
+  }
+}

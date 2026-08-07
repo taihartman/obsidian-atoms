@@ -19,14 +19,18 @@ date in its stamp — creating that daily if missing — and marked, never delet
 
 ## The recipe
 
-Built and verified on device 2026-07-28 (iOS Shortcuts, Obsidian 1.12.7).
+Built and verified on device 2026-07-28 (iOS Shortcuts, Obsidian 1.12.7).  
+**2.2 intent (companion):** accept **Shortcut Input** when the Atoms Capture app
+(or anything else) runs Capture Atom with text, so users never build a second
+shortcut. Standalone ▶ still offers Type / Voice.
 
-On **iPhone**: Shortcuts → **+** → name it **Capture Atom**. Add these actions
-in order:
+On **iPhone**: install via Atoms Settings → Capture (or the companion hub button).
+Name must stay **Capture Atom**. Actions in order:
 
 | # | Action | Config |
 |---|---|---|
-| 1 | **Choose from Menu** | Two items: `Type` and `Voice`. Lets one shortcut serve both keyboard and dictation. |
+| 0 | **If** | Shortcut Input **has any value** → **Set Variable** `Capture` = **Shortcut Input** → skip to step 6. *Else* continue to step 1. |
+| 1 | **Choose from Menu** | Two items: `Type` and `Voice`. Standalone path only. |
 | 2 | *(Type branch)* **Ask for Input** | Prompt `What's on your mind?` · type **Text** |
 | 3 | *(Type branch)* **Set Variable** | Name `Capture` · value **Provided Input** |
 | 4 | *(Voice branch)* **Dictate Text** | Defaults are fine |
@@ -35,6 +39,13 @@ in order:
 | 7 | **Format Date** | Date **Current Date** · then open the *action's own* options: Date Format **Custom**, Format String `yyyy-MM-dd'T'HH:mm:ssZZZZZ`, Locale **Default**. |
 | 8 | **Text** | `- ` then **Formatted Date** (step 7), one space, then **Updated Text** (step 6). All on one line: `- <stamp> <capture>`. |
 | 9 | **Append to Bookmark** (Obsidian) | Bookmark **Atoms Inbox** · **Append** · Text = the **Text** from step 8. |
+
+**Companion app:** runs `shortcuts://run-shortcut?name=Capture%20Atom&input=text&text=…`
+with the **body only** (no stamp). Capture Atom still owns Format Date + append —
+one recipe for plugin install and the companion.
+
+**Until 2.2 is published on iCloud:** an older Capture Atom may ignore input and
+show the Type/Voice menu. Re-install from Atoms Settings after the link bumps.
 
 Run it with ▶ and confirm one new line lands in `Atoms System/Inbox.md`, shaped
 exactly like:

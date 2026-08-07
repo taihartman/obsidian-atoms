@@ -1,16 +1,17 @@
 import Foundation
 
-/// Delivery mode + Shortcut name (shared App Group when available).
+/// Sync delivery uses one slim iCloud shortcut (append only). Companion owns type/voice.
 public final class DeliverySettings: @unchecked Sendable {
-    public static let defaultShortcutName = "Atoms Capture Append"
-    /// Built-in Capture Atom iCloud link (plugin ships updates; hub can open install).
-    public static let captureAtomICloudURL =
-        "https://www.icloud.com/shortcuts/bbd26339dc874a13b36b31620cf3c457"
+    /// Must match mobile-install.json → atomsCaptureAppend.name
+    public static let appendShortcutName = "Atoms Capture Append"
+
+    /// Must match mobile-install.json → atomsCaptureAppend.urls[0] (SSOT in repo root).
+    public static let appendShortcutICloudURL =
+        "https://www.icloud.com/shortcuts/9f7425ab9eb94884b610667a69a8e38b"
 
     private let defaults: UserDefaults
     private let modeKey = "delivery_mode"
-    private let shortcutNameKey = "shortcut_name"
-    private let shortcutReadyKey = "shortcut_ready_ack"
+    private let shortcutReadyKey = "append_shortcut_ready_ack"
 
     public init(defaults: UserDefaults? = nil, suiteName: String? = VaultStore.defaultSuiteName) {
         if let defaults {
@@ -28,23 +29,15 @@ public final class DeliverySettings: @unchecked Sendable {
                let mode = DeliveryMode(rawValue: raw) {
                 return mode
             }
-            // Default: Sync path — most iPhone Atoms users.
             return .syncShortcut
         }
-        set {
-            defaults.set(newValue.rawValue, forKey: modeKey)
-        }
+        set { defaults.set(newValue.rawValue, forKey: modeKey) }
     }
 
-    public var shortcutName: String {
-        get {
-            let name = defaults.string(forKey: shortcutNameKey)?.trimmingCharacters(in: .whitespacesAndNewlines)
-            if let name, !name.isEmpty { return name }
-            return Self.defaultShortcutName
-        }
-        set {
-            defaults.set(newValue, forKey: shortcutNameKey)
-        }
+    public var shortcutName: String { Self.appendShortcutName }
+
+    public var hasInstallURL: Bool {
+        Self.appendShortcutICloudURL.hasPrefix("https://www.icloud.com/shortcuts/")
     }
 
     public var shortcutReadyAcknowledged: Bool {
