@@ -14,10 +14,9 @@ import java.util.Locale
 /**
  * Live dictation into a text field.
  *
- * While the mic is on, partials stream into the box. After each segment the
- * engine auto-restarts until the user hits stop. Transient errors (timeout,
- * network blip, busy) restart silently — they must not kill the session or
- * wipe text already in the live feed.
+ * Partials stream while the mic is on. Segments auto-restart until stop.
+ * Transient engine errors restart silently. A [session] generation token
+ * ignores stale callbacks from cancelled recognizers (ERROR_CLIENT after cancel).
  */
 class InAppSpeech(
     context: Context,
@@ -32,8 +31,10 @@ class InAppSpeech(
     private var committed: String = ""
     private var partial: String = ""
     private var dictating = false
-    private var restartPending = false
+    private var session = 0
+    private var restartRunnable: Runnable? = null
     private var consecutiveHardErrors = 0
+    private var softRestarts = 0
 
     val isAvailable: Boolean
         get() = SpeechRecognizer.isRecognitionAvailable(host)
@@ -44,27 +45,30 @@ class InAppSpeech(
                 onError("Voice not available on this device")
                 return@post
             }
+            clearRestart()
             destroyQuietly()
+            session++
             committed = existingText.trimEnd()
             partial = ""
             dictating = true
-            restartPending = false
             consecutiveHardErrors = 0
+            softRestarts = 0
             onListening(true)
             beginSegment()
         }
     }
 
-    /** End dictation. Keeps whatever was last pushed via [onLiveText]. */
     fun stop() {
         main.post {
             if (!dictating) {
+                clearRestart()
                 destroyQuietly()
                 onListening(false)
                 return@post
             }
             dictating = false
-            restartPending = false
+            session++
+            clearRestart()
             if (partial.isNotBlank()) {
                 committed = merge(committed, partial)
                 partial = ""
@@ -86,7 +90,8 @@ class InAppSpeech(
 
     private fun hardStop() {
         dictating = false
-        restartPending = false
+        session++
+        clearRestart()
         destroyQuietly()
         try {
             onListening(false)
@@ -98,6 +103,7 @@ class InAppSpeech(
         if (!dictating) return
         destroyQuietly()
         partial = ""
+        val gen = session
 
         val r =
             try {
@@ -109,7 +115,7 @@ class InAppSpeech(
             }
 
         recognizer = r
-        r.setRecognitionListener(listener())
+        r.setRecognitionListener(listener(gen))
 
         val intent =
             Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
@@ -134,24 +140,28 @@ class InAppSpeech(
 
         try {
             r.startListening(intent)
-            Log.i(TAG, "segment startListening")
+            Log.i(TAG, "segment start gen=$gen")
         } catch (e: Exception) {
             Log.e(TAG, "startListening failed", e)
-            // Treat as restartable unless it keeps happening
             scheduleRestart(delayMs = 500L)
         }
     }
 
     private fun scheduleRestart(delayMs: Long = 350L) {
-        if (!dictating || restartPending) return
-        restartPending = true
-        main.postDelayed(
-            {
-                restartPending = false
+        if (!dictating) return
+        clearRestart()
+        val task =
+            Runnable {
+                restartRunnable = null
                 if (dictating) beginSegment()
-            },
-            delayMs,
-        )
+            }
+        restartRunnable = task
+        main.postDelayed(task, delayMs)
+    }
+
+    private fun clearRestart() {
+        restartRunnable?.let { main.removeCallbacks(it) }
+        restartRunnable = null
     }
 
     private fun commitOpenPartial() {
@@ -163,22 +173,16 @@ class InAppSpeech(
     }
 
     private fun pushLive() {
-        val live = liveText()
-        Log.d(TAG, "live len=${live.length}")
         try {
-            onLiveText(live)
+            onLiveText(if (partial.isBlank()) committed else merge(committed, partial))
         } catch (_: Exception) {
         }
     }
 
-    private fun liveText(): String {
-        if (partial.isBlank()) return committed
-        return merge(committed, partial)
-    }
-
     private fun failOut(message: String) {
         dictating = false
-        restartPending = false
+        session++
+        clearRestart()
         destroyQuietly()
         onListening(false)
         onError(message)
@@ -198,15 +202,36 @@ class InAppSpeech(
         }
     }
 
-    private fun listener(): RecognitionListener =
+    private fun softRestart(error: Int) {
+        softRestarts++
+        if (softRestarts > MAX_SOFT_RESTARTS) {
+            failOut("Voice kept dropping — try again")
+            return
+        }
+        consecutiveHardErrors = 0
+        val delay =
+            when (error) {
+                SpeechRecognizer.ERROR_RECOGNIZER_BUSY,
+                ERROR_TOO_MANY_REQUESTS,
+                -> 700L
+                ERROR_SERVER_DISCONNECTED -> 500L
+                else -> 350L
+            }
+        scheduleRestart(delayMs = delay)
+    }
+
+    private fun listener(gen: Int): RecognitionListener =
         object : RecognitionListener {
+            private fun alive(): Boolean = dictating && gen == session
+
             override fun onReadyForSpeech(params: Bundle?) {
-                Log.i(TAG, "onReadyForSpeech")
+                if (!alive()) return
+                Log.i(TAG, "onReadyForSpeech gen=$gen")
                 consecutiveHardErrors = 0
             }
 
             override fun onBeginningOfSpeech() {
-                Log.i(TAG, "onBeginningOfSpeech")
+                if (alive()) Log.i(TAG, "onBeginningOfSpeech")
             }
 
             override fun onRmsChanged(rmsdB: Float) {}
@@ -214,11 +239,11 @@ class InAppSpeech(
             override fun onBufferReceived(buffer: ByteArray?) {}
 
             override fun onEndOfSpeech() {
-                Log.i(TAG, "onEndOfSpeech")
+                if (alive()) Log.i(TAG, "onEndOfSpeech")
             }
 
             override fun onPartialResults(partialResults: Bundle?) {
-                if (!dictating) return
+                if (!alive()) return
                 val text =
                     partialResults
                         ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
@@ -231,18 +256,18 @@ class InAppSpeech(
             }
 
             override fun onResults(results: Bundle?) {
-                if (!dictating) {
-                    destroyQuietly()
+                if (!alive()) {
                     return
                 }
                 consecutiveHardErrors = 0
+                softRestarts = 0
                 val text =
                     results
                         ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                         ?.firstOrNull()
                         ?.trim()
                         .orEmpty()
-                Log.i(TAG, "onResults segment len=${text.length}")
+                Log.i(TAG, "onResults gen=$gen len=${text.length}")
                 if (text.isNotEmpty()) {
                     committed = merge(committed, text)
                     partial = ""
@@ -254,38 +279,26 @@ class InAppSpeech(
             }
 
             override fun onError(error: Int) {
-                Log.w(TAG, "onError code=$error dictating=$dictating hard=$consecutiveHardErrors")
-                if (!dictating) {
-                    destroyQuietly()
+                if (!alive()) {
+                    Log.d(TAG, "stale onError code=$error gen=$gen session=$session")
                     return
                 }
+                Log.w(TAG, "onError code=$error gen=$gen soft=$softRestarts")
                 commitOpenPartial()
 
-                // Soft / expected segment ends — always keep going, no UI error
                 when (error) {
                     SpeechRecognizer.ERROR_NO_MATCH,
                     SpeechRecognizer.ERROR_SPEECH_TIMEOUT,
                     SpeechRecognizer.ERROR_CLIENT,
                     SpeechRecognizer.ERROR_RECOGNIZER_BUSY,
-                    // API 31+: service binder dropped mid-utterance (common on OEM restarts)
                     ERROR_SERVER_DISCONNECTED,
                     ERROR_TOO_MANY_REQUESTS,
                     -> {
-                        consecutiveHardErrors = 0
-                        val delay =
-                            when (error) {
-                                SpeechRecognizer.ERROR_RECOGNIZER_BUSY,
-                                ERROR_TOO_MANY_REQUESTS,
-                                -> 700L
-                                ERROR_SERVER_DISCONNECTED -> 500L
-                                else -> 350L
-                            }
-                        scheduleRestart(delayMs = delay)
+                        softRestart(error)
                         return
                     }
                 }
 
-                // Transient hard-ish errors — retry a few times silently
                 when (error) {
                     SpeechRecognizer.ERROR_NETWORK,
                     SpeechRecognizer.ERROR_NETWORK_TIMEOUT,
@@ -294,14 +307,12 @@ class InAppSpeech(
                     -> {
                         consecutiveHardErrors++
                         if (consecutiveHardErrors < MAX_HARD_RETRIES) {
-                            Log.w(TAG, "transient error $error — retry $consecutiveHardErrors/$MAX_HARD_RETRIES")
                             scheduleRestart(delayMs = 700L)
                             return
                         }
                     }
                 }
 
-                // Give up only after repeated hard failures
                 val msg =
                     when (error) {
                         SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Mic permission needed"
@@ -346,8 +357,7 @@ class InAppSpeech(
     companion object {
         private const val TAG = "AtomsSpeech"
         private const val MAX_HARD_RETRIES = 4
-
-        // Not on older compile stubs as constants in all AGP versions — numeric from API 31.
+        private const val MAX_SOFT_RESTARTS = 24
         private const val ERROR_TOO_MANY_REQUESTS = 10
         private const val ERROR_SERVER_DISCONNECTED = 11
     }

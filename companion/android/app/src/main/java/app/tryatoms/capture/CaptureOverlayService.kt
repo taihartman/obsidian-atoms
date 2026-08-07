@@ -54,6 +54,7 @@ class CaptureOverlayService : LifecycleService() {
     private var listening by mutableStateOf(false)
     private var error by mutableStateOf<String?>(null)
     private var speech: InAppSpeech? = null
+    private var destroying = false
 
     override fun onCreate() {
         super.onCreate()
@@ -62,7 +63,8 @@ class CaptureOverlayService : LifecycleService() {
             InAppSpeech(
                 context = this,
                 onLiveText = { text ->
-                    if (isAlive()) {
+                    // Only while actively listening — avoid late partials after stop.
+                    if (isAlive() && listening) {
                         Log.i(TAG, "live text len=${text.length}")
                         fieldValue = TextFieldValue(text = text, selection = TextRange(text.length))
                     }
@@ -71,7 +73,11 @@ class CaptureOverlayService : LifecycleService() {
                     if (isAlive()) {
                         listening = on
                         // Mic FGS type only while actually dictating (API 34+ requirement).
-                        promoteForeground(mic = on)
+                        if (!promoteForeground(mic = on) && on) {
+                            speech?.stopNow()
+                            listening = false
+                            error = "Could not enable microphone"
+                        }
                     }
                 },
                 onError = { msg ->
@@ -95,7 +101,11 @@ class CaptureOverlayService : LifecycleService() {
             stopSelf()
             return START_NOT_STICKY
         }
-        promoteForeground(mic = listening)
+        if (!promoteForeground(mic = listening)) {
+            Toast.makeText(this, "Could not start capture service", Toast.LENGTH_LONG).show()
+            stopSelf()
+            return START_NOT_STICKY
+        }
         if (overlayView == null) {
             showOverlay()
         }
@@ -106,7 +116,8 @@ class CaptureOverlayService : LifecycleService() {
      * Overlay always needs specialUse. While the mic is open we must also declare
      * the microphone FGS type or Android 14+ blocks audio to SpeechRecognizer.
      */
-    private fun promoteForeground(mic: Boolean) {
+    private fun promoteForeground(mic: Boolean): Boolean {
+        if (destroying) return false
         val notif = buildNotification(if (mic) "Listening…" else "Capturing…")
         val type =
             if (Build.VERSION.SDK_INT >= 34) {
@@ -116,20 +127,18 @@ class CaptureOverlayService : LifecycleService() {
             } else {
                 0
             }
-        try {
+        return try {
             ServiceCompat.startForeground(this, NOTIF_ID, notif, type)
             Log.i(TAG, "startForeground mic=$mic type=$type")
+            true
         } catch (e: Exception) {
             Log.e(TAG, "startForeground failed", e)
-            // Last resort so we don't crash the strip
-            try {
-                startForeground(NOTIF_ID, notif)
-            } catch (_: Exception) {
-            }
+            false
         }
     }
 
     override fun onDestroy() {
+        destroying = true
         speech?.stopNow()
         speech = null
         removeOverlay()
@@ -138,7 +147,7 @@ class CaptureOverlayService : LifecycleService() {
     }
 
     private fun isAlive(): Boolean =
-        lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
+        !destroying && lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
 
     private fun showOverlay() {
         val type =

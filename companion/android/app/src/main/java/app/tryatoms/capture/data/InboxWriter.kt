@@ -97,7 +97,8 @@ class InboxWriter(
 
         return try {
             synchronized(WRITE_LOCK) {
-                val existing = readText(inbox.uri)
+                // Never treat a failed read as empty — that would truncate Inbox.md via "wt".
+                val existing = readTextOrThrow(inbox.uri)
                 if (existing.isEmpty()) {
                     val merged = CaptureLine.mergeAppend("", formatted.line)
                     writeSafFull(inbox.uri, merged)
@@ -171,13 +172,13 @@ class InboxWriter(
             ?: created
     }
 
-    private fun readText(uri: Uri): String {
-        return try {
-            context.contentResolver.openInputStream(uri)?.use { input ->
-                BufferedReader(InputStreamReader(input, StandardCharsets.UTF_8)).readText()
-            } ?: ""
-        } catch (_: Exception) {
-            ""
+    /** Successful empty read is ""; open/read failure throws (never silent wipe). */
+    private fun readTextOrThrow(uri: Uri): String {
+        val input =
+            context.contentResolver.openInputStream(uri)
+                ?: error("Could not read Inbox.md")
+        return input.use { stream ->
+            BufferedReader(InputStreamReader(stream, StandardCharsets.UTF_8)).readText()
         }
     }
 
@@ -200,8 +201,8 @@ class InboxWriter(
             out.write(text.toByteArray(StandardCharsets.UTF_8))
             out.flush()
         } ?: run {
-            // Fallback: full rewrite (still under WRITE_LOCK)
-            val existing = readText(uri)
+            // Fallback: full rewrite only after a successful read (still under WRITE_LOCK)
+            val existing = readTextOrThrow(uri)
             writeSafFull(uri, existing + text)
         }
     }
