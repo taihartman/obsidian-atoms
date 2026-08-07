@@ -9,12 +9,14 @@ import android.provider.DocumentsContract
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import app.tryatoms.capture.data.CaptureRepository
 import app.tryatoms.capture.data.InboxWriter
 import app.tryatoms.capture.data.SafVaultScanner
 import app.tryatoms.capture.data.VaultLocator
 import app.tryatoms.capture.data.VaultStore
 import app.tryatoms.capture.domain.DiscoveredVault
 import app.tryatoms.capture.domain.VaultRef
+import app.tryatoms.capture.widget.CaptureWidget
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -43,8 +45,8 @@ data class CaptureUiState(
 class CaptureViewModel(
     app: Application,
 ) : AndroidViewModel(app) {
-    private val store = VaultStore(app)
-    private val writer = InboxWriter(app)
+    private val repo = CaptureRepository(app)
+    private val store = repo.store()
     private val safScanner = SafVaultScanner(app)
 
     private val draft = MutableStateFlow("")
@@ -146,8 +148,11 @@ class CaptureViewModel(
 
     fun selectDiscoveredVault(vault: DiscoveredVault) {
         store.setFileVault(vault.absolutePath, vault.name)
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) { CaptureWidget.updateAll(getApplication()) }
+        }
         banner.value =
-            "Using ${vault.name}. Captures go to Atoms System/Inbox.md." to false
+            "Using ${vault.name}. Long-press home → Widgets → Atoms Capture for one-tap capture." to false
     }
 
     fun onAccessRootPicked(uri: Uri) {
@@ -206,8 +211,7 @@ class CaptureViewModel(
     }
 
     fun capture() {
-        val vault = store.current()
-        if (!vault.vaultLinked) {
+        if (!repo.isLinked()) {
             banner.value = "Choose a vault first." to true
             return
         }
@@ -223,28 +227,20 @@ class CaptureViewModel(
             val text = draft.value
             val result =
                 withContext(Dispatchers.IO) {
-                    val abs = vault.vaultAbsolutePath
-                    if (!abs.isNullOrBlank()) {
-                        writer.appendCaptureToVaultPath(abs, text)
-                    } else {
-                        val root = vault.accessRootUri
-                        val rel = vault.vaultRelativePath
-                        if (root == null || rel == null) {
-                            InboxWriter.WriteResult.Err("Vault not linked")
-                        } else {
-                            writer.appendCapture(root, rel, text)
-                        }
-                    }
+                    repo.append(text)
                 }
             when (result) {
                 is InboxWriter.WriteResult.Ok -> {
                     draft.value = ""
-                    store.markCaptureDone("Saved · ${result.stamp} · ${result.preview}")
+                    repo.markCaptureDone("Saved · ${result.stamp} · ${result.preview}")
+                    withContext(Dispatchers.IO) {
+                        CaptureWidget.updateAll(getApplication())
+                    }
                     banner.value =
-                        "Saved to Inbox.md. Open Obsidian when you can — Atoms files it into your daily." to false
+                        "Saved. Add the home-screen Capture widget for one-tap next time." to false
                 }
                 is InboxWriter.WriteResult.Err -> {
-                    store.setLastStatus("Failed · ${result.message}")
+                    repo.setLastStatus("Failed · ${result.message}")
                     banner.value = result.message to true
                 }
             }

@@ -30,20 +30,31 @@ adb shell am start -n app.tryatoms.capture/.MainActivity
 
 ## Dogfood
 
-1. Prefer a **throwaway vault** for agent tests (not personal Remote Vault).
-2. Open **Atoms Capture** → **Find my vaults**.
-3. In the system picker, choose **Documents** (or the parent folder that contains your vaults) → **Use this folder**.
-4. The app lists every folder with a `.obsidian` directory. Tap the vault you want.
-   - One vault → auto-selected.
-   - None → **Use this folder as vault** if you pointed at the vault itself.
-5. Type a capture → **Capture**.
-6. Confirm `Atoms System/Inbox.md` contains:
-   ```text
-   - 2026-…T…:…:…±HH:MM your text
-   ```
-7. Open Obsidian with Atoms → drain files into the daily for the stamp’s date.
+### Hub (once)
 
-**Why one folder grant?** Android won’t let apps silently list all storage. Granting Documents once lets us list *all* vaults under it and switch in-app with no more pickers.
+1. Prefer a **throwaway vault** for agent tests when possible.
+2. Open **Atoms Capture** → **Allow file access** (all files) so vaults are found automatically.
+3. Pick **Remote Vault** (or your vault) if more than one appears.
+4. Optional hub capture to confirm write.
+
+### One-second path (daily)
+
+1. Long-press home → **Widgets** → **Atoms Capture** → place widget.
+2. Tap widget → type → **Capture** (or keyboard Done) → returns home; line in `Atoms System/Inbox.md`.
+3. Or long-press app icon → **Capture**.
+
+```bash
+# Quick path without widget
+adb shell am start -a app.tryatoms.capture.action.QUICK_CAPTURE
+```
+
+### Confirm
+
+```text
+- 2026-…T…:…:…±HH:MM your text
+```
+
+Open Obsidian with Atoms → drain files into the daily for the stamp’s date.
 
 ## Checklist (in-app)
 

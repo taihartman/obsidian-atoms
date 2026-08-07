@@ -231,6 +231,11 @@ private fun VaultChooserCard(
                     style = MaterialTheme.typography.bodySmall,
                     color = extras.secondaryText,
                 )
+                Text(
+                    "Day-to-day: home-screen widget or long-press the app icon → Capture.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = extras.secondaryText,
+                )
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     TextButton(onClick = onRescan, colors = atomsQuietButtonColors()) {
                         Text("Switch")
