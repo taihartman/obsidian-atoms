@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Blue ↵ for widget chrome — same proportions as monochrome mark. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#0A84FF"
+        android:pathData="M9,5.5 h2 v10 h-2 z" />
+    <path
+        android:fillColor="#0A84FF"
+        android:pathData="M9,13.5 h8 v2 h-8 z" />
+    <path
+        android:fillColor="#0A84FF"
+        android:pathData="M15.5,11.5 L20,14.5 L15.5,17.5 z" />
+</vector>

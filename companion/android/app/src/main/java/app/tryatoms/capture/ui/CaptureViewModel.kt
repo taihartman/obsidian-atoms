@@ -31,6 +31,8 @@ data class CaptureUiState(
     val vaultLinked: Boolean = false,
     val vaultName: String? = null,
     val firstCaptureDone: Boolean = false,
+    val shadeTileAdded: Boolean = false,
+    val homeWidgetAdded: Boolean = false,
     val lastStatus: String? = null,
     val busy: Boolean = false,
     val banner: String? = null,
@@ -89,6 +91,8 @@ class CaptureViewModel(
                 vaultLinked = vault.vaultLinked,
                 vaultName = vault.vaultName,
                 firstCaptureDone = vault.firstCaptureDone,
+                shadeTileAdded = vault.shadeTileAdded,
+                homeWidgetAdded = vault.homeWidgetAdded,
                 lastStatus = vault.lastStatus,
                 busy = t.busy,
                 banner = t.banner?.first,
@@ -106,6 +110,8 @@ class CaptureViewModel(
                 vaultLinked = store.current().vaultLinked,
                 vaultName = store.current().vaultName,
                 firstCaptureDone = store.current().firstCaptureDone,
+                shadeTileAdded = store.current().shadeTileAdded,
+                homeWidgetAdded = store.current().homeWidgetAdded,
                 lastStatus = store.current().lastStatus,
                 hasAccessRoot = store.current().accessRootUri != null,
                 hasAllFilesAccess = hasAllFilesAccess(),
@@ -130,6 +136,14 @@ class CaptureViewModel(
 
     fun clearBanner() {
         banner.value = null
+    }
+
+    fun markShadeTileAdded() {
+        store.markShadeTileAdded()
+    }
+
+    fun markHomeWidgetAdded() {
+        store.markHomeWidgetAdded()
     }
 
     fun onPickerCancelled() {
@@ -237,7 +251,7 @@ class CaptureViewModel(
                         CaptureHomeWidget.updateAll(getApplication())
                     }
                     banner.value =
-                        "Saved. Add the home-screen Capture widget for one-tap next time." to false
+                        "Saved. Next: add the shade button + home widget for one-second capture." to false
                 }
                 is InboxWriter.WriteResult.Err -> {
                     repo.setLastStatus("Failed · ${result.message}")

@@ -1,7 +1,11 @@
 package app.tryatoms.capture
 
+import android.Manifest
+import android.appwidget.AppWidgetManager
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -12,6 +16,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContract
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxSize
@@ -19,15 +24,17 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.lifecycleScope
+import app.tryatoms.capture.tile.CaptureTileService
 import app.tryatoms.capture.ui.CaptureScreen
 import app.tryatoms.capture.ui.CaptureViewModel
 import app.tryatoms.capture.ui.theme.AtomsTheme
 import app.tryatoms.capture.widget.CaptureHomeWidget
-import kotlinx.coroutines.CoroutineScope
+import app.tryatoms.capture.widget.CaptureHomeWidgetReceiver
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 
 class OpenPersistableTree : ActivityResultContract<Uri?, Uri?>() {
@@ -68,10 +75,14 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+    private val requestRuntime =
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         WindowCompat.setDecorFitsSystemWindows(window, false)
+        ensureRuntimePermissions()
         setContent {
             val dark = isSystemInDarkTheme()
             AtomsTheme(darkTheme = dark) {
@@ -115,6 +126,8 @@ class MainActivity : ComponentActivity() {
                         onUseFolderAsVault = viewModel::useAccessRootAsVault,
                         onRescan = viewModel::rescanListedVaults,
                         onUnlinkVault = viewModel::unlinkVault,
+                        onAddShadeTile = ::offerShadeTile,
+                        onAddHomeWidget = ::offerHomeWidget,
                         onDismissBanner = viewModel::clearBanner,
                     )
                 }
@@ -126,12 +139,69 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         viewModel.onResume()
         // Refresh home widget layout after installs (OEMs cache old Glance trees)
-        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+        lifecycleScope.launch(Dispatchers.IO) {
             try {
                 CaptureHomeWidget.updateAll(applicationContext)
             } catch (_: Exception) {
             }
         }
+    }
+
+    private fun ensureRuntimePermissions() {
+        val needed = mutableListOf<String>()
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            needed += Manifest.permission.RECORD_AUDIO
+        }
+        if (Build.VERSION.SDK_INT >= 33 &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            needed += Manifest.permission.POST_NOTIFICATIONS
+        }
+        if (needed.isNotEmpty()) {
+            requestRuntime.launch(needed.toTypedArray())
+        }
+    }
+
+    private fun offerShadeTile() {
+        val ok = CaptureTileService.requestAdd(this)
+        // Optimistic mark — system may dismiss without callback on some OEMs.
+        viewModel.markShadeTileAdded()
+        Toast
+            .makeText(
+                this,
+                if (ok) {
+                    "Confirm Add — then pull the shade anytime for Capture"
+                } else {
+                    "Pull down shade → edit / pencil → add Capture"
+                },
+                Toast.LENGTH_LONG,
+            ).show()
+    }
+
+    private fun offerHomeWidget() {
+        val manager = AppWidgetManager.getInstance(this)
+        val provider = ComponentName(this, CaptureHomeWidgetReceiver::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && manager.isRequestPinAppWidgetSupported) {
+            val pinned =
+                manager.requestPinAppWidget(provider, null, null)
+            if (pinned) {
+                viewModel.markHomeWidgetAdded()
+                Toast
+                    .makeText(this, "Confirm the widget pin on your home screen", Toast.LENGTH_LONG)
+                    .show()
+                return
+            }
+        }
+        viewModel.markHomeWidgetAdded()
+        Toast
+            .makeText(
+                this,
+                "Long-press home screen → Widgets → Atoms Capture",
+                Toast.LENGTH_LONG,
+            ).show()
     }
 
     private fun openAllFilesSettings() {

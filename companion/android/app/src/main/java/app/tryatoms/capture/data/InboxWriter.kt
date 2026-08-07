@@ -9,6 +9,8 @@ import java.io.BufferedReader
 import java.io.File
 import java.io.InputStreamReader
 import java.nio.charset.StandardCharsets
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import java.time.OffsetDateTime
 
 class InboxWriter(
@@ -49,9 +51,11 @@ class InboxWriter(
 
         val inbox = File(systemDir, CaptureLine.INBOX_FILE_NAME)
         return try {
-            val existing = if (inbox.exists()) inbox.readText(StandardCharsets.UTF_8) else ""
-            val merged = CaptureLine.mergeAppend(existing, formatted.line)
-            inbox.writeText(merged, StandardCharsets.UTF_8)
+            synchronized(WRITE_LOCK) {
+                val existing = if (inbox.exists()) inbox.readText(StandardCharsets.UTF_8) else ""
+                val merged = CaptureLine.mergeAppend(existing, formatted.line)
+                atomicWriteText(inbox, merged)
+            }
             okPreview(formatted.stamp, body)
         } catch (e: Exception) {
             WriteResult.Err(e.message ?: "Write failed")
@@ -91,14 +95,23 @@ class InboxWriter(
             findOrCreateFile(systemFolder, CaptureLine.INBOX_FILE_NAME)
                 ?: return WriteResult.Err("Could not create ${CaptureLine.INBOX_FILE_NAME}")
 
-        val existing = readText(inbox.uri)
-        val merged = CaptureLine.mergeAppend(existing, formatted.line)
-
         return try {
-            context.contentResolver.openOutputStream(inbox.uri, "wt")?.use { out ->
-                out.write(merged.toByteArray(StandardCharsets.UTF_8))
-                out.flush()
-            } ?: return WriteResult.Err("Could not open Inbox.md for writing")
+            synchronized(WRITE_LOCK) {
+                val existing = readText(inbox.uri)
+                if (existing.isEmpty()) {
+                    val merged = CaptureLine.mergeAppend("", formatted.line)
+                    writeSafFull(inbox.uri, merged)
+                } else {
+                    // Prefer append-only so a kill mid-write cannot truncate the inbox.
+                    val line =
+                        if (existing.endsWith("\n")) {
+                            formatted.line + "\n"
+                        } else {
+                            "\n" + formatted.line + "\n"
+                        }
+                    appendSaf(inbox.uri, line)
+                }
+            }
             okPreview(formatted.stamp, body)
         } catch (e: Exception) {
             WriteResult.Err(e.message ?: "Write failed")
@@ -122,6 +135,7 @@ class InboxWriter(
     ): DocumentFile? {
         var dir = root
         for (seg in VaultPathJoin.segments(relativePath)) {
+            if (seg == ".." || seg == ".") return null
             dir = dir.findFile(seg)?.takeIf { it.isDirectory } ?: return null
         }
         return dir
@@ -164,6 +178,63 @@ class InboxWriter(
             } ?: ""
         } catch (_: Exception) {
             ""
+        }
+    }
+
+    private fun writeSafFull(
+        uri: Uri,
+        text: String,
+    ) {
+        context.contentResolver.openOutputStream(uri, "wt")?.use { out ->
+            out.write(text.toByteArray(StandardCharsets.UTF_8))
+            out.flush()
+        } ?: error("Could not open Inbox.md for writing")
+    }
+
+    private fun appendSaf(
+        uri: Uri,
+        text: String,
+    ) {
+        // "wa" = write+append when the provider supports it
+        context.contentResolver.openOutputStream(uri, "wa")?.use { out ->
+            out.write(text.toByteArray(StandardCharsets.UTF_8))
+            out.flush()
+        } ?: run {
+            // Fallback: full rewrite (still under WRITE_LOCK)
+            val existing = readText(uri)
+            writeSafFull(uri, existing + text)
+        }
+    }
+
+    companion object {
+        /** Process-wide lock so hub + overlay cannot interleave full rewrites. */
+        private val WRITE_LOCK = Any()
+
+        /**
+         * Write via temp sibling + atomic move so a kill mid-write cannot leave a
+         * truncated Inbox.md.
+         */
+        internal fun atomicWriteText(
+            target: File,
+            text: String,
+        ) {
+            val parent = target.parentFile ?: error("Inbox has no parent")
+            val tmp = File(parent, ".${target.name}.tmp")
+            tmp.writeText(text, StandardCharsets.UTF_8)
+            try {
+                Files.move(
+                    tmp.toPath(),
+                    target.toPath(),
+                    StandardCopyOption.REPLACE_EXISTING,
+                    StandardCopyOption.ATOMIC_MOVE,
+                )
+            } catch (_: Exception) {
+                // Some filesystems reject ATOMIC_MOVE — still replace via rename.
+                if (!tmp.renameTo(target)) {
+                    target.writeText(text, StandardCharsets.UTF_8)
+                    tmp.delete()
+                }
+            }
         }
     }
 }

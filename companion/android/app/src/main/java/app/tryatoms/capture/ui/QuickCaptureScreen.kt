@@ -36,6 +36,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -68,11 +69,17 @@ fun QuickCaptureScreen(
 ) {
     val extras = AtomsThemeAccess.extras
     val focusRequester = remember { FocusRequester() }
+    val focusManager = LocalFocusManager.current
     val keyboard = LocalSoftwareKeyboardController.current
 
+    // Keyboard steals audio focus on some OEMs — hide it while listening.
     LaunchedEffect(linked, listening) {
-        if (linked && !listening) {
-            delay(60)
+        if (!linked) return@LaunchedEffect
+        if (listening) {
+            keyboard?.hide()
+            focusManager.clearFocus(force = true)
+        } else {
+            delay(80)
             focusRequester.requestFocus()
             keyboard?.show()
         }

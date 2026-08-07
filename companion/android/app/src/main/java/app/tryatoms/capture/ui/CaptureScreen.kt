@@ -62,6 +62,8 @@ fun CaptureScreen(
     onUseFolderAsVault: () -> Unit,
     onRescan: () -> Unit,
     onUnlinkVault: () -> Unit,
+    onAddShadeTile: () -> Unit,
+    onAddHomeWidget: () -> Unit,
     onDismissBanner: () -> Unit,
 ) {
     val extras = AtomsThemeAccess.extras
@@ -115,8 +117,19 @@ fun CaptureScreen(
             SetupChecklist(
                 vaultLinked = state.vaultLinked,
                 firstCaptureDone = state.firstCaptureDone,
+                shadeTileAdded = state.shadeTileAdded,
+                homeWidgetAdded = state.homeWidgetAdded,
                 vaultName = state.vaultName,
             )
+
+            if (state.vaultLinked) {
+                CaptureFasterCard(
+                    shadeDone = state.shadeTileAdded,
+                    widgetDone = state.homeWidgetAdded,
+                    onAddShadeTile = onAddShadeTile,
+                    onAddHomeWidget = onAddHomeWidget,
+                )
+            }
 
             if (state.banner != null) {
                 StatusBanner(
@@ -228,11 +241,6 @@ private fun VaultChooserCard(
             if (state.vaultLinked) {
                 Text(
                     "Captures go to Atoms System/Inbox.md",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = extras.secondaryText,
-                )
-                Text(
-                    "Day-to-day: home-screen widget or long-press the app icon → Capture.",
                     style = MaterialTheme.typography.bodySmall,
                     color = extras.secondaryText,
                 )
@@ -387,6 +395,8 @@ private fun VaultPickRow(
 private fun SetupChecklist(
     vaultLinked: Boolean,
     firstCaptureDone: Boolean,
+    shadeTileAdded: Boolean,
+    homeWidgetAdded: Boolean,
     vaultName: String?,
 ) {
     FlatCard {
@@ -404,8 +414,117 @@ private fun SetupChecklist(
             )
             ChecklistRow(
                 done = firstCaptureDone,
-                label = "Save a capture",
-                detail = "It lands in Atoms System/Inbox.md",
+                label = "Save a first capture",
+                detail = "Try the box below once — then switch to one-tap",
+            )
+            ChecklistRow(
+                done = shadeTileAdded,
+                label = "Add the shade button",
+                detail = "Pull down the shade → Capture. Fastest from any screen.",
+            )
+            ChecklistRow(
+                done = homeWidgetAdded,
+                label = "Add the home widget",
+                detail = "One tap on the home screen opens the strip",
+            )
+        }
+    }
+}
+
+/**
+ * Teaches the two optimal capture surfaces once the vault is linked.
+ * Opening this hub is for setup — day-to-day capture is shade + widget.
+ */
+@Composable
+private fun CaptureFasterCard(
+    shadeDone: Boolean,
+    widgetDone: Boolean,
+    onAddShadeTile: () -> Unit,
+    onAddHomeWidget: () -> Unit,
+) {
+    val extras = AtomsThemeAccess.extras
+    FlatCard {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text("CAPTURE IN ONE SECOND", style = kickerStyle)
+            Text(
+                "This hub is for setup. Day to day, don’t open the app — use these:",
+                style = MaterialTheme.typography.bodyMedium,
+                color = extras.secondaryText,
+            )
+
+            Text(
+                "1. Shade button",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                "Pull down from the top of the screen → tap Capture. " +
+                    "Works over any app. Add it once:",
+                style = MaterialTheme.typography.bodySmall,
+                color = extras.secondaryText,
+            )
+            if (shadeDone) {
+                Text(
+                    "Added · pull the shade anytime",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = extras.done,
+                )
+            } else {
+                Button(
+                    onClick = onAddShadeTile,
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 48.dp),
+                    shape = AtomsShapes.button,
+                    colors = atomsPrimaryButtonColors(),
+                ) {
+                    Text("Add shade button", style = MaterialTheme.typography.labelLarge)
+                }
+                Text(
+                    "Or: pull shade → pencil / edit → drag Capture into the tiles",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = extras.tertiaryText,
+                )
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            Text(
+                "2. Home widget",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                "Long-press the home screen → Widgets → Atoms Capture. " +
+                    "Or tap below and confirm the pin.",
+                style = MaterialTheme.typography.bodySmall,
+                color = extras.secondaryText,
+            )
+            if (widgetDone) {
+                Text(
+                    "Added · tap Capture on your home screen",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = extras.done,
+                )
+            } else {
+                OutlinedButton(
+                    onClick = onAddHomeWidget,
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 48.dp),
+                    shape = AtomsShapes.button,
+                    border = BorderStroke(1.dp, extras.hairline),
+                ) {
+                    Text("Add home widget", style = MaterialTheme.typography.labelLarge)
+                }
+            }
+
+            Text(
+                "Also works: long-press the app icon → Capture",
+                style = MaterialTheme.typography.bodySmall,
+                color = extras.tertiaryText,
             )
         }
     }

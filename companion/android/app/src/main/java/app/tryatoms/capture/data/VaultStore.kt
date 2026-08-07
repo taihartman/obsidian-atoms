@@ -28,6 +28,8 @@ class VaultStore(
         val vaultRelativePath: String? = null,
         val vaultName: String? = null,
         val firstCaptureDone: Boolean = false,
+        val shadeTileAdded: Boolean = false,
+        val homeWidgetAdded: Boolean = false,
         val lastStatus: String? = null,
     ) {
         val vaultLinked: Boolean
@@ -53,6 +55,8 @@ class VaultStore(
                 },
             vaultName = prefs.getString(KEY_NAME, null),
             firstCaptureDone = prefs.getBoolean(KEY_CAPTURE_DONE, false),
+            shadeTileAdded = prefs.getBoolean(KEY_SHADE_TILE, false),
+            homeWidgetAdded = prefs.getBoolean(KEY_HOME_WIDGET, false),
             lastStatus = prefs.getString(KEY_STATUS, null),
         ).also {
             Log.i(
@@ -142,6 +146,14 @@ class VaultStore(
         }
     }
 
+    fun markShadeTileAdded() {
+        write { putBoolean(KEY_SHADE_TILE, true) }
+    }
+
+    fun markHomeWidgetAdded() {
+        write { putBoolean(KEY_HOME_WIDGET, true) }
+    }
+
     fun setLastStatus(status: String) {
         write {
             putString(KEY_STATUS, status)
@@ -164,6 +176,8 @@ class VaultStore(
         private const val KEY_REL = "vault_relative_path"
         private const val KEY_NAME = "vault_name"
         private const val KEY_CAPTURE_DONE = "first_capture_done"
+        private const val KEY_SHADE_TILE = "shade_tile_added"
+        private const val KEY_HOME_WIDGET = "home_widget_added"
         private const val KEY_STATUS = "last_status"
     }
 }

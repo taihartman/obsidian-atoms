@@ -8,6 +8,8 @@ import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.GlanceTheme
+import androidx.glance.Image
+import androidx.glance.ImageProvider
 import androidx.glance.LocalContext
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
@@ -20,16 +22,20 @@ import androidx.glance.background
 import androidx.glance.layout.Alignment
 import androidx.glance.layout.Box
 import androidx.glance.layout.Row
+import androidx.glance.layout.Spacer
 import androidx.glance.layout.fillMaxSize
 import androidx.glance.layout.fillMaxWidth
 import androidx.glance.layout.padding
+import androidx.glance.layout.size
+import androidx.glance.layout.width
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
 import app.tryatoms.capture.QuickCaptureActivity
+import app.tryatoms.capture.R
 
-/** Home chip: “Capture” + “+”. Tap opens QuickCapture only. */
+/** Home chip: Capture + ↵ mark. Tap opens QuickCapture only. */
 class CaptureHomeWidget : GlanceAppWidget() {
     override suspend fun provideGlance(
         context: Context,
@@ -47,7 +53,6 @@ class CaptureHomeWidget : GlanceAppWidget() {
             manager.getGlanceIds(CaptureHomeWidget::class.java).forEach { id ->
                 widget.update(context, id)
             }
-            // Refresh any leftover legacy pins
             val legacy = CaptureWidget()
             manager.getGlanceIds(CaptureWidget::class.java).forEach { id ->
                 legacy.update(context, id)
@@ -68,7 +73,7 @@ private fun Content() {
                 .cornerRadius(16.dp)
                 .background(ColorProvider(Color(0xFF1C1C1E)))
                 .clickable(actionStartActivity(intent))
-                .padding(horizontal = 18.dp, vertical = 14.dp),
+                .padding(horizontal = 16.dp, vertical = 12.dp),
         contentAlignment = Alignment.Center,
     ) {
         Row(
@@ -86,15 +91,11 @@ private fun Content() {
                     ),
                 modifier = GlanceModifier.defaultWeight(),
             )
-            Text(
-                text = "+",
-                maxLines = 1,
-                style =
-                    TextStyle(
-                        color = ColorProvider(Color(0xFF0A84FF)),
-                        fontSize = 28.sp,
-                        fontWeight = FontWeight.Medium,
-                    ),
+            Spacer(GlanceModifier.width(8.dp))
+            Image(
+                provider = ImageProvider(R.drawable.ic_atoms_mark_blue),
+                contentDescription = "Capture",
+                modifier = GlanceModifier.size(28.dp),
             )
         }
     }

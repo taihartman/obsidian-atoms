@@ -6,9 +6,10 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import android.graphics.PixelFormat
 import android.os.Build
-import android.os.IBinder
+import android.util.Log
 import android.view.Gravity
 import android.view.WindowManager
 import android.widget.Toast
@@ -20,37 +21,31 @@ import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.core.app.NotificationCompat
+import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleOwner
-import androidx.lifecycle.LifecycleRegistry
 import androidx.lifecycle.LifecycleService
-import androidx.lifecycle.ViewModelStore
-import androidx.lifecycle.ViewModelStoreOwner
+import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.lifecycle.setViewTreeViewModelStoreOwner
-import androidx.savedstate.SavedStateRegistry
-import androidx.savedstate.SavedStateRegistryController
-import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import app.tryatoms.capture.data.CaptureRepository
 import app.tryatoms.capture.data.InboxWriter
+import app.tryatoms.capture.overlay.ComposeTreeOwner
 import app.tryatoms.capture.speech.InAppSpeech
 import app.tryatoms.capture.ui.QuickCaptureScreen
 import app.tryatoms.capture.ui.theme.AtomsTheme
 import app.tryatoms.capture.widget.CaptureHomeWidget
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
  * Foreground service hosting the capture strip as TYPE_APPLICATION_OVERLAY.
- * No Activity window on screen → home/apps stay fully interactive underneath.
+ * No Activity window → home/apps stay interactive underneath.
  */
 class CaptureOverlayService : LifecycleService() {
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var overlayView: ComposeView? = null
     private val treeOwner = ComposeTreeOwner()
 
@@ -66,17 +61,26 @@ class CaptureOverlayService : LifecycleService() {
         speech =
             InAppSpeech(
                 context = this,
-                onPartial = { text ->
-                    fieldValue = TextFieldValue(text = text, selection = TextRange(text.length))
+                onLiveText = { text ->
+                    if (isAlive()) {
+                        Log.i(TAG, "live text len=${text.length}")
+                        fieldValue = TextFieldValue(text = text, selection = TextRange(text.length))
+                    }
                 },
-                onFinal = { text ->
-                    fieldValue = TextFieldValue(text = text, selection = TextRange(text.length))
-                    listening = false
+                onListening = { on ->
+                    if (isAlive()) {
+                        listening = on
+                        // Mic FGS type only while actually dictating (API 34+ requirement).
+                        promoteForeground(mic = on)
+                    }
                 },
-                onListening = { on -> listening = on },
                 onError = { msg ->
-                    listening = false
-                    error = msg
+                    if (isAlive()) {
+                        Log.w(TAG, "speech error: $msg")
+                        listening = false
+                        error = msg
+                        promoteForeground(mic = false)
+                    }
                 },
             )
     }
@@ -87,24 +91,54 @@ class CaptureOverlayService : LifecycleService() {
         startId: Int,
     ): Int {
         super.onStartCommand(intent, flags, startId)
-        startForeground(NOTIF_ID, buildNotification())
+        if (intent?.action == ACTION_STOP) {
+            stopSelf()
+            return START_NOT_STICKY
+        }
+        promoteForeground(mic = listening)
         if (overlayView == null) {
             showOverlay()
         }
         return START_NOT_STICKY
     }
 
+    /**
+     * Overlay always needs specialUse. While the mic is open we must also declare
+     * the microphone FGS type or Android 14+ blocks audio to SpeechRecognizer.
+     */
+    private fun promoteForeground(mic: Boolean) {
+        val notif = buildNotification(if (mic) "Listening…" else "Capturing…")
+        val type =
+            if (Build.VERSION.SDK_INT >= 34) {
+                var t = ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+                if (mic) t = t or ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+                t
+            } else {
+                0
+            }
+        try {
+            ServiceCompat.startForeground(this, NOTIF_ID, notif, type)
+            Log.i(TAG, "startForeground mic=$mic type=$type")
+        } catch (e: Exception) {
+            Log.e(TAG, "startForeground failed", e)
+            // Last resort so we don't crash the strip
+            try {
+                startForeground(NOTIF_ID, notif)
+            } catch (_: Exception) {
+            }
+        }
+    }
+
     override fun onDestroy() {
-        speech?.stop()
+        speech?.stopNow()
         speech = null
         removeOverlay()
+        treeOwner.onDestroy()
         super.onDestroy()
     }
 
-    override fun onBind(intent: Intent): IBinder? {
-        super.onBind(intent)
-        return null
-    }
+    private fun isAlive(): Boolean =
+        lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
 
     private fun showOverlay() {
         val type =
@@ -125,8 +159,6 @@ class CaptureOverlayService : LifecycleService() {
                 PixelFormat.TRANSLUCENT,
             ).apply {
                 gravity = Gravity.TOP
-                x = 0
-                y = 0
                 softInputMode =
                     WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE or
                     WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
@@ -154,6 +186,7 @@ class CaptureOverlayService : LifecycleService() {
                             onCapture = { submit(repo) },
                             onToggleVoice = {
                                 if (listening) {
+                                    // End live feed — text already in the box stays
                                     speech?.stop()
                                 } else {
                                     val ok =
@@ -162,12 +195,8 @@ class CaptureOverlayService : LifecycleService() {
                                             android.Manifest.permission.RECORD_AUDIO,
                                         ) == android.content.pm.PackageManager.PERMISSION_GRANTED
                                     if (!ok) {
-                                        // Can't show runtime dialog from a Service — open hub settings path
-                                        error = "Allow microphone in system settings for Atoms Capture"
-                                        return@QuickCaptureScreen
-                                    }
-                                    if (speech?.isAvailable != true) {
-                                        error = "Voice not available on this device"
+                                        error =
+                                            "Allow microphone — open hub once to grant mic"
                                         return@QuickCaptureScreen
                                     }
                                     error = null
@@ -175,7 +204,7 @@ class CaptureOverlayService : LifecycleService() {
                                 }
                             },
                             onOpenHub = {
-                                speech?.stop()
+                                speech?.stopNow()
                                 startActivity(
                                     Intent(this@CaptureOverlayService, MainActivity::class.java)
                                         .addFlags(
@@ -186,7 +215,7 @@ class CaptureOverlayService : LifecycleService() {
                                 stopSelf()
                             },
                             onClose = {
-                                speech?.stop()
+                                speech?.stopNow()
                                 stopSelf()
                             },
                         )
@@ -207,40 +236,48 @@ class CaptureOverlayService : LifecycleService() {
     private fun removeOverlay() {
         val view = overlayView ?: return
         try {
+            view.disposeComposition()
+        } catch (_: Exception) {
+        }
+        try {
             (getSystemService(WINDOW_SERVICE) as WindowManager).removeView(view)
         } catch (_: Exception) {
         }
         overlayView = null
-        treeOwner.onDestroy()
     }
 
     private fun submit(repo: CaptureRepository) {
-        speech?.stop()
+        speech?.stopNow()
         val text = fieldValue.text
         if (busy || text.isBlank()) return
         busy = true
         error = null
-        scope.launch {
+        lifecycleScope.launch {
             val result = withContext(Dispatchers.IO) { repo.append(text) }
+            if (!isActive || !isAlive()) return@launch
             when (result) {
                 is InboxWriter.WriteResult.Ok -> {
                     repo.markCaptureDone("Saved · ${result.stamp} · ${result.preview}")
                     withContext(Dispatchers.IO) {
                         CaptureHomeWidget.updateAll(this@CaptureOverlayService)
                     }
-                    Toast.makeText(this@CaptureOverlayService, "Saved", Toast.LENGTH_SHORT).show()
-                    stopSelf()
+                    if (isAlive()) {
+                        Toast.makeText(this@CaptureOverlayService, "Saved", Toast.LENGTH_SHORT).show()
+                        stopSelf()
+                    }
                 }
                 is InboxWriter.WriteResult.Err -> {
                     repo.setLastStatus("Failed · ${result.message}")
-                    error = result.message
-                    busy = false
+                    if (isAlive()) {
+                        error = result.message
+                        busy = false
+                    }
                 }
             }
         }
     }
 
-    private fun buildNotification(): Notification {
+    private fun buildNotification(status: String): Notification {
         val nm = getSystemService(NotificationManager::class.java)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             nm.createNotificationChannel(
@@ -251,63 +288,35 @@ class CaptureOverlayService : LifecycleService() {
                 ),
             )
         }
-        val pi =
+        val stopIntent =
+            Intent(this, CaptureOverlayService::class.java).setAction(ACTION_STOP)
+        val stopPi =
             PendingIntent.getService(
                 this,
-                0,
-                Intent(this, CaptureOverlayService::class.java).setAction(ACTION_STOP),
+                1,
+                stopIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             )
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("Atoms Capture")
-            .setContentText("Capturing…")
-            .setSmallIcon(android.R.drawable.ic_menu_edit)
-            .setContentIntent(pi)
+            .setContentText(status)
+            .setSmallIcon(R.drawable.ic_atoms_mark)
             .setOngoing(true)
+            .addAction(0, "Stop", stopPi)
             .build()
     }
 
     companion object {
+        private const val TAG = "AtomsOverlay"
         private const val CHANNEL_ID = "atoms_capture_overlay"
         private const val NOTIF_ID = 42
         const val ACTION_STOP = "app.tryatoms.capture.STOP_OVERLAY"
 
         fun start(context: Context) {
-            val i = Intent(context, CaptureOverlayService::class.java)
-            ContextCompat.startForegroundService(context, i)
+            ContextCompat.startForegroundService(
+                context,
+                Intent(context, CaptureOverlayService::class.java),
+            )
         }
-    }
-}
-
-/** Lifecycle + SavedState + ViewModelStore for ComposeView outside an Activity. */
-private class ComposeTreeOwner :
-    LifecycleOwner,
-    SavedStateRegistryOwner,
-    ViewModelStoreOwner {
-    private val lifecycleRegistry = LifecycleRegistry(this)
-    private val savedStateController = SavedStateRegistryController.create(this)
-    private val store = ViewModelStore()
-
-    init {
-        savedStateController.performRestore(null)
-    }
-
-    override val lifecycle: Lifecycle get() = lifecycleRegistry
-    override val savedStateRegistry: SavedStateRegistry
-        get() = savedStateController.savedStateRegistry
-    override val viewModelStore: ViewModelStore get() = store
-
-    fun onCreate() {
-        lifecycleRegistry.currentState = Lifecycle.State.CREATED
-        lifecycleRegistry.currentState = Lifecycle.State.STARTED
-    }
-
-    fun onResume() {
-        lifecycleRegistry.currentState = Lifecycle.State.RESUMED
-    }
-
-    fun onDestroy() {
-        store.clear()
-        lifecycleRegistry.currentState = Lifecycle.State.DESTROYED
     }
 }

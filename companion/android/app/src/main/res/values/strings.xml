@@ -7,5 +7,8 @@
     <string name="widget_label">Atoms Capture</string>
     <string name="widget_label_legacy">Atoms Capture (old — remove me)</string>
     <string name="widget_loading">Capture</string>
+    <string name="tile_capture">Capture</string>
+    <string name="tile_capture_sub">Atoms</string>
+    <string name="tile_add">Add shade button</string>
 </resources>
 

@@ -1,17 +1,27 @@
 package app.tryatoms.capture
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 
 /**
- * Instant trampoline: start overlay service → finish.
- * No full-screen UI. No waiting on permissions here (mic is asked inside strip).
+ * Instant trampoline: ensure overlay + mic grants → start overlay service → finish.
+ * No full-screen capture UI.
  */
 class QuickCaptureActivity : ComponentActivity() {
+    private val requestMic =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) {
+            // Start overlay regardless — voice can be granted later from hub if denied
+            startOverlayAndFinish()
+        }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -35,6 +45,17 @@ class QuickCaptureActivity : ComponentActivity() {
             return
         }
 
+        val micOk =
+            ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) ==
+                PackageManager.PERMISSION_GRANTED
+        if (!micOk) {
+            requestMic.launch(Manifest.permission.RECORD_AUDIO)
+        } else {
+            startOverlayAndFinish()
+        }
+    }
+
+    private fun startOverlayAndFinish() {
         try {
             CaptureOverlayService.start(this)
         } catch (e: Exception) {
