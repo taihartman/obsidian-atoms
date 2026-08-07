@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| In progress | [#360](https://github.com/taihartman/obsidian-atoms/issues/360) | taihartman | `claude/ask-ack-version` | [handoff](docs/handoffs/2026-08-07-ask-ack-version.md) | `src/shared/askAck.ts`, `src/shared/types.ts`, `src/settings/consent.ts`, `src/settings/settings.ts`, `src/plugin/askCoordinator.ts`, `src/plugin/main.ts` | Version-stamp both Ask acks so a reworded disclosure re-prompts. Unblocks flipping `ASK_EXPAND_ENABLED` back to `"1"` on #340 · plugin bump |
+| In review | [#360](https://github.com/taihartman/obsidian-atoms/issues/360) | taihartman | `claude/ask-ack-version` | [handoff](docs/handoffs/2026-08-07-ask-ack-version.md) | `src/shared/askAck.ts`, `src/shared/types.ts`, `src/settings/consent.ts`, `src/settings/settings.ts`, `src/plugin/askCoordinator.ts`, `src/plugin/main.ts` | Version-stamp both Ask acks so a reworded disclosure re-prompts. Unblocks flipping `ASK_EXPAND_ENABLED` back to `"1"` on #340 · plugin bump |
 | In progress | [#336](https://github.com/taihartman/obsidian-atoms/issues/336) | taihartman | `fix/336-no-missing-time-alarm` | debug lane | `src/home/atomsHomeData.ts`, `src/home/atomsHomeView.ts`, `src/settings/captureShortcut.ts` | Missing times are normal; drop Home repair card · plugin bump |
 | In progress | [#307](https://github.com/taihartman/obsidian-atoms/issues/307) | taihartman | `feat/tryatoms-mailing-list` | [plan](docs/plans/2026-08-05-001-feat-tryatoms-mailing-list-plan.md) | `www/**`, `.github/workflows/tryatoms-pages.yml` | Atoms Notes list + Pages Function subscribe; no plugin bump |
 
