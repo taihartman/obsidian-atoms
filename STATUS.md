@@ -7,6 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
+| In progress | [#382](https://github.com/taihartman/obsidian-atoms/issues/382) | taihartman | `claude/atoms-capture-play-store-24f197` | [handoff](docs/handoffs/2026-08-07-android-play-store-listing.md) | `companion/android/app/build.gradle.kts`, `companion/android/app/src/main/AndroidManifest.xml`, `www/privacy.html` | Atoms Capture → Google Play: SAF-only `play` flavor (drops `MANAGE_EXTERNAL_STORAGE`), release signing scaffold, version off `-poc`, companion section in the privacy policy · no plugin bump |
 | In progress | [#336](https://github.com/taihartman/obsidian-atoms/issues/336) | taihartman | `fix/336-no-missing-time-alarm` | debug lane | `src/home/atomsHomeData.ts`, `src/home/atomsHomeView.ts`, `src/settings/captureShortcut.ts` | Missing times are normal; drop Home repair card · plugin bump |
 | In progress | [#307](https://github.com/taihartman/obsidian-atoms/issues/307) | taihartman | `feat/tryatoms-mailing-list` | [plan](docs/plans/2026-08-05-001-feat-tryatoms-mailing-list-plan.md) | `www/**`, `.github/workflows/tryatoms-pages.yml` | Atoms Notes list + Pages Function subscribe; no plugin bump |
 
