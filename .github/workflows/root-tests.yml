@@ -58,6 +58,16 @@ jobs:
       - name: Test
         run: npm test
 
+      # A suite that mutates tracked files is a trap: the damage lands in
+      # whoever next runs `git add -A`, far from the test that caused it. #354
+      # was exactly that — an archive test staged its fixture by copying it
+      # into `docs/field-notes/published/` and deleting it afterwards, which
+      # removed a committed file every run and eventually got that deletion
+      # committed. Scoped to tracked files, so build output and untracked
+      # scratch stay free.
+      - name: Test run left the tree clean
+        run: git diff --exit-code
+
       # Independent of the tests: root build is
       # `tsc -noEmit -skipLibCheck && esbuild production`, so a typecheck-only
       # failure has the same tag-time-only hole without this step.
