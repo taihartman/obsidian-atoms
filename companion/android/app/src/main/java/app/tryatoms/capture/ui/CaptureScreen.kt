@@ -37,6 +37,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import app.tryatoms.capture.data.FileTreeAccess
 import app.tryatoms.capture.domain.DiscoveredVault
 import app.tryatoms.capture.domain.VaultRef
 import app.tryatoms.capture.ui.theme.AtomsShapes
@@ -267,40 +268,10 @@ private fun VaultChooserCard(
                         style = MaterialTheme.typography.bodySmall,
                         color = extras.secondaryText,
                     )
-                    Button(
-                        onClick = onFindVaultsSaf,
-                        modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .heightIn(min = 48.dp),
-                        shape = AtomsShapes.button,
-                        colors = atomsPrimaryButtonColors(),
-                    ) {
-                        FolderPickerLabel()
-                    }
+                    FolderPickerButton(primary = true, onClick = onFindVaultsSaf)
                 } else {
-                    state.listedVaults.forEach { vault ->
-                        VaultPickRow(
-                            title = vault.name,
-                            subtitle = "Obsidian vault",
-                            onClick = { onSelectVault(vault) },
-                        )
-                    }
-                    OutlinedButton(
-                        onClick = onFindVaultsSaf,
-                        modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .heightIn(min = 48.dp),
-                        shape = AtomsShapes.button,
-                        border = BorderStroke(1.dp, extras.hairline),
-                        colors =
-                            androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
-                                contentColor = MaterialTheme.colorScheme.onSurface,
-                            ),
-                    ) {
-                        FolderPickerLabel()
-                    }
+                    VaultRefList(state.listedVaults, onSelectVault)
+                    FolderPickerButton(primary = false, onClick = onFindVaultsSaf)
                 }
                 // The escape hatch for a folder that IS the vault, or one whose
                 // .obsidian the picker did not surface.
@@ -334,21 +305,7 @@ private fun VaultChooserCard(
                     style = MaterialTheme.typography.bodySmall,
                     color = extras.tertiaryText,
                 )
-                OutlinedButton(
-                    onClick = onFindVaultsSaf,
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .heightIn(min = 48.dp),
-                    shape = AtomsShapes.button,
-                    border = BorderStroke(1.dp, extras.hairline),
-                    colors =
-                        androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
-                            contentColor = MaterialTheme.colorScheme.onSurface,
-                        ),
-                ) {
-                    FolderPickerLabel()
-                }
+                FolderPickerButton(primary = false, onClick = onFindVaultsSaf)
                 return@FlatCard
             }
 
@@ -384,13 +341,7 @@ private fun VaultChooserCard(
                     )
                 }
             } else if (state.listedVaults.isNotEmpty()) {
-                state.listedVaults.forEach { vault ->
-                    VaultPickRow(
-                        title = vault.name,
-                        subtitle = "Obsidian vault",
-                        onClick = { onSelectVault(vault) },
-                    )
-                }
+                VaultRefList(state.listedVaults, onSelectVault)
             } else if (!state.scanning) {
                 Text(
                     "No vaults found yet.",
@@ -412,6 +363,59 @@ private fun VaultChooserCard(
                 }
             }
         }
+    }
+}
+
+/**
+ * One folder-picker button. Which flavor the build is decides whether it leads
+ * (Play, where it is the only route to a vault) or follows, never how it looks.
+ */
+@Composable
+private fun FolderPickerButton(
+    primary: Boolean,
+    onClick: () -> Unit,
+) {
+    val modifier =
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp)
+    if (primary) {
+        Button(
+            onClick = onClick,
+            modifier = modifier,
+            shape = AtomsShapes.button,
+            colors = atomsPrimaryButtonColors(),
+        ) {
+            FolderPickerLabel()
+        }
+    } else {
+        OutlinedButton(
+            onClick = onClick,
+            modifier = modifier,
+            shape = AtomsShapes.button,
+            border = BorderStroke(1.dp, AtomsThemeAccess.extras.hairline),
+            colors =
+                androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
+                    contentColor = MaterialTheme.colorScheme.onSurface,
+                ),
+        ) {
+            FolderPickerLabel()
+        }
+    }
+}
+
+/** The list of vaults found inside a granted folder. Same rows on every surface. */
+@Composable
+private fun VaultRefList(
+    vaults: List<VaultRef>,
+    onSelect: (VaultRef) -> Unit,
+) {
+    vaults.forEach { vault ->
+        VaultPickRow(
+            title = vault.name,
+            subtitle = "Obsidian vault",
+            onClick = { onSelect(vault) },
+        )
     }
 }
 
@@ -472,7 +476,12 @@ private fun SetupChecklist(
                     if (vaultLinked && vaultName != null) {
                         vaultName
                     } else {
-                        "We’ll find vaults on this phone"
+                        // The Play build cannot look; it has to be shown.
+                        if (FileTreeAccess.SUPPORTED) {
+                            "We’ll find vaults on this phone"
+                        } else {
+                            "Point us at your vault folder"
+                        }
                     },
             )
             ChecklistRow(
