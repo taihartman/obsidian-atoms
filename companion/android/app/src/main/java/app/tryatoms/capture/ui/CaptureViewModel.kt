@@ -114,7 +114,7 @@ class CaptureViewModel(
                 homeWidgetAdded = store.current().homeWidgetAdded,
                 lastStatus = store.current().lastStatus,
                 hasAccessRoot = store.current().accessRootUri != null,
-                hasAllFilesAccess = FileTreeAccess.granted(),
+                hasAllFilesAccess = allFiles.value,
             ),
         )
 

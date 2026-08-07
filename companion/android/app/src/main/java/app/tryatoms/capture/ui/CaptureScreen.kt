@@ -273,13 +273,7 @@ private fun VaultChooserCard(
                     shape = AtomsShapes.button,
                     colors = atomsPrimaryButtonColors(),
                 ) {
-                    Icon(
-                        Icons.Outlined.FolderOpen,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp),
-                    )
-                    Spacer(modifier = Modifier.size(8.dp))
-                    Text("Folder picker", style = MaterialTheme.typography.labelLarge)
+                    FolderPickerLabel()
                 }
                 return@FlatCard
             }
@@ -319,13 +313,7 @@ private fun VaultChooserCard(
                             contentColor = MaterialTheme.colorScheme.onSurface,
                         ),
                 ) {
-                    Icon(
-                        Icons.Outlined.FolderOpen,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp),
-                    )
-                    Spacer(modifier = Modifier.size(8.dp))
-                    Text("Folder picker", style = MaterialTheme.typography.labelLarge)
+                    FolderPickerLabel()
                 }
                 return@FlatCard
             }
@@ -391,6 +379,18 @@ private fun VaultChooserCard(
             }
         }
     }
+}
+
+/** Shared by the primary and outlined folder-picker buttons so they cannot drift. */
+@Composable
+private fun FolderPickerLabel() {
+    Icon(
+        Icons.Outlined.FolderOpen,
+        contentDescription = null,
+        modifier = Modifier.size(18.dp),
+    )
+    Spacer(modifier = Modifier.size(8.dp))
+    Text("Folder picker", style = MaterialTheme.typography.labelLarge)
 }
 
 @Composable

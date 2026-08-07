@@ -1,5 +1,7 @@
 import com.android.build.api.artifact.SingleArtifact
+import org.w3c.dom.Element
 import java.util.Properties
+import javax.xml.parsers.DocumentBuilderFactory
 
 plugins {
     id("com.android.application")
@@ -9,9 +11,10 @@ plugins {
 // The upload keystore lives on the owner's machine, never in git. Copy
 // keystore.properties.example to keystore.properties and point it at yours.
 val keystorePropsFile = rootProject.file("keystore.properties")
+val hasKeystoreProps = keystorePropsFile.exists()
 val keystoreProps =
     Properties().apply {
-        if (keystorePropsFile.exists()) keystorePropsFile.inputStream().use { load(it) }
+        if (hasKeystoreProps) keystorePropsFile.inputStream().use { load(it) }
     }
 
 android {
@@ -46,7 +49,7 @@ android {
 
     signingConfigs {
         create("release") {
-            if (keystorePropsFile.exists()) {
+            if (hasKeystoreProps) {
                 storeFile = rootProject.file(keystoreProps.getProperty("storeFile"))
                 storePassword = keystoreProps.getProperty("storePassword")
                 keyAlias = keystoreProps.getProperty("keyAlias")
@@ -58,7 +61,7 @@ android {
     buildTypes {
         release {
             signingConfig =
-                if (keystorePropsFile.exists()) signingConfigs.getByName("release") else null
+                if (hasKeystoreProps) signingConfigs.getByName("release") else null
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
@@ -126,14 +129,31 @@ abstract class VerifyPlayManifest : DefaultTask() {
     @TaskAction
     fun verify() {
         val banned =
-            listOf(
+            setOf(
                 "android.permission.MANAGE_EXTERNAL_STORAGE",
                 "android.permission.WRITE_EXTERNAL_STORAGE",
                 "android.permission.READ_EXTERNAL_STORAGE",
             )
         val manifest = mergedManifest.get().asFile
-        val text = manifest.readText()
-        val found = banned.filter { text.contains("android:name=\"$it\"") }
+        // Parsed, not grepped: attribute order and whitespace are the merger's
+        // business, and a substring miss here fails silently at Play review.
+        val doc =
+            DocumentBuilderFactory
+                .newInstance()
+                .apply { isNamespaceAware = true }
+                .newDocumentBuilder()
+                .parse(manifest)
+
+        fun elements(tag: String): List<Element> {
+            val nodes = doc.getElementsByTagName(tag)
+            return (0 until nodes.length).map { nodes.item(it) as Element }
+        }
+
+        val found =
+            elements("uses-permission")
+                .map { it.getAttributeNS(ANDROID_NS, "name") }
+                .filter { it in banned }
+                .distinct()
         if (found.isNotEmpty()) {
             throw GradleException(
                 "The play flavor declares ${found.joinToString()} in ${manifest.name}. Play " +
@@ -142,12 +162,21 @@ abstract class VerifyPlayManifest : DefaultTask() {
                     "flavor, or reach the vault through the SAF folder picker.",
             )
         }
-        if (text.contains("android:requestLegacyExternalStorage=\"true\"")) {
+
+        val legacyStorage =
+            elements("application").any {
+                it.getAttributeNS(ANDROID_NS, "requestLegacyExternalStorage") == "true"
+            }
+        if (legacyStorage) {
             throw GradleException(
                 "The play flavor sets requestLegacyExternalStorage in ${manifest.name}. That " +
                     "belongs to the sideload flavor only.",
             )
         }
+    }
+
+    companion object {
+        private const val ANDROID_NS = "http://schemas.android.com/apk/res/android"
     }
 }
 
@@ -169,7 +198,7 @@ androidComponents {
 // the upload, so fail here instead of there.
 tasks.matching { it.name.startsWith("bundle") && it.name.endsWith("Release") }.configureEach {
     doFirst {
-        if (!keystorePropsFile.exists()) {
+        if (!hasKeystoreProps) {
             throw GradleException(
                 "companion/android/keystore.properties is missing, so this bundle would be " +
                     "unsigned. Copy keystore.properties.example, point it at your upload " +
