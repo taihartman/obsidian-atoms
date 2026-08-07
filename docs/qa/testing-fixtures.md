@@ -116,3 +116,25 @@ When a feature adds a stable seed, CLI command, or device flag, update this file
 - **Expected states:** Mind change kicker; old body; later line; citator chips on home open.
 - **Cleanup:** Delete fixture atoms after the pass.
 - **Evidence:** Unit tests + CLI/home visual.
+
+### Plus session (renders the Ask section without a real account)
+
+- **qaPurpose:** The Ask rows — `Ask mirror`, `Allow filing from Claude or ChatGPT`, and the two
+  consent sheets — render only behind `readPlusSession`. Without one, Settings prints
+  `Sign in to Atoms Plus above first.` and every Ask story is unreachable. This fixture makes the
+  whole Ask surface drivable with no cloud account and no network.
+- **Mode:** Live (device-local key; never `data.json`).
+- **Surface:** Settings → Atoms, Ask section + Connect destination.
+- **Setup:** `app.saveLocalStorage("atoms-plus-session", JSON.stringify({sessionToken:"qa-token",
+  email:"qa@example.com", status:"active", remaining:12, periodEnd:"2026-09-01T00:00:00.000Z"}))`.
+  The key is the bare `LS_PLUS_SESSION` constant (`src/platform/filingAuth.ts`) — Obsidian
+  namespaces `loadLocalStorage`/`saveLocalStorage` per vault on its own, so do **not** prefix it.
+  Write the **JSON string**, not the object: that is what `writePlusSession` produces, and it is
+  the faithful shape even though the reader accepts both.
+- **Expected states:** the three Ask rows render; consent sheets open; `mirrorPermitted()` answers
+  off the acks rather than short-circuiting on a missing session.
+- **Cleanup:** `app.saveLocalStorage("atoms-plus-session", null)` at the end of the pass.
+- **Evidence:** `docs/qa/2026-08-07-claude-ask-ack-version-world-class-qa.md`.
+- **Known wrinkle (not this fixture's bug):** the Connect destination can render a *previous*
+  session's cached status line (count, email, last error) after the session is swapped. Cosmetic,
+  filed separately — do not read it as this fixture failing to apply.

@@ -12,6 +12,7 @@ import {
   statusRow,
 } from "../src/settings/rows";
 import { AtomsSettingTab, type SettingsRoute } from "../src/settings/settings";
+import { ASK_PRIVACY_ACK_VERSION } from "../src/shared/askAck";
 import {
   destinationNames,
   // Aliased: this file already has a local `row()` reader, and `press`/`flip` read better
@@ -859,7 +860,11 @@ describe("in-flight guard across a settings-tab rebuild", () => {
     });
     const { tab } = settingTab({
       session: MIRROR_SESSION,
-      settings: { askPrivacyAckAt: "2026-08-01T10:00:00.000Z", askEnabled: true },
+      settings: {
+        askPrivacyAckAt: "2026-08-01T10:00:00.000Z",
+        askPrivacyAckVersion: ASK_PRIVACY_ACK_VERSION,
+        askEnabled: true,
+      },
       plugin: {
         syncAskMirror: () => {
           pushes += 1;
