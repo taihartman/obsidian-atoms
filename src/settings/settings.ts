@@ -449,12 +449,25 @@ export class AtomsSettingTab extends PluginSettingTab {
     // mid-page on a screen they have not seen. `hiding` is the latch that already suppresses a
     // re-render nobody will look at; `display()` clears it.
     this.hiding = true;
-    this.openSheet?.close();
-    this.openSheet = null;
+    this.settleOpenSheet();
     this.route = route;
     this.display();
     const scroller = this.settingsScrollEl();
     if (scroller) scroller.scrollTop = 0;
+  }
+
+  /**
+   * Settle a consent sheet the user is walking away from.
+   *
+   * Closing without choosing is a decline, not a half-written ack: `close()` reaches the sheet's
+   * `onClose`, which settles it the same way Escape does. Every screen change that can strand a
+   * sheet goes through here — leaving Settings, walking to another route, and an external
+   * withdrawal rebuilding the screen underneath it (#323). Three copies of this pair is how one
+   * of them ends up forgotten.
+   */
+  private settleOpenSheet(): void {
+    this.openSheet?.close();
+    this.openSheet = null;
   }
 
   /**
@@ -468,10 +481,7 @@ export class AtomsSettingTab extends PluginSettingTab {
     // would see that verdict forever — the row's only other trigger is saving the key again.
     this.apiKeyCheck = null;
     this.apiKeyStatusEl = null;
-    // Closing Settings mid-decision is a decline, not a half-written ack: `close()` reaches the
-    // sheet's `onClose`, which settles it the same way Escape does.
-    this.openSheet?.close();
-    this.openSheet = null;
+    this.settleOpenSheet();
     // Off screen: an external change has nothing to re-render, and the next `display()` reads
     // the reloaded settings anyway. The identity check is ordering defense, not ceremony — a
     // `display()` that lands before the outgoing tab's `hide()` would otherwise be deregistered
@@ -588,8 +598,7 @@ export class AtomsSettingTab extends PluginSettingTab {
    * a rebuilt DOM that already shows the remote withdrawal.
    */
   refreshFromExternalSettings(): void {
-    this.openSheet?.close();
-    this.openSheet = null;
+    this.settleOpenSheet();
     this.redisplay();
   }
 
