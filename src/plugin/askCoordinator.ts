@@ -29,6 +29,8 @@ import {
 } from "./catchUp";
 import type { MirrorSyncOutcome } from "../shared/mirrorOutcome";
 
+/** Why a push stopped when consent is not in place. One string, two gates. */
+const MIRROR_OFF = "Ask mirror is off";
 
 /**
  * Single owner of Ask orchestration state still living on the plugin after #226.
@@ -104,10 +106,45 @@ export class AskCoordinator {
     );
   }
 
+  /**
+   * Whether the mirror may push *right now*. The one home for the egress predicate:
+   * a second copy is how a future condition gets added to one gate and missed at the
+   * other. Read live at every call rather than captured, because `data.json` syncs —
+   * a withdrawal on another device replaces `plugin.settings` underneath a pass that
+   * is already running (#323).
+   */
+  mirrorPermitted(): boolean {
+    const p = this.plugin;
+    return p.settings.askEnabled && Boolean(p.settings.askPrivacyAckAt);
+  }
+
+  /** Forget the debounced push this device owes itself; keeps no timer alive. */
+  private clearDebouncedPush(): void {
+    if (this.askMirrorDebounceTimer != null) {
+      window.clearTimeout(this.askMirrorDebounceTimer);
+      this.askMirrorDebounceTimer = null;
+    }
+    this.askMirrorDirty = false;
+  }
+
+  /**
+   * Drop every push this device still owes itself. Called when the external-settings
+   * hook lands a state the mirror may not push under.
+   *
+   * The single-flight flags are documented as owned by `runMirrorSingleFlight`, and
+   * they are — but clearing them is monotonic in the safe direction: it can only
+   * cancel work, never start it, and the run's own `finally` clears them again.
+   * Setting either one from outside would be the violation.
+   */
+  cancelPendingSync(): void {
+    this.askMirrorFlight.followUp = false;
+    this.askMirrorFlight.forceFollowUp = false;
+    this.clearDebouncedPush();
+  }
+
   /** Debounced best-effort push after vault or pipeline writes. */
   scheduleSync(): void {
-    const p = this.plugin;
-    if (!p.settings.askEnabled || !p.settings.askPrivacyAckAt) {
+    if (!this.mirrorPermitted()) {
       return;
     }
     // Coalesce into the in-flight run instead of a second post-run debounce.
@@ -134,11 +171,10 @@ export class AskCoordinator {
   async applyOutbox(): Promise<AskOutboxOutcome> {
     const p = this.plugin;
     const idle: AskOutboxOutcome = { kind: "worked", landed: 0, rejected: 0 };
-    if (
-      !p.settings.askEnabled ||
-      !p.settings.askPrivacyAckAt ||
-      !p.settings.askWriteAckAt
-    ) {
+    // The shared half asked through `mirrorPermitted()`, not re-derived: a hand-written
+    // second copy is exactly how the next condition added to the gate misses this path.
+    // The write ack is this path's own — it authorizes cloud data landing in the vault.
+    if (!this.mirrorPermitted() || !p.settings.askWriteAckAt) {
       return idle;
     }
     const host = await this.createOutboxHost();
@@ -208,23 +244,15 @@ export class AskCoordinator {
    * force: full reconcile (keepPaths orphan delete). Never early-return before delete/reconcile.
    */
   async sync(opts?: { force?: boolean }): Promise<MirrorSyncOutcome> {
-    const p = this.plugin;
-    if (!p.settings.askEnabled || !p.settings.askPrivacyAckAt) {
+    if (!this.mirrorPermitted()) {
       if (opts?.force) new Notice("Enable Ask and acknowledge privacy first");
-      return { kind: "failed", message: "Ask mirror is off" };
+      return { kind: "failed", message: MIRROR_OFF };
     }
     return runMirrorSingleFlight(
       {
         state: this.askMirrorFlight,
-        onBegin: () => {
-          // Absorb pending debounce into this run (avoids Process + 2s
-          // double push).
-          if (this.askMirrorDebounceTimer != null) {
-            window.clearTimeout(this.askMirrorDebounceTimer);
-            this.askMirrorDebounceTimer = null;
-          }
-          this.askMirrorDirty = false;
-        },
+        // Absorb pending debounce into this run (avoids Process + 2s double push).
+        onBegin: () => this.clearDebouncedPush(),
         once: (force) => this.runSyncOnce(force),
       },
       Boolean(opts?.force),
@@ -235,6 +263,22 @@ export class AskCoordinator {
     force: boolean,
   ): Promise<Exclude<MirrorSyncOutcome, { kind: "joined" }>> {
     const p = this.plugin;
+    // The only gate a *follow-up* pass ever crosses: `runMirrorSingleFlight` loops back
+    // into `once()`, never into `sync()`, so the check at the top of `sync()` answers
+    // for the first pass alone. Without this one, a consent withdrawn mid-run was
+    // followed by a second pass uploading note bodies under it (#323 F1). Silent —
+    // `sync()` owns the notice for the forced gesture, and a follow-up has no user
+    // behind it.
+    //
+    // Per pass, not per request: `runAskMirrorSync` below scans the vault and then
+    // upserts in chunks, and nothing re-checks between them. A withdrawal landing
+    // inside that stretch still ships the rest of this pass. Closing that needs a live
+    // predicate threaded into the mirror host and is deliberately not this change —
+    // but do not read this gate as "the last check before the upload", because the
+    // upload is several awaits further on.
+    if (!this.mirrorPermitted()) {
+      return { kind: "failed", message: MIRROR_OFF };
+    }
     const { readPlusSession } = await import("../platform/filingAuth");
     const session = readPlusSession(p.app);
     if (!session) {

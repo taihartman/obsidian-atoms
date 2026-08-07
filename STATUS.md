@@ -9,6 +9,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 |---|---|---|---|---|---|---|
 | In progress | [#336](https://github.com/taihartman/obsidian-atoms/issues/336) | taihartman | `fix/336-no-missing-time-alarm` | debug lane | `src/home/atomsHomeData.ts`, `src/home/atomsHomeView.ts`, `src/settings/captureShortcut.ts` | Missing times are normal; drop Home repair card · plugin bump |
 | In progress | [#307](https://github.com/taihartman/obsidian-atoms/issues/307) | taihartman | `feat/tryatoms-mailing-list` | [plan](docs/plans/2026-08-05-001-feat-tryatoms-mailing-list-plan.md) | `www/**`, `.github/workflows/tryatoms-pages.yml` | Atoms Notes list + Pages Function subscribe; no plugin bump |
+| In review | [#323](https://github.com/taihartman/obsidian-atoms/issues/323) | taihartman | `fix/ask-consent-cross-device` | — (confirmed by construction, no plan needed) | `src/plugin/askCoordinator.ts`, `src/plugin/main.ts`, `src/settings/settings.ts` | **Consent bypass on shipped code** — a withdrawal synced from another device never reached `plugin.settings`, and the follow-up mirror pass crossed no gate · **0.6.83** (0.6.82 left to `feat/339`, whose `0.6.82-beta.1` is already published) · two-device smoke ran; the cross-device leg was **not** reproduced — see [PR #330](https://github.com/taihartman/obsidian-atoms/pull/330) Evidence |
 
 ## How to claim (copy)
 

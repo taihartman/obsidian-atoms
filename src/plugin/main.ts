@@ -174,6 +174,12 @@ import { closeOpenConsentSheet } from "../settings/consent";
 
 export default class AtomsPlugin extends Plugin {
   settings!: LinkerSettings;
+  /**
+   * The settings tab while it is on screen, so `onExternalSettingsChange` can re-render what a
+   * remote withdrawal just invalidated (#323). The tab registers and clears itself, so this is
+   * null whenever Settings is closed and there is nothing to refresh.
+   */
+  settingTab: AtomsSettingTab | null = null;
   contextProvider!: MetadataContextProvider;
   /**
    * #240 KTD8 — one slot for a sign-in deep link that lands before settings
@@ -183,8 +189,19 @@ export default class AtomsPlugin extends Plugin {
   private signInHandoff = createSignInHandoffQueue({
     openStatus: () => createSignInStatusSurface(this.app),
   });
-  /** Ask mirror + outbox orchestration (single owner of inFlight state). */
-  ask!: AskCoordinator;
+  /**
+   * Ask mirror + outbox orchestration (single owner of inFlight state).
+   *
+   * Constructed with the instance, not in `onload`: `onExternalSettingsChange` cancels pending
+   * pushes through it, and Obsidian can fire that hook against a plugin whose `onload` has not
+   * finished. The constructor only stores this reference, so it is safe this early.
+   */
+  ask: AskCoordinator = new AskCoordinator(this);
+  /**
+   * Bumped before every save, so an external read that resolves after a local write can
+   * tell the copy it is holding is already stale. See `onExternalSettingsChange`.
+   */
+  private settingsGeneration = 0;
   /** Last classify outcome for CLI/dev inspection (no secrets). */
   lastClassifyOutcome: ClassifyOutcome | null = null;
   /** Last dry-run report for CLI inspection (no vault writes). */
@@ -242,13 +259,7 @@ export default class AtomsPlugin extends Plugin {
     this.register(() => closeOpenConsentSheet());
 
     await this.loadSettings();
-    void this.signInHandoff.ready({
-      app: this.app,
-      settings: this.settings,
-      // The only gate in front of the exchange (#240 U10 / R4): the modal owns
-      // the question, `platform/plusSignIn` owns what a "confirmed" spends.
-      confirmSignIn: (request) => askSignInApproval(this.app, request),
-    });
+    void this.signInHandoff.ready(this.plusSignInHost());
     this.contextProvider = new MetadataContextProvider(
       this.app,
       () => this.settings.activeVocabulary,
@@ -284,7 +295,6 @@ export default class AtomsPlugin extends Plugin {
     schedulePlusCheckoutResume(this);
 
     // Ask outbox + mirror catch-up when vault is open (coordinator owns state).
-    this.ask = new AskCoordinator(this);
     this.ask.registerLifecycle();
 
     // Resume listeners armed after vault index ready (avoids vault_not_ready drop).
@@ -1412,8 +1422,48 @@ export default class AtomsPlugin extends Plugin {
     );
   }
 
+  /**
+   * The host `plusSignIn` keeps for the process lifetime — it stores this object once
+   * (`host = next`) and reads `plusBaseUrl` later, at token-exchange time.
+   *
+   * `settings` is a live getter rather than `this.settings`, because every settings load
+   * *replaces* that object: handing over the object itself would pin sign-in to whichever
+   * copy existed at startup, so an edited or externally-synced base URL would never be
+   * seen. Aliasing `plugin.settings` is the same mistake #323 was about, one field over.
+   * A named seam, so the invariant can be asserted rather than only asserted about.
+   */
+  plusSignInHost() {
+    const plugin = this;
+    return {
+      app: this.app,
+      settings: {
+        get plusBaseUrl() {
+          return plugin.settings.plusBaseUrl;
+        },
+      },
+      // The only gate in front of the exchange (#240 U10 / R4): the modal owns
+      // the question, `platform/plusSignIn` owns what a "confirmed" spends.
+      confirmSignIn: (request: Parameters<typeof askSignInApproval>[1]) =>
+        askSignInApproval(this.app, request),
+    };
+  }
+
   async loadSettings() {
+    // `?? {}` belongs to startup only: on a fresh install there is no file, and
+    // defaults are the right answer. Reached from the external-change hook the
+    // same coalesce would read an empty `data.json` as "wipe everything", so
+    // that path supplies its own `raw` and rejects the wipe shape first.
     const raw = ((await this.loadData()) ?? {}) as Partial<LinkerSettings>;
+    if (this.applyLoadedSettings(raw)) await this.saveSettings();
+  }
+
+  /**
+   * The merge tail shared by startup and the external-change hook. Replaces
+   * `this.settings` rather than mutating it — the "never alias `plugin.settings`"
+   * invariant below is what makes one assignment close every gate at once.
+   * Returns whether the legacy strip left disk owing a write.
+   */
+  private applyLoadedSettings(raw: Partial<LinkerSettings>): boolean {
     // One-time strip of the retired synced hash map: mirror evidence is
     // device-local (CLAUDE.md non-negotiable 12), and `data.json` syncs. This
     // is deletion, not migration — the value is never read back as evidence,
@@ -1421,10 +1471,112 @@ export default class AtomsPlugin extends Plugin {
     const stripped = stripLegacyAskMirrorHashes(raw);
     this.settings = Object.assign({}, DEFAULT_SETTINGS, raw);
     this.settings.atomFolder = clampAtomFolder(this.settings.atomFolder);
-    if (stripped) await this.saveSettings();
+    return stripped;
+  }
+
+  /**
+   * Take only the consent this external read says is gone, leaving every other field to the
+   * local write that won the race. Mutates in place rather than replacing the object for that
+   * reason: the winner's copy is the newer one everywhere except here.
+   *
+   * Only an *explicitly* falsy value counts. An absent key is the same ambiguity the blank-file
+   * guards refuse to resolve — it could mean withdrawn or it could mean a partial read, and a
+   * withdrawal is not something to invent. A grant never crosses this branch in either case.
+   */
+  private async adoptExternalWithdrawal(next: Partial<LinkerSettings>): Promise<void> {
+    let changed = false;
+    const revoke = <K extends "askEnabled" | "askPrivacyAckAt" | "askWriteAckAt">(
+      key: K,
+      cleared: LinkerSettings[K],
+    ) => {
+      if (!(key in next) || next[key] || !this.settings[key]) return;
+      this.settings[key] = cleared;
+      changed = true;
+    };
+    revoke("askEnabled", false);
+    revoke("askPrivacyAckAt", "");
+    revoke("askWriteAckAt", "");
+    if (!changed) return;
+    // Persist now. The save that won the race has already put the grant back on disk, so
+    // leaving this in memory alone would let the next writer push it out to every device.
+    await this.saveSettings();
+    if (!this.ask.mirrorPermitted()) this.ask.cancelPendingSync();
+    this.settingTab?.refreshFromExternalSettings();
+  }
+
+  /**
+   * #323 — Obsidian fires this when `data.json` changes underneath a running plugin, which is
+   * what Sync replicating another device's write looks like from here. Without it there is no
+   * re-read path at all (`loadData()` is called once, above), so every consent gate keeps
+   * answering to the copy loaded at startup: a withdrawal on the phone leaves this device
+   * mirroring note bodies under a consent that no longer exists on disk.
+   *
+   * The invariant that makes this hold: never alias `plugin.settings`. Gates read it through
+   * the plugin at the moment of egress, so re-pointing it here closes them all at once.
+   */
+  async onExternalSettingsChange(): Promise<void> {
+    const before = JSON.stringify(this.settings ?? null);
+    // A local save that starts while we are reading has already persisted what memory holds,
+    // so applying the older copy we read would undo it. `saveSettings()` writes the whole
+    // settings object, so the loser of that race loses everything, not just the field the
+    // writer touched. The generation tells us the race happened; see the mismatch branch
+    // below for the one thing that still crosses it.
+    const generation = this.settingsGeneration;
+    let raw: unknown;
+    try {
+      raw = await this.loadData();
+    } catch (err) {
+      // A file caught mid-write must not be read as a blank — that shape is indistinguishable
+      // from a withdrawal, and inventing one would be its own bug. Keeping the last good copy
+      // leaves the gate where the user put it until a readable file arrives. Never rethrow:
+      // this runs inside Obsidian's caller.
+      //
+      // Deliberately not `devLog`: it is a no-op everywhere (the Community plugin scan forbids
+      // `console`), so it would buy no diagnostics, and it dereferences an esbuild-injected
+      // const that does not exist under vitest.
+      void err;
+      return;
+    }
+    // The non-throwing shape of the same mid-write file. `?? {}` would turn it into a full
+    // reset to DEFAULT_SETTINGS at runtime — consent fails closed, but `plusBaseUrl`,
+    // `atomFolder`, and the active vocabulary are gone, and the next save persists that wipe
+    // everywhere. Treat it exactly like the throw: keep the last good copy.
+    if (raw == null || typeof raw !== "object") return;
+    const next = raw as Partial<LinkerSettings>;
+    if (generation !== this.settingsGeneration) {
+      // A local save overtook this read, so its copy is the newer one for every ordinary
+      // field. Consent is not an ordinary field: the local writer persists whatever memory
+      // held, which is still a *grant* if this read is the first thing carrying the remote
+      // withdrawal. Dropping the read wholesale would therefore erase a withdrawal from
+      // memory and from disk at once, and Sync would carry the resurrected grant back to the
+      // device that just revoked it. So one thing crosses the race — the withdrawal, never
+      // the grant. Consent only ever moves toward closed here.
+      await this.adoptExternalWithdrawal(next);
+      return;
+    }
+    if (this.applyLoadedSettings(next)) {
+      await this.saveSettings();
+    }
+    // Consent may have just been withdrawn elsewhere. Closing the gates is not enough on its
+    // own: a mirror pass already inside its single-flight loop owes itself a follow-up that
+    // never re-enters `sync()`. Cancel what is owed. Asked through the coordinator rather
+    // than re-derived here, so the egress predicate keeps exactly one home. Unconditional
+    // rather than keyed on a before→after transition, so it holds whatever this device
+    // previously believed.
+    if (!this.ask.mirrorPermitted()) this.ask.cancelPendingSync();
+    // Everything below only decides whether to rebuild an open Settings screen.
+    if (!this.settingTab) return;
+    // The screen was rendered against the state we just replaced; a Review row still showing a
+    // consent that is gone on disk is the same defect wearing a different coat. Rebuilding it
+    // costs a full `containerEl.empty()` and re-render, so skip that when the file changed in
+    // ways this screen cannot show — including `loadSettings`' own legacy-hash write bouncing
+    // back through this hook.
+    if (JSON.stringify(this.settings) === before) return;
+    this.settingTab.refreshFromExternalSettings();
   }
 
   async saveSettings() {
+    this.settingsGeneration += 1;
     await this.saveData(this.settings);
   }
 

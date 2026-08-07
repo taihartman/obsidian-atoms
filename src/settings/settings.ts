@@ -449,12 +449,25 @@ export class AtomsSettingTab extends PluginSettingTab {
     // mid-page on a screen they have not seen. `hiding` is the latch that already suppresses a
     // re-render nobody will look at; `display()` clears it.
     this.hiding = true;
-    this.openSheet?.close();
-    this.openSheet = null;
+    this.settleOpenSheet();
     this.route = route;
     this.display();
     const scroller = this.settingsScrollEl();
     if (scroller) scroller.scrollTop = 0;
+  }
+
+  /**
+   * Settle a consent sheet the user is walking away from.
+   *
+   * Closing without choosing is a decline, not a half-written ack: `close()` reaches the sheet's
+   * `onClose`, which settles it the same way Escape does. Every screen change that can strand a
+   * sheet goes through here — leaving Settings, walking to another route, and an external
+   * withdrawal rebuilding the screen underneath it (#323). Three copies of this pair is how one
+   * of them ends up forgotten.
+   */
+  private settleOpenSheet(): void {
+    this.openSheet?.close();
+    this.openSheet = null;
   }
 
   /**
@@ -468,10 +481,13 @@ export class AtomsSettingTab extends PluginSettingTab {
     // would see that verdict forever — the row's only other trigger is saving the key again.
     this.apiKeyCheck = null;
     this.apiKeyStatusEl = null;
-    // Closing Settings mid-decision is a decline, not a half-written ack: `close()` reaches the
-    // sheet's `onClose`, which settles it the same way Escape does.
-    this.openSheet?.close();
-    this.openSheet = null;
+    this.settleOpenSheet();
+    // Off screen: an external change has nothing to re-render, and the next `display()` reads
+    // the reloaded settings anyway. The identity check is ordering defense, not ceremony — a
+    // `display()` that lands before the outgoing tab's `hide()` would otherwise be deregistered
+    // by the tab it replaced. `hiding` cannot stand in for this field: it starts false, so
+    // before the first `display()` it would claim a screen that was never opened.
+    if (this.plugin.settingTab === this) this.plugin.settingTab = null;
     super.hide();
     // Not cleared here — `display()` owns that, so continuations landing after this returns
     // still find the tab closed.
@@ -573,6 +589,20 @@ export class AtomsSettingTab extends PluginSettingTab {
   }
 
   /**
+   * Re-render because `data.json` changed underneath us — a consent withdrawn on another
+   * device (#323). `redisplay()` already declines while the tab is closing.
+   *
+   * The sheet settles first, for the reason `hide()` and `openRoute()` settle it: the state
+   * it was posed under has just been replaced, so accepting it would write an ack answering a
+   * question that is no longer on screen. Leaving it open would float a consent decision above
+   * a rebuilt DOM that already shows the remote withdrawal.
+   */
+  refreshFromExternalSettings(): void {
+    this.settleOpenSheet();
+    this.redisplay();
+  }
+
+  /**
    * Imperative settings UI. Declarative PluginSettingTab.getSettingDefinitions
    * (Obsidian 1.13+ settings search) is a separate migration — not this claim.
    */
@@ -580,6 +610,8 @@ export class AtomsSettingTab extends PluginSettingTab {
     // A real render is what re-opens the tab, whether it is Obsidian showing it again or a
     // route walk. Anything that arrived late from the last visit has already been dropped.
     this.hiding = false;
+    // On screen from here, so an external settings change knows there is something to refresh.
+    this.plugin.settingTab = this;
     const { containerEl } = this;
     containerEl.empty();
 

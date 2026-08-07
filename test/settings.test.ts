@@ -2118,6 +2118,45 @@ describe("adversarial regressions", () => {
       expect(local.get(LS_AUTO_RUN_ENABLED)).not.toBe(true);
     });
   });
+
+  /**
+   * #323 F5 — the third way the screen behind a sheet can be replaced: `data.json` changed
+   * on another device. `refreshFromExternalSettings()` rebuilt the DOM but left the sheet
+   * floating above it, so the user could accept a consent question posed under state that
+   * no longer exists — the same defect `hide()` and `openRoute()` already settle.
+   */
+  describe("an external settings change under an open sheet", () => {
+    it("settles the sheet before rebuilding the screen", async () => {
+      const { tab } = settingTab();
+      tab.display();
+      flip(tab, "File automatically when Obsidian opens");
+      await flush();
+      expect(sheetOpen()).toBe(true);
+
+      tab.refreshFromExternalSettings();
+      await flush();
+
+      expect(sheetOpen()).toBe(false);
+    });
+
+    it("does not let that sheet write an ack after the state it asked about was replaced", async () => {
+      const { tab, local } = settingTab();
+      tab.display();
+      flip(tab, "File automatically when Obsidian opens");
+      await flush();
+
+      tab.refreshFromExternalSettings();
+      await flush();
+
+      if (sheetOpen()) {
+        pressSheet("I understand");
+        await flush();
+      }
+
+      expect(local.get(LS_AUTO_RUN_EGRESS_ACK)).not.toBe(true);
+      expect(local.get(LS_AUTO_RUN_ENABLED)).not.toBe(true);
+    });
+  });
 });
 
 /* ------------------------------------------------------------------ *
