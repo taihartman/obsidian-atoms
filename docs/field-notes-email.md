@@ -57,29 +57,34 @@ Gmail and many clients **strip or block SVG**. Reliable path:
 
 | Token | Hex |
 |---|---|
-| Background | `#000000` |
-| Card / surface | `#1c1c1e` or `#2c2c2e` |
+| Figure plate | `#121214`, `rx="28"` |
+| Plate hairline | `rgba(84,84,88,0.38)` |
 | Text | `#ffffff` |
-| Muted | `rgba(235,235,245,0.72)` |
-| Accent / arrows | `#0a84ff` |
-| Person accent | `#ff9f0a` (sparingly) |
+| Muted | `rgba(235,235,245,0.42–0.55)` |
+| The system answering | `#0a84ff` (once, small) |
+| A person | `#ff9f0a` |
 
-Keep diagrams **simple**: 2–4 boxes, one arrow story, almost no text. The email prose carries the story; the figure is a glanceable beat.
+**House style** (established on the 2026-08-07 Dom letter; `www/src/email/fn-*.svg` are the reference set):
 
-**Starter file:** `www/src/email/loop-remember.svg` (same three-step loop as the HTML diagram).
+- **One container.** The SVG draws a single plate — `#121214`, `rx="28"`, hairline `rgba(84,84,88,0.38)` — on a transparent 1040-wide canvas. `figureHtml` deliberately adds **no frame**. The first version of that set nested four boxes (letter card → figure frame → black SVG bg → inner card) and read as a stock SaaS diagram purely because of the nesting.
+- **No box → arrow → box.** One idea per figure, or one continuous gesture. A blue arrow between two rounded rectangles is the most generic mark available.
+- **Colour means something.** Amber `#ff9f0a` = a person. Blue `#0a84ff` = the system answering, once and small. Everything else grey. Two accents in one figure is usually one too many.
+- **Type is the illustration.** Use `system-ui, -apple-system, 'Helvetica Neue', sans-serif`; it resolves to SF in the renderer.
+- **Size for 520px.** The canvas shows at half size in mail, so nothing below ~26px is legible. Answers ~104px, titles ~56px, labels 26–30px.
+- When a figure feels weak, remove an element rather than adding one.
+
+**Starter files:** `www/src/email/fn-ask-dom.svg` (typographic), `fn-messy-filed.svg` (gestural), `fn-face-no-name.svg` (object). `loop-remember.svg` predates the house style — do not copy its card-and-arrow layout.
 
 ### Export PNG (local)
 
-Any of:
-
 ```bash
-# if you have rsvg-convert (librsvg)
-rsvg-convert -w 1040 www/src/email/loop-remember.svg -o www/src/email/loop-remember.png
-
-# or open in Figma / Preview / Illustrator and export 2x PNG
+scripts/render-email-svg.sh                        # all fn-*.svg
+scripts/render-email-svg.sh www/src/email/foo.svg  # one
 ```
 
-Then `npm run build:www` and deploy so `https://tryatoms.app/email/loop-remember.png` resolves.
+The script rasterizes with Chrome. **Do not use `magick`**: with librsvg absent (it is, on this machine) ImageMagick silently falls back to its own SVG renderer, dropping gradients and picking wrong font metrics — output that looks plausible until compared side by side.
+
+Then `npm run build:www` and deploy so `https://tryatoms.app/email/foo.png` resolves. The edge caches these paths for 4h, so check the live byte count matches local before judging any test send; one revalidation pass clears it.
 
 ### Using a figure in a Broadcast (Resend UI)
 
@@ -124,6 +129,8 @@ Legacy flat `paragraphs` + trailing `diagram`/`figure` still work for welcome an
 - [ ] Dark card layout (or Resend theme tuned to black / #1c1c1e / #0a84ff)  
 - [ ] `{{{RESEND_UNSUBSCRIBE_URL}}}` + postal line  
 - [ ] Test on iPhone Mail + Gmail before audience send  
+- [ ] Live PNG byte count matches local before judging the test send  
+- [ ] Body renders sans-serif, not Times (a `"` in a font stack breaks `style="..."`)  
 
 ---
 
@@ -134,8 +141,10 @@ Legacy flat `paragraphs` + trailing `diagram`/`figure` still work for welcome an
 | `welcomeEmailContent` | Signup welcome (wired in `resendMarketing.mjs`) |
 | `buildFieldNotesHtml` | Full note HTML for Broadcasts or future automation |
 | `loopDiagramHtml` | Built-in three-step diagram |
-| `figureHtml` | Hosted PNG block |
-| `scripts/field-notes-send.mjs` | CLI test + broadcast from a draft JSON |
+| `figureHtml` | Hosted PNG block, unframed |
+| `hoistTldrFirst` | Short version to the top; shared by email and web archive |
+| `scripts/field-notes-send.mjs` | CLI preview + test + broadcast from a draft JSON |
+| `scripts/render-email-svg.sh` | SVG → PNG via Chrome |
 | skill **`field-notes`** | Idea → draft → test → (approve) → list |
 
 Skills: **`field-notes`** (end-to-end send), **`atoms-voice`** (tone only).
