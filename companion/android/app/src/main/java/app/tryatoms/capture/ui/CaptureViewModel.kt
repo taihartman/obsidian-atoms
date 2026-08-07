@@ -124,12 +124,10 @@ class CaptureViewModel(
 
             when {
                 vaults.isEmpty() -> {
-                    // Maybe they picked the vault folder itself but .obsidian was hidden?
-                    // Still offer treating this folder as the vault.
                     banner.value =
-                        "No Obsidian vaults found in that folder. " +
-                        "Pick Documents (or the folder that contains your vaults), " +
-                        "or use “Use this folder as vault” if you selected the vault itself." to true
+                        "No vaults found there. In the picker, open Documents and tap " +
+                        "“Use this folder” on Documents itself (not a file). " +
+                        "Or open your vault folder and use “Use this folder as vault”." to true
                 }
                 vaults.size == 1 -> {
                     selectVault(vaults.first())
