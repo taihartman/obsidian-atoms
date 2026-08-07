@@ -8,7 +8,7 @@ options:
 settings:
   base:
     SWIFT_VERSION: "5.9"
-    DEVELOPMENT_TEAM: ""
+    DEVELOPMENT_TEAM: JW4P4LQ994
     CODE_SIGN_STYLE: Automatic
 packages:
   AtomsCaptureCore:
@@ -26,7 +26,8 @@ targets:
       - target: AtomsCaptureActivity
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: app.tryatoms.capture
+        # Unique dev bundle IDs (app.tryatoms.capture* already taken on other teams)
+        PRODUCT_BUNDLE_IDENTIFIER: app.tryatoms.capture.tai
         PRODUCT_NAME: Atoms Capture
         INFOPLIST_FILE: AtomsCapture/Info.plist
         TARGETED_DEVICE_FAMILY: "1"
@@ -39,7 +40,7 @@ targets:
       path: AtomsCapture/AtomsCapture.entitlements
       properties:
         com.apple.security.application-groups:
-          - group.app.tryatoms.capture
+          - group.app.tryatoms.capture.tai
     info:
       path: AtomsCapture/Info.plist
       properties:
@@ -55,7 +56,7 @@ targets:
         CFBundleURLTypes:
           - CFBundleURLSchemes:
               - atomscapture
-            CFBundleURLName: app.tryatoms.capture
+            CFBundleURLName: app.tryatoms.capture.tai
     scheme:
       testTargets: []
 
@@ -69,7 +70,7 @@ targets:
         product: AtomsCaptureCore
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: app.tryatoms.capture.widget
+        PRODUCT_BUNDLE_IDENTIFIER: app.tryatoms.capture.tai.widget
         PRODUCT_NAME: AtomsCaptureWidget
         INFOPLIST_FILE: AtomsCaptureWidget/Info.plist
         SKIP_INSTALL: true
@@ -80,7 +81,7 @@ targets:
       path: AtomsCaptureWidget/AtomsCaptureWidget.entitlements
       properties:
         com.apple.security.application-groups:
-          - group.app.tryatoms.capture
+          - group.app.tryatoms.capture.tai
     info:
       path: AtomsCaptureWidget/Info.plist
       properties:
@@ -100,7 +101,7 @@ targets:
         product: AtomsCaptureCore
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: app.tryatoms.capture.activity
+        PRODUCT_BUNDLE_IDENTIFIER: app.tryatoms.capture.tai.activity
         PRODUCT_NAME: AtomsCaptureActivity
         INFOPLIST_FILE: AtomsCaptureActivity/Info.plist
         SKIP_INSTALL: true
@@ -111,7 +112,7 @@ targets:
       path: AtomsCaptureActivity/AtomsCaptureActivity.entitlements
       properties:
         com.apple.security.application-groups:
-          - group.app.tryatoms.capture
+          - group.app.tryatoms.capture.tai
     info:
       path: AtomsCaptureActivity/Info.plist
       properties:

@@ -58,7 +58,7 @@ struct CaptureSheet: View {
                 if let status {
                     Text(statusLabel(status))
                         .font(.subheadline)
-                        .foregroundStyle(status == .inVault ? .green : .orange)
+                        .foregroundStyle(status.isSuccess ? .green : .orange)
                 }
 
                 Spacer()
@@ -119,7 +119,7 @@ struct CaptureSheet: View {
             status = result
             busy = false
             switch result {
-            case .inVault:
+            case .inVault, .handedToShortcut:
                 activity?.update(phase: .inVault, preview: body)
                 text = ""
                 try? await Task.sleep(nanoseconds: 800_000_000)
@@ -136,6 +136,8 @@ struct CaptureSheet: View {
         switch status {
         case .inVault:
             return "In vault"
+        case .handedToShortcut:
+            return "Handed to Shortcut"
         case .failed(let reason):
             return "Failed: \(reason)"
         }

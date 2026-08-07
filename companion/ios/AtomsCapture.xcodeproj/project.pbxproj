@@ -250,15 +250,15 @@
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
 					0B9A61F8F18A58E8FE26895F = {
-						DevelopmentTeam = "";
+						DevelopmentTeam = JW4P4LQ994;
 						ProvisioningStyle = Automatic;
 					};
 					0FF69AC0CFFAD8D618C84CF3 = {
-						DevelopmentTeam = "";
+						DevelopmentTeam = JW4P4LQ994;
 						ProvisioningStyle = Automatic;
 					};
 					56677992A89FFB235A47115B = {
-						DevelopmentTeam = "";
+						DevelopmentTeam = JW4P4LQ994;
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -358,7 +358,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				MARKETING_VERSION = 0.1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = app.tryatoms.capture.widget;
+				PRODUCT_BUNDLE_IDENTIFIER = app.tryatoms.capture.tai.widget;
 				PRODUCT_NAME = AtomsCaptureWidget;
 				SDKROOT = iphoneos;
 				SKIP_INSTALL = YES;
@@ -378,7 +378,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				MARKETING_VERSION = 0.1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = app.tryatoms.capture.activity;
+				PRODUCT_BUNDLE_IDENTIFIER = app.tryatoms.capture.tai.activity;
 				PRODUCT_NAME = AtomsCaptureActivity;
 				SDKROOT = iphoneos;
 				SKIP_INSTALL = YES;
@@ -398,7 +398,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				MARKETING_VERSION = 0.1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = app.tryatoms.capture.widget;
+				PRODUCT_BUNDLE_IDENTIFIER = app.tryatoms.capture.tai.widget;
 				PRODUCT_NAME = AtomsCaptureWidget;
 				SDKROOT = iphoneos;
 				SKIP_INSTALL = YES;
@@ -419,7 +419,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 0.1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = app.tryatoms.capture;
+				PRODUCT_BUNDLE_IDENTIFIER = app.tryatoms.capture.tai;
 				PRODUCT_NAME = "Atoms Capture";
 				SDKROOT = iphoneos;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
@@ -463,7 +463,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = JW4P4LQ994;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
@@ -504,7 +504,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				MARKETING_VERSION = 0.1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = app.tryatoms.capture.activity;
+				PRODUCT_BUNDLE_IDENTIFIER = app.tryatoms.capture.tai.activity;
 				PRODUCT_NAME = AtomsCaptureActivity;
 				SDKROOT = iphoneos;
 				SKIP_INSTALL = YES;
@@ -548,7 +548,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = JW4P4LQ994;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
@@ -583,7 +583,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 0.1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = app.tryatoms.capture;
+				PRODUCT_BUNDLE_IDENTIFIER = app.tryatoms.capture.tai;
 				PRODUCT_NAME = "Atoms Capture";
 				SDKROOT = iphoneos;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;

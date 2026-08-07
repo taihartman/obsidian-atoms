@@ -1,6 +1,7 @@
 import SwiftUI
 import UniformTypeIdentifiers
 import WidgetKit
+import UIKit
 import AtomsCaptureCore
 
 struct HubView: View {
@@ -27,41 +28,96 @@ struct HubView: View {
                 .padding(.vertical, 4)
             }
 
-            Section("Vault") {
-                if appModel.store.isLinked {
-                    LabeledContent("Linked") {
-                        Text(appModel.store.displayName ?? "Vault")
-                            .foregroundStyle(.secondary)
+            Section("Where captures go") {
+                Picker("Delivery", selection: deliveryModeBinding) {
+                    ForEach(DeliveryMode.allCases, id: \.self) { mode in
+                        Text(mode.title).tag(mode)
                     }
-                    if let hint = appModel.store.pathHint {
-                        Text(hint)
+                }
+                Text(appModel.delivery.mode.blurb)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            if appModel.delivery.mode != .files {
+                Section("Obsidian Sync setup (once)") {
+                    Text("Sync Remote Vault lives inside Obsidian — other apps can’t write it directly. The companion does type/voice/widget; a tiny Shortcut only appends the finished line into Obsidian’s **Atoms Inbox** bookmark.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    LabeledContent("Shortcut name") {
+                        TextField("Name", text: shortcutNameBinding)
+                            .multilineTextAlignment(.trailing)
+                    }
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("In Shortcuts, create **\(appModel.delivery.shortcutName)** with exactly two actions:")
+                            .font(.caption)
+                        Text("1. **Receive** Text input from Share Sheet / Shortcuts")
+                            .font(.caption)
+                        Text("2. **Append to Bookmark** (Obsidian) → bookmark **Atoms Inbox** → Text = Shortcut Input")
+                            .font(.caption)
+                        Text("Open Obsidian once first so Atoms creates `Atoms System/Inbox.md` and the **Atoms Inbox** bookmark.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
-                    Text("Captures go to \(CaptureLine.inboxRelativePath)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                } else {
-                    Text("No vault linked yet.")
-                        .foregroundStyle(.secondary)
-                }
 
-                Button("Link vault folder…") {
-                    showImporter = true
-                }
+                    Button("Open Obsidian (create inbox + bookmark)") {
+                        if let url = URL(string: "obsidian://open") {
+                            UIApplication.shared.open(url)
+                        }
+                    }
 
-                if appModel.store.isLinked {
-                    Button("Unlink vault", role: .destructive) {
-                        appModel.store.clear()
-                        testStatus = nil
-                        appModel.refreshStatus()
-                        WidgetCenter.shared.reloadAllTimelines()
+                    Toggle("I’ve added the Append Shortcut", isOn: shortcutReadyBinding)
+
+                    Text("Optional: install the full **Capture Atom** recipe from the plugin (type/voice without the companion). Companion path does not need that full recipe.")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+
+                    if let url = URL(string: DeliverySettings.captureAtomICloudURL) {
+                        Link("Open Capture Atom iCloud link (optional)", destination: url)
+                            .font(.caption)
                     }
                 }
+            }
 
-                Text("Use a Files-visible vault (iCloud Drive, On My iPhone, or another Files provider). Obsidian Sync’s private sandbox often isn’t writable here — that needs Plus later.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+            if appModel.delivery.mode != .syncShortcut {
+                Section("Files vault (optional)") {
+                    if appModel.store.isLinked {
+                        LabeledContent("Linked") {
+                            Text(appModel.store.displayName ?? "Vault")
+                                .foregroundStyle(.secondary)
+                        }
+                        if let hint = appModel.store.pathHint {
+                            Text(hint)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Text("Captures go to \(CaptureLine.inboxRelativePath)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Text("No Files vault linked.")
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Button("Link vault folder…") {
+                        showImporter = true
+                    }
+
+                    if appModel.store.isLinked {
+                        Button("Unlink vault", role: .destructive) {
+                            appModel.store.clear()
+                            testStatus = nil
+                            appModel.refreshStatus()
+                            WidgetCenter.shared.reloadAllTimelines()
+                        }
+                    }
+
+                    Text("Only works for folders visible in Files. Sync Remote Vault is usually not one of them.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
 
             Section("Test capture") {
@@ -79,16 +135,26 @@ struct HubView: View {
                 if let testStatus {
                     Text(testStatus)
                         .font(.subheadline)
-                        .foregroundStyle(testStatus.hasPrefix("In vault") ? .green : .orange)
+                        .foregroundStyle(statusColor(testStatus))
                 }
             }
 
             Section("Checklist") {
-                checklistRow(done: appModel.store.isLinked, title: "1. Link a Files-visible vault")
-                checklistRow(done: testStatus?.hasPrefix("In vault") == true, title: "2. Save a test capture")
+                if appModel.delivery.mode != .files {
+                    checklistRow(
+                        done: appModel.delivery.shortcutReadyAcknowledged,
+                        title: "1. Create Append Shortcut + Atoms Inbox bookmark"
+                    )
+                } else {
+                    checklistRow(done: appModel.store.isLinked, title: "1. Link a Files-visible vault")
+                }
+                checklistRow(
+                    done: testStatus.map { $0.hasPrefix("In vault") || $0.hasPrefix("Handed to Shortcut") } ?? false,
+                    title: "2. Save a test capture"
+                )
                 checklistRow(done: false, title: "3. Add the Home Screen widget")
                 checklistRow(done: false, title: "4. Add Capture to Action Button (optional)")
-                Text("Long-press Home → Widgets → Atoms Capture. For Action Button: Settings → Action Button → Shortcut → Atoms Capture.")
+                Text("Long-press Home → Widgets → Atoms Capture.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -102,6 +168,33 @@ struct HubView: View {
         }
     }
 
+    private var deliveryModeBinding: Binding<DeliveryMode> {
+        Binding(
+            get: { appModel.delivery.mode },
+            set: {
+                appModel.delivery.mode = $0
+                appModel.refreshStatus()
+            }
+        )
+    }
+
+    private var shortcutNameBinding: Binding<String> {
+        Binding(
+            get: { appModel.delivery.shortcutName },
+            set: { appModel.delivery.shortcutName = $0 }
+        )
+    }
+
+    private var shortcutReadyBinding: Binding<Bool> {
+        Binding(
+            get: { appModel.delivery.shortcutReadyAcknowledged },
+            set: {
+                appModel.delivery.shortcutReadyAcknowledged = $0
+                appModel.refreshStatus()
+            }
+        )
+    }
+
     private func checklistRow(done: Bool, title: String) -> some View {
         Label {
             Text(title)
@@ -109,6 +202,13 @@ struct HubView: View {
             Image(systemName: done ? "checkmark.circle.fill" : "circle")
                 .foregroundStyle(done ? AtomsTheme.tint : .secondary)
         }
+    }
+
+    private func statusColor(_ text: String) -> Color {
+        if text.hasPrefix("In vault") || text.hasPrefix("Handed to Shortcut") {
+            return .green
+        }
+        return .orange
     }
 
     private func handleImport(_ result: Result<[URL], Error>) {
@@ -151,6 +251,8 @@ struct HubView: View {
             switch status {
             case .inVault:
                 testStatus = "In vault — check \(CaptureLine.inboxRelativePath)"
+            case .handedToShortcut:
+                testStatus = "Handed to Shortcut — confirm line in Obsidian Inbox"
             case .failed(let reason):
                 testStatus = "Failed: \(reason)"
             }

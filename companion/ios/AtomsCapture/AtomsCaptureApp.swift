@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import AtomsCaptureCore
 
 @main
@@ -21,14 +22,30 @@ final class AppModel: ObservableObject {
     static let shared = AppModel()
 
     let store = VaultStore()
-    lazy var repository = CaptureRepository(store: store)
+    let delivery = DeliverySettings()
+    lazy var repository: CaptureRepository = CaptureRepository(
+        store: store,
+        settings: delivery,
+        openURL: { url in
+            // Fire-and-forget on main. We cannot know if the Shortcut succeeded —
+            // status is *Handed to Shortcut*. Avoid semaphore (deadlock if already on main).
+            let open = {
+                UIApplication.shared.open(url, options: [:], completionHandler: nil)
+            }
+            if Thread.isMainThread {
+                open()
+            } else {
+                DispatchQueue.main.async(execute: open)
+            }
+            return true
+        }
+    )
 
     @Published var showCapture = false
     @Published var statusMessage: String?
 
     func handle(url: URL) {
         guard url.scheme == "atomscapture" else { return }
-        // Only atomscapture://capture (host or exact path).
         if url.host == "capture" || url.path == "/capture" || url.path == "capture" {
             showCapture = true
         }

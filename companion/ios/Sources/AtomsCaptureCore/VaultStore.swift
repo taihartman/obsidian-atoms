@@ -4,7 +4,7 @@ import Foundation
 ///
 /// Uses a suite name when provided (App Group for widget/intents); otherwise standard defaults.
 public final class VaultStore: @unchecked Sendable {
-    public static let defaultSuiteName = "group.app.tryatoms.capture"
+    public static let defaultSuiteName = "group.app.tryatoms.capture.tai"
 
     private let defaults: UserDefaults
     private let bookmarkKey = "vault_bookmark"
