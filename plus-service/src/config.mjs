@@ -86,9 +86,9 @@ export const config = {
    * again, which is the condition this default was waiting on.
    *
    * Two gates still stand in front of the egress, and neither is this flag:
-   * a deployment with no `ANTHROPIC_API_KEY` is inert (`expandSearch.mjs:104`
-   * returns `no_key`), and an operator who wants it off sets
-   * `ASK_EXPAND_ENABLED=0`. See #339, plan R18.
+   * a deployment with no `ANTHROPIC_API_KEY` is inert (`generateExpandPhrases`
+   * returns `no_key` before it builds a request), and an operator who wants it
+   * off sets `ASK_EXPAND_ENABLED=0`. See #339, plan R18.
    */
   get askExpandEnabled() {
     return env("ASK_EXPAND_ENABLED", "1") !== "0";
