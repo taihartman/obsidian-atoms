@@ -44,11 +44,18 @@ jobs:
       - name: Install
         run: npm ci
 
-      - name: Build www
-        run: npm run build:www
-
+      # Assertions run BEFORE the build that gets shipped, not after it.
+      # These suites build their own copies of the site to assert against, and
+      # when one of them wrote into `www/dist` it silently replaced the artifact
+      # the deploy step then uploaded — production served a fixture-built
+      # archive listing a test note as a real Field note. The test now builds
+      # elsewhere, and this ordering means the shipped build is the last thing
+      # to touch dist regardless of what any future assertion does.
       - name: Assert pricing + honesty floor + Field notes archive
         run: npx vitest run test/wwwPricing.test.ts test/wwwSubscribeCore.test.ts test/fieldNotesContent.test.ts test/wwwFieldNotesArchive.test.ts
+
+      - name: Build www
+        run: npm run build:www
 
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3

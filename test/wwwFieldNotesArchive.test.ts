@@ -6,7 +6,14 @@ import { execSync } from "child_process";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, "..");
-const dist = join(root, "www/dist");
+/**
+ * This suite's own output. Deliberately NOT `www/dist`: that directory is the
+ * artifact `pages deploy` ships, and the deploy workflow runs this test *after*
+ * its real build, so a fixture build landing in `www/dist` is what production
+ * then serves. Both overrides exist for the same reason — a test may read the
+ * repo, but it may not write the things the repo ships.
+ */
+const dist = join(root, "www/dist-archive-test");
 /**
  * The fixture archive this suite builds from. Handed to the build through
  * `ATOMS_PUBLISHED_DIR` rather than copied into `docs/field-notes/published/`:
@@ -15,9 +22,11 @@ const dist = join(root, "www/dist");
  */
 const fixturePublishedDir = join(here, "fixtures/field-notes/published");
 const realPublishedDir = join(root, "docs/field-notes/published");
+const realDist = join(root, "www/dist");
 
-/** Snapshot taken at module load, before `beforeAll` builds anything. */
+/** Snapshots taken at module load, before `beforeAll` builds anything. */
 const realArchiveBefore = safeListing(realPublishedDir);
+const realDistNotesBefore = safeListing(join(realDist, "notes"));
 
 function safeListing(dir: string): string[] {
   try {
@@ -32,7 +41,11 @@ describe("Field notes archive (dist)", () => {
     execSync("npm run build:www", {
       cwd: root,
       stdio: "pipe",
-      env: { ...process.env, ATOMS_PUBLISHED_DIR: fixturePublishedDir },
+      env: {
+        ...process.env,
+        ATOMS_PUBLISHED_DIR: fixturePublishedDir,
+        ATOMS_DIST_DIR: dist,
+      },
     });
   });
 
@@ -77,6 +90,16 @@ describe("Field notes archive (dist)", () => {
   // assertion that keeps it fixed.
   it("builds without touching the real published archive", () => {
     expect(safeListing(realPublishedDir)).toEqual(realArchiveBefore);
+  });
+
+  // The one that was actually shipping. `tryatoms-pages.yml` runs this suite as
+  // an assertion *after* `npm run build:www`, then deploys `www/dist` — so when
+  // this suite built into `www/dist`, production served the fixture archive.
+  // The site listed "The dump that finally stuck" as a real Field note for that
+  // reason, and deleting the source file did not fix it, because the test put
+  // it back on every deploy.
+  it("builds without overwriting the dist that gets deployed", () => {
+    expect(safeListing(join(realDist, "notes"))).toEqual(realDistNotesBefore);
   });
 
   it("topbar on index home points Field notes at /notes/", () => {
