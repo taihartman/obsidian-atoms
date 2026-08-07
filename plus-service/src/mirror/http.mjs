@@ -5,6 +5,7 @@ import { checkRateLimit, clientIp } from "../ratelimit.mjs";
 import { config } from "../config.mjs";
 import {
   backfillExpandForEmail,
+  cancelExpandForEmail,
   enqueueMirrorExpand,
 } from "../ask/expandSearch.mjs";
 import { assertMirrorPath } from "../store/askHelpers.mjs";
@@ -48,6 +49,7 @@ export async function handleMirrorRoutes({
     path === "/v1/ask/mirror/status" ||
     path === "/v1/ask/mirror/delete" ||
     path === "/v1/ask/mirror/reconcile" ||
+    path === "/v1/ask/mirror/expand-backfill" ||
     path === "/v1/ask/outbox/pull" ||
     path === "/v1/ask/outbox/ack" ||
     path === "/v1/ask/mcp/pair";
@@ -122,6 +124,11 @@ export async function handleMirrorRoutes({
 
   // Wipe: valid sess_ enough (exit path even when not entitled)
   if (req.method === "POST" && path === "/v1/ask/mirror/wipe") {
+    // Cancel first: a queued expand job holds the body in its own closure and
+    // never re-reads the row, so deleting the row does not stop the egress.
+    // The disclosure says Wipe removes search expansions — this is what makes
+    // that true for work already in flight.
+    cancelExpandForEmail(a.email);
     await store.mirrorWipe(a.email);
     json(res, 200, { ok: true, count: 0 });
     return true;

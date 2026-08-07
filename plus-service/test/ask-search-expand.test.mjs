@@ -38,6 +38,25 @@ describe("parseExpandResponse", () => {
     assert.equal(p.length, 0);
   });
 
+  it("KTD6: drops an ungrounded phrase, keeps a grounded paraphrase", () => {
+    const ctx = {
+      title: "Sourdough starter feeding schedule",
+      tags: ["baking"],
+      bodySlice:
+        "feed the starter every twelve hours with equal flour and water",
+    };
+    const p = parseExpandResponse(
+      [
+        // Shares no >=4-char token with title ∪ tags ∪ bodySlice: model filler.
+        "best way to negotiate a car lease",
+        // Paraphrase, but grounded on "starter" / "flour".
+        "how often should I feed my starter flour",
+      ],
+      ctx,
+    );
+    assert.deepEqual(p, ["how often should I feed my starter flour"]);
+  });
+
   it("keeps paraphrase phrases that do not share tokens with the body", () => {
     const p = parseExpandResponse(
       [
@@ -119,6 +138,13 @@ describe("mirror expand soft path", () => {
       8,
     );
     assert.equal(hits.length, 1);
-    assert.ok(!(JSON.stringify(hits[0]).includes("how to stop") && hits[0].expand));
+    // Two independent claims. As one `&&` these were vacuous: `buildSearchHits`
+    // enumerates its fields and never sets `.expand`, so the right conjunct was
+    // always undefined and the whole assertion passed without reading the hit.
+    assert.ok(
+      !JSON.stringify(hits[0]).includes("how to stop"),
+      "expand text must not be serialised into a hit",
+    );
+    assert.equal(hits[0].expand, undefined, "hits carry no expand field");
   });
 });

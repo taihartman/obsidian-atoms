@@ -91,6 +91,18 @@ describe("HTTP ask mirror", () => {
     assert.equal(r.status, 401);
   });
 
+  it("expand-backfill is on the Ask route allowlist (401, not 404)", async () => {
+    // The handler existed but the path was missing from `isAsk`, so
+    // `handleMirrorRoutes` bailed before reaching it and the plugin's caller
+    // could only ever get a 404.
+    const r = await fetch(`${BASE}/v1/ask/mirror/expand-backfill`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "{}",
+    });
+    assert.equal(r.status, 401, await r.clone().text());
+  });
+
   it("upsert status wipe + reject mcp bearer", async () => {
     const session = await sessionFor("ask-mirror@atoms.test");
     const headers = {

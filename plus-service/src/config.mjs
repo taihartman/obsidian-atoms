@@ -93,11 +93,20 @@ export const config = {
   get askExpandEnabled() {
     return env("ASK_EXPAND_ENABLED", "1") !== "0";
   },
-  /** Prefer Plus classify model when ASK_EXPAND_MODEL unset (avoid hard-coded Haiku ids). */
+  /**
+   * Expand model: explicit `ASK_EXPAND_MODEL` wins, otherwise whatever classify
+   * resolves to.
+   *
+   * This delegates to `anthropicModel` instead of re-reading `ATOMS_PLUS_MODEL`
+   * with a second fallback of its own. It used to do the latter, against a
+   * different dated id, so an unset deployment quietly ran classify on one
+   * model and expand on another — the opposite of what the comment promised.
+   * One default, in one place.
+   */
   get askExpandModel() {
     const explicit = env("ASK_EXPAND_MODEL", "");
     if (explicit) return explicit;
-    return env("ATOMS_PLUS_MODEL", "claude-sonnet-4-5-20250929");
+    return this.anthropicModel;
   },
   get askExpandTimeoutMs() {
     const n = Number(env("ASK_EXPAND_TIMEOUT_MS", "12000"));
