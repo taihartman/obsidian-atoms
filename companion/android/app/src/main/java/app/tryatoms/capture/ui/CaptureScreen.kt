@@ -34,7 +34,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import app.tryatoms.capture.domain.DiscoveredVault
+import app.tryatoms.capture.domain.VaultRef
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -42,8 +42,9 @@ fun CaptureScreen(
     state: CaptureUiState,
     onDraftChange: (String) -> Unit,
     onCapture: () -> Unit,
-    onUseDiscoveredVault: (DiscoveredVault) -> Unit,
-    onPickVault: () -> Unit,
+    onFindVaults: () -> Unit,
+    onSelectVault: (VaultRef) -> Unit,
+    onUseFolderAsVault: () -> Unit,
     onRescan: () -> Unit,
     onUnlinkVault: () -> Unit,
     onDismissBanner: () -> Unit,
@@ -84,6 +85,7 @@ fun CaptureScreen(
             SetupChecklist(
                 vaultLinked = state.vaultLinked,
                 firstCaptureDone = state.firstCaptureDone,
+                vaultName = state.vaultName,
             )
 
             if (state.banner != null) {
@@ -94,15 +96,14 @@ fun CaptureScreen(
                 )
             }
 
-            if (!state.vaultLinked) {
-                VaultDiscoveryCard(
-                    vaults = state.discoveredVaults,
-                    scanning = state.scanning,
-                    onUse = onUseDiscoveredVault,
-                    onBrowse = onPickVault,
-                    onRescan = onRescan,
-                )
-            }
+            VaultChooserCard(
+                state = state,
+                onFindVaults = onFindVaults,
+                onSelectVault = onSelectVault,
+                onUseFolderAsVault = onUseFolderAsVault,
+                onRescan = onRescan,
+                onUnlink = onUnlinkVault,
+            )
 
             OutlinedTextField(
                 value = state.draft,
@@ -118,23 +119,9 @@ fun CaptureScreen(
             Button(
                 onClick = onCapture,
                 modifier = Modifier.fillMaxWidth(),
-                enabled = !state.busy && state.draft.isNotBlank(),
+                enabled = !state.busy && state.draft.isNotBlank() && state.vaultLinked,
             ) {
                 Text(if (state.busy) "Saving…" else "Capture")
-            }
-
-            VaultRow(
-                linked = state.vaultLinked,
-                onPick = onPickVault,
-                onUnlink = onUnlinkVault,
-            )
-
-            if (state.lastStatus != null) {
-                Text(
-                    state.lastStatus,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
             }
 
             Text(
@@ -150,12 +137,13 @@ fun CaptureScreen(
 }
 
 @Composable
-private fun VaultDiscoveryCard(
-    vaults: List<DiscoveredVault>,
-    scanning: Boolean,
-    onUse: (DiscoveredVault) -> Unit,
-    onBrowse: () -> Unit,
+private fun VaultChooserCard(
+    state: CaptureUiState,
+    onFindVaults: () -> Unit,
+    onSelectVault: (VaultRef) -> Unit,
+    onUseFolderAsVault: () -> Unit,
     onRescan: () -> Unit,
+    onUnlink: () -> Unit,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -168,25 +156,70 @@ private fun VaultDiscoveryCard(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
+            Text(
+                when {
+                    state.vaultLinked -> "Vault"
+                    state.scanning -> "Looking for vaults…"
+                    state.listedVaults.isNotEmpty() -> "Your vaults"
+                    state.hasAccessRoot -> "No vaults in that folder"
+                    else -> "Choose a vault"
+                },
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+
+            if (state.vaultLinked) {
+                Text(
+                    state.vaultName ?: "Linked",
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Medium,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = onFindVaults) {
+                        Text("Switch vault")
+                    }
+                    TextButton(onClick = onUnlink) {
+                        Text("Unlink")
+                    }
+                }
+                return@Column
+            }
+
+            if (!state.hasAccessRoot) {
+                Text(
+                    "Allow access to Documents (or the folder that holds your vaults). " +
+                        "We’ll list every Obsidian vault we find — you pick one.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                )
+                Button(onClick = onFindVaults, modifier = Modifier.fillMaxWidth()) {
+                    Icon(
+                        Icons.Outlined.FolderOpen,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(modifier = Modifier.size(8.dp))
+                    Text("Find my vaults")
+                }
+                return@Column
+            }
+
+            // Have access root
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    if (scanning) {
-                        "Looking for vaults…"
-                    } else if (vaults.isEmpty()) {
-                        "No vault found automatically"
-                    } else if (vaults.size == 1) {
-                        "Found your vault"
+                    if (state.scanning) {
+                        "Scanning…"
                     } else {
-                        "Found ${vaults.size} vaults"
+                        "${state.listedVaults.size} found"
                     },
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer,
                 )
-                TextButton(onClick = onRescan, enabled = !scanning) {
+                TextButton(onClick = onRescan, enabled = !state.scanning) {
                     Icon(
                         Icons.Outlined.Refresh,
                         contentDescription = "Scan again",
@@ -195,37 +228,43 @@ private fun VaultDiscoveryCard(
                 }
             }
 
-            if (vaults.isEmpty() && !scanning) {
+            if (state.listedVaults.isEmpty() && !state.scanning) {
                 Text(
-                    "We’ll open the folder picker in Documents. " +
-                        "Select the folder that contains your notes (it has a hidden .obsidian folder).",
+                    "Tip: in the system picker, choose Documents or the parent folder — " +
+                        "not a single note file.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSecondaryContainer,
                 )
-                Button(onClick = onBrowse, modifier = Modifier.fillMaxWidth()) {
-                    Text("Browse for vault")
+                Button(onClick = onUseFolderAsVault, modifier = Modifier.fillMaxWidth()) {
+                    Text("Use this folder as vault")
+                }
+                OutlinedButton(onClick = onFindVaults, modifier = Modifier.fillMaxWidth()) {
+                    Text("Pick a different folder")
                 }
             } else {
-                vaults.take(5).forEach { vault ->
-                    val hint =
-                        when {
-                            vault.score >= 11 -> "Atoms ready"
-                            else -> "Obsidian vault"
+                state.listedVaults.forEach { vault ->
+                    val subtitle =
+                        buildString {
+                            if (vault.relativePath.isNotEmpty() && vault.relativePath != vault.name) {
+                                append(vault.relativePath)
+                                append(" · ")
+                            }
+                            append(if (vault.score >= 11) "Atoms ready" else "Obsidian vault")
                         }
                     Button(
-                        onClick = { onUse(vault) },
+                        onClick = { onSelectVault(vault) },
                         modifier = Modifier.fillMaxWidth(),
                     ) {
-                        Text("Use ${vault.name}")
+                        Text(vault.name)
                     }
                     Text(
-                        "$hint · then tap “Use this folder”",
+                        subtitle,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSecondaryContainer,
                     )
                 }
-                TextButton(onClick = onBrowse) {
-                    Text("Choose a different folder")
+                TextButton(onClick = onFindVaults) {
+                    Text("Scan a different folder")
                 }
             }
         }
@@ -236,6 +275,7 @@ private fun VaultDiscoveryCard(
 private fun SetupChecklist(
     vaultLinked: Boolean,
     firstCaptureDone: Boolean,
+    vaultName: String?,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -255,8 +295,13 @@ private fun SetupChecklist(
             )
             ChecklistRow(
                 done = vaultLinked,
-                label = "Link your Obsidian vault",
-                detail = "We’ll suggest vaults we find on this phone",
+                label = "Choose your vault",
+                detail =
+                    if (vaultLinked && vaultName != null) {
+                        vaultName
+                    } else {
+                        "We’ll list the ones on this phone"
+                    },
             )
             ChecklistRow(
                 done = firstCaptureDone,
@@ -345,37 +390,6 @@ private fun BannerCard(
             )
             TextButton(onClick = onDismiss) {
                 Text("OK")
-            }
-        }
-    }
-}
-
-@Composable
-private fun VaultRow(
-    linked: Boolean,
-    onPick: () -> Unit,
-    onUnlink: () -> Unit,
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        OutlinedButton(
-            onClick = onPick,
-            modifier = Modifier.weight(1f),
-        ) {
-            Icon(
-                Icons.Outlined.FolderOpen,
-                contentDescription = null,
-                modifier = Modifier.size(18.dp),
-            )
-            Spacer(modifier = Modifier.size(8.dp))
-            Text(if (linked) "Change vault folder" else "Browse for vault")
-        }
-        if (linked) {
-            TextButton(onClick = onUnlink) {
-                Text("Unlink")
             }
         }
     }

@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import androidx.documentfile.provider.DocumentFile
 import app.tryatoms.capture.domain.CaptureLine
+import app.tryatoms.capture.domain.VaultPathJoin
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.nio.charset.StandardCharsets
@@ -24,7 +25,8 @@ class InboxWriter(
     }
 
     fun appendCapture(
-        treeUri: Uri,
+        accessRootUri: Uri,
+        vaultRelativePath: String,
         body: String,
         now: OffsetDateTime = OffsetDateTime.now(),
     ): WriteResult {
@@ -35,16 +37,20 @@ class InboxWriter(
                 return WriteResult.Err(e.message ?: "Empty capture")
             }
 
-        val tree =
-            DocumentFile.fromTreeUri(context, treeUri)
-                ?: return WriteResult.Err("Could not open the vault folder")
+        val root =
+            DocumentFile.fromTreeUri(context, accessRootUri)
+                ?: return WriteResult.Err("Could not open the linked folder")
 
-        if (!tree.canRead() || !tree.canWrite()) {
-            return WriteResult.Err("No permission to write this folder. Link the vault again.")
+        val vaultDir =
+            resolveRelative(root, vaultRelativePath)
+                ?: return WriteResult.Err("Could not open the vault folder. Pick it again.")
+
+        if (!vaultDir.canRead() || !vaultDir.canWrite()) {
+            return WriteResult.Err("No permission to write this folder. Link again.")
         }
 
         val systemFolder =
-            findOrCreateDirectory(tree, CaptureLine.SYSTEM_FOLDER)
+            findOrCreateDirectory(vaultDir, CaptureLine.SYSTEM_FOLDER)
                 ?: return WriteResult.Err("Could not create ${CaptureLine.SYSTEM_FOLDER}")
 
         val inbox =
@@ -70,6 +76,17 @@ class InboxWriter(
         }
     }
 
+    fun resolveRelative(
+        root: DocumentFile,
+        relativePath: String,
+    ): DocumentFile? {
+        var dir = root
+        for (seg in VaultPathJoin.segments(relativePath)) {
+            dir = dir.findFile(seg)?.takeIf { it.isDirectory } ?: return null
+        }
+        return dir
+    }
+
     private fun findOrCreateDirectory(
         parent: DocumentFile,
         name: String,
@@ -85,7 +102,6 @@ class InboxWriter(
         name: String,
     ): DocumentFile? {
         val baseName = name.removeSuffix(".md")
-        // Providers disagree on whether the extension is in the display name.
         sequenceOf(name, baseName, "$baseName.md")
             .mapNotNull { parent.findFile(it) }
             .firstOrNull { it.isFile }
@@ -95,8 +111,6 @@ class InboxWriter(
             parent.createFile("text/markdown", baseName)
                 ?: parent.createFile("text/plain", baseName)
                 ?: return null
-        // If the provider ignored our name, rename is not always available — prefer
-        // finding Inbox.md after create; otherwise use whatever was created.
         return sequenceOf(name, baseName, "$baseName.md")
             .mapNotNull { parent.findFile(it) }
             .firstOrNull { it.isFile }

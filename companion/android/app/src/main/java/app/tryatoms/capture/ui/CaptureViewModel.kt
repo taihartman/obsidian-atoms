@@ -3,13 +3,14 @@ package app.tryatoms.capture.ui
 import android.app.Application
 import android.content.Intent
 import android.net.Uri
+import android.provider.DocumentsContract
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import app.tryatoms.capture.data.InboxWriter
-import app.tryatoms.capture.data.VaultLocator
+import app.tryatoms.capture.data.SafVaultScanner
 import app.tryatoms.capture.data.VaultStore
-import app.tryatoms.capture.domain.DiscoveredVault
 import app.tryatoms.capture.domain.VaultPaths
+import app.tryatoms.capture.domain.VaultRef
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -21,55 +22,62 @@ import kotlinx.coroutines.withContext
 
 data class CaptureUiState(
     val draft: String = "",
-    val treeUri: Uri? = null,
+    val vaultLinked: Boolean = false,
+    val vaultName: String? = null,
     val firstCaptureDone: Boolean = false,
     val lastStatus: String? = null,
     val busy: Boolean = false,
     val banner: String? = null,
     val bannerIsError: Boolean = false,
-    val discoveredVaults: List<DiscoveredVault> = emptyList(),
+    /** Vaults under the last granted access root (in-app picker). */
+    val listedVaults: List<VaultRef> = emptyList(),
+    val hasAccessRoot: Boolean = false,
     val scanning: Boolean = false,
-) {
-    val vaultLinked: Boolean get() = treeUri != null
-}
+)
 
 class CaptureViewModel(
     app: Application,
 ) : AndroidViewModel(app) {
     private val store = VaultStore(app)
     private val writer = InboxWriter(app)
-    private val locator = VaultLocator(app)
+    private val safScanner = SafVaultScanner(app)
 
     private val draft = MutableStateFlow("")
     private val busy = MutableStateFlow(false)
     private val banner = MutableStateFlow<Pair<String, Boolean>?>(null)
-    private val discovered = MutableStateFlow<List<DiscoveredVault>>(emptyList())
+    private val listed = MutableStateFlow<List<VaultRef>>(emptyList())
     private val scanning = MutableStateFlow(false)
+    private var accessRootUri: Uri? = null
+    private var vaultRelativePath: String? = null
 
     private data class Transient(
         val draft: String,
         val busy: Boolean,
         val banner: Pair<String, Boolean>?,
-        val discovered: List<DiscoveredVault>,
+        val listed: List<VaultRef>,
         val scanning: Boolean,
     )
 
     private val transient =
-        combine(draft, busy, banner, discovered, scanning) { d, b, ban, found, scan ->
-            Transient(d, b, ban, found, scan)
+        combine(draft, busy, banner, listed, scanning) { d, b, ban, list, scan ->
+            Transient(d, b, ban, list, scan)
         }
 
     val uiState: StateFlow<CaptureUiState> =
         combine(store.state, transient) { vault, t ->
+            accessRootUri = vault.accessRootUri
+            vaultRelativePath = vault.vaultRelativePath
             CaptureUiState(
                 draft = t.draft,
-                treeUri = vault.treeUri,
+                vaultLinked = vault.vaultLinked,
+                vaultName = vault.vaultName,
                 firstCaptureDone = vault.firstCaptureDone,
                 lastStatus = vault.lastStatus,
                 busy = t.busy,
                 banner = t.banner?.first,
                 bannerIsError = t.banner?.second == true,
-                discoveredVaults = t.discovered,
+                listedVaults = t.listed,
+                hasAccessRoot = vault.accessRootUri != null,
                 scanning = t.scanning,
             )
         }.stateIn(
@@ -78,9 +86,7 @@ class CaptureViewModel(
             CaptureUiState(),
         )
 
-    init {
-        refreshDiscoveredVaults()
-    }
+    fun pickerInitialUri(): Uri = VaultPaths.documentsTreeUri()
 
     fun onDraftChange(value: String) {
         draft.value = value
@@ -90,25 +96,11 @@ class CaptureViewModel(
         banner.value = null
     }
 
-    fun refreshDiscoveredVaults() {
-        viewModelScope.launch {
-            scanning.value = true
-            val found =
-                withContext(Dispatchers.IO) {
-                    locator.discover()
-                }
-            discovered.value = found
-            scanning.value = false
-        }
-    }
-
-    /** Initial URI for the system folder picker (vault path or Documents). */
-    fun pickerInitialUri(preferred: DiscoveredVault? = null): Uri =
-        preferred?.treeUri
-            ?: discovered.value.firstOrNull()?.treeUri
-            ?: VaultPaths.documentsTreeUri()
-
-    fun onVaultPicked(uri: Uri) {
+    /**
+     * User granted a folder via SAF (Documents, whole storage, or a single vault).
+     * Scan it and list every vault inside for in-app choice.
+     */
+    fun onAccessRootPicked(uri: Uri) {
         viewModelScope.launch {
             val cr = getApplication<Application>().contentResolver
             val flags =
@@ -120,23 +112,91 @@ class CaptureViewModel(
                 banner.value = (e.message ?: "Could not keep folder permission") to true
                 return@launch
             }
-            store.setTreeUri(uri)
-            banner.value = "Vault linked. Captures go to Atoms System/Inbox.md." to false
+
+            scanning.value = true
+            store.setAccessRoot(uri)
+            val vaults =
+                withContext(Dispatchers.IO) {
+                    safScanner.listVaults(uri)
+                }
+            listed.value = vaults
+            scanning.value = false
+
+            when {
+                vaults.isEmpty() -> {
+                    // Maybe they picked the vault folder itself but .obsidian was hidden?
+                    // Still offer treating this folder as the vault.
+                    banner.value =
+                        "No Obsidian vaults found in that folder. " +
+                        "Pick Documents (or the folder that contains your vaults), " +
+                        "or use “Use this folder as vault” if you selected the vault itself." to true
+                }
+                vaults.size == 1 -> {
+                    selectVault(vaults.first())
+                    banner.value =
+                        "Linked ${vaults.first().name}. Captures go to Atoms System/Inbox.md." to false
+                }
+                else -> {
+                    banner.value =
+                        "Found ${vaults.size} vaults — pick which one to capture into." to false
+                }
+            }
+        }
+    }
+
+    fun selectVault(ref: VaultRef) {
+        viewModelScope.launch {
+            store.setSelectedVault(ref.relativePath, ref.name)
+            banner.value =
+                "Using ${ref.name}. Captures go to Atoms System/Inbox.md." to false
+        }
+    }
+
+    /** When scan finds nothing but user insists this folder is the vault. */
+    fun useAccessRootAsVault() {
+        viewModelScope.launch {
+            val root = accessRootUri ?: return@launch
+            val name = guessName(root) ?: "Vault"
+            store.setVaultAsRoot(root, name)
+            listed.value =
+                listOf(VaultRef(name = name, relativePath = "", score = 1))
+            banner.value = "Using $name as your vault." to false
+        }
+    }
+
+    fun rescanListedVaults() {
+        val root = accessRootUri ?: return
+        viewModelScope.launch {
+            scanning.value = true
+            val vaults =
+                withContext(Dispatchers.IO) {
+                    safScanner.listVaults(root)
+                }
+            listed.value = vaults
+            scanning.value = false
+            banner.value =
+                if (vaults.isEmpty()) {
+                    "Still no vaults here. Try granting Documents or your storage root." to true
+                } else {
+                    "Found ${vaults.size} vault${if (vaults.size == 1) "" else "s"}." to false
+                }
         }
     }
 
     fun unlinkVault() {
         viewModelScope.launch {
-            store.clearTreeUri()
+            store.clearVaultLink()
+            listed.value = emptyList()
             banner.value = "Vault unlinked." to false
         }
     }
 
     fun capture() {
         val state = uiState.value
-        val uri = state.treeUri
-        if (uri == null) {
-            banner.value = "Link your Obsidian vault folder first." to true
+        val root = accessRootUri
+        val rel = vaultRelativePath
+        if (root == null || rel == null) {
+            banner.value = "Choose a vault first." to true
             return
         }
         if (state.draft.isBlank()) {
@@ -151,7 +211,7 @@ class CaptureViewModel(
             val text = state.draft
             val result =
                 withContext(Dispatchers.IO) {
-                    writer.appendCapture(uri, text)
+                    writer.appendCapture(root, rel, text)
                 }
             when (result) {
                 is InboxWriter.WriteResult.Ok -> {
@@ -167,6 +227,20 @@ class CaptureViewModel(
                 }
             }
             busy.value = false
+        }
+    }
+
+    private fun guessName(treeUri: Uri): String? {
+        return try {
+            val docId =
+                if (DocumentsContract.isTreeUri(treeUri)) {
+                    DocumentsContract.getTreeDocumentId(treeUri)
+                } else {
+                    DocumentsContract.getDocumentId(treeUri)
+                }
+            docId.substringAfterLast(':').substringAfterLast('/')
+        } catch (_: Exception) {
+            null
         }
     }
 }

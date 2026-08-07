@@ -24,7 +24,7 @@ class MainActivity : ComponentActivity() {
     private val openTree =
         registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
             if (uri != null) {
-                viewModel.onVaultPicked(uri)
+                viewModel.onAccessRootPicked(uri)
             }
         }
 
@@ -42,13 +42,12 @@ class MainActivity : ComponentActivity() {
                         state = state,
                         onDraftChange = viewModel::onDraftChange,
                         onCapture = viewModel::capture,
-                        onUseDiscoveredVault = { vault ->
-                            openTree.launch(vault.treeUri ?: viewModel.pickerInitialUri(vault))
-                        },
-                        onPickVault = {
+                        onFindVaults = {
                             openTree.launch(viewModel.pickerInitialUri())
                         },
-                        onRescan = viewModel::refreshDiscoveredVaults,
+                        onSelectVault = viewModel::selectVault,
+                        onUseFolderAsVault = viewModel::useAccessRootAsVault,
+                        onRescan = viewModel::rescanListedVaults,
                         onUnlinkVault = viewModel::unlinkVault,
                         onDismissBanner = viewModel::clearBanner,
                     )

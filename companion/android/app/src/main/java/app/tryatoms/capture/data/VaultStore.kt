@@ -16,35 +16,93 @@ private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(na
 class VaultStore(
     private val context: Context,
 ) {
-    private val treeUriKey = stringPreferencesKey("vault_tree_uri")
+    private val accessRootUriKey = stringPreferencesKey("access_root_tree_uri")
+    private val vaultRelativePathKey = stringPreferencesKey("vault_relative_path")
+    private val vaultNameKey = stringPreferencesKey("vault_name")
     private val captureDoneKey = booleanPreferencesKey("first_capture_done")
     private val lastStatusKey = stringPreferencesKey("last_status")
 
+    /** Legacy single-tree key from first POC — migrated on read. */
+    private val legacyTreeUriKey = stringPreferencesKey("vault_tree_uri")
+
     data class State(
-        val treeUri: Uri? = null,
+        /** SAF tree the user granted (Documents, storage, or the vault itself). */
+        val accessRootUri: Uri? = null,
+        /** Path under [accessRootUri] to the vault folder; empty = root is the vault. */
+        val vaultRelativePath: String? = null,
+        val vaultName: String? = null,
         val firstCaptureDone: Boolean = false,
         val lastStatus: String? = null,
-    )
+    ) {
+        val vaultLinked: Boolean
+            get() = accessRootUri != null && vaultRelativePath != null
+    }
 
     val state: Flow<State> =
         context.dataStore.data.map { prefs ->
-            val uriStr = prefs[treeUriKey]
+            var root = prefs[accessRootUriKey]?.let { Uri.parse(it) }
+            var rel = prefs[vaultRelativePathKey]
+            var name = prefs[vaultNameKey]
+
+            // Migrate POC v1: vault tree URI only → treat as root-is-vault
+            if (root == null) {
+                val legacy = prefs[legacyTreeUriKey]
+                if (legacy != null) {
+                    root = Uri.parse(legacy)
+                    rel = rel ?: ""
+                    name = name ?: "Vault"
+                }
+            }
+
             State(
-                treeUri = uriStr?.let { Uri.parse(it) },
+                accessRootUri = root,
+                vaultRelativePath = rel,
+                vaultName = name,
                 firstCaptureDone = prefs[captureDoneKey] == true,
                 lastStatus = prefs[lastStatusKey],
             )
         }
 
-    suspend fun setTreeUri(uri: Uri) {
+    suspend fun setAccessRoot(uri: Uri) {
         context.dataStore.edit { prefs ->
-            prefs[treeUriKey] = uri.toString()
+            prefs[accessRootUriKey] = uri.toString()
+            // Choosing a new root clears vault selection until the user picks one
+            prefs.remove(vaultRelativePathKey)
+            prefs.remove(vaultNameKey)
+            prefs.remove(legacyTreeUriKey)
         }
     }
 
-    suspend fun clearTreeUri() {
+    suspend fun setSelectedVault(
+        relativePath: String,
+        name: String,
+    ) {
         context.dataStore.edit { prefs ->
-            prefs.remove(treeUriKey)
+            prefs[vaultRelativePathKey] = relativePath
+            prefs[vaultNameKey] = name
+            prefs.remove(legacyTreeUriKey)
+        }
+    }
+
+    /** Direct vault folder grant (picker landed on the vault itself). */
+    suspend fun setVaultAsRoot(
+        uri: Uri,
+        name: String,
+    ) {
+        context.dataStore.edit { prefs ->
+            prefs[accessRootUriKey] = uri.toString()
+            prefs[vaultRelativePathKey] = ""
+            prefs[vaultNameKey] = name
+            prefs.remove(legacyTreeUriKey)
+        }
+    }
+
+    suspend fun clearVaultLink() {
+        context.dataStore.edit { prefs ->
+            prefs.remove(accessRootUriKey)
+            prefs.remove(vaultRelativePathKey)
+            prefs.remove(vaultNameKey)
+            prefs.remove(legacyTreeUriKey)
         }
     }
 
