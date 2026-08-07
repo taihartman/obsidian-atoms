@@ -50,7 +50,7 @@ Gmail and many clients **strip or block SVG**. Reliable path:
 
 1. Draw the idea as **SVG** in the repo (`www/src/email/*.svg`) - on theme, editable.  
 2. Export a **PNG** (2x width, ~1040px wide for retina).  
-3. Host PNG on tryatoms: `www/src/email/foo.png` → build copies to `https://tryatoms.app/email/foo.png`.  
+3. Host PNG on tryatoms: `www/src/email/foo.<hash>.png` → build copies to `https://tryatoms.app/email/foo.<hash>.png`.  
 4. In HTML: `<img src="https://tryatoms.app/email/foo.png" …>` via `figureHtml()` or Resend’s editor.
 
 ### Drawing SVGs on theme
@@ -89,13 +89,17 @@ The script rasterizes with Chrome. **Do not use `magick`**: with librsvg absent 
 
 Then `npm run build:www` and deploy so `https://tryatoms.app/email/foo.png` resolves.
 
-**Confirm redrawn figures are actually live.** The Pages edge pins `/email/*.png` for 4h **and ignores the query string in its cache key** — a brand-new `?v=<hash>` URL was measured serving the previous image, so cache-busting by query does not work here. Compare bytes instead, and retry; a stale entry clears after a revalidation pass or two:
+**Figures must be referenced by fingerprinted URL.** `render-email-svg.sh` writes `foo.<md5-8>.png` beside `foo.png` and prints the URL to use. Drafts reference that, never the bare name.
+
+**Gmail caches proxied images by URL, permanently.** Redraw a figure at a stable URL and subscribers keep seeing whichever version Gmail fetched first, no matter how many times you redeploy or resend — the origin is correct and the reader still sees last week's art. A query string (`?v=hash`) does not fix it: it changes Gmail's cache key, but Cloudflare ignores query strings in its own cache key, and both caches have to agree. A new path satisfies both, and old paths keep working for mail already sent.
+
+Verify before every send:
 
 ```bash
 scripts/check-email-assets.sh docs/field-notes/drafts/<file>.json
 ```
 
-It exits non-zero while any figure is stale. Do not send on a STALE result — you would review last week's art without knowing it.
+It fails on an un-fingerprinted URL, on a missing local file, and on live bytes that do not match local; it retries, because Cloudflare pins `/email/*` for 4h and a newly deployed path takes a moment to reach the apex domain. Do not send on a failure.
 
 ### Using a figure in a Broadcast (Resend UI)
 

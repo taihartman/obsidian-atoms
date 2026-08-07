@@ -6,6 +6,14 @@
 # the wrong font metrics. Chrome renders the same engine the site does, with
 # real SF Pro for system-ui, and honours transparency at the plate corners.
 #
+# Each render also writes a fingerprinted twin, foo.<md5-8>.png, and that is the
+# URL a draft must reference. Redrawing a figure at a stable URL does not reach
+# readers: Gmail proxies every image through googleusercontent and caches it by
+# URL, so the first version it ever fetched is the version subscribers keep
+# seeing, no matter what is on the origin. A query string does not help - it
+# fixes Gmail's key but Cloudflare ignores it, and the two caches have to agree.
+# A new path satisfies both, and old paths keep working for already-sent mail.
+#
 # Usage: scripts/render-email-svg.sh [file.svg ...]   (default: all fn-*.svg)
 set -euo pipefail
 
@@ -36,5 +44,12 @@ for svg in "${files[@]}"; do
     >/dev/null 2>&1 || true
 
   [ -s "$png" ] || { echo "render failed: $svg" >&2; exit 1; }
-  echo "$png  ${w}x${h}"
+
+  hash=$(md5 -q "$png" | cut -c1-8)
+  stamped="${png%.png}.${hash}.png"
+  cp "$png" "$stamped"
+  echo "${w}x${h}  https://tryatoms.app/email/$(basename "$stamped")"
 done
+
+echo
+echo "Reference the fingerprinted URLs above in the draft, not the bare .png."

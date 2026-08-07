@@ -79,11 +79,16 @@ Then:
    npm run build:www   # copies www/src/email/* into www/dist/email/
    ( cd www && npx wrangler pages deploy dist --project-name=tryatoms --branch=master )
    ```
-   Then **verify the live bytes**, every time:
+   Then **reference the fingerprinted URL the render script prints**, never the bare `foo.png`:
+   ```jsonc
+   { "type": "figure", "src": "https://tryatoms.app/email/fn-ask-dom.4e867681.png", "alt": "..." }
+   ```
+   **Gmail proxies every image through googleusercontent and caches it by URL.** Redraw a figure at a stable URL and subscribers keep seeing whichever version Gmail fetched first — forever, however many times you redeploy and resend. This is not hypothetical: it burned three consecutive test sends on the Dom letter, each one showing art from a previous session while the origin served the new file correctly. A query string does not fix it either: it changes Gmail's cache key but Cloudflare ignores it, and both caches have to agree. Only a new path does.
+   Then verify before every send:
    ```bash
    scripts/check-email-assets.sh docs/field-notes/drafts/<file>.json
    ```
-   The edge pins `/email/*.png` for 4h **and ignores the query string in its cache key**, so `?v=<hash>` does not bust it — a brand new query URL was measured serving the previous image. Bytes are the only honest check. A stale entry clears after a revalidation pass or two, which is why the script retries. If it says STALE, do not send: you would be reviewing last week's art without knowing.
+   It fails on a bare (un-fingerprinted) URL and on a live body that does not match local, and it retries — Cloudflare's edge pins `/email/*` for 4h, and a freshly deployed path takes a moment to appear on the apex domain. Do not send on a failure.
 
 Legacy `paragraphs` + trailing `diagram`/`figure` still render, but **new drafts must use `blocks`.**
 

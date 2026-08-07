@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
-# Confirm the illustrations a draft points at are actually live, before sending.
+# Confirm the illustrations a draft points at are actually what readers will see.
 #
-# Cloudflare's edge pins /email/*.png for 4h AND ignores the query string in its
-# cache key, so ?v=<hash> does NOT bust it - a brand new query URL was measured
-# serving the previous image. The only reliable check is comparing bytes, and
-# retrying: the stale entry clears after a revalidation pass or two.
+# Two checks, because two different caches can lie:
+#   1. the URL is fingerprinted (foo.<hash>.png). A bare foo.png is a bug - Gmail
+#      caches proxied images by URL, so subscribers keep seeing whichever version
+#      it fetched first, forever, however many times you redeploy.
+#   2. the live bytes match the local file. Cloudflare's edge pins /email/* for
+#      4h and ignores query strings, so it can serve a stale body for a while.
 #
 # Usage: scripts/check-email-assets.sh docs/field-notes/drafts/<file>.json
 set -euo pipefail
@@ -12,28 +14,38 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 draft="${1:?usage: check-email-assets.sh <draft.json>}"
 
-names=$(grep -o 'https://tryatoms\.app/email/[a-z0-9-]*\.png' "$draft" \
-        | sed 's|.*/||; s|\.png$||' | sort -u)
-[ -n "$names" ] || { echo "no tryatoms figures in $draft"; exit 0; }
+urls=$(grep -o 'https://tryatoms\.app/email/[A-Za-z0-9._-]*\.png' "$draft" | sort -u)
+[ -n "$urls" ] || { echo "no tryatoms figures in $draft"; exit 0; }
 
 fail=0
-for name in $names; do
-  local_size=$(stat -f%z "www/src/email/$name.png")
+for url in $urls; do
+  file=${url##*/}
+  if ! printf '%s' "$file" | grep -Eq '\.[0-9a-f]{8}\.png$'; then
+    printf '  %-34s NOT FINGERPRINTED\n' "$file"
+    fail=1
+    continue
+  fi
+  if [ ! -f "www/src/email/$file" ]; then
+    printf '  %-34s MISSING LOCALLY\n' "$file"
+    fail=1
+    continue
+  fi
+  local_size=$(stat -f%z "www/src/email/$file")
   live=""
   for _ in 1 2 3 4 5; do
-    live=$(curl -s -o /dev/null -w '%{size_download}' "https://tryatoms.app/email/$name.png")
+    live=$(curl -s -o /dev/null -w '%{size_download}' "$url")
     [ "$live" = "$local_size" ] && break
   done
   if [ "$live" = "$local_size" ]; then
-    printf '  %-20s %s bytes  live\n' "$name" "$local_size"
+    printf '  %-34s %s bytes  live\n' "$file" "$local_size"
   else
-    printf '  %-20s local %s / live %s  STALE\n' "$name" "$local_size" "$live"
+    printf '  %-34s local %s / live %s  STALE\n' "$file" "$local_size" "$live"
     fail=1
   fi
 done
 
 if [ "$fail" -ne 0 ]; then
-  echo "Edge still serving old art. Deploy, wait, re-run - do not send yet." >&2
+  echo "Do not send. Re-render, deploy, and re-run." >&2
   exit 1
 fi
-echo "All figures current. Safe to send."
+echo "All figures fingerprinted and live. Safe to send."
