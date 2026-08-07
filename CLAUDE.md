@@ -97,13 +97,15 @@ Without the Advanced toggle, `obsidian` prints “Command line interface is not 
 
 | Lane | When | Action |
 |---|---|---|
-| **Stable release** | “release it” / prod / BRAT default | Tag `X.Y.Z` (= package+manifest) → CI Release **not** prerelease → BRAT (betas **off**) + Community when listed |
-| **Beta release** | “beta” / dogfood-only | Bump to `X.Y.Z-beta.N` (or `-rc.N`) in package+manifest+versions → tag same string → CI **prerelease** → BRAT only if **Enable betas** |
-| **Every master merge** | Plugin code lands | No tag unless asked. No agent vault copy. Humans update via BRAT when they want |
+| **Stable release** | Version bump `X.Y.Z` merges to master | CI auto-Release (**not** prerelease) → BRAT (betas **off**) + Community when listed |
+| **Beta release** | “beta” / dogfood-only | Bump to `X.Y.Z-beta.N` (or `-rc.N`) in package+manifest+versions → merge master → CI **prerelease** → BRAT only if **Enable betas** |
+| **Master merge, version unchanged** | docs/www/already-released version | CI no-ops (Release already exists). No agent vault copy |
+
+**Why auto:** Community plugins are delisted when default-branch `manifest.json` has no matching GitHub Release tag. Bump + merge **is** the release.
 
 **Full recipes:** [`docs/runbooks/plugin-release-beta-stable.md`](docs/runbooks/plugin-release-beta-stable.md). Tag must equal package/manifest version or CI fails.
 
-**Agent rule:** Do **not** install plugin bits into personal/Remote Vault. Do **not** cut a GitHub Release unless asked. After merge, clear `STATUS.md` and stop — phone/desktop dogfood is human + BRAT.
+**Agent rule:** Do **not** install plugin bits into personal/Remote Vault. Do **not** hand-tag after a normal version-bump merge — CI owns it. After merge, clear `STATUS.md`, confirm the Release run if the version changed, and stop — phone/desktop dogfood is human + BRAT.
 
 ### Everyday loop (agent QA vault)
 

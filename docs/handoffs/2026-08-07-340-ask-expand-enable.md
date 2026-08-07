@@ -1,7 +1,7 @@
 ---
 handoff_date: 2026-08-07
 branch: feat/339-ask-search-recall-honesty
-worktree: /Users/a515138832/StudioProjects/obsidian_plugin-340-ask-expand
+worktree: /Users/a515138832/StudioProjects/obsidian_plugin
 base: master
 tracking: https://github.com/taihartman/obsidian-atoms/issues/339 · PR https://github.com/taihartman/obsidian-atoms/pull/340
 status: in-progress
@@ -128,10 +128,8 @@ re-prompts users on the new wording.
 - **No AI attribution** in commits, PR bodies, or review replies.
 - Cross-model peer is **grok**, via the gitignored `.compound-engineering/config.local.yaml`.
   Recreate it if missing.
-- **Work in the sibling worktree `/Users/a515138832/StudioProjects/obsidian_plugin-340-ask-expand`,
-  never in the main checkout.** The main checkout at `/Users/a515138832/StudioProjects/obsidian_plugin`
-  is on `chore/367-auto-tag-release` and the owner is actively working there. Do not switch its
-  branch, reset it, or commit into it.
+- You are working in the **main checkout**, not a sibling worktree — the branch is already checked
+  out there and moving it would be a disruptive, unasked-for change. That is intentional.
 
 ## Open questions / blockers
 
@@ -152,16 +150,16 @@ re-prompts users on the new wording.
 
 - Branch `feat/339-ask-search-recall-honesty` (base `master`), pushed to `origin`, upstream set.
 - Last real commit: `fb1997a fix(ask): Sync stops waiting on expansion, and expansion stops advertising itself`
-- Handoff commit: `1b88638` — `docs(handoff): #340 four-step path to green`
+- Handoff commit: `8202dc6` — `docs(handoff): #340 four-step path to green`
 - No WIP snapshot was needed — the tracked tree was already clean.
 - Diff since base: 28 files, +1663/-52 (`git diff --stat origin/master...HEAD`).
 
 ## How to resume
 
-Check out the work exactly here — this is your branch and worktree:
+Check out the work exactly here — this is your branch and directory:
 
 ```bash
-cd /Users/a515138832/StudioProjects/obsidian_plugin-340-ask-expand
+cd /Users/a515138832/StudioProjects/obsidian_plugin
 git fetch origin && git switch feat/339-ask-search-recall-honesty && git pull --ff-only
 npm install
 npx vitest run

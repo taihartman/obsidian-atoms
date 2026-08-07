@@ -1,5 +1,11 @@
 # CI-built plugin release assets + SLSA provenance attestations.
-# Trigger: push a version tag matching manifest/package (e.g. 0.6.45).
+#
+# Triggers:
+#   1. Push a version tag matching package+manifest (manual / legacy).
+#   2. Push to master when package/manifest version has no Release yet
+#      (auto — keeps Community listing in sync: default-branch manifest
+#      must equal a published tag, or Obsidian delists the plugin).
+#
 # Do not upload laptop-built main.js for production tags.
 
 name: Release
@@ -9,6 +15,8 @@ on:
     tags:
       - "[0-9]+.[0-9]+.[0-9]+"
       - "[0-9]+.[0-9]+.[0-9]+-*"
+    branches:
+      - master
 
 permissions:
   contents: read
@@ -24,24 +32,43 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          cache: npm
-
-      - name: Install
-        run: npm ci
-
-      - name: Tag matches package version
+      - name: Resolve version
         id: ver
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          TAG="${GITHUB_REF_NAME}"
           PKG="$(node -p "require('./package.json').version")"
           MANIFEST="$(node -p "require('./manifest.json').version")"
-          echo "tag=$TAG package=$PKG manifest=$MANIFEST"
-          test "$TAG" = "$PKG"
-          test "$TAG" = "$MANIFEST"
+          echo "package=$PKG manifest=$MANIFEST"
+
+          if [ "$PKG" != "$MANIFEST" ]; then
+            echo "::error::package.json ($PKG) != manifest.json ($MANIFEST)"
+            exit 1
+          fi
+
+          if ! echo "$PKG" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?$'; then
+            echo "::error::version '$PKG' is not a releasable tag shape"
+            exit 1
+          fi
+
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            TAG="${GITHUB_REF_NAME}"
+            echo "tag push: $TAG"
+            if [ "$TAG" != "$PKG" ]; then
+              echo "::error::tag ($TAG) != package/manifest ($PKG)"
+              exit 1
+            fi
+          else
+            TAG="$PKG"
+            echo "master push: will release $TAG if missing"
+          fi
+
+          if gh release view "$TAG" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            echo "Release $TAG already exists — skip"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           # Beta: 0.6.77-beta.1 / 0.6.77-rc.1. Stable: 0.6.77 only.
           # BRAT default = stable; BRAT "Enable betas" = prerelease too.
           if echo "$TAG" | grep -qE -- '-(beta|rc)(\.|$)'; then
@@ -52,22 +79,41 @@ jobs:
             echo "channel=stable"
           fi
 
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+          echo "version=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Node
+        if: steps.ver.outputs.skip != 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install
+        if: steps.ver.outputs.skip != 'true'
+        run: npm ci
+
       - name: Test
+        if: steps.ver.outputs.skip != 'true'
         run: npm test
 
       - name: Production build
+        if: steps.ver.outputs.skip != 'true'
         run: npm run build
 
       - name: Require release assets
+        if: steps.ver.outputs.skip != 'true'
         run: |
           test -f main.js
           test -f manifest.json
           test -f styles.css
 
       - name: SHA256SUMS
+        if: steps.ver.outputs.skip != 'true'
         run: shasum -a 256 main.js manifest.json styles.css | tee SHA256SUMS.txt
 
       - name: Attest build provenance
+        if: steps.ver.outputs.skip != 'true'
         uses: actions/attest-build-provenance@v2
         with:
           subject-path: |
@@ -77,8 +123,11 @@ jobs:
             SHA256SUMS.txt
 
       - name: GitHub Release
+        if: steps.ver.outputs.skip != 'true'
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ steps.ver.outputs.version }}
+          target_commitish: ${{ github.sha }}
           files: |
             main.js
             manifest.json
