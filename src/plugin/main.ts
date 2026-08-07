@@ -1500,14 +1500,29 @@ export default class AtomsPlugin extends Plugin {
       this.settings[key] = cleared;
       changed = true;
     };
+    /**
+     * An ack's two halves are one record, so its version dies with its timestamp.
+     *
+     * `revoke` alone is not enough for the pair. It acts only on a key that is *present and
+     * falsy*, and the device most likely to send this withdrawal is one whose schema predates
+     * the version field entirely — so the key is not falsy, it is absent, and a per-key revoke
+     * silently keeps the version. That leaves a withdrawn ack still naming current wording: the
+     * next enable on this device would find a stamp it never wrote and grant without the sheet.
+     * Forcing the version here is safe because the branch has already decided this is a
+     * withdrawal.
+     */
+    const revokePaired = (
+      at: "askPrivacyAckAt" | "askWriteAckAt",
+      version: "askPrivacyAckVersion" | "askWriteAckVersion",
+    ) => {
+      revoke(at, "");
+      if (this.settings[at] || !this.settings[version]) return;
+      this.settings[version] = "";
+      changed = true;
+    };
     revoke("askEnabled", false);
-    revoke("askPrivacyAckAt", "");
-    // The version travels with its timestamp. Clearing only the timestamp would leave a
-    // withdrawn ack still naming current wording, so the next grant made on this device would
-    // find a stamp it never wrote — and a re-grant that skipped the sheet.
-    revoke("askPrivacyAckVersion", "");
-    revoke("askWriteAckAt", "");
-    revoke("askWriteAckVersion", "");
+    revokePaired("askPrivacyAckAt", "askPrivacyAckVersion");
+    revokePaired("askWriteAckAt", "askWriteAckVersion");
     if (!changed) return;
     // Persist now. The save that won the race has already put the grant back on disk, so
     // leaving this in memory alone would let the next writer push it out to every device.

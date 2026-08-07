@@ -47,9 +47,11 @@ plaintext** to Anthropic on mirror upsert. That is the first Ask path sending bo
 third party — classify is titles-only.
 
 Its author correctly amended `ASK_PRIVACY_DISCLOSURE` to name that egress (six clauses to seven).
-**That amendment is on master now** (`consent.ts:27-28` — clause 4 mentions search-expansion
-phrases). But an amended string alone changes nothing for anyone who already acked, because there is
-no version to invalidate the old grant.
+**That amendment is on the `feat/339-ask-search-recall-honesty` branch, NOT on master** — master
+still ships the six-clause wording (verified 2026-08-07 by diffing `consent.ts` against
+`origin/master`; an earlier draft of this handoff claimed otherwise and was wrong). But an amended
+string alone changes nothing for anyone who already acked, because there is no version to
+invalidate the old grant.
 
 So `ASK_EXPAND_ENABLED` was defaulted to `"0"` on that branch rather than shipping the feature to
 devices holding a stale grant. **Your work is what lets that flag flip back to `"1"`.** Say so in
@@ -133,9 +135,18 @@ produced this doc; that was wrong, and the correction is why this branch exists.
    peer is **grok**, not codex) → `ce-compound` → `world-class-qa` ending in its `adversarial-qa`
    gate → PR with `Closes #<n>`, core user stories, edge-case table, and phone screenshots under
    `docs/qa/screenshots/<feature>/` linked by **absolute** `raw.githubusercontent.com` URLs.
-6. **Then, separately:** flip `ASK_EXPAND_ENABLED` back to `"1"` in
-   `plus-service/src/config.mjs` — one line, on #340 or a follow-up. The comment at that flag names
-   this work as its precondition. Do not do it in the same PR unless the user asks.
+6. **Then, separately — and it is four steps, not one.** Flipping `ASK_EXPAND_ENABLED` back to
+   `"1"` in `plus-service/src/config.mjs` is the *last* of them. In order, on #340 or a follow-up:
+   1. land #340's amended seven-clause `ASK_PRIVACY_DISCLOSURE`;
+   2. bump `ASK_PRIVACY_ACK_VERSION` in `src/shared/askAck.ts` to that day's date;
+   3. add the new wording to `FROZEN_ASK_PRIVACY` in `test/askConsentVersion.test.ts` as a **new
+      keyed entry** — never edit the existing one, which is the record of what shipped devices
+      agreed to;
+   4. only then flip the flag.
+
+   Skipping (2) and (3) is the whole failure this work exists to prevent: the frozen-wording test
+   will go red and tell you, which is the point. Do not do any of it in the same PR as this one
+   unless the user asks.
 
 ## Key files
 
