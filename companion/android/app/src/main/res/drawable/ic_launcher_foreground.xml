@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Atoms sentinel ↵ — tryatoms.com favicon.
+  Adaptive-icon safe zone is the center ~66dp of 108dp; keep the glyph small
+  and centered so launchers don't crop it into a giant blob.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!--
+      Glyph bbox roughly 36×40 centered at (54,54):
+      left=36, right=72, top=32, bottom=76  → well inside 21–87 safe circle.
+      Stroke weight ~5.5 units.
+    -->
+    <!-- vertical stem -->
+    <path
+        android:fillColor="#0A84FF"
+        android:pathData="M47.25,34 h5.5 v30 h-5.5 z" />
+    <!-- horizontal arm -->
+    <path
+        android:fillColor="#0A84FF"
+        android:pathData="M47.25,58.5 h22 v5.5 h-22 z" />
+    <!-- arrow tip pointing right -->
+    <path
+        android:fillColor="#0A84FF"
+        android:pathData="M67,52.5 L79,61.25 L67,70 z" />
+</vector>

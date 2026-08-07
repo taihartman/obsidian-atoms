@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="capture"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/shortcut_capture_short"
+        android:shortcutLongLabel="@string/shortcut_capture_long">
+        <intent
+            android:action="app.tryatoms.capture.action.QUICK_CAPTURE"
+            android:targetPackage="app.tryatoms.capture"
+            android:targetClass="app.tryatoms.capture.QuickCaptureActivity">
+            <extra android:name="app.tryatoms.capture.EXTRA_FROM_SHORTCUT" android:value="true" />
+        </intent>
+    </shortcut>
+</shortcuts>
