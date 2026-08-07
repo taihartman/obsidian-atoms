@@ -232,6 +232,11 @@ export class AskCoordinator {
       ack: async (id, ack) => {
         await askOutboxAck(cfg, token, { id, ...ack });
       },
+      // Read live off `plugin.settings`, never captured: `data.json` syncs, so a withdrawal
+      // made on another device replaces the object underneath a pass that is already running.
+      // Same two halves the entry gate asks, asked again per item.
+      writePermitted: () =>
+        this.mirrorPermitted() && askWriteAckIsCurrent(p.settings),
       applyToVault: (payload) => applyOutboxItemToVault(vault, folder, payload),
       syncMirror: () => this.sync({ force: false }),
       notice: (message) => new Notice(message),

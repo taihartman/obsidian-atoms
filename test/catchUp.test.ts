@@ -30,6 +30,8 @@ function fakeHost(opts: {
   mirror?: (call: number) => MirrorSyncOutcome;
   apply?: (item: AskOutboxItem) => OutboxApplyResult;
   busy?: boolean;
+  /** Live consent, re-asked per item — a case withdraws mid-pass by returning false. */
+  writePermitted?: () => boolean;
 }) {
   /** Un-acked items, in server order. A pull peeks; an ack retires. */
   const pending = [...opts.items];
@@ -63,6 +65,9 @@ function fakeHost(opts: {
       const i = pending.findIndex((it) => it.id === id);
       if (i >= 0) pending.splice(i, 1);
     },
+    // Consent, asked live before every item. Default granted so the existing cases read as
+    // before; `opts.writePermitted` is how a case withdraws mid-pass.
+    writePermitted: () => opts.writePermitted?.() ?? true,
     applyToVault: async (payload) => {
       const result = opts.apply?.({ id: "", payload }) ?? {
         kind: "applied" as const,

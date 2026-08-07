@@ -51,7 +51,11 @@ export function askAckIsCurrent(
   acked: string | null | undefined,
   shipped: string,
 ): boolean {
-  if (acked == null) return false;
+  // Typed `string`, but the value arrives from `data.json`, which a hand edit, a restored
+  // backup, or a third-party sync client can make any shape at all. A `0` or a `{}` reaching
+  // `.trim()` would throw *inside a consent predicate* — and these run while Settings paints, so
+  // the throw takes the withdrawal rows down with it and leaves no surface to shut the gate.
+  if (typeof acked !== "string") return false;
   const stored = acked.trim();
   if (!stored) return false;
   return stored === shipped;
@@ -89,12 +93,24 @@ export type AskAckRecord = Pick<
  * `docs/solutions/security/a-versioned-consent-needs-both-halves-in-the-gate.md`.
  */
 
+/**
+ * A stamp that is actually a moment.
+ *
+ * `Boolean(at)` was too weak in both directions a hand-edited `data.json` can be wrong: `true`
+ * is not a string, and `"yes"` is a string that is not a time. Either one read as live consent,
+ * and `"yes"` then reached `record.at.slice(0, 10)` in the row that would have withdrawn it. A
+ * consent record's *when* has to be a when.
+ */
+export function ackStampIsReal(at: unknown): at is string {
+  return typeof at === "string" && at.trim() !== "" && !Number.isNaN(Date.parse(at));
+}
+
 /** Whether the Ask privacy consent on record is consent to the wording this build shows. */
 export function askPrivacyAckIsCurrent(
   s: Pick<AskAckRecord, "askPrivacyAckAt" | "askPrivacyAckVersion">,
 ): boolean {
   return (
-    Boolean(s.askPrivacyAckAt) &&
+    ackStampIsReal(s.askPrivacyAckAt) &&
     askAckIsCurrent(s.askPrivacyAckVersion, ASK_PRIVACY_ACK_VERSION)
   );
 }
@@ -104,7 +120,8 @@ export function askWriteAckIsCurrent(
   s: Pick<AskAckRecord, "askWriteAckAt" | "askWriteAckVersion">,
 ): boolean {
   return (
-    Boolean(s.askWriteAckAt) && askAckIsCurrent(s.askWriteAckVersion, ASK_WRITE_ACK_VERSION)
+    ackStampIsReal(s.askWriteAckAt) &&
+    askAckIsCurrent(s.askWriteAckVersion, ASK_WRITE_ACK_VERSION)
   );
 }
 
@@ -123,8 +140,38 @@ export function askAckStanding(
   shipped: string,
 ): AckStanding {
   if (askAckIsCurrent(acked, shipped)) return "current";
-  // Null-tolerant like its sibling, and for a sharper reason than symmetry: this runs while
-  // Settings renders, so a `null` arriving from a hand-edited or restored `data.json` would
-  // throw and take the whole screen down — including the rows that withdraw consent.
-  return (acked ?? "").trim() ? "other" : "legacy";
+  // Shape-tolerant for the same reason its sibling is: this runs while Settings renders, so a
+  // value `data.json` should not have held must degrade to a word, never to a throw.
+  return typeof acked === "string" && acked.trim() ? "other" : "legacy";
+}
+
+/**
+ * Normalise the two ack records as they land from disk, before anything reads them.
+ *
+ * Two jobs, both of which have to happen *at the boundary* rather than inside the predicates.
+ *
+ * **Coerce the shapes.** `data.json` is typed but not trusted — a hand edit or a restored backup
+ * can put `true` in a timestamp, and `Boolean(true)` reads as a live grant while
+ * `record.at.slice(0, 10)` throws in the row that would have withdrawn it. Guarding inside
+ * `askAckIsCurrent` alone does not help the renderer; coercing here fixes both at once.
+ *
+ * **Keep the narrower consent from outliving the broader one.** The write ack authorises the
+ * cloud to create files here, and it is only ever granted on top of the privacy ack. Settings
+ * enforces that when the user withdraws privacy *locally* — but a privacy ack can also stop
+ * being current by going stale, which is what happens to every device the next time
+ * `ASK_PRIVACY_ACK_VERSION` moves. Without this, that device keeps a current write ack, and the
+ * moment the user re-accepts the new privacy wording the write gate reopens with no write sheet
+ * ever re-posed — filing from Claude resumes under a consent granted against superseded terms.
+ * Clearing here is safe in the only direction that matters: it can revoke, never grant.
+ */
+export function settleAckRecords(s: AskAckRecord): void {
+  const stamp = (v: unknown): string => (ackStampIsReal(v) ? v : "");
+  const str = (v: unknown): string => (typeof v === "string" ? v : "");
+  s.askPrivacyAckAt = stamp(s.askPrivacyAckAt);
+  s.askPrivacyAckVersion = str(s.askPrivacyAckVersion);
+  s.askWriteAckAt = stamp(s.askWriteAckAt);
+  s.askWriteAckVersion = str(s.askWriteAckVersion);
+  if (askPrivacyAckIsCurrent(s)) return;
+  s.askWriteAckAt = "";
+  s.askWriteAckVersion = "";
 }

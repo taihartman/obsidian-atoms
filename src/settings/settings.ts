@@ -39,6 +39,8 @@ import {
 } from "./captureShortcut";
 import { markDestructive } from "./destructiveButton";
 import {
+  ackStampIsReal,
+  settleAckRecords,
   type AckStanding,
   ASK_PRIVACY_ACK_VERSION,
   ASK_WRITE_ACK_VERSION,
@@ -561,7 +563,11 @@ export class AtomsSettingTab extends PluginSettingTab {
       onWithdraw: () => void | Promise<void>;
     },
   ): void {
-    const day = record.at.slice(0, 10);
+    // Never `record.at.slice` — the field is typed `string` but sourced from `data.json`, and a
+    // hand-edited `true` would throw here. This method runs *before* the auto-run section, so
+    // one bad value would take out the egress ack's withdrawal row too: a gate with nothing on
+    // screen to close it, which is the exact failure the ack predicates exist to prevent.
+    const day = ackStampIsReal(record.at) ? record.at.slice(0, 10) : "";
     const desc = `Acknowledged ${day}${ACK_STANDING_SUFFIX[record.standing]}`;
     this.actionRow(containerEl, {
       action: `ack:review:${record.name}`,
@@ -2243,6 +2249,11 @@ export class AtomsSettingTab extends PluginSettingTab {
                   this.redisplay();
                   return;
                 }
+                // Settle the pairing *before* stamping the new grant, while the old privacy
+                // ack is still visibly stale. A write ack riding on wording that was just
+                // superseded dies here; stamping first would make it look current again and
+                // silently reopen filing from Claude with no write sheet ever re-posed.
+                settleAckRecords(this.plugin.settings);
                 this.writeAskAck("privacy", true);
                 void this.setAskMirrorEnabled(true);
               },
@@ -2285,6 +2296,18 @@ export class AtomsSettingTab extends PluginSettingTab {
                 disclosure: ASK_WRITE_DISCLOSURE,
                 onVerdict: (verdict) => {
                   if (verdict !== "accepted") {
+                    this.redisplay();
+                    return;
+                  }
+                  // Re-checked at the moment of grant, not only before the sheet was posed.
+                  // Every screen change settles an open sheet today, so nothing currently
+                  // delivers `accepted` under a vanished privacy ack — but the module-level
+                  // sheet latch exists because a surface once posed a sheet without settling
+                  // it, and this is the write that would have been wrong that day.
+                  if (
+                    !this.plugin.settings.askEnabled ||
+                    !askPrivacyAckIsCurrent(this.plugin.settings)
+                  ) {
                     this.redisplay();
                     return;
                   }
