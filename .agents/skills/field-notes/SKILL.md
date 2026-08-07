@@ -20,6 +20,11 @@ You own the full path. The human feeds **the idea**; you draft, build, test-send
 
 Also load skill **atoms-voice** principles (no em dashes, no corn, no “use case”).
 
+**Traps already paid for** (read before touching the email lib or the illustrations):
+- [`docs/solutions/integration-issues/a-redrawn-image-at-the-same-url-never-reaches-the-reader.md`](../../../docs/solutions/integration-issues/a-redrawn-image-at-the-same-url-never-reaches-the-reader.md) — why figure URLs are fingerprinted
+- [`docs/solutions/logic-errors/a-double-quote-in-an-inline-style-closes-the-attribute-not-the-value.md`](../../../docs/solutions/logic-errors/a-double-quote-in-an-inline-style-closes-the-attribute-not-the-value.md) — why the whole list rendered in Times
+- [`docs/solutions/ui-bugs/an-svg-gradient-on-zero-width-geometry-paints-nothing.md`](../../../docs/solutions/ui-bugs/an-svg-gradient-on-zero-width-geometry-paints-nothing.md) — why a gradient can erase artwork
+
 ## Input
 
 User provides any of:
