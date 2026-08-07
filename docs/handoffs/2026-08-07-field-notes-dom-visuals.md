@@ -4,7 +4,7 @@ branch: claude/field-notes-dom-visuals
 worktree: /Users/a515138832/StudioProjects/obsidian_plugin-field-notes-dom-visuals
 base: master
 tracking: none
-status: awaiting-broadcast-approval
+status: complete
 ---
 
 # Handoff — Field notes Dom letter: visuals + polish
@@ -87,38 +87,28 @@ npx vitest run test/fieldNotesEmail.test.ts test/fieldNotesContent.test.ts
 ```
 Passing as of handoff. Extend if you change block types / jump behavior.
 
-## Session log — 2026-08-07 (Claude)
+## Session log — 2026-08-07 (Claude) — COMPLETE
 
-Steps 1, 2, 3, 4 and 6 are **done** and pushed (`0095419`, `b2cfe87`, `15c5b61`, `f0c0a46`). Only step 5, the broadcast, remains.
+**Shipped.** Broadcast `fce18b48-8896-4f41-8188-b8a90e55b73e` to the Atoms Notes segment; published JSON at `docs/field-notes/published/2026-08-07-knew-his-face.json`. The archive page goes live at `/notes/knew-his-face/` on merge to master.
 
-**Short version jump — fixed by removing it.** Gmail strips in-message fragment links, and a short version placed after the long version is decoration rather than a summary. So there is no jump: `tldr` is hoisted to the **top** of the letter by one shared helper (`hoistTldrFirst`) used by both the email and the web archive, the `skip` block type is gone from both renderers, and the `id="fn-tldr"` / `.notes-skip` CSS are deleted. Regression tests on both surfaces assert no `href="#"` ships and that the short version renders before the story. A legacy draft carrying a `skip` block now renders nothing rather than a dead link.
+**Short version jump — fixed by deleting it.** Gmail strips in-message fragment links, and a short version placed after the long version is decoration rather than a summary. `tldr` is now hoisted to the top by one shared helper (`hoistTldrFirst`) used by both the email and the web archive; the `skip` block type, the `id="fn-tldr"` anchor and the `.notes-skip` CSS are gone. Tests on both surfaces assert no `href="#"` ever ships.
 
-**Illustrations redrawn.** The old set stacked four containers deep (letter card → figure frame → SVG black bg → inner card), which is what made it read as a SaaS diagram. Now: one dark plate per figure, no frame around figures in the email at all, no arrows between boxes. Amber means a person, blue means the system answering, nothing else is coloured. Face = an unnamed person beside an empty name field; ask = the answer as typography with no phone chrome; filed = one gesture, a dictate settling into the line it is filed on.
+**Illustrations, four rounds.** Landed on: flat plate, no glow, no accent bar, and the picture made of real words rather than graphics — a list of what you remember with one line blank; a small question and an enormous name; the actual dictation trailing off into the title it became. What got rejected on the way is the useful part, and it is recorded in the house style: nested containers, box→arrow→box, a stock avatar glyph, tinted glows behind focal elements (the clearest tell of generated art), a coloured left bar (which is the bookend pattern CLAUDE.md bans, whatever it sits beside), invented specifics the letter never states, and dramatised beats that read as trying too hard once set in type.
 
-**Found and fixed a real bug the visuals pass surfaced.** `EMAIL_THEME.font` used double quotes and is interpolated into `style="..."`, so the attribute closed early and `font-family` was dropped entirely — **every Field notes email so far, including the welcome mail, rendered in Times.** Single quotes now, plus a test that no theme font stack contains a double quote.
+**Three bugs found on the way, all compounded to `docs/solutions/`:**
+- Gmail proxies images by URL and caches them permanently, so a redrawn illustration at a stable URL never reaches the reader. `?v=` fixes Gmail's cache key but not Cloudflare's, and both must agree — the filename carries the hash now. This cost four consecutive sends that all looked verified.
+- A double quote in a CSS value interpolated into `style="..."` closes the attribute and the whole `font-family` declaration is dropped. **Every Field notes email, welcome mail included, had been rendering in Times.**
+- An SVG gradient in default `objectBoundingBox` units does not render at all on zero-width geometry; it silently erased an entire waveform.
 
-**New tooling.**
-- `scripts/render-email-svg.sh` — rasterizes `www/src/email/*.svg` via Chrome. Use this, not the `magick` line below: librsvg is absent on this machine, so ImageMagick silently falls back to its own renderer and loses gradients and font metrics.
-- `node scripts/field-notes-send.mjs preview --draft <file> --out letter.html` — builds the exact HTML + text a send would, with no key and no network.
+**Tooling added:** `scripts/render-email-svg.sh` (Chrome, not ImageMagick — librsvg is absent so `magick` silently falls back to its own renderer), `scripts/check-email-assets.sh` (blocks a send on an un-fingerprinted or stale figure), and `field-notes-send.mjs preview` (build the exact bodies with no key and no network).
 
-**Deployed and test-sent** (after the user approved; both were briefly blocked by the sandbox classifier first):
-1. `wrangler pages deploy dist --project-name=tryatoms --branch=master` — live assets verified byte-for-byte against local. Note the edge caches `/email/*.png` for 4h, so the first request after a deploy can still serve the old file; a second request revalidates.
-2. Test send to `taihartmandevelopment+fn-1455@gmail.com`, id `32e245ec-8d65-4ce5-bb0c-9909e817c86c`, with the new illustrations live.
+**Skill + docs rewritten to match:** `.agents/skills/field-notes/SKILL.md`, `docs/field-notes-email.md`, and two new hard rules in `docs/voice.md` (no dramatised beats; everything gets louder set in type). `CONCEPTS.md` gained **Short version**.
 
-**Skill updated to taste** (`f0c0a46`): `.agents/skills/field-notes/SKILL.md` now carries the illustration house style (one plate, no box-arrow-box, amber = person / blue = the system answering, type as the illustration, size for 520px), a preview-and-judge step before any send, the Chrome rasterizer over `magick`, and the font-stack trap in **Do not**. Same house style mirrored into `docs/field-notes-email.md`.
-
-**Verified locally instead:** `npx vitest run test/fieldNotesEmail.test.ts test/fieldNotesContent.test.ts` → 20 passed; letter rendered from the real draft via `preview` and screenshotted at email width in Chrome (short version leads, sans-serif body, figures unframed, sections break cleanly).
+**Verified:** full suite 1408 passing after merging master; letter rendered and screenshotted at email width; live figure bytes checked against local before every send.
 
 ## Next steps
 
-1. ~~Fix Short version navigation~~ — **done**, by deleting the jump. See session log.
-2. ~~Redesign the three SVGs~~ — **done**; PNGs rebuilt and committed to `www/src/email/` and `www/dist/email/`. Original brief: to feel like tryatoms (quiet, dark, `#0a84ff` / `#ff9f0a` sparingly, simple, not generic “AI illustration” cards). Look at landing/home and `docs/design-handoff/tokens` + existing `www/src/email/loop-remember.svg` for token baseline — then **beat** that quality. Export PNGs. Redeploy or ensure `https://tryatoms.app/email/fn-*.png` is current before audience send (`npm run build:www` + Pages deploy per `docs/runbooks/tryatoms-pages-deploy.md`).
-3. ~~Open the rendered letter and judge~~ — **done** via `send.mjs preview` + Chrome. Original brief: (local HTML from `buildFieldNotesHtml`, and/or test email). Tighten spacing/section rhythm if still “a lot.” Do **not** reintroduce pull/bookend chrome.
-4. ~~Test send~~ — **done**: `taihartmandevelopment+fn-1455@gmail.com`, id `32e245ec-8d65-4ce5-bb0c-9909e817c86c`. Recipe: (secrets from fly `atoms-plus` `RESEND_API_KEY`; postal + segment in runbook). Tell user the +address.
-5. **Only after explicit user yes:**  
-   `node scripts/field-notes-send.mjs broadcast --draft docs/field-notes/drafts/2026-08-07-knew-his-face.json --confirm`  
-   Then commit published JSON, merge master so `/notes/<slug>/` goes live.
-6. ~~Skim draft copy for voice~~ — checked: no em dashes, no guilt, soft CTA. Original brief: skim draft copy once more for voice (`docs/voice.md`) — no em dashes, no guilt, soft CTA.
+Nothing outstanding for this work. Merge lands the archive page. If a future note redraws a figure, `scripts/check-email-assets.sh <draft>` is the gate — it fails on a bare `foo.png` for the Gmail-cache reason above.
 
 ## Key files
 
