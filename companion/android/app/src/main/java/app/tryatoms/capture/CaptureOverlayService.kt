@@ -156,14 +156,18 @@ class CaptureOverlayService : LifecycleService() {
                                 if (listening) {
                                     speech?.stop()
                                 } else {
-                                    // RECORD_AUDIO must already be granted; if not, point user to hub once
                                     val ok =
                                         ContextCompat.checkSelfPermission(
                                             this@CaptureOverlayService,
                                             android.Manifest.permission.RECORD_AUDIO,
                                         ) == android.content.pm.PackageManager.PERMISSION_GRANTED
                                     if (!ok) {
-                                        error = "Open Atoms Capture once and allow the mic"
+                                        // Can't show runtime dialog from a Service — open hub settings path
+                                        error = "Allow microphone in system settings for Atoms Capture"
+                                        return@QuickCaptureScreen
+                                    }
+                                    if (speech?.isAvailable != true) {
+                                        error = "Voice not available on this device"
                                         return@QuickCaptureScreen
                                     }
                                     error = null
