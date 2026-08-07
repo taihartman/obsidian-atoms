@@ -156,8 +156,11 @@ export async function handleMirrorRoutes({
     }
     json(res, 200, {
       ok: Boolean(result.ok),
-      attempted: result.attempted ?? 0,
-      expanded: result.expanded ?? 0,
+      // Queue counts: the expand pass runs in the background pool, so nothing
+      // is expanded by the time this responds. Progress = expand_coverage.
+      queued: result.queued ?? 0,
+      attempted: 0,
+      expanded: 0,
       expand_coverage: coverage,
       reason: result.reason,
     });

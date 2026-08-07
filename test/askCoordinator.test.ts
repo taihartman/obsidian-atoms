@@ -42,6 +42,10 @@ let mirrorPasses = 0;
 /** Runs at the top of each pass, so a test can move the world mid-flight. */
 let onMirrorPass: ((pass: number) => void) | null = null;
 
+/** Expand backfills the coordinator fired, and what the network did with them. */
+let expandBackfillCalls = 0;
+let expandBackfillImpl: () => Promise<unknown> = async () => ({ ok: true });
+
 vi.mock("../src/platform/filingAuth", () => ({
   readPlusSession: () => ({ sessionToken: "test-token" }),
 }));
@@ -58,6 +62,10 @@ vi.mock("../src/platform/plusClient", () => ({
   askMirrorStatus: async () => ({ ok: true, count: 0 }),
   askOutboxPull: async () => ({ ok: true, items: [] }),
   askOutboxAck: async () => ({ ok: true }),
+  askMirrorExpandBackfill: () => {
+    expandBackfillCalls += 1;
+    return expandBackfillImpl();
+  },
 }));
 
 vi.mock("../src/settings/settings", () => ({
@@ -266,3 +274,53 @@ describe("#323 F1 — consent withdrawn mid-flight stops the follow-up push", ()
     expect(outcome).toEqual({ kind: "failed", message: "Ask mirror is off" });
   });
 });
+
+describe("#339 F1 — Sync never waits on the expand backfill", () => {
+  beforeEach(() => {
+    upserts.length = 0;
+    mirrorPasses = 0;
+    onMirrorPass = null;
+    capturedHost = null;
+    expandBackfillCalls = 0;
+    expandBackfillImpl = async () => ({ ok: true });
+  });
+
+  it("returns while the backfill is still running", async () => {
+    // The server side expands one row per model call. Awaiting it held "Sync
+    // now" open for minutes on a first sync; here it simply never settles.
+    let release: () => void = () => undefined;
+    expandBackfillImpl = () =>
+      new Promise((resolve) => {
+        release = () => resolve({ ok: true });
+      });
+
+    const outcome = await coordinatorSync();
+
+    expect(outcome).toEqual({ kind: "worked", uploaded: 1, deleted: 0 });
+    expect(expandBackfillCalls).toBe(1);
+    release();
+  });
+
+  it("a failing backfill does not fail the Sync", async () => {
+    expandBackfillImpl = async () => {
+      throw new Error("expand upstream 502");
+    };
+
+    const outcome = await coordinatorSync();
+
+    expect(outcome).toEqual({ kind: "worked", uploaded: 1, deleted: 0 });
+    expect(expandBackfillCalls).toBe(1);
+    // The rejection is swallowed by fireAndForgetAsk, not left unhandled.
+    await new Promise((r) => setTimeout(r, 0));
+  });
+});
+
+/** One forced push through the mocked mirror planner. */
+async function coordinatorSync() {
+  const { coordinator } = makeCoordinator();
+  const outcome = await coordinator.sync({ force: true });
+  // The fired backfill resolves its dynamic import after the return; let it
+  // start, so a coordinator that never fired it is still a failure here.
+  await new Promise((r) => setTimeout(r, 0));
+  return outcome;
+}

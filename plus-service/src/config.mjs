@@ -70,9 +70,24 @@ export const config = {
   get anthropicVersion() {
     return env("ANTHROPIC_VERSION", "2023-06-01");
   },
-  /** Ask search: index-time expand on mirror upsert (0 disables). */
+  /**
+   * Ask search: index-time expand on mirror upsert (1 enables).
+   *
+   * Off by default, deliberately. This is the first Ask path that sends note
+   * **body plaintext** to Anthropic — classify is titles-only — and the consent
+   * record it would ride on (`askPrivacyAckAt`) is a bare timestamp with no
+   * version field, so a device that accepted the older six-clause Ask privacy
+   * copy (which never mentioned body egress) still reads as granted. There is
+   * no way to invalidate those grants today.
+   *
+   * Before flipping this default to "1": ship an *ask ack version* (the shape
+   * `EGRESS_ACK_VERSION` in `src/platform/autorun.ts` already uses), so bumping
+   * the version re-prompts every existing device. Until then only an operator
+   * setting `ASK_EXPAND_ENABLED=1` on a self-hosted/dogfood instance gets it.
+   * See #339, plan R18.
+   */
   get askExpandEnabled() {
-    return env("ASK_EXPAND_ENABLED", "1") !== "0";
+    return env("ASK_EXPAND_ENABLED", "0") !== "0";
   },
   /** Prefer Plus classify model when ASK_EXPAND_MODEL unset (avoid hard-coded Haiku ids). */
   get askExpandModel() {
@@ -92,10 +107,17 @@ export const config = {
     const n = Number(env("ASK_EXPAND_PER_EMAIL_PER_HOUR", "200"));
     return Number.isFinite(n) && n >= 0 ? n : 200;
   },
-  /** Min expand_coverage to advertise retrieval=lexical_expanded (default any nonzero). */
+  /**
+   * Min expand_coverage to advertise retrieval=lexical_expanded.
+   *
+   * KTD1/R22: a mostly-unexpanded index must not claim paraphrase mode. The
+   * old 0.01 floor advertised `lexical_expanded` off a single expanded row in
+   * a hundred, which is the "the column exists" claim the plan forbids. 0.8 is
+   * the plan's dogfood floor.
+   */
   get askExpandCoverageFloor() {
-    const n = Number(env("ASK_EXPAND_COVERAGE_FLOOR", "0.01"));
-    return Number.isFinite(n) && n >= 0 && n <= 1 ? n : 0.01;
+    const n = Number(env("ASK_EXPAND_COVERAGE_FLOOR", "0.8"));
+    return Number.isFinite(n) && n >= 0 && n <= 1 ? n : 0.8;
   },
   get askExpandPerUpsertCap() {
     const n = Number(env("ASK_EXPAND_PER_UPSERT_CAP", "40"));
