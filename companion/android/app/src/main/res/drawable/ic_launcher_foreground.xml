@@ -4,8 +4,11 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- Simple "A" mark for POC -->
+    <!-- Quiet "A" on black — product mark -->
     <path
-        android:fillColor="#F5F0E8"
-        android:pathData="M54,28 L72,80 L64,80 L60,68 L48,68 L44,80 L36,80 Z M50,60 L58,60 L54,48 Z" />
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,30 L70,78 L63,78 L59.2,66 L48.8,66 L45,78 L38,78 Z M50.5,60 L57.5,60 L54,50 Z" />
+    <path
+        android:fillColor="#0A84FF"
+        android:pathData="M48,72 h12 v3 h-12 z" />
 </vector>

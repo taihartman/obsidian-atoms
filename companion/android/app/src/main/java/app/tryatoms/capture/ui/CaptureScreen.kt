@@ -1,12 +1,15 @@
 package app.tryatoms.capture.ui
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -36,6 +39,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import app.tryatoms.capture.domain.DiscoveredVault
 import app.tryatoms.capture.domain.VaultRef
+import app.tryatoms.capture.ui.theme.AtomsShapes
+import app.tryatoms.capture.ui.theme.AtomsThemeAccess
+import app.tryatoms.capture.ui.theme.atomsFieldColors
+import app.tryatoms.capture.ui.theme.atomsFlatCardColors
+import app.tryatoms.capture.ui.theme.atomsPrimaryButtonColors
+import app.tryatoms.capture.ui.theme.atomsQuietButtonColors
+import app.tryatoms.capture.ui.theme.atomsSecondaryButtonColors
+import app.tryatoms.capture.ui.theme.claimSerifStyle
+import app.tryatoms.capture.ui.theme.kickerStyle
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -52,26 +64,29 @@ fun CaptureScreen(
     onUnlinkVault: () -> Unit,
     onDismissBanner: () -> Unit,
 ) {
+    val extras = AtomsThemeAccess.extras
+
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
                 title = {
-                    Column {
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Text(
-                            "Atoms Capture",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.SemiBold,
+                            "CAPTURE",
+                            style = kickerStyle,
                         )
                         Text(
-                            "Quick capture for your vault",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            "Atoms",
+                            style = MaterialTheme.typography.titleLarge,
+                            color = MaterialTheme.colorScheme.onSurface,
                         )
                     }
                 },
                 colors =
                     TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.surface,
+                        containerColor = MaterialTheme.colorScheme.background,
+                        titleContentColor = MaterialTheme.colorScheme.onSurface,
                     ),
             )
         },
@@ -81,10 +96,22 @@ fun CaptureScreen(
                 Modifier
                     .fillMaxSize()
                     .padding(padding)
-                    .padding(horizontal = 20.dp)
+                    .padding(horizontal = 16.dp)
                     .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
+            // Claim-voice prompt
+            Text(
+                "“What’s on your mind?”",
+                style = claimSerifStyle,
+                modifier = Modifier.padding(top = 4.dp, bottom = 2.dp),
+            )
+            Text(
+                "A thought lands in your vault. Atoms files it later.",
+                style = MaterialTheme.typography.bodySmall,
+                color = extras.secondaryText,
+            )
+
             SetupChecklist(
                 vaultLinked = state.vaultLinked,
                 firstCaptureDone = state.firstCaptureDone,
@@ -92,7 +119,7 @@ fun CaptureScreen(
             )
 
             if (state.banner != null) {
-                BannerCard(
+                StatusBanner(
                     message = state.banner,
                     isError = state.bannerIsError,
                     onDismiss = onDismissBanner,
@@ -116,27 +143,53 @@ fun CaptureScreen(
                 modifier =
                     Modifier
                         .fillMaxWidth()
-                        .height(160.dp),
-                placeholder = { Text("What's on your mind?") },
+                        .heightIn(min = 148.dp),
+                placeholder = {
+                    Text(
+                        "Type freely…",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = extras.tertiaryText,
+                    )
+                },
                 enabled = !state.busy,
+                shape = AtomsShapes.field,
+                colors = atomsFieldColors(),
+                textStyle = MaterialTheme.typography.bodyLarge,
             )
 
             Button(
                 onClick = onCapture,
-                modifier = Modifier.fillMaxWidth(),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 48.dp),
                 enabled = !state.busy && state.draft.isNotBlank() && state.vaultLinked,
+                shape = AtomsShapes.button,
+                colors = atomsPrimaryButtonColors(),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
             ) {
-                Text(if (state.busy) "Saving…" else "Capture")
+                Text(
+                    if (state.busy) "Saving…" else "Capture",
+                    style = MaterialTheme.typography.labelLarge,
+                )
+            }
+
+            if (state.lastStatus != null) {
+                Text(
+                    state.lastStatus,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = extras.tertiaryText,
+                )
             }
 
             Text(
                 "With Obsidian closed, the line is on this device immediately. " +
-                    "It reaches your other devices after you open Obsidian (Sync).",
+                    "It reaches your other devices after you open Obsidian.",
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = extras.tertiaryText,
             )
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(28.dp))
         }
     }
 }
@@ -152,71 +205,89 @@ private fun VaultChooserCard(
     onRescan: () -> Unit,
     onUnlink: () -> Unit,
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors =
-            CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.55f),
-            ),
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
+    val extras = AtomsThemeAccess.extras
+
+    FlatCard {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(
+                "VAULT",
+                style = kickerStyle,
+            )
             Text(
                 when {
-                    state.vaultLinked -> "Vault"
+                    state.vaultLinked -> state.vaultName ?: "Linked"
                     state.scanning -> "Looking for vaults…"
-                    state.discoveredVaults.isNotEmpty() -> "Found ${state.discoveredVaults.size} vaults"
+                    state.discoveredVaults.isNotEmpty() ->
+                        "Found ${state.discoveredVaults.size} vault${if (state.discoveredVaults.size == 1) "" else "s"}"
                     state.listedVaults.isNotEmpty() -> "Your vaults"
                     else -> "Choose a vault"
                 },
                 style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
             )
 
             if (state.vaultLinked) {
                 Text(
-                    state.vaultName ?: "Linked",
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Medium,
+                    "Captures go to Atoms System/Inbox.md",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = extras.secondaryText,
                 )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TextButton(onClick = onRescan) { Text("Switch vault") }
-                    TextButton(onClick = onUnlink) { Text("Unlink") }
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    TextButton(onClick = onRescan, colors = atomsQuietButtonColors()) {
+                        Text("Switch")
+                    }
+                    TextButton(onClick = onUnlink, colors = atomsQuietButtonColors()) {
+                        Text("Unlink")
+                    }
                 }
-                return@Column
+                return@FlatCard
             }
 
-            // Primary path: all-files → automatic list (what found Remote Vault before)
             if (!state.hasAllFilesAccess) {
                 Text(
-                    "Allow file access once and we’ll find Obsidian vaults on this phone " +
-                        "(like Remote Vault) automatically.",
+                    "Allow file access once and we’ll find Obsidian vaults on this phone automatically.",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                    color = extras.secondaryText,
                 )
-                Button(onClick = onAllowFileAccess, modifier = Modifier.fillMaxWidth()) {
-                    Text("Allow file access")
+                Button(
+                    onClick = onAllowFileAccess,
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 48.dp),
+                    shape = AtomsShapes.button,
+                    colors = atomsPrimaryButtonColors(),
+                ) {
+                    Text("Allow file access", style = MaterialTheme.typography.labelLarge)
                 }
                 Text(
-                    "Or pick a folder manually:",
+                    "Or pick a folder manually",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                    color = extras.tertiaryText,
                 )
-                OutlinedButton(onClick = onFindVaultsSaf, modifier = Modifier.fillMaxWidth()) {
+                OutlinedButton(
+                    onClick = onFindVaultsSaf,
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 48.dp),
+                    shape = AtomsShapes.button,
+                    border = BorderStroke(1.dp, extras.hairline),
+                    colors =
+                        androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.onSurface,
+                        ),
+                ) {
                     Icon(
                         Icons.Outlined.FolderOpen,
                         contentDescription = null,
                         modifier = Modifier.size(18.dp),
                     )
                     Spacer(modifier = Modifier.size(8.dp))
-                    Text("Find my vaults (folder picker)")
+                    Text("Folder picker", style = MaterialTheme.typography.labelLarge)
                 }
-                return@Column
+                return@FlatCard
             }
 
-            // Has all-files
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -225,9 +296,13 @@ private fun VaultChooserCard(
                 Text(
                     if (state.scanning) "Scanning…" else "On this phone",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                    color = extras.secondaryText,
                 )
-                TextButton(onClick = onRescan, enabled = !state.scanning) {
+                TextButton(
+                    onClick = onRescan,
+                    enabled = !state.scanning,
+                    colors = atomsQuietButtonColors(),
+                ) {
                     Icon(
                         Icons.Outlined.Refresh,
                         contentDescription = "Scan again",
@@ -238,44 +313,68 @@ private fun VaultChooserCard(
 
             if (state.discoveredVaults.isNotEmpty()) {
                 state.discoveredVaults.forEach { vault ->
-                    val hint = if (vault.score >= 11) "Atoms ready" else "Obsidian vault"
-                    Button(
+                    VaultPickRow(
+                        title = vault.name,
+                        subtitle = if (vault.score >= 11) "Atoms ready" else "Obsidian vault",
                         onClick = { onSelectDiscovered(vault) },
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Text(vault.name)
-                    }
-                    Text(
-                        hint,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer,
                     )
                 }
             } else if (state.listedVaults.isNotEmpty()) {
                 state.listedVaults.forEach { vault ->
-                    Button(
+                    VaultPickRow(
+                        title = vault.name,
+                        subtitle = "Obsidian vault",
                         onClick = { onSelectVault(vault) },
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Text(vault.name)
-                    }
-                }
-                if (state.hasAccessRoot && state.listedVaults.isEmpty()) {
-                    Button(onClick = onUseFolderAsVault, modifier = Modifier.fillMaxWidth()) {
-                        Text("Use this folder as vault")
-                    }
+                    )
                 }
             } else if (!state.scanning) {
                 Text(
-                    "No vaults found yet. Pull to rescan, or use the folder picker.",
+                    "No vaults found yet.",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                    color = extras.secondaryText,
                 )
-                OutlinedButton(onClick = onFindVaultsSaf, modifier = Modifier.fillMaxWidth()) {
+                OutlinedButton(
+                    onClick = onFindVaultsSaf,
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                    shape = AtomsShapes.button,
+                    border = BorderStroke(1.dp, extras.hairline),
+                ) {
                     Text("Folder picker")
+                }
+                if (state.hasAccessRoot) {
+                    TextButton(onClick = onUseFolderAsVault, colors = atomsQuietButtonColors()) {
+                        Text("Use this folder as vault")
+                    }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun VaultPickRow(
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Button(
+            onClick = onClick,
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 48.dp),
+            shape = AtomsShapes.button,
+            colors = atomsSecondaryButtonColors(),
+        ) {
+            Text(title, style = MaterialTheme.typography.labelLarge)
+        }
+        Text(
+            subtitle,
+            style = MaterialTheme.typography.bodySmall,
+            color = AtomsThemeAccess.extras.tertiaryText,
+            modifier = Modifier.padding(start = 4.dp),
+        )
     }
 }
 
@@ -285,22 +384,9 @@ private fun SetupChecklist(
     firstCaptureDone: Boolean,
     vaultName: String?,
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors =
-            CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
-            ),
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Text(
-                "Get Atoms going",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-            )
+    FlatCard {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text("GET ATOMS GOING", style = kickerStyle)
             ChecklistRow(
                 done = vaultLinked,
                 label = "Choose your vault",
@@ -326,6 +412,7 @@ private fun ChecklistRow(
     label: String,
     detail: String,
 ) {
+    val extras = AtomsThemeAccess.extras
     Row(
         verticalAlignment = Alignment.Top,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -333,67 +420,81 @@ private fun ChecklistRow(
         Icon(
             imageVector = if (done) Icons.Filled.CheckCircle else Icons.Outlined.Circle,
             contentDescription = if (done) "Done" else "Not done",
-            tint =
-                if (done) {
-                    MaterialTheme.colorScheme.primary
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                },
-            modifier = Modifier.size(22.dp),
+            tint = if (done) extras.done else extras.tertiaryText,
+            modifier =
+                Modifier
+                    .padding(top = 2.dp)
+                    .size(22.dp),
         )
-        Column {
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(
                 label,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = if (done) FontWeight.Medium else FontWeight.Normal,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = if (done) FontWeight.SemiBold else FontWeight.Medium,
             )
             Text(
                 detail,
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = extras.secondaryText,
             )
         }
     }
 }
 
 @Composable
-private fun BannerCard(
+private fun StatusBanner(
     message: String,
     isError: Boolean,
     onDismiss: () -> Unit,
 ) {
+    val extras = AtomsThemeAccess.extras
+    val fill = if (isError) extras.errorFill else extras.statusFill
+    val border = if (isError) extras.errorBorder else extras.statusBorder
+    val fg =
+        if (isError) {
+            MaterialTheme.colorScheme.error
+        } else {
+            MaterialTheme.colorScheme.onSurface
+        }
+
     Card(
-        colors =
-            CardDefaults.cardColors(
-                containerColor =
-                    if (isError) {
-                        MaterialTheme.colorScheme.errorContainer
-                    } else {
-                        MaterialTheme.colorScheme.primaryContainer
-                    },
-            ),
+        shape = AtomsShapes.card,
+        colors = CardDefaults.cardColors(containerColor = fill),
+        border = BorderStroke(1.dp, border),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
         Row(
             modifier =
                 Modifier
                     .fillMaxWidth()
-                    .padding(start = 16.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
+                    .padding(start = 16.dp, end = 4.dp, top = 10.dp, bottom = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
                 message,
                 modifier = Modifier.weight(1f),
                 style = MaterialTheme.typography.bodyMedium,
-                color =
-                    if (isError) {
-                        MaterialTheme.colorScheme.onErrorContainer
-                    } else {
-                        MaterialTheme.colorScheme.onPrimaryContainer
-                    },
+                color = fg,
             )
-            TextButton(onClick = onDismiss) {
+            TextButton(onClick = onDismiss, colors = atomsQuietButtonColors()) {
                 Text("OK")
             }
+        }
+    }
+}
+
+@Composable
+private fun FlatCard(content: @Composable () -> Unit) {
+    val extras = AtomsThemeAccess.extras
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = AtomsShapes.card,
+        colors = atomsFlatCardColors(),
+        border = BorderStroke(1.dp, extras.hairline),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            content()
         }
     }
 }

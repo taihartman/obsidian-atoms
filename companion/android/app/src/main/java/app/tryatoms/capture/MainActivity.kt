@@ -5,7 +5,6 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.os.Environment
 import android.provider.Settings
 import android.util.Log
 import android.widget.Toast
@@ -16,15 +15,15 @@ import androidx.activity.result.contract.ActivityResultContract
 import androidx.activity.viewModels
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.lightColorScheme
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.core.view.WindowCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.tryatoms.capture.ui.CaptureScreen
 import app.tryatoms.capture.ui.CaptureViewModel
+import app.tryatoms.capture.ui.theme.AtomsTheme
 
 class OpenPersistableTree : ActivityResultContract<Uri?, Uri?>() {
     override fun createIntent(
@@ -67,12 +66,30 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        WindowCompat.setDecorFitsSystemWindows(window, false)
         setContent {
             val dark = isSystemInDarkTheme()
-            MaterialTheme(
-                colorScheme = if (dark) darkColorScheme() else lightColorScheme(),
-            ) {
-                Surface(modifier = Modifier.fillMaxSize()) {
+            AtomsTheme(darkTheme = dark) {
+                SideEffect {
+                    @Suppress("DEPRECATION")
+                    run {
+                        window.statusBarColor = android.graphics.Color.TRANSPARENT
+                        window.navigationBarColor =
+                            if (dark) {
+                                android.graphics.Color.BLACK
+                            } else {
+                                android.graphics.Color.parseColor("#F2F2F7")
+                            }
+                    }
+                    WindowCompat.getInsetsController(window, window.decorView).apply {
+                        isAppearanceLightStatusBars = !dark
+                        isAppearanceLightNavigationBars = !dark
+                    }
+                }
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = androidx.compose.material3.MaterialTheme.colorScheme.background,
+                ) {
                     val state by viewModel.uiState.collectAsStateWithLifecycle()
                     CaptureScreen(
                         state = state,
