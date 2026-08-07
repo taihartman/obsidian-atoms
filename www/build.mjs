@@ -32,7 +32,14 @@ import {
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(here, "..");
 const srcDir = join(here, "src");
-const distDir = join(here, "dist");
+// Overridable for the same reason as `publishedDir` below, and it matters more:
+// `www/dist` is the artifact `pages deploy` ships. A test that builds fixtures
+// into it does not just pollute a scratch directory, it decides what production
+// serves — which is exactly what happened, because the deploy workflow runs the
+// archive test *after* the real build and then deploys whatever dist holds.
+const distDir = process.env.ATOMS_DIST_DIR
+  ? resolve(process.env.ATOMS_DIST_DIR)
+  : join(here, "dist");
 // Overridable so a test can build against its own fixtures. The default is the
 // real archive; #354 came from a test that got its fixtures in front of the
 // build by *writing them into this directory* and deleting them afterwards,

@@ -50,3 +50,7 @@ graphify-out/
 
 # Throwaway vault used for the /setup install walkthrough
 new vault/
+
+# Scratch dist for the Field notes archive test (it must never write www/dist,
+# which is the artifact `pages deploy` ships).
+www/dist-archive-test/
