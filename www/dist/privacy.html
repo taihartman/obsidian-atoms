@@ -20,12 +20,13 @@
         <a class="back" href="/">↳ Atoms</a>
 
         <h1>Privacy</h1>
-        <p class="updated">Last updated 5 August 2026.</p>
+        <p class="updated">Last updated 7 August 2026.</p>
 
         <p>
-          Atoms is an Obsidian plugin. Your notes are markdown files in your own
-          vault, on your own devices. This page describes the only cases where
-          text leaves your device, and who holds what.
+          Atoms is an Obsidian plugin, plus a small companion app for Android
+          called Atoms Capture. Your notes are markdown files in your own vault,
+          on your own devices. This page describes the only cases where text
+          leaves your device, and who holds what. It covers both pieces.
         </p>
 
         <h2>Your vault</h2>
@@ -34,6 +35,46 @@
           choose. It does not move your files, does not rewrite existing lines
           in your daily notes, and does not upload your vault anywhere as part
           of normal use.
+        </p>
+
+        <h2>Atoms Capture, the Android app</h2>
+        <p>
+          Atoms Capture is a separate free app. It writes a stamped line into
+          <code>Atoms System/Inbox.md</code> in your vault, and the Obsidian
+          plugin picks those lines up later. On its own the app does nothing
+          else.
+        </p>
+        <ul>
+          <li>
+            <strong>No backend.</strong> The app holds no internet permission.
+            There is no account, no analytics, and no server of ours for it to
+            talk to. What you type goes into a file on your phone and stops
+            there.
+          </li>
+          <li>
+            <strong>Your vault folder.</strong> You point the app at the folder
+            your vault lives in, using Android's own folder picker. It reads and
+            writes inside that folder and nowhere else. You can withdraw that
+            access in Android settings whenever you want.
+          </li>
+          <li>
+            <strong>Dictation goes to Android.</strong> If you use the
+            microphone, the app hands the audio to Android's speech recognition,
+            which on most phones is Google's and may send the audio to Google to
+            turn it into text. That is the one place a capture can leave your
+            phone before it reaches your vault. We never receive the audio, and
+            the app does not record or keep it. Type instead of speaking if you
+            would rather nothing left the phone.
+          </li>
+        </ul>
+        <p>
+          Builds installed directly from GitHub can also ask Android for broad
+          file access, so they can find vaults without you picking a folder. The
+          Play Store build never asks for that.
+        </p>
+        <p>
+          Everything below applies to the Obsidian plugin, once those lines are
+          in your vault, and only where you have turned the feature on.
         </p>
 
         <h2>Processing captures</h2>
