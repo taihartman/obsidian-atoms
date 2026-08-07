@@ -44,8 +44,11 @@ final class SpeechSession: ObservableObject {
         if audioEngine.isRunning {
             audioEngine.stop()
             audioEngine.inputNode.removeTap(onBus: 0)
+        } else {
+            audioEngine.inputNode.removeTap(onBus: 0)
         }
         isListening = false
+        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }
 
     private func beginListening(generation: Int) {

@@ -1,5 +1,6 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import WidgetKit
 import AtomsCaptureCore
 
 struct HubView: View {
@@ -54,6 +55,7 @@ struct HubView: View {
                         appModel.store.clear()
                         testStatus = nil
                         appModel.refreshStatus()
+                        WidgetCenter.shared.reloadAllTimelines()
                     }
                 }
 
@@ -129,6 +131,7 @@ struct HubView: View {
                 )
                 testStatus = nil
                 appModel.refreshStatus()
+                WidgetCenter.shared.reloadAllTimelines()
             } catch {
                 testStatus = "Failed: could not save vault link — \(error.localizedDescription)"
             }
@@ -137,15 +140,20 @@ struct HubView: View {
 
     private func runTestCapture() {
         testBusy = true
-        defer { testBusy = false }
         let stamp = ISO8601DateFormatter().string(from: Date())
         let body = "Atoms Capture test \(stamp)"
-        let status = appModel.repository.capture(body: body)
-        switch status {
-        case .inVault:
-            testStatus = "In vault — check \(CaptureLine.inboxRelativePath)"
-        case .failed(let reason):
-            testStatus = "Failed: \(reason)"
+        let repo = appModel.repository
+        Task {
+            let status = await Task.detached {
+                repo.capture(body: body)
+            }.value
+            testBusy = false
+            switch status {
+            case .inVault:
+                testStatus = "In vault — check \(CaptureLine.inboxRelativePath)"
+            case .failed(let reason):
+                testStatus = "Failed: \(reason)"
+            }
         }
     }
 }

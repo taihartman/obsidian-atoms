@@ -10,6 +10,9 @@ struct CaptureThoughtIntent: AppIntent {
 
     @MainActor
     func perform() async throws -> some IntentResult {
+        AppModel.shared.presentCapture()
+        // Widget / external callers may still use the URL scheme; Intent path
+        // sets showCapture directly so cold start does not depend on self-open.
         if let url = URL(string: "atomscapture://capture") {
             await UIApplication.shared.open(url)
         }

@@ -38,14 +38,11 @@ public final class CaptureRepository: @unchecked Sendable {
         defer {
             if accessed { stopAccess(url) }
         }
+        // Tests inject startAccess → true. Real bookmark URLs must grant scope.
         if !accessed {
-            // Still try path-based write for non-scoped URLs (tests / already-accessible).
+            return .failed(reason: "Could not access the linked vault. Re-link the folder in the hub.")
         }
 
-        do {
-            return try writer.append(body: body, vaultRoot: url, at: date, timeZone: timeZone)
-        } catch {
-            return .failed(reason: error.localizedDescription)
-        }
+        return writer.append(body: body, vaultRoot: url, at: date, timeZone: timeZone)
     }
 }

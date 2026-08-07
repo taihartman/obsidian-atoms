@@ -30,7 +30,7 @@ final class InboxWriterTests: XCTestCase {
         try FileManager.default.createDirectory(at: vault, withIntermediateDirectories: true)
 
         let writer = InboxWriter(fileManager: .default)
-        let result = try writer.append(
+        let result = writer.append(
             body: "first thought",
             vaultRoot: vault,
             at: fixed,
@@ -54,7 +54,7 @@ final class InboxWriterTests: XCTestCase {
         try FileManager.default.createDirectory(at: vault, withIntermediateDirectories: true)
         let writer = InboxWriter(fileManager: .default)
 
-        _ = try writer.append(body: "first", vaultRoot: vault, at: fixed, timeZone: tz)
+        _ = writer.append(body: "first", vaultRoot: vault, at: fixed, timeZone: tz)
 
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = tz
@@ -63,7 +63,7 @@ final class InboxWriterTests: XCTestCase {
         c.hour = 17; c.minute = 24; c.second = 0
         let later = calendar.date(from: c)!
 
-        _ = try writer.append(body: "second", vaultRoot: vault, at: later, timeZone: tz)
+        _ = writer.append(body: "second", vaultRoot: vault, at: later, timeZone: tz)
 
         let inbox = vault
             .appendingPathComponent(CaptureLine.systemFolder, isDirectory: true)
@@ -80,7 +80,7 @@ final class InboxWriterTests: XCTestCase {
         try FileManager.default.createDirectory(at: vault, withIntermediateDirectories: true)
         let writer = InboxWriter(fileManager: .default)
 
-        let result = try writer.append(body: "  ", vaultRoot: vault, at: fixed, timeZone: tz)
+        let result = writer.append(body: "  ", vaultRoot: vault, at: fixed, timeZone: tz)
         guard case .failed(let reason) = result else {
             return XCTFail("expected failed, got \(result)")
         }
@@ -104,7 +104,7 @@ final class InboxWriterTests: XCTestCase {
             fileManager: .default,
             readText: { _ in throw CocoaError(.fileReadNoPermission) }
         )
-        let result = try writer.append(body: "new", vaultRoot: vault, at: fixed, timeZone: tz)
+        let result = writer.append(body: "new", vaultRoot: vault, at: fixed, timeZone: tz)
         guard case .failed = result else {
             return XCTFail("expected failed, got \(result)")
         }
@@ -115,9 +115,30 @@ final class InboxWriterTests: XCTestCase {
     func testMissingVaultRootFails() throws {
         let missing = tmp.appendingPathComponent("no-such-vault", isDirectory: true)
         let writer = InboxWriter(fileManager: .default)
-        let result = try writer.append(body: "x", vaultRoot: missing, at: fixed, timeZone: tz)
+        let result = writer.append(body: "x", vaultRoot: missing, at: fixed, timeZone: tz)
         guard case .failed = result else {
             return XCTFail("expected failed, got \(result)")
         }
+    }
+
+    func testNonEmptyFileWithEmptyReadDoesNotWipe() throws {
+        let vault = tmp.appendingPathComponent("Vault5", isDirectory: true)
+        let system = vault.appendingPathComponent(CaptureLine.systemFolder, isDirectory: true)
+        try FileManager.default.createDirectory(at: system, withIntermediateDirectories: true)
+        let inbox = system.appendingPathComponent(CaptureLine.inboxFileName)
+        let precious = Data(repeating: 0x41, count: 64) // non-UTF8-empty bytes that may decode poorly
+        // Write real text then inject empty read while size > 0
+        try "keep me forever\n".write(to: inbox, atomically: true, encoding: .utf8)
+        let writer = InboxWriter(
+            fileManager: .default,
+            readText: { _ in "" }
+        )
+        let result = writer.append(body: "new", vaultRoot: vault, at: fixed, timeZone: tz)
+        guard case .failed = result else {
+            return XCTFail("expected failed, got \(result)")
+        }
+        let after = try String(contentsOf: inbox, encoding: .utf8)
+        XCTAssertEqual(after, "keep me forever\n")
+        _ = precious // silence unused if we keep binary path later
     }
 }

@@ -76,13 +76,15 @@ struct CaptureSheet: View {
                 }
             }
             .onChange(of: speech.liveText) { _, newValue in
-                if !newValue.isEmpty {
+                if speech.isListening {
                     text = newValue
                     activity?.update(phase: .listening, preview: newValue)
                 }
             }
             .onDisappear {
                 speech.stop()
+                activity?.end()
+                activity = nil
             }
         }
     }
@@ -90,11 +92,14 @@ struct CaptureSheet: View {
     private func toggleListen() {
         if speech.isListening {
             speech.stop()
-            activity?.update(phase: .idle, preview: text)
+            activity?.end()
+            activity = nil
         } else {
             if activity == nil {
                 activity = CaptureActivityController()
             }
+            // Field is SSOT — seed speech so Listen does not wipe typed text.
+            speech.liveText = text
             activity?.start(preview: text)
             speech.start()
             activity?.update(phase: .listening, preview: text)
@@ -105,19 +110,25 @@ struct CaptureSheet: View {
         busy = true
         speech.stop()
         activity?.update(phase: .saving, preview: text)
-        let result = appModel.repository.capture(body: text)
-        status = result
-        busy = false
-        switch result {
-        case .inVault:
-            activity?.update(phase: .inVault, preview: text)
-            text = ""
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+        let body = text
+        let repo = appModel.repository
+        Task {
+            let result = await Task.detached {
+                repo.capture(body: body)
+            }.value
+            status = result
+            busy = false
+            switch result {
+            case .inVault:
+                activity?.update(phase: .inVault, preview: body)
+                text = ""
+                try? await Task.sleep(nanoseconds: 800_000_000)
                 activity?.end()
+                activity = nil
                 dismiss()
+            case .failed:
+                activity?.update(phase: .failed, preview: body)
             }
-        case .failed:
-            activity?.update(phase: .failed, preview: text)
         }
     }
 
