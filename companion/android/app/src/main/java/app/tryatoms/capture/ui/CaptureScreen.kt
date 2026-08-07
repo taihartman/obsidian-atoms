@@ -187,8 +187,15 @@ private fun VaultChooserCard(
 
             if (!state.hasAccessRoot) {
                 Text(
-                    "Allow access to Documents (or the folder that holds your vaults). " +
-                        "We’ll list every Obsidian vault we find — you pick one.",
+                    "Android needs one folder permission before we can list vaults.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                )
+                Text(
+                    "1. Tap the button below\n" +
+                        "2. Open Documents (or the folder that contains your vaults)\n" +
+                        "3. Tap Use this folder at the bottom — don’t just open a vault and back out",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSecondaryContainer,
                 )

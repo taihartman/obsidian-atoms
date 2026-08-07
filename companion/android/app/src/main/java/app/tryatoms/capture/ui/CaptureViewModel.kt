@@ -86,14 +86,18 @@ class CaptureViewModel(
             CaptureUiState(),
         )
 
-    fun pickerInitialUri(): Uri = VaultPaths.documentsTreeUri()
-
     fun onDraftChange(value: String) {
         draft.value = value
     }
 
     fun clearBanner() {
         banner.value = null
+    }
+
+    fun onPickerCancelled() {
+        banner.value =
+            "Folder picker closed without a choice. Tap Find my vaults again, " +
+            "open Documents (or your vault), then tap the blue Use this folder button." to true
     }
 
     /**
