@@ -15,51 +15,38 @@ Agent-facing. Humans install via BRAT or Community plugins; agents never copy bu
 
 Tag string **must equal** `package.json` `version` and `manifest.json` `version` or the release job fails.
 
-## When to cut which
+## Auto-release (default)
 
-| User says (approx.) | Channel |
+**Every master commit whose `package.json` + `manifest.json` version has no GitHub Release yet gets one automatically** (`.github/workflows/release.yml` on `push` to `master`). CI builds assets, creates tag `X.Y.Z` (or `X.Y.Z-beta.N`), and publishes the Release. Stable vs prerelease still follows the version suffix.
+
+Why: Obsidian Community reads **default-branch** `manifest.json` and requires a Release tagged with that exact version. Bumping without a matching Release delists the plugin (“No release matches your manifest version”).
+
+| Merge to master | What CI does |
 |---|---|
-| “release it” / “ship for BRAT” / “prod” | **Stable** |
-| “beta” / “dogfood only” / “pre-release” | **Beta** |
-| Merge only, no release language | **No tag** — master lands; no GitHub Release |
+| Version bumped (new `X.Y.Z`) | Build + Release `X.Y.Z` (stable) |
+| Version bumped to `X.Y.Z-beta.N` | Build + **prerelease** `X.Y.Z-beta.N` |
+| Version unchanged (docs/www/already-released) | Skip — Release already exists |
 
-Never cut a Release unless the user asked (or LFG shipping explicitly includes release).
+Agents do **not** hand-tag after a normal version-bump merge. Watch: `gh run list --workflow=release.yml --limit 1`.
 
-## Stable recipe
+## Manual tag (still works)
 
-Preconditions: feature merged to `master` (or tag the merge commit); version already bumped on that commit (or bump in a follow-up PR first).
+Use only to re-cut, recover a missed auto-run, or release a non-master commit.
 
 ```bash
 git fetch origin master
-git checkout master && git pull origin master   # or worktree on master
-# Confirm version is X.Y.Z with no -beta/-rc suffix:
-node -p "require('./package.json').version"
+git checkout master && git pull origin master
+node -p "require('./package.json').version"   # must equal manifest
 node -p "require('./manifest.json').version"
-# Tag and push (tag name = version):
-git tag X.Y.Z
-git push origin X.Y.Z
+git tag X.Y.Z && git push origin X.Y.Z
 # Watch: gh run list --workflow=release.yml --limit 1
 # Confirm: gh release view X.Y.Z --json isPrerelease,url
-# Expect isPrerelease=false
 ```
 
-Tell humans: BRAT → **Check for updates** (betas **off**). Settings → Atoms → Version should show `X.Y.Z`.
+**Stable:** version is plain `X.Y.Z` → `isPrerelease=false`.  
+**Beta:** bump package+manifest+versions to `X.Y.Z-beta.N` (or `-rc.N`) before merge/tag → `isPrerelease=true`.
 
-## Beta recipe
-
-```bash
-# On a branch/PR (or master if intentional):
-# 1. Bump package.json + manifest.json + versions.json to X.Y.Z-beta.N
-#    (same string in all three places that carry version)
-# 2. Merge to master if not already there
-git fetch origin master && git checkout master && git pull
-node -p "require('./package.json').version"   # must print X.Y.Z-beta.N
-git tag X.Y.Z-beta.N
-git push origin X.Y.Z-beta.N
-# Expect isPrerelease=true on the GitHub Release
-```
-
-Tell dogfooders: BRAT → **Enable betas** → Check for updates.
+Tell humans: BRAT → **Check for updates** (betas **off** for stable; **Enable betas** for dogfood). Settings → Atoms → Version should match the tag.
 
 ## After release
 
@@ -72,10 +59,12 @@ Tell dogfooders: BRAT → **Enable betas** → Check for updates.
 
 | Failure | Fix |
 |---|---|
+| “No release matches your manifest version” | Default-branch manifest ahead of Latest Release — tag that version (or merge this workflow and re-push) |
 | Tag ≠ package/manifest | Delete remote tag if needed; retag after fixing version files |
 | Wanted beta but cut `0.6.x` | That is stable; cut a new `-beta.N` if dogfood-only |
 | Wanted stable but used `-beta` | BRAT default users won’t see it; cut clean `X.Y.Z` for prod |
 | Laptop-built `main.js` uploaded by hand | Don’t — CI owns assets |
+| Master merge did not release | `gh run list --workflow=release.yml`; if skipped, version already had a Release; if failed, fix and re-run or manual tag |
 
 ## Human BRAT checklist (copy into chat)
 
