@@ -19,7 +19,7 @@ import {
   existsSync,
 } from "fs";
 import { createHash } from "crypto";
-import { dirname, join } from "path";
+import { dirname, join, resolve } from "path";
 import { fileURLToPath } from "url";
 import {
   escapeAttr,
@@ -33,7 +33,13 @@ const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(here, "..");
 const srcDir = join(here, "src");
 const distDir = join(here, "dist");
-const publishedDir = join(repoRoot, "docs/field-notes/published");
+// Overridable so a test can build against its own fixtures. The default is the
+// real archive; #354 came from a test that got its fixtures in front of the
+// build by *writing them into this directory* and deleting them afterwards,
+// which silently removed a tracked file on every run.
+const publishedDir = process.env.ATOMS_PUBLISHED_DIR
+  ? resolve(process.env.ATOMS_PUBLISHED_DIR)
+  : join(repoRoot, "docs/field-notes/published");
 
 const pricing = JSON.parse(
   readFileSync(join(repoRoot, "plus-pricing.json"), "utf8"),
