@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -18,6 +19,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -33,6 +35,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.TextStyle
@@ -48,9 +51,7 @@ import app.tryatoms.capture.ui.theme.ClaimSerif
 import kotlinx.coroutines.delay
 
 /**
- * Top strip only — no full-screen scrim, no tap-to-dismiss.
- * Host activity window is wrap-content + NOT_TOUCH_MODAL so the rest of the
- * phone stays usable underneath.
+ * Full-width top bar (edge to edge). Mic listens in-place — no system voice sheet.
  */
 @Composable
 fun QuickCaptureScreen(
@@ -59,9 +60,10 @@ fun QuickCaptureScreen(
     linked: Boolean,
     vaultName: String?,
     busy: Boolean,
+    listening: Boolean,
     error: String?,
     onCapture: () -> Unit,
-    onVoice: () -> Unit,
+    onToggleVoice: () -> Unit,
     onOpenHub: () -> Unit,
     onClose: () -> Unit,
 ) {
@@ -69,58 +71,70 @@ fun QuickCaptureScreen(
     val focusRequester = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
 
-    LaunchedEffect(linked, fieldValue.selection) {
-        if (linked) {
+    LaunchedEffect(linked, listening) {
+        if (linked && !listening) {
             delay(60)
             focusRequester.requestFocus()
             keyboard?.show()
         }
     }
 
+    // Full bleed width — only bottom corners rounded
     Surface(
         modifier =
             Modifier
-                .statusBarsPadding()
-                .padding(horizontal = 12.dp, vertical = 8.dp)
-                .fillMaxWidth(),
-        shape = AtomsShapes.card,
+                .fillMaxWidth()
+                .statusBarsPadding(),
+        shape = RoundedCornerShape(bottomStart = 16.dp, bottomEnd = 16.dp),
         color = extras.card,
         tonalElevation = 0.dp,
-        shadowElevation = 10.dp,
+        shadowElevation = 12.dp,
     ) {
         Column(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(
-                    text =
-                        if (linked) {
-                            "What’s on your mind?"
-                        } else {
-                            "Link a vault first"
-                        },
-                    style =
-                        TextStyle(
-                            fontFamily = ClaimSerif,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Normal,
-                            color = MaterialTheme.colorScheme.onSurface,
-                        ),
-                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text =
+                            when {
+                                !linked -> "Link a vault first"
+                                listening -> "Listening…"
+                                else -> "What’s on your mind?"
+                            },
+                        style =
+                            TextStyle(
+                                fontFamily = ClaimSerif,
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Normal,
+                                color = MaterialTheme.colorScheme.onSurface,
+                            ),
+                    )
+                    if (linked && vaultName != null && !listening) {
+                        Text(
+                            vaultName,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = extras.tertiaryText,
+                            modifier = Modifier.padding(top = 2.dp),
+                        )
+                    }
+                }
                 IconButton(
                     onClick = onClose,
-                    modifier = Modifier.size(36.dp),
+                    modifier = Modifier.size(40.dp),
                 ) {
                     Icon(
                         Icons.Filled.Close,
                         contentDescription = "Close",
                         tint = extras.secondaryText,
-                        modifier = Modifier.size(20.dp),
                     )
                 }
             }
@@ -137,14 +151,6 @@ fun QuickCaptureScreen(
                 return@Column
             }
 
-            if (vaultName != null) {
-                Text(
-                    vaultName,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = extras.tertiaryText,
-                )
-            }
-
             if (error != null) {
                 Text(
                     error,
@@ -156,7 +162,7 @@ fun QuickCaptureScreen(
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 BasicTextField(
                     value = fieldValue,
@@ -164,16 +170,16 @@ fun QuickCaptureScreen(
                     modifier =
                         Modifier
                             .weight(1f)
-                            .heightIn(min = 44.dp, max = 120.dp)
+                            .heightIn(min = 52.dp, max = 160.dp)
                             .focusRequester(focusRequester)
                             .background(extras.elevated, AtomsShapes.field)
-                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
                     enabled = !busy,
                     textStyle =
                         TextStyle(
                             color = MaterialTheme.colorScheme.onSurface,
-                            fontSize = 16.sp,
-                            lineHeight = 22.sp,
+                            fontSize = 17.sp,
+                            lineHeight = 24.sp,
                         ),
                     cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
@@ -187,9 +193,9 @@ fun QuickCaptureScreen(
                         Box {
                             if (fieldValue.text.isEmpty()) {
                                 Text(
-                                    "Type or tap the mic…",
+                                    if (listening) "Speak now…" else "Type or tap the mic…",
                                     color = extras.tertiaryText,
-                                    fontSize = 16.sp,
+                                    fontSize = 17.sp,
                                 )
                             }
                             inner()
@@ -198,18 +204,24 @@ fun QuickCaptureScreen(
                 )
 
                 IconButton(
-                    onClick = onVoice,
+                    onClick = onToggleVoice,
                     enabled = !busy,
                     modifier =
                         Modifier
-                            .size(44.dp)
+                            .size(48.dp)
                             .clip(CircleShape)
-                            .background(extras.elevated),
+                            .background(
+                                if (listening) {
+                                    AtomsColor.Person.copy(alpha = 0.25f)
+                                } else {
+                                    extras.elevated
+                                },
+                            ),
                 ) {
                     Icon(
-                        Icons.Filled.Mic,
-                        contentDescription = "Voice",
-                        tint = AtomsColor.Person,
+                        if (listening) Icons.Filled.Stop else Icons.Filled.Mic,
+                        contentDescription = if (listening) "Stop" else "Voice",
+                        tint = if (listening) AtomsColor.Person else AtomsColor.Person,
                     )
                 }
 
@@ -218,7 +230,7 @@ fun QuickCaptureScreen(
                     enabled = !busy && fieldValue.text.isNotBlank(),
                     modifier =
                         Modifier
-                            .size(44.dp)
+                            .size(48.dp)
                             .clip(CircleShape)
                             .background(
                                 if (fieldValue.text.isNotBlank() && !busy) {

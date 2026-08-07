@@ -1,12 +1,10 @@
 package app.tryatoms.capture
 
-import android.app.Activity
-import android.content.ActivityNotFoundException
-import android.content.Intent
+import android.Manifest
+import android.content.pm.PackageManager
 import android.graphics.Color as AndroidColor
 import android.graphics.PixelFormat
 import android.os.Bundle
-import android.speech.RecognizerIntent
 import android.view.Gravity
 import android.view.WindowManager
 import android.widget.Toast
@@ -24,49 +22,62 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import app.tryatoms.capture.data.CaptureRepository
 import app.tryatoms.capture.data.InboxWriter
+import app.tryatoms.capture.speech.InAppSpeech
 import app.tryatoms.capture.ui.QuickCaptureScreen
 import app.tryatoms.capture.ui.theme.AtomsTheme
 import app.tryatoms.capture.widget.CaptureHomeWidget
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.util.Locale
+// Toast is android.widget.Toast
 
 /**
- * Capture strip only — never the hub.
- * Top floating window (wrap-content). Reliable path; no system-overlay for now
- * (overlay was crashing on lifecycle attach).
+ * Full-width top capture bar. In-app mic (no system voice sheet).
  */
 class QuickCaptureActivity : ComponentActivity() {
     private val repo by lazy { CaptureRepository(this) }
 
     private var fieldValue by mutableStateOf(TextFieldValue(""))
     private var busy by mutableStateOf(false)
+    private var listening by mutableStateOf(false)
     private var error by mutableStateOf<String?>(null)
 
-    private val speechLauncher =
-        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-            if (result.resultCode != Activity.RESULT_OK) return@registerForActivityResult
-            val spoken =
-                result.data
-                    ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
-                    ?.firstOrNull()
-                    ?.trim()
-            if (spoken.isNullOrEmpty()) return@registerForActivityResult
-            val base = fieldValue.text
-            val merged =
-                if (base.isBlank()) spoken else base.trimEnd() + " " + spoken
-            fieldValue =
-                TextFieldValue(text = merged, selection = TextRange(merged.length))
-            error = null
+    private var speech: InAppSpeech? = null
+
+    private val micPermission =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            if (granted) {
+                beginListen()
+            } else {
+                error = "Mic permission needed for voice"
+            }
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         configureTopFloatingWindow()
+
+        speech =
+            InAppSpeech(
+                context = this,
+                onPartial = { text ->
+                    fieldValue = TextFieldValue(text = text, selection = TextRange(text.length))
+                },
+                onFinal = { text ->
+                    fieldValue = TextFieldValue(text = text, selection = TextRange(text.length))
+                    listening = false
+                },
+                onListening = { on -> listening = on },
+                onError = { msg ->
+                    listening = false
+                    error = msg
+                },
+            )
+
         setContent {
             val dark = isSystemInDarkTheme()
             AtomsTheme(darkTheme = dark) {
@@ -84,8 +95,10 @@ class QuickCaptureActivity : ComponentActivity() {
                         linked = repo.isLinked(),
                         vaultName = repo.vaultLabel(),
                         busy = busy,
+                        listening = listening,
                         error = error,
                         onCapture = {
+                            speech?.stop()
                             val text = fieldValue.text
                             if (busy || text.isBlank()) return@QuickCaptureScreen
                             busy = true
@@ -117,38 +130,50 @@ class QuickCaptureActivity : ComponentActivity() {
                                 }
                             }
                         },
-                        onVoice = { startNativeVoice() },
+                        onToggleVoice = { toggleVoice() },
                         onOpenHub = {
+                            speech?.stop()
                             startActivity(
-                                Intent(this, MainActivity::class.java).apply {
-                                    addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                                android.content.Intent(this, MainActivity::class.java).apply {
+                                    addFlags(android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP)
                                 },
                             )
                             finish()
                         },
-                        onClose = { finish() },
+                        onClose = {
+                            speech?.stop()
+                            finish()
+                        },
                     )
                 }
             }
         }
     }
 
-    private fun startNativeVoice() {
-        val intent =
-            Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                putExtra(
-                    RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-                    RecognizerIntent.LANGUAGE_MODEL_FREE_FORM,
-                )
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
-                putExtra(RecognizerIntent.EXTRA_PROMPT, "What’s on your mind?")
-                putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
-            }
-        try {
-            speechLauncher.launch(intent)
-        } catch (_: ActivityNotFoundException) {
-            Toast.makeText(this, "No voice input on this device", Toast.LENGTH_SHORT).show()
+    override fun onDestroy() {
+        speech?.stop()
+        speech = null
+        super.onDestroy()
+    }
+
+    private fun toggleVoice() {
+        if (listening) {
+            speech?.stop()
+            return
         }
+        val granted =
+            ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) ==
+                PackageManager.PERMISSION_GRANTED
+        if (!granted) {
+            micPermission.launch(Manifest.permission.RECORD_AUDIO)
+        } else {
+            beginListen()
+        }
+    }
+
+    private fun beginListen() {
+        error = null
+        speech?.start(fieldValue.text)
     }
 
     private fun configureTopFloatingWindow() {
@@ -165,7 +190,11 @@ class QuickCaptureActivity : ComponentActivity() {
         lp.gravity = Gravity.TOP
         lp.width = WindowManager.LayoutParams.MATCH_PARENT
         lp.height = WindowManager.LayoutParams.WRAP_CONTENT
-        lp.flags = lp.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
+        lp.horizontalMargin = 0f
+        lp.x = 0
+        lp.flags = lp.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
         w.attributes = lp
         @Suppress("DEPRECATION")
         run {
@@ -178,12 +207,12 @@ class QuickCaptureActivity : ComponentActivity() {
     companion object {
         const val ACTION_QUICK_CAPTURE = "app.tryatoms.capture.action.QUICK_CAPTURE"
 
-        fun launchIntent(packageContext: android.content.Context): Intent =
-            Intent(packageContext, QuickCaptureActivity::class.java).apply {
+        fun launchIntent(packageContext: android.content.Context): android.content.Intent =
+            android.content.Intent(packageContext, QuickCaptureActivity::class.java).apply {
                 action = ACTION_QUICK_CAPTURE
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or
-                    Intent.FLAG_ACTIVITY_CLEAR_TOP or
-                    Intent.FLAG_ACTIVITY_NO_ANIMATION
+                flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or
+                    android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                    android.content.Intent.FLAG_ACTIVITY_NO_ANIMATION
             }
     }
 }
