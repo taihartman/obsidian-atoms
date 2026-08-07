@@ -195,6 +195,11 @@ const FROZEN_ASK_PRIVACY: Readonly<Record<string, { title: string; disclosure: s
     disclosure:
       "(1) only Atoms/ leaves this device; (2) bodies are stored on Atoms Plus servers; (3) the host can decrypt at rest in v1 (not zero-knowledge); (4) when I chat in Claude, Anthropic receives tool results (titles, snippets, bodies); when I chat in ChatGPT, OpenAI receives them; (5) Wipe deletes the cloud mirror, pending outbox writes, and connector tokens; (6) turning Ask off does not wipe.",
   },
+  "2026-08-07": {
+    title: "What Ask stores and shares",
+    disclosure:
+      "(1) only Atoms/ leaves this device; (2) bodies are stored on Atoms Plus servers; (3) the host can decrypt at rest in v1 (not zero-knowledge); (4) Atoms Plus may send title, tags, and body slices to Anthropic to build encrypted search-expansion phrases for Ask (not zero-knowledge; Wipe removes them with the mirror); (5) when I chat in Claude, Anthropic receives tool results (titles, snippets, bodies); when I chat in ChatGPT, OpenAI receives them; (6) Wipe deletes the cloud mirror, search expansions, pending outbox writes, and connector tokens; (7) turning Ask off does not wipe.",
+  },
 };
 
 const FROZEN_ASK_WRITE: Readonly<Record<string, { title: string; disclosure: string }>> = {

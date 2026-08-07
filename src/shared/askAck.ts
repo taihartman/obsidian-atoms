@@ -24,13 +24,18 @@ import type { LinkerSettings } from "./types";
  */
 
 /**
- * Names `ASK_PRIVACY_DISCLOSURE` as of the six-clause wording authored 2026-08-06 (#304).
+ * Names `ASK_PRIVACY_DISCLOSURE` as of the seven-clause wording authored 2026-08-07 (#339/#340).
+ *
+ * That wording adds clause (4) — Atoms Plus may send title, tags, and body slices to Anthropic to
+ * build search-expansion phrases — mid-list, shifting the old (4)(5)(6) down, and adds
+ * `search expansions` to what Wipe removes. The previous six-clause wording (2026-08-06, #304)
+ * stays frozen in `askConsentVersion.test.ts` as the record of what shipped devices agreed to.
  *
  * Dated from the commit that authored the *exact* string, established by hashing it at each
  * candidate commit — not by `git log -S`, which keyed on a substring that survived while other
  * clauses changed and named a wording two weeks older than the one this build ships.
  */
-export const ASK_PRIVACY_ACK_VERSION = "2026-08-06";
+export const ASK_PRIVACY_ACK_VERSION = "2026-08-07";
 
 /** Names `ASK_WRITE_DISCLOSURE` as of the wording authored 2026-08-06 (#304). */
 export const ASK_WRITE_ACK_VERSION = "2026-08-06";
