@@ -1,13 +1,29 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1040" height="440" viewBox="0 0 1040 440" role="img" aria-label="Asked who I met at the gym. Answer: Dom, met two weeks ago.">
-  <!-- Same plate as fn-face-no-name. An answer, without any chat chrome. -->
-  <rect x="0.5" y="0.5" width="1039" height="439" rx="28" fill="#121214" stroke="rgba(84,84,88,0.38)"/>
+  <!-- Same plate and light as fn-face-no-name. An answer, without any chat chrome. -->
+  <defs>
+    <linearGradient id="plate" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#17171b"/>
+      <stop offset="1" stop-color="#0f0f12"/>
+    </linearGradient>
+    <radialGradient id="coolGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#0a84ff" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#0a84ff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="answerBar" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4aa8ff"/>
+      <stop offset="1" stop-color="#0a84ff"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="0.5" y="0.5" width="1039" height="439" rx="28" fill="url(#plate)" stroke="rgba(84,84,88,0.38)"/>
 
   <!-- what you actually type -->
   <text x="96" y="150" fill="rgba(235,235,245,0.55)" font-family="system-ui,-apple-system,&quot;Helvetica Neue&quot;,sans-serif" font-size="32">who did I meet at the gym?</text>
   <text x="944" y="150" text-anchor="end" fill="rgba(235,235,245,0.34)" font-family="system-ui,-apple-system,&quot;Helvetica Neue&quot;,sans-serif" font-size="28">2 seconds</text>
 
   <!-- what comes back -->
-  <rect x="96" y="196" width="5" height="132" rx="2.5" fill="#0a84ff"/>
+  <ellipse cx="150" cy="262" rx="230" ry="150" fill="url(#coolGlow)"/>
+  <rect x="96" y="196" width="5" height="132" rx="2.5" fill="url(#answerBar)"/>
   <text x="136" y="304" fill="#ffffff" font-family="system-ui,-apple-system,&quot;Helvetica Neue&quot;,sans-serif" font-size="108" font-weight="600" letter-spacing="-3">Dom</text>
   <text x="140" y="360" fill="rgba(235,235,245,0.5)" font-family="system-ui,-apple-system,&quot;Helvetica Neue&quot;,sans-serif" font-size="28">met two weeks ago · climbing gym</text>
 </svg>

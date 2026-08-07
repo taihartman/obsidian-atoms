@@ -21,8 +21,8 @@
     },
     {
       "type": "figure",
-      "src": "https://tryatoms.app/email/fn-face-no-name.png",
-      "alt": "A face you recognise, next to an empty name field"
+      "src": "https://tryatoms.app/email/fn-face-no-name.png?v=6852857c",
+      "alt": "Filed as the guy from the climbing wall, with a blank where his name should be"
     },
     {
       "type": "p",
@@ -38,7 +38,7 @@
     },
     {
       "type": "figure",
-      "src": "https://tryatoms.app/email/fn-ask-dom.png",
+      "src": "https://tryatoms.app/email/fn-ask-dom.png?v=ebb3994e",
       "alt": "Asked who I met at the gym. Answer: Dom, met two weeks ago"
     },
     {
@@ -75,7 +75,7 @@
     },
     {
       "type": "figure",
-      "src": "https://tryatoms.app/email/fn-messy-filed.png",
+      "src": "https://tryatoms.app/email/fn-messy-filed.png?v=04942529",
       "alt": "A rambling voice capture settling into a note titled Dom, tagged gym and people"
     },
     {

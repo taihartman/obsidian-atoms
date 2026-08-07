@@ -73,7 +73,9 @@ Gmail and many clients **strip or block SVG**. Reliable path:
 - **Size for 520px.** The canvas shows at half size in mail, so nothing below ~26px is legible. Answers ~104px, titles ~56px, labels 26–30px.
 - When a figure feels weak, remove an element rather than adding one.
 
-**Starter files:** `www/src/email/fn-ask-dom.svg` (typographic), `fn-messy-filed.svg` (gestural), `fn-face-no-name.svg` (object). `loop-remember.svg` predates the house style — do not copy its card-and-arrow layout.
+- **Let the set rhyme.** `fn-face-no-name.svg` is `fn-ask-dom.svg` with the answer removed — same label line, same bar, same slot, amber bar instead of blue, a redaction block where the word goes. The reader meets the hollow frame first, so the filled one later reads as a payoff. `fn-messy-filed.svg` breaks the pattern deliberately.
+
+**Starter files:** `fn-ask-dom.svg` / `fn-face-no-name.svg` (the rhyming pair), `fn-messy-filed.svg` (gestural). `loop-remember.svg` predates the house style — do not copy its card-and-arrow layout.
 
 ### Export PNG (local)
 
@@ -84,7 +86,20 @@ scripts/render-email-svg.sh www/src/email/foo.svg  # one
 
 The script rasterizes with Chrome. **Do not use `magick`**: with librsvg absent (it is, on this machine) ImageMagick silently falls back to its own SVG renderer, dropping gradients and picking wrong font metrics — output that looks plausible until compared side by side.
 
-Then `npm run build:www` and deploy so `https://tryatoms.app/email/foo.png` resolves. The edge caches these paths for 4h, so check the live byte count matches local before judging any test send; one revalidation pass clears it.
+Then `npm run build:www` and deploy so `https://tryatoms.app/email/foo.png` resolves.
+
+**Cache-bust redrawn figures.** The Pages edge pins `/email/*.png` for 4h, and a path whose cache entry was populated recently will keep serving the old image after a deploy — you review last week's art and never know. Sometimes a second request revalidates; sometimes it does not. So a draft references the figure with a content hash:
+
+```json
+{ "type": "figure", "src": "https://tryatoms.app/email/foo.png?v=6852857c", "alt": "..." }
+```
+
+`md5 -q www/src/email/foo.png | cut -c1-8`. The web archive drops the query (`normalizeFigureSrc` keeps only the pathname), so published pages stay clean — guarded by a test. Verify before judging any send:
+
+```bash
+curl -s -o /dev/null -w '%{size_download}\n' 'https://tryatoms.app/email/foo.png?v=<hash>'
+stat -f%z www/src/email/foo.png
+```
 
 ### Using a figure in a Broadcast (Resend UI)
 

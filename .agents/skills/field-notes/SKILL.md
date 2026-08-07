@@ -63,7 +63,7 @@ Long notes always get a `tldr`. Featured invite near the end: “Want to be feat
 - **Colour carries meaning, not decoration.** Amber `#ff9f0a` = a person. Blue `#0a84ff` = the system answering, used once and small. Everything else is grey. Two accent colours in one figure is usually one too many.
 - **Type is the illustration.** These letters are about words; rendering the actual words at real size beats an icon. `system-ui, -apple-system, 'Helvetica Neue', sans-serif` resolves to SF in the renderer.
 - **Mind the display size.** Canvas is 1040px wide and shows at 520 in mail, so anything under ~26px in the SVG is illegible. Big answer text ~104px, titles ~56px, labels 26–30px.
-- **Vary the set.** Three text-only plates in a row is monotonous. Mix one object, one typographic, one gestural.
+- **Make the set rhyme, don't just vary it.** The Dom letter runs the same composition twice — `fn-face-no-name` is `fn-ask-dom` emptied out, same label line, same bar, same slot — so the second one lands as a payoff rather than a new picture. `fn-messy-filed` breaks the pattern with a gesture. A repeated frame the reader learns beats three unrelated drawings.
 - **Negative space is the tryatoms look.** When a figure feels weak the fix is usually removing an element, not adding one.
 
 Then:
@@ -77,11 +77,15 @@ Then:
    npm run build:www   # copies www/src/email/* into www/dist/email/
    ( cd www && npx wrangler pages deploy dist --project-name=tryatoms --branch=master )
    ```
-   Then verify the live bytes actually changed, because the edge caches these paths for 4h and the first request after a deploy can still serve the old file:
-   ```bash
-   curl -s -o /dev/null -w '%{size_download}\n' https://tryatoms.app/email/foo.png
+   Then **cache-bust the `src` with a content hash**, because the edge pins `/email/*.png` for 4h and will happily serve the old image after a deploy — you would review last week's art without knowing:
+   ```jsonc
+   { "type": "figure", "src": "https://tryatoms.app/email/foo.png?v=6852857c", "alt": "..." }
    ```
-   Repeat once if it does not match `ls -l www/src/email/foo.png`; a revalidation pass clears it.
+   `md5 -q www/src/email/foo.png | cut -c1-8`. The web archive drops the query, so published pages stay clean. Verify before judging any send:
+   ```bash
+   curl -s -o /dev/null -w '%{size_download}\n' 'https://tryatoms.app/email/foo.png?v=<hash>'
+   stat -f%z www/src/email/foo.png
+   ```
 
 Legacy `paragraphs` + trailing `diagram`/`figure` still render, but **new drafts must use `blocks`.**
 

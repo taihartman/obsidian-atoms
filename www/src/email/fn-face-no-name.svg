@@ -1,31 +1,40 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1040" height="440" viewBox="0 0 1040 440" role="img" aria-label="A face you recognise beside an empty name field">
+<svg xmlns="http://www.w3.org/2000/svg" width="1040" height="440" viewBox="0 0 1040 440" role="img" aria-label="The guy from the climbing wall, with a blank where his name should be">
   <!--
-    Field notes illustration set. One dark plate, no nested cards, no arrows.
+    Field notes illustration set. One plate, no nested cards, no arrows.
     Amber = a person. Blue = the system answering. Everything else is grey.
-    Type is the illustration; keep labels at 26px+ (renders at half size in mail).
+    Every plate has one light source; type is the illustration.
+
+    This is deliberately the same composition as fn-ask-dom, emptied out: same
+    label line, same bar, same slot for the answer. The reader meets the hollow
+    version first and the filled version later, so the second one lands as a
+    payoff instead of a new picture. Do not "vary" it - the rhyme is the point.
   -->
   <defs>
-    <linearGradient id="personFill" x1="0" y1="0" x2="0.6" y2="1">
-      <stop offset="0" stop-color="#5a5a61"/>
-      <stop offset="1" stop-color="#3a3a40"/>
+    <linearGradient id="plate" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#17171b"/>
+      <stop offset="1" stop-color="#0f0f12"/>
     </linearGradient>
-    <clipPath id="avatarClip">
-      <circle cx="322" cy="220" r="104"/>
-    </clipPath>
+    <radialGradient id="warmGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#ff9f0a" stop-opacity="0.11"/>
+      <stop offset="1" stop-color="#ff9f0a" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="personBar" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffb340"/>
+      <stop offset="1" stop-color="#ff9f0a"/>
+    </linearGradient>
   </defs>
 
-  <rect x="0.5" y="0.5" width="1039" height="439" rx="28" fill="#121214" stroke="rgba(84,84,88,0.38)"/>
+  <rect x="0.5" y="0.5" width="1039" height="439" rx="28" fill="url(#plate)" stroke="rgba(84,84,88,0.38)"/>
 
-  <!-- the face: unmistakably a person, deliberately not a specific one -->
-  <g clip-path="url(#avatarClip)">
-    <circle cx="322" cy="220" r="104" fill="#202024"/>
-    <circle cx="322" cy="180" r="44" fill="url(#personFill)"/>
-    <path d="M222 332 c0 -58 45 -100 100 -100 s100 42 100 100 z" fill="url(#personFill)"/>
-  </g>
-  <circle cx="322" cy="220" r="104" fill="none" stroke="#ff9f0a" stroke-opacity="0.5" stroke-width="2"/>
+  <!-- how you actually have him filed -->
+  <text x="96" y="150" fill="rgba(235,235,245,0.55)" font-family="system-ui,-apple-system,&quot;Helvetica Neue&quot;,sans-serif" font-size="32">the guy from the climbing wall</text>
 
-  <!-- the name: a field nothing was ever written in -->
-  <text x="548" y="196" fill="rgba(235,235,245,0.42)" font-family="system-ui,-apple-system,&quot;Helvetica Neue&quot;,sans-serif" font-size="30" letter-spacing="3.6">NAME</text>
-  <rect x="548" y="244" width="3" height="40" rx="1.5" fill="rgba(235,235,245,0.3)"/>
-  <line x1="548" y1="284" x2="944" y2="284" stroke="rgba(235,235,245,0.26)" stroke-width="2" stroke-linecap="round"/>
+  <!-- and the slot where the name is not -->
+  <ellipse cx="150" cy="262" rx="230" ry="150" fill="url(#warmGlow)"/>
+  <rect x="96" y="196" width="5" height="132" rx="2.5" fill="url(#personBar)"/>
+  <!-- exactly the box "Dom" fills in fn-ask-dom, with the word taken out. A
+       short definite blank reads as a missing word; a long trailing rule just
+       reads as a divider. -->
+  <rect x="136" y="226" width="204" height="80" rx="10" fill="rgba(235,235,245,0.08)" stroke="rgba(235,235,245,0.14)"/>
+  <text x="140" y="360" fill="rgba(235,235,245,0.4)" font-family="system-ui,-apple-system,&quot;Helvetica Neue&quot;,sans-serif" font-size="28">no name attached</text>
 </svg>

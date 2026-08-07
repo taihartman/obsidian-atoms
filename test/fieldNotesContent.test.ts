@@ -98,6 +98,22 @@ describe("fieldNotesContent", () => {
     expect(html).not.toContain("notes-loop");
   });
 
+  // Drafts cache-bust figures with ?v=<hash> because the Pages edge pins
+  // /email/*.png for 4h. The archive is served fresh, so it drops the query.
+  it("strips cache-busting queries from figure srcs", () => {
+    const html = renderNoteBodyHtml({
+      blocks: [
+        {
+          type: "figure",
+          src: "https://tryatoms.app/email/fn-ask-dom.png?v=ebb3994e",
+          alt: "Ask Dom",
+        },
+      ],
+    });
+    expect(html).toContain('src="/email/fn-ask-dom.png"');
+    expect(html).not.toContain("?v=");
+  });
+
   // The archive mirrors the email: short version first, no jump link anywhere.
   it("leads with the short version and ships no jump link", () => {
     const html = renderNoteBodyHtml({
