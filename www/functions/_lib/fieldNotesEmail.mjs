@@ -3,6 +3,9 @@
  * Theme tokens match tryatoms.app (docs/design-handoff/tokens, www/src/styles.css).
  * Table layout + inline CSS only - email clients ignore stylesheets.
  * Prefer hosted PNG for illustrations (Gmail strips SVG); see docs/field-notes-email.md.
+ *
+ * Body model: prefer `blocks` (p / h2 / pull / figure / loop) so notes are not a wall of text.
+ * Legacy `paragraphs` + trailing diagram/figure still work.
  */
 
 export const EMAIL_THEME = {
@@ -20,6 +23,77 @@ export const EMAIL_THEME = {
   serif: 'Georgia, "Times New Roman", serif',
   measure: "560px",
 };
+
+/**
+ * @typedef {{
+ *   type: 'p'|'h2'|'tldr',
+ *   text?: string,
+ *   lines?: string[],
+ * } | { type: 'figure', src: string, alt: string, width?: number } | { type: 'loop' } | { type: 'skip', label?: string, target?: string }} FieldNotesBlock
+ *
+ * Never use colored pull-quote / bookend cards. They read as AI template.
+ */
+
+/**
+ * Prefer blocks. Fall back to paragraphs (+ optional trailing loop/figure).
+ * @param {{ blocks?: FieldNotesBlock[], paragraphs?: string[], diagram?: string|null, figure?: object|null }} draft
+ * @returns {FieldNotesBlock[]}
+ */
+export function normalizeBlocks(draft) {
+  if (Array.isArray(draft?.blocks) && draft.blocks.length) {
+    return draft.blocks.filter(Boolean);
+  }
+  /** @type {FieldNotesBlock[]} */
+  const out = [];
+  for (const p of draft?.paragraphs || []) {
+    if (typeof p === "string" && p.length) out.push({ type: "p", text: p });
+  }
+  if (draft?.diagram === "loop") out.push({ type: "loop" });
+  if (draft?.figure?.src && draft?.figure?.alt) {
+    out.push({
+      type: "figure",
+      src: draft.figure.src,
+      alt: draft.figure.alt,
+      width: draft.figure.width,
+    });
+  }
+  return out;
+}
+
+/** Plain-text lines from blocks (figures become [alt]). */
+export function blocksToTextLines(blocks) {
+  const lines = [];
+  for (const b of blocks || []) {
+    if (!b || !b.type) continue;
+    if (b.type === "p" || b.type === "h2") {
+      if (b.text) lines.push(String(b.text));
+    } else if (b.type === "tldr") {
+      lines.push("Short version");
+      for (const line of b.lines || (b.text ? [b.text] : [])) {
+        lines.push(String(line));
+      }
+    } else if (b.type === "figure" && b.alt) {
+      lines.push(`[${b.alt}]`);
+    } else if (b.type === "loop") {
+      lines.push("Catch it → It is filed → It comes back");
+    } else if (b.type === "skip") {
+      /* nav only */
+    }
+  }
+  return lines;
+}
+
+/** First prose for preheader/tease. */
+export function firstProseFromBlocks(blocks) {
+  for (const b of blocks || []) {
+    if (b?.type === "p" && b.text) return String(b.text);
+  }
+  return "";
+}
+
+export function noteHasTldr(blocks) {
+  return (blocks || []).some((b) => b?.type === "tldr");
+}
 
 /**
  * Simple capture → remember loop as table cells (no images; works in Gmail).
@@ -51,20 +125,79 @@ export function loopDiagramHtml() {
 export function figureHtml(opts) {
   const t = EMAIL_THEME;
   const w = opts.width ?? 520;
-  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:20px 0;">
+  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:20px 0 24px;">
   <tr>
-    <td align="center" style="background:${t.surface};border-radius:16px;padding:16px;border:1px solid ${t.sep};">
-      <img src="${opts.src}" alt="${escapeHtml(opts.alt)}" width="${w}" style="display:block;max-width:100%;height:auto;border:0;border-radius:12px;" />
+    <td align="center" style="background:${t.elev};border-radius:16px;padding:12px;border:1px solid ${t.sep};">
+      <img src="${escapeAttr(opts.src)}" alt="${escapeHtml(opts.alt)}" width="${w}" style="display:block;max-width:100%;height:auto;border:0;border-radius:12px;" />
     </td>
   </tr>
 </table>`;
 }
 
 /**
+ * @param {FieldNotesBlock[]} blocks
+ */
+export function renderBlocksEmailHtml(blocks) {
+  const t = EMAIL_THEME;
+  const parts = [];
+  const hasTldr = noteHasTldr(blocks);
+  // Auto skip-link when a tldr exists and draft didn't add one
+  const hasSkip = (blocks || []).some((b) => b?.type === "skip");
+  if (hasTldr && !hasSkip) {
+    parts.push(
+      `<p style="margin:0 0 20px;font-size:14px;line-height:1.45;"><a href="#fn-tldr" style="color:${t.tint};text-decoration:none;">Short version ↓</a></p>`,
+    );
+  }
+  for (const b of blocks || []) {
+    if (!b || !b.type) continue;
+    if (b.type === "skip") {
+      const label = b.label || "Short version ↓";
+      const target = b.target || "fn-tldr";
+      parts.push(
+        `<p style="margin:0 0 20px;font-size:14px;line-height:1.45;"><a href="#${escapeAttr(target)}" style="color:${t.tint};text-decoration:none;">${escapeHtml(label)}</a></p>`,
+      );
+    } else if (b.type === "p" && b.text) {
+      parts.push(
+        `<p style="margin:0 0 16px;font-size:16px;line-height:1.55;color:${t.label};">${escapeHtml(b.text)}</p>`,
+      );
+    } else if (b.type === "h2" && b.text) {
+      parts.push(
+        `<h2 style="margin:28px 0 12px;font-size:15px;line-height:1.3;font-weight:600;color:${t.label};">${escapeHtml(b.text)}</h2>`,
+      );
+    } else if (b.type === "tldr") {
+      const bodyLines = b.lines || (b.text ? [b.text] : []);
+      const inner = bodyLines
+        .map(
+          (line) =>
+            `<p style="margin:0 0 10px;font-size:15px;line-height:1.5;color:${t.muted};">${escapeHtml(line)}</p>`,
+        )
+        .join("");
+      parts.push(
+        `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:28px 0 20px;" id="fn-tldr">
+  <tr>
+    <td style="padding:16px 18px;background:${t.elev};border-radius:12px;border:1px solid ${t.sep};">
+      <div style="font-size:12px;letter-spacing:0.04em;text-transform:uppercase;color:${t.faint};margin:0 0 10px;">Short version</div>
+      ${inner}
+    </td>
+  </tr>
+</table>`,
+      );
+    } else if (b.type === "figure" && b.src && b.alt) {
+      parts.push(figureHtml({ src: b.src, alt: b.alt, width: b.width }));
+    } else if (b.type === "loop") {
+      parts.push(loopDiagramHtml());
+    }
+    // intentionally no pull/bookend renderer
+  }
+  return parts.join("\n");
+}
+
+/**
  * @param {{
  *   title: string,
  *   preheader?: string,
- *   paragraphs: string[],
+ *   blocks?: FieldNotesBlock[],
+ *   paragraphs?: string[],
  *   cta?: { label: string, href: string },
  *   secondaryHref?: { label: string, href: string },
  *   unsubUrl: string,
@@ -75,20 +208,10 @@ export function figureHtml(opts) {
  */
 export function buildFieldNotesHtml(opts) {
   const t = EMAIL_THEME;
-  const preheader = opts.preheader || opts.paragraphs[0] || "";
-  const paras = opts.paragraphs
-    .map(
-      (p) =>
-        `<p style="margin:0 0 16px;font-size:16px;line-height:1.55;color:${t.label};">${escapeHtml(p)}</p>`,
-    )
-    .join("\n");
-
-  const diagram =
-    opts.diagram === "loop"
-      ? loopDiagramHtml()
-      : opts.figure
-        ? figureHtml(opts.figure)
-        : "";
+  const blocks = normalizeBlocks(opts);
+  const preheader =
+    opts.preheader || firstProseFromBlocks(blocks) || "";
+  const body = renderBlocksEmailHtml(blocks);
 
   const cta = opts.cta
     ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 12px;">
@@ -129,8 +252,7 @@ export function buildFieldNotesHtml(opts) {
           <tr>
             <td style="background:${t.surface};border-radius:16px;padding:28px 24px;border:1px solid ${t.sep};">
               <h1 style="margin:0 0 16px;font-size:22px;line-height:1.25;font-weight:600;color:${t.label};">${escapeHtml(opts.title)}</h1>
-              ${paras}
-              ${diagram}
+              ${body}
               ${cta}
               ${secondary}
             </td>
@@ -151,18 +273,18 @@ export function buildFieldNotesHtml(opts) {
 }
 
 /**
- * @param {string[]} paragraphs
+ * @param {string[]} lines title + body lines
  * @param {{ unsubUrl: string, postalAddress: string, ctaLine?: string }} foot
  */
-export function buildFieldNotesText(paragraphs, foot) {
-  const lines = [...paragraphs, ""];
-  if (foot.ctaLine) lines.push(foot.ctaLine, "");
-  lines.push(
+export function buildFieldNotesText(lines, foot) {
+  const out = [...lines, ""];
+  if (foot.ctaLine) out.push(foot.ctaLine, "");
+  out.push(
     "---",
     `Unsubscribe: ${foot.unsubUrl}`,
     foot.postalAddress,
   );
-  return lines.join("\n");
+  return out.join("\n");
 }
 
 export function welcomeEmailContent(opts) {

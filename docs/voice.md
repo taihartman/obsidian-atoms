@@ -75,9 +75,11 @@ Grounded in shipped landing and home copy, `docs/design-handoff/tokens/README.md
 ### Structure of a good note
 
 1. **One concrete beat** (a walk, a person, a moment you almost forgot).  
-2. **What the stack did** (capture → atom → ask / calendar / recap) without tool-worship.  
-3. **One soft next step** (tryatoms, setup, or “reply with yours”).  
-4. **Invite:** show how you use Atoms day to day - you may get featured (ask before naming).
+2. **Sections, not a scroll wall** — use `blocks` with `h2` breaks, short paras, pull quotes, and **inline** figures between beats (see `docs/field-notes-email.md`).  
+3. **What the stack did** (capture → atom → ask / calendar / recap) without tool-worship.  
+4. **One soft next step** (tryatoms, setup, or “reply with yours”).  
+5. **Invite:** show how you use Atoms day to day - you may get featured (ask before naming).  
+6. **No default loop footer** — the catch/file/return diagram is optional and only when it serves the story.
 
 ### Subject lines
 

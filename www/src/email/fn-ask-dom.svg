@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1040" height="420" viewBox="0 0 1040 420" role="img" aria-label="Ask who you met. Get Dom back in two seconds.">
+  <rect width="1040" height="420" fill="#000"/>
+  <rect x="80" y="40" width="880" height="340" rx="28" fill="#1c1c1e" stroke="rgba(84,84,88,0.55)"/>
+  <!-- phone shell -->
+  <rect x="140" y="70" width="280" height="280" rx="28" fill="#000" stroke="#2c2c2e" stroke-width="4"/>
+  <rect x="160" y="100" width="240" height="220" rx="12" fill="#2c2c2e"/>
+  <text x="280" y="150" text-anchor="middle" fill="rgba(235,235,245,0.72)" font-family="system-ui,sans-serif" font-size="18">Ask</text>
+  <rect x="180" y="170" width="200" height="72" rx="12" fill="#1c1c1e"/>
+  <text x="280" y="200" text-anchor="middle" fill="#fff" font-family="system-ui,sans-serif" font-size="16">Who did I meet</text>
+  <text x="280" y="222" text-anchor="middle" fill="#fff" font-family="system-ui,sans-serif" font-size="16">at the gym?</text>
+  <!-- arrow -->
+  <path d="M450 210 H560" stroke="#0a84ff" stroke-width="5" stroke-linecap="round"/>
+  <path d="M545 196 L565 210 L545 224" fill="none" stroke="#0a84ff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- answer card -->
+  <rect x="590" y="130" width="300" height="160" rx="20" fill="#2c2c2e" stroke="#0a84ff" stroke-width="2"/>
+  <text x="740" y="185" text-anchor="middle" fill="rgba(235,235,245,0.55)" font-family="system-ui,sans-serif" font-size="18">Two seconds</text>
+  <text x="740" y="235" text-anchor="middle" fill="#fff" font-family="system-ui,sans-serif" font-size="48" font-weight="600">Dom</text>
+  <text x="740" y="270" text-anchor="middle" fill="rgba(235,235,245,0.72)" font-family="system-ui,sans-serif" font-size="18">+ when you met</text>
+</svg>

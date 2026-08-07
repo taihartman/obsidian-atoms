@@ -49,4 +49,30 @@ describe("fieldNotesEmail", () => {
     expect(html).toContain('src="https://tryatoms.app/email/loop-remember.png"');
     expect(html).toContain('alt="Loop"');
   });
+
+  it("blocks render sections, tldr skip-link, and inline figures", () => {
+    const html = buildFieldNotesHtml({
+      title: "Test",
+      blocks: [
+        { type: "p", text: "Open" },
+        { type: "h2", text: "Across the gym" },
+        {
+          type: "figure",
+          src: "https://tryatoms.app/email/fn-face-no-name.png",
+          alt: "Face",
+        },
+        { type: "tldr", lines: ["Short beat.", "Second line."] },
+      ],
+      unsubUrl: "https://example.com/u",
+      postalAddress: "Addr",
+    });
+    expect(html).toContain("Across the gym");
+    expect(html).toContain("Short version ↓");
+    expect(html).toContain('id="fn-tldr"');
+    expect(html).toContain("Short beat.");
+    expect(html).toContain("fn-face-no-name.png");
+    expect(html).toContain("<h2");
+    expect(html).not.toContain("border-left:3px solid");
+    expect(html).not.toContain("Catch it");
+  });
 });

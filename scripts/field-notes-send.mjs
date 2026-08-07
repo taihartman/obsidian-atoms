@@ -11,8 +11,16 @@
  *   "subject": "string",
  *   "title": "string",           // H1 in HTML
  *   "preheader": "string?",
- *   "paragraphs": ["..."],
- *   "diagram": "loop" | null,
+ *   "blocks": [                  // preferred: sections + figures inline
+ *     { "type": "p", "text": "..." },
+ *     { "type": "h2", "text": "Section" },
+ *     { "type": "figure", "src": "https://tryatoms.app/email/foo.png", "alt": "..." },
+ *     { "type": "tldr", "lines": ["...", "..."] },
+ *     { "type": "loop" }
+ *   ],
+ *   // never use pull/bookend quote cards
+ *   "paragraphs": ["..."],       // legacy flat body (still ok)
+ *   "diagram": "loop" | null,    // legacy trailing only
  *   "figure": { "src": "https://...", "alt": "..." } | null,
  *   "cta": { "label": "...", "href": "..." } | null,
  *   "secondaryHref": { "label": "...", "href": "..." } | null
@@ -33,8 +41,10 @@ import { mkdirSync, readFileSync, writeFileSync } from "fs";
 import { basename, dirname, join } from "path";
 import { fileURLToPath } from "url";
 import {
+  blocksToTextLines,
   buildFieldNotesHtml,
   buildFieldNotesText,
+  normalizeBlocks,
 } from "../www/functions/_lib/fieldNotesEmail.mjs";
 import { promoteDraftToPublished } from "../www/lib/fieldNotesContent.mjs";
 
@@ -74,19 +84,27 @@ async function resend(path, init, apiKey) {
 function loadDraft(path) {
   const raw = readFileSync(path, "utf8");
   const d = JSON.parse(raw);
-  if (!d.subject || !d.title || !Array.isArray(d.paragraphs) || !d.paragraphs.length) {
-    throw new Error("draft needs subject, title, paragraphs[]");
+  if (!d.subject || !d.title) {
+    throw new Error("draft needs subject, title");
+  }
+  const blocks = normalizeBlocks(d);
+  const hasProse = blocks.some(
+    (b) =>
+      ((b.type === "p" || b.type === "h2") && b.text) ||
+      (b.type === "tldr" && (b.text || (b.lines && b.lines.length))),
+  );
+  if (!hasProse) {
+    throw new Error("draft needs blocks[] or paragraphs[] with prose");
   }
   return d;
 }
 
 function buildBodies(draft, unsubUrl, postal) {
+  const blocks = normalizeBlocks(draft);
   const html = buildFieldNotesHtml({
     title: draft.title,
     preheader: draft.preheader,
-    paragraphs: draft.paragraphs,
-    diagram: draft.diagram === "loop" ? "loop" : null,
-    figure: draft.figure || null,
+    blocks,
     cta: draft.cta || {
       label: "Open tryatoms.app",
       href: "https://tryatoms.app",
@@ -96,7 +114,7 @@ function buildBodies(draft, unsubUrl, postal) {
     postalAddress: postal,
   });
   const text = buildFieldNotesText(
-    [draft.title, "", ...draft.paragraphs],
+    [draft.title, "", ...blocksToTextLines(blocks)],
     {
       unsubUrl,
       postalAddress: postal,

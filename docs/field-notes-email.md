@@ -95,10 +95,29 @@ import { buildFieldNotesHtml } from "./fieldNotesEmail.mjs";
 
 ---
 
+## Body shape: blocks (not a wall of text)
+
+Draft JSON prefers **`blocks`** (email + web archive share the model):
+
+| type | Role |
+|---|---|
+| `p` | Short paragraph |
+| `h2` | Plain section title (not all-caps kicker) |
+| `figure` | Inline PNG (`https://tryatoms.app/email/….png`) between sections |
+| `tldr` | Quiet short-version box; auto top jump link “Short version ↓” |
+| `loop` | Built-in three-step diagram — **opt-in**, not a default footer |
+
+**Banned:** pull-quote / bookend cards (colored left bars, highlight quote boxes). AI-template look. Use a normal `p` for a one-line beat.
+
+Legacy flat `paragraphs` + trailing `diagram`/`figure` still work for welcome and old notes.
+
+**Rule of thumb:** 2–3 `h2`s, at least one inline `figure`, and a `tldr` on anything longer than a welcome. Story first; loop only when it earns the slot.
+
 ## Resend Broadcast checklist
 
 - [ ] Read `docs/voice.md`  
-- [ ] One concrete beat + optional diagram  
+- [ ] `blocks` with sections + inline figures (not a paragraph wall)  
+- [ ] PNGs live on tryatoms.app/email/ before broadcast  
 - [ ] Soft CTA + invite “reply with how you run yours”  
 - [ ] Dark card layout (or Resend theme tuned to black / #1c1c1e / #0a84ff)  
 - [ ] `{{{RESEND_UNSUBSCRIBE_URL}}}` + postal line  

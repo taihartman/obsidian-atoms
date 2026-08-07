@@ -34,21 +34,41 @@ If the idea is too thin for a letter, ask **one** clarifying question, then proc
 
 ### 1. Draft
 
+**Never ship a wall of plain paragraphs.** Every note uses `blocks` with real structure and at least one visual beat.
+
 Write:
 
 - `subject` — short, calm, specific  
 - `title` — H1  
 - `preheader` — one line  
-- `paragraphs` — 3–6 short paras: concrete beat → what mattered → stack only if it serves → **featured invite** (“Want to be featured? Reply and show how you use Atoms…”)  
-- `diagram`: `"loop"` if the three-step loop fits; else `null`  
-- optional `figure` if a hosted PNG exists  
+- `blocks` — ordered mix of:
+  - `{ "type": "p", "text": "..." }` — short paras (2–4 sentences max each)
+  - `{ "type": "h2", "text": "..." }` — plain section titles (2–3; break the scroll). Not shouty all-caps kicker labels.
+  - `{ "type": "figure", "src": "https://tryatoms.app/email/<name>.png", "alt": "..." }` — **inline** illustrations between sections
+  - `{ "type": "tldr", "lines": ["...", "..."] }` — quiet short-version box near the end. Auto-adds a top **Short version ↓** jump link.
+  - `{ "type": "loop" }` — only when the three-step loop truly serves; optional, never default footer
 - `cta`: usually Open tryatoms.app  
+
+**Never:** colored pull-quote / bookend cards (left border bars, “highlight” quote boxes). They read as AI template. A sharp one-line beat is just a normal paragraph.
+
+**Structure recipe:** open beat → figure → h2 → figure → tight argument → `tldr` → close + featured invite.  
+Long notes always get a `tldr`. Featured invite near the end: “Want to be featured? Reply and show how you use Atoms…”
+
+**Illustrations (required for story notes):**
+
+1. Draw simple on-theme SVG under `www/src/email/<slug-beat>.svg` (tokens in `docs/field-notes-email.md`).  
+2. Export PNG 1040px wide:  
+   `magick -background none -font "/System/Library/Fonts/Helvetica.ttc" www/src/email/foo.svg -resize 1040x www/src/email/foo.png`  
+3. Reference `https://tryatoms.app/email/foo.png` in blocks.  
+4. **Images must be live on tryatoms before audience send** (`build:www` + Pages deploy copies `www/src/email/*`). Test send will show broken images until deploy.
+
+Legacy `paragraphs` + trailing `diagram`/`figure` still render, but **new drafts must use `blocks`.**
 
 Save JSON to:
 
 `docs/field-notes/drafts/YYYY-MM-DD-<slug>.json`
 
-(create dirs as needed). Also keep a short markdown preview in chat (subject + body).
+(create dirs as needed). Also keep a short markdown preview in chat (subject + section outline).
 
 ### 2. Build check
 

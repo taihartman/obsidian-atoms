@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1040" height="420" viewBox="0 0 1040 420" role="img" aria-label="A familiar face with no name attached">
+  <rect width="1040" height="420" fill="#000"/>
+  <rect x="80" y="40" width="880" height="340" rx="28" fill="#1c1c1e" stroke="rgba(84,84,88,0.55)"/>
+  <!-- face -->
+  <circle cx="360" cy="200" r="96" fill="#2c2c2e" stroke="#ff9f0a" stroke-width="3"/>
+  <circle cx="328" cy="185" r="8" fill="#fff"/>
+  <circle cx="392" cy="185" r="8" fill="#fff"/>
+  <path d="M328 235 Q360 258 392 235" fill="none" stroke="rgba(235,235,245,0.72)" stroke-width="4" stroke-linecap="round"/>
+  <!-- broken name tag -->
+  <rect x="520" y="150" width="340" height="100" rx="16" fill="#2c2c2e" stroke="rgba(84,84,88,0.55)"/>
+  <text x="690" y="195" text-anchor="middle" fill="rgba(235,235,245,0.55)" font-family="system-ui,sans-serif" font-size="22" letter-spacing="0.08em">NAME</text>
+  <text x="690" y="230" text-anchor="middle" fill="#fff" font-family="system-ui,sans-serif" font-size="36" font-weight="600">?</text>
+  <text x="520" y="340" fill="rgba(235,235,245,0.55)" font-family="system-ui,sans-serif" font-size="20">Face yes. Name gone.</text>
+</svg>
