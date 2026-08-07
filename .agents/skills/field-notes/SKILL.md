@@ -65,6 +65,7 @@ Long notes always get a `tldr`. Featured invite near the end: “Want to be feat
 - **No box → arrow → box.** A blue arrow between two rounded rectangles is the single most generic thing you can draw.
 - **Colour is almost absent.** The whole three-figure set uses one amber tag, once. Everything else is white at three opacities. Amber `#ff9f0a` = a person; blue `#0a84ff` = the system answering. If you are reaching for a second accent, you are decorating.
 - **Only details the copy establishes.** Writing "tuesday night" into a figure when the letter never says Tuesday puts a false memory in the author's mouth. Pull specifics from the draft, not from your imagination.
+- **Plain recall, never a dramatised beat.** "he pulled it, clean" got cut for being cringe. A punchy fragment that survives inside Tai's prose does not survive alone on a plate, because type at that size has no sentences around it to earn the drama. Read every figure line as if it were the only sentence on screen. Cut rather than rewrite — two remembered details and a blank line beat three with a flourish. See `docs/voice.md` § Hard rules.
 - **Mind the display size.** Canvas is 1040px wide and shows at 520 in mail, so nothing under ~26px is legible. Big answers ~132px, titles ~56px, body 30–34px, labels 26–28px.
 - **Let scale and emptiness do the work.** The strongest figure in the set is a small question and an enormous name. The second strongest is three remembered details and one blank line. When a figure feels weak, remove an element rather than adding one.
 

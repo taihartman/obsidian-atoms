@@ -73,6 +73,7 @@ Gmail and many clients **strip or block SVG**. Reliable path:
 - **No box → arrow → box.**
 - **Colour is almost absent.** One amber tag in the whole set. Everything else is white at three opacities.
 - **Only details the copy establishes** — an invented specific is a false memory in the author's mouth.
+- **Plain recall, never a dramatised beat.** Set in type on a plate, a punchy fragment has no surrounding sentences to earn it and reads as trying too hard. Cut rather than rewrite.
 - **Size for 520px.** Nothing under ~26px survives. Answers ~132px, titles ~56px, body 30–34px.
 - **Scale and emptiness do the work.** A small question and an enormous name; three remembered details and one blank line.
 

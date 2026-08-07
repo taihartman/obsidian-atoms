@@ -57,6 +57,8 @@ Grounded in shipped landing and home copy, `docs/design-handoff/tokens/README.md
 - **No “use case” / “use-case notes”** in user-facing marketing (sounds like a deck). Prefer *how people run it*, *practice*, *field notes*, *second brain in real life*.
 - **Numbers and locked pricing sentences** stay SSOT (`plus-pricing.json` / plugin helpers). Marketing must not invent trial or price claims.
 - **Body sacred** never gets a creative rewrite.
+- **No dramatised beats.** Punchy fragments that exist to sound cool: *he pulled it, clean* · *and just like that, it was there* · *one tap. done.* Tai's own prose earns a short beat because the sentences around it carry weight. Copy we write for him does not, and it reads as trying too hard. Say the plain thing.
+- **Set in type, everything gets louder.** A line that passes inside a paragraph can be cringe once it is alone on an illustration plate or a hero. Re-read every figure line, headline, and empty state as if it were the only sentence on screen, because it is. When in doubt, cut it rather than rewrite it — the blank usually reads better than the beat.
 
 ---
 
