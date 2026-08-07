@@ -6,6 +6,7 @@ import androidx.documentfile.provider.DocumentFile
 import app.tryatoms.capture.domain.CaptureLine
 import app.tryatoms.capture.domain.VaultPathJoin
 import java.io.BufferedReader
+import java.io.File
 import java.io.InputStreamReader
 import java.nio.charset.StandardCharsets
 import java.time.OffsetDateTime
@@ -22,6 +23,39 @@ class InboxWriter(
         data class Err(
             val message: String,
         ) : WriteResult()
+    }
+
+    fun appendCaptureToVaultPath(
+        vaultAbsolutePath: String,
+        body: String,
+        now: OffsetDateTime = OffsetDateTime.now(),
+    ): WriteResult {
+        val formatted =
+            try {
+                CaptureLine.format(body, now)
+            } catch (e: IllegalArgumentException) {
+                return WriteResult.Err(e.message ?: "Empty capture")
+            }
+
+        val vault = File(vaultAbsolutePath)
+        if (!vault.isDirectory) {
+            return WriteResult.Err("Vault folder missing: $vaultAbsolutePath")
+        }
+
+        val systemDir = File(vault, CaptureLine.SYSTEM_FOLDER)
+        if (!systemDir.exists() && !systemDir.mkdirs()) {
+            return WriteResult.Err("Could not create ${CaptureLine.SYSTEM_FOLDER}")
+        }
+
+        val inbox = File(systemDir, CaptureLine.INBOX_FILE_NAME)
+        return try {
+            val existing = if (inbox.exists()) inbox.readText(StandardCharsets.UTF_8) else ""
+            val merged = CaptureLine.mergeAppend(existing, formatted.line)
+            inbox.writeText(merged, StandardCharsets.UTF_8)
+            okPreview(formatted.stamp, body)
+        } catch (e: Exception) {
+            WriteResult.Err(e.message ?: "Write failed")
+        }
     }
 
     fun appendCapture(
@@ -65,15 +99,21 @@ class InboxWriter(
                 out.write(merged.toByteArray(StandardCharsets.UTF_8))
                 out.flush()
             } ?: return WriteResult.Err("Could not open Inbox.md for writing")
-
-            val preview =
-                body.trim().replace("\n", " ").let {
-                    if (it.length > 80) it.take(77) + "…" else it
-                }
-            WriteResult.Ok(stamp = formatted.stamp, preview = preview)
+            okPreview(formatted.stamp, body)
         } catch (e: Exception) {
             WriteResult.Err(e.message ?: "Write failed")
         }
+    }
+
+    private fun okPreview(
+        stamp: String,
+        body: String,
+    ): WriteResult.Ok {
+        val preview =
+            body.trim().replace("\n", " ").let {
+                if (it.length > 80) it.take(77) + "…" else it
+            }
+        return WriteResult.Ok(stamp = stamp, preview = preview)
     }
 
     fun resolveRelative(

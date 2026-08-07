@@ -5,7 +5,8 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.provider.DocumentsContract
+import android.os.Environment
+import android.provider.Settings
 import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -25,30 +26,19 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.tryatoms.capture.ui.CaptureScreen
 import app.tryatoms.capture.ui.CaptureViewModel
 
-/**
- * OPEN_DOCUMENT_TREE with persistable read/write flags.
- * Stock [ActivityResultContracts.OpenDocumentTree] omits persistable flags on
- * some API levels, which makes takePersistableUriPermission fail silently later.
- */
 class OpenPersistableTree : ActivityResultContract<Uri?, Uri?>() {
     override fun createIntent(
         context: Context,
         input: Uri?,
     ): Intent {
-        val intent =
-            Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).apply {
-                addFlags(
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION or
-                        Intent.FLAG_GRANT_WRITE_URI_PERMISSION or
-                        Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION or
-                        Intent.FLAG_GRANT_PREFIX_URI_PERMISSION,
-                )
-                // Document URI (not tree) — tree URIs the app doesn't own can break the picker
-                if (input != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    putExtra(DocumentsContract.EXTRA_INITIAL_URI, input)
-                }
-            }
-        return intent
+        return Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).apply {
+            addFlags(
+                Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                    Intent.FLAG_GRANT_WRITE_URI_PERMISSION or
+                    Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION or
+                    Intent.FLAG_GRANT_PREFIX_URI_PERMISSION,
+            )
+        }
     }
 
     override fun parseResult(
@@ -88,16 +78,17 @@ class MainActivity : ComponentActivity() {
                         state = state,
                         onDraftChange = viewModel::onDraftChange,
                         onCapture = viewModel::capture,
-                        onFindVaults = {
+                        onAllowFileAccess = ::openAllFilesSettings,
+                        onFindVaultsSaf = {
                             Toast
                                 .makeText(
                                     this,
                                     "Select a folder, then tap Use this folder",
                                     Toast.LENGTH_LONG,
                                 ).show()
-                            // null = reliable default start; Documents initial is optional
                             openTree.launch(null)
                         },
+                        onSelectDiscovered = viewModel::selectDiscoveredVault,
                         onSelectVault = viewModel::selectVault,
                         onUseFolderAsVault = viewModel::useAccessRootAsVault,
                         onRescan = viewModel::rescanListedVaults,
@@ -106,6 +97,34 @@ class MainActivity : ComponentActivity() {
                     )
                 }
             }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        viewModel.onResume()
+    }
+
+    private fun openAllFilesSettings() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            try {
+                val intent =
+                    Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
+                        data = Uri.parse("package:$packageName")
+                    }
+                startActivity(intent)
+                Toast
+                    .makeText(
+                        this,
+                        "Turn on Allow access to manage all files, then return here",
+                        Toast.LENGTH_LONG,
+                    ).show()
+            } catch (e: Exception) {
+                Log.e(TAG, "all-files settings failed", e)
+                startActivity(Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION))
+            }
+        } else {
+            viewModel.refreshAllFilesAndScan()
         }
     }
 
