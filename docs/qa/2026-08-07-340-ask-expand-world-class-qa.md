@@ -240,8 +240,19 @@ Already well covered: outbox refusal on orphaned/legacy write versions
 
 **None applied.** Every proven hole is pre-existing in code outside this diff; fixing them here
 would widen a PR that is one gate from merge, and the fixes (binding mirror state to an account
-generation; making Wipe disarm the mirror) are design decisions, not patches. **Deferred to the
-owner** — see the merge decision below.
+generation; making Wipe disarm the mirror) are design decisions, not patches.
+
+**Deferred by the owner on 2026-08-07, and filed:**
+
+| Hole | Issue |
+|---|---|
+| P1-1 Wipe undoes itself | [#371](https://github.com/taihartman/obsidian-atoms/issues/371) |
+| P1-2 consents inherited across accounts, P2-1 silently incomplete mirror | [#372](https://github.com/taihartman/obsidian-atoms/issues/372) |
+| P2-2 unresponsive backend wedges the mirror | [#373](https://github.com/taihartman/obsidian-atoms/issues/373) |
+| P2-3 status line ignores consent | [#374](https://github.com/taihartman/obsidian-atoms/issues/374) |
+
+Agreed plan: merge #340 first so the seven-clause consent reaches devices, then fix these on their
+own branch.
 
 ## Not tested
 
@@ -269,8 +280,8 @@ make either worse (it extends clause (6) by one item, which is honest about inte
 defect), and holding it keeps every user on the older six-clause consent that does not mention
 Anthropic search-expansion egress at all.
 
-**Owner decides:** merge #340 and file P1-1 (wipe does not stick) and P1-2 (consents inherited across
-accounts) as their own issues, with P2-1/P2-2/P2-3 folded in. Note that merging now also **ships a
+**Owner decided (2026-08-07):** merge #340; the five holes are filed as #371–#374 and fixed on their
+own branch afterwards. Note that merging now also **ships a
 Release automatically** (`beab58f`), so BRAT users get 0.6.87 with no separate step — which is the
 faster propagation the accepted client-side-only-gate risk leans on.
 
