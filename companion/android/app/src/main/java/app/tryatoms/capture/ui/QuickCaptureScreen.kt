@@ -1,9 +1,12 @@
 package app.tryatoms.capture.ui
 
-import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -11,35 +14,48 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import app.tryatoms.capture.ui.theme.AtomsColor
 import app.tryatoms.capture.ui.theme.AtomsShapes
 import app.tryatoms.capture.ui.theme.AtomsThemeAccess
-import app.tryatoms.capture.ui.theme.atomsFieldColors
-import app.tryatoms.capture.ui.theme.atomsPrimaryButtonColors
-import app.tryatoms.capture.ui.theme.atomsQuietButtonColors
-import app.tryatoms.capture.ui.theme.claimSerifStyle
-import app.tryatoms.capture.ui.theme.kickerStyle
+import app.tryatoms.capture.ui.theme.ClaimSerif
 import kotlinx.coroutines.delay
 
+/**
+ * Top-of-screen capture strip — not a full page.
+ * Text field + native mic + send check.
+ */
 @Composable
 fun QuickCaptureScreen(
     draft: String,
@@ -49,8 +65,9 @@ fun QuickCaptureScreen(
     busy: Boolean,
     error: String?,
     onCapture: () -> Unit,
+    onVoice: () -> Unit,
     onOpenHub: () -> Unit,
-    onCancel: () -> Unit,
+    onDismiss: () -> Unit,
 ) {
     val extras = AtomsThemeAccess.extras
     val focusRequester = remember { FocusRequester() }
@@ -58,128 +75,206 @@ fun QuickCaptureScreen(
 
     LaunchedEffect(linked) {
         if (linked) {
-            delay(80)
+            delay(60)
             focusRequester.requestFocus()
             keyboard?.show()
         }
     }
 
-    Column(
+    Box(
         modifier =
             Modifier
                 .fillMaxSize()
                 .imePadding()
-                .padding(horizontal = 16.dp, vertical = 20.dp)
-                .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+                // Transparent — system dim from theme; tap empty area to dismiss
+                .clickable(
+                    indication = null,
+                    interactionSource = remember { MutableInteractionSource() },
+                    onClick = onDismiss,
+                ),
     ) {
-        Text("CAPTURE", style = kickerStyle)
-        Text(
-            "“What’s on your mind?”",
-            style = claimSerifStyle,
-        )
-        if (linked && vaultName != null) {
-            Text(
-                vaultName,
-                style = MaterialTheme.typography.bodySmall,
-                color = extras.secondaryText,
-            )
-        }
-
-        if (!linked) {
-            Card(
-                shape = AtomsShapes.card,
-                colors = CardDefaults.cardColors(containerColor = extras.waitingFill),
-                border = BorderStroke(1.dp, extras.waitingBorder),
-                elevation = CardDefaults.cardElevation(0.dp),
+        Surface(
+            modifier =
+                Modifier
+                    .align(Alignment.TopCenter)
+                    .statusBarsPadding()
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
+                    .fillMaxWidth()
+                    .clickable(
+                        indication = null,
+                        interactionSource = remember { MutableInteractionSource() },
+                        onClick = { /* consume — don't dismiss when tapping card */ },
+                    ),
+            shape = AtomsShapes.card,
+            color = extras.card,
+            tonalElevation = 0.dp,
+            shadowElevation = 8.dp,
+        ) {
+            Column(
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        "Link a vault first",
-                        style = MaterialTheme.typography.titleMedium,
+                        text =
+                            if (linked) {
+                                "What’s on your mind?"
+                            } else {
+                                "Link a vault first"
+                            },
+                        style =
+                            TextStyle(
+                                fontFamily = ClaimSerif,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Normal,
+                                color = MaterialTheme.colorScheme.onSurface,
+                            ),
                     )
+                    IconButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.size(36.dp),
+                    ) {
+                        Icon(
+                            Icons.Filled.Close,
+                            contentDescription = "Close",
+                            tint = extras.secondaryText,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
+                }
+
+                if (!linked) {
                     Text(
-                        "Open Atoms Capture once to choose your vault. Then the widget and shortcut work in one tap.",
+                        "Open Atoms Capture once to choose your vault.",
                         style = MaterialTheme.typography.bodySmall,
                         color = extras.secondaryText,
                     )
-                    Button(
-                        onClick = onOpenHub,
-                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
-                        shape = AtomsShapes.button,
-                        colors = atomsPrimaryButtonColors(),
+                    TextButton(onClick = onOpenHub) {
+                        Text("Open hub", color = MaterialTheme.colorScheme.primary)
+                    }
+                    return@Column
+                }
+
+                if (vaultName != null) {
+                    Text(
+                        vaultName,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = extras.tertiaryText,
+                    )
+                }
+
+                if (error != null) {
+                    Text(
+                        error,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    BasicTextField(
+                        value = draft,
+                        onValueChange = onDraftChange,
+                        modifier =
+                            Modifier
+                                .weight(1f)
+                                .heightIn(min = 44.dp, max = 120.dp)
+                                .focusRequester(focusRequester)
+                                .background(extras.elevated, AtomsShapes.field)
+                                .padding(horizontal = 14.dp, vertical = 12.dp),
+                        enabled = !busy,
+                        textStyle =
+                            TextStyle(
+                                color = MaterialTheme.colorScheme.onSurface,
+                                fontSize = 16.sp,
+                                lineHeight = 22.sp,
+                            ),
+                        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                        keyboardActions =
+                            KeyboardActions(
+                                onSend = {
+                                    if (draft.isNotBlank() && !busy) onCapture()
+                                },
+                            ),
+                        decorationBox = { inner ->
+                            Box {
+                                if (draft.isEmpty()) {
+                                    Text(
+                                        "Type or tap the mic…",
+                                        color = extras.tertiaryText,
+                                        fontSize = 16.sp,
+                                    )
+                                }
+                                inner()
+                            }
+                        },
+                    )
+
+                    // Native voice
+                    IconButton(
+                        onClick = onVoice,
+                        enabled = !busy,
+                        modifier =
+                            Modifier
+                                .size(44.dp)
+                                .clip(CircleShape)
+                                .background(extras.elevated),
                     ) {
-                        Text("Open Atoms Capture", style = MaterialTheme.typography.labelLarge)
+                        Icon(
+                            Icons.Filled.Mic,
+                            contentDescription = "Voice",
+                            tint = AtomsColor.Person,
+                        )
+                    }
+
+                    // Send
+                    IconButton(
+                        onClick = onCapture,
+                        enabled = !busy && draft.isNotBlank(),
+                        modifier =
+                            Modifier
+                                .size(44.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    if (draft.isNotBlank() && !busy) {
+                                        MaterialTheme.colorScheme.primary
+                                    } else {
+                                        extras.elevated
+                                    },
+                                ),
+                    ) {
+                        if (busy) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(22.dp),
+                                strokeWidth = 2.dp,
+                                color = MaterialTheme.colorScheme.onPrimary,
+                            )
+                        } else {
+                            Icon(
+                                Icons.Filled.Check,
+                                contentDescription = "Send",
+                                tint =
+                                    if (draft.isNotBlank()) {
+                                        MaterialTheme.colorScheme.onPrimary
+                                    } else {
+                                        extras.tertiaryText
+                                    },
+                            )
+                        }
                     }
                 }
-            }
-            TextButton(onClick = onCancel, colors = atomsQuietButtonColors()) {
-                Text("Cancel")
-            }
-            return@Column
-        }
 
-        if (error != null) {
-            Card(
-                shape = AtomsShapes.card,
-                colors = CardDefaults.cardColors(containerColor = extras.errorFill),
-                border = BorderStroke(1.dp, extras.errorBorder),
-                elevation = CardDefaults.cardElevation(0.dp),
-            ) {
-                Text(
-                    error,
-                    modifier = Modifier.padding(16.dp),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.error,
-                )
+                Spacer(modifier = Modifier.height(2.dp))
             }
         }
-
-        OutlinedTextField(
-            value = draft,
-            onValueChange = onDraftChange,
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 140.dp)
-                    .focusRequester(focusRequester),
-            enabled = !busy,
-            placeholder = {
-                Text("Type freely…", color = extras.tertiaryText)
-            },
-            shape = AtomsShapes.field,
-            colors = atomsFieldColors(),
-            textStyle = MaterialTheme.typography.bodyLarge,
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-            keyboardActions =
-                KeyboardActions(
-                    onDone = {
-                        if (draft.isNotBlank() && !busy) onCapture()
-                    },
-                ),
-        )
-
-        Button(
-            onClick = onCapture,
-            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
-            enabled = !busy && draft.isNotBlank(),
-            shape = AtomsShapes.button,
-            colors = atomsPrimaryButtonColors(),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-        ) {
-            Text(
-                if (busy) "Saving…" else "Capture",
-                style = MaterialTheme.typography.labelLarge,
-            )
-        }
-
-        TextButton(onClick = onCancel, colors = atomsQuietButtonColors()) {
-            Text("Cancel")
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
     }
 }

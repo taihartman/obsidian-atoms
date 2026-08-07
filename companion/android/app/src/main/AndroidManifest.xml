@@ -32,8 +32,10 @@
             android:name=".QuickCaptureActivity"
             android:excludeFromRecents="true"
             android:exported="true"
-            android:launchMode="singleTop"
-            android:theme="@style/Theme.AtomsCapture"
+            android:finishOnTaskLaunch="true"
+            android:launchMode="singleInstance"
+            android:taskAffinity=""
+            android:theme="@style/Theme.AtomsCapture.Overlay"
             android:windowSoftInputMode="stateVisible|adjustResize">
             <intent-filter>
                 <action android:name="app.tryatoms.capture.action.QUICK_CAPTURE" />
