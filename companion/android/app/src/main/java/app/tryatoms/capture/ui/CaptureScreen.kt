@@ -256,24 +256,58 @@ private fun VaultChooserCard(
             }
 
             // The Play build has no all-files permission to offer, so the folder
-            // picker is the whole story there rather than the fallback.
+            // picker is the whole story there rather than the fallback. It also
+            // has to carry the pick-a-vault step, since the scan branch below
+            // never runs and would otherwise strand a folder holding two vaults.
             if (!state.fileScanSupported) {
-                Text(
-                    "Pick the folder that holds your Obsidian vault. Atoms reads and writes " +
-                        "inside that folder and nowhere else.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = extras.secondaryText,
-                )
-                Button(
-                    onClick = onFindVaultsSaf,
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .heightIn(min = 48.dp),
-                    shape = AtomsShapes.button,
-                    colors = atomsPrimaryButtonColors(),
-                ) {
-                    FolderPickerLabel()
+                if (state.listedVaults.isEmpty()) {
+                    Text(
+                        "Pick the folder that holds your Obsidian vault. Atoms reads and writes " +
+                            "inside that folder and nowhere else.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = extras.secondaryText,
+                    )
+                    Button(
+                        onClick = onFindVaultsSaf,
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 48.dp),
+                        shape = AtomsShapes.button,
+                        colors = atomsPrimaryButtonColors(),
+                    ) {
+                        FolderPickerLabel()
+                    }
+                } else {
+                    state.listedVaults.forEach { vault ->
+                        VaultPickRow(
+                            title = vault.name,
+                            subtitle = "Obsidian vault",
+                            onClick = { onSelectVault(vault) },
+                        )
+                    }
+                    OutlinedButton(
+                        onClick = onFindVaultsSaf,
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 48.dp),
+                        shape = AtomsShapes.button,
+                        border = BorderStroke(1.dp, extras.hairline),
+                        colors =
+                            androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
+                                contentColor = MaterialTheme.colorScheme.onSurface,
+                            ),
+                    ) {
+                        FolderPickerLabel()
+                    }
+                }
+                // The escape hatch for a folder that IS the vault, or one whose
+                // .obsidian the picker did not surface.
+                if (state.hasAccessRoot) {
+                    TextButton(onClick = onUseFolderAsVault, colors = atomsQuietButtonColors()) {
+                        Text("Use this folder as vault")
+                    }
                 }
                 return@FlatCard
             }

@@ -133,6 +133,9 @@ abstract class VerifyPlayManifest : DefaultTask() {
                 "android.permission.MANAGE_EXTERNAL_STORAGE",
                 "android.permission.WRITE_EXTERNAL_STORAGE",
                 "android.permission.READ_EXTERNAL_STORAGE",
+                // The privacy policy and the store listing both say this app
+                // cannot reach the network. That claim needs a guard, not trust.
+                "android.permission.INTERNET",
             )
         val manifest = mergedManifest.get().asFile
         // Parsed, not grepped: attribute order and whitespace are the merger's
@@ -150,16 +153,17 @@ abstract class VerifyPlayManifest : DefaultTask() {
         }
 
         val found =
-            elements("uses-permission")
+            (elements("uses-permission") + elements("uses-permission-sdk-23"))
                 .map { it.getAttributeNS(ANDROID_NS, "name") }
                 .filter { it in banned }
                 .distinct()
         if (found.isNotEmpty()) {
             throw GradleException(
-                "The play flavor declares ${found.joinToString()} in ${manifest.name}. Play " +
-                    "grants broad storage access only to file managers, backup, and antivirus " +
-                    "apps, so this build would be rejected. Move the permission to the sideload " +
-                    "flavor, or reach the vault through the SAF folder picker.",
+                "The play flavor declares ${found.joinToString()} in ${manifest.name}. " +
+                    "Broad storage access is granted by Play only to file managers, backup, " +
+                    "and antivirus apps; INTERNET would contradict what the store listing and " +
+                    "the privacy policy both say this app cannot do. Move the permission to " +
+                    "the sideload flavor, or reach the vault through the SAF folder picker.",
             )
         }
 
@@ -189,21 +193,41 @@ androidComponents {
                 mergedManifest.set(variant.artifacts.get(SingleArtifact.MERGED_MANIFEST))
             }
         tasks
-            .matching { it.name == "assemble$capitalized" || it.name == "bundle$capitalized" }
-            .configureEach { dependsOn(verify) }
+            .matching {
+                it.name == "assemble$capitalized" ||
+                    it.name == "bundle$capitalized" ||
+                    // packageX / packageXBundle write the APK and AAB, so a
+                    // packaging-only invocation must not skip the check.
+                    it.name.startsWith("package$capitalized")
+            }.configureEach { dependsOn(verify) }
     }
 }
 
-// An unsigned bundle looks like a successful build right up until Play rejects
-// the upload, so fail here instead of there.
-tasks.matching { it.name.startsWith("bundle") && it.name.endsWith("Release") }.configureEach {
-    doFirst {
-        if (!hasKeystoreProps) {
-            throw GradleException(
-                "companion/android/keystore.properties is missing, so this bundle would be " +
-                    "unsigned. Copy keystore.properties.example, point it at your upload " +
-                    "keystore, and keep it out of git.",
-            )
+// An unsigned artifact looks like a successful build right up until Play rejects
+// the upload, so fail here instead of there. A present but half-filled
+// keystore.properties is the same trap wearing a passing exists() check.
+tasks
+    .matching {
+        (it.name.startsWith("bundle") || it.name.startsWith("assemble")) &&
+            it.name.endsWith("Release")
+    }.configureEach {
+        doFirst {
+            if (!hasKeystoreProps) {
+                throw GradleException(
+                    "companion/android/keystore.properties is missing, so this release would " +
+                        "be unsigned. Copy keystore.properties.example, point it at your " +
+                        "upload keystore, and keep it out of git.",
+                )
+            }
+            val blank =
+                listOf("storeFile", "storePassword", "keyAlias", "keyPassword")
+                    .filter { keystoreProps.getProperty(it).isNullOrBlank() }
+            if (blank.isNotEmpty()) {
+                throw GradleException(
+                    "companion/android/keystore.properties is missing values for " +
+                        "${blank.joinToString()}. The example ships them blank on purpose; " +
+                        "fill them in or signing fails later with a worse message.",
+                )
+            }
         }
     }
-}
