@@ -212,7 +212,8 @@ Personal DIY Ask does **not** need that shape: run development + dogfood + sqlit
 - Only flat **`Atoms/*.md`** leave the device for Ask (not dailies, not full vault).
 - Mirror bodies live in **your** store; with `ATOMS_ASK_MIRROR_KEY` they are AES-GCM at rest (`v1:`). Without a key, local/dev uses `plain:` — fine for throwaway dogfood, not for a shared host.
 - This is **not** zero-knowledge: anyone with the DB and key (or plaintext mode) can read bodies. Claude/ChatGPT receive tool results in their chat context.
-- **Wipe cloud copy** (Settings) deletes mirror rows, outbox, and MCP tokens for that account. Turning Ask off does **not** wipe.
+- **Wipe cloud copy** (Settings) deletes mirror rows (including encrypted search-expansion phrases), outbox, and MCP tokens for that account. Turning Ask off does **not** wipe.
+- **Search expansion:** **on by default since 0.6.87** — set `ASK_EXPAND_ENABLED=0` to turn it off. When on *and* `ANTHROPIC_API_KEY` is set, Plus may send title/tags/body slices to Anthropic on mirror upsert to build encrypted expansion phrases for `search_atoms`. This is the only Ask path that sends body **plaintext** off-device; clause (4) of the Ask privacy disclosure names it, and `ASK_PRIVACY_ACK_VERSION` re-prompts every device that only ever agreed to the older wording. A deployment with no `ANTHROPIC_API_KEY` is inert whatever the flag says, and keeps pure lexical search. Expansion text is never returned on MCP payloads. Note the spend caps (`ASK_EXPAND_CONCURRENCY`, `ASK_EXPAND_PER_EMAIL_PER_HOUR`, `ASK_EXPAND_PER_UPSERT_CAP`) are **per process**, so running N replicas gives you N× each of them.
 - Multi-device: **Sync now** can remove cloud paths missing from **this** vault’s full `keepPaths` — don’t force-sync from an incomplete secondary vault.
 
 ---

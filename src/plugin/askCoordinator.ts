@@ -411,6 +411,16 @@ export class AskCoordinator {
         ...(result.refusalReason ? { reason: result.refusalReason } : {}),
       };
     }
+    // Best-effort: fill search-expansion phrases for rows that still lack them
+    // (first deploy / soft-fail). Never block Sync success on expand quality —
+    // so it is fired, never awaited. Awaiting it held "Sync now" open for the
+    // whole server-side expand pass (one model call per missing row), which on
+    // a first sync is minutes and reads to the user as a hung Sync.
+    fireAndForgetAsk(
+      import("../platform/plusClient").then(({ askMirrorExpandBackfill }) =>
+        askMirrorExpandBackfill(cfg, token, { limit: 50 }),
+      ),
+    );
     return {
       kind: "worked",
       uploaded: result.uploaded,

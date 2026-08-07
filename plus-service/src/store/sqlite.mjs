@@ -116,6 +116,9 @@ function migrate(db) {
   if (!mirrorCols.some((c) => c.name === "created")) {
     db.exec("ALTER TABLE atom_mirror ADD COLUMN created TEXT");
   }
+  if (!mirrorCols.some((c) => c.name === "expand_enc")) {
+    db.exec("ALTER TABLE atom_mirror ADD COLUMN expand_enc TEXT");
+  }
 }
 
 export function createSqliteStore(dbPath = config.databasePath) {

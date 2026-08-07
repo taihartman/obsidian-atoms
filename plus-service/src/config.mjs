@@ -70,6 +70,72 @@ export const config = {
   get anthropicVersion() {
     return env("ANTHROPIC_VERSION", "2023-06-01");
   },
+  /**
+   * Ask search: index-time expand on mirror upsert (0 disables).
+   *
+   * **On by default as of 0.6.87 (#340).** This is the first Ask path that
+   * sends note **body plaintext** to Anthropic — classify is titles-only — so
+   * it was held off by default until the consent it rides on could be made
+   * honest. `askPrivacyAckAt` used to be a bare timestamp with no version, so
+   * a device that accepted the six-clause Ask privacy copy (which never
+   * mentioned body egress) still read as granted, with no way to invalidate it.
+   *
+   * #360 shipped the ack version, and #340 bumped `ASK_PRIVACY_ACK_VERSION` to
+   * "2026-08-07" against seven-clause wording whose clause (4) discloses this
+   * egress by name. Every existing device re-prompts before its mirror moves
+   * again, which is the condition this default was waiting on.
+   *
+   * Two gates still stand in front of the egress, and neither is this flag:
+   * a deployment with no `ANTHROPIC_API_KEY` is inert (`generateExpandPhrases`
+   * returns `no_key` before it builds a request), and an operator who wants it
+   * off sets `ASK_EXPAND_ENABLED=0`. See #339, plan R18.
+   */
+  get askExpandEnabled() {
+    return env("ASK_EXPAND_ENABLED", "1") !== "0";
+  },
+  /**
+   * Expand model: explicit `ASK_EXPAND_MODEL` wins, otherwise whatever classify
+   * resolves to.
+   *
+   * This delegates to `anthropicModel` instead of re-reading `ATOMS_PLUS_MODEL`
+   * with a second fallback of its own. It used to do the latter, against a
+   * different dated id, so an unset deployment quietly ran classify on one
+   * model and expand on another — the opposite of what the comment promised.
+   * One default, in one place.
+   */
+  get askExpandModel() {
+    const explicit = env("ASK_EXPAND_MODEL", "");
+    if (explicit) return explicit;
+    return this.anthropicModel;
+  },
+  get askExpandTimeoutMs() {
+    const n = Number(env("ASK_EXPAND_TIMEOUT_MS", "12000"));
+    return Number.isFinite(n) && n >= 1000 ? n : 12000;
+  },
+  get askExpandConcurrency() {
+    const n = Number(env("ASK_EXPAND_CONCURRENCY", "3"));
+    return Number.isFinite(n) && n >= 1 ? Math.min(n, 8) : 3;
+  },
+  get askExpandPerEmailPerHour() {
+    const n = Number(env("ASK_EXPAND_PER_EMAIL_PER_HOUR", "200"));
+    return Number.isFinite(n) && n >= 0 ? n : 200;
+  },
+  /**
+   * Min expand_coverage to advertise retrieval=lexical_expanded.
+   *
+   * KTD1/R22: a mostly-unexpanded index must not claim paraphrase mode. The
+   * old 0.01 floor advertised `lexical_expanded` off a single expanded row in
+   * a hundred, which is the "the column exists" claim the plan forbids. 0.8 is
+   * the plan's dogfood floor.
+   */
+  get askExpandCoverageFloor() {
+    const n = Number(env("ASK_EXPAND_COVERAGE_FLOOR", "0.8"));
+    return Number.isFinite(n) && n >= 0 && n <= 1 ? n : 0.8;
+  },
+  get askExpandPerUpsertCap() {
+    const n = Number(env("ASK_EXPAND_PER_UPSERT_CAP", "40"));
+    return Number.isFinite(n) && n >= 0 ? n : 40;
+  },
   get includedFilings() {
     return Number(
       env("ATOMS_PLUS_INCLUDED", String(pricing.includedFilingsPerPeriod ?? 150)),
