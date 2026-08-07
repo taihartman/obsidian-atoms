@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { App, PluginManifest } from "obsidian";
 import AtomsPlugin from "../src/plugin/main";
+import {
+  ASK_PRIVACY_ACK_VERSION,
+  ASK_WRITE_ACK_VERSION,
+} from "../src/shared/askAck";
 
 /**
  * #323 — the Ask consent acks live in `data.json`, which Obsidian Sync replicates between
@@ -34,13 +38,27 @@ function pluginOnSyncedVault(disk: Record<string, unknown>) {
   return { plugin, syncWrites, readDisk };
 }
 
+/**
+ * A live grant on both acks: timestamps *and* the versions this build ships (#360).
+ *
+ * The versions belong in the fixture because they are half of what a grant now is. A record
+ * carrying only timestamps is a pre-#360 device — a different state, with its own test below.
+ */
 const GRANTED = {
   askEnabled: true,
   askPrivacyAckAt: "2026-08-01T00:00:00.000Z",
+  askPrivacyAckVersion: ASK_PRIVACY_ACK_VERSION,
   askWriteAckAt: "2026-08-01T00:00:00.000Z",
+  askWriteAckVersion: ASK_WRITE_ACK_VERSION,
 };
 
-const WITHDRAWN = { ...GRANTED, askPrivacyAckAt: "", askWriteAckAt: "" };
+const WITHDRAWN = {
+  ...GRANTED,
+  askPrivacyAckAt: "",
+  askPrivacyAckVersion: "",
+  askWriteAckAt: "",
+  askWriteAckVersion: "",
+};
 
 describe("#323 cross-device consent", () => {
   it("closes the mirror gate when another device withdraws the ack, without a restart", async () => {
@@ -55,6 +73,105 @@ describe("#323 cross-device consent", () => {
     // Every gate reads these two, so falsifying them is what closes egress.
     expect(plugin.settings.askPrivacyAckAt).toBe("");
     expect(plugin.settings.askWriteAckAt).toBe("");
+  });
+
+  /**
+   * #360 — the versions are what the gates actually read now, so a revoke that took only the
+   * timestamps would close nothing. Worse, it would leave a *withdrawn* ack still naming
+   * current wording: the next enable on this device would find a stamp it never wrote, and
+   * grant without posing the sheet.
+   */
+  it("takes the ack versions too, not only their timestamps", async () => {
+    const { plugin, syncWrites, readDisk } = pluginOnSyncedVault(GRANTED);
+    await plugin.loadSettings();
+    expect(plugin.settings.askPrivacyAckVersion).toBe(ASK_PRIVACY_ACK_VERSION);
+
+    syncWrites(WITHDRAWN);
+    await plugin.onExternalSettingsChange();
+
+    expect(plugin.settings.askPrivacyAckVersion).toBe("");
+    expect(plugin.settings.askWriteAckVersion).toBe("");
+    // Egress is the assertion that matters — the gate the version feeds is shut.
+    expect(plugin.ask.mirrorPermitted()).toBe(false);
+    // And it reaches disk, or the next writer pushes the stamp back out to every device.
+    expect(readDisk().askPrivacyAckVersion).toBe("");
+  });
+
+  /**
+   * #360 — the withdrawal a **pre-#360 device** writes, which is the realistic one during any
+   * staggered BRAT rollout. That build clears the timestamps and has no version keys at all, so
+   * they are not falsy in the payload, they are *absent* — and a per-key revoke skips them.
+   *
+   * Left standing, the version alone used to read as live consent while the timestamp-keyed
+   * withdrawal row refused to render, so nothing on screen could take it back.
+   */
+  it("clears a version the older device's payload never mentions", async () => {
+    const { plugin, syncWrites } = pluginOnSyncedVault(GRANTED);
+    await plugin.loadSettings();
+
+    // Exactly what the shipping build persists: timestamps emptied, version keys unknown to it.
+    syncWrites({ askEnabled: false, askPrivacyAckAt: "", askWriteAckAt: "" });
+    await plugin.onExternalSettingsChange();
+
+    // On the plain-reload path `DEFAULT_SETTINGS` supplies the missing halves, so the orphan
+    // never forms. Asserted anyway: it is the common path, and it is what makes the race-path
+    // test below the *only* place the pairing has to be explicit.
+    expect(plugin.settings.askPrivacyAckVersion).toBe("");
+    expect(plugin.settings.askWriteAckVersion).toBe("");
+    expect(plugin.ask.mirrorPermitted()).toBe(false);
+  });
+
+  /**
+   * The same older-device withdrawal, arriving on the F2 race path — where `adoptExternalWithdrawal`
+   * takes fields one at a time instead of replacing the object, so nothing supplies a default.
+   *
+   * This is the one place the orphan can actually form. `revoke` acts only on a key that is
+   * *present and falsy*, and this payload does not carry the version keys at all, so a per-key
+   * revoke would keep the stamp while dropping the timestamp it belonged to.
+   */
+  it("pairs the version with its timestamp when a local save overtook that older read", async () => {
+    const { plugin, readDisk } = pluginOnSyncedVault(GRANTED);
+    await plugin.loadSettings();
+    plugin.ask.cancelPendingSync = () => {};
+
+    let releaseRead = () => {};
+    const readInFlight = new Promise<void>((resolve) => {
+      releaseRead = resolve;
+    });
+    Object.assign(plugin, {
+      loadData: async () => {
+        await readInFlight;
+        return { askEnabled: false, askPrivacyAckAt: "", askWriteAckAt: "" };
+      },
+    });
+
+    const hook = plugin.onExternalSettingsChange();
+    plugin.settings.activeVocabulary = "changed-by-something-else";
+    await plugin.saveSettings();
+    releaseRead();
+    await hook;
+
+    expect(plugin.settings.askPrivacyAckAt).toBe("");
+    expect(plugin.settings.askPrivacyAckVersion).toBe("");
+    expect(plugin.settings.askWriteAckVersion).toBe("");
+    // Egress is the assertion that matters — a version-only gate opened here.
+    expect(plugin.ask.mirrorPermitted()).toBe(false);
+    // And it reaches disk, or the next writer hands the orphan back to every device.
+    expect(readDisk().askPrivacyAckVersion).toBe("");
+  });
+
+  /** The grant direction carries the versions too, or the mirror never reopens. */
+  it("adopts both halves of a grant made on another device", async () => {
+    const { plugin, syncWrites } = pluginOnSyncedVault(WITHDRAWN);
+    await plugin.loadSettings();
+    expect(plugin.ask.mirrorPermitted()).toBe(false);
+
+    syncWrites(GRANTED);
+    await plugin.onExternalSettingsChange();
+
+    expect(plugin.settings.askPrivacyAckVersion).toBe(ASK_PRIVACY_ACK_VERSION);
+    expect(plugin.settings.askWriteAckVersion).toBe(ASK_WRITE_ACK_VERSION);
+    expect(plugin.ask.mirrorPermitted()).toBe(true);
   });
 
   it("picks up a grant made on another device too, not just a withdrawal", async () => {

@@ -163,13 +163,28 @@ export interface LinkerSettings {
   enableHubProjection: boolean;
   /** Opt-in cloud mirror of Atoms/ for remote MCP Ask (Plus). */
   askEnabled: boolean;
-  /** Privacy ack timestamp ISO — required before first Ask push. */
+  /**
+   * Privacy ack timestamp ISO — *when* consent was given. Never read alone as a grant:
+   * `askPrivacyAckVersion` below is what says the consent is still live (#360).
+   *
+   * Kept as the record the withdrawal row renders from, so a device whose version has gone
+   * stale still has a surface that can take the grant back.
+   */
   askPrivacyAckAt: string;
   /**
+   * Which `ASK_PRIVACY_DISCLOSURE` wording that timestamp was granted against — *what* was
+   * agreed to. Empty (every pre-#360 grant) or any value other than the shipped
+   * `ASK_PRIVACY_ACK_VERSION` is not consent; see `src/shared/askAck.ts`.
+   */
+  askPrivacyAckVersion: string;
+  /**
    * Allow filing from Claude (outbox apply). Separate from read mirror ack.
-   * ISO timestamp when enabled; empty = off.
+   * ISO timestamp when enabled; empty = off. Paired with `askWriteAckVersion` for the same
+   * reason the privacy ack is.
    */
   askWriteAckAt: string;
+  /** Which `ASK_WRITE_DISCLOSURE` wording the write ack was granted against. */
+  askWriteAckVersion: string;
 }
 
 export const DEFAULT_SETTINGS: LinkerSettings = {
@@ -198,7 +213,9 @@ export const DEFAULT_SETTINGS: LinkerSettings = {
   enableHubProjection: false,
   askEnabled: false,
   askPrivacyAckAt: "",
+  askPrivacyAckVersion: "",
   askWriteAckAt: "",
+  askWriteAckVersion: "",
 };
 
 /** SecretStorage / localStorage keys — lowercase-dashed (KTD5). */

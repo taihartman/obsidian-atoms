@@ -24,10 +24,14 @@ export const EGRESS_DISCLOSURE =
   '(1) Atoms sends my vault title graph and each capture to the Anthropic API over TLS, unattended — when Obsidian opens and when it returns to the foreground; (2) tapping "Sync everything now" classifies even when automatic filing is turned off; (3) today’s daily note is never auto-touched; (4) this setting stays on this device only.';
 
 export const ASK_PRIVACY_ACK_TITLE = "What Ask stores and shares";
+// **Changing what this discloses means bumping `ASK_PRIVACY_ACK_VERSION`** (src/shared/askAck.ts).
+// Devices store the version they accepted; leaving it alone leaves every existing device holding
+// a consent record for wording it never saw. `askConsentVersion.test.ts` freezes the two together.
 export const ASK_PRIVACY_DISCLOSURE =
   "(1) only Atoms/ leaves this device; (2) bodies are stored on Atoms Plus servers; (3) the host can decrypt at rest in v1 (not zero-knowledge); (4) Atoms Plus may send title, tags, and body slices to Anthropic to build encrypted search-expansion phrases for Ask (not zero-knowledge; Wipe removes them with the mirror); (5) when I chat in Claude, Anthropic receives tool results (titles, snippets, bodies); when I chat in ChatGPT, OpenAI receives them; (6) Wipe deletes the cloud mirror, search expansions, pending outbox writes, and connector tokens; (7) turning Ask off does not wipe.";
 
 export const ASK_WRITE_ACK_TITLE = "Vault write acknowledgment";
+// **Changing what this discloses means bumping `ASK_WRITE_ACK_VERSION`** (src/shared/askAck.ts).
 export const ASK_WRITE_DISCLOSURE =
   "Claude or ChatGPT can queue new atom bodies to Atoms Plus, and this vault will write them as new files under my Atoms folder. New files only — existing bodies are never rewritten. This is a separate consent from the Ask privacy acknowledgment, and turning it off stops the writes without touching the mirror.";
 

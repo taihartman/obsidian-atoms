@@ -142,6 +142,16 @@ export type AskOutboxHost = {
     id: string,
     ack: { status: "applied" | "rejected"; error?: string },
   ): Promise<void>;
+  /**
+   * Whether this pass may still create files, asked **live** before every item.
+   *
+   * One pass hands up to ten network round trips to this loop, and consent can be withdrawn
+   * during any of them — locally, or by Sync landing another device's withdrawal. Checking once
+   * at the entry gate leaves items 2..N landing in the vault under a consent that is already
+   * gone. The mirror push has carried its own second gate for exactly this reason since #323;
+   * the outbox, which is the path that actually writes files, had none.
+   */
+  writePermitted(): boolean;
   /** Write the atom into the vault (create-only; never rewrites a body). */
   applyToVault(payload: AskOutboxPayload): Promise<OutboxApplyResult>;
   /** Push the vault so the atom just written is actually in the cloud. */
@@ -224,6 +234,9 @@ export async function runAskOutboxApply(
       return outcome;
     };
     for (let i = 0; i < MAX_ITEMS_PER_PASS; i++) {
+      // Before the pull, so a withdrawal that lands mid-pass costs the user nothing further:
+      // no item is claimed, none is acked, and what already landed stays landed.
+      if (!host.writePermitted()) break;
       const item = await host.pullOne();
       if (!item) break;
       const payload = item.payload;

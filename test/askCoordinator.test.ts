@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AskCoordinator } from "../src/plugin/askCoordinator";
 import { fireAndForgetAsk } from "../src/shared/fireAndForget";
 import { DEFAULT_SETTINGS } from "../src/shared/types";
+import { ASK_PRIVACY_ACK_VERSION } from "../src/shared/askAck";
 import { stripLegacyAskMirrorHashes } from "../src/platform/askMirror";
 import type { AskMirrorHost } from "../src/platform/askMirror";
 import type { ConfirmRequest, ConfirmVerdict } from "../src/shared/confirm";
@@ -102,16 +103,28 @@ function makeCoordinator() {
       ...DEFAULT_SETTINGS,
       askEnabled: true,
       askPrivacyAckAt: GRANTED_AT,
+      askPrivacyAckVersion: ASK_PRIVACY_ACK_VERSION,
       plusBaseUrl: "",
     },
     refreshAtomsHomeLeaves: async () => undefined,
   };
   const coordinator = new AskCoordinator(plugin as never);
-  /** What Sync landing another device's withdrawal looks like from in here. */
+  /**
+   * What Sync landing another device's withdrawal looks like from in here.
+   *
+   * Timestamp and version move together, because that is what every withdrawal path in the
+   * plugin writes (#360). A helper that cleared only one would be testing a state the app
+   * cannot produce.
+   */
   const withdrawConsent = () => {
     plugin.settings.askPrivacyAckAt = "";
+    plugin.settings.askPrivacyAckVersion = "";
   };
-  return { coordinator, plugin, withdrawConsent };
+  const grantConsent = () => {
+    plugin.settings.askPrivacyAckAt = GRANTED_AT;
+    plugin.settings.askPrivacyAckVersion = ASK_PRIVACY_ACK_VERSION;
+  };
+  return { coordinator, plugin, withdrawConsent, grantConsent };
 }
 
 describe("askCoordinator glue (post-#226 residual peel)", () => {
@@ -244,7 +257,7 @@ describe("#323 F1 — consent withdrawn mid-flight stops the follow-up push", ()
   it("cancelPendingSync disarms the debounce, so a re-grant does not fire the cancelled push", async () => {
     vi.useFakeTimers();
     try {
-      const { coordinator, plugin, withdrawConsent } = makeCoordinator();
+      const { coordinator, withdrawConsent, grantConsent } = makeCoordinator();
       // A vault edit with nothing in flight arms the 2s debounce.
       coordinator.scheduleSync();
       withdrawConsent();
@@ -252,7 +265,7 @@ describe("#323 F1 — consent withdrawn mid-flight stops the follow-up push", ()
       // The user re-grants inside the debounce window. Without the timer clear the
       // armed callback would now find consent in place and push the batch that was
       // scheduled under the *old* grant.
-      plugin.settings.askPrivacyAckAt = GRANTED_AT;
+      grantConsent();
 
       await vi.advanceTimersByTimeAsync(3000);
 

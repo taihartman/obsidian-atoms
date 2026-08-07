@@ -14,6 +14,7 @@ import { Notice, TFile } from "obsidian";
 import type AtomsPlugin from "./main";
 import { clampAtomFolder } from "../pipeline/render";
 import { fireAndForgetAsk } from "../shared/fireAndForget";
+import { askPrivacyAckIsCurrent, askWriteAckIsCurrent } from "../shared/askAck";
 import {
   isAskMirrorWatchPath,
   readAskMirrorHashes,
@@ -112,10 +113,13 @@ export class AskCoordinator {
    * other. Read live at every call rather than captured, because `data.json` syncs —
    * a withdrawal on another device replaces `plugin.settings` underneath a pass that
    * is already running (#323).
+   *
+   * Asked of the ack *version*, not the timestamp: a grant made against wording this build no
+   * longer shows is not consent to push under (#360).
    */
   mirrorPermitted(): boolean {
     const p = this.plugin;
-    return p.settings.askEnabled && Boolean(p.settings.askPrivacyAckAt);
+    return p.settings.askEnabled && askPrivacyAckIsCurrent(p.settings);
   }
 
   /** Forget the debounced push this device owes itself; keeps no timer alive. */
@@ -174,7 +178,7 @@ export class AskCoordinator {
     // The shared half asked through `mirrorPermitted()`, not re-derived: a hand-written
     // second copy is exactly how the next condition added to the gate misses this path.
     // The write ack is this path's own — it authorizes cloud data landing in the vault.
-    if (!this.mirrorPermitted() || !p.settings.askWriteAckAt) {
+    if (!this.mirrorPermitted() || !askWriteAckIsCurrent(p.settings)) {
       return idle;
     }
     const host = await this.createOutboxHost();
@@ -228,6 +232,11 @@ export class AskCoordinator {
       ack: async (id, ack) => {
         await askOutboxAck(cfg, token, { id, ...ack });
       },
+      // Read live off `plugin.settings`, never captured: `data.json` syncs, so a withdrawal
+      // made on another device replaces the object underneath a pass that is already running.
+      // Same two halves the entry gate asks, asked again per item.
+      writePermitted: () =>
+        this.mirrorPermitted() && askWriteAckIsCurrent(p.settings),
       applyToVault: (payload) => applyOutboxItemToVault(vault, folder, payload),
       syncMirror: () => this.sync({ force: false }),
       notice: (message) => new Notice(message),

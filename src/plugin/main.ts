@@ -165,6 +165,7 @@ import {
 import { isEligibleForUpdate } from "../pipeline/atomQuality";
 import { formatUpdateSummary } from "../home/runProgress";
 import { stripLegacyAskMirrorHashes } from "../platform/askMirror";
+import { askPrivacyAckIsCurrent, settleAckRecords } from "../shared/askAck";
 import { createSignInHandoffQueue } from "../platform/plusSignIn";
 import {
   askSignInApproval,
@@ -1471,6 +1472,7 @@ export default class AtomsPlugin extends Plugin {
     const stripped = stripLegacyAskMirrorHashes(raw);
     this.settings = Object.assign({}, DEFAULT_SETTINGS, raw);
     this.settings.atomFolder = clampAtomFolder(this.settings.atomFolder);
+    settleAckRecords(this.settings);
     return stripped;
   }
 
@@ -1485,7 +1487,14 @@ export default class AtomsPlugin extends Plugin {
    */
   private async adoptExternalWithdrawal(next: Partial<LinkerSettings>): Promise<void> {
     let changed = false;
-    const revoke = <K extends "askEnabled" | "askPrivacyAckAt" | "askWriteAckAt">(
+    const revoke = <
+      K extends
+        | "askEnabled"
+        | "askPrivacyAckAt"
+        | "askPrivacyAckVersion"
+        | "askWriteAckAt"
+        | "askWriteAckVersion",
+    >(
       key: K,
       cleared: LinkerSettings[K],
     ) => {
@@ -1493,9 +1502,36 @@ export default class AtomsPlugin extends Plugin {
       this.settings[key] = cleared;
       changed = true;
     };
+    /**
+     * An ack's two halves are one record, so its version dies with its timestamp.
+     *
+     * `revoke` alone is not enough for the pair. It acts only on a key that is *present and
+     * falsy*, and the device most likely to send this withdrawal is one whose schema predates
+     * the version field entirely — so the key is not falsy, it is absent, and a per-key revoke
+     * silently keeps the version. That leaves a withdrawn ack still naming current wording: the
+     * next enable on this device would find a stamp it never wrote and grant without the sheet.
+     * Forcing the version here is safe because the branch has already decided this is a
+     * withdrawal.
+     */
+    const revokePaired = (
+      at: "askPrivacyAckAt" | "askWriteAckAt",
+      version: "askPrivacyAckVersion" | "askWriteAckVersion",
+    ) => {
+      revoke(at, "");
+      if (this.settings[at] || !this.settings[version]) return;
+      this.settings[version] = "";
+      changed = true;
+    };
     revoke("askEnabled", false);
-    revoke("askPrivacyAckAt", "");
-    revoke("askWriteAckAt", "");
+    revokePaired("askPrivacyAckAt", "askPrivacyAckVersion");
+    revokePaired("askWriteAckAt", "askWriteAckVersion");
+    // The write ack cannot outlive the privacy ack it was granted on top of, and this path can
+    // take the broader one without the narrower one being mentioned at all.
+    if (!askPrivacyAckIsCurrent(this.settings) && this.settings.askWriteAckAt) {
+      this.settings.askWriteAckAt = "";
+      this.settings.askWriteAckVersion = "";
+      changed = true;
+    }
     if (!changed) return;
     // Persist now. The save that won the race has already put the grant back on disk, so
     // leaving this in memory alone would let the next writer push it out to every device.
@@ -1541,7 +1577,13 @@ export default class AtomsPlugin extends Plugin {
     // reset to DEFAULT_SETTINGS at runtime — consent fails closed, but `plusBaseUrl`,
     // `atomFolder`, and the active vocabulary are gone, and the next save persists that wipe
     // everywhere. Treat it exactly like the throw: keep the last good copy.
+    // `{}` and `[]` are objects, so a `typeof` test alone lets the very shape this guard exists
+    // to refuse straight through — and `Object.assign` then resets every field to its default,
+    // inventing a withdrawal and wiping `atomFolder` / `plusBaseUrl` / the vocabulary with it.
+    // A settings file that has never been written is `null`, not empty, so a keyless object is
+    // always a mid-write artifact rather than a legitimate state.
     if (raw == null || typeof raw !== "object") return;
+    if (Array.isArray(raw) || Object.keys(raw).length === 0) return;
     const next = raw as Partial<LinkerSettings>;
     if (generation !== this.settingsGeneration) {
       // A local save overtook this read, so its copy is the newer one for every ordinary
