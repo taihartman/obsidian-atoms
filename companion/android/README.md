@@ -1,4 +1,4 @@
-# Atoms Capture (Android POC)
+# Atoms Capture (Android)
 
 Thin companion app: **type → save** appends a stamped line to  
 `Atoms System/Inbox.md` in your Obsidian vault via the Storage Access Framework.
@@ -13,27 +13,62 @@ Thin companion app: **type → save** appends a stamped line to
 - Android SDK (`ANDROID_HOME` or `local.properties` `sdk.dir`)
 - Device or emulator (API 26+)
 
+## Flavors
+
+How a build reaches the vault depends on where it is going, so it is a flavor and
+not a setting.
+
+| Flavor | Storage | Ships as |
+|---|---|---|
+| `play` | SAF folder picker only | Google Play |
+| `sideload` | Adds `MANAGE_EXTERNAL_STORAGE`, so vaults are found without picking a folder | Direct APK install |
+
+Play grants all-files access only to file managers, backup, and antivirus apps, so
+the store build cannot have it. `verifyPlay<Variant>Manifest` reads the **merged**
+manifest and fails the build if the permission comes back, from our manifest or a
+library's.
+
+`FileTreeAccess` is the seam: each flavor supplies its own, and `VaultLocator`
+lives only in `sideload`, so a play build that tries to scan the phone will not
+compile.
+
 ## Build & test
 
 ```bash
 cd companion/android
 ./gradlew test
-./gradlew assembleDebug
+./gradlew assemblePlayDebug
+./gradlew assembleSideloadDebug
 ```
 
-APK: `app/build/outputs/apk/debug/app-debug.apk`
+APK: `app/build/outputs/apk/play/debug/app-play-debug.apk`
 
 ```bash
-adb install -r app/build/outputs/apk/debug/app-debug.apk
+adb install -r app/build/outputs/apk/play/debug/app-play-debug.apk
 adb shell am start -n app.tryatoms.capture/.MainActivity
 ```
+
+## Release build
+
+The upload keystore lives on the owner's machine and never in git. Copy
+`keystore.properties.example` to `keystore.properties`, point it at the keystore,
+then:
+
+```bash
+./gradlew bundlePlayRelease
+```
+
+Without `keystore.properties` the bundle task fails rather than quietly producing
+an unsigned AAB. Output: `app/build/outputs/bundle/playRelease/app-play-release.aab`.
 
 ## Dogfood
 
 ### Hub (once)
 
 1. Prefer a **throwaway vault** for agent tests when possible.
-2. Open **Atoms Capture** → **Allow file access** (all files) so vaults are found automatically.
+2. Open **Atoms Capture**. On a `sideload` build, **Allow file access** finds vaults
+   automatically; on a `play` build, use **Folder picker** and choose the folder your
+   vault lives in.
 3. Pick **Remote Vault** (or your vault) if more than one appears.
 4. Optional hub capture to confirm write.
 
@@ -63,6 +98,9 @@ Open Obsidian with Atoms → drain files into the daily for the stamp’s date.
 | Link vault | Persistable SAF tree URI stored |
 | Save a capture | Successful append once |
 
-## Out of POC
+## Not built yet
 
-Widgets, share sheet, iOS, Plus capture queue, Play Store release.
+Share sheet, iOS, Plus capture queue.
+
+Store listing assets and copy live in [`store/`](store/). Play publishing is tracked in
+[#382](https://github.com/taihartman/obsidian-atoms/issues/382).

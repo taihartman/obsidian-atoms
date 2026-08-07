@@ -9,8 +9,13 @@ import android.util.Log
  * Vault link prefs — SharedPreferences with commit() so grants survive restart.
  *
  * Two link modes:
- * - **File path** (preferred): absolute vault path after all-files scan
- * - **SAF**: tree URI + relative path (fallback)
+ * - **File path**: absolute vault path after an all-files scan. Sideload only.
+ * - **SAF**: tree URI + relative path. The only mode the Play build has.
+ *
+ * Both flavors share an applicationId, so installing the Play build over a
+ * sideload one inherits its prefs. A file-path link there would read as linked
+ * while every capture failed, so [linkedAbsolutePath] drops it and the hub asks
+ * for a folder instead.
  */
 class VaultStore(
     context: Context,
@@ -45,7 +50,8 @@ class VaultStore(
 
     private fun read(): State {
         return State(
-            vaultAbsolutePath = prefs.getString(KEY_ABS, null),
+            vaultAbsolutePath =
+                linkedAbsolutePath(prefs.getString(KEY_ABS, null), FileTreeAccess.SUPPORTED),
             accessRootUri = prefs.getString(KEY_ROOT, null)?.let { Uri.parse(it) },
             vaultRelativePath =
                 if (prefs.contains(KEY_REL)) {
@@ -169,6 +175,16 @@ class VaultStore(
     }
 
     companion object {
+        /**
+         * A stored absolute path counts as a link only where the build can read
+         * one. Without all-files access the path is unreadable, so honoring it
+         * would report a linked vault that silently swallowed every capture.
+         */
+        fun linkedAbsolutePath(
+            stored: String?,
+            fileTreeSupported: Boolean,
+        ): String? = if (fileTreeSupported) stored else null
+
         private const val TAG = "AtomsCaptureStore"
         private const val PREFS = "atoms_capture"
         private const val KEY_ABS = "vault_absolute_path"
