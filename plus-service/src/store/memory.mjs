@@ -2,6 +2,7 @@
  * In-memory store (tests + explicit ATOMS_PLUS_STORE=memory).
  */
 import { config } from "../config.mjs";
+import { encryptMirrorField } from "../mirror/crypto.mjs";
 import {
   applyStatusRules,
   CHECKOUT_BINDING_TTL_MS,
@@ -453,22 +454,91 @@ export function createMemoryStore() {
     const list = Array.isArray(atoms) ? atoms : [];
     let upserted = 0;
     let skipped = 0;
+    /** @type {{ email: string, path: string, title: string, tags: string[], body: string, contentHash: string }[]} */
+    const needExpand = [];
     for (const atom of list) {
       const row = prepareMirrorRow(email, atom);
+      const body = String(atom.body ?? atom.text ?? "");
+      const tags = Array.isArray(atom.tags) ? atom.tags.map(String) : [];
       const bucket = mirrorBucket(row.email);
       const prev = bucket.get(row.path);
       if (prev && prev.contentHash === row.contentHash) {
         skipped += 1;
+        if (!prev.expandEnc) {
+          needExpand.push({
+            email: row.email,
+            path: row.path,
+            title: row.title,
+            tags,
+            body,
+            contentHash: row.contentHash,
+          });
+        }
         continue;
       }
       // Preserve backfilled created when client omits it (older plugin / multi-device).
       if (row.created == null && prev?.created != null) {
         row.created = prev.created;
       }
+      row.expandEnc = null;
       bucket.set(row.path, row);
       upserted += 1;
+      needExpand.push({
+        email: row.email,
+        path: row.path,
+        title: row.title,
+        tags,
+        body,
+        contentHash: row.contentHash,
+      });
     }
-    return { upserted, skipped };
+    return { upserted, skipped, needExpand };
+  }
+
+  function mirrorSetExpand(email, path, contentHash, expandPlain) {
+    const e = normEmail(email);
+    const p = String(path || "").trim();
+    const hash = String(contentHash || "");
+    if (!e || !p || !hash) return { ok: false, updated: 0 };
+    const bucket = atomMirror.get(e);
+    if (!bucket) return { ok: true, updated: 0 };
+    const row = bucket.get(p);
+    if (!row || row.contentHash !== hash) return { ok: true, updated: 0 };
+    row.expandEnc = encryptMirrorField(String(expandPlain || ""));
+    bucket.set(p, row);
+    return { ok: true, updated: 1 };
+  }
+
+  function mirrorExpandCoverage(email) {
+    const e = normEmail(email);
+    const bucket = atomMirror.get(e);
+    if (!bucket || !bucket.size) return 0;
+    let ex = 0;
+    for (const row of bucket.values()) {
+      if (row.expandEnc) ex += 1;
+    }
+    return ex / bucket.size;
+  }
+
+  function mirrorListMissingExpand(email, limit = 50) {
+    const e = normEmail(email);
+    const lim = Math.min(Math.max(Number(limit) || 50, 1), 200);
+    const bucket = atomMirror.get(e);
+    if (!bucket) return [];
+    const out = [];
+    for (const row of bucket.values()) {
+      if (row.expandEnc) continue;
+      const pub = rowToPublicAtom(row, { includeBody: true });
+      out.push({
+        path: row.path,
+        title: row.title,
+        tags: pub?.tags || [],
+        body: pub?.text || "",
+        contentHash: row.contentHash,
+      });
+      if (out.length >= lim) break;
+    }
+    return out;
   }
 
   function mirrorFetch(email, idOrTitle) {
@@ -1007,6 +1077,9 @@ export function createMemoryStore() {
     ensureAccount,
     getAccount,
     mirrorUpsert,
+    mirrorSetExpand,
+    mirrorExpandCoverage,
+    mirrorListMissingExpand,
     mirrorFetch,
     mirrorSearch,
     mirrorNeighbors,

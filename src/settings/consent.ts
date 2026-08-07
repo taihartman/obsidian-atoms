@@ -28,7 +28,7 @@ export const ASK_PRIVACY_ACK_TITLE = "What Ask stores and shares";
 // Devices store the version they accepted; leaving it alone leaves every existing device holding
 // a consent record for wording it never saw. `askConsentVersion.test.ts` freezes the two together.
 export const ASK_PRIVACY_DISCLOSURE =
-  "(1) only Atoms/ leaves this device; (2) bodies are stored on Atoms Plus servers; (3) the host can decrypt at rest in v1 (not zero-knowledge); (4) when I chat in Claude, Anthropic receives tool results (titles, snippets, bodies); when I chat in ChatGPT, OpenAI receives them; (5) Wipe deletes the cloud mirror, pending outbox writes, and connector tokens; (6) turning Ask off does not wipe.";
+  "(1) only Atoms/ leaves this device; (2) bodies are stored on Atoms Plus servers; (3) the host can decrypt at rest in v1 (not zero-knowledge); (4) Atoms Plus may send title, tags, and body slices to Anthropic to build encrypted search-expansion phrases for Ask (not zero-knowledge; Wipe removes them with the mirror); (5) when I chat in Claude, Anthropic receives tool results (titles, snippets, bodies); when I chat in ChatGPT, OpenAI receives them; (6) Wipe deletes the cloud mirror, search expansions, pending outbox writes, and connector tokens; (7) turning Ask off does not wipe.";
 
 export const ASK_WRITE_ACK_TITLE = "Vault write acknowledgment";
 // **Changing what this discloses means bumping `ASK_WRITE_ACK_VERSION`** (src/shared/askAck.ts).

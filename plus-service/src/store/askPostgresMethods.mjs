@@ -2,6 +2,7 @@
  * Ask mirror + MCP OAuth methods for Postgres Pool.
  */
 import { hashToken, id } from "./shared.mjs";
+import { encryptMirrorField } from "../mirror/crypto.mjs";
 import {
   aggregateMirrorTags,
   buildNeighborsGraph,
@@ -34,6 +35,7 @@ CREATE TABLE IF NOT EXISTS atom_mirror (
   content_hash TEXT NOT NULL,
   updated_at TIMESTAMPTZ NOT NULL,
   created TEXT,
+  expand_enc TEXT,
   PRIMARY KEY (email, path)
 );
 CREATE INDEX IF NOT EXISTS idx_atom_mirror_email ON atom_mirror(email);
@@ -117,24 +119,40 @@ export function createAskPostgresMethods(pool, deps) {
     const list = Array.isArray(atoms) ? atoms : [];
     let upserted = 0;
     let skipped = 0;
+    /** @type {{ email: string, path: string, title: string, tags: string[], body: string, contentHash: string }[]} */
+    const needExpand = [];
     for (const atom of list) {
       const row = prepareMirrorRow(email, atom);
+      const body = String(atom.body ?? atom.text ?? "");
+      const tags = Array.isArray(atom.tags) ? atom.tags.map(String) : [];
       const prev = await pool.query(
-        "SELECT content_hash FROM atom_mirror WHERE email = $1 AND path = $2",
+        "SELECT content_hash, expand_enc FROM atom_mirror WHERE email = $1 AND path = $2",
         [row.email, row.path],
       );
-      if (prev.rows[0]?.content_hash === row.contentHash) {
+      const prevRow = prev.rows[0];
+      if (prevRow?.content_hash === row.contentHash) {
         skipped += 1;
+        if (!prevRow.expand_enc) {
+          needExpand.push({
+            email: row.email,
+            path: row.path,
+            title: row.title,
+            tags,
+            body,
+            contentHash: row.contentHash,
+          });
+        }
         continue;
       }
       await pool.query(
-        `INSERT INTO atom_mirror (email, atom_id, title, path, body_enc, tags_json, links_json, content_hash, updated_at, created)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+        `INSERT INTO atom_mirror (email, atom_id, title, path, body_enc, tags_json, links_json, content_hash, updated_at, created, expand_enc)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NULL)
          ON CONFLICT (email, path) DO UPDATE SET
            atom_id=EXCLUDED.atom_id, title=EXCLUDED.title, body_enc=EXCLUDED.body_enc,
            tags_json=EXCLUDED.tags_json, links_json=EXCLUDED.links_json,
            content_hash=EXCLUDED.content_hash, updated_at=EXCLUDED.updated_at,
-           created=COALESCE(EXCLUDED.created, atom_mirror.created)`,
+           created=COALESCE(EXCLUDED.created, atom_mirror.created),
+           expand_enc=NULL`,
         [
           row.email,
           row.atomId,
@@ -149,8 +167,71 @@ export function createAskPostgresMethods(pool, deps) {
         ],
       );
       upserted += 1;
+      needExpand.push({
+        email: row.email,
+        path: row.path,
+        title: row.title,
+        tags,
+        body,
+        contentHash: row.contentHash,
+      });
     }
-    return { upserted, skipped };
+    return { upserted, skipped, needExpand };
+  }
+
+  async function mirrorSetExpand(email, path, contentHash, expandPlain) {
+    const e = normEmail(email);
+    const p = String(path || "").trim();
+    const hash = String(contentHash || "");
+    if (!e || !p || !hash) return { ok: false, updated: 0 };
+    const enc = encryptMirrorField(String(expandPlain || ""));
+    const r = await pool.query(
+      `UPDATE atom_mirror SET expand_enc = $1
+       WHERE email = $2 AND path = $3 AND content_hash = $4`,
+      [enc, e, p, hash],
+    );
+    return { ok: true, updated: r.rowCount || 0 };
+  }
+
+  async function mirrorExpandCoverage(email) {
+    const e = normEmail(email);
+    const { rows } = await pool.query(
+      `SELECT COUNT(*)::int AS n,
+              COUNT(*) FILTER (WHERE expand_enc IS NOT NULL AND btrim(expand_enc) <> '')::int AS e
+       FROM atom_mirror WHERE email = $1`,
+      [e],
+    );
+    const n = rows[0]?.n || 0;
+    if (!n) return 0;
+    return (rows[0]?.e || 0) / n;
+  }
+
+  /**
+   * Rows missing expand for backfill. Decrypts body server-side only.
+   * @param {string} email
+   * @param {number} limit
+   */
+  async function mirrorListMissingExpand(email, limit = 50) {
+    const e = normEmail(email);
+    const lim = Math.min(Math.max(Number(limit) || 50, 1), 200);
+    const { rows } = await pool.query(
+      `SELECT path, title, tags_json, body_enc, content_hash
+       FROM atom_mirror
+       WHERE email = $1 AND (expand_enc IS NULL OR btrim(expand_enc) = '')
+       ORDER BY updated_at DESC
+       LIMIT $2`,
+      [e, lim],
+    );
+    return rows.map((r) => {
+      const pub = rowToPublicAtom(r, { includeBody: true });
+      return {
+        path: r.path,
+        title: r.title,
+        tags: pub?.tags || [],
+        body: pub?.text || "",
+        contentHash: r.content_hash,
+      };
+    });
   }
 
   async function mirrorFetch(email, idOrTitle) {
@@ -815,6 +896,9 @@ export function createAskPostgresMethods(pool, deps) {
 
   return {
     mirrorUpsert,
+    mirrorSetExpand,
+    mirrorExpandCoverage,
+    mirrorListMissingExpand,
     mirrorFetch,
     mirrorSearch,
     mirrorNeighbors,

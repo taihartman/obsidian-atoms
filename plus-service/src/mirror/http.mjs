@@ -2,6 +2,12 @@
  * Ask mirror HTTP routes (Plus session auth).
  */
 import { checkRateLimit, clientIp } from "../ratelimit.mjs";
+import { config } from "../config.mjs";
+import {
+  backfillExpandForEmail,
+  cancelExpandForEmail,
+  enqueueMirrorExpand,
+} from "../ask/expandSearch.mjs";
 import { assertMirrorPath } from "../store/askHelpers.mjs";
 
 const MAX_ATOMS_PER_UPSERT = 100;
@@ -43,6 +49,7 @@ export async function handleMirrorRoutes({
     path === "/v1/ask/mirror/status" ||
     path === "/v1/ask/mirror/delete" ||
     path === "/v1/ask/mirror/reconcile" ||
+    path === "/v1/ask/mirror/expand-backfill" ||
     path === "/v1/ask/outbox/pull" ||
     path === "/v1/ask/outbox/ack" ||
     path === "/v1/ask/mcp/pair";
@@ -117,8 +124,53 @@ export async function handleMirrorRoutes({
 
   // Wipe: valid sess_ enough (exit path even when not entitled)
   if (req.method === "POST" && path === "/v1/ask/mirror/wipe") {
+    // Cancel first: a queued expand job holds the body in its own closure and
+    // never re-reads the row, so deleting the row does not stop the egress.
+    // The disclosure says Wipe removes search expansions — this is what makes
+    // that true for work already in flight.
+    cancelExpandForEmail(a.email);
     await store.mirrorWipe(a.email);
     json(res, 200, { ok: true, count: 0 });
+    return true;
+  }
+
+  // Expand backfill: populate search expansion for rows missing expand_enc.
+  // Entitled sess_ only; rate-limited; never returns phrase text.
+  if (req.method === "POST" && path === "/v1/ask/mirror/expand-backfill") {
+    if (!entitled(a)) {
+      json(res, 403, { message: "Plus entitlement required for Ask" });
+      return true;
+    }
+    const rl = checkRateLimit(`expand-backfill:${a.email}`, 6);
+    if (!rl.ok) {
+      json(res, 429, {
+        message: "Expand backfill rate limited — try again later",
+        retryAfterSec: rl.retryAfterSec,
+      });
+      return true;
+    }
+    let body = {};
+    try {
+      body = await readBody(req);
+    } catch {
+      body = {};
+    }
+    const limit = body?.limit;
+    const result = await backfillExpandForEmail(store, a.email, { limit });
+    let coverage = 0;
+    if (typeof store.mirrorExpandCoverage === "function") {
+      coverage = Number(await store.mirrorExpandCoverage(a.email)) || 0;
+    }
+    json(res, 200, {
+      ok: Boolean(result.ok),
+      // Queue counts: the expand pass runs in the background pool, so nothing
+      // is expanded by the time this responds. Progress = expand_coverage.
+      queued: result.queued ?? 0,
+      attempted: 0,
+      expanded: 0,
+      expand_coverage: coverage,
+      reason: result.reason,
+    });
     return true;
   }
 
@@ -352,8 +404,19 @@ export async function handleMirrorRoutes({
     // Tenant email from session only — ignore body.email
     try {
       const result = await store.mirrorUpsert(a.email, cleaned);
+      const needExpand = Array.isArray(result?.needExpand)
+        ? result.needExpand
+        : [];
+      // Expand off the request path — do not return bodies/needExpand to client.
+      const { upserted, skipped } = result;
+      if (typeof store.mirrorSetExpand === "function" && needExpand.length) {
+        const cap = config.askExpandPerUpsertCap;
+        for (let n = 0; n < needExpand.length && n < cap; n += 1) {
+          enqueueMirrorExpand(store, needExpand[n]);
+        }
+      }
       const st = await store.mirrorStatus(a.email);
-      json(res, 200, { ok: true, ...result, ...st });
+      json(res, 200, { ok: true, upserted, skipped, ...st });
     } catch (err) {
       json(res, 400, {
         message: err instanceof Error ? err.message : "upsert failed",
