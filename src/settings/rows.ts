@@ -15,7 +15,7 @@ import { markDestructive } from "./destructiveButton";
 export { markDestructive };
 
 /**
- * Row grammar for the Atoms settings tab: five row kinds, five right edges.
+ * Row grammar for the Atoms settings tab: six row kinds, six right edges.
  *
  * | Kind          | Right edge                    |
  * |---------------|-------------------------------|
@@ -23,7 +23,13 @@ export { markDestructive };
  * | `destinationRow` | chevron                    |
  * | `actionRow`   | accent-text button            |
  * | `destructiveRow` | destructive/warning button |
+ * | `formRow`     | input plus the one button that commits it |
  * | `statusRow`   | muted trailing text, no control |
+ *
+ * `formRow`'s two controls are one grammar — "type this, then commit it" — the way a
+ * `destinationRow`'s name and chevron are one. Its button is not an independent action: its only
+ * job is to submit the field beside it, which is why the pair is its own kind rather than an
+ * optional `button` bolted onto `settingRow`.
  *
  * No row may carry two grammars, so every builder applies exactly one affordance and returns
  * `void` — `Setting` is chainable, and handing the row back would let a caller bolt a second
@@ -198,12 +204,22 @@ function runRowAction(btn: ButtonComponent, onClick: RowAction): void {
   void pending.then(release, release);
 }
 
-function buttonRow(
-  containerEl: HTMLElement,
-  row: ButtonRow,
+/** What a guarded button needs, minus the row prose — all `addGuardedButton` reads. */
+type GuardedButton = Omit<ButtonRow, keyof RowInfo>;
+
+/**
+ * Put a guarded button on a `Setting` the caller already built.
+ *
+ * Split out of `buttonRow` because `formRow`'s row carries a text field before its button lands
+ * on it, so it cannot go through a helper that builds its own `Setting` first. One implementation
+ * of the guard, reached two ways — forking it is how the double-tap bugs above come back.
+ */
+function addGuardedButton(
+  setting: Setting,
+  row: GuardedButton,
   style: (btn: ButtonComponent) => ButtonComponent,
 ): void {
-  baseRow(containerEl, row).addButton((btn) => {
+  setting.addButton((btn) => {
     style(btn.setButtonText(row.label)).onClick(() =>
       runRowAction(btn, () => row.inFlight.run(row.action, row.onClick)),
     );
@@ -221,6 +237,14 @@ function buttonRow(
   });
 }
 
+function buttonRow(
+  containerEl: HTMLElement,
+  row: ButtonRow,
+  style: (btn: ButtonComponent) => ButtonComponent,
+): void {
+  addGuardedButton(baseRow(containerEl, row), row, style);
+}
+
 /** Something that happens now: one accent-text button, never a toggle. */
 export function actionRow(containerEl: HTMLElement, row: ButtonRow): void {
   buttonRow(containerEl, row, (btn) => btn.setCta());
@@ -229,6 +253,62 @@ export function actionRow(containerEl: HTMLElement, row: ButtonRow): void {
 /** Something that destroys data: one destructive button, never accent, never a toggle. */
 export function destructiveRow(containerEl: HTMLElement, row: ButtonRow): void {
   buttonRow(containerEl, row, markDestructive);
+}
+
+/** A form row's shape: the field, and the one button that commits it. */
+export type FormRowSpec = RowInfo & {
+  placeholder?: string;
+  /** Field-level setup — password type, autocomplete, initial value. Never adds a control. */
+  configure?: (text: TextComponent) => void;
+  submit: {
+    /** Same contract as `ButtonRowSpec.action`: the identity the in-flight guard tracks. */
+    action: string;
+    label: string;
+    onSubmit: (value: string) => void | Promise<void>;
+  };
+};
+
+/** A spec plus the registry that outlives the render it was built in. */
+type FormRow = Omit<FormRowSpec, "submit"> & {
+  submit: FormRowSpec["submit"] & { inFlight: InFlightActions };
+};
+
+/**
+ * A field and the one button that commits it, in a single row.
+ *
+ * The button submits the field's **trimmed** value: `startsWith("sess_")` on a pasted session
+ * token and `includes("@")` on an email both only survive on a trimmed string, and the DOM-reading
+ * helper this replaced ended in `.value.trim()`. Trimming here rather than at four call sites is
+ * what keeps a token pasted with a leading space from failing validation.
+ *
+ * Enter does not submit. The button used to live in its own row, where Enter did nothing, and
+ * wiring it now would add an unasked-for interaction on two money/identity paths — a decision to
+ * revisit deliberately, not to acquire by accident.
+ *
+ * In flight, the button is held and the field stays editable: the guard is `actionRow`'s, so a
+ * rebuild mid-flight renders the button disabled and pressing it joins the run already going.
+ */
+export function formRow(containerEl: HTMLElement, row: FormRow): void {
+  const setting = baseRow(containerEl, row);
+  setting.settingEl.addClass("atoms-setting-form");
+  // Captured rather than returned: the submit handler needs the live field, and handing the
+  // component back to the caller is the chainable escape hatch the `void` returns exist to close.
+  let field!: TextComponent;
+  setting.addText((text) => {
+    field = text;
+    if (row.placeholder !== undefined) text.setPlaceholder(row.placeholder);
+    row.configure?.(text);
+  });
+  addGuardedButton(
+    setting,
+    {
+      label: row.submit.label,
+      action: row.submit.action,
+      inFlight: row.submit.inFlight,
+      onClick: () => row.submit.onSubmit(field.getValue().trim()),
+    },
+    (btn) => btn.setCta(),
+  );
 }
 
 /** The question a destructive row asks before it acts. */

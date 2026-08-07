@@ -56,6 +56,8 @@ import {
   confirmSheet,
   destinationRow,
   destructiveRow,
+  formRow,
+  type FormRowSpec,
   InFlightActions,
   settingRow,
   statusRow,
@@ -299,6 +301,17 @@ function loadLocal(app: App, key: string): unknown {
 }
 
 /**
+ * Whether to spend a request on what was typed into an email form, saying so when the answer is
+ * no. Shared by the trial and the sign-in link so the two cannot drift into refusing the same
+ * address with two different sentences.
+ */
+function requireEmail(email: string): boolean {
+  if (email.includes("@")) return true;
+  new Notice("Enter a valid email first");
+  return false;
+}
+
+/**
  * Which screen the settings tab is showing. `main` is the list the user lands on; every other
  * value is a destination reached from it.
  *
@@ -365,7 +378,7 @@ export class AtomsSettingTab extends PluginSettingTab {
   private readonly inFlight = new InFlightActions();
 
   /**
-   * The two button-row builders, bound to this tab's registry. Wrapped rather than passed at
+   * The button-carrying row builders, bound to this tab's registry. Wrapped rather than passed at
    * each of the two dozen call sites so a row cannot be built without a guard, and so `rows.ts`
    * stays a set of free functions with no idea a settings tab exists.
    */
@@ -375,6 +388,13 @@ export class AtomsSettingTab extends PluginSettingTab {
 
   private destructiveRow(containerEl: HTMLElement, row: ButtonRowSpec): void {
     destructiveRow(containerEl, { ...row, inFlight: this.inFlight });
+  }
+
+  private formRow(containerEl: HTMLElement, row: FormRowSpec): void {
+    formRow(containerEl, {
+      ...row,
+      submit: { ...row.submit, inFlight: this.inFlight },
+    });
   }
 
   constructor(
@@ -1063,12 +1083,6 @@ export class AtomsSettingTab extends PluginSettingTab {
     this.redisplay();
   }
 
-  /** Value of the account destination's text input carrying this dataset flag. */
-  private accountInput(containerEl: HTMLElement, flag: string): string {
-    const input = containerEl.querySelector(`input[data-${flag}]`);
-    return input instanceof HTMLInputElement ? input.value.trim() : "";
-  }
-
   private accountState(): AccountState {
     return deriveAccountState(
       this.plugin.resolveFilingAuth(),
@@ -1196,80 +1210,61 @@ export class AtomsSettingTab extends PluginSettingTab {
       },
     });
 
-    settingRow(containerEl, {
+    this.formRow(containerEl, {
       name: "Email",
       desc: "Start a free trial (card required). Checkout opens in your browser — then return to Obsidian.",
-      control: {
-        kind: "text",
-        configure: (text) => {
-          text.setPlaceholder("you@example.com").inputEl.dataset.plusEmail = "1";
-        },
+      placeholder: "you@example.com",
+      submit: {
+        action: "plus:start-trial",
+        label: "Start free trial",
+        onSubmit: (email) => this.startTrial(email),
       },
-    });
-    this.actionRow(containerEl, {
-      action: "plus:start-trial",
-      name: "Start free trial",
-      label: "Start free trial",
-      onClick: () => this.startTrial(containerEl),
     });
 
-    settingRow(containerEl, {
+    this.formRow(containerEl, {
       name: "Sign in with a link",
       desc: this.signInLinkDesc(),
-      control: {
-        kind: "text",
-        configure: (text) => {
-          text.setPlaceholder("you@example.com").inputEl.dataset.plusMagicEmail =
-            "1";
-        },
-      },
-    });
-    this.actionRow(containerEl, {
-      action: "plus:magic-link",
-      name: "Send sign-in link",
-      label: "Send sign-in link",
-      onClick: async () => {
-        const email = this.accountInput(containerEl, "plus-magic-email");
-        if (!email.includes("@")) {
-          new Notice("Enter a valid email first");
-          return;
-        }
-        await this.sendPlusMagicLink(email);
-        // The row's copy turns into the "open the email" form once a link exists.
-        this.redisplay();
+      placeholder: "you@example.com",
+      submit: {
+        action: "plus:magic-link",
+        label: "Send sign-in link",
+        onSubmit: (email) => this.requestSignInLink(email),
       },
     });
 
     // Advanced: paste session — the different-device fallback, kept below the
     // link row until #286 replaces it (KD3, R10).
-    settingRow(containerEl, {
+    this.formRow(containerEl, {
       name: "Advanced: paste session",
       desc: "Only if your email opens on a different device from Obsidian. Sign in there, then paste the session it gives you.",
-      control: {
-        kind: "text",
-        configure: (text) => {
-          text.setPlaceholder("sess_…").inputEl.dataset.plusSession = "1";
-          // A Plus bearer token, treated the way the API key field treats a key.
-          text.inputEl.type = "password";
-          text.inputEl.autocomplete = "off";
-        },
+      placeholder: "sess_…",
+      configure: (text) => {
+        // A Plus bearer token, treated the way the API key field treats a key.
+        text.inputEl.type = "password";
+        text.inputEl.autocomplete = "off";
       },
-    });
-    this.actionRow(containerEl, {
-      action: "plus:save-session",
-      name: "Save session",
-      label: "Save session",
-      onClick: () => this.savePastedSession(containerEl),
+      submit: {
+        action: "plus:save-session",
+        label: "Save session",
+        onSubmit: (sessionToken) => this.savePastedSession(sessionToken),
+      },
     });
   }
 
+  /**
+   * Send a sign-in link to the typed email, then rebuild: the row's copy turns into the "open
+   * the email" form once a link exists. The expired-session row calls `sendPlusMagicLink`
+   * directly — it already has an address, so it has nothing to check and no form to redraw.
+   */
+  private async requestSignInLink(email: string): Promise<void> {
+    if (!requireEmail(email)) return;
+    await this.sendPlusMagicLink(email);
+    this.redisplay();
+  }
+
   /** Start a Plus account for the typed email and open its trial checkout. */
-  private async startTrial(containerEl: HTMLElement): Promise<void> {
-    const email = this.accountInput(containerEl, "plus-email");
-    if (!email.includes("@")) {
-      new Notice("Enter a valid email first");
-      return;
-    }
+  private async startTrial(email: string): Promise<void> {
+    if (!requireEmail(email)) return;
     try {
       const base =
         this.plugin.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL;
@@ -1315,8 +1310,7 @@ export class AtomsSettingTab extends PluginSettingTab {
   }
 
   /** Adopt a session token pasted by hand, after verifying it against the Plus service. */
-  private async savePastedSession(containerEl: HTMLElement): Promise<void> {
-    const sessionToken = this.accountInput(containerEl, "plus-session");
+  private async savePastedSession(sessionToken: string): Promise<void> {
     if (!sessionToken.startsWith("sess_")) {
       new Notice("Session should look like sess_…");
       return;
@@ -1829,42 +1823,40 @@ export class AtomsSettingTab extends PluginSettingTab {
       });
     }
 
-    // Field and button were one row, which the grammar allows only one right edge for. Splitting
-    // them keeps both rather than dropping the field or committing on every keystroke.
-    settingRow(containerEl, {
+    // The field and the one button that commits it, in one card. `customTagDraft` stays: flipping
+    // any active tag above off calls `redisplay()`, and restoring the draft through `configure` is
+    // what puts a half-typed tag back after that rebuild. `onSubmit` receiving the value answers a
+    // different question — what is being added, not what survives a re-render.
+    this.formRow(containerEl, {
       name: "Add a custom tag",
       desc: "Lowercase, no # required.",
-      control: {
-        kind: "text",
-        configure: (text) =>
-          text
-            .setPlaceholder("e.g. health")
-            .setValue(this.customTagDraft)
-            .onChange((v) => {
-              this.customTagDraft = v;
-            }),
-      },
-    });
-    this.actionRow(containerEl, {
-      action: "tags:add-custom",
-      name: "Add to Active",
-      label: "Add",
-      onClick: async () => {
-        const checked = checkCustomTag(this.customTagDraft);
-        if (!checked.ok) {
-          // Said out loud, and the draft left in the field to be corrected. Returning in
-          // silence left the text sitting there with nothing happening — a dead end the user
-          // could only read as the button being broken.
-          new Notice(`Atoms: ${checked.reason}`);
-          return;
-        }
-        this.plugin.settings.activeVocabulary = addCustomActiveTag(
-          checked.tag,
-          this.plugin.settings.activeVocabulary,
-        );
-        this.customTagDraft = "";
-        await this.plugin.saveSettings();
-        this.redisplay();
+      placeholder: "e.g. health",
+      configure: (text) =>
+        text.setValue(this.customTagDraft).onChange((v) => {
+          this.customTagDraft = v;
+        }),
+      submit: {
+        action: "tags:add-custom",
+        // Not shortened to "Add" the way the account labels were: the row name is the field's
+        // label now, so the verb is the only thing left saying *which* list the tag joins.
+        label: "Add to Active",
+        onSubmit: async (typed) => {
+          const checked = checkCustomTag(typed);
+          if (!checked.ok) {
+            // Said out loud, and the draft left in the field to be corrected. Returning in
+            // silence left the text sitting there with nothing happening — a dead end the user
+            // could only read as the button being broken.
+            new Notice(`Atoms: ${checked.reason}`);
+            return;
+          }
+          this.plugin.settings.activeVocabulary = addCustomActiveTag(
+            checked.tag,
+            this.plugin.settings.activeVocabulary,
+          );
+          this.customTagDraft = "";
+          await this.plugin.saveSettings();
+          this.redisplay();
+        },
       },
     });
 

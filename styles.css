@@ -1909,6 +1909,18 @@
   flex-direction: row-reverse;
 }
 
+/* …and the chevron sits *at* that leading edge. Obsidian's `.setting-item-control` is
+   `flex: 1 1 auto` with `justify-content: flex-end`, so in a reversed row it grows into the
+   leftover space and parks its 28px chevron at the far end of the box it grew into — 104px in on
+   phone, 236px in on desktop, lined up with nothing. Every other row's control lands on its row's
+   trailing edge; this one landed mid-row. Collapsing the box to its contents puts the chevron at
+   x = padding, where a back affordance belongs; no `justify-content` is needed once it stops
+   growing. This is cross-platform, not an `is-phone` fix — desktop has the same gutter — so it
+   lives here rather than in the phone block below. */
+.setting-item.atoms-setting-back .setting-item-control {
+  flex: 0 0 auto;
+}
+
 /* Phone: keep a row's right edge on the row.
    Obsidian stacks every settings row it does not recognise as inline. Three rules in `app.css`
    share one gate — `.setting-item:not(:is(.mod-toggle, .mod-navigable, .mod-action,
@@ -1939,6 +1951,43 @@
 .is-phone .modal .setting-item.atoms-setting-status-row .setting-item-control {
   width: auto;
   justify-content: flex-end;
+}
+
+/* Phone: a form row's field owns the line, its button owns the next one.
+   The stacking gate above is what we want here — name → desc → input → button, full width — but
+   the field and the button share one control edge, so left alone they split it and the input ends
+   up half a row wide. Same squeeze the reset-icon row below documents. Let the control wrap and
+   give the field a whole line; the button follows on the next one, already full width from
+   Obsidian's own `.is-phone .modal .setting-item-control button` rule. */
+.is-phone .modal .setting-item.atoms-setting-form .setting-item-control {
+  flex-wrap: wrap;
+}
+
+.is-phone .modal .setting-item.atoms-setting-form .setting-item-control input {
+  flex: 1 0 100%;
+}
+
+/* Everywhere else: the field keeps a readable floor rather than yielding to its button.
+   Tablet is the case this exists for. Obsidian's row stacking is gated on `.is-phone`, and
+   `.is-mobile` — the class that does cover both phone and tablet — carries no row layout of its
+   own, so on `is-tablet` neither that nor the phone rule above fires: the field and the button
+   share one content-sized control edge and the field takes whatever the button leaves. Measured
+   at a 1100px window: Email 98px, "Sign in with a link" 76px, against 172px for a plain text row
+   in the same modal — `you@example.com` fits in none of that.
+   A floor and not a second stacking gate, because a tablet has the room to keep the row inline,
+   which is what Obsidian does with every other row there. It costs desktop nothing (the field is
+   already 164px there) and it also catches a narrowed desktop window, which a platform-class gate
+   would miss. The name column yields instead — its description wraps, the placeholder cannot.
+   The floor stands down below 700px because that is where the name column runs out of give and
+   the row overflows instead: 164px of field beside the widest of these buttons ("Send sign-in
+   link", 157px) stops fitting at about 690. No real tablet lives down there — Obsidian switches
+   to `is-phone` under 600, and the narrowest iPad is 744pt — so what the query really protects is
+   a hand-narrowed desktop window, where a squeezed field beats a clipped description. */
+@media (min-width: 700px) {
+  .modal .setting-item.atoms-setting-form .setting-item-control input {
+    /* The placeholder's own width — 130px of text plus the field's 16px padding either side. */
+    min-width: 164px;
+  }
 }
 
 /* The one settings row pairing a text field with an inline reset icon. Obsidian sizes the
