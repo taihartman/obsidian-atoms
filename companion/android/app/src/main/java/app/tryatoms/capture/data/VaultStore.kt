@@ -1,34 +1,31 @@
 package app.tryatoms.capture.data
 
 import android.content.Context
+import android.content.SharedPreferences
 import android.net.Uri
-import androidx.datastore.core.DataStore
-import androidx.datastore.preferences.core.Preferences
-import androidx.datastore.preferences.core.booleanPreferencesKey
-import androidx.datastore.preferences.core.edit
-import androidx.datastore.preferences.core.stringPreferencesKey
-import androidx.datastore.preferences.preferencesDataStore
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
+import android.util.Log
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 
-private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "atoms_capture")
-
+/**
+ * Vault link prefs. SharedPreferences (not DataStore) so a grant survives
+ * process death reliably on the POC — we previously lost in-session links
+ * because nothing durable was on disk after installs/restarts.
+ */
 class VaultStore(
-    private val context: Context,
+    context: Context,
 ) {
-    private val accessRootUriKey = stringPreferencesKey("access_root_tree_uri")
-    private val vaultRelativePathKey = stringPreferencesKey("vault_relative_path")
-    private val vaultNameKey = stringPreferencesKey("vault_name")
-    private val captureDoneKey = booleanPreferencesKey("first_capture_done")
-    private val lastStatusKey = stringPreferencesKey("last_status")
+    private val prefs: SharedPreferences =
+        context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
-    /** Legacy single-tree key from first POC — migrated on read. */
-    private val legacyTreeUriKey = stringPreferencesKey("vault_tree_uri")
+    private val _state = MutableStateFlow(read())
+    val state: StateFlow<State> = _state.asStateFlow()
 
     data class State(
-        /** SAF tree the user granted (Documents, storage, or the vault itself). */
         val accessRootUri: Uri? = null,
-        /** Path under [accessRootUri] to the vault folder; empty = root is the vault. */
+        /** Empty string = granted folder is the vault. null = no vault chosen yet. */
         val vaultRelativePath: String? = null,
         val vaultName: String? = null,
         val firstCaptureDone: Boolean = false,
@@ -38,84 +35,118 @@ class VaultStore(
             get() = accessRootUri != null && vaultRelativePath != null
     }
 
-    val state: Flow<State> =
-        context.dataStore.data.map { prefs ->
-            var root = prefs[accessRootUriKey]?.let { Uri.parse(it) }
-            var rel = prefs[vaultRelativePathKey]
-            var name = prefs[vaultNameKey]
+    fun current(): State = _state.value
 
-            // Migrate POC v1: vault tree URI only → treat as root-is-vault
-            if (root == null) {
-                val legacy = prefs[legacyTreeUriKey]
-                if (legacy != null) {
-                    root = Uri.parse(legacy)
-                    rel = rel ?: ""
-                    name = name ?: "Vault"
-                }
+    private fun read(): State {
+        val root = prefs.getString(KEY_ROOT, null)?.let { Uri.parse(it) }
+        val rel =
+            if (prefs.contains(KEY_REL)) {
+                prefs.getString(KEY_REL, "") ?: ""
+            } else {
+                null
             }
-
-            State(
-                accessRootUri = root,
-                vaultRelativePath = rel,
-                vaultName = name,
-                firstCaptureDone = prefs[captureDoneKey] == true,
-                lastStatus = prefs[lastStatusKey],
-            )
-        }
-
-    suspend fun setAccessRoot(uri: Uri) {
-        context.dataStore.edit { prefs ->
-            prefs[accessRootUriKey] = uri.toString()
-            // Choosing a new root clears vault selection until the user picks one
-            prefs.remove(vaultRelativePathKey)
-            prefs.remove(vaultNameKey)
-            prefs.remove(legacyTreeUriKey)
+        return State(
+            accessRootUri = root,
+            vaultRelativePath = rel,
+            vaultName = prefs.getString(KEY_NAME, null),
+            firstCaptureDone = prefs.getBoolean(KEY_CAPTURE_DONE, false),
+            lastStatus = prefs.getString(KEY_STATUS, null),
+        ).also {
+            Log.i(TAG, "read linked=${it.vaultLinked} root=${it.accessRootUri} rel=${it.vaultRelativePath} name=${it.vaultName}")
         }
     }
 
-    suspend fun setSelectedVault(
+    private fun write(block: SharedPreferences.Editor.() -> Unit) {
+        prefs.edit().apply {
+            block()
+            commit() // durable before UI continues — apply() raced process death
+        }
+        _state.value = read()
+    }
+
+    fun setAccessRoot(uri: Uri) {
+        val same = _state.value.accessRootUri == uri
+        write {
+            putString(KEY_ROOT, uri.toString())
+            if (!same) {
+                remove(KEY_REL)
+                remove(KEY_NAME)
+            }
+        }
+        Log.i(TAG, "setAccessRoot same=$same uri=$uri")
+    }
+
+    fun setSelectedVault(
         relativePath: String,
         name: String,
     ) {
-        context.dataStore.edit { prefs ->
-            prefs[vaultRelativePathKey] = relativePath
-            prefs[vaultNameKey] = name
-            prefs.remove(legacyTreeUriKey)
+        write {
+            putString(KEY_REL, relativePath)
+            putString(KEY_NAME, name)
         }
+        Log.i(TAG, "setSelectedVault name=$name rel=$relativePath")
     }
 
-    /** Direct vault folder grant (picker landed on the vault itself). */
-    suspend fun setVaultAsRoot(
+    /** One atomic write: root + vault (avoids empty state between two edits). */
+    fun setAccessRootAndVault(
+        uri: Uri,
+        relativePath: String,
+        name: String,
+    ) {
+        write {
+            putString(KEY_ROOT, uri.toString())
+            putString(KEY_REL, relativePath)
+            putString(KEY_NAME, name)
+        }
+        Log.i(TAG, "setAccessRootAndVault name=$name rel=$relativePath uri=$uri")
+    }
+
+    fun setVaultAsRoot(
         uri: Uri,
         name: String,
     ) {
-        context.dataStore.edit { prefs ->
-            prefs[accessRootUriKey] = uri.toString()
-            prefs[vaultRelativePathKey] = ""
-            prefs[vaultNameKey] = name
-            prefs.remove(legacyTreeUriKey)
+        setAccessRootAndVault(uri, "", name)
+    }
+
+    fun clearVaultLink() {
+        write {
+            remove(KEY_ROOT)
+            remove(KEY_REL)
+            remove(KEY_NAME)
+        }
+        Log.i(TAG, "clearVaultLink")
+    }
+
+    fun markCaptureDone(status: String) {
+        write {
+            putBoolean(KEY_CAPTURE_DONE, true)
+            putString(KEY_STATUS, status)
         }
     }
 
-    suspend fun clearVaultLink() {
-        context.dataStore.edit { prefs ->
-            prefs.remove(accessRootUriKey)
-            prefs.remove(vaultRelativePathKey)
-            prefs.remove(vaultNameKey)
-            prefs.remove(legacyTreeUriKey)
+    fun setLastStatus(status: String) {
+        write {
+            putString(KEY_STATUS, status)
         }
     }
 
-    suspend fun markCaptureDone(status: String) {
-        context.dataStore.edit { prefs ->
-            prefs[captureDoneKey] = true
-            prefs[lastStatusKey] = status
+    /** Restore root URI from OS-persisted grants after prefs were wiped. */
+    fun restoreRootIfMissing(candidates: List<Uri>) {
+        if (_state.value.accessRootUri != null) return
+        val first = candidates.firstOrNull() ?: return
+        write {
+            putString(KEY_ROOT, first.toString())
         }
+        Log.i(TAG, "restoreRootIfMissing uri=$first")
     }
 
-    suspend fun setLastStatus(status: String) {
-        context.dataStore.edit { prefs ->
-            prefs[lastStatusKey] = status
-        }
+    companion object {
+        private const val TAG = "AtomsCaptureStore"
+        private const val PREFS = "atoms_capture"
+        private const val KEY_ROOT = "access_root_tree_uri"
+        private const val KEY_REL = "vault_relative_path"
+        private const val KEY_NAME = "vault_name"
+        private const val KEY_CAPTURE_DONE = "first_capture_done"
+        private const val KEY_STATUS = "last_status"
     }
 }
