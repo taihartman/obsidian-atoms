@@ -1,10 +1,15 @@
 /**
  * Field notes published JSON → web-safe fragments (build + tests).
  * Not for Pages Functions runtime. Email HTML stays in fieldNotesEmail.mjs.
+ *
+ * Block order is shared with email (hoistTldrFirst) so the two surfaces cannot
+ * drift into telling the same story in a different order.
  */
 
 import { readdirSync, readFileSync } from "fs";
 import { basename, join } from "path";
+
+import { hoistTldrFirst } from "../functions/_lib/fieldNotesEmail.mjs";
 
 export const PUBLISHED_BASENAME_RE =
   /^(\d{4}-\d{2}-\d{2})-([a-z0-9]+(?:-[a-z0-9]+)*)\.json$/;
@@ -14,6 +19,7 @@ export const PUBLIC_NOTE_KEYS = new Set([
   "title",
   "preheader",
   "paragraphs",
+  "blocks",
   "diagram",
   "figure",
   "cta",
@@ -78,19 +84,46 @@ export function pickPublicFields(obj) {
  * @param {string} filePath
  * @param {string} filename basename
  */
+function hasBodyContent(raw) {
+  if (Array.isArray(raw.blocks) && raw.blocks.length) {
+    return raw.blocks.some((b) => {
+      if (!b) return false;
+      if ((b.type === "p" || b.type === "h2") && b.text) return true;
+      if (b.type === "tldr" && (b.text || (b.lines && b.lines.length))) return true;
+      return false;
+    });
+  }
+  return Array.isArray(raw.paragraphs) && raw.paragraphs.length > 0;
+}
+
+function deriveParagraphs(raw) {
+  if (Array.isArray(raw.paragraphs) && raw.paragraphs.length) return raw.paragraphs;
+  if (!Array.isArray(raw.blocks)) return [];
+  const out = [];
+  for (const b of raw.blocks) {
+    if (!b) continue;
+    if (b.type === "p" && b.text) out.push(String(b.text));
+    if (b.type === "tldr") {
+      for (const line of b.lines || (b.text ? [b.text] : [])) out.push(String(line));
+    }
+  }
+  return out;
+}
+
 export function loadPublishedFile(filePath, filename) {
   const meta = parsePublishedBasename(filename);
   if (!meta || !isSafeSlug(meta.slug)) {
     throw new Error(`invalid published basename: ${filename}`);
   }
   const raw = JSON.parse(readFileSync(filePath, "utf8"));
-  if (!raw.title || !Array.isArray(raw.paragraphs) || !raw.paragraphs.length) {
-    throw new Error(`invalid published note (title/paragraphs): ${filename}`);
+  if (!raw.title || !hasBodyContent(raw)) {
+    throw new Error(`invalid published note (title/body): ${filename}`);
   }
   const note = pickPublicFields(raw);
   note.slug = meta.slug;
   note.date = meta.date;
   note.filename = filename;
+  note.paragraphs = deriveParagraphs(raw);
   if (!note.tease && note.preheader) note.tease = note.preheader;
   if (!note.tease && note.paragraphs[0]) {
     note.tease = String(note.paragraphs[0]).slice(0, 160);
@@ -138,20 +171,44 @@ function loopDiagramWebHtml() {
  */
 export function renderNoteBodyHtml(note) {
   const parts = [];
-  for (const p of note.paragraphs || []) {
-    parts.push(`<p class="notes-p">${escapeHtml(p)}</p>`);
-  }
-  if (note.diagram === "loop") {
-    parts.push(loopDiagramWebHtml());
-  }
-  if (note.figure && note.figure.alt) {
-    const src = normalizeFigureSrc(note.figure.src);
-    if (src) {
+  const blocks = hoistTldrFirst(
+    Array.isArray(note.blocks) && note.blocks.length
+      ? note.blocks
+      : [
+          ...(note.paragraphs || []).map((text) => ({ type: "p", text })),
+          ...(note.diagram === "loop" ? [{ type: "loop" }] : []),
+          ...(note.figure?.src && note.figure?.alt
+            ? [{ type: "figure", src: note.figure.src, alt: note.figure.alt }]
+            : []),
+        ],
+  );
+
+  for (const b of blocks) {
+    if (!b || !b.type) continue;
+    if (b.type === "p" && b.text) {
+      parts.push(`<p class="notes-p">${escapeHtml(b.text)}</p>`);
+    } else if (b.type === "h2" && b.text) {
+      parts.push(`<h2 class="notes-h2">${escapeHtml(b.text)}</h2>`);
+    } else if (b.type === "tldr") {
+      const bodyLines = b.lines || (b.text ? [b.text] : []);
+      const inner = bodyLines
+        .map((line) => `<p class="notes-tldr-p">${escapeHtml(line)}</p>`)
+        .join("");
       parts.push(
-        `<figure class="notes-figure"><img src="${escapeAttr(src)}" alt="${escapeAttr(note.figure.alt)}" width="720" height="auto" loading="lazy" /></figure>`,
+        `<aside class="notes-tldr"><div class="notes-tldr-label">Short version</div>${inner}</aside>`,
       );
+    } else if (b.type === "loop") {
+      parts.push(loopDiagramWebHtml());
+    } else if (b.type === "figure" && b.alt) {
+      const src = normalizeFigureSrc(b.src);
+      if (src) {
+        parts.push(
+          `<figure class="notes-figure"><img src="${escapeAttr(src)}" alt="${escapeAttr(b.alt)}" width="720" height="auto" loading="lazy" /></figure>`,
+        );
+      }
     }
   }
+
   if (note.cta && note.cta.label && note.cta.href) {
     const href = normalizeCtaHref(note.cta.href);
     if (href) {
@@ -196,15 +253,18 @@ export function promoteDraftToPublished(draft, draftBasename) {
       `draft basename must match YYYY-MM-DD-<slug>.json (safe slug); got ${draftBasename}`,
     );
   }
-  if (!draft.subject || !draft.title || !Array.isArray(draft.paragraphs) || !draft.paragraphs.length) {
-    throw new Error("draft needs subject, title, paragraphs[]");
+  if (!draft.subject || !draft.title || !hasBodyContent(draft)) {
+    throw new Error("draft needs subject, title, and blocks[] or paragraphs[]");
   }
   const out = pickPublicFields(draft);
   out.slug = meta.slug;
   out.date = meta.date;
   out.subject = draft.subject;
   out.title = draft.title;
-  out.paragraphs = draft.paragraphs;
+  if (Array.isArray(draft.blocks) && draft.blocks.length) {
+    out.blocks = draft.blocks;
+  }
+  out.paragraphs = deriveParagraphs(draft);
   return { filename: meta.filename, note: out };
 }
 

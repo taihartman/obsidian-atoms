@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1040" height="440" viewBox="0 0 1040 440" role="img" aria-label="A rambling dictation trailing off, and the clean note it became: Dom, tagged gym and people">
+  <!--
+    Same rules. The waveform this replaces was a stock equaliser; the real
+    before-and-after is the words themselves - what you actually mumbled, and
+    the title it came back as. The dictation fades by opacity, not by gradient.
+    The one amber tag is the only colour in the entire set.
+  -->
+  <rect x="0.5" y="0.5" width="1039" height="439" rx="28" fill="#121214" stroke="rgba(84,84,88,0.38)"/>
+
+  <g font-family="system-ui,-apple-system,&quot;Helvetica Neue&quot;,sans-serif" font-size="30">
+    <text x="96" y="112" fill="rgba(235,235,245,0.6)">so this guy at the gym tonight, we were on the same</text>
+    <text x="96" y="158" fill="rgba(235,235,245,0.46)">problem for a while and he finally pulled it, uh, Dom</text>
+    <text x="96" y="204" fill="rgba(235,235,245,0.28)">I think he said, anyway</text>
+  </g>
+
+  <line x1="96" y1="262" x2="944" y2="262" stroke="rgba(235,235,245,0.16)" stroke-width="2"/>
+
+  <text x="96" y="342" font-family="system-ui,-apple-system,&quot;Helvetica Neue&quot;,sans-serif" font-size="56" font-weight="600" letter-spacing="-1.4" fill="#ffffff">Dom</text>
+
+  <g font-family="system-ui,-apple-system,&quot;Helvetica Neue&quot;,sans-serif" font-size="26">
+    <rect x="256" y="302" width="98" height="44" rx="22" fill="none" stroke="rgba(235,235,245,0.28)"/>
+    <text x="305" y="331" text-anchor="middle" fill="rgba(235,235,245,0.55)">gym</text>
+    <rect x="368" y="302" width="126" height="44" rx="22" fill="none" stroke="#ff9f0a" stroke-opacity="0.45"/>
+    <text x="431" y="331" text-anchor="middle" fill="#ff9f0a" fill-opacity="0.85">people</text>
+  </g>
+</svg>

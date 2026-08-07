@@ -77,6 +77,59 @@ describe("fieldNotesContent", () => {
     expect(html).not.toContain("unsubscribe");
   });
 
+  it("renders blocks with h2, tldr, and inline figure", () => {
+    const html = renderNoteBodyHtml({
+      blocks: [
+        { type: "p", text: "Open" },
+        { type: "h2", text: "Two seconds" },
+        {
+          type: "figure",
+          src: "https://tryatoms.app/email/fn-ask-dom.png",
+          alt: "Ask Dom",
+        },
+        { type: "tldr", lines: ["Got Dom back."] },
+      ],
+    });
+    expect(html).toContain('class="notes-h2"');
+    expect(html).toContain("Two seconds");
+    expect(html).toContain("Got Dom back.");
+    expect(html).toContain("fn-ask-dom.png");
+    expect(html).not.toContain("notes-pull");
+    expect(html).not.toContain("notes-loop");
+  });
+
+  // Drafts cache-bust figures with ?v=<hash> because the Pages edge pins
+  // /email/*.png for 4h. The archive is served fresh, so it drops the query.
+  it("strips cache-busting queries from figure srcs", () => {
+    const html = renderNoteBodyHtml({
+      blocks: [
+        {
+          type: "figure",
+          src: "https://tryatoms.app/email/fn-ask-dom.png?v=ebb3994e",
+          alt: "Ask Dom",
+        },
+      ],
+    });
+    expect(html).toContain('src="/email/fn-ask-dom.png"');
+    expect(html).not.toContain("?v=");
+  });
+
+  // The archive mirrors the email: short version first, no jump link anywhere.
+  it("leads with the short version and ships no jump link", () => {
+    const html = renderNoteBodyHtml({
+      blocks: [
+        { type: "p", text: "Open" },
+        { type: "tldr", lines: ["Got Dom back."] },
+        { type: "skip", label: "Short version ↓", target: "fn-tldr" },
+      ],
+    });
+    expect(html.indexOf("Got Dom back.")).toBeLessThan(html.indexOf("Open"));
+    expect(html).not.toContain("notes-skip");
+    expect(html).not.toContain('href="#');
+    expect(html).not.toContain('id="fn-tldr"');
+    expect(html).not.toContain("Short version ↓");
+  });
+
   it("promoteDraftToPublished allowlists fields and requires basename", () => {
     const { filename, note } = promoteDraftToPublished(
       {

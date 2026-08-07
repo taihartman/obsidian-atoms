@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1040" height="440" viewBox="0 0 1040 440" role="img" aria-label="Asked who I met at the gym. Answer: Dom, met two weeks ago.">
+  <!--
+    Same rules as fn-face-no-name: flat plate, no glow, no accent bar, words
+    only. Scale does the work here - the question is small and the name is
+    enormous, because the whole beat is the relief of it coming back.
+  -->
+  <rect x="0.5" y="0.5" width="1039" height="439" rx="28" fill="#121214" stroke="rgba(84,84,88,0.38)"/>
+
+  <g font-family="system-ui,-apple-system,&quot;Helvetica Neue&quot;,sans-serif">
+    <text x="96" y="148" font-size="32" fill="rgba(235,235,245,0.5)">who did I meet at the gym?</text>
+    <text x="944" y="148" font-size="28" text-anchor="end" fill="rgba(235,235,245,0.32)">2 seconds</text>
+
+    <text x="92" y="312" font-size="132" font-weight="600" letter-spacing="-4" fill="#ffffff">Dom</text>
+    <text x="98" y="370" font-size="28" fill="rgba(235,235,245,0.45)">met two weeks ago · climbing gym</text>
+  </g>
+</svg>

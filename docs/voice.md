@@ -57,6 +57,8 @@ Grounded in shipped landing and home copy, `docs/design-handoff/tokens/README.md
 - **No “use case” / “use-case notes”** in user-facing marketing (sounds like a deck). Prefer *how people run it*, *practice*, *field notes*, *second brain in real life*.
 - **Numbers and locked pricing sentences** stay SSOT (`plus-pricing.json` / plugin helpers). Marketing must not invent trial or price claims.
 - **Body sacred** never gets a creative rewrite.
+- **No dramatised beats.** Punchy fragments that exist to sound cool: *he pulled it, clean* · *and just like that, it was there* · *one tap. done.* Tai's own prose earns a short beat because the sentences around it carry weight. Copy we write for him does not, and it reads as trying too hard. Say the plain thing.
+- **Set in type, everything gets louder.** A line that passes inside a paragraph can be cringe once it is alone on an illustration plate or a hero. Re-read every figure line, headline, and empty state as if it were the only sentence on screen, because it is. When in doubt, cut it rather than rewrite it — the blank usually reads better than the beat.
 
 ---
 
@@ -75,9 +77,11 @@ Grounded in shipped landing and home copy, `docs/design-handoff/tokens/README.md
 ### Structure of a good note
 
 1. **One concrete beat** (a walk, a person, a moment you almost forgot).  
-2. **What the stack did** (capture → atom → ask / calendar / recap) without tool-worship.  
-3. **One soft next step** (tryatoms, setup, or “reply with yours”).  
-4. **Invite:** show how you use Atoms day to day - you may get featured (ask before naming).
+2. **Sections, not a scroll wall** — use `blocks` with `h2` breaks, short paras, pull quotes, and **inline** figures between beats (see `docs/field-notes-email.md`).  
+3. **What the stack did** (capture → atom → ask / calendar / recap) without tool-worship.  
+4. **One soft next step** (tryatoms, setup, or “reply with yours”).  
+5. **Invite:** show how you use Atoms day to day - you may get featured (ask before naming).  
+6. **No default loop footer** — the catch/file/return diagram is optional and only when it serves the story.
 
 ### Subject lines
 

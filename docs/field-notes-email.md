@@ -50,36 +50,57 @@ Gmail and many clients **strip or block SVG**. Reliable path:
 
 1. Draw the idea as **SVG** in the repo (`www/src/email/*.svg`) - on theme, editable.  
 2. Export a **PNG** (2x width, ~1040px wide for retina).  
-3. Host PNG on tryatoms: `www/src/email/foo.png` → build copies to `https://tryatoms.app/email/foo.png`.  
+3. Host PNG on tryatoms: `www/src/email/foo.<hash>.png` → build copies to `https://tryatoms.app/email/foo.<hash>.png`.  
 4. In HTML: `<img src="https://tryatoms.app/email/foo.png" …>` via `figureHtml()` or Resend’s editor.
 
 ### Drawing SVGs on theme
 
 | Token | Hex |
 |---|---|
-| Background | `#000000` |
-| Card / surface | `#1c1c1e` or `#2c2c2e` |
+| Figure plate | `#121214` flat, `rx="28"` |
+| Plate hairline | `rgba(84,84,88,0.38)` |
 | Text | `#ffffff` |
-| Muted | `rgba(235,235,245,0.72)` |
-| Accent / arrows | `#0a84ff` |
-| Person accent | `#ff9f0a` (sparingly) |
+| Muted | `rgba(235,235,245,0.28–0.72)` — three steps, that is the whole palette |
+| A person | `#ff9f0a`, used once in the set |
+| The system answering | `#0a84ff`, currently unused — earn it |
 
-Keep diagrams **simple**: 2–4 boxes, one arrow story, almost no text. The email prose carries the story; the figure is a glanceable beat.
+**House style** (established on the 2026-08-07 Dom letter; `www/src/email/fn-*.svg` are the reference set). It is mostly a list of things not to do, and that is deliberate:
 
-**Starter file:** `www/src/email/loop-remember.svg` (same three-step loop as the HTML diagram).
+- **The picture is made of words.** Notes are the product, so the illustration is real text — the actual mumble, the actual answer — not a diagram of it.
+- **No glow, no wash, no halo.** A soft tinted glow behind a focal element on a dark plate is the clearest tell of generated art. Flat plate, always.
+- **No accent bar beside text.** A coloured vertical rule to the left of a block is the banned bookend/pull-quote pattern, whatever it sits next to.
+- **One container.** A single flat plate (`#121214`, `rx="28"`, hairline `rgba(84,84,88,0.38)`) on a transparent canvas; `figureHtml` adds no frame. The first version of this set nested four boxes and read as stock SaaS art purely because of that.
+- **No box → arrow → box.**
+- **Colour is almost absent.** One amber tag in the whole set. Everything else is white at three opacities.
+- **Only details the copy establishes** — an invented specific is a false memory in the author's mouth.
+- **Plain recall, never a dramatised beat.** Set in type on a plate, a punchy fragment has no surrounding sentences to earn it and reads as trying too hard. Cut rather than rewrite.
+- **Size for 520px.** Nothing under ~26px survives. Answers ~132px, titles ~56px, body 30–34px.
+- **Scale and emptiness do the work.** A small question and an enormous name; three remembered details and one blank line.
+
+**Starter files:** `fn-ask-dom.svg` (scale contrast), `fn-face-no-name.svg` (a list with one line missing), `fn-messy-filed.svg` (before and after, in the words themselves). `loop-remember.svg` predates the house style — do not copy its card-and-arrow layout.
 
 ### Export PNG (local)
 
-Any of:
-
 ```bash
-# if you have rsvg-convert (librsvg)
-rsvg-convert -w 1040 www/src/email/loop-remember.svg -o www/src/email/loop-remember.png
-
-# or open in Figma / Preview / Illustrator and export 2x PNG
+scripts/render-email-svg.sh                        # all fn-*.svg
+scripts/render-email-svg.sh www/src/email/foo.svg  # one
 ```
 
-Then `npm run build:www` and deploy so `https://tryatoms.app/email/loop-remember.png` resolves.
+The script rasterizes with Chrome. **Do not use `magick`**: with librsvg absent (it is, on this machine) ImageMagick silently falls back to its own SVG renderer, dropping gradients and picking wrong font metrics — output that looks plausible until compared side by side.
+
+Then `npm run build:www` and deploy so `https://tryatoms.app/email/foo.png` resolves.
+
+**Figures must be referenced by fingerprinted URL.** `render-email-svg.sh` writes `foo.<md5-8>.png` beside `foo.png` and prints the URL to use. Drafts reference that, never the bare name.
+
+**Gmail caches proxied images by URL, permanently.** Redraw a figure at a stable URL and subscribers keep seeing whichever version Gmail fetched first, no matter how many times you redeploy or resend — the origin is correct and the reader still sees last week's art. A query string (`?v=hash`) does not fix it: it changes Gmail's cache key, but Cloudflare ignores query strings in its own cache key, and both caches have to agree. A new path satisfies both, and old paths keep working for mail already sent.
+
+Verify before every send:
+
+```bash
+scripts/check-email-assets.sh docs/field-notes/drafts/<file>.json
+```
+
+It fails on an un-fingerprinted URL, on a missing local file, and on live bytes that do not match local; it retries, because Cloudflare pins `/email/*` for 4h and a newly deployed path takes a moment to reach the apex domain. Do not send on a failure.
 
 ### Using a figure in a Broadcast (Resend UI)
 
@@ -95,14 +116,37 @@ import { buildFieldNotesHtml } from "./fieldNotesEmail.mjs";
 
 ---
 
+## Body shape: blocks (not a wall of text)
+
+Draft JSON prefers **`blocks`** (email + web archive share the model):
+
+| type | Role |
+|---|---|
+| `p` | Short paragraph |
+| `h2` | Plain section title (not all-caps kicker) |
+| `figure` | Inline PNG (`https://tryatoms.app/email/….png`) between sections |
+| `tldr` | Quiet short-version box. Always hoisted to the **top**, above the story |
+| `loop` | Built-in three-step diagram — **opt-in**, not a default footer |
+
+**Banned:** pull-quote / bookend cards (colored left bars, highlight quote boxes). AI-template look. Use a normal `p` for a one-line beat.
+
+**Banned: in-message jump links.** Gmail strips or rewrites `href="#anchor"`, so a “Short version ↓” link is dead for most readers, and a short version placed after the long version is decoration anyway. `normalizeBlocks` / `renderBlocksEmailHtml` hoist `tldr` to the front on both surfaces; there is no `skip` block type and nothing carries an `id` for linking. Tests guard both (`test/fieldNotesEmail.test.ts`, `test/fieldNotesContent.test.ts`).
+
+Legacy flat `paragraphs` + trailing `diagram`/`figure` still work for welcome and old notes.
+
+**Rule of thumb:** 2–3 `h2`s, at least one inline `figure`, and a `tldr` on anything longer than a welcome. Short version first, then the story; loop only when it earns the slot.
+
 ## Resend Broadcast checklist
 
 - [ ] Read `docs/voice.md`  
-- [ ] One concrete beat + optional diagram  
+- [ ] `blocks` with sections + inline figures (not a paragraph wall)  
+- [ ] PNGs live on tryatoms.app/email/ before broadcast  
 - [ ] Soft CTA + invite “reply with how you run yours”  
 - [ ] Dark card layout (or Resend theme tuned to black / #1c1c1e / #0a84ff)  
 - [ ] `{{{RESEND_UNSUBSCRIBE_URL}}}` + postal line  
 - [ ] Test on iPhone Mail + Gmail before audience send  
+- [ ] `scripts/check-email-assets.sh <draft>` passes before judging the test send  
+- [ ] Body renders sans-serif, not Times (a `"` in a font stack breaks `style="..."`)  
 
 ---
 
@@ -113,8 +157,10 @@ import { buildFieldNotesHtml } from "./fieldNotesEmail.mjs";
 | `welcomeEmailContent` | Signup welcome (wired in `resendMarketing.mjs`) |
 | `buildFieldNotesHtml` | Full note HTML for Broadcasts or future automation |
 | `loopDiagramHtml` | Built-in three-step diagram |
-| `figureHtml` | Hosted PNG block |
-| `scripts/field-notes-send.mjs` | CLI test + broadcast from a draft JSON |
+| `figureHtml` | Hosted PNG block, unframed |
+| `hoistTldrFirst` | Short version to the top; shared by email and web archive |
+| `scripts/field-notes-send.mjs` | CLI preview + test + broadcast from a draft JSON |
+| `scripts/render-email-svg.sh` | SVG → PNG via Chrome |
 | skill **`field-notes`** | Idea → draft → test → (approve) → list |
 
 Skills: **`field-notes`** (end-to-end send), **`atoms-voice`** (tone only).

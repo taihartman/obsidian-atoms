@@ -20,6 +20,11 @@ You own the full path. The human feeds **the idea**; you draft, build, test-send
 
 Also load skill **atoms-voice** principles (no em dashes, no corn, no “use case”).
 
+**Traps already paid for** (read before touching the email lib or the illustrations):
+- [`docs/solutions/integration-issues/a-redrawn-image-at-the-same-url-never-reaches-the-reader.md`](../../../docs/solutions/integration-issues/a-redrawn-image-at-the-same-url-never-reaches-the-reader.md) — why figure URLs are fingerprinted
+- [`docs/solutions/logic-errors/a-double-quote-in-an-inline-style-closes-the-attribute-not-the-value.md`](../../../docs/solutions/logic-errors/a-double-quote-in-an-inline-style-closes-the-attribute-not-the-value.md) — why the whole list rendered in Times
+- [`docs/solutions/ui-bugs/an-svg-gradient-on-zero-width-geometry-paints-nothing.md`](../../../docs/solutions/ui-bugs/an-svg-gradient-on-zero-width-geometry-paints-nothing.md) — why a gradient can erase artwork
+
 ## Input
 
 User provides any of:
@@ -34,27 +39,87 @@ If the idea is too thin for a letter, ask **one** clarifying question, then proc
 
 ### 1. Draft
 
+**Never ship a wall of plain paragraphs.** Every note uses `blocks` with real structure and at least one visual beat.
+
 Write:
 
 - `subject` — short, calm, specific  
 - `title` — H1  
 - `preheader` — one line  
-- `paragraphs` — 3–6 short paras: concrete beat → what mattered → stack only if it serves → **featured invite** (“Want to be featured? Reply and show how you use Atoms…”)  
-- `diagram`: `"loop"` if the three-step loop fits; else `null`  
-- optional `figure` if a hosted PNG exists  
+- `blocks` — ordered mix of:
+  - `{ "type": "p", "text": "..." }` — short paras (2–4 sentences max each)
+  - `{ "type": "h2", "text": "..." }` — plain section titles (2–3; break the scroll). Not shouty all-caps kicker labels.
+  - `{ "type": "figure", "src": "https://tryatoms.app/email/<name>.png", "alt": "..." }` — **inline** illustrations between sections
+  - `{ "type": "tldr", "lines": ["...", "..."] }` — quiet short-version box. **Always renders first**, above the story, in email and on the web. The renderer hoists it, so draft order cannot get this wrong.
+  - `{ "type": "loop" }` — only when the three-step loop truly serves; optional, never default footer
 - `cta`: usually Open tryatoms.app  
+
+**Never:** colored pull-quote / bookend cards (left border bars, “highlight” quote boxes). They read as AI template. A sharp one-line beat is just a normal paragraph.
+
+**Never:** in-message jump links (`href="#..."`). Gmail strips fragment links, so “Short version ↓” is a dead link for most readers. There is no `skip` block type — a short version earns its place by being read first, not by being linked to.
+
+**Structure recipe:** `tldr` → open beat → figure → h2 → figure → tight argument → close + featured invite.  
+Long notes always get a `tldr`. Featured invite near the end: “Want to be featured? Reply and show how you use Atoms…”
+
+**Illustrations (required for story notes).** These are the part readers judge first and the part that most easily reads as AI slop. The house style, learned the hard way on the Dom letter:
+
+- **The picture is made of words.** This product is notes, so the honest illustration is real text — what someone actually mumbled, actually remembered, actually got back — not a diagram of it. Reach for a graphic only when words genuinely cannot carry the beat.
+- **No glow.** No radial halo, no coloured wash behind a focal element, no "light source". A soft tinted glow on a dark plate is the single clearest tell of a generated illustration. This was added once and rejected on sight.
+- **No accent bar beside text.** A coloured vertical rule to the left of a block is the banned bookend/pull-quote pattern from CLAUDE.md, whatever you attach it to. It does not stop being that because the thing beside it is a name instead of a quote.
+- **One container, ever.** A single flat plate: `#121214`, `rx="28"`, hairline `rgba(84,84,88,0.38)`, transparent canvas, and `figureHtml` puts **no frame around it**. The first Dom set stacked four boxes deep — letter card, figure frame, black SVG background, inner card — and that nesting alone made it look like stock SaaS art. If you are drawing a card inside the plate, stop.
+- **No box → arrow → box.** A blue arrow between two rounded rectangles is the single most generic thing you can draw.
+- **Colour is almost absent.** The whole three-figure set uses one amber tag, once. Everything else is white at three opacities. Amber `#ff9f0a` = a person; blue `#0a84ff` = the system answering. If you are reaching for a second accent, you are decorating.
+- **Only details the copy establishes.** Writing "tuesday night" into a figure when the letter never says Tuesday puts a false memory in the author's mouth. Pull specifics from the draft, not from your imagination.
+- **Plain recall, never a dramatised beat.** "he pulled it, clean" got cut for being cringe. A punchy fragment that survives inside Tai's prose does not survive alone on a plate, because type at that size has no sentences around it to earn the drama. Read every figure line as if it were the only sentence on screen. Cut rather than rewrite — two remembered details and a blank line beat three with a flourish. See `docs/voice.md` § Hard rules.
+- **Mind the display size.** Canvas is 1040px wide and shows at 520 in mail, so nothing under ~26px is legible. Big answers ~132px, titles ~56px, body 30–34px, labels 26–28px.
+- **Let scale and emptiness do the work.** The strongest figure in the set is a small question and an enormous name. The second strongest is three remembered details and one blank line. When a figure feels weak, remove an element rather than adding one.
+
+Then:
+
+1. Draw the SVG at `www/src/email/<slug-beat>.svg` (tokens in `docs/field-notes-email.md`).
+2. Rasterize: `scripts/render-email-svg.sh` (all `fn-*.svg`) or pass paths for one.
+   **Do not use `magick`.** librsvg is not installed on this machine, so ImageMagick silently falls back to its own renderer and loses gradients and font metrics — it looks fine until you compare. The script uses Chrome, the same engine the site renders in.
+3. Reference `https://tryatoms.app/email/foo.png` in blocks, and write `alt` that describes the actual drawing (it is the plain-text body too).
+4. **Images must be live on tryatoms before *any* send, test included** — otherwise the test shows the previous version and you review the wrong art:
+   ```bash
+   npm run build:www   # copies www/src/email/* into www/dist/email/
+   ( cd www && npx wrangler pages deploy dist --project-name=tryatoms --branch=master )
+   ```
+   Then **reference the fingerprinted URL the render script prints**, never the bare `foo.png`:
+   ```jsonc
+   { "type": "figure", "src": "https://tryatoms.app/email/fn-ask-dom.4e867681.png", "alt": "..." }
+   ```
+   **Gmail proxies every image through googleusercontent and caches it by URL.** Redraw a figure at a stable URL and subscribers keep seeing whichever version Gmail fetched first — forever, however many times you redeploy and resend. This is not hypothetical: it burned three consecutive test sends on the Dom letter, each one showing art from a previous session while the origin served the new file correctly. A query string does not fix it either: it changes Gmail's cache key but Cloudflare ignores it, and both caches have to agree. Only a new path does.
+   Then verify before every send:
+   ```bash
+   scripts/check-email-assets.sh docs/field-notes/drafts/<file>.json
+   ```
+   It fails on a bare (un-fingerprinted) URL and on a live body that does not match local, and it retries — Cloudflare's edge pins `/email/*` for 4h, and a freshly deployed path takes a moment to appear on the apex domain. Do not send on a failure.
+
+Legacy `paragraphs` + trailing `diagram`/`figure` still render, but **new drafts must use `blocks`.**
 
 Save JSON to:
 
 `docs/field-notes/drafts/YYYY-MM-DD-<slug>.json`
 
-(create dirs as needed). Also keep a short markdown preview in chat (subject + body).
+(create dirs as needed). Also keep a short markdown preview in chat (subject + section outline).
 
-### 2. Build check
+### 2. Preview and judge it yourself
 
-Import is already in the send script via `fieldNotesEmail.mjs`. No separate build required for send.
+Never let a test send be the first time anyone looks at the letter. Build the exact bodies with no key and no network:
 
-Optional: add/update SVG under `www/src/email/` and note PNG export if they want a custom figure later.
+```bash
+node scripts/field-notes-send.mjs preview \
+  --draft docs/field-notes/drafts/<file>.json --out /tmp/letter.html
+```
+
+Open it at email width and read it as a reader, not as the author. Point the figure `src`s at local files first if the PNGs are not deployed yet:
+
+```bash
+sed "s|https://tryatoms.app/email/|file://$PWD/www/src/email/|g" /tmp/letter.html > /tmp/letter-local.html
+```
+
+What to look for: does the short version earn the top slot, do the sections break the scroll, is any figure doing work a sentence already did, is the body actually in the sans-serif stack (if it looks like Times, a font stack has broken — see **Do not**).
 
 ### 3. Test send (always before audience)
 
@@ -72,9 +137,11 @@ Default test inbox: `taihartmandevelopment@gmail.com` (or +alias). Override if u
 
 ```bash
 node scripts/field-notes-send.mjs test \
-  --to 'taihartmandevelopment+fn-$(date +%H%M%S)@gmail.com' \
+  --to "taihartmandevelopment+fn-$(date +%H%M)@gmail.com" \
   --draft docs/field-notes/drafts/<file>.json
 ```
+
+Double quotes — in single quotes the `$(date)` does not expand and you mail a literal address.
 
 Tell the user the exact +address and that mail is on the way.
 
@@ -119,8 +186,10 @@ Draft basename must be `YYYY-MM-DD-<slug>.json` or promote fails after send (ema
 - Skip voice docs  
 - Invent pricing/trial claims  
 - Put raw SVG in HTML body (PNG or built-in `loop` diagram)  
+- Ship an in-message jump link (`href="#..."`) — Gmail strips fragment links  
 - Broadcast without `--confirm` + user yes  
 - Print API keys  
+- **Put a double quote in any CSS value that `fieldNotesEmail.mjs` interpolates into `style="..."`.** A font stack like `"SF Pro Text"` closes the attribute early, the whole `font-family` declaration is dropped, and the letter silently falls back to Times in every client. Use single quotes. This shipped undetected for the entire life of the list until someone screenshotted a preview; `test/fieldNotesEmail.test.ts` now guards it.
 
 ## One-liner for the human
 

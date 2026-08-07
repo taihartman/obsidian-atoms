@@ -10,6 +10,9 @@ The public marketing email list on tryatoms.app (user-facing name). Occasional m
 ### Field notes archive
 Public tryatoms.app pages at `/notes/` listing full past Field notes (same substance as email). SSOT: `docs/field-notes/published/`. Send = publish JSON; live after master Pages deploy. Plan: `docs/plans/2026-08-06-003-feat-field-notes-archive-plan.md`.
 
+### Short version
+The quiet summary box on a Field note (`tldr` block). Always **leads** the letter, in email and on the archive: the renderer hoists it above the story, so draft order cannot place it at the end. There is no jump link to it - mail clients strip in-message anchors, and a summary that comes after the thing it summarises is decoration.
+
 ## Capture pipeline
 
 ### Capture

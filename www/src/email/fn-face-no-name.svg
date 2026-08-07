@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1040" height="440" viewBox="0 0 1040 440" role="img" aria-label="Everything I remembered about him, and a blank line where his name should be">
+  <!--
+    Field notes illustration set. Three rules, and they are all subtractive:
+
+    1. Flat plate. No glow, no gradient wash, no coloured halo behind anything.
+       A soft tinted glow behind a focal element is the single clearest tell of
+       a generated dark-UI illustration. Never add one.
+    2. No accent bar beside text. A coloured vertical rule to the left of a
+       block is the banned bookend/pull-quote pattern (CLAUDE.md), whatever it
+       is attached to.
+    3. The picture is made of words. This product is notes, so the honest
+       illustration is real text - what someone actually said, actually
+       remembered, actually got back - not a diagram of it.
+
+    Plain recall only. No dramatised beats - a punchy fragment like "he pulled
+    it, clean" reads as self-mythologising when it is set in type on a plate,
+    even though the same words are fine inside the author's own prose.
+
+    Only details the letter itself establishes. Inventing a specific that is
+    not in the copy puts a false memory in the author's mouth.
+
+    Colour appears once in the whole set (one amber tag in fn-messy-filed).
+    Everything else is white at three opacities. Restraint is the house style.
+  -->
+  <rect x="0.5" y="0.5" width="1039" height="439" rx="28" fill="#121214" stroke="rgba(84,84,88,0.38)"/>
+
+  <g font-family="system-ui,-apple-system,&quot;Helvetica Neue&quot;,sans-serif" font-size="34" fill="rgba(235,235,245,0.72)">
+    <text x="96" y="160">two weeks ago</text>
+    <text x="96" y="232">traded beta on a hard problem</text>
+  </g>
+
+  <!-- the one line memory did not keep -->
+  <line x1="96" y1="322" x2="452" y2="322" stroke="rgba(235,235,245,0.22)" stroke-width="2" stroke-linecap="round"/>
+  <text x="486" y="330" font-family="system-ui,-apple-system,&quot;Helvetica Neue&quot;,sans-serif" font-size="30" fill="rgba(235,235,245,0.34)">his name</text>
+</svg>

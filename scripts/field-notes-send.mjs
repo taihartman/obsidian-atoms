@@ -11,8 +11,16 @@
  *   "subject": "string",
  *   "title": "string",           // H1 in HTML
  *   "preheader": "string?",
- *   "paragraphs": ["..."],
- *   "diagram": "loop" | null,
+ *   "blocks": [                  // preferred: sections + figures inline
+ *     { "type": "p", "text": "..." },
+ *     { "type": "h2", "text": "Section" },
+ *     { "type": "figure", "src": "https://tryatoms.app/email/foo.png", "alt": "..." },
+ *     { "type": "tldr", "lines": ["...", "..."] },
+ *     { "type": "loop" }
+ *   ],
+ *   // never use pull/bookend quote cards
+ *   "paragraphs": ["..."],       // legacy flat body (still ok)
+ *   "diagram": "loop" | null,    // legacy trailing only
  *   "figure": { "src": "https://...", "alt": "..." } | null,
  *   "cta": { "label": "...", "href": "..." } | null,
  *   "secondaryHref": { "label": "...", "href": "..." } | null
@@ -33,8 +41,10 @@ import { mkdirSync, readFileSync, writeFileSync } from "fs";
 import { basename, dirname, join } from "path";
 import { fileURLToPath } from "url";
 import {
+  blocksToTextLines,
   buildFieldNotesHtml,
   buildFieldNotesText,
+  normalizeBlocks,
 } from "../www/functions/_lib/fieldNotesEmail.mjs";
 import { promoteDraftToPublished } from "../www/lib/fieldNotesContent.mjs";
 
@@ -74,19 +84,27 @@ async function resend(path, init, apiKey) {
 function loadDraft(path) {
   const raw = readFileSync(path, "utf8");
   const d = JSON.parse(raw);
-  if (!d.subject || !d.title || !Array.isArray(d.paragraphs) || !d.paragraphs.length) {
-    throw new Error("draft needs subject, title, paragraphs[]");
+  if (!d.subject || !d.title) {
+    throw new Error("draft needs subject, title");
+  }
+  const blocks = normalizeBlocks(d);
+  const hasProse = blocks.some(
+    (b) =>
+      ((b.type === "p" || b.type === "h2") && b.text) ||
+      (b.type === "tldr" && (b.text || (b.lines && b.lines.length))),
+  );
+  if (!hasProse) {
+    throw new Error("draft needs blocks[] or paragraphs[] with prose");
   }
   return d;
 }
 
 function buildBodies(draft, unsubUrl, postal) {
+  const blocks = normalizeBlocks(draft);
   const html = buildFieldNotesHtml({
     title: draft.title,
     preheader: draft.preheader,
-    paragraphs: draft.paragraphs,
-    diagram: draft.diagram === "loop" ? "loop" : null,
-    figure: draft.figure || null,
+    blocks,
     cta: draft.cta || {
       label: "Open tryatoms.app",
       href: "https://tryatoms.app",
@@ -96,7 +114,7 @@ function buildBodies(draft, unsubUrl, postal) {
     postalAddress: postal,
   });
   const text = buildFieldNotesText(
-    [draft.title, "", ...draft.paragraphs],
+    [draft.title, "", ...blocksToTextLines(blocks)],
     {
       unsubUrl,
       postalAddress: postal,
@@ -110,8 +128,9 @@ function buildBodies(draft, unsubUrl, postal) {
 
 async function main() {
   const mode = process.argv[2];
-  if (mode !== "test" && mode !== "broadcast") {
+  if (mode !== "test" && mode !== "broadcast" && mode !== "preview") {
     console.error(`Usage:
+  node scripts/field-notes-send.mjs preview --draft file.json [--out preview.html]
   node scripts/field-notes-send.mjs test --to email --draft file.json
   node scripts/field-notes-send.mjs broadcast --draft file.json --confirm`);
     process.exit(1);
@@ -121,6 +140,25 @@ async function main() {
   if (!draftPath) {
     console.error("Need --draft path.json");
     process.exit(1);
+  }
+
+  // Preview writes the exact bodies a send would, with no key and no network,
+  // so the letter can be judged in a browser before anyone's inbox sees it.
+  if (mode === "preview") {
+    const draft = loadDraft(draftPath);
+    const { html, text } = buildBodies(
+      draft,
+      "https://tryatoms.app/api/unsubscribe?e=preview&t=preview",
+      process.env.ATOMS_NOTES_POSTAL_ADDRESS ||
+        "Taitopia, 1029 Lyell Ave Unit #740, Rochester, NY 14606",
+    );
+    const out = arg("--out", "preview-field-note.html");
+    writeFileSync(out, html);
+    writeFileSync(out.replace(/\.html$/, "") + ".txt", text);
+    console.log(`subject: ${draft.subject}`);
+    console.log(`html:    ${out}`);
+    console.log(`text:    ${out.replace(/\.html$/, "")}.txt`);
+    return;
   }
 
   let apiKey = process.env.RESEND_API_KEY;

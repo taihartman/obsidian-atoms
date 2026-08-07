@@ -1,0 +1,118 @@
+{
+  "subject": "I knew his face. I didn't know his name.",
+  "title": "I knew his face. I didn't know his name.",
+  "preheader": "A guy at the climbing gym, a half-sentence in the car, and the moment the note came back.",
+  "blocks": [
+    {
+      "type": "tldr",
+      "lines": [
+        "Met someone at the gym. Forgot his name. Asked my notes who I'd met there. Got Dom back in two seconds, walked over, and said hi.",
+        "Capture is easy. Getting the note back when it matters is the hard part. That's what Atoms is for."
+      ]
+    },
+    {
+      "type": "p",
+      "text": "Two weeks ago I met a guy at my climbing gym. We ended up on the same hard problem, trading beta for a while. Then he pulled it. Clean. I still remember where I was standing."
+    },
+    {
+      "type": "p",
+      "text": "Last week I walked in and saw him across the gym. I knew his face. I knew we'd worked that route together. What I didn't have was his name."
+    },
+    {
+      "type": "figure",
+      "src": "https://tryatoms.app/email/fn-face-no-name.85602c61.png",
+      "alt": "Two weeks ago, traded beta on a hard problem, and a blank line where his name should be"
+    },
+    {
+      "type": "p",
+      "text": "That's usually where it ends. You give the nod. You stay on your side of the gym. You quietly lose someone you actually liked talking to."
+    },
+    {
+      "type": "h2",
+      "text": "Two seconds"
+    },
+    {
+      "type": "p",
+      "text": "Instead I pulled out my phone and asked Claude who the most recent people I'd met at the gym were."
+    },
+    {
+      "type": "figure",
+      "src": "https://tryatoms.app/email/fn-ask-dom.4e867681.png",
+      "alt": "Asked who I met at the gym. Answer: Dom, met two weeks ago"
+    },
+    {
+      "type": "p",
+      "text": "Dom. Back in about two seconds, with the context of when we met. I walked over, said hey Dom. He said hey, and called me Daniel."
+    },
+    {
+      "type": "p",
+      "text": "My name is not Daniel."
+    },
+    {
+      "type": "h2",
+      "text": "What actually matters"
+    },
+    {
+      "type": "p",
+      "text": "\"App remembers a name\" is not interesting on its own. Your phone already has a notes app. You've probably typed someone's name into it. Then you never opened it again, because that would mean remembering that you wrote something down, roughly when, and scrolling."
+    },
+    {
+      "type": "p",
+      "text": "That's the failure mode of every capture tool I've used. Voice memos, Apple Notes, paper, the list in my head. Good at taking a thought in. Useless at handing it back the moment I need it."
+    },
+    {
+      "type": "p",
+      "text": "That's what I've been building toward with Atoms. Notes that don't sit in a folder waiting for me to remember they exist. Wired to an agent that can reach them. Not \"search for a name I half-remember.\" Just: who did I meet recently. Plain language. Answered from my own life."
+    },
+    {
+      "type": "p",
+      "text": "Capture is the boring half. The connection is the product."
+    },
+    {
+      "type": "p",
+      "text": "I didn't type anything about Dom that night. I dictated a rambling half-sentence in the car. Messy, trailing off. It got filed as a clean note with his name in the title, a tag, and links to other people from that gym. I didn't name it, tag it, or pick a folder."
+    },
+    {
+      "type": "figure",
+      "src": "https://tryatoms.app/email/fn-messy-filed.418e76d1.png",
+      "alt": "A rambling dictation trailing off, and the clean note it became: Dom, tagged gym and people"
+    },
+    {
+      "type": "p",
+      "text": "The version of me who couldn't be bothered to write it down properly is why the version of me two weeks later crossed the gym instead of nodding and walking away."
+    },
+    {
+      "type": "p",
+      "text": "Anyway. Dom, if you're reading this: great send, and my name is Tai."
+    },
+    {
+      "type": "p",
+      "text": "Want to be featured? Reply and show how you use Atoms day to day. We only name people with permission."
+    }
+  ],
+  "cta": {
+    "label": "Open tryatoms.app",
+    "href": "https://tryatoms.app"
+  },
+  "tease": "A guy at the climbing gym, a half-sentence in the car, and the moment the note came back.",
+  "slug": "knew-his-face",
+  "date": "2026-08-07",
+  "paragraphs": [
+    "Met someone at the gym. Forgot his name. Asked my notes who I'd met there. Got Dom back in two seconds, walked over, and said hi.",
+    "Capture is easy. Getting the note back when it matters is the hard part. That's what Atoms is for.",
+    "Two weeks ago I met a guy at my climbing gym. We ended up on the same hard problem, trading beta for a while. Then he pulled it. Clean. I still remember where I was standing.",
+    "Last week I walked in and saw him across the gym. I knew his face. I knew we'd worked that route together. What I didn't have was his name.",
+    "That's usually where it ends. You give the nod. You stay on your side of the gym. You quietly lose someone you actually liked talking to.",
+    "Instead I pulled out my phone and asked Claude who the most recent people I'd met at the gym were.",
+    "Dom. Back in about two seconds, with the context of when we met. I walked over, said hey Dom. He said hey, and called me Daniel.",
+    "My name is not Daniel.",
+    "\"App remembers a name\" is not interesting on its own. Your phone already has a notes app. You've probably typed someone's name into it. Then you never opened it again, because that would mean remembering that you wrote something down, roughly when, and scrolling.",
+    "That's the failure mode of every capture tool I've used. Voice memos, Apple Notes, paper, the list in my head. Good at taking a thought in. Useless at handing it back the moment I need it.",
+    "That's what I've been building toward with Atoms. Notes that don't sit in a folder waiting for me to remember they exist. Wired to an agent that can reach them. Not \"search for a name I half-remember.\" Just: who did I meet recently. Plain language. Answered from my own life.",
+    "Capture is the boring half. The connection is the product.",
+    "I didn't type anything about Dom that night. I dictated a rambling half-sentence in the car. Messy, trailing off. It got filed as a clean note with his name in the title, a tag, and links to other people from that gym. I didn't name it, tag it, or pick a folder.",
+    "The version of me who couldn't be bothered to write it down properly is why the version of me two weeks later crossed the gym instead of nodding and walking away.",
+    "Anyway. Dom, if you're reading this: great send, and my name is Tai.",
+    "Want to be featured? Reply and show how you use Atoms day to day. We only name people with permission."
+  ]
+}
