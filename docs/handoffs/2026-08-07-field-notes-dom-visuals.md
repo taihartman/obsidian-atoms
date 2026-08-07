@@ -4,7 +4,7 @@ branch: claude/field-notes-dom-visuals
 worktree: /Users/a515138832/StudioProjects/obsidian_plugin-field-notes-dom-visuals
 base: master
 tracking: none
-status: blocked-on-send
+status: awaiting-broadcast-approval
 ---
 
 # Handoff — Field notes Dom letter: visuals + polish
@@ -89,7 +89,7 @@ Passing as of handoff. Extend if you change block types / jump behavior.
 
 ## Session log — 2026-08-07 (Claude)
 
-Steps 1, 2, 3 and 6 are **done** and pushed (`0095419`, `b2cfe87`). Steps 4 and 5 are **blocked**, see below.
+Steps 1, 2, 3, 4 and 6 are **done** and pushed (`0095419`, `b2cfe87`, `15c5b61`, `f0c0a46`). Only step 5, the broadcast, remains.
 
 **Short version jump — fixed by removing it.** Gmail strips in-message fragment links, and a short version placed after the long version is decoration rather than a summary. So there is no jump: `tldr` is hoisted to the **top** of the letter by one shared helper (`hoistTldrFirst`) used by both the email and the web archive, the `skip` block type is gone from both renderers, and the `id="fn-tldr"` / `.notes-skip` CSS are deleted. Regression tests on both surfaces assert no `href="#"` ships and that the short version renders before the story. A legacy draft carrying a `skip` block now renders nothing rather than a dead link.
 
@@ -101,9 +101,11 @@ Steps 1, 2, 3 and 6 are **done** and pushed (`0095419`, `b2cfe87`). Steps 4 and 
 - `scripts/render-email-svg.sh` — rasterizes `www/src/email/*.svg` via Chrome. Use this, not the `magick` line below: librsvg is absent on this machine, so ImageMagick silently falls back to its own renderer and loses gradients and font metrics.
 - `node scripts/field-notes-send.mjs preview --draft <file> --out letter.html` — builds the exact HTML + text a send would, with no key and no network.
 
-**Blocked — needs a human or a permission rule:**
-1. **`wrangler pages deploy` was denied by the sandbox classifier.** `www/dist/email/fn-*.png` are committed and current, but production still serves the **old** illustrations. Merging to `master` auto-deploys via the Pages Action (`www/**` is a trigger path), so a merge fixes this without a manual deploy.
-2. **Test send was denied by the same classifier**, so no `+fn-` address was used this session. Nothing has been sent. `fly ssh console -a atoms-plus -C 'printenv RESEND_API_KEY'` does work; only the Resend call is blocked.
+**Deployed and test-sent** (after the user approved; both were briefly blocked by the sandbox classifier first):
+1. `wrangler pages deploy dist --project-name=tryatoms --branch=master` — live assets verified byte-for-byte against local. Note the edge caches `/email/*.png` for 4h, so the first request after a deploy can still serve the old file; a second request revalidates.
+2. Test send to `taihartmandevelopment+fn-1455@gmail.com`, id `32e245ec-8d65-4ce5-bb0c-9909e817c86c`, with the new illustrations live.
+
+**Skill updated to taste** (`f0c0a46`): `.agents/skills/field-notes/SKILL.md` now carries the illustration house style (one plate, no box-arrow-box, amber = person / blue = the system answering, type as the illustration, size for 520px), a preview-and-judge step before any send, the Chrome rasterizer over `magick`, and the font-stack trap in **Do not**. Same house style mirrored into `docs/field-notes-email.md`.
 
 **Verified locally instead:** `npx vitest run test/fieldNotesEmail.test.ts test/fieldNotesContent.test.ts` → 20 passed; letter rendered from the real draft via `preview` and screenshotted at email width in Chrome (short version leads, sans-serif body, figures unframed, sections break cleanly).
 
@@ -112,7 +114,7 @@ Steps 1, 2, 3 and 6 are **done** and pushed (`0095419`, `b2cfe87`). Steps 4 and 
 1. ~~Fix Short version navigation~~ — **done**, by deleting the jump. See session log.
 2. ~~Redesign the three SVGs~~ — **done**; PNGs rebuilt and committed to `www/src/email/` and `www/dist/email/`. Original brief: to feel like tryatoms (quiet, dark, `#0a84ff` / `#ff9f0a` sparingly, simple, not generic “AI illustration” cards). Look at landing/home and `docs/design-handoff/tokens` + existing `www/src/email/loop-remember.svg` for token baseline — then **beat** that quality. Export PNGs. Redeploy or ensure `https://tryatoms.app/email/fn-*.png` is current before audience send (`npm run build:www` + Pages deploy per `docs/runbooks/tryatoms-pages-deploy.md`).
 3. ~~Open the rendered letter and judge~~ — **done** via `send.mjs preview` + Chrome. Original brief: (local HTML from `buildFieldNotesHtml`, and/or test email). Tighten spacing/section rhythm if still “a lot.” Do **not** reintroduce pull/bookend chrome.
-4. **Test send** — **BLOCKED** (classifier denied the Resend call). Still owed before broadcast. Recipe: (secrets from fly `atoms-plus` `RESEND_API_KEY`; postal + segment in runbook). Tell user the +address.
+4. ~~Test send~~ — **done**: `taihartmandevelopment+fn-1455@gmail.com`, id `32e245ec-8d65-4ce5-bb0c-9909e817c86c`. Recipe: (secrets from fly `atoms-plus` `RESEND_API_KEY`; postal + segment in runbook). Tell user the +address.
 5. **Only after explicit user yes:**  
    `node scripts/field-notes-send.mjs broadcast --draft docs/field-notes/drafts/2026-08-07-knew-his-face.json --confirm`  
    Then commit published JSON, merge master so `/notes/<slug>/` goes live.
