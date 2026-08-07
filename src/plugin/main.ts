@@ -1485,7 +1485,14 @@ export default class AtomsPlugin extends Plugin {
    */
   private async adoptExternalWithdrawal(next: Partial<LinkerSettings>): Promise<void> {
     let changed = false;
-    const revoke = <K extends "askEnabled" | "askPrivacyAckAt" | "askWriteAckAt">(
+    const revoke = <
+      K extends
+        | "askEnabled"
+        | "askPrivacyAckAt"
+        | "askPrivacyAckVersion"
+        | "askWriteAckAt"
+        | "askWriteAckVersion",
+    >(
       key: K,
       cleared: LinkerSettings[K],
     ) => {
@@ -1495,7 +1502,12 @@ export default class AtomsPlugin extends Plugin {
     };
     revoke("askEnabled", false);
     revoke("askPrivacyAckAt", "");
+    // The version travels with its timestamp. Clearing only the timestamp would leave a
+    // withdrawn ack still naming current wording, so the next grant made on this device would
+    // find a stamp it never wrote — and a re-grant that skipped the sheet.
+    revoke("askPrivacyAckVersion", "");
     revoke("askWriteAckAt", "");
+    revoke("askWriteAckVersion", "");
     if (!changed) return;
     // Persist now. The save that won the race has already put the grant back on disk, so
     // leaving this in memory alone would let the next writer push it out to every device.

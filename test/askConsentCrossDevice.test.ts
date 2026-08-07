@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { App, PluginManifest } from "obsidian";
 import AtomsPlugin from "../src/plugin/main";
+import {
+  ASK_PRIVACY_ACK_VERSION,
+  ASK_WRITE_ACK_VERSION,
+} from "../src/shared/askAck";
 
 /**
  * #323 — the Ask consent acks live in `data.json`, which Obsidian Sync replicates between
@@ -34,13 +38,27 @@ function pluginOnSyncedVault(disk: Record<string, unknown>) {
   return { plugin, syncWrites, readDisk };
 }
 
+/**
+ * A live grant on both acks: timestamps *and* the versions this build ships (#360).
+ *
+ * The versions belong in the fixture because they are half of what a grant now is. A record
+ * carrying only timestamps is a pre-#360 device — a different state, with its own test below.
+ */
 const GRANTED = {
   askEnabled: true,
   askPrivacyAckAt: "2026-08-01T00:00:00.000Z",
+  askPrivacyAckVersion: ASK_PRIVACY_ACK_VERSION,
   askWriteAckAt: "2026-08-01T00:00:00.000Z",
+  askWriteAckVersion: ASK_WRITE_ACK_VERSION,
 };
 
-const WITHDRAWN = { ...GRANTED, askPrivacyAckAt: "", askWriteAckAt: "" };
+const WITHDRAWN = {
+  ...GRANTED,
+  askPrivacyAckAt: "",
+  askPrivacyAckVersion: "",
+  askWriteAckAt: "",
+  askWriteAckVersion: "",
+};
 
 describe("#323 cross-device consent", () => {
   it("closes the mirror gate when another device withdraws the ack, without a restart", async () => {
@@ -55,6 +73,28 @@ describe("#323 cross-device consent", () => {
     // Every gate reads these two, so falsifying them is what closes egress.
     expect(plugin.settings.askPrivacyAckAt).toBe("");
     expect(plugin.settings.askWriteAckAt).toBe("");
+  });
+
+  /**
+   * #360 — the versions are what the gates actually read now, so a revoke that took only the
+   * timestamps would close nothing. Worse, it would leave a *withdrawn* ack still naming
+   * current wording: the next enable on this device would find a stamp it never wrote, and
+   * grant without posing the sheet.
+   */
+  it("takes the ack versions too, not only their timestamps", async () => {
+    const { plugin, syncWrites, readDisk } = pluginOnSyncedVault(GRANTED);
+    await plugin.loadSettings();
+    expect(plugin.settings.askPrivacyAckVersion).toBe(ASK_PRIVACY_ACK_VERSION);
+
+    syncWrites(WITHDRAWN);
+    await plugin.onExternalSettingsChange();
+
+    expect(plugin.settings.askPrivacyAckVersion).toBe("");
+    expect(plugin.settings.askWriteAckVersion).toBe("");
+    // Egress is the assertion that matters — the gate the version feeds is shut.
+    expect(plugin.ask.mirrorPermitted()).toBe(false);
+    // And it reaches disk, or the next writer pushes the stamp back out to every device.
+    expect(readDisk().askPrivacyAckVersion).toBe("");
   });
 
   it("picks up a grant made on another device too, not just a withdrawal", async () => {

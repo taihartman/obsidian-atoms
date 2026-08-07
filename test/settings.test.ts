@@ -53,6 +53,10 @@ import {
   readEgressPermitted,
 } from "../src/platform/autorun";
 import { LS_EGRESS_NOTICE } from "../src/platform/resume";
+import {
+  ASK_PRIVACY_ACK_VERSION,
+  ASK_WRITE_ACK_VERSION,
+} from "../src/shared/askAck";
 // `../mocks/obsidian` rather than `"obsidian"`: vitest aliases the module, `tsc` does not.
 import {
   captureObsidianUi,
@@ -76,6 +80,25 @@ import {
 } from "./helpers/pipelineVault";
 
 afterEach(() => vi.restoreAllMocks());
+
+const ACKED = "2026-08-01T10:00:00.000Z";
+
+/**
+ * An ack as a *live* grant: the timestamp and the version this build ships (#360).
+ *
+ * Spread rather than written out at each fixture, because "granted" is one concept and a
+ * fixture that sets only the timestamp is now a legacy grant — a different state, and one the
+ * stale-version tests below assert on purpose. Splitting them here would have quietly turned
+ * two dozen "the mirror pushes" fixtures into "the mirror is gated off".
+ */
+const PRIVACY_GRANTED = {
+  askPrivacyAckAt: ACKED,
+  askPrivacyAckVersion: ASK_PRIVACY_ACK_VERSION,
+} as const;
+const WRITE_GRANTED = {
+  askWriteAckAt: ACKED,
+  askWriteAckVersion: ASK_WRITE_ACK_VERSION,
+} as const;
 
 /** Every button label on the named row — how a form row's one button is asserted. */
 function buttonLabels(tab: AtomsSettingTab, name: string): string[] {
@@ -902,8 +925,6 @@ describe("consent sheets", () => {
   /** What the plugin double persisted, read back the way the tab wrote it. */
   const persisted = (tab: AtomsSettingTab) => tab.plugin.settings;
 
-  const ACKED = "2026-08-01T10:00:00.000Z";
-
   const ASK_PRIVACY_ACK_ROW = "What Ask stores and shares";
   const ASK_WRITE_ACK_ROW = "Vault write acknowledgment";
 
@@ -935,7 +956,7 @@ describe("consent sheets", () => {
     });
 
     it("leaves filing off and writes no vault-write ack", async () => {
-      const { tab } = askTab({ askPrivacyAckAt: ACKED, askEnabled: true });
+      const { tab } = askTab({ ...PRIVACY_GRANTED, askEnabled: true });
       flip(tab, "Allow filing from Claude or ChatGPT");
       await flush();
       pressSheet("Cancel");
@@ -947,7 +968,7 @@ describe("consent sheets", () => {
 
   describe("dismissing", () => {
     it("treats Escape or a click outside as a decline on every sheet", async () => {
-      const { tab, local } = askTab({ askPrivacyAckAt: ACKED, askEnabled: true });
+      const { tab, local } = askTab({ ...PRIVACY_GRANTED, askEnabled: true });
 
       flip(tab, "File automatically when Obsidian opens");
       await flush();
@@ -1063,7 +1084,7 @@ describe("consent sheets", () => {
     });
 
     it("shows the Ask privacy ack even while the mirror is off", () => {
-      const { tab } = askTab({ askPrivacyAckAt: ACKED, askEnabled: false });
+      const { tab } = askTab({ ...PRIVACY_GRANTED, askEnabled: false });
 
       expect(rowNames(tab)).toContain("What Ask stores and shares");
       expect(row(tab, "What Ask stores and shares").textContent).toContain("2026-08-01");
@@ -1075,7 +1096,7 @@ describe("consent sheets", () => {
       // resume mirroring under it.
       const { tab } = settingTab({
         session: null,
-        settings: { askPrivacyAckAt: ACKED, askWriteAckAt: ACKED, askEnabled: true },
+        settings: { ...PRIVACY_GRANTED, ...WRITE_GRANTED, askEnabled: true },
       });
       tab.display();
 
@@ -1143,9 +1164,9 @@ describe("consent sheets", () => {
 
     it("clears the vault-write ack when the privacy ack is withdrawn", async () => {
       const { tab } = askTab({
-        askPrivacyAckAt: ACKED,
+        ...PRIVACY_GRANTED,
         askEnabled: true,
-        askWriteAckAt: ACKED,
+        ...WRITE_GRANTED,
       });
       press(tab, "What Ask stores and shares", "Review");
       pressSheet("Withdraw acknowledgment");
@@ -1158,9 +1179,9 @@ describe("consent sheets", () => {
 
     it("clears the vault-write ack when the mirror is turned off", async () => {
       const { tab } = askTab({
-        askPrivacyAckAt: ACKED,
+        ...PRIVACY_GRANTED,
         askEnabled: true,
-        askWriteAckAt: ACKED,
+        ...WRITE_GRANTED,
       });
       flip(tab, "Ask mirror");
       await flush();
@@ -1171,9 +1192,9 @@ describe("consent sheets", () => {
 
     it("withdraws the vault-write ack on its own without touching the privacy ack", async () => {
       const { tab } = askTab({
-        askPrivacyAckAt: ACKED,
+        ...PRIVACY_GRANTED,
         askEnabled: true,
-        askWriteAckAt: ACKED,
+        ...WRITE_GRANTED,
       });
       press(tab, "Vault write acknowledgment", "Review");
       pressSheet("Withdraw acknowledgment");
@@ -1185,7 +1206,7 @@ describe("consent sheets", () => {
     });
 
     it("cannot be undone by a handler still holding the ack it rendered with", async () => {
-      const { tab } = askTab({ askPrivacyAckAt: ACKED, askEnabled: false });
+      const { tab } = askTab({ ...PRIVACY_GRANTED, askEnabled: false });
       // The mirror toggle as a half-finished gesture holds it: live when the user reached for
       // it, and about to be replaced by the withdrawal on the row below.
       const stale = row(tab, "Ask mirror").querySelector(".checkbox-container");
@@ -1211,7 +1232,7 @@ describe("consent sheets", () => {
       let pushes = 0;
       const { tab } = settingTab({
         session: SESSION,
-        settings: { askPrivacyAckAt: ACKED, askEnabled: false },
+        settings: { ...PRIVACY_GRANTED, askEnabled: false },
         plugin: {
           saveSettings: () => pendingSave,
           syncAskMirror: () => {
@@ -1236,7 +1257,7 @@ describe("consent sheets", () => {
     });
 
     it("keeps filing disabled while the Ask mirror is off", () => {
-      const { tab } = askTab({ askPrivacyAckAt: ACKED, askEnabled: false });
+      const { tab } = askTab({ ...PRIVACY_GRANTED, askEnabled: false });
 
       expect(
         row(tab, "Allow filing from Claude or ChatGPT").querySelector(".is-disabled"),
@@ -1281,7 +1302,7 @@ describe("consent sheets", () => {
     });
 
     it("writes the vault-write ack and nothing else", async () => {
-      const { tab, local } = askTab({ askPrivacyAckAt: ACKED, askEnabled: true });
+      const { tab, local } = askTab({ ...PRIVACY_GRANTED, askEnabled: true });
       flip(tab, "Allow filing from Claude or ChatGPT");
       await flush();
       pressSheet("I understand");
@@ -1519,7 +1540,7 @@ describe("closing Settings", () => {
       session: PLUS_SESSION,
       apiKey: KEY,
       request,
-      settings: { askPrivacyAckAt: "2026-08-01T10:00:00.000Z", askEnabled: true },
+      settings: { ...PRIVACY_GRANTED, askEnabled: true },
       plugin: { saveSettings: () => pendingSave },
     });
     tab.display();
@@ -1595,7 +1616,7 @@ describe("Connect Claude or ChatGPT destination (U6)", () => {
   it("still asks before wiping the cloud copy", async () => {
     const { tab, calls } = settingTab({
       session: PLUS_SESSION,
-      settings: { askEnabled: true, askPrivacyAckAt: "2026-08-01T10:00:00.000Z" },
+      settings: { askEnabled: true, ...PRIVACY_GRANTED },
     });
     tab.display();
     open(tab, "Connect Claude or ChatGPT");
@@ -1612,7 +1633,7 @@ describe("Connect Claude or ChatGPT destination (U6)", () => {
   it("asks once on a double-tap, not twice", () => {
     const { tab } = settingTab({
       session: PLUS_SESSION,
-      settings: { askEnabled: true, askPrivacyAckAt: "2026-08-01T10:00:00.000Z" },
+      settings: { askEnabled: true, ...PRIVACY_GRANTED },
     });
     tab.display();
     open(tab, "Connect Claude or ChatGPT");
@@ -1652,7 +1673,12 @@ describe("Advanced destination (U6, R5)", () => {
     return {
       askEnabled: tab.plugin.settings.askEnabled,
       askPrivacyAckAt: tab.plugin.settings.askPrivacyAckAt,
+      // The versions, not the timestamps alone: after #360 the version is what opens the gate,
+      // so a screen that wrote a stamp without asking — or left one behind while clearing its
+      // timestamp — would pass a timestamp-only snapshot.
+      askPrivacyAckVersion: tab.plugin.settings.askPrivacyAckVersion,
       askWriteAckAt: tab.plugin.settings.askWriteAckAt,
+      askWriteAckVersion: tab.plugin.settings.askWriteAckVersion,
       autoRunEnabled: local.get(LS_AUTO_RUN_ENABLED),
       egressAcked: local.get(LS_AUTO_RUN_EGRESS_ACK),
       deviceLocalKeyFallback: tab.plugin.settings.useDeviceLocalKeyFallback,

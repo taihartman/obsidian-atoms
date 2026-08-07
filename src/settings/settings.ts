@@ -39,6 +39,14 @@ import {
 } from "./captureShortcut";
 import { markDestructive } from "./destructiveButton";
 import {
+  type AckStanding,
+  ASK_PRIVACY_ACK_VERSION,
+  ASK_WRITE_ACK_VERSION,
+  askAckStanding,
+  askPrivacyAckIsCurrent,
+  askWriteAckIsCurrent,
+} from "../shared/askAck";
+import {
   ASK_PRIVACY_ACK_TITLE,
   ASK_PRIVACY_DISCLOSURE,
   ASK_WRITE_ACK_TITLE,
@@ -335,6 +343,20 @@ const DESTINATION_TITLES: Record<Exclude<SettingsRoute, "main">, string> = {
   advanced: "Advanced",
 };
 
+/**
+ * What an ack record says about the wording it names, appended to "Acknowledged <day>".
+ *
+ * A current grant says nothing extra — the common case earns no words. The other two say which
+ * way the record is out of step, borrowing the egress review row's own distinction: a grant that
+ * named no wording at all was made against text that is now *earlier*, while a stamp this build
+ * does not recognise may well name text that is later, so it is merely *different*.
+ */
+const ACK_STANDING_SUFFIX: Record<AckStanding, string> = {
+  current: "",
+  legacy: ", against earlier wording",
+  other: ", against different wording",
+};
+
 export class AtomsSettingTab extends PluginSettingTab {
   plugin: AtomsPlugin;
   private customTagDraft = "";
@@ -521,6 +543,13 @@ export class AtomsSettingTab extends PluginSettingTab {
    * An `actionRow` rather than a `statusRow` + button, because `statusRow` deliberately carries
    * no control — reaching Review from it would mean widening that kind, and the withdrawal is
    * the whole point of the line.
+   *
+   * Rendered from the timestamp, never from `version`. A grant whose version has gone stale no
+   * longer opens the gate, but it is still a record on this device, and keying this row to the
+   * version would take away the only surface that can withdraw it — the mistake the egress row
+   * (auto-run section below) documents at length. What the version changes is the *sentence*:
+   * it says which wording the record actually names, so the row never claims on the user's
+   * behalf that they read text this build no longer shows.
    */
   private renderAckRecord(
     containerEl: HTMLElement,
@@ -528,20 +557,22 @@ export class AtomsSettingTab extends PluginSettingTab {
       name: string;
       at: string;
       disclosure: string;
+      standing: AckStanding;
       onWithdraw: () => void | Promise<void>;
     },
   ): void {
     const day = record.at.slice(0, 10);
+    const desc = `Acknowledged ${day}${ACK_STANDING_SUFFIX[record.standing]}`;
     this.actionRow(containerEl, {
       action: `ack:review:${record.name}`,
       name: record.name,
-      desc: `Acknowledged ${day}`,
+      desc,
       label: "Review",
       onClick: () =>
         this.presentConsent({
           title: record.name,
           disclosure: record.disclosure,
-          granted: `Acknowledged ${day}.`,
+          granted: `${desc}.`,
           onVerdict: (verdict) => {
             if (verdict !== "withdrawn") return;
             void record.onWithdraw();
@@ -553,7 +584,7 @@ export class AtomsSettingTab extends PluginSettingTab {
   /** Enabling the mirror is one write plus one sync; disabling it also drops the write ack. */
   private async setAskMirrorEnabled(enabled: boolean): Promise<void> {
     this.plugin.settings.askEnabled = enabled;
-    if (!enabled) this.plugin.settings.askWriteAckAt = "";
+    if (!enabled) this.clearAskWriteAck();
     // Ahead of the save, so a withdrawal that lands during it has already destroyed the DOM
     // whose handlers still close over the state this gesture was rendered under.
     this.redisplay();
@@ -566,24 +597,44 @@ export class AtomsSettingTab extends PluginSettingTab {
     }
   }
 
-  /** Whether the mirror may push right now: enabled, and under a privacy ack still granted. */
+  /**
+   * Whether the mirror may push right now: enabled, and under a privacy ack still granted
+   * *against the wording this build shows* (#360) — not merely one granted at some point.
+   */
   private askMirrorPermitted(): boolean {
     return (
       this.plugin.settings.askEnabled &&
-      Boolean(this.plugin.settings.askPrivacyAckAt)
+      askPrivacyAckIsCurrent(this.plugin.settings)
     );
   }
 
-  /** Grant (timestamp) or withdraw ("") the consent for Claude or ChatGPT to write here. */
-  private async setAskWriteAck(at: string): Promise<void> {
-    this.plugin.settings.askWriteAckAt = at;
+  /**
+   * Withdraw the vault-write consent, in memory.
+   *
+   * Timestamp and version are cleared together everywhere, so the two never disagree about
+   * whether a grant exists — the pairing lives here rather than at each of the three sites that
+   * drop this ack.
+   */
+  private clearAskWriteAck(): void {
+    this.plugin.settings.askWriteAckAt = "";
+    this.plugin.settings.askWriteAckVersion = "";
+  }
+
+  /** Grant (stamped now) or withdraw the consent for Claude or ChatGPT to write here. */
+  private async setAskWriteAck(granted: boolean): Promise<void> {
+    if (granted) {
+      this.plugin.settings.askWriteAckAt = new Date().toISOString();
+      this.plugin.settings.askWriteAckVersion = ASK_WRITE_ACK_VERSION;
+    } else {
+      this.clearAskWriteAck();
+    }
     // Ahead of the save, so a withdrawal that lands during it has already replaced the screen
     // whose handlers still hold the granted state.
     this.redisplay();
     await this.plugin.saveSettings();
     // Live, for the same reason the mirror push is: applying the outbox writes files, and the
     // ack authorizing that may have been withdrawn while this was waiting on disk.
-    if (this.plugin.settings.askWriteAckAt) {
+    if (askWriteAckIsCurrent(this.plugin.settings)) {
       fireAndForgetAsk(this.plugin.applyAskOutbox());
     }
   }
@@ -2087,21 +2138,24 @@ export class AtomsSettingTab extends PluginSettingTab {
    *
    * Its own method because it renders in two places — under the mirror toggle when signed in,
    * and on its own when signed out — and both must be the same row. Rendered off the timestamp
-   * alone, never off the session or the toggle above it.
+   * alone, never off the session, the version, or the toggle above it.
    */
   private renderAskPrivacyAckRecord(containerEl: HTMLElement): void {
-    if (!this.plugin.settings.askPrivacyAckAt) return;
+    const { askPrivacyAckAt, askPrivacyAckVersion } = this.plugin.settings;
+    if (!askPrivacyAckAt) return;
     this.renderAckRecord(containerEl, {
       name: ASK_PRIVACY_ACK_TITLE,
-      at: this.plugin.settings.askPrivacyAckAt,
+      at: askPrivacyAckAt,
       disclosure: ASK_PRIVACY_DISCLOSURE,
+      standing: askAckStanding(askPrivacyAckVersion, ASK_PRIVACY_ACK_VERSION),
       onWithdraw: async () => {
         this.plugin.settings.askPrivacyAckAt = "";
+        this.plugin.settings.askPrivacyAckVersion = "";
         this.plugin.settings.askEnabled = false;
         // Withdrawing consent to store bodies in the cloud also withdraws consent for the
         // cloud to write back into the vault: the narrower ack cannot outlive the one it
         // was granted on top of.
-        this.plugin.settings.askWriteAckAt = "";
+        this.clearAskWriteAck();
         // Before the save, so any handler still holding the granted state loses its DOM while
         // this is waiting on disk.
         this.redisplay();
@@ -2112,12 +2166,14 @@ export class AtomsSettingTab extends PluginSettingTab {
 
   /** The vault-write ack on record. Withdrawing it leaves the mirror exactly as it was. */
   private renderAskWriteAckRecord(containerEl: HTMLElement): void {
-    if (!this.plugin.settings.askWriteAckAt) return;
+    const { askWriteAckAt, askWriteAckVersion } = this.plugin.settings;
+    if (!askWriteAckAt) return;
     this.renderAckRecord(containerEl, {
       name: ASK_WRITE_ACK_TITLE,
-      at: this.plugin.settings.askWriteAckAt,
+      at: askWriteAckAt,
       disclosure: ASK_WRITE_DISCLOSURE,
-      onWithdraw: () => this.setAskWriteAck(""),
+      standing: askAckStanding(askWriteAckVersion, ASK_WRITE_ACK_VERSION),
+      onWithdraw: () => this.setAskWriteAck(false),
     });
   }
 
@@ -2147,22 +2203,28 @@ export class AtomsSettingTab extends PluginSettingTab {
       return;
     }
 
-    const ack = Boolean(this.plugin.settings.askPrivacyAckAt);
+    const ack = askPrivacyAckIsCurrent(this.plugin.settings);
     settingRow(containerEl, {
       name: "Ask mirror",
       desc: "Keep the cloud Atoms/ copy current while Obsidian is open (vault events + Process/Update).",
       control: {
         kind: "toggle",
         configure: (tog) =>
-          tog.setValue(this.plugin.settings.askEnabled).onChange((on) => {
+          // `&& ack`, exactly as the auto-run toggle reads `enabled && egressAcked`: a device
+          // whose grant went stale is not mirroring, and a switch that still showed on would
+          // be reporting a push that is not happening — with no gesture left to re-prompt it.
+          // Off is both the truth and the affordance that raises the sheet again (#360).
+          tog.setValue(this.plugin.settings.askEnabled && ack).onChange((on) => {
             if (!on) {
               void this.setAskMirrorEnabled(false);
               return;
             }
             // Live rather than the render-time `ack` above: this handler can outlive the
             // screen it was built on — a withdrawal elsewhere leaves it holding a consent that
-            // no longer exists, and it would re-enable the mirror without asking.
-            if (this.plugin.settings.askPrivacyAckAt) {
+            // no longer exists, and it would re-enable the mirror without asking. A grant made
+            // against superseded wording is the same situation, so it takes the same branch:
+            // this enable is where an upgraded device re-reads the disclosure once (#360).
+            if (askPrivacyAckIsCurrent(this.plugin.settings)) {
               void this.setAskMirrorEnabled(true);
               return;
             }
@@ -2175,6 +2237,7 @@ export class AtomsSettingTab extends PluginSettingTab {
                   return;
                 }
                 this.plugin.settings.askPrivacyAckAt = new Date().toISOString();
+                this.plugin.settings.askPrivacyAckVersion = ASK_PRIVACY_ACK_VERSION;
                 void this.setAskMirrorEnabled(true);
               },
             });
@@ -2184,7 +2247,7 @@ export class AtomsSettingTab extends PluginSettingTab {
 
     this.renderAskPrivacyAckRecord(containerEl);
 
-    const writeAck = Boolean(this.plugin.settings.askWriteAckAt);
+    const writeAck = askWriteAckIsCurrent(this.plugin.settings);
     settingRow(containerEl, {
       name: "Allow filing from Claude or ChatGPT",
       desc: "When on, this vault applies create/continue outbox items under your Atoms folder (new files only; never rewrites existing bodies). Requires Ask mirror enabled.",
@@ -2196,15 +2259,16 @@ export class AtomsSettingTab extends PluginSettingTab {
             .setDisabled(!ack || !this.plugin.settings.askEnabled)
             .onChange((on) => {
               if (!on) {
-                void this.setAskWriteAck("");
+                void this.setAskWriteAck(false);
                 return;
               }
               // Both preconditions checked here rather than resting on the invariant that the
               // mirror cannot be on without the privacy ack: this is the write site, and the
-              // narrower consent must never be granted on top of one that is gone.
+              // narrower consent must never be granted on top of one that is gone — or one
+              // granted against wording this build has since replaced.
               if (
                 !this.plugin.settings.askEnabled ||
-                !this.plugin.settings.askPrivacyAckAt
+                !askPrivacyAckIsCurrent(this.plugin.settings)
               ) {
                 new Notice("Turn on Ask mirror first");
                 this.redisplay();
@@ -2218,7 +2282,7 @@ export class AtomsSettingTab extends PluginSettingTab {
                     this.redisplay();
                     return;
                   }
-                  void this.setAskWriteAck(new Date().toISOString());
+                  void this.setAskWriteAck(true);
                 },
               });
             }),
