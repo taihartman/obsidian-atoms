@@ -584,7 +584,7 @@ export class AtomsSettingTab extends PluginSettingTab {
   /** Enabling the mirror is one write plus one sync; disabling it also drops the write ack. */
   private async setAskMirrorEnabled(enabled: boolean): Promise<void> {
     this.plugin.settings.askEnabled = enabled;
-    if (!enabled) this.clearAskWriteAck();
+    if (!enabled) this.writeAskAck("write", false);
     // Ahead of the save, so a withdrawal that lands during it has already destroyed the DOM
     // whose handlers still close over the state this gesture was rendered under.
     this.redisplay();
@@ -609,25 +609,33 @@ export class AtomsSettingTab extends PluginSettingTab {
   }
 
   /**
-   * Withdraw the vault-write consent, in memory.
+   * Record — or withdraw — an ack in memory, both halves at once.
    *
-   * Timestamp and version are cleared together everywhere, so the two never disagree about
-   * whether a grant exists — the pairing lives here rather than at each of the three sites that
-   * drop this ack.
+   * *When* and *what* are written together at every site, so the two can never disagree about
+   * whether a grant exists. The pairing lives here rather than at each grant and each
+   * withdrawal: a screen that cleared a timestamp and left its version standing would hold a
+   * withdrawn consent still naming current wording, and the next enable would find a stamp it
+   * never wrote and grant without posing the sheet.
+   *
+   * These two fields and nothing else. What each ack additionally implies — the mirror toggle,
+   * the narrower consent that cannot outlive the broader one, the save — stays at its call
+   * site, because it differs per ack and folding it in here would hide it.
    */
-  private clearAskWriteAck(): void {
-    this.plugin.settings.askWriteAckAt = "";
-    this.plugin.settings.askWriteAckVersion = "";
+  private writeAskAck(ack: "privacy" | "write", granted: boolean): void {
+    const s = this.plugin.settings;
+    const at = granted ? new Date().toISOString() : "";
+    if (ack === "privacy") {
+      s.askPrivacyAckAt = at;
+      s.askPrivacyAckVersion = granted ? ASK_PRIVACY_ACK_VERSION : "";
+      return;
+    }
+    s.askWriteAckAt = at;
+    s.askWriteAckVersion = granted ? ASK_WRITE_ACK_VERSION : "";
   }
 
   /** Grant (stamped now) or withdraw the consent for Claude or ChatGPT to write here. */
   private async setAskWriteAck(granted: boolean): Promise<void> {
-    if (granted) {
-      this.plugin.settings.askWriteAckAt = new Date().toISOString();
-      this.plugin.settings.askWriteAckVersion = ASK_WRITE_ACK_VERSION;
-    } else {
-      this.clearAskWriteAck();
-    }
+    this.writeAskAck("write", granted);
     // Ahead of the save, so a withdrawal that lands during it has already replaced the screen
     // whose handlers still hold the granted state.
     this.redisplay();
@@ -2149,13 +2157,12 @@ export class AtomsSettingTab extends PluginSettingTab {
       disclosure: ASK_PRIVACY_DISCLOSURE,
       standing: askAckStanding(askPrivacyAckVersion, ASK_PRIVACY_ACK_VERSION),
       onWithdraw: async () => {
-        this.plugin.settings.askPrivacyAckAt = "";
-        this.plugin.settings.askPrivacyAckVersion = "";
+        this.writeAskAck("privacy", false);
         this.plugin.settings.askEnabled = false;
         // Withdrawing consent to store bodies in the cloud also withdraws consent for the
         // cloud to write back into the vault: the narrower ack cannot outlive the one it
         // was granted on top of.
-        this.clearAskWriteAck();
+        this.writeAskAck("write", false);
         // Before the save, so any handler still holding the granted state loses its DOM while
         // this is waiting on disk.
         this.redisplay();
@@ -2236,8 +2243,7 @@ export class AtomsSettingTab extends PluginSettingTab {
                   this.redisplay();
                   return;
                 }
-                this.plugin.settings.askPrivacyAckAt = new Date().toISOString();
-                this.plugin.settings.askPrivacyAckVersion = ASK_PRIVACY_ACK_VERSION;
+                this.writeAskAck("privacy", true);
                 void this.setAskMirrorEnabled(true);
               },
             });

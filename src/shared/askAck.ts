@@ -35,6 +35,11 @@ export const ASK_WRITE_ACK_VERSION = "2026-08-06";
  * Mirrors `egressAckIsCurrent`. Empty is the legacy grant — it names no wording at all — and a
  * mismatch is either an older stamp or a downgrade; neither is agreement to what is on screen
  * now, so both read the same way.
+ *
+ * One deliberate divergence from the two predicates it mirrors: a stored value is trimmed
+ * before it is judged, so a whitespace-only stamp reads as the legacy grant rather than as a
+ * version literally named " ". Whoever collapses these three into one helper (#341) should keep
+ * the trim rather than assume the difference was an accident.
  */
 export function askAckIsCurrent(
   acked: string | null | undefined,
@@ -66,18 +71,6 @@ export function askPrivacyAckIsCurrent(s: Pick<AskAckRecord, "askPrivacyAckVersi
 /** Whether the vault-write consent on record is consent to the wording this build shows. */
 export function askWriteAckIsCurrent(s: Pick<AskAckRecord, "askWriteAckVersion">): boolean {
   return askAckIsCurrent(s.askWriteAckVersion, ASK_WRITE_ACK_VERSION);
-}
-
-/**
- * Whether an ack is *on record* at all — a timestamp, current or not.
- *
- * This is what the withdrawal rows render from, and it is not the same question the gates ask.
- * Keying the review row to the version instead would mean a device whose grant went stale loses
- * the only surface that can withdraw it, exactly as the egress row's comment
- * (`settings.ts`, the auto-run section) explains for its own case.
- */
-export function askAckOnRecord(at: string): boolean {
-  return Boolean(at);
 }
 
 /**
