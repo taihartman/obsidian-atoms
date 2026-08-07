@@ -9,7 +9,6 @@ import androidx.lifecycle.viewModelScope
 import app.tryatoms.capture.data.InboxWriter
 import app.tryatoms.capture.data.SafVaultScanner
 import app.tryatoms.capture.data.VaultStore
-import app.tryatoms.capture.domain.VaultPaths
 import app.tryatoms.capture.domain.VaultRef
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
