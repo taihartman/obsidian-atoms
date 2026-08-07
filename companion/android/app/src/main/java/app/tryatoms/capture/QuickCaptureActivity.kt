@@ -3,15 +3,19 @@ package app.tryatoms.capture
 import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.content.Intent
+import android.graphics.Color as AndroidColor
+import android.graphics.PixelFormat
 import android.os.Bundle
 import android.speech.RecognizerIntent
+import android.view.Gravity
+import android.view.WindowManager
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -19,6 +23,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.core.view.WindowCompat
 import app.tryatoms.capture.data.CaptureRepository
 import app.tryatoms.capture.data.InboxWriter
@@ -31,13 +37,14 @@ import kotlinx.coroutines.withContext
 import java.util.Locale
 
 /**
- * Floating top strip: type or native voice → check to send.
- * Not a full-screen hub page.
+ * Top-of-screen capture strip. Window is wrap-content + NOT_TOUCH_MODAL so
+ * taps below pass through to the home screen / other apps.
  */
 class QuickCaptureActivity : ComponentActivity() {
     private val repo by lazy { CaptureRepository(this) }
 
-    private var draft by mutableStateOf("")
+    /** TextFieldValue keeps selection at end after voice insert. */
+    private var fieldValue by mutableStateOf(TextFieldValue(""))
     private var busy by mutableStateOf(false)
     private var error by mutableStateOf<String?>(null)
 
@@ -50,12 +57,19 @@ class QuickCaptureActivity : ComponentActivity() {
                     ?.firstOrNull()
                     ?.trim()
             if (!spoken.isNullOrEmpty()) {
-                draft =
-                    if (draft.isBlank()) {
+                val base = fieldValue.text
+                val merged =
+                    if (base.isBlank()) {
                         spoken
                     } else {
-                        draft.trimEnd() + " " + spoken
+                        base.trimEnd() + " " + spoken
                     }
+                // Caret at end so user can keep typing
+                fieldValue =
+                    TextFieldValue(
+                        text = merged,
+                        selection = TextRange(merged.length),
+                    )
                 error = null
             }
         }
@@ -63,20 +77,21 @@ class QuickCaptureActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        WindowCompat.setDecorFitsSystemWindows(window, false)
+        configurePassThroughWindow()
 
         setContent {
             val dark = isSystemInDarkTheme()
             AtomsTheme(darkTheme = dark) {
+                // Only the strip — no full-screen Surface (that would eat touches)
                 Surface(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier.fillMaxWidth(),
                     color = Color.Transparent,
                 ) {
                     val scope = rememberCoroutineScope()
                     QuickCaptureScreen(
-                        draft = draft,
-                        onDraftChange = {
-                            draft = it
+                        fieldValue = fieldValue,
+                        onFieldChange = {
+                            fieldValue = it
                             error = null
                         },
                         linked = repo.isLinked(),
@@ -84,10 +99,10 @@ class QuickCaptureActivity : ComponentActivity() {
                         busy = busy,
                         error = error,
                         onCapture = {
-                            if (busy || draft.isBlank()) return@QuickCaptureScreen
+                            val text = fieldValue.text
+                            if (busy || text.isBlank()) return@QuickCaptureScreen
                             busy = true
                             error = null
-                            val text = draft
                             scope.launch {
                                 val result =
                                     withContext(Dispatchers.IO) {
@@ -126,11 +141,46 @@ class QuickCaptureActivity : ComponentActivity() {
                             )
                             finish()
                         },
-                        onDismiss = { finish() },
+                        onClose = { finish() },
                     )
                 }
             }
         }
+    }
+
+    /**
+     * Shrink the activity window to the top strip and let touches outside
+     * fall through to whatever is underneath (home, other apps).
+     */
+    private fun configurePassThroughWindow() {
+        val w = window
+        w.setFormat(PixelFormat.TRANSLUCENT)
+        w.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+        w.addFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL)
+        // Don't force the window to fill the screen
+        w.setLayout(
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.WRAP_CONTENT,
+        )
+        w.setGravity(Gravity.TOP)
+
+        val lp = w.attributes
+        lp.gravity = Gravity.TOP
+        lp.width = WindowManager.LayoutParams.MATCH_PARENT
+        lp.height = WindowManager.LayoutParams.WRAP_CONTENT
+        lp.flags = lp.flags or
+            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+            WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH
+        // Keep focusable so the keyboard works on the field
+        lp.flags = lp.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
+        w.attributes = lp
+
+        @Suppress("DEPRECATION")
+        run {
+            w.statusBarColor = AndroidColor.TRANSPARENT
+            w.navigationBarColor = AndroidColor.TRANSPARENT
+        }
+        WindowCompat.setDecorFitsSystemWindows(w, false)
     }
 
     private fun startNativeVoice() {

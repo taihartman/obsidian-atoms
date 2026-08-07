@@ -17,6 +17,7 @@ import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.provideContent
 import androidx.glance.background
 import androidx.glance.layout.Alignment
+import androidx.glance.layout.Box
 import androidx.glance.layout.Column
 import androidx.glance.layout.Row
 import androidx.glance.layout.Spacer
@@ -27,7 +28,6 @@ import androidx.glance.layout.padding
 import androidx.glance.layout.width
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
-import androidx.glance.text.TextAlign
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
 import app.tryatoms.capture.QuickCaptureActivity
@@ -36,26 +36,22 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
- * Compact home widget — tap opens the floating capture strip.
+ * Simple home chip: label + plus. Tap opens floating capture strip.
+ * Avoids cramped multi-line overflow on small cells.
  */
 class CaptureWidget : GlanceAppWidget() {
     override suspend fun provideGlance(
         context: Context,
         id: GlanceId,
     ) {
-        val label =
+        val ready =
             withContext(Dispatchers.IO) {
-                val repo = CaptureRepository(context)
-                if (repo.isLinked()) {
-                    repo.vaultLabel() ?: "Ready"
-                } else {
-                    "Tap to set up"
-                }
+                CaptureRepository(context).isLinked()
             }
 
         provideContent {
             GlanceTheme {
-                WidgetContent(subtitle = label)
+                WidgetContent(ready = ready)
             }
         }
     }
@@ -72,34 +68,22 @@ class CaptureWidget : GlanceAppWidget() {
 }
 
 @Composable
-private fun WidgetContent(subtitle: String) {
+private fun WidgetContent(ready: Boolean) {
     val bg = ColorProvider(Color(0xFF1C1C1E))
     val titleColor = ColorProvider(Color.White)
-    val subColor = ColorProvider(Color(0x99EBEBF5))
     val accent = ColorProvider(Color(0xFF0A84FF))
-    val kicker = ColorProvider(Color(0xFFBF5AF2))
+    val muted = ColorProvider(Color(0x99EBEBF5))
 
-    Column(
+    Box(
         modifier =
             GlanceModifier
                 .fillMaxSize()
                 .cornerRadius(16.dp)
                 .background(bg)
-                .padding(horizontal = 16.dp, vertical = 14.dp)
-                .clickable(actionStartActivity<QuickCaptureActivity>()),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalAlignment = Alignment.Start,
+                .clickable(actionStartActivity<QuickCaptureActivity>())
+                .padding(16.dp),
+        contentAlignment = Alignment.CenterStart,
     ) {
-        Text(
-            text = "ATOMS",
-            style =
-                TextStyle(
-                    color = kicker,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                ),
-        )
-        Spacer(GlanceModifier.height(6.dp))
         Row(
             modifier = GlanceModifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -107,33 +91,33 @@ private fun WidgetContent(subtitle: String) {
             Column(modifier = GlanceModifier.defaultWeight()) {
                 Text(
                     text = "Capture",
-                    style =
-                        TextStyle(
-                            color = titleColor,
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Bold,
-                        ),
-                )
-                Spacer(GlanceModifier.height(2.dp))
-                Text(
-                    text = subtitle,
                     maxLines = 1,
                     style =
                         TextStyle(
-                            color = subColor,
+                            color = titleColor,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                        ),
+                )
+                Spacer(GlanceModifier.height(4.dp))
+                Text(
+                    text = if (ready) "Tap to add a thought" else "Tap to set up",
+                    maxLines = 1,
+                    style =
+                        TextStyle(
+                            color = muted,
                             fontSize = 12.sp,
                         ),
                 )
             }
-            Spacer(GlanceModifier.width(8.dp))
+            Spacer(GlanceModifier.width(12.dp))
             Text(
-                text = "＋",
+                text = "+",
                 style =
                     TextStyle(
                         color = accent,
-                        fontSize = 28.sp,
-                        fontWeight = FontWeight.Medium,
-                        textAlign = TextAlign.Center,
+                        fontSize = 32.sp,
+                        fontWeight = FontWeight.Normal,
                     ),
             )
         }
