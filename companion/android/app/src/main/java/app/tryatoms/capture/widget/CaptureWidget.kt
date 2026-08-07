@@ -8,11 +8,12 @@ import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.GlanceTheme
-import androidx.glance.action.actionStartActivity
+import androidx.glance.LocalContext
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetManager
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
+import androidx.glance.appwidget.action.actionStartActivity
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.provideContent
 import androidx.glance.background
@@ -29,8 +30,7 @@ import androidx.glance.unit.ColorProvider
 import app.tryatoms.capture.QuickCaptureActivity
 
 /**
- * One-line home chip. No subtitle (subtitles were truncating to "THO").
- * Entire cell is the tap target.
+ * One-line chip. Explicit intent → QuickCaptureActivity only (never MainActivity).
  */
 class CaptureWidget : GlanceAppWidget() {
     override suspend fun provideGlance(
@@ -57,6 +57,9 @@ class CaptureWidget : GlanceAppWidget() {
 
 @Composable
 private fun WidgetContent() {
+    val context = LocalContext.current
+    val intent = QuickCaptureActivity.launchIntent(context)
+
     val bg = ColorProvider(Color(0xFF1C1C1E))
     val title = ColorProvider(Color.White)
     val accent = ColorProvider(Color(0xFF0A84FF))
@@ -67,7 +70,7 @@ private fun WidgetContent() {
                 .fillMaxSize()
                 .cornerRadius(16.dp)
                 .background(bg)
-                .clickable(actionStartActivity<QuickCaptureActivity>())
+                .clickable(actionStartActivity(intent))
                 .padding(horizontal = 16.dp, vertical = 12.dp),
         contentAlignment = Alignment.Center,
     ) {

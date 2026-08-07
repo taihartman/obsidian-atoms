@@ -9,6 +9,8 @@
         <intent
             android:action="app.tryatoms.capture.action.QUICK_CAPTURE"
             android:targetPackage="app.tryatoms.capture"
-            android:targetClass="app.tryatoms.capture.QuickCaptureActivity" />
+            android:targetClass="app.tryatoms.capture.QuickCaptureActivity">
+            <extra android:name="app.tryatoms.capture.EXTRA_FROM_SHORTCUT" android:value="true" />
+        </intent>
     </shortcut>
 </shortcuts>
