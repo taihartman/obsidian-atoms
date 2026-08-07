@@ -22,7 +22,7 @@
     {
       "type": "figure",
       "src": "https://tryatoms.app/email/fn-face-no-name.png",
-      "alt": "A familiar face next to a blank name tag"
+      "alt": "A face you recognise, next to an empty name field"
     },
     {
       "type": "p",
@@ -39,7 +39,7 @@
     {
       "type": "figure",
       "src": "https://tryatoms.app/email/fn-ask-dom.png",
-      "alt": "Phone ask: who did I meet at the gym. Answer: Dom."
+      "alt": "Asked who I met at the gym. Answer: Dom, met two weeks ago"
     },
     {
       "type": "p",
@@ -76,7 +76,7 @@
     {
       "type": "figure",
       "src": "https://tryatoms.app/email/fn-messy-filed.png",
-      "alt": "Messy voice capture becomes a clean note titled Dom"
+      "alt": "A rambling voice capture settling into a note titled Dom, tagged gym and people"
     },
     {
       "type": "p",

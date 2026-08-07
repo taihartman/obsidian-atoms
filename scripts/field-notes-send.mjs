@@ -128,8 +128,9 @@ function buildBodies(draft, unsubUrl, postal) {
 
 async function main() {
   const mode = process.argv[2];
-  if (mode !== "test" && mode !== "broadcast") {
+  if (mode !== "test" && mode !== "broadcast" && mode !== "preview") {
     console.error(`Usage:
+  node scripts/field-notes-send.mjs preview --draft file.json [--out preview.html]
   node scripts/field-notes-send.mjs test --to email --draft file.json
   node scripts/field-notes-send.mjs broadcast --draft file.json --confirm`);
     process.exit(1);
@@ -139,6 +140,25 @@ async function main() {
   if (!draftPath) {
     console.error("Need --draft path.json");
     process.exit(1);
+  }
+
+  // Preview writes the exact bodies a send would, with no key and no network,
+  // so the letter can be judged in a browser before anyone's inbox sees it.
+  if (mode === "preview") {
+    const draft = loadDraft(draftPath);
+    const { html, text } = buildBodies(
+      draft,
+      "https://tryatoms.app/api/unsubscribe?e=preview&t=preview",
+      process.env.ATOMS_NOTES_POSTAL_ADDRESS ||
+        "Taitopia, 1029 Lyell Ave Unit #740, Rochester, NY 14606",
+    );
+    const out = arg("--out", "preview-field-note.html");
+    writeFileSync(out, html);
+    writeFileSync(out.replace(/\.html$/, "") + ".txt", text);
+    console.log(`subject: ${draft.subject}`);
+    console.log(`html:    ${out}`);
+    console.log(`text:    ${out.replace(/\.html$/, "")}.txt`);
+    return;
   }
 
   let apiKey = process.env.RESEND_API_KEY;

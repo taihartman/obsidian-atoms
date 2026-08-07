@@ -17,6 +17,26 @@ describe("fieldNotesEmail", () => {
     expect(EMAIL_THEME.tint).toBe("#0a84ff");
   });
 
+  // A double quote in a font stack closes the style="..." attribute it is
+  // interpolated into, dropping font-family entirely and falling back to Times.
+  it("theme font stacks are safe inside a style attribute", () => {
+    expect(EMAIL_THEME.font).not.toContain('"');
+    expect(EMAIL_THEME.serif).not.toContain('"');
+    const html = buildFieldNotesHtml({
+      title: "Test",
+      paragraphs: ["Hello"],
+      unsubUrl: "https://example.com/u",
+      postalAddress: "Addr",
+    });
+    const bodyTag = html.match(/<body[^>]*>/)?.[0] ?? "";
+    expect(bodyTag).toContain("sans-serif;");
+    // every style="..." opens and closes cleanly
+    for (const attr of html.match(/style="[^"]*"/g) ?? []) {
+      expect(attr.endsWith(';"') || attr.endsWith('"')).toBe(true);
+    }
+    expect(html).not.toMatch(/style="[^"]*font-family:[^"]*"[A-Za-z]/);
+  });
+
   it("loop diagram is table-based (no img required)", () => {
     const d = loopDiagramHtml();
     expect(d).toContain("<table");

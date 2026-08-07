@@ -24,8 +24,11 @@ export const EMAIL_THEME = {
   sep: "rgba(84, 84, 88, 0.55)",
   ok: "#30d158",
   person: "#ff9f0a",
-  font: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Helvetica, Arial, sans-serif',
-  serif: 'Georgia, "Times New Roman", serif',
+  // Single quotes only. These stacks are interpolated into style="..." attributes,
+  // so a double quote closes the attribute early and the whole font-family
+  // declaration is dropped - which silently fell back to Times in every client.
+  font: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Helvetica, Arial, sans-serif",
+  serif: "Georgia, 'Times New Roman', serif",
   measure: "560px",
 };
 
@@ -133,15 +136,18 @@ export function loopDiagramHtml() {
 
 /**
  * Optional illustration block. Prefer absolute HTTPS PNG on tryatoms.app.
+ *
+ * No frame around the image. Illustrations already draw their own dark plate
+ * (www/src/email/*.svg), and wrapping that in a second bordered card inside the
+ * letter card is the nested-box look that made the first set read as clip art.
  * @param {{ src: string, alt: string, width?: number }} opts
  */
 export function figureHtml(opts) {
-  const t = EMAIL_THEME;
   const w = opts.width ?? 520;
-  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:20px 0 24px;">
+  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:22px 0 26px;">
   <tr>
-    <td align="center" style="background:${t.elev};border-radius:16px;padding:12px;border:1px solid ${t.sep};">
-      <img src="${escapeAttr(opts.src)}" alt="${escapeHtml(opts.alt)}" width="${w}" style="display:block;max-width:100%;height:auto;border:0;border-radius:12px;" />
+    <td align="center">
+      <img src="${escapeAttr(opts.src)}" alt="${escapeHtml(opts.alt)}" width="${w}" style="display:block;max-width:100%;height:auto;border:0;border-radius:14px;" />
     </td>
   </tr>
 </table>`;
@@ -161,7 +167,7 @@ export function renderBlocksEmailHtml(blocks) {
       );
     } else if (b.type === "h2" && b.text) {
       parts.push(
-        `<h2 style="margin:28px 0 12px;font-size:15px;line-height:1.3;font-weight:600;color:${t.label};">${escapeHtml(b.text)}</h2>`,
+        `<h2 style="margin:34px 0 14px;font-size:17px;line-height:1.3;font-weight:600;color:${t.label};">${escapeHtml(b.text)}</h2>`,
       );
     } else if (b.type === "tldr") {
       const bodyLines = b.lines || (b.text ? [b.text] : []);
