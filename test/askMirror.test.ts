@@ -796,6 +796,24 @@ describe("askMirror deletion gate (U1)", () => {
   });
 
   /**
+   * A refusal outranks a push error, and the closed gate outranks both: consent withdrawn after
+   * a sync refusal is a reachable state, and it may not surface `Sync now to retry` either.
+   */
+  it("outranks a refusal, not just a push error", () => {
+    expect(
+      formatAskMirrorStatusLine({
+        serverCount: "10",
+        email: "a@ex.co",
+        relativeLastOk: "never",
+        refused: true,
+        off: "no-ack",
+      }),
+    ).toBe(
+      "Ask mirror: off · no current privacy acknowledgment · 10 in the cloud at last check, Wipe cloud copy to delete",
+    );
+  });
+
+  /**
    * A wipe clears the count rather than zeroing it, so the off line must not turn that absence
    * into a claim about a cloud copy that is gone.
    */

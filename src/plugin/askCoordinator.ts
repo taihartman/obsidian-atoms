@@ -14,7 +14,7 @@ import { Notice, TFile } from "obsidian";
 import type AtomsPlugin from "./main";
 import { clampAtomFolder } from "../pipeline/render";
 import { fireAndForgetAsk } from "../shared/fireAndForget";
-import { askPrivacyAckIsCurrent, askWriteAckIsCurrent } from "../shared/askAck";
+import { askMirrorPermitted, askWriteAckIsCurrent } from "../shared/askAck";
 import {
   isAskMirrorWatchPath,
   readAskMirrorHashes,
@@ -118,8 +118,7 @@ export class AskCoordinator {
    * longer shows is not consent to push under (#360).
    */
   mirrorPermitted(): boolean {
-    const p = this.plugin;
-    return p.settings.askEnabled && askPrivacyAckIsCurrent(p.settings);
+    return askMirrorPermitted(this.plugin.settings);
   }
 
   /** Forget the debounced push this device owes itself; keeps no timer alive. */

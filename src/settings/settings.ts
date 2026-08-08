@@ -45,6 +45,7 @@ import {
   ASK_PRIVACY_ACK_VERSION,
   ASK_WRITE_ACK_VERSION,
   askAckStanding,
+  askMirrorPermitted,
   askPrivacyAckIsCurrent,
   askWriteAckIsCurrent,
 } from "../shared/askAck";
@@ -2143,9 +2144,8 @@ export class AtomsSettingTab extends PluginSettingTab {
       readAskMirrorEmail((k) => this.app.loadLocalStorage(k) as unknown) ||
       sessionEmail ||
       "";
-    // Asked of the same two values `mirrorPermitted()` reads, in the same order, so the sentence
-    // and the gate cannot disagree (#374). The ack outranks the toggle: an ack that is not
-    // current is the larger fact, and withdrawal turns the toggle off on its way past anyway.
+    // Asked of the gate itself, not of a second copy of its conditions, so the sentence and the
+    // egress it describes cannot disagree (#374).
     const off = this.mirrorOffReason();
     return {
       line: formatAskMirrorStatusLine({
@@ -2162,13 +2162,21 @@ export class AtomsSettingTab extends PluginSettingTab {
     };
   }
 
-  /** Why the mirror is not running, or `undefined` while it is. */
+  /**
+   * Why the mirror is not running, or `undefined` while it is.
+   *
+   * `askMirrorPermitted` decides *whether*, so this method can never be the reason the sentence
+   * and the gate part company. The fields below only choose *which* reason to name, and the ack
+   * is read first because it is the larger fact: withdrawal turns the toggle off on its way past,
+   * so "off" alone would be the smaller half of what happened.
+   */
   private mirrorOffReason(): AskMirrorOffReason | undefined {
     const s = this.plugin.settings;
+    if (askMirrorPermitted(s)) return undefined;
     if (!askPrivacyAckIsCurrent(s)) {
       return ackStampIsReal(s.askPrivacyAckAt) ? "stale-ack" : "no-ack";
     }
-    return s.askEnabled ? undefined : "disabled";
+    return "disabled";
   }
 
   /**
