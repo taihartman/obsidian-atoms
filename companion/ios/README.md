@@ -1,90 +1,68 @@
-# Atoms Capture (iOS POC)
+# Atoms Capture (iOS)
 
-Setup hub + widget for phone capture. **Day-to-day capture on iOS** prefers the
-**Capture Atom** system Shortcut (overlay-style card). This app installs that
-path and optional Files write.
+**Setup hub** for phone capture. Day-to-day capture is the **Capture Atom** system Shortcut (floating card over your current app) — not this app’s UI.
 
-**Install links SSOT:** repo-root [`mobile-install.json`](../../mobile-install.json)
-(plugin + companion). When you ship a new iCloud shortcut link, **prepend** it
-there and mirror `atomsCaptureAppend.urls[0]` / name in
-`DeliverySettings.swift`.
+| Piece | Role |
+|--------|------|
+| This app | Install guide, checklist, widget entry |
+| **Capture Atom** shortcut | Type / voice → `Atoms System/Inbox.md` via Obsidian bookmark |
+| Atoms plugin (Obsidian) | Creates Inbox + bookmark; Process files lines into dailies |
 
-- Spec: [`docs/plans/2026-08-07-003-feat-ios-companion-capture-poc-plan.md`](../../docs/plans/2026-08-07-003-feat-ios-companion-capture-poc-plan.md)
-- Issue: [#379](https://github.com/taihartman/obsidian-atoms/issues/379)
-- No Shortcut handoff, no Plus queue, no classify — plugin still files.
+## Install links (SSOT)
+
+Repo root [`mobile-install.json`](../../mobile-install.json):
+
+- `captureAtom` — name + iCloud URLs (newest first)
+- Companion mirrors `captureAtom.name` + `urls[0]` in `DeliverySettings.swift`
+
+When you ship a new shortcut link: **prepend** the URL, bump `version`, update Swift constants to match.
 
 ## Requirements
 
-- Xcode 15+ (tested with Xcode 26 / iOS 17 deployment)
-- Physical iPhone preferred for Live Activities + speech dogfood
-- [XcodeGen](https://github.com/yonaskolb/XcodeGen) to regenerate the project: `brew install xcodegen`
+- Xcode 15+ (tested Xcode 26 / iOS 17+)
+- [XcodeGen](https://github.com/yonaskolb/XcodeGen): `brew install xcodegen`
+- Physical iPhone for dogfood
+- Obsidian with **Atoms** plugin (BRAT: `taihartman/obsidian-atoms`)
 
 ## Layout
 
 | Path | Role |
 |------|------|
-| `Sources/AtomsCaptureCore/` | Pure stamp/write library (shared) |
-| `Tests/AtomsCaptureCoreTests/` | XCTest goldens (macOS `swift test`) |
-| `AtomsCapture/` | Hub + capture sheet + speech + App Intent |
-| `AtomsCaptureWidget/` | Home Screen widget |
-| `AtomsCaptureActivity/` | Live Activity / Dynamic Island UI |
-| `project.yml` | XcodeGen project definition |
+| `Sources/AtomsCaptureCore/` | Stamp/write helpers + shortcut handoff |
+| `Tests/` | XCTest (macOS `swift test`) |
+| `AtomsCapture/` | Setup hub |
+| `AtomsCaptureWidget/` | Home widget → opens Capture Atom |
+| `project.yml` | XcodeGen |
 
 ## Build & test
 
 ```bash
 cd companion/ios
-
-# Core unit tests (macOS — stamp + writer)
 swift test
-
-# Regenerate Xcode project after project.yml changes
 xcodegen generate
-
-# Simulator build
 xcodebuild -project AtomsCapture.xcodeproj -scheme AtomsCapture \
   -destination 'platform=iOS Simulator,name=iPhone 17,OS=26.2' build
 ```
 
-Open `AtomsCapture.xcodeproj` in Xcode to run on a device. Set your **Team** under Signing for the app + extensions (App Group `group.app.tryatoms.capture`).
+Open `AtomsCapture.xcodeproj`, set **Team**, run on device.  
+App Group: `group.app.tryatoms.capture.tai`
 
-## Dogfood
+## Dogfood (device)
 
-### Hub (once)
+1. **Obsidian:** install Atoms plugin → open vault once (creates Inbox + **Atoms Inbox** bookmark).
+2. **Atoms Capture hub:** **Install Capture Atom** → Add Shortcut → **I’ve added it**.
+3. **Try Capture Atom now** → type or speak → confirm line in `Atoms System/Inbox.md`.
+4. Pin **Action Button** / **Control Center** / **widget** to Capture Atom (see hub).
+5. Day to day: **don’t open this app** — use Capture Atom.
 
-1. Prefer a **throwaway vault folder** visible in the Files app (iCloud Drive or On My iPhone). Obsidian Sync’s private sandbox is often **not** writable — the hub says so.
-2. Open **Atoms Capture** → **Link vault folder…** → pick the vault root (the folder that contains `.obsidian` or will hold `Atoms System/`).
-3. **Save test capture** → status **In vault**.
-4. Confirm a line in `Atoms System/Inbox.md`:
+### Confirm line shape
 
 ```text
-- 2026-…T…:…:…±HH:MM …
+- 2026-08-07T17:25:25-04:00 your text
 ```
 
-### One-second path (daily)
+## Out of this app
 
-1. Long-press Home → **Widgets** → **Atoms Capture** → place widget.
-2. Tap widget → type or Listen → **Save** → **In vault** or **Failed**.
-3. Optional: Settings → Action Button → Shortcut → **Capture thought** (App Intent launcher — not the old Capture Atom append recipe).
-
-### Confirm in Obsidian
-
-Open Obsidian with Atoms → Process / drain files the stamped line into the daily for the stamp’s date.
-
-## Checklist (in-app)
-
-1. Link a Files-visible vault  
-2. Save a test capture  
-3. Add the Home Screen widget  
-4. Optional Action Button  
-
-Copy: *This hub is for setup. Day to day, don’t open the app.*
-
-## Wire contract
-
-Same as Android / plugin (`src/pipeline/inbox.ts`):
-
-- Path: `Atoms System/Inbox.md`
-- Line: `- YYYY-MM-DDTHH:mm:ss±HH:MM text`
-- Multiline: newlines → tab-indented continuations
-- Body sacred beyond that whitespace rule
+- Live Activity / in-app type field (removed — Shortcut is the capture UI)
+- App Store listing
+- Plus capture relay

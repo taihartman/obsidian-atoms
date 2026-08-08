@@ -23,10 +23,8 @@ targets:
       - package: AtomsCaptureCore
         product: AtomsCaptureCore
       - target: AtomsCaptureWidget
-      - target: AtomsCaptureActivity
     settings:
       base:
-        # Unique dev bundle IDs (app.tryatoms.capture* already taken on other teams)
         PRODUCT_BUNDLE_IDENTIFIER: app.tryatoms.capture.tai
         PRODUCT_NAME: Atoms Capture
         INFOPLIST_FILE: AtomsCapture/Info.plist
@@ -50,9 +48,6 @@ targets:
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
-        NSMicrophoneUsageDescription: Atoms Capture listens so you can speak a thought into your vault.
-        NSSpeechRecognitionUsageDescription: Atoms Capture turns speech into text for capture. Recognition stays on-device when your phone supports it.
-        NSSupportsLiveActivities: true
         CFBundleURLTypes:
           - CFBundleURLSchemes:
               - atomscapture
@@ -90,35 +85,3 @@ targets:
         CFBundleVersion: "1"
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
-
-  AtomsCaptureActivity:
-    type: app-extension
-    platform: iOS
-    sources:
-      - path: AtomsCaptureActivity
-    dependencies:
-      - package: AtomsCaptureCore
-        product: AtomsCaptureCore
-    settings:
-      base:
-        PRODUCT_BUNDLE_IDENTIFIER: app.tryatoms.capture.tai.activity
-        PRODUCT_NAME: AtomsCaptureActivity
-        INFOPLIST_FILE: AtomsCaptureActivity/Info.plist
-        SKIP_INSTALL: true
-        CURRENT_PROJECT_VERSION: 1
-        MARKETING_VERSION: "0.1.0"
-        CODE_SIGN_ENTITLEMENTS: AtomsCaptureActivity/AtomsCaptureActivity.entitlements
-    entitlements:
-      path: AtomsCaptureActivity/AtomsCaptureActivity.entitlements
-      properties:
-        com.apple.security.application-groups:
-          - group.app.tryatoms.capture.tai
-    info:
-      path: AtomsCaptureActivity/Info.plist
-      properties:
-        CFBundleDisplayName: Atoms Capture Activity
-        CFBundleShortVersionString: "0.1.0"
-        CFBundleVersion: "1"
-        NSExtension:
-          NSExtensionPointIdentifier: com.apple.widgetkit-extension
-        NSSupportsLiveActivities: true

@@ -31,12 +31,6 @@
 	</array>
 	<key>CFBundleVersion</key>
 	<string>1</string>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>Atoms Capture listens so you can speak a thought into your vault.</string>
-	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>Atoms Capture turns speech into text for capture. Recognition stays on-device when your phone supports it.</string>
-	<key>NSSupportsLiveActivities</key>
-	<true/>
 	<key>UILaunchScreen</key>
 	<dict/>
 	<key>UISupportedInterfaceOrientations</key>
