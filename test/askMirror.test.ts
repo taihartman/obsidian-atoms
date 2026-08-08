@@ -817,15 +817,21 @@ describe("askMirror deletion gate (U1)", () => {
    * A wipe clears the count rather than zeroing it, so the off line must not turn that absence
    * into a claim about a cloud copy that is gone.
    */
-  it("omits the cloud clause when this device has no count on record", () => {
+  it("omits the cloud clause when there is no cloud copy to point at", () => {
+    const off = { email: "a@ex.co", relativeLastOk: "never", off: "disabled" } as const;
+    // No count on record at all.
     expect(
-      formatAskMirrorStatusLine({
-        serverCount: ASK_MIRROR_COUNT_UNKNOWN,
-        email: "a@ex.co",
-        relativeLastOk: "never",
-        off: "disabled",
-      }),
+      formatAskMirrorStatusLine({ ...off, serverCount: ASK_MIRROR_COUNT_UNKNOWN }),
     ).toBe("Ask mirror: off");
+    // A recorded zero is an empty cloud, so a Wipe call to action would be an instruction to
+    // delete nothing.
+    expect(formatAskMirrorStatusLine({ ...off, serverCount: "0" })).toBe(
+      "Ask mirror: off",
+    );
+    // A value `data.json` should not have held degrades to silence, never to a sentence.
+    expect(formatAskMirrorStatusLine({ ...off, serverCount: "lots" })).toBe(
+      "Ask mirror: off",
+    );
   });
 
   it("a refusal renders the literal status line and clears on the next clean pass", async () => {

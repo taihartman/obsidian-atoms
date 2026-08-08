@@ -108,14 +108,13 @@ export class AskCoordinator {
   }
 
   /**
-   * Whether the mirror may push *right now*. The one home for the egress predicate:
-   * a second copy is how a future condition gets added to one gate and missed at the
-   * other. Read live at every call rather than captured, because `data.json` syncs —
-   * a withdrawal on another device replaces `plugin.settings` underneath a pass that
-   * is already running (#323).
+   * Whether the mirror may push *right now*, delegated to `askMirrorPermitted` in
+   * `shared/askAck.ts` — the actual home of the egress predicate, and where a new condition
+   * belongs. Kept as a method because the coordinator's own call sites read it dozens of
+   * times; it adds no condition of its own, and must not start.
    *
-   * Asked of the ack *version*, not the timestamp: a grant made against wording this build no
-   * longer shows is not consent to push under (#360).
+   * Read live at every call rather than captured, because `data.json` syncs — a withdrawal on
+   * another device replaces `plugin.settings` underneath a pass already running (#323).
    */
   mirrorPermitted(): boolean {
     return askMirrorPermitted(this.plugin.settings);

@@ -600,20 +600,9 @@ export class AtomsSettingTab extends PluginSettingTab {
     // Read live rather than from `enabled`: the save is an await, and a withdrawal landing
     // inside it turns both the consent and the mirror off. The push is the egress itself, so
     // it answers to the state now, not to the gesture that started it.
-    if (this.askMirrorPermitted()) {
+    if (askMirrorPermitted(this.plugin.settings)) {
       fireAndForgetAsk(this.plugin.syncAskMirror({ force: false }));
     }
-  }
-
-  /**
-   * Whether the mirror may push right now: enabled, and under a privacy ack still granted
-   * *against the wording this build shows* (#360) — not merely one granted at some point.
-   */
-  private askMirrorPermitted(): boolean {
-    return (
-      this.plugin.settings.askEnabled &&
-      askPrivacyAckIsCurrent(this.plugin.settings)
-    );
   }
 
   /**
@@ -885,20 +874,24 @@ export class AtomsSettingTab extends PluginSettingTab {
                   new Notice(`Ask: ${r.message}`);
                   return;
                 }
+                // Disarm first, and get it to disk before anything else moves (#371).
+                // Clearing the baseline on its own leaves a *permitted* mirror that believes
+                // it has uploaded nothing, which is the precondition for a full re-upload on
+                // the next vault event or reload — a bare plugin reload put all 407 rows back
+                // in four seconds. Doing it in this order means a crash inside the save leaves
+                // an armed mirror with its baseline *intact*, which merely re-uploads nothing;
+                // the other order leaves an armed mirror with an empty baseline, which is #371
+                // itself. The acks are left standing: they are the consent record, and the
+                // withdrawal row keys off the timestamp, so clearing them here would delete
+                // the only way back out.
+                this.plugin.settings.askEnabled = false;
+                await this.plugin.saveSettings();
                 // One owner for the reset. Re-listing the keys here is how the wipe and the
                 // gate's readers drift — and a wipe that leaves a *parseable* count behind hands
                 // the gate a fabricated authority for the cloud it just emptied.
                 clearAskMirrorDeviceState((k, v) =>
                   this.app.saveLocalStorage(k, v),
                 );
-                // And disarm the mirror (#371). Clearing the baseline on its own leaves a
-                // *permitted* mirror that believes it has uploaded nothing, which is the
-                // precondition for a full re-upload on the next vault event or reload — a
-                // bare plugin reload put all 407 rows back in four seconds. The acks are left
-                // standing: they are the consent record, and the withdrawal row keys off the
-                // timestamp, so clearing them here would delete the only way back out.
-                this.plugin.settings.askEnabled = false;
-                await this.plugin.saveSettings();
                 new Notice("Ask mirror wiped and turned off");
                 this.redisplay();
               })().finally(resolve);

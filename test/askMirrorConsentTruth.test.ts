@@ -59,6 +59,10 @@ const MIRRORED = {
 
 const flush = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 
+// Above both blocks, not inside one: the mock is module-level, so a per-describe reset leaves
+// the other block reading call counts the first one left behind.
+beforeEach(() => wipe.mockClear());
+
 function connect(opts: SettingTabOptions = {}) {
   const made = settingTab({ session: PLUS_SESSION, ...opts });
   made.tab.display();
@@ -67,15 +71,26 @@ function connect(opts: SettingTabOptions = {}) {
 }
 
 /** The status paragraph the destination prints above the rows that change it. */
+function statusParagraph(made: ReturnType<typeof connect>): HTMLElement {
+  const found = Array.from(
+    made.tab.containerEl.querySelectorAll("p.setting-item-description"),
+  ).find((el) => (el.textContent ?? "").startsWith("Ask mirror:"));
+  if (!(found instanceof HTMLElement)) {
+    throw new Error("no mirror status line on the screen");
+  }
+  return found;
+}
+
 function statusLine(made: ReturnType<typeof connect>): string {
-  const line = prose(made.tab).find((p) => p.startsWith("Ask mirror:"));
-  if (!line) throw new Error("no mirror status line on the screen");
-  return line;
+  return statusParagraph(made).textContent ?? "";
+}
+
+/** Whether the line is dressed as a failure, which a gated-off mirror is not. */
+function statusIsError(made: ReturnType<typeof connect>): boolean {
+  return statusParagraph(made).classList.contains("atoms-ask-mirror-error");
 }
 
 describe("#371 — Wipe cloud copy disarms the mirror", () => {
-  beforeEach(() => wipe.mockClear());
-
   it("turns the mirror off, so the cleared baseline cannot become a re-upload", async () => {
     const made = connect({
       settings: { askEnabled: true, ...PRIVACY_GRANTED },
@@ -154,6 +169,21 @@ describe("#374 — the status line consults the consent gate", () => {
     expect(statusLine(made)).toBe(
       "Ask mirror: 407 · as user@example.com · push failed — Plus network error · Sync now to retry",
     );
+    expect(statusIsError(made)).toBe(true);
+  });
+
+  /**
+   * The other half of the same sentence. A mirror the gate closed did not fail, and dressing it
+   * in the error style tells someone who just withdrew consent that something went wrong when
+   * it went right.
+   */
+  it("drops the error styling with the error text", () => {
+    const made = connect({
+      settings: { askEnabled: false, askPrivacyAckAt: "", askPrivacyAckVersion: "" },
+      local: { ...MIRRORED, [LS_ASK_MIRROR_LAST_ERROR]: "Plus network error" },
+    });
+
+    expect(statusIsError(made)).toBe(false);
   });
 
   it("stops advertising an active mirror once consent is withdrawn", () => {

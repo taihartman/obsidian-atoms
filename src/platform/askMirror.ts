@@ -659,10 +659,13 @@ export function formatAskMirrorStatusLine(opts: {
   off?: AskMirrorOffReason;
 }): string {
   if (opts.off) {
-    // Cleared, not zeroed: a wipe leaves no count, and an absence may not be rendered as a
-    // sentence about atoms that are still there.
+    // Only a positive count earns the clause. Cleared is not zeroed — a wipe leaves no count,
+    // and an absence may not be rendered as a sentence about atoms that are still there — and
+    // a recorded zero is a cloud that is already empty, which must not be handed a call to
+    // action for deleting it. Same `> 0` rule `readAskMirrorServerCount` gates on.
+    const n = Number(opts.serverCount);
     const cloud =
-      opts.serverCount && opts.serverCount !== ASK_MIRROR_COUNT_UNKNOWN
+      Number.isInteger(n) && n > 0
         ? ` · ${opts.serverCount} in the cloud at last check, Wipe cloud copy to delete`
         : "";
     return `Ask mirror: off${ASK_MIRROR_OFF_WHY[opts.off]}${cloud}`;
