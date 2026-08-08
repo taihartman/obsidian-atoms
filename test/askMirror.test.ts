@@ -9,6 +9,7 @@ import type {
   AskMirrorSyncResult,
 } from "../src/platform/askMirror";
 import {
+  ASK_MIRROR_COUNT_UNKNOWN,
   ASK_MIRROR_REFUSAL_ESCALATION_NOTICE,
   MIRROR_HIGHWATER_DECAY_DAYS,
   clearAskMirrorDeviceState,
@@ -768,6 +769,45 @@ describe("askMirror deletion gate (U1)", () => {
     ).toBe(
       "Ask mirror: 10 · as a@ex.co · sync refused — vault scan incomplete · Sync now to retry",
     );
+  });
+
+  /**
+   * #374 — the line is read on the consent surface itself, so a mirror the gate has closed may
+   * not describe itself as one that pushed, failed, or wants retrying. Each case asserts the
+   * whole string: the defect was never a missing word, it was three true-looking clauses about
+   * a mirror that is not running.
+   */
+  it("says the mirror is off, and why, once the gate has closed it", () => {
+    const gated = {
+      serverCount: "407",
+      email: "a@ex.co",
+      relativeLastOk: "1h ago",
+      lastErr: "Plus network error",
+    };
+    expect(formatAskMirrorStatusLine({ ...gated, off: "no-ack" })).toBe(
+      "Ask mirror: off · no current privacy acknowledgment · 407 in the cloud at last check, Wipe cloud copy to delete",
+    );
+    expect(formatAskMirrorStatusLine({ ...gated, off: "stale-ack" })).toBe(
+      "Ask mirror: off · privacy acknowledgment out of date, Review to resume · 407 in the cloud at last check, Wipe cloud copy to delete",
+    );
+    expect(formatAskMirrorStatusLine({ ...gated, off: "disabled" })).toBe(
+      "Ask mirror: off · 407 in the cloud at last check, Wipe cloud copy to delete",
+    );
+  });
+
+  /**
+   * A wipe clears the count rather than zeroing it, so the off line must not turn that absence
+   * into a claim about a cloud copy that is gone.
+   */
+  it("omits the cloud clause when this device has no count on record", () => {
+    expect(
+      formatAskMirrorStatusLine({
+        serverCount: ASK_MIRROR_COUNT_UNKNOWN,
+        email: "a@ex.co",
+        relativeLastOk: "never",
+        off: "disabled",
+      }),
+    ).toBe("Ask mirror: off");
   });
 
   it("a refusal renders the literal status line and clears on the next clean pass", async () => {

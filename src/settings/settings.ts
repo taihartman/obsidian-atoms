@@ -111,6 +111,7 @@ import {
   plusFetchRequest,
 } from "../platform/plusClient";
 import {
+  type AskMirrorOffReason,
   clearAskMirrorDeviceState,
   formatAskMirrorStatusLine,
   formatAskMirrorServerCount,
@@ -857,7 +858,7 @@ export class AtomsSettingTab extends PluginSettingTab {
       const modal = new Modal(this.app);
       modal.titleEl.setText("Wipe cloud copy?");
       modal.contentEl.createEl("p", {
-        text: "Wipe cloud atom mirror, pending Ask writes, and revoke Ask connector access (Claude + ChatGPT)? Local vault files are kept.",
+        text: "Wipe cloud atom mirror, pending Ask writes, and revoke Ask connector access (Claude + ChatGPT)? Local vault files are kept. Ask mirror turns off, so nothing uploads again until you turn it back on.",
       });
       // Cancel, Escape, and a click outside all arrive here. The wipe path closes the modal too,
       // and settles on the request instead — the row must stay held for that, not just for the
@@ -889,8 +890,15 @@ export class AtomsSettingTab extends PluginSettingTab {
                 clearAskMirrorDeviceState((k, v) =>
                   this.app.saveLocalStorage(k, v),
                 );
+                // And disarm the mirror (#371). Clearing the baseline on its own leaves a
+                // *permitted* mirror that believes it has uploaded nothing, which is the
+                // precondition for a full re-upload on the next vault event or reload — a
+                // bare plugin reload put all 407 rows back in four seconds. The acks are left
+                // standing: they are the consent record, and the withdrawal row keys off the
+                // timestamp, so clearing them here would delete the only way back out.
+                this.plugin.settings.askEnabled = false;
                 await this.plugin.saveSettings();
-                new Notice("Ask mirror wiped");
+                new Notice("Ask mirror wiped and turned off");
                 this.redisplay();
               })().finally(resolve);
             }),
@@ -2135,6 +2143,10 @@ export class AtomsSettingTab extends PluginSettingTab {
       readAskMirrorEmail((k) => this.app.loadLocalStorage(k) as unknown) ||
       sessionEmail ||
       "";
+    // Asked of the same two values `mirrorPermitted()` reads, in the same order, so the sentence
+    // and the gate cannot disagree (#374). The ack outranks the toggle: an ack that is not
+    // current is the larger fact, and withdrawal turns the toggle off on its way past anyway.
+    const off = this.mirrorOffReason();
     return {
       line: formatAskMirrorStatusLine({
         serverCount,
@@ -2142,9 +2154,21 @@ export class AtomsSettingTab extends PluginSettingTab {
         relativeLastOk: relative(lastOk),
         lastErr: refused ? "" : lastErr,
         refused,
+        off,
       }),
-      failing: Boolean(lastErr) || refused,
+      // A mirror the gate has closed is not failing. Styling it as an error would tell someone
+      // who just withdrew consent that something went wrong when it went right.
+      failing: off ? false : Boolean(lastErr) || refused,
     };
+  }
+
+  /** Why the mirror is not running, or `undefined` while it is. */
+  private mirrorOffReason(): AskMirrorOffReason | undefined {
+    const s = this.plugin.settings;
+    if (!askPrivacyAckIsCurrent(s)) {
+      return ackStampIsReal(s.askPrivacyAckAt) ? "stale-ack" : "no-ack";
+    }
+    return s.askEnabled ? undefined : "disabled";
   }
 
   /**
