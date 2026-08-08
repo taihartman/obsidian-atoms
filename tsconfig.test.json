@@ -35,7 +35,8 @@
 		"test/helpers/settingsTab.ts",
 		"test/mocks/obsidian.ts",
 		"test/mocks/domAugmentations.ts",
-		"plus-pricing.json"
+		"plus-pricing.json",
+		"mobile-install.json"
 	],
 	"exclude": ["node_modules"]
 }

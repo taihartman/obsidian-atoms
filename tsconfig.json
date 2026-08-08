@@ -16,6 +16,6 @@
 		"resolveJsonModule": true,
 		"lib": ["ES2021", "DOM"]
 	},
-	"include": ["src/**/*.ts", "plus-pricing.json"],
+	"include": ["src/**/*.ts", "plus-pricing.json", "mobile-install.json"],
 	"exclude": ["node_modules", "test"]
 }
