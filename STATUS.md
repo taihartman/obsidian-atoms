@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| *(none)* | | | | | | |
+| In progress | [#397](https://github.com/taihartman/obsidian-atoms/issues/397) | taihartman | `fix/397-hub-hash-clobber` | debug lane | `src/platform/askMirror.ts`, `test/askMirror.test.ts` | Hub planner's stale snapshot copy clobbered freshened atom hashes, so background syncs re-uploaded every dirty atom forever · plugin bump 0.6.91 |
 
 ## How to claim (copy)
 

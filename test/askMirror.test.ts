@@ -1178,3 +1178,124 @@ describe("askMirror confirmation (review)", () => {
     expect(readAskMirrorRefusal((k) => f.store[k]).count).toBe(2);
   });
 });
+
+// #397 — the merge of the two planners' hash maps. `planAskMirrorUpsert` hands back a full copy
+// of the map it was seeded with, and on a non-force pass both planners are seeded from the same
+// snapshot, so spreading one over the other reinstates whatever the loser had just freshened.
+// The old suite could not see this: its fake host resolved zero hubs, so the hub planner's map was
+// never populated and never shadowed anything.
+describe("askMirror hash convergence across planners (#397)", () => {
+  function makeHubbyHost(store: Record<string, string> = {}) {
+    const bodies: Record<string, string> = {
+      "Atoms/A0.md": "body zero",
+      "Atoms/A1.md": "body one",
+      "Movies.md": "hub body",
+    };
+    const uploads: string[][] = [];
+
+    const host: AskMirrorHost = {
+      async scanAtoms() {
+        return ["Atoms/A0.md", "Atoms/A1.md"].map((path) => ({
+          path,
+          basename: path.split("/").pop() as string,
+          content: `---\ntags: []\n---\n${bodies[path]}\n`,
+        }));
+      },
+      async resolveHubs() {
+        return [
+          {
+            path: "Movies.md",
+            basename: "Movies.md",
+            content: `---\ntags: []\n---\n${bodies["Movies.md"]}\n`,
+          },
+        ];
+      },
+      load: (k) => store[k],
+      save: (k, v) => {
+        store[k] = v;
+      },
+      async upsert(atoms) {
+        uploads.push(atoms.map((a) => a.path));
+        return { ok: true, upserted: atoms.length };
+      },
+      async deletePaths() {
+        return { ok: true };
+      },
+      async reconcile() {
+        return { ok: true };
+      },
+      async status() {
+        return { ok: true, count: 3 };
+      },
+      async confirm() {
+        return "dismissed" as ConfirmVerdict;
+      },
+      notice: () => {},
+      now: () => NOW,
+    };
+
+    return {
+      host,
+      store,
+      uploads,
+      edit: (path: string, body: string) => {
+        bodies[path] = body;
+      },
+      hashes: () =>
+        JSON.parse(store[LS_ASK_MIRROR_HASHES] || "{}") as Record<
+          string,
+          string
+        >,
+    };
+  }
+
+  it("a delta pass persists the hash it just uploaded, so the next pass sends nothing", async () => {
+    const f = makeHubbyHost();
+
+    // Seed the baseline through the product itself rather than by hand.
+    await runAskMirrorSync(f.host, { force: false });
+    expect(f.uploads[0]?.sort()).toEqual([
+      "Atoms/A0.md",
+      "Atoms/A1.md",
+      "Movies.md",
+    ]);
+    const seeded = f.hashes();
+
+    // One atom changes. The hub does not, which is what arms the bug: the hub planner returns the
+    // snapshot untouched, carrying A0's *old* hash with it.
+    f.edit("Atoms/A0.md", "body zero, edited");
+    await runAskMirrorSync(f.host, { force: false });
+    expect(f.uploads[1]).toEqual(["Atoms/A0.md"]);
+    expect(f.hashes()["Atoms/A0.md"]).not.toBe(seeded["Atoms/A0.md"]);
+
+    // The convergence claim: nothing changed since, so nothing should go.
+    await runAskMirrorSync(f.host, { force: false });
+    expect(f.uploads[2] ?? []).toEqual([]);
+  });
+
+  it("a hub edit converges too — the atom planner must not shadow fresh hub hashes", async () => {
+    const f = makeHubbyHost();
+    await runAskMirrorSync(f.host, { force: false });
+    const seeded = f.hashes();
+
+    f.edit("Movies.md", "hub body, edited");
+    await runAskMirrorSync(f.host, { force: false });
+    expect(f.uploads[1]).toEqual(["Movies.md"]);
+    expect(f.hashes()["Movies.md"]).not.toBe(seeded["Movies.md"]);
+
+    await runAskMirrorSync(f.host, { force: false });
+    expect(f.uploads[2] ?? []).toEqual([]);
+  });
+
+  it("force still yields a delta-only map, so the orphan sweep keeps its vault-set invariant", async () => {
+    const f = makeHubbyHost();
+    await runAskMirrorSync(f.host, { force: true });
+    // Every path present in the vault, and nothing else — a stale entry surviving here would let
+    // the sweep treat a deleted note as still-present.
+    expect(Object.keys(f.hashes()).sort()).toEqual([
+      "Atoms/A0.md",
+      "Atoms/A1.md",
+      "Movies.md",
+    ]);
+  });
+});

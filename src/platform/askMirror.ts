@@ -1167,7 +1167,25 @@ export async function runAskMirrorSync(
   );
 
   const atoms = [...atomPayloads, ...hubPayloads];
-  const upsertNext = { ...atomNext, ...hubNext };
+  // `planAskMirrorUpsert` returns a full copy of the map it was seeded with, not just the entries
+  // it freshened. Both planners are seeded from the same `hashesForUpsert`, so a plain
+  // `{ ...atomNext, ...hubNext }` let the hub planner's *stale* atom entries overwrite the atom
+  // planner's freshened ones: the atom uploaded, its old hash persisted, and the next pass found it
+  // dirty again — background syncs never converged (#397). Reversing the spread only moves the bug,
+  // because `atomNext` carries stale hub entries in exactly the same way.
+  //
+  // So apply only what each planner actually freshened, using its payload list as the authority.
+  // Seeding from `hashesForUpsert` keeps the force path delta-only (it is `{}` there), which the
+  // orphan sweep below relies on — see "upsertNext has all when force".
+  const upsertNext = { ...hashesForUpsert };
+  for (const p of atomPayloads) {
+    const h = atomNext[p.path];
+    if (h) upsertNext[p.path] = h;
+  }
+  for (const p of hubPayloads) {
+    const h = hubNext[p.path];
+    if (h) upsertNext[p.path] = h;
+  }
   const vaultPaths = new Set([
     ...atomReads.map((f) => f.path),
     ...hubReads.map((f) => f.path),
