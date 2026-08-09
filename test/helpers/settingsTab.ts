@@ -11,6 +11,7 @@ import {
   type PlusSession,
 } from "../../src/platform/filingAuth";
 import { DEFAULT_SETTINGS, type LinkerSettings } from "../../src/shared/types";
+import { askMirrorPermitted } from "../../src/shared/askAck";
 
 export interface SettingTabOptions {
   /** What `plugin.resolveFilingAuth()` reports. Defaults to no credentials at all. */
@@ -84,16 +85,29 @@ export function settingTab(opts: SettingTabOptions = {}): {
     workspace: { getActiveFile: () => null },
   };
   const calls: string[] = [];
+  const settings: LinkerSettings = { ...DEFAULT_SETTINGS, ...opts.settings };
   const known: Record<string, unknown> = {
     app,
     manifest: { version: "9.9.9" },
-    settings: { ...DEFAULT_SETTINGS, ...opts.settings },
+    settings,
     resolveFilingAuth: () => opts.auth ?? { mode: "none" },
     getApiKey: () => opts.apiKey ?? null,
     // The Proxy's no-op fallback returns `undefined`, and these two are handed to
     // `fireAndForgetAsk`, which calls `.catch` on what it is given.
     syncAskMirror: () => Promise.resolve({ ok: false, message: "test double" }),
     applyAskOutbox: () => Promise.resolve(),
+    // The Ask coordinator, for the rows that reach through it — Sign out and Wipe both do. Not
+    // the Proxy's no-op: `mirrorPermitted` is *read*, so answering `undefined` reads as "not
+    // permitted" by luck on one branch and crashes on another. It delegates to the real shared
+    // predicate rather than returning a canned boolean, so a teardown's guard is judged against
+    // the settings it actually left behind. `cancelPendingSync` records itself, since the
+    // wrapper below only sees top-level members.
+    ask: {
+      mirrorPermitted: () => askMirrorPermitted(settings),
+      cancelPendingSync: () => {
+        calls.push("ask.cancelPendingSync");
+      },
+    },
     ...opts.plugin,
   };
   // Recording only the *unknown* members would leave `calls` blind exactly where it matters:

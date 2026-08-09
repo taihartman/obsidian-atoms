@@ -277,12 +277,9 @@ export class AskCoordinator {
     // `sync()` owns the notice for the forced gesture, and a follow-up has no user
     // behind it.
     //
-    // Per pass, not per request: `runAskMirrorSync` below scans the vault and then
-    // upserts in chunks, and nothing re-checks between them. A withdrawal landing
-    // inside that stretch still ships the rest of this pass. Closing that needs a live
-    // predicate threaded into the mirror host and is deliberately not this change —
-    // but do not read this gate as "the last check before the upload", because the
-    // upload is several awaits further on.
+    // Not the last check before the upload — the upload is several awaits further on. The host
+    // below carries `stillPermitted`, which asks this same predicate again between chunks, so a
+    // withdrawal or a sign-out landing mid-pass stops it there.
     if (!this.mirrorPermitted()) {
       return { kind: "failed", message: MIRROR_OFF };
     }
@@ -350,6 +347,10 @@ export class AskCoordinator {
         },
         load: (k) => p.app.loadLocalStorage(k) as unknown,
         save: (k, v) => p.app.saveLocalStorage(k, v),
+        // The same live predicate, asked between the pass's own awaits. Sign out disarms and
+        // *then* empties the baseline, so without this a chunk landing in between persists the
+        // snapshot it took at pass start and hands the next account a baseline it never pushed.
+        stillPermitted: () => this.mirrorPermitted(),
         upsert: (atoms) => askMirrorUpsert(cfg, token, atoms),
         deletePaths: (paths) => askMirrorDelete(cfg, token, paths),
         reconcile: (opts) => askMirrorReconcile(cfg, token, opts),
@@ -385,6 +386,10 @@ export class AskCoordinator {
 
     if (result.kind === "failed") {
       const msg = result.failureMessage ?? "";
+      // Stopped rather than broken: the user turned the mirror off (or signed out) while this
+      // pass was in the air. Telling them their push failed reads as an error report for
+      // something they just asked for, so this arm is silent — same as the entry gate's.
+      if (!this.mirrorPermitted()) return { kind: "failed", message: MIRROR_OFF };
       const snip = msg.replace(/\s+/g, " ").trim().slice(0, 72);
       // The dedupe flag exists to stop *background* passes from nagging after
       // the first failure. It must never silence a push the user just asked

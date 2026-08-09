@@ -881,24 +881,8 @@ export class AtomsSettingTab extends PluginSettingTab {
                   new Notice(`Ask: ${r.message}`);
                   return;
                 }
-                // Disarm first, and get it to disk before anything else moves (#371).
-                // Clearing the baseline on its own leaves a *permitted* mirror that believes
-                // it has uploaded nothing, which is the precondition for a full re-upload on
-                // the next vault event or reload — a bare plugin reload put all 407 rows back
-                // in four seconds. Doing it in this order means a crash inside the save leaves
-                // an armed mirror with its baseline *intact*, which merely re-uploads nothing;
-                // the other order leaves an armed mirror with an empty baseline, which is #371
-                // itself. The acks are left standing: they are the consent record, and the
-                // withdrawal row keys off the timestamp, so clearing them here would delete
-                // the only way back out.
-                this.plugin.settings.askEnabled = false;
-                await this.plugin.saveSettings();
-                // One owner for the reset. Re-listing the keys here is how the wipe and the
-                // gate's readers drift — and a wipe that leaves a *parseable* count behind hands
-                // the gate a fabricated authority for the cloud it just emptied.
-                clearAskMirrorDeviceState((k, v) =>
-                  this.app.saveLocalStorage(k, v),
-                );
+                // An emptied cloud must leave no arming and no baseline behind it (#371).
+                await this.disarmAskMirror();
                 new Notice("Ask mirror wiped and turned off");
                 this.redisplay();
               })().finally(resolve);
@@ -906,6 +890,45 @@ export class AtomsSettingTab extends PluginSettingTab {
         );
       modal.open();
     });
+  }
+
+  /**
+   * The one owner of the sign-out / wipe teardown — "this device is no longer mirroring, but the
+   * consent record stands": disarm, get the disarm to disk, drop what the mirror still owes
+   * itself, then forget the baseline.
+   *
+   * That order is the invariant, not the end state, which is identical either way. Clearing the
+   * baseline first leaves a *permitted* mirror that believes it has uploaded nothing, which is the
+   * precondition for a full re-upload on the next vault event or reload — a bare plugin reload put
+   * all 407 rows back in four seconds (#371). Done in this order, a crash inside the save leaves an
+   * armed mirror with its baseline *intact*, which merely re-uploads nothing; the other order
+   * leaves an armed mirror over an empty baseline, which is #371 itself.
+   *
+   * The acks are left standing: they are the consent record, and the withdrawal row keys off the
+   * timestamp, so clearing them here would delete the only way back out. `clearAskMirrorDeviceState`
+   * owns the key list — re-listing keys at a call site is how this and the gate's readers drift, and
+   * a teardown that leaves a *parseable* count behind hands the gate a fabricated authority.
+   *
+   * Not the withdrawal path: `renderAskPrivacyAckRecord`'s `onWithdraw` also sets `askEnabled`
+   * false, but it deliberately *clears* the acks this helper preserves, because revoking consent
+   * is the one thing that must delete the record. Do not consolidate the two — folding withdrawal
+   * into this helper would leave a withdrawn ack standing on disk.
+   */
+  private async disarmAskMirror(): Promise<void> {
+    this.plugin.settings.askEnabled = false;
+    await this.plugin.saveSettings();
+    // Closing the gate is not enough: a debounced push, or a pass already inside its
+    // single-flight loop, still owes itself a follow-up that never re-enters `sync()`. Same shape
+    // the external-settings paths use, and before the baseline is cleared, so nothing queued can
+    // fire against the state this teardown is dismantling.
+    //
+    // This drops the passes that have not started. The one already *running* is stopped by the
+    // disarm above, which the mirror host re-reads between chunks (`stillPermitted`) — which is
+    // why `saveSettings` has to land before the clear below and not after: a pass that observed
+    // the old, permitted settings would persist the baseline snapshot it took at its start and
+    // put back everything the next line removes.
+    if (!this.plugin.ask.mirrorPermitted()) this.plugin.ask.cancelPendingSync();
+    clearAskMirrorDeviceState((k, v) => this.app.saveLocalStorage(k, v));
   }
 
   /**
@@ -1175,6 +1198,12 @@ export class AtomsSettingTab extends PluginSettingTab {
    */
   private async signOutOfPlus(): Promise<void> {
     const session = readPlusSession(this.app);
+    // Local teardown first. Awaiting the server revoke *before* disarm left the mirror
+    // permitted for the whole RTT, so an in-flight pass kept pushing chunks after Sign out
+    // (#372 live QA). Network is best-effort against a token we are about to drop.
+    await this.disarmAskMirror();
+    clearPlusSession(this.app);
+    clearPlusRefreshRecord(this.app);
     if (session) {
       const base =
         this.plugin.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL;
@@ -1183,8 +1212,6 @@ export class AtomsSettingTab extends PluginSettingTab {
         session.sessionToken,
       );
     }
-    clearPlusSession(this.app);
-    clearPlusRefreshRecord(this.app);
     new Notice("Atoms Plus signed out on this device");
     this.redisplay();
   }
@@ -1294,7 +1321,7 @@ export class AtomsSettingTab extends PluginSettingTab {
     this.destructiveRow(containerEl, {
       action: "plus:sign-out",
       name: "Sign out",
-      desc: "Remove the Plus session from this device only.",
+      desc: "Remove the Plus session from this device, and turn the Ask mirror off on every device this vault syncs to.",
       label: "Sign out",
       onClick: () => this.signOutOfPlus(),
     });
