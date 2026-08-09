@@ -893,8 +893,9 @@ export class AtomsSettingTab extends PluginSettingTab {
   }
 
   /**
-   * The one owner of "this device is no longer mirroring": disarm, get the disarm to disk, then
-   * forget the baseline.
+   * The one owner of the sign-out / wipe teardown — "this device is no longer mirroring, but the
+   * consent record stands": disarm, get the disarm to disk, drop what the mirror still owes
+   * itself, then forget the baseline.
    *
    * That order is the invariant, not the end state, which is identical either way. Clearing the
    * baseline first leaves a *permitted* mirror that believes it has uploaded nothing, which is the
@@ -907,10 +908,26 @@ export class AtomsSettingTab extends PluginSettingTab {
    * timestamp, so clearing them here would delete the only way back out. `clearAskMirrorDeviceState`
    * owns the key list — re-listing keys at a call site is how this and the gate's readers drift, and
    * a teardown that leaves a *parseable* count behind hands the gate a fabricated authority.
+   *
+   * Not the withdrawal path: `renderAskPrivacyAckRecord`'s `onWithdraw` also sets `askEnabled`
+   * false, but it deliberately *clears* the acks this helper preserves, because revoking consent
+   * is the one thing that must delete the record. Do not consolidate the two — folding withdrawal
+   * into this helper would leave a withdrawn ack standing on disk.
    */
   private async disarmAskMirror(): Promise<void> {
     this.plugin.settings.askEnabled = false;
     await this.plugin.saveSettings();
+    // Closing the gate is not enough: a debounced push, or a pass already inside its
+    // single-flight loop, still owes itself a follow-up that never re-enters `sync()`. Same shape
+    // the external-settings paths use, and before the baseline is cleared, so nothing queued can
+    // fire against the state this teardown is dismantling.
+    //
+    // This drops the passes that have not started. The one already *running* is stopped by the
+    // disarm above, which the mirror host re-reads between chunks (`stillPermitted`) — which is
+    // why `saveSettings` has to land before the clear below and not after: a pass that observed
+    // the old, permitted settings would persist the baseline snapshot it took at its start and
+    // put back everything the next line removes.
+    if (!this.plugin.ask.mirrorPermitted()) this.plugin.ask.cancelPendingSync();
     clearAskMirrorDeviceState((k, v) => this.app.saveLocalStorage(k, v));
   }
 

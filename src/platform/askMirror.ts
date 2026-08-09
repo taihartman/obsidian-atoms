@@ -27,6 +27,13 @@ export const LS_ASK_MIRROR_SCAN_HIGHWATER =
 export const LS_ASK_MIRROR_REFUSAL = "atoms-ask-mirror-refusal-v1";
 
 /**
+ * Why a pass stopped when the mirror was disarmed underneath it. Deliberately the same sentence
+ * the entry gate refuses with: to the caller these are one fact — this device is not mirroring —
+ * and the only difference is which side of an await it was learned on.
+ */
+export const ASK_MIRROR_STOPPED = "Ask mirror is off";
+
+/**
  * The retired `data.json` field. Still present in every already-synced
  * `data.json`, so it is stripped on load — deleted, never read back as
  * evidence (CLAUDE.md non-negotiable 12).
@@ -897,6 +904,17 @@ export type AskMirrorHost = {
    * never produce.
    */
   cancelConfirm?(): void;
+  /**
+   * Whether this device may *still* mirror, asked live between the pass's awaits rather than
+   * once at the top. A pass snapshots the hash baseline at its start and persists a copy after
+   * every chunk, so a sign-out teardown landing mid-flight — which disarms first and empties the
+   * baseline second — would be undone by the next chunk restoring the whole map, and the account
+   * signing in next would inherit a baseline naming rows it never pushed (#372).
+   *
+   * Optional, defaulting to permitted, so a host with no teardown to race still compiles and an
+   * uninterrupted pass behaves exactly as before.
+   */
+  stillPermitted?(): boolean;
   /** Transient user-facing message (escalation only). */
   notice(message: string): void;
   now?(): number;
@@ -1115,7 +1133,15 @@ export async function runAskMirrorSync(
   const force = opts.force;
   const folder = host.atomFolder?.replace(/\/$/, "") || "Atoms";
   const load = (k: string) => host.load(k);
-  const save = (k: string, v: string) => host.save(k, v);
+  // Every device-local write this pass makes goes through here, so the teardown check sits on
+  // the seam rather than on each of the dozen call sites — including the ones a later change
+  // adds. Read live at each write, never captured: the whole point is that the answer changes
+  // underneath a pass that is already running.
+  const permitted = () => host.stillPermitted?.() ?? true;
+  const save = (k: string, v: string) => {
+    if (!permitted()) return;
+    host.save(k, v);
+  };
 
   const atomReads = await host.scanAtoms();
   const hashSnapshot = readAskMirrorHashes(load);
@@ -1157,11 +1183,27 @@ export async function runAskMirrorSync(
     return { kind: "failed", deleted, refused: false, failureMessage: msg };
   };
 
+  /**
+   * Torn down while this pass was in the air. Not `fail()`: that records an error against a
+   * mirror that no longer exists on this device, and the guarded `save` would drop it anyway.
+   * Leaving *nothing* behind is the contract — the device stays exactly as the teardown left it.
+   */
+  const stopped = (): AskMirrorSyncResult => ({
+    kind: "failed",
+    deleted,
+    refused: false,
+    failureMessage: ASK_MIRROR_STOPPED,
+  });
+
   // Upsert dirty (chunk 100) — never skip solely because atoms is empty
   for (let i = 0; i < atoms.length; i += 100) {
     const chunk = atoms.slice(i, i + 100);
     const r = await host.upsert(chunk);
     if (!r.ok) return fail(r.message);
+    // One check, two jobs: nothing is persisted from this chunk, and the loop does not push the
+    // next one. The upload above already left the cloud, which is why the next line down —
+    // persisting evidence of it — is the thing that must not happen.
+    if (!permitted()) return stopped();
     uploaded += r.upserted;
     for (const a of chunk) {
       const h = upsertNext[a.path];
@@ -1255,6 +1297,7 @@ export async function runAskMirrorSync(
     const chunk = deletePaths.slice(i, i + 100);
     const r = await host.deletePaths(chunk);
     if (!r.ok) return fail(r.message);
+    if (!permitted()) return stopped();
     deleted += chunk.length;
     for (const p of chunk) delete workingHashes[p];
     writeAskMirrorHashes(save, workingHashes);
@@ -1268,6 +1311,7 @@ export async function runAskMirrorSync(
     const confirmEmpty = confirmation?.confirmEmpty === true;
     const r = await applyMirrorReconcile(host, keepPaths, confirmEmpty);
     if (!r.ok) return fail(r.message);
+    if (!permitted()) return stopped();
     // After force, evidence map = exact vault set (upsertNext has all when force)
     const rebuilt: Record<string, string> = {};
     for (const p of keepPaths) {
@@ -1277,6 +1321,11 @@ export async function runAskMirrorSync(
     workingHashes = rebuilt;
     writeAskMirrorHashes(save, workingHashes);
   }
+
+  // The tail is all device state — the refusal reset, the high-water ratchet, "last pushed", and
+  // the server count and email `status()` brings back. The guarded `save` would drop every one of
+  // them; checking here says so up front and spares the round trip.
+  if (!permitted()) return stopped();
 
   // Success: clear error + refresh server count. Only stamp "last pushed"
   // when this run mutated the mirror (or user forced Sync now).
