@@ -1447,7 +1447,31 @@ export default class AtomsPlugin extends Plugin {
       // the question, `platform/plusSignIn` owns what a "confirmed" spends.
       confirmSignIn: (request: Parameters<typeof askSignInApproval>[1]) =>
         askSignInApproval(this.app, request),
+      // Identity-aware install (#393) — same boundary Settings paste/trial use.
+      installSession: (session: import("../platform/filingAuth").PlusSession) =>
+        plugin.installPlusSession(session),
     };
+  }
+
+  /**
+   * Write a Plus session after disarming Ask when the identity changes (#393).
+   * Same-account re-auth keeps the hash baseline.
+   */
+  async installPlusSession(
+    session: import("../platform/filingAuth").PlusSession,
+  ): Promise<void> {
+    const { installPlusSession } = await import("../platform/plusSessionInstall");
+    await installPlusSession(
+      {
+        settings: this.settings,
+        saveSettings: () => this.saveSettings(),
+        mirrorPermitted: () => this.ask.mirrorPermitted(),
+        cancelPendingSync: () => this.ask.cancelPendingSync(),
+        saveLocalStorage: (k, v) => this.app.saveLocalStorage(k, v),
+        loadLocalStorage: (k) => this.app.loadLocalStorage(k),
+      },
+      session,
+    );
   }
 
   async loadSettings() {

@@ -719,6 +719,53 @@ export function clearAskMirrorDeviceState(
 }
 
 /**
+ * Host surface for the sign-out / wipe / identity-swap teardown. Settings owned the first
+ * copy (#372); session install needs the same sequence without a Settings tab (#393).
+ */
+export type AskMirrorDisarmHost = {
+  settings: { askEnabled: boolean };
+  saveSettings: () => Promise<void>;
+  mirrorPermitted: () => boolean;
+  cancelPendingSync: () => void;
+  saveLocalStorage: (k: string, v: string) => void;
+};
+
+/**
+ * The one owner of "this device is no longer mirroring, but the consent record stands":
+ * disarm, persist, drop owed pushes, then forget the baseline. Order is the invariant —
+ * clear-then-disarm is #371 (armed mirror over empty baseline).
+ *
+ * Acks are left standing: withdrawal keys off the ack timestamp.
+ */
+export async function disarmAskMirror(host: AskMirrorDisarmHost): Promise<void> {
+  host.settings.askEnabled = false;
+  await host.saveSettings();
+  if (!host.mirrorPermitted()) host.cancelPendingSync();
+  clearAskMirrorDeviceState((k, v) => host.saveLocalStorage(k, v));
+}
+
+/**
+ * Whether installing `nextEmail` would hand a different identity the previous account's
+ * arming/baseline. Compares against the live Plus session *and* residual mirror email
+ * (lapsed session clears Sign out but leaves device-local mirror state).
+ *
+ * Same-email re-auth returns false so the baseline survives (#396 owns durable keying).
+ */
+export function plusSessionIdentityChanged(
+  previousSessionEmail: string | null | undefined,
+  mirrorEmail: string | null | undefined,
+  nextEmail: string,
+): boolean {
+  const next = nextEmail.trim().toLowerCase();
+  if (!next) return false;
+  const prev = (previousSessionEmail ?? "").trim().toLowerCase();
+  const mir = (mirrorEmail ?? "").trim().toLowerCase();
+  if (prev && prev !== next) return true;
+  if (mir && mir !== next) return true;
+  return false;
+}
+
+/**
  * Modal heading for a refusal. The dialog authorising an irreversible delete
  * hard-coded "Vault scan looks incomplete" for every reason, which is simply
  * untrue for two of the four.
