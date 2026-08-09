@@ -1198,6 +1198,12 @@ export class AtomsSettingTab extends PluginSettingTab {
    */
   private async signOutOfPlus(): Promise<void> {
     const session = readPlusSession(this.app);
+    // Local teardown first. Awaiting the server revoke *before* disarm left the mirror
+    // permitted for the whole RTT, so an in-flight pass kept pushing chunks after Sign out
+    // (#372 live QA). Network is best-effort against a token we are about to drop.
+    await this.disarmAskMirror();
+    clearPlusSession(this.app);
+    clearPlusRefreshRecord(this.app);
     if (session) {
       const base =
         this.plugin.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL;
@@ -1206,11 +1212,6 @@ export class AtomsSettingTab extends PluginSettingTab {
         session.sessionToken,
       );
     }
-    // Unconditional, network failure included: the next account on this device must inherit
-    // neither this one's arming nor its hash baseline (#372).
-    await this.disarmAskMirror();
-    clearPlusSession(this.app);
-    clearPlusRefreshRecord(this.app);
     new Notice("Atoms Plus signed out on this device");
     this.redisplay();
   }

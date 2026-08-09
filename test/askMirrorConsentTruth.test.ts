@@ -399,13 +399,40 @@ describe("#372 — signing out tears the mirror down", () => {
   });
 
   /**
+   * A slow `signOutPlus` used to run *before* the teardown. While that RTT was in the air the
+   * mirror stayed permitted, so an in-flight pass kept pushing the next upsert chunk — live QA
+   * saw a second 23 KB batch leave eight seconds after Sign out on a held transport. The gate
+   * must close the moment the row is pressed, not when the server answers.
+   */
+  it("disarms before the sign-out network call returns", async () => {
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    signOut.mockImplementationOnce(async () => {
+      await held;
+      return { ok: true as const };
+    });
+    const made = signedIn();
+
+    const done = signOutOf(made);
+    // The row has been pressed; the transport is still parked.
+    await vi.waitFor(() => expect(signOut).toHaveBeenCalledTimes(1));
+    expect(made.plugin.settings.askEnabled).toBe(false);
+    expect(made.local.get(LS_ASK_MIRROR_HASHES)).toBe("{}");
+
+    release();
+    await done;
+  });
+
+  /**
    * R4, as a **contract test** — deliberately not dead code, do not delete it as unreachable.
    *
-   * The teardown above runs after `await signOutPlus(...)` with no try/catch, which is safe only
-   * because `signOutPlus` reports failure as a *value*: `plusRequest` catches everything its
-   * `request` throws. Nothing else asserts that, so a future `request` implementation whose throw
-   * escaped would silently put the sign-out teardown back behind a network failure — #372 again,
-   * reached from the other side. This pins the property at its source, on the real client.
+   * Teardown now runs *before* `signOutPlus`, so a thrown transport cannot skip it. This contract
+   * still pins the deeper property: `signOutPlus` reports failure as a *value* (`plusRequest`
+   * catches everything its `request` throws). A future transport whose throw escaped would turn
+   * the best-effort revoke into a rejected promise and strand the Notice / redisplay after a
+   * successful local teardown — a different bug, still worth locking.
    */
   it("contract: signOutPlus reports a throwing transport as a value, never a rejection", async () => {
     const actual = await vi.importActual<
