@@ -120,6 +120,24 @@ export function askPrivacyAckIsCurrent(
   );
 }
 
+/**
+ * Whether the mirror may push. The one home for the egress predicate: a second copy is how a
+ * future condition gets added to one gate and missed at the other.
+ *
+ * Here rather than on `AskCoordinator` because Settings has to ask it too, to say whether the
+ * mirror is running (#374), and a settings screen reaching into the coordinator to find out
+ * would be a second way for the sentence and the gate to disagree. Both callers pass the live
+ * `plugin.settings` at call time, so a withdrawal that arrives by Sync still lands mid-pass
+ * (#323).
+ */
+export function askMirrorPermitted(
+  s: Pick<AskAckRecord, "askPrivacyAckAt" | "askPrivacyAckVersion"> & {
+    askEnabled: boolean;
+  },
+): boolean {
+  return s.askEnabled && askPrivacyAckIsCurrent(s);
+}
+
 /** Whether the vault-write consent on record is consent to the wording this build shows. */
 export function askWriteAckIsCurrent(
   s: Pick<AskAckRecord, "askWriteAckAt" | "askWriteAckVersion">,

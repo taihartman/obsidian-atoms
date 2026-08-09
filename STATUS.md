@@ -9,6 +9,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 |---|---|---|---|---|---|---|
 | In progress | [#336](https://github.com/taihartman/obsidian-atoms/issues/336) | taihartman | `fix/336-no-missing-time-alarm` | debug lane | `src/home/atomsHomeData.ts`, `src/home/atomsHomeView.ts`, `src/settings/captureShortcut.ts` | Missing times are normal; drop Home repair card · plugin bump |
 | In progress | [#307](https://github.com/taihartman/obsidian-atoms/issues/307) | taihartman | `feat/tryatoms-mailing-list` | [plan](docs/plans/2026-08-05-001-feat-tryatoms-mailing-list-plan.md) | `www/**`, `.github/workflows/tryatoms-pages.yml` | Atoms Notes list + Pages Function subscribe; no plugin bump |
+| In progress | [#371](https://github.com/taihartman/obsidian-atoms/issues/371) [#374](https://github.com/taihartman/obsidian-atoms/issues/374) | taihartman | `fix/371-374-mirror-consent-truth` | debug lane | `src/settings/settings.ts`, `src/platform/askMirror.ts` | Wipe disarms the mirror so it cannot re-upload; status line consults the consent gate · plugin bump |
 
 ## How to claim (copy)
 

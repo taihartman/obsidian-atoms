@@ -601,11 +601,15 @@ export function readAskMirrorServerCount(
  * missing/blank value becomes the dash. Kept beside the numeric read so the two
  * Ask surfaces cannot drift apart.
  */
+export const ASK_MIRROR_COUNT_UNKNOWN = "—";
+
 export function formatAskMirrorServerCount(
   load: (k: string) => unknown,
 ): string {
   const raw = load(LS_ASK_MIRROR_SERVER_COUNT);
-  return raw != null && String(raw).trim() !== "" ? String(raw) : "—";
+  return raw != null && String(raw).trim() !== ""
+    ? String(raw)
+    : ASK_MIRROR_COUNT_UNKNOWN;
 }
 
 /** Plus email from last status, or empty. */
@@ -615,9 +619,36 @@ export function readAskMirrorEmail(load: (k: string) => unknown): string {
 }
 
 /**
+ * Why the mirror is not running, in the caller's terms rather than this module's.
+ *
+ * `no-ack` covers a withdrawn grant and a never-granted one alike: withdrawal clears the stamp
+ * and the version together (#360), so nothing on the device can tell those two apart, and a line
+ * that guessed would be wrong for whichever one it guessed against.
+ */
+export type AskMirrorOffReason = "disabled" | "no-ack" | "stale-ack";
+
+/**
+ * A stale ack is the only one of the three the user can undo from the row beside this line, so it
+ * is the only one that names a way out. Withdrawal also turned the toggle off, so `Review` alone
+ * would not resume it.
+ */
+const ASK_MIRROR_OFF_WHY: Record<AskMirrorOffReason, string> = {
+  disabled: "",
+  "no-ack": " · no current privacy acknowledgment",
+  "stale-ack": " · privacy acknowledgment out of date, Review to resume",
+};
+
+/**
  * Status line with optional Plus email (R9).
  * Happy: `Ask mirror: N · as you@… · last pushed …`
  * Error: `Ask mirror: N · as you@… · push failed — …`
+ * Gated: `Ask mirror: off · <why> · N in the cloud at last check, Wipe cloud copy to delete`
+ *
+ * The gated arm exists because this line renders on the consent surface itself (#374). Reading
+ * only device-local stamps let a device whose gate was shut report a count, an identity, a push
+ * failure and a retry call-to-action, which is four true-looking facts about a mirror that is not
+ * running. It reports the cloud copy that outlives the gate, because disclosure clause (7) says
+ * turning Ask off does not wipe, and Wipe is the gesture that does.
  */
 export function formatAskMirrorStatusLine(opts: {
   serverCount: string;
@@ -625,7 +656,20 @@ export function formatAskMirrorStatusLine(opts: {
   relativeLastOk: string;
   lastErr?: string;
   refused?: boolean;
+  off?: AskMirrorOffReason;
 }): string {
+  if (opts.off) {
+    // Only a positive count earns the clause. Cleared is not zeroed — a wipe leaves no count,
+    // and an absence may not be rendered as a sentence about atoms that are still there — and
+    // a recorded zero is a cloud that is already empty, which must not be handed a call to
+    // action for deleting it. Same `> 0` rule `readAskMirrorServerCount` gates on.
+    const n = Number(opts.serverCount);
+    const cloud =
+      Number.isInteger(n) && n > 0
+        ? ` · ${opts.serverCount} in the cloud at last check, Wipe cloud copy to delete`
+        : "";
+    return `Ask mirror: off${ASK_MIRROR_OFF_WHY[opts.off]}${cloud}`;
+  }
   const as = opts.email ? ` · as ${opts.email}` : "";
   if (opts.refused) {
     return `Ask mirror: ${opts.serverCount}${as} · sync refused — vault scan incomplete · Sync now to retry`;
