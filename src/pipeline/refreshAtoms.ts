@@ -1,5 +1,6 @@
 import { Notice, TFile, type App } from "obsidian";
 import {
+  collectListHubTitles,
   hubTitlesFromAtomContents,
   runHubProjectionForHubs,
 } from "./runHubProjection";
@@ -950,7 +951,9 @@ async function maybeProjectHubsAfterRefresh(
       /* skip */
     }
   }
-  const touched = hubTitlesFromAtomContents(atomContents, ctx.personHubs ?? []);
+  const listTitles = await collectListHubTitles(opts.app);
+  const allowTitles = [...(ctx.personHubs ?? []), ...listTitles];
+  const touched = hubTitlesFromAtomContents(atomContents, allowTitles);
   if (!touched.length) return;
   const proj = await runHubProjectionForHubs({
     app: opts.app,

@@ -10,6 +10,7 @@ import {
   personHubTitles,
   type PersonHub,
 } from "./enrich/people";
+import { pathInSafetyDenylist } from "./hubQualify";
 import {
   buildLinkGraph,
   expandFromSeeds,
@@ -415,6 +416,7 @@ export function buildVaultContext(opts: {
   activeVocabulary: string[];
   personHubs?: string[];
   personHubDetails?: VaultContext["personHubDetails"];
+  listHubDetails?: VaultContext["listHubDetails"];
 }): VaultContext {
   const titles = [...opts.titles].sort((a, b) => a.localeCompare(b));
   // Eligible = structural (person/preferences/…) ∪ user Active
@@ -425,8 +427,19 @@ export function buildVaultContext(opts: {
     a.localeCompare(b),
   );
   const personHubDetails = opts.personHubDetails ?? [];
-  return { titles, tags, vocabulary, personHubs, personHubDetails };
+  const listHubDetails = opts.listHubDetails ?? [];
+  return {
+    titles,
+    tags,
+    vocabulary,
+    personHubs,
+    personHubDetails,
+    listHubDetails,
+  };
 }
+
+/** Max list hubs in classify context (KTD6). */
+export const LIST_HUB_CONTEXT_TOP_N = 40;
 
 /**
  * One processing run's context: the static vault context plus the scoreable corpus, held for
@@ -732,6 +745,25 @@ export class MetadataContextProvider {
     const counts = aggregateTagsFromFileCaches(caches);
     const vaultTags = sortTags([...counts.keys()]);
     const hubs: PersonHub[] = discoverPersonHubs(caches);
+    const personPaths = new Set(hubs.map((h) => h.path));
+    const listHubDetails: VaultContext["listHubDetails"] = [];
+    for (const f of files) {
+      if (personPaths.has(f.path)) continue;
+      if (pathInSafetyDenylist(f.path)) continue;
+      const cache = this.app.metadataCache.getFileCache(f);
+      const sections = sectionsFromCache(cache);
+      if (!sections.length) continue;
+      const title = f.basename;
+      listHubDetails.push({
+        canonicalTitle: title,
+        matchKeys: [title],
+        sections,
+      });
+      if (listHubDetails.length >= LIST_HUB_CONTEXT_TOP_N) break;
+    }
+    listHubDetails.sort((a, b) =>
+      a.canonicalTitle.localeCompare(b.canonicalTitle),
+    );
     const context = buildVaultContext({
       titles,
       vaultTags,
@@ -748,6 +780,7 @@ export class MetadataContextProvider {
           sections: sectionsFromCache(cache),
         };
       }),
+      listHubDetails,
     });
     return { context, hubs };
   }
@@ -809,6 +842,7 @@ export function buildContextPrefixBlock(context: VaultContext): string {
     ? context.tags.map((t) => `#${t.replace(/^#/, "")}`).join(" ")
     : "(none)";
   const personHubs = formatPersonHubsForContext(context);
+  const listHubs = formatListHubsForContext(context);
   return [
     "## Vault context (stable prefix — do not include timestamps or run IDs)",
     "",
@@ -820,7 +854,25 @@ export function buildContextPrefixBlock(context: VaultContext): string {
     "",
     "### Person hubs (from your vault — prefer linking these exact titles)",
     personHubs,
+    "",
+    "### List hubs (notes with ## sections — link + hub_section when capture fits)",
+    listHubs,
   ].join("\n");
+}
+
+/** List hub titles + indented H2s for classify context (R9). */
+export function formatListHubsForContext(context: VaultContext): string {
+  const details = context.listHubDetails ?? [];
+  if (!details.length) return "(none)";
+  return details
+    .map((d) => {
+      const name = d.canonicalTitle;
+      const secs = d.sections ?? [];
+      if (!secs.length) return `- ${name}`;
+      const sub = secs.map((s) => `  - ${s}`).join("\n");
+      return `- ${name}\n${sub}`;
+    })
+    .join("\n");
 }
 
 /** Block B — the capture's shortlisted titles, in score order. Volatile; never cached. */

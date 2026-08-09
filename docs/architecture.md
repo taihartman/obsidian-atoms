@@ -23,7 +23,7 @@ World-class here means: **trust the body**, **intelligence in the graph**, **zer
 ## Design principles (load-bearing)
 
 1. **Verbatim body** — the model never authors the note body. Titles may be confident; the body preserves hedges and half-formedness (context-rot defense).
-2. **Four write types** — (a) new files in flat `Atoms/`, (b) append-only marker lines on past dailies, (c) **user-initiated** in-place refresh of existing linker atoms (Update notes: model surfaces only; body sacred), (d) **opt-in managed hub block** on person hubs only (`<!-- atoms:generated -->…<!-- /atoms:generated -->`; human prose outside delimiters never rewritten). No rewriting user capture prose, no folder intelligence, no unbounded append into hand notes.
+2. **Four write types** — (a) new files in flat `Atoms/`, (b) append-only marker lines on past dailies, (c) **user-initiated** in-place refresh of existing linker atoms (Update notes: model surfaces only; body sacred), (d) **opt-in managed hub block** on **qualifying hubs** (person hubs + hard-linked list notes with user H2s; non-person write brake) (`<!-- atoms:generated -->…<!-- /atoms:generated -->`; human prose outside delimiters never rewritten). No rewriting user capture prose, no folder intelligence, no unbounded append into hand notes.
 3. **Sentinel idempotency** — processed state is a plugin-owned HTML comment line, not “any wikilink.” Covers atom **and** task/noise (cost + correctness).
 4. **Conservative triage** — when in doubt, `noise`. Dry-run is the only human gate before writes.
 5. **Device-local control plane** — API key, auto-run flag, and Ask mirror evidence map/stamps do not sync; vocabulary and atoms do.
@@ -184,7 +184,7 @@ Atom frontmatter: `created`, `source` (wikilink), `generated-by`, `tags`, plus q
                     └─────────────────────────┘
 ```
 
-Hard stops: today excluded · no file moves · no unbounded append-into-user-notes · no auto-apply proposed tags · backfill behind cost gate · auto-run needs egress ack · **no auto Update notes** (user strip/command only) · **hub projection off by default** (Settings; person hubs only; delimiter-bounded).
+Hard stops: today excluded · no file moves · no unbounded append-into-user-notes · no auto-apply proposed tags · backfill behind cost gate · auto-run needs egress ack · **no auto Update notes** (user strip/command only) · **hub projection off by default** (Settings; qualifying hubs; delimiter-bounded).
 
 ## Future architecture (v2 — do not build yet)
 

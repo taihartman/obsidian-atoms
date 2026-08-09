@@ -1885,16 +1885,23 @@ export class AtomsSettingTab extends PluginSettingTab {
     });
 
     settingRow(containerEl, {
-      name: "List atoms in person notes",
-      desc: "When on, Process / Update / backfill write a managed section at the end of person hub notes listing linked atoms under your existing headings. Your text outside the markers is never changed. If Ask mirror is on, updated hub notes sync vault→cloud like other linked hubs. Off by default.",
+      name: "Hub projection",
+      desc: "When on, Process and Update write a managed list of linked atoms at the end of person and list hub notes (notes with headings you already wrote). Your text outside the markers never changes. Turning this on refreshes hubs that already have linked atoms. If Ask mirror is on, updated hubs sync vault→cloud. Off by default.",
       control: {
         kind: "toggle",
         configure: (toggle) =>
           toggle
             .setValue(this.plugin.settings.enableHubProjection === true)
             .onChange(async (on) => {
+              const was = this.plugin.settings.enableHubProjection === true;
               this.plugin.settings.enableHubProjection = on;
+              if (on) {
+                this.plugin.settings.hubProjectionListDisclosureSeen = true;
+              }
               await this.plugin.saveSettings();
+              if (on && !was) {
+                await this.plugin.runHubProjectionFullRegenNotice();
+              }
             }),
       },
     });

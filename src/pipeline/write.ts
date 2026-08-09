@@ -31,6 +31,7 @@ import {
 } from "./personInvite";
 import { Notice, TFile } from "obsidian";
 import {
+  collectListHubTitles,
   hubTitlesFromAtomContents,
   runHubProjectionForHubs,
 } from "./runHubProjection";
@@ -370,10 +371,12 @@ export async function runWritePath(
         /* skip */
       }
     }
-    const touched = hubTitlesFromAtomContents(
-      atomContents,
-      staticCtx.personHubs ?? [],
-    );
+    const listTitles = await collectListHubTitles(opts.app);
+    const allowTitles = [
+      ...(staticCtx.personHubs ?? []),
+      ...listTitles,
+    ];
+    const touched = hubTitlesFromAtomContents(atomContents, allowTitles);
     if (touched.length) {
       const proj = await runHubProjectionForHubs({
         app: opts.app,

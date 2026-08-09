@@ -28,6 +28,7 @@ import type {
 import type { PersonHub } from "./enrich/people";
 import { filterTagsToActive, mergeProposedTags } from "./vocabulary";
 import {
+  collectListHubTitles,
   hubTitlesFromAtomContents,
   runHubProjectionForHubs,
 } from "./runHubProjection";
@@ -753,7 +754,11 @@ export async function applyBackfillResults(opts: {
         /* skip */
       }
     }
-    const hubTitles = (opts.personHubDetails ?? []).map((d) => d.canonicalTitle);
+    const listTitles = await collectListHubTitles(opts.app);
+    const hubTitles = [
+      ...(opts.personHubDetails ?? []).map((d) => d.canonicalTitle),
+      ...listTitles,
+    ];
     const touched = hubTitlesFromAtomContents(atomContents, hubTitles);
     if (touched.length) {
       const proj = await runHubProjectionForHubs({
