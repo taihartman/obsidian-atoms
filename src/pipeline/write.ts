@@ -30,11 +30,7 @@ import {
   resolveAtomPersonName,
 } from "./personInvite";
 import { Notice, TFile } from "obsidian";
-import {
-  collectListHubTitles,
-  hubTitlesFromAtomContents,
-  runHubProjectionForHubs,
-} from "./runHubProjection";
+import { projectHubsFromAtomContents } from "./runHubProjection";
 import { localDateYmd } from "./atomQuality";
 import {
   appLoadLocal,
@@ -371,27 +367,14 @@ export async function runWritePath(
         /* skip */
       }
     }
-    const listTitles = await collectListHubTitles(opts.app);
-    const allowTitles = [
-      ...(staticCtx.personHubs ?? []),
-      ...listTitles,
-    ];
-    const touched = hubTitlesFromAtomContents(atomContents, allowTitles);
-    if (touched.length) {
-      const proj = await runHubProjectionForHubs({
-        app: opts.app,
-        enabled: true,
-        atomFolder: opts.atomFolder,
-        touchedHubTitles: touched,
-        personHubDetails: staticCtx.personHubDetails,
-      });
-      for (const err of proj.errors.slice(0, 3)) {
-        new Notice(
-          `Atoms: hub projection skipped [[${err.hubTitle}]] — ${err.reason}`,
-          8000,
-        );
-      }
-    }
+    await projectHubsFromAtomContents({
+      app: opts.app,
+      enabled: true,
+      atomFolder: opts.atomFolder,
+      atomContents,
+      personHubTitles: staticCtx.personHubs ?? [],
+      personHubDetails: staticCtx.personHubDetails,
+    });
   }
 
   return {

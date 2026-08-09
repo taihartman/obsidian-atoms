@@ -747,23 +747,24 @@ export class MetadataContextProvider {
     const hubs: PersonHub[] = discoverPersonHubs(caches);
     const personPaths = new Set(hubs.map((h) => h.path));
     const listHubDetails: VaultContext["listHubDetails"] = [];
-    for (const f of files) {
-      if (personPaths.has(f.path)) continue;
-      if (pathInSafetyDenylist(f.path)) continue;
-      const cache = this.app.metadataCache.getFileCache(f);
+    for (const { path, cache } of caches) {
+      if (personPaths.has(path)) continue;
+      if (pathInSafetyDenylist(path)) continue;
       const sections = sectionsFromCache(cache);
       if (!sections.length) continue;
-      const title = f.basename;
+      const title = path.split("/").pop()?.replace(/\.md$/i, "") ?? path;
       listHubDetails.push({
         canonicalTitle: title,
         matchKeys: [title],
         sections,
       });
-      if (listHubDetails.length >= LIST_HUB_CONTEXT_TOP_N) break;
     }
     listHubDetails.sort((a, b) =>
       a.canonicalTitle.localeCompare(b.canonicalTitle),
     );
+    if (listHubDetails.length > LIST_HUB_CONTEXT_TOP_N) {
+      listHubDetails.length = LIST_HUB_CONTEXT_TOP_N;
+    }
     const context = buildVaultContext({
       titles,
       vaultTags,
@@ -803,20 +804,24 @@ export function sectionsFromCache(
   return out;
 }
 
+function formatHubDetailLines(
+  details: Array<{ canonicalTitle: string; sections?: string[] }>,
+): string {
+  return details
+    .map((d) => {
+      const name = d.canonicalTitle;
+      const secs = d.sections ?? [];
+      if (!secs.length) return `- ${name}`;
+      const sub = secs.map((s) => `  - ${s}`).join("\n");
+      return `- ${name}\n${sub}`;
+    })
+    .join("\n");
+}
+
 /** Shared person-hub list for stable prefix + classify user message. */
 export function formatPersonHubsForContext(context: VaultContext): string {
   const details = context.personHubDetails ?? [];
-  if (details.length) {
-    return details
-      .map((d) => {
-        const name = d.canonicalTitle;
-        const secs = d.sections ?? [];
-        if (!secs.length) return `- ${name}`;
-        const sub = secs.map((s) => `  - ${s}`).join("\n");
-        return `- ${name}\n${sub}`;
-      })
-      .join("\n");
-  }
+  if (details.length) return formatHubDetailLines(details);
   if (context.personHubs?.length) {
     return context.personHubs.map((t) => `- ${t}`).join("\n");
   }
@@ -864,15 +869,7 @@ export function buildContextPrefixBlock(context: VaultContext): string {
 export function formatListHubsForContext(context: VaultContext): string {
   const details = context.listHubDetails ?? [];
   if (!details.length) return "(none)";
-  return details
-    .map((d) => {
-      const name = d.canonicalTitle;
-      const secs = d.sections ?? [];
-      if (!secs.length) return `- ${name}`;
-      const sub = secs.map((s) => `  - ${s}`).join("\n");
-      return `- ${name}\n${sub}`;
-    })
-    .join("\n");
+  return formatHubDetailLines(details);
 }
 
 /** Block B — the capture's shortlisted titles, in score order. Volatile; never cached. */

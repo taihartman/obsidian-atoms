@@ -1,16 +1,12 @@
 import type { App } from "obsidian";
-import { TFile } from "obsidian";
+import { Notice, TFile } from "obsidian";
 import type { PersonHubDetail } from "../shared/types";
 import { membershipKeysForAtom } from "./entityOrbitIndex";
 import {
   projectHubMarkdown,
   type HubProjectionEntry,
 } from "./hubProjection";
-import {
-  GENERATED_CLOSE,
-  GENERATED_OPEN,
-  parseHubSections,
-} from "./hubSections";
+import { parseHubSections } from "./hubSections";
 import { discoverPersonHubs } from "./enrich/people";
 import {
   hubHasGeneratedDelimiters,
@@ -140,9 +136,7 @@ export function planHubProjection(opts: {
     const kind = hub.kind ?? "person";
 
     if (kind === "list") {
-      const hasMatching = entries.some(
-        (e) => (e.section ?? "").trim() && sections.includes(e.section!.trim()),
-      );
+      const hasMatching = entries.some((e) => !!(e.section ?? "").trim());
       const okWrite = shouldWriteNonPersonHub({
         memberCount: entries.length,
         hasMatchingHubSection: hasMatching,
@@ -183,10 +177,6 @@ export function planHubProjection(opts: {
   return { writes, errors, skipped };
 }
 
-function basenameTitle(path: string): string {
-  return titleFromAtomPath(path);
-}
-
 /**
  * Resolve list hub files for titles (basename match, unique path preferred).
  */
@@ -194,10 +184,12 @@ export function resolveListHubsFromVault(opts: {
   files: { path: string; content: string }[];
   titlesLower: Set<string>;
 }): Map<string, HubForProjection> {
-  const byTitle = new Map<string, { path: string; content: string }[]>();
+  const byTitle = new Map<
+    string,
+    { path: string; content: string; sections: string[] }[]
+  >();
   for (const f of opts.files) {
-    if (pathInSafetyDenylist(f.path)) continue;
-    const title = basenameTitle(f.path);
+    const title = titleFromAtomPath(f.path);
     const low = title.trim().toLowerCase();
     if (!opts.titlesLower.has(low)) continue;
     const sections = parseHubSections(f.content);
@@ -211,19 +203,18 @@ export function resolveListHubsFromVault(opts: {
       continue;
     }
     if (!byTitle.has(low)) byTitle.set(low, []);
-    byTitle.get(low)!.push(f);
+    byTitle.get(low)!.push({ ...f, sections });
   }
 
   const out = new Map<string, HubForProjection>();
   for (const [low, paths] of byTitle) {
     if (paths.length !== 1) continue;
     const f = paths[0]!;
-    const title = basenameTitle(f.path);
     out.set(low, {
-      title,
+      title: titleFromAtomPath(f.path),
       path: f.path,
       content: f.content,
-      sections: parseHubSections(f.content),
+      sections: f.sections,
       kind: "list",
     });
   }
@@ -252,10 +243,16 @@ export async function runHubProjectionForHubs(opts: {
     return { wrote: 0, filled: 0, skipped: 0, errors: [] };
   }
 
+  let touched = opts.touchedHubTitles.map((t) => t.trim()).filter(Boolean);
+  if (!opts.fullRegen && !touched.length) {
+    return { wrote: 0, filled: 0, skipped: 0, errors: [] };
+  }
+
   const folder = opts.atomFolder.replace(/\/$/, "") || "Atoms";
-  const atomFiles = opts.app.vault
-    .getMarkdownFiles()
-    .filter((f) => f.path === folder || f.path.startsWith(folder + "/"));
+  const mdFiles = opts.app.vault.getMarkdownFiles();
+  const atomFiles = mdFiles.filter(
+    (f) => f.path === folder || f.path.startsWith(folder + "/"),
+  );
 
   const atoms: AtomForProjection[] = [];
   for (const f of atomFiles) {
@@ -267,7 +264,6 @@ export async function runHubProjectionForHubs(opts: {
     }
   }
 
-  const mdFiles = opts.app.vault.getMarkdownFiles();
   const caches = mdFiles.map((f) => ({
     path: f.path,
     cache: opts.app.metadataCache.getFileCache(f),
@@ -301,14 +297,12 @@ export async function runHubProjectionForHubs(opts: {
     }
   }
 
-  let touched = opts.touchedHubTitles.map((t) => t.trim()).filter(Boolean);
-
-  if (opts.fullRegen || !touched.length) {
+  if (opts.fullRegen) {
     const allowed = new Set(
       [...hubs.keys()].concat(
         mdFiles
           .filter((f) => !pathInSafetyDenylist(f.path))
-          .map((f) => basenameTitle(f.path).toLowerCase()),
+          .map((f) => titleFromAtomPath(f.path).toLowerCase()),
       ),
     );
     const memberTitles = new Set<string>();
@@ -318,21 +312,19 @@ export async function runHubProjectionForHubs(opts: {
         if (allowed.has(low) || hubs.has(low)) memberTitles.add(k.trim());
       }
     }
-    if (opts.fullRegen) {
-      touched = [...memberTitles];
-    } else if (!touched.length) {
+    touched = [...memberTitles];
+    if (!touched.length) {
       return { wrote: 0, filled: 0, skipped: 0, errors: [] };
     }
   }
 
   const touchLow = new Set(touched.map((t) => t.toLowerCase()));
-  const needList = [...touchLow].filter((t) => !hubs.has(t));
-  if (needList.length) {
+  const needSet = new Set([...touchLow].filter((t) => !hubs.has(t)));
+  if (needSet.size) {
     const fileContents: { path: string; content: string }[] = [];
     for (const f of mdFiles) {
-      if (pathInSafetyDenylist(f.path)) continue;
-      const low = basenameTitle(f.path).toLowerCase();
-      if (!needList.includes(low) && !touchLow.has(low)) continue;
+      const low = titleFromAtomPath(f.path).toLowerCase();
+      if (!needSet.has(low)) continue;
       try {
         fileContents.push({
           path: f.path,
@@ -344,7 +336,7 @@ export async function runHubProjectionForHubs(opts: {
     }
     const listHubs = resolveListHubsFromVault({
       files: fileContents,
-      titlesLower: new Set(needList),
+      titlesLower: needSet,
     });
     for (const [k, v] of listHubs) {
       if (!hubs.has(k)) hubs.set(k, v);
@@ -404,26 +396,74 @@ export function hubTitlesFromAtomContents(
   return [...out];
 }
 
-/** Titles of list-shaped vault notes (basename) for touch/context allowlists. */
-export async function collectListHubTitles(app: App): Promise<string[]> {
+function h2FromCache(
+  cache: { headings?: { heading: string; level: number }[] } | null | undefined,
+): string[] {
   const out: string[] = [];
   const seen = new Set<string>();
-  for (const f of app.vault.getMarkdownFiles()) {
-    if (pathInSafetyDenylist(f.path)) continue;
-    try {
-      const content = await app.vault.read(f);
-      const sections = parseHubSections(content);
-      if (!isListHubCandidate({ path: f.path, sections, content })) continue;
-      const title = basenameTitle(f.path);
-      const low = title.toLowerCase();
-      if (seen.has(low)) continue;
-      seen.add(low);
-      out.push(title);
-    } catch {
-      /* skip */
-    }
+  for (const h of cache?.headings ?? []) {
+    if (h.level !== 2) continue;
+    const t = (h.heading ?? "").trim();
+    if (!t || seen.has(t)) continue;
+    seen.add(t);
+    out.push(t);
   }
   return out;
 }
 
-export { GENERATED_OPEN, GENERATED_CLOSE };
+/**
+ * Titles of list-shaped vault notes (basename) via metadata cache — no body read.
+ */
+export function collectListHubTitles(app: App): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const f of app.vault.getMarkdownFiles()) {
+    if (pathInSafetyDenylist(f.path)) continue;
+    const sections = h2FromCache(app.metadataCache.getFileCache(f));
+    if (!isListHubCandidate({ path: f.path, sections })) continue;
+    const title = titleFromAtomPath(f.path);
+    const low = title.toLowerCase();
+    if (seen.has(low)) continue;
+    seen.add(low);
+    out.push(title);
+  }
+  return out;
+}
+
+export function noticeHubProjectionErrors(
+  errors: HubProjectionError[],
+  limit = 3,
+): void {
+  for (const err of errors.slice(0, limit)) {
+    new Notice(
+      `Atoms: hub projection skipped [[${err.hubTitle}]] — ${err.reason}`,
+      8000,
+    );
+  }
+}
+
+/**
+ * Shared Process/Update/backfill tail: allowlist person+list titles → project.
+ */
+export async function projectHubsFromAtomContents(opts: {
+  app: App;
+  enabled: boolean;
+  atomFolder: string;
+  atomContents: string[];
+  personHubTitles: string[];
+  personHubDetails?: PersonHubDetail[];
+}): Promise<void> {
+  if (!opts.enabled || !opts.atomContents.length) return;
+  const listTitles = collectListHubTitles(opts.app);
+  const allowTitles = [...opts.personHubTitles, ...listTitles];
+  const touched = hubTitlesFromAtomContents(opts.atomContents, allowTitles);
+  if (!touched.length) return;
+  const proj = await runHubProjectionForHubs({
+    app: opts.app,
+    enabled: true,
+    atomFolder: opts.atomFolder,
+    touchedHubTitles: touched,
+    personHubDetails: opts.personHubDetails,
+  });
+  noticeHubProjectionErrors(proj.errors);
+}

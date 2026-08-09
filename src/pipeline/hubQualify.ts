@@ -24,20 +24,24 @@ export const SAFETY_DENY_FOLDER_PARTS = [
   "Archive",
 ] as const;
 
-export function pathInSafetyDenylist(path: string): boolean {
+/** Folder-segment walk used by both safety and person denylists (lists stay separate). */
+export function pathHasDeniedFolderPart(
+  path: string,
+  denyParts: readonly string[],
+): boolean {
   const parts = path.split("/");
   for (const part of parts.slice(0, -1)) {
     if (part.startsWith(".")) return true;
-    if (
-      SAFETY_DENY_FOLDER_PARTS.some(
-        (d) => d.toLowerCase() === part.toLowerCase(),
-      )
-    ) {
+    if (denyParts.some((d) => d.toLowerCase() === part.toLowerCase())) {
       return true;
     }
   }
   if (parts.length === 1 && parts[0]?.startsWith(".")) return true;
   return false;
+}
+
+export function pathInSafetyDenylist(path: string): boolean {
+  return pathHasDeniedFolderPart(path, SAFETY_DENY_FOLDER_PARTS);
 }
 
 /** Person hub discovery denylist (includes Projects/Recipes/Plans extras). */

@@ -1500,12 +1500,10 @@ export default class AtomsPlugin extends Plugin {
         }`,
         10000,
       );
-      for (const err of proj.errors.slice(0, 2)) {
-        new Notice(
-          `Atoms: hub projection skipped [[${err.hubTitle}]] — ${err.reason}`,
-          8000,
-        );
-      }
+      const { noticeHubProjectionErrors } = await import(
+        "../pipeline/runHubProjection"
+      );
+      noticeHubProjectionErrors(proj.errors, 2);
     } catch {
       new Notice("Atoms: could not refresh hub lists", 6000);
     }
