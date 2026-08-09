@@ -759,9 +759,14 @@ export class MetadataContextProvider {
         sections,
       });
     }
-    listHubDetails.sort((a, b) =>
-      a.canonicalTitle.localeCompare(b.canonicalTitle),
-    );
+    // Pin media soft-title hubs first (KTD6), then alphabetical fill to cap.
+    const softPin = new Set(["movies", "shows", "watchlist", "films"]);
+    listHubDetails.sort((a, b) => {
+      const ap = softPin.has(a.canonicalTitle.toLowerCase()) ? 0 : 1;
+      const bp = softPin.has(b.canonicalTitle.toLowerCase()) ? 0 : 1;
+      if (ap !== bp) return ap - bp;
+      return a.canonicalTitle.localeCompare(b.canonicalTitle);
+    });
     if (listHubDetails.length > LIST_HUB_CONTEXT_TOP_N) {
       listHubDetails.length = LIST_HUB_CONTEXT_TOP_N;
     }

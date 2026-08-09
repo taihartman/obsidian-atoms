@@ -30,25 +30,37 @@ describe("enrichListHubLinks", () => {
     expect(out.links?.some((l) => l.note === "Movies")).toBe(true);
   });
 
-  it("does not link when zero or two matches", () => {
+  it("does not link when zero matches", () => {
     expect(
       enrichListHubLinks("want to watch Dune", baseAtom(), []).links,
     ).toEqual([]);
-    const two = enrichListHubLinks("want to watch Dune", baseAtom(), [
+  });
+
+  it("picks unique soft hub when Movies+Shows both exist and text names movies", () => {
+    const out = enrichListHubLinks("want to watch Dune on movies list", baseAtom(), [
       {
         canonicalTitle: "Movies",
         matchKeys: ["Movies"],
         sections: ["Want to watch"],
       },
       {
-        canonicalTitle: "Films",
-        matchKeys: ["Films"],
+        canonicalTitle: "Shows",
+        matchKeys: ["Shows"],
         sections: ["Want to watch"],
       },
     ]);
-    // soft path only hits exact Movies/Shows/Watchlist names — Films alone may not soft-hit
-    // with two list hubs without title in text → no unique soft hit either
-    expect(two.links?.length ?? 0).toBe(0);
+    expect(out.links?.some((l) => l.note === "Movies")).toBe(true);
+  });
+
+  it("links sole soft hub when media-shaped and only Movies exists", () => {
+    const out = enrichListHubLinks("want to watch Dune", baseAtom(), [
+      {
+        canonicalTitle: "Movies",
+        matchKeys: ["Movies"],
+        sections: ["Want to watch"],
+      },
+    ]);
+    expect(out.links?.some((l) => l.note === "Movies")).toBe(true);
   });
 });
 

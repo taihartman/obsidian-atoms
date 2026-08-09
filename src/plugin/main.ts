@@ -1495,7 +1495,7 @@ export default class AtomsPlugin extends Plugin {
       new Notice(
         `Atoms: updated ${filled} hub list${filled === 1 ? "" : "s"}${
           skipped
-            ? ` (${skipped} skipped — no linked atoms yet)`
+            ? ` (${skipped} skipped — no linked atoms or not ready to write)`
             : ""
         }`,
         10000,

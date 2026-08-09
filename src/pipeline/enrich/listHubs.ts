@@ -56,15 +56,20 @@ export function enrichListHubLinks(
     }
   }
 
-  // Soft media titles: Movies / Shows / Watchlist when only one list hub of that name
-  if (!hits.length) {
-    const soft = ["movies", "shows", "watchlist", "films"];
-    for (const s of soft) {
-      if (!hay.includes(s) && !isMediaShaped(captureText)) continue;
-      const named = listHubs.filter(
-        (h) => h.canonicalTitle.trim().toLowerCase() === s,
+  // Soft media titles: prefer unique soft-named list hub when media-shaped
+  // (do not push every soft name — Movies+Shows would kill unique match).
+  if (!hits.length && isMediaShaped(captureText)) {
+    const soft = new Set(["movies", "shows", "watchlist", "films"]);
+    const softHubs = listHubs.filter((h) =>
+      soft.has(h.canonicalTitle.trim().toLowerCase()),
+    );
+    if (softHubs.length === 1) {
+      hits.push(softHubs[0]!);
+    } else if (softHubs.length > 1) {
+      const mentioned = softHubs.filter((h) =>
+        hay.includes(h.canonicalTitle.trim().toLowerCase()),
       );
-      if (named.length === 1) hits.push(named[0]!);
+      if (mentioned.length === 1) hits.push(mentioned[0]!);
     }
   }
 

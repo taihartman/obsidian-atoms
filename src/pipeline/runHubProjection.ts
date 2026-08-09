@@ -79,10 +79,14 @@ function entriesForHub(
   raw: HubProjectionEntry[],
   sections: string[],
 ): HubProjectionEntry[] {
-  const sectionSet = new Set(sections);
+  const sectionByLow = new Map(
+    sections.map((s) => [s.trim().toLowerCase(), s.trim()] as const),
+  );
   return raw.map((e) => {
     const sec = (e.section ?? "").trim();
-    if (sec && sectionSet.has(sec)) return e;
+    if (!sec) return { title: e.title, section: undefined };
+    const canon = sectionByLow.get(sec.toLowerCase());
+    if (canon) return { title: e.title, section: canon };
     return { title: e.title, section: undefined };
   });
 }
@@ -297,24 +301,32 @@ export async function runHubProjectionForHubs(opts: {
     }
   }
 
+  let zeroMemberKnown = 0;
   if (opts.fullRegen) {
+    const listTitles = collectListHubTitles(opts.app);
     const allowed = new Set(
-      [...hubs.keys()].concat(
-        mdFiles
-          .filter((f) => !pathInSafetyDenylist(f.path))
-          .map((f) => titleFromAtomPath(f.path).toLowerCase()),
-      ),
+      [...hubs.keys()].concat(listTitles.map((t) => t.toLowerCase())),
     );
     const memberTitles = new Set<string>();
     for (const a of atoms) {
       for (const k of membershipKeysForAtom(a.content)) {
         const low = k.trim().toLowerCase();
-        if (allowed.has(low) || hubs.has(low)) memberTitles.add(k.trim());
+        if (allowed.has(low)) memberTitles.add(k.trim());
+      }
+    }
+    for (const low of allowed) {
+      if (![...memberTitles].some((t) => t.toLowerCase() === low)) {
+        zeroMemberKnown += 1;
       }
     }
     touched = [...memberTitles];
     if (!touched.length) {
-      return { wrote: 0, filled: 0, skipped: 0, errors: [] };
+      return {
+        wrote: 0,
+        filled: 0,
+        skipped: zeroMemberKnown,
+        errors: [],
+      };
     }
   }
 
@@ -368,7 +380,7 @@ export async function runHubProjectionForHubs(opts: {
   }
 
   const filled = plan.writes.filter((w) => w.changed).length;
-  const skipped = plan.skipped.length;
+  const skipped = plan.skipped.length + zeroMemberKnown;
 
   return { wrote, filled, skipped, errors: plan.errors };
 }
