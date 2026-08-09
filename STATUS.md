@@ -9,6 +9,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 |---|---|---|---|---|---|---|
 | In progress | [#336](https://github.com/taihartman/obsidian-atoms/issues/336) | taihartman | `fix/336-no-missing-time-alarm` | debug lane | `src/home/atomsHomeData.ts`, `src/home/atomsHomeView.ts`, `src/settings/captureShortcut.ts` | Missing times are normal; drop Home repair card · plugin bump |
 | In progress | [#307](https://github.com/taihartman/obsidian-atoms/issues/307) | taihartman | `feat/tryatoms-mailing-list` | [plan](docs/plans/2026-08-05-001-feat-tryatoms-mailing-list-plan.md) | `www/**`, `.github/workflows/tryatoms-pages.yml` | Atoms Notes list + Pages Function subscribe; no plugin bump |
+| In progress | [#372](https://github.com/taihartman/obsidian-atoms/issues/372) | taihartman | `fix/372-sign-out-teardown` | planning ([handoff](docs/handoffs/2026-08-09-372-sign-out-teardown.md)) | `src/settings/settings.ts`, `src/shared/askAck.ts` | Sign-out must disarm the Ask mirror + clear device state, or the next account inherits both consents · plugin bump |
 
 ## How to claim (copy)
 
