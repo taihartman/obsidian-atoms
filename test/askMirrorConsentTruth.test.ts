@@ -17,7 +17,6 @@ import {
 } from "../src/shared/askAck";
 import { readAskMirrorEmail } from "../src/platform/askMirror";
 import { AskCoordinator } from "../src/plugin/askCoordinator";
-import { DEFAULT_SETTINGS } from "../src/shared/types";
 import {
   open,
   press,
@@ -347,6 +346,8 @@ describe("#372 — signing out tears the mirror down", () => {
    */
   it("persists the disarm while the baseline is still intact", async () => {
     let snapshot: unknown = "never saved";
+    // Declared before the seed because the `saveSettings` closure below reads `made.local`, which
+    // only exists once `settingTab()` has returned.
     let made!: ReturnType<typeof signedIn>;
     made = signedIn({
       plugin: {
@@ -427,16 +428,21 @@ describe("#372 — signing out tears the mirror down", () => {
     expect(made.local.get(LS_ASK_MIRROR_HASHES)).toBe("{}");
   });
 
-  it("is a no-op on a device with nothing to tear down", async () => {
-    const made = signedIn({
-      settings: { ...DEFAULT_SETTINGS },
-      local: {},
-    });
+  /**
+   * The device that never mirrored: armed and acknowledged, but with no baseline and no stored
+   * identity to clear. Every value below is one the teardown had to produce or preserve — seeded
+   * defaults would pass this test with the teardown deleted.
+   */
+  it("tears down safely on a device with no baseline to clear", async () => {
+    const made = signedIn({ local: {} });
 
     await signOutOf(made);
 
     expect(made.plugin.settings.askEnabled).toBe(false);
+    // Writing an empty baseline where there was none is the point, not a no-op: the gate must not
+    // be handed an unparseable count on a device that is no longer mirroring.
     expect(made.local.get(LS_ASK_MIRROR_HASHES)).toBe("{}");
-    expect(made.plugin.settings.askPrivacyAckAt).toBe("");
+    // The consent record outlives the teardown — clearing it would delete the way back out.
+    expect(made.plugin.settings.askPrivacyAckAt).toBe(ACKED);
   });
 });
