@@ -70,18 +70,18 @@ function buttonLabels(tab: ReturnType<typeof plusTab>["tab"], name: string): str
 }
 
 describe("setup guide quotes labels the plugin still renders", () => {
-  it("names the capture button the shortcut row actually renders", () => {
-    // Owning source: src/settings/captureShortcut.ts, rendered by settings.ts's capture row. The
-    // string is one arm of a conditional — an un-acked shortcut says Install, an acked one says
-    // Update — so the guide's step, which is written for a first install, is bound to the
-    // un-acked arm specifically. Hence the default tab: no ack recorded.
+  it("names the companion CTA and the advanced Capture Atom button the settings screen renders", () => {
+    // Primary path is companion guide; advanced row still offers Install Capture Atom only.
     const { tab } = settingTab();
     tab.display();
 
-    const label = labelInstallOrUpdate(null);
-    expect(label).toBe("Install Capture Atom");
-    expect(buttonLabels(tab, "Capture Atom shortcut")).toContain(label);
-    expect(guide.includes(label), "guide does not name the capture button").toBe(true);
+    expect(buttonLabels(tab, "Atoms Capture companion")).toContain("Get Atoms Capture");
+    const shortcutLabel = labelInstallOrUpdate(null);
+    expect(shortcutLabel).toBe("Install Capture Atom");
+    expect(buttonLabels(tab, "Install Capture Atom only")).toContain(shortcutLabel);
+    expect(guide.includes("Get Atoms Capture"), "guide does not name companion CTA").toBe(
+      true,
+    );
   });
 
   it("names the two Ask switches the main screen renders", () => {
