@@ -169,7 +169,10 @@ export function findExactEntityTitlesInCapture(
   for (const raw of noteTitles) {
     const title = raw.trim();
     if (!title || title.length < 3) continue;
-    if (isSoftEntityKey(title)) continue;
+    // Soft keys still link when a real vault note of that title exists (R10).
+    if (isSoftEntityKey(title) && !workTitleExistsInVault(title, noteTitles)) {
+      continue;
+    }
     const t = title.toLowerCase();
     if (!lower.includes(t)) continue;
     // Boundary-ish: not mid-word when single token
@@ -221,7 +224,9 @@ export function enrichEntityLinks(
   let links = [...(r.links ?? [])];
   let changed = false;
   for (const title of titles) {
-    if (isSoftEntityKey(title)) continue;
+    if (isSoftEntityKey(title) && !workTitleExistsInVault(title, noteTitles)) {
+      continue;
+    }
     if (hasLinkTo({ ...r, links }, title)) continue;
     links = [
       ...links,

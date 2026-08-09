@@ -1546,6 +1546,14 @@ export class AtomsHomeView extends ItemView {
         }
         await this.app.vault.modify(file, nextContent);
       }
+      if (this.plugin.settings.enableHubProjection === true) {
+        await runHubProjectionForHubs({
+          app: this.app,
+          enabled: true,
+          atomFolder: this.plugin.settings.atomFolder,
+          touchedHubTitles: [label],
+        });
+      }
       new Notice(`Atoms: created ${label}`);
       this.entityInvite = null;
       this.plugin.scheduleAskMirrorSync();

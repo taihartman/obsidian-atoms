@@ -260,6 +260,7 @@ export default class AtomsPlugin extends Plugin {
     this.register(() => closeOpenConsentSheet());
 
     await this.loadSettings();
+    void this.maybeShowHubProjectionListDisclosure();
     void this.signInHandoff.ready(this.plusSignInHost());
     this.contextProvider = new MetadataContextProvider(
       this.app,
@@ -1456,6 +1457,56 @@ export default class AtomsPlugin extends Plugin {
     // that path supplies its own `raw` and rejects the wipe shape first.
     const raw = ((await this.loadData()) ?? {}) as Partial<LinkerSettings>;
     if (this.applyLoadedSettings(raw)) await this.saveSettings();
+  }
+
+  /**
+   * R11b — already-on users learn list hubs are now included (one-shot).
+   */
+  async maybeShowHubProjectionListDisclosure(): Promise<void> {
+    if (this.settings.enableHubProjection !== true) return;
+    if (this.settings.hubProjectionListDisclosureSeen === true) return;
+    new Notice(
+      "Atoms: Hub projection now includes list hubs (e.g. Movies with headings), not only person notes. Your prose outside the managed markers is still never changed.",
+      12000,
+    );
+    this.settings.hubProjectionListDisclosureSeen = true;
+    await this.saveSettings();
+  }
+
+  /** R11 — full regen when toggle turns on; Notice filled vs skipped. */
+  async runHubProjectionFullRegenNotice(): Promise<void> {
+    if (this.settings.enableHubProjection !== true) return;
+    try {
+      const { runHubProjectionForHubs } = await import(
+        "../pipeline/runHubProjection"
+      );
+      const proj = await runHubProjectionForHubs({
+        app: this.app,
+        enabled: true,
+        atomFolder: this.settings.atomFolder,
+        touchedHubTitles: [],
+        fullRegen: true,
+        personHubDetails: this.contextProvider
+          ?.buildContext()
+          .personHubDetails,
+      });
+      const filled = proj.filled ?? proj.wrote;
+      const skipped = proj.skipped ?? 0;
+      new Notice(
+        `Atoms: updated ${filled} hub list${filled === 1 ? "" : "s"}${
+          skipped
+            ? ` (${skipped} skipped — no linked atoms or not ready to write)`
+            : ""
+        }`,
+        10000,
+      );
+      const { noticeHubProjectionErrors } = await import(
+        "../pipeline/runHubProjection"
+      );
+      noticeHubProjectionErrors(proj.errors, 2);
+    } catch {
+      new Notice("Atoms: could not refresh hub lists", 6000);
+    }
   }
 
   /**

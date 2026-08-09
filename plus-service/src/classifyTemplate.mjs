@@ -48,7 +48,7 @@ export const SYSTEM_PROMPT = `You classify fleeting captures from a daily-note i
 - Match names case-insensitively; use the vault's exact title string in links[].note (canonical hub title, not a nickname spelling).
 - Do not invent a new person note title if a close existing title already fits.
 - One atom can carry a person link, a work link, and preference/media tags together.
-- **hub_section (optional but important for list/gift/date facts):** when the capture is an accumulating list or want about a person and Person hubs list indented ## section names under that hub, set hub_section to one **exact** section string from that list (e.g. Gift Ideas when they want a physical gift). Prefer a real section over leaving empty. Omit or use "" only when unsure or no section fits. Never invent a section name that is not listed.
+- **hub_section (optional but important for list/gift/date facts):** when the capture is an accumulating list or want about a person **or list hub** and Person hubs / List hubs list indented ## section names under that hub, set hub_section to one **exact** section string from that list (e.g. Gift Ideas, or Want to watch under Movies). Prefer a real section over leaving empty. Omit or use "" only when unsure or no section fits. Never invent a section name that is not listed.
 - Pure logistics that merely mention a name stay **noise** — do not force person atoms for chores.
 - Do not invent entity links from speech typos (e.g. "Kloe") unless that exact title exists in Note titles.
 - **people[] — who is named, and how.** List every person the capture names, each with a role:

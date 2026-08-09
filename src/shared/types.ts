@@ -84,6 +84,9 @@ export interface PersonHubDetail {
   sections: string[];
 }
 
+/** List / non-person hub sections for classify hub_section (R9). */
+export type ListHubDetail = PersonHubDetail;
+
 export interface VaultContext {
   titles: string[];
   tags: string[];
@@ -92,6 +95,11 @@ export interface VaultContext {
   personHubs: string[];
   /** Alias-aware match keys for enrichPersonLinks (local only). */
   personHubDetails: PersonHubDetail[];
+  /**
+   * List hubs with H2s for hub_section context (hard-link not required).
+   * Cap applied at build time. Never paths.
+   */
+  listHubDetails?: ListHubDetail[];
   /**
    * Home Continue handoff: optional parent for this capture only.
    * Context-only (not a schema field). BYOK + Plus.
@@ -157,10 +165,15 @@ export interface LinkerSettings {
    */
   plusBaseUrl: string;
   /**
-   * Opt-in: write managed generated block into person hub notes.
-   * Off by default; discloses vault write in Settings.
+   * Opt-in: write managed generated block into qualifying hub notes
+   * (person + list hubs with headings). Off by default; discloses vault write.
    */
   enableHubProjection: boolean;
+  /**
+   * One-shot: user has seen the “list hubs included” upgrade Notice
+   * after projection widened beyond person-only.
+   */
+  hubProjectionListDisclosureSeen: boolean;
   /** Opt-in cloud mirror of Atoms/ for remote MCP Ask (Plus). */
   askEnabled: boolean;
   /**
@@ -211,6 +224,7 @@ export const DEFAULT_SETTINGS: LinkerSettings = {
   captureShortcutInstallUrl: "",
   plusBaseUrl: "",
   enableHubProjection: false,
+  hubProjectionListDisclosureSeen: false,
   askEnabled: false,
   askPrivacyAckAt: "",
   askPrivacyAckVersion: "",

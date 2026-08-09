@@ -18,6 +18,7 @@ import {
 } from "./enrich/people";
 import { isDeniedPersonName } from "./personInvite";
 import { enrichMediaLinks } from "./enrich/media";
+import { enrichListHubLinks } from "./enrich/listHubs";
 import { enrichEntityLinks } from "./enrich/entityLinks";
 import {
   improveClassificationLinks,
@@ -93,6 +94,7 @@ export const CLASSIFY_LIVE_ENRICH_ORDER = [
   "normalizeHubSection",
   "enrichPersonLinks",
   "enrichMediaLinks",
+  "enrichListHubLinks",
   "maybeLinkPeopleIndex",
   "enrichEntityLinks",
   "improveClassificationLinks",
@@ -103,13 +105,14 @@ export const CLASSIFY_LIVE_ENRICH_ORDER = [
 /**
  * Offline `applyClassificationQuality` order (fixtures / backfill / refresh paths).
  * Intentionally differs from live: normalizePeople before rescue; hub repair only
- * when personHubDetails provided; no normalizeHubSection / active-tag filter here.
+ * when hub details provided; no normalizeHubSection / active-tag filter here.
  */
 export const CLASSIFY_OFFLINE_QUALITY_ORDER = [
   "normalizePeople",
   "rescueKeepableIdea",
   "enrichPersonLinks",
   "enrichMediaLinks",
+  "enrichListHubLinks",
   "maybeLinkPeopleIndex",
   "enrichEntityLinks",
   "improveClassificationLinks",
@@ -247,7 +250,7 @@ export const SYSTEM_PROMPT = `You classify fleeting captures from a daily-note i
   - \`recommender\` — they suggested a book/show/film. "Christian told me to watch MHA" → Christian.
   A kinship word standing in for a name is a person, not a common noun — \`mom\`, \`dad\`, \`mother\`, \`father\`, \`mama\`, \`papa\`, \`mum\`. "mom wants to celebrate her birthday" → \`Mom\`, subject. Capitalise it. The possessive rule still applies: "mom's lasagna recipe is unbeatable" makes Mom **mentioned**, because the claim is about the recipe.
   Captures routinely drop their subject because the writer knew who they meant. When that happens, return no \`subject\` — an empty people[] is a correct answer, never a failure. Only ever use a name written in the capture; never infer one from surrounding notes, and never put a verb, a determiner, or a weekday in \`name\`.
-- **hub_section (optional but important for list/gift/date facts):** when the capture is an accumulating list or want about a person and Person hubs list indented ## section names under that hub, set hub_section to one **exact** section string from that list (e.g. Gift Ideas when they want a physical gift). Prefer a real section over leaving empty. Omit or use "" only when unsure or no section fits. Never invent a section name that is not listed.
+- **hub_section (optional but important for list/gift/date facts):** when the capture is an accumulating list or want about a person **or list hub** and Person hubs / List hubs list indented ## section names under that hub, set hub_section to one **exact** section string from that list (e.g. Gift Ideas, or Want to watch under Movies). Prefer a real section over leaving empty. Omit or use "" only when unsure or no section fits. Never invent a section name that is not listed.
 
 ## Links + supersession (reason quality is load-bearing)
 - Link to existing notes when the capture relates, revises, continues, or contradicts them.
@@ -415,7 +418,7 @@ export function normalizeHubSection(
   if (result.verdict !== "atom") {
     return dropHubSection(result);
   }
-  const details = context.personHubDetails ?? [];
+  const details = hubDetailsForSection(context);
   const allowedExact = new Map<string, string>(); // lower → canonical
   for (const d of details) {
     for (const sec of d.sections ?? []) {
@@ -428,6 +431,16 @@ export function normalizeHubSection(
     return dropHubSection(result);
   }
   return { ...result, hub_section: canon };
+}
+
+/** Person + list hub details for hub_section allow-list / repair. */
+export function hubDetailsForSection(
+  context: VaultContext,
+): Array<{ canonicalTitle: string; matchKeys?: string[]; sections?: string[] }> {
+  return [
+    ...(context.personHubDetails ?? []),
+    ...(context.listHubDetails ?? []),
+  ];
 }
 
 /**
@@ -444,7 +457,7 @@ export function repairHubSection(
   let r = normalizeHubSection(result, context);
   if ((r.hub_section ?? "").trim()) return r;
 
-  const details = context.personHubDetails ?? [];
+  const details = hubDetailsForSection(context);
   if (!details.length) return r;
 
   const linkNotes = new Set(
@@ -949,6 +962,12 @@ export async function classifyCapture(
   let result = enrichPersonLinks(capture, parsed, hubsForEnrich(context));
   // Media/watchlist shape — tags + work link only when title exists in vault.
   result = enrichMediaLinks(capture, result, context.titles ?? []);
+  // List hub (Movies etc.) hard-link when unique title match.
+  result = enrichListHubLinks(
+    capture,
+    result,
+    context.listHubDetails ?? [],
+  );
   // Optional People index when workplace-shaped and no person hub linked.
   result = maybeLinkPeopleIndex(
     capture,
@@ -985,6 +1004,7 @@ export function applyClassificationQuality(
     personHubs?: PersonHub[];
     personHubTitles?: string[];
     personHubDetails?: VaultContext["personHubDetails"];
+    listHubDetails?: VaultContext["listHubDetails"];
   } = {},
 ): ClassificationResult {
   const titles = opts.titles ?? [];
@@ -995,6 +1015,7 @@ export function applyClassificationQuality(
   r = rescueKeepableIdea(capture, r, titles);
   r = enrichPersonLinks(capture, r, hubs);
   r = enrichMediaLinks(capture, r, titles);
+  r = enrichListHubLinks(capture, r, opts.listHubDetails ?? []);
   r = maybeLinkPeopleIndex(
     capture,
     r,
@@ -1005,13 +1026,15 @@ export function applyClassificationQuality(
   r = improveClassificationLinks(capture, r);
   r = stripSelfReferentialLinks(r);
   const details = opts.personHubDetails;
-  if (details?.length) {
+  const listDetails = opts.listHubDetails;
+  if (details?.length || listDetails?.length) {
     r = repairHubSection(capture, r, {
       titles,
       tags: [],
       vocabulary: [],
       personHubs: opts.personHubTitles ?? hubs.map((h) => h.canonicalTitle),
-      personHubDetails: details,
+      personHubDetails: details ?? [],
+      listHubDetails: listDetails ?? [],
     });
   }
   return r;
