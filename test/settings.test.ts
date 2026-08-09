@@ -1816,7 +1816,7 @@ describe("main screen row grammar (U9)", () => {
       "Capture Atom shortcut (advanced)",
       "Install Capture Atom only",
       "Atom folder",
-      "List atoms in person notes",
+      "Hub projection",
       vocabulary,
       ...ASK_ROWS,
       "File automatically when Obsidian opens",

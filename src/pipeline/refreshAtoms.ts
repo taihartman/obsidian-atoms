@@ -1,8 +1,5 @@
 import { Notice, TFile, type App } from "obsidian";
-import {
-  hubTitlesFromAtomContents,
-  runHubProjectionForHubs,
-} from "./runHubProjection";
+import { projectHubsFromAtomContents } from "./runHubProjection";
 import {
   applyClassificationQuality,
   classifyCapture,
@@ -950,21 +947,14 @@ async function maybeProjectHubsAfterRefresh(
       /* skip */
     }
   }
-  const touched = hubTitlesFromAtomContents(atomContents, ctx.personHubs ?? []);
-  if (!touched.length) return;
-  const proj = await runHubProjectionForHubs({
+  await projectHubsFromAtomContents({
     app: opts.app,
     enabled: true,
     atomFolder: opts.atomFolder,
-    touchedHubTitles: touched,
+    atomContents,
+    personHubTitles: ctx.personHubs ?? [],
     personHubDetails: ctx.personHubDetails,
   });
-  for (const err of proj.errors.slice(0, 3)) {
-    new Notice(
-      `Atoms: hub projection skipped [[${err.hubTitle}]] — ${err.reason}`,
-      8000,
-    );
-  }
 }
 
 function findDailyFile(app: App, basename: string): TFile | null {

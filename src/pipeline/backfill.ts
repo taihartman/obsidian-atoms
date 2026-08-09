@@ -27,10 +27,7 @@ import type {
 } from "../shared/types";
 import type { PersonHub } from "./enrich/people";
 import { filterTagsToActive, mergeProposedTags } from "./vocabulary";
-import {
-  hubTitlesFromAtomContents,
-  runHubProjectionForHubs,
-} from "./runHubProjection";
+import { projectHubsFromAtomContents } from "./runHubProjection";
 
 export const BATCHES_URL = "https://api.anthropic.com/v1/messages/batches";
 export const COUNT_TOKENS_URL = "https://api.anthropic.com/v1/messages/count_tokens";
@@ -753,27 +750,18 @@ export async function applyBackfillResults(opts: {
         /* skip */
       }
     }
-    const hubTitles = (opts.personHubDetails ?? []).map((d) => d.canonicalTitle);
-    const touched = hubTitlesFromAtomContents(atomContents, hubTitles);
-    if (touched.length) {
-      const proj = await runHubProjectionForHubs({
-        app: opts.app,
-        enabled: true,
-        atomFolder: opts.atomFolder,
-        touchedHubTitles: touched,
-        personHubDetails: (opts.personHubDetails ?? []).map((d) => ({
-          canonicalTitle: d.canonicalTitle,
-          matchKeys: d.matchKeys,
-          sections: d.sections ?? [],
-        })),
-      });
-      for (const err of proj.errors.slice(0, 3)) {
-        new Notice(
-          `Atoms: hub projection skipped [[${err.hubTitle}]] — ${err.reason}`,
-          8000,
-        );
-      }
-    }
+    await projectHubsFromAtomContents({
+      app: opts.app,
+      enabled: true,
+      atomFolder: opts.atomFolder,
+      atomContents,
+      personHubTitles: (opts.personHubDetails ?? []).map((d) => d.canonicalTitle),
+      personHubDetails: (opts.personHubDetails ?? []).map((d) => ({
+        canonicalTitle: d.canonicalTitle,
+        matchKeys: d.matchKeys,
+        sections: d.sections ?? [],
+      })),
+    });
   }
 
   return {

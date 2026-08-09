@@ -16,6 +16,71 @@ const OPEN = "<!-- atoms:generated v=1 -->";
 const CLOSE = "<!-- /atoms:generated -->";
 
 describe("hub projection vault smoke (throwaway)", () => {
+  it("list hub Movies AE1/AE3b pure plan", () => {
+    const moviesHuman = `# Movies
+
+## Want to watch
+
+## Watched
+`;
+    const dune = `---
+generated-by: linker
+hub-section: "Want to watch"
+---
+want to watch Dune
+
+belongs with [[Movies]] (watchlist).
+`;
+    const sections = parseHubSections(moviesHuman);
+    const plan = planHubProjection({
+      enabled: true,
+      touchedHubTitles: ["Movies"],
+      atoms: [{ title: "want to watch Dune", content: dune }],
+      hubs: new Map([
+        [
+          "movies",
+          {
+            title: "Movies",
+            path: "Movies.md",
+            content: moviesHuman,
+            sections,
+            kind: "list",
+          },
+        ],
+      ]),
+    });
+    expect(plan.errors).toEqual([]);
+    expect(plan.skipped).toEqual([]);
+    expect(plan.writes[0]!.next).toContain("## Want to watch");
+    expect(plan.writes[0]!.next).toContain("[[want to watch Dune]]");
+
+    // AE3b: single unsorted hard-link does not write
+    const meeting = planHubProjection({
+      enabled: true,
+      touchedHubTitles: ["Meeting Notes"],
+      atoms: [
+        {
+          title: "Accidental",
+          content: "---\n---\nx\n\nsee [[Meeting Notes]] (ref).\n",
+        },
+      ],
+      hubs: new Map([
+        [
+          "meeting notes",
+          {
+            title: "Meeting Notes",
+            path: "Meeting Notes.md",
+            content: "# Meeting Notes\n\n## Agenda\n",
+            sections: ["Agenda"],
+            kind: "list",
+          },
+        ],
+      ]),
+    });
+    expect(meeting.writes).toEqual([]);
+    expect(meeting.skipped[0]?.skipReason).toBe("non-person-write-brake");
+  });
+
   it("AE1–AE5 on test_vault Nichita hub", () => {
     if (!existsSync(vault)) {
       // skip if no throwaway vault
