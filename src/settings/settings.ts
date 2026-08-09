@@ -1183,6 +1183,12 @@ export class AtomsSettingTab extends PluginSettingTab {
         session.sessionToken,
       );
     }
+    // Same disarm → persist → clear order as the wipe above, for the same reason (#372): a
+    // sign-out that only dropped the session left the next account this device's arming and its
+    // hash baseline. The acks stay: they are the consent record, not the gate.
+    this.plugin.settings.askEnabled = false;
+    await this.plugin.saveSettings();
+    clearAskMirrorDeviceState((k, v) => this.app.saveLocalStorage(k, v));
     clearPlusSession(this.app);
     clearPlusRefreshRecord(this.app);
     new Notice("Atoms Plus signed out on this device");
@@ -1294,7 +1300,7 @@ export class AtomsSettingTab extends PluginSettingTab {
     this.destructiveRow(containerEl, {
       action: "plus:sign-out",
       name: "Sign out",
-      desc: "Remove the Plus session from this device only.",
+      desc: "Remove the Plus session from this device, and turn the Ask mirror off everywhere this vault syncs.",
       label: "Sign out",
       onClick: () => this.signOutOfPlus(),
     });

@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { PlusSession } from "../src/platform/filingAuth";
+import {
+  LS_PLUS_SESSION,
+  serializePlusSession,
+  type PlusSession,
+} from "../src/platform/filingAuth";
 import {
   LS_ASK_MIRROR_EMAIL,
   LS_ASK_MIRROR_HASHES,
@@ -7,7 +11,13 @@ import {
   LS_ASK_MIRROR_LAST_SUCCESS,
   LS_ASK_MIRROR_SERVER_COUNT,
 } from "../src/platform/askMirror";
-import { ASK_PRIVACY_ACK_VERSION } from "../src/shared/askAck";
+import {
+  ASK_PRIVACY_ACK_VERSION,
+  ASK_WRITE_ACK_VERSION,
+} from "../src/shared/askAck";
+import { readAskMirrorEmail } from "../src/platform/askMirror";
+import { AskCoordinator } from "../src/plugin/askCoordinator";
+import { DEFAULT_SETTINGS } from "../src/shared/types";
 import {
   open,
   press,
@@ -27,12 +37,17 @@ import {
  * was the thing that lied.
  */
 
-/** The wipe is the only network call faked here; the reset it triggers is the real one. */
+/** The wipe and the sign-out are the only network calls faked here; the resets they trigger are real. */
 const wipe = vi.fn(async () => ({ ok: true as const }));
+const signOut = vi.fn(async () => ({ ok: true as const }));
 vi.mock("../src/platform/plusClient", async (importOriginal) => {
   const actual =
     await importOriginal<typeof import("../src/platform/plusClient")>();
-  return { ...actual, askMirrorWipe: (...args: unknown[]) => wipe(...(args as [])) };
+  return {
+    ...actual,
+    askMirrorWipe: (...args: unknown[]) => wipe(...(args as [])),
+    signOutPlus: (...args: unknown[]) => signOut(...(args as [])),
+  };
 });
 
 const PLUS_SESSION: PlusSession = {
@@ -61,7 +76,10 @@ const flush = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 
 // Above both blocks, not inside one: the mock is module-level, so a per-describe reset leaves
 // the other block reading call counts the first one left behind.
-beforeEach(() => wipe.mockClear());
+beforeEach(() => {
+  wipe.mockClear();
+  signOut.mockClear();
+});
 
 function connect(opts: SettingTabOptions = {}) {
   const made = settingTab({ session: PLUS_SESSION, ...opts });
@@ -240,5 +258,185 @@ describe("#374 — the status line consults the consent gate", () => {
 
     // The wipe redisplays this screen itself, so this reads what the user is left looking at.
     expect(statusLine(made)).toBe("Ask mirror: off");
+  });
+});
+
+/**
+ * #372 — the third instance of the same failure, reached by a gesture nobody reads as a consent
+ * change. Signing out left `askEnabled` armed and the hash baseline intact, so the *next* account
+ * signed in on this device inherited both: egress to a cloud its owner never authorised here, over
+ * a baseline that said the vault was already uploaded.
+ *
+ * Driven through the rendered Sign out row rather than against `signOutOfPlus`, because the row is
+ * the only way a user reaches it and the row is what the description promises about.
+ */
+describe("#372 — signing out tears the mirror down", () => {
+  const WRITE_GRANTED = {
+    askWriteAckAt: ACKED,
+    askWriteAckVersion: ASK_WRITE_ACK_VERSION,
+  } as const;
+
+  /**
+   * The Sign out row does not render from a seeded session alone: `deriveAccountState` reports
+   * `active` only when `resolveFilingAuth()` says `plus`, and the suite's `connect()` seeds the
+   * session only. This is `activeTab()` from test/settings.test.ts with the consent state the
+   * teardown is about.
+   */
+  function signedIn(opts: SettingTabOptions = {}) {
+    const made = settingTab({
+      session: PLUS_SESSION,
+      auth: {
+        mode: "plus",
+        sessionToken: PLUS_SESSION.sessionToken,
+        email: PLUS_SESSION.email,
+        status: "active",
+        remaining: 12,
+        periodEnd: PLUS_SESSION.periodEnd,
+      },
+      settings: { askEnabled: true, ...PRIVACY_GRANTED, ...WRITE_GRANTED },
+      local: { ...MIRRORED },
+      ...opts,
+    });
+    made.tab.display();
+    open(made.tab, "Plus · 12 filings left");
+    return made;
+  }
+
+  async function signOutOf(made: ReturnType<typeof signedIn>) {
+    press(made.tab, "Sign out", "Sign out");
+    await flush();
+  }
+
+  it("disarms the mirror and gets the disarm to disk", async () => {
+    const made = signedIn();
+
+    await signOutOf(made);
+
+    expect(signOut).toHaveBeenCalledTimes(1);
+    expect(made.plugin.settings.askEnabled).toBe(false);
+    expect(made.calls).toContain("saveSettings");
+  });
+
+  it("clears the device state the next account would otherwise inherit", async () => {
+    const made = signedIn();
+
+    await signOutOf(made);
+
+    // The 1-of-407 half of the bug: A's baseline survived, so B's first sync uploaded nothing.
+    expect(made.local.get(LS_ASK_MIRROR_HASHES)).toBe("{}");
+    expect(made.local.get(LS_ASK_MIRROR_EMAIL)).toBe("");
+  });
+
+  it("leaves the consent record alone, because the withdrawal row keys off it", async () => {
+    const made = signedIn();
+
+    await signOutOf(made);
+
+    expect(made.plugin.settings.askPrivacyAckAt).toBe(ACKED);
+    expect(made.plugin.settings.askPrivacyAckVersion).toBe(
+      ASK_PRIVACY_ACK_VERSION,
+    );
+    expect(made.plugin.settings.askWriteAckAt).toBe(ACKED);
+    expect(made.plugin.settings.askWriteAckVersion).toBe(ASK_WRITE_ACK_VERSION);
+  });
+
+  /**
+   * KTD2 — the order is the invariant, not the end state, which is identical either way. The
+   * `calls` list cannot see it: `clearAskMirrorDeviceState` writes through `app.saveLocalStorage`,
+   * which the harness does not record. So the save itself reads the baseline as it goes past.
+   */
+  it("persists the disarm while the baseline is still intact", async () => {
+    let snapshot: unknown = "never saved";
+    let made!: ReturnType<typeof signedIn>;
+    made = signedIn({
+      plugin: {
+        saveSettings: async () => {
+          snapshot = made.local.get(LS_ASK_MIRROR_HASHES);
+        },
+      },
+    });
+
+    await signOutOf(made);
+
+    // Reversed (clear, then persist) this is "{}" — an armed mirror over an empty baseline, #371.
+    expect(snapshot).toBe(MIRRORED[LS_ASK_MIRROR_HASHES]);
+  });
+
+  it("tears down anyway when the sign-out call fails on the network", async () => {
+    signOut.mockResolvedValueOnce({
+      ok: false,
+      status: 0,
+      code: "network",
+      message: "Plus network error",
+    } as never);
+    const made = signedIn();
+
+    await signOutOf(made);
+
+    expect(made.plugin.settings.askEnabled).toBe(false);
+    expect(made.local.get(LS_ASK_MIRROR_HASHES)).toBe("{}");
+  });
+
+  /**
+   * R4, as a **contract test** — deliberately not dead code, do not delete it as unreachable.
+   *
+   * The teardown above runs after `await signOutPlus(...)` with no try/catch, which is safe only
+   * because `signOutPlus` reports failure as a *value*: `plusRequest` catches everything its
+   * `request` throws. Nothing else asserts that, so a future `request` implementation whose throw
+   * escaped would silently put the sign-out teardown back behind a network failure — #372 again,
+   * reached from the other side. This pins the property at its source, on the real client.
+   */
+  it("contract: signOutPlus reports a throwing transport as a value, never a rejection", async () => {
+    const actual = await vi.importActual<
+      typeof import("../src/platform/plusClient")
+    >("../src/platform/plusClient");
+
+    const r = await actual.signOutPlus(
+      {
+        baseUrl: "https://plus.example",
+        request: () => {
+          throw new Error("transport exploded");
+        },
+      } as never,
+      "sess_live",
+    );
+
+    expect(r.ok).toBe(false);
+  });
+
+  /**
+   * R5 — the whole bug in one pass: account A signs out, account B signs in, and B's device may
+   * neither push nor believe A's baseline.
+   */
+  it("hands the next account no arming and no baseline", async () => {
+    const made = signedIn();
+
+    await signOutOf(made);
+
+    // Account B, on the same device.
+    const second: PlusSession = { ...PLUS_SESSION, email: "second@example.com" };
+    made.local.set(LS_PLUS_SESSION, serializePlusSession(second));
+
+    const coordinator = new AskCoordinator({
+      settings: made.plugin.settings,
+    } as never);
+    expect(coordinator.mirrorPermitted()).toBe(false);
+    // `mirrorPermitted()` reads the toggle and the privacy ack only, so on its own it would pass
+    // identically with no second identity at all. These two are what say the *device* forgot A.
+    expect(readAskMirrorEmail((k) => made.local.get(k) ?? null)).toBe("");
+    expect(made.local.get(LS_ASK_MIRROR_HASHES)).toBe("{}");
+  });
+
+  it("is a no-op on a device with nothing to tear down", async () => {
+    const made = signedIn({
+      settings: { ...DEFAULT_SETTINGS },
+      local: {},
+    });
+
+    await signOutOf(made);
+
+    expect(made.plugin.settings.askEnabled).toBe(false);
+    expect(made.local.get(LS_ASK_MIRROR_HASHES)).toBe("{}");
+    expect(made.plugin.settings.askPrivacyAckAt).toBe("");
   });
 });
