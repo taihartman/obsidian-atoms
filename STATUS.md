@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| *(none)* | | | | | | |
+| In progress | [#393](https://github.com/taihartman/obsidian-atoms/issues/393) | taihartman | `fix/393-session-swap-disarm` | debug lane | `src/platform/askMirror.ts`, `src/platform/plusSignIn.ts`, `src/settings/settings.ts`, `src/plugin/main.ts` | Session install must disarm when identity changes · plugin bump |
 
 ## How to claim (copy)
 
