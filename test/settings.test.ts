@@ -1812,8 +1812,9 @@ describe("main screen row grammar (U9)", () => {
     const vocabulary = `Tag vocabulary — ${DEFAULT_SETTINGS.activeVocabulary.length} active`;
     return [
       account,
-      "iCloud shortcut link",
-      "Capture Atom shortcut",
+      "Atoms Capture companion",
+      "Capture Atom shortcut (advanced)",
+      "Install Capture Atom only",
       "Atom folder",
       "List atoms in person notes",
       vocabulary,
@@ -1835,10 +1836,10 @@ describe("main screen row grammar (U9)", () => {
 
     const rows = rowNames(tab, { headings: false });
     expect(rows).toEqual(expectedRows("Plus · 12 filings left"));
-    expect(rows).toHaveLength(15);
+    expect(rows).toHaveLength(16);
   });
 
-  it("renders twelve rows signed out — the Ask cluster is the only difference", () => {
+  it("renders thirteen rows signed out — the Ask cluster is the only difference", () => {
     const { tab } = settingTab();
     tab.display();
 
@@ -1846,7 +1847,7 @@ describe("main screen row grammar (U9)", () => {
     expect(rows).toEqual(
       expectedRows("Set up automatic filing").filter((name) => !ASK_ROWS.includes(name)),
     );
-    expect(rows).toHaveLength(12);
+    expect(rows).toHaveLength(13);
   });
 
   it("adds the device-local key row under its toggle, and nowhere else", () => {
@@ -1854,7 +1855,7 @@ describe("main screen row grammar (U9)", () => {
     tab.display();
 
     const rows = rowNames(tab, { headings: false });
-    expect(rows).toHaveLength(13);
+    expect(rows).toHaveLength(14);
     expect(rows.indexOf("Device-local API key")).toBe(
       rows.indexOf("Device-local key fallback") + 1,
     );

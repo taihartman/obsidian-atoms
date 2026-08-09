@@ -133,13 +133,16 @@ import {
   type ContinueParentPending,
 } from "../platform/continueParent";
 import {
-  CAPTURE_SHORTCUT_VERSION,
-  labelInstallOrUpdate,
-  needsShortcutCta,
-  openShortcutInstallUrl,
+  companionGuideVersion,
+  labelGetCompanion,
+  needsCompanionGuideCta,
+  openCompanionDocs,
+  readCompanionGuideAck,
+  writeCompanionGuideAck,
+} from "../shared/mobileInstall";
+import {
   readShortcutAck,
   resolveCaptureShortcutInstallUrl,
-  writeShortcutAck,
 } from "../settings/captureShortcut";
 import {
   closeOpenConsentSheet,
@@ -230,6 +233,7 @@ export class AtomsHomeView extends ItemView {
   /** Detach long-press bindings before re-render (clears mid-hold timers). */
   private libraryPressDetach: Array<() => void> = [];
   private shortcutAcked: string | null = null;
+  private companionGuideAcked: string | null = null;
   private refreshTimer: number | null = null;
   /** Session-only skips for From-the-brain Next (not durable). */
   private resurfaceSkipPaths = new Set<string>();
@@ -567,10 +571,9 @@ export class AtomsHomeView extends ItemView {
     );
   }
 
-  private showShortcutBanner(): boolean {
-    if (!this.installUrl()) return false;
-    if (this.isFirstDay()) return false; // setup card owns Install
-    return needsShortcutCta(this.shortcutAcked);
+  private showCompanionBanner(): boolean {
+    if (this.isFirstDay()) return false; // setup card owns Get Atoms Capture
+    return needsCompanionGuideCta(this.companionGuideAcked);
   }
 
   /**
@@ -660,6 +663,9 @@ export class AtomsHomeView extends ItemView {
     this.refreshResurfacePick(folder);
 
     this.shortcutAcked = readShortcutAck((k) => this.app.loadLocalStorage(k));
+    this.companionGuideAcked = readCompanionGuideAck((k) =>
+      this.app.loadLocalStorage(k),
+    );
 
     this.inboxStuck = await this.loadInboxStuck();
 
@@ -2169,24 +2175,21 @@ export class AtomsHomeView extends ItemView {
       this.renderUpdateNotesStrip(scroll);
     }
 
-    if (this.showShortcutBanner()) {
+    if (this.showCompanionBanner()) {
       const banner = scroll.createDiv({ cls: "atoms-home-update-banner" });
       const text = banner.createDiv();
       text.createEl("strong", {
-        text:
-          this.shortcutAcked == null
-            ? "Capture shortcut"
-            : "Shortcut update",
+        text: "Atoms Capture",
       });
       text.createEl("span", {
-        text: `v${CAPTURE_SHORTCUT_VERSION}`,
+        text: "phone companion",
         cls: "atoms-home-update-meta",
       });
       button(banner, {
         grade: "secondary",
-        label: this.shortcutAcked == null ? "Install" : "Update",
+        label: labelGetCompanion(this.companionGuideAcked),
         className: "atoms-home-update-btn",
-        onClick: () => this.onInstallShortcut(),
+        onClick: () => this.onInstallCompanion(),
       });
     }
 
@@ -2215,15 +2218,8 @@ export class AtomsHomeView extends ItemView {
       });
       button(actions, {
         grade: "secondary",
-        label: labelInstallOrUpdate(this.shortcutAcked),
-        disabled: !this.installUrl(),
-        attrs: !this.installUrl()
-          ? {
-              title:
-                "No shortcut link to open — add one in Settings → Capture",
-            }
-          : undefined,
-        onClick: () => this.onInstallShortcut(),
+        label: labelGetCompanion(this.companionGuideAcked),
+        onClick: () => this.onInstallCompanion(),
       });
     }
 
@@ -2422,8 +2418,8 @@ export class AtomsHomeView extends ItemView {
     }
     menu.addItem((i) =>
       i
-        .setTitle(labelInstallOrUpdate(this.shortcutAcked))
-        .onClick(() => this.onInstallShortcut()),
+        .setTitle(labelGetCompanion(this.companionGuideAcked))
+        .onClick(() => this.onInstallCompanion()),
     );
     menu.addItem((i) =>
       i.setTitle("Refresh").onClick(() => void this.refresh()),
@@ -2547,28 +2543,18 @@ export class AtomsHomeView extends ItemView {
     modal.open();
   }
 
-  private onInstallShortcut(): void {
-    const url = this.installUrl();
-    if (!url) {
-      new Notice(
-        "No shortcut link to open — add one in Settings → Capture.",
-      );
-      return;
-    }
-    const ok = openShortcutInstallUrl(url);
+  /** Primary mobile path: companion guide (Capture Atom ships from companion hub). */
+  private onInstallCompanion(): void {
+    const ok = openCompanionDocs();
     if (!ok) {
-      new Notice(
-        "Shortcut link must be an https://www.icloud.com/shortcuts/… URL",
-      );
+      new Notice("Could not open the Atoms Capture guide.");
       return;
     }
-    writeShortcutAck(
-      (k, v) => this.app.saveLocalStorage(k, v),
-      CAPTURE_SHORTCUT_VERSION,
-    );
-    this.shortcutAcked = CAPTURE_SHORTCUT_VERSION;
+    const ver = companionGuideVersion();
+    writeCompanionGuideAck((k, v) => this.app.saveLocalStorage(k, v), ver);
+    this.companionGuideAcked = ver;
     new Notice(
-      `Opened capture shortcut v${CAPTURE_SHORTCUT_VERSION} — add it in Shortcuts`,
+      "Opened Atoms Capture guide — install the companion for quick capture",
     );
     this.render();
   }
