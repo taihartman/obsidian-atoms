@@ -42,7 +42,12 @@ export const MIN_SHORTLIST_K = 1;
  * simply scores the whole corpus, which is where this pipeline started.
  */
 export function clampShortlistSize(raw: unknown): number {
-  const text = typeof raw === "number" ? String(raw) : String(raw ?? "").trim();
+  const text =
+    typeof raw === "number"
+      ? String(raw)
+      : typeof raw === "string"
+        ? raw.trim()
+        : "";
   if (!text) return DEFAULT_SHORTLIST_K;
   const n = Number(text);
   if (!Number.isFinite(n)) return DEFAULT_SHORTLIST_K;

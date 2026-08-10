@@ -596,7 +596,7 @@ export function readAskMirrorServerCount(
   load: (k: string) => unknown,
 ): number | null {
   const raw = load(LS_ASK_MIRROR_SERVER_COUNT);
-  const s = raw == null ? "" : String(raw).trim();
+  const s = typeof raw === "string" || typeof raw === "number" ? String(raw).trim() : "";
   if (!s) return null;
   const n = Number(s);
   return Number.isInteger(n) && n > 0 ? n : null;
@@ -614,15 +614,15 @@ export function formatAskMirrorServerCount(
   load: (k: string) => unknown,
 ): string {
   const raw = load(LS_ASK_MIRROR_SERVER_COUNT);
-  return raw != null && String(raw).trim() !== ""
-    ? String(raw)
-    : ASK_MIRROR_COUNT_UNKNOWN;
+  if (typeof raw === "string" && raw.trim() !== "") return raw;
+  if (typeof raw === "number" && Number.isFinite(raw)) return String(raw);
+  return ASK_MIRROR_COUNT_UNKNOWN;
 }
 
 /** Plus email from last status, or empty. */
 export function readAskMirrorEmail(load: (k: string) => unknown): string {
   const raw = load(LS_ASK_MIRROR_EMAIL);
-  return raw != null ? String(raw).trim() : "";
+  return typeof raw === "string" ? raw.trim() : "";
 }
 
 /**

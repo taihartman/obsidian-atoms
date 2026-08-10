@@ -14,10 +14,11 @@ import type { ButtonComponent } from "obsidian";
 export function markDestructive(btn: ButtonComponent): ButtonComponent {
   // Bracket access so static community lint does not treat setDestructive
   // (1.13+) as an unconditional API use against minAppVersion 1.11.4.
-  const maybe = btn as ButtonComponent & Record<string, unknown>;
+  const maybe: Record<string, unknown> = btn as unknown as Record<string, unknown>;
   const fn = maybe["setDestructive"];
   if (typeof fn === "function") {
-    return (fn as () => ButtonComponent).call(btn);
+    const out: unknown = Reflect.apply(fn, btn, []);
+    if (out && typeof out === "object") return out as ButtonComponent;
   }
   // Pre-1.13 floor: mod-warning chrome without deprecated setWarning().
   btn.buttonEl.addClass("mod-warning");

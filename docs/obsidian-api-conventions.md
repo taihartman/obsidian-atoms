@@ -3,6 +3,16 @@
 **Audience:** coding agents. Follow these so Community Plugin review / `obsidianmd/*` ESLint rules stay green.  
 **Why it exists:** #407 — the same style / Platform / window / fetch flags kept recurring.
 
+## Upstream (authoritative)
+
+| Source | URL |
+|---|---|
+| Plugin guidelines | https://docs.obsidian.md/Plugins/Releasing/Plugin+guidelines |
+| ESLint plugin (rule list) | https://github.com/obsidianmd/eslint-plugin |
+| npm | `eslint-plugin-obsidianmd` |
+
+**Local / CI:** `npm run lint` — same recommended ruleset (with a few documented offs). Runs on every PR via `root-tests.yml`.
+
 These are **plugin-source** rules (`src/**`, `styles.css`). Tests may use mocks and plain objects.
 
 ---
@@ -64,15 +74,25 @@ These are **plugin-source** rules (`src/**`, `styles.css`). Tests may use mocks 
 ## Checklist before PR (plugin UI / platform)
 
 ```text
+[ ] npm run lint          # fails on errors; community rules
 [ ] No new el.style.* for static values
 [ ] No navigator UA / platform sniff — Platform.* only
 [ ] No bare setTimeout/clearTimeout/globalThis in src/
 [ ] No document.createElement — createEl/Div/Span
 [ ] No `as TFile` — instanceof
-[ ] No new fetch() except plusFetchRequest (documented)
+[ ] No new fetch() except plusFetchRequest (window.fetch only)
 [ ] Setting handlers return void (void promise)
 [ ] npm run typecheck && npm test
 ```
+
+### ESLint offs (intentional)
+
+| Rule | Why |
+|---|---|
+| `settings-tab/prefer-setting-definitions` | Full declarative settings migration is its own claim |
+| `settings-tab/no-deprecated-display` | minAppVersion still &lt; 1.13; `display()` required |
+| `ui/sentence-case` | Product voice / brands own UI copy (`docs/voice.md`) |
+| `@typescript-eslint/no-deprecated` | Same as display deprecation until migration |
 
 ---
 

@@ -1435,7 +1435,7 @@ export class AtomsSettingTab extends PluginSettingTab {
         return;
       }
       const j = res.json as Record<string, unknown>;
-      const email = String(j.email || "").trim();
+      const email = typeof j.email === "string" ? j.email.trim() : "";
       if (!email) {
         new Notice("Plus service returned no email for this session.");
         return;
@@ -2126,12 +2126,10 @@ export class AtomsSettingTab extends PluginSettingTab {
    * already the network call this file imports from `platform/plusClient`.
    */
   private mirrorStatusLine(sessionEmail: string): { line: string; failing: boolean } {
-    const lastOk = String(
-      (this.app.loadLocalStorage(LS_ASK_MIRROR_LAST_SUCCESS) as unknown) ?? "",
-    );
-    const lastErr = String(
-      (this.app.loadLocalStorage(LS_ASK_MIRROR_LAST_ERROR) as unknown) ?? "",
-    ).trim();
+    const okRaw: unknown = this.app.loadLocalStorage(LS_ASK_MIRROR_LAST_SUCCESS);
+    const errRaw: unknown = this.app.loadLocalStorage(LS_ASK_MIRROR_LAST_ERROR);
+    const lastOk = typeof okRaw === "string" ? okRaw : "";
+    const lastErr = typeof errRaw === "string" ? errRaw.trim() : "";
     const serverCount = formatAskMirrorServerCount(
       (k) => this.app.loadLocalStorage(k) as unknown,
     );
