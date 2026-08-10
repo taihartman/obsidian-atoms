@@ -6,6 +6,8 @@ export const LS_AUTO_RUN_ENABLED = "atoms-auto-run-enabled";
 export const LS_LAST_RUN_DAY = "atoms-last-run-day";
 /** One-time egress ack required before first unattended send (plan privacy). */
 export const LS_AUTO_RUN_EGRESS_ACK = "atoms-auto-run-egress-ack";
+/** Day automatic filing was enabled on this device — the filing window start (KTD6). */
+export const LS_AUTO_RUN_START_DAY = "atoms-auto-run-start-day";
 
 /**
  * Which disclosure a stored egress ack was granted against (KTD4).
@@ -36,6 +38,67 @@ export function localDateString(d: Date = new Date()): string {
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
+}
+
+/**
+ * A real calendar day in `YYYY-MM-DD`, the only shape the window bound accepts.
+ *
+ * Strict on purpose: the stamp lives in localStorage, which any other plugin or a devtools
+ * session can write (KTD6), and every comparison against it is a lexical string compare — so a
+ * near-miss like `2026-8-1` would sort wrong rather than fail loudly. Calendar values are checked
+ * too, since `2026-02-31` matches the shape and names no day.
+ */
+function isFilingDay(v: unknown): v is string {
+  if (typeof v !== "string") return false;
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v);
+  if (!m) return false;
+  const [year, month, day] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  if (month < 1 || month > 12 || day < 1) return false;
+  const leap = (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
+  const lengths = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  return day <= (lengths[month - 1] ?? 0);
+}
+
+/** The stored filing-window start, or null when nothing usable is stored. */
+export function readAutoFilingStartDay(
+  load: (key: string) => unknown,
+): string | null {
+  const v = load(LS_AUTO_RUN_START_DAY);
+  return isFilingDay(v) ? v : null;
+}
+
+/** Stamp the filing-window start. A day that is not a real date is never persisted. */
+export function writeAutoFilingStartDay(
+  save: (key: string, data: unknown) => void,
+  day: string,
+): void {
+  if (!isFilingDay(day)) return;
+  save(LS_AUTO_RUN_START_DAY, day);
+}
+
+/**
+ * The filing-window bound for an unattended pass — always a day, never "unbounded" (KTD2).
+ *
+ * Absent, malformed, or tampered stamps are re-stamped with today and today is returned. The
+ * tempting alternative — treat "no stamp" as no bound — is the full-history sweep this window
+ * exists to end, and it would reach any device that never enabled automatic filing yet still
+ * files through the manual catch-up. Failing closed costs at most a day the user can recover
+ * through the priced backfill offer; failing open costs their whole history, silently.
+ *
+ * `today` is normalized for the same reason the stored value is: every bound is compared
+ * lexically, so handing back an unusable one (`""` sorts before every daily) would reopen the
+ * sweep from the one place that promises it cannot happen.
+ */
+export function resolveAutoFilingSince(
+  load: (key: string) => unknown,
+  save: (key: string, data: unknown) => void,
+  today: string,
+): string {
+  const stored = readAutoFilingStartDay(load);
+  if (stored) return stored;
+  const day = isFilingDay(today) ? today : localDateString();
+  writeAutoFilingStartDay(save, day);
+  return day;
 }
 
 /**
@@ -77,6 +140,8 @@ export interface DeviceAutoRunState {
   enabled: boolean;
   lastRunDay: string | null;
   egressAcked: boolean;
+  /** Filing-window start (KTD6); null until an enable path stamps it. */
+  startDay: string | null;
 }
 
 export function readDeviceAutoRunState(
@@ -86,7 +151,8 @@ export function readDeviceAutoRunState(
   const last = load(LS_LAST_RUN_DAY);
   const lastRunDay = typeof last === "string" && last ? last : null;
   const egressAcked = egressAckIsCurrent(readEgressAckVersion(load));
-  return { enabled, lastRunDay, egressAcked };
+  const startDay = readAutoFilingStartDay(load);
+  return { enabled, lastRunDay, egressAcked, startDay };
 }
 
 /**

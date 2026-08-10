@@ -6,14 +6,18 @@ import {
   readEgressAckVersion,
   EGRESS_ACK_VERSION,
   localDateString,
+  readAutoFilingStartDay,
   readDeviceAutoRunState,
+  resolveAutoFilingSince,
   shouldRunAutoProcess,
   shouldStampLastRunDay,
+  writeAutoFilingStartDay,
   writeAutoRunEnabled,
   writeEgressAck,
   writeLastRunDay,
   LS_AUTO_RUN_ENABLED,
   LS_AUTO_RUN_EGRESS_ACK,
+  LS_AUTO_RUN_START_DAY,
   LS_LAST_RUN_DAY,
   PER_LAUNCH_CAP,
 } from "../src/platform/autorun";
@@ -128,6 +132,7 @@ describe("device-local storage (not data.json)", () => {
       enabled: true,
       lastRunDay: "2026-07-14",
       egressAcked: true,
+      startDay: null,
     });
 
     // Keys are device-local names — not written into settings object shape
@@ -196,6 +201,155 @@ describe("device-local storage (not data.json)", () => {
     enableAutomaticFiling(save);
     expect(store[LS_AUTO_RUN_ENABLED]).toBe(true);
     expect(store[LS_AUTO_RUN_EGRESS_ACK]).toBe(EGRESS_ACK_VERSION);
+  });
+});
+
+/**
+ * U1 / KTD2 — the filing window bound, which must fail closed.
+ *
+ * "No usable stamp" can never mean "no bound": that is the unbounded full-history sweep this
+ * plan exists to kill, so every unreadable value is re-stamped with today instead.
+ */
+describe("auto-filing window", () => {
+  const makeStore = () => {
+    const store: Record<string, unknown> = {};
+    const load = (k: string) => store[k] ?? null;
+    const save = (k: string, v: unknown) => {
+      store[k] = v;
+    };
+    return { store, load, save };
+  };
+
+  /** Shapes that look like a day but are not one. Each must be rejected, not passed through. */
+  const malformed = [
+    "",
+    "   ",
+    "2026-13-01",
+    "2026-02-31",
+    "2026-00-10",
+    "2026-08-00",
+    "2026-08-32",
+    "20260810",
+    "2026-8-1",
+    "2026-08-10T00:00:00",
+    "yesterday",
+    "0000-00-00",
+    true,
+    42,
+    null,
+    undefined,
+    {},
+  ];
+
+  describe("readAutoFilingStartDay", () => {
+    it("reads a well-formed stamp", () => {
+      const { load, save } = makeStore();
+      writeAutoFilingStartDay(save, "2026-08-10");
+      expect(readAutoFilingStartDay(load)).toBe("2026-08-10");
+    });
+
+    it("is null when unset", () => {
+      const { load } = makeStore();
+      expect(readAutoFilingStartDay(load)).toBeNull();
+    });
+
+    it("is null for anything that is not a real calendar day", () => {
+      for (const junk of malformed) {
+        const load = (k: string) => (k === LS_AUTO_RUN_START_DAY ? junk : null);
+        expect(readAutoFilingStartDay(load)).toBeNull();
+      }
+    });
+  });
+
+  describe("writeAutoFilingStartDay", () => {
+    it("persists a valid day", () => {
+      const { store, save } = makeStore();
+      writeAutoFilingStartDay(save, "2026-08-10");
+      expect(store[LS_AUTO_RUN_START_DAY]).toBe("2026-08-10");
+    });
+
+    it("refuses to persist an invalid day", () => {
+      for (const junk of malformed) {
+        const { store, save } = makeStore();
+        writeAutoFilingStartDay(save, junk as string);
+        expect(store[LS_AUTO_RUN_START_DAY]).toBeUndefined();
+      }
+    });
+  });
+
+  describe("resolveAutoFilingSince", () => {
+    it("stamps and returns today when the key is missing", () => {
+      const { store, load, save } = makeStore();
+      expect(resolveAutoFilingSince(load, save, "2026-08-10")).toBe("2026-08-10");
+      expect(store[LS_AUTO_RUN_START_DAY]).toBe("2026-08-10");
+    });
+
+    it("re-stamps a malformed value rather than reading it as no bound", () => {
+      for (const junk of malformed) {
+        const { store, load, save } = makeStore();
+        store[LS_AUTO_RUN_START_DAY] = junk;
+
+        expect(resolveAutoFilingSince(load, save, "2026-08-10")).toBe("2026-08-10");
+        expect(store[LS_AUTO_RUN_START_DAY]).toBe("2026-08-10");
+      }
+    });
+
+    it("returns a valid stamp unchanged and does not re-stamp it", () => {
+      const { load, save } = makeStore();
+      writeAutoFilingStartDay(save, "2026-07-31");
+
+      let saves = 0;
+      const countingSave = (k: string, v: unknown) => {
+        saves += 1;
+        save(k, v);
+      };
+
+      expect(resolveAutoFilingSince(load, countingSave, "2026-08-10")).toBe(
+        "2026-07-31",
+      );
+      expect(saves).toBe(0);
+    });
+
+    it("never returns undefined, null, or empty for any stored value", () => {
+      for (const junk of [...malformed, "2026-08-10", [], NaN]) {
+        const { load, save } = makeStore();
+        save(LS_AUTO_RUN_START_DAY, junk);
+
+        const since = resolveAutoFilingSince(load, save, "2026-08-10");
+        expect(typeof since).toBe("string");
+        expect(since).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      }
+    });
+
+    it("normalizes a malformed today rather than handing back an unusable bound", () => {
+      const realToday = localDateString();
+
+      for (const junk of malformed) {
+        const { store, load, save } = makeStore();
+
+        const since = resolveAutoFilingSince(load, save, junk as string);
+        expect(since).toBe(realToday);
+        expect(store[LS_AUTO_RUN_START_DAY]).toBe(realToday);
+      }
+    });
+  });
+
+  it("comparison stays lexical across a month boundary", () => {
+    // The bound is applied as a string compare — never Date math, so no DST hazard.
+    expect("2026-07-31" < "2026-08-01").toBe(true);
+    expect("2026-08-01" >= "2026-07-31").toBe(true);
+    expect("2026-12-31" < "2027-01-01").toBe(true);
+  });
+
+  it("DeviceAutoRunState carries the stamp, null when unset", () => {
+    const { store, load, save } = makeStore();
+    expect(readDeviceAutoRunState(load).startDay).toBeNull();
+
+    writeAutoFilingStartDay(save, "2026-08-10");
+    expect(readDeviceAutoRunState(load).startDay).toBe("2026-08-10");
+
+    store[LS_AUTO_RUN_START_DAY] = "2026-13-01";
+    expect(readDeviceAutoRunState(load).startDay).toBeNull();
   });
 });
 
