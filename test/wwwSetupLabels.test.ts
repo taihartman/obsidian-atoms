@@ -70,16 +70,15 @@ function buttonLabels(tab: ReturnType<typeof plusTab>["tab"], name: string): str
 }
 
 describe("setup guide quotes labels the plugin still renders", () => {
-  it("names the companion CTA and the advanced Capture Atom button the settings screen renders", () => {
-    // Primary path is companion guide; advanced row still offers Install Capture Atom only.
+  it("names the Capture Atom install button the settings screen renders", () => {
+    // Companion stays hidden until App Store; shortcut is the path.
     const { tab } = settingTab();
     tab.display();
 
-    expect(buttonLabels(tab, "Atoms Capture companion")).toContain("Get Atoms Capture");
     const shortcutLabel = labelInstallOrUpdate(null);
     expect(shortcutLabel).toBe("Install Capture Atom");
-    expect(buttonLabels(tab, "Install Capture Atom only")).toContain(shortcutLabel);
-    expect(guide.includes("Get Atoms Capture"), "guide does not name companion CTA").toBe(
+    expect(buttonLabels(tab, "Capture Atom shortcut")).toContain(shortcutLabel);
+    expect(guide.includes("Install Capture Atom"), "guide does not name install CTA").toBe(
       true,
     );
   });

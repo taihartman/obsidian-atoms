@@ -28,13 +28,7 @@ import {
   LAST_CATCHUP_LABEL,
   readEgressNoticeAcked,
 } from "../platform/resume";
-import {
-  companionGuideVersion,
-  labelGetCompanion,
-  openCompanionDocs,
-  readCompanionGuideAck,
-  writeCompanionGuideAck,
-} from "../shared/mobileInstall";
+import { CAPTURE_ATOM_VERSION } from "../shared/mobileInstall";
 import {
   CAPTURE_SHORTCUT_VERSION,
   customCaptureShortcutUrl,
@@ -1502,7 +1496,6 @@ export class AtomsSettingTab extends PluginSettingTab {
     settingHeading(containerEl, "Capture");
 
     const shortcutAcked = readShortcutAck((k) => loadLocal(this.app, k));
-    const companionAcked = readCompanionGuideAck((k) => loadLocal(this.app, k));
     const custom = customCaptureShortcutUrl(
       this.plugin.settings.captureShortcutInstallUrl,
     );
@@ -1516,68 +1509,12 @@ export class AtomsSettingTab extends PluginSettingTab {
       cls: "setting-item-description",
     });
 
-    // Primary path: companion app. Capture Atom shortcut installs from the companion hub.
-    this.actionRow(containerEl, {
-      action: "companion:install",
-      name: "Atoms Capture companion",
-      desc:
-        "Phone app for setup + quick capture. On iOS: Capture Atom shortcut (system card). On Android: overlay + widget. Install links: mobile-install.json.",
-      label: labelGetCompanion(companionAcked),
-      disabled: false,
-      onClick: () => {
-        const ok = openCompanionDocs();
-        if (!ok) {
-          new Notice("Could not open the companion guide.");
-          return;
-        }
-        writeCompanionGuideAck(
-          (k, v) => this.app.saveLocalStorage(k, v),
-          companionGuideVersion(),
-        );
-        new Notice(
-          "Opened Atoms Capture guide — install the companion, then Capture Atom from its hub",
-        );
-        this.redisplay();
-      },
-    });
-
-    // Advanced: power users who only want the Shortcut without the companion.
-    const shortcutUrlRow = new Setting(containerEl)
-      .setName("Capture Atom shortcut (advanced)")
-      .setDesc(
-        custom
-          ? "Using your own iCloud link. Clear it to use the built-in Capture Atom URL from mobile-install.json."
-          : `Optional. Prefer Get Atoms Capture above. Built-in Capture Atom v${CAPTURE_SHORTCUT_VERSION} — only paste a link if you forked the recipe.`,
-      )
-      .addText((text) =>
-        text
-          .setPlaceholder("Using the shortcut Atoms ships")
-          .setValue(custom)
-          .onChange(async (value) => {
-            this.plugin.settings.captureShortcutInstallUrl =
-              customCaptureShortcutUrl(value);
-            await this.plugin.saveSettings();
-          }),
-      )
-      .addExtraButton((btn) =>
-        btn
-          .setIcon("rotate-ccw")
-          .setTooltip("Use the shortcut Atoms ships")
-          .setDisabled(!custom)
-          .onClick(async () => {
-            this.plugin.settings.captureShortcutInstallUrl = "";
-            await this.plugin.saveSettings();
-            new Notice("Back to the built-in Capture Atom shortcut");
-            this.redisplay();
-          }),
-      );
-    shortcutUrlRow.settingEl.addClass("atoms-capture-shortcut-url");
-
+    // Companion stays hidden until App Store. Capture Atom shortcut is the path.
     this.actionRow(containerEl, {
       action: "shortcut:install",
-      name: "Install Capture Atom only",
+      name: "Capture Atom shortcut",
       desc: urlSet
-        ? `Opens the Capture Atom iCloud link (v${CAPTURE_SHORTCUT_VERSION}) without the companion. Acked: ${shortcutAcked ?? "never"}.`
+        ? `iOS: opens Capture Atom v${CAPTURE_ATOM_VERSION}. After Add Shortcut: Shortcuts → Capture Atom → edit → Append to Bookmark → Atoms Inbox (not Ask Each Time) → Done. Open Obsidian with Atoms once first so that bookmark exists. Acked: ${shortcutAcked ?? "never"}.`
         : `No link — check mobile-install.json Capture Atom urls.`,
       label: labelInstallOrUpdate(shortcutAcked),
       disabled: !urlSet,
@@ -1603,6 +1540,38 @@ export class AtomsSettingTab extends PluginSettingTab {
         this.redisplay();
       },
     });
+
+    const shortcutUrlRow = new Setting(containerEl)
+      .setName("Custom shortcut link")
+      .setDesc(
+        custom
+          ? "Using your own iCloud link. Clear it to use the built-in Capture Atom URL."
+          : `Optional. Only paste a link if you forked the recipe. Built-in is Capture Atom v${CAPTURE_ATOM_VERSION}.`,
+      )
+      .addText((text) =>
+        text
+          .setPlaceholder("Using the shortcut Atoms ships")
+          .setValue(custom)
+          .onChange((value) => {
+            this.plugin.settings.captureShortcutInstallUrl =
+              customCaptureShortcutUrl(value);
+            void this.plugin.saveSettings();
+          }),
+      )
+      .addExtraButton((btn) =>
+        btn
+          .setIcon("rotate-ccw")
+          .setTooltip("Use the shortcut Atoms ships")
+          .setDisabled(!custom)
+          .onClick(() => {
+            this.plugin.settings.captureShortcutInstallUrl = "";
+            void Promise.resolve(this.plugin.saveSettings()).then(() => {
+              new Notice("Back to the built-in Capture Atom shortcut");
+              this.redisplay();
+            });
+          }),
+      );
+    shortcutUrlRow.settingEl.addClass("atoms-capture-shortcut-url");
   }
 
   private renderApiSection(containerEl: HTMLElement) {
