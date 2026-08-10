@@ -289,11 +289,13 @@ export async function runHubProjectionForHubs(opts: {
     try {
       const content = await opts.app.vault.read(file);
       const detail = detailByLow.get(low);
+      const fromDetail = detail?.sections ?? [];
       hubs.set(low, {
         title: h.canonicalTitle,
         path: h.path,
         content,
-        sections: detail?.sections ?? parseHubSections(content),
+        // Empty cache detail must not block live parse of the hub body.
+        sections: fromDetail.length ? fromDetail : parseHubSections(content),
         kind: "person",
       });
     } catch {

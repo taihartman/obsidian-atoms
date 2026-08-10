@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   enrichListHubLinks,
   isListHubShaped,
+  pickSoftMediaHub,
+  titleMatchesCapture,
 } from "../src/pipeline/enrich/listHubs";
-import type { ClassificationResult } from "../src/shared/types";
+import type { ClassificationResult, ListHubDetail } from "../src/shared/types";
 import { normalizeHubSection } from "../src/pipeline/classify";
 
 const baseAtom = (): ClassificationResult => ({
@@ -14,19 +16,55 @@ const baseAtom = (): ClassificationResult => ({
   links: [],
 });
 
+const movies: ListHubDetail = {
+  canonicalTitle: "Movies",
+  matchKeys: ["Movies"],
+  sections: ["Want to watch", "Watched"],
+};
+const shows: ListHubDetail = {
+  canonicalTitle: "Shows",
+  matchKeys: ["Shows"],
+  sections: ["Want to watch"],
+};
+
+describe("titleMatchesCapture", () => {
+  it("requires word boundaries", () => {
+    expect(titleMatchesCapture("want to watch Dune", "Movies")).toBe(false);
+    expect(titleMatchesCapture("add to Movies list", "Movies")).toBe(true);
+    expect(titleMatchesCapture("AI movies are cool", "AI")).toBe(false); // too short
+  });
+});
+
+describe("pickSoftMediaHub", () => {
+  it("picks unique soft hub", () => {
+    expect(pickSoftMediaHub("want to watch Dune", [movies])?.canonicalTitle).toBe(
+      "Movies",
+    );
+  });
+
+  it("picks Movies for generic watch dump when Movies+Shows exist", () => {
+    expect(
+      pickSoftMediaHub("want to watch Dune", [movies, shows])?.canonicalTitle,
+    ).toBe("Movies");
+  });
+
+  it("picks Shows for series cues", () => {
+    expect(
+      pickSoftMediaHub("watching Severance season 2", [movies, shows])
+        ?.canonicalTitle,
+    ).toBe("Shows");
+  });
+
+  it("prefers explicit name in capture", () => {
+    expect(
+      pickSoftMediaHub("add to my Shows list", [movies, shows])?.canonicalTitle,
+    ).toBe("Shows");
+  });
+});
+
 describe("enrichListHubLinks", () => {
   it("links unique Movies hub for watch capture", () => {
-    const out = enrichListHubLinks(
-      "want to watch Dune",
-      baseAtom(),
-      [
-        {
-          canonicalTitle: "Movies",
-          matchKeys: ["Movies"],
-          sections: ["Want to watch", "Watched"],
-        },
-      ],
-    );
+    const out = enrichListHubLinks("want to watch Dune", baseAtom(), [movies]);
     expect(out.links?.some((l) => l.note === "Movies")).toBe(true);
   });
 
@@ -36,30 +74,26 @@ describe("enrichListHubLinks", () => {
     ).toEqual([]);
   });
 
-  it("picks unique soft hub when Movies+Shows both exist and text names movies", () => {
-    const out = enrichListHubLinks("want to watch Dune on movies list", baseAtom(), [
-      {
-        canonicalTitle: "Movies",
-        matchKeys: ["Movies"],
-        sections: ["Want to watch"],
-      },
-      {
-        canonicalTitle: "Shows",
-        matchKeys: ["Shows"],
-        sections: ["Want to watch"],
-      },
+  it("links Movies when Movies+Shows both exist (generic watch)", () => {
+    const out = enrichListHubLinks("want to watch Dune", baseAtom(), [
+      movies,
+      shows,
     ]);
     expect(out.links?.some((l) => l.note === "Movies")).toBe(true);
+    expect(out.links?.some((l) => l.note === "Shows")).toBe(false);
+  });
+
+  it("links Shows when capture names shows", () => {
+    const out = enrichListHubLinks(
+      "want to watch Severance on my Shows list",
+      baseAtom(),
+      [movies, shows],
+    );
+    expect(out.links?.some((l) => l.note === "Shows")).toBe(true);
   });
 
   it("links sole soft hub when media-shaped and only Movies exists", () => {
-    const out = enrichListHubLinks("want to watch Dune", baseAtom(), [
-      {
-        canonicalTitle: "Movies",
-        matchKeys: ["Movies"],
-        sections: ["Want to watch"],
-      },
-    ]);
+    const out = enrichListHubLinks("want to watch Dune", baseAtom(), [movies]);
     expect(out.links?.some((l) => l.note === "Movies")).toBe(true);
   });
 });
@@ -82,13 +116,7 @@ describe("normalizeHubSection list hubs", () => {
         vocabulary: [],
         personHubs: [],
         personHubDetails: [],
-        listHubDetails: [
-          {
-            canonicalTitle: "Movies",
-            matchKeys: ["Movies"],
-            sections: ["Want to watch"],
-          },
-        ],
+        listHubDetails: [movies],
       },
     );
     expect(r.hub_section).toBe("Want to watch");

@@ -820,6 +820,8 @@ export async function runRefreshEligibleAtoms(
             titles: ctx.titles ?? [],
             personHubs: hubs,
             personHubTitles: ctx.personHubs ?? [],
+            personHubDetails: ctx.personHubDetails,
+            listHubDetails: ctx.listHubDetails,
           },
         );
       } else if (opts.fixtureResults) {

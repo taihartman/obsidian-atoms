@@ -203,6 +203,8 @@ export async function runWritePath(
             titles: ctx.titles ?? [],
             personHubs: hubs,
             personHubTitles: ctx.personHubs ?? [],
+            personHubDetails: ctx.personHubDetails,
+            listHubDetails: ctx.listHubDetails,
           },
         );
       } else {

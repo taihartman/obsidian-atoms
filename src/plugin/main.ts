@@ -1333,6 +1333,7 @@ export default class AtomsPlugin extends Plugin {
             atomFolder: this.settings.atomFolder,
             activeVocabulary: this.settings.activeVocabulary,
             personHubDetails: hubCtx.personHubDetails,
+            listHubDetails: hubCtx.listHubDetails,
             enableHubProjection: this.settings.enableHubProjection === true,
             // Feeds this chunk's atoms to the next chunk's shortlist (KTD4a).
             run: opts.run,
