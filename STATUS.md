@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| In progress | #408 | tai | `fix/stripe-portal-mode-mismatch` | ce-debug | `plus-service/src/stripe.mjs`, `server.mjs`, stores | Portal test/live customer mismatch self-heal |
+_Nothing in flight._
 
 ## How to claim (copy)
 
@@ -23,6 +23,7 @@ States: `Queued` · `In progress` · `Blocked` · `In review` · `Done` (then re
 
 | Merged | Issue / PR | Summary |
 |---|---|---|
+| 2026-08-10 | #408 / #410 | Plus portal clears stale test-mode Stripe customer under live keys (reconnect message; filings kept). Fly redeployed. |
 | 2026-08-09 | #397 / #402 | Background Ask syncs converge — the hub planner's stale snapshot copy no longer clobbers the atom planner's freshened hashes, so an edited atom is sent once instead of on every pass · **0.6.92**. Present since #225; invisible from the UI, which reported a healthy "last pushed" either way, and paid for in bandwidth, Plus request volume, and Anthropic spend. Both fixes the issue proposed are wrong and the merge-site comment says why. Proven live against a **rebuilt pre-fix control on the same vault** (six uploads of one unchanged atom versus one) plus a 13-scenario adversarial pass with no holes ([report](docs/qa/2026-08-09-397-hub-hash-clobber-world-class-qa.md)). The suite missed it for eight days because the fake host resolved zero hubs, so the clobbering map was never populated ([the learning](docs/solutions/logic-errors/a-planner-that-returns-a-full-copy-cannot-be-merged-with-a-spread.md)). New instrument: `scripts/qa-mirror-stub.mjs`, the permissive counterpart to the egress sentinel. |
 | 2026-08-09 | #393 / #401 | Session install disarms Ask when Plus identity changes (magic-link / paste / trial) · **0.6.91**. Same-account re-auth keeps the baseline; residual mirror email covers a lapsed session with no Sign out row. |
 | 2026-08-09 | #372 / #389 | Sign-out disarms the Ask mirror and clears device state before the next account can inherit either · **0.6.90**. Teardown has one home (`disarmAskMirror`); in-flight passes cannot restore the hash baseline; live QA found and fixed a second hole — network revoke used to run *before* disarm, so a slow RTT left the gate open for another upsert chunk. Acks survive on purpose. Follow-ups: #393–#397. Server-side account switch still Blocked (plus-service not deployed). |
