@@ -32,21 +32,32 @@ STRIPE_PRICE_TOPUP=price_…
 ANTHROPIC_API_KEY=sk-ant-…
 RESEND_API_KEY=re_…                # required in production
 ATOMS_PLUS_EMAIL_FROM=Atoms Plus <plus@mail.tryatoms.app>   # must be on verified domain
+ATOMS_PLUS_ALERT_EMAIL=ops@…       # Stripe incident alerts (#238); required in production
+ATOMS_ASK_MIRROR_KEY=…             # 64 hex chars (openssl rand -hex 32); Ask mirror AES-GCM
 # Optional promo codes (none by default in prod):
 # ATOMS_PLUS_PROMOS=FOUNDING=2
 # ATOMS_PLUS_PROMO_MAX=100
 ```
 
-Boot **exits 1** if gates fail (dogfood on, missing Stripe/DB/Resend/Anthropic, localhost PUBLIC_BASE_URL, memory/sqlite store).
+Boot **exits 1** if gates fail (dogfood on, missing Stripe/DB/Resend/Anthropic/alert email/mirror key, localhost PUBLIC_BASE_URL, memory/sqlite store).
 
-### Live secret snapshot (operator; 2026-07-27)
+### Live secret snapshot (operator; 2026-08-10)
+
+Names confirmed on Fly `atoms-plus` via `fly secrets list` (values never printed). Stripe mode matches launch checklist (2026-07-28 live GO) + Dashboard live webhook on tryatoms.
 
 | Item | Expected when public | Observed |
 |------|----------------------|----------|
-| `PUBLIC_BASE_URL` | `https://plus.tryatoms.app` | ✅ |
-| `STRIPE_SECRET_KEY` | `sk_live_…` | ❌ still `sk_test_…` |
-| `ATOMS_PLUS_EMAIL_FROM` | `Atoms Plus <plus@mail.tryatoms.app>` | ✅ verified |
-| Live Stripe webhook | enabled on host | ❌ none (test webhook only) |
+| `PUBLIC_BASE_URL` | `https://plus.tryatoms.app` | ✅ set |
+| `ATOMS_PLUS_ENV` / store / dogfood | `production` · `postgres` · dogfood `0` | ✅ set (`fly.toml` + secrets) |
+| `STRIPE_SECRET_KEY` | `sk_live_…` | ✅ secret present (live per checklist) |
+| `STRIPE_WEBHOOK_SECRET` + three `STRIPE_PRICE_*` | live allowlist | ✅ set |
+| Live Stripe webhook | `https://plus.tryatoms.app/v1/billing/webhook` | ✅ live endpoint (checklist) |
+| `ATOMS_PLUS_EMAIL_FROM` | `Atoms Plus <plus@mail.tryatoms.app>` | ✅ verified domain |
+| `RESEND_API_KEY` / `ANTHROPIC_API_KEY` / `DATABASE_URL` | required | ✅ set |
+| `ATOMS_ASK_MIRROR_KEY` / `ATOMS_PLUS_ALERT_EMAIL` | required by prod gate | ✅ set |
+| Live Checkout + Process smoke | one real payment path | ⬜ human — re-run after any Stripe secret rotate |
+
+After rotating Stripe/Resend/Anthropic/mirror keys, re-check this table and `fly secrets list -a atoms-plus`.
 
 ## Stripe webhook
 
@@ -90,6 +101,7 @@ fly secrets set -a atoms-plus \
   ANTHROPIC_API_KEY=… \
   RESEND_API_KEY=… \
   ATOMS_PLUS_EMAIL_FROM='Atoms Plus <plus@mail.tryatoms.app>' \
+  ATOMS_PLUS_ALERT_EMAIL='ops@yourdomain.example' \
   ATOMS_ASK_MIRROR_KEY="$(openssl rand -hex 32)"
 
 # Deploy (build context = repo root)
