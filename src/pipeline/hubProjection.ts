@@ -58,6 +58,11 @@ export function renderGeneratedBlock(
   }
 
   const parts: string[] = [];
+  // If the hub already has a human ## Unsorted, that pass emits the bucket —
+  // do not append a second ## Unsorted at the end (duplicate heading bug).
+  const hubHasUnsorted = hubSections.some(
+    (s) => s.trim().toLowerCase() === UNSORTED.toLowerCase(),
+  );
   for (const sec of hubSections) {
     const titles = buckets.get(sec);
     if (!titles?.length) continue;
@@ -65,7 +70,7 @@ export function renderGeneratedBlock(
     for (const t of titles) parts.push(`- [[${t}]]`);
   }
   const unsorted = buckets.get(UNSORTED);
-  if (unsorted?.length) {
+  if (unsorted?.length && !hubHasUnsorted) {
     parts.push(`## ${UNSORTED}`);
     for (const t of unsorted) parts.push(`- [[${t}]]`);
   }
