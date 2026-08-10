@@ -720,6 +720,24 @@ export function createSqliteStore(dbPath = config.databasePath) {
       a.stripeSubscriptionId = subId;
       return saveAccount(a);
     },
+    /**
+     * Drop the Stripe customer/subscription ids without touching the meter.
+     * Used when the stored id is wrong-mode or deleted (#408).
+     */
+    clearStripeBillingLink(email) {
+      const a = ensureAccount(email);
+      const old = a.stripeCustomerId;
+      a.stripeCustomerId = undefined;
+      a.stripeSubscriptionId = undefined;
+      saveAccount(a);
+      if (old) {
+        db.prepare("DELETE FROM stripe_customers WHERE customer_id = ?").run(
+          old,
+        );
+      }
+      db.prepare("DELETE FROM stripe_customers WHERE email = ?").run(a.email);
+      return a;
+    },
     emailFromStripeCustomer(customerId) {
       const r = db
         .prepare("SELECT email FROM stripe_customers WHERE customer_id = ?")

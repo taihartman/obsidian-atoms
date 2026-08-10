@@ -216,6 +216,36 @@ export async function createCheckoutSession(opts) {
 }
 
 /**
+ * User-safe copy when the stored customer id is wrong-mode or deleted (#408).
+ * Keep filings; tell them to reconnect via checkout.
+ */
+export const PORTAL_STALE_CUSTOMER_MESSAGE =
+  "Your billing link is out of date. Start checkout again from Atoms to reconnect — remaining filings stay as they are.";
+
+/**
+ * Stripe refused the stored customer id because it belongs to the other mode
+ * (test vs live) or was deleted. Portal must self-heal, not echo the raw error.
+ * @param {unknown} err
+ */
+export function isStaleStripeCustomerError(err) {
+  const msg = err instanceof Error ? err.message : String(err ?? "");
+  if (/similar object exists in (test|live) mode/i.test(msg)) return true;
+  if (/No such customer/i.test(msg)) return true;
+  const stripeErr =
+    err && typeof err === "object" && "stripe" in err
+      ? /** @type {{ stripe?: { error?: { code?: string, param?: string, message?: string } } }} */ (
+          err
+        ).stripe?.error
+      : undefined;
+  if (stripeErr?.code === "resource_missing") {
+    const param = String(stripeErr.param || "");
+    const detail = String(stripeErr.message || msg);
+    if (param === "customer" || /customer/i.test(detail)) return true;
+  }
+  return false;
+}
+
+/**
  * @param {{ customerId: string, returnUrl?: string }} opts
  */
 export async function createPortalSession(opts) {
@@ -233,6 +263,39 @@ export async function createPortalSession(opts) {
     throw new Error("Stripe portal missing url");
   }
   return session;
+}
+
+/**
+ * Open the billing portal for an account. On a stale/wrong-mode customer id,
+ * clear the billing link (not entitlement) and throw a user-safe 409.
+ *
+ * @param {{ clearStripeBillingLink?: (email: string) => unknown, emailFromStripeCustomer?: (id: string) => unknown }} store
+ * @param {{ email: string, stripeCustomerId?: string }} account
+ * @param {{ returnUrl?: string, createSession?: typeof createPortalSession }} [opts]
+ */
+export async function createPortalSessionForAccount(store, account, opts = {}) {
+  const customerId = account?.stripeCustomerId;
+  if (!customerId) {
+    const err = new Error("No Stripe customer on this account yet");
+    err.status = 400;
+    throw err;
+  }
+  const create = opts.createSession || createPortalSession;
+  try {
+    return await create({
+      customerId,
+      returnUrl: opts.returnUrl,
+    });
+  } catch (err) {
+    if (!isStaleStripeCustomerError(err)) throw err;
+    if (typeof store.clearStripeBillingLink === "function") {
+      await store.clearStripeBillingLink(account.email);
+    }
+    const stale = new Error(PORTAL_STALE_CUSTOMER_MESSAGE);
+    stale.status = 409;
+    stale.staleCustomer = true;
+    throw stale;
+  }
 }
 
 function allowedPriceIds() {

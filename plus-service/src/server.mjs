@@ -15,7 +15,7 @@ import {
   applyStripeEvent,
   constructEvent,
   createCheckoutSession,
-  createPortalSession,
+  createPortalSessionForAccount,
   stripeConfigured,
 } from "./stripe.mjs";
 import {
@@ -971,18 +971,23 @@ ${
           message: "Sign in with a magic link to manage billing",
         });
       }
-      const cust = a.stripeCustomerId;
-      if (!cust || !stripeConfigured()) {
+      if (!a.stripeCustomerId || !stripeConfigured()) {
         return json(res, 400, {
           message: "No Stripe customer on this account yet",
         });
       }
       try {
-        const portal = await createPortalSession({ customerId: cust });
+        // #408 — wrong-mode / deleted customer clears the billing link and
+        // returns a reconnect message instead of Stripe's raw error.
+        const portal = await createPortalSessionForAccount(store, a);
         return json(res, 200, { url: portal.url });
       } catch (err) {
+        const status =
+          err?.status && err.status >= 400 && err.status < 600
+            ? err.status
+            : 502;
         const msg = err instanceof Error ? err.message : "Portal failed";
-        return json(res, 502, { message: msg });
+        return json(res, status, { message: msg });
       }
     }
 
