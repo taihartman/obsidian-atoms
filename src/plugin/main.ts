@@ -1490,7 +1490,7 @@ export default class AtomsPlugin extends Plugin {
     if (this.settings.enableHubProjection !== true) return;
     if (this.settings.hubProjectionListDisclosureSeen === true) return;
     new Notice(
-      "Atoms: Hub projection now includes list hubs (e.g. Movies with headings), not only person notes. Your prose outside the managed markers is still never changed.",
+      "Atoms: List atoms on hub notes now covers list hubs too (like Movies), not only people. Your writing above the list is still never changed.",
       12000,
     );
     this.settings.hubProjectionListDisclosureSeen = true;

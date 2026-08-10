@@ -1890,8 +1890,8 @@ export class AtomsSettingTab extends PluginSettingTab {
     });
 
     settingRow(containerEl, {
-      name: "Hub projection",
-      desc: "When on, Process and Update write a managed list of linked atoms at the end of person and list hub notes (notes with headings you already wrote). Your text outside the markers never changes. Turning this on refreshes hubs that already have linked atoms. If Ask mirror is on, updated hubs sync vault→cloud. Off by default.",
+      name: "List atoms on hub notes",
+      desc: "After filing, add a list of linked atoms at the bottom of hub notes (people, Movies, packing lists, and similar). Your writing above the list stays the same. Off by default.",
       control: {
         kind: "toggle",
         configure: (toggle) =>
