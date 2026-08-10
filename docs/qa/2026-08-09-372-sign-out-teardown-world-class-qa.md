@@ -85,6 +85,20 @@ Empty silence alone is not evidence; the same session produced a logged attempt 
 
 **Hole found live (P0):** first run had `await signOutPlus` *before* `disarmAskMirror`. Slow stub held the revoke ~8s; during that RTT the mirror stayed permitted and a **second** upsert chunk left (`POST … bytes=23411` after the first 8s hold). Baseline stayed empty (guarded `save`), but bodies still left after Sign out.
 
+**Re-verified independently, 2026-08-09 16:26–16:28 EDT** — because the `:8800` log this section originally cited does **not** contain that leak. That stub truncates at startup and only ever captured one post-fix pass, so the citation pointed at an instrument that could not corroborate the claim. A second pass rebuilt the pre-fix commit `209d690` in a throwaway worktree (artifact md5 `77d546f4…`, decompiled to confirm network-await-before-disarm), installed it, and re-ran the interleave against a stub that holds only `/v1/auth/sign-out`. It reproduces, 2 for 2:
+
+```
+20:26:56.922Z POST /v1/auth/sign-out       bytes=2
+20:26:57.429Z POST /v1/ask/mirror/upsert   bytes=23411   ← after Sign out
+20:26:58.640Z POST /v1/ask/mirror/upsert   bytes=30603
+20:26:59.853Z POST /v1/ask/mirror/upsert   bytes=1704
+20:27:01.070Z POST /v1/ask/mirror/reconcile bytes=13680
+20:27:01.082Z POST /v1/ask/mirror/expand-backfill bytes=12
+20:27:04.924Z RELEASE /v1/auth/sign-out
+```
+
+So the original `bytes=23411` figure was exact. **The leak was wider than first reported:** not only upsert chunks but a full `reconcile` (13680 bytes — the entire keepPaths list) and an `expand-backfill` also left during the held revoke. A third run with Sign out clicked *after* the pass had drained showed no post-sign-out upsert at all, which is the negative control proving the instrument can report absence. Full log: scratch, not committed; reproduce with a stub that delays only the sign-out response.
+
 **Fix:** disarm + clear session **first**, then best-effort `signOutPlus`. Regression: `disarms before the sign-out network call returns`.
 
 **Re-drive after fix (slow stub `:8800`, 400-atom force sync):**
@@ -135,8 +149,9 @@ Decisive frame `01-sign-out-row.png`: Sign out row + description readable; spaci
 
 | ID | Sev | Finding | Resolution |
 |---|---|---|---|
-| F1 | **P0** | `signOutOfPlus` awaited network revoke before disarm → second upsert chunk after Sign out on slow transport | **Fixed** this pass: disarm first; unit pins order |
+| F1 | **P0** | `signOutOfPlus` awaited network revoke before disarm → upsert chunks, a full `reconcile`, and `expand-backfill` all left during the held RTT after Sign out | **Fixed** this pass: disarm first; unit pins order. Independently re-reproduced against a rebuilt pre-fix artifact, 2/2 with a negative control (see S4) |
 | F2 | P3 | Notice says "on this device" while row copy says mirror off on every synced device | Accepted tension: session is device-local; `askEnabled` is vault-synced (called out in plan) |
+| F3 | P3 | After sign-out, `Allow filing from Claude or ChatGPT` still reads ON for the next identity — it renders from `askWriteAckIsCurrent()`, and R3 preserves the acks. Disabled and inert (outbox gated on `mirrorPermitted()`), but it asserts a permission the new account never granted | Filed as [#398](https://github.com/taihartman/obsidian-atoms/issues/398); same trust shape as #393 |
 
 ## Not tested / residual
 
