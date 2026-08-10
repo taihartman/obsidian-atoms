@@ -14,7 +14,7 @@
  * per note rather than one per note per capture.
  */
 
-import type { App, TFile } from "obsidian";
+import type { App } from "obsidian";
 import {
   aliasesForFrontmatter,
   tagsForFileCache,

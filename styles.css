@@ -256,6 +256,7 @@
   cursor: pointer;
   align-items: start;
   -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
 .atoms-home-cell:last-child {
@@ -1671,6 +1672,7 @@
   display: -webkit-box;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  /* -webkit-line-clamp set at runtime via setCssProps (dynamic maxLines). */
 }
 
 /* Kicker */

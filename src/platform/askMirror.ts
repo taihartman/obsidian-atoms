@@ -1118,20 +1118,20 @@ async function confirmWithTimeout(
   request: ConfirmRequest,
 ): Promise<ConfirmVerdict> {
   const ms = host.confirmTimeoutMs ?? MIRROR_CONFIRM_TIMEOUT_MS;
-  let timer: ReturnType<typeof setTimeout> | undefined;
+  let timer: number | undefined;
   let timedOut = false;
   try {
     return await Promise.race([
       host.confirm(request),
       new Promise<ConfirmVerdict>((resolve) => {
-        timer = setTimeout(() => {
+        timer = window.setTimeout(() => {
           timedOut = true;
           resolve("dismissed");
         }, ms);
       }),
     ]);
   } finally {
-    if (timer !== undefined) clearTimeout(timer);
+    if (timer !== undefined) window.clearTimeout(timer);
     // Losing the race is not the same as the question going away. Tell the
     // host to take the dialog down, or it keeps offering a delete this pass
     // has already stopped listening for.

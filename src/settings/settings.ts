@@ -30,7 +30,6 @@ import {
 } from "../platform/resume";
 import { CAPTURE_ATOM_VERSION } from "../shared/mobileInstall";
 import {
-  CAPTURE_SHORTCUT_VERSION,
   customCaptureShortcutUrl,
   labelInstallOrUpdate,
   openShortcutInstallUrl,
@@ -124,7 +123,6 @@ import {
   saveAskMirrorStatus,
   LS_ASK_MIRROR_LAST_ERROR,
   LS_ASK_MIRROR_LAST_SUCCESS,
-  LS_ASK_MIRROR_SERVER_COUNT,
 } from "../platform/askMirror";
 import { installPlusSession } from "../platform/plusSessionInstall";
 import { fireAndForgetAsk } from "../shared/fireAndForget";
@@ -895,7 +893,7 @@ export class AtomsSettingTab extends PluginSettingTab {
       mirrorPermitted: () => this.plugin.ask.mirrorPermitted(),
       cancelPendingSync: () => this.plugin.ask.cancelPendingSync(),
       saveLocalStorage: (k: string, v: string) => this.app.saveLocalStorage(k, v),
-      loadLocalStorage: (k: string) => this.app.loadLocalStorage(k),
+      loadLocalStorage: (k: string): unknown => this.app.loadLocalStorage(k),
     };
   }
 
@@ -931,9 +929,9 @@ export class AtomsSettingTab extends PluginSettingTab {
           text
             .setPlaceholder("claude-sonnet-5")
             .setValue(this.plugin.settings.model)
-            .onChange(async (value) => {
+            .onChange((value) => {
               this.plugin.settings.model = value.trim() || "claude-sonnet-5";
-              await this.plugin.saveSettings();
+              void this.plugin.saveSettings();
             }),
       },
     });
@@ -948,9 +946,9 @@ export class AtomsSettingTab extends PluginSettingTab {
           text
             .setPlaceholder(DEFAULT_PLUS_BASE_URL)
             .setValue(this.plugin.settings.plusBaseUrl)
-            .onChange(async (value) => {
+            .onChange((value) => {
               this.plugin.settings.plusBaseUrl = value.trim();
-              await this.plugin.saveSettings();
+              void this.plugin.saveSettings();
             }),
       },
     });
@@ -1532,10 +1530,10 @@ export class AtomsSettingTab extends PluginSettingTab {
         }
         writeShortcutAck(
           (k, v) => this.app.saveLocalStorage(k, v),
-          CAPTURE_SHORTCUT_VERSION,
+          CAPTURE_ATOM_VERSION,
         );
         new Notice(
-          `Opened Capture Atom v${CAPTURE_SHORTCUT_VERSION} — add it in Shortcuts`,
+          `Opened Capture Atom v${CAPTURE_ATOM_VERSION} — add it, then edit → set bookmark to Atoms Inbox once`,
         );
         this.redisplay();
       },
@@ -1595,11 +1593,12 @@ export class AtomsSettingTab extends PluginSettingTab {
       .addComponent((el) =>
         new SecretComponent(this.app, el)
           .setValue(this.plugin.settings.apiKeySecretId)
-          .onChange(async (value) => {
+          .onChange((value) => {
             this.plugin.settings.apiKeySecretId = value;
-            await this.plugin.saveSettings();
-            // Saving is the moment the answer can change, so it is the moment to re-ask.
-            this.checkApiKey();
+            void Promise.resolve(this.plugin.saveSettings()).then(() => {
+              // Saving is the moment the answer can change, so it is the moment to re-ask.
+              this.checkApiKey();
+            });
           }),
       );
     this.apiKeyStatusEl = setting.descEl.createDiv({
@@ -1618,13 +1617,14 @@ export class AtomsSettingTab extends PluginSettingTab {
         configure: (toggle) =>
           toggle
             .setValue(this.plugin.settings.useDeviceLocalKeyFallback)
-            .onChange(async (value) => {
+            .onChange((value) => {
               this.plugin.settings.useDeviceLocalKeyFallback = value;
               if (!value) {
                 this.app.saveLocalStorage(LOCAL_STORAGE_API_KEY, null);
               }
-              await this.plugin.saveSettings();
-              this.redisplay();
+              void Promise.resolve(this.plugin.saveSettings()).then(() =>
+                this.redisplay(),
+              );
             }),
       },
     });
@@ -1851,9 +1851,9 @@ export class AtomsSettingTab extends PluginSettingTab {
           text
             .setPlaceholder("Atoms")
             .setValue(this.plugin.settings.atomFolder)
-            .onChange(async (value) => {
+            .onChange((value) => {
               this.plugin.settings.atomFolder = clampAtomFolder(value);
-              await this.plugin.saveSettings();
+              void this.plugin.saveSettings();
             }),
       },
     });
@@ -1866,16 +1866,17 @@ export class AtomsSettingTab extends PluginSettingTab {
         configure: (toggle) =>
           toggle
             .setValue(this.plugin.settings.enableHubProjection === true)
-            .onChange(async (on) => {
+            .onChange((on) => {
               const was = this.plugin.settings.enableHubProjection === true;
               this.plugin.settings.enableHubProjection = on;
               if (on) {
                 this.plugin.settings.hubProjectionListDisclosureSeen = true;
               }
-              await this.plugin.saveSettings();
-              if (on && !was) {
-                await this.plugin.runHubProjectionFullRegenNotice();
-              }
+              void Promise.resolve(this.plugin.saveSettings()).then(() => {
+                if (on && !was) {
+                  void this.plugin.runHubProjectionFullRegenNotice();
+                }
+              });
             }),
       },
     });
@@ -1903,14 +1904,15 @@ export class AtomsSettingTab extends PluginSettingTab {
         control: {
           kind: "toggle",
           configure: (toggle) =>
-            toggle.setValue(true).onChange(async (on) => {
+            toggle.setValue(true).onChange((on) => {
               if (on) return;
               this.plugin.settings.activeVocabulary = removeActiveTag(
                 tag,
                 this.plugin.settings.activeVocabulary,
               );
-              await this.plugin.saveSettings();
-              this.redisplay();
+              void Promise.resolve(this.plugin.saveSettings()).then(() =>
+                this.redisplay(),
+              );
             }),
         },
       });

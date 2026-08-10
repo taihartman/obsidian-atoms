@@ -21,7 +21,7 @@ export type RequestFn = (params: RequestUrlParam) => Promise<RequestUrlResponse>
 export async function plusFetchRequest(
   params: RequestUrlParam,
 ): Promise<RequestUrlResponse> {
-  // Community review: prefer requestUrl — see docstring (localhost + CORS).
+  // eslint-disable-next-line no-restricted-globals -- intentional fetch; desktop requestUrl fails to localhost (see file docstring).
   const res = await fetch(params.url, {
     method: params.method ?? "GET",
     headers: params.headers,

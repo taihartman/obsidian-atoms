@@ -4,6 +4,7 @@
  * (Swift cannot import this JSON at runtime until bundled; tests pin parity).
  */
 
+import { Platform } from "obsidian";
 import installJson from "../../mobile-install.json";
 
 export type ShortcutInstallSpec = {
@@ -121,14 +122,10 @@ export const LS_COMPANION_GUIDE_ACK = "atoms-companion-guide-acked-version";
 
 export type CompanionPlatform = "ios" | "android" | "both";
 
-/** Prefer mobile UA when available; desktop → both docs. */
+/** Prefer Platform API; desktop / unknown → both docs. */
 export function detectCompanionPlatform(): CompanionPlatform {
-  const ua =
-    typeof navigator !== "undefined" && typeof navigator.userAgent === "string"
-      ? navigator.userAgent
-      : "";
-  if (/Android/i.test(ua)) return "android";
-  if (/iPhone|iPad|iPod/i.test(ua)) return "ios";
+  if (Platform.isAndroidApp) return "android";
+  if (Platform.isIosApp) return "ios";
   return "both";
 }
 

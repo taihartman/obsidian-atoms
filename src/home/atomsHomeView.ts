@@ -534,7 +534,9 @@ export class AtomsHomeView extends ItemView {
     }
     const track = el.createDiv({ cls: "atoms-home-progress-track" });
     const fill = track.createDiv({ cls: "atoms-home-progress-fill" });
-    fill.style.width = `${progressPercent(this.runDone, this.runTotal)}%`;
+    fill.setCssStyles({
+      width: `${progressPercent(this.runDone, this.runTotal)}%`,
+    });
   }
 
   private noteMindChangePairPaths(
@@ -1003,12 +1005,12 @@ export class AtomsHomeView extends ItemView {
       }
     }
     const foot = el.createDiv({ cls: "atoms-home-resurface-foot" });
-    foot.createEl("span", {
+    foot.createSpan({
       cls: "atoms-home-resurface-title",
       text: card.title,
     });
     if (card.matchDate) {
-      foot.createEl("span", {
+      foot.createSpan({
         cls: "atoms-home-resurface-meta",
         text: formatCueDate(card.matchDate),
       });
@@ -2291,7 +2293,6 @@ export class AtomsHomeView extends ItemView {
           role: "button",
         });
         row.setAttr("tabindex", "0");
-        row.style.touchAction = "manipulation";
         this.libraryPressDetach.push(
           attachLongPress(row, {
             onTap: () => {
@@ -2372,7 +2373,6 @@ export class AtomsHomeView extends ItemView {
       });
       row.setAttr("tabindex", "0");
       row.setAttr("title", e.snippet);
-      row.style.touchAction = "manipulation";
       this.libraryPressDetach.push(
         attachLongPress(row, {
           onTap: () => {

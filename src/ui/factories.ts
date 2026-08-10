@@ -166,7 +166,7 @@ export function claimQuote(
     cls: mergeCls("atoms-ui-claim-quote", opts.className),
   });
   if (opts.maxLines != null && opts.maxLines > 0) {
-    el.style.webkitLineClamp = String(opts.maxLines);
+    el.setCssProps({ "-webkit-line-clamp": String(opts.maxLines) });
     el.classList.add("atoms-ui-claim-quote--clamp");
   }
   return el;

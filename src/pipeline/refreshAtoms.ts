@@ -1,4 +1,4 @@
-import { Notice, TFile, type App } from "obsidian";
+import { TFile, type App } from "obsidian";
 import { projectHubsFromAtomContents } from "./runHubProjection";
 import {
   applyClassificationQuality,

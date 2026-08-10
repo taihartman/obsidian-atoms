@@ -29,7 +29,7 @@ import {
   applyPersonPeerLinksToContents,
   resolveAtomPersonName,
 } from "./personInvite";
-import { Notice, TFile } from "obsidian";
+import { TFile } from "obsidian";
 import { projectHubsFromAtomContents } from "./runHubProjection";
 import { localDateYmd } from "./atomQuality";
 import {

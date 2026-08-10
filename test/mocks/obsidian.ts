@@ -426,6 +426,20 @@ export class TFile {
     this.path = path;
   }
 }
+
+/** Desktop defaults — tests flip flags when they need mobile branches. */
+export const Platform = {
+  isDesktopApp: true,
+  isMobileApp: false,
+  isIosApp: false,
+  isAndroidApp: false,
+  isPhone: false,
+  isTablet: false,
+  isMacOS: true,
+  isWin: false,
+  isLinux: false,
+  isMobile: false,
+};
 export const moment = (input?: string) => ({
   format: (f: string) => {
     if (input) return input;
