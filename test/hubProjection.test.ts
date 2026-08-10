@@ -42,6 +42,17 @@ describe("renderGeneratedBlock", () => {
       ["## Unsorted", "- [[loose]]", "- [[placed]]"].join("\n"),
     );
   });
+
+  it("keeps unsectioned atoms under lowercase hub ## unsorted", () => {
+    const block = renderGeneratedBlock(
+      [{ title: "loose" }, { title: "placed", section: "Unsorted" }],
+      ["Gift Ideas", "unsorted"],
+    );
+    expect(block).toContain("## unsorted");
+    expect(block).toContain("- [[loose]]");
+    expect(block).toContain("- [[placed]]");
+    expect(block.match(/^## /gm) ?? []).toHaveLength(1);
+  });
 });
 
 describe("projectHubMarkdown", () => {
