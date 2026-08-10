@@ -3,7 +3,7 @@
 - **Branch:** `fix/397-hub-hash-clobber`
 - **PR:** [#402](https://github.com/taihartman/obsidian-atoms/pull/402)
 - **Worktree:** `/Users/a515138832/StudioProjects/obsidian_plugin-397-hub-hash-clobber`
-- **Version under test:** `0.6.91` (`main.js` md5 `dcba0cad81c2ab29cf66fe91c58629d8`, byte-identical to the worktree build)
+- **Version under test:** `0.6.91` (`main.js` md5 `dcba0cad81c2ab29cf66fe91c58629d8`, byte-identical to the worktree build) — re-verified at `0.6.92` after merging master, see S5
 - **Date:** 2026-08-09
 - **Vault lane:** throwaway only — main checkout `test_vault/test vault` (402 atoms, 7 hubs). No personal / Remote Vault.
 - **App:** Obsidian 1.13.4, installer 1.12.7, CLI `/opt/homebrew/bin/obsidian`.
@@ -104,6 +104,15 @@ Hub-only edit → `1, 0, 0`, hub hash stable after the first pass. See scenario 
 `force` pass uploaded **409** and left exactly **409** hash entries (402 atoms + 7 hubs); the two
 following non-force passes uploaded **0**. The orphan sweep's "upsertNext has all when force"
 invariant holds live, not just in the unit test.
+
+### S5 — Re-verified after merging master (#401 / 0.6.91) — **PASS**
+
+Master took `0.6.91` while this branch was in review, so the branch rebased onto it and bumped to
+**0.6.92**. #401 touched `askMirror.ts`'s neighbours (session install disarms Ask on identity
+change), so the smoke was re-run on the merged build (`main.js` md5
+`1a8bbc8c12bf6691b58ce64726e443fa`): prime **409**, one edit → **1**, then **0, 0**, hash moved.
+Suite on the merge: **1461 passed / 85 files**.
+Evidence: [`docs/qa/logs/2026-08-09-397-mirror-merged-0692.log`](logs/2026-08-09-397-mirror-merged-0692.log).
 
 ## Adversarial pass (scenario ledger)
 
