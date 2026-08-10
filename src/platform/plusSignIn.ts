@@ -12,8 +12,8 @@ import type { ConfirmVerdict, SignInConfirmRequest } from "../shared/confirm";
 import {
   clearPendingSignIn,
   readPendingSignIns,
-  writePlusSession,
   type LocalStorageLike,
+  type PlusSession,
 } from "./filingAuth";
 import {
   DEFAULT_PLUS_BASE_URL,
@@ -117,6 +117,11 @@ export type PlusSignInHost = {
    * under vitest, and so the exchange has exactly one gate in front of it.
    */
   confirmSignIn: (request: SignInConfirmRequest) => Promise<ConfirmVerdict>;
+  /**
+   * Install the session on this device. The host owns identity-aware Ask teardown
+   * (#393) so magic-link sign-in cannot skip the boundary Settings uses.
+   */
+  installSession: (session: PlusSession) => Promise<void>;
 };
 
 /**
@@ -242,7 +247,7 @@ function plusConfig(host: Pick<PlusSignInHost, "settings">): PlusClientConfig {
  * this link's row would refuse a user whose only mistake was tapping twice.
  */
 export async function completeSignInHandoff(
-  host: Pick<PlusSignInHost, "app" | "settings" | "confirmSignIn">,
+  host: Pick<PlusSignInHost, "app" | "settings" | "confirmSignIn" | "installSession">,
   approval: MagicHandoffApproval,
 ): Promise<void> {
   const { status, isCurrent = () => true } = approval;
@@ -276,7 +281,7 @@ export async function completeSignInHandoff(
   }
 
   try {
-    writePlusSession(host.app, result.session);
+    await host.installSession(result.session);
     // The link is spent and the session is stored, so the verifiers it was
     // redeemed against have no further use.
     clearPendingSignIn(host.app);

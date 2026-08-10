@@ -92,7 +92,7 @@ import {
   readPlusSession,
   recordPendingSignIn,
   setAwaitingCheckout,
-  writePlusSession,
+
   type FilingAuth,
   type PlusEntitlementStatus,
   type PlusSession,
@@ -120,7 +120,7 @@ import {
 } from "../platform/plusClient";
 import {
   type AskMirrorOffReason,
-  clearAskMirrorDeviceState,
+  disarmAskMirror,
   formatAskMirrorStatusLine,
   formatAskMirrorServerCount,
   mirrorRefusalTitle,
@@ -132,6 +132,7 @@ import {
   LS_ASK_MIRROR_LAST_SUCCESS,
   LS_ASK_MIRROR_SERVER_COUNT,
 } from "../platform/askMirror";
+import { installPlusSession } from "../platform/plusSessionInstall";
 import { fireAndForgetAsk } from "../shared/fireAndForget";
 import { syncNowNotice } from "../shared/mirrorOutcome";
 import type { ConfirmRequest, ConfirmVerdict } from "../shared/confirm";
@@ -892,43 +893,20 @@ export class AtomsSettingTab extends PluginSettingTab {
     });
   }
 
-  /**
-   * The one owner of the sign-out / wipe teardown — "this device is no longer mirroring, but the
-   * consent record stands": disarm, get the disarm to disk, drop what the mirror still owes
-   * itself, then forget the baseline.
-   *
-   * That order is the invariant, not the end state, which is identical either way. Clearing the
-   * baseline first leaves a *permitted* mirror that believes it has uploaded nothing, which is the
-   * precondition for a full re-upload on the next vault event or reload — a bare plugin reload put
-   * all 407 rows back in four seconds (#371). Done in this order, a crash inside the save leaves an
-   * armed mirror with its baseline *intact*, which merely re-uploads nothing; the other order
-   * leaves an armed mirror over an empty baseline, which is #371 itself.
-   *
-   * The acks are left standing: they are the consent record, and the withdrawal row keys off the
-   * timestamp, so clearing them here would delete the only way back out. `clearAskMirrorDeviceState`
-   * owns the key list — re-listing keys at a call site is how this and the gate's readers drift, and
-   * a teardown that leaves a *parseable* count behind hands the gate a fabricated authority.
-   *
-   * Not the withdrawal path: `renderAskPrivacyAckRecord`'s `onWithdraw` also sets `askEnabled`
-   * false, but it deliberately *clears* the acks this helper preserves, because revoking consent
-   * is the one thing that must delete the record. Do not consolidate the two — folding withdrawal
-   * into this helper would leave a withdrawn ack standing on disk.
-   */
+  /** Shared teardown host — Sign out, Wipe, and session install (#393) share one sequence. */
+  private askMirrorDisarmHost() {
+    return {
+      settings: this.plugin.settings,
+      saveSettings: () => this.plugin.saveSettings(),
+      mirrorPermitted: () => this.plugin.ask.mirrorPermitted(),
+      cancelPendingSync: () => this.plugin.ask.cancelPendingSync(),
+      saveLocalStorage: (k: string, v: string) => this.app.saveLocalStorage(k, v),
+      loadLocalStorage: (k: string) => this.app.loadLocalStorage(k),
+    };
+  }
+
   private async disarmAskMirror(): Promise<void> {
-    this.plugin.settings.askEnabled = false;
-    await this.plugin.saveSettings();
-    // Closing the gate is not enough: a debounced push, or a pass already inside its
-    // single-flight loop, still owes itself a follow-up that never re-enters `sync()`. Same shape
-    // the external-settings paths use, and before the baseline is cleared, so nothing queued can
-    // fire against the state this teardown is dismantling.
-    //
-    // This drops the passes that have not started. The one already *running* is stopped by the
-    // disarm above, which the mirror host re-reads between chunks (`stillPermitted`) — which is
-    // why `saveSettings` has to land before the clear below and not after: a pass that observed
-    // the old, permitted settings would persist the baseline snapshot it took at its start and
-    // put back everything the next line removes.
-    if (!this.plugin.ask.mirrorPermitted()) this.plugin.ask.cancelPendingSync();
-    clearAskMirrorDeviceState((k, v) => this.app.saveLocalStorage(k, v));
+    await disarmAskMirror(this.askMirrorDisarmHost());
   }
 
   /**
@@ -1416,7 +1394,7 @@ export class AtomsSettingTab extends PluginSettingTab {
         new Notice(`Atoms Plus: ${started.message}`);
         return;
       }
-      writePlusSession(this.app, started.session);
+      await installPlusSession(this.askMirrorDisarmHost(), started.session);
       await this.openTrialCheckout(started.session);
     } finally {
       this.redisplay();
@@ -1474,7 +1452,7 @@ export class AtomsSettingTab extends PluginSettingTab {
         j.status === "inactive"
           ? j.status
           : "unknown";
-      writePlusSession(this.app, {
+      await installPlusSession(this.askMirrorDisarmHost(), {
         sessionToken,
         email,
         status,

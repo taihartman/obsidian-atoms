@@ -32,6 +32,7 @@ import {
   readPendingSignIns,
   readPlusSession,
   recordPendingSignIn,
+  writePlusSession,
   type LocalStorageLike,
 } from "../src/platform/filingAuth";
 import type { ConfirmVerdict, SignInConfirmRequest } from "../src/shared/confirm";
@@ -103,6 +104,9 @@ function harness(opts?: {
       confirms.push(request);
       opts?.whileConfirming?.(app);
       return opts?.verdict ?? "declined";
+    },
+    installSession: async (session) => {
+      writePlusSession(app, session);
     },
   };
   const queue = createSignInHandoffQueue({
@@ -706,6 +710,9 @@ describe("plusSignIn — a superseded handoff must not spend its token", () => {
       app: app as PlusSignInHost["app"],
       settings: { plusBaseUrl: "https://plus.test" },
       confirmSignIn,
+      installSession: async (session) => {
+        writePlusSession(app, session);
+      },
     };
     const queue = createSignInHandoffQueue({
       openStatus: () => {
