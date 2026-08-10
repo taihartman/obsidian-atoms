@@ -153,10 +153,12 @@ Link to a person note you already keep (e.g. `People/Jordan`). Backlinks surface
 
 ## Capture (phone)
 
-1. Install the **Atoms Capture** shortcut from **Settings → Capture** (or Atoms home → Install).
-2. Run it (or share text to it) to append a stamped line to the inbox note `Atoms System/Inbox.md` — the plugin creates that note and its **Atoms Inbox** bookmark for you.
-3. When Obsidian next opens (or via the **Drain inbox** command), each line files into the daily for its stamp date, creating that daily if missing.
-4. **Preview / Process** past days from Atoms home as usual.
+1. Open Obsidian with Atoms once so it creates `Atoms System/Inbox.md` and the **Atoms Inbox** bookmark.
+2. **Settings → Capture → Install Capture Atom** (or Atoms home).
+3. **Lock once:** Shortcuts → Capture Atom → edit → **Append to Bookmark** → **Atoms Inbox** (not Ask Each Time) → Done.
+4. Run it to append a stamped line to the inbox.
+5. When Obsidian next opens (or via the **Drain inbox** command), each line files into the daily for its stamp date.
+6. **Preview / Process** past days from Atoms home as usual.
 
 Uses Obsidian's **Capture to Bookmark**, which appends with the app force-quit — so a capture on a day with no daily still survives. See [docs/capture-shortcut.md](./docs/capture-shortcut.md).
 
