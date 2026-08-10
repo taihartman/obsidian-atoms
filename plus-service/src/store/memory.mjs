@@ -1195,6 +1195,21 @@ export function createMemoryStore() {
       a.stripeSubscriptionId = subId;
       return a;
     },
+    /**
+     * Drop the Stripe customer/subscription ids without touching the meter.
+     * Used when the stored id is wrong-mode or deleted (#408).
+     */
+    clearStripeBillingLink(email) {
+      const a = ensureAccount(email);
+      const old = a.stripeCustomerId;
+      if (old) stripeCustomers.delete(old);
+      for (const [id, em] of [...stripeCustomers.entries()]) {
+        if (em === a.email) stripeCustomers.delete(id);
+      }
+      a.stripeCustomerId = undefined;
+      a.stripeSubscriptionId = undefined;
+      return a;
+    },
     emailFromStripeCustomer: (id) => stripeCustomers.get(id) ?? null,
     revokeSubscription(email) {
       const a = ensureAccount(email);

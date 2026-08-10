@@ -850,6 +850,26 @@ export async function createPostgresStore(databaseUrl) {
       a.stripeSubscriptionId = subId;
       return saveAccount(a);
     },
+    /**
+     * Drop the Stripe customer/subscription ids without touching the meter.
+     * Used when the stored id is wrong-mode or deleted (#408).
+     */
+    async clearStripeBillingLink(email) {
+      const a = await ensureAccount(email);
+      const old = a.stripeCustomerId;
+      a.stripeCustomerId = undefined;
+      a.stripeSubscriptionId = undefined;
+      await saveAccount(a);
+      if (old) {
+        await pool.query("DELETE FROM stripe_customers WHERE customer_id = $1", [
+          old,
+        ]);
+      }
+      await pool.query("DELETE FROM stripe_customers WHERE email = $1", [
+        a.email,
+      ]);
+      return a;
+    },
     async emailFromStripeCustomer(customerId) {
       const { rows } = await pool.query(
         "SELECT email FROM stripe_customers WHERE customer_id = $1",

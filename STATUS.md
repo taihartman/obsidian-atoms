@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-_Nothing in flight._
+| In progress | #408 | tai | `fix/stripe-portal-mode-mismatch` | ce-debug | `plus-service/src/stripe.mjs`, `server.mjs`, stores | Portal test/live customer mismatch self-heal |
 
 ## How to claim (copy)
 
