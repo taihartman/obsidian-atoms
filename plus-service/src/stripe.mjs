@@ -216,8 +216,8 @@ export async function createCheckoutSession(opts) {
 }
 
 /**
- * User-safe copy when the stored customer id is wrong-mode or deleted (#408).
- * Keep filings; tell them to reconnect via checkout.
+ * User-safe copy when reconnect checkout cannot be opened (#408).
+ * Prefer returning a Checkout URL from createPortalSessionForAccount instead.
  */
 export const PORTAL_STALE_CUSTOMER_MESSAGE =
   "Your billing link is out of date. Start checkout again from Atoms to reconnect — remaining filings stay as they are.";
@@ -246,6 +246,18 @@ export function isStaleStripeCustomerError(err) {
 }
 
 /**
+ * Checkout kind used to attach a live Stripe customer after a missing/stale link.
+ * Trialing accounts reopen trial Checkout; everyone else gets monthly subscribe.
+ * @param {{ status?: string }} account
+ * @returns {CheckoutKind}
+ */
+export function reconnectCheckoutKind(account) {
+  const st = String(account?.status || "");
+  if (st === "trialing" || st === "inactive") return "start_trial";
+  return "subscribe_monthly";
+}
+
+/**
  * @param {{ customerId: string, returnUrl?: string }} opts
  */
 export async function createPortalSession(opts) {
@@ -266,35 +278,62 @@ export async function createPortalSession(opts) {
 }
 
 /**
- * Open the billing portal for an account. On a stale/wrong-mode customer id,
- * clear the billing link (not entitlement) and throw a user-safe 409.
+ * Open the billing portal, or live Checkout when the account has no usable
+ * Stripe customer (missing, deleted, or wrong mode after test→live).
  *
- * @param {{ clearStripeBillingLink?: (email: string) => unknown, emailFromStripeCustomer?: (id: string) => unknown }} store
- * @param {{ email: string, stripeCustomerId?: string }} account
- * @param {{ returnUrl?: string, createSession?: typeof createPortalSession }} [opts]
+ * Returns `{ url, reconnect?: true }`. The plugin always opens `url`.
+ *
+ * @param {{
+ *   clearStripeBillingLink?: (email: string) => unknown,
+ *   bindCheckoutSession?: (id: string, email: string, sessionToken: string) => unknown,
+ * }} store
+ * @param {{ email: string, status?: string, stripeCustomerId?: string }} account
+ * @param {{
+ *   returnUrl?: string,
+ *   sessionToken?: string,
+ *   createSession?: typeof createPortalSession,
+ *   createCheckout?: typeof createCheckoutSession,
+ * }} [opts]
  */
 export async function createPortalSessionForAccount(store, account, opts = {}) {
+  const createPortal = opts.createSession || createPortalSession;
+  const createCheckout = opts.createCheckout || createCheckoutSession;
+
+  const openReconnect = async () => {
+    const kind = reconnectCheckoutKind(account);
+    const cs = await createCheckout({ email: account.email, kind });
+    if (
+      opts.sessionToken &&
+      typeof store.bindCheckoutSession === "function" &&
+      cs?.id
+    ) {
+      await store.bindCheckoutSession(cs.id, account.email, opts.sessionToken);
+    }
+    if (typeof cs?.url !== "string" || !cs.url) {
+      const err = new Error(PORTAL_STALE_CUSTOMER_MESSAGE);
+      err.status = 409;
+      err.staleCustomer = true;
+      throw err;
+    }
+    return { url: cs.url, reconnect: true, id: cs.id };
+  };
+
   const customerId = account?.stripeCustomerId;
   if (!customerId) {
-    const err = new Error("No Stripe customer on this account yet");
-    err.status = 400;
-    throw err;
+    return openReconnect();
   }
-  const create = opts.createSession || createPortalSession;
   try {
-    return await create({
+    const portal = await createPortal({
       customerId,
       returnUrl: opts.returnUrl,
     });
+    return { url: portal.url, reconnect: false };
   } catch (err) {
     if (!isStaleStripeCustomerError(err)) throw err;
     if (typeof store.clearStripeBillingLink === "function") {
       await store.clearStripeBillingLink(account.email);
     }
-    const stale = new Error(PORTAL_STALE_CUSTOMER_MESSAGE);
-    stale.status = 409;
-    stale.staleCustomer = true;
-    throw stale;
+    return openReconnect();
   }
 }
 

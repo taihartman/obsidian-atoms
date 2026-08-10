@@ -2,8 +2,8 @@
  * #408 — Manage subscription with a test-mode customer id under live keys.
  *
  * Stripe returns "similar object exists in test mode, but a live mode key was
- * used". Portal must clear the billing link (not the meter) and surface a
- * short reconnect message — never the raw Stripe string.
+ * used". Portal must clear the billing link (not the meter) and open live
+ * Checkout so the plugin's existing window.open path reconnects billing.
  */
 import { describe, it, before } from "node:test";
 import assert from "node:assert/strict";
@@ -12,6 +12,7 @@ import {
   PORTAL_STALE_CUSTOMER_MESSAGE,
   createPortalSessionForAccount,
   isStaleStripeCustomerError,
+  reconnectCheckoutKind,
 } from "../src/stripe.mjs";
 
 before(() => {
@@ -56,6 +57,20 @@ describe("isStaleStripeCustomerError", () => {
   });
 });
 
+describe("reconnectCheckoutKind", () => {
+  it("reopens trial Checkout while trialing", () => {
+    assert.equal(reconnectCheckoutKind({ status: "trialing" }), "start_trial");
+  });
+
+  it("uses monthly subscribe once active or exhausted", () => {
+    assert.equal(reconnectCheckoutKind({ status: "active" }), "subscribe_monthly");
+    assert.equal(
+      reconnectCheckoutKind({ status: "exhausted" }),
+      "subscribe_monthly",
+    );
+  });
+});
+
 describe("createPortalSessionForAccount", () => {
   it("returns a portal url when Stripe accepts the customer", async () => {
     const store = await createStore({ mode: "memory" });
@@ -68,16 +83,51 @@ describe("createPortalSessionForAccount", () => {
     const account = await store.getAccount("ok@atoms.test");
 
     const portal = await createPortalSessionForAccount(store, account, {
-      createSession: async () => ({ url: "https://billing.stripe.com/p/session/test" }),
+      createSession: async () => ({
+        url: "https://billing.stripe.com/p/session/test",
+      }),
     });
     assert.equal(portal.url, "https://billing.stripe.com/p/session/test");
+    assert.equal(portal.reconnect, false);
     assert.equal(
       (await store.getAccount("ok@atoms.test")).stripeCustomerId,
       "cus_live_ok",
     );
   });
 
-  it("clears the billing link and keeps filings on mode mismatch", async () => {
+  it("opens trial Checkout when there is no Stripe customer yet", async () => {
+    const store = await createStore({ mode: "memory" });
+    await store.grantPeriod("tai@atoms.test", {
+      status: "trialing",
+      remaining: 120,
+      plan: "trial",
+      days: 14,
+    });
+    const account = await store.getAccount("tai@atoms.test");
+    const kinds = [];
+
+    const out = await createPortalSessionForAccount(store, account, {
+      sessionToken: "sess_reconnect",
+      createCheckout: async ({ email, kind }) => {
+        kinds.push({ email, kind });
+        return {
+          id: "cs_reconnect_1",
+          url: "https://checkout.stripe.com/c/pay/cs_reconnect_1",
+        };
+      },
+    });
+
+    assert.deepEqual(kinds, [{ email: "tai@atoms.test", kind: "start_trial" }]);
+    assert.equal(out.reconnect, true);
+    assert.equal(out.url, "https://checkout.stripe.com/c/pay/cs_reconnect_1");
+    assert.equal(
+      (await store.getAccount("tai@atoms.test")).status,
+      "trialing",
+    );
+    assert.equal((await store.getAccount("tai@atoms.test")).remaining, 120);
+  });
+
+  it("clears a stale customer and opens live Checkout", async () => {
     const store = await createStore({ mode: "memory" });
     await store.grantPeriod("tai@atoms.test", {
       status: "trialing",
@@ -89,31 +139,33 @@ describe("createPortalSessionForAccount", () => {
     await store.setStripeSubscription("tai@atoms.test", "sub_test_stale");
     const account = await store.getAccount("tai@atoms.test");
 
-    await assert.rejects(
-      () =>
-        createPortalSessionForAccount(store, account, {
-          createSession: async () => {
-            const err = new Error(
-              "No such customer: 'cus_UxIOqpgzNB3c5R'; a similar object exists in test mode, but a live mode key was used to make this request.",
-            );
-            err.status = 400;
-            err.stripe = {
-              error: {
-                code: "resource_missing",
-                param: "customer",
-                message: err.message,
-              },
-            };
-            throw err;
+    const out = await createPortalSessionForAccount(store, account, {
+      sessionToken: "sess_tai",
+      createSession: async () => {
+        const err = new Error(
+          "No such customer: 'cus_UxIOqpgzNB3c5R'; a similar object exists in test mode, but a live mode key was used to make this request.",
+        );
+        err.status = 400;
+        err.stripe = {
+          error: {
+            code: "resource_missing",
+            param: "customer",
+            message: err.message,
           },
-        }),
-      (err) => {
-        assert.equal(err.message, PORTAL_STALE_CUSTOMER_MESSAGE);
-        assert.equal(err.status, 409);
-        assert.equal(err.staleCustomer, true);
-        return true;
+        };
+        throw err;
       },
-    );
+      createCheckout: async ({ kind }) => {
+        assert.equal(kind, "start_trial");
+        return {
+          id: "cs_live_1",
+          url: "https://checkout.stripe.com/c/pay/cs_live_1",
+        };
+      },
+    });
+
+    assert.equal(out.reconnect, true);
+    assert.equal(out.url, "https://checkout.stripe.com/c/pay/cs_live_1");
 
     const after = await store.getAccount("tai@atoms.test");
     assert.equal(after.stripeCustomerId, undefined);
@@ -144,6 +196,27 @@ describe("createPortalSessionForAccount", () => {
     assert.equal(
       (await store.getAccount("keep@atoms.test")).stripeCustomerId,
       "cus_keep",
+    );
+  });
+
+  it("surfaces the stale message when reconnect Checkout has no url", async () => {
+    const store = await createStore({ mode: "memory" });
+    await store.grantPeriod("bad@atoms.test", {
+      status: "trialing",
+      remaining: 10,
+    });
+    const account = await store.getAccount("bad@atoms.test");
+
+    await assert.rejects(
+      () =>
+        createPortalSessionForAccount(store, account, {
+          createCheckout: async () => ({ id: "cs_empty" }),
+        }),
+      (err) => {
+        assert.equal(err.message, PORTAL_STALE_CUSTOMER_MESSAGE);
+        assert.equal(err.status, 409);
+        return true;
+      },
     );
   });
 });
