@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { TFile } from "obsidian";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { Notice, TFile } from "obsidian";
 import * as dni from "obsidian-daily-notes-interface";
 import {
   DailyNotesDisabledError,
@@ -7,6 +7,14 @@ import {
   FutureDailyNoteError,
   getPastDailyNotesWithUnmarkedCaptures,
 } from "../src/pipeline/daily";
+import AtomsPlugin from "../src/plugin/main";
+import {
+  LS_AUTO_RUN_EGRESS_ACK,
+  LS_AUTO_RUN_ENABLED,
+  LS_AUTO_RUN_START_DAY,
+  LS_LAST_RUN_DAY,
+  EGRESS_ACK_VERSION,
+} from "../src/platform/autorun";
 
 const app = {} as never;
 
@@ -160,5 +168,90 @@ describe("getPastDailyNotesWithUnmarkedCaptures — bounds plumbing", () => {
     });
     expect(result.notes.map((n) => n.date)).toEqual(["2026-08-01"]);
     expect(result.totalUnprocessed).toBe(1);
+  });
+});
+
+/**
+ * The two plugin-level count surfaces, driven off the prototype with the fields they read.
+ * `showAutoRunStatus` is what the CLI smoke reads as evidence, so a count it reports wider
+ * than the window would be mistaken for a real defect; `runListUnprocessed` is the deliberate
+ * unbounded diagnostic and this pins that difference so a later refactor cannot erase it.
+ */
+describe("plugin count surfaces vs the filing window", () => {
+  /** Pre-window captures only: everything inside the window is already drained. */
+  const days = ["2026-08-01", "2026-08-02"];
+
+  function stubPlugin(local: Record<string, unknown>) {
+    const files = Object.fromEntries(
+      days.map((d) => [d, new TFile(`Daily/${d}.md`)]),
+    );
+    vi.spyOn(dni, "getAllDailyNotes").mockReturnValue(files as never);
+    vi.spyOn(dni, "getDateFromFile").mockImplementation(
+      ((file: TFile) => {
+        const date = file.path.slice("Daily/".length, -".md".length);
+        return { format: () => date } as never;
+      }) as never,
+    );
+    const plugin = Object.create(AtomsPlugin.prototype) as {
+      app: unknown;
+      settings: unknown;
+      vaultIndexReady: boolean;
+      getAutoRunSnapshot: () => unknown;
+      showAutoRunStatus: () => Promise<void>;
+      runListUnprocessed: () => Promise<void>;
+    };
+    plugin.app = {
+      vault: { cachedRead: async () => "- unmarked capture\n" },
+      loadLocalStorage: (k: string) => local[k] ?? null,
+      saveLocalStorage: (k: string, v: unknown) => {
+        local[k] = v;
+      },
+    };
+    plugin.settings = {};
+    plugin.vaultIndexReady = true;
+    plugin.getAutoRunSnapshot = () => ({
+      enabled: true,
+      lastRunDay: "2026-08-10",
+      egressAcked: true,
+      inFlight: false,
+      hasKey: true,
+    });
+    return plugin;
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-10T12:00:00"));
+    Notice.messages.length = 0;
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("showAutoRunStatus reports zero remaining on a drained window", async () => {
+    const plugin = stubPlugin({
+      [LS_AUTO_RUN_ENABLED]: true,
+      [LS_AUTO_RUN_EGRESS_ACK]: EGRESS_ACK_VERSION,
+      [LS_LAST_RUN_DAY]: "2026-08-10",
+      [LS_AUTO_RUN_START_DAY]: "2026-08-09",
+    });
+
+    await plugin.showAutoRunStatus();
+
+    expect(Notice.messages.at(-1)).toMatch(/past=0/);
+  });
+
+  it("runListUnprocessed stays unbounded — the diagnostic sees all history", async () => {
+    const plugin = stubPlugin({
+      [LS_AUTO_RUN_ENABLED]: true,
+      [LS_AUTO_RUN_START_DAY]: "2026-08-09",
+    });
+
+    await plugin.runListUnprocessed();
+
+    expect(Notice.messages.at(-1)).toMatch(
+      /2 unprocessed capture\(s\) across 2 past day\(s\)/,
+    );
   });
 });

@@ -661,6 +661,11 @@ export type FilingHeroCopy = {
  */
 export function filingHeroCopy(input: {
   pastUnprocessed: number;
+  /**
+   * Captures inside the filing window — what unattended auto-run will actually file (KTD2).
+   * Defaults to `pastUnprocessed` so a caller with no window bound reads as before.
+   */
+  windowUnprocessed?: number;
   hasKey: boolean;
   autoEnabled: boolean;
   egressAcked: boolean;
@@ -676,8 +681,7 @@ export function filingHeroCopy(input: {
   if (input.pastUnprocessed <= 0) return null;
 
   const n = input.pastUnprocessed;
-  const countLabel =
-    n === 1 ? "1 Capture Waiting" : `${n} Captures Waiting`;
+  const countLabel = capturesWaitingLabel(n);
 
   const path: FilingPathKind =
     input.filingPath ?? (input.hasKey ? "byok" : "none");
@@ -751,16 +755,76 @@ export function filingHeroCopy(input: {
     };
   }
 
+  // Automatic filing is on, but the window holds none of what is waiting — every capture here
+  // predates the day filing was enabled, and no unattended pass will reach it. Say what is
+  // true (a tap files it) rather than a promise nothing keeps.
+  const windowN = input.windowUnprocessed ?? n;
+  if (windowN <= 0) {
+    return {
+      mode: "auto_on",
+      eyebrow: "Ready",
+      title: countLabel,
+      body: "Process when you are ready.",
+      primaryLabel: "Process now",
+      primaryAction: "process",
+      secondaryLabel: "Preview",
+      secondaryAction: "preview",
+    };
+  }
+
   return {
     mode: "auto_on",
     eyebrow: "Automatic",
-    title: countLabel,
+    // The window count, not the total: this card's body promises an unattended pass.
+    title: capturesWaitingLabel(windowN),
     body: "Automatic filing is on for this device. Past days file when you open Obsidian — Process only if you want them sooner.",
     primaryLabel: "Process now",
     primaryAction: "process",
     secondaryLabel: "Preview",
     secondaryAction: "preview",
   };
+}
+
+function capturesWaitingLabel(n: number): string {
+  return n === 1 ? "1 Capture Waiting" : `${n} Captures Waiting`;
+}
+
+/**
+ * Captures inside the filing window, derived from an unbounded past scan.
+ *
+ * Filtering the scan the home view already made, rather than scanning the vault a second
+ * time: the window bound is purely a date compare, so the two agree by construction.
+ */
+export function countUnprocessedSince(
+  notes: ReadonlyArray<{ date: string; unprocessed: ReadonlyArray<unknown> }>,
+  since: string,
+): number {
+  return notes.reduce(
+    (sum, n) => (n.date >= since ? sum + n.unprocessed.length : sum),
+    0,
+  );
+}
+
+/**
+ * The home subtitle while captures wait.
+ *
+ * Only the window count may carry the automatic-filing promise (KTD2). Captures older than
+ * the day filing was enabled are still waiting and Process still files them — they are just
+ * not something the device will do on its own, so they speak as "ready to file".
+ */
+export function waitingSubtitle(input: {
+  pastUnprocessed: number;
+  windowUnprocessed: number;
+  automaticFilingReady: boolean;
+}): string {
+  if (input.automaticFilingReady && input.windowUnprocessed > 0) {
+    return input.windowUnprocessed === 1
+      ? "1 past thought will file automatically"
+      : `${input.windowUnprocessed} past thoughts will file automatically`;
+  }
+  return input.pastUnprocessed === 1
+    ? "1 thought ready to file"
+    : `${input.pastUnprocessed} thoughts ready to file`;
 }
 
 /** Map resolveFilingAuth result → wait-card path. */

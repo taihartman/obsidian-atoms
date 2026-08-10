@@ -12,6 +12,7 @@ import {
   ALSO_ABOUT_BODY_NOTE,
   bodyAfterFrontmatter,
   buildAlsoAboutStripModel,
+  countUnprocessedSince,
   countUpdateWorkRemaining,
   extractSourceDay,
   filingHeroCopy,
@@ -29,6 +30,7 @@ import {
   titleFromAtomPath,
   updateNotesConfirmCopy,
   updateNotesStripCopy,
+  waitingSubtitle,
   type AtomLibraryEntry,
   type FilingHeroAction,
   type FilingHeroCopy,
@@ -75,6 +77,10 @@ import {
   readPlusLimitDismissDay,
   writePlusLimitDismissDay,
 } from "../platform/filingAuth";
+import {
+  localDateString,
+  resolveAutoFilingSince,
+} from "../platform/autorun";
 import { UPDATE_NOTES_BATCH_LIMIT } from "../pipeline/refreshAtoms";
 import {
   formatAskMirrorRefusalLine,
@@ -213,7 +219,14 @@ export class AtomsHomeView extends ItemView {
   private skippedEntries: SkippedLibraryEntry[] = [];
   /** Daily path:mtime fingerprint; skip full Skipped re-scan when unchanged. */
   private skippedFingerprint: string | null = null;
+  /** All past unmarked captures — what an attended Process files. */
   private unprocessedCount = 0;
+  /**
+   * The subset inside the filing window — what unattended auto-run will file (KTD2).
+   * Only this number may appear beside an automatic-filing promise; `unprocessedCount`
+   * stays unbounded so the wait card, Process, and the first-day check keep their meaning.
+   */
+  private windowUnprocessedCount = 0;
   /** Captures stuck in the capture inbox (drain health), null when clear. */
   private inboxStuck: InboxStuckSummary | null = null;
   /** Raw counts behind inboxStuck, kept so Dismiss can re-summarize without a re-read. */
@@ -667,6 +680,17 @@ export class AtomsHomeView extends ItemView {
     try {
       const past = await getPastDailyNotesWithUnmarkedCaptures(this.app);
       this.unprocessedCount = past.totalUnprocessed;
+      // Same bound an unattended pass resolves. Read-only here: resolveAutoFilingSince only
+      // persists on a device that has automatic filing on, so opening home never starts a
+      // window. Derived from the scan above rather than a second vault pass.
+      this.windowUnprocessedCount = countUnprocessedSince(
+        past.notes,
+        resolveAutoFilingSince(
+          (k) => this.app.loadLocalStorage(k) as unknown,
+          (k, v) => this.app.saveLocalStorage(k, v),
+          localDateString(),
+        ),
+      );
       this.peek = queuePeekTexts(past.notes, 3);
 
       const withToday = await getPastDailyNotesWithUnmarkedCaptures(this.app, {
@@ -690,6 +714,7 @@ export class AtomsHomeView extends ItemView {
     } catch (e) {
       if (e instanceof DailyNotesDisabledError) {
         this.unprocessedCount = 0;
+        this.windowUnprocessedCount = 0;
         this.todayUnprocessedCount = 0;
         this.peek = [];
         this.skippedEntries = [];
@@ -1968,13 +1993,13 @@ export class AtomsHomeView extends ItemView {
                 ? this.runSummaryText
                 : this.runSummaryText
         : shouldShowWaitCard(this.unprocessedCount)
-          ? isAutomaticFilingReady(this.plugin.getAutoRunSnapshot())
-            ? this.unprocessedCount === 1
-              ? "1 past thought will file automatically"
-              : `${this.unprocessedCount} past thoughts will file automatically`
-            : this.unprocessedCount === 1
-              ? "1 thought ready to file"
-              : `${this.unprocessedCount} thoughts ready to file`
+          ? waitingSubtitle({
+              pastUnprocessed: this.unprocessedCount,
+              windowUnprocessed: this.windowUnprocessedCount,
+              automaticFilingReady: isAutomaticFilingReady(
+                this.plugin.getAutoRunSnapshot(),
+              ),
+            })
           : this.entries.length
             ? "Your second brain"
             : "Nothing filed yet";
@@ -2028,6 +2053,7 @@ export class AtomsHomeView extends ItemView {
       const hero =
         filingHeroCopy({
           pastUnprocessed: this.unprocessedCount,
+          windowUnprocessed: this.windowUnprocessedCount,
           hasKey: snap.hasKey,
           autoEnabled: snap.enabled,
           egressAcked: snap.egressAcked,
@@ -2274,9 +2300,11 @@ export class AtomsHomeView extends ItemView {
         });
       } else if (shouldShowWaitCard(this.unprocessedCount)) {
         empty.createEl("p", {
-          text: isAutomaticFilingReady(this.plugin.getAutoRunSnapshot())
-            ? "Library fills after automatic filing (or Process now)."
-            : "Library fills after you Process.",
+          text:
+            isAutomaticFilingReady(this.plugin.getAutoRunSnapshot()) &&
+            this.windowUnprocessedCount > 0
+              ? "Library fills after automatic filing (or Process now)."
+              : "Library fills after you Process.",
         });
       } else if (!firstDay) {
         empty.createEl("p", {

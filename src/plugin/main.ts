@@ -33,7 +33,9 @@ declare const ATOMS_DEV_COMMANDS: boolean;
 /** Dev diagnostics hook — no-op (Community plugin scan forbids console). */
 function devLog(..._args: unknown[]): void {
   void _args;
-  void ATOMS_DEV_COMMANDS;
+  // `typeof` guard: the define only exists inside an esbuild bundle, and a bare reference
+  // throws a ReferenceError anywhere else — including any test that reaches this file.
+  void (typeof ATOMS_DEV_COMMANDS !== "undefined" && ATOMS_DEV_COMMANDS);
 }
 import {
   classifyCapture,
@@ -105,6 +107,7 @@ import {
   PER_LAUNCH_CAP,
   readDeviceAutoRunState,
   readEgressPermitted,
+  resolveAutoFilingSince,
   runAutoFilingCycle,
   shouldRunAutoProcess,
   waitForVaultIndexReady,
@@ -1430,7 +1433,15 @@ export default class AtomsPlugin extends Plugin {
   async showAutoRunStatus() {
     const snap = this.getAutoRunSnapshot();
     const today = localDateString();
-    const pastRemaining = await this.countPastUnprocessed();
+    // The same bound the next unattended pass will resolve. Unbounded here would report work
+    // remaining on a drained window and `wouldRunNow: true` on a day already stamped — and this
+    // command is what the CLI smoke reads as evidence, so that number would be read as a defect.
+    const since = resolveAutoFilingSince(
+      (k) => this.app.loadLocalStorage(k) as unknown,
+      (k, v) => this.app.saveLocalStorage(k, v),
+      today,
+    );
+    const pastRemaining = await this.countPastUnprocessed({ since });
     const would = shouldRunAutoProcess({
       enabled: snap.enabled,
       lastRunDay: snap.lastRunDay,
@@ -1441,6 +1452,7 @@ export default class AtomsPlugin extends Plugin {
     const payload = {
       ...snap,
       today,
+      filingSince: since,
       vaultIndexReady: this.vaultIndexReady,
       pastRemaining,
       wouldRunNow: would,
@@ -2155,6 +2167,9 @@ export default class AtomsPlugin extends Plugin {
 
   async runListUnprocessed() {
     try {
+      // Deliberately unbounded, unlike every filing surface: this is the diagnostic that
+      // answers "what is actually unmarked in this vault", including everything outside the
+      // filing window. Bounding it would hide exactly what someone runs it to see.
       const { notes, totalUnprocessed } =
         await getPastDailyNotesWithUnmarkedCaptures(this.app);
       devLog("[atoms] unprocessed captures", {
