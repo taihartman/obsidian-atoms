@@ -875,13 +875,11 @@ ${
         });
       }
 
-      // Block a second trial only when a live Stripe customer already exists.
-      // Entitled-but-unlinked accounts (test→live cutover, #408) must be able
-      // to open Checkout again so Manage subscription can reconnect billing.
+      // Trial is once. Entitled-but-unlinked accounts reconnect via portal
+      // (paid subscribe Checkout), never a second start_trial.
       if (
         kind === "start_trial" &&
-        (a.status === "active" || a.status === "trialing") &&
-        a.stripeCustomerId
+        (a.status === "active" || a.status === "trialing")
       ) {
         return json(res, 409, {
           message: "Already subscribed — use Manage billing or magic link",

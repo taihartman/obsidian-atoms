@@ -161,7 +161,14 @@ async function readStripeJson(res) {
 }
 
 /**
- * @param {{ email: string, kind: CheckoutKind, successUrl?: string, cancelUrl?: string }} opts
+ * @param {{
+ *   email: string,
+ *   kind: CheckoutKind,
+ *   successUrl?: string,
+ *   cancelUrl?: string,
+ *   trialEndUnix?: number,
+ * }} opts
+ * `trialEndUnix` — reconnect only: pin Stripe trial_end (no new trial_period_days).
  */
 export async function createCheckoutSession(opts) {
   const resolved = resolveCheckoutKind(opts.kind);
@@ -200,7 +207,16 @@ export async function createCheckoutSession(opts) {
     params["subscription_data[metadata][email]"] = opts.email;
     params["subscription_data[metadata][kind]"] = opts.kind;
     params["subscription_data[metadata][plan]"] = resolved.plan;
-    if (resolved.trialDays && resolved.trialDays > 0) {
+    // trial_end and trial_period_days are mutually exclusive in Stripe.
+    const trialEnd =
+      typeof opts.trialEndUnix === "number" &&
+      Number.isFinite(opts.trialEndUnix) &&
+      opts.trialEndUnix > 0
+        ? Math.floor(opts.trialEndUnix)
+        : 0;
+    if (trialEnd > 0) {
+      params["subscription_data[trial_end]"] = trialEnd;
+    } else if (resolved.trialDays && resolved.trialDays > 0) {
       params["subscription_data[trial_period_days]"] = resolved.trialDays;
     }
   } else {
@@ -246,15 +262,31 @@ export function isStaleStripeCustomerError(err) {
 }
 
 /**
- * Checkout kind used to attach a live Stripe customer after a missing/stale link.
- * Trialing accounts reopen trial Checkout; everyone else gets monthly subscribe.
- * @param {{ status?: string }} account
+ * Reconnect never re-issues a free trial — trial is once per account.
+ * Always open paid monthly Checkout; optionally keep the remaining trial window
+ * via trial_end (card on file, no new trial_period_days).
+ * @param {{ status?: string }} [_account]
  * @returns {CheckoutKind}
  */
-export function reconnectCheckoutKind(account) {
-  const st = String(account?.status || "");
-  if (st === "trialing" || st === "inactive") return "start_trial";
+export function reconnectCheckoutKind(_account) {
   return "subscribe_monthly";
+}
+
+/**
+ * Stripe requires trial_end ≥ ~48h from now. Only pass through a future period
+ * end that clears that floor — otherwise charge starts immediately on subscribe.
+ * @param {{ status?: string, periodEnd?: string | Date }} account
+ * @param {number} [nowSec]
+ * @returns {number | undefined} unix seconds
+ */
+export function reconnectTrialEndUnix(account, nowSec = Math.floor(Date.now() / 1000)) {
+  if (String(account?.status || "") !== "trialing") return undefined;
+  const endMs = Date.parse(String(account?.periodEnd || ""));
+  if (!Number.isFinite(endMs)) return undefined;
+  const endSec = Math.floor(endMs / 1000);
+  const minSec = nowSec + 48 * 3600;
+  if (endSec < minSec) return undefined;
+  return endSec;
 }
 
 /**
@@ -301,7 +333,12 @@ export async function createPortalSessionForAccount(store, account, opts = {}) {
 
   const openReconnect = async () => {
     const kind = reconnectCheckoutKind(account);
-    const cs = await createCheckout({ email: account.email, kind });
+    const trialEndUnix = reconnectTrialEndUnix(account);
+    const cs = await createCheckout({
+      email: account.email,
+      kind,
+      ...(trialEndUnix ? { trialEndUnix } : {}),
+    });
     if (
       opts.sessionToken &&
       typeof store.bindCheckoutSession === "function" &&
