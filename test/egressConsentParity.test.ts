@@ -24,8 +24,10 @@ import { EGRESS_ACK_TITLE, EGRESS_DISCLOSURE } from "../src/settings/consent";
 import {
   EGRESS_ACK_VERSION,
   enableAutomaticFiling,
+  localDateString,
   LS_AUTO_RUN_EGRESS_ACK,
   LS_AUTO_RUN_ENABLED,
+  LS_AUTO_RUN_START_DAY,
 } from "../src/platform/autorun";
 import { raiseHomeConsent } from "./helpers/homeView";
 
@@ -163,6 +165,9 @@ describe("egress consent — what an accept writes", () => {
       // The ack records the disclosure it was granted against, not a bare `true` — U6/KTD4.
       [LS_AUTO_RUN_EGRESS_ACK]: EGRESS_ACK_VERSION,
       [LS_AUTO_RUN_ENABLED]: true,
+      // The third write the comment above anticipated: enabling stamps the filing-window start
+      // (U3/KTD6), and both surfaces have to stamp it or one of them files a wider window.
+      [LS_AUTO_RUN_START_DAY]: localDateString(),
     });
     expect(Object.fromEntries(fromSettings)).toEqual(Object.fromEntries(fromHome));
   });

@@ -49,7 +49,9 @@ import {
   EGRESS_ACK_VERSION,
   LS_AUTO_RUN_EGRESS_ACK,
   LS_AUTO_RUN_ENABLED,
+  LS_AUTO_RUN_START_DAY,
   LS_LAST_RUN_DAY,
+  localDateString,
   readEgressPermitted,
 } from "../src/platform/autorun";
 import { LS_EGRESS_NOTICE } from "../src/platform/resume";
@@ -2409,5 +2411,75 @@ describe("requesting a sign-in link (R15, U7 binding)", () => {
     await sendLink(fakeTab(app), "a@b.co");
 
     expect(readPendingSignIns(app)).toEqual([]);
+  });
+});
+
+/**
+ * U3 / KTD1 — the Settings toggle is an enable path too, and the one every re-enable takes.
+ *
+ * The already-acked branch short-circuits before the consent sheet, so a stamp written only
+ * inside the sheet's callback would miss every device whose ack is current. Both branches also
+ * fire the one attended run day one comes from, so enabling from Settings is not a worse first
+ * run than enabling from home.
+ */
+describe("automatic filing toggle stamps the window (U3)", () => {
+  const flush = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+  const TOGGLE = "File automatically when Obsidian opens";
+  const ACKED = { [LS_AUTO_RUN_EGRESS_ACK]: EGRESS_ACK_VERSION };
+
+  it("stamps today and files once on the already-acked re-enable", async () => {
+    const { tab, local, calls } = settingTab({
+      local: { ...ACKED, [LS_AUTO_RUN_ENABLED]: false, [LS_AUTO_RUN_START_DAY]: "2026-01-01" },
+    });
+    tab.display();
+
+    flip(tab, TOGGLE);
+    await flush();
+
+    expect(sheetOpen()).toBe(false);
+    expect(local.get(LS_AUTO_RUN_ENABLED)).toBe(true);
+    expect(local.get(LS_AUTO_RUN_START_DAY)).toBe(localDateString());
+    expect(calls.filter((c) => c === "runFilingAfterEnable")).toHaveLength(1);
+  });
+
+  it("stamps today and files once when the consent sheet is accepted", async () => {
+    const { tab, local, calls } = settingTab({});
+    tab.display();
+
+    flip(tab, TOGGLE);
+    await flush();
+    pressSheet("I understand");
+    await flush();
+
+    expect(local.get(LS_AUTO_RUN_ENABLED)).toBe(true);
+    expect(local.get(LS_AUTO_RUN_START_DAY)).toBe(localDateString());
+    expect(calls.filter((c) => c === "runFilingAfterEnable")).toHaveLength(1);
+  });
+
+  it("stamps nothing and files nothing when the sheet is declined", async () => {
+    const { tab, local, calls } = settingTab({});
+    tab.display();
+
+    flip(tab, TOGGLE);
+    await flush();
+    pressSheet("Cancel");
+    await flush();
+
+    expect(local.get(LS_AUTO_RUN_START_DAY)).toBeUndefined();
+    expect(calls).not.toContain("runFilingAfterEnable");
+  });
+
+  it("preserves the stamp when the toggle goes off (KTD6)", async () => {
+    const { tab, local, calls } = settingTab({
+      local: { ...ACKED, [LS_AUTO_RUN_ENABLED]: true, [LS_AUTO_RUN_START_DAY]: "2026-01-01" },
+    });
+    tab.display();
+
+    flip(tab, TOGGLE);
+    await flush();
+
+    expect(local.get(LS_AUTO_RUN_ENABLED)).toBe(false);
+    expect(local.get(LS_AUTO_RUN_START_DAY)).toBe("2026-01-01");
+    expect(calls).not.toContain("runFilingAfterEnable");
   });
 });

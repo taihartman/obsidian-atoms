@@ -20,6 +20,7 @@ import {
 import {
   readDeviceAutoRunState,
   readEgressAckVersion,
+  setAutomaticFilingEnabled,
   writeAutoRunEnabled,
   writeEgressAck,
 } from "../platform/autorun";
@@ -1741,7 +1742,10 @@ export class AtomsSettingTab extends PluginSettingTab {
             // withdrawal elsewhere would leave it holding an ack that no longer exists.
             const acked = readDeviceAutoRunState(load).egressAcked;
             if (!on || acked) {
-              writeAutoRunEnabled(save, on);
+              // The path every re-enable takes, since it short-circuits before the sheet
+              // whenever the ack is current — so it stamps the window start too (U3).
+              setAutomaticFilingEnabled(load, save, on);
+              if (on) void this.plugin.runFilingAfterEnable();
               this.redisplay();
               return;
             }
@@ -1749,8 +1753,10 @@ export class AtomsSettingTab extends PluginSettingTab {
               egressConsentSpec((verdict) => {
                 // Anything short of an explicit accept leaves the toggle exactly where the
                 // sheet found it: off, and unacknowledged.
-                writeEgressAck(save, verdict === "accepted");
-                writeAutoRunEnabled(save, verdict === "accepted");
+                const accepted = verdict === "accepted";
+                writeEgressAck(save, accepted);
+                setAutomaticFilingEnabled(load, save, accepted);
+                if (accepted) void this.plugin.runFilingAfterEnable();
                 this.redisplay();
               }),
             );

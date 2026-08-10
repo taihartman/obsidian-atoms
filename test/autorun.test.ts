@@ -6,7 +6,12 @@ import {
   readEgressAckVersion,
   EGRESS_ACK_VERSION,
   localDateString,
+  includeTodayForRun,
+  migrateAutoFilingWindow,
   readAutoFilingStartDay,
+  readAutoFilingWindowMigrated,
+  setAutomaticFilingEnabled,
+  stampAutoFilingWindowStart,
   readDeviceAutoRunState,
   resolveAutoFilingSince,
   runAutoFilingCycle,
@@ -826,5 +831,147 @@ describe("runAutoFilingCycle — termination (V2, KTD2)", () => {
     expect(fallbacks).toEqual([undefined, 0]);
     expect(result.stamped).toBe(true);
     expect(store[LS_LAST_RUN_DAY]).toBe(today);
+  });
+});
+
+/**
+ * U3 / U4 — who stamps the filing-window start, and when.
+ *
+ * The window start means "the day this user turned automatic filing on", so every enable path
+ * has to write it. Leaning on `resolveAutoFilingSince`'s fail-closed fallback instead would make
+ * the stamp depend on an enable path happening to kick a run first — load-bearing ordering by
+ * accident.
+ */
+describe("stamping the filing window (U3/U4)", () => {
+  const makeStore = () => {
+    const store: Record<string, unknown> = {};
+    const load = (k: string) => store[k] ?? null;
+    const save = (k: string, v: unknown) => {
+      store[k] = v;
+    };
+    return { store, load, save };
+  };
+
+  it("enableAutomaticFiling stamps the day filing was turned on", () => {
+    const { store, load, save } = makeStore();
+
+    enableAutomaticFiling(save, load, "2026-08-10");
+
+    expect(store[LS_AUTO_RUN_ENABLED]).toBe(true);
+    expect(store[LS_AUTO_RUN_EGRESS_ACK]).toBe(EGRESS_ACK_VERSION);
+    expect(store[LS_AUTO_RUN_START_DAY]).toBe("2026-08-10");
+  });
+
+  it("the Settings toggle stamps through the same helper", () => {
+    const { store, load, save } = makeStore();
+
+    setAutomaticFilingEnabled(load, save, true, "2026-08-10");
+
+    expect(store[LS_AUTO_RUN_ENABLED]).toBe(true);
+    expect(store[LS_AUTO_RUN_START_DAY]).toBe("2026-08-10");
+  });
+
+  it("disabling preserves the previous stamp (KTD6)", () => {
+    const { store, load, save } = makeStore();
+    setAutomaticFilingEnabled(load, save, true, "2026-08-10");
+
+    setAutomaticFilingEnabled(load, save, false, "2026-08-20");
+
+    expect(store[LS_AUTO_RUN_ENABLED]).toBe(false);
+    expect(store[LS_AUTO_RUN_START_DAY]).toBe("2026-08-10");
+  });
+
+  it("re-enabling stamps the later day", () => {
+    const { store, load, save } = makeStore();
+    setAutomaticFilingEnabled(load, save, true, "2026-08-10");
+    setAutomaticFilingEnabled(load, save, false, "2026-08-12");
+
+    setAutomaticFilingEnabled(load, save, true, "2026-08-20");
+
+    expect(store[LS_AUTO_RUN_START_DAY]).toBe("2026-08-20");
+  });
+
+  it("never lets an earlier day overwrite a later one", () => {
+    const { store, load, save } = makeStore();
+    save(LS_AUTO_RUN_START_DAY, "2026-08-20");
+
+    stampAutoFilingWindowStart(load, save, "2026-08-01");
+    expect(store[LS_AUTO_RUN_START_DAY]).toBe("2026-08-20");
+
+    stampAutoFilingWindowStart(load, save, "2026-08-21");
+    expect(store[LS_AUTO_RUN_START_DAY]).toBe("2026-08-21");
+  });
+
+  it("never stamps a day that is not a real date", () => {
+    const { store, load, save } = makeStore();
+
+    for (const junk of ["", "   ", "2026-8-1", "2026-02-31", "tomorrow"]) {
+      stampAutoFilingWindowStart(load, save, junk);
+    }
+
+    expect(store[LS_AUTO_RUN_START_DAY]).toBeUndefined();
+  });
+
+  /**
+   * KTD1 — today's daily is reachable from the enable tap and from nothing else. Every
+   * unattended source has to be forced back to false here, not merely never asked.
+   */
+  describe("includeToday", () => {
+    it("is true only for the attended enable tap", () => {
+      expect(includeTodayForRun("manual", true)).toBe(true);
+      for (const source of ["onload", "interval", "resume"] as const) {
+        expect(includeTodayForRun(source, true)).toBe(false);
+      }
+    });
+
+    it("defaults to false on every source", () => {
+      for (const source of ["onload", "interval", "manual", "resume"] as const) {
+        expect(includeTodayForRun(source)).toBe(false);
+        expect(includeTodayForRun(source, false)).toBe(false);
+      }
+    });
+  });
+
+  /**
+   * U4 / KTD5 — devices that had filing on before the window existed carry no start day. The
+   * migration stamps it ahead of the first pass and records that it happened, so a later
+   * surface can explain why an in-progress sweep stopped rather than reading as a new upsell.
+   */
+  describe("migration", () => {
+    it("stamps once and flags the device", () => {
+      const { store, load, save } = makeStore();
+      save(LS_AUTO_RUN_ENABLED, true);
+
+      expect(migrateAutoFilingWindow(load, save, "2026-08-10")).toBe(true);
+      expect(store[LS_AUTO_RUN_START_DAY]).toBe("2026-08-10");
+      expect(readAutoFilingWindowMigrated(load)).toBe(true);
+    });
+
+    it("does not re-stamp on the next load", () => {
+      const { store, load, save } = makeStore();
+      save(LS_AUTO_RUN_ENABLED, true);
+      migrateAutoFilingWindow(load, save, "2026-08-10");
+
+      expect(migrateAutoFilingWindow(load, save, "2026-08-20")).toBe(false);
+      expect(store[LS_AUTO_RUN_START_DAY]).toBe("2026-08-10");
+    });
+
+    it("leaves an existing stamp untouched and flags nothing", () => {
+      const { store, load, save } = makeStore();
+      save(LS_AUTO_RUN_ENABLED, true);
+      save(LS_AUTO_RUN_START_DAY, "2026-07-01");
+
+      expect(migrateAutoFilingWindow(load, save, "2026-08-10")).toBe(false);
+      expect(store[LS_AUTO_RUN_START_DAY]).toBe("2026-07-01");
+      expect(readAutoFilingWindowMigrated(load)).toBe(false);
+    });
+
+    it("gives a disabled device neither stamp nor flag", () => {
+      const { store, load, save } = makeStore();
+
+      expect(migrateAutoFilingWindow(load, save, "2026-08-10")).toBe(false);
+      expect(store[LS_AUTO_RUN_START_DAY]).toBeUndefined();
+      expect(readAutoFilingWindowMigrated(load)).toBe(false);
+    });
   });
 });

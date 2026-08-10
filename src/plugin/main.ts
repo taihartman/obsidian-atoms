@@ -103,7 +103,9 @@ import {
 import {
   canBuildContext,
   enableAutomaticFiling,
+  includeTodayForRun,
   localDateString,
+  migrateAutoFilingWindow,
   PER_LAUNCH_CAP,
   readDeviceAutoRunState,
   readEgressPermitted,
@@ -111,6 +113,7 @@ import {
   runAutoFilingCycle,
   shouldRunAutoProcess,
   waitForVaultIndexReady,
+  type AutoRunSource,
   type DeviceAutoRunState,
 } from "../platform/autorun";
 import {
@@ -957,6 +960,16 @@ export default class AtomsPlugin extends Plugin {
       window.setTimeout(() => this.scheduleResumeCatchUp(), 2000);
     }
 
+    // U4 / KTD5: a device that had filing on before the window existed carries no start day.
+    // Stamp it here, ahead of the first pass, so the migration owns the window start instead of
+    // the read-side fallback writing the same day with nothing recording that it happened — and
+    // flag the device, because this pauses an in-progress silent sweep and an auto-update shows
+    // no release notes to explain why.
+    migrateAutoFilingWindow(
+      (k) => this.app.loadLocalStorage(k) as unknown,
+      (k, v) => this.app.saveLocalStorage(k, v),
+    );
+
     // Primary: once index is ready (app open).
     void this.maybeAutoRun("onload");
 
@@ -999,10 +1012,24 @@ export default class AtomsPlugin extends Plugin {
    */
   async enableAutomaticFilingFromHome(): Promise<void> {
     const save = (k: string, v: unknown) => this.app.saveLocalStorage(k, v);
-    enableAutomaticFiling(save);
+    const load = (k: string): unknown =>
+      this.app.loadLocalStorage(k) as unknown;
+    enableAutomaticFiling(save, load);
     new Notice("Atoms: automatic filing on for this device");
     await this.refreshAtomsHomeLeaves();
-    void this.maybeAutoRun("manual");
+    void this.runFilingAfterEnable();
+  }
+
+  /**
+   * The one attended run day one comes from (KTD1), fired by the user's own enable tap.
+   *
+   * The window starts today and no unattended pass ever includes today, so without this the user
+   * accepts a disclosure and sees nothing until tomorrow. Shared by home's filing card and the
+   * Settings toggle so enabling from Settings is not a worse first run. This is the only caller
+   * that asks for `includeToday` outside the explicit test commands.
+   */
+  async runFilingAfterEnable(): Promise<void> {
+    await this.maybeAutoRun("manual", undefined, { includeToday: true });
   }
 
   /**
@@ -1015,8 +1042,9 @@ export default class AtomsPlugin extends Plugin {
    * into the silent forever-rescan. This method supplies the gate, the write, and the UI.
    */
   async maybeAutoRun(
-    source: "onload" | "interval" | "manual" | "resume",
+    source: AutoRunSource,
     catchUp?: { bypassEnabled?: boolean; silentHome?: boolean },
+    attended?: { includeToday?: boolean },
   ): Promise<{
     ran: boolean;
     reason: string;
@@ -1026,6 +1054,9 @@ export default class AtomsPlugin extends Plugin {
     const save = (k: string, v: unknown) => this.app.saveLocalStorage(k, v);
     const state = readDeviceAutoRunState(load);
     const today = localDateString();
+    // KTD1: only the enable tap reaches today's daily. Resolved here, once, so no unattended
+    // source can carry the option in however it threads its arguments.
+    const includeToday = includeTodayForRun(source, attended?.includeToday);
 
     if (!canBuildContext(this.vaultIndexReady)) {
       return { ran: false, reason: "cache_not_ready" };
@@ -1043,7 +1074,11 @@ export default class AtomsPlugin extends Plugin {
       save,
       today,
       count: (since, fallback) =>
-        this.countPastUnprocessed({ since, fallback }),
+        // Same bound *and* same today-ness as the write (KTD2). The attended enable run is the
+        // one pass that files today, and a count that still excluded it would report an empty
+        // window on day one — the cycle would stamp the day and never call `file`, which is
+        // exactly the day-one silence KTD1 exists to end.
+        this.countPastUnprocessed({ since, fallback, includeToday }),
       gate: (pastRemaining) => {
         // Catch-up manual: bypass auto-run enable (KTD11). Still need privacy ack
         // (auto-run egress) OR catch-up egress notice is gated earlier in decideResumeStages.
@@ -1115,7 +1150,9 @@ export default class AtomsPlugin extends Plugin {
           ...shortlistOptionsFromSettings(),
           maxCaptures: PER_LAUNCH_CAP,
           enableHubProjection: this.settings.enableHubProjection === true,
-          // never includeToday on auto-run
+          // never includeToday on auto-run — `includeTodayForRun` allows it for the enable tap
+          // alone, and forces every unattended source back to false.
+          includeToday,
           since,
           classifyDeps: {
             maxAttempts: 2,
@@ -1193,11 +1230,12 @@ export default class AtomsPlugin extends Plugin {
    * a silent swap that would have made the recount count history (KTD2).
    */
   private async countPastUnprocessed(
-    opts: { since?: string; fallback?: number } = {},
+    opts: { since?: string; fallback?: number; includeToday?: boolean } = {},
   ): Promise<number> {
     try {
       const listed = await getPastDailyNotesWithUnmarkedCaptures(this.app, {
         since: opts.since,
+        includeToday: opts.includeToday,
       });
       return listed.totalUnprocessed;
     } catch {

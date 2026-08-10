@@ -8,6 +8,14 @@ export const LS_LAST_RUN_DAY = "atoms-last-run-day";
 export const LS_AUTO_RUN_EGRESS_ACK = "atoms-auto-run-egress-ack";
 /** Day automatic filing was enabled on this device — the filing window start (KTD6). */
 export const LS_AUTO_RUN_START_DAY = "atoms-auto-run-start-day";
+/**
+ * This device had automatic filing on before the window existed, and U4 stamped it (KTD5).
+ *
+ * Recorded because the migration deliberately pauses an in-progress silent sweep — the honest
+ * default, since nobody consented to it — and a BRAT or Community auto-update never shows release
+ * notes. Without this flag a paying user watches filing stop and concludes the plugin broke.
+ */
+export const LS_AUTO_RUN_WINDOW_MIGRATED = "atoms-auto-run-window-migrated";
 
 /**
  * Which disclosure a stored egress ack was granted against (KTD4).
@@ -29,6 +37,9 @@ export const LS_AUTO_RUN_START_DAY = "atoms-auto-run-start-day";
  * rather than silently leaving every existing device holding consent to text nobody read.
  */
 export const EGRESS_ACK_VERSION = "2026-08-06";
+
+/** What fired a filing pass. Only `manual` is a run the user asked for in the moment. */
+export type AutoRunSource = "onload" | "interval" | "manual" | "resume";
 
 /** Cap sequential API calls per launch so a month away doesn't fire ~150 (H7). */
 export const PER_LAUNCH_CAP = 15;
@@ -74,6 +85,89 @@ export function writeAutoFilingStartDay(
 ): void {
   if (!isFilingDay(day)) return;
   save(LS_AUTO_RUN_START_DAY, day);
+}
+
+/**
+ * Move the filing-window start to `day` — forward only, and never backwards.
+ *
+ * Every enable path stamps through here rather than calling `writeAutoFilingStartDay` directly,
+ * so the one invariant that keeps the window from widening lives in one place: a stamp only ever
+ * moves later. Re-enabling always names today, which is later than any earlier stamp — but a
+ * tampered or clock-skewed value that sorts later must not be dragged back, because a start day
+ * that can move earlier is a full-history sweep waiting for the right two writes.
+ */
+export function stampAutoFilingWindowStart(
+  load: (key: string) => unknown,
+  save: (key: string, data: unknown) => void,
+  day: string,
+): void {
+  const stored = readAutoFilingStartDay(load);
+  if (stored !== null && stored >= day) return;
+  writeAutoFilingStartDay(save, day);
+}
+
+/**
+ * Turn automatic filing on or off, stamping the window start whenever it goes on (U3).
+ *
+ * Enable-and-stamp is one operation on purpose. Split across call sites it is a step a future
+ * enable path forgets, and the read-side fallback in `resolveAutoFilingSince` only covers the
+ * miss when a run happens to follow the enable — ordering that holds by accident.
+ *
+ * Turning it *off* preserves the previous stamp (KTD6): disabling is not consent to re-file
+ * everything since the old start day, and the next enable stamps its own, later day anyway.
+ */
+export function setAutomaticFilingEnabled(
+  load: (key: string) => unknown,
+  save: (key: string, data: unknown) => void,
+  on: boolean,
+  today: string = localDateString(),
+): void {
+  writeAutoRunEnabled(save, on);
+  if (on) stampAutoFilingWindowStart(load, save, today);
+}
+
+/**
+ * Whether a run may reach today's daily — the enable tap, and nothing else (KTD1).
+ *
+ * A strict window files nothing on day one, since no unattended pass ever includes today: the
+ * user accepts a disclosure and sees nothing until tomorrow. Day one comes from one attended run
+ * fired by the user's own tap, which non-negotiable #3 permits as explicit user force. Every
+ * unattended source is forced back to false here rather than merely never asking, so the rule
+ * survives a future caller that threads its options through without reading this comment.
+ */
+export function includeTodayForRun(
+  source: AutoRunSource,
+  requested?: boolean,
+): boolean {
+  return source === "manual" && requested === true;
+}
+
+/**
+ * Give a device that had automatic filing on before the window existed a start day, once (U4).
+ *
+ * Runs on load, ahead of the first pass, so the migration owns the first stamp rather than
+ * `resolveAutoFilingSince`'s fallback happening to write the same day with nothing recording that
+ * it did. Returns true only on the load that performs it; a disabled device gets neither the
+ * stamp nor the flag, because it has not enabled anything to migrate.
+ */
+export function migrateAutoFilingWindow(
+  load: (key: string) => unknown,
+  save: (key: string, data: unknown) => void,
+  today: string = localDateString(),
+): boolean {
+  if (!readDeviceAutoRunState(load).enabled) return false;
+  if (readAutoFilingStartDay(load) !== null) return false;
+  const day = isFilingDay(today) ? today : localDateString();
+  stampAutoFilingWindowStart(load, save, day);
+  save(LS_AUTO_RUN_WINDOW_MIGRATED, true);
+  return true;
+}
+
+/** Whether U4 stamped this device's window — what U5's copy keys on (KTD5). */
+export function readAutoFilingWindowMigrated(
+  load: (key: string) => unknown,
+): boolean {
+  return load(LS_AUTO_RUN_WINDOW_MIGRATED) === true;
 }
 
 /**
@@ -379,13 +473,20 @@ export function readEgressPermitted(
 }
 
 /**
- * One-tap home enable: privacy ack + auto-run on (device-local only).
+ * One-tap home enable: privacy ack + auto-run on + window start (device-local only).
+ *
+ * `load` trails `save` rather than leading it, against this file's usual order, because the
+ * accepted shape is frozen by `egressConsentParity.test.ts` — the disclosure the home sheet
+ * shows is verified against the store this call lands in. Omitting it stamps today outright,
+ * which is right for a fresh enable and only loses the forward-only comparison.
  */
 export function enableAutomaticFiling(
   save: (key: string, data: unknown) => void,
+  load: (key: string) => unknown = () => null,
+  today: string = localDateString(),
 ): void {
   writeEgressAck(save, true);
-  writeAutoRunEnabled(save, true);
+  setAutomaticFilingEnabled(load, save, true, today);
 }
 
 /**
