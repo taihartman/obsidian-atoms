@@ -13,6 +13,7 @@ import {
   createPortalSessionForAccount,
   isStaleStripeCustomerError,
   reconnectCheckoutKind,
+  reconnectTrialEndUnix,
 } from "../src/stripe.mjs";
 
 before(() => {
@@ -58,15 +59,43 @@ describe("isStaleStripeCustomerError", () => {
 });
 
 describe("reconnectCheckoutKind", () => {
-  it("reopens trial Checkout while trialing", () => {
-    assert.equal(reconnectCheckoutKind({ status: "trialing" }), "start_trial");
-  });
-
-  it("uses monthly subscribe once active or exhausted", () => {
+  it("never re-issues a free trial — always paid monthly", () => {
+    assert.equal(reconnectCheckoutKind({ status: "trialing" }), "subscribe_monthly");
+    assert.equal(reconnectCheckoutKind({ status: "inactive" }), "subscribe_monthly");
     assert.equal(reconnectCheckoutKind({ status: "active" }), "subscribe_monthly");
     assert.equal(
       reconnectCheckoutKind({ status: "exhausted" }),
       "subscribe_monthly",
+    );
+  });
+});
+
+describe("reconnectTrialEndUnix", () => {
+  it("keeps a far-enough remaining trial window", () => {
+    const now = 1_700_000_000;
+    const end = new Date((now + 7 * 86400) * 1000).toISOString();
+    assert.equal(
+      reconnectTrialEndUnix({ status: "trialing", periodEnd: end }, now),
+      now + 7 * 86400,
+    );
+  });
+
+  it("drops a trial window shorter than Stripe's 48h floor", () => {
+    const now = 1_700_000_000;
+    const end = new Date((now + 12 * 3600) * 1000).toISOString();
+    assert.equal(
+      reconnectTrialEndUnix({ status: "trialing", periodEnd: end }, now),
+      undefined,
+    );
+  });
+
+  it("ignores non-trialing accounts", () => {
+    assert.equal(
+      reconnectTrialEndUnix({
+        status: "active",
+        periodEnd: new Date(Date.now() + 10 * 86400e3).toISOString(),
+      }),
+      undefined,
     );
   });
 });
@@ -95,21 +124,24 @@ describe("createPortalSessionForAccount", () => {
     );
   });
 
-  it("opens trial Checkout when there is no Stripe customer yet", async () => {
+  it("opens paid monthly Checkout when there is no Stripe customer yet", async () => {
     const store = await createStore({ mode: "memory" });
+    const periodEnd = new Date(Date.now() + 7 * 86400e3).toISOString();
     await store.grantPeriod("tai@atoms.test", {
       status: "trialing",
       remaining: 120,
       plan: "trial",
       days: 14,
     });
+    // Pin period end so trial_end can be asserted (grantPeriod uses "now + days").
     const account = await store.getAccount("tai@atoms.test");
-    const kinds = [];
+    account.periodEnd = periodEnd;
+    const calls = [];
 
     const out = await createPortalSessionForAccount(store, account, {
       sessionToken: "sess_reconnect",
-      createCheckout: async ({ email, kind }) => {
-        kinds.push({ email, kind });
+      createCheckout: async (opts) => {
+        calls.push(opts);
         return {
           id: "cs_reconnect_1",
           url: "https://checkout.stripe.com/c/pay/cs_reconnect_1",
@@ -117,7 +149,11 @@ describe("createPortalSessionForAccount", () => {
       },
     });
 
-    assert.deepEqual(kinds, [{ email: "tai@atoms.test", kind: "start_trial" }]);
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].email, "tai@atoms.test");
+    assert.equal(calls[0].kind, "subscribe_monthly");
+    assert.equal(calls[0].kind === "start_trial", false);
+    assert.ok(calls[0].trialEndUnix > Math.floor(Date.now() / 1000));
     assert.equal(out.reconnect, true);
     assert.equal(out.url, "https://checkout.stripe.com/c/pay/cs_reconnect_1");
     assert.equal(
@@ -127,7 +163,7 @@ describe("createPortalSessionForAccount", () => {
     assert.equal((await store.getAccount("tai@atoms.test")).remaining, 120);
   });
 
-  it("clears a stale customer and opens live Checkout", async () => {
+  it("clears a stale customer and opens paid monthly Checkout (not trial)", async () => {
     const store = await createStore({ mode: "memory" });
     await store.grantPeriod("tai@atoms.test", {
       status: "trialing",
@@ -138,6 +174,8 @@ describe("createPortalSessionForAccount", () => {
     await store.setStripeCustomer("tai@atoms.test", "cus_UxIOqpgzNB3c5R");
     await store.setStripeSubscription("tai@atoms.test", "sub_test_stale");
     const account = await store.getAccount("tai@atoms.test");
+    // Trial ends too soon for Stripe's 48h floor → no trialEndUnix.
+    account.periodEnd = new Date(Date.now() + 3600e3).toISOString();
 
     const out = await createPortalSessionForAccount(store, account, {
       sessionToken: "sess_tai",
@@ -155,8 +193,9 @@ describe("createPortalSessionForAccount", () => {
         };
         throw err;
       },
-      createCheckout: async ({ kind }) => {
-        assert.equal(kind, "start_trial");
+      createCheckout: async (opts) => {
+        assert.equal(opts.kind, "subscribe_monthly");
+        assert.equal(opts.trialEndUnix, undefined);
         return {
           id: "cs_live_1",
           url: "https://checkout.stripe.com/c/pay/cs_live_1",
