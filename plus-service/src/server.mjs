@@ -24,7 +24,11 @@ import {
   isProduction,
 } from "./prodGate.mjs";
 import { sendMagicLinkEmail } from "./email.mjs";
-import { INCIDENT_KIND, verifierMatches } from "./store/shared.mjs";
+import {
+  INCIDENT_KIND,
+  accountHasUsedTrial,
+  verifierMatches,
+} from "./store/shared.mjs";
 import { alertStripeIncident } from "./alert.mjs";
 import {
   MAGIC_LINK_RATE_LIMITS,
@@ -875,14 +879,16 @@ ${
         });
       }
 
-      // Trial is once. Entitled-but-unlinked accounts reconnect via portal
-      // (paid subscribe Checkout), never a second start_trial.
+      // Trial is once per email (trial_used). Reconnect is paid subscribe only.
       if (
         kind === "start_trial" &&
-        (a.status === "active" || a.status === "trialing")
+        (accountHasUsedTrial(a) ||
+          a.status === "active" ||
+          a.status === "trialing")
       ) {
         return json(res, 409, {
-          message: "Already subscribed — use Manage billing or magic link",
+          message:
+            "Free trial already used — subscribe or sign in with a magic link.",
         });
       }
 
@@ -933,6 +939,18 @@ ${
         kind === "subscribe_yearly" ||
         kind === "start_trial"
       ) {
+        if (kind === "start_trial") {
+          const claim =
+            typeof store.tryClaimTrial === "function"
+              ? await store.tryClaimTrial(a.email)
+              : { won: !accountHasUsedTrial(a) };
+          if (!claim.won) {
+            return json(res, 409, {
+              message:
+                "Free trial already used — subscribe or sign in with a magic link.",
+            });
+          }
+        }
         await store.grantPeriod(a.email, {
           status: kind === "start_trial" ? "trialing" : "active",
           plan:

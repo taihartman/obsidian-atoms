@@ -156,6 +156,72 @@ describe("webhook signature + grants", () => {
     assert.equal(a.status, "trialing");
     assert.equal(a.plan, "trial");
     assert.equal(a.remaining, 150);
+    assert.equal(a.trialUsed, true);
+  });
+
+  it("second start_trial event does not re-mint filings", async () => {
+    const store = await createStore({ mode: "memory" });
+    const base = {
+      mode: "subscription",
+      metadata: {
+        email: "once@atoms.test",
+        kind: "start_trial",
+        plan: "trial",
+      },
+      customer: "cus_once",
+    };
+    const r1 = await applyStripeEvent(store, {
+      id: "evt_trial_a",
+      type: "checkout.session.completed",
+      data: { object: base },
+    });
+    assert.equal(r1.action, "trial");
+    const mid = await store.getAccount("once@atoms.test");
+    mid.remaining = 12;
+    mid.status = "exhausted";
+
+    const r2 = await applyStripeEvent(store, {
+      id: "evt_trial_b",
+      type: "checkout.session.completed",
+      data: {
+        object: {
+          ...base,
+          customer: "cus_once_2",
+          subscription: "sub_rogue",
+        },
+      },
+    });
+    assert.equal(r2.action, "trial_already_used");
+    const after = await store.getAccount("once@atoms.test");
+    assert.equal(after.remaining, 12);
+    assert.equal(after.status, "exhausted");
+    assert.equal(after.trialUsed, true);
+    assert.equal(after.stripeCustomerId, "cus_once_2");
+  });
+
+  it("subscribe still grants when trial already used", async () => {
+    const store = await createStore({ mode: "memory" });
+    await store.tryClaimTrial("paid@atoms.test");
+    const r = await applyStripeEvent(store, {
+      id: "evt_sub_after_trial",
+      type: "checkout.session.completed",
+      data: {
+        object: {
+          mode: "subscription",
+          metadata: {
+            email: "paid@atoms.test",
+            kind: "subscribe_monthly",
+            plan: "monthly",
+          },
+          customer: "cus_paid",
+        },
+      },
+    });
+    assert.equal(r.action, "subscribe");
+    const a = await store.getAccount("paid@atoms.test");
+    assert.equal(a.status, "active");
+    assert.equal(a.remaining, 150);
+    assert.equal(a.trialUsed, true);
   });
 
   it("checkout email mismatch does not grant", async () => {

@@ -97,4 +97,48 @@ describe("plus store", () => {
     assert.notEqual(a.session, b.session);
     assert.equal(b.account.status, "inactive");
   });
+
+  it("tryClaimTrial is single-winner and permanent", async () => {
+    const store = await createStore({ mode: "memory" });
+    assert.equal((await store.getAccount("t@once.co"))?.trialUsed, undefined);
+    const first = await store.tryClaimTrial("t@once.co");
+    assert.equal(first.won, true);
+    assert.equal((await store.getAccount("t@once.co")).trialUsed, true);
+    const second = await store.tryClaimTrial("t@once.co");
+    assert.equal(second.won, false);
+    await store.clearStripeBillingLink("t@once.co");
+    await store.revokeSubscription("t@once.co");
+    assert.equal((await store.getAccount("t@once.co")).trialUsed, true);
+  });
+
+  it("sqlite tryClaimTrial survives saveAccount paid grant", async () => {
+    const store = await createStore({ mode: "sqlite", path: ":memory:" });
+    assert.equal((await store.tryClaimTrial("s@once.co")).won, true);
+    await store.grantPeriod("s@once.co", {
+      remaining: 10,
+      status: "active",
+      plan: "monthly",
+    });
+    assert.equal((await store.getAccount("s@once.co")).trialUsed, true);
+    assert.equal((await store.tryClaimTrial("s@once.co")).won, false);
+    if (store.close) store.close();
+  });
+
+  it("dogfood magic does not re-grant trial after claim", async () => {
+    const store = await createStore({ mode: "memory" });
+    const t1 = await store.createMagicToken("again@x.co");
+    const first = await store.exchangeMagic(t1);
+    assert.ok(first);
+    assert.equal(first.account.trialUsed, true);
+    assert.ok(["trialing", "active"].includes(first.account.status));
+    const a = await store.getAccount("again@x.co");
+    a.status = "exhausted";
+    a.remaining = 0;
+    const t2 = await store.createMagicToken("again@x.co");
+    const second = await store.exchangeMagic(t2);
+    assert.ok(second);
+    assert.equal(second.account.trialUsed, true);
+    // No second free trial mint — stays exhausted (or inactive), not a fresh 150.
+    assert.notEqual(second.account.remaining, 150);
+  });
 });

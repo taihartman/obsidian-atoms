@@ -8,6 +8,7 @@ import {
   CHECKOUT_BINDING_TTL_MS,
   hashToken,
   id,
+  accountHasUsedTrial,
   isEntitledAccount,
   MAGIC_EXCHANGE_REFUSED,
   MAGIC_PEEK_MISS,
@@ -90,10 +91,23 @@ export function createMemoryStore() {
         periodEnd: new Date().toISOString(),
         plan: "trial",
         promoRedemptions: 0,
+        trialUsed: false,
       };
       accounts.set(key, a);
     }
+    if (a.trialUsed === undefined) a.trialUsed = false;
     return a;
+  }
+
+  /**
+   * Atomic free-trial claim. Winner may grantPeriod(trialing); loser must not.
+   * @returns {{ won: boolean }}
+   */
+  function tryClaimTrial(email) {
+    const a = ensureAccount(email);
+    if (a.trialUsed) return { won: false };
+    a.trialUsed = true;
+    return { won: true };
   }
 
   function refreshAccountStatus(a) {
@@ -266,12 +280,24 @@ export function createMemoryStore() {
     ) {
       const st =
         config.dogfoodGrantStatus === "active" ? "active" : "trialing";
-      grantPeriod(row.email, {
-        status: st,
-        plan: st === "trialing" ? "trial" : "monthly",
-        days: st === "trialing" ? config.trialDays : 30,
-        remaining: config.includedFilings,
-      });
+      if (st === "trialing") {
+        const claim = tryClaimTrial(row.email);
+        if (claim.won) {
+          grantPeriod(row.email, {
+            status: "trialing",
+            plan: "trial",
+            days: config.trialDays,
+            remaining: config.includedFilings,
+          });
+        }
+      } else {
+        grantPeriod(row.email, {
+          status: "active",
+          plan: "monthly",
+          days: 30,
+          remaining: config.includedFilings,
+        });
+      }
     }
     refreshAccountStatus(a);
     revokeAllSessionsForEmail(row.email);
@@ -1071,6 +1097,8 @@ export function createMemoryStore() {
     completeUsage,
     refundFiling,
     grantPeriod,
+    tryClaimTrial,
+    accountHasUsedTrial,
     addTopUp,
     redeemPromo,
     publicAccount,

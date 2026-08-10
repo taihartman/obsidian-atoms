@@ -9,6 +9,7 @@ import {
   CHECKOUT_BINDING_TTL_MS,
   hashToken,
   id,
+  accountHasUsedTrial,
   isEntitledAccount,
   MAGIC_EXCHANGE_REFUSED,
   MAGIC_PEEK_MISS,
@@ -36,7 +37,8 @@ CREATE TABLE IF NOT EXISTS accounts (
   plan TEXT NOT NULL,
   promo_redemptions INTEGER NOT NULL DEFAULT 0,
   stripe_customer_id TEXT,
-  stripe_subscription_id TEXT
+  stripe_subscription_id TEXT,
+  trial_used BOOLEAN NOT NULL DEFAULT FALSE
 );
 CREATE TABLE IF NOT EXISTS magic_tokens (
   token TEXT PRIMARY KEY,
@@ -125,6 +127,18 @@ export async function createPostgresStore(databaseUrl) {
   await pool.query(
     `ALTER TABLE magic_tokens ADD COLUMN IF NOT EXISTS vault TEXT`,
   );
+  // One free trial per email — existing DBs gain the flag on open.
+  await pool.query(
+    `ALTER TABLE accounts ADD COLUMN IF NOT EXISTS trial_used BOOLEAN NOT NULL DEFAULT FALSE`,
+  );
+  await pool.query(`
+    UPDATE accounts SET trial_used = TRUE
+    WHERE trial_used = FALSE
+      AND (
+        status IN ('trialing', 'active', 'exhausted')
+        OR stripe_customer_id IS NOT NULL
+      )
+  `);
 
   const sessionTtlMs = () => config.sessionTtlDays * 24 * 60 * 60 * 1000;
 
@@ -155,8 +169,9 @@ export async function createPostgresStore(databaseUrl) {
   async function saveAccount(a) {
     await pool.query(
       `UPDATE accounts SET status=$1, remaining=$2, period_end=$3, plan=$4,
-        promo_redemptions=$5, stripe_customer_id=$6, stripe_subscription_id=$7
-       WHERE email=$8`,
+        promo_redemptions=$5, stripe_customer_id=$6, stripe_subscription_id=$7,
+        trial_used=$8
+       WHERE email=$9`,
       [
         a.status,
         a.remaining,
@@ -165,10 +180,24 @@ export async function createPostgresStore(databaseUrl) {
         a.promoRedemptions ?? 0,
         a.stripeCustomerId ?? null,
         a.stripeSubscriptionId ?? null,
+        Boolean(a.trialUsed),
         a.email,
       ],
     );
     return a;
+  }
+
+  /** @returns {Promise<{ won: boolean }>} */
+  async function tryClaimTrial(email) {
+    const key = email.trim().toLowerCase();
+    await ensureAccount(key);
+    const { rows } = await pool.query(
+      `UPDATE accounts SET trial_used = TRUE
+       WHERE email = $1 AND trial_used = FALSE
+       RETURNING email`,
+      [key],
+    );
+    return { won: rows.length > 0 };
   }
 
   async function refreshAccountStatus(a) {
@@ -466,12 +495,24 @@ export async function createPostgresStore(databaseUrl) {
     ) {
       const st =
         config.dogfoodGrantStatus === "active" ? "active" : "trialing";
-      a = await grantPeriod(email, {
-        status: st,
-        plan: st === "trialing" ? "trial" : "monthly",
-        days: st === "trialing" ? config.trialDays : 30,
-        remaining: config.includedFilings,
-      });
+      if (st === "trialing") {
+        const claim = await tryClaimTrial(email);
+        if (claim.won) {
+          a = await grantPeriod(email, {
+            status: "trialing",
+            plan: "trial",
+            days: config.trialDays,
+            remaining: config.includedFilings,
+          });
+        }
+      } else {
+        a = await grantPeriod(email, {
+          status: "active",
+          plan: "monthly",
+          days: 30,
+          remaining: config.includedFilings,
+        });
+      }
     }
     a = await refreshAccountStatus(a);
     await revokeAllSessionsForEmail(email);
@@ -749,6 +790,8 @@ export async function createPostgresStore(databaseUrl) {
     completeUsage,
     refundFiling,
     grantPeriod,
+    tryClaimTrial,
+    accountHasUsedTrial,
     addTopUp,
     redeemPromo,
     publicAccount,
