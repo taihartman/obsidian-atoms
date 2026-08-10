@@ -2053,3 +2053,52 @@
 .atoms-home-open-actions {
   margin-top: 14px;
 }
+
+/* Hub list preview modal */
+.atoms-hub-list-preview {
+  margin: 8px 0 12px;
+  max-height: min(360px, 50vh);
+  overflow-y: auto;
+}
+.atoms-hub-list-preview-hub {
+  padding: 10px 12px;
+  margin-bottom: 6px;
+  border-radius: 8px;
+  background: var(--background-secondary);
+}
+.atoms-hub-list-preview-hub-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+.atoms-hub-list-preview-title {
+  font-weight: 600;
+}
+.atoms-hub-list-preview-count {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  white-space: nowrap;
+}
+.atoms-hub-list-preview-secs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.atoms-hub-list-preview-chip {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  background: var(--background-modifier-border);
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+.atoms-hub-list-preview-chip.is-unsorted {
+  background: transparent;
+  border: 1px dashed var(--background-modifier-border);
+}
+.atoms-hub-list-preview-more {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  margin: 4px 0 0;
+}

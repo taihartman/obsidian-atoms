@@ -1880,14 +1880,25 @@ export class AtomsSettingTab extends PluginSettingTab {
                 this.plugin.settings.hubProjectionListDisclosureSeen = true;
               }
               void Promise.resolve(this.plugin.saveSettings()).then(() => {
+                this.redisplay();
                 if (on && !was) {
-                  void this.plugin.runHubProjectionFullRegenNotice();
+                  void this.plugin.openHubListPreview("toggle-on");
                 }
               });
             });
         },
       },
     });
+
+    if (this.plugin.settings.enableHubProjection === true) {
+      this.actionRow(containerEl, {
+        action: "hub:refresh-lists",
+        name: "Refresh hub lists",
+        desc: "Preview which hub notes would get atom lists, then update them.",
+        label: "Preview…",
+        onClick: () => this.plugin.openHubListPreview("refresh"),
+      });
+    }
   }
 
   /**
