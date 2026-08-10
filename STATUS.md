@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-_Nothing in flight._
+| In progress | [#419](https://github.com/taihartman/obsidian-atoms/issues/419) | taihartman | `fix/418-community-lint-residuals` | amend | `src/platform/plusClient.ts`, `src/ui/factories.ts`, `src/settings/*`, `docs/obsidian-api-conventions.md` | Remaining community lint errors after #407 |
 
 ## How to claim (copy)
 

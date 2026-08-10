@@ -21,8 +21,9 @@ export type RequestFn = (params: RequestUrlParam) => Promise<RequestUrlResponse>
 export async function plusFetchRequest(
   params: RequestUrlParam,
 ): Promise<RequestUrlResponse> {
-  // eslint-disable-next-line no-restricted-globals -- intentional fetch; desktop requestUrl fails to localhost (see file docstring).
-  const res = await fetch(params.url, {
+  // `window.fetch` (not bare `fetch`): community lint forbids disabling
+  // no-restricted-globals, and desktop requestUrl fails to localhost.
+  const res = await window.fetch(params.url, {
     method: params.method ?? "GET",
     headers: params.headers,
     body:

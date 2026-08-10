@@ -91,6 +91,10 @@ export function egressConsentSpec(
  */
 let openSheet: ConsentSheetModal | null = null;
 
+function rememberOpenSheet(sheet: ConsentSheetModal | null): void {
+  openSheet = sheet;
+}
+
 /**
  * Settle any open consent sheet as a decline.
  *
@@ -115,7 +119,7 @@ export class ConsentSheetModal extends Modal {
     // A sheet never stacks over another: the older one settles as a decline before this one
     // paints, so a stale sheet can never be accepted over a decision made in front of it.
     if (openSheet && openSheet !== this) openSheet.close();
-    openSheet = this;
+    rememberOpenSheet(this);
 
     const { contentEl } = this;
     contentEl.empty();
@@ -150,7 +154,7 @@ export class ConsentSheetModal extends Modal {
   }
 
   onClose() {
-    if (openSheet === this) openSheet = null;
+    if (openSheet === this) rememberOpenSheet(null);
     this.contentEl.empty();
     // Closing without choosing is a decline, never consent — and never a withdrawal either.
     this.answer("declined");

@@ -29,7 +29,7 @@ import {
   rowNames,
   settingTab,
 } from "./helpers/settingsTab";
-import { labelInstallOrUpdate } from "../src/settings/captureShortcut";
+import { labelCaptureShortcutCta } from "../src/settings/captureShortcut";
 import type { PlusSession } from "../src/platform/filingAuth";
 
 /** The guide as a reader reads it: no markup, no line wrapping, so a label may straddle both. */
@@ -75,7 +75,7 @@ describe("setup guide quotes labels the plugin still renders", () => {
     const { tab } = settingTab();
     tab.display();
 
-    const shortcutLabel = labelInstallOrUpdate(null);
+    const shortcutLabel = labelCaptureShortcutCta(null);
     expect(shortcutLabel).toBe("Install Capture Atom");
     expect(buttonLabels(tab, "Capture Atom shortcut")).toContain(shortcutLabel);
     expect(guide.includes("Install Capture Atom"), "guide does not name install CTA").toBe(

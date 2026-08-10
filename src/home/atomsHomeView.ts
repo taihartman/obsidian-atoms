@@ -134,7 +134,7 @@ import {
 } from "../platform/continueParent";
 import { CAPTURE_ATOM_VERSION } from "../shared/mobileInstall";
 import {
-  labelInstallOrUpdate,
+  labelCaptureShortcutCta,
   needsShortcutCta,
   openShortcutInstallUrl,
   readShortcutAck,
@@ -2193,7 +2193,7 @@ export class AtomsHomeView extends ItemView {
       });
       button(banner, {
         grade: "secondary",
-        label: labelInstallOrUpdate(this.shortcutAcked),
+        label: labelCaptureShortcutCta(this.shortcutAcked),
         className: "atoms-home-update-btn",
         onClick: () => this.onInstallShortcut(),
       });
@@ -2224,7 +2224,7 @@ export class AtomsHomeView extends ItemView {
       });
       button(actions, {
         grade: "secondary",
-        label: labelInstallOrUpdate(this.shortcutAcked),
+        label: labelCaptureShortcutCta(this.shortcutAcked),
         disabled: !this.installUrl(),
         attrs: this.installUrl()
           ? undefined
@@ -2429,7 +2429,7 @@ export class AtomsHomeView extends ItemView {
     }
     menu.addItem((i) =>
       i
-        .setTitle(labelInstallOrUpdate(this.shortcutAcked))
+        .setTitle(labelCaptureShortcutCta(this.shortcutAcked))
         .onClick(() => this.onInstallShortcut()),
     );
     menu.addItem((i) =>

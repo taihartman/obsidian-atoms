@@ -1672,7 +1672,14 @@
   display: -webkit-box;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  /* -webkit-line-clamp set at runtime via setCssProps (dynamic maxLines). */
+}
+
+.atoms-ui-claim-quote--clamp-4 {
+  -webkit-line-clamp: 4;
+}
+
+.atoms-ui-claim-quote--clamp-8 {
+  -webkit-line-clamp: 8;
 }
 
 /* Kicker */

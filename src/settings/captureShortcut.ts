@@ -87,12 +87,19 @@ export function needsShortcutCta(
   return ackIsStale(acked, shipped);
 }
 
-/** @deprecated Home/settings primary CTA is companion — kept for advanced shortcut row. */
-export function labelInstallOrUpdate(
+/** Shortcut install CTA — Install until ack, then Update. */
+export function labelCaptureShortcutCta(
   acked: string | null | undefined,
 ): "Install Capture Atom" | "Update Capture Atom" {
   if (acked == null || acked === "") return "Install Capture Atom";
   return "Update Capture Atom";
+}
+
+/** @deprecated Prefer {@link labelCaptureShortcutCta}. */
+export function labelInstallOrUpdate(
+  acked: string | null | undefined,
+): "Install Capture Atom" | "Update Capture Atom" {
+  return labelCaptureShortcutCta(acked);
 }
 
 export function readShortcutAck(

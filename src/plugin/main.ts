@@ -1470,7 +1470,7 @@ export default class AtomsPlugin extends Plugin {
         mirrorPermitted: () => this.ask.mirrorPermitted(),
         cancelPendingSync: () => this.ask.cancelPendingSync(),
         saveLocalStorage: (k, v) => this.app.saveLocalStorage(k, v),
-        loadLocalStorage: (k) => this.app.loadLocalStorage(k),
+        loadLocalStorage: (k): unknown => this.app.loadLocalStorage(k),
       },
       session,
     );
