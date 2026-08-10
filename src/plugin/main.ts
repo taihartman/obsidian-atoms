@@ -105,10 +105,9 @@ import {
   PER_LAUNCH_CAP,
   readDeviceAutoRunState,
   readEgressPermitted,
+  runAutoFilingCycle,
   shouldRunAutoProcess,
-  shouldStampLastRunDay,
   waitForVaultIndexReady,
-  writeLastRunDay,
   type DeviceAutoRunState,
 } from "../platform/autorun";
 import {
@@ -1007,6 +1006,10 @@ export default class AtomsPlugin extends Plugin {
    * Device-local auto-run gate + silent failure (R13, U9).
    * Does not invoke buildContext until vaultIndexReady.
    * Stamps last-run day only when past queue is drained (not on attempt/failure).
+   *
+   * The pass itself lives in `runAutoFilingCycle` (KTD2): it resolves the filing-window bound
+   * once and hands that same day to the count and to the write, so the two can never drift
+   * into the silent forever-rescan. This method supplies the gate, the write, and the UI.
    */
   async maybeAutoRun(
     source: "onload" | "interval" | "manual" | "resume",
@@ -1025,104 +1028,117 @@ export default class AtomsPlugin extends Plugin {
       return { ran: false, reason: "cache_not_ready" };
     }
 
-    const pastRemaining = await this.countPastUnprocessed();
+    let auth: Extract<
+      ReturnType<typeof resolveClassifyAuth>,
+      { ok: true }
+    > | null = null;
+    // Boxed so the log after the cycle still sees the report the write callback set.
+    const written: { report: WritePathReport | null } = { report: null };
 
-    // Catch-up manual: bypass auto-run enable (KTD11). Still need privacy ack
-    // (auto-run egress) OR catch-up egress notice is gated earlier in decideResumeStages.
-    const enabled =
-      catchUp?.bypassEnabled === true ? true : state.enabled;
-    // For catch-up filing, egress notice already gated; treat auto-run ack OR
-    // catch-up notice as sufficient privacy for the paid path.
-    const egressOk = readEgressPermitted(load, { catchUp: catchUp != null });
+    const outcome = await runAutoFilingCycle({
+      load,
+      save,
+      today,
+      count: (since, fallback) =>
+        this.countPastUnprocessed({ since, fallback }),
+      gate: (pastRemaining) => {
+        // Catch-up manual: bypass auto-run enable (KTD11). Still need privacy ack
+        // (auto-run egress) OR catch-up egress notice is gated earlier in decideResumeStages.
+        const enabled =
+          catchUp?.bypassEnabled === true ? true : state.enabled;
+        // For catch-up filing, egress notice already gated; treat auto-run ack OR
+        // catch-up notice as sufficient privacy for the paid path.
+        const egressOk = readEgressPermitted(load, { catchUp: catchUp != null });
 
-    if (
-      !shouldRunAutoProcess({
-        enabled,
-        lastRunDay:
-          catchUp?.bypassEnabled === true ? null : state.lastRunDay,
-        today,
-        egressAcked: egressOk,
-        pastUnprocessedRemaining: pastRemaining,
-      })
-    ) {
-      return {
-        ran: false,
-        reason: !enabled
-          ? "disabled"
-          : !egressOk
-            ? "no_egress_ack"
-            : pastRemaining > 0
-              ? "blocked"
-              : "same_day",
-      };
-    }
+        if (
+          !shouldRunAutoProcess({
+            enabled,
+            lastRunDay:
+              catchUp?.bypassEnabled === true ? null : state.lastRunDay,
+            today,
+            egressAcked: egressOk,
+            pastUnprocessedRemaining: pastRemaining,
+          })
+        ) {
+          return {
+            ok: false,
+            reason: !enabled
+              ? "disabled"
+              : !egressOk
+                ? "no_egress_ack"
+                : pastRemaining > 0
+                  ? "blocked"
+                  : "same_day",
+          };
+        }
 
-    if (this.autoRunInFlight) {
-      return { ran: false, reason: "in_flight" };
-    }
-
-    const filing = this.resolveFilingAuth();
-    const classifyAuth = resolveClassifyAuth(filing, {
-      plusBaseUrl: this.settings.plusBaseUrl,
-    });
-    if (!classifyAuth.ok) {
-      // Silent for auto path — manual commands still Notice. Do not stamp.
-      devLog("[atoms] auto-run skipped: no filing auth", classifyAuth.reason);
-      return { ran: false, reason: "missing_key" };
-    }
-
-    // Nothing to do — stamp day so hourly interval does not re-scan forever.
-    if (pastRemaining === 0) {
-      writeLastRunDay(save, today);
-      devLog("[atoms] auto-run empty success", { source });
-      return { ran: true, reason: "empty" };
-    }
-
-    this.autoRunInFlight = true;
-    this.filingStartedAt = Date.now();
-    try {
-      const report = await runWritePath({
-        app: this.app,
-        contextProvider: this.contextProvider,
-        apiKey: classifyAuth.apiKey,
-        model: this.settings.model,
-        activeVocabulary: this.settings.activeVocabulary,
-        atomFolder: this.settings.atomFolder,
-        ...shortlistOptionsFromSettings(),
-        maxCaptures: PER_LAUNCH_CAP,
-        enableHubProjection: this.settings.enableHubProjection === true,
-        // never includeToday on auto-run
-        classifyDeps: {
-          maxAttempts: 2,
-          plus: classifyAuth.plus,
-          // Auto-run: no auth spam Notices every hour — log only.
-          onAuthFailure: (msg) => {
-            devLog("[atoms] auto-run auth failure", msg);
+        const filing = this.resolveFilingAuth();
+        const classifyAuth = resolveClassifyAuth(filing, {
+          plusBaseUrl: this.settings.plusBaseUrl,
+        });
+        if (!classifyAuth.ok) {
+          // Silent for auto path — manual commands still Notice. Do not stamp.
+          devLog("[atoms] auto-run skipped: no filing auth", classifyAuth.reason);
+          return { ok: false, reason: "missing_key" };
+        }
+        auth = classifyAuth;
+        return { ok: true };
+      },
+      // The in-flight check and set are one synchronous step here, and the cycle runs it before
+      // its first await — onload, the hourly interval, the manual path and the commands can all
+      // land in the same tick, and a check the gate made across an await would let two of them
+      // through into a paid write pass. The cycle reports the refusal as reason "in_flight".
+      beginWork: () => {
+        if (this.autoRunInFlight) return false;
+        this.autoRunInFlight = true;
+        this.filingStartedAt = Date.now();
+        return true;
+      },
+      endWork: () => {
+        this.autoRunInFlight = false;
+        this.filingStartedAt = null;
+      },
+      file: async (since) => {
+        // The gate above is the only way here, and it always sets auth.
+        const resolved = auth;
+        if (!resolved) throw new Error("auto-run: filing auth unresolved");
+        const report = await runWritePath({
+          app: this.app,
+          contextProvider: this.contextProvider,
+          apiKey: resolved.apiKey,
+          model: this.settings.model,
+          activeVocabulary: this.settings.activeVocabulary,
+          atomFolder: this.settings.atomFolder,
+          ...shortlistOptionsFromSettings(),
+          maxCaptures: PER_LAUNCH_CAP,
+          enableHubProjection: this.settings.enableHubProjection === true,
+          // never includeToday on auto-run
+          since,
+          classifyDeps: {
+            maxAttempts: 2,
+            plus: resolved.plus,
+            // Auto-run: no auth spam Notices every hour — log only.
+            onAuthFailure: (msg) => {
+              devLog("[atoms] auto-run auth failure", msg);
+            },
           },
-        },
-      });
-      this.lastWriteReport = report;
+        });
+        written.report = report;
+        this.lastWriteReport = report;
 
-      if (report.proposedTagsMerged.length) {
-        this.settings.proposedTags = mergeProposedTags(
-          this.settings.proposedTags,
-          report.proposedTagsMerged,
-          this.settings.activeVocabulary,
-        );
-        await this.saveSettings();
-      }
-
-      const pastAfter = await this.countPastUnprocessed(
-        Math.max(0, pastRemaining - report.markersAppended),
-      );
-      const stamped = shouldStampLastRunDay({
-        threw: false,
-        pastRemainingAfter: pastAfter,
-      });
-      if (stamped) writeLastRunDay(save, today);
-
-      const filed = report.markersAppended;
-      if (filed > 0) {
+        if (report.proposedTagsMerged.length) {
+          this.settings.proposedTags = mergeProposedTags(
+            this.settings.proposedTags,
+            report.proposedTagsMerged,
+            this.settings.activeVocabulary,
+          );
+          await this.saveSettings();
+        }
+        return { markersAppended: report.markersAppended };
+      },
+      onFiled: async (filed) => {
+        const report = written.report;
+        if (filed <= 0 || !report) return;
         // Resume path stays silent (R5); no land-peak fanfare either.
         if (source !== "resume" && !catchUp?.silentHome) {
           new Notice(
@@ -1138,38 +1154,51 @@ export default class AtomsPlugin extends Plugin {
         } else {
           await this.refreshAtomsHomeLeaves();
         }
-      }
+      },
+      onError: (e) => {
+        // Never crash launch; never stamp on throw (retry same day).
+        devLog("[atoms] auto-run error", {
+          name: e instanceof Error ? e.name : "Error",
+          message: e instanceof Error ? e.message : "unknown",
+        });
+      },
+    });
+
+    if (outcome.reason === "empty") {
+      devLog("[atoms] auto-run empty success", { source, since: outcome.since });
+    } else if (outcome.reason === "ok") {
       // Offline / all-failed without stamp: silent; retry same day on next open.
       devLog("[atoms] auto-run complete", {
         source,
-        filed,
-        atoms: report.atomsCreated,
-        failed: report.failed,
-        scanned: report.scanned,
-        pastAfter,
-        stamped,
+        since: outcome.since,
+        filed: outcome.filed,
+        atoms: written.report?.atomsCreated ?? 0,
+        failed: written.report?.failed ?? 0,
+        scanned: written.report?.scanned ?? 0,
+        pastAfter: outcome.pastRemainingAfter,
+        stamped: outcome.stamped,
       });
-      return { ran: true, reason: "ok" };
-    } catch (e) {
-      // Never crash launch; never stamp on throw (retry same day).
-      devLog("[atoms] auto-run error", {
-        name: e instanceof Error ? e.name : "Error",
-        message: e instanceof Error ? e.message : "unknown",
-      });
-      return { ran: false, reason: "error" };
-    } finally {
-      this.autoRunInFlight = false;
-      this.filingStartedAt = null;
     }
+    return { ran: outcome.ran, reason: outcome.reason };
   }
 
-  /** Past-only unmarked count; on list failure use fallback (default 0). */
-  private async countPastUnprocessed(fallback = 0): Promise<number> {
+  /**
+   * Past-only unmarked count; on list failure use `fallback` (default 0).
+   *
+   * Options object on purpose: the bound and the fallback are both scalars, and the previous
+   * positional `fallback` sat at exactly the index a new leading `since` would have taken —
+   * a silent swap that would have made the recount count history (KTD2).
+   */
+  private async countPastUnprocessed(
+    opts: { since?: string; fallback?: number } = {},
+  ): Promise<number> {
     try {
-      const listed = await getPastDailyNotesWithUnmarkedCaptures(this.app);
+      const listed = await getPastDailyNotesWithUnmarkedCaptures(this.app, {
+        since: opts.since,
+      });
       return listed.totalUnprocessed;
     } catch {
-      return fallback;
+      return opts.fallback ?? 0;
     }
   }
 

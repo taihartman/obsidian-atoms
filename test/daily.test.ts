@@ -5,6 +5,7 @@ import {
   DailyNotesDisabledError,
   ensureDailyForDate,
   FutureDailyNoteError,
+  getPastDailyNotesWithUnmarkedCaptures,
 } from "../src/pipeline/daily";
 
 const app = {} as never;
@@ -105,5 +106,59 @@ describe("ensureDailyForDate", () => {
     await expect(ensureDailyForDate(app, "2026-07-27")).rejects.toThrow(
       /could not create/i,
     );
+  });
+});
+
+describe("getPastDailyNotesWithUnmarkedCaptures — bounds plumbing", () => {
+  const days = ["2026-08-01", "2026-08-05", "2026-08-07"];
+
+  function mockVault() {
+    const files = Object.fromEntries(
+      days.map((d) => [d, new TFile(`Daily/${d}.md`)]),
+    );
+    vi.spyOn(dni, "getAllDailyNotes").mockReturnValue(files as never);
+    vi.spyOn(dni, "getDateFromFile").mockImplementation(
+      ((file: TFile) => {
+        const date = file.path.slice("Daily/".length, -".md".length);
+        return { format: () => date } as never;
+      }) as never,
+    );
+    return {
+      vault: { cachedRead: async () => "- unmarked capture\n" },
+    } as never;
+  }
+
+  it("the Date form stays unbounded — attended callers are unchanged", async () => {
+    const result = await getPastDailyNotesWithUnmarkedCaptures(
+      mockVault(),
+      new Date("2026-08-10T12:00:00"),
+    );
+    expect(result.notes.map((n) => n.date)).toEqual(days);
+    expect(result.totalUnprocessed).toBe(3);
+  });
+
+  it("the no-opts form stays unbounded", async () => {
+    const result = await getPastDailyNotesWithUnmarkedCaptures(mockVault(), {
+      today: new Date("2026-08-10T12:00:00"),
+    });
+    expect(result.notes.map((n) => n.date)).toEqual(days);
+  });
+
+  it("since reaches the scan and totalUnprocessed counts only the window", async () => {
+    const result = await getPastDailyNotesWithUnmarkedCaptures(mockVault(), {
+      today: new Date("2026-08-10T12:00:00"),
+      since: "2026-08-05",
+    });
+    expect(result.notes.map((n) => n.date)).toEqual(["2026-08-05", "2026-08-07"]);
+    expect(result.totalUnprocessed).toBe(2);
+  });
+
+  it("before reaches the scan as the exclusive complement bound", async () => {
+    const result = await getPastDailyNotesWithUnmarkedCaptures(mockVault(), {
+      today: new Date("2026-08-10T12:00:00"),
+      before: "2026-08-05",
+    });
+    expect(result.notes.map((n) => n.date)).toEqual(["2026-08-01"]);
+    expect(result.totalUnprocessed).toBe(1);
   });
 });

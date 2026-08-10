@@ -94,6 +94,12 @@ export interface RunWritePathOptions {
   fixtureResults?: ClassificationResult[];
   /** Manual force: include today's daily. Default false (never for auto-run). */
   includeToday?: boolean;
+  /**
+   * Filing-window start, `YYYY-MM-DD` inclusive (KTD2). Every unattended caller passes the
+   * same bound it counted with — a count that scans wider than the write never reaches zero,
+   * and the day is never stamped. Absent only on the attended commands.
+   */
+  since?: string;
   enableHubProjection?: boolean;
   /** Shortlist size per capture. Defaults to DEFAULT_SHORTLIST_K. */
   shortlistK?: number;
@@ -110,6 +116,7 @@ export async function runWritePath(
 ): Promise<WritePathReport> {
   const listed = await getPastDailyNotesWithUnmarkedCaptures(opts.app, {
     includeToday: opts.includeToday,
+    since: opts.since,
   });
   const work: Array<{ note: DailyNoteWithCaptures; capture: Capture }> = [];
   for (const note of listed.notes) {

@@ -79,11 +79,20 @@ export function writeAutoFilingStartDay(
 /**
  * The filing-window bound for an unattended pass — always a day, never "unbounded" (KTD2).
  *
- * Absent, malformed, or tampered stamps are re-stamped with today and today is returned. The
- * tempting alternative — treat "no stamp" as no bound — is the full-history sweep this window
- * exists to end, and it would reach any device that never enabled automatic filing yet still
- * files through the manual catch-up. Failing closed costs at most a day the user can recover
- * through the priced backfill offer; failing open costs their whole history, silently.
+ * Absent, malformed, or tampered stamps resolve to today. The tempting alternative — treat
+ * "no stamp" as no bound — is the full-history sweep this window exists to end, and it would
+ * reach any device that never enabled automatic filing yet still files through the manual
+ * catch-up. Failing closed costs at most a day the user can recover through the priced
+ * backfill offer; failing open costs their whole history, silently.
+ *
+ * **Only a device with automatic filing on ever *persists* that day.** The stamp means "the day
+ * the user enabled automatic filing", and `maybeAutoRun("onload")` runs on every launch whether
+ * or not filing is on — so persisting here unconditionally would redefine the window start as
+ * "first launch of this build". A user who leaves filing off for two months and then taps
+ * catch-up would get two months of unasked filing, widening the longer they wait. A disabled
+ * device instead re-resolves to today on every launch: a bound that never ages. The enable flag
+ * is read from storage on purpose, not from any per-run bypass — `catchUp.bypassEnabled` treats
+ * a disabled device as enabled for one run, and tapping catch-up is not turning filing on.
  *
  * `today` is normalized for the same reason the stored value is: every bound is compared
  * lexically, so handing back an unusable one (`""` sorts before every daily) would reopen the
@@ -97,7 +106,7 @@ export function resolveAutoFilingSince(
   const stored = readAutoFilingStartDay(load);
   if (stored) return stored;
   const day = isFilingDay(today) ? today : localDateString();
-  writeAutoFilingStartDay(save, day);
+  if (readDeviceAutoRunState(load).enabled) writeAutoFilingStartDay(save, day);
   return day;
 }
 
@@ -134,6 +143,151 @@ export function shouldStampLastRunDay(opts: {
 }): boolean {
   if (opts.threw) return false;
   return opts.pastRemainingAfter === 0;
+}
+
+/** A gate verdict: the paid pass proceeds, or it does not and says why. */
+export type AutoFilingGate = { ok: true } | { ok: false; reason: string };
+
+export interface AutoFilingCycleDeps {
+  load: (key: string) => unknown;
+  save: (key: string, data: unknown) => void;
+  /** Local calendar day, `YYYY-MM-DD`. */
+  today: string;
+  /**
+   * Unmarked captures inside the window. `fallback` is what to report when listing fails —
+   * it is the *recount*'s only defense, so a failed listing cannot fake a drained window.
+   */
+  count: (since: string, fallback?: number) => Promise<number>;
+  /** Everything the caller must check once the window count is known (enabled, ack, auth, in-flight). */
+  gate: (pastRemaining: number) => AutoFilingGate | Promise<AutoFilingGate>;
+  /** File inside the window — same bound the count used. Returns markers appended. */
+  file: (since: string) => Promise<{ markersAppended: number }>;
+  /**
+   * Claim the in-flight slot, synchronously. Return `false` to refuse because another pass
+   * already holds it; anything else claims it.
+   *
+   * The claim must be one uninterrupted check-and-set: the cycle calls this *before* its first
+   * `await`, because `maybeAutoRun` is fired from onload, an hourly interval, the manual path,
+   * and commands, and two callers that both observe "free" across an await boundary both pay
+   * for a write pass. `endWork` releases it and runs on every exit after a successful claim.
+   */
+  beginWork?: () => boolean | void;
+  endWork?: () => void;
+  /** Notices / home refresh, after stamping. Throwing here is treated as a failed pass. */
+  onFiled?: (filed: number) => void | Promise<void>;
+  onError?: (e: unknown) => void;
+}
+
+export interface AutoFilingCycleResult {
+  ran: boolean;
+  reason: string;
+  /** The one bound this pass resolved — both the count and the write saw exactly this. */
+  since: string;
+  filed: number;
+  stamped: boolean;
+  /** Window captures still unmarked after the pass — 0 is what stamps the day. */
+  pastRemainingAfter: number;
+}
+
+/**
+ * One unattended filing pass: resolve the bound → count → gate → file → recount → stamp.
+ *
+ * Extracted from `maybeAutoRun` so the coupling KTD2 names is testable. The count and the
+ * write must agree on one bound: if the count scans wider than the write files, the recount
+ * never reaches zero, `shouldStampLastRunDay` never stamps the calendar day, and auto-run
+ * rescans the whole vault every hour forever. It is silent — the cost is vault reads, not
+ * API spend. Resolving `since` *here*, and handing that same string to both callbacks, makes
+ * the drift unrepresentable rather than merely tested for.
+ *
+ * `resolveAutoFilingSince` never returns "unbounded", so no pass can reach history.
+ */
+export async function runAutoFilingCycle(
+  deps: AutoFilingCycleDeps,
+): Promise<AutoFilingCycleResult> {
+  const since = resolveAutoFilingSince(deps.load, deps.save, deps.today);
+
+  // Claim before the first await, and hold it for the whole cycle. Everything below can yield,
+  // so any check that lived past this point would be a check another caller could slip through.
+  if (deps.beginWork?.() === false) {
+    return {
+      ran: false,
+      reason: "in_flight",
+      since,
+      filed: 0,
+      stamped: false,
+      pastRemainingAfter: 0,
+    };
+  }
+
+  let pastRemaining = 0;
+  let filed = 0;
+  let stamped = false;
+  try {
+    pastRemaining = await deps.count(since);
+
+    const gate = await deps.gate(pastRemaining);
+    if (!gate.ok) {
+      return {
+        ran: false,
+        reason: gate.reason,
+        since,
+        filed: 0,
+        stamped: false,
+        pastRemainingAfter: pastRemaining,
+      };
+    }
+
+    // Nothing in the window — stamp so the hourly interval stops re-scanning.
+    if (pastRemaining === 0) {
+      writeLastRunDay(deps.save, deps.today);
+      stamped = true;
+      return {
+        ran: true,
+        reason: "empty",
+        since,
+        filed: 0,
+        stamped: true,
+        pastRemainingAfter: 0,
+      };
+    }
+
+    const { markersAppended } = await deps.file(since);
+    filed = markersAppended;
+    const pastAfter = await deps.count(
+      since,
+      Math.max(0, pastRemaining - markersAppended),
+    );
+    stamped = shouldStampLastRunDay({
+      threw: false,
+      pastRemainingAfter: pastAfter,
+    });
+    if (stamped) writeLastRunDay(deps.save, deps.today);
+    await deps.onFiled?.(markersAppended);
+    return {
+      ran: true,
+      reason: "ok",
+      since,
+      filed,
+      stamped,
+      pastRemainingAfter: pastAfter,
+    };
+  } catch (e) {
+    // Never stamp *because of* a throw — but do not deny a stamp that already happened. The
+    // day is written before `onFiled` runs its Notices and home refresh, so a throw from there
+    // lands here with captures genuinely filed and the day genuinely burned. Reporting 0/false
+    // would tell the caller (and its tests) the opposite of what is on disk.
+    deps.onError?.(e);
+    return {
+      ran: false,
+      reason: "error",
+      since,
+      filed,
+      stamped,
+      pastRemainingAfter: pastRemaining,
+    };
+  } finally {
+    deps.endWork?.();
+  }
 }
 
 export interface DeviceAutoRunState {

@@ -48,6 +48,15 @@ export interface GetUnprocessedOpts {
   /** When true, include today's daily (manual test / force process). Default false. */
   includeToday?: boolean;
   today?: Date;
+  /**
+   * Filing-window start, `YYYY-MM-DD` inclusive (KTD2). Non-optional in practice on every
+   * unattended path — absent means "scan all history", which is the sweep the window exists
+   * to end, so unattended callers resolve it through `resolveAutoFilingSince`. Optional here
+   * because the attended commands are deliberately unbounded diagnostics.
+   */
+  since?: string;
+  /** Backfill complement bound, `YYYY-MM-DD` exclusive (KTD3): strictly before the window. */
+  before?: string;
 }
 
 /**
@@ -82,6 +91,8 @@ export async function getPastDailyNotesWithUnmarkedCaptures(
 
   const result = collectPastNotesWithUnmarkedCaptures(notes, todayStr, {
     includeToday: opts.includeToday,
+    since: opts.since,
+    before: opts.before,
   });
   return {
     notes: result,

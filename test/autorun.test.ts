@@ -9,6 +9,7 @@ import {
   readAutoFilingStartDay,
   readDeviceAutoRunState,
   resolveAutoFilingSince,
+  runAutoFilingCycle,
   shouldRunAutoProcess,
   shouldStampLastRunDay,
   writeAutoFilingStartDay,
@@ -21,6 +22,7 @@ import {
   LS_LAST_RUN_DAY,
   PER_LAUNCH_CAP,
 } from "../src/platform/autorun";
+import type { AutoFilingGate } from "../src/platform/autorun";
 
 describe("shouldRunAutoProcess", () => {
   it("same-calendar-day with no past work → no run", () => {
@@ -278,15 +280,58 @@ describe("auto-filing window", () => {
   });
 
   describe("resolveAutoFilingSince", () => {
-    it("stamps and returns today when the key is missing", () => {
-      const { store, load, save } = makeStore();
+    /** A store whose device has automatic filing on — the only device allowed to stamp. */
+    const makeEnabledStore = () => {
+      const s = makeStore();
+      s.save(LS_AUTO_RUN_ENABLED, true);
+      return s;
+    };
+
+    it("an enabled device with no stamp returns today and persists it", () => {
+      const { store, load, save } = makeEnabledStore();
       expect(resolveAutoFilingSince(load, save, "2026-08-10")).toBe("2026-08-10");
       expect(store[LS_AUTO_RUN_START_DAY]).toBe("2026-08-10");
     });
 
-    it("re-stamps a malformed value rather than reading it as no bound", () => {
+    // The window start means "the day the user turned automatic filing on". A device that never
+    // enabled it must not mint one on first launch: that stamp would age into an ever-widening
+    // sweep the moment the user later taps catch-up. Returning today without persisting is the
+    // strictly safest bound — it stays "today" forever instead of drifting backwards.
+    it("a disabled device with no stamp returns today and persists nothing", () => {
+      const { store, load, save } = makeStore();
+      expect(resolveAutoFilingSince(load, save, "2026-08-10")).toBe("2026-08-10");
+      expect(store[LS_AUTO_RUN_START_DAY]).toBeUndefined();
+    });
+
+    it("a disabled device with a corrupt stamp still persists nothing", () => {
       for (const junk of malformed) {
         const { store, load, save } = makeStore();
+        store[LS_AUTO_RUN_START_DAY] = junk;
+
+        expect(resolveAutoFilingSince(load, save, "2026-08-10")).toBe("2026-08-10");
+        expect(store[LS_AUTO_RUN_START_DAY]).toBe(junk);
+      }
+    });
+
+    it("a disabled device returns a valid stored stamp unchanged", () => {
+      const { store, load, save } = makeStore();
+      store[LS_AUTO_RUN_START_DAY] = "2026-07-31";
+
+      let saves = 0;
+      const countingSave = (k: string, v: unknown) => {
+        saves += 1;
+        save(k, v);
+      };
+
+      expect(resolveAutoFilingSince(load, countingSave, "2026-08-10")).toBe(
+        "2026-07-31",
+      );
+      expect(saves).toBe(0);
+    });
+
+    it("an enabled device re-stamps a malformed value rather than reading it as no bound", () => {
+      for (const junk of malformed) {
+        const { store, load, save } = makeEnabledStore();
         store[LS_AUTO_RUN_START_DAY] = junk;
 
         expect(resolveAutoFilingSince(load, save, "2026-08-10")).toBe("2026-08-10");
@@ -295,7 +340,7 @@ describe("auto-filing window", () => {
     });
 
     it("returns a valid stamp unchanged and does not re-stamp it", () => {
-      const { load, save } = makeStore();
+      const { load, save } = makeEnabledStore();
       writeAutoFilingStartDay(save, "2026-07-31");
 
       let saves = 0;
@@ -326,6 +371,7 @@ describe("auto-filing window", () => {
 
       for (const junk of malformed) {
         const { store, load, save } = makeStore();
+        save(LS_AUTO_RUN_ENABLED, true);
 
         const since = resolveAutoFilingSince(load, save, junk as string);
         expect(since).toBe(realToday);
@@ -370,5 +416,415 @@ describe("constants", () => {
     expect(localDateString(new Date("2026-07-15T12:00:00"))).toMatch(
       /^\d{4}-\d{2}-\d{2}$/,
     );
+  });
+});
+
+describe("runAutoFilingCycle — termination (V2, KTD2)", () => {
+  // This is the regression that costs nothing visible and never stops: if the count scans all
+  // history while the write files only the window, the recount never reaches zero,
+  // shouldStampLastRunDay never stamps, and auto-run rescans the whole vault every hour forever.
+  // The cycle is extracted so this test drives the *same* resolve→count→file→recount→stamp path
+  // maybeAutoRun drives, instead of degrading into another pure-predicate test.
+  //
+  // KNOWN LIMIT — termination also depends on every in-window capture being fileable. A
+  // quarantined capture, or an `exhausted` Plus status that files nothing, leaves unmarked
+  // captures inside the window forever and reproduces the same loop. That is pre-existing and
+  // is NOT closed here; this test freezes only the bound-drift half.
+
+  function makeStore() {
+    const store: Record<string, unknown> = {};
+    return {
+      store,
+      load: (k: string) => store[k],
+      save: (k: string, v: unknown) => {
+        store[k] = v;
+      },
+    };
+  }
+
+  /** A vault of daily notes, each holding `perDay` unmarked captures. */
+  function makeVault(days: string[], perDay: number) {
+    const remaining = new Map(days.map((d) => [d, perDay]));
+    return {
+      /** Unmarked captures at or after `since` — the bounded count. */
+      count(since: string): number {
+        let n = 0;
+        for (const [day, left] of remaining) if (day >= since) n += left;
+        return n;
+      },
+      /** Every unmarked capture, window or not — the pre-U2 unbounded count. */
+      countAll(): number {
+        let n = 0;
+        for (const left of remaining.values()) n += left;
+        return n;
+      },
+      /** File up to PER_LAUNCH_CAP inside the window; returns markers appended. */
+      file(since: string): number {
+        let filed = 0;
+        for (const day of [...remaining.keys()].sort()) {
+          if (day < since) continue;
+          while (filed < PER_LAUNCH_CAP && (remaining.get(day) ?? 0) > 0) {
+            remaining.set(day, (remaining.get(day) ?? 0) - 1);
+            filed++;
+          }
+          if (filed >= PER_LAUNCH_CAP) break;
+        }
+        return filed;
+      },
+      preWindowRemaining(since: string): number {
+        let n = 0;
+        for (const [day, left] of remaining) if (day < since) n += left;
+        return n;
+      },
+    };
+  }
+
+  const history = Array.from({ length: 60 }, (_, i) => {
+    const d = new Date(Date.UTC(2026, 5, 1) + i * 86400000);
+    return d.toISOString().slice(0, 10);
+  });
+  const windowStart = "2026-07-25";
+  const today = "2026-08-10";
+
+  it("a history far larger than PER_LAUNCH_CAP terminates and stamps the day", async () => {
+    const { store, load, save } = makeStore();
+    save(LS_AUTO_RUN_START_DAY, windowStart);
+    const vault = makeVault(history, 10); // 600 captures, 40x the per-launch cap
+    const bounds: string[] = [];
+
+    let passes = 0;
+    let stamped = false;
+    while (!stamped && passes < 200) {
+      passes++;
+      const result = await runAutoFilingCycle({
+        load,
+        save,
+        today,
+        count: async (since) => vault.count(since),
+        gate: () => ({ ok: true }),
+        file: async (since) => {
+          bounds.push(since);
+          return { markersAppended: vault.file(since) };
+        },
+      });
+      bounds.push(result.since);
+      stamped = result.stamped;
+    }
+
+    expect(stamped).toBe(true);
+    expect(passes).toBeLessThan(200);
+    expect(store[LS_LAST_RUN_DAY]).toBe(today);
+    // Every pass used the one resolved bound, and pre-window history was never touched.
+    expect(new Set(bounds)).toEqual(new Set([windowStart]));
+    expect(vault.count(windowStart)).toBe(0);
+    expect(vault.preWindowRemaining(windowStart)).toBeGreaterThan(0);
+  });
+
+  it("counting wider than the write is the forever loop (the bug being frozen out)", async () => {
+    const { store, load, save } = makeStore();
+    save(LS_AUTO_RUN_START_DAY, windowStart);
+    const vault = makeVault(history, 10);
+
+    for (let i = 0; i < 100; i++) {
+      const result = await runAutoFilingCycle({
+        load,
+        save,
+        today,
+        // The drift: count all history, file only the window.
+        count: async () => vault.countAll(),
+        gate: () => ({ ok: true }),
+        file: async (since) => ({ markersAppended: vault.file(since) }),
+      });
+      expect(result.stamped).toBe(false);
+    }
+    expect(vault.count(windowStart)).toBe(0); // window drained long ago
+    expect(store[LS_LAST_RUN_DAY]).toBeUndefined(); // yet the day is never stamped
+  });
+
+  it("resolves the bound once and hands the same value to count and file", async () => {
+    const { load, save } = makeStore();
+    save(LS_AUTO_RUN_START_DAY, windowStart);
+    const seen: Array<["count" | "file", string]> = [];
+
+    const result = await runAutoFilingCycle({
+      load,
+      save,
+      today,
+      count: async (since) => {
+        seen.push(["count", since]);
+        return seen.filter(([k]) => k === "file").length ? 0 : 3;
+      },
+      gate: () => ({ ok: true }),
+      file: async (since) => {
+        seen.push(["file", since]);
+        return { markersAppended: 3 };
+      },
+    });
+
+    expect(result.since).toBe(windowStart);
+    expect(seen).toEqual([
+      ["count", windowStart],
+      ["file", windowStart],
+      ["count", windowStart],
+    ]);
+    expect(result.stamped).toBe(true);
+  });
+
+  // Supersedes "stamps a bound on a device that never enabled": onload drives this cycle
+  // regardless of the enable flag, so stamping here made the window start mean "first launch
+  // of this build" instead of "the day the user enabled filing".
+  it("a device that never enabled is bounded to today but persists no stamp", async () => {
+    const { store, load, save } = makeStore();
+    const result = await runAutoFilingCycle({
+      load,
+      save,
+      today,
+      count: async () => 0,
+      gate: () => ({ ok: true }),
+      file: async () => ({ markersAppended: 0 }),
+    });
+    expect(result.since).toBe(today);
+    expect(store[LS_AUTO_RUN_START_DAY]).toBeUndefined();
+  });
+
+  // Tapping catch-up bypasses the enable check *for that run*; it is not the user turning
+  // filing on, so it must not mint a window start that then widens with every idle day.
+  it("the catch-up bypass does not stamp a window start", async () => {
+    const { store, load, save } = makeStore();
+    const laterToday = "2026-10-01";
+    const result = await runAutoFilingCycle({
+      load,
+      save,
+      today: laterToday,
+      count: async () => 0,
+      // What maybeAutoRun's gate does under catchUp.bypassEnabled: treats disabled as enabled.
+      gate: () => ({ ok: true }),
+      file: async () => ({ markersAppended: 0 }),
+    });
+    expect(result.since).toBe(laterToday);
+    expect(store[LS_AUTO_RUN_START_DAY]).toBeUndefined();
+  });
+
+  it("an enabled device stamps its window start on the first cycle", async () => {
+    const { store, load, save } = makeStore();
+    save(LS_AUTO_RUN_ENABLED, true);
+    const result = await runAutoFilingCycle({
+      load,
+      save,
+      today,
+      count: async () => 0,
+      gate: () => ({ ok: true }),
+      file: async () => ({ markersAppended: 0 }),
+    });
+    expect(result.since).toBe(today);
+    expect(store[LS_AUTO_RUN_START_DAY]).toBe(today);
+  });
+
+  it("an empty window stamps the day so the hourly interval stops re-scanning", async () => {
+    const { store, load, save } = makeStore();
+    save(LS_AUTO_RUN_START_DAY, windowStart);
+    let filed = 0;
+
+    const result = await runAutoFilingCycle({
+      load,
+      save,
+      today,
+      count: async () => 0,
+      gate: () => ({ ok: true }),
+      file: async () => {
+        filed++;
+        return { markersAppended: 0 };
+      },
+    });
+
+    expect(result).toMatchObject({ ran: true, reason: "empty", stamped: true });
+    expect(filed).toBe(0); // never pays for a pass with nothing to file
+    expect(store[LS_LAST_RUN_DAY]).toBe(today);
+  });
+
+  it("a closed gate neither files nor stamps, and reports its own reason", async () => {
+    const { store, load, save } = makeStore();
+    save(LS_AUTO_RUN_START_DAY, windowStart);
+    let filed = 0;
+
+    const result = await runAutoFilingCycle({
+      load,
+      save,
+      today,
+      count: async () => 7,
+      gate: (remaining) => {
+        expect(remaining).toBe(7);
+        return { ok: false, reason: "missing_key" };
+      },
+      file: async () => {
+        filed++;
+        return { markersAppended: 7 };
+      },
+    });
+
+    expect(result).toMatchObject({ ran: false, reason: "missing_key", stamped: false });
+    expect(filed).toBe(0);
+    expect(store[LS_LAST_RUN_DAY]).toBeUndefined();
+  });
+
+  it("a throwing write never stamps, so the day retries", async () => {
+    const { store, load, save } = makeStore();
+    save(LS_AUTO_RUN_START_DAY, windowStart);
+    const seen: string[] = [];
+
+    const result = await runAutoFilingCycle({
+      load,
+      save,
+      today,
+      count: async () => 4,
+      gate: () => ({ ok: true }),
+      file: async () => {
+        throw new Error("offline");
+      },
+      beginWork: () => {
+        seen.push("begin");
+      },
+      endWork: () => {
+        seen.push("end");
+      },
+      onError: (e) => seen.push(`error:${(e as Error).message}`),
+    });
+
+    expect(result).toMatchObject({ ran: false, reason: "error", stamped: false });
+    expect(store[LS_LAST_RUN_DAY]).toBeUndefined();
+    expect(seen).toEqual(["begin", "error:offline", "end"]);
+  });
+
+  // maybeAutoRun fires from onload, an hourly interval, the manual path, and commands. The
+  // in-flight check and the in-flight set must land in one synchronous step: with an await
+  // between them, two callers both read "free" and both pay for a write pass.
+  it("two overlapping cycles: only one runs the paid write pass", async () => {
+    const { load, save } = makeStore();
+    save(LS_AUTO_RUN_START_DAY, windowStart);
+
+    let inFlight = false;
+    const files: string[] = [];
+    const cycle = () =>
+      runAutoFilingCycle({
+        load,
+        save,
+        today,
+        count: async () => 5,
+        gate: async () => ({ ok: true }),
+        beginWork: () => {
+          if (inFlight) return false;
+          inFlight = true;
+          return true;
+        },
+        endWork: () => {
+          inFlight = false;
+        },
+        file: async (since) => {
+          files.push(since);
+          return { markersAppended: 5 };
+        },
+      });
+
+    const [a, b] = await Promise.all([cycle(), cycle()]);
+
+    expect(files).toEqual([windowStart]);
+    const reasons = [a.reason, b.reason].sort();
+    expect(reasons).toEqual(["in_flight", "ok"]);
+    expect(inFlight).toBe(false);
+  });
+
+  // Every exit after the claim must release it — the gate's own not-ok returns and the empty
+  // short-circuit included, or one skipped release wedges filing until the app restarts.
+  it("releases the in-flight claim on every exit path", async () => {
+    const shapes: Array<{
+      name: string;
+      count: number;
+      gate: AutoFilingGate;
+      throws?: boolean;
+    }> = [
+      { name: "gate closed", count: 5, gate: { ok: false, reason: "missing_key" } },
+      { name: "empty window", count: 0, gate: { ok: true } },
+      { name: "write throws", count: 5, gate: { ok: true }, throws: true },
+      { name: "ok", count: 5, gate: { ok: true } },
+    ];
+
+    for (const shape of shapes) {
+      const { load, save } = makeStore();
+      save(LS_AUTO_RUN_START_DAY, windowStart);
+      let inFlight = false;
+
+      await runAutoFilingCycle({
+        load,
+        save,
+        today,
+        count: async () => shape.count,
+        gate: async () => shape.gate,
+        beginWork: () => {
+          inFlight = true;
+          return true;
+        },
+        endWork: () => {
+          inFlight = false;
+        },
+        file: async () => {
+          if (shape.throws) throw new Error("offline");
+          return { markersAppended: shape.count };
+        },
+        onError: () => {},
+      });
+
+      expect(inFlight, shape.name).toBe(false);
+    }
+  });
+
+  // onFiled runs *after* writeLastRunDay, and it raises Notices and refreshes home — so it can
+  // throw with the day already stamped and the captures already filed. The error result has to
+  // say what is on disk, not the zeroes that read as "nothing happened".
+  it("a throw after the write reports the captures actually filed and the day actually stamped", async () => {
+    const { store, load, save } = makeStore();
+    save(LS_AUTO_RUN_START_DAY, windowStart);
+
+    const result = await runAutoFilingCycle({
+      load,
+      save,
+      today,
+      count: async (_since, fallback) => fallback ?? 6,
+      gate: () => ({ ok: true }),
+      file: async () => ({ markersAppended: 6 }),
+      onFiled: () => {
+        throw new Error("home refresh blew up");
+      },
+      onError: () => {},
+    });
+
+    expect(store[LS_LAST_RUN_DAY]).toBe(today); // the day really was burned
+    expect(result).toMatchObject({
+      ran: false,
+      reason: "error",
+      filed: 6,
+      stamped: true,
+    });
+  });
+
+  it("the recount falls back to count-minus-filed when listing fails", async () => {
+    const { store, load, save } = makeStore();
+    save(LS_AUTO_RUN_START_DAY, windowStart);
+    const fallbacks: Array<number | undefined> = [];
+
+    const result = await runAutoFilingCycle({
+      load,
+      save,
+      today,
+      count: async (_since, fallback) => {
+        fallbacks.push(fallback);
+        return fallback ?? 9;
+      },
+      gate: () => ({ ok: true }),
+      file: async () => ({ markersAppended: 9 }),
+    });
+
+    expect(fallbacks).toEqual([undefined, 0]);
+    expect(result.stamped).toBe(true);
+    expect(store[LS_LAST_RUN_DAY]).toBe(today);
   });
 });
