@@ -685,8 +685,16 @@ export async function applyBackfillResults(opts: {
     result = applyClassificationQuality(item.capture.text, result, {
       titles: [],
       personHubs: hubs,
-      personHubDetails: opts.personHubDetails,
-      listHubDetails: opts.listHubDetails,
+      personHubDetails: (opts.personHubDetails ?? []).map((d) => ({
+        canonicalTitle: d.canonicalTitle,
+        matchKeys: d.matchKeys,
+        sections: d.sections ?? [],
+      })),
+      listHubDetails: (opts.listHubDetails ?? []).map((d) => ({
+        canonicalTitle: d.canonicalTitle,
+        matchKeys: d.matchKeys,
+        sections: d.sections ?? [],
+      })),
     });
     if (result.proposed_tags?.length) {
       proposedIncoming.push(...result.proposed_tags);
