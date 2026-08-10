@@ -197,11 +197,33 @@ export function resolveAutoFilingSince(
   save: (key: string, data: unknown) => void,
   today: string,
 ): string {
-  const stored = readAutoFilingStartDay(load);
-  if (stored) return stored;
-  const day = isFilingDay(today) ? today : localDateString();
+  const day = readAutoFilingSince(load, today);
+  if (readAutoFilingStartDay(load) !== null) return day;
   if (readDeviceAutoRunState(load).enabled) writeAutoFilingStartDay(save, day);
   return day;
+}
+
+/**
+ * The same bound, for surfaces that only *read* it — home's refresh, the status command (KTD6).
+ *
+ * Opening a sidebar view or running a diagnostic is not the user turning filing on, so neither
+ * may mint device state. That is more than tidiness: `migrateAutoFilingWindow` stamps only when
+ * nothing is stored, and home's refresh can land before it (the migration waits on the vault
+ * index). A read that stamped first made the migration skip without ever setting
+ * `LS_AUTO_RUN_WINDOW_MIGRATED`, so the copy explaining why the sweep paused never appeared and
+ * the user just watched filing stop.
+ *
+ * The bound is identical to what the resolver returns; only the write is gone. Kept as a named
+ * function rather than a no-op `save` at each call site, because a `() => {}` says nothing about
+ * why and is one careless edit away from being undone.
+ */
+export function readAutoFilingSince(
+  load: (key: string) => unknown,
+  today: string,
+): string {
+  const stored = readAutoFilingStartDay(load);
+  if (stored) return stored;
+  return isFilingDay(today) ? today : localDateString();
 }
 
 /**

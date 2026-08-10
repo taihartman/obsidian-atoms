@@ -79,7 +79,7 @@ import {
 } from "../platform/filingAuth";
 import {
   localDateString,
-  resolveAutoFilingSince,
+  readAutoFilingSince,
 } from "../platform/autorun";
 import { UPDATE_NOTES_BATCH_LIMIT } from "../pipeline/refreshAtoms";
 import {
@@ -680,14 +680,14 @@ export class AtomsHomeView extends ItemView {
     try {
       const past = await getPastDailyNotesWithUnmarkedCaptures(this.app);
       this.unprocessedCount = past.totalUnprocessed;
-      // Same bound an unattended pass resolves. Read-only here: resolveAutoFilingSince only
-      // persists on a device that has automatic filing on, so opening home never starts a
-      // window. Derived from the scan above rather than a second vault pass.
+      // Same bound an unattended pass resolves, through the reader that cannot persist it:
+      // opening home is not enabling filing, and a stamp written here would also beat
+      // `migrateAutoFilingWindow` to it — leaving that flag unset and the paused-sweep copy
+      // unshown. Derived from the scan above rather than a second vault pass.
       this.windowUnprocessedCount = countUnprocessedSince(
         past.notes,
-        resolveAutoFilingSince(
+        readAutoFilingSince(
           (k) => this.app.loadLocalStorage(k) as unknown,
-          (k, v) => this.app.saveLocalStorage(k, v),
           localDateString(),
         ),
       );

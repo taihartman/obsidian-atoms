@@ -107,9 +107,9 @@ import {
   localDateString,
   migrateAutoFilingWindow,
   PER_LAUNCH_CAP,
+  readAutoFilingSince,
   readDeviceAutoRunState,
   readEgressPermitted,
-  resolveAutoFilingSince,
   runAutoFilingCycle,
   shouldRunAutoProcess,
   waitForVaultIndexReady,
@@ -965,10 +965,22 @@ export default class AtomsPlugin extends Plugin {
     // the read-side fallback writing the same day with nothing recording that it happened — and
     // flag the device, because this pauses an in-progress silent sweep and an auto-update shows
     // no release notes to explain why.
-    migrateAutoFilingWindow(
-      (k) => this.app.loadLocalStorage(k) as unknown,
-      (k, v) => this.app.saveLocalStorage(k, v),
-    );
+    //
+    // Guarded like the index wait above: the onload pass and the hourly interval are registered
+    // below it, so an unguarded throw here — a full or hostile localStorage is enough — takes
+    // filing down for the whole session with nothing said. The migration is idempotent and
+    // retries on the next launch; the session's filing does not.
+    try {
+      migrateAutoFilingWindow(
+        (k) => this.app.loadLocalStorage(k) as unknown,
+        (k, v) => this.app.saveLocalStorage(k, v),
+      );
+    } catch (e) {
+      devLog("[atoms] auto-filing window migration failed", {
+        name: e instanceof Error ? e.name : "Error",
+        message: e instanceof Error ? e.message : "unknown",
+      });
+    }
 
     // Primary: once index is ready (app open).
     void this.maybeAutoRun("onload");
@@ -1062,6 +1074,17 @@ export default class AtomsPlugin extends Plugin {
       return { ran: false, reason: "cache_not_ready" };
     }
 
+    // Same verdict the gate reaches, taken before the claim and before the count.
+    //
+    // Disabling preserves the start day (KTD6), so a device with filing off still resolves a real
+    // window — and the cycle used to claim the in-flight slot and scan all of it every hour only
+    // to be refused for being disabled. Two costs: pointless hourly vault reads, and a lock held
+    // across a long count that a concurrent catch-up or the user's own enable tap then loses to.
+    // `bypassEnabled` is the manual catch-up, which files with the toggle off by design (KTD11).
+    if (catchUp?.bypassEnabled !== true && !state.enabled) {
+      return { ran: false, reason: "disabled" };
+    }
+
     let auth: Extract<
       ReturnType<typeof resolveClassifyAuth>,
       { ok: true }
@@ -1129,7 +1152,6 @@ export default class AtomsPlugin extends Plugin {
       beginWork: () => {
         if (this.autoRunInFlight) return false;
         this.autoRunInFlight = true;
-        this.filingStartedAt = Date.now();
         return true;
       },
       endWork: () => {
@@ -1137,6 +1159,11 @@ export default class AtomsPlugin extends Plugin {
         this.filingStartedAt = null;
       },
       file: async (since) => {
+        // Marked here, not in `beginWork`: the claim has to happen before the cycle's first
+        // await, but the claim is not a filing pass — a run refused by the gate would otherwise
+        // report itself as filing to `decideResumeStages` and home's filing card. `endWork`
+        // clears it on every exit after the claim, this one included.
+        this.filingStartedAt = Date.now();
         // The gate above is the only way here, and it always sets auth.
         const resolved = auth;
         if (!resolved) throw new Error("auto-run: filing auth unresolved");
@@ -1474,9 +1501,10 @@ export default class AtomsPlugin extends Plugin {
     // The same bound the next unattended pass will resolve. Unbounded here would report work
     // remaining on a drained window and `wouldRunNow: true` on a day already stamped — and this
     // command is what the CLI smoke reads as evidence, so that number would be read as a defect.
-    const since = resolveAutoFilingSince(
+    // Read-only: a diagnostic must not mint the window start, which would also rob
+    // `migrateAutoFilingWindow` of the stamp its flag depends on.
+    const since = readAutoFilingSince(
       (k) => this.app.loadLocalStorage(k) as unknown,
-      (k, v) => this.app.saveLocalStorage(k, v),
       today,
     );
     const pastRemaining = await this.countPastUnprocessed({ since });

@@ -8,6 +8,7 @@ import {
   localDateString,
   includeTodayForRun,
   migrateAutoFilingWindow,
+  readAutoFilingSince,
   readAutoFilingStartDay,
   readAutoFilingWindowMigrated,
   setAutomaticFilingEnabled,
@@ -382,6 +383,59 @@ describe("auto-filing window", () => {
         expect(since).toBe(realToday);
         expect(store[LS_AUTO_RUN_START_DAY]).toBe(realToday);
       }
+    });
+  });
+
+  /**
+   * The read-only twin of the resolver, for surfaces that only display the bound.
+   *
+   * Two of them — home's refresh and the auto-run status command — used the persisting resolver.
+   * Beyond writing device state from a read, that raced `migrateAutoFilingWindow`: the migration
+   * only stamps when nothing is stored, so a read that stamped first made it skip and never set
+   * its flag, and the "your sweep was paused" copy that flag drives never appeared.
+   */
+  describe("readAutoFilingSince", () => {
+    it("returns the same bound as the resolver, and persists nothing", () => {
+      for (const enabled of [true, false]) {
+        const { store, load, save } = makeStore();
+        if (enabled) save(LS_AUTO_RUN_ENABLED, true);
+        const before = { ...store };
+
+        expect(readAutoFilingSince(load, "2026-08-10")).toBe(
+          resolveAutoFilingSince(
+            (k) => before[k] ?? null,
+            () => {},
+            "2026-08-10",
+          ),
+        );
+        expect(store[LS_AUTO_RUN_START_DAY]).toBeUndefined();
+      }
+    });
+
+    it("returns a valid stored stamp unchanged", () => {
+      const { load, save } = makeStore();
+      writeAutoFilingStartDay(save, "2026-07-31");
+      expect(readAutoFilingSince(load, "2026-08-10")).toBe("2026-07-31");
+    });
+
+    it("falls back to today for every unusable stamp, and normalizes a bad today", () => {
+      for (const junk of malformed) {
+        const { load, save } = makeStore();
+        save(LS_AUTO_RUN_START_DAY, junk);
+        expect(readAutoFilingSince(load, "2026-08-10")).toBe("2026-08-10");
+        expect(readAutoFilingSince(load, junk as string)).toBe(localDateString());
+      }
+    });
+
+    it("leaves the migration its stamp to write", () => {
+      const { load, save } = makeStore();
+      save(LS_AUTO_RUN_ENABLED, true);
+
+      // A home refresh landing before the migration, which waits on the vault index.
+      readAutoFilingSince(load, "2026-08-10");
+
+      expect(migrateAutoFilingWindow(load, save, "2026-08-10")).toBe(true);
+      expect(readAutoFilingWindowMigrated(load)).toBe(true);
     });
   });
 
