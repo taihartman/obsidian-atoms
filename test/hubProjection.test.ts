@@ -27,6 +27,21 @@ describe("renderGeneratedBlock", () => {
       ].join("\n"),
     );
   });
+
+  it("does not emit ## Unsorted twice when hub already has that H2", () => {
+    const block = renderGeneratedBlock(
+      [
+        { title: "loose" },
+        { title: "placed", section: "Unsorted" },
+      ],
+      ["Gift Ideas", "Unsorted"],
+    );
+    const opens = block.match(/^## Unsorted$/gm) ?? [];
+    expect(opens).toHaveLength(1);
+    expect(block).toBe(
+      ["## Unsorted", "- [[loose]]", "- [[placed]]"].join("\n"),
+    );
+  });
 });
 
 describe("projectHubMarkdown", () => {
