@@ -1499,40 +1499,69 @@ export default class AtomsPlugin extends Plugin {
     await this.saveSettings();
   }
 
-  /** R11 — full regen when toggle turns on; Notice filled vs skipped. */
-  async runHubProjectionFullRegenNotice(): Promise<void> {
+  /**
+   * Preview hub list bulk update (toggle-on or Refresh), then write on confirm.
+   */
+  async openHubListPreview(_source: "toggle-on" | "refresh"): Promise<void> {
     if (this.settings.enableHubProjection !== true) return;
+    const preparing = new Notice("Atoms: preparing hub list preview…", 0);
     try {
-      const { runHubProjectionForHubs } = await import(
-        "../pipeline/runHubProjection"
+      const {
+        buildFullHubProjectionPlan,
+        applyHubProjectionPlan,
+        noticeHubProjectionErrors,
+      } = await import("../pipeline/runHubProjection");
+      const {
+        summarizeHubProjectionPlan,
+        filterPlanIncludeUnsorted,
+      } = await import("../pipeline/hubListPreview");
+      const { openHubListPreviewModal } = await import(
+        "../settings/hubListPreviewModal"
       );
-      const proj = await runHubProjectionForHubs({
+
+      const built = await buildFullHubProjectionPlan({
         app: this.app,
         enabled: true,
         atomFolder: this.settings.atomFolder,
-        touchedHubTitles: [],
-        fullRegen: true,
-        personHubDetails: this.contextProvider
-          ?.buildContext()
+        personHubDetails: this.contextProvider?.buildContext()
           .personHubDetails,
       });
-      const filled = proj.filled ?? proj.wrote;
-      const skipped = proj.skipped ?? 0;
+      preparing.hide();
+
+      const withU = summarizeHubProjectionPlan(built.plan);
+      const withoutU = summarizeHubProjectionPlan(
+        filterPlanIncludeUnsorted(built.plan, false),
+      );
+
+      const result = await openHubListPreviewModal(this.app, withU, withoutU);
+      if (result.action !== "confirm") return;
+
+      const plan = filterPlanIncludeUnsorted(
+        built.plan,
+        result.includeUnsorted,
+      );
+      const applied = await applyHubProjectionPlan(this.app, plan);
+      const filled = plan.writes.filter((w) => w.changed).length;
       new Notice(
-        `Atoms: updated ${filled} hub list${filled === 1 ? "" : "s"}${
-          skipped
-            ? ` (${skipped} skipped — no linked atoms or not ready to write)`
+        `Atoms: updated ${applied.wrote} hub list${
+          applied.wrote === 1 ? "" : "s"
+        }${
+          filled > applied.wrote
+            ? ` (${filled - applied.wrote} planned but not written)`
             : ""
         }`,
         10000,
       );
-      const { noticeHubProjectionErrors } = await import(
-        "../pipeline/runHubProjection"
-      );
-      noticeHubProjectionErrors(proj.errors, 2);
+      noticeHubProjectionErrors(applied.errors, 2);
     } catch {
+      preparing.hide();
       new Notice("Atoms: could not refresh hub lists", 6000);
     }
+  }
+
+  /** @deprecated use openHubListPreview — kept for any stray callers */
+  async runHubProjectionFullRegenNotice(): Promise<void> {
+    await this.openHubListPreview("toggle-on");
   }
 
   /**

@@ -24,6 +24,11 @@ export type HubProjectionPlanItem = {
   /** skipped by non-person write brake */
   skipped?: boolean;
   skipReason?: string;
+  /** Entries used for this hub write (preview / Unsorted filter). */
+  entries?: HubProjectionEntry[];
+  /** Hub H2 taxonomy used for placement. */
+  hubSections?: string[];
+  kind?: "person" | "list";
 };
 
 export type HubProjectionError = {
@@ -175,6 +180,9 @@ export function planHubProjection(opts: {
       previous: hub.content,
       next: projected.content,
       changed: projected.content !== hub.content,
+      entries,
+      hubSections: sections,
+      kind,
     });
   }
 
@@ -225,6 +233,159 @@ export function resolveListHubsFromVault(opts: {
   return out;
 }
 
+export type FullHubProjectionBuild = {
+  plan: HubProjectionPlan;
+  hubs: Map<string, HubForProjection>;
+  zeroMemberKnown: number;
+};
+
+/**
+ * Load atoms + hubs and plan full regen (no vault.modify).
+ */
+export async function buildFullHubProjectionPlan(opts: {
+  app: App;
+  enabled: boolean;
+  atomFolder: string;
+  personHubDetails?: PersonHubDetail[];
+}): Promise<FullHubProjectionBuild> {
+  const empty: FullHubProjectionBuild = {
+    plan: { writes: [], errors: [], skipped: [] },
+    hubs: new Map(),
+    zeroMemberKnown: 0,
+  };
+  if (!opts.enabled) return empty;
+
+  const folder = opts.atomFolder.replace(/\/$/, "") || "Atoms";
+  const mdFiles = opts.app.vault.getMarkdownFiles();
+  const atomFiles = mdFiles.filter(
+    (f) => f.path === folder || f.path.startsWith(folder + "/"),
+  );
+
+  const atoms: AtomForProjection[] = [];
+  for (const f of atomFiles) {
+    try {
+      const content = await opts.app.vault.read(f);
+      atoms.push({ title: titleFromAtomPath(f.path), content });
+    } catch {
+      /* skip */
+    }
+  }
+
+  const caches = mdFiles.map((f) => ({
+    path: f.path,
+    cache: opts.app.metadataCache.getFileCache(f),
+  }));
+  const discovered = discoverPersonHubs(caches);
+  const hubs = new Map<string, HubForProjection>();
+
+  const detailByLow = new Map(
+    (opts.personHubDetails ?? []).map((d) => [
+      d.canonicalTitle.trim().toLowerCase(),
+      d,
+    ]),
+  );
+
+  for (const h of discovered) {
+    const low = h.canonicalTitle.trim().toLowerCase();
+    const file = opts.app.vault.getAbstractFileByPath(h.path);
+    if (!(file instanceof TFile)) continue;
+    try {
+      const content = await opts.app.vault.read(file);
+      const detail = detailByLow.get(low);
+      const fromDetail = detail?.sections ?? [];
+      hubs.set(low, {
+        title: h.canonicalTitle,
+        path: h.path,
+        content,
+        sections: fromDetail.length ? fromDetail : parseHubSections(content),
+        kind: "person",
+      });
+    } catch {
+      /* skip */
+    }
+  }
+
+  const listTitles = collectListHubTitles(opts.app);
+  const allowed = new Set(
+    [...hubs.keys()].concat(listTitles.map((t) => t.toLowerCase())),
+  );
+  const memberTitles = new Set<string>();
+  for (const a of atoms) {
+    for (const k of membershipKeysForAtom(a.content)) {
+      const low = k.trim().toLowerCase();
+      if (allowed.has(low)) memberTitles.add(k.trim());
+    }
+  }
+  let zeroMemberKnown = 0;
+  for (const low of allowed) {
+    if (![...memberTitles].some((t) => t.toLowerCase() === low)) {
+      zeroMemberKnown += 1;
+    }
+  }
+  const touched = [...memberTitles];
+  if (!touched.length) {
+    return { plan: { writes: [], errors: [], skipped: [] }, hubs, zeroMemberKnown };
+  }
+
+  const touchLow = new Set(touched.map((t) => t.toLowerCase()));
+  const needSet = new Set([...touchLow].filter((t) => !hubs.has(t)));
+  if (needSet.size) {
+    const fileContents: { path: string; content: string }[] = [];
+    for (const f of mdFiles) {
+      const low = titleFromAtomPath(f.path).toLowerCase();
+      if (!needSet.has(low)) continue;
+      try {
+        fileContents.push({
+          path: f.path,
+          content: await opts.app.vault.read(f),
+        });
+      } catch {
+        /* skip */
+      }
+    }
+    const listHubs = resolveListHubsFromVault({
+      files: fileContents,
+      titlesLower: needSet,
+    });
+    for (const [k, v] of listHubs) {
+      if (!hubs.has(k)) hubs.set(k, v);
+    }
+  }
+
+  const plan = planHubProjection({
+    enabled: true,
+    touchedHubTitles: touched,
+    atoms,
+    hubs,
+  });
+  return { plan, hubs, zeroMemberKnown };
+}
+
+/** Apply planned hub writes to the vault. */
+export async function applyHubProjectionPlan(
+  app: App,
+  plan: HubProjectionPlan,
+): Promise<{ wrote: number; errors: HubProjectionError[] }> {
+  const errors = [...plan.errors];
+  let wrote = 0;
+  for (const w of plan.writes) {
+    if (!w.changed) continue;
+    const file = app.vault.getAbstractFileByPath(w.path);
+    if (!(file instanceof TFile)) continue;
+    try {
+      await app.vault.modify(file, w.next);
+      wrote += 1;
+    } catch {
+      errors.push({
+        hubTitle: w.hubTitle,
+        path: w.path,
+        reason: "vault-modify-failed",
+      });
+    }
+  }
+  return { wrote, errors };
+}
+
 /**
  * Live vault: regenerate managed blocks for touched hubs (person + list).
  */
@@ -247,8 +408,25 @@ export async function runHubProjectionForHubs(opts: {
     return { wrote: 0, filled: 0, skipped: 0, errors: [] };
   }
 
+  if (opts.fullRegen) {
+    const built = await buildFullHubProjectionPlan({
+      app: opts.app,
+      enabled: true,
+      atomFolder: opts.atomFolder,
+      personHubDetails: opts.personHubDetails,
+    });
+    const applied = await applyHubProjectionPlan(opts.app, built.plan);
+    const filled = built.plan.writes.filter((w) => w.changed).length;
+    return {
+      wrote: applied.wrote,
+      filled,
+      skipped: built.plan.skipped.length + built.zeroMemberKnown,
+      errors: applied.errors,
+    };
+  }
+
   let touched = opts.touchedHubTitles.map((t) => t.trim()).filter(Boolean);
-  if (!opts.fullRegen && !touched.length) {
+  if (!touched.length) {
     return { wrote: 0, filled: 0, skipped: 0, errors: [] };
   }
 
@@ -294,41 +472,11 @@ export async function runHubProjectionForHubs(opts: {
         title: h.canonicalTitle,
         path: h.path,
         content,
-        // Empty cache detail must not block live parse of the hub body.
         sections: fromDetail.length ? fromDetail : parseHubSections(content),
         kind: "person",
       });
     } catch {
       /* skip */
-    }
-  }
-
-  let zeroMemberKnown = 0;
-  if (opts.fullRegen) {
-    const listTitles = collectListHubTitles(opts.app);
-    const allowed = new Set(
-      [...hubs.keys()].concat(listTitles.map((t) => t.toLowerCase())),
-    );
-    const memberTitles = new Set<string>();
-    for (const a of atoms) {
-      for (const k of membershipKeysForAtom(a.content)) {
-        const low = k.trim().toLowerCase();
-        if (allowed.has(low)) memberTitles.add(k.trim());
-      }
-    }
-    for (const low of allowed) {
-      if (![...memberTitles].some((t) => t.toLowerCase() === low)) {
-        zeroMemberKnown += 1;
-      }
-    }
-    touched = [...memberTitles];
-    if (!touched.length) {
-      return {
-        wrote: 0,
-        filled: 0,
-        skipped: zeroMemberKnown,
-        errors: [],
-      };
     }
   }
 
@@ -364,27 +512,14 @@ export async function runHubProjectionForHubs(opts: {
     hubs,
   });
 
-  let wrote = 0;
-  for (const w of plan.writes) {
-    if (!w.changed) continue;
-    const file = opts.app.vault.getAbstractFileByPath(w.path);
-    if (!(file instanceof TFile)) continue;
-    try {
-      await opts.app.vault.modify(file, w.next);
-      wrote += 1;
-    } catch {
-      plan.errors.push({
-        hubTitle: w.hubTitle,
-        path: w.path,
-        reason: "vault-modify-failed",
-      });
-    }
-  }
-
+  const applied = await applyHubProjectionPlan(opts.app, plan);
   const filled = plan.writes.filter((w) => w.changed).length;
-  const skipped = plan.skipped.length + zeroMemberKnown;
-
-  return { wrote, filled, skipped, errors: plan.errors };
+  return {
+    wrote: applied.wrote,
+    filled,
+    skipped: plan.skipped.length,
+    errors: applied.errors,
+  };
 }
 
 /** Collect hub titles hard-linked from atom contents ∩ allowed hub titles. */
