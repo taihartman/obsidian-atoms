@@ -146,6 +146,39 @@ describe("hubTitlesFromAtomContents", () => {
   });
 });
 
+describe("person hub empty detail sections", () => {
+  it("plan still places when hub content has H2s and sections filled from content", () => {
+    // Mirrors runHubProjection: empty detail.sections → parseHubSections(content)
+    const content = "# Alex\n\n## Gift Ideas\n";
+    const sections = ["Gift Ideas"]; // would come from parse of content
+    const plan = planHubProjection({
+      enabled: true,
+      touchedHubTitles: ["Alex"],
+      atoms: [
+        {
+          title: "Boots",
+          content:
+            '---\nhub-section: "Gift Ideas"\n---\nb\n\ngift for [[Alex]] (x).\n',
+        },
+      ],
+      hubs: new Map([
+        [
+          "alex",
+          {
+            title: "Alex",
+            path: "People/Alex.md",
+            content,
+            sections,
+            kind: "person",
+          },
+        ],
+      ]),
+    });
+    expect(plan.writes[0]!.next).toContain("## Gift Ideas");
+    expect(plan.writes[0]!.next).toContain("- [[Boots]]");
+  });
+});
+
 describe("planHubProjection list hubs", () => {
   it("projects Movies when section matches (R3c)", () => {
     const hubs = new Map([
@@ -183,6 +216,41 @@ describe("planHubProjection list hubs", () => {
     expect(plan.writes[0]!.changed).toBe(true);
     expect(plan.writes[0]!.next).toContain("## Want to watch");
     expect(plan.writes[0]!.next).toContain("- [[Dune]]");
+  });
+
+  it("writes list hub with two Unsorted members (R3c allow)", () => {
+    const hubs = new Map([
+      [
+        "movies",
+        {
+          title: "Movies",
+          path: "Movies.md",
+          content: "# Movies\n\n## Want to watch\n",
+          sections: ["Want to watch"],
+          kind: "list" as const,
+        },
+      ],
+    ]);
+    const plan = planHubProjection({
+      enabled: true,
+      touchedHubTitles: ["Movies"],
+      atoms: [
+        {
+          title: "A",
+          content: "---\n---\nx\n\nbelongs with [[Movies]] (list).\n",
+        },
+        {
+          title: "B",
+          content: "---\n---\ny\n\nbelongs with [[Movies]] (list).\n",
+        },
+      ],
+      hubs,
+    });
+    expect(plan.skipped).toEqual([]);
+    expect(plan.writes[0]!.changed).toBe(true);
+    expect(plan.writes[0]!.next).toContain("## Unsorted");
+    expect(plan.writes[0]!.next).toContain("- [[A]]");
+    expect(plan.writes[0]!.next).toContain("- [[B]]");
   });
 
   it("skips non-person single Unsorted without delimiters (R3c)", () => {

@@ -643,6 +643,11 @@ export async function applyBackfillResults(opts: {
     matchKeys: string[];
     sections?: string[];
   }>;
+  listHubDetails?: Array<{
+    canonicalTitle: string;
+    matchKeys: string[];
+    sections?: string[];
+  }>;
   enableHubProjection?: boolean;
   /**
    * The open run, when backfill is chunked. Atoms created here are appended to its corpus so the
@@ -680,6 +685,16 @@ export async function applyBackfillResults(opts: {
     result = applyClassificationQuality(item.capture.text, result, {
       titles: [],
       personHubs: hubs,
+      personHubDetails: (opts.personHubDetails ?? []).map((d) => ({
+        canonicalTitle: d.canonicalTitle,
+        matchKeys: d.matchKeys,
+        sections: d.sections ?? [],
+      })),
+      listHubDetails: (opts.listHubDetails ?? []).map((d) => ({
+        canonicalTitle: d.canonicalTitle,
+        matchKeys: d.matchKeys,
+        sections: d.sections ?? [],
+      })),
     });
     if (result.proposed_tags?.length) {
       proposedIncoming.push(...result.proposed_tags);

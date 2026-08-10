@@ -9,6 +9,14 @@ import { isJunkLinkReason } from "./linkQuality";
 const LIST_SHAPE =
   /\b(?:watch(?:list)?|movie|show|film|packing|trip|gift|wishlist|to[- ]?read|want to)\b/i;
 
+/** Soft media hub basenames (orbit-soft keys that can still be real vault notes). */
+export const MEDIA_LIST_HUB_SOFT_TITLES: ReadonlySet<string> = new Set([
+  "movies",
+  "shows",
+  "watchlist",
+  "films",
+]);
+
 export function isListHubShaped(captureText: string): boolean {
   const t = (captureText ?? "").trim();
   if (!t) return false;
@@ -21,6 +29,50 @@ function hasLinkTo(result: ClassificationResult, title: string): boolean {
   return (result.links ?? []).some(
     (l) => (l.note ?? "").trim().toLowerCase() === want,
   );
+}
+
+/** Word-boundary title match (same spirit as entityLinks). */
+export function titleMatchesCapture(hay: string, title: string): boolean {
+  const t = title.trim().toLowerCase();
+  if (!t || t.length < 3) return false;
+  const re = new RegExp(
+    `(?:^|[^a-z0-9])${t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:[^a-z0-9]|$)`,
+    "i",
+  );
+  return re.test(hay);
+}
+
+/**
+ * When several soft media hubs exist (Movies + Shows), pick by capture cues.
+ * Prefer an explicit name hit; else subtype; else Movies as default watch dump.
+ */
+export function pickSoftMediaHub(
+  hay: string,
+  softHubs: ListHubDetail[],
+): ListHubDetail | null {
+  if (!softHubs.length) return null;
+  if (softHubs.length === 1) return softHubs[0]!;
+
+  const mentioned = softHubs.filter((h) =>
+    titleMatchesCapture(hay, h.canonicalTitle),
+  );
+  if (mentioned.length === 1) return mentioned[0]!;
+
+  const byLow = new Map(
+    softHubs.map((h) => [h.canonicalTitle.trim().toLowerCase(), h] as const),
+  );
+  if (/\b(show|series|anime|season|episode|tv)\b/i.test(hay) && byLow.has("shows")) {
+    return byLow.get("shows")!;
+  }
+  if (/\b(movie|film|cinema)\b/i.test(hay)) {
+    if (byLow.has("movies")) return byLow.get("movies")!;
+    if (byLow.has("films")) return byLow.get("films")!;
+  }
+  // Generic "want to watch X" → Movies, then Watchlist, else fail closed
+  if (byLow.has("movies")) return byLow.get("movies")!;
+  if (byLow.has("watchlist")) return byLow.get("watchlist")!;
+  if (byLow.has("films")) return byLow.get("films")!;
+  return null;
 }
 
 /**
@@ -36,44 +88,33 @@ export function enrichListHubLinks(
   if (!isListHubShaped(captureText)) return result;
   if (!listHubs.length) return result;
 
-  const hay = `${captureText ?? ""}\n${result.title ?? ""}`.toLowerCase();
+  const hay = `${captureText ?? ""}\n${result.title ?? ""}`;
 
   const hits: ListHubDetail[] = [];
   for (const h of listHubs) {
     const title = h.canonicalTitle.trim();
     if (!title) continue;
-    const low = title.toLowerCase();
-    if (hay.includes(low)) {
+    if (titleMatchesCapture(hay, title)) {
       hits.push(h);
       continue;
     }
     for (const k of h.matchKeys ?? []) {
-      const m = k.trim().toLowerCase();
-      if (m && hay.includes(m)) {
+      if (k && titleMatchesCapture(hay, k)) {
         hits.push(h);
         break;
       }
     }
   }
 
-  // Soft media titles: prefer unique soft-named list hub when media-shaped
-  // (do not push every soft name — Movies+Shows would kill unique match).
+  // Soft media titles when media-shaped and no unique hard title hit
   if (!hits.length && isMediaShaped(captureText)) {
-    const soft = new Set(["movies", "shows", "watchlist", "films"]);
     const softHubs = listHubs.filter((h) =>
-      soft.has(h.canonicalTitle.trim().toLowerCase()),
+      MEDIA_LIST_HUB_SOFT_TITLES.has(h.canonicalTitle.trim().toLowerCase()),
     );
-    if (softHubs.length === 1) {
-      hits.push(softHubs[0]!);
-    } else if (softHubs.length > 1) {
-      const mentioned = softHubs.filter((h) =>
-        hay.includes(h.canonicalTitle.trim().toLowerCase()),
-      );
-      if (mentioned.length === 1) hits.push(mentioned[0]!);
-    }
+    const picked = pickSoftMediaHub(hay, softHubs);
+    if (picked) hits.push(picked);
   }
 
-  // Dedupe by title
   const uniq = new Map<string, ListHubDetail>();
   for (const h of hits) {
     uniq.set(h.canonicalTitle.trim().toLowerCase(), h);
