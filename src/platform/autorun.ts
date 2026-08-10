@@ -127,22 +127,6 @@ export function setAutomaticFilingEnabled(
 }
 
 /**
- * Whether a run may reach today's daily — the enable tap, and nothing else (KTD1).
- *
- * A strict window files nothing on day one, since no unattended pass ever includes today: the
- * user accepts a disclosure and sees nothing until tomorrow. Day one comes from one attended run
- * fired by the user's own tap, which non-negotiable #3 permits as explicit user force. Every
- * unattended source is forced back to false here rather than merely never asking, so the rule
- * survives a future caller that threads its options through without reading this comment.
- */
-export function includeTodayForRun(
-  source: AutoRunSource,
-  requested?: boolean,
-): boolean {
-  return source === "manual" && requested === true;
-}
-
-/**
  * Give a device that had automatic filing on before the window existed a start day, once (U4).
  *
  * Runs on load, ahead of the first pass, so the migration owns the first stamp rather than

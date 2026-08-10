@@ -24,8 +24,10 @@ import {
   LS_AUTO_RUN_EGRESS_ACK,
   LS_AUTO_RUN_ENABLED,
   LS_AUTO_RUN_START_DAY,
+  LS_LAST_RUN_DAY,
   EGRESS_ACK_VERSION,
   localDateString,
+  setAutomaticFilingEnabled,
 } from "../src/platform/autorun";
 import {
   atomResult,
@@ -687,8 +689,11 @@ describe("runCatchUpPass single-flight", () => {
  * the real `maybeAutoRun` with catch-up arguments, against a writable fake vault and the real
  * `runAutoFilingCycle` → `resolveAutoFilingSince` → `runWritePath` chain, so what is asserted is
  * the bound production actually resolves rather than a restatement of the rule.
+ *
+ * The enable tap is driven from the same harness at the end of this block: it is the other pass a
+ * user can fire by hand, and it is bound by the same past-only rule.
  */
-describe("manual catch-up is scoped to the filing window", () => {
+describe("filing passes are scoped to the filing window", () => {
   afterEach(() => {
     classifyTransport.handler = null;
     vi.restoreAllMocks();
@@ -832,8 +837,7 @@ describe("manual catch-up is scoped to the filing window", () => {
   });
 
   it("never reaches today's daily, whatever bypassEnabled says", async () => {
-    // `includeTodayForRun` allows today for the enable tap alone. The catch-up passes no
-    // attended options, and `bypassEnabled` must not become a back door to today.
+    // No filing pass reaches today, and `bypassEnabled` must not become a back door to it.
     const todayText = "- something captured mid-day, still being edited\n";
     const inWindow = "- a thought from inside the window\n";
     const { self, vault } = catchUpSelf({
@@ -880,5 +884,82 @@ describe("manual catch-up is scoped to the filing window", () => {
 
     expect(store[LS_AUTO_RUN_START_DAY]).toBeUndefined();
     expect(store[LS_AUTO_RUN_ENABLED]).toBeUndefined();
+  });
+
+  /**
+   * The enable tap keeps the promise the user just accepted.
+   *
+   * `EGRESS_DISCLOSURE` clause (3) — "today's daily note is never auto-touched" — is accepted a
+   * second before `runFilingAfterEnable` fires. The window also starts today, so day one files
+   * nothing at all: that silence is the shape of the promise, not a bug to be papered over with
+   * one today-including run. This drives the real `runFilingAfterEnable` → `maybeAutoRun` →
+   * `runAutoFilingCycle` → `runWritePath` chain, so a future caller that reintroduces today has
+   * to make this test go red.
+   */
+  describe("the enable tap does not touch today's daily", () => {
+    /** The pass the toggle fires, through the shared seam Settings and home both call. */
+    const tapEnable = async (
+      self: ReturnType<typeof catchUpSelf>["self"],
+      store: Record<string, unknown>,
+    ): Promise<void> => {
+      // What both enable paths do first: turn it on and stamp the window start (U3).
+      setAutomaticFilingEnabled(
+        (k) => store[k] ?? null,
+        (k, v) => {
+          store[k] = v;
+        },
+        true,
+      );
+      await (
+        AtomsPlugin.prototype as never as {
+          runFilingAfterEnable: () => Promise<void>;
+        }
+      ).runFilingAfterEnable.call({
+        ...self,
+        maybeAutoRun: (
+          AtomsPlugin.prototype as never as {
+            maybeAutoRun: (...a: unknown[]) => unknown;
+          }
+        ).maybeAutoRun,
+      });
+    };
+
+    it("leaves today byte-identical and sends nothing", async () => {
+      const todayText = "- something captured mid-day, still being edited\n";
+      // Enabling stamps *today*, so a two-day-old capture is already outside the window —
+      // asserted here so a widened bound fails too, not only a widened today rule.
+      const older = "- a thought from before filing was ever turned on\n";
+      const store: Record<string, unknown> = {
+        [LS_AUTO_RUN_EGRESS_ACK]: EGRESS_ACK_VERSION,
+      };
+      const { self, vault } = catchUpSelf({
+        store,
+        files: {
+          [`Daily/${dayBack(0)}.md`]: todayText,
+          [`Daily/${dayBack(2)}.md`]: older,
+        },
+        dailies: [
+          { path: `Daily/${dayBack(0)}.md`, date: dayBack(0) },
+          { path: `Daily/${dayBack(2)}.md`, date: dayBack(2) },
+        ],
+      });
+      const classify = fakeClassify([atomResult("Should never be filed")]);
+      classifyTransport.handler = classify.request as never;
+
+      await tapEnable(self, store);
+
+      expect(vault.read(`Daily/${dayBack(0)}.md`)).toBe(todayText);
+      expect(vault.read(`Daily/${dayBack(2)}.md`)).toBe(older);
+      // Nothing sent, so the disclosure's egress claim holds too — not just the marker count.
+      expect(classify.captures).toEqual([]);
+      // No atom file appeared beside the dailies.
+      expect(vault.paths()).toEqual([
+        `Daily/${dayBack(0)}.md`,
+        `Daily/${dayBack(2)}.md`,
+      ]);
+      // The empty window still burns the day, so the hourly interval stops rescanning.
+      expect(store[LS_AUTO_RUN_START_DAY]).toBe(dayBack(0));
+      expect(store[LS_LAST_RUN_DAY]).toBe(dayBack(0));
+    });
   });
 });

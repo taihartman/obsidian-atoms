@@ -2419,15 +2419,16 @@ describe("requesting a sign-in link (R15, U7 binding)", () => {
  *
  * The already-acked branch short-circuits before the consent sheet, so a stamp written only
  * inside the sheet's callback would miss every device whose ack is current. Both branches also
- * fire the one attended run day one comes from, so enabling from Settings is not a worse first
- * run than enabling from home.
+ * fire `runFilingAfterEnable`, so enabling from Settings is not a worse first run than enabling
+ * from home. That pass never reaches today (the disclosure promises as much) — what it buys is
+ * the empty-window stamp that stops the hourly interval rescanning for the rest of the session.
  */
 describe("automatic filing toggle stamps the window (U3)", () => {
   const flush = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
   const TOGGLE = "File automatically when Obsidian opens";
   const ACKED = { [LS_AUTO_RUN_EGRESS_ACK]: EGRESS_ACK_VERSION };
 
-  it("stamps today and files once on the already-acked re-enable", async () => {
+  it("stamps today and fires one filing pass on the already-acked re-enable", async () => {
     const { tab, local, calls } = settingTab({
       local: { ...ACKED, [LS_AUTO_RUN_ENABLED]: false, [LS_AUTO_RUN_START_DAY]: "2026-01-01" },
     });
@@ -2442,7 +2443,7 @@ describe("automatic filing toggle stamps the window (U3)", () => {
     expect(calls.filter((c) => c === "runFilingAfterEnable")).toHaveLength(1);
   });
 
-  it("stamps today and files once when the consent sheet is accepted", async () => {
+  it("stamps today and fires one filing pass when the consent sheet is accepted", async () => {
     const { tab, local, calls } = settingTab({});
     tab.display();
 

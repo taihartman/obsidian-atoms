@@ -103,7 +103,6 @@ import {
 import {
   canBuildContext,
   enableAutomaticFiling,
-  includeTodayForRun,
   localDateString,
   migrateAutoFilingWindow,
   PER_LAUNCH_CAP,
@@ -1033,15 +1032,17 @@ export default class AtomsPlugin extends Plugin {
   }
 
   /**
-   * The one attended run day one comes from (KTD1), fired by the user's own enable tap.
+   * The pass the user's own enable tap fires, shared by home's filing card and the Settings
+   * toggle so enabling from Settings is not a worse first run.
    *
-   * The window starts today and no unattended pass ever includes today, so without this the user
-   * accepts a disclosure and sees nothing until tomorrow. Shared by home's filing card and the
-   * Settings toggle so enabling from Settings is not a worse first run. This is the only caller
-   * that asks for `includeToday` outside the explicit test commands.
+   * It does **not** reach today's daily. The consent sheet the user accepts one second earlier
+   * promises "today's daily note is never auto-touched", so day one is deliberately silent: the
+   * window starts today and today is excluded, and the first atoms appear tomorrow. The call is
+   * still worth making — on an empty window the cycle stamps the day, which is what stops the
+   * hourly interval from rescanning the vault for the rest of the session.
    */
   async runFilingAfterEnable(): Promise<void> {
-    await this.maybeAutoRun("manual", undefined, { includeToday: true });
+    await this.maybeAutoRun("manual");
   }
 
   /**
@@ -1056,7 +1057,6 @@ export default class AtomsPlugin extends Plugin {
   async maybeAutoRun(
     source: AutoRunSource,
     catchUp?: { bypassEnabled?: boolean; silentHome?: boolean },
-    attended?: { includeToday?: boolean },
   ): Promise<{
     ran: boolean;
     reason: string;
@@ -1066,9 +1066,6 @@ export default class AtomsPlugin extends Plugin {
     const save = (k: string, v: unknown) => this.app.saveLocalStorage(k, v);
     const state = readDeviceAutoRunState(load);
     const today = localDateString();
-    // KTD1: only the enable tap reaches today's daily. Resolved here, once, so no unattended
-    // source can carry the option in however it threads its arguments.
-    const includeToday = includeTodayForRun(source, attended?.includeToday);
 
     if (!canBuildContext(this.vaultIndexReady)) {
       return { ran: false, reason: "cache_not_ready" };
@@ -1097,11 +1094,9 @@ export default class AtomsPlugin extends Plugin {
       save,
       today,
       count: (since, fallback) =>
-        // Same bound *and* same today-ness as the write (KTD2). The attended enable run is the
-        // one pass that files today, and a count that still excluded it would report an empty
-        // window on day one — the cycle would stamp the day and never call `file`, which is
-        // exactly the day-one silence KTD1 exists to end.
-        this.countPastUnprocessed({ since, fallback, includeToday }),
+        // Same bound as the write (KTD2), and past-only like it: both sides of the cycle read
+        // exactly the same set of captures, so the recount can reach zero and stamp the day.
+        this.countPastUnprocessed({ since, fallback }),
       gate: (pastRemaining) => {
         // Catch-up manual: bypass auto-run enable (KTD11). Still need privacy ack
         // (auto-run egress) OR catch-up egress notice is gated earlier in decideResumeStages.
@@ -1177,9 +1172,11 @@ export default class AtomsPlugin extends Plugin {
           ...shortlistOptionsFromSettings(),
           maxCaptures: PER_LAUNCH_CAP,
           enableHubProjection: this.settings.enableHubProjection === true,
-          // never includeToday on auto-run — `includeTodayForRun` allows it for the enable tap
-          // alone, and forces every unattended source back to false.
-          includeToday,
+          // Never today, from any source — onload, the hourly interval, resume, the manual
+          // catch-up, and the enable tap all land here. The egress disclosure the user accepts
+          // says "today's daily note is never auto-touched"; written as a literal so no caller
+          // can thread a different value in. Explicit force lives on the attended commands.
+          includeToday: false,
           since,
           classifyDeps: {
             maxAttempts: 2,
@@ -1257,12 +1254,11 @@ export default class AtomsPlugin extends Plugin {
    * a silent swap that would have made the recount count history (KTD2).
    */
   private async countPastUnprocessed(
-    opts: { since?: string; fallback?: number; includeToday?: boolean } = {},
+    opts: { since?: string; fallback?: number } = {},
   ): Promise<number> {
     try {
       const listed = await getPastDailyNotesWithUnmarkedCaptures(this.app, {
         since: opts.since,
-        includeToday: opts.includeToday,
       });
       return listed.totalUnprocessed;
     } catch {

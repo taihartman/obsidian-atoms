@@ -6,7 +6,6 @@ import {
   readEgressAckVersion,
   EGRESS_ACK_VERSION,
   localDateString,
-  includeTodayForRun,
   migrateAutoFilingWindow,
   readAutoFilingSince,
   readAutoFilingStartDay,
@@ -964,26 +963,6 @@ describe("stamping the filing window (U3/U4)", () => {
     }
 
     expect(store[LS_AUTO_RUN_START_DAY]).toBeUndefined();
-  });
-
-  /**
-   * KTD1 — today's daily is reachable from the enable tap and from nothing else. Every
-   * unattended source has to be forced back to false here, not merely never asked.
-   */
-  describe("includeToday", () => {
-    it("is true only for the attended enable tap", () => {
-      expect(includeTodayForRun("manual", true)).toBe(true);
-      for (const source of ["onload", "interval", "resume"] as const) {
-        expect(includeTodayForRun(source, true)).toBe(false);
-      }
-    });
-
-    it("defaults to false on every source", () => {
-      for (const source of ["onload", "interval", "manual", "resume"] as const) {
-        expect(includeTodayForRun(source)).toBe(false);
-        expect(includeTodayForRun(source, false)).toBe(false);
-      }
-    });
   });
 
   /**
