@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-_Nothing in flight._
+| In progress | [#427](https://github.com/taihartman/obsidian-atoms/issues/427) | taihartman (agent) | `claude/backfill-opt-in-709c23` | [plan](docs/plans/2026-08-10-003-feat-auto-filing-window-backfill-split-plan.md) | `src/platform/autorun.ts` · `src/plugin/main.ts` · `src/pipeline/daily.ts` · `src/pipeline/write.ts` · `src/settings/settings.ts` · `src/home/atomsHomeView.ts` | Automatic filing bounded to a window starting the enable day; history moves behind the priced backfill offer. **Launch-blocking subset only: U1–U4 + U6.** U5/U7/U8 deferred (U8 needs its own doc-review). Does **not** touch `EGRESS_DISCLOSURE` or bump `EGRESS_ACK_VERSION` — narrowing unattended reach never needs re-consent. |
 
 ## How to claim (copy)
 
