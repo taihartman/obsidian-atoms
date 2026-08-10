@@ -31,10 +31,10 @@ type WebCryptoLike = {
 
 /** Web globals are acceptable in this layer (see `plusClient.ts`). Prefer window for popout parity. */
 function webCrypto(): WebCryptoLike | null {
-  const c = (window as Window & { crypto?: Partial<WebCryptoLike> }).crypto;
+  const c = window.crypto;
   if (!c || typeof c.getRandomValues !== "function") return null;
-  if (typeof c.subtle?.digest !== "function") return null;
-  return c as WebCryptoLike;
+  if (!c.subtle || typeof c.subtle.digest !== "function") return null;
+  return c;
 }
 
 /** Cheap capability check — both halves of the verifier path, probed together. */

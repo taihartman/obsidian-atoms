@@ -22,10 +22,11 @@ These are **plugin-source** rules (`src/**`, `styles.css`). Tests may use mocks 
 
 ### Intentional exceptions (document at the call site)
 
-1. **`plusFetchRequest` (`src/platform/plusClient.ts`)** — uses renderer `fetch` because desktop `requestUrl` often fails to **localhost** during Plus dogfood; production Plus is CORS-open. Keep the file docstring + a one-line disable comment. Do **not** copy this pattern for Anthropic or other hosts.
-2. **Control-character regex** in vault-label sanitizers (`plusSignIn`) — security strip of U+0000–U+001F / bidi / zero-width. Keep `eslint-disable-next-line no-control-regex` with the R5 reason.
-3. **`markDestructive` + `setWarning` fallback** — `setDestructive` is 1.13+; manifest floor is older. Prefer `setDestructive` when present; fallback is required, not laziness.
-4. **Deprecated Capture Atom aliases** (`CAPTURE_SHORTCUT_*`) — re-exports only for old imports. **New code** uses `CAPTURE_ATOM_INSTALL_URL` / `CAPTURE_ATOM_VERSION` from `mobileInstall.ts`.
+1. **`plusFetchRequest` (`src/platform/plusClient.ts`)** — uses **`window.fetch`** (never bare `fetch`, never `eslint-disable no-restricted-globals` — disable is forbidden) because desktop `requestUrl` fails to **localhost**. Production Plus is CORS-open. Do **not** copy this for Anthropic or other hosts.
+2. **Control / bidi strip** in vault-label sanitizers — use a **code-point loop**, not a control-char regex literal (`no-control-regex`).
+3. **`markDestructive`** — prefer `setDestructive` via bracket access when present (1.13+); else `buttonEl.addClass("mod-warning")`. Never `setWarning()`.
+4. **Deprecated Capture aliases** (`CAPTURE_SHORTCUT_*`, `labelInstallOrUpdate`) — re-exports only. **New code** uses `CAPTURE_ATOM_*` and `labelCaptureShortcutCta`.
+5. **`getSettingDefinitions` / `display` deprecation** — full declarative settings migration is its own claim; do not half-migrate.
 
 ---
 
@@ -34,6 +35,8 @@ These are **plugin-source** rules (`src/**`, `styles.css`). Tests may use mocks 
 | Topic | Rule |
 |---|---|
 | Async UI handlers | Setting `onChange` / `onClick` must return **void**. Use `void promise` or `.then(…)` — not `async (x) => { await … }`. |
+| `configure:` callbacks | Use a **block body** that does not `return` the component chain. Obsidian components are thenable; returning them trips misused-promises. |
+| Line-clamp | Discrete CSS classes (`--clamp-4` / `--clamp-8`), not `setCssProps` / `el.style`. |
 | `loadLocalStorage` / `JSON.parse` | Type as `unknown`, then narrow. Do not assign straight into a typed local. |
 | Unnecessary `as` | If control-flow already narrows, drop the assertion. |
 | `this` alias | Prefer a small arrow closure (`const getX = () => this.x`) over `const self = this` / `const plugin = this` when only a live getter is needed. |

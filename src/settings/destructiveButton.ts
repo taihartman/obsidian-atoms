@@ -19,5 +19,7 @@ export function markDestructive(btn: ButtonComponent): ButtonComponent {
   if (typeof fn === "function") {
     return (fn as () => ButtonComponent).call(btn);
   }
-  return btn.setWarning();
+  // Pre-1.13 floor: mod-warning chrome without deprecated setWarning().
+  btn.buttonEl.addClass("mod-warning");
+  return btn;
 }

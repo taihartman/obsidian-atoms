@@ -31,7 +31,7 @@ import {
 import { CAPTURE_ATOM_VERSION } from "../shared/mobileInstall";
 import {
   customCaptureShortcutUrl,
-  labelInstallOrUpdate,
+  labelCaptureShortcutCta,
   openShortcutInstallUrl,
   readShortcutAck,
   resolveCaptureShortcutInstallUrl,
@@ -925,14 +925,16 @@ export class AtomsSettingTab extends PluginSettingTab {
       desc: "Anthropic model id. Default: claude-sonnet-5.",
       control: {
         kind: "text",
-        configure: (text) =>
+        configure: (text) => {
+          // Block body: Obsidian components are thenable; returning the chain trips misused-promises.
           text
             .setPlaceholder("claude-sonnet-5")
             .setValue(this.plugin.settings.model)
             .onChange((value) => {
               this.plugin.settings.model = value.trim() || "claude-sonnet-5";
               void this.plugin.saveSettings();
-            }),
+            });
+        },
       },
     });
 
@@ -942,14 +944,15 @@ export class AtomsSettingTab extends PluginSettingTab {
       desc: `Empty = production (${DEFAULT_PLUS_BASE_URL}). Local: http://127.0.0.1:8787`,
       control: {
         kind: "text",
-        configure: (text) =>
+        configure: (text) => {
           text
             .setPlaceholder(DEFAULT_PLUS_BASE_URL)
             .setValue(this.plugin.settings.plusBaseUrl)
             .onChange((value) => {
               this.plugin.settings.plusBaseUrl = value.trim();
               void this.plugin.saveSettings();
-            }),
+            });
+        },
       },
     });
   }
@@ -1514,7 +1517,7 @@ export class AtomsSettingTab extends PluginSettingTab {
       desc: urlSet
         ? `iOS: opens Capture Atom v${CAPTURE_ATOM_VERSION}. After Add Shortcut: Shortcuts → Capture Atom → edit → Append to Bookmark → Atoms Inbox (not Ask Each Time) → Done. Open Obsidian with Atoms once first so that bookmark exists. Acked: ${shortcutAcked ?? "never"}.`
         : `No link — check mobile-install.json Capture Atom urls.`,
-      label: labelInstallOrUpdate(shortcutAcked),
+      label: labelCaptureShortcutCta(shortcutAcked),
       disabled: !urlSet,
       onClick: () => {
         if (!urlSet) {
@@ -1614,7 +1617,7 @@ export class AtomsSettingTab extends PluginSettingTab {
       desc: "Only if SecretStorage fails: non-synced local storage (still never data.json). Turning this off deletes the key stored on this device.",
       control: {
         kind: "toggle",
-        configure: (toggle) =>
+        configure: (toggle) => {
           toggle
             .setValue(this.plugin.settings.useDeviceLocalKeyFallback)
             .onChange((value) => {
@@ -1625,7 +1628,8 @@ export class AtomsSettingTab extends PluginSettingTab {
               void Promise.resolve(this.plugin.saveSettings()).then(() =>
                 this.redisplay(),
               );
-            }),
+            });
+        },
       },
     });
 
@@ -1730,7 +1734,7 @@ export class AtomsSettingTab extends PluginSettingTab {
       desc: "When enabled: once per calendar day after layout + metadata are ready. Caps work per launch; offline fails silently until next day.",
       control: {
         kind: "toggle",
-        configure: (toggle) =>
+        configure: (toggle) => {
           toggle.setValue(state.enabled && state.egressAcked).onChange((on) => {
             // Re-read rather than trusting the render-time `state` above, exactly as the Ask
             // mirror toggle does: this handler can outlive the screen it was built on, and a
@@ -1750,7 +1754,8 @@ export class AtomsSettingTab extends PluginSettingTab {
                 this.redisplay();
               }),
             );
-          }),
+          });
+        },
       },
     });
 
@@ -1802,11 +1807,12 @@ export class AtomsSettingTab extends PluginSettingTab {
       desc: "When you return to Obsidian, drain the inbox, apply the Ask outbox, push the mirror, and file if automatic filing is on. Device-local only. Manual Sync everything now still works when this is off.",
       control: {
         kind: "toggle",
-        configure: (toggle) =>
+        configure: (toggle) => {
           toggle.setValue(this.plugin.getResumeEnabled()).onChange((on) => {
             this.plugin.setResumeEnabled(on);
             this.redisplay();
-          }),
+          });
+        },
       },
     });
 
@@ -1847,14 +1853,15 @@ export class AtomsSettingTab extends PluginSettingTab {
       desc: "Flat single folder for atom notes (e.g. Atoms). Paths with .. or subfolders are rejected.",
       control: {
         kind: "text",
-        configure: (text) =>
+        configure: (text) => {
           text
             .setPlaceholder("Atoms")
             .setValue(this.plugin.settings.atomFolder)
             .onChange((value) => {
               this.plugin.settings.atomFolder = clampAtomFolder(value);
               void this.plugin.saveSettings();
-            }),
+            });
+        },
       },
     });
 
@@ -1863,7 +1870,7 @@ export class AtomsSettingTab extends PluginSettingTab {
       desc: "After filing, add a list of linked atoms at the bottom of hub notes (people, Movies, packing lists, and similar). Your writing above the list stays the same. Off by default.",
       control: {
         kind: "toggle",
-        configure: (toggle) =>
+        configure: (toggle) => {
           toggle
             .setValue(this.plugin.settings.enableHubProjection === true)
             .onChange((on) => {
@@ -1877,7 +1884,8 @@ export class AtomsSettingTab extends PluginSettingTab {
                   void this.plugin.runHubProjectionFullRegenNotice();
                 }
               });
-            }),
+            });
+        },
       },
     });
   }
@@ -1903,7 +1911,7 @@ export class AtomsSettingTab extends PluginSettingTab {
         desc: "Active — eligible for classification",
         control: {
           kind: "toggle",
-          configure: (toggle) =>
+          configure: (toggle) => {
             toggle.setValue(true).onChange((on) => {
               if (on) return;
               this.plugin.settings.activeVocabulary = removeActiveTag(
@@ -1913,7 +1921,8 @@ export class AtomsSettingTab extends PluginSettingTab {
               void Promise.resolve(this.plugin.saveSettings()).then(() =>
                 this.redisplay(),
               );
-            }),
+            });
+          },
         },
       });
     }
@@ -1926,16 +1935,17 @@ export class AtomsSettingTab extends PluginSettingTab {
       name: "Add a custom tag",
       desc: "Lowercase, no # required.",
       placeholder: "e.g. health",
-      configure: (text) =>
+      configure: (text) => {
         text.setValue(this.customTagDraft).onChange((v) => {
           this.customTagDraft = v;
-        }),
+        });
+      },
       submit: {
         action: "tags:add-custom",
         // Not shortened to "Add" the way the account labels were: the row name is the field's
         // label now, so the verb is the only thing left saying *which* list the tag joins.
         label: "Add to Active",
-        onSubmit: async (typed) => {
+        onSubmit: (typed) => {
           const checked = checkCustomTag(typed);
           if (!checked.ok) {
             // Said out loud, and the draft left in the field to be corrected. Returning in
@@ -1949,8 +1959,9 @@ export class AtomsSettingTab extends PluginSettingTab {
             this.plugin.settings.activeVocabulary,
           );
           this.customTagDraft = "";
-          await this.plugin.saveSettings();
-          this.redisplay();
+          void Promise.resolve(this.plugin.saveSettings()).then(() =>
+            this.redisplay(),
+          );
         },
       },
     });
@@ -2243,7 +2254,7 @@ export class AtomsSettingTab extends PluginSettingTab {
       desc: "Keep the cloud Atoms/ copy current while Obsidian is open (vault events + Process/Update).",
       control: {
         kind: "toggle",
-        configure: (tog) =>
+        configure: (tog) => {
           // `&& ack`, exactly as the auto-run toggle reads `enabled && egressAcked`: a device
           // whose grant went stale is not mirroring, and a switch that still showed on would
           // be reporting a push that is not happening — with no gesture left to re-prompt it.
@@ -2279,7 +2290,8 @@ export class AtomsSettingTab extends PluginSettingTab {
                 void this.setAskMirrorEnabled(true);
               },
             });
-          }),
+          });
+        },
       },
     });
 
@@ -2291,7 +2303,7 @@ export class AtomsSettingTab extends PluginSettingTab {
       desc: "When on, this vault applies create/continue outbox items under your Atoms folder (new files only; never rewrites existing bodies). Requires Ask mirror enabled.",
       control: {
         kind: "toggle",
-        configure: (tog) =>
+        configure: (tog) => {
           tog
             .setValue(writeAck)
             .setDisabled(!ack || !this.plugin.settings.askEnabled)
@@ -2335,7 +2347,8 @@ export class AtomsSettingTab extends PluginSettingTab {
                   void this.setAskWriteAck(true);
                 },
               });
-            }),
+            });
+        },
       },
     });
 

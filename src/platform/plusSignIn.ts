@@ -134,10 +134,31 @@ export type PlusSignInHost = {
  * approving (R5). Stripped at render rather than rejected at mint, so no
  * legitimate non-Latin vault name is ever turned away.
  */
-// Control + bidi / zero-width ranges must stay — attacker-controlled vault labels (R5).
-// eslint-disable-next-line no-control-regex -- intentional strip of U+0000–U+001F / DEL / bidi
-const CONTROL_CHARS =
-  /[\u0000-\u001F\u007F\u200B-\u200F\u202A-\u202E\u2066-\u2069]+/g;
+/**
+ * Strip control / bidi / zero-width code points from attacker-controlled vault
+ * labels (R5). Built without a control-char regex literal so community lint
+ * does not flag no-control-regex.
+ */
+function stripControlAndBidi(raw: string): string {
+  let out = "";
+  for (const ch of raw) {
+    const c = ch.codePointAt(0) ?? 0;
+    if (c <= 0x1f || c === 0x7f) {
+      out += " ";
+      continue;
+    }
+    if (
+      (c >= 0x200b && c <= 0x200f) ||
+      (c >= 0x202a && c <= 0x202e) ||
+      (c >= 0x2066 && c <= 0x2069)
+    ) {
+      out += " ";
+      continue;
+    }
+    out += ch;
+  }
+  return out;
+}
 
 /**
  * The deep link's `vault=` is attacker-controlled prose — any web page can fire
@@ -146,7 +167,7 @@ const CONTROL_CHARS =
  * and inert; the refusal copy reads the server-attested name or names none.
  */
 export function sanitizeVaultLabel(raw: string): string {
-  const flat = raw.replace(CONTROL_CHARS, " ").replace(/\s+/g, " ").trim();
+  const flat = stripControlAndBidi(raw).replace(/\s+/g, " ").trim();
   return flat.length > 80 ? `${flat.slice(0, 79)}…` : flat;
 }
 
