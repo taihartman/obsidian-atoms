@@ -475,16 +475,21 @@ export function readEgressPermitted(
 /**
  * One-tap home enable: privacy ack + auto-run on + window start (device-local only).
  *
- * `load` trails `save` rather than leading it, against this file's usual order, because the
- * accepted shape is frozen by `egressConsentParity.test.ts` — the disclosure the home sheet
- * shows is verified against the store this call lands in. Omitting it stamps today outright,
- * which is right for a fresh enable and only loses the forward-only comparison.
+ * `save` leads because the accepted shape is frozen by `egressConsentParity.test.ts` — the
+ * disclosure the home sheet shows is verified against the store this call lands in. The rest
+ * rides in an options object rather than trailing positionals, so this file's `load`-before-
+ * `save` order is not inverted. Omitting `load` stamps today outright, which is right for a
+ * fresh enable and only loses the forward-only comparison.
  */
 export function enableAutomaticFiling(
   save: (key: string, data: unknown) => void,
-  load: (key: string) => unknown = () => null,
-  today: string = localDateString(),
+  opts: {
+    load?: (key: string) => unknown;
+    today?: string;
+  } = {},
 ): void {
+  const load = opts.load ?? (() => null);
+  const today = opts.today ?? localDateString();
   writeEgressAck(save, true);
   setAutomaticFilingEnabled(load, save, true, today);
 }

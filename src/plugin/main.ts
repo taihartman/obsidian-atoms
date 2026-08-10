@@ -1014,7 +1014,7 @@ export default class AtomsPlugin extends Plugin {
     const save = (k: string, v: unknown) => this.app.saveLocalStorage(k, v);
     const load = (k: string): unknown =>
       this.app.loadLocalStorage(k) as unknown;
-    enableAutomaticFiling(save, load);
+    enableAutomaticFiling(save, { load });
     new Notice("Atoms: automatic filing on for this device");
     await this.refreshAtomsHomeLeaves();
     void this.runFilingAfterEnable();

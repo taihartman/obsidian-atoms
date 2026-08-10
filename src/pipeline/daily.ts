@@ -85,6 +85,15 @@ export async function getPastDailyNotesWithUnmarkedCaptures(
     const momentDate = getDateFromFile(file, "day");
     if (!momentDate) continue;
     const date = momentDate.format("YYYY-MM-DD");
+    // Bounded reads: the day is already known for free, so a note the window excludes is never
+    // opened — otherwise every unattended pass still reads the whole vault's history, which is
+    // the sweep the window exists to end. Only the two lexical `YYYY-MM-DD` bounds are applied
+    // here; the today / includeToday rule is subtler and stays solely in
+    // `collectPastNotesWithUnmarkedCaptures` rather than becoming a second copy that can drift
+    // (today is one file — leaving it read costs nothing). All three bounds still run there:
+    // this skips work the cheap check already proved unnecessary, it does not replace the filter.
+    if (opts.since !== undefined && date < opts.since) continue;
+    if (opts.before !== undefined && date >= opts.before) continue;
     const content = await app.vault.cachedRead(file);
     notes.push({ path: file.path, date, content });
   }

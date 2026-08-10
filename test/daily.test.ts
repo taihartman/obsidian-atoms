@@ -172,6 +172,90 @@ describe("getPastDailyNotesWithUnmarkedCaptures — bounds plumbing", () => {
 });
 
 /**
+ * The window has to bound the *read*, not only the result: reading every daily a vault has
+ * ever had costs more the older the vault gets, which is the sweep the window exists to end.
+ * `getDateFromFile` already knows the day before any I/O, so a note the bounds exclude is
+ * never opened.
+ */
+describe("getPastDailyNotesWithUnmarkedCaptures — bounds skip the read", () => {
+  const days = ["2026-08-01", "2026-08-05", "2026-08-07"];
+
+  function countingVault() {
+    const read: string[] = [];
+    const files = Object.fromEntries(
+      days.map((d) => [d, new TFile(`Daily/${d}.md`)]),
+    );
+    vi.spyOn(dni, "getAllDailyNotes").mockReturnValue(files as never);
+    vi.spyOn(dni, "getDateFromFile").mockImplementation(
+      ((file: TFile) => {
+        const date = file.path.slice("Daily/".length, -".md".length);
+        return { format: () => date } as never;
+      }) as never,
+    );
+    return {
+      read,
+      app: {
+        vault: {
+          cachedRead: async (f: TFile) => {
+            read.push(f.path);
+            return "- unmarked capture\n";
+          },
+        },
+      } as never,
+    };
+  }
+
+  it("reads only the dailies inside the since window", async () => {
+    const { app: vault, read } = countingVault();
+
+    const result = await getPastDailyNotesWithUnmarkedCaptures(vault, {
+      today: new Date("2026-08-10T12:00:00"),
+      since: "2026-08-05",
+    });
+
+    expect(result.notes.map((n) => n.date)).toEqual([
+      "2026-08-05",
+      "2026-08-07",
+    ]);
+    expect(read).toEqual(["Daily/2026-08-05.md", "Daily/2026-08-07.md"]);
+  });
+
+  it("reads only the dailies strictly before the complement bound", async () => {
+    const { app: vault, read } = countingVault();
+
+    const result = await getPastDailyNotesWithUnmarkedCaptures(vault, {
+      today: new Date("2026-08-10T12:00:00"),
+      before: "2026-08-05",
+    });
+
+    expect(result.notes.map((n) => n.date)).toEqual(["2026-08-01"]);
+    expect(read).toEqual(["Daily/2026-08-01.md"]);
+  });
+
+  it("reads every daily when unbounded — attended diagnostics are unchanged", async () => {
+    const { app: vault, read } = countingVault();
+
+    await getPastDailyNotesWithUnmarkedCaptures(vault, {
+      today: new Date("2026-08-10T12:00:00"),
+    });
+
+    expect(read).toHaveLength(3);
+  });
+
+  it("still rejects a non-day bound rather than reading it as unbounded", async () => {
+    const { app: vault, read } = countingVault();
+
+    await expect(
+      getPastDailyNotesWithUnmarkedCaptures(vault, {
+        today: new Date("2026-08-10T12:00:00"),
+        since: "August 5",
+      }),
+    ).rejects.toThrow(/must be YYYY-MM-DD/);
+    expect(read).toEqual([]);
+  });
+});
+
+/**
  * The two plugin-level count surfaces, driven off the prototype with the fields they read.
  * `showAutoRunStatus` is what the CLI smoke reads as evidence, so a count it reports wider
  * than the window would be mistaken for a real defect; `runListUnprocessed` is the deliberate

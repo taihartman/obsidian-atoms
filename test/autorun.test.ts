@@ -855,7 +855,7 @@ describe("stamping the filing window (U3/U4)", () => {
   it("enableAutomaticFiling stamps the day filing was turned on", () => {
     const { store, load, save } = makeStore();
 
-    enableAutomaticFiling(save, load, "2026-08-10");
+    enableAutomaticFiling(save, { load, today: "2026-08-10" });
 
     expect(store[LS_AUTO_RUN_ENABLED]).toBe(true);
     expect(store[LS_AUTO_RUN_EGRESS_ACK]).toBe(EGRESS_ACK_VERSION);
