@@ -742,12 +742,15 @@ export function filingHeroCopy(input: {
     };
   }
 
+  // Enabling stamps the window at today (KTD2), so it reaches what comes next, never the
+  // captures already sitting here. This is the card that sells automatic filing: it may
+  // promise only what enabling actually does, and name Process for the rest.
   if (!autoOn) {
     return {
       mode: "enable_auto",
       eyebrow: "Ready",
       title: countLabel,
-      body: "Turn on automatic filing so past days file when you open Obsidian. Or Process now.",
+      body: "Turn on automatic filing so new captures file on their own from today on. Process files the ones already waiting, when you are ready.",
       primaryLabel: "Turn on automatic filing",
       primaryAction: "enable_auto",
       secondaryLabel: "Process",

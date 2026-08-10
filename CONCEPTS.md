@@ -57,10 +57,13 @@ Classify without writing atoms or markers. Results may open in a card modal; vau
 Classify, create atoms when warranted, append markers for all three verdicts. Multi-capture runs must tolerate line drift (bottom-up order, re-locate, already-has-marker).
 
 ### Auto-run
-Device-local gated background process of past captures. Must stay silent—no per-item progress UI or toast spam. Stamps last-run day only after past work is drained (not on failed attempts); same-day re-entry allowed while past unprocessed remain. Never includes today's daily.
+Device-local gated background process of captures inside the filing window. Must stay silent—no per-item progress UI or toast spam. Stamps last-run day only after past work in the window is drained (not on failed attempts); same-day re-entry allowed while unprocessed work remains inside the window. Never includes today's daily.
 
 ### Automatic filing
 Product name for opt-in auto-run when surfaced on home (one-tap enable + status). Same device-local flags and privacy ack as Auto-run.
+
+### Filing window
+The bound every unattended and catch-up filing pass is scoped to: from the day the device stamped automatic filing enabled, forward, never including today. Fails closed — an absent, malformed, or tampered stamp resolves to today rather than to "no bound," which would be the full-history sweep the window exists to end (`resolveAutoFilingSince`, `src/platform/autorun.ts`). The stamp only moves forward and only persists on a device that actually enabled filing; disabling preserves it, and a read-only surface (home's refresh, a status command) must read the bound without stamping it. History outside the window is reachable only through the priced backfill offer, never through an unattended pass.
 
 ## Product UI
 

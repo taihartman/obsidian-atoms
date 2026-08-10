@@ -54,10 +54,14 @@ export function localDateString(d: Date = new Date()): string {
 /**
  * A real calendar day in `YYYY-MM-DD`, the only shape the window bound accepts.
  *
- * Strict on purpose: the stamp lives in localStorage, which any other plugin or a devtools
- * session can write (KTD6), and every comparison against it is a lexical string compare — so a
- * near-miss like `2026-8-1` would sort wrong rather than fail loudly. Calendar values are checked
- * too, since `2026-02-31` matches the shape and names no day.
+ * Strict on purpose, but only about *shape*: every comparison against the stamp is a lexical
+ * string compare, so a near-miss like `2026-8-1` would sort wrong rather than fail loudly.
+ * Calendar values are checked too, since `2026-02-31` matches the shape and names no day.
+ *
+ * This is not tamper resistance, and does not try to be. The key lives in localStorage, which
+ * any other plugin or a devtools session can write, exactly as `LS_AUTO_RUN_ENABLED` can be
+ * (KTD6). A well-formed but implausible value like `1970-01-01` passes here and widens the
+ * window to all of history, the same way a flipped enable flag would.
  */
 function isFilingDay(v: unknown): v is string {
   if (typeof v !== "string") return false;

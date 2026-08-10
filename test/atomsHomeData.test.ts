@@ -384,6 +384,24 @@ describe("filingHeroCopy", () => {
     expect(c?.secondaryAction).toBe("process");
   });
 
+  it("enable_auto never promises the waiting captures will file on their own", () => {
+    // The vault QA saw: 56 past captures, none of which enabling can ever reach,
+    // because the window it creates starts today.
+    const c = filingHeroCopy({
+      pastUnprocessed: 56,
+      windowUnprocessed: 0,
+      hasKey: true,
+      autoEnabled: false,
+      egressAcked: true,
+    });
+    expect(c?.mode).toBe("enable_auto");
+    expect(c?.title).toBe("56 Captures Waiting");
+    expect(c?.body.toLowerCase()).not.toMatch(/past days file/);
+    expect(c?.body.toLowerCase()).not.toMatch(/when you open obsidian/);
+    // What is already waiting is Process work, and the copy has to say so.
+    expect(c?.body).toMatch(/Process/);
+  });
+
   it("auto_on when automatic filing on — not Process-only homework", () => {
     const c = filingHeroCopy({
       pastUnprocessed: 4,
