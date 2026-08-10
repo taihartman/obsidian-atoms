@@ -5,7 +5,11 @@
 
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { config } from "./config.mjs";
-import { INCIDENT_KIND, resolveCheckoutGrantEmail } from "./store/shared.mjs";
+import {
+  INCIDENT_KIND,
+  accountHasUsedTrial,
+  resolveCheckoutGrantEmail,
+} from "./store/shared.mjs";
 
 /** @typedef {'start_trial'|'subscribe_monthly'|'subscribe_yearly'|'topup_50'} CheckoutKind */
 
@@ -571,6 +575,28 @@ export async function applyCheckoutCompleted(store, event) {
   }
 
   const isTrial = grant === "trial";
+  if (isTrial) {
+    // Email-level claim (not event-id). Two different Checkout sessions race
+    // here; only the winner mints. claimEvent above is delivery idempotency only.
+    let won = false;
+    if (typeof store.tryClaimTrial === "function") {
+      const claim = await store.tryClaimTrial(email);
+      won = Boolean(claim?.won);
+    } else {
+      const existing = await store.getAccount?.(email);
+      won = !accountHasUsedTrial(existing);
+    }
+    if (!won) {
+      if (obj.customer) {
+        await store.setStripeCustomer(email, String(obj.customer));
+      }
+      if (obj.subscription) {
+        await store.setStripeSubscription(email, String(obj.subscription));
+      }
+      return { handled: true, action: "trial_already_used", email };
+    }
+  }
+
   await store.grantPeriod(email, {
     status: isTrial ? "trialing" : "active",
     plan: grant,

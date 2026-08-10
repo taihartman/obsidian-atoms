@@ -110,6 +110,8 @@ docker build -f plus-service/Dockerfile -t atoms-plus .
 
 https://fly.io/dashboard/personal/billing — required before relying on public traffic.
 
+**One free trial per email:** boot migrates `accounts.trial_used` and backfills entitled / Stripe-linked rows. No manual SQL on normal deploy. Residual: inactive accounts with no `stripe_customer_id` and no history may still open one trial — ops can `UPDATE accounts SET trial_used = TRUE WHERE email = '…'`.
+
 ## Staging
 
 1. Separate Fly app (e.g. `atoms-plus-staging`) + **test** Stripe keys + test prices  

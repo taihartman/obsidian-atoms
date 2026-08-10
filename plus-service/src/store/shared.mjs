@@ -242,12 +242,22 @@ export function publicAccount(a) {
 }
 
 /**
+ * Durable free-trial gate. Reads only `trialUsed` — never `plan === "trial"`
+ * (`ensureAccount` defaults inactive rows to that plan).
+ * @param {{ trialUsed?: boolean } | null | undefined} a
+ */
+export function accountHasUsedTrial(a) {
+  return Boolean(a?.trialUsed);
+}
+
+/**
  * Map a DB row (snake_case) or in-memory account to the store account shape.
  * @param {Record<string, unknown> | null | undefined} r
  */
 export function rowToAccount(r) {
   if (!r) return null;
   const periodEnd = r.periodEnd ?? r.period_end;
+  const rawUsed = r.trialUsed ?? r.trial_used;
   return {
     email: r.email,
     status: r.status,
@@ -260,6 +270,7 @@ export function rowToAccount(r) {
       (r.stripeCustomerId ?? r.stripe_customer_id) || undefined,
     stripeSubscriptionId:
       (r.stripeSubscriptionId ?? r.stripe_subscription_id) || undefined,
+    trialUsed: Boolean(rawUsed === true || rawUsed === 1 || rawUsed === "1"),
   };
 }
 
