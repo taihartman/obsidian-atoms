@@ -129,6 +129,14 @@ const sugar: Record<string, unknown> = {
     if (show) this.show();
     else this.hide();
   },
+  setCssStyles(this: HTMLElement, styles: Partial<CSSStyleDeclaration>): void {
+    Object.assign(this.style, styles);
+  },
+  setCssProps(this: HTMLElement, props: Record<string, string>): void {
+    for (const [key, value] of Object.entries(props)) {
+      this.style.setProperty(key, value);
+    }
+  },
 };
 
 /**

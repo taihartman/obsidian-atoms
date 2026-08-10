@@ -134,6 +134,8 @@ export type PlusSignInHost = {
  * approving (R5). Stripped at render rather than rejected at mint, so no
  * legitimate non-Latin vault name is ever turned away.
  */
+// Control + bidi / zero-width ranges must stay — attacker-controlled vault labels (R5).
+// eslint-disable-next-line no-control-regex -- intentional strip of U+0000–U+001F / DEL / bidi
 const CONTROL_CHARS =
   /[\u0000-\u001F\u007F\u200B-\u200F\u202A-\u202E\u2066-\u2069]+/g;
 
@@ -218,12 +220,11 @@ export async function runSignInHandoff(
       });
       return;
     }
-    const failure = result as MagicLinkFailure;
-    if (failure.verdict === "refused" || failure.code === "refused") {
-      lastRefusal = failure;
+    if (result.verdict === "refused" || result.code === "refused") {
+      lastRefusal = result;
       continue;
     }
-    status.fail(failureMessage(failure));
+    status.fail(failureMessage(result));
     return;
   }
   status.fail(
@@ -276,7 +277,7 @@ export async function completeSignInHandoff(
   if (!result.ok) {
     // The device stays signed out and the pending verifier survives, so the
     // user's next tap can still complete.
-    status.fail(failureMessage(result as MagicLinkFailure));
+    status.fail(failureMessage(result));
     return;
   }
 

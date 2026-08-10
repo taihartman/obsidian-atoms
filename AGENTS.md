@@ -40,6 +40,7 @@ If hot files overlap an `In progress` claim → **stop** and re-scope or wait. D
 | Doc | Role |
 |---|---|
 | [CLAUDE.md](./CLAUDE.md) | Full project rules |
+| [docs/obsidian-api-conventions.md](./docs/obsidian-api-conventions.md) | Community lint / Obsidian API conventions for `src/**` |
 | [docs/collab.md](./docs/collab.md) | Claim / conflict / AI-PM process |
 | [docs/workflow-lanes.md](./docs/workflow-lanes.md) | Full / light / amend / debug — process gates |
 | [STATUS.md](./STATUS.md) | Live in-flight claims |

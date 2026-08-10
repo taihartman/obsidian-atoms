@@ -29,9 +29,9 @@ type WebCryptoLike = {
   subtle: { digest: (algorithm: string, data: BufferSource) => Promise<ArrayBuffer> };
 };
 
-/** Web globals are acceptable in this layer (see `plusClient.ts:44`). */
+/** Web globals are acceptable in this layer (see `plusClient.ts`). Prefer window for popout parity. */
 function webCrypto(): WebCryptoLike | null {
-  const c = (globalThis as { crypto?: Partial<WebCryptoLike> }).crypto;
+  const c = (window as Window & { crypto?: Partial<WebCryptoLike> }).crypto;
   if (!c || typeof c.getRandomValues !== "function") return null;
   if (typeof c.subtle?.digest !== "function") return null;
   return c as WebCryptoLike;

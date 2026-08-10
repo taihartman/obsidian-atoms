@@ -65,9 +65,6 @@ export function contextForPlus(context: VaultContext): Record<string, unknown> {
   return out;
 }
 
-/** Injected by esbuild: true in watch/dev, false in production Community builds. */
-declare const ATOMS_DEV_COMMANDS: boolean;
-
 export const ANTHROPIC_MESSAGES_URL = "https://api.anthropic.com/v1/messages";
 export const ANTHROPIC_VERSION = "2023-06-01";
 

@@ -71,12 +71,12 @@ export function attachLongPress(
   const duration = opts.durationMs ?? LONG_PRESS_MS;
   const slop = opts.slopPx ?? LONG_PRESS_SLOP_PX;
   const session = new LongPressSession();
-  let timer: ReturnType<typeof setTimeout> | null = null;
+  let timer: number | null = null;
   let suppressClick = false;
 
   const clearTimer = () => {
     if (timer != null) {
-      clearTimeout(timer);
+      window.clearTimeout(timer);
       timer = null;
     }
   };
@@ -102,7 +102,7 @@ export function attachLongPress(
     } catch {
       /* ignore */
     }
-    timer = setTimeout(() => {
+    timer = window.setTimeout(() => {
       timer = null;
       if (session.timerFire()) {
         suppressClick = true;

@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-_Nothing in flight._
+| In progress | [#407](https://github.com/taihartman/obsidian-atoms/issues/407) | taihartman | `fix/407-obsidian-community-lint` | light / mechanical | `src/home/atomsHomeView.ts`, `src/shared/mobileInstall.ts`, `src/platform/*`, `src/settings/*`, `docs/obsidian-api-conventions.md` | Community lint cleanup + agent conventions doc |
 
 ## How to claim (copy)
 

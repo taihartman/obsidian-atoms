@@ -251,7 +251,7 @@ export default class AtomsPlugin extends Plugin {
     // so it happens above the first `await`. The handler only captures params;
     // the flow that needs `settings` drains once `loadSettings()` resolves.
     this.registerObsidianProtocolHandler("atoms-signin", (params) => {
-      void this.signInHandoff.accept(params as unknown as Record<string, string>);
+      void this.signInHandoff.accept(params);
     });
 
     // Disabling the plugin does not close a consent sheet it left on screen, and that sheet
@@ -1436,12 +1436,13 @@ export default class AtomsPlugin extends Plugin {
    * A named seam, so the invariant can be asserted rather than only asserted about.
    */
   plusSignInHost() {
-    const plugin = this;
+    // Live getters (not a snapshot of `this.settings`): loadSettings replaces the object.
+    const getPlusBaseUrl = (): string => this.settings.plusBaseUrl;
     return {
       app: this.app,
       settings: {
         get plusBaseUrl() {
-          return plugin.settings.plusBaseUrl;
+          return getPlusBaseUrl();
         },
       },
       // The only gate in front of the exchange (#240 U10 / R4): the modal owns
@@ -1450,7 +1451,7 @@ export default class AtomsPlugin extends Plugin {
         askSignInApproval(this.app, request),
       // Identity-aware install (#393) — same boundary Settings paste/trial use.
       installSession: (session: import("../platform/filingAuth").PlusSession) =>
-        plugin.installPlusSession(session),
+        this.installPlusSession(session),
     };
   }
 
@@ -1736,7 +1737,7 @@ export default class AtomsPlugin extends Plugin {
     }
 
     if (this.settings.useDeviceLocalKeyFallback) {
-      const local = this.app.loadLocalStorage(LOCAL_STORAGE_API_KEY);
+      const local: unknown = this.app.loadLocalStorage(LOCAL_STORAGE_API_KEY);
       if (typeof local === "string" && local.trim()) return local.trim();
     }
 

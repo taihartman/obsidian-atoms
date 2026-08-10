@@ -1,4 +1,4 @@
-import { Notice, requestUrl, TFile, type App, Modal, Setting } from "obsidian";
+import { requestUrl, TFile, type App, Modal, Setting } from "obsidian";
 import {
   ANTHROPIC_VERSION,
   applyClassificationQuality,

@@ -44,9 +44,11 @@ export function readPlusRefreshRecord(
   app: LocalStorageLike,
 ): PlusRefreshRecord | null {
   try {
-    const raw = app.loadLocalStorage(LS_PLUS_LAST_REFRESH);
-    const parsed =
-      typeof raw === "string" && raw.trim() ? JSON.parse(raw) : raw;
+    const raw: unknown = app.loadLocalStorage(LS_PLUS_LAST_REFRESH);
+    let parsed: unknown = raw;
+    if (typeof raw === "string" && raw.trim()) {
+      parsed = JSON.parse(raw) as unknown;
+    }
     if (!parsed || typeof parsed !== "object") return null;
     const o = parsed as Record<string, unknown>;
     const kind =

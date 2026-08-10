@@ -657,7 +657,7 @@ function fakeApp(opts: {
   const app = {
     vault: {
       getAbstractFileByPath: (p: string) =>
-        existing.has(p) ? { path: p } : null,
+        existing.has(p) ? new TFile(p) : null,
       createFolder: async (p: string) => {
         folders.push(p);
         existing.add(p);
@@ -665,7 +665,7 @@ function fakeApp(opts: {
       create: async (p: string, data: string) => {
         created.push({ path: p, data });
         existing.add(p);
-        return { path: p };
+        return new TFile(p);
       },
     },
     internalPlugins: { plugins: { bookmarks: opts.bookmarks } },

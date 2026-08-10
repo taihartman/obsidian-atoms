@@ -59,7 +59,7 @@ export function resolveCaptureShortcutInstallUrl(
 ): string {
   const custom = customCaptureShortcutUrl(settingsUrl);
   if (custom) return custom;
-  return (CAPTURE_SHORTCUT_INSTALL_URL ?? "").trim();
+  return (CAPTURE_ATOM_INSTALL_URL ?? "").trim();
 }
 
 function readAckVersion(
@@ -81,7 +81,7 @@ function ackIsStale(
 
 export function needsShortcutCta(
   acked: string | null | undefined,
-  shipped: string = CAPTURE_SHORTCUT_VERSION,
+  shipped: string = CAPTURE_ATOM_VERSION,
 ): boolean {
   if (!shipped) return false;
   return ackIsStale(acked, shipped);
@@ -103,7 +103,7 @@ export function readShortcutAck(
 
 export function writeShortcutAck(
   save: (key: string, value: unknown) => void,
-  version: string = CAPTURE_SHORTCUT_VERSION,
+  version: string = CAPTURE_ATOM_VERSION,
 ): void {
   save(LS_CAPTURE_SHORTCUT_ACK, version);
 }
