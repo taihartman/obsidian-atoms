@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>Atoms · Marketing desk</title>
+  <style>
+    :root {
+      --bg: #000;
+      --surface: #1c1c1e;
+      --elev: #2c2c2e;
+      --sep: rgba(84, 84, 88, 0.55);
+      --label: #fff;
+      --muted: rgba(235, 235, 245, 0.6);
+      --faint: rgba(235, 235, 245, 0.5);
+      --tint: #0a84ff;
+      --ok: #30d158;
+      --warn: #ff9f0a;
+      --err: #ff453a;
+      --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+      --serif: "New York", ui-serif, Georgia, serif;
+      --r: 16px;
+      --gutter: 20px;
+      --measure: 40rem;
+    }
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg: #f2f2f7;
+        --surface: #fff;
+        --elev: #e9e9ee;
+        --sep: rgba(60, 60, 67, 0.29);
+        --label: #000;
+        --muted: rgba(60, 60, 67, 0.78);
+        --faint: rgba(60, 60, 67, 0.74);
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--label);
+      line-height: 1.45;
+      -webkit-font-smoothing: antialiased;
+    }
+    .wrap { max-width: var(--measure); margin: 0 auto; padding: 24px var(--gutter) 72px; }
+    .eyebrow {
+      font-size: 0.68rem; font-weight: 600; letter-spacing: 0.12em;
+      text-transform: uppercase; color: var(--muted); margin: 0 0 6px;
+    }
+    h1 { font-size: 1.55rem; font-weight: 700; letter-spacing: -0.03em; margin: 0 0 6px; }
+    .north { font-family: var(--serif); font-size: 1rem; color: var(--muted); margin: 0; }
+    .meta { margin-top: 10px; font-size: 0.78rem; color: var(--faint); }
+    section { margin-bottom: 26px; }
+    h2 {
+      font-size: 0.7rem; font-weight: 600; letter-spacing: 0.12em;
+      text-transform: uppercase; color: var(--muted); margin: 0 0 10px;
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--sep);
+      border-radius: var(--r);
+      overflow: hidden;
+    }
+    .card.hero {
+      border-color: color-mix(in srgb, var(--tint) 45%, var(--sep));
+      box-shadow: 0 0 0 1px color-mix(in srgb, var(--tint) 12%, transparent);
+    }
+    .row {
+      display: flex; gap: 12px; align-items: flex-start;
+      padding: 14px 16px; border-bottom: 1px solid var(--sep);
+    }
+    .row:last-child { border-bottom: 0; }
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
+      gap: 8px;
+    }
+    .metric {
+      background: var(--surface); border: 1px solid var(--sep);
+      border-radius: 14px; padding: 12px;
+    }
+    .metric .val { font-size: 1.35rem; font-weight: 700; letter-spacing: -0.03em; margin: 2px 0; }
+    .metric .val.unk { color: var(--faint); font-size: 1.05rem; font-weight: 600; }
+    .metric .lab { font-size: 0.78rem; color: var(--muted); }
+    .metric .note { font-size: 0.7rem; color: var(--faint); margin-top: 4px; }
+    .budget-bar {
+      height: 6px; border-radius: 3px; background: var(--elev);
+      overflow: hidden; margin-top: 10px;
+    }
+    .budget-bar > i { display: block; height: 100%; background: var(--tint); border-radius: 3px; }
+    .badge {
+      flex: 0 0 auto; font-size: 0.65rem; font-weight: 600;
+      letter-spacing: 0.04em; text-transform: uppercase;
+      padding: 4px 8px; border-radius: 980px;
+      background: var(--elev); color: var(--muted);
+    }
+    .badge.todo, .badge.pending { color: var(--warn); background: color-mix(in srgb, var(--warn) 14%, transparent); }
+    .badge.done, .badge.yes { color: var(--ok); background: color-mix(in srgb, var(--ok) 14%, transparent); }
+    .badge.no, .badge.blocked { color: var(--err); background: color-mix(in srgb, var(--err) 14%, transparent); }
+    .badge.skip { color: var(--faint); }
+    .body { flex: 1; min-width: 0; }
+    .title { font-weight: 600; font-size: 1rem; margin: 0 0 4px; letter-spacing: -0.015em; }
+    .detail { font-size: 0.85rem; color: var(--muted); margin: 0 0 8px; }
+    .steps {
+      font-size: 0.88rem; margin: 0 0 12px; padding: 10px 12px;
+      background: var(--elev); border-radius: 10px;
+    }
+    .paste-block { margin-top: 12px; }
+    .paste-label {
+      font-size: 0.68rem; font-weight: 600; letter-spacing: 0.08em;
+      text-transform: uppercase; color: var(--muted); margin: 0 0 6px;
+    }
+    .paste-box {
+      width: 100%; min-height: 2.5rem; max-height: 14rem;
+      padding: 10px 12px; border-radius: 10px;
+      border: 1px solid var(--sep); background: var(--bg);
+      color: var(--label); font: inherit; font-size: 0.85rem;
+      line-height: 1.4; resize: vertical; white-space: pre-wrap;
+    }
+    .paste-box.body { min-height: 12rem; max-height: 22rem; font-size: 0.82rem; }
+    .actions {
+      display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px;
+    }
+    button, .btn {
+      appearance: none; border: 0; cursor: pointer;
+      font: inherit; font-size: 0.85rem; font-weight: 600;
+      padding: 11px 14px; border-radius: 12px;
+      background: var(--tint); color: #fff;
+      min-height: 44px; text-decoration: none;
+      display: inline-flex; align-items: center; justify-content: center;
+    }
+    button.secondary, .btn.secondary {
+      background: var(--elev); color: var(--label);
+    }
+    button:active { transform: scale(0.98); opacity: 0.92; }
+    button.copied { background: var(--ok); }
+    .effort { font-size: 0.75rem; color: var(--faint); margin-top: 10px; }
+    .intro { font-size: 0.88rem; color: var(--muted); margin: 0 0 12px; }
+    .empty { padding: 18px 16px; color: var(--muted); font-size: 0.9rem; }
+    .done-wrap { opacity: 0.72; }
+    .pill-links { display: flex; flex-wrap: wrap; gap: 8px; }
+    .pill-links a {
+      display: inline-block; padding: 8px 12px;
+      background: var(--surface); border: 1px solid var(--sep);
+      border-radius: 980px; color: var(--label); font-size: 0.8rem;
+      text-decoration: none;
+    }
+    a { color: var(--tint); }
+    footer {
+      margin-top: 32px; padding-top: 14px; border-top: 1px solid var(--sep);
+      font-size: 0.72rem; color: var(--faint);
+    }
+    details.done-section summary {
+      cursor: pointer; color: var(--muted); font-size: 0.85rem;
+      padding: 8px 0; list-style: none;
+    }
+    details.done-section summary::-webkit-details-marker { display: none; }
+    .toast {
+      position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+      background: var(--ok); color: #000; font-weight: 600; font-size: 0.85rem;
+      padding: 10px 16px; border-radius: 980px; opacity: 0;
+      pointer-events: none; transition: opacity 0.2s;
+      z-index: 20;
+    }
+    .toast.show { opacity: 1; }
+  </style>
+</head>
+<body>
+  <div class="wrap" id="app"><p class="eyebrow">Loading…</p></div>
+  <div class="toast" id="toast">Copied</div>
+  <script type="application/json" id="desk-state">{"version":2,"updated":"2026-08-10","updatedNote":"Post: instant capture (night/walk), no folder choreography, filing done for you.","budget":{"monthlyCapUsd":200,"midpointUsd":150,"spentThisMonthUsd":0,"month":"2026-08"},"northStar":"Easy capture in, real Obsidian vault out (expand, graph, plugins, Ask)","discoveryHome":"Reddit r/ObsidianMD","metrics":[{"id":"field_notes_subs","label":"Field notes subscribers","value":null,"unit":"people","note":"Unknown — needs Resend","href":null},{"id":"plus_active","label":"Plus active","value":null,"unit":"accounts","note":"Unknown — needs Stripe","href":null},{"id":"plus_mrr","label":"Plus MRR","value":null,"unit":"usd","note":"Unknown — needs Stripe","href":null},{"id":"github_stars","label":"GitHub stars","value":0,"unit":"stars","note":"Not a vanity target","href":"https://github.com/taihartman/obsidian-atoms"},{"id":"field_notes_published","label":"Field notes published","value":1,"unit":"letters","note":"knew-his-face","href":"https://tryatoms.app/notes/"}],"foundation":[{"id":"F1","title":"Install path truth","detail":"On Community plugin list","status":"done"},{"id":"F2","title":"Metrics read access","detail":"Resend + Stripe counts for the desk","status":"todo"},{"id":"F3","title":"product-marketing.md skim","detail":"Optional founder pass","status":"todo"},{"id":"F4","title":"Discovery home","detail":"Reddit r/ObsidianMD","status":"done"},{"id":"F5","title":"List hygiene","detail":"tryatoms subscribe live","status":"done"}],"queue":{"weekOf":"2026-08-10","intro":"Post when ready. Screenshots help a lot.","items":[{"id":"Q4","title":"Post Atoms on r/ObsidianMD","why":"Capture without hand-sorting; expand in vault; Claude Cowork mornings; Field notes example","youDo":"1) Screenshots  2) Copy title  3) Copy body  4) Flair plugins  5) Post  6) URL in chat","effort":"15 min","status":"pending","decision":null,"primary":true,"openUrl":"https://www.reddit.com/r/ObsidianMD/submit?selftext=true","openLabel":"Open Reddit compose","paste":{"title":"I wanted Apple Notes capture speed with real Obsidian underneath, so I made Atoms","body":"I liked how fast capture is with Apple Notes. Control Center shortcut, out of my head in a few seconds.\n\nThat part matters when you wake up at night or you're on a walk and something hits you. I don't want to open an app, create a new note, name it, pick a folder, and file it. I just want it out of my head instantly.\n\nWhat I didn't like was the ceiling. Apple Notes is easy, but I wanted the other side too: Obsidian's power, customization, plugins, graph, a vault I actually own. Open a note later and expand it. I just didn't want to spend my life filing and categorizing every dump by hand to get there.\n\nSo I made Atoms. Free and open source (MIT). Community plugins → search Atoms.\n\nHow I use it:\n\n- Capture stays dumb and fast (phone / Control Center / share sheet / whatever). Idea out first. Filing later.\n- Past dumps get filed into plain notes under Atoms/ with titles and links. You don't set up a category system first. It handles the filing. My original wording stays as I wrote it.\n- From there it's normal Obsidian. Full vault, other plugins, graph, expand a note when I care.\n- Morning habit: a Claude Cowork routine that goes over my atoms so I'm not relying on memory alone. I can also ask from Claude or ChatGPT (MCP) when I need something back.\n\nOne small example of the \"write it when you notice it\" thing: I dump little details when they come up (someone's taste, a thing they mentioned). Later I can find it again instead of scrolling a pile. I wrote a short Field note about that kind of moment here: https://tryatoms.app/notes/knew-his-face/\n\nSite: https://tryatoms.app\nCode: https://github.com/taihartman/obsidian-atoms\n\nCurious if other people want easy capture without giving up a real vault. Feedback welcome."},"links":[{"label":"r/ObsidianMD","href":"https://www.reddit.com/r/ObsidianMD/"}]},{"id":"Q0","title":"r/ObsidianMD rules check (do this first)","why":"Don't shill + no AI slop + first-post promo = ban","youDo":"1) Use YOUR normal Reddit account (not a brand-new throwaway). 2) If you've never posted/commented in r/ObsidianMD, leave 2–5 real helpful comments on other threads this week first. 3) Only then post the Atoms share once, flair plugins. 4) Stay and answer questions. Do NOT cross-post the same text to 10 subs.","effort":"30–90 min over a few days if account is cold","status":"skip","decision":"user saw first-time plugin posts doing fine; posting honestly","primary":true,"links":[{"label":"Sub rules","href":"https://www.reddit.com/r/ObsidianMD/about/rules"},{"label":"kepano ban post","href":"https://www.reddit.com/r/ObsidianMD/comments/1s8nt0m/if_your_first_post_is_to_promote_your_app_you/"},{"label":"Obsidian self-promo code","href":"https://obsidian.md/help/community-code-of-conduct#Excessive+self+promotion"}]},{"id":"Q5","title":"Optional later: promo codes for free Plus month","why":"Server already supports ATOMS_PLUS_PROMOS. Plugin has no redeem UI yet.","youDo":"Say yes if you want a simple Settings redeem field + REDDIT=1 code. Otherwise skip and stick to free BYOK + 14-day trial.","effort":"decide 1 min / build later","status":"skip","decision":null,"primary":false,"links":[]},{"id":"Q3","title":"Optional: skim product-marketing.md","why":"Skills read it; only if you care","youDo":"Say \"looks fine\" in chat, or list fixes. Skip is OK.","effort":"10 min","status":"skip","decision":null,"primary":false,"links":[]},{"id":"Q1","title":"Community plugin listing","why":"Install path","youDo":"Done","effort":"5 min","status":"yes","decision":"listed","links":[]},{"id":"Q2","title":"Discovery home","why":"One channel","youDo":"Done","effort":"2 min","status":"yes","decision":"reddit r/ObsidianMD","links":[]}]},"spend":{"rule":"F1 done. No paid required yet. Cap $200/mo when we try sponsors.","active":[],"history":[]},"links":[{"label":"tryatoms.app","href":"https://tryatoms.app"},{"label":"Field notes","href":"https://tryatoms.app/notes/"},{"label":"GitHub","href":"https://github.com/taihartman/obsidian-atoms"},{"label":"r/ObsidianMD","href":"https://www.reddit.com/r/ObsidianMD/"}],"agentInstructions":"Put every founder action in queue with paste.title/body when they must post. Rebuild desk. Never invent metrics. Never auto-post or auto-spend."}</script>
+  <script>
+/* Atoms marketing desk — client. Loaded by index.html (generated). */
+(function () {
+  function esc(s) {
+    return String(s ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function toast(msg) {
+    var t = document.getElementById("toast");
+    if (!t) return;
+    t.textContent = msg;
+    t.classList.add("show");
+    setTimeout(function () {
+      t.classList.remove("show");
+    }, 1400);
+  }
+
+  function copyText(text, btn) {
+    function ok() {
+      if (btn) {
+        var prev = btn.textContent;
+        btn.classList.add("copied");
+        btn.textContent = "Copied";
+        setTimeout(function () {
+          btn.classList.remove("copied");
+          btn.textContent = prev;
+        }, 1200);
+      }
+      toast("Copied");
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(ok).catch(function () {
+        fallbackCopy(text, ok);
+      });
+    } else {
+      fallbackCopy(text, ok);
+    }
+  }
+
+  function fallbackCopy(text, ok) {
+    var ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.position = "fixed";
+    ta.style.left = "-9999px";
+    document.body.appendChild(ta);
+    ta.select();
+    try {
+      document.execCommand("copy");
+      ok();
+    } catch (e) {
+      toast("Copy failed — select text and copy manually");
+    }
+    document.body.removeChild(ta);
+  }
+
+  function fmtValue(m) {
+    if (m.value === null || m.value === undefined) return { text: "—", unk: true };
+    if (m.unit === "usd") return { text: "$" + Number(m.value).toLocaleString(), unk: false };
+    return { text: String(m.value), unk: false };
+  }
+
+  function badgeClass(status) {
+    return "badge " + String(status || "").toLowerCase();
+  }
+
+  function isPending(item) {
+    var s = String(item.status || "").toLowerCase();
+    return s === "pending" || s === "todo";
+  }
+
+  function renderItem(item, primary) {
+    var paste = item.paste || null;
+    var titleId = "paste-title-" + item.id;
+    var bodyId = "paste-body-" + item.id;
+    var pasteHtml = "";
+
+    if (paste && (paste.title || paste.body)) {
+      pasteHtml = '<div class="paste-block">';
+      if (paste.title) {
+        pasteHtml +=
+          '<p class="paste-label">Title</p>' +
+          '<textarea class="paste-box" id="' +
+          titleId +
+          '" readonly>' +
+          esc(paste.title) +
+          "</textarea>" +
+          '<div class="actions">' +
+          '<button type="button" data-copy="' +
+          titleId +
+          '">Copy title</button></div>';
+      }
+      if (paste.body) {
+        pasteHtml +=
+          '<p class="paste-label" style="margin-top:14px">Body</p>' +
+          '<textarea class="paste-box body" id="' +
+          bodyId +
+          '" readonly>' +
+          esc(paste.body) +
+          "</textarea><div class=\"actions\">" +
+          '<button type="button" data-copy="' +
+          bodyId +
+          '">Copy body</button>';
+        if (paste.title) {
+          pasteHtml +=
+            '<button type="button" class="secondary" data-copy-both="' +
+            titleId +
+            "|" +
+            bodyId +
+            '">Copy title + body</button>';
+        }
+        if (item.openUrl) {
+          pasteHtml +=
+            '<a class="btn secondary" href="' +
+            esc(item.openUrl) +
+            '" target="_blank" rel="noopener">' +
+            esc(item.openLabel || "Open link") +
+            "</a>";
+        }
+        pasteHtml += "</div>";
+      } else if (item.openUrl) {
+        pasteHtml +=
+          '<div class="actions"><a class="btn" href="' +
+          esc(item.openUrl) +
+          '" target="_blank" rel="noopener">' +
+          esc(item.openLabel || "Open link") +
+          "</a></div>";
+      }
+      pasteHtml += "</div>";
+    } else if (item.openUrl) {
+      pasteHtml =
+        '<div class="actions"><a class="btn" href="' +
+        esc(item.openUrl) +
+        '" target="_blank" rel="noopener">' +
+        esc(item.openLabel || "Open link") +
+        "</a></div>";
+    }
+
+    var links = (item.links || [])
+      .map(function (l) {
+        return (
+          '<a href="' +
+          esc(l.href) +
+          '" target="_blank" rel="noopener">' +
+          esc(l.label) +
+          "</a>"
+        );
+      })
+      .join(" · ");
+
+    return (
+      '<div class="card' +
+      (primary ? " hero" : "") +
+      '" style="margin-bottom:12px"><div class="row"><span class="' +
+      badgeClass(item.status) +
+      '">' +
+      esc(item.status) +
+      '</span><div class="body"><p class="title">' +
+      esc(item.id) +
+      " · " +
+      esc(item.title) +
+      "</p>" +
+      (item.why ? '<p class="detail">' + esc(item.why) + "</p>" : "") +
+      (item.youDo ? '<p class="steps">' + esc(item.youDo) + "</p>" : "") +
+      pasteHtml +
+      (item.decision ? '<p class="detail">Decision: ' + esc(item.decision) + "</p>" : "") +
+      (item.effort ? '<p class="effort">~' + esc(item.effort) + "</p>" : "") +
+      (links ? '<p class="effort">' + links + "</p>" : "") +
+      "</div></div></div>"
+    );
+  }
+
+  function render(state) {
+    var b = state.budget || {};
+    var spent = Number(b.spentThisMonthUsd || 0);
+    var cap = Number(b.monthlyCapUsd || 200);
+    var pct = cap > 0 ? Math.min(100, Math.round((spent / cap) * 100)) : 0;
+    var q = state.queue || {};
+    var items = q.items || [];
+    var pending = items.filter(isPending);
+    var primary = pending.filter(function (i) {
+      return i.primary || i.paste;
+    });
+    var otherPending = pending.filter(function (i) {
+      return primary.indexOf(i) === -1;
+    });
+    var doneItems = items.filter(function (i) {
+      return !isPending(i);
+    });
+
+    var metrics = (state.metrics || [])
+      .map(function (m) {
+        var v = fmtValue(m);
+        var inner =
+          '<div class="lab">' +
+          esc(m.label) +
+          '</div><div class="val' +
+          (v.unk ? " unk" : "") +
+          '">' +
+          esc(v.text) +
+          "</div>" +
+          (m.note ? '<div class="note">' + esc(m.note) + "</div>" : "");
+        return m.href
+          ? '<a class="metric" href="' +
+              esc(m.href) +
+              '" style="color:inherit;text-decoration:none">' +
+              inner +
+              "</a>"
+          : '<div class="metric">' + inner + "</div>";
+      })
+      .join("");
+
+    var foundation = (state.foundation || [])
+      .map(function (f) {
+        return (
+          '<div class="row"><span class="' +
+          badgeClass(f.status) +
+          '">' +
+          esc(f.status) +
+          '</span><div class="body"><p class="title">' +
+          esc(f.id) +
+          " · " +
+          esc(f.title) +
+          '</p><p class="detail">' +
+          esc(f.detail) +
+          "</p></div></div>"
+        );
+      })
+      .join("");
+
+    var doNow = "";
+    if (!pending.length) {
+      doNow =
+        '<div class="card"><div class="empty">Nothing for you. Marketing is healthy.</div></div>';
+    } else {
+      doNow = primary
+        .map(function (i) {
+          return renderItem(i, true);
+        })
+        .join("");
+      doNow += otherPending
+        .map(function (i) {
+          return renderItem(i, false);
+        })
+        .join("");
+    }
+
+    var doneHtml = "";
+    if (doneItems.length) {
+      doneHtml =
+        '<details class="done-section"><summary>Done this week (' +
+        doneItems.length +
+        ')</summary><div class="done-wrap" style="margin-top:10px">' +
+        doneItems
+          .map(function (i) {
+            return renderItem(i, false);
+          })
+          .join("") +
+        "</div></details>";
+    }
+
+    var linkPills = (state.links || [])
+      .map(function (l) {
+        return (
+          '<a href="' +
+          esc(l.href) +
+          '" target="_blank" rel="noopener">' +
+          esc(l.label) +
+          "</a>"
+        );
+      })
+      .join("");
+
+    document.getElementById("app").innerHTML =
+      "<header>" +
+      '<p class="eyebrow">Atoms · internal desk</p>' +
+      "<h1>Do this</h1>" +
+      '<p class="north">“' +
+      esc(state.northStar || "") +
+      '”</p>' +
+      (state.discoveryHome
+        ? '<p class="meta">Discovery: ' + esc(state.discoveryHome) + "</p>"
+        : "") +
+      '<p class="meta">Updated ' +
+      esc(state.updated) +
+      (state.updatedNote ? " · " + esc(state.updatedNote) : "") +
+      "</p></header>" +
+      "<section><h2>Your actions</h2>" +
+      (q.intro ? '<p class="intro">' + esc(q.intro) + "</p>" : "") +
+      doNow +
+      doneHtml +
+      "</section>" +
+      "<section><h2>Budget · " +
+      esc(b.month || "") +
+      '</h2><div class="card"><div class="row"><div class="body">' +
+      '<p class="title">$' +
+      esc(spent) +
+      " of $" +
+      esc(cap) +
+      " this month</p>" +
+      '<p class="detail">' +
+      esc((state.spend && state.spend.rule) || "") +
+      '</p><div class="budget-bar"><i style="width:' +
+      pct +
+      '%"></i></div></div></div></div></section>' +
+      '<section><h2>Metrics</h2><div class="metrics">' +
+      metrics +
+      "</div></section>" +
+      '<section><h2>Foundation</h2><div class="card">' +
+      foundation +
+      "</div></section>" +
+      '<section><h2>Links</h2><div class="pill-links">' +
+      linkPills +
+      "</div></section>" +
+      "<footer><p>SSOT <code>docs/marketing/state.json</code> · <code>npm run marketing-desk</code></p>" +
+      "<p>" +
+      esc(state.agentInstructions || "") +
+      "</p></footer>";
+
+    Array.prototype.forEach.call(document.querySelectorAll("[data-copy]"), function (btn) {
+      btn.addEventListener("click", function () {
+        var el = document.getElementById(btn.getAttribute("data-copy"));
+        if (el) copyText(el.value, btn);
+      });
+    });
+    Array.prototype.forEach.call(document.querySelectorAll("[data-copy-both]"), function (btn) {
+      btn.addEventListener("click", function () {
+        var parts = btn.getAttribute("data-copy-both").split("|");
+        var t = document.getElementById(parts[0]);
+        var body = document.getElementById(parts[1]);
+        if (t && body) copyText(t.value + "\n\n" + body.value, btn);
+      });
+    });
+  }
+
+  function boot() {
+    var el = document.getElementById("desk-state");
+    var app = document.getElementById("app");
+    if (!el || !app) return;
+    try {
+      render(JSON.parse(el.textContent));
+    } catch (e) {
+      app.innerHTML =
+        "<p>Failed to load desk.</p><pre>" + esc(String(e && e.message ? e.message : e)) + "</pre>";
+    }
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", boot);
+  } else {
+    boot();
+  }
+})();
+
+  </script>
+</body>
+</html>

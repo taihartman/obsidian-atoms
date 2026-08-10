@@ -1,0 +1,205 @@
+{
+  "version": 2,
+  "updated": "2026-08-10",
+  "updatedNote": "Post: instant capture (night/walk), no folder choreography, filing done for you.",
+  "budget": {
+    "monthlyCapUsd": 200,
+    "midpointUsd": 150,
+    "spentThisMonthUsd": 0,
+    "month": "2026-08"
+  },
+  "northStar": "Easy capture in, real Obsidian vault out (expand, graph, plugins, Ask)",
+  "discoveryHome": "Reddit r/ObsidianMD",
+  "metrics": [
+    {
+      "id": "field_notes_subs",
+      "label": "Field notes subscribers",
+      "value": null,
+      "unit": "people",
+      "note": "Unknown \u2014 needs Resend",
+      "href": null
+    },
+    {
+      "id": "plus_active",
+      "label": "Plus active",
+      "value": null,
+      "unit": "accounts",
+      "note": "Unknown \u2014 needs Stripe",
+      "href": null
+    },
+    {
+      "id": "plus_mrr",
+      "label": "Plus MRR",
+      "value": null,
+      "unit": "usd",
+      "note": "Unknown \u2014 needs Stripe",
+      "href": null
+    },
+    {
+      "id": "github_stars",
+      "label": "GitHub stars",
+      "value": 0,
+      "unit": "stars",
+      "note": "Not a vanity target",
+      "href": "https://github.com/taihartman/obsidian-atoms"
+    },
+    {
+      "id": "field_notes_published",
+      "label": "Field notes published",
+      "value": 1,
+      "unit": "letters",
+      "note": "knew-his-face",
+      "href": "https://tryatoms.app/notes/"
+    }
+  ],
+  "foundation": [
+    {
+      "id": "F1",
+      "title": "Install path truth",
+      "detail": "On Community plugin list",
+      "status": "done"
+    },
+    {
+      "id": "F2",
+      "title": "Metrics read access",
+      "detail": "Resend + Stripe counts for the desk",
+      "status": "todo"
+    },
+    {
+      "id": "F3",
+      "title": "product-marketing.md skim",
+      "detail": "Optional founder pass",
+      "status": "todo"
+    },
+    {
+      "id": "F4",
+      "title": "Discovery home",
+      "detail": "Reddit r/ObsidianMD",
+      "status": "done"
+    },
+    {
+      "id": "F5",
+      "title": "List hygiene",
+      "detail": "tryatoms subscribe live",
+      "status": "done"
+    }
+  ],
+  "queue": {
+    "weekOf": "2026-08-10",
+    "intro": "Post when ready. Screenshots help a lot.",
+    "items": [
+      {
+        "id": "Q4",
+        "title": "Post Atoms on r/ObsidianMD",
+        "why": "Capture without hand-sorting; expand in vault; Claude Cowork mornings; Field notes example",
+        "youDo": "1) Screenshots  2) Copy title  3) Copy body  4) Flair plugins  5) Post  6) URL in chat",
+        "effort": "15 min",
+        "status": "pending",
+        "decision": null,
+        "primary": true,
+        "openUrl": "https://www.reddit.com/r/ObsidianMD/submit?selftext=true",
+        "openLabel": "Open Reddit compose",
+        "paste": {
+          "title": "I wanted Apple Notes capture speed with real Obsidian underneath, so I made Atoms",
+          "body": "I liked how fast capture is with Apple Notes. Control Center shortcut, out of my head in a few seconds.\n\nThat part matters when you wake up at night or you're on a walk and something hits you. I don't want to open an app, create a new note, name it, pick a folder, and file it. I just want it out of my head instantly.\n\nWhat I didn't like was the ceiling. Apple Notes is easy, but I wanted the other side too: Obsidian's power, customization, plugins, graph, a vault I actually own. Open a note later and expand it. I just didn't want to spend my life filing and categorizing every dump by hand to get there.\n\nSo I made Atoms. Free and open source (MIT). Community plugins \u2192 search Atoms.\n\nHow I use it:\n\n- Capture stays dumb and fast (phone / Control Center / share sheet / whatever). Idea out first. Filing later.\n- Past dumps get filed into plain notes under Atoms/ with titles and links. You don't set up a category system first. It handles the filing. My original wording stays as I wrote it.\n- From there it's normal Obsidian. Full vault, other plugins, graph, expand a note when I care.\n- Morning habit: a Claude Cowork routine that goes over my atoms so I'm not relying on memory alone. I can also ask from Claude or ChatGPT (MCP) when I need something back.\n\nOne small example of the \"write it when you notice it\" thing: I dump little details when they come up (someone's taste, a thing they mentioned). Later I can find it again instead of scrolling a pile. I wrote a short Field note about that kind of moment here: https://tryatoms.app/notes/knew-his-face/\n\nSite: https://tryatoms.app\nCode: https://github.com/taihartman/obsidian-atoms\n\nCurious if other people want easy capture without giving up a real vault. Feedback welcome."
+        },
+        "links": [
+          {
+            "label": "r/ObsidianMD",
+            "href": "https://www.reddit.com/r/ObsidianMD/"
+          }
+        ]
+      },
+      {
+        "id": "Q0",
+        "title": "r/ObsidianMD rules check (do this first)",
+        "why": "Don't shill + no AI slop + first-post promo = ban",
+        "youDo": "1) Use YOUR normal Reddit account (not a brand-new throwaway). 2) If you've never posted/commented in r/ObsidianMD, leave 2\u20135 real helpful comments on other threads this week first. 3) Only then post the Atoms share once, flair plugins. 4) Stay and answer questions. Do NOT cross-post the same text to 10 subs.",
+        "effort": "30\u201390 min over a few days if account is cold",
+        "status": "skip",
+        "decision": "user saw first-time plugin posts doing fine; posting honestly",
+        "primary": true,
+        "links": [
+          {
+            "label": "Sub rules",
+            "href": "https://www.reddit.com/r/ObsidianMD/about/rules"
+          },
+          {
+            "label": "kepano ban post",
+            "href": "https://www.reddit.com/r/ObsidianMD/comments/1s8nt0m/if_your_first_post_is_to_promote_your_app_you/"
+          },
+          {
+            "label": "Obsidian self-promo code",
+            "href": "https://obsidian.md/help/community-code-of-conduct#Excessive+self+promotion"
+          }
+        ]
+      },
+      {
+        "id": "Q5",
+        "title": "Optional later: promo codes for free Plus month",
+        "why": "Server already supports ATOMS_PLUS_PROMOS. Plugin has no redeem UI yet.",
+        "youDo": "Say yes if you want a simple Settings redeem field + REDDIT=1 code. Otherwise skip and stick to free BYOK + 14-day trial.",
+        "effort": "decide 1 min / build later",
+        "status": "skip",
+        "decision": null,
+        "primary": false,
+        "links": []
+      },
+      {
+        "id": "Q3",
+        "title": "Optional: skim product-marketing.md",
+        "why": "Skills read it; only if you care",
+        "youDo": "Say \"looks fine\" in chat, or list fixes. Skip is OK.",
+        "effort": "10 min",
+        "status": "skip",
+        "decision": null,
+        "primary": false,
+        "links": []
+      },
+      {
+        "id": "Q1",
+        "title": "Community plugin listing",
+        "why": "Install path",
+        "youDo": "Done",
+        "effort": "5 min",
+        "status": "yes",
+        "decision": "listed",
+        "links": []
+      },
+      {
+        "id": "Q2",
+        "title": "Discovery home",
+        "why": "One channel",
+        "youDo": "Done",
+        "effort": "2 min",
+        "status": "yes",
+        "decision": "reddit r/ObsidianMD",
+        "links": []
+      }
+    ]
+  },
+  "spend": {
+    "rule": "F1 done. No paid required yet. Cap $200/mo when we try sponsors.",
+    "active": [],
+    "history": []
+  },
+  "links": [
+    {
+      "label": "tryatoms.app",
+      "href": "https://tryatoms.app"
+    },
+    {
+      "label": "Field notes",
+      "href": "https://tryatoms.app/notes/"
+    },
+    {
+      "label": "GitHub",
+      "href": "https://github.com/taihartman/obsidian-atoms"
+    },
+    {
+      "label": "r/ObsidianMD",
+      "href": "https://www.reddit.com/r/ObsidianMD/"
+    }
+  ],
+  "agentInstructions": "Put every founder action in queue with paste.title/body when they must post. Rebuild desk. Never invent metrics. Never auto-post or auto-spend."
+}

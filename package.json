@@ -20,6 +20,8 @@
 		"build:www": "node www/build.mjs",
 		"field-notes:test": "node scripts/field-notes-send.mjs test",
 		"field-notes:broadcast": "node scripts/field-notes-send.mjs broadcast",
+		"marketing-desk": "node scripts/marketing-desk-build.mjs --open",
+		"marketing-desk:build": "node scripts/marketing-desk-build.mjs",
 		"measure:cost": "node scripts/measure-classify-cost.mjs",
 		"measure:recall": "node scripts/measure-shortlist-recall.mjs",
 		"measure:links": "node scripts/measure-link-quality.mjs",
