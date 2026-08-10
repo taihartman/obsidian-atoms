@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| In progress | [#422](https://github.com/taihartman/obsidian-atoms/issues/422) | taihartman | `feat/hub-list-preview` | [plan](docs/plans/2026-08-10-002-feat-hub-list-preview-plan.md) | `hubListPreview.ts`, `runHubProjection.ts`, `settings.ts`, `main.ts` | Preview modal before bulk hub list write |
+_Nothing in flight._
 
 ## How to claim (copy)
 
