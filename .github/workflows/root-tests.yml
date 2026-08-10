@@ -52,6 +52,11 @@ jobs:
       - name: Install
         run: npm ci
 
+      # Same family as the Obsidian community plugin review scan
+      # (eslint-plugin-obsidianmd). Errors fail the job; warnings are local.
+      - name: Lint (obsidianmd)
+        run: npm run lint
+
       # `pretest` runs `build:www`, so this covers the www build too, and the
       # setup-guide lockstep asserts against the built `www/dist/setup.html`
       # rather than the template.

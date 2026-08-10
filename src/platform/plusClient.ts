@@ -31,7 +31,9 @@ export async function plusFetchRequest(
         ? undefined
         : typeof params.body === "string"
           ? params.body
-          : String(params.body),
+          : params.body instanceof ArrayBuffer || ArrayBuffer.isView(params.body)
+            ? (params.body as BodyInit)
+            : undefined,
   });
   const text = await res.text();
   // Unparseable body stays `undefined` (not `{}`) so plusRequest can tell a

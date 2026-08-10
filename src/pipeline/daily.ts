@@ -111,7 +111,7 @@ export async function ensureDailyForDate(
     throw new FutureDailyNoteError(date);
   }
 
-  const target = moment(date) as Parameters<typeof getDailyNote>[0];
+  const target = moment(date);
   const all = getAllDailyNotes();
   let file: TFile | undefined;
   try {
@@ -138,7 +138,7 @@ export async function openTodaysDaily(app: App): Promise<TFile> {
   if (!appHasDailyNotesPluginLoaded()) {
     throw new DailyNotesDisabledError();
   }
-  const date = moment() as Parameters<typeof getDailyNote>[0];
+  const date = moment();
   const all = getAllDailyNotes();
   let file: TFile | undefined;
   try {

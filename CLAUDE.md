@@ -64,6 +64,7 @@ Where an **active feature plan** and amendments conflict, **that plan wins**. Am
 npm install
 npm run dev          # watch main.js
 npm run build        # typecheck + production bundle
+npm run lint         # eslint-plugin-obsidianmd (community review rules)
 npm run spike:api    # offline classify+cache (needs ANTHROPIC_API_KEY env)
 ```
 
