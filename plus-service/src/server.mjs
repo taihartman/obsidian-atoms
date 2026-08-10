@@ -875,9 +875,13 @@ ${
         });
       }
 
+      // Block a second trial only when a live Stripe customer already exists.
+      // Entitled-but-unlinked accounts (test→live cutover, #408) must be able
+      // to open Checkout again so Manage subscription can reconnect billing.
       if (
         kind === "start_trial" &&
-        (a.status === "active" || a.status === "trialing")
+        (a.status === "active" || a.status === "trialing") &&
+        a.stripeCustomerId
       ) {
         return json(res, 409, {
           message: "Already subscribed — use Manage billing or magic link",
@@ -971,16 +975,21 @@ ${
           message: "Sign in with a magic link to manage billing",
         });
       }
-      if (!a.stripeCustomerId || !stripeConfigured()) {
-        return json(res, 400, {
-          message: "No Stripe customer on this account yet",
+      if (!stripeConfigured()) {
+        return json(res, 503, {
+          message: "Billing is not configured",
         });
       }
       try {
-        // #408 — wrong-mode / deleted customer clears the billing link and
-        // returns a reconnect message instead of Stripe's raw error.
-        const portal = await createPortalSessionForAccount(store, a);
-        return json(res, 200, { url: portal.url });
+        // #408 — missing / wrong-mode customer opens live Checkout (same `url`
+        // shape the plugin already window.open's). Real portal when linked.
+        const portal = await createPortalSessionForAccount(store, a, {
+          sessionToken: session,
+        });
+        return json(res, 200, {
+          url: portal.url,
+          ...(portal.reconnect ? { reconnect: true } : {}),
+        });
       } catch (err) {
         const status =
           err?.status && err.status >= 400 && err.status < 600
