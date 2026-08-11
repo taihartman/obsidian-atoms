@@ -292,6 +292,52 @@ export function applyStatusRules(a) {
   return { dirty };
 }
 
+/**
+ * Has this account's billing/trial period ended?
+ *
+ * The period boundary is the only thing that tells the two meanings of
+ * `exhausted` apart — see `subscriptionLive`.
+ *
+ * @param {{ periodEnd?: unknown } | null | undefined} a
+ * @param {number} [now]
+ */
+export function periodEnded(a, now = Date.now()) {
+  if (!a) return true;
+  const end = new Date(a.periodEnd).getTime();
+  if (!Number.isFinite(end)) return true; // unreadable period → fail closed
+  return end < now;
+}
+
+/**
+ * Is the subscription still live — i.e. may this account use Ask/MCP?
+ *
+ * `exhausted` covers two unrelated situations, and only one of them revokes
+ * anything:
+ *
+ * - the period **ended** (`applyStatusRules` above) — revokes; the user has to
+ *   renew, and #442/#443 built the client story around telling them so
+ * - this period's filing allotment is **spent** (the meter's UPDATE, e.g.
+ *   `postgres.mjs`) — revokes nothing. Reading a brain that is already mirrored
+ *   and already paid for has nothing to do with the filing meter.
+ *
+ * The period check comes first on purpose, mirroring `applyStatusRules`' own
+ * precedence: a past `periodEnd` is not live whatever `status` still says. That
+ * matters because callers reach this both after `refreshAccountStatus` (the MCP
+ * token path) and straight off `getAccount` (the OAuth connect path), and only
+ * the former has normalized `status` first.
+ *
+ * `unknown` and `inactive` stay out — this widens `exhausted` only.
+ *
+ * @param {{ status?: unknown, periodEnd?: unknown } | null | undefined} a
+ * @param {number} [now]
+ */
+export function subscriptionLive(a, now = Date.now()) {
+  if (!a) return false;
+  const st = String(a.status || "");
+  if (st !== "active" && st !== "trialing" && st !== "exhausted") return false;
+  return !periodEnded(a, now);
+}
+
 /** Entitled accounts must not receive sess_ from unauthenticated auth/start. */
 export function isEntitledAccount(a) {
   if (!a) return false;

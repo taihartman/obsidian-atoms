@@ -212,6 +212,8 @@ Two unrelated situations the service reports with the same exhausted status: the
 
 The distinction is not recoverable from the status alone; it takes the status **and** the period end date together, and only a service-confirmed status may be read as a lapse. A period end date alone cannot decide it, because on a recurring plan that date is a *renewal* — a device that has not refreshed through one holds a past date for a perfectly current subscriber. Learning: `docs/solutions/logic-errors/a-device-may-not-assert-an-entitlement-the-server-has-not-confirmed.md`.
 
+The **service** holds both halves at once, so it can simply decide: `subscriptionLive` (`plus-service/src/store/shared.mjs`) is the one home for the split, and every Ask/MCP gate asks it. A spent meter revokes nothing — reading a brain that is already mirrored and already paid for has nothing to do with the filing meter — while an ended period still revokes. Only `/v1/classify` charges the meter, which is why an atom Claude creates through the Ask outbox is not a filing.
+
 ### Entitlement snapshot
 The device's stored copy of what the service last said about the account — status, allotment remaining, period end, plan — stamped with when it was confirmed. Every entitlement surface reads this, not the network.
 

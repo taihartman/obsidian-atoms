@@ -9,6 +9,7 @@ import {
   enqueueMirrorExpand,
 } from "../ask/expandSearch.mjs";
 import { assertMirrorPath } from "../store/askHelpers.mjs";
+import { subscriptionLive } from "../store/shared.mjs";
 
 const MAX_ATOMS_PER_UPSERT = 100;
 const MAX_BODY_CHARS = 100_000;
@@ -20,8 +21,14 @@ const MAX_KEEP_PATHS = 500;
 const reconcileSessions = new Map();
 const RECONCILE_TTL_MS = 10 * 60 * 1000;
 
+/**
+ * A spent filing meter does not close the plugin's own sync surface. Keeping
+ * `upsert`/`delete`/`reconcile` open is what stops Claude reading a brain
+ * frozen — or worse, still holding atoms the user deleted — for the rest of
+ * the period. Only an ended period revokes. See `subscriptionLive`.
+ */
 function entitled(a) {
-  return a && (a.status === "active" || a.status === "trialing");
+  return subscriptionLive(a);
 }
 
 function purgeReconcileSessions() {
