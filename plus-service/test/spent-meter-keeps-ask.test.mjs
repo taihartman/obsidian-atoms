@@ -68,6 +68,34 @@ describe("#441 subscriptionLive — ended period vs spent meter", () => {
     );
   });
 
+  it("a spent TRIAL meter also stays live — deliberate, and wider than the ask", () => {
+    // The settled decision named a paying subscriber. The meter's own UPDATE
+    // includes `trialing` in its `status IN (...)`, so a trial user who spends
+    // their trial filings lands on exactly the same `exhausted` + live period
+    // and keeps Ask/MCP for the rest of the 14-day trial.
+    //
+    // Pinned rather than left implicit: it follows from the principle (the
+    // filing meter does not govern reading) but nobody asked for it, and it is
+    // a monetization surface. To narrow it, gate on `plan` here — this test is
+    // the one that should fail when someone does.
+    assert.equal(
+      subscriptionLive(
+        { status: "exhausted", plan: "trial", periodEnd: future },
+        NOW,
+      ),
+      true,
+    );
+    // An ended trial still revokes, which is what #442/#443 built the client
+    // story around.
+    assert.equal(
+      subscriptionLive(
+        { status: "exhausted", plan: "trial", periodEnd: past },
+        NOW,
+      ),
+      false,
+    );
+  });
+
   it("inactive and unknown stay out — this widens `exhausted` only", () => {
     for (const status of ["inactive", "unknown", "", undefined]) {
       assert.equal(
@@ -332,11 +360,20 @@ describe("#441 the entitlement gate has one home", () => {
   it("server.mjs's allowed match is the trial guard, not an Ask gate", () => {
     // Pins why the exception exists, so widening the allowlist is deliberate.
     const src = readFileSync(path.join(SRC, "server.mjs"), "utf8");
-    const hits = src
-      .split("\n")
-      .filter((l) => STATUS_TUPLE.test(l))
-      .length;
-    assert.equal(hits, 2, "only the start_trial already-on-a-plan guard");
-    assert.ok(src.includes('kind === "start_trial"'));
+    // Deliberately not a line count — the guard spans two lines today and
+    // reflowing it onto one would fail this for no reason. What matters is
+    // that the only comparisons in the file belong to the trial guard.
+    const guard = src.slice(src.indexOf('kind === "start_trial"'));
+    assert.ok(
+      guard.startsWith('kind === "start_trial"'),
+      "server.mjs must still contain the start_trial guard",
+    );
+    const before = src.slice(0, src.indexOf('kind === "start_trial"'));
+    const strays = before.split("\n").filter((l) => STATUS_TUPLE.test(codeOf(l)));
+    assert.deepEqual(
+      strays,
+      [],
+      "server.mjs compares these statuses only in the start_trial guard",
+    );
   });
 });
