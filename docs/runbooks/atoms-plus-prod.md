@@ -69,6 +69,8 @@ Prices must match [`plus-pricing.json`](../../plus-pricing.json): $6/mo, $60/yr,
 
 ### Promotion codes (Checkout)
 
+**Agent skill:** [`.agents/skills/plus-promo/`](../../.agents/skills/plus-promo/SKILL.md) — mint/list/archive via Stripe CLI + Fly `sk_live` (not the restricted CLI live key).
+
 Requires `allow_promotion_codes` on Checkout (shipped in plus-service; deploy before relying on the field).
 
 **Create codes (live Dashboard):** Products → Coupons → **+ New** → set % or amount off and duration → enable **promotion codes** → set code string, max redemptions, expiry, optional first-time only / customer lock. Apply to the Plus product (or leave unrestricted so monthly/yearly/top-up prices match).
