@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-_Nothing in flight._
+| In progress | [#438](https://github.com/taihartman/obsidian-atoms/issues/438) | taihartman | `claude/bold-pare-b0ad07` | — (debug lane) | `src/pipeline/backfill.ts`, `src/plugin/main.ts` | Confirming the backfill gate ended the note-list run **before** submitting, so any catch-up spanning more than one month died after chunk one was already paid for. `BackfillConfirmModal` now owns the "closed without confirming" answer instead of the call site reading a flag one step too early. Touches the same constructor #434 is changing — small conflict expected there, and that branch's `runByokBackfillFlow` carries the same original hook. |
 
 ## How to claim (copy)
 

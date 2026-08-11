@@ -851,6 +851,12 @@ export async function runBackfillChunks(opts: {
 
 /**
  * Confirmation modal — batch is submitted only if onConfirm runs.
+ *
+ * The sheet closes *before* `onConfirm` runs, so the modal owns the "was this a dismissal?" answer
+ * rather than leaving it to a flag at the call site. A caller that patched `onClose` and read a flag
+ * its own `onConfirm` sets would read it one step too early and treat every confirm as a dismissal —
+ * which is exactly how the confirmed path came to release the run's corpus before submitting against
+ * it. Here `confirmed` is set before `close()`, so `onDismiss` can only fire on a real dismissal.
  */
 export class BackfillConfirmModal extends Modal {
   private confirmed = false;
@@ -859,6 +865,11 @@ export class BackfillConfirmModal extends Modal {
     app: App,
     private readonly estimate: CostEstimate,
     private readonly onConfirm: () => void | Promise<void>,
+    /**
+     * Closed without confirming — Cancel, Escape, or a click outside. Fires exactly once, and never
+     * on the confirmed path, so it is the safe home for releasing whatever the gate was holding.
+     */
+    private readonly onDismiss?: () => void,
   ) {
     super(app);
   }
@@ -920,6 +931,7 @@ export class BackfillConfirmModal extends Modal {
 
   onClose() {
     this.contentEl.empty();
+    if (!this.confirmed) this.onDismiss?.();
   }
 }
 

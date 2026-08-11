@@ -1332,29 +1332,29 @@ export default class AtomsPlugin extends Plugin {
         `Atoms: ${prepared.estimate.summaryLine} — confirm in the dialog`,
       );
 
-      let confirmed = false;
-      const modal = new BackfillConfirmModal(this.app, prepared.estimate, async () => {
-        confirmed = true;
-        try {
-          await this.executeBackfillBatch({
-            apiKey,
-            model,
-            work: prepared.work,
-            run: prepared.run,
-            // Chunk one was priced against this same corpus with nothing yet written; resolving it
-            // again would be byte-for-byte the same answer.
-            firstChunk: prepared.chunks[0],
-          });
-        } finally {
-          prepared.run.end();
-        }
-      });
-      // Declining the gate must not leave a whole vault's corpus pinned.
-      const closeHook = modal.onClose.bind(modal);
-      modal.onClose = () => {
-        closeHook();
-        if (!confirmed) prepared.run.end();
-      };
+      const modal = new BackfillConfirmModal(
+        this.app,
+        prepared.estimate,
+        async () => {
+          try {
+            await this.executeBackfillBatch({
+              apiKey,
+              model,
+              work: prepared.work,
+              run: prepared.run,
+              // Chunk one was priced against this same corpus with nothing yet written; resolving it
+              // again would be byte-for-byte the same answer.
+              firstChunk: prepared.chunks[0],
+            });
+          } finally {
+            // Only after the submit settles: every chunk after the first derives its shortlist from
+            // this run, so ending it early aborts the catch-up mid-flight with money already spent.
+            prepared.run.end();
+          }
+        },
+        // Declining the gate must not leave a whole vault's corpus pinned.
+        () => prepared.run.end(),
+      );
       modal.open();
     } catch (e) {
       devLog("[atoms] backfill estimate failed", {
