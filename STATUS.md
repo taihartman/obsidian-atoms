@@ -7,6 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
+| In progress | [#438](https://github.com/taihartman/obsidian-atoms/issues/438) | taihartman | `claude/bold-pare-b0ad07` | — (debug lane) | `src/pipeline/backfill.ts`, `src/plugin/main.ts` | `BackfillConfirmModal` closes *before* it calls `onConfirm`, so a caller reading its own `confirmed` flag from a patched `onClose` read it one step too early and called every confirm a dismissal. The modal owns that answer now via `onDismiss`, fired only when its own `confirmed` — set before `close()` — is false. **Rebased onto #434**, which landed the gate's restructure meanwhile: the original BYOK call site is gone, so what survives is the modal fix plus `confirmBackfill` dropping the microtask deferral that was working around this. **0.7.1**. |
 
 ## How to claim (copy)
 

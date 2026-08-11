@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   assertBatchUsesHourCache,
+  BackfillConfirmModal,
   buildBatchCreateBody,
   buildBatchRequestParams,
   buildChunkBatchCreateBody,
@@ -15,6 +16,7 @@ import {
   classificationFromBatchLine,
   BATCH_DISCOUNT,
   type ApplyBackfillReport,
+  type BackfillConfirmProps,
 } from "../src/pipeline/backfill";
 import { UNDATED_CHUNK_KEY } from "../src/pipeline/context";
 import {
@@ -141,6 +143,87 @@ describe("confirmation gate", () => {
     });
     await gate.confirm();
     expect(submit).not.toHaveBeenCalled();
+  });
+});
+
+describe("BackfillConfirmModal dismissal (run lifetime)", () => {
+  const gateProps: BackfillConfirmProps = {
+    engine: "byok",
+    estimate: estimateBatchCost({
+      captureCount: 2,
+      inputTokensPerRequest: 100,
+      model: "claude-haiku-4-5-20251001",
+    }),
+  };
+
+  const clickButton = (modal: BackfillConfirmModal, text: string) => {
+    const btn = [...modal.contentEl.querySelectorAll("button")].find(
+      (b) => b.textContent === text,
+    );
+    expect(btn, `no "${text}" button`).toBeTruthy();
+    btn!.click();
+  };
+
+  it("does not fire onDismiss when confirmed, so the run survives into the submit", async () => {
+    const v = catchUpVault();
+    const run = await provider(v.app).beginRun({ atomFolder: "Atoms" });
+    const work = enumerateBackfillWork([
+      note("2026-01-05", ["sleep debt is wrecking me"]),
+      note("2026-02-05", ["sleep debt again in february"]),
+    ]);
+
+    let submitted: Promise<void> = Promise.resolve();
+    let submitError: unknown = null;
+    const dismiss = vi.fn(() => run.end());
+
+    const modal = new BackfillConfirmModal(
+      v.app,
+      gateProps,
+      () => {
+        // The sheet is already closed here — the ordering trap this test exists for. Every chunk
+        // after the first derives its shortlist from this run, so it has to still hold its corpus.
+        submitted = (async () => {
+          try {
+            await resolveBackfillChunks({ run, work });
+          } catch (e) {
+            submitError = e;
+          } finally {
+            run.end();
+          }
+        })();
+        return submitted;
+      },
+      dismiss,
+    );
+    modal.open();
+    clickButton(modal, "Submit batch");
+    await submitted;
+
+    expect(submitError).toBeNull();
+    expect(dismiss).not.toHaveBeenCalled();
+  });
+
+  it("fires onDismiss exactly once when the sheet closes without confirming", async () => {
+    const dismiss = vi.fn();
+    const onConfirm = vi.fn();
+    const modal = new BackfillConfirmModal(catchUpVault().app, gateProps, onConfirm, dismiss);
+    modal.open();
+    clickButton(modal, "Cancel");
+
+    expect(onConfirm).not.toHaveBeenCalled();
+    expect(dismiss).toHaveBeenCalledTimes(1);
+
+    // Escape or a second close must not release the corpus twice.
+    modal.close();
+    expect(dismiss).toHaveBeenCalledTimes(1);
+  });
+
+  it("fires onDismiss when the sheet is dismissed without a button (Escape)", () => {
+    const dismiss = vi.fn();
+    const modal = new BackfillConfirmModal(catchUpVault().app, gateProps, vi.fn(), dismiss);
+    modal.open();
+    modal.close();
+    expect(dismiss).toHaveBeenCalledTimes(1);
   });
 });
 

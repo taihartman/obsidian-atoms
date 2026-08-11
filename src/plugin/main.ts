@@ -1435,23 +1435,19 @@ export default class AtomsPlugin extends Plugin {
   /**
    * Open the gate and wait for the verdict.
    *
-   * `BackfillConfirmModal` closes *before* it calls `onConfirm`, so the close hook defers its own
-   * answer by a microtask: a confirm settles the promise first, and a genuine dismissal still
-   * settles it. A close hook that answered synchronously would report every confirm as a cancel.
+   * The modal closes *before* it calls `onConfirm`, so it — not this caller — decides what counts
+   * as a dismissal, and answers on whichever callback actually applies (#438).
    */
   private confirmBackfill(
     props: BackfillConfirmProps,
   ): Promise<"confirm" | "cancel"> {
     return new Promise((resolve) => {
-      const modal = new BackfillConfirmModal(this.app, props, () => {
-        resolve("confirm");
-      });
-      const closeHook = modal.onClose.bind(modal);
-      modal.onClose = () => {
-        closeHook();
-        void Promise.resolve().then(() => resolve("cancel"));
-      };
-      modal.open();
+      new BackfillConfirmModal(
+        this.app,
+        props,
+        () => resolve("confirm"),
+        () => resolve("cancel"),
+      ).open();
     });
   }
 
