@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| In progress | #453 | taihartman | `feat/stripe-checkout-promotion-codes` | `docs/plans/2026-08-11-001-feat-stripe-checkout-promotion-codes-plan.md` | `plus-service/src/stripe.mjs`, `plus-service/test/stripe-checkout-promos.test.mjs`, `docs/runbooks/atoms-plus-prod.md` | Checkout `allow_promotion_codes`; Dashboard coupons; Fly deploy after merge |
+_Nothing in flight._
 
 ## How to claim (copy)
 
