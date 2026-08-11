@@ -27,6 +27,7 @@ import {
   authorizationServerMetadata,
   protectedResourceMetadata,
 } from "./metadata.mjs";
+import { subscriptionLive } from "../store/shared.mjs";
 
 /**
  * RFC 9207: append iss on every 302 back to the client redirect_uri.
@@ -223,7 +224,7 @@ export async function handleOauthRoutes({
     const bs = bsId ? await store.mcpGetBrowserSession(bsId) : null;
     if (bs?.email) {
       const a = await store.getAccount(bs.email);
-      if (a && (a.status === "active" || a.status === "trialing")) {
+      if (subscriptionLive(a)) {
         // R5: chooser — never silent consent (wrong-tenant trap)
         writeHtml(res, 200, authorizeChooserForm(pendingId, bs.email));
         return true;
@@ -255,7 +256,7 @@ export async function handleOauthRoutes({
       const bs = bsId ? await store.mcpGetBrowserSession(bsId) : null;
       if (bs?.email) {
         const a = await store.getAccount(bs.email);
-        if (a && (a.status === "active" || a.status === "trialing")) {
+        if (subscriptionLive(a)) {
           writeHtml(res, 400, authorizeChooserForm(pendingId, bs.email, err));
           return;
         }
@@ -272,7 +273,7 @@ export async function handleOauthRoutes({
         return true;
       }
       const a = await store.getAccount(bs.email);
-      if (!a || (a.status !== "active" && a.status !== "trialing")) {
+      if (!subscriptionLive(a)) {
         writeHtml(
           res,
           403,
@@ -311,7 +312,7 @@ export async function handleOauthRoutes({
         return true;
       }
       const a = await store.getAccount(redeemed.email);
-      if (!a || (a.status !== "active" && a.status !== "trialing")) {
+      if (!subscriptionLive(a)) {
         writeHtml(
           res,
           403,
@@ -398,7 +399,7 @@ export async function handleOauthRoutes({
       return true;
     }
     const a = await store.getAccount(email);
-    if (!a || (a.status !== "active" && a.status !== "trialing")) {
+    if (!subscriptionLive(a)) {
       writeHtml(
         res,
         403,
@@ -456,7 +457,7 @@ export async function handleOauthRoutes({
       return true;
     }
     const a = await store.getAccount(email);
-    if (!a || (a.status !== "active" && a.status !== "trialing")) {
+    if (!subscriptionLive(a)) {
       writeHtml(res, 403, simpleMessage("Plus required", "Active Plus needed."));
       return true;
     }
@@ -561,7 +562,7 @@ export async function maybeFinishOauthAfterExchange(res, store, out, pendingId) 
   const pending = await store.mcpGetPending(pendingId);
   if (!pending) return false;
   const a = out.account;
-  if (!a || (a.status !== "active" && a.status !== "trialing")) {
+  if (!subscriptionLive(a)) {
     writeHtml(
       res,
       403,

@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-_Nothing in flight._
+| In review | [#441](https://github.com/taihartman/obsidian-atoms/issues/441) / [PR #452](https://github.com/taihartman/obsidian-atoms/pull/452) | @taihartman (agent) | `claude/plus-meter-keeps-ask-441` | [handoff](docs/handoffs/2026-08-11-plus-meter-keeps-ask-441.md) | `plus-service/src/store/{shared,askPostgresMethods,askSqliteMethods,memory}.mjs` · `plus-service/src/mirror/http.mjs` · `plus-service/src/oauth/routes.mjs` | A spent filing meter no longer revokes Ask/MCP; an ended period still does. One helper (`subscriptionLive`), eleven gates, three layers. **Still draft** — one product call outstanding: a spent *trial* meter also keeps Ask/MCP (see PR Residual risks). Server-side only, needs a Fly deploy to reach users. |
 
 ## How to claim (copy)
 

@@ -16,6 +16,7 @@ import {
   periodEndFromNow,
   publicAccount,
   rowToIncident,
+  subscriptionLive,
   toMs,
   verifierMatches,
 } from "./shared.mjs";
@@ -1035,7 +1036,7 @@ export function createMemoryStore() {
     if (!row || row.revoked || Date.now() > row.exp) return null;
     const a = refreshAccountStatus(getAccount(row.email));
     if (!a) return null;
-    if (a.status !== "active" && a.status !== "trialing") return null;
+    if (!subscriptionLive(a)) return null;
     const mcpScopes = Array.isArray(row.scopes)
       ? row.scopes
       : ["atoms:read"];

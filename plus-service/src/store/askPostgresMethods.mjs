@@ -1,7 +1,7 @@
 /**
  * Ask mirror + MCP OAuth methods for Postgres Pool.
  */
-import { hashToken, id } from "./shared.mjs";
+import { hashToken, id, subscriptionLive } from "./shared.mjs";
 import { encryptMirrorField } from "../mirror/crypto.mjs";
 import {
   aggregateMirrorTags,
@@ -846,7 +846,7 @@ export function createAskPostgresMethods(pool, deps) {
     if (!r || r.revoked || Date.now() > Number(r.exp_ms)) return null;
     const a = await deps.refreshAccountStatus(await deps.getAccount(r.email));
     if (!a) return null;
-    if (a.status !== "active" && a.status !== "trialing") return null;
+    if (!subscriptionLive(a)) return null;
     let mcpScopes = ["atoms:read"];
     try {
       const parsed = JSON.parse(r.scopes_json || "[]");
