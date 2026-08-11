@@ -606,7 +606,7 @@ describe("account row", () => {
       );
       expect(state).toEqual({
         kind: "periodEnded",
-        plan: "trial",
+        lapseKind: "trial",
         endedOn: "2026-08-10T14:52:03.632Z",
       });
     });

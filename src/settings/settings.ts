@@ -91,7 +91,7 @@ import {
 
   type FilingAuth,
   type PlusEntitlementStatus,
-  type PlusPlan,
+  type PlusLapseKind,
   type PlusSession,
 } from "../platform/filingAuth";
 import { generateVerifier, hasWebCrypto, s256Challenge } from "../platform/pkce";
@@ -157,7 +157,10 @@ export type AccountState =
   | { kind: "signedOut" }
   | { kind: "trialIncomplete"; email: string }
   | { kind: "active"; status: PlusEntitlementStatus; remaining?: number }
-  | { kind: "periodEnded"; plan?: PlusPlan; endedOn?: string }
+  // `lapseKind`, not the raw plan: `plusLapse` already answered "trial or subscription", and
+  // three surfaces read this state. Re-deriving it from `plan` at each of them is how two of
+  // them end up disagreeing with the gate that decided it.
+  | { kind: "periodEnded"; lapseKind: PlusLapseKind; endedOn?: string }
   | { kind: "exhausted" };
 
 /** What the one main-screen account row says for a given state. */
@@ -190,7 +193,11 @@ export function deriveAccountState(
 ): AccountState {
   const lapse = plusLapse(auth, now);
   if (lapse) {
-    return { kind: "periodEnded", plan: session?.plan, endedOn: lapse.endedOn };
+    return {
+      kind: "periodEnded",
+      lapseKind: lapse.kind,
+      endedOn: lapse.endedOn,
+    };
   }
   if (plusIsExhausted(auth)) return { kind: "exhausted" };
   if (auth.mode === "plus") {
@@ -232,7 +239,7 @@ export function accountRowDescriptor(state: AccountState): AccountRowDescriptor 
     }
     case "periodEnded": {
       const on = state.endedOn ? ` on ${state.endedOn.slice(0, 10)}` : "";
-      return state.plan === "trial"
+      return state.lapseKind === "trial"
         ? {
             name: "Trial ended",
             desc: `Your free trial ended${on}. Subscribe to file captures again and to let Claude and ChatGPT reach your atoms.`,
@@ -1374,7 +1381,7 @@ export class AtomsSettingTab extends PluginSettingTab {
     // nothing to open. Offering it there sends the user to an error instead of a card form —
     // Subscribe above is the row that actually does something (#442).
     const portalHasSubject = !(
-      state.kind === "periodEnded" && state.plan === "trial"
+      state.kind === "periodEnded" && state.lapseKind === "trial"
     );
     if (state.kind !== "trialIncomplete" && portalHasSubject) {
       this.actionRow(containerEl, {
@@ -2273,12 +2280,7 @@ export class AtomsSettingTab extends PluginSettingTab {
     // anywhere: no push has been attempted since the account lapsed, so there is no error to
     // report and the line would otherwise keep reading healthy indefinitely (#442).
     const state = this.accountState();
-    const lapsed =
-      state.kind === "periodEnded"
-        ? state.plan === "trial"
-          ? ("trial" as const)
-          : ("subscription" as const)
-        : undefined;
+    const lapsed = state.kind === "periodEnded" ? state.lapseKind : undefined;
     return {
       line: formatAskMirrorStatusLine({
         serverCount,

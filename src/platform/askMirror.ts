@@ -3,6 +3,7 @@
  * Structured links prefer frontmatter `atom-links:`; body is not mined for reasons.
  */
 import { parseLinkProse } from "../pipeline/parseLinkProse";
+import type { PlusLapseKind } from "./filingAuth";
 import { relationReasonProse } from "../shared/relationReason";
 import type {
   ConfirmRequest,
@@ -665,7 +666,7 @@ export function formatAskMirrorStatusLine(opts: {
   refused?: boolean;
   off?: AskMirrorOffReason;
   /** Set when the Plus period has ended, naming which kind it was. */
-  lapsed?: "trial" | "subscription";
+  lapsed?: PlusLapseKind;
 }): string {
   if (opts.off) {
     // Only a positive count earns the clause. Cleared is not zeroed — a wipe leaves no count,

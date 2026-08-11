@@ -12,7 +12,11 @@ import {
 } from "../pipeline/refreshAtoms";
 import { isCalendarDay, utcMidnight } from "../pipeline/backfillOffer";
 import { parseCaptures } from "../pipeline/parse";
-import { plusLapse, type FilingAuth } from "../platform/filingAuth";
+import {
+  plusLapse,
+  type FilingAuth,
+  type PlusLapseKind,
+} from "../platform/filingAuth";
 import { resolveCreatedField } from "../pipeline/render";
 import {
   PLUS_PRICING,
@@ -686,7 +690,7 @@ export function filingHeroCopy(input: {
    */
   plusLimitDismissedToday?: boolean;
   /** Which kind of period ended, when `filingPath` is `plus_lapsed`. */
-  plusLapseKind?: "trial" | "subscription";
+  plusLapseKind?: PlusLapseKind;
 }): FilingHeroCopy | null {
   if (input.pastUnprocessed <= 0) return null;
 

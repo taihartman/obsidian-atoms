@@ -135,9 +135,12 @@ export function plusIsExhausted(auth: FilingAuth): boolean {
   return auth.mode === "plus" && auth.status === "exhausted";
 }
 
+/** Which kind of period ended. One declaration, so a third kind cannot drift across surfaces. */
+export type PlusLapseKind = "trial" | "subscription";
+
 /** An ended period, named — `null` while the period is still live. */
 export type PlusLapse = {
-  kind: "trial" | "subscription";
+  kind: PlusLapseKind;
   /** ISO date the period ended, when the device knows it. */
   endedOn?: string;
 };

@@ -2091,6 +2091,7 @@ export class AtomsHomeView extends ItemView {
         readPlusLimitDismissDay(this.app),
         localCalendarDay(),
       );
+      const lapse = plusLapse(filingAuth);
       const hero =
         filingHeroCopy({
           pastUnprocessed: this.unprocessedCount,
@@ -2101,7 +2102,7 @@ export class AtomsHomeView extends ItemView {
           inFlight: snap.inFlight,
           filingPath: filingPathFromAuth(filingAuth),
           plusLimitDismissedToday: limitDismissed,
-          plusLapseKind: plusLapse(filingAuth)?.kind,
+          plusLapseKind: lapse?.kind,
         }) ??
         ({
           mode: "enable_auto",
