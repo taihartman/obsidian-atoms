@@ -193,6 +193,41 @@ describe("backfill offer card — egress ack", () => {
   });
 });
 
+describe("backfill offer card — double tap", () => {
+  /** Drain the microtask queue; the card clears its own flag off the run's `finally`. */
+  const flush = async (): Promise<void> => {
+    for (let i = 0; i < 5; i += 1) await Promise.resolve();
+  };
+
+  it("refuses a second tap while the first run is still going", async () => {
+    const home = backfillHome({ auth: plus, dailies, store: acked });
+
+    // The card renders only in phases where the view is not busy, so `this.busy` never disables
+    // this button — the card has to own the flag itself or the second tap goes straight through.
+    home.press();
+    home.press();
+
+    expect(home.runs).toBe(1);
+
+    await flush();
+    home.press();
+    expect(home.runs).toBe(2);
+  });
+
+  it("redraws the card when the run settles, so a mid-run refresh cannot leave it dead", async () => {
+    const home = backfillHome({ auth: plus, dailies, store: acked });
+    const before = home.renders;
+
+    home.press();
+    await flush();
+
+    // A Plus backfill calls `finishRun` on its way out, which refreshes home while the flag is
+    // still held — so the button on screen by then is a *different* one, drawn disabled. Poking
+    // the detached button this tap captured would leave that visible card dead.
+    expect(home.renders).toBeGreaterThan(before);
+  });
+});
+
 describe("backfill offer card — dismissal", () => {
   it("persists device-locally through the end of the Plus period", () => {
     const home = backfillHome({ auth: plus, dailies, store: acked });

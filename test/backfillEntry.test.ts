@@ -227,7 +227,10 @@ function harness(opts: {
     scheduleAskMirrorSync: () => {},
     hasOpenAtomsHome: () => false,
     landPeakFromWrite: () => null,
+    beginHomeRun: () => {},
+    updateHomeProgress: () => {},
     finishHomeRun: () => {},
+    failHomeRun: () => {},
     // The checkout poll runs for real; a test must not sit through it.
     backfillTopUpPoll: { intervalMs: 0, attempts: 2 },
   });
@@ -376,6 +379,36 @@ describe("the Plus engine", () => {
       expect(h.vault.read(`Daily/${dayBack(n)}.md`)).not.toContain("<!--linker");
     }
     expect(h.vault.read(`Daily/${dayBack(11)}.md`)).toContain("<!--linker");
+  });
+
+  it("never files past the count the gate quoted, even if captures land while it is open", async () => {
+    const h = harness({
+      ...history(),
+      session: plusSession(),
+      entitlement: { status: "active", remaining: 150, periodEnd: dayBack(-20) },
+    });
+
+    const done = h.plugin.runBackfillFlow("card");
+    for (let turn = 0; turn < 50 && !openModal(); turn += 1) {
+      await new Promise((r) => setTimeout(r, 0));
+    }
+    expect(openModal()).not.toBeNull();
+
+    // A phone Sync drops five more bullets onto a mid-range daily while the gate is open. The
+    // offer was priced before they existed; the run re-scans by date, so without a ceiling they
+    // are filed too — past the count the user agreed to and into the period's reserve.
+    const path = `Daily/${dayBack(20)}.md`;
+    const vault = h.vault.app.vault;
+    await vault.modify(
+      vault.getAbstractFileByPath(path) as never,
+      `${h.vault.read(path) ?? ""}- late one\n- late two\n- late three\n- late four\n- late five\n`,
+    );
+
+    clickModal("confirm");
+    await done;
+
+    // 20 is what the gate said; the five that arrived after are spillover for the next run.
+    expect(h.svc.classified).toHaveLength(20);
   });
 
   it("quotes the budgeted range, not the whole complement", async () => {
@@ -552,6 +585,96 @@ describe("in-flight guards", () => {
     await Promise.all([first, second]);
   });
 
+  it("Process refuses to start while the backfill holds its flag", async () => {
+    const h = harness({ ...oneDay(), session: plusSession() });
+    (h.plugin as unknown as { backfillInFlight: boolean }).backfillInFlight =
+      true;
+
+    // `render.ts` rewrites a whole daily from the run's own cache, so a Process started mid
+    // backfill writes back a snapshot taken before the backfill's sentinels were appended —
+    // and a capture with no sentinel is a capture the next run files again, on a metered path.
+    await h.plugin.runProcessUnprocessed();
+
+    expect(h.svc.classified).toHaveLength(0);
+    expect(notices.join(" ")).toContain("backfill already in progress");
+  });
+
+  it("Update notes refuses to start while the backfill holds its flag", async () => {
+    const h = harness({ ...oneDay(), session: plusSession() });
+    (h.plugin as unknown as { backfillInFlight: boolean }).backfillInFlight =
+      true;
+
+    await h.plugin.runUpdateNotes();
+
+    expect(notices.join(" ")).toContain("backfill already in progress");
+    expect(notices.join(" ")).not.toContain("updating older notes");
+  });
+
+  it("marks home busy for the whole Plus backfill, so Process is not offered", async () => {
+    const h = harness({ ...oneDay(), session: plusSession() });
+    const phases: string[] = [];
+    Object.assign(h.plugin, {
+      beginHomeRun: (phase: string) => phases.push(`begin:${phase}`),
+      finishHomeRun: () => phases.push("finish"),
+    });
+
+    await runFlow(h.plugin, ["confirm"]);
+
+    // Without this the backfill runs under `backfillInFlight` while home stays idle, and home's
+    // Process button is the thing a user reaches for when a run shows no progress anywhere.
+    expect(phases).toEqual(["begin:process", "finish"]);
+  });
+
+  it("the backfill refuses to start while Process holds its flag", async () => {
+    const h = harness({ ...oneDay(), session: plusSession() });
+    // Process claims the flag and parks mid-write, exactly where its daily cache is stale the
+    // moment anything else appends. The guard has to work in this direction too: refusing
+    // Process during a backfill while letting a backfill start during Process closes nothing.
+    (
+      h.plugin as unknown as { manualFilingInFlight: boolean }
+    ).manualFilingInFlight = true;
+
+    await runFlow(h.plugin, ["confirm"]);
+
+    expect(h.svc.classified).toHaveLength(0);
+    expect(openModal()).toBeNull();
+    expect(notices.join(" ")).toContain("filing already in progress");
+  });
+
+  it("holds the flag across Update notes' first await, not just its guard", async () => {
+    const h = harness({ ...oneDay(), session: plusSession() });
+    const held: boolean[] = [];
+    // `runUpdateNotes` opens with an await, so a claim made after it leaves a window a backfill
+    // starts in. Sample the flag from inside that await.
+    const flagDuringFirstAwait = h.plugin.runUpdateNotes().then(() => held);
+    for (let turn = 0; turn < 5; turn += 1) {
+      held.push(
+        (h.plugin as unknown as { manualFilingInFlight: boolean })
+          .manualFilingInFlight,
+      );
+      await new Promise((r) => setTimeout(r, 0));
+    }
+    await flagDuringFirstAwait;
+
+    expect(held[0]).toBe(true);
+    // And handed back when the pass finishes, or Process is dead until reload.
+    expect(
+      (h.plugin as unknown as { manualFilingInFlight: boolean })
+        .manualFilingInFlight,
+    ).toBe(false);
+  });
+
+  it("auto-run refuses to start while a manual pass holds its flag", async () => {
+    const h = harness({ ...oneDay(), session: plusSession() });
+    (
+      h.plugin as unknown as { manualFilingInFlight: boolean }
+    ).manualFilingInFlight = true;
+
+    const outcome = await h.plugin.maybeAutoRun("interval");
+
+    expect(outcome).toEqual({ ran: false, reason: "in_flight" });
+  });
+
   it("auto-run refuses to start while the backfill holds its flag", async () => {
     const h = harness({ ...oneDay(), session: plusSession() });
     (h.plugin as unknown as { backfillInFlight: boolean }).backfillInFlight =
@@ -664,6 +787,43 @@ describe("the BYOK branch", () => {
     // it is the only path a BYOK user has to file a history bigger than one run.
     expect(lastGate()).toContain("Captures: 90");
     expect(lastGate()).not.toContain("Captures: 48");
+  });
+
+  it("refuses a second tap while the first estimate is parked at the gate", async () => {
+    const h = harness({ ...bigHistory(), session: null, apiKey: "sk-test" });
+    refusePlus();
+
+    const first = h.plugin.runBackfillFlow("card");
+    for (let turn = 0; turn < 50 && !openModal(); turn += 1) {
+      await new Promise((r) => setTimeout(r, 0));
+    }
+    expect(openModal()).not.toBeNull();
+    // `count_tokens` is the expensive half of the estimate, so it is what a duplicate flow
+    // must not repeat — and two estimates mean two pinned corpora and two gates.
+    const tokenCallsBefore = seam.countTokens;
+
+    // The second tap — the card is still on screen, and the gate does not block the app.
+    let secondSettled = false;
+    const second = h.plugin.runBackfillFlow("card");
+    void second.then(() => {
+      secondSettled = true;
+    });
+    for (let turn = 0; turn < 20; turn += 1) {
+      await new Promise((r) => setTimeout(r, 0));
+    }
+
+    expect(secondSettled).toBe(true);
+    expect(notices.join(" ")).toContain("backfill already in progress");
+    expect(seam.countTokens).toBe(tokenCallsBefore);
+    expect(Modal.open).toHaveLength(1);
+
+    clickModal("cancel");
+    await Promise.all([first, second]);
+
+    // Dismissing the gate has to hand the flag back, or backfill is dead until reload.
+    expect(
+      (h.plugin as unknown as { backfillInFlight: boolean }).backfillInFlight,
+    ).toBe(false);
   });
 
   it("does not let the command unbind Plus", async () => {

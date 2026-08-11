@@ -38,6 +38,8 @@ export interface BackfillHomeHarness {
   store: Record<string, unknown>;
   writes: string[];
   runs: number;
+  /** Re-render requests. The card's release path has to redraw, not just poke its old button. */
+  renders: number;
   model(): { title: string; body: string; meter: string; primary: string; dismiss: string } | null;
   press(): void;
   dismiss(): void;
@@ -50,7 +52,7 @@ export function backfillHome(opts: {
 }): BackfillHomeHarness {
   const store: Record<string, unknown> = { ...(opts.store ?? {}) };
   const writes: string[] = [];
-  const harness = { store, writes, runs: 0 } as BackfillHomeHarness;
+  const harness = { store, writes, runs: 0, renders: 0 } as BackfillHomeHarness;
   const view = Object.create(AtomsHomeView.prototype) as Record<string, unknown>;
   view.app = {
     loadLocalStorage: (k: string) => store[k] ?? null,
@@ -69,7 +71,9 @@ export function backfillHome(opts: {
   };
   view.backfillDailies = opts.dailies ?? [];
   view.busy = false;
-  view.render = () => {};
+  view.render = () => {
+    harness.renders += 1;
+  };
 
   const call = <T>(name: string): T =>
     (view[name] as () => T).call(view);

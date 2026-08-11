@@ -261,6 +261,15 @@ export class AtomsHomeView extends ItemView {
   private todayUnprocessedCount = 0;
   private peek: Array<{ text: string; date: string }> = [];
   private busy = false;
+  /**
+   * The backfill card's own in-flight flag.
+   *
+   * `busy` cannot serve here. It stays a belt on the button, but the card only ever renders in
+   * phases where it is false, so on its own it disables nothing. The flow a tap starts spends a
+   * long time at an estimate and a confirm gate, and every one of those ticks is a second tap
+   * the card would otherwise let through.
+   */
+  private backfillCardBusy = false;
   private rootEl: HTMLElement | null = null;
   /** Detach long-press bindings before re-render (clears mid-hold timers). */
   private libraryPressDetach: Array<() => void> = [];
@@ -2666,11 +2675,11 @@ export class AtomsHomeView extends ItemView {
       text: copy.meter,
     });
     const actions = actionRow(card, { className: "atoms-home-wait-actions" });
-    button(actions, {
+    const start = button(actions, {
       grade: "primary",
       label: copy.primary,
-      disabled: this.busy,
-      onClick: () => this.startBackfillFromCard(),
+      disabled: this.busy || this.backfillCardBusy,
+      onClick: () => this.startBackfillFromCard(start),
     });
     button(actions, {
       grade: "quiet",
@@ -2688,10 +2697,11 @@ export class AtomsHomeView extends ItemView {
    * means everywhere else. It does not turn automatic filing on: `readEgressPermitted` grants
    * the send, and `shouldRunAutoProcess` still wants the enable flag this never writes.
    */
-  private startBackfillFromCard(): void {
+  private startBackfillFromCard(start?: HTMLButtonElement): void {
+    if (this.backfillCardBusy) return;
     const load = (k: string): unknown => this.app.loadLocalStorage(k) as unknown;
     if (readEgressPermitted(load, { catchUp: false })) {
-      void this.plugin.runBackfillFromHome();
+      this.runBackfillFromCard(start);
       return;
     }
     new ConsentSheetModal(
@@ -2700,9 +2710,28 @@ export class AtomsHomeView extends ItemView {
         // `accepted` and nothing else: `declined` covers Cancel, Escape, and a click outside.
         if (verdict !== "accepted") return;
         writeEgressAck((k, v) => this.app.saveLocalStorage(k, v), true);
-        void this.plugin.runBackfillFromHome();
+        this.runBackfillFromCard(start);
       }),
     ).open();
+  }
+
+  /**
+   * One tap, one flow. The button is disabled in the same synchronous step that claims the flag,
+   * so the DOM says what the state says without waiting for a re-render — and a re-render mid-run
+   * draws a fresh button that reads the flag and comes up disabled too.
+   *
+   * Releasing has to re-render, not just re-enable the button this tap captured. A Plus backfill
+   * calls `finishRun` on its way out, which refreshes home while the flag is still held: the card
+   * that lands is a *different* button, drawn disabled, and re-enabling the detached one would
+   * leave the visible card dead until something else happened to refresh it.
+   */
+  private runBackfillFromCard(start?: HTMLButtonElement): void {
+    this.backfillCardBusy = true;
+    if (start) start.disabled = true;
+    void this.plugin.runBackfillFromHome().finally(() => {
+      this.backfillCardBusy = false;
+      this.render();
+    });
   }
 
   /** Not now: quiet until the next period, never forever. */

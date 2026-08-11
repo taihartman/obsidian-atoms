@@ -258,6 +258,15 @@ export default class AtomsPlugin extends Plugin {
   private autoRunInFlight = false;
   private backfillInFlight = false;
   /**
+   * Held by the two attended write passes — Process and Update notes — for their whole duration.
+   *
+   * Without it the exclusion is one-directional: those two can be told a backfill is running, but
+   * a backfill starting *after* them sees nothing and both write paths `vault.modify` the same
+   * dailies from divergent caches. Whichever finishes last drops the other's sentinels, and a
+   * capture with no sentinel is filed again on a metered path.
+   */
+  private manualFilingInFlight = false;
+  /**
    * Shared in-flight drain (F1). Both entry points — bootstrapInbox (unawaited
    * from onLayoutReady) and runDrainInbox (command) — go through drainInboxOnce,
    * so a concurrent caller JOINS the running pass instead of racing it into a
@@ -564,6 +573,24 @@ export default class AtomsPlugin extends Plugin {
    * User-initiated only; never from auto-run.
    */
   async runUpdateNotes(opts?: {
+    fixtureResults?: import("../shared/types").ClassificationResult[];
+    limit?: number;
+  }): Promise<void> {
+    // Same reason as `runProcessUnprocessed`: this rewrites atoms and dailies another filing
+    // pass may be appending to, from a cache taken before those appends. Check and claim in one
+    // synchronous step — the body's first act is an `await`, and a claim made after it would
+    // leave a window a backfill starts in.
+    if (this.backfillBusy()) return;
+    this.manualFilingInFlight = true;
+    try {
+      await this.updateNotesRun(opts);
+    } finally {
+      this.manualFilingInFlight = false;
+    }
+  }
+
+  /** The refresh pass itself. Runs only under `manualFilingInFlight` — see its one caller. */
+  private async updateNotesRun(opts?: {
     fixtureResults?: import("../shared/types").ClassificationResult[];
     limit?: number;
   }): Promise<void> {
@@ -1182,6 +1209,8 @@ export default class AtomsPlugin extends Plugin {
         // and takes `backfillInFlight`, so without this check the hourly pass would start a
         // second paid run against a second pinned context corpus.
         if (this.backfillInFlight) return false;
+        // And the attended passes, which write the same dailies from their own caches.
+        if (this.manualFilingInFlight) return false;
         this.autoRunInFlight = true;
         return true;
       },
@@ -1378,6 +1407,10 @@ export default class AtomsPlugin extends Plugin {
     }
     if (this.backfillInFlight) {
       new Notice("Atoms: backfill already in progress");
+      return true;
+    }
+    if (this.manualFilingInFlight) {
+      new Notice("Atoms: filing already in progress");
       return true;
     }
     return false;
@@ -1606,9 +1639,13 @@ export default class AtomsPlugin extends Plugin {
     // No guard and no flag of its own: `runPlusBackfillFlow` already holds `backfillInFlight` for
     // the whole flow this runs inside. Taking it a second time here would clear it on the way out
     // while the top-up loop is still live.
+    const classifyAuth = this.requireClassifyAuth();
+    if (!classifyAuth) return;
+    // Home has to look busy for the duration. The flag above stops a second *backfill*, but
+    // home's Process button reads `AtomsHomeView.busy` — and a run that shows no progress
+    // anywhere is exactly what makes a user reach for Process while one is going.
+    this.beginHomeRun("process");
     try {
-      const classifyAuth = this.requireClassifyAuth();
-      if (!classifyAuth) return;
       const report = await runWritePath({
         app: this.app,
         contextProvider: this.contextProvider,
@@ -1625,12 +1662,19 @@ export default class AtomsPlugin extends Plugin {
         // already owns — metered double-spend on the captures KTD3 exists to exclude.
         since: range.since,
         before: range.before,
-        // Newest-first, and no `maxCaptures`: the range is already budget-bounded, so a cap
-        // would only decide which end of it a paced run drops — and the recent end is the only
-        // one whose filing quality the user can still judge.
+        // The range bounds *dates*; this bounds the count. The offer was priced at derivation
+        // time and this re-scans at write time, so captures that land in between — a phone Sync
+        // dropping bullets onto a mid-range daily, the inbox draining into a past note — would
+        // otherwise be filed past the number the gate quoted and into the period's reserve.
+        // Newest-first means the cap drops the oldest end, which the range already treats as
+        // spillover for the next run.
+        maxCaptures: range.captures,
         order: "newest-first",
         stopOnAuthExhausted: true,
         classifyDeps: { maxAttempts: 2, plus: classifyAuth.plus },
+        onProgress: (done, total, meta) => {
+          this.updateHomeProgress(done, total, meta?.captureText);
+        },
       });
       this.lastWriteReport = report;
 
@@ -1652,6 +1696,10 @@ export default class AtomsPlugin extends Plugin {
         failed: report.failed,
         stoppedReason: report.stoppedReason,
       });
+      this.finishHomeRun(
+        formatRunSummary(summaryFromWrite(report)),
+        this.landPeakFromWrite(report, "process"),
+      );
       new Notice(
         report.stoppedReason === "exhausted"
           ? `Atoms backfill: filed ${filed} of ${range.captures} — filings ran out. It picks up here when they reset.`
@@ -1660,12 +1708,16 @@ export default class AtomsPlugin extends Plugin {
       if (report.atomsCreated > 0 || report.markersAppended > 0) {
         this.scheduleAskMirrorSync();
       }
-      await this.refreshAtomsHomeLeaves();
+      // No `refreshAtomsHomeLeaves()` here: `finishHomeRun` above already refreshes every open
+      // home leaf. A second one is a duplicate vault read, and — as the only awaited call left
+      // on the success path — the one statement whose throw would land in the catch below and
+      // report a run that fully succeeded as "Backfill failed".
     } catch (e) {
       devLog("[atoms] plus backfill failed", {
         name: e instanceof Error ? e.name : "Error",
         message: e instanceof Error ? e.message.slice(0, 200) : "unknown",
       });
+      this.failHomeRun("Backfill failed");
       new Notice(
         `Atoms: backfill failed — ${e instanceof Error ? e.message.slice(0, 100) : "error"}`,
       );
@@ -1708,7 +1760,23 @@ export default class AtomsPlugin extends Plugin {
     const apiKey = this.requireApiKey();
     if (!apiKey) return;
     if (this.backfillBusy()) return;
+    // Held for the whole flow, exactly as `runPlusBackfillFlow` holds it: the estimate pins a
+    // whole vault's corpus and the gate is a long window a second tap lands in. The check above
+    // and this set are one synchronous step on purpose — an await between them lets two taps
+    // through into two estimates, two pinned corpora and two gates.
+    this.backfillInFlight = true;
+    try {
+      await this.byokBackfillEstimateAndSubmit(source, apiKey);
+    } finally {
+      this.backfillInFlight = false;
+    }
+  }
 
+  /** The estimate/gate/submit itself. Runs only under `backfillInFlight` — see its one caller. */
+  private async byokBackfillEstimateAndSubmit(
+    source: "card" | "command",
+    apiKey: string,
+  ): Promise<void> {
     new Notice("Atoms: counting tokens for backfill estimate…");
     try {
       const model = DEFAULT_BACKFILL_MODEL;
@@ -1756,34 +1824,32 @@ export default class AtomsPlugin extends Plugin {
         `Atoms: ${prepared.estimate.summaryLine} — confirm in the dialog`,
       );
 
-      let confirmed = false;
-      const modal = new BackfillConfirmModal(
-        this.app,
-        { engine: "byok", estimate: prepared.estimate },
-        async () => {
-          confirmed = true;
-          try {
-            await this.executeBackfillBatch({
-              apiKey,
-              model,
-              work: prepared.work,
-              run: prepared.run,
-              // Chunk one was priced against this same corpus with nothing yet written; resolving
-              // it again would be byte-for-byte the same answer.
-              firstChunk: prepared.chunks[0],
-            });
-          } finally {
-            prepared.run.end();
-          }
-        },
-      );
-      // Declining the gate must not leave a whole vault's corpus pinned.
-      const closeHook = modal.onClose.bind(modal);
-      modal.onClose = () => {
-        closeHook();
-        if (!confirmed) prepared.run.end();
-      };
-      modal.open();
+      // The gate is awaited rather than fired and forgotten — the same `confirmBackfill` the Plus
+      // engine waits on. The in-flight flag this method's caller holds has to cover the confirm
+      // window and the batch it starts, not just the estimate above, and a gate answered from a
+      // callback after the flow returned covers neither.
+      const verdict = await this.confirmBackfill({
+        engine: "byok",
+        estimate: prepared.estimate,
+      });
+      // Declining must not leave a whole vault's corpus pinned; neither must a finished submit.
+      if (verdict !== "confirm") {
+        prepared.run.end();
+        return;
+      }
+      try {
+        await this.executeBackfillBatch({
+          apiKey,
+          model,
+          work: prepared.work,
+          run: prepared.run,
+          // Chunk one was priced against this same corpus with nothing yet written; resolving it
+          // again would be byte-for-byte the same answer.
+          firstChunk: prepared.chunks[0],
+        });
+      } finally {
+        prepared.run.end();
+      }
     } catch (e) {
       devLog("[atoms] backfill estimate failed", {
         name: e instanceof Error ? e.name : "Error",
@@ -1808,8 +1874,9 @@ export default class AtomsPlugin extends Plugin {
     run: import("../pipeline/context").ContextRun;
     firstChunk?: import("../pipeline/backfill").ResolvedBackfillChunk;
   }) {
-    if (this.backfillInFlight) return;
-    this.backfillInFlight = true;
+    // No flag of its own: `runByokBackfillFlow` already holds `backfillInFlight` across the
+    // estimate, the gate and this submit. Taking it a second time here would refuse the very
+    // batch the user just consented to pay for, and refuse it silently.
     try {
       const hubCtx = opts.run.vaultContext;
       const report = await runBackfillChunks({
@@ -1887,8 +1954,6 @@ export default class AtomsPlugin extends Plugin {
       new Notice(
         `Atoms: backfill failed — ${e instanceof Error ? e.message.slice(0, 100) : "error"}`,
       );
-    } finally {
-      this.backfillInFlight = false;
     }
   }
 
@@ -2379,6 +2444,22 @@ export default class AtomsPlugin extends Plugin {
    * includeToday: manual force for testing on phone (never used by auto-run).
    */
   async runProcessUnprocessed(opts?: { includeToday?: boolean }) {
+    // `requireClassifyAuth` has no concurrency check of its own. `render.ts` rewrites a whole
+    // daily from the run's own cache, so a Process started under another filing pass can write
+    // back a snapshot taken before that pass appended its sentinels — and a capture with no
+    // sentinel is one the next run files again. Claiming as well as checking is what closes the
+    // other direction: a backfill started *after* this one has to be able to see it.
+    if (this.backfillBusy()) return;
+    this.manualFilingInFlight = true;
+    try {
+      await this.processUnprocessedRun(opts);
+    } finally {
+      this.manualFilingInFlight = false;
+    }
+  }
+
+  /** The write pass itself. Runs only under `manualFilingInFlight` — see its one caller. */
+  private async processUnprocessedRun(opts?: { includeToday?: boolean }) {
     const classifyAuth = this.requireClassifyAuth();
     if (!classifyAuth) return;
 
