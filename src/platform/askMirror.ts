@@ -647,6 +647,39 @@ const ASK_MIRROR_OFF_WHY: Record<AskMirrorOffReason, string> = {
 };
 
 /**
+ * One service message, shortened to fit a surface, without lying about where it stopped.
+ *
+ * Both callers used a bare character cut, which reads as a complete sentence that happens to end
+ * badly: an 85-character session-rejected message cut at 72 became "…Sign in again to reconnect
+ * t", losing the second half of the only instruction it was giving (#446). Cutting is fine — the
+ * status line is width-constrained on mobile and the Notice is shorter still — but a reader has
+ * to be able to tell that something was removed.
+ *
+ * The ellipsis is the honesty, and it is appended only when text was actually dropped, so a
+ * message that fits is never dressed up as an excerpt. A single token longer than the budget has
+ * no word boundary to fall back to and is cut mid-token deliberately: an empty string would be
+ * worse than a truncated one, since the caller renders the clause only when this is non-empty.
+ *
+ * @param raw service-authored text, possibly absent
+ * @param limit character budget for the message body, before the ellipsis
+ */
+export function truncateMessage(
+  raw: string | undefined | null,
+  limit: number,
+): string {
+  const text = (raw || "").replace(/\s+/g, " ").trim();
+  if (text.length <= limit) return text;
+  const cut = text.slice(0, limit);
+  const lastSpace = cut.lastIndexOf(" ");
+  // Trailing punctuation left dangling by the cut reads as a typo next to the ellipsis.
+  const kept = (lastSpace > 0 ? cut.slice(0, lastSpace) : cut).replace(
+    /[\s.,;:!?—-]+$/,
+    "",
+  );
+  return kept ? `${kept}…` : "";
+}
+
+/**
  * Status line with optional Plus email (R9).
  * Happy: `Ask mirror: N · as you@… · last pushed …`
  * Error: `Ask mirror: N · as you@… · push failed — …`
@@ -691,7 +724,7 @@ export function formatAskMirrorStatusLine(opts: {
   if (opts.refused) {
     return `Ask mirror: ${opts.serverCount}${as} · sync refused — vault scan incomplete · Sync now to retry`;
   }
-  const err = (opts.lastErr || "").replace(/\s+/g, " ").trim().slice(0, 96);
+  const err = truncateMessage(opts.lastErr, 96);
   if (err) {
     return `Ask mirror: ${opts.serverCount}${as} · push failed${err ? ` — ${err}` : ""} · Sync now to retry`;
   }

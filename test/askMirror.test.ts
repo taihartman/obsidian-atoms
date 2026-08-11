@@ -21,6 +21,7 @@ import {
   readAskMirrorRefusal,
   readAskMirrorServerCount,
   readMirrorHighWater,
+  truncateMessage,
   LS_ASK_MIRROR_HASHES,
   LS_ASK_MIRROR_REFUSAL,
   LS_ASK_MIRROR_SCAN_HIGHWATER,
@@ -1337,5 +1338,80 @@ describe("askMirror hash convergence across planners (#397)", () => {
       "Atoms/A1.md",
       "Movies.md",
     ]);
+  });
+});
+
+/**
+ * #446 — a shortened service message must not read as a finished sentence. Both surfaces cut on
+ * characters, so an 85-character session-rejected message lost the second half of the only
+ * instruction it was giving and ended on a bare "t".
+ */
+describe("truncateMessage", () => {
+  // The verbatim message that produced the reported Notice.
+  const REJECTED =
+    "Your Atoms Plus session is no longer valid. Sign in again to reconnect to Atoms Plus.";
+
+  it("no longer ends the reported message mid-word", () => {
+    const out = truncateMessage(REJECTED, 72);
+    expect(out).not.toMatch(/reconnect t$/);
+    expect(out).toBe(
+      "Your Atoms Plus session is no longer valid. Sign in again to reconnect…",
+    );
+    // Whatever the budget, the visible text ends on a whole word plus the ellipsis.
+    expect(out).toMatch(/\w…$/);
+  });
+
+  it("says it was shortened, and only when it was", () => {
+    expect(truncateMessage("short enough", 72)).toBe("short enough");
+    expect(truncateMessage("short enough", 72)).not.toMatch(/…/);
+    expect(truncateMessage(REJECTED, 96)).toBe(REJECTED);
+    expect(truncateMessage(REJECTED, 40)).toMatch(/…$/);
+  });
+
+  it("keeps within the budget it was given", () => {
+    for (const limit of [20, 40, 72, 96]) {
+      // The ellipsis is one character beyond the body budget, never a smuggled extra word.
+      expect(truncateMessage(REJECTED, limit).length).toBeLessThanOrEqual(
+        limit + 1,
+      );
+    }
+  });
+
+  it("does not leave punctuation stranded against the ellipsis", () => {
+    expect(truncateMessage("Cannot reach Atoms Plus. Try again later.", 25))
+      .toBe("Cannot reach Atoms Plus…");
+  });
+
+  it("returns something for a single token longer than the budget", () => {
+    // No word boundary to fall back to. An empty string would drop the clause entirely,
+    // because the callers render it only when this is non-empty.
+    const out = truncateMessage("supercalifragilisticexpialidocious", 10);
+    expect(out).toBe("supercalif…");
+  });
+
+  it("treats absent, blank, and whitespace-only text as nothing to say", () => {
+    expect(truncateMessage(undefined, 72)).toBe("");
+    expect(truncateMessage(null, 72)).toBe("");
+    expect(truncateMessage("   \n  ", 72)).toBe("");
+  });
+
+  it("collapses internal whitespace, as both call sites always did", () => {
+    expect(truncateMessage("two   words\nhere", 72)).toBe("two words here");
+  });
+});
+
+describe("the status line carries the shortened message (#446)", () => {
+  it("ends the error clause on a whole word", () => {
+    const line = formatAskMirrorStatusLine({
+      serverCount: "84",
+      email: "a@ex.co",
+      relativeLastOk: "never",
+      lastErr:
+        "Your Atoms Plus session is no longer valid. Sign in again to reconnect to Atoms Plus, then run Sync now from Settings.",
+    });
+    expect(line).not.toMatch(/[a-z]{1,2} · Sync now to retry$/);
+    expect(line).toBe(
+      "Ask mirror: 84 · as a@ex.co · push failed — Your Atoms Plus session is no longer valid. Sign in again to reconnect to Atoms Plus, then run… · Sync now to retry",
+    );
   });
 });
