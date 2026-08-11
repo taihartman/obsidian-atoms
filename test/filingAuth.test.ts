@@ -10,10 +10,13 @@ import {
   recordPendingSignIn,
   plusCanClassify,
   plusIsExhausted,
+  plusLapse,
+  plusNeedsPeriodRefresh,
   readPlusSession,
   resolveFilingAuth,
   serializePlusSession,
   writePlusSession,
+  type FilingAuth,
   type PlusSession,
 } from "../src/platform/filingAuth";
 
@@ -221,5 +224,193 @@ describe("pending sign-in record (U7)", () => {
     };
     expect(readPendingSignIns(app, 1)).toEqual([]);
     expect(latestPendingSignIn(app, 1)).toBeNull();
+  });
+});
+
+/**
+ * #442 — an expired trial reached every surface wearing the same `exhausted` status a spent
+ * monthly meter wears, so all three told the user their allotment would return on a billing
+ * date they did not have.
+ */
+describe("plusLapse", () => {
+  const T0 = Date.parse("2026-08-11T13:49:00.000Z");
+  const plus = (over: Partial<PlusSession>): FilingAuth => ({
+    mode: "plus",
+    sessionToken: "sess_abc",
+    email: "u@example.com",
+    status: "active",
+    ...over,
+  });
+
+  it("reports an expired trial from the stored date, with no refresh", () => {
+    // The exact shape of the reported account: trial, spent, ended ~23h earlier. The device
+    // had all of this locally and still rendered a healthy screen.
+    const lapse = plusLapse(
+      plus({
+        status: "exhausted",
+        remaining: 0,
+        plan: "trial",
+        periodEnd: "2026-08-10T14:52:03.632Z",
+      }),
+      T0,
+    );
+    expect(lapse).toEqual({
+      kind: "trial",
+      endedOn: "2026-08-10T14:52:03.632Z",
+    });
+  });
+
+  it("names an ended paid period a subscription, not a trial", () => {
+    expect(
+      plusLapse(
+        plus({
+          status: "exhausted",
+          plan: "monthly",
+          periodEnd: "2026-08-10T00:00:00.000Z",
+        }),
+        T0,
+      )?.kind,
+    ).toBe("subscription");
+  });
+
+  it("never calls a trial ended on the device's own authority", () => {
+    // The regression this replaces: an earlier draft lapsed on plan "trial" + a past date with
+    // no `exhausted`, to catch expiry without a round-trip. That inverts a *converted* trial —
+    // a stale device holds `trialing` and a past periodEnd while the account is paid and
+    // active — and it told that subscriber their trial had ended, then blocked filing. The
+    // device may not out-rule the service; `plusNeedsPeriodRefresh` goes and asks instead.
+    expect(
+      plusLapse(
+        plus({
+          status: "trialing",
+          remaining: 40,
+          plan: "trial",
+          periodEnd: "2026-08-10T00:00:00.000Z",
+        }),
+        T0,
+      ),
+    ).toBeNull();
+  });
+
+  it("reports a plan it cannot name as unknown rather than guessing", () => {
+    // A session stored before `plan` was persisted, and a promo period. Calling either one a
+    // "subscription" sends a user who never had one to a billing portal with no customer.
+    const ended = {
+      status: "exhausted" as const,
+      remaining: 0,
+      periodEnd: "2026-08-10T00:00:00.000Z",
+    };
+    expect(plusLapse(plus(ended), T0)?.kind).toBe("unknown");
+    expect(plusLapse(plus({ ...ended, plan: "promo" }), T0)?.kind).toBe(
+      "unknown",
+    );
+    expect(plusLapse(plus({ ...ended, plan: "yearly" }), T0)?.kind).toBe(
+      "subscription",
+    );
+  });
+
+  it("does not call an active subscriber lapsed on a just-passed renewal date", () => {
+    // periodEnd on a monthly plan is the *renewal*. A device that has not refreshed through one
+    // holds a past date for an account that is perfectly current — the false positive that
+    // makes a date-only rule unusable.
+    expect(
+      plusLapse(
+        plus({
+          status: "active",
+          remaining: 90,
+          plan: "monthly",
+          periodEnd: "2026-08-10T00:00:00.000Z",
+        }),
+        T0,
+      ),
+    ).toBeNull();
+  });
+
+  it("leaves a spent meter inside a live period alone", () => {
+    expect(
+      plusLapse(
+        plus({
+          status: "exhausted",
+          remaining: 0,
+          plan: "monthly",
+          periodEnd: "2026-09-10T00:00:00.000Z",
+        }),
+        T0,
+      ),
+    ).toBeNull();
+  });
+
+  it("is null without a usable date, and for every non-Plus mode", () => {
+    expect(plusLapse(plus({ status: "exhausted" }), T0)).toBeNull();
+    expect(
+      plusLapse(plus({ status: "exhausted", periodEnd: "not-a-date" }), T0),
+    ).toBeNull();
+    expect(plusLapse({ mode: "byok", apiKey: "sk" }, T0)).toBeNull();
+    expect(plusLapse({ mode: "none" }, T0)).toBeNull();
+  });
+
+  it("carries plan through storage, so the copy survives a reload", () => {
+    const round = parsePlusSession(
+      JSON.parse(serializePlusSession({ ...activeSession, plan: "trial" })),
+    );
+    expect(round?.plan).toBe("trial");
+    // An unreadable plan stays unstated rather than defaulting to a period name.
+    expect(parsePlusSession({ ...activeSession, plan: "lifetime" })?.plan).toBe(
+      undefined,
+    );
+  });
+});
+
+/**
+ * #442, the half that is not copy. The surfaces refuse to call a period ended until the service
+ * says so, which is only honest if something goes and asks — otherwise a device sits on a
+ * pre-expiry snapshot drawing a healthy account, which is how the reported account stayed quiet
+ * for 23 hours.
+ */
+describe("plusNeedsPeriodRefresh", () => {
+  const T0 = Date.parse("2026-08-11T13:49:00.000Z");
+  const ended = Date.parse("2026-08-10T14:52:03.632Z");
+  const session = (over: Partial<PlusSession>): PlusSession => ({
+    sessionToken: "sess_abc",
+    email: "u@example.com",
+    periodEnd: "2026-08-10T14:52:03.632Z",
+    ...over,
+  });
+
+  it("asks when the snapshot predates the period boundary", () => {
+    // The reported shape: filing right up to expiry, so the last refresh lands just before it.
+    expect(plusNeedsPeriodRefresh(session({ refreshedAt: ended - 3_000 }), T0)).toBe(
+      true,
+    );
+    // An unstamped session is the same case, not an exemption.
+    expect(plusNeedsPeriodRefresh(session({}), T0)).toBe(true);
+  });
+
+  it("stays quiet once the snapshot has crossed the boundary", () => {
+    expect(plusNeedsPeriodRefresh(session({ refreshedAt: ended + 1 }), T0)).toBe(
+      false,
+    );
+  });
+
+  it("stays quiet for a live period, so this is not a per-load ping", () => {
+    expect(
+      plusNeedsPeriodRefresh(
+        session({ periodEnd: "2026-09-10T00:00:00.000Z", refreshedAt: 0 }),
+        T0,
+      ),
+    ).toBe(false);
+  });
+
+  it("has nothing to ask about without a session or a usable date", () => {
+    expect(plusNeedsPeriodRefresh(null, T0)).toBe(false);
+    expect(plusNeedsPeriodRefresh(session({ periodEnd: undefined }), T0)).toBe(
+      false,
+    );
+    expect(plusNeedsPeriodRefresh(session({ periodEnd: "nonsense" }), T0)).toBe(
+      false,
+    );
+    expect(plusNeedsPeriodRefresh(session({ sessionToken: "  " }), T0)).toBe(
+      false,
+    );
   });
 });

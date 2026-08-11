@@ -78,6 +78,7 @@ import {
 import {
   isPlusLimitDismissedToday,
   localCalendarDay,
+  plusLapse,
   readPlusLimitDismissDay,
   writePlusLimitDismissDay,
   type FilingAuth,
@@ -2090,6 +2091,7 @@ export class AtomsHomeView extends ItemView {
         readPlusLimitDismissDay(this.app),
         localCalendarDay(),
       );
+      const lapse = plusLapse(filingAuth);
       const hero =
         filingHeroCopy({
           pastUnprocessed: this.unprocessedCount,
@@ -2100,6 +2102,7 @@ export class AtomsHomeView extends ItemView {
           inFlight: snap.inFlight,
           filingPath: filingPathFromAuth(filingAuth),
           plusLimitDismissedToday: limitDismissed,
+          plusLapseKind: lapse?.kind,
         }) ??
         ({
           mode: "enable_auto",
@@ -2149,7 +2152,9 @@ export class AtomsHomeView extends ItemView {
               openPluginSettingsTab(this.app, "atoms");
               return;
             }
-            if (action === "get_more") {
+            // Same destination as Get More: Settings opens on the account row, which now names
+            // the ended period and carries Subscribe.
+            if (action === "get_more" || action === "subscribe") {
               openPluginSettingsTab(this.app, "atoms");
               return;
             }

@@ -12,6 +12,11 @@ import {
 } from "../pipeline/refreshAtoms";
 import { isCalendarDay, utcMidnight } from "../pipeline/backfillOffer";
 import { parseCaptures } from "../pipeline/parse";
+import {
+  plusLapse,
+  type FilingAuth,
+  type PlusLapseKind,
+} from "../platform/filingAuth";
 import { resolveCreatedField } from "../pipeline/render";
 import {
   PLUS_PRICING,
@@ -626,13 +631,19 @@ export type FilingHeroMode =
   | "auto_running";
 
 /** Filing path for wait-card branching (from resolveFilingAuth + status). */
-export type FilingPathKind = "none" | "byok" | "plus_active" | "plus_exhausted";
+export type FilingPathKind =
+  | "none"
+  | "byok"
+  | "plus_active"
+  | "plus_exhausted"
+  | "plus_lapsed";
 
 export type FilingHeroAction =
   | "open_settings"
   | "open_plus"
   | "open_byok_settings"
   | "get_more"
+  | "subscribe"
   | "dismiss_limit"
   | "enable_auto"
   | "process"
@@ -678,6 +689,8 @@ export function filingHeroCopy(input: {
    * Device-local dismiss day handled by caller.
    */
   plusLimitDismissedToday?: boolean;
+  /** Which kind of period ended, when `filingPath` is `plus_lapsed`. */
+  plusLapseKind?: PlusLapseKind;
 }): FilingHeroCopy | null {
   if (input.pastUnprocessed <= 0) return null;
 
@@ -698,6 +711,23 @@ export function filingHeroCopy(input: {
       secondaryLabel: "Use My Own Key",
       secondaryAction: "open_byok_settings",
       secondaryQuiet: true,
+    };
+  }
+
+  if (path === "plus_lapsed") {
+    const what = input.plusLapseKind === "trial" ? "trial" : "subscription";
+    // No "Not Now": the limit card can be dismissed because waiting genuinely fixes it, and
+    // this one nothing fixes but subscribing. Offering a dismissal would put the card back
+    // tomorrow saying the same thing, which is how the expiry stayed quiet in the first place.
+    return {
+      mode: "plus_limit",
+      eyebrow: "Atoms Plus",
+      title: `Your ${what} has ended`,
+      body: `${capturesWaitingSentence(n)} — filing is paused, and Claude and ChatGPT can’t reach your atoms. Subscribe to pick up where you left off.`,
+      primaryLabel: "Subscribe",
+      primaryAction: "subscribe",
+      secondaryLabel: null,
+      secondaryAction: null,
     };
   }
 
@@ -728,7 +758,14 @@ export function filingHeroCopy(input: {
     };
   }
 
-  // byok or plus_active — existing automatic-filing story
+  // Everything below is the byok / plus_active automatic-filing story. This annotation is the
+  // guard: a `FilingPathKind` added without a branch above fails to narrow here and breaks the
+  // build, rather than silently inheriting a card about automatic filing. `plus_lapsed` would
+  // have fallen through exactly that way — the same class `accountRowDescriptor` closes with
+  // its `never`, which this if-chain had no equivalent of.
+  const _story: "byok" | "plus_active" = path;
+  void _story;
+
   const autoOn = input.autoEnabled && input.egressAcked;
   if (input.inFlight && autoOn) {
     return {
@@ -794,6 +831,15 @@ function capturesWaitingLabel(n: number): string {
 }
 
 /**
+ * The same count as prose. {@link capturesWaitingLabel} is title-cased because every other
+ * caller uses it as a card *title*; borrowed into a sentence it reads "33 Captures Waiting —
+ * filing is paused", a proper noun where a clause belongs.
+ */
+function capturesWaitingSentence(n: number): string {
+  return n === 1 ? "1 capture waiting" : `${n} captures waiting`;
+}
+
+/**
  * Captures inside the filing window, derived from an unbounded past scan.
  *
  * Filtering the scan the home view already made, rather than scanning the vault a second
@@ -831,13 +877,20 @@ export function waitingSubtitle(input: {
     : `${input.pastUnprocessed} thoughts ready to file`;
 }
 
-/** Map resolveFilingAuth result → wait-card path. */
-export function filingPathFromAuth(auth: {
-  mode: "none" | "byok" | "plus";
-  status?: string;
-}): FilingPathKind {
+/**
+ * Map resolveFilingAuth result → wait-card path.
+ *
+ * An ended period takes its own path rather than sharing `plus_exhausted`: the limit card's
+ * whole offer — buy more filings, or wait for the next billing date — is addressed to someone
+ * who still has a subscription (#442).
+ */
+export function filingPathFromAuth(
+  auth: FilingAuth,
+  now?: number,
+): FilingPathKind {
   if (auth.mode === "none") return "none";
   if (auth.mode === "byok") return "byok";
+  if (plusLapse(auth, now)) return "plus_lapsed";
   if (auth.status === "exhausted") return "plus_exhausted";
   return "plus_active";
 }

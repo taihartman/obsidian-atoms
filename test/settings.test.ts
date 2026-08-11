@@ -22,9 +22,11 @@ import {
   type AccountState,
   AtomsSettingTab,
   type ConnectivityRequest,
+  deriveAccountState,
 } from "../src/settings/settings";
 import {
   readPendingSignIns,
+  type FilingAuth,
   type PlusSession,
 } from "../src/platform/filingAuth";
 import { s256Challenge } from "../src/platform/pkce";
@@ -490,10 +492,14 @@ describe("account row", () => {
     expect(rowNames(tab)).toEqual([
       "Account",
       "Skip the API key",
-      "Email",
       // Renamed by #240: the emailed link now signs *this* device in, so "another device" is the
       // paste fallback's job rather than this row's.
+      //
+      // Signing in leads: most people who reach this screen already have an account (a second
+      // device, or a lapsed session) and the trial row below asks for a card, so leading with
+      // the trial charged the wrong question to the larger group.
       "Sign in with a link",
+      "Email",
       "Advanced: paste session",
     ]);
     expect(buttonLabels(tab, "Email")).toEqual(["Start free trial"]);
@@ -569,6 +575,75 @@ describe("account row", () => {
     // @ts-expect-error — "grandfathered" is not an account state.
     const notAState: AccountState = { kind: "grandfathered" };
     expect(notAState.kind).toBe("grandfathered");
+  });
+
+  /**
+   * #442 — the row a lapsed account actually reads. It said "Monthly limit reached", which is
+   * the sentence for someone whose allotment refills; a trial that ended has no allotment and
+   * no next billing date.
+   */
+  describe("an ended period is not a spent meter", () => {
+    const T0 = Date.parse("2026-08-11T13:49:00.000Z");
+    const lapsedTrial: PlusSession = {
+      sessionToken: "sess_abc",
+      email: "u@example.com",
+      status: "exhausted",
+      remaining: 0,
+      plan: "trial",
+      periodEnd: "2026-08-10T14:52:03.632Z",
+    };
+    const authFor = (s: PlusSession): FilingAuth => ({
+      mode: "plus",
+      sessionToken: s.sessionToken,
+      email: s.email,
+      status: s.status ?? "unknown",
+      remaining: s.remaining,
+      periodEnd: s.periodEnd,
+      plan: s.plan,
+    });
+
+    it("outranks exhausted, and carries the date the row prints", () => {
+      const state = deriveAccountState(
+        authFor(lapsedTrial),
+        lapsedTrial,
+        T0,
+      );
+      expect(state).toEqual({
+        kind: "periodEnded",
+        lapseKind: "trial",
+        endedOn: "2026-08-10T14:52:03.632Z",
+      });
+    });
+
+    it("names the trial and points at subscribing, with no billing-date promise", () => {
+      const row = accountRowDescriptor(
+        deriveAccountState(authFor(lapsedTrial), lapsedTrial, T0),
+      );
+      expect(row.name).toBe("Trial ended");
+      expect(row.desc).toMatch(/2026-08-10/);
+      expect(row.desc).toMatch(/Subscribe/);
+      expect(row.desc).not.toMatch(/billing date|allotment/i);
+    });
+
+    it("calls an ended paid period a subscription", () => {
+      const paid: PlusSession = { ...lapsedTrial, plan: "monthly" };
+      expect(
+        accountRowDescriptor(deriveAccountState(authFor(paid), paid, T0)).name,
+      ).toBe("Subscription ended");
+    });
+
+    it("leaves a spent meter inside a live period saying exactly what it said before", () => {
+      const capped: PlusSession = {
+        ...lapsedTrial,
+        plan: "monthly",
+        periodEnd: "2026-09-10T00:00:00.000Z",
+      };
+      const row = accountRowDescriptor(
+        deriveAccountState(authFor(capped), capped, T0),
+      );
+      expect(row.name).toBe("Monthly limit reached");
+      expect(row.desc).toMatch(/next billing date/);
+    });
   });
 });
 
@@ -2302,6 +2377,16 @@ describe("signed-out Plus panel copy (R15, AE11)", () => {
     const stale = pendingSeed(Date.now() - 3 * 24 * 60 * 60 * 1000);
     const desc = descAfter(renderSignedOutPanel(fakeLocalApp(stale)), SIGN_IN_ROW);
     expect(desc).not.toMatch(/open it in the email on this device/i);
+  });
+
+  it("puts signing in ahead of starting a trial", () => {
+    // Most people reaching the signed-out screen already have an account — a second device, or
+    // a lapsed session — and the trial row asks for a card. Leading with the trial charged the
+    // wrong question to the larger group.
+    const ui = renderSignedOutPanel(fakeLocalApp());
+    expect(ui.strings.indexOf("Email")).toBeGreaterThan(
+      ui.strings.indexOf(SIGN_IN_ROW),
+    );
   });
 
   it("keeps the paste field below the link row, as the different-device fallback (AE9, R10)", () => {

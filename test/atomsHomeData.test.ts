@@ -508,12 +508,84 @@ describe("waitingSubtitle", () => {
 });
 
 describe("filingPathFromAuth", () => {
+  const T0 = Date.parse("2026-08-11T13:49:00.000Z");
+  const plus = (over: Record<string, unknown> = {}) =>
+    ({
+      mode: "plus",
+      sessionToken: "sess",
+      email: "u@example.com",
+      status: "exhausted",
+      ...over,
+    }) as Parameters<typeof filingPathFromAuth>[0];
+
   it("maps plus exhausted", () => {
+    expect(filingPathFromAuth(plus(), T0)).toBe("plus_exhausted");
+    expect(filingPathFromAuth({ mode: "byok", apiKey: "sk" }, T0)).toBe("byok");
+    expect(filingPathFromAuth({ mode: "none" }, T0)).toBe("none");
+  });
+
+  // #442 — the limit card's offer (buy more, or wait for the next billing date) is addressed
+  // to a subscriber. An ended period gets its own path so it can say something true.
+  it("takes its own path once the period has ended", () => {
     expect(
-      filingPathFromAuth({ mode: "plus", status: "exhausted" }),
+      filingPathFromAuth(
+        plus({ plan: "trial", periodEnd: "2026-08-10T14:52:03.632Z" }),
+        T0,
+      ),
+    ).toBe("plus_lapsed");
+    expect(
+      filingPathFromAuth(
+        plus({ plan: "monthly", periodEnd: "2026-09-10T00:00:00.000Z" }),
+        T0,
+      ),
     ).toBe("plus_exhausted");
-    expect(filingPathFromAuth({ mode: "byok" })).toBe("byok");
-    expect(filingPathFromAuth({ mode: "none" })).toBe("none");
+  });
+});
+
+describe("filingHeroCopy on an ended period (#442)", () => {
+  const base = {
+    pastUnprocessed: 3,
+    hasKey: false,
+    autoEnabled: false,
+    egressAcked: false,
+    filingPath: "plus_lapsed" as const,
+  };
+
+  it("names the trial, offers Subscribe, and promises no billing date", () => {
+    const hero = filingHeroCopy({ ...base, plusLapseKind: "trial" });
+    expect(hero?.title).toBe("Your trial has ended");
+    expect(hero?.primaryLabel).toBe("Subscribe");
+    expect(hero?.primaryAction).toBe("subscribe");
+    expect(hero?.body).not.toMatch(/billing date|allotment/i);
+  });
+
+  it("counts the captures in prose, not as a card title", () => {
+    // The title-cased label is for titles. Borrowed into a sentence it read
+    // "3 Captures Waiting — filing is paused", a proper noun opening a clause.
+    expect(filingHeroCopy({ ...base, plusLapseKind: "trial" })?.body).toMatch(
+      /^3 captures waiting — /,
+    );
+    expect(
+      filingHeroCopy({ ...base, pastUnprocessed: 1, plusLapseKind: "trial" })
+        ?.body,
+    ).toMatch(/^1 capture waiting — /);
+  });
+
+  it("has no Not Now, because waiting does not fix an ended period", () => {
+    const hero = filingHeroCopy({
+      ...base,
+      plusLapseKind: "trial",
+      plusLimitDismissedToday: true,
+    });
+    expect(hero?.secondaryAction).toBeNull();
+    // A dismissed card must not quietly become the limit card's quieter variant.
+    expect(hero?.title).toBe("Your trial has ended");
+  });
+
+  it("says subscription for a lapsed paid period", () => {
+    expect(
+      filingHeroCopy({ ...base, plusLapseKind: "subscription" })?.title,
+    ).toBe("Your subscription has ended");
   });
 });
 

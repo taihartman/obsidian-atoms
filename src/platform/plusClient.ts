@@ -7,7 +7,12 @@
  */
 
 import type { RequestUrlParam, RequestUrlResponse } from "obsidian";
-import type { PlusEntitlementStatus, PlusSession } from "./filingAuth";
+import { parsePlusPlan } from "./filingAuth";
+import type {
+  PlusEntitlementStatus,
+  PlusPlan,
+  PlusSession,
+} from "./filingAuth";
 
 export type RequestFn = (params: RequestUrlParam) => Promise<RequestUrlResponse>;
 
@@ -72,7 +77,7 @@ export type PlusEntitlement = {
   status: PlusEntitlementStatus;
   remaining: number;
   periodEnd?: string;
-  plan?: "monthly" | "yearly" | "trial" | "promo";
+  plan?: PlusPlan;
   email?: string;
 };
 
@@ -298,6 +303,11 @@ function parsePeriodEnd(json: Record<string, unknown>): string | undefined {
   return typeof json.periodEnd === "string" ? json.periodEnd : undefined;
 }
 
+/** Same strictness as the rest: unstated stays undefined, never a guess. */
+function parsePlan(json: Record<string, unknown>): PlusPlan | undefined {
+  return parsePlusPlan(json.plan);
+}
+
 /**
  * Strict: returns null unless the service actually said what the plan is.
  * A missing `status`/`remaining` used to coerce to `unknown`/0, which callers
@@ -314,13 +324,7 @@ function parseEntitlement(
     status,
     remaining,
     periodEnd: parsePeriodEnd(json),
-    plan:
-      json.plan === "monthly" ||
-      json.plan === "yearly" ||
-      json.plan === "trial" ||
-      json.plan === "promo"
-        ? json.plan
-        : undefined,
+    plan: parsePlan(json),
     email: typeof json.email === "string" ? json.email : undefined,
   };
 }
@@ -491,6 +495,7 @@ export async function startPlusAccount(
       status: !status || status === "unknown" ? "inactive" : status,
       remaining: parseRemaining(res.json) ?? 0,
       periodEnd: parsePeriodEnd(res.json),
+      plan: parsePlan(res.json),
       refreshedAt: Date.now(),
     },
   };
@@ -592,6 +597,7 @@ export async function exchangeMagicToken(
       status: !status || status === "unknown" ? "active" : status,
       remaining: parseRemaining(res.json) ?? undefined,
       periodEnd: parsePeriodEnd(res.json),
+      plan: parsePlan(res.json),
       refreshedAt: Date.now(),
     },
   };

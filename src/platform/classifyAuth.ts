@@ -6,6 +6,7 @@ import type { ClassifyDeps } from "../pipeline/classify";
 import {
   plusCanClassify,
   plusIsExhausted,
+  plusLapse,
   type FilingAuth,
 } from "./filingAuth";
 import { DEFAULT_PLUS_BASE_URL } from "./plusClient";
@@ -34,9 +35,25 @@ export function resolveClassifyAuth(
   opts?: {
     plusBaseUrl?: string;
     onRemaining?: (remaining: number) => void;
+    /** Injectable clock — the lapse read is date-based, so tests must own it. */
+    now?: number;
   },
 ): ClassifyAuthOk | ClassifyAuthFail {
   if (auth.mode === "plus") {
+    // An ended period is checked first because it wears the same `exhausted` status as a spent
+    // meter while wanting the opposite sentence: there is no next billing date to wait for, and
+    // no allotment coming back (#442).
+    const lapse = plusLapse(auth, opts?.now);
+    if (lapse) {
+      return {
+        ok: false,
+        reason: "exhausted",
+        message:
+          lapse.kind === "trial"
+            ? "Your Atoms Plus trial has ended. Subscribe in Settings to keep filing captures."
+            : "Your Atoms Plus subscription has ended. Subscribe in Settings to keep filing captures.",
+      };
+    }
     if (plusIsExhausted(auth)) {
       return {
         ok: false,

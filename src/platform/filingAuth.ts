@@ -12,6 +12,8 @@ export type PlusEntitlementStatus =
   | "inactive"
   | "unknown";
 
+export type PlusPlan = "monthly" | "yearly" | "trial" | "promo";
+
 /** Device-local Plus session (never data.json). */
 export type PlusSession = {
   /** Opaque session token for Plus service Authorization header. */
@@ -23,9 +25,33 @@ export type PlusSession = {
   remaining?: number;
   /** Server entitlement status when last synced. */
   status?: PlusEntitlementStatus;
+  /**
+   * What the period was, when the service said. Only `status` reaches the
+   * filing gates; this exists so copy about an *ended* period can name it —
+   * telling a lapsed subscriber their "trial" ended is a new lie for an old one.
+   */
+  plan?: PlusPlan;
   /** Epoch ms of last successful entitlement refresh. */
   refreshedAt?: number;
 };
+
+/**
+ * Whether the stored period has run out, by the same rule the service applies
+ * (`applyStatusRules`, plus-service/src/store/shared.mjs) — `period_end` in the
+ * past ends the period regardless of filings left.
+ *
+ * Deliberately answered from the date already on the device: expiry is the one
+ * entitlement change no server round-trip announces, so a device that had to ask
+ * would keep showing a healthy account until something else happened to fail.
+ * That is exactly how #442 stayed invisible for 23 hours.
+ */
+export function plusPeriodEnded(
+  session: Pick<PlusSession, "periodEnd"> | null | undefined,
+  now: number = Date.now(),
+): boolean {
+  const end = Date.parse(session?.periodEnd ?? "");
+  return Number.isFinite(end) && end <= now;
+}
 
 export type FilingAuth =
   | { mode: "none" }
@@ -36,6 +62,7 @@ export type FilingAuth =
       email: string;
       remaining?: number;
       periodEnd?: string;
+      plan?: PlusPlan;
       status: PlusEntitlementStatus;
     };
 
@@ -71,6 +98,7 @@ export function resolveFilingAuth(input: {
         email,
         remaining: session?.remaining,
         periodEnd: session?.periodEnd,
+        plan: session?.plan,
         status,
       };
     }
@@ -83,6 +111,7 @@ export function resolveFilingAuth(input: {
         email,
         remaining: session?.remaining,
         periodEnd: session?.periodEnd,
+        plan: session?.plan,
         status: "unknown",
       };
     }
@@ -106,6 +135,77 @@ export function plusIsExhausted(auth: FilingAuth): boolean {
   return auth.mode === "plus" && auth.status === "exhausted";
 }
 
+/**
+ * Which kind of period ended. One declaration, so a fourth kind cannot drift across surfaces.
+ *
+ * `unknown` is not a placeholder — it is the honest answer for a `promo` period and for any
+ * session stored before `plan` was persisted. Guessing "subscription" there sends a user who
+ * never had one to a billing portal with no customer behind it.
+ */
+export type PlusLapseKind = "trial" | "subscription" | "unknown";
+
+/** An ended period, named — `null` while the period is still live. */
+export type PlusLapse = {
+  kind: PlusLapseKind;
+  /** ISO date the period ended, when the device knows it. */
+  endedOn?: string;
+};
+
+/**
+ * Whether the period has *ended*, as opposed to this period's filings being *spent*.
+ *
+ * One home for the distinction because three surfaces answer it — the settings account rows,
+ * the Ask mirror status line, and the Notice every Process shows — and the server hands all
+ * three the same `exhausted` status for both situations. Before #442 each surface only knew
+ * the spent-meter reading, so an expired trial was told its allotment would return on a next
+ * billing date it did not have.
+ *
+ * **Both conditions are server-confirmed on purpose.** An earlier draft also lapsed on
+ * `plan === "trial"` with a past date and no `exhausted`, to catch an expiry without a
+ * round-trip. Review found that inverts a paying customer: a trial that *converted* leaves a
+ * stale device holding `trialing` + a past `periodEnd`, and that draft told a subscriber their
+ * trial had ended and blocked filing — where the old code would have attempted the call and let
+ * the server answer. The device may not out-rule the service about entitlement. Staleness is
+ * `plusNeedsPeriodRefresh`'s job instead: ask, then report the answer.
+ */
+export function plusLapse(
+  auth: FilingAuth,
+  now: number = Date.now(),
+): PlusLapse | null {
+  if (auth.mode !== "plus") return null;
+  if (!plusIsExhausted(auth)) return null;
+  if (!plusPeriodEnded(auth, now)) return null;
+  return { kind: plusLapseKind(auth.plan), endedOn: auth.periodEnd };
+}
+
+/** Only a plan that proves a Stripe customer earns the word "subscription". */
+function plusLapseKind(plan: PlusPlan | undefined): PlusLapseKind {
+  if (plan === "trial") return "trial";
+  if (plan === "monthly" || plan === "yearly") return "subscription";
+  return "unknown";
+}
+
+/**
+ * True when the stored period ended *after* the last confirmed refresh — the snapshot predates
+ * the boundary, so it cannot say what happened at it.
+ *
+ * This is the honest reading of the #442 silence. Nothing announces an expiry: the only
+ * automatic refresh is the post-Checkout poll, which returns early unless a checkout is in
+ * flight (`plusResume.refreshPlusSessionQuiet`), so a device could sit on a pre-expiry snapshot
+ * indefinitely and keep rendering a healthy account. A device in this state must ask rather than
+ * guess — guessing in either direction is how a converted trial gets called lapsed.
+ */
+export function plusNeedsPeriodRefresh(
+  session: PlusSession | null | undefined,
+  now: number = Date.now(),
+): boolean {
+  if (!session?.sessionToken?.trim() || !session.email?.trim()) return false;
+  const end = Date.parse(session.periodEnd ?? "");
+  if (!Number.isFinite(end) || end > now) return false;
+  // An absent `refreshedAt` reads as 0 — an unstamped session is exactly the stale case.
+  return (session.refreshedAt ?? 0) < end;
+}
+
 export function parsePlusSession(raw: unknown): PlusSession | null {
   if (!raw || typeof raw !== "object") return null;
   const o = raw as Record<string, unknown>;
@@ -122,7 +222,22 @@ export function parsePlusSession(raw: unknown): PlusSession | null {
     typeof o.refreshedAt === "number" && Number.isFinite(o.refreshedAt)
       ? o.refreshedAt
       : undefined;
-  return { sessionToken, email, status, remaining, periodEnd, refreshedAt };
+  return {
+    sessionToken,
+    email,
+    status,
+    remaining,
+    periodEnd,
+    plan: parsePlusPlan(o.plan),
+    refreshedAt,
+  };
+}
+
+/** Unstated stays unstated — an unreadable plan must not become "trial". */
+export function parsePlusPlan(v: unknown): PlusPlan | undefined {
+  return v === "monthly" || v === "yearly" || v === "trial" || v === "promo"
+    ? v
+    : undefined;
 }
 
 function normalizeStatus(v: unknown): PlusEntitlementStatus {
@@ -146,6 +261,7 @@ export function serializePlusSession(session: PlusSession): string {
     status: session.status ?? "unknown",
     remaining: session.remaining,
     periodEnd: session.periodEnd,
+    plan: session.plan,
     refreshedAt: session.refreshedAt,
   });
 }

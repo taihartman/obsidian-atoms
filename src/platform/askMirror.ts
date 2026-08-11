@@ -3,6 +3,7 @@
  * Structured links prefer frontmatter `atom-links:`; body is not mined for reasons.
  */
 import { parseLinkProse } from "../pipeline/parseLinkProse";
+import type { PlusLapseKind } from "./filingAuth";
 import { relationReasonProse } from "../shared/relationReason";
 import type {
   ConfirmRequest,
@@ -664,6 +665,8 @@ export function formatAskMirrorStatusLine(opts: {
   lastErr?: string;
   refused?: boolean;
   off?: AskMirrorOffReason;
+  /** Set when the Plus period has ended, naming which kind it was. */
+  lapsed?: PlusLapseKind;
 }): string {
   if (opts.off) {
     // Only a positive count earns the clause. Cleared is not zeroed — a wipe leaves no count,
@@ -678,6 +681,13 @@ export function formatAskMirrorStatusLine(opts: {
     return `Ask mirror: off${ASK_MIRROR_OFF_WHY[opts.off]}${cloud}`;
   }
   const as = opts.email ? ` · as ${opts.email}` : "";
+  // Outranks both the refusal and the push error, and for the same reason it outranks the
+  // cheerful "last pushed" this used to show alone: a lapsed account is *why* those happened,
+  // and it is the only one of the three the user can act on. Above it sits `off`, which is a
+  // choice the user made rather than something that happened to them.
+  if (opts.lapsed) {
+    return `Ask mirror: ${opts.serverCount}${as} · ${opts.lapsed} ended — Claude and ChatGPT can’t reach these until you subscribe`;
+  }
   if (opts.refused) {
     return `Ask mirror: ${opts.serverCount}${as} · sync refused — vault scan incomplete · Sync now to retry`;
   }
