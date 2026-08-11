@@ -154,7 +154,7 @@ export function createAskPostgresMethods(pool, deps) {
            content_hash=EXCLUDED.content_hash, updated_at=EXCLUDED.updated_at,
            created=COALESCE(EXCLUDED.created, atom_mirror.created),
            expand_enc=NULL,
-           loop_json=EXCLUDED.loop_json`,
+           loop_json=COALESCE(EXCLUDED.loop_json, atom_mirror.loop_json)`,
         [
           row.email,
           row.atomId,
@@ -587,7 +587,7 @@ export function createAskPostgresMethods(pool, deps) {
     // List columns only — never pull body_enc for pagination scans.
     const { rows } = await pool.query(
       `SELECT email, atom_id, title, path, tags_json, links_json,
-              content_hash, updated_at, created
+              content_hash, updated_at, created, loop_json
        FROM atom_mirror WHERE email = $1`,
       [e],
     );

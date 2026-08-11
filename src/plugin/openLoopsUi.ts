@@ -1,7 +1,15 @@
-import { FuzzySuggestModal, Notice, TFile, type App } from "obsidian";
+import {
+  FuzzySuggestModal,
+  Modal,
+  Notice,
+  Setting,
+  TFile,
+  type App,
+} from "obsidian";
 import {
   applyOpenLoopFm,
   collectRedeemedParentKeys,
+  isDismissCandidate,
   isOpenNowContent,
   isProposalCandidate,
   openLoopMeta,
@@ -42,13 +50,30 @@ async function loadAtomRows(app: App, atomFolder: string): Promise<Row[]> {
   });
 }
 
+async function writeLoop(
+  app: App,
+  row: Row,
+  next: OpenLoopFm,
+  notice: string,
+): Promise<void> {
+  const content = applyOpenLoopFm(row.content, next);
+  if (content === row.content) {
+    new Notice("Could not update frontmatter.");
+    return;
+  }
+  const f = app.vault.getAbstractFileByPath(row.path);
+  if (!(f instanceof TFile)) return;
+  await app.vault.modify(f, content);
+  new Notice(notice);
+}
+
 class OpenLoopsBrowseModal extends FuzzySuggestModal<Row> {
   constructor(
     app: App,
     private rows: Row[],
   ) {
     super(app);
-    this.setPlaceholder("Notes left for later");
+    this.setPlaceholder("Notes left for later · Enter open · Shift+Enter dismiss inferred");
   }
 
   getItems(): Row[] {
@@ -59,35 +84,93 @@ class OpenLoopsBrowseModal extends FuzzySuggestModal<Row> {
     return item.label;
   }
 
-  onChooseItem(item: Row): void {
+  onChooseItem(item: Row, evt: MouseEvent | KeyboardEvent): void {
+    const dismiss =
+      (evt instanceof KeyboardEvent && evt.shiftKey) ||
+      (evt instanceof MouseEvent && evt.shiftKey);
+    if (dismiss && isDismissCandidate(item.content)) {
+      void writeLoop(
+        this.app,
+        item,
+        { state: "not_a_loop", source: "user" },
+        `Not a loop: ${item.title}`,
+      );
+      return;
+    }
     const f = this.app.vault.getAbstractFileByPath(item.path);
     if (f instanceof TFile) void this.app.workspace.getLeaf(false).openFile(f);
   }
 }
 
-class OpenLoopsReviewModal extends FuzzySuggestModal<Row> {
+/** Explicit Accept / Skip — no modifier+Enter reliance. */
+class OpenLoopsReviewModal extends Modal {
+  private queue = 0;
+
   constructor(
     app: App,
     private rows: Row[],
-    private onPick: (row: Row, accept: boolean) => Promise<void>,
   ) {
     super(app);
-    this.setPlaceholder("Review proposals — Enter accept · Shift+Enter skip");
   }
 
-  getItems(): Row[] {
-    return this.rows;
+  onOpen(): void {
+    this.render();
   }
 
-  getItemText(item: Row): string {
-    return item.title;
-  }
-
-  onChooseItem(item: Row, evt: MouseEvent | KeyboardEvent): void {
-    const skip =
-      (evt instanceof KeyboardEvent && evt.shiftKey) ||
-      (evt instanceof MouseEvent && evt.shiftKey);
-    void this.onPick(item, !skip);
+  private render(): void {
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.createEl("h2", { text: "Review open-loop proposals" });
+    if (this.queue >= this.rows.length) {
+      contentEl.createEl("p", { text: "Done — nothing left in this pass." });
+      new Setting(contentEl).addButton((b) =>
+        b.setButtonText("Close").onClick(() => this.close()),
+      );
+      return;
+    }
+    const row = this.rows[this.queue]!;
+    contentEl.createEl("p", {
+      text: row.title,
+      cls: "mod-bold",
+    });
+    const snippet = row.content
+      .replace(/^---[\s\S]*?\n---\s*/, "")
+      .trim()
+      .slice(0, 280);
+    contentEl.createEl("p", { text: snippet || "(empty body)" });
+    new Setting(contentEl)
+      .addButton((b) =>
+        b.setButtonText("Accept as open loop").setCta().onClick(() => {
+          void writeLoop(
+            this.app,
+            row,
+            { state: "active", source: "user" },
+            `Marked open loop: ${row.title}`,
+          ).then(() => {
+            this.queue += 1;
+            this.render();
+          });
+        }),
+      )
+      .addButton((b) =>
+        b.setButtonText("Not a loop").onClick(() => {
+          void writeLoop(
+            this.app,
+            row,
+            { state: "not_a_loop", source: "user" },
+            `Not a loop: ${row.title}`,
+          ).then(() => {
+            this.queue += 1;
+            this.render();
+          });
+        }),
+      )
+      .addButton((b) =>
+        b.setButtonText("Skip").onClick(() => {
+          this.queue += 1;
+          this.render();
+        }),
+      );
   }
 }
 
@@ -117,19 +200,5 @@ export async function runOpenLoopsCommand(
     new Notice("No open-loop proposals.");
     return;
   }
-
-  const write = async (row: Row, accept: boolean) => {
-    const next: OpenLoopFm = accept
-      ? { state: "active", source: "user" }
-      : { state: "not_a_loop", source: "user" };
-    const content = applyOpenLoopFm(row.content, next);
-    const f = app.vault.getAbstractFileByPath(row.path);
-    if (!(f instanceof TFile)) return;
-    await app.vault.modify(f, content);
-    new Notice(
-      accept ? `Marked open loop: ${row.title}` : `Not a loop: ${row.title}`,
-    );
-  };
-
-  new OpenLoopsReviewModal(app, proposals, write).open();
+  new OpenLoopsReviewModal(app, proposals).open();
 }

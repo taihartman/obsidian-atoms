@@ -10,8 +10,10 @@ import { extractCaptureBody } from "../pipeline/refreshAtoms";
 import {
   OPEN_LOOP_KEY,
   OPEN_LOOP_SOURCE_KEY,
+  REDEEMS_RELATION,
   canClassifierWrite,
   formatOpenLoopFmLines,
+  frontmatterBlock,
   linksIncludeRedeems,
   openNow,
   parseOpenLoopFm,
@@ -19,10 +21,25 @@ import {
 } from "../shared/openLoop";
 
 function bodyAfterFm(content: string): string {
-  if (!content.startsWith("---")) return content;
-  const end = content.indexOf("\n---", 3);
-  if (end < 0) return content;
-  return content.slice(end + 4).replace(/^\n/, "");
+  const fm = frontmatterBlock(content);
+  if (!fm) return content;
+  return content.slice(fm.length).replace(/^\n/, "");
+}
+
+function parentRelationFromFm(content: string): {
+  parent?: string;
+  relation?: string;
+} {
+  const fm = frontmatterBlock(content);
+  if (!fm) return {};
+  const parentM = fm.match(/^parent:\s*["']?(.+?)["']?\s*$/m);
+  const relationM = fm.match(/^relation:\s*["']?(\w+)["']?\s*$/m);
+  const parent = parentM?.[1]?.trim().replace(/^\[\[|\]\]$/g, "");
+  const relation = relationM?.[1]?.trim();
+  return {
+    ...(parent ? { parent } : {}),
+    ...(relation ? { relation } : {}),
+  };
 }
 
 /** Titles (lowercase) that have at least one inbound redeems child among rows. */
@@ -31,8 +48,14 @@ export function collectRedeemedParentKeys(
 ): Set<string> {
   const out = new Set<string>();
   for (const row of rows) {
+    const { parent, relation } = parentRelationFromFm(row.content);
+    if (
+      parent &&
+      (relation || "").toLowerCase() === REDEEMS_RELATION
+    ) {
+      out.add(parent.toLowerCase());
+    }
     const links = parseLinkProse(extractLinkProseRegion(row.content));
-    if (!linksIncludeRedeems(links)) continue;
     for (const l of links) {
       if (!linksIncludeRedeems([l])) continue;
       const note = (l.note || "").trim();
@@ -55,31 +78,40 @@ export function openLoopMeta(content: string): OpenLoopFm | null {
   return parseOpenLoopFm(content);
 }
 
-/** Review candidates: heuristic hit and classifier may still write. */
+/** Unmarked intentions eligible for Review accept/skip. */
 export function isProposalCandidate(content: string, title: string): boolean {
   const loop = parseOpenLoopFm(content);
-  if (!canClassifierWrite(loop)) return false;
-  if (loop?.state === "active") return false;
+  if (loop) return false;
   return looksLikeOpenLoop(extractCaptureBody(content), title);
 }
 
+/** Active inferred marks the user may dismiss (false-open correction). */
+export function isDismissCandidate(content: string): boolean {
+  const loop = parseOpenLoopFm(content);
+  return loop?.state === "active" && loop.source === "inferred";
+}
+
 export function applyOpenLoopFm(content: string, next: OpenLoopFm): string {
+  const fm = frontmatterBlock(content);
   const body = bodyAfterFm(content);
-  if (!content.startsWith("---") || content.indexOf("\n---", 3) < 0) {
+  if (!fm) {
     return ["---", ...formatOpenLoopFmLines(next), "---", "", body].join("\n");
   }
-  const end = content.indexOf("\n---", 3);
-  const fm = content.slice(0, end + 4);
   const without = fm
     .split(/\r?\n/)
-    .filter(
-      (line) =>
-        !line.startsWith(`${OPEN_LOOP_KEY}:`) &&
-        !line.startsWith(`${OPEN_LOOP_SOURCE_KEY}:`),
-    );
+    .filter((line) => {
+      const t = line.trim();
+      return (
+        !t.startsWith(`${OPEN_LOOP_KEY}:`) &&
+        !t.startsWith(`${OPEN_LOOP_SOURCE_KEY}:`)
+      );
+    });
   const close = without.lastIndexOf("---");
-  const head = close > 0 ? without.slice(0, close) : without.slice(0, -1);
-  const tail = close > 0 ? without.slice(close) : ["---"];
+  if (close <= 0) {
+    return content;
+  }
+  const head = without.slice(0, close);
+  const tail = without.slice(close);
   const nextFm = [...head, ...formatOpenLoopFmLines(next), ...tail].join("\n");
   return nextFm + (body.startsWith("\n") ? body : `\n${body}`);
 }

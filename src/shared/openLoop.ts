@@ -30,6 +30,15 @@ const STATES = new Set<string>([
 
 const SOURCES = new Set<string>(["inferred", "user"]);
 
+/** Frontmatter block only (between --- fences), or empty. */
+export function frontmatterBlock(markdown: string): string {
+  const text = markdown ?? "";
+  if (!text.startsWith("---")) return "";
+  const end = text.indexOf("\n---", 3);
+  if (end < 0) return "";
+  return text.slice(0, end + 4);
+}
+
 export function openNow(args: {
   state: OpenLoopState | null | undefined;
   hasRedeemingChild: boolean;
@@ -53,11 +62,18 @@ export function formatOpenLoopFmLines(fm: OpenLoopFm): string[] {
 }
 
 /**
- * Read loop keys from a full markdown file or a frontmatter block body.
+ * Read loop keys from markdown (FM block only) or a bare FM fragment.
  * Requires both keys with valid enums; otherwise null (unset).
  */
 export function parseOpenLoopFm(markdownOrFm: string): OpenLoopFm | null {
-  const text = markdownOrFm ?? "";
+  const raw = markdownOrFm ?? "";
+  const text =
+    raw.startsWith("---") && raw.includes("\n---", 3)
+      ? frontmatterBlock(raw)
+      : raw.startsWith("---")
+        ? ""
+        : raw;
+  if (!text) return null;
   const state = text.match(LOOP_STATE_RE)?.[1]?.trim() ?? null;
   const source = text.match(LOOP_SOURCE_RE)?.[1]?.trim() ?? null;
   if (!state || !source) return null;
@@ -75,7 +91,9 @@ export type LinkLike = {
 };
 
 /** True if any link is a redeeming edge (relation or reason prose). */
-export function linksIncludeRedeems(links: LinkLike[] | null | undefined): boolean {
+export function linksIncludeRedeems(
+  links: LinkLike[] | null | undefined,
+): boolean {
   if (!links?.length) return false;
   for (const l of links) {
     const rel = (l.relation ?? "").trim().toLowerCase();
@@ -87,4 +105,3 @@ export function linksIncludeRedeems(links: LinkLike[] | null | undefined): boole
   }
   return false;
 }
-

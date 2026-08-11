@@ -138,7 +138,7 @@ export function createAskSqliteMethods(db, deps) {
         updated_at=excluded.updated_at,
         created=COALESCE(excluded.created, atom_mirror.created),
         expand_enc=NULL,
-        loop_json=excluded.loop_json
+        loop_json=COALESCE(excluded.loop_json, atom_mirror.loop_json)
     `);
     for (const atom of list) {
       const row = prepareMirrorRow(email, atom);
@@ -563,7 +563,7 @@ export function createAskSqliteMethods(db, deps) {
     const rows = db
       .prepare(
         `SELECT email, atom_id, title, path, tags_json, links_json,
-                content_hash, updated_at, created
+                content_hash, updated_at, created, loop_json
          FROM atom_mirror WHERE email = ?`,
       )
       .all(e);

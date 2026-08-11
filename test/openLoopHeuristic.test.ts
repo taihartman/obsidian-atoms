@@ -36,6 +36,21 @@ describe("looksLikeOpenLoop", () => {
   it("rejects short chores", () => {
     expect(looksLikeOpenLoop("buy milk", "Milk")).toBe(false);
   });
+
+  it("rejects finished short notes with idea/newsletter titles", () => {
+    expect(
+      looksLikeOpenLoop(
+        "Baked at 400F for 23 minutes. Crust was chewy.",
+        "Pizza dough idea",
+      ),
+    ).toBe(false);
+    expect(
+      looksLikeOpenLoop(
+        "Here is the full intro paragraph I wrote for the section.",
+        "Newsletter draft section",
+      ),
+    ).toBe(false);
+  });
 });
 
 describe("buildAtomMarkdown open loop", () => {

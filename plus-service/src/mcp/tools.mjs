@@ -141,7 +141,7 @@ export function registerAskTools(mcp, ctx) {
     {
       title: "Search atoms",
       description:
-        "Search mirrored atoms by title, tags, body, and server search-expansion phrases when available. Each response includes retrieval (lexical|lexical_expanded) and expand_coverage (0–1). Hits have confidence high|medium and optional match_signals (title|tag|body|expand). Weak matches are omitted. Empty results mean no confident match in this mirror under the active retrieval mode—not that the topic is absent from the vault. Never tell the user they have no notes on a topic from one empty search alone. Medium expand/body hits are first-class—do not skip them only because confidence is not high. Optional tags filter (all must match). Snippets are truncated and non-authoritative—use fetch_atom before claiming what a note contains. Numeric score is ranking only.",
+        "Search mirrored atoms by title, tags, body, and server search-expansion phrases when available. Each hit includes open_now (boolean) and loop {state,source}|null — when open_now is true the note is an intention left for later, not finished substance; never pitch it as a ready asset (label among candidates; redeem with relation redeems to close). Also: retrieval (lexical|lexical_expanded), expand_coverage, confidence high|medium, optional match_signals. Weak matches omitted. Empty ≠ vault absence. Snippets non-authoritative—fetch_atom for body claims. Numeric score is ranking only.",
       annotations: { readOnlyHint: true, destructiveHint: false },
       inputSchema: {
         query: z.string().describe("Search query"),
@@ -229,7 +229,7 @@ export function registerAskTools(mcp, ctx) {
       title: "Fetch atom",
       annotations: { readOnlyHint: true, destructiveHint: false },
       description:
-        "Fetch one mirrored note by title or path (atoms under Atoms/ and hub notes linked from atoms). Returns verbatim body (authoritative), tags, kind (atom|hub), synced_at (when this row was last pushed to the cloud mirror), status (live|superseded|contradicted), inverse revision edges, and structured links. Hubs set revision_participant:false.",
+        "Fetch one mirrored note by title or path (atoms under Atoms/ and hub notes linked from atoms). Returns verbatim body (authoritative), open_now + loop when known (open_now true = intention not substance), tags, kind, synced_at, status, inverse revision edges (incl. redeemed_by), structured links. Hubs set revision_participant:false.",
       inputSchema: {
         id_or_title: z
           .string()
@@ -624,7 +624,7 @@ export function registerAskTools(mcp, ctx) {
       title: "List atoms",
       annotations: { readOnlyHint: true, destructiveHint: false },
       description:
-        "List mirrored atoms (title, path, tags, created, synced_at) with offset pagination. Default order is title ASC (unchanged). For newest-by-note-date use sort_by=created order=desc. Optional created_after/before (ISO or YYYY-MM-DD) and tags (all must match). Missing created sorts last on created sort.",
+        "List mirrored atoms (title, path, tags, created, synced_at, open_now, loop) with offset pagination. open_now true means intention not finished substance. Default order title ASC. For newest-by-note-date use sort_by=created order=desc. Optional created_after/before and tags (all must match).",
       inputSchema: {
         limit: z.number().int().min(1).max(50).optional(),
         offset: z.number().int().min(0).optional(),

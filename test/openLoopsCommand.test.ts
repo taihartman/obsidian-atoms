@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   applyOpenLoopFm,
   collectRedeemedParentKeys,
+  isDismissCandidate,
   isOpenNowContent,
   isProposalCandidate,
 } from "../src/plugin/openLoops";
@@ -66,6 +67,31 @@ redeems [[Newsletter idea]]
       { title: "Newsletter idea", content: marked },
     ]);
     expect(keys.has("newsletter idea")).toBe(true);
+  });
+
+  it("collectRedeemedParentKeys reads FM parent+relation redeems", () => {
+    const child = `---
+parent: Newsletter idea
+relation: redeems
+tags: []
+---
+
+substance only
+`;
+    const keys = collectRedeemedParentKeys([
+      { title: "Full", content: child },
+    ]);
+    expect(keys.has("newsletter idea")).toBe(true);
+  });
+
+  it("dismiss candidate is active inferred only", () => {
+    expect(isDismissCandidate(marked)).toBe(true);
+    expect(isDismissCandidate(userReject)).toBe(false);
+    expect(isDismissCandidate(intention)).toBe(false);
+  });
+
+  it("proposal candidate excludes already-active marks", () => {
+    expect(isProposalCandidate(marked, "Newsletter idea")).toBe(false);
   });
 
   it("proposal candidate when unmarked intention", () => {

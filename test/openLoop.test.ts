@@ -80,6 +80,14 @@ describe("parseOpenLoopFm / formatOpenLoopFmLines", () => {
       parseOpenLoopFm(`---\n${OPEN_LOOP_KEY}: active\n---\n`),
     ).toBeNull();
   });
+
+  it("ignores loop keys only present in body", () => {
+    expect(
+      parseOpenLoopFm(
+        `---\ntags: []\n---\n\n${OPEN_LOOP_KEY}: active\n${OPEN_LOOP_SOURCE_KEY}: inferred\n`,
+      ),
+    ).toBeNull();
+  });
 });
 
 describe("linksIncludeRedeems", () => {
