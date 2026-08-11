@@ -758,7 +758,14 @@ export function filingHeroCopy(input: {
     };
   }
 
-  // byok or plus_active — existing automatic-filing story
+  // Everything below is the byok / plus_active automatic-filing story. This annotation is the
+  // guard: a `FilingPathKind` added without a branch above fails to narrow here and breaks the
+  // build, rather than silently inheriting a card about automatic filing. `plus_lapsed` would
+  // have fallen through exactly that way — the same class `accountRowDescriptor` closes with
+  // its `never`, which this if-chain had no equivalent of.
+  const _story: "byok" | "plus_active" = path;
+  void _story;
+
   const autoOn = input.autoEnabled && input.egressAcked;
   if (input.inFlight && autoOn) {
     return {

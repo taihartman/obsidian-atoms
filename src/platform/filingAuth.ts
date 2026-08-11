@@ -135,8 +135,14 @@ export function plusIsExhausted(auth: FilingAuth): boolean {
   return auth.mode === "plus" && auth.status === "exhausted";
 }
 
-/** Which kind of period ended. One declaration, so a third kind cannot drift across surfaces. */
-export type PlusLapseKind = "trial" | "subscription";
+/**
+ * Which kind of period ended. One declaration, so a fourth kind cannot drift across surfaces.
+ *
+ * `unknown` is not a placeholder — it is the honest answer for a `promo` period and for any
+ * session stored before `plan` was persisted. Guessing "subscription" there sends a user who
+ * never had one to a billing portal with no customer behind it.
+ */
+export type PlusLapseKind = "trial" | "subscription" | "unknown";
 
 /** An ended period, named — `null` while the period is still live. */
 export type PlusLapse = {
@@ -154,22 +160,50 @@ export type PlusLapse = {
  * the spent-meter reading, so an expired trial was told its allotment would return on a next
  * billing date it did not have.
  *
- * A past `periodEnd` alone is not enough: on a monthly plan that date is a *renewal*, so a
- * device that has not refreshed through one would call an active subscriber lapsed. It must be
- * joined by a reason the date cannot be a pending renewal — the service already said
- * `exhausted`, or the plan is a trial, which never renews.
+ * **Both conditions are server-confirmed on purpose.** An earlier draft also lapsed on
+ * `plan === "trial"` with a past date and no `exhausted`, to catch an expiry without a
+ * round-trip. Review found that inverts a paying customer: a trial that *converted* leaves a
+ * stale device holding `trialing` + a past `periodEnd`, and that draft told a subscriber their
+ * trial had ended and blocked filing — where the old code would have attempted the call and let
+ * the server answer. The device may not out-rule the service about entitlement. Staleness is
+ * `plusNeedsPeriodRefresh`'s job instead: ask, then report the answer.
  */
 export function plusLapse(
   auth: FilingAuth,
   now: number = Date.now(),
 ): PlusLapse | null {
   if (auth.mode !== "plus") return null;
+  if (!plusIsExhausted(auth)) return null;
   if (!plusPeriodEnded(auth, now)) return null;
-  if (!plusIsExhausted(auth) && auth.plan !== "trial") return null;
-  return {
-    kind: auth.plan === "trial" ? "trial" : "subscription",
-    endedOn: auth.periodEnd,
-  };
+  return { kind: plusLapseKind(auth.plan), endedOn: auth.periodEnd };
+}
+
+/** Only a plan that proves a Stripe customer earns the word "subscription". */
+function plusLapseKind(plan: PlusPlan | undefined): PlusLapseKind {
+  if (plan === "trial") return "trial";
+  if (plan === "monthly" || plan === "yearly") return "subscription";
+  return "unknown";
+}
+
+/**
+ * True when the stored period ended *after* the last confirmed refresh — the snapshot predates
+ * the boundary, so it cannot say what happened at it.
+ *
+ * This is the honest reading of the #442 silence. Nothing announces an expiry: the only
+ * automatic refresh is the post-Checkout poll, which returns early unless a checkout is in
+ * flight (`plusResume.refreshPlusSessionQuiet`), so a device could sit on a pre-expiry snapshot
+ * indefinitely and keep rendering a healthy account. A device in this state must ask rather than
+ * guess — guessing in either direction is how a converted trial gets called lapsed.
+ */
+export function plusNeedsPeriodRefresh(
+  session: PlusSession | null | undefined,
+  now: number = Date.now(),
+): boolean {
+  if (!session?.sessionToken?.trim() || !session.email?.trim()) return false;
+  const end = Date.parse(session.periodEnd ?? "");
+  if (!Number.isFinite(end) || end > now) return false;
+  // An absent `refreshedAt` reads as 0 — an unstamped session is exactly the stale case.
+  return (session.refreshedAt ?? 0) < end;
 }
 
 export function parsePlusSession(raw: unknown): PlusSession | null {

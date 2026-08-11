@@ -143,6 +143,7 @@ import {
   type StageTimingState,
 } from "../platform/resume";
 import {
+  plusNeedsPeriodRefresh,
   readPlusSession,
   resolveFilingAuth,
   writePlusSession,
@@ -340,6 +341,7 @@ export default class AtomsPlugin extends Plugin {
       "../platform/plusResume"
     );
     schedulePlusCheckoutResume(this);
+    void this.refreshEntitlementIfPeriodEnded();
 
     // Ask outbox + mirror catch-up when vault is open (coordinator owns state).
     this.ask.registerLifecycle();
@@ -2374,6 +2376,46 @@ export default class AtomsPlugin extends Plugin {
       byokApiKey: this.getApiKey(),
       plusSession: readPlusSession(this.app),
     });
+  }
+
+  /**
+   * One quiet `/v1/me` when the stored period ended after the last confirmed refresh (#442).
+   *
+   * This is the half of #442 that is not copy. Nothing announces an expiry — the only automatic
+   * refresh is the post-Checkout poll, which returns early unless a checkout is in flight — so a
+   * device could hold a pre-expiry snapshot indefinitely and keep drawing a healthy account
+   * while every Ask route 403'd. The reported account sat that way for 23 hours.
+   *
+   * Deliberately *asking* rather than inferring: the surfaces refuse to call a period ended
+   * until the service says so, precisely so a converted trial is never told its trial expired.
+   * That refusal is only honest if something goes and gets the answer.
+   *
+   * Narrow by construction — a live period, a fresh snapshot, or no session does nothing, so
+   * this is not a per-load ping. `refreshPlusEntitlementRecord` already fails safe: an
+   * unreachable service records the outcome and leaves the stored session untouched.
+   */
+  private async refreshEntitlementIfPeriodEnded(): Promise<void> {
+    const session = readPlusSession(this.app);
+    if (!plusNeedsPeriodRefresh(session) || !session) return;
+    try {
+      const { refreshPlusEntitlementRecord } = await import(
+        "../platform/plusRefresh"
+      );
+      const { DEFAULT_PLUS_BASE_URL, plusFetchRequest } = await import(
+        "../platform/plusClient"
+      );
+      await refreshPlusEntitlementRecord(
+        this.app,
+        {
+          baseUrl: this.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL,
+          request: plusFetchRequest,
+        },
+        session,
+      );
+    } catch {
+      // Silent on purpose: this runs at load with no user waiting on it, and the stored
+      // session is untouched either way. Settings' Refresh status is the loud path.
+    }
   }
 
   private requireApiKey(): string | null {

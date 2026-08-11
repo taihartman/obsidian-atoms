@@ -239,15 +239,24 @@ export function accountRowDescriptor(state: AccountState): AccountRowDescriptor 
     }
     case "periodEnded": {
       const on = state.endedOn ? ` on ${state.endedOn.slice(0, 10)}` : "";
-      return state.lapseKind === "trial"
-        ? {
-            name: "Trial ended",
-            desc: `Your free trial ended${on}. Subscribe to file captures again and to let Claude and ChatGPT reach your atoms.`,
-          }
-        : {
-            name: "Subscription ended",
-            desc: `Your subscription ended${on}. Subscribe to file captures again and to let Claude and ChatGPT reach your atoms.`,
-          };
+      // An unknown plan gets the neutral noun rather than a guess. A session stored before
+      // `plan` was persisted would otherwise be told a subscription ended that it never had.
+      const what =
+        state.lapseKind === "trial"
+          ? { name: "Trial ended", subject: `Your free trial ended${on}` }
+          : state.lapseKind === "subscription"
+            ? {
+                name: "Subscription ended",
+                subject: `Your subscription ended${on}`,
+              }
+            : {
+                name: "Plus ended",
+                subject: `Your Atoms Plus period ended${on}`,
+              };
+      return {
+        name: what.name,
+        desc: `${what.subject}. Subscribe to file captures again and to let Claude and ChatGPT reach your atoms.`,
+      };
     }
     case "exhausted":
       return {
@@ -1178,6 +1187,11 @@ export class AtomsSettingTab extends PluginSettingTab {
    * `trial_used` is set (plus-service/src/server.mjs), so the trial route is a 409 for exactly
    * the people who see this row. Until #442 the plugin never asked for this kind at all, which
    * left an expired trial with no path to paying without leaving the app.
+   *
+   * Confirms the lapse against the service before charging anyone. The row is drawn from a
+   * stored snapshot, and `subscribe_monthly` has no server-side already-subscribed guard — only
+   * `start_trial` is checked — so a snapshot that has gone stale against a renewal would
+   * otherwise open a second subscription on a live account.
    */
   private async openSubscribeCheckout(): Promise<void> {
     const session = readPlusSession(this.app);
@@ -1187,20 +1201,18 @@ export class AtomsSettingTab extends PluginSettingTab {
     }
     const base =
       this.plugin.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL;
-    const r = await createCheckout(
-      { baseUrl: base, request: plusFetchRequest },
-      session.sessionToken,
-      "subscribe_monthly",
-    );
-    if (!r.ok) {
-      new Notice(`Atoms Plus: ${r.message}`);
+    const cfg = { baseUrl: base, request: plusFetchRequest };
+    const record = await refreshPlusEntitlementRecord(this.app, cfg, session);
+    // Only a confirmed answer may cancel the charge. An unreachable service must not strand a
+    // genuinely lapsed user on a button that refuses to work.
+    if (record.kind === "ok" && !plusLapse(this.plugin.resolveFilingAuth())) {
+      new Notice("Atoms Plus is already active on this account.", 6000);
+      this.redisplay();
       return;
     }
-    if (!r.url) {
-      // Dogfood instant-grant answers without a URL. Nothing to open, but the grant is real,
-      // so send the user to the one row that will show it.
-      new Notice("Atoms Plus: subscription granted — tap Refresh status.", 8000);
-      this.redisplay();
+    const r = await createCheckout(cfg, session.sessionToken, "subscribe_monthly");
+    if (!r.ok) {
+      new Notice(`Atoms Plus: ${r.message}`);
       return;
     }
     setAwaitingCheckout(this.app, true);
@@ -1380,9 +1392,12 @@ export class AtomsSettingTab extends PluginSettingTab {
     // A trial that ended without converting has no Stripe customer, so the portal has
     // nothing to open. Offering it there sends the user to an error instead of a card form —
     // Subscribe above is the row that actually does something (#442).
-    const portalHasSubject = !(
-      state.kind === "periodEnded" && state.lapseKind === "trial"
-    );
+    //
+    // Positive proof, not absence of proof: only a plan that implies a Stripe customer earns
+    // the row. Hiding merely on `=== "trial"` still let an unknown plan through — a session
+    // stored before `plan` was persisted, or a promo — to that same dead portal.
+    const portalHasSubject =
+      state.kind !== "periodEnded" || state.lapseKind === "subscription";
     if (state.kind !== "trialIncomplete" && portalHasSubject) {
       this.actionRow(containerEl, {
         action: "plus:billing-portal",
