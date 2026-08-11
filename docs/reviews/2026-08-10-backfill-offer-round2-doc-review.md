@@ -306,3 +306,39 @@ These are genuine forks where reviewers disagreed or the plan has no defensible 
   Deliberate?
 - Is one capture always one filing? KTD9's arithmetic assumes 1:1 but never says so.
 - Does the Plus service rate-limit `/v1/classify` in a way a ~100-capture sequential run would trip?
+
+---
+
+## Decisions resolved (2026-08-10, owner)
+
+| # | Decision | Resolution |
+|---|---|---|
+| A | BYOK stopping rule | Same cap as Plus (**50**). One card shape, one modal, one code path; recent-first stays meaningful for BYOK. Unbounded command remains the escape. |
+| B | Reserve sizing | **Reframed by the owner.** Backfill gets a deliberate per-period cap on trial *and* paid, so the backlog drains over periods and the subscription keeps earning. `budget = min(BACKFILL_CAP, max(0, remaining - reserve))`. Trial: reserve 70, cap 75. Paid: reserve 100, cap 50. |
+| C | `DAILY_BURN` | **5**, not the midpoint 4 — applied without asking, since fail-closed at the top of the range is the plan's own doctrine and two reviewers converged on it. |
+| D | Dismissal lifetime | **Period-scoped.** Returns at reset while the complement is non-empty; permanent dismissal would collapse the multi-period drain into one shot. Bounded by voice rules — quiet home card, never a notification or a growing count. |
+| E | Zero budget | **Suppress the card.** Render condition is `complement > 0 AND budget > 0`. Backfill stays in Settings where the state is explained. |
+
+### Fact established while resolving B
+
+`grantPeriod` uses `opts.remaining ?? config.includedFilings` with no trial override
+(`plus-service/src/store/memory.mjs:118-127`), so **a trial gets the same 150 filings over 14 days
+that the paid plan gets over 30**. That answers the review's open question and forces the
+period-specific constants: the trial has ~10.7 filings/day of headroom, the paid plan has exactly
+5.0 — the top of the assumed burn range.
+
+**Consequence the owner should hold onto:** the paid plan has no slack at the assumed burn rate. A
+paid `RESERVE_BASELINE` of 100 is a bet that sustained real burn is nearer 3.3/day than 5. If the
+observed rate comes in high, the lever is `includedFilingsPerPeriod` in `plus-pricing.json` — a
+pricing decision — not a smaller reserve, which would trade a visible upsell for an invisible outage
+in the daily loop the user is paying for.
+
+### Still open
+
+Not blocking implementation, but unresolved and recorded in the plan:
+
+- The account-wide meter vs device-local budget (two devices each offer a full budget).
+- #429's far-past stamp emptying the complement and routing the whole history through the
+  unattended path unbudgeted.
+- Whether the Plus meter is enforced server-side per request, which would downgrade several
+  client-side budget hazards from overspend to bad copy.

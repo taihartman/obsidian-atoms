@@ -263,12 +263,19 @@ Commercial numbers come from `plus-pricing.json`, the SSOT — never restate the
 "saves" filings throws them away, so a conservative cap does not protect them — it destroys value
 they already paid for and costs the conversion it was meant to protect.
 
-So backfill does not get one shot at the whole allowance, and it does not get a timid slice either:
+So backfill gets **two** bounds, not one leftover: a reserve that protects forward filing, and a
+per-period cap that makes the backlog drain gradually rather than in one shot.
 
 ```
 reserve = fresh ? clamp(daysRemaining × DAILY_BURN, 0, RESERVE_BASELINE) : RESERVE_BASELINE
-budget  = max(0, remaining - reserve)
+budget  = min(BACKFILL_CAP, max(0, remaining - reserve))
 ```
+
+**Why a cap and not just the leftover** (`session-settled: user-directed`): the backlog is meant to
+drain *over periods*, on trial and on the paid plan alike, so the subscription keeps earning while it
+drains. A user with three years of dailies should see history arriving steadily, not get one giant
+one-time dump that ends the reason to stay. The cap is the retention bound; the reserve is the
+protection bound. They are different jobs and the plan must not collapse them into one number.
 
 **`clamp`, not `min` — the reserve needs a floor as well as a ceiling.** `daysRemaining` is signed
 and derived from a date that can be in the past: an expired period the refresh has not replaced, a
@@ -278,9 +285,34 @@ and the modal states a count the meter cannot honour, breaking KTD7's "never sta
 source" from inside the mechanism written to protect it. A non-positive `daysRemaining` means
 expired or unknown, which takes the **full baseline**, never a zero reserve.
 
-`RESERVE_BASELINE` **50**, `DAILY_BURN` **4** (midpoint of a realistic 3–5 captures/day). At the
-start of a 14-day trial that reserves 50 and offers ~100 — 14 days at 3–5/day is 40–70 filings of
-ongoing use, so 50 keeps the daily loop genuinely observable while ~100 buys a real backlog demo.
+**`DAILY_BURN` = 5**, not the midpoint. A reserve is a floor for the worst plausible case, so sizing
+it on the middle of a 3–5/day range guarantees it is too small for roughly half of users — and the
+heaviest capturer, who has both the largest backlog and the best conversion odds, is the one whose
+daily loop would go dark first. This is the same fail-closed reasoning the freshness guard uses.
+
+**The constants are period-specific, because the allowance is not.** `grantPeriod` uses
+`opts.remaining ?? config.includedFilings` with no trial override
+(`plus-service/src/store/memory.mjs:118-127`), so a **trial gets the same 150 filings over 14 days
+that the paid plan gets over 30**. The headroom is therefore completely different:
+
+| | Allowance ÷ days | `RESERVE_BASELINE` | `BACKFILL_CAP` |
+|---|---|---|---|
+| Trial (14d) | 150 ÷ 14 ≈ **10.7/day** | **70** (14 × 5) | **75** |
+| Paid (30d) | 150 ÷ 30 = **5.0/day** | **100** | **50** |
+
+The trial is deliberately generous: its whole job is to prove the backlog claim, and it has real
+headroom to do it with. The paid period drains ~50/period — about 600 a year — which is the steady
+arrival the cap exists to produce.
+
+**Name the constraint honestly: the paid plan has no slack at the assumed burn rate.** 150 over 30
+days *is* 5/day, so reserving at `DAILY_BURN` on a monthly period would consume the entire allowance
+and leave zero backfill budget. A paid `RESERVE_BASELINE` of 100 is therefore a bet that sustained
+real burn is nearer 3.3/day than 5, and a user above that will hit the reserve and be routed to
+KTD11's top-up. Two honest consequences follow, both of which belong to the owner, not to this plan:
+paid backfill is partly top-up-funded by design, and if the observed burn rate comes in high the
+answer is `includedFilingsPerPeriod` in `plus-pricing.json`, not a smaller reserve. **Do not "fix"
+this by shrinking the reserve** — that trades a visible upsell for an invisible outage in the daily
+loop the user is paying for.
 
 **The open question from the round-1 handoff is answered: yes, the reserve shrinks.** On day 12 of
 14, reserving 50 for two days of use strands ~42 filings that expire days later, and the daily loop
@@ -332,10 +364,15 @@ disagree on screen. Unparseable or past `periodEnd` → treat as unknown → bas
 problem, so the same budget applies after conversion and the card re-offers each period until the
 complement drains. Nothing here is trial-only.
 
-**BYOK has no meter and needs no budget** — it is priced in dollars against the user's own key. It
-still takes KTD10's recent-first default range, for the product reason given there rather than a
-cost one. Going beyond that default stays the existing unbounded `Atoms: Backfill estimate confirm`
-command; no new UI, no added scope.
+**BYOK has no meter and no reserve, but it takes the same cap** (`session-settled: user-directed`).
+It is priced in dollars against the user's own key, so there is nothing to protect and nothing to
+meter — but `BACKFILL_CAP` still bounds its default range, giving `budget = BACKFILL_CAP` outright.
+That keeps one card shape, one modal shape, and one code path across both engines, and it keeps
+KTD10's recent-first default meaningful for BYOK rather than decorative. Going beyond it stays the
+existing unbounded `Atoms: Backfill estimate confirm` command; no new UI, no added scope.
+
+Which cap a BYOK device uses is the period question again, and BYOK has no period: use the paid
+figure (**50**). A BYOK user who wants more has the command, and it costs them cents.
 
 ### KTD10 — The default range is recent-first, not oldest-first · `session-settled: user-directed`
 
@@ -527,10 +564,25 @@ device gets no stamp; migrated flag persists for U5's copy.
   prominent one-tap card. The card renders only when `readEgressPermitted(load, {catchUp: false})`
   is true; otherwise its button raises the existing `egressConsentSpec` sheet and proceeds only on
   `accepted`.
-- **The card is dismissible**, persisted device-locally beside the start day. Otherwise it is a
-  permanent unread-count on the home of a product whose posture is a gentle stream, not a guilt
-  queue — and on a large vault the complement never reaches zero without paying. Backfill stays
-  reachable from Settings and the command palette.
+- **The card is dismissible for the period, not forever** (`session-settled: user-directed`).
+  Persisted device-locally beside the start day as a dismissed marker compared against `periodEnd`;
+  the card returns at the next reset while the complement is non-empty. Permanent dismissal would
+  collapse KTD9's multi-period drain into a single shot — one tap of X and a multi-year vault is
+  stranded forever — which is the opposite of the design. Backfill stays reachable from Settings and
+  the command palette meanwhile.
+  - **The accepted cost:** on a vault that never fully drains this is a recurring monthly card, which
+    is closer to a guilt queue than round 1's answer was. It is bounded by staying a *quiet home
+    card* — never a notification, never a badge, never a count that grows — and by `docs/voice.md`:
+    no "backlog", no "still need to", no overdue framing. If it cannot be written that way it does
+    not ship recurring.
+- **At `budget === 0` the card does not render at all** (`session-settled: user-directed`), even when
+  the complement is large. This is a common state, not an edge: `remaining` sits at or below the
+  reserve for roughly the last third of a paid period at normal burn, and permanently for a heavy
+  capturer. A card that invites a tap into a flow that files nothing is the dead end KTD11 bans, and
+  a home card that offers nothing and sells something contradicts quiet-by-default. Backfill stays in
+  Settings, where the state is explained plainly — filings are reserved for new captures; history
+  resumes next period or with a top-up.
+  - So the card's render condition is **`complement > 0` AND `budget > 0`**, not the complement alone.
 - The card is shown to **both** Plus and BYOK devices (KTD7); the engine and currency are resolved
   from `resolveFilingAuth()`, not from the card.
 - `BackfillConfirmModal`'s constructor is `(app, estimate: CostEstimate, onConfirm)`
@@ -547,9 +599,15 @@ currency, a BYOK device sees the cost currency.
 **Tests (KTD9/KTD10):** the derived range is the *newest* dailies before the window, not the oldest;
 a daily that would exceed the budget is excluded whole rather than split; a single over-budget daily
 routes to the top-up branch instead of producing an empty offer; the reserve shrinks with
-`daysRemaining` on a fresh `periodEnd`; an absent, unparseable, or stale `periodEnd` falls back to
-the full baseline reserve and never above it; `budget` floors at 0 rather than going negative when
-`remaining` is already below the reserve.
+`daysRemaining` on a fresh `periodEnd`; a failed entitlement refresh falls back to the full baseline
+reserve and never above it; **a `periodEnd` in the past yields the baseline reserve, and `budget`
+never exceeds `remaining`** (the negative-reserve case); `budget` floors at 0 rather than going
+negative when `remaining` is already below the reserve; **`budget` never exceeds `BACKFILL_CAP` even
+when `remaining` is full**; **a BYOK device's range is capped and recent-first, not the whole
+complement**; **the card does not render when the complement is non-empty but `budget` is 0**;
+**dismissal suppresses the card within the period and the card reappears after `periodEnd` passes**;
+**a session whose `remaining` was updated by a classify call but whose `periodEnd` predates it
+resolves to the baseline reserve** (the `refreshedAt` trap).
 
 ### U8 — The Plus backfill engine (KTD7)
 
@@ -715,8 +773,15 @@ dailies, toggle on, observe. Seeded fixtures are plumbing evidence only (non-neg
   and less efficient than BYOK's batch). Needs plus-service work; deliberately not scoped here.
 - Rename "Sync everything now" (KTD4) — requires an `EGRESS_DISCLOSURE` review.
 - The attended `Process unprocessed captures` command remains unbounded and unpriced.
-- No signal is defined that would confirm or refute the conversion bet (trial-to-paid,
-  atoms-in-first-week, backfill acceptance rate).
+- **How we will know the budget numbers were right.** Two server-side signals need no new client
+  telemetry and no change to the privacy posture, because plus-service already meters filings per
+  account and knows trial-to-paid outcomes: (1) trial-to-paid conversion split by whether the account
+  ran a backfill, (2) the share of accounts hitting `exhausted` before period end, split the same
+  way. State the falsifier up front — if backfilling accounts convert no better, or if
+  exhausted-before-period-end rises materially among them, the reserve is too small and the offer is
+  net-negative. Not scoped here, but named so the constants stop being unfalsifiable.
+- `DAILY_BURN` = 5 and the two `BACKFILL_CAP` figures are still assumptions, not measurements. The
+  dogfood vault's own capture rate is available and would be honest first evidence.
 
 ## Shipping tail (not optional)
 
