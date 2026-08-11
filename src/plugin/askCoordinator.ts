@@ -18,6 +18,7 @@ import { askMirrorPermitted, askWriteAckIsCurrent } from "../shared/askAck";
 import {
   isAskMirrorWatchPath,
   readAskMirrorHashes,
+  truncateMessage,
 } from "../platform/askMirror";
 import {
   applyOutboxItemToVault,
@@ -390,7 +391,7 @@ export class AskCoordinator {
       // pass was in the air. Telling them their push failed reads as an error report for
       // something they just asked for, so this arm is silent — same as the entry gate's.
       if (!this.mirrorPermitted()) return { kind: "failed", message: MIRROR_OFF };
-      const snip = msg.replace(/\s+/g, " ").trim().slice(0, 72);
+      const snip = truncateMessage(msg, 72);
       // The dedupe flag exists to stop *background* passes from nagging after
       // the first failure. It must never silence a push the user just asked
       // for: "Sync now" is the one gesture that always reports its outcome.
