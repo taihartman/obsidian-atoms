@@ -27,5 +27,6 @@ If `world-class-qa` / `adversarial-qa` cannot load: stop the shipping-tail QA st
 |---|---|---|
 | **field-notes** | `.agents/skills/field-notes/` (symlink `.claude/skills/field-notes`) | User feeds a Field notes idea → draft, test email, broadcast on approval |
 | **atoms-voice** | `.agents/skills/atoms-voice/` (symlink `.claude/skills/atoms-voice`) | Any product copy / email tone |
+| **plus-promo** | `.agents/skills/plus-promo/` (symlink `.claude/skills/plus-promo`) | Mint/list/archive live Stripe coupons + promotion codes for Plus Checkout |
 
-Claude Code: project skills under `.claude/skills/`; also symlink into `~/.claude/skills/` on each machine if global discovery is needed. Docs: `docs/voice.md`, `docs/field-notes-email.md`, `docs/runbooks/atoms-notes-list.md`.
+Claude Code: project skills under `.claude/skills/`; also symlink into `~/.claude/skills/` on each machine if global discovery is needed. Docs: `docs/voice.md`, `docs/field-notes-email.md`, `docs/runbooks/atoms-notes-list.md`, `docs/runbooks/atoms-plus-prod.md`.
