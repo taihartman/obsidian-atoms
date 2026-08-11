@@ -182,8 +182,10 @@ export function prepareMirrorRow(email, atom) {
     body,
   );
   const created = normalizeMirrorCreated(atom.created);
+  const loop = normalizeLoop(atom.loop);
   const tagsJson = JSON.stringify(tags);
   const linksJson = JSON.stringify(links);
+  const loopJson = loop ? JSON.stringify(loop) : null;
   const hash = contentHash([
     title,
     body,
@@ -191,6 +193,7 @@ export function prepareMirrorRow(email, atom) {
     linksJson,
     kind,
     created || "",
+    loopJson || "",
   ]);
   return {
     email: normEmail(email),
@@ -201,9 +204,52 @@ export function prepareMirrorRow(email, atom) {
     bodyEnc: encryptMirrorField(body),
     tagsJson,
     linksJson,
+    loopJson,
     contentHash: hash,
     updatedAt: new Date().toISOString(),
     created,
+  };
+}
+
+/**
+ * @param {unknown} raw
+ * @returns {{ state: string, source: string } | null}
+ */
+export function normalizeLoop(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const state = String(/** @type {{state?:string}} */ (raw).state || "").trim();
+  const source = String(/** @type {{source?:string}} */ (raw).source || "").trim();
+  const states = new Set([
+    "active",
+    "not_a_loop",
+    "resolved_elsewhere",
+    "abandoned",
+  ]);
+  const sources = new Set(["inferred", "user"]);
+  if (!states.has(state) || !sources.has(source)) return null;
+  return { state, source };
+}
+
+/**
+ * @param {{ state?: string } | null | undefined} loop
+ * @param {boolean} hasRedeemingChild
+ */
+export function openNowFromLoop(loop, hasRedeemingChild) {
+  return loop?.state === "active" && !hasRedeemingChild;
+}
+
+/**
+ * @param {object} pub
+ * @param {{ redeemed_by?: unknown[] } | null} [rev]
+ */
+export function attachLoopFields(pub, rev = null) {
+  const loop = pub.loop ?? null;
+  const hasRedeeming = Array.isArray(rev?.redeemed_by) && rev.redeemed_by.length > 0;
+  return {
+    open_now: openNowFromLoop(loop, hasRedeeming),
+    loop: loop
+      ? { state: loop.state, source: loop.source }
+      : null,
   };
 }
 
@@ -291,6 +337,7 @@ export function relationFromReason(reason) {
   if (!r) return null;
   if (r.startsWith("contradicts")) return "contradicts";
   if (r.startsWith("revises")) return "revises";
+  if (r.startsWith("redeems")) return "redeems";
   if (r.startsWith("continues")) return "continues";
   if (r.startsWith("adds detail")) return "adds_detail";
   return null;
@@ -350,6 +397,17 @@ export function rowToPublicAtom(row, { includeBody = true } = {}) {
           ? createdRaw
           : iso(createdRaw))
       : null;
+  const loopRaw = row.loop_json ?? row.loopJson ?? row.loop;
+  let loop = null;
+  if (typeof loopRaw === "string" && loopRaw.trim()) {
+    try {
+      loop = normalizeLoop(JSON.parse(loopRaw));
+    } catch {
+      loop = null;
+    }
+  } else if (loopRaw && typeof loopRaw === "object") {
+    loop = normalizeLoop(loopRaw);
+  }
   const out = {
     id: row.atom_id ?? row.atomId,
     title: row.title,
@@ -360,6 +418,7 @@ export function rowToPublicAtom(row, { includeBody = true } = {}) {
     contentHash: row.content_hash ?? row.contentHash,
     updatedAt: iso(row.updated_at ?? row.updatedAt),
     created,
+    loop,
   };
   if (includeBody) {
     out.text = text;
@@ -381,7 +440,7 @@ export function rowToPublicAtom(row, { includeBody = true } = {}) {
  * Shape one list_atoms item from a public atom.
  * @param {object} pub
  */
-export function shapeMirrorListItem(pub) {
+export function shapeMirrorListItem(pub, rev = null) {
   return {
     id: pub.id,
     title: pub.title,
@@ -390,6 +449,7 @@ export function shapeMirrorListItem(pub) {
     kind: pub.kind,
     synced_at: pub.updatedAt ?? null,
     created: pub.created ?? null,
+    ...attachLoopFields(pub, rev),
   };
 }
 
@@ -461,7 +521,10 @@ export function paginateMirrorList(pubs, opts = {}) {
 
   const total = filtered.length;
   const slice = filtered.slice(offset, offset + limit);
-  const items = slice.map(shapeMirrorListItem);
+  const inboundIndex = buildInboundIndex(pubs || []);
+  const items = slice.map((pub) =>
+    shapeMirrorListItem(pub, revisionStatusFor(pub.title, inboundIndex)),
+  );
   const next_offset =
     offset + items.length < total ? offset + items.length : null;
   /** @type {Record<string, unknown>} */
@@ -940,6 +1003,7 @@ export const INVERSE_RELATION = {
   revises: "revised_by",
   contradicts: "contradicted_by",
   adds_detail: "detailed_by",
+  redeems: "redeemed_by",
 };
 
 /**
@@ -1001,6 +1065,8 @@ export function revisionStatusFor(centerTitle, inboundIndex) {
   const continued_by = [];
   /** @type {{ title: string, relation: string, path: string }[]} */
   const detailed_by = [];
+  /** @type {{ title: string, relation: string, path: string }[]} */
+  const redeemed_by = [];
 
   for (const e of inbound) {
     if (!e.relation) continue;
@@ -1011,6 +1077,7 @@ export function revisionStatusFor(centerTitle, inboundIndex) {
     else if (e.relation === "contradicts") contradicted_by.push(row);
     else if (e.relation === "continues") continued_by.push(row);
     else if (e.relation === "adds_detail") detailed_by.push(row);
+    else if (e.relation === "redeems") redeemed_by.push(row);
   }
 
   /** @type {"live"|"superseded"|"contradicted"} */
@@ -1024,6 +1091,7 @@ export function revisionStatusFor(centerTitle, inboundIndex) {
     contradicted_by,
     continued_by,
     detailed_by,
+    redeemed_by,
   };
 }
 
@@ -1074,6 +1142,7 @@ export function buildSearchHits(pubs, query, limit = 8, opts = {}) {
       authoritative: false,
       created: pub.created ?? null,
       synced_at: pub.updatedAt ?? null,
+      ...attachLoopFields(pub, rev),
     };
     if (match_signals?.length) hit.match_signals = match_signals;
     if (includeSnippets) {
@@ -1177,6 +1246,7 @@ export function buildNeighborsGraph(center, idOrTitle, pubs) {
     out.status = centerRev.status;
     if (centerRev.superseded_by.length) out.superseded_by = centerRev.superseded_by;
     if (centerRev.contradicted_by.length) out.contradicted_by = centerRev.contradicted_by;
+    Object.assign(out, attachLoopFields(center, centerRev));
   }
   return out;
 }
@@ -1211,6 +1281,7 @@ export function shapeFetchAtom(atom, neighborsGraph, opts = {}) {
   const inboundIndex = new Map([
     [String(atom.title || "").toLowerCase(), inboundEdges],
   ]);
+  const centerRev = revisionStatusFor(atom.title, inboundIndex);
 
   const syncedAt =
     atom.updatedAt || atom.updated_at || atom.synced_at || null;
@@ -1229,6 +1300,7 @@ export function shapeFetchAtom(atom, neighborsGraph, opts = {}) {
     synced_at: syncedAt,
     /** Note frontmatter created when known (day or ISO). */
     created: atom.created ?? null,
+    ...attachLoopFields(atom, centerRev),
   };
 
   if (kind === "hub") {
@@ -1245,13 +1317,13 @@ export function shapeFetchAtom(atom, neighborsGraph, opts = {}) {
     return base;
   }
 
-  const rev = revisionStatusFor(atom.title, inboundIndex);
   base.revision_participant = true;
-  base.status = rev.status;
-  base.superseded_by = rev.superseded_by;
-  base.contradicted_by = rev.contradicted_by;
-  base.continued_by = rev.continued_by;
-  base.detailed_by = rev.detailed_by;
+  base.status = centerRev.status;
+  base.superseded_by = centerRev.superseded_by;
+  base.contradicted_by = centerRev.contradicted_by;
+  base.continued_by = centerRev.continued_by;
+  base.detailed_by = centerRev.detailed_by;
+  if (centerRev.redeemed_by?.length) base.redeemed_by = centerRev.redeemed_by;
   return base;
 }
 
@@ -1267,6 +1339,7 @@ export const OUTBOX_RELATIONS = new Set([
   "revises",
   "contradicts",
   "adds_detail",
+  "redeems",
 ]);
 
 /**
@@ -1282,6 +1355,8 @@ export function relationReason(relation, parentTitle) {
       return `contradicts [[${p}]]`;
     case "adds_detail":
       return `adds detail to [[${p}]]`;
+    case "redeems":
+      return `redeems [[${p}]]`;
     case "continues":
     default:
       return `continues [[${p}]]`;
@@ -1340,6 +1415,10 @@ export function validateOutboxPayload(kind, raw) {
     if (!hasParent) {
       links = [{ note: parent_title, reason }, ...links];
     }
+    const close_answer =
+      raw?.close_answer != null
+        ? String(raw.close_answer).replace(/[\r\n]/g, " ").trim().slice(0, 500)
+        : undefined;
     return {
       ok: true,
       payload: {
@@ -1350,13 +1429,22 @@ export function validateOutboxPayload(kind, raw) {
         parent_title,
         relation,
         client_request_id,
+        ...(close_answer ? { close_answer } : {}),
       },
     };
   }
 
+  const open_loop = raw?.open_loop === true ? true : undefined;
   return {
     ok: true,
-    payload: { title, body, tags, links, client_request_id },
+    payload: {
+      title,
+      body,
+      tags,
+      links,
+      client_request_id,
+      ...(open_loop ? { open_loop: true } : {}),
+    },
   };
 }
 

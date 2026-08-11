@@ -28,6 +28,11 @@ import {
   sanitizeFilename,
 } from "./render";
 import {
+  formatOpenLoopFmLines,
+  parseOpenLoopFm,
+  type OpenLoopFm,
+} from "../shared/openLoop";
+import {
   improveClassificationLinks,
   isJunkLinkReason,
   isWeakLinkReason,
@@ -80,6 +85,7 @@ export function parseImmutableFrontmatter(content: string): {
   created: string;
   sourceWikilink: string;
   existingAliases: string[];
+  openLoop: OpenLoopFm | null;
 } {
   const fm =
     content.startsWith("---") && content.indexOf("\n---", 3) !== -1
@@ -116,7 +122,12 @@ export function parseImmutableFrontmatter(content: string): {
       if (/^\w/.test(line)) break;
     }
   }
-  return { created, sourceWikilink, existingAliases };
+  return {
+    created,
+    sourceWikilink,
+    existingAliases,
+    openLoop: parseOpenLoopFm(fm),
+  };
 }
 
 /** Force atom verdict for refresh (R13). */
@@ -146,9 +157,8 @@ export function buildRefreshedAtomMarkdown(opts: {
 }): string {
   const quality = opts.quality ?? CURRENT_ATOMS_QUALITY;
   const today = opts.today ?? localDateYmd();
-  const { created, sourceWikilink, existingAliases } = parseImmutableFrontmatter(
-    opts.oldContent,
-  );
+  const { created, sourceWikilink, existingAliases, openLoop } =
+    parseImmutableFrontmatter(opts.oldContent);
   const result = keepAsAtomResult(opts.result, opts.title);
   const { alias: sanitizeAlias } = sanitizeFilename(result.title.trim());
   const tags = (result.tags ?? []).map((t) => t.replace(/^#/, ""));
@@ -186,6 +196,7 @@ export function buildRefreshedAtomMarkdown(opts: {
     (result.hub_section ?? "").trim() ||
     parseHubSectionFromFrontmatter(opts.oldContent);
   if (hubSec) fm.push(`hub-section: ${JSON.stringify(hubSec)}`);
+  if (openLoop) fm.push(...formatOpenLoopFmLines(openLoop));
   fm.push("---", "");
   const body = formatAtomBody(opts.captureText, result);
   return fm.join("\n") + body + (body.endsWith("\n") ? "" : "\n");
@@ -354,9 +365,8 @@ export function buildPolishedAtomMarkdown(opts: {
 }): string {
   const today = opts.today ?? localDateYmd();
   const quality = parseAtomsQuality(opts.oldContent);
-  const { created, sourceWikilink, existingAliases } = parseImmutableFrontmatter(
-    opts.oldContent,
-  );
+  const { created, sourceWikilink, existingAliases, openLoop } =
+    parseImmutableFrontmatter(opts.oldContent);
   const result = keepAsAtomResult(opts.result, opts.title);
   const resultTags = result.tags ?? [];
   const tags =
@@ -387,6 +397,7 @@ export function buildPolishedAtomMarkdown(opts: {
     (result.hub_section ?? "").trim() ||
     parseHubSectionFromFrontmatter(opts.oldContent);
   if (hubSec2) fm.push(`hub-section: ${JSON.stringify(hubSec2)}`);
+  if (openLoop) fm.push(...formatOpenLoopFmLines(openLoop));
   fm.push("---", "");
   const body = formatAtomBody(opts.captureText, result);
   return fm.join("\n") + body + (body.endsWith("\n") ? "" : "\n");

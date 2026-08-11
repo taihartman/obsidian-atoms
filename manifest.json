@@ -1,10 +1,10 @@
 {
 	"id": "atoms",
 	"name": "Atoms",
-	"version": "0.7.3",
 	"minAppVersion": "1.11.4",
 	"description": "Classify past daily-note captures into linked atomic notes via the Anthropic API.",
 	"author": "Tai Hartman",
 	"authorUrl": "https://github.com/taihartman",
-	"isDesktopOnly": false
+	"isDesktopOnly": false,
+	"version": "0.7.4"
 }

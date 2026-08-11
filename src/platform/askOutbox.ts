@@ -4,6 +4,12 @@
 import type { ClassificationLink } from "../shared/types";
 import { relationReasonProse } from "../shared/relationReason";
 import {
+  OPEN_LOOP_CLOSE_ANSWER_KEY,
+  formatOpenLoopFmLines,
+  type OpenLoopFm,
+} from "../shared/openLoop";
+import { looksLikeOpenLoop } from "../pipeline/openLoopHeuristic";
+import {
   atomPathForTitle,
   clampAtomFolder,
   formatLinkProse,
@@ -20,6 +26,10 @@ export type AskOutboxPayload = {
   parent_title?: string;
   relation?: string;
   client_request_id?: string;
+  /** Agent-asserted intention → atoms-loop active + source user. */
+  open_loop?: boolean;
+  /** Free-text answer to “what would closing look like?” on redeeming child. */
+  close_answer?: string;
 };
 
 export type AskOutboxPlan =
@@ -44,6 +54,10 @@ export function buildAskAtomMarkdown(opts: {
   created?: string;
   parent?: string;
   relation?: string;
+  /** Agent-asserted open loop → source user; else heuristic may mark inferred. */
+  openLoop?: boolean;
+  /** Optional close-answer log on redeeming child. */
+  closeAnswer?: string;
 }): { pathSegment: string; content: string; title: string } {
   const { filename, alias } = sanitizeFilename(opts.title);
   const title = filename;
@@ -91,6 +105,22 @@ export function buildAskAtomMarkdown(opts: {
   } else {
     fm.push("tags: []");
   }
+  let loop: OpenLoopFm | null = null;
+  if (opts.openLoop === true) {
+    loop = { state: "active", source: "user" };
+  } else if (
+    opts.openLoop !== false &&
+    looksLikeOpenLoop(String(opts.body ?? ""), title)
+  ) {
+    loop = { state: "active", source: "inferred" };
+  }
+  if (loop) fm.push(...formatOpenLoopFmLines(loop));
+  const closeAns = (opts.closeAnswer ?? "").trim();
+  if (closeAns) {
+    fm.push(
+      `${OPEN_LOOP_CLOSE_ANSWER_KEY}: ${yamlQuote(closeAns.slice(0, 500))}`,
+    );
+  }
   fm.push("---", "");
 
   const body = String(opts.body ?? "").replace(/\s+$/, "");
@@ -131,6 +161,8 @@ export function planAskOutboxApply(
     links: payload.links,
     parent: payload.parent_title,
     relation: payload.relation,
+    openLoop: payload.open_loop === true ? true : undefined,
+    closeAnswer: payload.close_answer,
   });
   const path = atomPathForTitle(atomFolder, built.title);
   const folder = clampAtomFolder(atomFolder);

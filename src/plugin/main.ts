@@ -1987,6 +1987,11 @@ export default class AtomsPlugin extends Plugin {
     await runOpenAtomGraph(this.app, this.settings.atomFolder);
   }
 
+  async runOpenLoops(mode: "browse" | "review"): Promise<void> {
+    const { runOpenLoopsCommand } = await import("./openLoopsUi");
+    await runOpenLoopsCommand(this.app, this.settings.atomFolder, mode);
+  }
+
   async showAutoRunStatus() {
     const snap = this.getAutoRunSnapshot();
     const today = localDateString();

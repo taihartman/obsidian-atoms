@@ -11,6 +11,8 @@ import {
   localDateYmd,
   qualityStampLines,
 } from "./atomQuality";
+import { looksLikeOpenLoop } from "./openLoopHeuristic";
+import { formatOpenLoopFmLines, type OpenLoopFm } from "../shared/openLoop";
 
 /** Collapse whitespace for capture body equality (collision integrity). */
 export function normalizeCaptureText(text: string): string {
@@ -177,6 +179,8 @@ export function buildAtomMarkdown(opts: {
   atomsQuality?: number;
   /** quality-updated date; default local today. */
   qualityUpdated?: string;
+  /** Explicit loop FM; when omitted, conservative heuristic may mark active inferred. */
+  openLoop?: OpenLoopFm | null;
 }): string {
   const { result, captureText, created, sourceDailyPath } = opts;
   const title = result.title.trim();
@@ -215,6 +219,16 @@ export function buildAtomMarkdown(opts: {
   if (result.people !== undefined) {
     fm.push(...atomsPeopleLines(result.people));
   }
+  let loop: OpenLoopFm | null =
+    opts.openLoop !== undefined ? opts.openLoop : null;
+  if (
+    loop === null &&
+    result.verdict === "atom" &&
+    looksLikeOpenLoop(captureText, title)
+  ) {
+    loop = { state: "active", source: "inferred" };
+  }
+  if (loop) fm.push(...formatOpenLoopFmLines(loop));
   fm.push("---", "");
 
   const body = formatAtomBody(captureText, result);
