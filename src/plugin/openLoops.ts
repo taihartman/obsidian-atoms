@@ -11,7 +11,6 @@ import {
   OPEN_LOOP_KEY,
   OPEN_LOOP_SOURCE_KEY,
   REDEEMS_RELATION,
-  canClassifierWrite,
   formatOpenLoopFmLines,
   frontmatterBlock,
   linksIncludeRedeems,
