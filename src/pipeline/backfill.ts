@@ -405,9 +405,20 @@ export async function prepareBackfillEstimate(opts: {
   atomFolder?: string;
   shortlistK?: number;
   granularity?: ChunkGranularity;
+  /**
+   * Derived recent-first range (KTD10). BYOK has no meter and nothing to reserve, but it takes
+   * the same per-run cap as Plus, so the estimate must price the range the run will actually
+   * submit — an unbounded scan here quotes a whole vault's history for a capped run.
+   * Absent on the estimate-only diagnostic, which is deliberately unbounded.
+   */
+  since?: string;
+  before?: string;
   request?: typeof requestUrl;
 }): Promise<BackfillEstimateResult> {
-  const listed = await getPastDailyNotesWithUnmarkedCaptures(opts.app);
+  const listed = await getPastDailyNotesWithUnmarkedCaptures(opts.app, {
+    since: opts.since,
+    before: opts.before,
+  });
   const work = enumerateBackfillWork(listed.notes);
   const run = await opts.contextProvider.beginRun({
     atomFolder: opts.atomFolder,

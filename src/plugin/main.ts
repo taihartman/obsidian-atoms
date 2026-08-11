@@ -53,8 +53,16 @@ import {
 } from "../pipeline/context";
 import {
   DailyNotesDisabledError,
+  formatLocalDate,
   getPastDailyNotesWithUnmarkedCaptures,
 } from "../pipeline/daily";
+import {
+  BACKFILL_CAP,
+  deriveRecentFirstRange,
+  resolveBackfillBudget,
+  type BackfillDaily,
+  type RecentFirstRange,
+} from "../pipeline/backfillOffer";
 import { AtomsSettingTab } from "../settings/settings";
 import {
   API_KEY_SECRET_ID_DEFAULT,
@@ -159,8 +167,16 @@ import {
   submitMessageBatch,
   waitForBatchEnded,
   type ApplyBackfillReport,
+  type BackfillConfirmProps,
   type CostEstimate,
 } from "../pipeline/backfill";
+import {
+  createCheckout,
+  plusFetchRequest,
+  DEFAULT_PLUS_BASE_URL,
+  type PlusClientConfig,
+} from "../platform/plusClient";
+import { refreshPlusEntitlementRecord } from "../platform/plusRefresh";
 import {
   listLinkerAtoms,
   runRefreshEligibleAtoms,
@@ -176,6 +192,16 @@ import {
   createSignInStatusSurface,
 } from "../settings/plusSignInConfirmModal";
 import { closeOpenConsentSheet } from "../settings/consent";
+
+/**
+ * How many times the backfill offer may be re-derived behind a top-up before it stops
+ * re-opening. The loop has to terminate on its own: each round costs a meter read and a vault
+ * scan, and an over-budget offer can legitimately stay over budget after a purchase.
+ */
+const BACKFILL_TOPUP_ROUNDS = 3;
+
+/** Meter polls after top-up checkout opens, and the gap between them. */
+const BACKFILL_TOPUP_POLL = { attempts: 24, intervalMs: 5000 } as const;
 
 export default class AtomsPlugin extends Plugin {
   settings!: LinkerSettings;
@@ -220,6 +246,13 @@ export default class AtomsPlugin extends Plugin {
   lastBackfillEstimate: CostEstimate | null = null;
   lastBackfillReport: ApplyBackfillReport | null = null;
   lastBackfillBatchId: string | null = null;
+  /**
+   * Checkout completes in a browser, so the only signal the top-up round has is the meter
+   * itself. Held as a field rather than read from the constant directly so a test does not sit
+   * through two minutes of real polling.
+   */
+  private readonly backfillTopUpPoll: { attempts: number; intervalMs: number } =
+    BACKFILL_TOPUP_POLL;
   /** Last Update notes refresh report (CLI). */
   lastRefreshReport: RefreshReport | null = null;
   /** Guards double-fire of onload + interval auto-run. */
@@ -524,7 +557,7 @@ export default class AtomsPlugin extends Plugin {
 
   /** Called from Atoms home ⋯ menu. */
   async runBackfillFromHome(): Promise<void> {
-    await this.runBackfillFlow();
+    await this.runBackfillFlow("card");
   }
 
   /**
@@ -1146,6 +1179,10 @@ export default class AtomsPlugin extends Plugin {
       // through into a paid write pass. The cycle reports the refusal as reason "in_flight".
       beginWork: () => {
         if (this.autoRunInFlight) return false;
+        // The other direction of the same guard: a Plus backfill runs through `runWritePath`
+        // and takes `backfillInFlight`, so without this check the hourly pass would start a
+        // second paid run against a second pinned context corpus.
+        if (this.backfillInFlight) return false;
         this.autoRunInFlight = true;
         return true;
       },
@@ -1292,12 +1329,376 @@ export default class AtomsPlugin extends Plugin {
   }
 
   /**
+   * The backfill entry point (U8), branched on filing auth.
+   *
+   * `requireApiKey()` used to be the first statement of this method, so a Plus or trial device
+   * was told to set an API key it does not have and could not reach backfill at all — on the same
+   * screen that reads "Plus · Trial · 150 filings left". Only the BYOK branch needs a key; the
+   * Plus branch spends filings through the proxy Process already uses.
+   *
+   * `source` bounds the **BYOK offer only** (KTD9). The card proposes a capped, recent-first
+   * range; the command stays the unbounded whole-history estimate it has always been, because it
+   * is the only path a BYOK user has to file a backlog larger than one run — capping it would be
+   * a capability regression, not a guardrail. Plus is budget-bounded from either entry: spending
+   * a whole period's allowance on years-old notes is the harm KTD9 and KTD10 exist to prevent,
+   * and the Plus escape hatch is the top-up, not an uncapped run.
+   */
+  async runBackfillFlow(source: "card" | "command" = "command") {
+    if (this.resolveFilingAuth().mode === "plus") {
+      await this.runPlusBackfillFlow();
+      return;
+    }
+    await this.runByokBackfillFlow(source);
+  }
+
+  /**
+   * The complement's exclusive upper bound (KTD3).
+   *
+   * With auto-filing on, backfill owns everything strictly before the window that unattended
+   * filing owns. With it off no unattended pass is claiming any of it, so the stored start day
+   * is ignored and the offer covers all past captures. Read-only on purpose: a diagnostic or an
+   * offer that minted the window start would steal `migrateAutoFilingWindow`'s stamp.
+   */
+  private backfillComplementBefore(today: string): string {
+    const load = (k: string): unknown => this.app.loadLocalStorage(k) as unknown;
+    if (!readDeviceAutoRunState(load).enabled) return today;
+    return readAutoFilingSince(load, today);
+  }
+
+  /** The one bounded scan both engines derive their counts from. */
+  private async backfillComplement(bounds: {
+    since?: string;
+    before: string;
+  }): Promise<BackfillDaily[]> {
+    const listed = await getPastDailyNotesWithUnmarkedCaptures(
+      this.app,
+      bounds,
+    );
+    return listed.notes.map((note) => ({
+      date: note.date,
+      path: note.path,
+      unprocessedCount: note.unprocessed.length,
+    }));
+  }
+
+  /**
+   * Open the gate and wait for the verdict.
+   *
+   * `BackfillConfirmModal` closes *before* it calls `onConfirm`, so the close hook defers its own
+   * answer by a microtask: a confirm settles the promise first, and a genuine dismissal still
+   * settles it. A close hook that answered synchronously would report every confirm as a cancel.
+   */
+  private confirmBackfill(
+    props: BackfillConfirmProps,
+  ): Promise<"confirm" | "cancel"> {
+    return new Promise((resolve) => {
+      const modal = new BackfillConfirmModal(this.app, props, () => {
+        resolve("confirm");
+      });
+      const closeHook = modal.onClose.bind(modal);
+      modal.onClose = () => {
+        closeHook();
+        void Promise.resolve().then(() => resolve("cancel"));
+      };
+      modal.open();
+    });
+  }
+
+  private plusClientConfig(): PlusClientConfig {
+    return {
+      baseUrl: this.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL,
+      request: plusFetchRequest,
+    };
+  }
+
+  /**
+   * Price the offer against a meter read taken now (GET `/v1/me`), which returns `status`,
+   * `remaining` and `periodEnd` together so all three are equally fresh.
+   *
+   * Never `classifyViaProxy`: that is a POST to `/v1/classify` reporting `remaining` only as a
+   * side effect of actually classifying, so pricing through it would spend a filing and write an
+   * atom to quote an offer the user has not accepted. A failed or rejected refresh leaves the
+   * stored session untouched, takes the baseline reserve, and blocks nothing.
+   */
+  private async derivePlusBackfillOffer(): Promise<{
+    props: Extract<BackfillConfirmProps, { engine: "plus" }>;
+    range: RecentFirstRange;
+    meterKnown: boolean;
+  } | null> {
+    const today = formatLocalDate(new Date());
+    const stored = readPlusSession(this.app);
+    let fresh = false;
+    if (stored) {
+      const record = await refreshPlusEntitlementRecord(
+        this.app,
+        this.plusClientConfig(),
+        stored,
+      );
+      fresh = record.kind === "ok";
+    }
+    // Re-read: a confirmed refresh has rewritten the session, a failed one has not.
+    const session = readPlusSession(this.app);
+    const budget = resolveBackfillBudget({
+      period: session?.status === "trialing" ? "trial" : "paid",
+      fresh,
+      today,
+      periodEnd: session?.periodEnd,
+      remaining: session?.remaining,
+    });
+    const before = this.backfillComplementBefore(today);
+    const range = deriveRecentFirstRange({
+      dailies: await this.backfillComplement({ before }),
+      before,
+      budget: budget.budget,
+    });
+    if (range.totalCaptures === 0) {
+      new Notice("Atoms: nothing to backfill (no unmarked past captures)");
+      return null;
+    }
+    const meterKnown = session?.remaining !== undefined;
+    return {
+      range,
+      meterKnown,
+      props: {
+        engine: "plus",
+        run: range,
+        // Omitted when nothing came back from the meter: a confidently wrong count on a
+        // consent surface is worse than no count at all.
+        ...(meterKnown ? { remaining: session?.remaining } : {}),
+        daysRemaining: budget.daysRemaining,
+      },
+    };
+  }
+
+  /**
+   * Plus/trial backfill: meter read → offer → confirm → bounded write pass.
+   *
+   * The loop exists for KTD11's top-up: the range, budget and counts on screen were all priced
+   * against the pre-top-up meter, so a purchase re-derives the whole offer rather than re-showing
+   * the one the user just paid to escape. It is bounded by `BACKFILL_TOPUP_ROUNDS` because an
+   * over-budget offer can still be over budget after a purchase, and every round costs a meter
+   * read and a vault scan.
+   */
+  private async runPlusBackfillFlow(): Promise<void> {
+    if (this.autoRunInFlight) {
+      new Notice("Atoms: filing already in progress");
+      return;
+    }
+    if (this.backfillInFlight) {
+      new Notice("Atoms: backfill already in progress");
+      return;
+    }
+
+    for (let round = 0; round <= BACKFILL_TOPUP_ROUNDS; round += 1) {
+      let offer: Awaited<ReturnType<AtomsPlugin["derivePlusBackfillOffer"]>>;
+      try {
+        offer = await this.derivePlusBackfillOffer();
+      } catch (e) {
+        devLog("[atoms] backfill offer failed", {
+          name: e instanceof Error ? e.name : "Error",
+          message: e instanceof Error ? e.message.slice(0, 200) : "unknown",
+        });
+        new Notice(
+          `Atoms: backfill unavailable — ${e instanceof Error ? e.message.slice(0, 80) : "error"}`,
+        );
+        return;
+      }
+      if (!offer) return;
+      if ((await this.confirmBackfill(offer.props)) !== "confirm") return;
+
+      // No count came back, so the primary button read "Refresh status" — it asks for the meter
+      // again, not for a run.
+      if (!offer.meterKnown) {
+        await this.refreshPlusEntitlementNow();
+        return;
+      }
+      if (!offer.range.overBudget) {
+        await this.executePlusBackfill(offer.range);
+        return;
+      }
+      if (!(await this.buyBackfillTopUp())) return;
+    }
+    new Notice("Atoms: open backfill again to file the rest.");
+  }
+
+  /** The "Refresh status" branch of the gate — the meter, not a run. */
+  private async refreshPlusEntitlementNow(): Promise<void> {
+    const session = readPlusSession(this.app);
+    if (!session) return;
+    const record = await refreshPlusEntitlementRecord(
+      this.app,
+      this.plusClientConfig(),
+      session,
+    );
+    new Notice(`Atoms Plus: ${record.message}`);
+  }
+
+  /**
+   * Buy filings for the over-budget offer, then wait for them to land.
+   *
+   * Checkout completes in a browser tab this plugin does not own, so the meter is the only
+   * signal available. The poll is bounded rather than open-ended: a user who closed the tab must
+   * get the flow back, not a spinner.
+   */
+  private async buyBackfillTopUp(): Promise<boolean> {
+    const session = readPlusSession(this.app);
+    if (!session) return false;
+    const before = session.remaining ?? 0;
+    const checkout = await createCheckout(
+      this.plusClientConfig(),
+      session.sessionToken,
+      "topup_50",
+    );
+    if (!checkout.ok) {
+      new Notice(`Atoms Plus: ${checkout.message}`);
+      return false;
+    }
+    window.open(checkout.url, "_blank");
+    new Notice(
+      "Atoms Plus: finish checkout in the browser — backfill reopens with the new filings.",
+    );
+
+    for (let attempt = 0; attempt < this.backfillTopUpPoll.attempts; attempt += 1) {
+      await new Promise<void>((resolve) => {
+        window.setTimeout(resolve, this.backfillTopUpPoll.intervalMs);
+      });
+      const current = readPlusSession(this.app) ?? session;
+      const record = await refreshPlusEntitlementRecord(
+        this.app,
+        this.plusClientConfig(),
+        current,
+      ).catch(() => null);
+      if (record?.kind !== "ok") continue;
+      if ((readPlusSession(this.app)?.remaining ?? 0) > before) return true;
+    }
+    new Notice("Atoms: no new filings yet — open backfill again once your top-up lands.");
+    return false;
+  }
+
+  /**
+   * The Plus engine (KTD7): the same per-capture write path `maybeAutoRun` uses, bounded by the
+   * derived range. Not `backfill.ts`, which is Batch-API-and-BYOK by construction.
+   */
+  private async executePlusBackfill(range: RecentFirstRange): Promise<void> {
+    // Both directions of the guard are one synchronous step: the hourly pass, the manual
+    // catch-up and this can all land in the same tick, and two runs against two pinned context
+    // corpora is exactly what the flags exist to prevent.
+    if (this.autoRunInFlight) {
+      new Notice("Atoms: filing already in progress");
+      return;
+    }
+    if (this.backfillInFlight) {
+      new Notice("Atoms: backfill already in progress");
+      return;
+    }
+    this.backfillInFlight = true;
+    try {
+      const classifyAuth = this.requireClassifyAuth();
+      if (!classifyAuth) return;
+      const report = await runWritePath({
+        app: this.app,
+        contextProvider: this.contextProvider,
+        apiKey: classifyAuth.apiKey,
+        model: this.settings.model,
+        activeVocabulary: this.settings.activeVocabulary,
+        atomFolder: this.settings.atomFolder,
+        ...shortlistOptionsFromSettings(),
+        enableHubProjection: this.settings.enableHubProjection === true,
+        // Backfill is attended, but it is still past-only: today's daily belongs to nobody's
+        // automatic pass and to no offer priced off the complement.
+        includeToday: false,
+        // Both bounds. `since` alone would file straight through the filing window auto-run
+        // already owns — metered double-spend on the captures KTD3 exists to exclude.
+        since: range.since,
+        before: range.before,
+        // Newest-first, and no `maxCaptures`: the range is already budget-bounded, so a cap
+        // would only decide which end of it a paced run drops — and the recent end is the only
+        // one whose filing quality the user can still judge.
+        order: "newest-first",
+        stopOnAuthExhausted: true,
+        classifyDeps: { maxAttempts: 2, plus: classifyAuth.plus },
+      });
+      this.lastWriteReport = report;
+
+      if (report.proposedTagsMerged.length) {
+        this.settings.proposedTags = mergeProposedTags(
+          this.settings.proposedTags,
+          report.proposedTagsMerged,
+          this.settings.activeVocabulary,
+        );
+        await this.saveSettings();
+      }
+
+      const filed = report.entries.length;
+      devLog("[atoms] plus backfill complete", {
+        since: range.since,
+        before: range.before,
+        offered: range.captures,
+        filed,
+        failed: report.failed,
+        stoppedReason: report.stoppedReason,
+      });
+      new Notice(
+        report.stoppedReason === "exhausted"
+          ? `Atoms backfill: filed ${filed} of ${range.captures} — filings ran out. It picks up here when they reset.`
+          : `Atoms backfill: filed ${filed} capture${filed === 1 ? "" : "s"} (${report.atomsCreated} atom${report.atomsCreated === 1 ? "" : "s"})`,
+      );
+      if (report.atomsCreated > 0 || report.markersAppended > 0) {
+        this.scheduleAskMirrorSync();
+      }
+      await this.refreshAtomsHomeLeaves();
+    } catch (e) {
+      devLog("[atoms] plus backfill failed", {
+        name: e instanceof Error ? e.name : "Error",
+        message: e instanceof Error ? e.message.slice(0, 200) : "unknown",
+      });
+      new Notice(
+        `Atoms: backfill failed — ${e instanceof Error ? e.message.slice(0, 100) : "error"}`,
+      );
+    } finally {
+      this.backfillInFlight = false;
+    }
+  }
+
+  /**
+   * The BYOK card's bounded range: no meter and nothing to reserve, but the same per-run cap.
+   * `"empty"` and `"over-budget"` are the two answers that have no range to submit.
+   */
+  private async deriveByokBackfillRange(): Promise<
+    RecentFirstRange | "empty" | "over-budget"
+  > {
+    const today = formatLocalDate(new Date());
+    const before = this.backfillComplementBefore(today);
+    const budget = resolveBackfillBudget({
+      period: "byok",
+      fresh: false,
+      today,
+    });
+    const range = deriveRecentFirstRange({
+      dailies: await this.backfillComplement({ before }),
+      before,
+      budget: budget.budget,
+    });
+    if (range.totalCaptures === 0) return "empty";
+    if (range.overBudget) return "over-budget";
+    return range;
+  }
+
+  /**
    * U10 — estimate (count_tokens) → confirm modal → batch submit → poll → write path.
    * No batch is submitted until the user confirms the gate.
+   *
+   * BYOK has no meter and nothing to reserve, but the **card** takes the same per-run cap as
+   * Plus: one card shape, one modal shape, one code path, and a recent-first default that stays
+   * meaningful rather than decorative. Going beyond the cap stays this same command, unbounded.
    */
-  async runBackfillFlow() {
+  private async runByokBackfillFlow(source: "card" | "command") {
     const apiKey = this.requireApiKey();
     if (!apiKey) return;
+    if (this.autoRunInFlight) {
+      new Notice("Atoms: filing already in progress");
+      return;
+    }
     if (this.backfillInFlight) {
       new Notice("Atoms: backfill already in progress");
       return;
@@ -1306,6 +1707,22 @@ export default class AtomsPlugin extends Plugin {
     new Notice("Atoms: counting tokens for backfill estimate…");
     try {
       const model = DEFAULT_BACKFILL_MODEL;
+      // The command scans all history, exactly as it did before the card existed. Only the card
+      // derives a bounded range.
+      const range =
+        source === "card" ? await this.deriveByokBackfillRange() : null;
+      if (range === "empty") {
+        new Notice("Atoms: nothing to backfill (no unmarked past captures)");
+        return;
+      }
+      if (range === "over-budget") {
+        // A single daily bigger than one run — nothing this card can submit, but not a dead
+        // end: the unbounded command still prices and submits the whole history.
+        new Notice(
+          `Atoms: the next day back is larger than one backfill run (${BACKFILL_CAP.byok} captures). Run "Backfill: estimate cost & confirm batch" for the whole history.`,
+        );
+        return;
+      }
       const prepared = await prepareBackfillEstimate({
         app: this.app,
         contextProvider: this.contextProvider,
@@ -1313,6 +1730,8 @@ export default class AtomsPlugin extends Plugin {
         model,
         atomFolder: this.settings.atomFolder,
         shortlistK: shortlistOptionsFromSettings().shortlistK,
+        since: range?.since,
+        before: range?.before,
       });
       this.lastBackfillEstimate = prepared.estimate;
 

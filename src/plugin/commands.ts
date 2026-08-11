@@ -135,7 +135,9 @@ export function registerAtomsCommands(plugin: AtomsPlugin): void {
     id: "backfill-estimate-confirm",
     name: "Backfill: estimate cost & confirm batch",
     callback: () => {
-      void plugin.runBackfillFlow();
+      // Explicit: the command is the unbounded whole-history path (KTD9). The Atoms home card
+      // passes "card" for the capped, recent-first offer.
+      void plugin.runBackfillFlow("command");
     },
   });
 
