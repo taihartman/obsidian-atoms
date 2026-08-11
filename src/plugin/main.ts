@@ -33,7 +33,9 @@ declare const ATOMS_DEV_COMMANDS: boolean;
 /** Dev diagnostics hook — no-op (Community plugin scan forbids console). */
 function devLog(..._args: unknown[]): void {
   void _args;
-  void ATOMS_DEV_COMMANDS;
+  // `typeof` guard: the define only exists inside an esbuild bundle, and a bare reference
+  // throws a ReferenceError anywhere else — including any test that reaches this file.
+  void (typeof ATOMS_DEV_COMMANDS !== "undefined" && ATOMS_DEV_COMMANDS);
 }
 import {
   classifyCapture,
@@ -102,13 +104,15 @@ import {
   canBuildContext,
   enableAutomaticFiling,
   localDateString,
+  migrateAutoFilingWindow,
   PER_LAUNCH_CAP,
+  readAutoFilingSince,
   readDeviceAutoRunState,
   readEgressPermitted,
+  runAutoFilingCycle,
   shouldRunAutoProcess,
-  shouldStampLastRunDay,
   waitForVaultIndexReady,
-  writeLastRunDay,
+  type AutoRunSource,
   type DeviceAutoRunState,
 } from "../platform/autorun";
 import {
@@ -955,6 +959,28 @@ export default class AtomsPlugin extends Plugin {
       window.setTimeout(() => this.scheduleResumeCatchUp(), 2000);
     }
 
+    // U4 / KTD5: a device that had filing on before the window existed carries no start day.
+    // Stamp it here, ahead of the first pass, so the migration owns the window start instead of
+    // the read-side fallback writing the same day with nothing recording that it happened — and
+    // flag the device, because this pauses an in-progress silent sweep and an auto-update shows
+    // no release notes to explain why.
+    //
+    // Guarded like the index wait above: the onload pass and the hourly interval are registered
+    // below it, so an unguarded throw here — a full or hostile localStorage is enough — takes
+    // filing down for the whole session with nothing said. The migration is idempotent and
+    // retries on the next launch; the session's filing does not.
+    try {
+      migrateAutoFilingWindow(
+        (k) => this.app.loadLocalStorage(k) as unknown,
+        (k, v) => this.app.saveLocalStorage(k, v),
+      );
+    } catch (e) {
+      devLog("[atoms] auto-filing window migration failed", {
+        name: e instanceof Error ? e.name : "Error",
+        message: e instanceof Error ? e.message : "unknown",
+      });
+    }
+
     // Primary: once index is ready (app open).
     void this.maybeAutoRun("onload");
 
@@ -997,19 +1023,39 @@ export default class AtomsPlugin extends Plugin {
    */
   async enableAutomaticFilingFromHome(): Promise<void> {
     const save = (k: string, v: unknown) => this.app.saveLocalStorage(k, v);
-    enableAutomaticFiling(save);
+    const load = (k: string): unknown =>
+      this.app.loadLocalStorage(k) as unknown;
+    enableAutomaticFiling(save, { load });
     new Notice("Atoms: automatic filing on for this device");
     await this.refreshAtomsHomeLeaves();
-    void this.maybeAutoRun("manual");
+    void this.runFilingAfterEnable();
+  }
+
+  /**
+   * The pass the user's own enable tap fires, shared by home's filing card and the Settings
+   * toggle so enabling from Settings is not a worse first run.
+   *
+   * It does **not** reach today's daily. The consent sheet the user accepts one second earlier
+   * promises "today's daily note is never auto-touched", so day one is deliberately silent: the
+   * window starts today and today is excluded, and the first atoms appear tomorrow. The call is
+   * still worth making — on an empty window the cycle stamps the day, which is what stops the
+   * hourly interval from rescanning the vault for the rest of the session.
+   */
+  async runFilingAfterEnable(): Promise<void> {
+    await this.maybeAutoRun("manual");
   }
 
   /**
    * Device-local auto-run gate + silent failure (R13, U9).
    * Does not invoke buildContext until vaultIndexReady.
    * Stamps last-run day only when past queue is drained (not on attempt/failure).
+   *
+   * The pass itself lives in `runAutoFilingCycle` (KTD2): it resolves the filing-window bound
+   * once and hands that same day to the count and to the write, so the two can never drift
+   * into the silent forever-rescan. This method supplies the gate, the write, and the UI.
    */
   async maybeAutoRun(
-    source: "onload" | "interval" | "manual" | "resume",
+    source: AutoRunSource,
     catchUp?: { bypassEnabled?: boolean; silentHome?: boolean },
   ): Promise<{
     ran: boolean;
@@ -1025,104 +1071,138 @@ export default class AtomsPlugin extends Plugin {
       return { ran: false, reason: "cache_not_ready" };
     }
 
-    const pastRemaining = await this.countPastUnprocessed();
-
-    // Catch-up manual: bypass auto-run enable (KTD11). Still need privacy ack
-    // (auto-run egress) OR catch-up egress notice is gated earlier in decideResumeStages.
-    const enabled =
-      catchUp?.bypassEnabled === true ? true : state.enabled;
-    // For catch-up filing, egress notice already gated; treat auto-run ack OR
-    // catch-up notice as sufficient privacy for the paid path.
-    const egressOk = readEgressPermitted(load, { catchUp: catchUp != null });
-
-    if (
-      !shouldRunAutoProcess({
-        enabled,
-        lastRunDay:
-          catchUp?.bypassEnabled === true ? null : state.lastRunDay,
-        today,
-        egressAcked: egressOk,
-        pastUnprocessedRemaining: pastRemaining,
-      })
-    ) {
-      return {
-        ran: false,
-        reason: !enabled
-          ? "disabled"
-          : !egressOk
-            ? "no_egress_ack"
-            : pastRemaining > 0
-              ? "blocked"
-              : "same_day",
-      };
+    // Same verdict the gate reaches, taken before the claim and before the count.
+    //
+    // Disabling preserves the start day (KTD6), so a device with filing off still resolves a real
+    // window — and the cycle used to claim the in-flight slot and scan all of it every hour only
+    // to be refused for being disabled. Two costs: pointless hourly vault reads, and a lock held
+    // across a long count that a concurrent catch-up or the user's own enable tap then loses to.
+    // `bypassEnabled` is the manual catch-up, which files with the toggle off by design (KTD11).
+    if (catchUp?.bypassEnabled !== true && !state.enabled) {
+      return { ran: false, reason: "disabled" };
     }
 
-    if (this.autoRunInFlight) {
-      return { ran: false, reason: "in_flight" };
-    }
+    let auth: Extract<
+      ReturnType<typeof resolveClassifyAuth>,
+      { ok: true }
+    > | null = null;
+    // Boxed so the log after the cycle still sees the report the write callback set.
+    const written: { report: WritePathReport | null } = { report: null };
 
-    const filing = this.resolveFilingAuth();
-    const classifyAuth = resolveClassifyAuth(filing, {
-      plusBaseUrl: this.settings.plusBaseUrl,
-    });
-    if (!classifyAuth.ok) {
-      // Silent for auto path — manual commands still Notice. Do not stamp.
-      devLog("[atoms] auto-run skipped: no filing auth", classifyAuth.reason);
-      return { ran: false, reason: "missing_key" };
-    }
+    const outcome = await runAutoFilingCycle({
+      load,
+      save,
+      today,
+      count: (since, fallback) =>
+        // Same bound as the write (KTD2), and past-only like it: both sides of the cycle read
+        // exactly the same set of captures, so the recount can reach zero and stamp the day.
+        this.countPastUnprocessed({ since, fallback }),
+      gate: (pastRemaining) => {
+        // Catch-up manual: bypass auto-run enable (KTD11). Still need privacy ack
+        // (auto-run egress) OR catch-up egress notice is gated earlier in decideResumeStages.
+        const enabled =
+          catchUp?.bypassEnabled === true ? true : state.enabled;
+        // For catch-up filing, egress notice already gated; treat auto-run ack OR
+        // catch-up notice as sufficient privacy for the paid path.
+        const egressOk = readEgressPermitted(load, { catchUp: catchUp != null });
 
-    // Nothing to do — stamp day so hourly interval does not re-scan forever.
-    if (pastRemaining === 0) {
-      writeLastRunDay(save, today);
-      devLog("[atoms] auto-run empty success", { source });
-      return { ran: true, reason: "empty" };
-    }
+        if (
+          !shouldRunAutoProcess({
+            enabled,
+            lastRunDay:
+              catchUp?.bypassEnabled === true ? null : state.lastRunDay,
+            today,
+            egressAcked: egressOk,
+            pastUnprocessedRemaining: pastRemaining,
+          })
+        ) {
+          return {
+            ok: false,
+            reason: !enabled
+              ? "disabled"
+              : !egressOk
+                ? "no_egress_ack"
+                : pastRemaining > 0
+                  ? "blocked"
+                  : "same_day",
+          };
+        }
 
-    this.autoRunInFlight = true;
-    this.filingStartedAt = Date.now();
-    try {
-      const report = await runWritePath({
-        app: this.app,
-        contextProvider: this.contextProvider,
-        apiKey: classifyAuth.apiKey,
-        model: this.settings.model,
-        activeVocabulary: this.settings.activeVocabulary,
-        atomFolder: this.settings.atomFolder,
-        ...shortlistOptionsFromSettings(),
-        maxCaptures: PER_LAUNCH_CAP,
-        enableHubProjection: this.settings.enableHubProjection === true,
-        // never includeToday on auto-run
-        classifyDeps: {
-          maxAttempts: 2,
-          plus: classifyAuth.plus,
-          // Auto-run: no auth spam Notices every hour — log only.
-          onAuthFailure: (msg) => {
-            devLog("[atoms] auto-run auth failure", msg);
+        const filing = this.resolveFilingAuth();
+        const classifyAuth = resolveClassifyAuth(filing, {
+          plusBaseUrl: this.settings.plusBaseUrl,
+        });
+        if (!classifyAuth.ok) {
+          // Silent for auto path — manual commands still Notice. Do not stamp.
+          devLog("[atoms] auto-run skipped: no filing auth", classifyAuth.reason);
+          return { ok: false, reason: "missing_key" };
+        }
+        auth = classifyAuth;
+        return { ok: true };
+      },
+      // The in-flight check and set are one synchronous step here, and the cycle runs it before
+      // its first await — onload, the hourly interval, the manual path and the commands can all
+      // land in the same tick, and a check the gate made across an await would let two of them
+      // through into a paid write pass. The cycle reports the refusal as reason "in_flight".
+      beginWork: () => {
+        if (this.autoRunInFlight) return false;
+        this.autoRunInFlight = true;
+        return true;
+      },
+      endWork: () => {
+        this.autoRunInFlight = false;
+        this.filingStartedAt = null;
+      },
+      file: async (since) => {
+        // Marked here, not in `beginWork`: the claim has to happen before the cycle's first
+        // await, but the claim is not a filing pass — a run refused by the gate would otherwise
+        // report itself as filing to `decideResumeStages` and home's filing card. `endWork`
+        // clears it on every exit after the claim, this one included.
+        this.filingStartedAt = Date.now();
+        // The gate above is the only way here, and it always sets auth.
+        const resolved = auth;
+        if (!resolved) throw new Error("auto-run: filing auth unresolved");
+        const report = await runWritePath({
+          app: this.app,
+          contextProvider: this.contextProvider,
+          apiKey: resolved.apiKey,
+          model: this.settings.model,
+          activeVocabulary: this.settings.activeVocabulary,
+          atomFolder: this.settings.atomFolder,
+          ...shortlistOptionsFromSettings(),
+          maxCaptures: PER_LAUNCH_CAP,
+          enableHubProjection: this.settings.enableHubProjection === true,
+          // Never today, from any source — onload, the hourly interval, resume, the manual
+          // catch-up, and the enable tap all land here. The egress disclosure the user accepts
+          // says "today's daily note is never auto-touched"; written as a literal so no caller
+          // can thread a different value in. Explicit force lives on the attended commands.
+          includeToday: false,
+          since,
+          classifyDeps: {
+            maxAttempts: 2,
+            plus: resolved.plus,
+            // Auto-run: no auth spam Notices every hour — log only.
+            onAuthFailure: (msg) => {
+              devLog("[atoms] auto-run auth failure", msg);
+            },
           },
-        },
-      });
-      this.lastWriteReport = report;
+        });
+        written.report = report;
+        this.lastWriteReport = report;
 
-      if (report.proposedTagsMerged.length) {
-        this.settings.proposedTags = mergeProposedTags(
-          this.settings.proposedTags,
-          report.proposedTagsMerged,
-          this.settings.activeVocabulary,
-        );
-        await this.saveSettings();
-      }
-
-      const pastAfter = await this.countPastUnprocessed(
-        Math.max(0, pastRemaining - report.markersAppended),
-      );
-      const stamped = shouldStampLastRunDay({
-        threw: false,
-        pastRemainingAfter: pastAfter,
-      });
-      if (stamped) writeLastRunDay(save, today);
-
-      const filed = report.markersAppended;
-      if (filed > 0) {
+        if (report.proposedTagsMerged.length) {
+          this.settings.proposedTags = mergeProposedTags(
+            this.settings.proposedTags,
+            report.proposedTagsMerged,
+            this.settings.activeVocabulary,
+          );
+          await this.saveSettings();
+        }
+        return { markersAppended: report.markersAppended };
+      },
+      onFiled: async (filed) => {
+        const report = written.report;
+        if (filed <= 0 || !report) return;
         // Resume path stays silent (R5); no land-peak fanfare either.
         if (source !== "resume" && !catchUp?.silentHome) {
           new Notice(
@@ -1138,38 +1218,51 @@ export default class AtomsPlugin extends Plugin {
         } else {
           await this.refreshAtomsHomeLeaves();
         }
-      }
+      },
+      onError: (e) => {
+        // Never crash launch; never stamp on throw (retry same day).
+        devLog("[atoms] auto-run error", {
+          name: e instanceof Error ? e.name : "Error",
+          message: e instanceof Error ? e.message : "unknown",
+        });
+      },
+    });
+
+    if (outcome.reason === "empty") {
+      devLog("[atoms] auto-run empty success", { source, since: outcome.since });
+    } else if (outcome.reason === "ok") {
       // Offline / all-failed without stamp: silent; retry same day on next open.
       devLog("[atoms] auto-run complete", {
         source,
-        filed,
-        atoms: report.atomsCreated,
-        failed: report.failed,
-        scanned: report.scanned,
-        pastAfter,
-        stamped,
+        since: outcome.since,
+        filed: outcome.filed,
+        atoms: written.report?.atomsCreated ?? 0,
+        failed: written.report?.failed ?? 0,
+        scanned: written.report?.scanned ?? 0,
+        pastAfter: outcome.pastRemainingAfter,
+        stamped: outcome.stamped,
       });
-      return { ran: true, reason: "ok" };
-    } catch (e) {
-      // Never crash launch; never stamp on throw (retry same day).
-      devLog("[atoms] auto-run error", {
-        name: e instanceof Error ? e.name : "Error",
-        message: e instanceof Error ? e.message : "unknown",
-      });
-      return { ran: false, reason: "error" };
-    } finally {
-      this.autoRunInFlight = false;
-      this.filingStartedAt = null;
     }
+    return { ran: outcome.ran, reason: outcome.reason };
   }
 
-  /** Past-only unmarked count; on list failure use fallback (default 0). */
-  private async countPastUnprocessed(fallback = 0): Promise<number> {
+  /**
+   * Past-only unmarked count; on list failure use `fallback` (default 0).
+   *
+   * Options object on purpose: the bound and the fallback are both scalars, and the previous
+   * positional `fallback` sat at exactly the index a new leading `since` would have taken —
+   * a silent swap that would have made the recount count history (KTD2).
+   */
+  private async countPastUnprocessed(
+    opts: { since?: string; fallback?: number } = {},
+  ): Promise<number> {
     try {
-      const listed = await getPastDailyNotesWithUnmarkedCaptures(this.app);
+      const listed = await getPastDailyNotesWithUnmarkedCaptures(this.app, {
+        since: opts.since,
+      });
       return listed.totalUnprocessed;
     } catch {
-      return fallback;
+      return opts.fallback ?? 0;
     }
   }
 
@@ -1401,7 +1494,16 @@ export default class AtomsPlugin extends Plugin {
   async showAutoRunStatus() {
     const snap = this.getAutoRunSnapshot();
     const today = localDateString();
-    const pastRemaining = await this.countPastUnprocessed();
+    // The same bound the next unattended pass will resolve. Unbounded here would report work
+    // remaining on a drained window and `wouldRunNow: true` on a day already stamped — and this
+    // command is what the CLI smoke reads as evidence, so that number would be read as a defect.
+    // Read-only: a diagnostic must not mint the window start, which would also rob
+    // `migrateAutoFilingWindow` of the stamp its flag depends on.
+    const since = readAutoFilingSince(
+      (k) => this.app.loadLocalStorage(k) as unknown,
+      today,
+    );
+    const pastRemaining = await this.countPastUnprocessed({ since });
     const would = shouldRunAutoProcess({
       enabled: snap.enabled,
       lastRunDay: snap.lastRunDay,
@@ -1412,6 +1514,7 @@ export default class AtomsPlugin extends Plugin {
     const payload = {
       ...snap,
       today,
+      filingSince: since,
       vaultIndexReady: this.vaultIndexReady,
       pastRemaining,
       wouldRunNow: would,
@@ -2126,6 +2229,9 @@ export default class AtomsPlugin extends Plugin {
 
   async runListUnprocessed() {
     try {
+      // Deliberately unbounded, unlike every filing surface: this is the diagnostic that
+      // answers "what is actually unmarked in this vault", including everything outside the
+      // filing window. Bounding it would hide exactly what someone runs it to see.
       const { notes, totalUnprocessed } =
         await getPastDailyNotesWithUnmarkedCaptures(this.app);
       devLog("[atoms] unprocessed captures", {

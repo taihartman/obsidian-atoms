@@ -169,3 +169,123 @@ describe("collectPastNotesWithUnmarkedCaptures — AE4 today excluded", () => {
     expect(isEmptyCaptureText("  ")).toBe(true);
   });
 });
+
+describe("collectPastNotesWithUnmarkedCaptures — filing window (KTD2/KTD3)", () => {
+  // Every bound is a lexical string compare on YYYY-MM-DD — never Date math.
+  const fixtures = [
+    { path: "2026-08-01.md", date: "2026-08-01", content: "- aug one\n" },
+    { path: "2026-08-03.md", date: "2026-08-03", content: "- aug three\n" },
+    { path: "2026-08-05.md", date: "2026-08-05", content: "- aug five\n" },
+    { path: "2026-08-07.md", date: "2026-08-07", content: "- aug seven\n" },
+  ];
+  const today = "2026-08-10";
+
+  it("no bounds is unchanged: every past day is returned", () => {
+    const notes = collectPastNotesWithUnmarkedCaptures(fixtures, today);
+    expect(notes.map((n) => n.date)).toEqual([
+      "2026-08-01",
+      "2026-08-03",
+      "2026-08-05",
+      "2026-08-07",
+    ]);
+  });
+
+  it("since drops pre-window days", () => {
+    const notes = collectPastNotesWithUnmarkedCaptures(fixtures, today, {
+      since: "2026-08-04",
+    });
+    expect(notes.map((n) => n.date)).toEqual(["2026-08-05", "2026-08-07"]);
+  });
+
+  it("since includes the boundary day itself (>=, not >)", () => {
+    const notes = collectPastNotesWithUnmarkedCaptures(fixtures, today, {
+      since: "2026-08-05",
+    });
+    expect(notes.map((n) => n.date)).toEqual(["2026-08-05", "2026-08-07"]);
+  });
+
+  it("before excludes the boundary day (<, not <=)", () => {
+    const notes = collectPastNotesWithUnmarkedCaptures(fixtures, today, {
+      before: "2026-08-05",
+    });
+    expect(notes.map((n) => n.date)).toEqual(["2026-08-01", "2026-08-03"]);
+  });
+
+  it("since and before compose into a half-open window", () => {
+    const notes = collectPastNotesWithUnmarkedCaptures(fixtures, today, {
+      since: "2026-08-03",
+      before: "2026-08-07",
+    });
+    expect(notes.map((n) => n.date)).toEqual(["2026-08-03", "2026-08-05"]);
+  });
+
+  it("since and its complement before partition the past exactly once", () => {
+    const start = "2026-08-05";
+    const inWindow = collectPastNotesWithUnmarkedCaptures(fixtures, today, {
+      since: start,
+    }).map((n) => n.date);
+    const complement = collectPastNotesWithUnmarkedCaptures(fixtures, today, {
+      before: start,
+    }).map((n) => n.date);
+    expect([...complement, ...inWindow].sort()).toEqual(
+      collectPastNotesWithUnmarkedCaptures(fixtures, today).map((n) => n.date),
+    );
+    expect(complement.filter((d) => inWindow.includes(d))).toEqual([]);
+  });
+
+  it("the window still never reaches today unless includeToday says so", () => {
+    const withToday = [
+      ...fixtures,
+      { path: "2026-08-10.md", date: today, content: "- today\n" },
+    ];
+    expect(
+      collectPastNotesWithUnmarkedCaptures(withToday, today, {
+        since: "2026-08-05",
+      }).map((n) => n.date),
+    ).toEqual(["2026-08-05", "2026-08-07"]);
+    expect(
+      collectPastNotesWithUnmarkedCaptures(withToday, today, {
+        since: "2026-08-05",
+        includeToday: true,
+      }).map((n) => n.date),
+    ).toEqual(["2026-08-05", "2026-08-07", "2026-08-10"]);
+  });
+
+  // Fail-closed means an unusable bound is never allowed to read as "no bound". `""` is the
+  // dangerous one: `date < ""` is false for every note, so a truthiness check quietly turns an
+  // empty window start into a full-history sweep — the exact thing the window exists to end.
+  // A bound that is present but not a day is a caller bug, so it is rejected loudly rather
+  // than degraded into a silent empty result that is indistinguishable from a drained window.
+  it("rejects a present-but-unusable bound instead of treating it as unbounded", () => {
+    const bad = ["", "   ", "2026-8-1", "20260801", "yesterday", "2026-08-01T00:00:00"];
+    for (const v of bad) {
+      expect(() =>
+        collectPastNotesWithUnmarkedCaptures(fixtures, today, { since: v }),
+      ).toThrow(/since/);
+      expect(() =>
+        collectPastNotesWithUnmarkedCaptures(fixtures, today, { before: v }),
+      ).toThrow(/before/);
+    }
+  });
+
+  it("absent bounds are still absent, not rejected", () => {
+    expect(
+      collectPastNotesWithUnmarkedCaptures(fixtures, today, {
+        since: undefined,
+        before: undefined,
+      }).map((n) => n.date),
+    ).toEqual(["2026-08-01", "2026-08-03", "2026-08-05", "2026-08-07"]);
+  });
+
+  it("bounds compare lexically across a month boundary", () => {
+    const spanning = [
+      { path: "a.md", date: "2026-07-31", content: "- jul\n" },
+      { path: "b.md", date: "2026-08-01", content: "- aug\n" },
+    ];
+    expect(
+      collectPastNotesWithUnmarkedCaptures(spanning, today, {
+        since: "2026-08-01",
+      }).map((n) => n.date),
+    ).toEqual(["2026-08-01"]);
+  });
+});

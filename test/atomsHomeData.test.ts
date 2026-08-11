@@ -10,6 +10,7 @@ import {
   extractSourceDay,
   atomsPlusOfferCopy,
   atomsPlusTopUpCopy,
+  countUnprocessedSince,
   filingHeroCopy,
   filingPathFromAuth,
   filterLinkedOnly,
@@ -28,6 +29,7 @@ import {
   titleFromAtomPath,
   updateNotesConfirmCopy,
   updateNotesStripCopy,
+  waitingSubtitle,
 } from "../src/home/atomsHomeData";
 import { inboxCounts } from "../src/pipeline/inbox";
 import { shouldShowBookmarkSetupNotice } from "../src/plugin/inboxBootstrap";
@@ -382,6 +384,24 @@ describe("filingHeroCopy", () => {
     expect(c?.secondaryAction).toBe("process");
   });
 
+  it("enable_auto never promises the waiting captures will file on their own", () => {
+    // The vault QA saw: 56 past captures, none of which enabling can ever reach,
+    // because the window it creates starts today.
+    const c = filingHeroCopy({
+      pastUnprocessed: 56,
+      windowUnprocessed: 0,
+      hasKey: true,
+      autoEnabled: false,
+      egressAcked: true,
+    });
+    expect(c?.mode).toBe("enable_auto");
+    expect(c?.title).toBe("56 Captures Waiting");
+    expect(c?.body.toLowerCase()).not.toMatch(/past days file/);
+    expect(c?.body.toLowerCase()).not.toMatch(/when you open obsidian/);
+    // What is already waiting is Process work, and the copy has to say so.
+    expect(c?.body).toMatch(/Process/);
+  });
+
   it("auto_on when automatic filing on — not Process-only homework", () => {
     const c = filingHeroCopy({
       pastUnprocessed: 4,
@@ -392,6 +412,95 @@ describe("filingHeroCopy", () => {
     expect(c?.mode).toBe("auto_on");
     expect(c?.body.toLowerCase()).toMatch(/automatic filing/);
     expect(c?.eyebrow).toBe("Automatic");
+  });
+
+  it("auto_on counts the filing window, not all history", () => {
+    const c = filingHeroCopy({
+      pastUnprocessed: 9,
+      windowUnprocessed: 2,
+      hasKey: true,
+      autoEnabled: true,
+      egressAcked: true,
+    });
+    expect(c?.mode).toBe("auto_on");
+    expect(c?.title).toBe("2 Captures Waiting");
+    expect(c?.body.toLowerCase()).toMatch(/automatic filing/);
+  });
+
+  it("automatic filing on but nothing in the window — no promise it cannot keep", () => {
+    const c = filingHeroCopy({
+      pastUnprocessed: 9,
+      windowUnprocessed: 0,
+      hasKey: true,
+      autoEnabled: true,
+      egressAcked: true,
+    });
+    expect(c?.title).toBe("9 Captures Waiting");
+    expect(c?.body.toLowerCase()).not.toMatch(/automatic filing/);
+    expect(c?.body.toLowerCase()).not.toMatch(/file when you open/);
+    expect(c?.primaryAction).toBe("process");
+  });
+});
+
+describe("countUnprocessedSince", () => {
+  const notes = [
+    { date: "2026-08-01", unprocessed: [1, 2, 3] },
+    { date: "2026-08-05", unprocessed: [1] },
+    { date: "2026-08-07", unprocessed: [1, 2] },
+  ];
+
+  it("counts only days inside the window, boundary day included", () => {
+    expect(countUnprocessedSince(notes, "2026-08-05")).toBe(3);
+  });
+
+  it("pre-window captures alone count zero", () => {
+    expect(countUnprocessedSince(notes, "2026-08-10")).toBe(0);
+  });
+
+  it("a window older than every daily counts them all", () => {
+    expect(countUnprocessedSince(notes, "2026-07-01")).toBe(6);
+  });
+});
+
+describe("waitingSubtitle", () => {
+  it("promises automatic filing for the window count only", () => {
+    expect(
+      waitingSubtitle({
+        pastUnprocessed: 9,
+        windowUnprocessed: 2,
+        automaticFilingReady: true,
+      }),
+    ).toBe("2 past thoughts will file automatically");
+  });
+
+  it("pre-window captures alone never claim automatic filing", () => {
+    expect(
+      waitingSubtitle({
+        pastUnprocessed: 9,
+        windowUnprocessed: 0,
+        automaticFilingReady: true,
+      }),
+    ).toBe("9 thoughts ready to file");
+  });
+
+  it("automatic filing off reports what Process would file", () => {
+    expect(
+      waitingSubtitle({
+        pastUnprocessed: 1,
+        windowUnprocessed: 1,
+        automaticFilingReady: false,
+      }),
+    ).toBe("1 thought ready to file");
+  });
+
+  it("singular window copy", () => {
+    expect(
+      waitingSubtitle({
+        pastUnprocessed: 4,
+        windowUnprocessed: 1,
+        automaticFilingReady: true,
+      }),
+    ).toBe("1 past thought will file automatically");
   });
 });
 

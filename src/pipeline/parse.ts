@@ -126,21 +126,58 @@ export function unprocessedCaptures(captures: Capture[]): Capture[] {
   return captures.filter((c) => !c.processed && !isEmptyCaptureText(c.text));
 }
 
+/** The only shape a window bound may take — every comparison against it is a string compare. */
+const DAY_BOUND_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * A window bound is either absent or a day — never "present but unusable".
+ *
+ * The truthiness check this replaces read `""` as "no bound", and for `since` that is not a
+ * harmless no-op: `note.date < ""` is false for every note, so an empty start silently widened
+ * the window to all of history — the one failure this file promises cannot happen. Rejecting is
+ * chosen over degrading to an empty result because the only producers are the resolver (which
+ * guarantees a day) and future migration code, so a bad bound is a caller bug; a silent empty
+ * scan would be indistinguishable from a drained window, while a throw on the unattended path
+ * is caught by `runAutoFilingCycle`, logged, and leaves the day unstamped to retry.
+ */
+function checkDayBound(name: "since" | "before", v: string | undefined): void {
+  if (v === undefined) return;
+  if (!DAY_BOUND_RE.test(v)) {
+    throw new TypeError(
+      `collectPastNotesWithUnmarkedCaptures: ${name} must be YYYY-MM-DD, got ${JSON.stringify(v)}`,
+    );
+  }
+}
+
 /**
  * Pure helper: notes with unmarked captures.
  * Default past-only (date < today). includeToday also keeps date === today.
  * Future days always excluded.
+ *
+ * `since` / `before` bound the scan to a half-open day range — `since <= date < before` —
+ * so the filing window (KTD2) and its backfill complement (KTD3) are the same filter read
+ * from opposite ends and can never overlap or leave a gap. Both are `YYYY-MM-DD` and are
+ * compared **lexically**: no Date parsing, so no timezone or DST hazard on a bound that
+ * lives in localStorage. All three bounds live here so no caller can honor one and miss
+ * another.
  */
 export function collectPastNotesWithUnmarkedCaptures(
   notes: Array<{ path: string; date: string; content: string }>,
   today: string,
-  opts?: { includeToday?: boolean },
+  opts?: { includeToday?: boolean; since?: string; before?: string },
 ): DailyNoteWithCaptures[] {
   const includeToday = opts?.includeToday === true;
+  const since = opts?.since;
+  const before = opts?.before;
+  checkDayBound("since", since);
+  checkDayBound("before", before);
   const out: DailyNoteWithCaptures[] = [];
   for (const note of notes) {
     if (note.date > today) continue;
     if (!includeToday && note.date >= today) continue; // past-only default (R1 / AE4)
+    // `!== undefined`, never truthiness: a bound that exists is always applied (checked above).
+    if (since !== undefined && note.date < since) continue; // start is inclusive
+    if (before !== undefined && note.date >= before) continue; // end is exclusive
     const captures = parseCaptures(note.content);
     const unprocessed = unprocessedCaptures(captures);
     if (unprocessed.length === 0) continue;

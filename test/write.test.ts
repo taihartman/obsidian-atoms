@@ -179,3 +179,37 @@ describe("runWritePath — behaviour outside context selection (R9)", () => {
     expect(ran.atomsCreated).toBe(1);
   });
 });
+
+describe("runWritePath — filing window (KTD2)", () => {
+  it("files inside the window and leaves pre-window dailies byte-identical", async () => {
+    const preWindow = "- an old thought from before the window\n";
+    const inWindow = "- a thought from inside the window\n";
+    const v = fakeVault({
+      "Daily/2026-07-01.md": preWindow,
+      "Daily/2026-08-06.md": inWindow,
+    });
+    stubDailyNotes([
+      { path: "Daily/2026-07-01.md", date: "2026-07-01" },
+      { path: "Daily/2026-08-06.md", date: "2026-08-06" },
+    ]);
+    const classify = fakeClassify([atomResult("A thought inside the window")]);
+
+    const report = await runWritePath({
+      app: v.app,
+      contextProvider: provider(v.app),
+      apiKey: "k",
+      model: "claude-sonnet-5",
+      activeVocabulary: ["idea"],
+      atomFolder: "Atoms",
+      since: "2026-08-01",
+      classifyDeps: { request: classify.request as never },
+    });
+
+    expect(report.scanned).toBe(1);
+    expect(report.markersAppended).toBe(1);
+    // The pre-window daily was never read to the model and never written to.
+    expect(classify.contextBlocks).toHaveLength(1);
+    expect(v.read("Daily/2026-07-01.md")).toBe(preWindow);
+    expect(v.read("Daily/2026-08-06.md")).toContain("<!--linker-->");
+  });
+});
