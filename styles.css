@@ -2102,3 +2102,26 @@
   font-size: var(--font-ui-smaller);
   margin: 4px 0 0;
 }
+
+/* Backfill confirm: the aftermath of confirming, lifted out of the flat body list. */
+.atoms-backfill-aftermath {
+  border-left: 3px solid var(--interactive-accent);
+  background: var(--background-secondary);
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin: 12px 0;
+}
+.atoms-backfill-aftermath h3 {
+  margin: 0 0 6px;
+  font-size: var(--font-ui-small);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+.atoms-backfill-aftermath p {
+  margin: 0 0 6px;
+  font-size: var(--font-ui-small);
+}
+.atoms-backfill-aftermath p:last-child {
+  margin-bottom: 0;
+}
