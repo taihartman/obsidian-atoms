@@ -559,6 +559,18 @@ describe("filingHeroCopy on an ended period (#442)", () => {
     expect(hero?.body).not.toMatch(/billing date|allotment/i);
   });
 
+  it("counts the captures in prose, not as a card title", () => {
+    // The title-cased label is for titles. Borrowed into a sentence it read
+    // "3 Captures Waiting — filing is paused", a proper noun opening a clause.
+    expect(filingHeroCopy({ ...base, plusLapseKind: "trial" })?.body).toMatch(
+      /^3 captures waiting — /,
+    );
+    expect(
+      filingHeroCopy({ ...base, pastUnprocessed: 1, plusLapseKind: "trial" })
+        ?.body,
+    ).toMatch(/^1 capture waiting — /);
+  });
+
   it("has no Not Now, because waiting does not fix an ended period", () => {
     const hero = filingHeroCopy({
       ...base,

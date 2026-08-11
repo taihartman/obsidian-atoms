@@ -723,7 +723,7 @@ export function filingHeroCopy(input: {
       mode: "plus_limit",
       eyebrow: "Atoms Plus",
       title: `Your ${what} has ended`,
-      body: `${countLabel} — filing is paused, and Claude and ChatGPT can’t reach your atoms. Subscribe to pick up where you left off.`,
+      body: `${capturesWaitingSentence(n)} — filing is paused, and Claude and ChatGPT can’t reach your atoms. Subscribe to pick up where you left off.`,
       primaryLabel: "Subscribe",
       primaryAction: "subscribe",
       secondaryLabel: null,
@@ -828,6 +828,15 @@ export function filingHeroCopy(input: {
 
 function capturesWaitingLabel(n: number): string {
   return n === 1 ? "1 Capture Waiting" : `${n} Captures Waiting`;
+}
+
+/**
+ * The same count as prose. {@link capturesWaitingLabel} is title-cased because every other
+ * caller uses it as a card *title*; borrowed into a sentence it reads "33 Captures Waiting —
+ * filing is paused", a proper noun where a clause belongs.
+ */
+function capturesWaitingSentence(n: number): string {
+  return n === 1 ? "1 capture waiting" : `${n} captures waiting`;
 }
 
 /**

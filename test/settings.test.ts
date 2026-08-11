@@ -492,10 +492,14 @@ describe("account row", () => {
     expect(rowNames(tab)).toEqual([
       "Account",
       "Skip the API key",
-      "Email",
       // Renamed by #240: the emailed link now signs *this* device in, so "another device" is the
       // paste fallback's job rather than this row's.
+      //
+      // Signing in leads: most people who reach this screen already have an account (a second
+      // device, or a lapsed session) and the trial row below asks for a card, so leading with
+      // the trial charged the wrong question to the larger group.
       "Sign in with a link",
+      "Email",
       "Advanced: paste session",
     ]);
     expect(buttonLabels(tab, "Email")).toEqual(["Start free trial"]);
@@ -2373,6 +2377,16 @@ describe("signed-out Plus panel copy (R15, AE11)", () => {
     const stale = pendingSeed(Date.now() - 3 * 24 * 60 * 60 * 1000);
     const desc = descAfter(renderSignedOutPanel(fakeLocalApp(stale)), SIGN_IN_ROW);
     expect(desc).not.toMatch(/open it in the email on this device/i);
+  });
+
+  it("puts signing in ahead of starting a trial", () => {
+    // Most people reaching the signed-out screen already have an account — a second device, or
+    // a lapsed session — and the trial row asks for a card. Leading with the trial charged the
+    // wrong question to the larger group.
+    const ui = renderSignedOutPanel(fakeLocalApp());
+    expect(ui.strings.indexOf("Email")).toBeGreaterThan(
+      ui.strings.indexOf(SIGN_IN_ROW),
+    );
   });
 
   it("keeps the paste field below the link row, as the different-device fallback (AE9, R10)", () => {

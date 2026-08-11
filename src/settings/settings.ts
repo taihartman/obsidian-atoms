@@ -1432,17 +1432,9 @@ export class AtomsSettingTab extends PluginSettingTab {
       },
     });
 
-    this.formRow(containerEl, {
-      name: "Email",
-      desc: "Start a free trial (card required). Checkout opens in your browser — then return to Obsidian.",
-      placeholder: "you@example.com",
-      submit: {
-        action: "plus:start-trial",
-        label: "Start free trial",
-        onSubmit: (email) => this.startTrial(email),
-      },
-    });
-
+    // Sign-in leads. Most people reaching this screen already have an account — a returning
+    // user on a second device, or one whose session lapsed — and the trial row asks for a card,
+    // so leading with it charged the wrong question to the larger group.
     this.formRow(containerEl, {
       name: "Sign in with a link",
       desc: this.signInLinkDesc(),
@@ -1451,6 +1443,17 @@ export class AtomsSettingTab extends PluginSettingTab {
         action: "plus:magic-link",
         label: "Send sign-in link",
         onSubmit: (email) => this.requestSignInLink(email),
+      },
+    });
+
+    this.formRow(containerEl, {
+      name: "Email",
+      desc: "Start a free trial (card required). Checkout opens in your browser — then return to Obsidian.",
+      placeholder: "you@example.com",
+      submit: {
+        action: "plus:start-trial",
+        label: "Start free trial",
+        onSubmit: (email) => this.startTrial(email),
       },
     });
 
@@ -1497,7 +1500,7 @@ export class AtomsSettingTab extends PluginSettingTab {
       if (!started.ok) {
         if ("needsMagicLink" in started && started.needsMagicLink) {
           new Notice(
-            "This email already has Plus — send a sign-in link below.",
+            "This email already has Plus — send a sign-in link above.",
             8000,
           );
           return;

@@ -203,8 +203,13 @@ const BACKFILL_TOPUP_ROUNDS = 3;
 /** Meter polls after top-up checkout opens, and the gap between them. */
 const BACKFILL_TOPUP_POLL = { attempts: 24, intervalMs: 5000 } as const;
 
+/** How long one auth failure stays quiet after announcing itself. */
+const AUTH_NOTICE_QUIET_MS = 15_000;
+
 export default class AtomsPlugin extends Plugin {
   settings!: LinkerSettings;
+  /** Last auth-failure Notice, so a batch does not repeat it once per capture. */
+  private lastAuthNotice: { message: string; at: number } | null = null;
   /**
    * The settings tab while it is on screen, so `onExternalSettingsChange` can re-render what a
    * remote withdrawal just invalidated (#323). The tab registers and clears itself, so this is
@@ -635,7 +640,7 @@ export default class AtomsPlugin extends Plugin {
         classifyDeps: {
           maxAttempts: 2,
           plus: plusDeps,
-          onAuthFailure: (msg) => new Notice(`Atoms: ${msg}`),
+          onAuthFailure: (msg) => this.noticeAuthFailureOnce(msg),
         },
         onProgress: (done, total, meta) => {
           this.updateHomeProgress(done, total, meta?.captureText);
@@ -2418,6 +2423,30 @@ export default class AtomsPlugin extends Plugin {
     }
   }
 
+  /**
+   * The auth-failure Notice, once per burst rather than once per capture.
+   *
+   * `onAuthFailure` fires inside the classify loop (`pipeline/classify.ts`), so a single
+   * rejected session announced itself once for *every* capture in the run — fifteen identical
+   * Notices stacking down the edge of the window on a fifteen-capture preview, before the
+   * summary that actually said what happened. The message is about the session, not the
+   * capture, so repeating it per item told the user nothing new fourteen more times.
+   *
+   * Deduped by message rather than by run: every path that classifies a batch shares this
+   * helper, and a run boundary is not visible from here. The window extends while the same
+   * failure keeps arriving, so one burst speaks once however long it runs; a *different*
+   * failure still speaks immediately, and the same one speaks again after the quiet passes.
+   */
+  private noticeAuthFailureOnce(message: string): void {
+    const now = Date.now();
+    const recent =
+      this.lastAuthNotice?.message === message &&
+      now - this.lastAuthNotice.at < AUTH_NOTICE_QUIET_MS;
+    this.lastAuthNotice = { message, at: now };
+    if (recent) return;
+    new Notice(`Atoms: ${message}`);
+  }
+
   private requireApiKey(): string | null {
     const apiKey = this.getApiKey();
     if (!apiKey) {
@@ -2522,7 +2551,7 @@ export default class AtomsPlugin extends Plugin {
         classifyDeps: {
           maxAttempts: 2,
           plus: classifyAuth.plus,
-          onAuthFailure: (msg) => new Notice(`Atoms: ${msg}`),
+          onAuthFailure: (msg) => this.noticeAuthFailureOnce(msg),
         },
         onProgress: (done, total, meta) => {
           this.updateHomeProgress(done, total, meta?.captureText);
@@ -2711,7 +2740,7 @@ export default class AtomsPlugin extends Plugin {
           // Fail fast on network blips during preview (still retries once).
           maxAttempts: 2,
           plus: classifyAuth.plus,
-          onAuthFailure: (msg) => new Notice(`Atoms: ${msg}`),
+          onAuthFailure: (msg) => this.noticeAuthFailureOnce(msg),
         },
         onProgress: (done, total, meta) => {
           this.updateHomeProgress(done, total, meta?.captureText);
@@ -2828,7 +2857,7 @@ export default class AtomsPlugin extends Plugin {
         apiKey,
         model: this.settings.model,
         activeVocabulary: this.settings.activeVocabulary,
-        onAuthFailure: (msg) => new Notice(`Atoms: ${msg}`),
+        onAuthFailure: (msg) => this.noticeAuthFailureOnce(msg),
       });
       this.lastClassifyOutcome = outcome;
       logClassifyOutcome("first-unprocessed", outcome);
@@ -2871,7 +2900,7 @@ export default class AtomsPlugin extends Plugin {
       apiKey,
       model: this.settings.model,
       activeVocabulary: this.settings.activeVocabulary,
-      onAuthFailure: (msg) => new Notice(`Atoms: ${msg}`),
+      onAuthFailure: (msg) => this.noticeAuthFailureOnce(msg),
     });
     this.lastClassifyOutcome = outcome;
     logClassifyOutcome("spike-classify", outcome);
@@ -2906,7 +2935,7 @@ export default class AtomsPlugin extends Plugin {
         apiKey,
         model: this.settings.model,
         activeVocabulary: this.settings.activeVocabulary,
-        onAuthFailure: (msg) => new Notice(`Atoms: ${msg}`),
+        onAuthFailure: (msg) => this.noticeAuthFailureOnce(msg),
       });
       logClassifyOutcome(`per-capture #${i + 1}`, outcome);
       if (outcome.ok) {
@@ -3047,7 +3076,7 @@ export default class AtomsPlugin extends Plugin {
         maxAttempts: 2,
         plus: classifyAuth.plus,
         ...shortlist,
-        onAuthFailure: (msg) => new Notice(`Atoms: ${msg}`),
+        onAuthFailure: (msg) => this.noticeAuthFailureOnce(msg),
       });
 
       loading.close();
