@@ -21,6 +21,10 @@ import { fileURLToPath } from "node:url";
 import { askStoreModes, withStore } from "./helpers/askStore.mjs";
 import { periodEnded, subscriptionLive } from "../src/store/shared.mjs";
 
+// The meter drain below exchanges a magic token; an auto-grant would refill
+// the allotment we are deliberately spending down.
+process.env.DOGFOOD_AUTO_GRANT = "0";
+
 const SRC = path.dirname(fileURLToPath(import.meta.url)) + "/../src";
 const RESOURCE = "https://plus.tryatoms.app/mcp";
 
@@ -108,31 +112,39 @@ describe("#441 subscriptionLive — ended period vs spent meter", () => {
 describe("#441 a spent meter keeps the MCP token working", () => {
   for (const mode of askStoreModes()) {
     describe(mode, () => {
-      it("spent meter (remaining 0, period live) keeps Ask/MCP", async () => {
+      it("spending the last filing through the real meter keeps Ask/MCP", async () => {
         await withStore(mode, async (store) => {
           const email = "spent@ex.co";
+          // One filing left on a live 30-day period.
           await store.grantPeriod(email, {
-            remaining: 150,
-            status: "active",
-            plan: "monthly",
-          });
-          const t = await store.mintMcpTokensForTest(email, "c", RESOURCE);
-          assert.ok(await store.accountFromMcpToken(t.accessToken));
-
-          // Spend the allotment through the public API, leaving the period
-          // live — the exact state the meter's UPDATE writes on the last
-          // filing. (Mutating the object getAccount returns would be a no-op
-          // on every store but memory; see store-ask.test.mjs.)
-          await store.grantPeriod(email, {
-            remaining: 0,
+            remaining: 1,
             status: "active",
             plan: "monthly",
             days: 30,
           });
+          const t = await store.mintMcpTokensForTest(email, "c", RESOURCE);
+          assert.ok(await store.accountFromMcpToken(t.accessToken));
+
+          // Drive the *real* meter rather than seeding its end state: this is
+          // the `status = CASE WHEN remaining - 1 <= 0 THEN 'exhausted'`
+          // UPDATE that writes the second meaning of `exhausted`. Seeding
+          // `remaining: 0` would assume that transition instead of proving it.
+          const tok = await store.createMagicToken(email);
+          const { session } = await store.exchangeMagic(tok);
+          const consumed = await store.tryConsumeFiling(session, "idem-441");
+          assert.ok(consumed.ok, "the last filing is spent");
+          assert.equal(consumed.account.remaining, 0);
+
+          const spent = await store.getAccount(email);
+          assert.equal(spent.status, "exhausted", "the meter wrote exhausted");
+          assert.ok(
+            new Date(spent.periodEnd).getTime() > Date.now(),
+            "and the period is still live — this is a paying subscriber",
+          );
 
           const a = await store.accountFromMcpToken(t.accessToken);
           assert.ok(a, "a paid subscriber who spent the meter still reads");
-          assert.equal(a.status, "exhausted", "status is still exhausted");
+          assert.equal(a.status, "exhausted");
           assert.deepEqual(a.mcpScopes, ["atoms:read"]);
         });
       });
@@ -196,7 +208,49 @@ describe("#441 the entitlement gate has one home", () => {
   // server.mjs, whose match is a different question entirely (may this account
   // start a second free trial).
   const ALLOWED = new Set(["store/shared.mjs", "server.mjs"]);
+
+  /**
+   * A single `status` comparison against one of the entitled values. Catches
+   * the shape the eleven original copies were written in, including the
+   * multi-line spelling where the two halves sit on separate lines.
+   */
   const STATUS_TUPLE = /status\s*[!=]==\s*"(active|trialing)"/;
+
+  /**
+   * Both values named on one line — a reversed `"active" === a.status` pair,
+   * or an `["active","trialing"].includes(s)` / `new Set([...])` membership
+   * test. The tuple regex alone misses every one of these, and a rewrite is at
+   * least as likely to be written this way as copy-pasted verbatim.
+   *
+   * Naming both values is not enough on its own, because plenty of honest code
+   * does: a ternary *choosing* which status to grant, and SQL selecting which
+   * rows to update, both mention the pair and neither decides entitlement.
+   * Those are excluded by shape rather than by an allowlist of lines, so they
+   * stay excluded when someone edits them.
+   *
+   * Residual gap, accepted: a two-line Set built by `.add()`, or values held
+   * in constants rather than literals, still slips through. This catches the
+   * plausible rewrites, not every conceivable one.
+   */
+  const decidesEntitlement = (l) =>
+    !l.includes("?") && // a ternary picks a status to write, not to gate on
+    !/\bIN\s*\(/i.test(l) && // SQL row selection
+    (/status/.test(l) ||
+      /\.(includes|has)\(/.test(l) ||
+      /new Set\(\[/.test(l) ||
+      /\[\s*"(active|trialing)"/.test(l));
+
+  const bothValues = (l) =>
+    l.includes('"active"') && l.includes('"trialing"') && decidesEntitlement(l);
+
+  /**
+   * Quotes normalized so a single-quoted rewrite cannot slip past, and `//`
+   * comments dropped so prose *about* the old tuple is not a failure. Without
+   * the second step, a future comment mentioning `status === "active"` fails
+   * this test with no logic change — the mirror of the gap above.
+   */
+  const codeOf = (line) =>
+    line.replace(/\/\/.*$/, "").replace(/'/g, '"').trim();
 
   it("no file outside shared.mjs re-derives the entitlement tuple", () => {
     const offenders = [];
@@ -205,16 +259,55 @@ describe("#441 the entitlement gate has one home", () => {
       if (ALLOWED.has(rel)) continue;
       readFileSync(file, "utf8")
         .split("\n")
-        .forEach((line, i) => {
-          if (STATUS_TUPLE.test(line)) offenders.push(`${rel}:${i + 1}`);
+        .forEach((raw, i) => {
+          if (raw.trimStart().startsWith("*")) return; // block-comment body
+          const line = codeOf(raw);
+          if (STATUS_TUPLE.test(line) || bothValues(line)) {
+            offenders.push(`${rel}:${i + 1}  ${line}`);
+          }
         });
     }
     assert.deepEqual(
       offenders,
       [],
-      "these sites must ask subscriptionLive() instead of comparing status:\n" +
-        offenders.join("\n"),
+      "these sites must ask subscriptionLive() instead of deciding " +
+        "entitlement locally:\n" + offenders.join("\n"),
     );
+  });
+
+  it("the parity check actually catches a rewritten copy", () => {
+    // The guard above is only worth its comment if it survives paraphrase.
+    // A check that catches copy-paste and nothing else advertises a guarantee
+    // it does not have, which is how this bug reached eleven sites.
+    const rewrites = [
+      'if (a.status !== "active" && a.status !== "trialing") return null;',
+      "if (a.status !== 'active' && a.status !== 'trialing') return null;",
+      'if ("active" === a.status || "trialing" === a.status) ok();',
+      'if (["active", "trialing"].includes(a.status)) ok();',
+      'const LIVE = new Set(["active", "trialing"]);',
+    ];
+    for (const r of rewrites) {
+      const line = codeOf(r);
+      assert.ok(
+        STATUS_TUPLE.test(line) || bothValues(line),
+        `a copy written as \`${r}\` would slip past the parity check`,
+      );
+    }
+    // ...and does not fire on honest code that merely names both values, or
+    // on prose about the fix. Each of these was a real false positive before
+    // `decidesEntitlement` narrowed the check.
+    const innocent = [
+      '  // the old gate compared status === "active" here',
+      'config.dogfoodGrantStatus === "active" ? "active" : "trialing";',
+      'a.status = a.plan === "trial" ? "trialing" : "active";',
+      '`WHERE email = $1 AND remaining > 0 AND status IN (\'active\',\'trialing\')`',
+    ];
+    for (const line of innocent.map(codeOf)) {
+      assert.ok(
+        !STATUS_TUPLE.test(line) && !bothValues(line),
+        `the parity check must not fire on \`${line}\``,
+      );
+    }
   });
 
   it("every gate that lost its tuple actually asks subscriptionLive", () => {

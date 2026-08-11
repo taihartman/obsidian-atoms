@@ -26,6 +26,11 @@ const RECONCILE_TTL_MS = 10 * 60 * 1000;
  * `upsert`/`delete`/`reconcile` open is what stops Claude reading a brain
  * frozen — or worse, still holding atoms the user deleted — for the rest of
  * the period. Only an ended period revokes. See `subscriptionLive`.
+ *
+ * Kept as a local name rather than inlined: it reads better at the eight route
+ * guards below, and it gives that reasoning one place to live. The other four
+ * gate files call `subscriptionLive` directly — this is the deliberate
+ * exception, not a leftover.
  */
 function entitled(a) {
   return subscriptionLive(a);

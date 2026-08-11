@@ -304,7 +304,11 @@ export function applyStatusRules(a) {
 export function periodEnded(a, now = Date.now()) {
   if (!a) return true;
   const end = new Date(a.periodEnd).getTime();
-  if (!Number.isFinite(end)) return true; // unreadable period → fail closed
+  // Unparsable (`undefined`, `""`, junk) → fail closed. `null` does not reach
+  // this branch — `new Date(null)` is epoch 0, which the comparison below
+  // already reads as ended. Both stores declare period_end NOT NULL, so
+  // neither case should occur; this is a backstop, not a live path.
+  if (!Number.isFinite(end)) return true;
   return end < now;
 }
 
