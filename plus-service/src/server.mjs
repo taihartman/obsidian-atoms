@@ -41,6 +41,11 @@ import {
   handleOauthRoutes,
   maybeFinishOauthAfterExchange,
 } from "./oauth/routes.mjs";
+import {
+  HTML_SECURITY_HEADERS,
+  escHtml,
+  renderPage,
+} from "./html/shell.mjs";
 
 try {
   assertProductionReady();
@@ -184,14 +189,6 @@ function optionalBoundedString(value, max) {
   return { ok: true, value: trimmed };
 }
 
-function escHtml(s) {
-  return String(s ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
 /**
  * #240 — the twin of the plugin's `sanitizeVaultLabel`, for the one surface the
  * plugin never sees. `escHtml` stops markup, but a vault name is *prose chosen
@@ -214,33 +211,20 @@ export function vaultLabel(raw) {
 }
 
 /**
- * #240 U5 — headers every magic-link landing render carries.
- *
- * The CSP keeps `default-src 'none'` with inline styles, and no script is ever
- * added (KTD4). `form-action 'self'` is stated explicitly for U6's fallback
- * form: `default-src` is not a fallback for `form-action`, so the submit was
- * already permitted — naming it pins the only destination the form may ever
- * post to rather than leaving that to a directive that does not govern it.
- * `no-store` is load-bearing — R14 makes this page deliberately re-loadable and
- * its body carries a live `obsidian://…token=` anchor and, after a submit, a
- * session token, so a cached copy is a cached credential sitting in a shared or
- * in-app browser cache.
+ * #240 U5 — every magic-link / billing HTML render. Headers live in
+ * `html/shell.mjs` (CSP + no-store load-bearing for token-bearing bodies).
  */
-const LANDING_HEADERS = Object.freeze({
-  "content-type": "text/html; charset=utf-8",
-  "content-security-policy":
-    "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'",
-  "referrer-policy": "no-referrer",
-  "cache-control": "no-store",
-  "x-content-type-options": "nosniff",
-});
-
-function writeLanding(res, status, bodyHtml) {
-  res.writeHead(status, { ...LANDING_HEADERS });
-  res.end(`<!doctype html><meta charset=utf-8><title>Atoms Plus</title>
-<body style="font-family:system-ui;max-width:32rem;margin:2rem auto;padding:0 1rem">
-${bodyHtml}
-</body>`);
+function writeLanding(res, status, bodyHtml, title = "Atoms Plus") {
+  const html = renderPage({
+    title,
+    eyebrow: "Atoms Plus",
+    bodyHtml,
+  });
+  res.writeHead(status, {
+    ...HTML_SECURITY_HEADERS,
+    "content-length": Buffer.byteLength(html),
+  });
+  res.end(html);
 }
 
 /**
@@ -278,12 +262,13 @@ function fallbackBlockHtml({ promoted, token }) {
   const lead = promoted
     ? "This link was requested by an older version of Atoms, which cannot hand the sign-in to Obsidian. Update Atoms and request a new link, or sign in here instead."
     : "On a different device from the one running Obsidian? Sign in here and paste the result into Atoms Settings.";
-  return `<section id="fallback" style="margin-top:1.5rem;padding-top:1rem;border-top:1px solid #e4e4e7">
-<h2 style="font-size:1rem;margin:0 0 .5rem">Sign in without the handoff</h2>
-<p style="color:#666;font-size:0.9rem">${escHtml(lead)}</p>
+  const btnClass = promoted ? "btn btn--primary" : "btn btn--secondary";
+  return `<section id="fallback">
+<h2>Sign in without the handoff</h2>
+<p class="muted">${escHtml(lead)}</p>
 <form method="post" action="${FALLBACK_EXCHANGE_PATH}">
 <input type="hidden" name="token" value="${escHtml(token)}">
-<button type="submit" style="display:block;box-sizing:border-box;width:100%;min-height:44px;padding:14px 16px;border-radius:10px;border:1px solid #7c3aed;background:#fff;color:#7c3aed;font-weight:600;font-size:1rem">Sign in here</button>
+<button type="submit" class="${btnClass}">Sign in here</button>
 </form>
 </section>`;
 }
@@ -308,8 +293,8 @@ function renderFallbackSession(res, out) {
 <p>Email: <strong>${escHtml(pub.email)}</strong></p>
 <p>Status: <strong>${escHtml(pub.status)}</strong> · remaining ${escHtml(String(pub.remaining))}</p>
 <p>Copy the session below, then in Obsidian open <strong>Settings → Atoms Plus → Advanced: paste session</strong> and paste it there.</p>
-<p style="word-break:break-all;font-family:ui-monospace,monospace;background:#f4f4f5;border-radius:8px;padding:12px">${escHtml(out.session)}</p>
-<p style="color:#666;font-size:0.9rem">This session signs in the vault you paste it into. Treat it like a password, and close this page when you are done.</p>`,
+<p class="token-block">${escHtml(out.session)}</p>
+<p class="muted">This session signs in the vault you paste it into. Treat it like a password, and close this page when you are done.</p>`,
   );
 }
 
@@ -318,9 +303,9 @@ function renderFallbackSession(res, out) {
  * page renders once and cannot observe the outcome (R14), so this is a native
  * `<details>` present in the initial HTML rather than any kind of transition.
  */
-const TROUBLESHOOTING_HTML = `<details style="margin-top:1.5rem">
-<summary style="cursor:pointer;color:#666">Tapped it and nothing came forward?</summary>
-<ul style="color:#444;font-size:0.95rem;line-height:1.5">
+const TROUBLESHOOTING_HTML = `<details>
+<summary>Tapped it and nothing came forward?</summary>
+<ul>
 <li><strong>Obsidian is on another device.</strong> Open this email again on the device running Obsidian, and tap there.</li>
 <li><strong>Obsidian is on this device.</strong> Your mail app's built-in browser blocks links that open other apps. Open this page in your system browser and tap again, or use the sign-in option further down this page.</li>
 </ul>
@@ -349,8 +334,10 @@ function renderHandoffPage(res, { token, vault }) {
     200,
     `<h1>Finish signing in</h1>
 ${who}
-<a href="${escHtml(href)}" style="display:block;box-sizing:border-box;min-height:44px;padding:14px 16px;margin:1.25rem 0;border-radius:10px;background:#7c3aed;color:#fff;font-weight:600;text-align:center;text-decoration:none">Open Obsidian</a>
-<p style="color:#666;font-size:0.9rem">Obsidian will ask you to confirm first.</p>
+<div class="stack">
+<a class="btn btn--primary" href="${escHtml(href)}">Open Obsidian</a>
+</div>
+<p class="muted">Obsidian will ask you to confirm first.</p>
 ${TROUBLESHOOTING_HTML}
 ${fallbackBlockHtml({ promoted: false, token })}`,
   );
@@ -404,21 +391,21 @@ async function handler(req, res) {
     // GET /v1/billing/return — browser land after Checkout
     if (req.method === "GET" && path === "/v1/billing/return") {
       const ok = url.searchParams.get("ok") !== "0";
-      res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-      res.end(`<!doctype html><meta charset=utf-8><title>Atoms Plus</title>
-<body style="font-family:system-ui;max-width:32rem;margin:2rem auto;padding:0 1rem">
-<h1>${ok ? "You're set" : "Checkout canceled"}</h1>
+      writeLanding(
+        res,
+        200,
+        `<h1>${ok ? "You're set" : "Checkout canceled"}</h1>
 <p>${
-        ok
-          ? "Switch back to <strong>Obsidian</strong> — Atoms Plus updates automatically (or tap Refresh status). Checkout email must match the email you entered in the plugin."
-          : "No charge. Open Atoms → Finish trial setup to try again."
-      }</p>
+          ok
+            ? "Switch back to <strong>Obsidian</strong> — Atoms Plus updates automatically (or tap Refresh status). Checkout email must match the email you entered in the plugin."
+            : "No charge. Open Atoms → Finish trial setup to try again."
+        }</p>
 ${
   ok
-    ? `<p style="color:#666;font-size:0.9rem">Lost your session on this device? Request a sign-in link from Atoms Settings (same email).</p>`
+    ? `<p class="muted">Lost your session on this device? Request a sign-in link from Atoms Settings (same email).</p>`
     : ""
-}
-</body>`);
+}`,
+      );
       return;
     }
 

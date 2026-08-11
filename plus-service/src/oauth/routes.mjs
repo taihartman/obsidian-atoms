@@ -28,6 +28,7 @@ import {
   protectedResourceMetadata,
 } from "./metadata.mjs";
 import { subscriptionLive } from "../store/shared.mjs";
+import { HTML_SECURITY_HEADERS } from "../html/shell.mjs";
 
 /**
  * RFC 9207: append iss on every 302 back to the client redirect_uri.
@@ -53,11 +54,12 @@ function redirectToClient(res, redirectUri, params) {
   res.end();
 }
 
-function writeHtml(res, status, html) {
+function writeHtml(res, status, html, extraHeaders = {}) {
   const data = html;
   res.writeHead(status, {
-    "content-type": "text/html; charset=utf-8",
+    ...HTML_SECURITY_HEADERS,
     "content-length": Buffer.byteLength(data),
+    ...extraHeaders,
   });
   res.end(data);
 }
@@ -334,13 +336,11 @@ export async function handleOauthRoutes({
         a.email,
         oauthClientLabel(pending.clientId || "", pending.redirectUri || ""),
       );
-      res.writeHead(200, {
-        "content-type": "text/html; charset=utf-8",
+      writeHtml(res, 200, html, {
         "set-cookie": [
           `atoms_oauth_bs=${encodeURIComponent(newBs)}; Path=/; Max-Age=900; HttpOnly; SameSite=Lax${secure}`,
         ],
       });
-      res.end(html);
       return true;
     }
 

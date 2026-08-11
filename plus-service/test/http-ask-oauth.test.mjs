@@ -330,6 +330,13 @@ describe("OAuth Ask AS", () => {
       const html = await r.text();
       assert.match(html, /pending_id/);
       assert.match(html, /Claude or ChatGPT|mirrored atoms/i);
+      assert.equal(
+        r.headers.get("content-security-policy"),
+        "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'",
+      );
+      assert.equal(r.headers.get("cache-control"), "no-store");
+      assert.match(html, /name="viewport"/);
+      assert.match(html, /btn--primary/);
     }
   });
 
@@ -516,6 +523,15 @@ describe("OAuth Ask AS", () => {
     const consentHtml = await redeem.text();
     assert.match(consentHtml, new RegExp(email.replace(".", "\\.")));
     assert.match(consentHtml, /Allow/);
+    const allowIdx = consentHtml.indexOf('value="allow"');
+    const denyIdx = consentHtml.indexOf('value="deny"');
+    assert.ok(allowIdx > 0 && denyIdx > allowIdx, "Allow before Deny");
+    assert.match(consentHtml, /btn--primary/);
+    assert.match(consentHtml, /btn--secondary/);
+    assert.equal(
+      redeem.headers.get("content-security-policy"),
+      "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'",
+    );
 
     const setCookie = redeem.headers.getSetCookie?.() || [];
     const cookieHeader =

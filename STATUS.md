@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-_Nothing in flight._
+| In progress | #458 | agent | `feat/plus-browser-ui-tokens` | `docs/plans/2026-08-11-002-feat-plus-browser-ui-tokens-plan.md` | `plus-service/src/html/shell.mjs`, `server.mjs`, `oauth/html.mjs` | Shared product shell for magic-link / billing return / OAuth |
 
 ## How to claim (copy)
 

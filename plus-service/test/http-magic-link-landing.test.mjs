@@ -287,14 +287,18 @@ describe("#240 U5 — the landing page offers a handoff and spends nothing", () 
   it("KTD4: the handoff anchor is a real touch target", async () => {
     const token = plantBound({ email: "tap@ex.com", vault: "Vault G" });
     const { html } = await land(token);
-    const anchor = html.slice(html.indexOf("<a href=\"obsidian://"));
-    const tag = anchor.slice(0, anchor.indexOf(">") + 1);
+    const anchor = html.slice(html.indexOf('href="obsidian://'));
+    const tagStart = html.lastIndexOf("<a ", html.indexOf('href="obsidian://'));
+    const tag = html.slice(tagStart, html.indexOf(">", tagStart) + 1);
 
-    assert.match(tag, /display:block/);
-    const m = /min-height:(\d+)px/.exec(tag);
-    assert.ok(m, `anchor declares a min-height: ${tag}`);
+    assert.match(tag, /btn/);
+    assert.match(tag, /btn--primary/);
+    const m = /\.btn\{[^}]*min-height:(\d+)px/.exec(html);
+    assert.ok(m, "shell CSS declares .btn min-height");
     assert.ok(Number(m[1]) >= 44, `min-height ${m[1]}px is at least 44px`);
-    assert.match(tag, /padding:/);
+    assert.match(html, /name="viewport"/);
+    assert.equal(html.includes("7c3aed"), false);
+    assert.match(html, /--tint:#0a84ff/);
   });
 });
 
