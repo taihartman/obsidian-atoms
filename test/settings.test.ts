@@ -22,9 +22,11 @@ import {
   type AccountState,
   AtomsSettingTab,
   type ConnectivityRequest,
+  deriveAccountState,
 } from "../src/settings/settings";
 import {
   readPendingSignIns,
+  type FilingAuth,
   type PlusSession,
 } from "../src/platform/filingAuth";
 import { s256Challenge } from "../src/platform/pkce";
@@ -569,6 +571,75 @@ describe("account row", () => {
     // @ts-expect-error — "grandfathered" is not an account state.
     const notAState: AccountState = { kind: "grandfathered" };
     expect(notAState.kind).toBe("grandfathered");
+  });
+
+  /**
+   * #442 — the row a lapsed account actually reads. It said "Monthly limit reached", which is
+   * the sentence for someone whose allotment refills; a trial that ended has no allotment and
+   * no next billing date.
+   */
+  describe("an ended period is not a spent meter", () => {
+    const T0 = Date.parse("2026-08-11T13:49:00.000Z");
+    const lapsedTrial: PlusSession = {
+      sessionToken: "sess_abc",
+      email: "u@example.com",
+      status: "exhausted",
+      remaining: 0,
+      plan: "trial",
+      periodEnd: "2026-08-10T14:52:03.632Z",
+    };
+    const authFor = (s: PlusSession): FilingAuth => ({
+      mode: "plus",
+      sessionToken: s.sessionToken,
+      email: s.email,
+      status: s.status ?? "unknown",
+      remaining: s.remaining,
+      periodEnd: s.periodEnd,
+      plan: s.plan,
+    });
+
+    it("outranks exhausted, and carries the date the row prints", () => {
+      const state = deriveAccountState(
+        authFor(lapsedTrial),
+        lapsedTrial,
+        T0,
+      );
+      expect(state).toEqual({
+        kind: "periodEnded",
+        plan: "trial",
+        endedOn: "2026-08-10T14:52:03.632Z",
+      });
+    });
+
+    it("names the trial and points at subscribing, with no billing-date promise", () => {
+      const row = accountRowDescriptor(
+        deriveAccountState(authFor(lapsedTrial), lapsedTrial, T0),
+      );
+      expect(row.name).toBe("Trial ended");
+      expect(row.desc).toMatch(/2026-08-10/);
+      expect(row.desc).toMatch(/Subscribe/);
+      expect(row.desc).not.toMatch(/billing date|allotment/i);
+    });
+
+    it("calls an ended paid period a subscription", () => {
+      const paid: PlusSession = { ...lapsedTrial, plan: "monthly" };
+      expect(
+        accountRowDescriptor(deriveAccountState(authFor(paid), paid, T0)).name,
+      ).toBe("Subscription ended");
+    });
+
+    it("leaves a spent meter inside a live period saying exactly what it said before", () => {
+      const capped: PlusSession = {
+        ...lapsedTrial,
+        plan: "monthly",
+        periodEnd: "2026-09-10T00:00:00.000Z",
+      };
+      const row = accountRowDescriptor(
+        deriveAccountState(authFor(capped), capped, T0),
+      );
+      expect(row.name).toBe("Monthly limit reached");
+      expect(row.desc).toMatch(/next billing date/);
+    });
   });
 });
 

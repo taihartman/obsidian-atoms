@@ -12,6 +12,7 @@ import {
 } from "../pipeline/refreshAtoms";
 import { isCalendarDay, utcMidnight } from "../pipeline/backfillOffer";
 import { parseCaptures } from "../pipeline/parse";
+import { plusLapse, type FilingAuth } from "../platform/filingAuth";
 import { resolveCreatedField } from "../pipeline/render";
 import {
   PLUS_PRICING,
@@ -626,13 +627,19 @@ export type FilingHeroMode =
   | "auto_running";
 
 /** Filing path for wait-card branching (from resolveFilingAuth + status). */
-export type FilingPathKind = "none" | "byok" | "plus_active" | "plus_exhausted";
+export type FilingPathKind =
+  | "none"
+  | "byok"
+  | "plus_active"
+  | "plus_exhausted"
+  | "plus_lapsed";
 
 export type FilingHeroAction =
   | "open_settings"
   | "open_plus"
   | "open_byok_settings"
   | "get_more"
+  | "subscribe"
   | "dismiss_limit"
   | "enable_auto"
   | "process"
@@ -678,6 +685,8 @@ export function filingHeroCopy(input: {
    * Device-local dismiss day handled by caller.
    */
   plusLimitDismissedToday?: boolean;
+  /** Which kind of period ended, when `filingPath` is `plus_lapsed`. */
+  plusLapseKind?: "trial" | "subscription";
 }): FilingHeroCopy | null {
   if (input.pastUnprocessed <= 0) return null;
 
@@ -698,6 +707,23 @@ export function filingHeroCopy(input: {
       secondaryLabel: "Use My Own Key",
       secondaryAction: "open_byok_settings",
       secondaryQuiet: true,
+    };
+  }
+
+  if (path === "plus_lapsed") {
+    const what = input.plusLapseKind === "trial" ? "trial" : "subscription";
+    // No "Not Now": the limit card can be dismissed because waiting genuinely fixes it, and
+    // this one nothing fixes but subscribing. Offering a dismissal would put the card back
+    // tomorrow saying the same thing, which is how the expiry stayed quiet in the first place.
+    return {
+      mode: "plus_limit",
+      eyebrow: "Atoms Plus",
+      title: `Your ${what} has ended`,
+      body: `${countLabel} — filing is paused, and Claude and ChatGPT can’t reach your atoms. Subscribe to pick up where you left off.`,
+      primaryLabel: "Subscribe",
+      primaryAction: "subscribe",
+      secondaryLabel: null,
+      secondaryAction: null,
     };
   }
 
@@ -831,13 +857,20 @@ export function waitingSubtitle(input: {
     : `${input.pastUnprocessed} thoughts ready to file`;
 }
 
-/** Map resolveFilingAuth result → wait-card path. */
-export function filingPathFromAuth(auth: {
-  mode: "none" | "byok" | "plus";
-  status?: string;
-}): FilingPathKind {
+/**
+ * Map resolveFilingAuth result → wait-card path.
+ *
+ * An ended period takes its own path rather than sharing `plus_exhausted`: the limit card's
+ * whole offer — buy more filings, or wait for the next billing date — is addressed to someone
+ * who still has a subscription (#442).
+ */
+export function filingPathFromAuth(
+  auth: FilingAuth,
+  now?: number,
+): FilingPathKind {
   if (auth.mode === "none") return "none";
   if (auth.mode === "byok") return "byok";
+  if (plusLapse(auth, now)) return "plus_lapsed";
   if (auth.status === "exhausted") return "plus_exhausted";
   return "plus_active";
 }

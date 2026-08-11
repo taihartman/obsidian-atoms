@@ -772,6 +772,46 @@ describe("askMirror deletion gate (U1)", () => {
   });
 
   /**
+   * #442 — the reported screen said "84 · last pushed 23h ago" with no error styling, 23 hours
+   * after the account lapsed. Nothing was wrong with that sentence except that it described a
+   * mirror Claude could no longer read, and no push had been attempted since, so no error
+   * existed to displace it. Whole strings again, for #374's reason.
+   */
+  it("leads with the lapse, ahead of a stale push and a failed one", () => {
+    const lapsed = {
+      serverCount: "84",
+      email: "tai@ex.co",
+      relativeLastOk: "23h ago",
+    };
+    expect(
+      formatAskMirrorStatusLine({ ...lapsed, lapsed: "trial" as const }),
+    ).toBe(
+      "Ask mirror: 84 · as tai@ex.co · trial ended — Claude and ChatGPT can’t reach these until you subscribe",
+    );
+    // A push error and a refusal are both downstream of the lapse, and neither is actionable.
+    expect(
+      formatAskMirrorStatusLine({
+        ...lapsed,
+        lapsed: "subscription" as const,
+        lastErr: "Plus network error",
+        refused: true,
+      }),
+    ).toBe(
+      "Ask mirror: 84 · as tai@ex.co · subscription ended — Claude and ChatGPT can’t reach these until you subscribe",
+    );
+    // `off` still wins: a gate the user closed outranks a lapse they did not choose.
+    expect(
+      formatAskMirrorStatusLine({
+        ...lapsed,
+        lapsed: "trial" as const,
+        off: "disabled" as const,
+      }),
+    ).toBe(
+      "Ask mirror: off · 84 in the cloud at last check, Wipe cloud copy to delete",
+    );
+  });
+
+  /**
    * #374 — the line is read on the consent surface itself, so a mirror the gate has closed may
    * not describe itself as one that pushed, failed, or wants retrying. Each case asserts the
    * whole string: the defect was never a missing word, it was three true-looking clauses about

@@ -82,13 +82,16 @@ import {
   clearPlusSession,
   hasPlusSetupSession,
   latestPendingSignIn,
+  parsePlusPlan,
   plusIsExhausted,
+  plusLapse,
   readPlusSession,
   recordPendingSignIn,
   setAwaitingCheckout,
 
   type FilingAuth,
   type PlusEntitlementStatus,
+  type PlusPlan,
   type PlusSession,
 } from "../platform/filingAuth";
 import { generateVerifier, hasWebCrypto, s256Challenge } from "../platform/pkce";
@@ -154,6 +157,7 @@ export type AccountState =
   | { kind: "signedOut" }
   | { kind: "trialIncomplete"; email: string }
   | { kind: "active"; status: PlusEntitlementStatus; remaining?: number }
+  | { kind: "periodEnded"; plan?: PlusPlan; endedOn?: string }
   | { kind: "exhausted" };
 
 /** What the one main-screen account row says for a given state. */
@@ -167,11 +171,27 @@ export interface AccountRowDescriptor {
  * used to do: an exhausted Plus session outranks an active one, and a soft (inactive) session
  * still means "finish your trial" even when a BYOK key is present and `resolveFilingAuth`
  * therefore reports `byok`.
+ *
+ * An ended *period* outranks a spent *meter* (#442). They arrive as the same server `status`,
+ * `exhausted`, but they are different situations wanting opposite offers: a spent meter refills
+ * on the next billing date, while an ended period has no next billing date at all.
+ *
+ * The date alone does not decide it, because a monthly `periodEnd` is a *renewal* date — a
+ * device holding a just-lapsed one during a renewal it has not refreshed through would
+ * otherwise declare an active subscriber ended. So the past date must be joined by a reason it
+ * cannot be a pending renewal: either the service already said `exhausted`, or the plan is a
+ * trial, which never renews. The trial half is what lets a device notice its own expiry with no
+ * round-trip — the gap that let #442 look healthy for 23 hours.
  */
 export function deriveAccountState(
   auth: FilingAuth,
   session: PlusSession | null,
+  now: number = Date.now(),
 ): AccountState {
+  const lapse = plusLapse(auth, now);
+  if (lapse) {
+    return { kind: "periodEnded", plan: session?.plan, endedOn: lapse.endedOn };
+  }
   if (plusIsExhausted(auth)) return { kind: "exhausted" };
   if (auth.mode === "plus") {
     return { kind: "active", status: auth.status, remaining: auth.remaining };
@@ -209,6 +229,18 @@ export function accountRowDescriptor(state: AccountState): AccountRowDescriptor 
           ? ` · ${state.remaining} filings left`
           : "";
       return { name: `${base}${remaining}` };
+    }
+    case "periodEnded": {
+      const on = state.endedOn ? ` on ${state.endedOn.slice(0, 10)}` : "";
+      return state.plan === "trial"
+        ? {
+            name: "Trial ended",
+            desc: `Your free trial ended${on}. Subscribe to file captures again and to let Claude and ChatGPT reach your atoms.`,
+          }
+        : {
+            name: "Subscription ended",
+            desc: `Your subscription ended${on}. Subscribe to file captures again and to let Claude and ChatGPT reach your atoms.`,
+          };
     }
     case "exhausted":
       return {
@@ -1131,6 +1163,48 @@ export class AtomsSettingTab extends PluginSettingTab {
     window.open(r.url, "_blank");
   }
 
+  /**
+   * Start a paid subscription for the session on this device — the way back from an ended
+   * period.
+   *
+   * `subscribe_monthly`, not `start_trial`: the service refuses a second trial once
+   * `trial_used` is set (plus-service/src/server.mjs), so the trial route is a 409 for exactly
+   * the people who see this row. Until #442 the plugin never asked for this kind at all, which
+   * left an expired trial with no path to paying without leaving the app.
+   */
+  private async openSubscribeCheckout(): Promise<void> {
+    const session = readPlusSession(this.app);
+    if (!session) {
+      new Notice("No Plus session on this device");
+      return;
+    }
+    const base =
+      this.plugin.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL;
+    const r = await createCheckout(
+      { baseUrl: base, request: plusFetchRequest },
+      session.sessionToken,
+      "subscribe_monthly",
+    );
+    if (!r.ok) {
+      new Notice(`Atoms Plus: ${r.message}`);
+      return;
+    }
+    if (!r.url) {
+      // Dogfood instant-grant answers without a URL. Nothing to open, but the grant is real,
+      // so send the user to the one row that will show it.
+      new Notice("Atoms Plus: subscription granted — tap Refresh status.", 8000);
+      this.redisplay();
+      return;
+    }
+    setAwaitingCheckout(this.app, true);
+    window.open(r.url, "_blank");
+    new Notice(
+      "Complete checkout in the browser, then return here — status updates automatically.",
+      8000,
+    );
+    this.redisplay();
+  }
+
   /** Buy additional filings for the current period. */
   private async openTopUpCheckout(): Promise<void> {
     const session = readPlusSession(this.app);
@@ -1251,9 +1325,13 @@ export class AtomsSettingTab extends PluginSettingTab {
     if (state.kind !== "trialIncomplete") {
       statusRow(containerEl, {
         name: "Plan",
-        value: session?.periodEnd
-          ? `Renews ${session.periodEnd.slice(0, 10)}`
-          : "Monthly or yearly — see Manage subscription",
+        // "Renews" is a promise, and a date already in the past cannot keep it. An ended
+        // period says so instead — it was labelling its own expiry a renewal (#442).
+        value: state.kind === "periodEnded"
+          ? `Ended ${state.endedOn?.slice(0, 10) ?? "— see Subscribe"}`
+          : session?.periodEnd
+            ? `Renews ${session.periodEnd.slice(0, 10)}`
+            : "Monthly or yearly — see Manage subscription",
       });
     }
 
@@ -1264,6 +1342,15 @@ export class AtomsSettingTab extends PluginSettingTab {
         desc: "Complete Stripe checkout (card for the 14-day trial). Return here and status updates automatically.",
         label: "Finish trial setup",
         onClick: () => this.finishTrialCheckout(),
+      });
+    }
+    if (state.kind === "periodEnded") {
+      this.actionRow(containerEl, {
+        action: "plus:subscribe-checkout",
+        name: "Subscribe",
+        desc: accountRowDescriptor(state).desc ?? "",
+        label: "Subscribe",
+        onClick: () => this.openSubscribeCheckout(),
       });
     }
     if (state.kind === "exhausted") {
@@ -1283,7 +1370,13 @@ export class AtomsSettingTab extends PluginSettingTab {
       label: "Refresh status",
       onClick: () => this.refreshAndRedisplay(),
     });
-    if (state.kind !== "trialIncomplete") {
+    // A trial that ended without converting has no Stripe customer, so the portal has
+    // nothing to open. Offering it there sends the user to an error instead of a card form —
+    // Subscribe above is the row that actually does something (#442).
+    const portalHasSubject = !(
+      state.kind === "periodEnded" && state.plan === "trial"
+    );
+    if (state.kind !== "trialIncomplete" && portalHasSubject) {
       this.actionRow(containerEl, {
         action: "plus:billing-portal",
         name: "Manage subscription",
@@ -1454,6 +1547,7 @@ export class AtomsSettingTab extends PluginSettingTab {
         status,
         remaining: typeof j.remaining === "number" ? j.remaining : undefined,
         periodEnd: typeof j.periodEnd === "string" ? j.periodEnd : undefined,
+        plan: parsePlusPlan(j.plan),
         refreshedAt: Date.now(),
       });
       // Fresh session — the old "sign-in needed" row no longer applies.
@@ -2175,6 +2269,16 @@ export class AtomsSettingTab extends PluginSettingTab {
     // Asked of the gate itself, not of a second copy of its conditions, so the sentence and the
     // egress it describes cannot disagree (#374).
     const off = this.mirrorOffReason();
+    // The device can tell this from a date it already holds, which matters here more than
+    // anywhere: no push has been attempted since the account lapsed, so there is no error to
+    // report and the line would otherwise keep reading healthy indefinitely (#442).
+    const state = this.accountState();
+    const lapsed =
+      state.kind === "periodEnded"
+        ? state.plan === "trial"
+          ? ("trial" as const)
+          : ("subscription" as const)
+        : undefined;
     return {
       line: formatAskMirrorStatusLine({
         serverCount,
@@ -2183,10 +2287,11 @@ export class AtomsSettingTab extends PluginSettingTab {
         lastErr: refused ? "" : lastErr,
         refused,
         off,
+        lapsed,
       }),
       // A mirror the gate has closed is not failing. Styling it as an error would tell someone
       // who just withdrew consent that something went wrong when it went right.
-      failing: off ? false : Boolean(lastErr) || refused,
+      failing: off ? false : Boolean(lapsed) || Boolean(lastErr) || refused,
     };
   }
 

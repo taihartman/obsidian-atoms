@@ -123,6 +123,9 @@ export async function refreshPlusEntitlementRecord(
     status: e.status,
     remaining: e.remaining,
     periodEnd: e.periodEnd,
+    // Keep the stored plan when the service did not restate it, so a refresh
+    // cannot quietly turn a known period into an unnamed one (#442).
+    plan: e.plan ?? session.plan,
     refreshedAt: now,
   });
   const record: PlusRefreshRecord = {
