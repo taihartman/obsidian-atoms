@@ -4,8 +4,9 @@
 **Vault:** `test_vault/test vault` (agent QA lane) · **Obsidian:** 1.13.4 (installer 1.12.7)
 **Auth in vault:** Plus, `trialing`, 150 filings, **no API key** — the #433 headline scenario exactly.
 
-**Verdict: merge-ready on fixes #2 and #3. Fix #1 is unproven in a live vault** and rests on a unit
-test. See § Gap before merging; that gap is the one thing on this page a reviewer should weigh.
+**Verdict: all three fixes proven.** #2 and #3 were verified against a genuine open confirm gate on
+2026-08-11. #1 was the one gap on this page at merge time and was closed later the same day by a
+**live metered run against the real Anthropic API** — see § Fix #1, proven live.
 
 ## What was under test
 
@@ -75,7 +76,47 @@ introduces, never trust that an install landed where Obsidian is looking.
 The 33-vs-37 gap is coherent and is itself the KTD3 bound working: 4 captures sit inside the
 auto-filing window and are correctly excluded from the backfill complement.
 
-## Gap — fix #1 is not proven live
+## Fix #1, proven live (added 2026-08-11, after merge)
+
+The gap below was closed by running the real thing. A dedicated vault, `test_vault/atoms-qa-433`,
+was seeded and pointed at a local `plus-service` carrying a **real Anthropic key**, so every
+classify was a real, metered call. Owner's call: development should sit as close to production as
+possible.
+
+The vault is deliberately *not* named `test vault`. `scripts/install-to-vault.sh` resolves its CLI
+target by vault **basename**, and this machine carries ten-plus worktrees that can each mint a
+`test vault` — which is exactly how an earlier attempt at this run ended up driving a stale 0.6.100
+build installed by a different session. A distinct name makes that class of mistake impossible.
+
+**Setup:** 20 past dailies, 29 unmarked captures, auto-run off, meter 146.
+
+**The run.** The gate quoted *"Files 29 captures from 20 earlier days, newest first. Uses 29 of the
+146 filings left in this period."* While it sat open, five bullets were appended to
+`Daily/2026-08-01.md` — a mid-range daily inside the offered window, standing in for a phone Sync
+landing mid-gate. Then confirm.
+
+| Assertion | Expected | Actual | |
+|---|---|---|---|
+| Write path re-scans and sees the late arrivals | 34 | `scanned: 34` | PASS |
+| Files only what the gate quoted | 29, not 34 | `entries: 29` | **PASS** |
+| Markers appended for every filed capture | 29 | `markersAppended: 29` | PASS |
+| Failures | 0 | `failed: 0` | PASS |
+| Meter spend matches the quote | 146 → 117 | 117 | PASS |
+| The cap drops the *oldest* end | 5 unmarked on 07-22…07-25 | 1+1+1+2 = 5 | PASS |
+| Newest-first keeps the late arrivals | 5 sentinels on the new bullets | 5 | PASS |
+| Today's daily never touched | 0 markers | 0 | PASS |
+| Flags released | all false | all false | PASS |
+
+Without the fix this run files 34 against an offer of 29 — five captures of unagreed metered spend,
+taken out of the period reserve the budget model exists to protect.
+
+`atomsCreated` was 6, which looks low against 29 filed and is not a shortfall: most seeded captures
+classify as noise or task, which take a marker and no atom.
+
+Evidence: `screenshots/433-backfill-p1-fixes/live-gate-quoting-29.png` (the gate, before confirming)
+and `live-home-after-backfill.png`.
+
+## Gap as it stood at merge time (historical)
 
 The `maxCaptures` ceiling lives **past** the confirm gate, so proving it requires a run that
 actually classifies. That could not be done honestly here:
@@ -106,13 +147,36 @@ lines, and "no daily on or after `before` was touched" for this specific run.
 **To close it** without spending: stub the classify responder in `plus-service`, or point
 `ANTHROPIC_MESSAGES_URL` at a local echo. Do **not** close it by exporting a key.
 
+## The dev configuration, and what it costs
+
+An earlier draft of this report filed the production-Anthropic default as a hazard. The owner's
+position is the opposite and is the reason fix #1 could be proven at all: dev should sit as close
+to production as possible, real key included. Recorded here as the intended setup rather than a
+warning against it.
+
+What that means in practice, for whoever reads this next:
+
+- **A local run spends real money.** The 29-capture run above cost 29 filings. Nothing in the
+  plugin, the meter, or the gate distinguishes a local dev service from production, so treat every
+  confirmed backfill in a QA vault as billable.
+- **Use a dedicated key with a console spend cap, not the key the Fly deployment holds.** Identical
+  fidelity, rotatable without touching production, and a runaway loop is bounded.
+- **Keep the key out of `.env`.** It lives in the macOS Keychain and is read at launch:
+  `ANTHROPIC_API_KEY=$(security find-generic-password -s atoms-plus-anthropic -w) node src/server.mjs`.
+  `plus-service/.env` holds non-secrets only. Agents run shell commands in this repo, so a plaintext
+  key on disk is one stray `cat` from a transcript.
+- **The key buys the classify path and nothing else.** Entitlement still comes from
+  `DOGFOOD_AUTO_GRANT`, not Stripe. Billing has its own real-fidelity option — test mode plus
+  `stripe listen`, documented in `plus-service/README.md` — and it is the half where #230 shipped a
+  production bug. A real Anthropic key does not cover it.
+
 ## Hazard worth recording
 
-`plus-service` defaults to the **production** Anthropic URL and is separated from live-fire by a
-single unset environment variable. Anyone who exports `ANTHROPIC_API_KEY` and restarts it converts
-this QA vault into a real-money path with no further signal — the plugin, the meter, and the gate
-all look identical either way. A local-echo default for the dev/QA config would remove a whole
-class of expensive accident.
+Sessions are revoked more eagerly than the UI admits. During this work a session that had verified
+`200` against `/v1/me` later returned `401 Invalid session`, and the plugin surfaced that as
+**`status: "exhausted", remaining: 0`** — "you have used all your filings" — rather than as a
+sign-in problem. A paying user hitting that state would reasonably go buy a top-up they do not
+need. Same family as #230 and worth its own issue.
 
 ## Incidental findings (pre-existing, not from these fixes)
 
