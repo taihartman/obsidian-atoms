@@ -73,7 +73,14 @@ export function backfillHome(opts: {
 
   const call = <T>(name: string): T =>
     (view[name] as () => T).call(view);
-  harness.model = () => call("backfillOfferModel");
+  // The view resolves filing auth once per render pass and hands it down, so the harness plays
+  // that part rather than letting the card read it a second time.
+  harness.model = () =>
+    (
+      view.backfillOfferModel as (
+        auth: unknown,
+      ) => ReturnType<BackfillHomeHarness["model"]>
+    ).call(view, opts.auth);
   harness.press = () => call("startBackfillFromCard");
   harness.dismiss = () => call("dismissBackfillOffer");
   return harness;

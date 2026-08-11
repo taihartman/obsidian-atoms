@@ -906,8 +906,6 @@ export interface BackfillConfirmCopy {
   aftermath: { title: string; lines: string[] } | null;
   cancelLabel: string;
   confirmLabel: string;
-  /** The confirm button buys filings instead of spending them. */
-  confirmIsTopUp: boolean;
 }
 
 /**
@@ -960,7 +958,6 @@ function byokCopy(estimate: CostEstimate): BackfillConfirmCopy {
     aftermath: null,
     cancelLabel: "Cancel",
     confirmLabel: "Submit batch",
-    confirmIsTopUp: false,
   };
 }
 
@@ -992,7 +989,6 @@ function plusCopy(
       aftermath: null,
       cancelLabel: "Close",
       confirmLabel: "Refresh status",
-      confirmIsTopUp: false,
     };
   }
 
@@ -1027,7 +1023,6 @@ function plusCopy(
       aftermath: { title: "What happens next", lines: aftermathLines },
       cancelLabel: "Close",
       confirmLabel: "Get more filings",
-      confirmIsTopUp: true,
     };
   }
 
@@ -1060,7 +1055,6 @@ function plusCopy(
     aftermath: null,
     cancelLabel: "Cancel",
     confirmLabel: "Start backfill",
-    confirmIsTopUp: false,
   };
 }
 
@@ -1074,9 +1068,9 @@ export function backfillConfirmCopy(
 /**
  * Confirmation modal — the run starts only if onConfirm runs.
  *
- * `copy.confirmIsTopUp` tells the caller what its own `onConfirm` must do: on that branch the
- * primary button buys filings rather than spending them, so the wiring routes it to top-up
- * checkout instead of the backfill run.
+ * The modal knows nothing about what confirming means: the copy resolves the primary button's
+ * words ("Start backfill", "Refresh status", "Get more filings") and the caller decides which
+ * branch its own `onConfirm` runs, off the same offer the copy was resolved from.
  */
 export class BackfillConfirmModal extends Modal {
   private confirmed = false;

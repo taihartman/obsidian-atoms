@@ -10,6 +10,7 @@ import {
   isPolishableContent,
   UPDATE_NOTES_BATCH_LIMIT,
 } from "../pipeline/refreshAtoms";
+import { isCalendarDay, utcMidnight } from "../pipeline/backfillOffer";
 import { parseCaptures } from "../pipeline/parse";
 import { resolveCreatedField } from "../pipeline/render";
 import {
@@ -973,13 +974,10 @@ export function queuePeekTexts(
 /** Days a BYOK dismissal is scoped to. Matches the paid period so the drain resumes either way. */
 export const BACKFILL_DISMISS_DAYS = 30;
 
-const BACKFILL_DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
-
 /** `YYYY-MM-DD` plus whole days, via UTC midnights so a DST boundary cannot shift the answer. */
 function addDays(day: string, days: number): string {
-  const [y = NaN, m = NaN, d = NaN] = day.slice(0, 10).split("-").map(Number);
-  const ms = Date.UTC(y, m - 1, d) + days * 86_400_000;
-  return new Date(ms).toISOString().slice(0, 10);
+  const base = utcMidnight(day);
+  return new Date((base ?? NaN) + days * 86_400_000).toISOString().slice(0, 10);
 }
 
 /**
@@ -1010,7 +1008,7 @@ export function shouldShowBackfillOffer(input: {
   if (input.total <= 0) return false;
   if (input.budget <= 0) return false;
   const until = input.dismissedUntil;
-  if (until && BACKFILL_DAY_RE.test(until) && input.today < until) return false;
+  if (isCalendarDay(until) && input.today < until) return false;
   return true;
 }
 
@@ -1028,7 +1026,7 @@ export function backfillDismissUntil(input: {
   periodEnd?: string;
 }): string {
   const day = input.periodEnd?.slice(0, 10);
-  if (day && BACKFILL_DAY_RE.test(day) && day > input.today) return day;
+  if (isCalendarDay(day) && day > input.today) return day;
   return addDays(input.today, BACKFILL_DISMISS_DAYS);
 }
 
@@ -1044,6 +1042,47 @@ export interface BackfillOfferCopy {
 /** Thousands separators, so 1847 reads as a count rather than a serial number. */
 function count(n: number): string {
   return n.toLocaleString("en-US");
+}
+
+/** What the run covers — the budgeted range, or the over-budget situation named plainly. */
+function rangeLine(
+  currency: "filings" | "cost",
+  budgeted: number,
+  total: number,
+  overBudget: boolean,
+): string {
+  if (overBudget) {
+    return currency === "filings"
+      ? "The next day back holds more captures than this period's filings cover."
+      : "The next day back holds more captures than one run covers.";
+  }
+  if (total > budgeted) {
+    return `Atoms can file your ${count(budgeted)} most recent, of ${count(total)}. Newest first.`;
+  }
+  if (budgeted === 1) {
+    return "Atoms can file the one capture sitting further back. Newest first.";
+  }
+  return `Atoms can file all ${count(budgeted)} sitting further back. Newest first.`;
+}
+
+/** What the run spends, in the currency this device actually spends. */
+function meterLine(
+  currency: "filings" | "cost",
+  budgeted: number,
+  overBudget: boolean,
+  filingsRemaining: number | undefined,
+): string {
+  if (currency !== "filings") {
+    return "Runs on your own API key. You see the cost before anything starts.";
+  }
+  if (overBudget) {
+    return filingsRemaining == null
+      ? "More than this period's filings."
+      : `More than the ${count(filingsRemaining)} filings left this period.`;
+  }
+  return filingsRemaining == null
+    ? `Uses ${count(budgeted)} of this period's filings.`
+    : `Uses ${count(budgeted)} of the ${count(filingsRemaining)} filings left this period.`;
 }
 
 /**
@@ -1075,28 +1114,16 @@ export function backfillOfferCopy(input: {
   const budgeted = Math.max(0, input.budgeted);
   const total = Math.max(budgeted, input.total);
   const overBudget = budgeted === 0;
-  const range = overBudget
-    ? input.currency === "filings"
-      ? "The next day back holds more captures than this period's filings cover."
-      : "The next day back holds more captures than one run covers."
-    : total > budgeted
-      ? `Atoms can file your ${count(budgeted)} most recent, of ${count(total)}. Newest first.`
-      : budgeted === 1
-        ? "Atoms can file the one capture sitting further back. Newest first."
-        : `Atoms can file all ${count(budgeted)} sitting further back. Newest first.`;
   const lead = input.migrated
     ? "Automatic filing starts from the day you switched it on, so older captures stayed where they are. "
     : "";
-  const meter =
-    input.currency === "filings"
-      ? overBudget
-        ? input.filingsRemaining == null
-          ? "More than this period's filings."
-          : `More than the ${count(input.filingsRemaining)} filings left this period.`
-        : input.filingsRemaining == null
-          ? `Uses ${count(budgeted)} of this period's filings.`
-          : `Uses ${count(budgeted)} of the ${count(input.filingsRemaining)} filings left this period.`
-      : "Runs on your own API key. You see the cost before anything starts.";
+  const range = rangeLine(input.currency, budgeted, total, overBudget);
+  const meter = meterLine(
+    input.currency,
+    budgeted,
+    overBudget,
+    input.filingsRemaining,
+  );
   return {
     title: input.migrated ? "Filing starts here now" : "Older captures",
     body: `${lead}${range}`,

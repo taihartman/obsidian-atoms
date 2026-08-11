@@ -53,7 +53,6 @@ import {
 } from "../pipeline/context";
 import {
   DailyNotesDisabledError,
-  formatLocalDate,
   getPastDailyNotesWithUnmarkedCaptures,
 } from "../pipeline/daily";
 import {
@@ -1365,6 +1364,25 @@ export default class AtomsPlugin extends Plugin {
     return readAutoFilingSince(load, today);
   }
 
+  /**
+   * Is another filing pass already running? Both directions, in one place.
+   *
+   * The check is one synchronous step on purpose: the hourly pass, the manual catch-up and a
+   * backfill can all land in the same tick, and two runs against two pinned context corpora is
+   * exactly what the flags exist to prevent.
+   */
+  private backfillBusy(): boolean {
+    if (this.autoRunInFlight) {
+      new Notice("Atoms: filing already in progress");
+      return true;
+    }
+    if (this.backfillInFlight) {
+      new Notice("Atoms: backfill already in progress");
+      return true;
+    }
+    return false;
+  }
+
   /** The one bounded scan both engines derive their counts from. */
   private async backfillComplement(bounds: {
     since?: string;
@@ -1425,7 +1443,7 @@ export default class AtomsPlugin extends Plugin {
     range: RecentFirstRange;
     meterKnown: boolean;
   } | null> {
-    const today = formatLocalDate(new Date());
+    const today = localDateString();
     const stored = readPlusSession(this.app);
     let fresh = false;
     if (stored) {
@@ -1480,15 +1498,20 @@ export default class AtomsPlugin extends Plugin {
    * read and a vault scan.
    */
   private async runPlusBackfillFlow(): Promise<void> {
-    if (this.autoRunInFlight) {
-      new Notice("Atoms: filing already in progress");
-      return;
+    if (this.backfillBusy()) return;
+    // Held for the whole flow, not just the write pass: the confirm gate and the top-up poll are
+    // both windows a second tap lands in, and a concurrent flow there means a duplicate vault
+    // scan, a duplicate meter read and a second checkout tab.
+    this.backfillInFlight = true;
+    try {
+      await this.plusBackfillRounds();
+    } finally {
+      this.backfillInFlight = false;
     }
-    if (this.backfillInFlight) {
-      new Notice("Atoms: backfill already in progress");
-      return;
-    }
+  }
 
+  /** The gate/run loop itself. Runs only under `backfillInFlight` — see its one caller. */
+  private async plusBackfillRounds(): Promise<void> {
     for (let round = 0; round <= BACKFILL_TOPUP_ROUNDS; round += 1) {
       let offer: Awaited<ReturnType<AtomsPlugin["derivePlusBackfillOffer"]>>;
       try {
@@ -1580,18 +1603,9 @@ export default class AtomsPlugin extends Plugin {
    * derived range. Not `backfill.ts`, which is Batch-API-and-BYOK by construction.
    */
   private async executePlusBackfill(range: RecentFirstRange): Promise<void> {
-    // Both directions of the guard are one synchronous step: the hourly pass, the manual
-    // catch-up and this can all land in the same tick, and two runs against two pinned context
-    // corpora is exactly what the flags exist to prevent.
-    if (this.autoRunInFlight) {
-      new Notice("Atoms: filing already in progress");
-      return;
-    }
-    if (this.backfillInFlight) {
-      new Notice("Atoms: backfill already in progress");
-      return;
-    }
-    this.backfillInFlight = true;
+    // No guard and no flag of its own: `runPlusBackfillFlow` already holds `backfillInFlight` for
+    // the whole flow this runs inside. Taking it a second time here would clear it on the way out
+    // while the top-up loop is still live.
     try {
       const classifyAuth = this.requireClassifyAuth();
       if (!classifyAuth) return;
@@ -1655,8 +1669,6 @@ export default class AtomsPlugin extends Plugin {
       new Notice(
         `Atoms: backfill failed — ${e instanceof Error ? e.message.slice(0, 100) : "error"}`,
       );
-    } finally {
-      this.backfillInFlight = false;
     }
   }
 
@@ -1667,7 +1679,7 @@ export default class AtomsPlugin extends Plugin {
   private async deriveByokBackfillRange(): Promise<
     RecentFirstRange | "empty" | "over-budget"
   > {
-    const today = formatLocalDate(new Date());
+    const today = localDateString();
     const before = this.backfillComplementBefore(today);
     const budget = resolveBackfillBudget({
       period: "byok",
@@ -1695,14 +1707,7 @@ export default class AtomsPlugin extends Plugin {
   private async runByokBackfillFlow(source: "card" | "command") {
     const apiKey = this.requireApiKey();
     if (!apiKey) return;
-    if (this.autoRunInFlight) {
-      new Notice("Atoms: filing already in progress");
-      return;
-    }
-    if (this.backfillInFlight) {
-      new Notice("Atoms: backfill already in progress");
-      return;
-    }
+    if (this.backfillBusy()) return;
 
     new Notice("Atoms: counting tokens for backfill estimate…");
     try {

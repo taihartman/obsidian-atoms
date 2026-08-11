@@ -512,6 +512,46 @@ describe("in-flight guards", () => {
     expect(openModal()).toBeNull();
   });
 
+  it("refuses a second tap while the first flow is parked at the gate", async () => {
+    const h = harness({ ...oneDay(), session: plusSession() });
+    // The scan is the expensive half of the offer, so it is what a duplicate flow must not repeat.
+    const scan = vi.spyOn(
+      h.plugin as unknown as { backfillComplement: () => Promise<unknown> },
+      "backfillComplement",
+    );
+
+    const first = h.plugin.runBackfillFlow("card");
+    for (let turn = 0; turn < 50 && !openModal(); turn += 1) {
+      await new Promise((r) => setTimeout(r, 0));
+    }
+    expect(openModal()).not.toBeNull();
+
+    const meterReads = () =>
+      h.svc.calls.filter((u) => u.endsWith("/v1/me")).length;
+    const metersBefore = meterReads();
+    const scansBefore = scan.mock.calls.length;
+
+    // The second tap — home's card is still on screen and still tappable.
+    let secondSettled = false;
+    const second = h.plugin.runBackfillFlow("card");
+    void second.then(() => {
+      secondSettled = true;
+    });
+    for (let turn = 0; turn < 20; turn += 1) {
+      await new Promise((r) => setTimeout(r, 0));
+    }
+
+    // It was refused, not queued: no second scan, no second meter read, no second gate.
+    expect(secondSettled).toBe(true);
+    expect(notices.join(" ")).toContain("backfill already in progress");
+    expect(scan.mock.calls.length).toBe(scansBefore);
+    expect(meterReads()).toBe(metersBefore);
+    expect(Modal.open).toHaveLength(1);
+
+    clickModal("cancel");
+    await Promise.all([first, second]);
+  });
+
   it("auto-run refuses to start while the backfill holds its flag", async () => {
     const h = harness({ ...oneDay(), session: plusSession() });
     (h.plugin as unknown as { backfillInFlight: boolean }).backfillInFlight =

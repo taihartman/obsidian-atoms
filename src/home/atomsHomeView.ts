@@ -80,6 +80,7 @@ import {
   localCalendarDay,
   readPlusLimitDismissDay,
   writePlusLimitDismissDay,
+  type FilingAuth,
 } from "../platform/filingAuth";
 import {
   localDateString,
@@ -2068,11 +2069,14 @@ export class AtomsHomeView extends ItemView {
 
     this.renderContinueChip(scroll);
 
+    // One read for the whole pass: the wait card's hero and the backfill offer both branch on
+    // it, and nothing between them can change what it answers.
+    const filingAuth = this.plugin.resolveFilingAuth();
+
     // Work first when past captures wait — automatic filing story (not homework-only).
     // Suppress while land peak is up (one hero: Done owns the screen).
     if (shouldShowWaitCard(this.unprocessedCount) && !this.landPeak) {
       const snap = this.plugin.getAutoRunSnapshot();
-      const filingAuth = this.plugin.resolveFilingAuth();
       const limitDismissed = isPlusLimitDismissedToday(
         readPlusLimitDismissDay(this.app),
         localCalendarDay(),
@@ -2239,7 +2243,7 @@ export class AtomsHomeView extends ItemView {
       this.runPhase !== "update" &&
       !this.landPeak
     ) {
-      const offer = this.backfillOfferModel();
+      const offer = this.backfillOfferModel(filingAuth);
       if (offer) this.renderBackfillOffer(scroll, offer);
     }
 
@@ -2592,7 +2596,8 @@ export class AtomsHomeView extends ItemView {
   /**
    * Price the backfill offer from stored state alone, or return null when it must not show.
    *
-   * Every input is a device-local read: `resolveFilingAuth` reads the stored Plus session, and
+   * Every input is a device-local read: the filing auth it is handed comes from the stored Plus
+   * session (one `resolveFilingAuth` call for the whole render pass), and
    * the window bound goes through `readAutoFilingSince`, the reader that cannot persist. Opening
    * home is not enabling filing, and a stamp minted here would also beat `migrateAutoFilingWindow`
    * to it, leaving the paused-sweep copy unshown on the one device that needs it.
@@ -2601,8 +2606,7 @@ export class AtomsHomeView extends ItemView {
    * modal opens, so home never makes a network call to render and quotes the baseline reserve
    * until the user asks for a number they can act on.
    */
-  private backfillOfferModel(): BackfillOfferCopy | null {
-    const auth = this.plugin.resolveFilingAuth();
+  private backfillOfferModel(auth: FilingAuth): BackfillOfferCopy | null {
     if (auth.mode === "none") return null;
     const load = (k: string): unknown => this.app.loadLocalStorage(k) as unknown;
     const today = localDateString();

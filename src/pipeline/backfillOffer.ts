@@ -38,12 +38,31 @@ export const BACKFILL_CAP: Record<BackfillPeriod, number> = {
 };
 
 const MS_PER_DAY = 86_400_000;
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+/**
+ * A real calendar day in `YYYY-MM-DD` — the one validator every day-shaped value goes through.
+ *
+ * Calendar-aware, not shape-only: `2026-02-31` matches the shape and names no day, and every
+ * comparison against these values is a lexical string compare that would sort it wrong rather
+ * than fail loudly. Lives here because this is the module with no dependencies, so the impure
+ * layers can share it without either of them importing the other.
+ */
+export function isCalendarDay(v: unknown): v is string {
+  if (typeof v !== "string") return false;
+  const m = DATE_RE.exec(v);
+  if (!m) return false;
+  const [year, month, day] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  if (month < 1 || month > 12 || day < 1) return false;
+  const leap = (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
+  const lengths = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  return day <= (lengths[month - 1] ?? 0);
+}
 
 /** UTC midnight for a `YYYY-MM-DD` prefix, or null when it is not one. */
-function utcMidnight(date: string | undefined): number | null {
+export function utcMidnight(date: string | undefined): number | null {
   const day = date?.slice(0, 10);
-  if (!day || !DATE_RE.test(day)) return null;
+  if (!isCalendarDay(day)) return null;
   const [y = NaN, m = NaN, d = NaN] = day.split("-").map(Number);
   const ms = Date.UTC(y, m - 1, d);
   return Number.isNaN(ms) ? null : ms;
