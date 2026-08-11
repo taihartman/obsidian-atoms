@@ -67,6 +67,22 @@ Copy signing secret → `STRIPE_WEBHOOK_SECRET`.
 
 Prices must match [`plus-pricing.json`](../../plus-pricing.json): $6/mo, $60/yr, $2 top-up (150 / 50 filings, 14-day trial).
 
+### Promotion codes (Checkout)
+
+Requires `allow_promotion_codes` on Checkout (shipped in plus-service; deploy before relying on the field).
+
+**Create codes (live Dashboard):** Products → Coupons → **+ New** → set % or amount off and duration → enable **promotion codes** → set code string, max redemptions, expiry, optional first-time only / customer lock. Apply to the Plus product (or leave unrestricted so monthly/yearly/top-up prices match).
+
+**Owner free Plus:** 100% off, duration forever (or repeating N months), promo `max_redemptions=1`. Redeem via plugin **Subscribe monthly/yearly** → enter code at Checkout — **not** Start trial (trial webhook only grants 14-day `trialing` in our DB; coupon duration does not rewrite that grant).
+
+**Customer path:** Settings → trial / subscribe / top-up → Stripe Checkout → “Add promotion code”.
+
+**$0 first invoice:** expect `payment_status=no_payment_required` (webhook already grants; only literal `unpaid` skips). Stripe may still collect a payment method depending on Dashboard settings.
+
+**Env promos are separate:** `ATOMS_PLUS_PROMOS` + `POST /v1/promo` grant `plan: promo` without a Stripe subscription. Prefer Stripe codes for anything that should show in portal/invoices. Do not also send Checkout `discounts[]` alongside `allow_promotion_codes` (Stripe mutual exclusion).
+
+**After deploy smoke:** open Subscribe Checkout and confirm the promo field appears; optional one-shot redeem then archive the test code.
+
 ## Fly.io (default host)
 
 From **repo root** (Dockerfile paths assume monorepo context):
