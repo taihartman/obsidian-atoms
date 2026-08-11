@@ -10,6 +10,8 @@ import {
   extractSourceDay,
   atomsPlusOfferCopy,
   atomsPlusTopUpCopy,
+  backfillDismissUntil,
+  backfillOfferCopy,
   countUnprocessedSince,
   filingHeroCopy,
   filingPathFromAuth,
@@ -25,6 +27,7 @@ import {
   parseCreatedMs,
   personNameFromClaimTitle,
   planCreatedOrderBackfill,
+  shouldShowBackfillOffer,
   shouldShowWaitCard,
   titleFromAtomPath,
   updateNotesConfirmCopy,
@@ -753,5 +756,178 @@ describe("shouldShowBookmarkSetupNotice", () => {
   it("never fires when the bookmark was created or already present", () => {
     expect(shouldShowBookmarkSetupNotice("created", false)).toBe(false);
     expect(shouldShowBookmarkSetupNotice("already-present", false)).toBe(false);
+  });
+});
+
+/**
+ * U5 — the backfill offer card on home.
+ *
+ * Two bounds decide whether it renders, and the headline is the budgeted range rather than the
+ * complement total. Both rules exist because the failure they prevent is the common case on a
+ * real vault, not an edge: a card that offers a flow filing nothing, and a card promising 1,847
+ * captures above a run that files 100.
+ */
+describe("shouldShowBackfillOffer", () => {
+  const base = {
+    total: 1847,
+    budget: 50,
+    dismissedUntil: null,
+    today: "2026-08-10",
+  };
+
+  it("shows when there is a complement and a budget to spend on it", () => {
+    expect(shouldShowBackfillOffer(base)).toBe(true);
+  });
+
+  it("stays away when nothing sits outside the filing window", () => {
+    expect(shouldShowBackfillOffer({ ...base, total: 0 })).toBe(false);
+  });
+
+  it("stays away at zero budget even with a large complement", () => {
+    // The last third of a paid period at normal burn, and permanently for a heavy capturer:
+    // inviting a tap into a flow that files nothing is a dead end, not an edge case. Nothing
+    // to spend and nothing buyable that helps this period, so there is nowhere for a tap to go.
+    expect(shouldShowBackfillOffer({ ...base, budget: 0 })).toBe(false);
+  });
+
+  it("still shows when the budget cannot cover even the newest daily", () => {
+    // deriveRecentFirstRange takes whole dailies only, so a budget can be positive while the
+    // range is empty. That tap leads somewhere real: the modal's top-up branch (KTD11, "over
+    // budget offers a top-up, never a dead end"). Suppressing here would make that branch
+    // unreachable from the only discoverable surface. The empty *offer* is prevented in the
+    // copy, which names the situation instead of a count it cannot honor.
+    expect(shouldShowBackfillOffer({ ...base, budget: 5 })).toBe(true);
+  });
+
+  it("is suppressed for the period it was dismissed in", () => {
+    expect(
+      shouldShowBackfillOffer({ ...base, dismissedUntil: "2026-09-01" }),
+    ).toBe(false);
+  });
+
+  it("returns once the dismissed-through day arrives", () => {
+    expect(
+      shouldShowBackfillOffer({
+        ...base,
+        dismissedUntil: "2026-09-01",
+        today: "2026-09-01",
+      }),
+    ).toBe(true);
+    expect(
+      shouldShowBackfillOffer({
+        ...base,
+        dismissedUntil: "2026-09-01",
+        today: "2026-09-14",
+      }),
+    ).toBe(true);
+  });
+});
+
+describe("backfillDismissUntil", () => {
+  it("scopes a Plus dismissal to the end of the current period", () => {
+    expect(
+      backfillDismissUntil({ today: "2026-08-10", periodEnd: "2026-09-01" }),
+    ).toBe("2026-09-01");
+  });
+
+  it("accepts a full ISO period end and keeps only the day", () => {
+    expect(
+      backfillDismissUntil({
+        today: "2026-08-10",
+        periodEnd: "2026-09-01T04:00:00.000Z",
+      }),
+    ).toBe("2026-09-01");
+  });
+
+  it("falls back to 30 days for BYOK, which has no period at all", () => {
+    expect(backfillDismissUntil({ today: "2026-08-10" })).toBe("2026-09-09");
+  });
+
+  it("falls back to 30 days when the stored period end has already passed", () => {
+    expect(
+      backfillDismissUntil({ today: "2026-08-10", periodEnd: "2026-07-01" }),
+    ).toBe("2026-09-09");
+  });
+});
+
+describe("backfillOfferCopy", () => {
+  const plus = {
+    budgeted: 100,
+    total: 1847,
+    migrated: false,
+    currency: "filings" as const,
+    filingsRemaining: 150,
+  };
+
+  it("leads with the budgeted range and keeps the total subordinate", () => {
+    const copy = backfillOfferCopy(plus);
+    expect(copy.body).toContain("100");
+    // The total may appear, but never as the promise.
+    expect(copy.body.indexOf("100")).toBeLessThan(copy.body.indexOf("1,847"));
+  });
+
+  it("names filings on Plus and cost on BYOK", () => {
+    expect(backfillOfferCopy(plus).meter).toBe(
+      "Uses 100 of the 150 filings left this period.",
+    );
+    expect(
+      backfillOfferCopy({ ...plus, currency: "cost", filingsRemaining: undefined })
+        .meter,
+    ).toBe("Runs on your own API key. You see the cost before anything starts.");
+  });
+
+  it("names the pause on a migrated device instead of reading as a new offer", () => {
+    const fresh = backfillOfferCopy(plus);
+    const migrated = backfillOfferCopy({ ...plus, migrated: true });
+    expect(migrated.title).not.toBe(fresh.title);
+    expect(migrated.body).not.toBe(fresh.body);
+    expect(migrated.body).toContain("switched it on");
+  });
+
+  it("names the situation, never a count, when nothing fits the budget", () => {
+    // The over-budget variant routes to the modal's top-up branch. It must not promise a
+    // number, and a user who never tops up sees it every period, so it cannot read as a pitch.
+    const copy = backfillOfferCopy({ ...plus, budgeted: 0 });
+    expect(copy.body).not.toMatch(/\d/);
+    expect(copy.body).not.toContain("most recent");
+    expect(copy.meter).toBe("More than the 150 filings left this period.");
+    expect(copy.body).toBe(
+      "The next day back holds more captures than this period's filings cover.",
+    );
+  });
+
+  it("names the over-budget situation in the currency the device spends", () => {
+    expect(
+      backfillOfferCopy({
+        ...plus,
+        budgeted: 0,
+        currency: "cost",
+        filingsRemaining: undefined,
+      }).body,
+    ).toBe("The next day back holds more captures than one run covers.");
+  });
+
+  it("keeps every string clear of guilt language and em dashes", () => {
+    for (const migrated of [false, true]) {
+      for (const budgeted of [100, 0]) {
+        const copy = backfillOfferCopy({ ...plus, migrated, budgeted });
+        const all = Object.values(copy).join(" ");
+        expect(all).not.toMatch(/—/);
+        expect(all.toLowerCase()).not.toMatch(
+          /backlog|overdue|still need to|you haven't|catch up on|upgrade now|don't miss/,
+        );
+      }
+    }
+  });
+
+  it("keeps the ranged variants clear of guilt language and em dashes", () => {
+    for (const migrated of [false, true]) {
+      const copy = backfillOfferCopy({ ...plus, migrated });
+      const all = Object.values(copy).join(" ");
+      expect(all).not.toMatch(/—/);
+      expect(all.toLowerCase()).not.toMatch(
+        /backlog|overdue|still need to|you haven't|catch up on/,
+      );
+    }
   });
 });

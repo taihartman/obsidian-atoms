@@ -1404,6 +1404,30 @@
   line-height: 1.4;
 }
 
+/* Backfill offer card — same flat-card spacing as the Update strip (kit) */
+.atoms-home-backfill-offer {
+  margin-bottom: 14px;
+  padding: 14px 14px 12px;
+}
+.atoms-home-backfill-offer h2 {
+  margin: 0 0 6px;
+  font-size: 1.1rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+.atoms-home-backfill-offer > p {
+  margin: 0 0 6px;
+  font-size: 0.88rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+/* The currency line sits quieter than the body: what it costs, not what it offers. */
+.atoms-home-backfill-offer > p.atoms-home-backfill-meter {
+  margin: 0 0 12px;
+  font-size: 0.8rem;
+  color: var(--text-faint);
+}
+
 /* Shortcut update banner */
 /* Update notes strip — flat card spacing (kit); not shortcut banner */
 .atoms-home-update-notes {
@@ -2101,4 +2125,27 @@
   color: var(--text-muted);
   font-size: var(--font-ui-smaller);
   margin: 4px 0 0;
+}
+
+/* Backfill confirm: the aftermath of confirming, lifted out of the flat body list. */
+.atoms-backfill-aftermath {
+  border-left: 3px solid var(--interactive-accent);
+  background: var(--background-secondary);
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin: 12px 0;
+}
+.atoms-backfill-aftermath h3 {
+  margin: 0 0 6px;
+  font-size: var(--font-ui-small);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+.atoms-backfill-aftermath p {
+  margin: 0 0 6px;
+  font-size: var(--font-ui-small);
+}
+.atoms-backfill-aftermath p:last-child {
+  margin-bottom: 0;
 }

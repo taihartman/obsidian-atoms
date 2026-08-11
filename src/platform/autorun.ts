@@ -1,4 +1,5 @@
 import type { App, EventRef } from "obsidian";
+import { isCalendarDay } from "../pipeline/backfillOffer";
 import { readEgressNoticeAcked } from "./resume";
 
 /** Device-local keys — never data.json (KTD7 / R13). */
@@ -16,6 +17,15 @@ export const LS_AUTO_RUN_START_DAY = "atoms-auto-run-start-day";
  * notes. Without this flag a paying user watches filing stop and concludes the plugin broke.
  */
 export const LS_AUTO_RUN_WINDOW_MIGRATED = "atoms-auto-run-window-migrated";
+/**
+ * Day home's backfill offer card is suppressed through, after the user taps Not now (U5).
+ *
+ * Device-local beside the window start for the same reason that one is: it records what this
+ * device's screen has already shown, which is not vault content and not settings. A day rather
+ * than a boolean because the dismissal is for the period, not forever: a permanent X would
+ * collapse a multi-period drain into one tap and strand a multi-year vault.
+ */
+export const LS_BACKFILL_OFFER_DISMISSED = "atoms-backfill-offer-dismissed";
 
 /**
  * Which disclosure a stored egress ack was granted against (KTD4).
@@ -54,25 +64,18 @@ export function localDateString(d: Date = new Date()): string {
 /**
  * A real calendar day in `YYYY-MM-DD`, the only shape the window bound accepts.
  *
- * Strict on purpose, but only about *shape*: every comparison against the stamp is a lexical
- * string compare, so a near-miss like `2026-8-1` would sort wrong rather than fail loudly.
- * Calendar values are checked too, since `2026-02-31` matches the shape and names no day.
+ * `isCalendarDay` is the one validator every day-shaped value in the plugin goes through, and it
+ * lives in the dependency-free offer module so this layer and home can share it. Strict about
+ * shape, since every comparison against the stamp is a lexical string compare and a near-miss
+ * like `2026-8-1` would sort wrong rather than fail loudly, and about calendar values too, since
+ * `2026-02-31` matches the shape and names no day.
  *
  * This is not tamper resistance, and does not try to be. The key lives in localStorage, which
  * any other plugin or a devtools session can write, exactly as `LS_AUTO_RUN_ENABLED` can be
  * (KTD6). A well-formed but implausible value like `1970-01-01` passes here and widens the
  * window to all of history, the same way a flipped enable flag would.
  */
-function isFilingDay(v: unknown): v is string {
-  if (typeof v !== "string") return false;
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v);
-  if (!m) return false;
-  const [year, month, day] = [Number(m[1]), Number(m[2]), Number(m[3])];
-  if (month < 1 || month > 12 || day < 1) return false;
-  const leap = (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
-  const lengths = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-  return day <= (lengths[month - 1] ?? 0);
-}
+const isFilingDay = isCalendarDay;
 
 /** The stored filing-window start, or null when nothing usable is stored. */
 export function readAutoFilingStartDay(
@@ -149,6 +152,23 @@ export function migrateAutoFilingWindow(
   stampAutoFilingWindowStart(load, save, day);
   save(LS_AUTO_RUN_WINDOW_MIGRATED, true);
   return true;
+}
+
+/** The day home's backfill offer is suppressed through, or null when it is not dismissed. */
+export function readBackfillOfferDismissedUntil(
+  load: (key: string) => unknown,
+): string | null {
+  const v = load(LS_BACKFILL_OFFER_DISMISSED);
+  return isFilingDay(v) ? v : null;
+}
+
+/** Suppress the card through `day`. A malformed day is dropped, so the card simply stays. */
+export function writeBackfillOfferDismissedUntil(
+  save: (key: string, data: unknown) => void,
+  day: string,
+): void {
+  if (!isFilingDay(day)) return;
+  save(LS_BACKFILL_OFFER_DISMISSED, day);
 }
 
 /** Whether U4 stamped this device's window — what U5's copy keys on (KTD5). */
