@@ -12,6 +12,8 @@ import {
   ALSO_ABOUT_BODY_NOTE,
   bodyAfterFrontmatter,
   buildAlsoAboutStripModel,
+  backfillDismissUntil,
+  backfillOfferCopy,
   countUnprocessedSince,
   countUpdateWorkRemaining,
   extractSourceDay,
@@ -26,12 +28,14 @@ import {
   listAtomLibraryEntries,
   planCreatedOrderBackfill,
   queuePeekTexts,
+  shouldShowBackfillOffer,
   shouldShowWaitCard,
   titleFromAtomPath,
   updateNotesConfirmCopy,
   updateNotesStripCopy,
   waitingSubtitle,
   type AtomLibraryEntry,
+  type BackfillOfferCopy,
   type FilingHeroAction,
   type FilingHeroCopy,
   type InboxStuckSummary,
@@ -80,7 +84,19 @@ import {
 import {
   localDateString,
   readAutoFilingSince,
+  readAutoFilingWindowMigrated,
+  readBackfillOfferDismissedUntil,
+  readDeviceAutoRunState,
+  readEgressPermitted,
+  writeBackfillOfferDismissedUntil,
+  writeEgressAck,
 } from "../platform/autorun";
+import {
+  deriveRecentFirstRange,
+  resolveBackfillBudget,
+  type BackfillDaily,
+  type BackfillPeriod,
+} from "../pipeline/backfillOffer";
 import { UPDATE_NOTES_BATCH_LIMIT } from "../pipeline/refreshAtoms";
 import {
   formatAskMirrorRefusalLine,
@@ -227,6 +243,11 @@ export class AtomsHomeView extends ItemView {
    * stays unbounded so the wait card, Process, and the first-day check keep their meaning.
    */
   private windowUnprocessedCount = 0;
+  /**
+   * Per-daily past counts, so the backfill offer can price a recent-first range without a second
+   * vault scan. Derived from the same pass that sets the two counts above.
+   */
+  private backfillDailies: BackfillDaily[] = [];
   /** Captures stuck in the capture inbox (drain health), null when clear. */
   private inboxStuck: InboxStuckSummary | null = null;
   /** Raw counts behind inboxStuck, kept so Dismiss can re-summarize without a re-read. */
@@ -691,6 +712,11 @@ export class AtomsHomeView extends ItemView {
           localDateString(),
         ),
       );
+      this.backfillDailies = past.notes.map((note) => ({
+        date: note.date,
+        path: note.path,
+        unprocessedCount: note.unprocessed.length,
+      }));
       this.peek = queuePeekTexts(past.notes, 3);
 
       const withToday = await getPastDailyNotesWithUnmarkedCaptures(this.app, {
@@ -715,6 +741,7 @@ export class AtomsHomeView extends ItemView {
       if (e instanceof DailyNotesDisabledError) {
         this.unprocessedCount = 0;
         this.windowUnprocessedCount = 0;
+        this.backfillDailies = [];
         this.todayUnprocessedCount = 0;
         this.peek = [];
         this.skippedEntries = [];
@@ -2204,6 +2231,18 @@ export class AtomsHomeView extends ItemView {
       this.renderUpdateNotesStrip(scroll);
     }
 
+    // Same suppression as the strip above: a quiet card, and never while a run is on screen.
+    if (
+      !firstDay &&
+      this.runPhase !== "preview" &&
+      this.runPhase !== "process" &&
+      this.runPhase !== "update" &&
+      !this.landPeak
+    ) {
+      const offer = this.backfillOfferModel();
+      if (offer) this.renderBackfillOffer(scroll, offer);
+    }
+
     if (this.showShortcutBanner()) {
       const banner = scroll.createDiv({ cls: "atoms-home-update-banner" });
       const text = banner.createDiv();
@@ -2548,6 +2587,131 @@ export class AtomsHomeView extends ItemView {
         this.render();
       },
     });
+  }
+
+  /**
+   * Price the backfill offer from stored state alone, or return null when it must not show.
+   *
+   * Every input is a device-local read: `resolveFilingAuth` reads the stored Plus session, and
+   * the window bound goes through `readAutoFilingSince`, the reader that cannot persist. Opening
+   * home is not enabling filing, and a stamp minted here would also beat `migrateAutoFilingWindow`
+   * to it, leaving the paused-sweep copy unshown on the one device that needs it.
+   *
+   * `fresh: false` always, and deliberately: the live `/v1/me` read happens when the confirm
+   * modal opens, so home never makes a network call to render and quotes the baseline reserve
+   * until the user asks for a number they can act on.
+   */
+  private backfillOfferModel(): BackfillOfferCopy | null {
+    const auth = this.plugin.resolveFilingAuth();
+    if (auth.mode === "none") return null;
+    const load = (k: string): unknown => this.app.loadLocalStorage(k) as unknown;
+    const today = localDateString();
+    const period: BackfillPeriod =
+      auth.mode === "byok"
+        ? "byok"
+        : auth.status === "trialing"
+          ? "trial"
+          : "paid";
+    const periodEnd = auth.mode === "plus" ? auth.periodEnd : undefined;
+    const remaining = auth.mode === "plus" ? auth.remaining : undefined;
+    const { budget } = resolveBackfillBudget({
+      period,
+      fresh: false,
+      today,
+      periodEnd,
+      remaining,
+    });
+    // Same complement bound the flow itself resolves (KTD3): with filing off no unattended pass
+    // claims any of it, so the offer covers everything past.
+    const before = readDeviceAutoRunState(load).enabled
+      ? readAutoFilingSince(load, today)
+      : today;
+    const range = deriveRecentFirstRange({
+      dailies: this.backfillDailies,
+      before,
+      budget,
+    });
+    if (
+      !shouldShowBackfillOffer({
+        total: range.totalCaptures,
+        budget,
+        dismissedUntil: readBackfillOfferDismissedUntil(load),
+        today,
+      })
+    ) {
+      return null;
+    }
+    return backfillOfferCopy({
+      budgeted: range.captures,
+      total: range.totalCaptures,
+      migrated: readAutoFilingWindowMigrated(load),
+      currency: auth.mode === "plus" ? "filings" : "cost",
+      filingsRemaining: remaining,
+    });
+  }
+
+  private renderBackfillOffer(
+    scroll: HTMLElement,
+    copy: BackfillOfferCopy,
+  ): void {
+    const card = flatCard(scroll, { className: "atoms-home-backfill-offer" });
+    card.createEl("h2", { text: copy.title });
+    card.createEl("p", { text: copy.body });
+    card.createEl("p", {
+      cls: "atoms-home-backfill-meter",
+      text: copy.meter,
+    });
+    const actions = actionRow(card, { className: "atoms-home-wait-actions" });
+    button(actions, {
+      grade: "primary",
+      label: copy.primary,
+      disabled: this.busy,
+      onClick: () => this.startBackfillFromCard(),
+    });
+    button(actions, {
+      grade: "quiet",
+      label: copy.dismiss,
+      disabled: this.busy,
+      onClick: () => this.dismissBackfillOffer(),
+    });
+  }
+
+  /**
+   * The card's tap, behind the same egress ack every other send is behind.
+   *
+   * An absent or stale ack cannot reach the flow: the sheet is the only way through, and only
+   * `accepted` proceeds. Accepting stamps the ack, which is what "agreed to this disclosure"
+   * means everywhere else. It does not turn automatic filing on: `readEgressPermitted` grants
+   * the send, and `shouldRunAutoProcess` still wants the enable flag this never writes.
+   */
+  private startBackfillFromCard(): void {
+    const load = (k: string): unknown => this.app.loadLocalStorage(k) as unknown;
+    if (readEgressPermitted(load, { catchUp: false })) {
+      void this.plugin.runBackfillFromHome();
+      return;
+    }
+    new ConsentSheetModal(
+      this.app,
+      egressConsentSpec((verdict) => {
+        // `accepted` and nothing else: `declined` covers Cancel, Escape, and a click outside.
+        if (verdict !== "accepted") return;
+        writeEgressAck((k, v) => this.app.saveLocalStorage(k, v), true);
+        void this.plugin.runBackfillFromHome();
+      }),
+    ).open();
+  }
+
+  /** Not now: quiet until the next period, never forever. */
+  private dismissBackfillOffer(): void {
+    const auth = this.plugin.resolveFilingAuth();
+    writeBackfillOfferDismissedUntil(
+      (k, v) => this.app.saveLocalStorage(k, v),
+      backfillDismissUntil({
+        today: localDateString(),
+        periodEnd: auth.mode === "plus" ? auth.periodEnd : undefined,
+      }),
+    );
+    this.render();
   }
 
   private confirmUpdateNotes(opts: {

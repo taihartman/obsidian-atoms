@@ -16,6 +16,15 @@ export const LS_AUTO_RUN_START_DAY = "atoms-auto-run-start-day";
  * notes. Without this flag a paying user watches filing stop and concludes the plugin broke.
  */
 export const LS_AUTO_RUN_WINDOW_MIGRATED = "atoms-auto-run-window-migrated";
+/**
+ * Day home's backfill offer card is suppressed through, after the user taps Not now (U5).
+ *
+ * Device-local beside the window start for the same reason that one is: it records what this
+ * device's screen has already shown, which is not vault content and not settings. A day rather
+ * than a boolean because the dismissal is for the period, not forever: a permanent X would
+ * collapse a multi-period drain into one tap and strand a multi-year vault.
+ */
+export const LS_BACKFILL_OFFER_DISMISSED = "atoms-backfill-offer-dismissed";
 
 /**
  * Which disclosure a stored egress ack was granted against (KTD4).
@@ -149,6 +158,23 @@ export function migrateAutoFilingWindow(
   stampAutoFilingWindowStart(load, save, day);
   save(LS_AUTO_RUN_WINDOW_MIGRATED, true);
   return true;
+}
+
+/** The day home's backfill offer is suppressed through, or null when it is not dismissed. */
+export function readBackfillOfferDismissedUntil(
+  load: (key: string) => unknown,
+): string | null {
+  const v = load(LS_BACKFILL_OFFER_DISMISSED);
+  return isFilingDay(v) ? v : null;
+}
+
+/** Suppress the card through `day`. A malformed day is dropped, so the card simply stays. */
+export function writeBackfillOfferDismissedUntil(
+  save: (key: string, data: unknown) => void,
+  day: string,
+): void {
+  if (!isFilingDay(day)) return;
+  save(LS_BACKFILL_OFFER_DISMISSED, day);
 }
 
 /** Whether U4 stamped this device's window — what U5's copy keys on (KTD5). */
