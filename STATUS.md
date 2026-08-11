@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-_Nothing in flight._
+| In progress | [#441](https://github.com/taihartman/obsidian-atoms/issues/441) | @taihartman (agent) | `claude/plus-meter-keeps-ask-441` | [handoff](docs/handoffs/2026-08-11-plus-meter-keeps-ask-441.md) | `plus-service/src/store/{askPostgresMethods,askSqliteMethods,memory}.mjs` · `plus-service/src/mirror/http.mjs` · `plus-service/src/oauth/routes.mjs` · `plus-service/src/store/shared.mjs` | A spent filing meter must not revoke Ask/MCP for an active subscriber. Server-side only — needs a Fly deploy to take effect. |
 
 ## How to claim (copy)
 
