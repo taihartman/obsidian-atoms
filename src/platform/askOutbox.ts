@@ -4,6 +4,7 @@
 import type { ClassificationLink } from "../shared/types";
 import { relationReasonProse } from "../shared/relationReason";
 import {
+  OPEN_LOOP_CLOSE_ANSWER_KEY,
   formatOpenLoopFmLines,
   type OpenLoopFm,
 } from "../shared/openLoop";
@@ -116,7 +117,9 @@ export function buildAskAtomMarkdown(opts: {
   if (loop) fm.push(...formatOpenLoopFmLines(loop));
   const closeAns = (opts.closeAnswer ?? "").trim();
   if (closeAns) {
-    fm.push(`atoms-loop-close-answer: ${yamlQuote(closeAns.slice(0, 500))}`);
+    fm.push(
+      `${OPEN_LOOP_CLOSE_ANSWER_KEY}: ${yamlQuote(closeAns.slice(0, 500))}`,
+    );
   }
   fm.push("---", "");
 

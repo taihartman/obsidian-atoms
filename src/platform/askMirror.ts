@@ -4,8 +4,11 @@
  */
 import { parseLinkProse } from "../pipeline/parseLinkProse";
 import type { PlusLapseKind } from "./filingAuth";
-import { parseOpenLoopFm } from "../shared/openLoop";
-import { relationReasonProse } from "../shared/relationReason";
+import { parseOpenLoopFm, type OpenLoopFm } from "../shared/openLoop";
+import {
+  CONTINUE_RELATIONS,
+  relationReasonProse,
+} from "../shared/relationReason";
 import type {
   ConfirmRequest,
   ConfirmVerdict,
@@ -95,7 +98,7 @@ export type AskMirrorAtomPayload = {
   /** Frontmatter `created` when present (day or local datetime). */
   created?: string;
   /** Open-loop FM when present. */
-  loop?: { state: string; source: string };
+  loop?: OpenLoopFm;
 };
 
 export type VaultFileRead = {
@@ -113,7 +116,7 @@ export function splitAtomMarkdown(content: string): {
   parent?: string;
   relation?: string;
   created?: string;
-  loop?: { state: string; source: string };
+  loop?: OpenLoopFm;
   fmLinks: FmLink[];
 } {
   if (!content.startsWith("---")) {
@@ -260,13 +263,9 @@ export function linksFromAtomFile(opts: {
     const p = opts.parent.trim();
     const key = p.toLowerCase();
     const rel = (opts.relation || "").trim();
-    const reason =
-      rel === "revises" ||
-      rel === "contradicts" ||
-      rel === "adds_detail" ||
-      rel === "continues"
-        ? relationReasonProse(rel, p)
-        : undefined;
+    const reason = (CONTINUE_RELATIONS as readonly string[]).includes(rel)
+      ? relationReasonProse(rel, p)
+      : undefined;
     const prev = byNote.get(key);
     if (!prev) {
       byNote.set(key, reason ? { note: p, reason } : { note: p });

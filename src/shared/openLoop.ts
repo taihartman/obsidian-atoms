@@ -2,7 +2,11 @@
 
 export const OPEN_LOOP_KEY = "atoms-loop";
 export const OPEN_LOOP_SOURCE_KEY = "atoms-loop-source";
+export const OPEN_LOOP_CLOSE_ANSWER_KEY = "atoms-loop-close-answer";
 export const REDEEMS_RELATION = "redeems";
+
+const LOOP_STATE_RE = /^atoms-loop:\s*(\S+)\s*$/m;
+const LOOP_SOURCE_RE = /^atoms-loop-source:\s*(\S+)\s*$/m;
 
 export type OpenLoopState =
   | "active"
@@ -54,24 +58,14 @@ export function formatOpenLoopFmLines(fm: OpenLoopFm): string[] {
  */
 export function parseOpenLoopFm(markdownOrFm: string): OpenLoopFm | null {
   const text = markdownOrFm ?? "";
-  const state = matchFmValue(text, OPEN_LOOP_KEY);
-  const source = matchFmValue(text, OPEN_LOOP_SOURCE_KEY);
+  const state = text.match(LOOP_STATE_RE)?.[1]?.trim() ?? null;
+  const source = text.match(LOOP_SOURCE_RE)?.[1]?.trim() ?? null;
   if (!state || !source) return null;
   if (!STATES.has(state) || !SOURCES.has(source)) return null;
   return {
     state: state as OpenLoopState,
     source: source as OpenLoopSource,
   };
-}
-
-function matchFmValue(text: string, key: string): string | null {
-  const re = new RegExp(`^${escapeReg(key)}:\\s*(\\S+)\\s*$`, "m");
-  const m = text.match(re);
-  return m?.[1]?.trim() ?? null;
-}
-
-function escapeReg(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 export type LinkLike = {
@@ -94,13 +88,3 @@ export function linksIncludeRedeems(links: LinkLike[] | null | undefined): boole
   return false;
 }
 
-export function openNowFromFmAndLinks(
-  markdownOrFm: string,
-  links: LinkLike[] | null | undefined,
-): boolean {
-  const fm = parseOpenLoopFm(markdownOrFm);
-  return openNow({
-    state: fm?.state ?? null,
-    hasRedeemingChild: linksIncludeRedeems(links),
-  });
-}

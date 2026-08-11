@@ -521,7 +521,10 @@ export function paginateMirrorList(pubs, opts = {}) {
 
   const total = filtered.length;
   const slice = filtered.slice(offset, offset + limit);
-  const items = slice.map(shapeMirrorListItem);
+  const inboundIndex = buildInboundIndex(pubs || []);
+  const items = slice.map((pub) =>
+    shapeMirrorListItem(pub, revisionStatusFor(pub.title, inboundIndex)),
+  );
   const next_offset =
     offset + items.length < total ? offset + items.length : null;
   /** @type {Record<string, unknown>} */
@@ -1314,13 +1317,13 @@ export function shapeFetchAtom(atom, neighborsGraph, opts = {}) {
     return base;
   }
 
-  const rev = revisionStatusFor(atom.title, inboundIndex);
   base.revision_participant = true;
-  base.status = rev.status;
-  base.superseded_by = rev.superseded_by;
-  base.contradicted_by = rev.contradicted_by;
-  base.continued_by = rev.continued_by;
-  base.detailed_by = rev.detailed_by;
+  base.status = centerRev.status;
+  base.superseded_by = centerRev.superseded_by;
+  base.contradicted_by = centerRev.contradicted_by;
+  base.continued_by = centerRev.continued_by;
+  base.detailed_by = centerRev.detailed_by;
+  if (centerRev.redeemed_by?.length) base.redeemed_by = centerRev.redeemed_by;
   return base;
 }
 

@@ -1,6 +1,7 @@
 import { FuzzySuggestModal, Notice, TFile, type App } from "obsidian";
 import {
   applyOpenLoopFm,
+  collectRedeemedParentKeys,
   isOpenNowContent,
   isProposalCandidate,
   openLoopMeta,
@@ -8,23 +9,37 @@ import {
 import { clampAtomFolder, listAtomPaths } from "../pipeline/render";
 import type { OpenLoopFm } from "../shared/openLoop";
 
-type Row = { path: string; title: string; content: string };
+type Row = {
+  path: string;
+  title: string;
+  content: string;
+  label: string;
+};
 
 async function loadAtomRows(app: App, atomFolder: string): Promise<Row[]> {
   const folder = clampAtomFolder(atomFolder);
   const paths = [...listAtomPaths(app, folder)];
-  const rows: Row[] = [];
-  for (const path of paths) {
-    const af = app.vault.getAbstractFileByPath(path);
-    if (!(af instanceof TFile)) continue;
-    const content = await app.vault.read(af);
-    rows.push({
-      path,
-      title: af.basename.replace(/\.md$/i, ""),
-      content,
-    });
-  }
-  return rows;
+  const files = paths
+    .map((path) => app.vault.getAbstractFileByPath(path))
+    .filter((f): f is TFile => f instanceof TFile);
+
+  const contents = await Promise.all(
+    files.map(async (file) => {
+      const content =
+        typeof app.vault.cachedRead === "function"
+          ? await app.vault.cachedRead(file)
+          : await app.vault.read(file);
+      return { file, content };
+    }),
+  );
+
+  return contents.map(({ file, content }) => {
+    const title = file.basename.replace(/\.md$/i, "");
+    const meta = openLoopMeta(content);
+    const src = meta?.source === "user" ? "you" : meta ? "inferred" : "";
+    const label = src ? `${title} · ${src}` : title;
+    return { path: file.path, title, content, label };
+  });
 }
 
 class OpenLoopsBrowseModal extends FuzzySuggestModal<Row> {
@@ -41,9 +56,7 @@ class OpenLoopsBrowseModal extends FuzzySuggestModal<Row> {
   }
 
   getItemText(item: Row): string {
-    const meta = openLoopMeta(item.content);
-    const src = meta?.source === "user" ? "you" : "inferred";
-    return `${item.title} · ${src}`;
+    return item.label;
   }
 
   onChooseItem(item: Row): void {
@@ -72,9 +85,8 @@ class OpenLoopsReviewModal extends FuzzySuggestModal<Row> {
 
   onChooseItem(item: Row, evt: MouseEvent | KeyboardEvent): void {
     const skip =
-      evt instanceof KeyboardEvent && evt.shiftKey
-        ? true
-        : evt instanceof MouseEvent && evt.shiftKey;
+      (evt instanceof KeyboardEvent && evt.shiftKey) ||
+      (evt instanceof MouseEvent && evt.shiftKey);
     void this.onPick(item, !skip);
   }
 }
@@ -86,7 +98,10 @@ export async function runOpenLoopsCommand(
 ): Promise<void> {
   const all = await loadAtomRows(app, atomFolder);
   if (mode === "browse") {
-    const open = all.filter((r) => isOpenNowContent(r.content));
+    const redeemed = collectRedeemedParentKeys(all);
+    const open = all.filter((r) =>
+      isOpenNowContent(r.content, redeemed.has(r.title.toLowerCase())),
+    );
     if (!open.length) {
       new Notice("No open loops right now.");
       return;
@@ -111,7 +126,9 @@ export async function runOpenLoopsCommand(
     const f = app.vault.getAbstractFileByPath(row.path);
     if (!(f instanceof TFile)) return;
     await app.vault.modify(f, content);
-    new Notice(accept ? `Marked open loop: ${row.title}` : `Not a loop: ${row.title}`);
+    new Notice(
+      accept ? `Marked open loop: ${row.title}` : `Not a loop: ${row.title}`,
+    );
   };
 
   new OpenLoopsReviewModal(app, proposals, write).open();

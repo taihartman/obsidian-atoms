@@ -1,11 +1,10 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
-  attachLoopFields,
   buildSearchHits,
   openNowFromLoop,
+  paginateMirrorList,
   prepareMirrorRow,
-  revisionStatusFor,
   shapeFetchAtom,
   shapeMirrorListItem,
 } from "../src/store/askHelpers.mjs";
@@ -99,5 +98,39 @@ describe("open loop shapes", () => {
       loop: { state: "active", source: "inferred" },
     });
     assert.equal(item.open_now, true);
+  });
+
+  it("paginateMirrorList open_now false when another pub redeems it", () => {
+    const pubs = [
+      {
+        id: "1",
+        title: "Newsletter idea",
+        path: "Atoms/Newsletter idea.md",
+        kind: "atom",
+        tags: [],
+        text: "I will share later",
+        links: [],
+        loop: { state: "active", source: "inferred" },
+        created: "2026-08-05",
+        updatedAt: "2026-08-11T00:00:00.000Z",
+      },
+      {
+        id: "2",
+        title: "Full routine",
+        path: "Atoms/Full routine.md",
+        kind: "atom",
+        tags: [],
+        text: "the routine",
+        links: [
+          { note: "Newsletter idea", reason: "redeems [[Newsletter idea]]" },
+        ],
+        created: "2026-08-11",
+        updatedAt: "2026-08-11T00:00:00.000Z",
+      },
+    ];
+    const page = paginateMirrorList(pubs, { limit: 50 });
+    const parent = page.items.find((i) => i.title === "Newsletter idea");
+    assert.ok(parent);
+    assert.equal(parent.open_now, false);
   });
 });

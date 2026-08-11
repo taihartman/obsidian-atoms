@@ -85,13 +85,13 @@ describe("parseOpenLoopFm / formatOpenLoopFmLines", () => {
 describe("linksIncludeRedeems", () => {
   it("detects redeems relation case-insensitively", () => {
     expect(
-      linksIncludeRedeems([{ note: "Child", relation: REDEEMS_RELATION }]),
+      linksIncludeRedeems([{ note: "Parent", relation: REDEEMS_RELATION }]),
     ).toBe(true);
     expect(
-      linksIncludeRedeems([{ note: "Child", relation: "Redeems" }]),
+      linksIncludeRedeems([{ note: "Parent", relation: "Redeems" }]),
     ).toBe(true);
     expect(
-      linksIncludeRedeems([{ note: "Child", relation: "continues" }]),
+      linksIncludeRedeems([{ note: "Parent", relation: "continues" }]),
     ).toBe(false);
     expect(linksIncludeRedeems([])).toBe(false);
   });
@@ -99,7 +99,7 @@ describe("linksIncludeRedeems", () => {
   it("also matches reason text containing redeems", () => {
     expect(
       linksIncludeRedeems([
-        { note: "Child", reason: "redeems [[Parent]]" },
+        { note: "Parent", reason: "redeems [[Parent]]" },
       ]),
     ).toBe(true);
   });

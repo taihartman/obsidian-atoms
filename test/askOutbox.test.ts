@@ -28,7 +28,7 @@ describe("askOutbox", () => {
     });
     expect(content).toContain("relation: redeems");
     expect(content).toContain("redeems [[Newsletter idea]]");
-    expect(content).toContain("atoms-loop-close-answer:");
+    expect(content).toMatch(/atoms-loop-close-answer:/);
   });
 
   it("builds Process-parity body: capture + link prose; no atom-links FM", () => {

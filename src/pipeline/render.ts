@@ -12,11 +12,7 @@ import {
   qualityStampLines,
 } from "./atomQuality";
 import { looksLikeOpenLoop } from "./openLoopHeuristic";
-import {
-  canClassifierWrite,
-  formatOpenLoopFmLines,
-  type OpenLoopFm,
-} from "../shared/openLoop";
+import { formatOpenLoopFmLines, type OpenLoopFm } from "../shared/openLoop";
 
 /** Collapse whitespace for capture body equality (collision integrity). */
 export function normalizeCaptureText(text: string): string {
@@ -223,15 +219,16 @@ export function buildAtomMarkdown(opts: {
   if (result.people !== undefined) {
     fm.push(...atomsPeopleLines(result.people));
   }
-  const loop =
-    opts.openLoop !== undefined
-      ? opts.openLoop
-      : result.verdict === "atom" && looksLikeOpenLoop(captureText, title)
-        ? ({ state: "active", source: "inferred" } satisfies OpenLoopFm)
-        : null;
-  if (loop && canClassifierWrite(null)) {
-    fm.push(...formatOpenLoopFmLines(loop));
+  let loop: OpenLoopFm | null =
+    opts.openLoop !== undefined ? opts.openLoop : null;
+  if (
+    loop === null &&
+    result.verdict === "atom" &&
+    looksLikeOpenLoop(captureText, title)
+  ) {
+    loop = { state: "active", source: "inferred" };
   }
+  if (loop) fm.push(...formatOpenLoopFmLines(loop));
   fm.push("---", "");
 
   const body = formatAtomBody(captureText, result);
