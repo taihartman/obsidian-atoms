@@ -344,7 +344,7 @@ export function registerAskTools(mcp, ctx) {
       title: "Create atom",
       annotations: { readOnlyHint: false, destructiveHint: true },
       description:
-        "Queue a new atom for the user's vault (outbox). Does NOT write instantly—status stays pending until Obsidian applies it. Prefer user-dictated body text; do not invent facts.",
+        "Queue a new atom for the user's vault (outbox). Does NOT write instantly—status stays pending until Obsidian applies it. Prefer user-dictated body text; do not invent facts. Set open_loop when the note is an intention/IOU, not finished substance.",
       inputSchema: {
         title: z.string().describe("Declarative atom title"),
         body: z.string().describe("Atom body / capture text"),
@@ -357,6 +357,12 @@ export function registerAskTools(mcp, ctx) {
             }),
           )
           .optional(),
+        open_loop: z
+          .boolean()
+          .optional()
+          .describe(
+            "True when this note is an open loop (intention only). Marks atoms-loop active with source user.",
+          ),
         client_request_id: z
           .string()
           .optional()
@@ -417,9 +423,23 @@ export function registerAskTools(mcp, ctx) {
         title: z.string().describe("Title for the new child atom"),
         body: z.string().describe("Child atom body"),
         relation: z
-          .enum(["continues", "revises", "contradicts", "adds_detail"])
+          .enum([
+            "continues",
+            "revises",
+            "contradicts",
+            "adds_detail",
+            "redeems",
+          ])
           .optional()
-          .describe("Graph relation to parent (default continues)"),
+          .describe(
+            "Graph relation to parent (default continues). Use redeems only to close an open loop with substance — ordinary continues never closes a loop.",
+          ),
+        close_answer: z
+          .string()
+          .optional()
+          .describe(
+            "When relation is redeems: user's answer to what closing this loop looks like (logged on the child).",
+          ),
         tags: z.array(z.string()).optional(),
         links: z
           .array(

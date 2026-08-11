@@ -291,6 +291,7 @@ export function relationFromReason(reason) {
   if (!r) return null;
   if (r.startsWith("contradicts")) return "contradicts";
   if (r.startsWith("revises")) return "revises";
+  if (r.startsWith("redeems")) return "redeems";
   if (r.startsWith("continues")) return "continues";
   if (r.startsWith("adds detail")) return "adds_detail";
   return null;
@@ -940,6 +941,7 @@ export const INVERSE_RELATION = {
   revises: "revised_by",
   contradicts: "contradicted_by",
   adds_detail: "detailed_by",
+  redeems: "redeemed_by",
 };
 
 /**
@@ -1267,6 +1269,7 @@ export const OUTBOX_RELATIONS = new Set([
   "revises",
   "contradicts",
   "adds_detail",
+  "redeems",
 ]);
 
 /**
@@ -1282,6 +1285,8 @@ export function relationReason(relation, parentTitle) {
       return `contradicts [[${p}]]`;
     case "adds_detail":
       return `adds detail to [[${p}]]`;
+    case "redeems":
+      return `redeems [[${p}]]`;
     case "continues":
     default:
       return `continues [[${p}]]`;
@@ -1340,6 +1345,10 @@ export function validateOutboxPayload(kind, raw) {
     if (!hasParent) {
       links = [{ note: parent_title, reason }, ...links];
     }
+    const close_answer =
+      raw?.close_answer != null
+        ? String(raw.close_answer).replace(/[\r\n]/g, " ").trim().slice(0, 500)
+        : undefined;
     return {
       ok: true,
       payload: {
@@ -1350,13 +1359,22 @@ export function validateOutboxPayload(kind, raw) {
         parent_title,
         relation,
         client_request_id,
+        ...(close_answer ? { close_answer } : {}),
       },
     };
   }
 
+  const open_loop = raw?.open_loop === true ? true : undefined;
   return {
     ok: true,
-    payload: { title, body, tags, links, client_request_id },
+    payload: {
+      title,
+      body,
+      tags,
+      links,
+      client_request_id,
+      ...(open_loop ? { open_loop: true } : {}),
+    },
   };
 }
 

@@ -8,6 +8,29 @@ import {
 import { isGeneratedAtomContent } from "../src/home/atomsHomeData";
 
 describe("askOutbox", () => {
+  it("marks open_loop agent flag as user source", () => {
+    const { content } = buildAskAtomMarkdown({
+      title: "Newsletter idea",
+      body: "I will share my routine later.",
+      openLoop: true,
+    });
+    expect(content).toContain("atoms-loop: active");
+    expect(content).toContain("atoms-loop-source: user");
+  });
+
+  it("redeems child gets redeems prose and optional close answer", () => {
+    const { content } = buildAskAtomMarkdown({
+      title: "Cowork routine for atoms",
+      body: "Here is the full routine…",
+      parent: "Newsletter idea",
+      relation: "redeems",
+      closeAnswer: "write the substance from my head",
+    });
+    expect(content).toContain("relation: redeems");
+    expect(content).toContain("redeems [[Newsletter idea]]");
+    expect(content).toContain("atoms-loop-close-answer:");
+  });
+
   it("builds Process-parity body: capture + link prose; no atom-links FM", () => {
     const { content, title } = buildAskAtomMarkdown({
       title: "Periwinkle still",
