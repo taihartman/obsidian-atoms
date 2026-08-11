@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-_Nothing in flight._
+| In progress | [#433](https://github.com/taihartman/obsidian-atoms/issues/433) | taihartman | `claude/backfill-offer-u5-u8` | [2026-08-10-003 auto-filing-window-backfill-split](docs/plans/2026-08-10-003-feat-auto-filing-window-backfill-split-plan.md) | `src/pipeline/backfill.ts` · `src/pipeline/write.ts` · `src/plugin/main.ts` · `src/home/atomsHomeData.ts` · `src/platform/plusClient.ts` · `src/platform/plusRefresh.ts` | U5 + U8 + U7 copy: backfill gets a visible, priced offer that works on Plus/trial, not BYOK-only. Plan amended (KTD9–KTD11) and round-2 doc-reviewed — report: [docs/reviews/2026-08-10-backfill-offer-round2-doc-review.md](docs/reviews/2026-08-10-backfill-offer-round2-doc-review.md). **Implementation not started.** Round 2 found six P0s in the amendment's code claims, all folded in: `runWritePath` never carried `before` (passing `since` alone re-files the whole window at Plus rates); its pacing slice is oldest-first and would invert KTD10; the meter cannot be read from `classifyViaProxy` (a POST that classifies) — use `getEntitlement`; the reserve needed a floor, not just a ceiling; the confirm modal's privacy line is Batch-API-specific and wrong for Plus at the moment of consent; U7's enable copy pointed at the unbounded `Process`. Constants are period-specific because a trial gets the same 150 filings over 14 days that the paid plan gets over 30 — trial reserve 70 / cap 75, paid 100 / 50. Open, not blocking: account-wide meter vs device-local budget; #429 empties the complement. |
 
 ## How to claim (copy)
 
