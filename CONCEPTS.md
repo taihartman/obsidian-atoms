@@ -206,6 +206,17 @@ Device-local poll that runs after Stripe Checkout until entitlement appears, the
 ### Awaiting checkout
 Device-local flag marking "this device opened Checkout and has not yet seen entitlement." Set only when checkout returned a URL, and cleared by whichever poll first observes an entitled status. Device-local, not account state — a checkout completed on another device never clears it here, which is why the **post-checkout resume poll** alone cannot rescue a cross-device signup.
 
+### Ended period vs spent meter
+Two unrelated situations the service reports with the same exhausted status: the billing or trial **period ended** (no allotment is coming back without a new subscription), and this period's **filing allotment is spent** (it refills on the next billing date). One status name, opposite remedies — Subscribe against a lapse, wait or top up against a spent meter.
+*Avoid:* treating "exhausted" as a single state.
+
+The distinction is not recoverable from the status alone; it takes the status **and** the period end date together, and only a service-confirmed status may be read as a lapse. A period end date alone cannot decide it, because on a recurring plan that date is a *renewal* — a device that has not refreshed through one holds a past date for a perfectly current subscriber. Learning: `docs/solutions/logic-errors/a-device-may-not-assert-an-entitlement-the-server-has-not-confirmed.md`.
+
+### Entitlement snapshot
+The device's stored copy of what the service last said about the account — status, allotment remaining, period end, plan — stamped with when it was confirmed. Every entitlement surface reads this, not the network.
+
+Its age is load-bearing, because expiry is the one entitlement change nothing announces: no push, no webhook, and the **post-checkout resume poll** is armed only while a checkout is in flight. A snapshot confirmed *before* its own period end therefore cannot say what happened at that boundary — the period may have lapsed, renewed, or converted from a trial — and the honest response is to refresh rather than infer. A device may narrow what it claims on stale evidence; it may never assert an entitlement verdict the service has not given.
+
 ## Flagged ambiguities
 
 - “Linker” remains in some marker HTML comments (`<!--linker-->`) from early naming; product name is **Atoms**.
