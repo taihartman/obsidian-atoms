@@ -121,6 +121,9 @@ function migrate(db) {
   if (!mirrorCols.some((c) => c.name === "expand_enc")) {
     db.exec("ALTER TABLE atom_mirror ADD COLUMN expand_enc TEXT");
   }
+  if (!mirrorCols.some((c) => c.name === "loop_json")) {
+    db.exec("ALTER TABLE atom_mirror ADD COLUMN loop_json TEXT");
+  }
   // One free trial per email — existing DBs gain the flag on open.
   const acctCols = db.prepare("PRAGMA table_info(accounts)").all();
   if (!acctCols.some((c) => c.name === "trial_used")) {

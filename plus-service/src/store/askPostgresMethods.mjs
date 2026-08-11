@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS atom_mirror (
   updated_at TIMESTAMPTZ NOT NULL,
   created TEXT,
   expand_enc TEXT,
+  loop_json TEXT,
   PRIMARY KEY (email, path)
 );
 CREATE INDEX IF NOT EXISTS idx_atom_mirror_email ON atom_mirror(email);
@@ -145,14 +146,15 @@ export function createAskPostgresMethods(pool, deps) {
         continue;
       }
       await pool.query(
-        `INSERT INTO atom_mirror (email, atom_id, title, path, body_enc, tags_json, links_json, content_hash, updated_at, created, expand_enc)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NULL)
+        `INSERT INTO atom_mirror (email, atom_id, title, path, body_enc, tags_json, links_json, content_hash, updated_at, created, expand_enc, loop_json)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NULL,$11)
          ON CONFLICT (email, path) DO UPDATE SET
            atom_id=EXCLUDED.atom_id, title=EXCLUDED.title, body_enc=EXCLUDED.body_enc,
            tags_json=EXCLUDED.tags_json, links_json=EXCLUDED.links_json,
            content_hash=EXCLUDED.content_hash, updated_at=EXCLUDED.updated_at,
            created=COALESCE(EXCLUDED.created, atom_mirror.created),
-           expand_enc=NULL`,
+           expand_enc=NULL,
+           loop_json=EXCLUDED.loop_json`,
         [
           row.email,
           row.atomId,
@@ -164,6 +166,7 @@ export function createAskPostgresMethods(pool, deps) {
           row.contentHash,
           row.updatedAt,
           row.created,
+          row.loopJson,
         ],
       );
       upserted += 1;

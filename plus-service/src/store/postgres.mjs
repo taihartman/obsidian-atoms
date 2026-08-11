@@ -120,6 +120,9 @@ export async function createPostgresStore(databaseUrl) {
   await pool.query(
     `ALTER TABLE atom_mirror ADD COLUMN IF NOT EXISTS expand_enc TEXT`,
   );
+  await pool.query(
+    `ALTER TABLE atom_mirror ADD COLUMN IF NOT EXISTS loop_json TEXT`,
+  );
   // #240 U1 — existing DBs created before the magic-token columns
   await pool.query(
     `ALTER TABLE magic_tokens ADD COLUMN IF NOT EXISTS verifier_hash TEXT`,

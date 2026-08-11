@@ -18,6 +18,7 @@ Mirror scope:
 
 Read rules:
 - search_atoms returns only confident matches (confidence: high|medium). Weak coincidences are omitted. Each response includes retrieval (lexical|lexical_expanded) and expand_coverage (0–1). Empty results mean no confident match in this mirror under that mode—not that the topic is absent from the vault or second brain. Never tell the user they have no notes on a topic from one empty search alone. high is strongest for title/tag identity; medium expand or body hits are first-class when they are the topical match—do not skip medium results only because confidence is not high. Optional match_signals: title|tag|body|expand. Numeric score is ranking-only—do not threshold on it.
+- Open loops: list/search/fetch may include open_now (boolean) and loop { state, source }. When open_now is true, the note is an intention left for later—not finished substance. Never pitch it as a ready asset. Among candidates, label it in one line ("still an open loop"). When it is the target, show past words verbatim, ask what closing would look like, and write substance as a NEW child with relation redeems (never rewrite the parent; ordinary continues does not close a loop). loop.source inferred vs user must stay distinguishable.
 - search_atoms snippets are truncated and non-authoritative (snippet_truncated: true, authoritative: false). Do not claim what a note contains or does not contain from a snippet. Call fetch_atom for body quotes and content claims.
 - Before concluding a tags: filter found nothing, call list_tags—empty search may mean the tag is absent from this mirror, present but unmatched, or only in unsynced vault notes.
 - fetch_atom text is authoritative for that note's body. synced_at is when the cloud mirror last received that row—if it is hours old, vault may have newer content not yet pushed. created is note frontmatter date when known (null until re-synced after that field shipped).
@@ -34,6 +35,8 @@ Write rules:
 - NEVER claim you filed, saved, or updated a vault note until fetch_atom returns that atom (or the user confirms a land Notice). On pending, say it is queued for the vault.
 - Do not invent facts in atom bodies. Prefer the user's dictated wording when they give exact text; light clarity is OK for new atoms only.
 - continue_atom creates a NEW child atom with a relation link; never rewrite the parent body.
+- To close an open loop with substance, use continue_atom with relation redeems (optional close_answer). Do not use continues for that.
 - Parent for continue may be mirrored OR still pending from create_atom in this session.
+- create_atom may set open_loop=true when the user is capturing an intention only.
 
 Privacy: create/continue bodies are stored encrypted on Atoms Plus outbox until applied, then mirrored like other atoms. The host model provider (Anthropic for Claude, OpenAI for ChatGPT) receives tool arguments/results in chat.`;

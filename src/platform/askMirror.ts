@@ -4,6 +4,7 @@
  */
 import { parseLinkProse } from "../pipeline/parseLinkProse";
 import type { PlusLapseKind } from "./filingAuth";
+import { parseOpenLoopFm } from "../shared/openLoop";
 import { relationReasonProse } from "../shared/relationReason";
 import type {
   ConfirmRequest,
@@ -93,6 +94,8 @@ export type AskMirrorAtomPayload = {
   kind?: "atom" | "hub";
   /** Frontmatter `created` when present (day or local datetime). */
   created?: string;
+  /** Open-loop FM when present. */
+  loop?: { state: string; source: string };
 };
 
 export type VaultFileRead = {
@@ -103,13 +106,14 @@ export type VaultFileRead = {
 
 type FmLink = { note: string; reason?: string };
 
-/** Parse frontmatter tags, atom-links, parent/relation, created, body. */
+/** Parse frontmatter tags, atom-links, parent/relation, created, loop, body. */
 export function splitAtomMarkdown(content: string): {
   body: string;
   tags: string[];
   parent?: string;
   relation?: string;
   created?: string;
+  loop?: { state: string; source: string };
   fmLinks: FmLink[];
 } {
   if (!content.startsWith("---")) {
@@ -172,6 +176,11 @@ export function splitAtomMarkdown(content: string): {
     if (cur) fmLinks.push(cur);
   }
 
+  const loopParsed = parseOpenLoopFm(fm);
+  const loop = loopParsed
+    ? { state: loopParsed.state, source: loopParsed.source }
+    : undefined;
+
   return {
     body,
     tags,
@@ -179,6 +188,7 @@ export function splitAtomMarkdown(content: string): {
     ...(parent ? { parent } : {}),
     ...(relation ? { relation } : {}),
     ...(created ? { created } : {}),
+    ...(loop ? { loop } : {}),
   };
 }
 
@@ -380,7 +390,7 @@ export function planAskMirrorUpsert(
   for (const f of files) {
     if (kind === "atom" && !isFlatAtomPath(folder, f.path)) continue;
     if (kind === "hub" && !isHubMirrorPath(f.path, folder)) continue;
-    const { body, tags, parent, relation, created, fmLinks } =
+    const { body, tags, parent, relation, created, loop, fmLinks } =
       splitAtomMarkdown(f.content);
     const title = f.basename.replace(/\.md$/i, "");
     const links = linksFromAtomFile({ body, fmLinks, parent, relation });
@@ -391,6 +401,7 @@ export function planAskMirrorUpsert(
       JSON.stringify(links),
       kind,
       created || "",
+      loop ? JSON.stringify(loop) : "",
     ]);
     if (lastHashes[f.path] === hash) continue;
     nextHashes[f.path] = hash;
@@ -402,6 +413,7 @@ export function planAskMirrorUpsert(
       links,
       kind,
       ...(created ? { created } : {}),
+      ...(loop ? { loop } : {}),
     });
   }
   return { atoms, nextHashes };

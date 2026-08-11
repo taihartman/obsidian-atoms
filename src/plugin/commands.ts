@@ -173,6 +173,22 @@ export function registerAtomsCommands(plugin: AtomsPlugin): void {
     },
   });
 
+  plugin.addCommand({
+    id: "open-loops-browse",
+    name: "Open loops: notes left for later",
+    callback: () => {
+      void plugin.runOpenLoops("browse");
+    },
+  });
+
+  plugin.addCommand({
+    id: "open-loops-review",
+    name: "Open loops: review proposals",
+    callback: () => {
+      void plugin.runOpenLoops("review");
+    },
+  });
+
   // Atoms' own daily-note command. Obsidian's core Daily notes plugin ships one too, but that is
   // a different code path the user can disable, so the capability this settings row used to offer
   // needs a command Atoms itself registers.
