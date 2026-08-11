@@ -85,6 +85,15 @@ That difference is measurable here. Mutation-checking the fix by reverting a sin
 - **Prove the state transition, do not seed it.** The first draft of the regression test seeded `remaining: 0` and asserted the gate. That assumes the meter produces the state under test. Driving the real `tryConsumeFiling` — the `status = CASE WHEN remaining - 1 <= 0 THEN 'exhausted'` UPDATE — proves it.
 - **Ask which meter a feature actually charges before gating on it.** Only `/v1/classify` decrements the allotment. An atom Claude creates through the Ask outbox never touches it, which settled the open question about whether writes should survive a spent meter: withholding them would have protected nothing.
 
+## Residual risks
+
+Two the review surfaced, both recorded rather than fixed here:
+
+- **`unknown` can elevate into Ask by spending its meter.** `subscriptionLive` denies `unknown`, but the meter's `UPDATE` tolerates it (`status IN ('active','trialing','unknown')`) and rewrites it to `exhausted` on the last filing — which this change now reads as live. So a row denied Ask gains it by *using* filings, with no payment event. Nothing under `plus-service/src` writes `unknown` (the column is `NOT NULL` with no default; `ensureAccount` inserts `inactive`), so the path needs a row no current code creates. The honest fix is to drop `unknown` from the two meter clauses, which is a different change than this one.
+- **Token mint does not re-check the predicate.** `mcpExchangeCode` / `mcpRefreshTokens` mint on PKCE and token validity alone, so a lapsed account can still rotate tokens; the tokens then fail at use time in `accountFromMcpToken`. Pre-existing and currently harmless, but it means the gate lives in one place rather than two.
+
+The general shape is worth keeping: widening a predicate makes every *other* place that writes the widened value part of the attack surface. Enumerating the readers (above) is half the job; the writers are the other half.
+
 ## Related Issues
 
 - [#441](https://github.com/taihartman/obsidian-atoms/issues/441) — this fix. Its original text named the wrong gate; corrected in-thread rather than left standing.
