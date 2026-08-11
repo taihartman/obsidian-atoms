@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-_Nothing in flight._
+| In progress | [#442](https://github.com/taihartman/obsidian-atoms/issues/442) | claude | `claude/mcp-entitlement-debug-7e9fce` | issue body | `src/settings/settings.ts`, `src/platform/filingAuth.ts` | An expired trial reads as "Monthly limit reached", and the plugin has no Subscribe button at all. Splits period-ended from cap-reached in `AccountState`, fixes the four wrong rows on the account screen, adds `subscribe_monthly` checkout. Found debugging a live 403 on Ask pairing — the account had lapsed 23h earlier and nothing said so. Entitlement-model half is **[#441](https://github.com/taihartman/obsidian-atoms/issues/441)**, unclaimed: a spent filing meter also revokes Ask/MCP for paying subscribers. |
 
 ## How to claim (copy)
 
