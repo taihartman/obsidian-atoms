@@ -205,6 +205,9 @@ export async function createCheckoutSession(opts) {
     "metadata[email]": opts.email,
     "metadata[kind]": opts.kind,
     "metadata[plan]": resolved.plan,
+    // Customer-facing promo box on hosted Checkout (Dashboard coupons / promotion codes).
+    // Do not also send discounts[] — Stripe forbids combining the two.
+    allow_promotion_codes: "true",
   };
 
   if (resolved.mode === "subscription") {

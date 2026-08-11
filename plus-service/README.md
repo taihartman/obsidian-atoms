@@ -95,6 +95,8 @@ Checkout then returns a real Stripe URL. Entitlements update on:
 
 Test card: `4242 4242 4242 4242`.
 
+Checkout sessions send `allow_promotion_codes=true` — create coupons + promotion codes in the Stripe Dashboard (see `docs/runbooks/atoms-plus-prod.md` § Promotion codes).
+
 OpenCode Stripe MCP is often **live** OAuth — create catalog with `sk_test_` via the script, not live MCP.
 
 ## API
