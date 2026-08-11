@@ -266,9 +266,17 @@ they already paid for and costs the conversion it was meant to protect.
 So backfill does not get one shot at the whole allowance, and it does not get a timid slice either:
 
 ```
-reserve = fresh periodEnd ? min(RESERVE_BASELINE, daysRemaining × DAILY_BURN) : RESERVE_BASELINE
+reserve = fresh ? clamp(daysRemaining × DAILY_BURN, 0, RESERVE_BASELINE) : RESERVE_BASELINE
 budget  = max(0, remaining - reserve)
 ```
+
+**`clamp`, not `min` — the reserve needs a floor as well as a ceiling.** `daysRemaining` is signed
+and derived from a date that can be in the past: an expired period the refresh has not replaced, a
+skewed device clock, the rollover moment itself. With a bare `min`, `daysRemaining = -3` gives
+`min(50, -12) = -12` and `budget = remaining + 12` — the offer spends filings the user does not have
+and the modal states a count the meter cannot honour, breaking KTD7's "never state a count it cannot
+source" from inside the mechanism written to protect it. A non-positive `daysRemaining` means
+expired or unknown, which takes the **full baseline**, never a zero reserve.
 
 `RESERVE_BASELINE` **50**, `DAILY_BURN` **4** (midpoint of a realistic 3–5 captures/day). At the
 start of a 14-day trial that reserves 50 and offers ~100 — 14 days at 3–5/day is 40–70 filings of
@@ -281,19 +289,44 @@ holding it past that point is pure waste under `rollover: false`.
 
 Two guards make the shrink safe:
 
-- **It only ever shrinks, never grows.** `min` against the baseline means a long or unknown period
-  lands on 50, never above it.
-- **Uncertainty keeps the full reserve.** `remaining` and `periodEnd` do **not** refresh together:
-  `classifyViaProxy` returns `remaining` and `status` but no `periodEnd`
-  (`src/platform/plusClient.ts:664-682`), which arrives only from the entitlement refresh
-  (`src/platform/plusRefresh.ts:125`). That mixed freshness is exactly the trap KTD7 names, so an
-  absent, unparseable, or stale `periodEnd` falls back to the baseline. Failing closed here means
-  reserving **more**, because the harm to avoid is a user spending their forward filing on history.
+- **It only ever shrinks, never grows.** The `clamp` ceiling means a long or unknown period lands on
+  the baseline, never above it.
+- **Uncertainty keeps the full reserve.** Failing closed here means reserving **more**, because the
+  harm to avoid is a user spending their forward filing on history.
 
-Compute `daysRemaining` with date-string math against the local day, never millisecond subtraction
-(the DST row in Risks). Settings already renders this same date as `Renews <YYYY-MM-DD>`
-(`src/settings/settings.ts:1254-1255`), so the arithmetic must not contradict a date already on
-screen.
+**Read the meter with `getEntitlement`, not with a classify call.** `classifyViaProxy` is a POST to
+`/v1/classify` (`src/platform/plusClient.ts:644-686`) — it returns `remaining` only as a side effect
+of actually classifying a capture, so "read the meter when the modal opens" through it would spend a
+filing and write an atom to price an offer the user has not accepted. The pre-run source is
+`getEntitlement` (GET `/v1/me`, `:600-612`) via `refreshPlusEntitlementRecord`
+(`src/platform/plusRefresh.ts:92-135`).
+
+That also settles freshness as **one** question rather than two. `parseEntitlement` (`:287-311`)
+returns `status`, `remaining` **and** `periodEnd` from the same response and refuses the record
+unless status and remaining are both present, so on modal open all three are equally fresh. The
+fallback trigger is therefore "the entitlement refresh failed or was rejected" — then use the cached
+session and take the baseline reserve.
+
+**Do not use `refreshedAt` as the staleness input for `periodEnd`.** `requireClassifyAuth`'s
+`onRemaining` (`src/plugin/main.ts:1908-1919`) rewrites `{ ...session, remaining, status,
+refreshedAt: Date.now() }` on every classify call — carrying the **old** `periodEnd` forward while
+stamping `refreshedAt` fresh. So `refreshedAt` measures `remaining`'s freshness and never
+`periodEnd`'s, and a user who files daily while their entitlement refresh has been failing for weeks
+carries a months-old `periodEnd` that any `refreshedAt` check reports as seconds old. That is the
+exact input this guard exists to catch, and `refreshedAt` cannot see it.
+
+**`daysRemaining` arithmetic.** Both operands are UTC midnights built from `YYYY-MM-DD` substrings:
+
+```
+daysRemaining = max(0, floor((Date.UTC(...periodEnd.slice(0,10).split("-"))
+                            - Date.UTC(...localDateString().split("-"))) / 86_400_000))
+```
+
+The Risks-table ban is on subtracting raw ISO **instants**, not on UTC-anchored day arithmetic — a
+day *difference* cannot be computed lexically, so this is the DST-safe form, and neither operand
+carries a local offset that could shift it. `periodEnd.slice(0,10)` is the same substring Settings
+renders as `Renews <YYYY-MM-DD>` (`src/settings/settings.ts:1254-1255`), so the two can never
+disagree on screen. Unparseable or past `periodEnd` → treat as unknown → baseline reserve.
 
 **Call it a period reserve, not a trial reserve.** A paid user has the identical `rollover: false`
 problem, so the same budget applies after conversion and the card re-offers each period until the
@@ -326,6 +359,9 @@ Three implementation points that are easy to get wrong:
   the budget is reached. The vault read stays full-history and that is correct — it costs vault
   reads, not API spend, on an attended confirm-gated path. This is not a reintroduced sweep; nothing
   unattended reaches it, and KTD2's fail-closed rule binds unattended callers only.
+- **Sort explicitly; the scan does not.** `getPastDailyNotesWithUnmarkedCaptures` returns
+  `Object.values(getAllDailyNotes())` order with no sort, so "newest-first" is an ordering this
+  design must impose, not one it can assume. Every ordering claim in KTD10 and U8 depends on it.
 - **Whole dailies only.** Stop *before* the daily that would exceed the budget, so the offer is
   never over budget and `since` stays a clean date. Never split a daily's captures across the bound.
 - **A single daily larger than the budget is not a dead end** — it routes to KTD11's over-budget
@@ -340,6 +376,36 @@ KTD7's constraint stands and is sharpened here — **the over-budget branch stat
 just the arithmetic.** Confirming spends the allowance and forward filing pauses until it resets or
 the user upgrades. A modal that quotes only a number lets a user approve a pause they did not know
 they were buying.
+
+**The pause compounds, and that is the real argument for the reserve.** When `remaining` hits zero
+`onRemaining` writes status `exhausted` and unattended filing stops — but capturing does not.
+Everything written during the pause lands *inside* the filing window, unmarked, and is filed out of
+the **next** period's allowance at `PER_LAUNCH_CAP` per pass. Under `rollover: false` that can
+sustain itself: each period pays for the previous period's pause. So "filing pauses until it resets"
+understates it — the cost is a gap *plus* a backlog. This is why the reserve exists at all, rather
+than being pure conversion friction, and it is why the reserve's floor matters more than its
+ceiling.
+
+**After a top-up, re-derive before re-offering.** The range, budget, and counts were all computed
+against the pre-top-up `remaining`. On a successful top-up, re-read the meter, recompute the reserve
+and budget, and re-derive the range before showing the modal again — otherwise the user pays $2 and
+sees the same offer, which is the dead end this KTD exists to eliminate, reached one purchase later.
+The single-oversized-daily case is the worst version: it must not still show an empty offer after
+payment.
+
+**Name the cheaper road for very large histories.** Top-up is $0.04 per filing; a multi-year vault
+runs to thousands of captures, so draining it in $2 increments costs many multiples of the $6/month
+subscription — while KTD7 already ships a strictly cheaper engine for exactly this job behind the
+same gate. When the complement is large (order of 5× the top-up or more), the over-budget branch
+names the BYOK Batch route alongside the top-up. Offering only the expensive incremental path to the
+user with the largest history is the read a launch-post commenter will reach for, and it is the
+opposite of the honesty posture this amendment exists to establish.
+
+**Give the aftermath its own visual block.** The modal's existing pattern is a flat list of
+same-weight paragraphs; an aftermath sentence added to that list reads like the arithmetic around it
+and gets skimmed, defeating the purpose stated above. Settings' exhausted-state block
+(`src/settings/settings.ts:1268-1276`) is the tone precedent — plain, no guilt, names the
+alternative.
 
 Prices come from `plus-pricing.json`. Copy goes through `atoms-voice`; `docs/voice.md` is authority.
 
@@ -428,9 +494,29 @@ device gets no stamp; migrated flag persists for U5's copy.
 ### U5 — Backfill is the complement, and gets a gated surface
 
 - `prepareBackfillEstimate` bounded to the complement via the new `before` option — the single
-  unbounded scan is `src/pipeline/backfill.ts:408`. It also takes a **required `apiKey: string`**
-  (`:398`), a second BYOK coupling beyond `runBackfillFlow`'s `requireApiKey()`; U8 needs that
-  parameter optional or a sibling entry point, not a Plus-shaped key threaded through it.
+  unbounded scan is `src/pipeline/backfill.ts:408`.
+- **`prepareBackfillEstimate` keeps its required `apiKey` — do not loosen it.** It is BYOK-only by
+  construction: the key feeds `countTokensForClassifyRequest` (`:181-215`, called at `:443-446`),
+  which POSTs to Anthropic's count_tokens with `x-api-key` and throws on non-2xx. Making it optional
+  yields a function that throws or returns a meaningless zero for exactly the Plus device it was
+  loosened for. **The Plus branch never calls it.** Both branches take their capture count from one
+  bounded `getPastDailyNotesWithUnmarkedCaptures({ since, before })` scan (per-note
+  `unprocessed.length` is already on the result); only the BYOK branch feeds that range into
+  `prepareBackfillEstimate` for a dollar estimate. The single real BYOK gate to move is
+  `runBackfillFlow`'s `requireApiKey()`.
+- **The card's headline number is the budgeted range, never the raw complement.** The non-zero check
+  reads the complement, but the figure shown must be what confirming actually files. "1,847 past
+  captures" above a flow that files ~100 is the broken promise, and on any real vault it is the
+  common case, not an edge. If the total is surfaced at all it is subordinate — "your 100 most
+  recent captures, of 1,847".
+- **`BackfillConfirmModal` takes an engine discriminant, not just a widened estimate.** Its body is
+  hardcoded to the Batch engine on every line (`src/pipeline/backfill.ts:869-900`) — the Batches API
+  intro, the chunk sentence, token counts, and critically *"Privacy: this sends historical captures
+  and your title graph to Anthropic's Batch API (server-retained for a window)"*. Shown to a Plus
+  user whose captures go through the Atoms Plus proxy, that privacy sentence is **factually wrong at
+  the moment of consent**. Every Batch-specific line lives in the BYOK branch; the Plus branch names
+  the Plus proxy as the destination. This is a larger unit than "widen `CostEstimate`" — budget for
+  it.
 - **The default range is recent-first and budget-bounded (KTD9 + KTD10)** — derive `since` by
   walking dailies backwards from the window start until the budget is reached, whole dailies only,
   and pass `{ since, before }`. The complement beyond that range stays reachable, not filed.
@@ -473,24 +559,54 @@ confirm modal:
 - Reuse `runWritePath` with the complement bound and `classifyDeps.plus` — the path
   `maybeAutoRun` already uses (`src/plugin/main.ts:1082-1100`) — rather than `backfill.ts`, which is
   Batch-API-and-BYOK by construction.
+- **`RunWritePathOptions` gains `before?: string`, forwarded to the scan alongside `since`.** It
+  carries only `since` today and the scan call at `src/pipeline/write.ts:116-119` forwards only
+  `{ includeToday, since }` — U2 added `before` to `GetUnprocessedOpts` but deliberately never
+  threaded it into the write path, so the one bound U8's correctness depends on does not exist on
+  the function U8 names. The Plus backfill passes **both** bounds. Passing `since` alone files
+  everything from the derived start day to today, **including the whole filing window auto-run
+  already owns** — metered double-spend on exactly the captures KTD3 exists to exclude.
+- **Order dailies newest-first before any slice.** `runWritePath` sorts work by
+  `note.path.localeCompare` ascending and then takes `work.slice(0, max)`
+  (`src/pipeline/write.ts:129-137`); daily paths are date-named, so ascending is **oldest-first** and
+  the slice keeps the oldest. Left alone, a paced or interrupted run files the least legible end of
+  the range and KTD10's whole product bet inverts at the first cap. Either reverse the daily order
+  before slicing — preserving the bottom-up line ordering *within* each daily, which is what keeps
+  marker insertion from shifting later line numbers — or run the derived range with no `maxCaptures`
+  at all, since the range is already budget-bounded and the cap adds nothing.
 - **Move the auth gate off the API key.** `runBackfillFlow` opens with `requireApiKey()`
   (`src/plugin/main.ts:1206`), which is why a Plus or trial device cannot backfill at all today.
   The entry point branches on `resolveFilingAuth()`; only the BYOK branch requires a key.
 - Estimate in filings: the recent-first range's capture count against the **KTD9 budget**, not
-  against raw `remaining`. The meter is read when the modal opens, from what `classifyViaProxy`
-  returns (`src/platform/plusClient.ts:664-682`); `periodEnd` comes from the cached session and is
-  the stale half, so it degrades to the baseline reserve per KTD9 rather than blocking the run.
+  against raw `remaining`. On modal open, refresh the meter with `refreshPlusEntitlementRecord`
+  (`getEntitlement`, GET `/v1/me`) — it returns `status`, `remaining` and `periodEnd` together. A
+  failed or rejected refresh falls back to the cached session and the baseline reserve per KTD9
+  rather than blocking the run.
 - **Over budget routes to KTD11's top-up branch**, never to a refusal or an empty offer.
-- Respect `PER_LAUNCH_CAP`-style pacing and the existing `exhausted` handling: a mid-run exhaustion
-  stops cleanly, reports what filed, and leaves the rest for the next period. Markers make the
-  resume idempotent.
+- **Build the `exhausted` abort — it does not exist.** `runWritePath` accumulates per-capture
+  failures via `pushFail` and continues through the whole slice (`src/pipeline/write.ts:147-175`),
+  and the Plus 402 is a per-capture error in `classify.ts:859`. A 100-capture run that exhausts at
+  capture 30 would make 70 further doomed proxy round-trips and report `failed: 70` with no way to
+  tell exhaustion from a network or schema failure — the opposite of "stops cleanly, reports what
+  filed", and the Risks-table mitigation depends on behaviour that is not there. Add an opt-in stop
+  signal (a `stopOnAuthExhausted` flag, or a `classifyDeps.plus.onExhausted` callback setting a
+  run-scoped flag the loop checks before each capture) so the run halts on the first `exhausted` and
+  the report distinguishes it from ordinary failures. Markers make the resume idempotent.
+- **Claim an in-flight guard.** `backfillInFlight` is set only inside `runBackfillFlow` and
+  `autoRunInFlight` only by `runAutoFilingCycle`, so a Plus backfill routed through `runWritePath`
+  takes neither and the hourly `maybeAutoRun` can start a concurrent run against a second pinned
+  context corpus. The Plus backfill holds `backfillInFlight` for its duration and refuses to start
+  while `autoRunInFlight` is held, and vice versa.
 - BYOK devices keep `runBackfillFlow` untouched.
 
-**Tests:** a Plus device backfills the budgeted range and no in-window capture; the filings estimate
-matches the **budgeted range** count, not the whole complement; a Plus device with no API key
-reaches the flow at all (the `requireApiKey()` regression); a stale/failed meter read falls back to
-the cost line and blocks no run; mid-run `exhausted` stops cleanly with an accurate filed count and
-re-running resumes without double-filing.
+**Tests:** a Plus device backfills the budgeted range and no in-window capture; **a `runWritePath`
+call carrying `{ since, before }` touches no daily on or after `before`**; **a paced or truncated run
+files the newest dailies in the range, not the oldest**; the filings estimate matches the **budgeted
+range** count, not the whole complement; a Plus device with no API key reaches the flow at all (the
+`requireApiKey()` regression); **the Plus confirm branch renders no Batch-API or Anthropic-direct
+privacy string**; a failed entitlement refresh falls back to the baseline reserve and blocks no run;
+mid-run `exhausted` **halts on the first exhausted response with no further proxy calls**, reports an
+accurate filed count, and re-running resumes without double-filing.
 
 ### U6 — Scope the manual catch-up (KTD4)
 
@@ -504,11 +620,20 @@ byte-identical.
 ### U7 — Copy, version, release notes
 
 - Settings auto-run description and home filing card name the window.
-- **One line at enable time saying filing starts tomorrow**, and that Process handles what is
-  already waiting. Day one is now deliberately silent — the window starts today and every pass
-  excludes today — so a launch-post visitor who enables and sees nothing concludes it is broken.
-  This is copy only: it must **not** reintroduce a today-including run, which `EGRESS_DISCLOSURE`
-  clause (3) forbids (see Non-goals).
+- **One line at enable time saying filing starts tomorrow.** Day one is now deliberately silent —
+  the window starts today and every pass excludes today — so a launch-post visitor who enables and
+  sees nothing concludes it is broken. Direction: *"Filing starts with tomorrow's note. Older notes
+  stay untouched until you ask for them."*
+  - **It must not point at `Process unprocessed captures`.** That is the one path this plan leaves
+    deliberately unbounded and unpriced — no window, no estimate, no recent-first ordering, no
+    budget — so recommending it at enable time hands a trial user a single tap that can spend the
+    whole 150-filing allowance on years-old notes, the exact harm KTD9 and KTD10 exist to prevent.
+    It would also make the launch post's "shows a cost estimate before processing a big history"
+    false *for the path the product itself recommends*. Point at the backfill offer (U5) instead.
+  - This is copy only: it must **not** reintroduce a today-including run, which `EGRESS_DISCLOSURE`
+    clause (3) forbids (see Non-goals).
+  - Settings' toggle uses a persistent inline `setting-item-description` line, not a transient
+    Notice — the user is already reading the panel and a toast is easy to miss there.
 - Release notes state that existing devices' sweeps pause and reappear as an offer (KTD5).
 - Bump `manifest.json` + `package.json` + `versions.json`.
 
@@ -574,7 +699,14 @@ dailies, toggle on, observe. Seeded fixtures are plumbing evidence only (non-neg
 | Backfill spends the budget on three-year-old notes the user cannot judge, and the launch post asks to be judged on exactly that | KTD10 recent-first default, derived by walking back from the window start |
 | Deriving the range reads the whole vault and reads as a reintroduced sweep | KTD10: the budget bounds what is *classified*; the read is attended, confirm-gated, and costs no API spend |
 | Over-budget modal reads as a wall and kills the conversion | KTD11 top-up branch, stating the aftermath rather than the arithmetic |
-| A Plus/trial user still cannot backfill because a second BYOK coupling was missed | U5/U8: `prepareBackfillEstimate`'s required `apiKey` as well as `requireApiKey()`; test asserts a keyless Plus device reaches the flow |
+| A Plus/trial user still cannot backfill | U8 moves the auth gate off `runBackfillFlow`'s `requireApiKey()` — the single real BYOK gate; the Plus branch never calls `prepareBackfillEstimate`. Test asserts a keyless Plus device reaches the flow |
+| U8 passes `since` without `before` and re-files the whole filing window at Plus rates | `RunWritePathOptions` gains `before`; test asserts no daily on or after `before` is touched |
+| `runWritePath`'s oldest-first sort inverts the recent-first bet at the first cap | U8 orders newest-first before slicing, or drops `maxCaptures` entirely; test asserts a truncated run filed the newest |
+| The Plus confirm modal shows BYOK's "sends to Anthropic's Batch API" privacy line | Engine-discriminated modal body; test asserts the Plus branch renders no Batch-API string |
+| Enable-time copy sends a trial user into the unbounded `Process` command | U7 points at the backfill offer instead; `Process` is never recommended from a first-run surface |
+| A far-past `LS_AUTO_RUN_START_DAY` (#429) empties the complement, so the card never renders and the whole history runs unbudgeted through the *unattended* per-capture path | Open — the budget must not be the only spend bound. Either bound the unattended Plus path by the same reserve, or add a plausibility floor on the stamp and close #429 |
+| Two devices on one account each offer a full budget against one shared meter | Open — meter is account-wide, bounds are device-local (KTD6). Re-read `remaining` immediately before the run and stop when it drops below what the range needs; V4 case |
+| The meter is read at modal open and spent after confirm, with forward filing running in between | Re-check at confirm and recompute the range rather than starting a run priced against a stale allowance |
 | Enable-time copy fix quietly reintroduces a today-including run | U7 is copy only; the `includeToday` assertion in U3 still binds |
 
 ## Deferred follow-ups (not scoped here)
@@ -603,10 +735,18 @@ which is convergence within one family, not independent confirmation.
 Round 1 covered U1–U7 as written then, and **U1–U4 + U6 shipped as 0.6.99**. It did **not** cover
 U8 (designed after that review) or KTD9–KTD11 (settled with the user 2026-08-10, after it).
 
-Round 2 (this amendment) scopes a light `ce-doc-review` over **U5-amended + U8 + KTD9–KTD11**
-together — they share one gate, one card, and one confirm modal, so splitting them wastes a pass.
-Lenses that earn their place here: coherence and feasibility (does the derived-range scan hold up
-against the real `GetUnprocessedOpts` and the two BYOK couplings), product (is the recent-first bet
-right), and design (a modal already rendering six same-weight facts is gaining a currency and a
-top-up branch). Security has no new surface — the egress gate and the untouched disclosure are
-unchanged from round 1.
+Round 2 **ran** over U5-amended + U8 + KTD9–KTD11: coherence, feasibility, product-lens, design-lens,
+adversarial — five dispatched contexts, all returned. Full report:
+[`docs/reviews/2026-08-10-backfill-offer-round2-doc-review.md`](../reviews/2026-08-10-backfill-offer-round2-doc-review.md).
+**Not run:** scope-guardian (below threshold for a scoped round), security-lens (no new surface — the
+egress gate and untouched disclosure are unchanged), and the cross-model peer, skipped for
+turnaround. As in round 1, agreement here is convergence within one model family, not independent
+confirmation.
+
+Round 2 found six P0s, all of them in the amendment's *code claims* rather than its product
+direction. The load-bearing corrections now folded in above: `runWritePath` never carried `before`;
+its pacing slice is oldest-first and would have inverted KTD10; the meter cannot be read from
+`classifyViaProxy` without spending a filing; the reserve needed a floor, not just a ceiling; the
+confirm modal's privacy line is Batch-API-specific and would be wrong for a Plus user at the moment
+of consent; and U7's enable-time copy pointed at the one unbounded, unpriced path in the product.
+Five product decisions remain open — see the report's *Decisions needed* table.
