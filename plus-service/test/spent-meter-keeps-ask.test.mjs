@@ -357,6 +357,29 @@ describe("#441 the entitlement gate has one home", () => {
     }
   });
 
+  it("the other status predicate stays out of the request path", () => {
+    // `isEntitledAccount` also accepts `exhausted` but ignores `periodEnd`
+    // entirely — it answers "ever granted anything?", for refusing an
+    // unauthenticated sess_. Gating Ask on it would hand a lapsed account
+    // exactly what this change keeps revoking, and the parity check above
+    // cannot see it because it names no status literal on one line.
+    const callers = [];
+    for (const file of sourceFiles()) {
+      const rel = path.relative(SRC, file);
+      if (rel === "store/shared.mjs") continue; // its definition
+      if (readFileSync(file, "utf8").includes("isEntitledAccount")) {
+        callers.push(rel);
+      }
+    }
+    const strayed = callers.filter((r) => !r.startsWith("store/"));
+    assert.deepEqual(
+      strayed,
+      [],
+      "isEntitledAccount is store-internal; a route or gate must ask " +
+        "subscriptionLive() instead:\n" + strayed.join("\n"),
+    );
+  });
+
   it("server.mjs's allowed match is the trial guard, not an Ask gate", () => {
     // Pins why the exception exists, so widening the allowlist is deliberate.
     const src = readFileSync(path.join(SRC, "server.mjs"), "utf8");

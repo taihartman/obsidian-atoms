@@ -322,7 +322,9 @@ export function periodEnded(a, now = Date.now()) {
  *   renew, and #442/#443 built the client story around telling them so
  * - this period's filing allotment is **spent** (the meter's UPDATE, e.g.
  *   `postgres.mjs`) — revokes nothing. Reading a brain that is already mirrored
- *   and already paid for has nothing to do with the filing meter.
+ *   has nothing to do with the filing meter. Note the meter's UPDATE also
+ *   accepts `trialing`, so this keeps reads for a trial whose allotment is
+ *   spent but whose period is still live — deliberate, and pinned by a test.
  *
  * The period check comes first on purpose, mirroring `applyStatusRules`' own
  * precedence: a past `periodEnd` is not live whatever `status` still says. That
@@ -342,7 +344,15 @@ export function subscriptionLive(a, now = Date.now()) {
   return !periodEnded(a, now);
 }
 
-/** Entitled accounts must not receive sess_ from unauthenticated auth/start. */
+/**
+ * Entitled accounts must not receive sess_ from unauthenticated auth/start.
+ *
+ * **Not an Ask/MCP gate, and not interchangeable with `subscriptionLive`.** It
+ * answers "has this account ever been granted anything?", so it deliberately
+ * ignores `periodEnd` and counts a `stripeCustomerId` alone. Gating Ask on it
+ * would hand a lapsed account everything #441 was careful to keep revoking.
+ * Callers are store-internal only; a test pins that.
+ */
 export function isEntitledAccount(a) {
   if (!a) return false;
   if (a.stripeCustomerId) return true;
