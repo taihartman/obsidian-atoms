@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-_Nothing in flight._
+| In progress | #461 | taihartman | `feat/461-open-loops` | `docs/plans/2026-08-11-003-feat-open-loops-plan.md` | `src/shared/openLoop.ts`, `src/pipeline/render.ts`, `src/platform/askMirror.ts`, `src/platform/askOutbox.ts`, `plus-service/src/store/askHelpers.mjs`, `plus-service/src/mcp/tools.mjs`, `src/plugin/commands.ts` | Open loops: FM + open-now + redeems + MCP + Browse/Review. U1→U7. |
 
 ## How to claim (copy)
 
