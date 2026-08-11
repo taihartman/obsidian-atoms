@@ -16,6 +16,7 @@ import {
   classificationFromBatchLine,
   BATCH_DISCOUNT,
   type ApplyBackfillReport,
+  type BackfillConfirmProps,
 } from "../src/pipeline/backfill";
 import { UNDATED_CHUNK_KEY } from "../src/pipeline/context";
 import {
@@ -146,11 +147,14 @@ describe("confirmation gate", () => {
 });
 
 describe("BackfillConfirmModal dismissal (run lifetime)", () => {
-  const gateEstimate = estimateBatchCost({
-    captureCount: 2,
-    inputTokensPerRequest: 100,
-    model: "claude-haiku-4-5-20251001",
-  });
+  const gateProps: BackfillConfirmProps = {
+    engine: "byok",
+    estimate: estimateBatchCost({
+      captureCount: 2,
+      inputTokensPerRequest: 100,
+      model: "claude-haiku-4-5-20251001",
+    }),
+  };
 
   const clickButton = (modal: BackfillConfirmModal, text: string) => {
     const btn = [...modal.contentEl.querySelectorAll("button")].find(
@@ -174,7 +178,7 @@ describe("BackfillConfirmModal dismissal (run lifetime)", () => {
 
     const modal = new BackfillConfirmModal(
       v.app,
-      gateEstimate,
+      gateProps,
       () => {
         // The sheet is already closed here — the ordering trap this test exists for. Every chunk
         // after the first derives its shortlist from this run, so it has to still hold its corpus.
@@ -202,7 +206,7 @@ describe("BackfillConfirmModal dismissal (run lifetime)", () => {
   it("fires onDismiss exactly once when the sheet closes without confirming", async () => {
     const dismiss = vi.fn();
     const onConfirm = vi.fn();
-    const modal = new BackfillConfirmModal(catchUpVault().app, gateEstimate, onConfirm, dismiss);
+    const modal = new BackfillConfirmModal(catchUpVault().app, gateProps, onConfirm, dismiss);
     modal.open();
     clickButton(modal, "Cancel");
 
@@ -216,7 +220,7 @@ describe("BackfillConfirmModal dismissal (run lifetime)", () => {
 
   it("fires onDismiss when the sheet is dismissed without a button (Escape)", () => {
     const dismiss = vi.fn();
-    const modal = new BackfillConfirmModal(catchUpVault().app, gateEstimate, vi.fn(), dismiss);
+    const modal = new BackfillConfirmModal(catchUpVault().app, gateProps, vi.fn(), dismiss);
     modal.open();
     modal.close();
     expect(dismiss).toHaveBeenCalledTimes(1);

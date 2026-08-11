@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { App, PluginManifest } from "obsidian";
@@ -2482,5 +2482,80 @@ describe("automatic filing toggle stamps the window (U3)", () => {
     expect(local.get(LS_AUTO_RUN_ENABLED)).toBe(false);
     expect(local.get(LS_AUTO_RUN_START_DAY)).toBe("2026-01-01");
     expect(calls).not.toContain("runFilingAfterEnable");
+  });
+});
+
+/**
+ * U7 — day one of automatic filing is deliberately silent: the window starts today and every
+ * pass excludes today, so a user who enables it and sees nothing concludes it is broken. The
+ * toggle carries a persistent line saying when filing starts and where the rest is offered.
+ *
+ * It must never name `Process unprocessed captures`. That is the one path left unbounded and
+ * unpriced, so recommending it beside the toggle hands a trial device a single tap that can
+ * spend the whole period allowance on years-old notes. The backfill offer on Atoms home is the
+ * bounded answer, and the only one this line may point at.
+ */
+describe("the enable-time window line (U7)", () => {
+  const flush = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+  const windowLine = (tab: AtomsSettingTab): string | undefined =>
+    prose(tab).find((t) => t.startsWith("Filing starts with tomorrow's note."));
+
+  it("renders beside the toggle before the user has enabled anything", () => {
+    const { tab } = settingTab();
+    const before = Notice.messages.length;
+    tab.display();
+
+    expect(windowLine(tab)).toBeDefined();
+    // Persistent, not a toast: the user is already reading the panel, and a Notice raised here
+    // is gone by the time day one's silence needs explaining.
+    expect(Notice.messages.slice(before)).toHaveLength(0);
+  });
+
+  it("stays on screen after the toggle goes on", async () => {
+    const { tab } = settingTab({
+      local: { [LS_AUTO_RUN_EGRESS_ACK]: EGRESS_ACK_VERSION },
+    });
+    tab.display();
+
+    flip(tab, "File automatically when Obsidian opens");
+    await flush();
+
+    expect(windowLine(tab)).toBeDefined();
+  });
+
+  it("points at the backfill offer and never at the unbounded process path", () => {
+    const { tab } = settingTab();
+    tab.display();
+
+    const line = windowLine(tab) ?? "";
+    expect(line.toLowerCase()).not.toContain("process");
+    expect(line).toContain("Atoms home");
+  });
+});
+
+/**
+ * The version the panel shows is how a user on a phone tells a stale Sync from a current build,
+ * so it has to be the manifest's own number, and the three files that carry it have to agree:
+ * CI cuts the GitHub Release from `manifest.json` and fails if the tag does not match.
+ */
+describe("the version the settings panel renders", () => {
+  const readJson = (name: string): Record<string, unknown> =>
+    JSON.parse(readFileSync(path.resolve(__dirname, `../${name}`), "utf8")) as Record<
+      string,
+      unknown
+    >;
+
+  it("is the one manifest.json carries", () => {
+    const version = readJson("manifest.json").version;
+    const { tab } = settingTab({ plugin: { manifest: { version } } });
+    tab.display();
+
+    expect(prose(tab).some((t) => t.startsWith(`Version ${String(version)} ·`))).toBe(true);
+  });
+
+  it("agrees across manifest, package, and versions", () => {
+    const version = String(readJson("manifest.json").version);
+    expect(readJson("package.json").version).toBe(version);
+    expect(Object.keys(readJson("versions.json"))).toContain(version);
   });
 });

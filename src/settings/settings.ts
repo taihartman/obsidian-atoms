@@ -1765,6 +1765,19 @@ export class AtomsSettingTab extends PluginSettingTab {
       },
     });
 
+    // Day one is deliberately silent: enabling stamps the window at today and every pass
+    // excludes today, so the first atoms land tomorrow and a user who watched nothing happen
+    // would otherwise conclude filing is broken. Persistent line rather than a Notice, since
+    // the panel is where that silence gets explained and a toast here is easy to miss.
+    //
+    // It points at the backfill offer on Atoms home, never at Process: that path is unbounded
+    // and unpriced, so naming it beside the toggle offers one tap that can spend a whole
+    // period's filings on years-old notes.
+    containerEl.createEl("p", {
+      text: "Filing starts with tomorrow's note. Older captures stay where they are until you backfill them from Atoms home.",
+      cls: "setting-item-description",
+    });
+
     // Rendered from the grants themselves rather than from the toggle above it: a consent
     // recorded against a feature that is currently off is still live, and still revocable.
     //

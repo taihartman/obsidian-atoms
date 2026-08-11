@@ -213,3 +213,263 @@ describe("runWritePath — filing window (KTD2)", () => {
     expect(v.read("Daily/2026-08-06.md")).toContain("<!--linker-->");
   });
 });
+
+describe("runWritePath — backfill complement bound (KTD3)", () => {
+  it("files inside [since, before) and never touches a daily on or after before", async () => {
+    // `before` is the filing window's own start: the unattended auto-run owns everything
+    // from there forward, so a backfill that files into it is metered double-spend.
+    const older = "- a thought from the backfill range\n";
+    const inWindow = "- a thought the auto-run already owns\n";
+    const v = fakeVault({
+      "Daily/2026-07-05.md": older,
+      "Daily/2026-08-01.md": inWindow,
+      "Daily/2026-08-06.md": inWindow,
+    });
+    stubDailyNotes([
+      { path: "Daily/2026-07-05.md", date: "2026-07-05" },
+      { path: "Daily/2026-08-01.md", date: "2026-08-01" },
+      { path: "Daily/2026-08-06.md", date: "2026-08-06" },
+    ]);
+    const classify = fakeClassify([atomResult("A backfilled thought")]);
+
+    const report = await runWritePath({
+      app: v.app,
+      contextProvider: provider(v.app),
+      apiKey: "k",
+      model: "claude-sonnet-5",
+      activeVocabulary: ["idea"],
+      atomFolder: "Atoms",
+      since: "2026-07-01",
+      before: "2026-08-01",
+      classifyDeps: { request: classify.request as never },
+    });
+
+    expect(report.scanned).toBe(1);
+    expect(report.markersAppended).toBe(1);
+    expect(classify.contextBlocks).toHaveLength(1);
+    expect(v.read("Daily/2026-07-05.md")).toContain("<!--linker-->");
+    // `before` is exclusive — the boundary day itself belongs to the window.
+    expect(v.read("Daily/2026-08-01.md")).toBe(inWindow);
+    expect(v.read("Daily/2026-08-06.md")).toBe(inWindow);
+  });
+});
+
+describe("runWritePath — newest-first ordering (backfill only)", () => {
+  const threeDailies = () => {
+    const v = fakeVault({
+      "Daily/2026-07-01.md": "- oldest thought about the sourdough starter\n",
+      "Daily/2026-07-02.md": "- middle thought about the pour over grind\n",
+      "Daily/2026-07-03.md": "- newest thought about the kayak portage\n",
+    });
+    stubDailyNotes([
+      { path: "Daily/2026-07-01.md", date: "2026-07-01" },
+      { path: "Daily/2026-07-02.md", date: "2026-07-02" },
+      { path: "Daily/2026-07-03.md", date: "2026-07-03" },
+    ]);
+    return v;
+  };
+
+  it("files the newest dailies when a run is capped", async () => {
+    const v = threeDailies();
+    const classify = fakeClassify([atomResult("Kayak portage")]);
+
+    await runWritePath({
+      app: v.app,
+      contextProvider: provider(v.app),
+      apiKey: "k",
+      model: "claude-sonnet-5",
+      activeVocabulary: ["idea"],
+      atomFolder: "Atoms",
+      maxCaptures: 1,
+      order: "newest-first",
+      classifyDeps: { request: classify.request as never },
+    });
+
+    expect(classify.captures).toHaveLength(1);
+    expect(classify.captures[0]).toContain("newest thought about the kayak");
+    expect(v.read("Daily/2026-07-03.md")).toContain("<!--linker-->");
+    expect(v.read("Daily/2026-07-01.md")).not.toContain("<!--linker-->");
+  });
+
+  it("defaults to oldest-first so existing callers are unchanged", async () => {
+    const v = threeDailies();
+    const classify = fakeClassify([atomResult("Sourdough starter")]);
+
+    await runWritePath({
+      app: v.app,
+      contextProvider: provider(v.app),
+      apiKey: "k",
+      model: "claude-sonnet-5",
+      activeVocabulary: ["idea"],
+      atomFolder: "Atoms",
+      maxCaptures: 1,
+      classifyDeps: { request: classify.request as never },
+    });
+
+    expect(classify.captures[0]).toContain("oldest thought about the sourdough");
+    expect(v.read("Daily/2026-07-01.md")).toContain("<!--linker-->");
+    expect(v.read("Daily/2026-07-03.md")).not.toContain("<!--linker-->");
+  });
+
+  it("reverses the dailies without disturbing bottom-up order inside one", async () => {
+    // A flat reverse would file each daily top-down, and an appended marker would then
+    // shift every line number the run has not reached yet.
+    const v = fakeVault({
+      "Daily/2026-07-01.md": ["- old first line", "- old second line", ""].join(
+        "\n",
+      ),
+      "Daily/2026-07-02.md": ["- new first line", "- new second line", ""].join(
+        "\n",
+      ),
+    });
+    stubDailyNotes([
+      { path: "Daily/2026-07-01.md", date: "2026-07-01" },
+      { path: "Daily/2026-07-02.md", date: "2026-07-02" },
+    ]);
+    const classify = fakeClassify([
+      atomResult("New second"),
+      atomResult("New first"),
+      atomResult("Old second"),
+      atomResult("Old first"),
+    ]);
+
+    await runWritePath({
+      app: v.app,
+      contextProvider: provider(v.app),
+      apiKey: "k",
+      model: "claude-sonnet-5",
+      activeVocabulary: ["idea"],
+      atomFolder: "Atoms",
+      order: "newest-first",
+      classifyDeps: { request: classify.request as never },
+    });
+
+    const order = [
+      "new second line",
+      "new first line",
+      "old second line",
+      "old first line",
+    ];
+    expect(classify.captures).toHaveLength(order.length);
+    order.forEach((line, i) => expect(classify.captures[i]).toContain(line));
+    const after = v.read("Daily/2026-07-02.md")!.split("\n");
+    expect(after[0]).toBe("- new first line");
+    expect(after[1]).toBe("\t↳ [[New first]] <!--linker-->");
+    expect(after[2]).toBe("- new second line");
+    expect(after[3]).toBe("\t↳ [[New second]] <!--linker-->");
+  });
+});
+
+describe("runWritePath — meter exhaustion abort", () => {
+  /** Plus proxy double: Anthropic-shaped 200s until the meter runs out, then 402. */
+  const plusMeter = (okCalls: number) => {
+    const calls: string[] = [];
+    const request = async (opts: { body?: string }) => {
+      const body = JSON.parse(opts.body ?? "{}") as { capture?: string };
+      calls.push(body.capture ?? "");
+      if (calls.length > okCalls) {
+        return {
+          status: 402,
+          json: { message: "Included filings used up this period." },
+        };
+      }
+      return {
+        status: 200,
+        json: {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(atomResult(`Atom ${calls.length}`)),
+            },
+          ],
+          usage: {},
+        },
+      };
+    };
+    return { request, calls };
+  };
+
+  const threeCaptures = () => {
+    const v = fakeVault({
+      "Daily/2026-07-01.md": [
+        "- first thought about the sourdough starter",
+        "- second thought about the pour over grind",
+        "- third thought about the kayak portage",
+        "",
+      ].join("\n"),
+    });
+    stubDailyNotes([{ path: "Daily/2026-07-01.md", date: "2026-07-01" }]);
+    return v;
+  };
+
+  const plusDeps = (request: unknown) => ({
+    request: request as never,
+    plus: { baseUrl: "https://plus.example", sessionToken: "t" },
+  });
+
+  it("halts on the first exhausted response with no further classify calls", async () => {
+    const v = threeCaptures();
+    const meter = plusMeter(1);
+
+    const report = await runWritePath({
+      app: v.app,
+      contextProvider: provider(v.app),
+      apiKey: "",
+      model: "claude-sonnet-5",
+      activeVocabulary: ["idea"],
+      atomFolder: "Atoms",
+      stopOnAuthExhausted: true,
+      classifyDeps: plusDeps(meter.request),
+    });
+
+    expect(meter.calls).toHaveLength(2);
+    expect(report.atomsCreated).toBe(1);
+    expect(report.markersAppended).toBe(1);
+    expect(report.failed).toBe(1);
+    expect(report.stoppedReason).toBe("exhausted");
+    expect(report.failures[0]?.reason).toBe("quota");
+  });
+
+  it("distinguishes exhaustion from an ordinary failure", async () => {
+    const v = threeCaptures();
+    const offline = {
+      request: (async () => {
+        throw new Error("network down");
+      }) as never,
+      plus: { baseUrl: "https://plus.example", sessionToken: "t" },
+    };
+
+    const report = await runWritePath({
+      app: v.app,
+      contextProvider: provider(v.app),
+      apiKey: "",
+      model: "claude-sonnet-5",
+      activeVocabulary: ["idea"],
+      atomFolder: "Atoms",
+      stopOnAuthExhausted: true,
+      classifyDeps: offline,
+    });
+
+    expect(report.failed).toBe(3);
+    expect(report.stoppedReason).toBeUndefined();
+  });
+
+  it("keeps walking the whole slice for existing callers", async () => {
+    const v = threeCaptures();
+    const meter = plusMeter(1);
+
+    const report = await runWritePath({
+      app: v.app,
+      contextProvider: provider(v.app),
+      apiKey: "",
+      model: "claude-sonnet-5",
+      activeVocabulary: ["idea"],
+      atomFolder: "Atoms",
+      classifyDeps: plusDeps(meter.request),
+    });
+
+    expect(meter.calls).toHaveLength(3);
+    expect(report.failed).toBe(2);
+    expect(report.stoppedReason).toBeUndefined();
+  });
+});

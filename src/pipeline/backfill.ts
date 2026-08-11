@@ -12,7 +12,9 @@ import {
   type ContextRun,
   type MetadataContextProvider,
 } from "./context";
+import type { RecentFirstRange } from "./backfillOffer";
 import { getPastDailyNotesWithUnmarkedCaptures } from "./daily";
+import { PLUS_PRICING, topUpPriceLabel } from "../shared/plusPricing";
 import {
   applyWrite,
   displayTitleForAtom,
@@ -403,9 +405,20 @@ export async function prepareBackfillEstimate(opts: {
   atomFolder?: string;
   shortlistK?: number;
   granularity?: ChunkGranularity;
+  /**
+   * Derived recent-first range (KTD10). BYOK has no meter and nothing to reserve, but it takes
+   * the same per-run cap as Plus, so the estimate must price the range the run will actually
+   * submit — an unbounded scan here quotes a whole vault's history for a capped run.
+   * Absent on the estimate-only diagnostic, which is deliberately unbounded.
+   */
+  since?: string;
+  before?: string;
   request?: typeof requestUrl;
 }): Promise<BackfillEstimateResult> {
-  const listed = await getPastDailyNotesWithUnmarkedCaptures(opts.app);
+  const listed = await getPastDailyNotesWithUnmarkedCaptures(opts.app, {
+    since: opts.since,
+    before: opts.before,
+  });
   const work = enumerateBackfillWork(listed.notes);
   const run = await opts.contextProvider.beginRun({
     atomFolder: opts.atomFolder,
@@ -850,24 +863,231 @@ export async function runBackfillChunks(opts: {
 }
 
 /**
- * Confirmation modal — batch is submitted only if onConfirm runs.
+ * What the confirm dialog is asking the user to spend, by engine (KTD11).
  *
- * The sheet closes *before* `onConfirm` runs, so the modal owns the "was this a dismissal?" answer
- * rather than leaving it to a flag at the call site. A caller that patched `onClose` and read a flag
- * its own `onConfirm` sets would read it one step too early and treat every confirm as a dismissal —
- * which is exactly how the confirmed path came to release the run's corpus before submitting against
- * it. Here `confirmed` is set before `close()`, so `onDismiss` can only fire on a real dismissal.
+ * A discriminant, not a widened `CostEstimate`: every Batch-API sentence in the old body was
+ * false for a Plus user, whose captures go to the Atoms Plus proxy and never reach Anthropic
+ * directly. Naming the wrong destination on the consent surface is the bug, and a shared body
+ * with optional fields would let it come back.
+ */
+export type BackfillConfirmProps =
+  | { engine: "byok"; estimate: CostEstimate }
+  | {
+      engine: "plus";
+      /** The derived recent-first range this run would file. */
+      run: Pick<
+        RecentFirstRange,
+        "captures" | "dailies" | "totalCaptures" | "overBudget"
+      >;
+      /**
+       * Filings left in the period at last sync. **Omit** when the meter read failed or the
+       * device is not signed in: a confidently wrong count on a consent surface is worse than
+       * no count at all, so the copy falls back rather than guessing.
+       */
+      remaining?: number;
+      /** Whole days left in the period, when known. */
+      daysRemaining?: number | null;
+    };
+
+/** One paragraph of the dialog body. Muted lines take Obsidian's description styling. */
+export interface BackfillConfirmLine {
+  text: string;
+  muted?: boolean;
+}
+
+export interface BackfillConfirmCopy {
+  title: string;
+  lines: BackfillConfirmLine[];
+  /**
+   * The aftermath of confirming, as its own visual block. Null when there is no aftermath to
+   * state. It is a block and not another paragraph because the body is otherwise a flat list of
+   * same-weight facts, and an aftermath sentence dropped into that list gets skimmed.
+   */
+  aftermath: { title: string; lines: string[] } | null;
+  cancelLabel: string;
+  confirmLabel: string;
+}
+
+/**
+ * A leftover history this many top-ups deep is cheaper to run on the user's own key than to
+ * drain in top-up increments, so that road gets named instead of only the expensive one.
+ */
+const OWN_KEY_ROAD_TOP_UPS = 5;
+
+const plural = (n: number, one: string, many: string) => (n === 1 ? one : many);
+
+function byokCopy(estimate: CostEstimate): BackfillConfirmCopy {
+  const lines: BackfillConfirmLine[] = [
+    {
+      text: "Uses the Anthropic Message Batches API (async, ~50% off). Results apply through the same write path (atoms + markers). Partial runs are safe — already-marked captures are skipped on resume.",
+    },
+    { text: `Captures: ${estimate.captureCount}` },
+    // The money leads: dollars are the currency this user spends.
+    { text: estimate.summaryLine },
+    { text: `Model: ${estimate.model}`, muted: true },
+    {
+      text: estimate.chunks
+        ? `Input tokens / request (count_tokens, mean over ${estimate.chunks.length} chunk(s)): ${estimate.inputTokensPerRequest}`
+        : `Input tokens / request (count_tokens): ${estimate.inputTokensPerRequest}`,
+      muted: true,
+    },
+  ];
+  if (estimate.chunks) {
+    lines.push({
+      text: `Submitted as ${estimate.chunks.length} batch(es), oldest first — each one can link the atoms the previous one wrote.`,
+      muted: true,
+    });
+  }
+  lines.push(
+    {
+      text: `Worst-case input tokens (no cache credit): ${estimate.worstCaseInputTokens}`,
+      muted: true,
+    },
+    {
+      text: "Estimate does not credit cross-request batch cache hits (conservative).",
+      muted: true,
+    },
+    {
+      text: "Privacy: this sends historical captures and your title graph to Anthropic’s Batch API (server-retained for a window).",
+      muted: true,
+    },
+  );
+  return {
+    title: "Backfill past captures",
+    lines,
+    aftermath: null,
+    cancelLabel: "Cancel",
+    confirmLabel: "Submit batch",
+  };
+}
+
+const PLUS_PRIVACY: BackfillConfirmLine = {
+  text: "Privacy: this sends the captures in range and your note titles to the Atoms Plus proxy, which files them for you.",
+  muted: true,
+};
+
+function plusCopy(
+  props: Extract<BackfillConfirmProps, { engine: "plus" }>,
+): BackfillConfirmCopy {
+  const title = "Backfill past captures";
+  const { run, remaining } = props;
+
+  // Nothing was read back from the meter, so there is no count this dialog can honestly show.
+  if (remaining === undefined) {
+    return {
+      title,
+      lines: [
+        {
+          text: "Your filing balance did not come back from the Plus service, so there is no count to show yet.",
+        },
+        {
+          text: "Refresh status in Settings → Atoms, then open this again.",
+          muted: true,
+        },
+        PLUS_PRIVACY,
+      ],
+      aftermath: null,
+      cancelLabel: "Close",
+      confirmLabel: "Refresh status",
+    };
+  }
+
+  const leftOver = Math.max(0, run.totalCaptures - run.captures);
+
+  if (run.overBudget) {
+    const resetLine =
+      typeof props.daysRemaining === "number" && props.daysRemaining > 0
+        ? `Your filings reset in ${props.daysRemaining} ${plural(props.daysRemaining, "day", "days")}, and backfill picks up where it stopped. Nothing is lost while you wait.`
+        : "Backfill picks up where it stopped when your filings reset. Nothing is lost while you wait.";
+    const aftermathLines = [
+      resetLine,
+      `Or top up now: ${topUpPriceLabel()} for ${PLUS_PRICING.topUpFilings} more filings. Filings you spend back here are not there for new captures until the reset.`,
+    ];
+    if (leftOver >= PLUS_PRICING.topUpFilings * OWN_KEY_ROAD_TOP_UPS) {
+      aftermathLines.push(
+        `With your own Anthropic key, a history this size files for far less than topping up ${topUpPriceLabel()} at a time. Settings → Atoms.`,
+      );
+    }
+    return {
+      title,
+      lines: [
+        {
+          text: "This period’s backfill filings do not reach the next day back yet, so nothing files right now.",
+        },
+        {
+          text: `${leftOver} older ${plural(leftOver, "capture is", "captures are")} waiting further back.`,
+          muted: true,
+        },
+        PLUS_PRIVACY,
+      ],
+      aftermath: { title: "What happens next", lines: aftermathLines },
+      cancelLabel: "Close",
+      confirmLabel: "Get more filings",
+    };
+  }
+
+  const lines: BackfillConfirmLine[] = [
+    {
+      text: `Files ${run.captures} ${plural(run.captures, "capture", "captures")} from ${run.dailies} earlier ${plural(run.dailies, "day", "days")}, newest first.`,
+    },
+    // The filings count leads: filings are the currency this user spends.
+    {
+      text: `Uses ${run.captures} of the ${remaining} filings left in this period.`,
+    },
+  ];
+  if (leftOver > 0) {
+    lines.push({
+      text: `${leftOver} older ${plural(leftOver, "capture stays", "captures stay")} where they are. The next run picks them up.`,
+      muted: true,
+    });
+  }
+  lines.push(
+    {
+      text: "Captures that already have an atom are skipped, so running this again is safe.",
+      muted: true,
+    },
+    PLUS_PRIVACY,
+  );
+
+  return {
+    title,
+    lines,
+    aftermath: null,
+    cancelLabel: "Cancel",
+    confirmLabel: "Start backfill",
+  };
+}
+
+/** The dialog's words, resolved from the engine. Pure, so the consent copy is testable. */
+export function backfillConfirmCopy(
+  props: BackfillConfirmProps,
+): BackfillConfirmCopy {
+  return props.engine === "byok" ? byokCopy(props.estimate) : plusCopy(props);
+}
+
+/**
+ * Confirmation modal — the run starts only if onConfirm runs.
+ *
+ * The modal knows nothing about what confirming means: the copy resolves the primary button's
+ * words ("Start backfill", "Refresh status", "Get more filings") and the caller decides which
+ * branch its own `onConfirm` runs, off the same offer the copy was resolved from.
  */
 export class BackfillConfirmModal extends Modal {
   private confirmed = false;
 
   constructor(
     app: App,
-    private readonly estimate: CostEstimate,
+    private readonly props: BackfillConfirmProps,
     private readonly onConfirm: () => void | Promise<void>,
     /**
      * Closed without confirming — Cancel, Escape, or a click outside. Fires exactly once, and never
      * on the confirmed path, so it is the safe home for releasing whatever the gate was holding.
+     *
+     * The sheet closes *before* `onConfirm` runs, so the modal owns this answer rather than leaving
+     * it to a flag at the call site. A caller that patched `onClose` and read a flag its own
+     * `onConfirm` sets would read it one step too early and call every confirm a dismissal — which
+     * is how the confirmed path came to release the run's corpus before submitting against it
+     * (#438). Here `confirmed` is set before `close()`, so this can only fire on a real dismissal.
      */
     private readonly onDismiss?: () => void,
   ) {
@@ -876,49 +1096,32 @@ export class BackfillConfirmModal extends Modal {
 
   onOpen() {
     const { contentEl } = this;
+    const copy = backfillConfirmCopy(this.props);
     contentEl.empty();
-    contentEl.createEl("h2", { text: "Backfill past captures" });
-    contentEl.createEl("p", {
-      text: "Uses the Anthropic Message Batches API (async, ~50% off). Results apply through the same write path (atoms + markers). Partial runs are safe — already-marked captures are skipped on resume.",
-    });
+    contentEl.createEl("h2", { text: copy.title });
 
-    contentEl.createEl("p", {
-      text: `Captures: ${this.estimate.captureCount}`,
-    });
-    contentEl.createEl("p", { text: `Model: ${this.estimate.model}` });
-    contentEl.createEl("p", {
-      text: this.estimate.chunks
-        ? `Input tokens / request (count_tokens, mean over ${this.estimate.chunks.length} chunk(s)): ${this.estimate.inputTokensPerRequest}`
-        : `Input tokens / request (count_tokens): ${this.estimate.inputTokensPerRequest}`,
-    });
-    if (this.estimate.chunks) {
+    for (const line of copy.lines) {
       contentEl.createEl("p", {
-        text: `Submitted as ${this.estimate.chunks.length} batch(es), oldest first — each one can link the atoms the previous one wrote.`,
-        cls: "setting-item-description",
+        text: line.text,
+        ...(line.muted ? { cls: "setting-item-description" } : {}),
       });
     }
-    contentEl.createEl("p", {
-      text: `Worst-case input tokens (no cache credit): ${this.estimate.worstCaseInputTokens}`,
-    });
-    contentEl.createEl("p", {
-      text: this.estimate.summaryLine,
-    });
-    contentEl.createEl("p", {
-      text: "Estimate does not credit cross-request batch cache hits (conservative).",
-      cls: "setting-item-description",
-    });
-    contentEl.createEl("p", {
-      text: "Privacy: this sends historical captures and your title graph to Anthropic’s Batch API (server-retained for a window).",
-      cls: "setting-item-description",
-    });
+
+    if (copy.aftermath) {
+      const block = contentEl.createDiv({ cls: "atoms-backfill-aftermath" });
+      block.createEl("h3", { text: copy.aftermath.title });
+      for (const text of copy.aftermath.lines) {
+        block.createEl("p", { text });
+      }
+    }
 
     new Setting(contentEl)
       .addButton((btn) =>
-        btn.setButtonText("Cancel").onClick(() => this.close()),
+        btn.setButtonText(copy.cancelLabel).onClick(() => this.close()),
       )
       .addButton((btn) =>
         btn
-          .setButtonText("Submit batch")
+          .setButtonText(copy.confirmLabel)
           .setCta()
           .onClick(async () => {
             if (this.confirmed) return;
