@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-_Nothing in flight._
+| In progress | #471 | agent | `feat/ask-agent-stance` | `docs/plans/2026-08-12-002-feat-ask-agent-stance-plan.md` | `instructions.mjs` | MCP stance: search without “check my atoms”. No plugin bump. |
 
 ## How to claim (copy)
 
