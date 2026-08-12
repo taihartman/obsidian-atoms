@@ -15,6 +15,7 @@
 
 import {
   planAskOutboxApply,
+  planSetLoopApply,
   type AskOutboxPayload,
 } from "../platform/askOutbox";
 import { atomPathForTitle } from "../pipeline/render";
@@ -104,6 +105,7 @@ export async function runMirrorSingleFlight(
 /** An outbox row as pulled from Plus. */
 export type AskOutboxItem = {
   id: string;
+  kind?: string;
   payload?: Partial<AskOutboxPayload> | null;
 };
 
@@ -152,8 +154,14 @@ export type AskOutboxHost = {
    * the outbox, which is the path that actually writes files, had none.
    */
   writePermitted(): boolean;
-  /** Write the atom into the vault (create-only; never rewrites a body). */
-  applyToVault(payload: AskOutboxPayload): Promise<OutboxApplyResult>;
+  /**
+   * Write the outbox item into the vault.
+   * create/continue: create-only body. set_loop: FM-only modify.
+   */
+  applyToVault(
+    payload: AskOutboxPayload,
+    kind?: string,
+  ): Promise<OutboxApplyResult>;
   /** Push the vault so the atom just written is actually in the cloud. */
   syncMirror(): Promise<MirrorSyncOutcome>;
   notice(message: string): void;
@@ -167,17 +175,37 @@ export type OutboxVaultPort = {
   readIfExists(path: string): Promise<string | null>;
   ensureFolder(path: string): Promise<void>;
   create(path: string, content: string): Promise<void>;
+  /** Overwrite existing file content (set_loop FM patch). */
+  modify(path: string, content: string): Promise<void>;
 };
 
 /**
- * Create-only atom write for one outbox item: never rewrites an existing body,
- * and re-plans against the winner when two devices race the same path.
+ * Apply one outbox item: create/continue are create-only; set_loop patches FM.
  */
 export async function applyOutboxItemToVault(
   vault: OutboxVaultPort,
   folder: string,
   payload: AskOutboxPayload,
+  kind?: string,
 ): Promise<OutboxApplyResult> {
+  if ((kind || "").toLowerCase() === "set_loop") {
+    const existing = await vault.readIfExists(
+      atomPathForTitle(folder, payload.title),
+    );
+    const plan = planSetLoopApply(payload, folder, existing);
+    if (plan.action === "reject") {
+      return { kind: "rejected", error: plan.reason };
+    }
+    if (plan.action === "modify") {
+      try {
+        await vault.modify(plan.path, plan.content);
+      } catch {
+        return { kind: "rejected", error: "modify_failed" };
+      }
+    }
+    return { kind: "applied" };
+  }
+
   const existing = await vault.readIfExists(
     atomPathForTitle(folder, payload.title),
   );
@@ -239,8 +267,9 @@ export async function runAskOutboxApply(
       if (!host.writePermitted()) break;
       const item = await host.pullOne();
       if (!item) break;
-      const payload = item.payload;
-      if (!payload?.title || payload.body == null) {
+      const kind = (item.kind || "create").toLowerCase();
+      const raw = item.payload;
+      if (!raw?.title?.trim()) {
         await host.ack(item.id, {
           status: "rejected",
           error: "invalid_payload",
@@ -248,12 +277,39 @@ export async function runAskOutboxApply(
         rejected++;
         continue;
       }
-      const applied = await host.applyToVault({
-        title: payload.title,
-        body: String(payload.body),
-        ...(payload.tags ? { tags: payload.tags } : {}),
-        ...(payload.links ? { links: payload.links } : {}),
-      });
+      if (kind === "set_loop") {
+        if (!raw.state?.trim()) {
+          await host.ack(item.id, {
+            status: "rejected",
+            error: "invalid_payload",
+          });
+          rejected++;
+          continue;
+        }
+      } else if (raw.body == null || !String(raw.body).trim()) {
+        await host.ack(item.id, {
+          status: "rejected",
+          error: "invalid_payload",
+        });
+        rejected++;
+        continue;
+      }
+      // Full payload through — do not strip open_loop / relation / close_answer.
+      const payload: AskOutboxPayload = {
+        title: String(raw.title).trim(),
+        ...(raw.body != null ? { body: String(raw.body) } : {}),
+        ...(raw.tags ? { tags: raw.tags } : {}),
+        ...(raw.links ? { links: raw.links } : {}),
+        ...(raw.parent_title ? { parent_title: raw.parent_title } : {}),
+        ...(raw.relation ? { relation: raw.relation } : {}),
+        ...(raw.open_loop === true ? { open_loop: true } : {}),
+        ...(raw.close_answer ? { close_answer: raw.close_answer } : {}),
+        ...(raw.state ? { state: raw.state } : {}),
+        ...(raw.client_request_id
+          ? { client_request_id: raw.client_request_id }
+          : {}),
+      };
+      const applied = await host.applyToVault(payload, kind);
       if (applied.kind === "rejected") {
         await host.ack(item.id, { status: "rejected", error: applied.error });
         rejected++;

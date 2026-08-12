@@ -56,3 +56,51 @@ describe("resolveClassifyAuth", () => {
     }
   });
 });
+
+/**
+ * #442 — the Notice every Process/Preview/Update shows. An expired trial used to be told its
+ * allotment would start over on a next billing date it did not have.
+ */
+describe("resolveClassifyAuth on an ended period", () => {
+  const T0 = Date.parse("2026-08-11T13:49:00.000Z");
+  const lapsedTrial: FilingAuth = {
+    mode: "plus",
+    sessionToken: "sess",
+    email: "a@b.co",
+    status: "exhausted",
+    remaining: 0,
+    plan: "trial",
+    periodEnd: "2026-08-10T14:52:03.632Z",
+  };
+
+  it("says the trial ended, and never promises a billing date", () => {
+    const r = resolveClassifyAuth(lapsedTrial, { now: T0 });
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.message).toMatch(/trial has ended/i);
+      expect(r.message).toMatch(/subscribe/i);
+      expect(r.message).not.toMatch(/billing date|allotment|monthly limit/i);
+    }
+  });
+
+  it("says subscription, not trial, when a paid period ended", () => {
+    const r = resolveClassifyAuth(
+      { ...lapsedTrial, plan: "monthly" },
+      { now: T0 },
+    );
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.message).toMatch(/subscription has ended/i);
+  });
+
+  it("still shows the limit copy for a spent meter inside a live period", () => {
+    const r = resolveClassifyAuth(
+      { ...lapsedTrial, plan: "monthly", periodEnd: "2026-09-10T00:00:00.000Z" },
+      { now: T0 },
+    );
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.message).toMatch(/Monthly Limit Reached/);
+      expect(r.message).toMatch(/next billing date/);
+    }
+  });
+});

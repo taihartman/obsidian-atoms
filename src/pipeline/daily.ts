@@ -48,6 +48,15 @@ export interface GetUnprocessedOpts {
   /** When true, include today's daily (manual test / force process). Default false. */
   includeToday?: boolean;
   today?: Date;
+  /**
+   * Filing-window start, `YYYY-MM-DD` inclusive (KTD2). Non-optional in practice on every
+   * unattended path — absent means "scan all history", which is the sweep the window exists
+   * to end, so unattended callers resolve it through `resolveAutoFilingSince`. Optional here
+   * because the attended commands are deliberately unbounded diagnostics.
+   */
+  since?: string;
+  /** Backfill complement bound, `YYYY-MM-DD` exclusive (KTD3): strictly before the window. */
+  before?: string;
 }
 
 /**
@@ -76,12 +85,23 @@ export async function getPastDailyNotesWithUnmarkedCaptures(
     const momentDate = getDateFromFile(file, "day");
     if (!momentDate) continue;
     const date = momentDate.format("YYYY-MM-DD");
+    // Bounded reads: the day is already known for free, so a note the window excludes is never
+    // opened — otherwise every unattended pass still reads the whole vault's history, which is
+    // the sweep the window exists to end. Only the two lexical `YYYY-MM-DD` bounds are applied
+    // here; the today / includeToday rule is subtler and stays solely in
+    // `collectPastNotesWithUnmarkedCaptures` rather than becoming a second copy that can drift
+    // (today is one file — leaving it read costs nothing). All three bounds still run there:
+    // this skips work the cheap check already proved unnecessary, it does not replace the filter.
+    if (opts.since !== undefined && date < opts.since) continue;
+    if (opts.before !== undefined && date >= opts.before) continue;
     const content = await app.vault.cachedRead(file);
     notes.push({ path: file.path, date, content });
   }
 
   const result = collectPastNotesWithUnmarkedCaptures(notes, todayStr, {
     includeToday: opts.includeToday,
+    since: opts.since,
+    before: opts.before,
   });
   return {
     notes: result,
@@ -111,7 +131,7 @@ export async function ensureDailyForDate(
     throw new FutureDailyNoteError(date);
   }
 
-  const target = moment(date) as Parameters<typeof getDailyNote>[0];
+  const target = moment(date);
   const all = getAllDailyNotes();
   let file: TFile | undefined;
   try {
@@ -138,7 +158,7 @@ export async function openTodaysDaily(app: App): Promise<TFile> {
   if (!appHasDailyNotesPluginLoaded()) {
     throw new DailyNotesDisabledError();
   }
-  const date = moment() as Parameters<typeof getDailyNote>[0];
+  const date = moment();
   const all = getAllDailyNotes();
   let file: TFile | undefined;
   try {

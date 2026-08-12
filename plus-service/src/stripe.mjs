@@ -5,7 +5,11 @@
 
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { config } from "./config.mjs";
-import { INCIDENT_KIND, resolveCheckoutGrantEmail } from "./store/shared.mjs";
+import {
+  INCIDENT_KIND,
+  accountHasUsedTrial,
+  resolveCheckoutGrantEmail,
+} from "./store/shared.mjs";
 
 /** @typedef {'start_trial'|'subscribe_monthly'|'subscribe_yearly'|'topup_50'} CheckoutKind */
 
@@ -161,7 +165,14 @@ async function readStripeJson(res) {
 }
 
 /**
- * @param {{ email: string, kind: CheckoutKind, successUrl?: string, cancelUrl?: string }} opts
+ * @param {{
+ *   email: string,
+ *   kind: CheckoutKind,
+ *   successUrl?: string,
+ *   cancelUrl?: string,
+ *   trialEndUnix?: number,
+ * }} opts
+ * `trialEndUnix` — reconnect only: pin Stripe trial_end (no new trial_period_days).
  */
 export async function createCheckoutSession(opts) {
   const resolved = resolveCheckoutKind(opts.kind);
@@ -194,13 +205,25 @@ export async function createCheckoutSession(opts) {
     "metadata[email]": opts.email,
     "metadata[kind]": opts.kind,
     "metadata[plan]": resolved.plan,
+    // Customer-facing promo box on hosted Checkout (Dashboard coupons / promotion codes).
+    // Do not also send discounts[] — Stripe forbids combining the two.
+    allow_promotion_codes: "true",
   };
 
   if (resolved.mode === "subscription") {
     params["subscription_data[metadata][email]"] = opts.email;
     params["subscription_data[metadata][kind]"] = opts.kind;
     params["subscription_data[metadata][plan]"] = resolved.plan;
-    if (resolved.trialDays && resolved.trialDays > 0) {
+    // trial_end and trial_period_days are mutually exclusive in Stripe.
+    const trialEnd =
+      typeof opts.trialEndUnix === "number" &&
+      Number.isFinite(opts.trialEndUnix) &&
+      opts.trialEndUnix > 0
+        ? Math.floor(opts.trialEndUnix)
+        : 0;
+    if (trialEnd > 0) {
+      params["subscription_data[trial_end]"] = trialEnd;
+    } else if (resolved.trialDays && resolved.trialDays > 0) {
       params["subscription_data[trial_period_days]"] = resolved.trialDays;
     }
   } else {
@@ -213,6 +236,64 @@ export async function createCheckoutSession(opts) {
     throw new Error("Stripe Checkout missing url");
   }
   return session;
+}
+
+/**
+ * User-safe copy when reconnect checkout cannot be opened (#408).
+ * Prefer returning a Checkout URL from createPortalSessionForAccount instead.
+ */
+export const PORTAL_STALE_CUSTOMER_MESSAGE =
+  "Your billing link is out of date. Start checkout again from Atoms to reconnect — remaining filings stay as they are.";
+
+/**
+ * Stripe refused the stored customer id because it belongs to the other mode
+ * (test vs live) or was deleted. Portal must self-heal, not echo the raw error.
+ * @param {unknown} err
+ */
+export function isStaleStripeCustomerError(err) {
+  const msg = err instanceof Error ? err.message : String(err ?? "");
+  if (/similar object exists in (test|live) mode/i.test(msg)) return true;
+  if (/No such customer/i.test(msg)) return true;
+  const stripeErr =
+    err && typeof err === "object" && "stripe" in err
+      ? /** @type {{ stripe?: { error?: { code?: string, param?: string, message?: string } } }} */ (
+          err
+        ).stripe?.error
+      : undefined;
+  if (stripeErr?.code === "resource_missing") {
+    const param = String(stripeErr.param || "");
+    const detail = String(stripeErr.message || msg);
+    if (param === "customer" || /customer/i.test(detail)) return true;
+  }
+  return false;
+}
+
+/**
+ * Reconnect never re-issues a free trial — trial is once per account.
+ * Always open paid monthly Checkout; optionally keep the remaining trial window
+ * via trial_end (card on file, no new trial_period_days).
+ * @param {{ status?: string }} [_account]
+ * @returns {CheckoutKind}
+ */
+export function reconnectCheckoutKind(_account) {
+  return "subscribe_monthly";
+}
+
+/**
+ * Stripe requires trial_end ≥ ~48h from now. Only pass through a future period
+ * end that clears that floor — otherwise charge starts immediately on subscribe.
+ * @param {{ status?: string, periodEnd?: string | Date }} account
+ * @param {number} [nowSec]
+ * @returns {number | undefined} unix seconds
+ */
+export function reconnectTrialEndUnix(account, nowSec = Math.floor(Date.now() / 1000)) {
+  if (String(account?.status || "") !== "trialing") return undefined;
+  const endMs = Date.parse(String(account?.periodEnd || ""));
+  if (!Number.isFinite(endMs)) return undefined;
+  const endSec = Math.floor(endMs / 1000);
+  const minSec = nowSec + 48 * 3600;
+  if (endSec < minSec) return undefined;
+  return endSec;
 }
 
 /**
@@ -233,6 +314,71 @@ export async function createPortalSession(opts) {
     throw new Error("Stripe portal missing url");
   }
   return session;
+}
+
+/**
+ * Open the billing portal, or live Checkout when the account has no usable
+ * Stripe customer (missing, deleted, or wrong mode after test→live).
+ *
+ * Returns `{ url, reconnect?: true }`. The plugin always opens `url`.
+ *
+ * @param {{
+ *   clearStripeBillingLink?: (email: string) => unknown,
+ *   bindCheckoutSession?: (id: string, email: string, sessionToken: string) => unknown,
+ * }} store
+ * @param {{ email: string, status?: string, stripeCustomerId?: string }} account
+ * @param {{
+ *   returnUrl?: string,
+ *   sessionToken?: string,
+ *   createSession?: typeof createPortalSession,
+ *   createCheckout?: typeof createCheckoutSession,
+ * }} [opts]
+ */
+export async function createPortalSessionForAccount(store, account, opts = {}) {
+  const createPortal = opts.createSession || createPortalSession;
+  const createCheckout = opts.createCheckout || createCheckoutSession;
+
+  const openReconnect = async () => {
+    const kind = reconnectCheckoutKind(account);
+    const trialEndUnix = reconnectTrialEndUnix(account);
+    const cs = await createCheckout({
+      email: account.email,
+      kind,
+      ...(trialEndUnix ? { trialEndUnix } : {}),
+    });
+    if (
+      opts.sessionToken &&
+      typeof store.bindCheckoutSession === "function" &&
+      cs?.id
+    ) {
+      await store.bindCheckoutSession(cs.id, account.email, opts.sessionToken);
+    }
+    if (typeof cs?.url !== "string" || !cs.url) {
+      const err = new Error(PORTAL_STALE_CUSTOMER_MESSAGE);
+      err.status = 409;
+      err.staleCustomer = true;
+      throw err;
+    }
+    return { url: cs.url, reconnect: true, id: cs.id };
+  };
+
+  const customerId = account?.stripeCustomerId;
+  if (!customerId) {
+    return openReconnect();
+  }
+  try {
+    const portal = await createPortal({
+      customerId,
+      returnUrl: opts.returnUrl,
+    });
+    return { url: portal.url, reconnect: false };
+  } catch (err) {
+    if (!isStaleStripeCustomerError(err)) throw err;
+    if (typeof store.clearStripeBillingLink === "function") {
+      await store.clearStripeBillingLink(account.email);
+    }
+    return openReconnect();
+  }
 }
 
 function allowedPriceIds() {
@@ -432,6 +578,28 @@ export async function applyCheckoutCompleted(store, event) {
   }
 
   const isTrial = grant === "trial";
+  if (isTrial) {
+    // Email-level claim (not event-id). Two different Checkout sessions race
+    // here; only the winner mints. claimEvent above is delivery idempotency only.
+    let won = false;
+    if (typeof store.tryClaimTrial === "function") {
+      const claim = await store.tryClaimTrial(email);
+      won = Boolean(claim?.won);
+    } else {
+      const existing = await store.getAccount?.(email);
+      won = !accountHasUsedTrial(existing);
+    }
+    if (!won) {
+      if (obj.customer) {
+        await store.setStripeCustomer(email, String(obj.customer));
+      }
+      if (obj.subscription) {
+        await store.setStripeSubscription(email, String(obj.subscription));
+      }
+      return { handled: true, action: "trial_already_used", email };
+    }
+  }
+
   await store.grantPeriod(email, {
     status: isTrial ? "trialing" : "active",
     plan: grant,

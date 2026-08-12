@@ -10,7 +10,13 @@ import {
   isPolishableContent,
   UPDATE_NOTES_BATCH_LIMIT,
 } from "../pipeline/refreshAtoms";
+import { isCalendarDay, utcMidnight } from "../pipeline/backfillOffer";
 import { parseCaptures } from "../pipeline/parse";
+import {
+  plusLapse,
+  type FilingAuth,
+  type PlusLapseKind,
+} from "../platform/filingAuth";
 import { resolveCreatedField } from "../pipeline/render";
 import {
   PLUS_PRICING,
@@ -625,13 +631,19 @@ export type FilingHeroMode =
   | "auto_running";
 
 /** Filing path for wait-card branching (from resolveFilingAuth + status). */
-export type FilingPathKind = "none" | "byok" | "plus_active" | "plus_exhausted";
+export type FilingPathKind =
+  | "none"
+  | "byok"
+  | "plus_active"
+  | "plus_exhausted"
+  | "plus_lapsed";
 
 export type FilingHeroAction =
   | "open_settings"
   | "open_plus"
   | "open_byok_settings"
   | "get_more"
+  | "subscribe"
   | "dismiss_limit"
   | "enable_auto"
   | "process"
@@ -661,6 +673,11 @@ export type FilingHeroCopy = {
  */
 export function filingHeroCopy(input: {
   pastUnprocessed: number;
+  /**
+   * Captures inside the filing window — what unattended auto-run will actually file (KTD2).
+   * Defaults to `pastUnprocessed` so a caller with no window bound reads as before.
+   */
+  windowUnprocessed?: number;
   hasKey: boolean;
   autoEnabled: boolean;
   egressAcked: boolean;
@@ -672,12 +689,13 @@ export function filingHeroCopy(input: {
    * Device-local dismiss day handled by caller.
    */
   plusLimitDismissedToday?: boolean;
+  /** Which kind of period ended, when `filingPath` is `plus_lapsed`. */
+  plusLapseKind?: PlusLapseKind;
 }): FilingHeroCopy | null {
   if (input.pastUnprocessed <= 0) return null;
 
   const n = input.pastUnprocessed;
-  const countLabel =
-    n === 1 ? "1 Capture Waiting" : `${n} Captures Waiting`;
+  const countLabel = capturesWaitingLabel(n);
 
   const path: FilingPathKind =
     input.filingPath ?? (input.hasKey ? "byok" : "none");
@@ -693,6 +711,23 @@ export function filingHeroCopy(input: {
       secondaryLabel: "Use My Own Key",
       secondaryAction: "open_byok_settings",
       secondaryQuiet: true,
+    };
+  }
+
+  if (path === "plus_lapsed") {
+    const what = input.plusLapseKind === "trial" ? "trial" : "subscription";
+    // No "Not Now": the limit card can be dismissed because waiting genuinely fixes it, and
+    // this one nothing fixes but subscribing. Offering a dismissal would put the card back
+    // tomorrow saying the same thing, which is how the expiry stayed quiet in the first place.
+    return {
+      mode: "plus_limit",
+      eyebrow: "Atoms Plus",
+      title: `Your ${what} has ended`,
+      body: `${capturesWaitingSentence(n)} — filing is paused, and Claude and ChatGPT can’t reach your atoms. Subscribe to pick up where you left off.`,
+      primaryLabel: "Subscribe",
+      primaryAction: "subscribe",
+      secondaryLabel: null,
+      secondaryAction: null,
     };
   }
 
@@ -723,7 +758,14 @@ export function filingHeroCopy(input: {
     };
   }
 
-  // byok or plus_active — existing automatic-filing story
+  // Everything below is the byok / plus_active automatic-filing story. This annotation is the
+  // guard: a `FilingPathKind` added without a branch above fails to narrow here and breaks the
+  // build, rather than silently inheriting a card about automatic filing. `plus_lapsed` would
+  // have fallen through exactly that way — the same class `accountRowDescriptor` closes with
+  // its `never`, which this if-chain had no equivalent of.
+  const _story: "byok" | "plus_active" = path;
+  void _story;
+
   const autoOn = input.autoEnabled && input.egressAcked;
   if (input.inFlight && autoOn) {
     return {
@@ -738,12 +780,15 @@ export function filingHeroCopy(input: {
     };
   }
 
+  // Enabling stamps the window at today (KTD2), so it reaches what comes next, never the
+  // captures already sitting here. This is the card that sells automatic filing: it may
+  // promise only what enabling actually does, and name Process for the rest.
   if (!autoOn) {
     return {
       mode: "enable_auto",
       eyebrow: "Ready",
       title: countLabel,
-      body: "Turn on automatic filing so past days file when you open Obsidian. Or Process now.",
+      body: "Turn on automatic filing so new captures file on their own from today on. Process files the ones already waiting, when you are ready.",
       primaryLabel: "Turn on automatic filing",
       primaryAction: "enable_auto",
       secondaryLabel: "Process",
@@ -751,10 +796,28 @@ export function filingHeroCopy(input: {
     };
   }
 
+  // Automatic filing is on, but the window holds none of what is waiting — every capture here
+  // predates the day filing was enabled, and no unattended pass will reach it. Say what is
+  // true (a tap files it) rather than a promise nothing keeps.
+  const windowN = input.windowUnprocessed ?? n;
+  if (windowN <= 0) {
+    return {
+      mode: "auto_on",
+      eyebrow: "Ready",
+      title: countLabel,
+      body: "Process when you are ready.",
+      primaryLabel: "Process now",
+      primaryAction: "process",
+      secondaryLabel: "Preview",
+      secondaryAction: "preview",
+    };
+  }
+
   return {
     mode: "auto_on",
     eyebrow: "Automatic",
-    title: countLabel,
+    // The window count, not the total: this card's body promises an unattended pass.
+    title: capturesWaitingLabel(windowN),
     body: "Automatic filing is on for this device. Past days file when you open Obsidian — Process only if you want them sooner.",
     primaryLabel: "Process now",
     primaryAction: "process",
@@ -763,13 +826,71 @@ export function filingHeroCopy(input: {
   };
 }
 
-/** Map resolveFilingAuth result → wait-card path. */
-export function filingPathFromAuth(auth: {
-  mode: "none" | "byok" | "plus";
-  status?: string;
-}): FilingPathKind {
+function capturesWaitingLabel(n: number): string {
+  return n === 1 ? "1 Capture Waiting" : `${n} Captures Waiting`;
+}
+
+/**
+ * The same count as prose. {@link capturesWaitingLabel} is title-cased because every other
+ * caller uses it as a card *title*; borrowed into a sentence it reads "33 Captures Waiting —
+ * filing is paused", a proper noun where a clause belongs.
+ */
+function capturesWaitingSentence(n: number): string {
+  return n === 1 ? "1 capture waiting" : `${n} captures waiting`;
+}
+
+/**
+ * Captures inside the filing window, derived from an unbounded past scan.
+ *
+ * Filtering the scan the home view already made, rather than scanning the vault a second
+ * time: the window bound is purely a date compare, so the two agree by construction.
+ */
+export function countUnprocessedSince(
+  notes: ReadonlyArray<{ date: string; unprocessed: ReadonlyArray<unknown> }>,
+  since: string,
+): number {
+  return notes.reduce(
+    (sum, n) => (n.date >= since ? sum + n.unprocessed.length : sum),
+    0,
+  );
+}
+
+/**
+ * The home subtitle while captures wait.
+ *
+ * Only the window count may carry the automatic-filing promise (KTD2). Captures older than
+ * the day filing was enabled are still waiting and Process still files them — they are just
+ * not something the device will do on its own, so they speak as "ready to file".
+ */
+export function waitingSubtitle(input: {
+  pastUnprocessed: number;
+  windowUnprocessed: number;
+  automaticFilingReady: boolean;
+}): string {
+  if (input.automaticFilingReady && input.windowUnprocessed > 0) {
+    return input.windowUnprocessed === 1
+      ? "1 past thought will file automatically"
+      : `${input.windowUnprocessed} past thoughts will file automatically`;
+  }
+  return input.pastUnprocessed === 1
+    ? "1 thought ready to file"
+    : `${input.pastUnprocessed} thoughts ready to file`;
+}
+
+/**
+ * Map resolveFilingAuth result → wait-card path.
+ *
+ * An ended period takes its own path rather than sharing `plus_exhausted`: the limit card's
+ * whole offer — buy more filings, or wait for the next billing date — is addressed to someone
+ * who still has a subscription (#442).
+ */
+export function filingPathFromAuth(
+  auth: FilingAuth,
+  now?: number,
+): FilingPathKind {
   if (auth.mode === "none") return "none";
   if (auth.mode === "byok") return "byok";
+  if (plusLapse(auth, now)) return "plus_lapsed";
   if (auth.status === "exhausted") return "plus_exhausted";
   return "plus_active";
 }
@@ -892,4 +1013,175 @@ export function queuePeekTexts(
     }
   }
   return out;
+}
+
+/**
+ * The backfill offer card on home (U5).
+ *
+ * Home has never had a backfill affordance; the command palette was the only door. This card is
+ * that door made visible, and it recurs every period on a vault that does not drain in one pass,
+ * so it is held to a higher bar than a one-time strip: a quiet card, never a notification, never
+ * a badge, and never a number that grows.
+ */
+
+/** Days a BYOK dismissal is scoped to. Matches the paid period so the drain resumes either way. */
+export const BACKFILL_DISMISS_DAYS = 30;
+
+/** `YYYY-MM-DD` plus whole days, via UTC midnights so a DST boundary cannot shift the answer. */
+function addDays(day: string, days: number): string {
+  const base = utcMidnight(day);
+  return new Date((base ?? NaN) + days * 86_400_000).toISOString().slice(0, 10);
+}
+
+/**
+ * Both bounds the card renders behind, in one place.
+ *
+ * `budget === 0` is not an edge: `remaining` sits at or below the reserve for roughly the last
+ * third of a paid period at normal burn, and permanently for a heavy capturer. A card inviting a
+ * tap into a flow that files nothing is a dead end, and offering nothing while selling something
+ * contradicts quiet by default. In that state backfill stays in Settings, where the numbers are
+ * explained plainly.
+ *
+ * A budget that no whole daily fits inside is **not** the same state and does not suppress. That
+ * tap lands on the modal's top-up branch (KTD11: over budget offers a top-up, never a dead end),
+ * and hiding the card would make that branch unreachable from the only discoverable surface.
+ * What must not happen there is an empty *offer*, and that is prevented in `backfillOfferCopy`,
+ * which names the situation rather than a count it cannot honor.
+ */
+export function shouldShowBackfillOffer(input: {
+  /** Past captures outside the filing window. */
+  total: number;
+  /** Filings this period may spend on backfill. */
+  budget: number;
+  /** Day the card is suppressed through, device-local, or null. */
+  dismissedUntil: string | null;
+  /** Local `YYYY-MM-DD`. */
+  today: string;
+}): boolean {
+  if (input.total <= 0) return false;
+  if (input.budget <= 0) return false;
+  const until = input.dismissedUntil;
+  if (isCalendarDay(until) && input.today < until) return false;
+  return true;
+}
+
+/**
+ * The day a dismissal is suppressed through: the period end, or 30 days out when there is none.
+ *
+ * Dismissal is for the period, never forever. A permanent X would collapse a multi-period drain
+ * into a single shot, stranding a multi-year vault on one tap, which is the opposite of the
+ * design. BYOK has no period at all, so it takes the paid cadence: the drain still resumes.
+ * A stored period end that has already passed is treated as absent for the same reason the
+ * budget treats it as unknown.
+ */
+export function backfillDismissUntil(input: {
+  today: string;
+  periodEnd?: string;
+}): string {
+  const day = input.periodEnd?.slice(0, 10);
+  if (isCalendarDay(day) && day > input.today) return day;
+  return addDays(input.today, BACKFILL_DISMISS_DAYS);
+}
+
+export interface BackfillOfferCopy {
+  title: string;
+  body: string;
+  /** What the run spends, in the currency this device actually spends. */
+  meter: string;
+  primary: string;
+  dismiss: string;
+}
+
+/** Thousands separators, so 1847 reads as a count rather than a serial number. */
+function count(n: number): string {
+  return n.toLocaleString("en-US");
+}
+
+/** What the run covers — the budgeted range, or the over-budget situation named plainly. */
+function rangeLine(
+  currency: "filings" | "cost",
+  budgeted: number,
+  total: number,
+  overBudget: boolean,
+): string {
+  if (overBudget) {
+    return currency === "filings"
+      ? "The next day back holds more captures than this period's filings cover."
+      : "The next day back holds more captures than one run covers.";
+  }
+  if (total > budgeted) {
+    return `Atoms can file your ${count(budgeted)} most recent, of ${count(total)}. Newest first.`;
+  }
+  if (budgeted === 1) {
+    return "Atoms can file the one capture sitting further back. Newest first.";
+  }
+  return `Atoms can file all ${count(budgeted)} sitting further back. Newest first.`;
+}
+
+/** What the run spends, in the currency this device actually spends. */
+function meterLine(
+  currency: "filings" | "cost",
+  budgeted: number,
+  overBudget: boolean,
+  filingsRemaining: number | undefined,
+): string {
+  if (currency !== "filings") {
+    return "Runs on your own API key. You see the cost before anything starts.";
+  }
+  if (overBudget) {
+    return filingsRemaining == null
+      ? "More than this period's filings."
+      : `More than the ${count(filingsRemaining)} filings left this period.`;
+  }
+  return filingsRemaining == null
+    ? `Uses ${count(budgeted)} of this period's filings.`
+    : `Uses ${count(budgeted)} of the ${count(filingsRemaining)} filings left this period.`;
+}
+
+/**
+ * Card copy. The headline number is always the budgeted range, never the complement total.
+ *
+ * "1,847 past captures" above a run that files 100 is a broken promise, and on a real vault it is
+ * the common case rather than an edge. The total appears only as the subordinate half of "your
+ * 100 most recent, of 1,847".
+ *
+ * `budgeted === 0` is the over-budget variant: the newest day back does not fit the budget whole,
+ * so there is no range to quote and the tap goes to the modal's top-up branch. It names the
+ * situation and nothing else. No count, because there is no count it could honor, and no pitch,
+ * because a user who never tops up meets this variant every period and a recurring card that
+ * sells is a guilt queue with a price on it. The buying happens in the modal, once asked for.
+ *
+ * The migrated variant names the pause instead of reading as a new offer. A BRAT or Community
+ * auto-update shows no release notes, so a device whose in-progress silent sweep stopped has no
+ * other way to learn where that work went, and would otherwise watch filing stop and conclude
+ * the plugin broke.
+ */
+export function backfillOfferCopy(input: {
+  budgeted: number;
+  total: number;
+  migrated: boolean;
+  currency: "filings" | "cost";
+  /** Filings left this period, when the stored session knows. Plus only. */
+  filingsRemaining?: number;
+}): BackfillOfferCopy {
+  const budgeted = Math.max(0, input.budgeted);
+  const total = Math.max(budgeted, input.total);
+  const overBudget = budgeted === 0;
+  const lead = input.migrated
+    ? "Automatic filing starts from the day you switched it on, so older captures stayed where they are. "
+    : "";
+  const range = rangeLine(input.currency, budgeted, total, overBudget);
+  const meter = meterLine(
+    input.currency,
+    budgeted,
+    overBudget,
+    input.filingsRemaining,
+  );
+  return {
+    title: input.migrated ? "Filing starts here now" : "Older captures",
+    body: `${lead}${range}`,
+    meter,
+    primary: "Backfill…",
+    dismiss: "Not now",
+  };
 }

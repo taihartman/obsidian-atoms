@@ -56,6 +56,9 @@ Drain outcomes that are neither filed nor failed. **Held** = stamped ahead of th
 ### Verdict
 One of **atom**, **task**, or **noise**. Every verdict still gets a marker so the capture never re-enters the queue. Product stance: **atom** for memory-worthy dumps (including list/media items); **noise** for pure logistics; **task** is soft-retired (legacy markers still mean processed; classify should rarely emit task).
 
+### Open loop
+A note that records an **intention** (or open commitment), not the finished substance — captured on purpose for future-self. Frontmatter marks it as intention-shaped (`loop_source` inferred or user; user is sticky). **Open-now** is derived: intention mark present and no **redeeming** child. Ordinary continue/detail never closes it. Not a defect, stub, or Home unfinished queue. Parent body and FM stay put on close; substance lives on the redeeming child. Agents must never pitch an open-now loop as a finished asset. Requirements: `docs/plans/2026-08-11-003-feat-open-loops-plan.md`.
+
 ### Dry-run (Preview)
 Classify without writing atoms or markers. Results may open in a card modal; vault stays unchanged.
 
@@ -63,10 +66,18 @@ Classify without writing atoms or markers. Results may open in a card modal; vau
 Classify, create atoms when warranted, append markers for all three verdicts. Multi-capture runs must tolerate line drift (bottom-up order, re-locate, already-has-marker).
 
 ### Auto-run
-Device-local gated background process of past captures. Must stay silent—no per-item progress UI or toast spam. Stamps last-run day only after past work is drained (not on failed attempts); same-day re-entry allowed while past unprocessed remain. Never includes today's daily.
+Device-local gated background process of captures inside the filing window. Must stay silent—no per-item progress UI or toast spam. Stamps last-run day only after past work in the window is drained (not on failed attempts); same-day re-entry allowed while unprocessed work remains inside the window. Never includes today's daily.
 
 ### Automatic filing
 Product name for opt-in auto-run when surfaced on home (one-tap enable + status). Same device-local flags and privacy ack as Auto-run.
+
+### Filing window
+The bound every unattended and catch-up filing pass is scoped to: from the day the device stamped automatic filing enabled, forward, never including today. Fails closed — an absent, malformed, or tampered stamp resolves to today rather than to "no bound," which would be the full-history sweep the window exists to end. The stamp only moves forward and only persists on a device that actually enabled filing; disabling preserves it, and a read-only surface (home's refresh, a status command) must read the bound without stamping it. History outside the window is reachable only through the priced backfill offer, never through an unattended pass.
+
+### Backfill
+The attended, priced pass that files past captures from *outside* the filing window — the only route to history, since no unattended pass will ever reach there. It is offered rather than simply run: the user sees how many captures it covers and what they cost before anything is sent, and the offer is bounded so one tap cannot spend a whole period's allowance. Two engines sit behind one gate — a metered per-capture path for a managed subscription, and a batched path for a user's own API key — and both stop at the window's edge, so a capture is never filed twice at two different prices. The count quoted at the gate is a ceiling the run will not exceed, even if new captures land while the gate sits open; the overflow is spillover for a later run, not a silent overspend.
+
+Backfill, Process, Update notes, and Auto-run are mutually exclusive: each claims a shared in-flight state for its whole duration and refuses to start while another holds it. Claiming, not merely checking, is what makes this symmetric — a pass that checks without claiming is protected from the others but invisible to them, leaving the reverse order unguarded. A backfill's claim spans its confirm gate as well as its writes, so a gate left unanswered blocks the other passes until it is answered or dismissed.
 
 ## Product UI
 
@@ -138,8 +149,14 @@ Calm Atoms home card (**Add {Name}?**) after Process/Update when a high-confiden
 ### Peer link (pre-hub)
 Plugin link-prose between generated atoms that share the same high-confidence missing person (or later project) label before a hub note exists. On invite accept, peers and soft bucket links **upgrade** to the new hub. Soft buckets are never identity peers.
 
+### Qualifying hub
+A vault note that may receive a **managed hub block** when Hub projection is on: a **person hub**, or a non-person note outside the list-path safety denylist that is hard-linked from atom link-prose, has ≥1 `##`, and meets the non-person write brake (≥2 members, matching `hub-section`, or existing managed delimiters). Hand-authored list notes (e.g. Movies) need no marker field. Dailies, `Atoms/`, templates/archive never qualify. Classify may see a broader set of headed notes for first-link formation; that set is not the same as write targets.
+
 ### Managed hub block
-Plugin-owned region at the end of a **person hub** note, delimited by `<!-- atoms:generated v=1 -->` … `<!-- /atoms:generated -->`. Lists hard-linked atoms under H2 headings the user already wrote (or **Unsorted**). Human prose outside the delimiters is never rewritten. Membership comes from atom link-prose hard links to the hub, not a separate `hub:` field. Optional atom frontmatter `hub-section` places an atom under a matching H2 when that heading exists on that hub; invalid/missing → Unsorted. Opt-in via Settings (**List atoms in person notes**, default off). Not Home citator chrome. If Ask mirror is enabled, updated hub bodies sync vault→cloud like other linked hubs.
+Plugin-owned region at the end of a **qualifying hub** note, delimited by `<!-- atoms:generated v=1 -->` … `<!-- /atoms:generated -->`. Lists hard-linked atoms under H2 headings the user already wrote (or **Unsorted**). Human prose outside the delimiters is never rewritten. Membership comes from atom link-prose hard links to the hub, not a separate `hub:` field. Optional atom frontmatter `hub-section` (schema `hub_section`) places under a matching H2 **per linked hub**; invalid/missing → Unsorted on that hub. Opt-in via Settings (**List atoms on hub notes**, default off). Soft entity keys still do not alone light Also about orbits; a real titled hub note can still be hard-linked and projected. Not Home citator chrome. If Ask mirror is enabled, updated hub bodies sync vault→cloud like other linked hubs.
+
+### Hub list preview
+Calm modal before a bulk hub-list write (turning the setting on, or **Refresh hub lists**). Dry-run of which hubs would change and counts by heading; **Include Unsorted** is pass-only. **Update lists** writes; **Not now** skips the bulk fill but leaves the setting on so Process still projects. Everyday Process/Update does not open the preview.
 
 ## Ask (pull recall + optional write)
 
@@ -197,6 +214,19 @@ Device-local poll that runs after Stripe Checkout until entitlement appears, the
 
 ### Awaiting checkout
 Device-local flag marking "this device opened Checkout and has not yet seen entitlement." Set only when checkout returned a URL, and cleared by whichever poll first observes an entitled status. Device-local, not account state — a checkout completed on another device never clears it here, which is why the **post-checkout resume poll** alone cannot rescue a cross-device signup.
+
+### Ended period vs spent meter
+Two unrelated situations the service reports with the same exhausted status: the billing or trial **period ended** (no allotment is coming back without a new subscription), and this period's **filing allotment is spent** (it refills on the next billing date). One status name, opposite remedies — Subscribe against a lapse, wait or top up against a spent meter.
+*Avoid:* treating "exhausted" as a single state.
+
+The distinction is not recoverable from the status alone; it takes the status **and** the period end date together, and only a service-confirmed status may be read as a lapse. A period end date alone cannot decide it, because on a recurring plan that date is a *renewal* — a device that has not refreshed through one holds a past date for a perfectly current subscriber. Learning: `docs/solutions/logic-errors/a-device-may-not-assert-an-entitlement-the-server-has-not-confirmed.md`.
+
+The **service** holds both halves at once, so it can simply decide: `subscriptionLive` (`plus-service/src/store/shared.mjs`) is the one home for the split, and every Ask/MCP gate asks it. A spent meter revokes nothing — reading a brain that is already mirrored and already paid for has nothing to do with the filing meter — while an ended period still revokes. Only `/v1/classify` charges the meter, which is why an atom Claude creates through the Ask outbox is not a filing.
+
+### Entitlement snapshot
+The device's stored copy of what the service last said about the account — status, allotment remaining, period end, plan — stamped with when it was confirmed. Every entitlement surface reads this, not the network.
+
+Its age is load-bearing, because expiry is the one entitlement change nothing announces: no push, no webhook, and the **post-checkout resume poll** is armed only while a checkout is in flight. A snapshot confirmed *before* its own period end therefore cannot say what happened at that boundary — the period may have lapsed, renewed, or converted from a trial — and the honest response is to refresh rather than infer. A device may narrow what it claims on stale evidence; it may never assert an entitlement verdict the service has not given.
 
 ## Flagged ambiguities
 

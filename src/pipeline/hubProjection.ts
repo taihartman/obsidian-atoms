@@ -37,9 +37,19 @@ export function renderGeneratedBlock(
   entries: HubProjectionEntry[],
   hubSections: string[],
 ): string {
-  const sectionSet = new Set(hubSections);
-  const buckets = new Map<string, string[]>();
+  // Canonical section spellings from the hub (case-insensitive match).
+  const sectionByLow = new Map(
+    hubSections
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .map((s) => [s.toLowerCase(), s] as const),
+  );
+  // Prefer the hub's own Unsorted H2 spelling so we don't double-emit or drop.
+  const unsortedKey =
+    sectionByLow.get(UNSORTED.toLowerCase()) ?? UNSORTED;
+  const hubHasUnsorted = sectionByLow.has(UNSORTED.toLowerCase());
 
+  const buckets = new Map<string, string[]>();
   const ensure = (key: string) => {
     if (!buckets.has(key)) buckets.set(key, []);
     return buckets.get(key)!;
@@ -49,7 +59,8 @@ export function renderGeneratedBlock(
     const title = (e.title ?? "").trim();
     if (!title) continue;
     const sec = (e.section ?? "").trim();
-    const key = sec && sectionSet.has(sec) ? sec : UNSORTED;
+    const matched = sec ? sectionByLow.get(sec.toLowerCase()) : undefined;
+    const key = matched ?? unsortedKey;
     ensure(key).push(title);
   }
 
@@ -64,8 +75,9 @@ export function renderGeneratedBlock(
     parts.push(`## ${sec}`);
     for (const t of titles) parts.push(`- [[${t}]]`);
   }
-  const unsorted = buckets.get(UNSORTED);
-  if (unsorted?.length) {
+  // Only append a plugin ## Unsorted when the hub has no Unsorted H2 of its own.
+  const unsorted = buckets.get(unsortedKey);
+  if (unsorted?.length && !hubHasUnsorted) {
     parts.push(`## ${UNSORTED}`);
     for (const t of unsorted) parts.push(`- [[${t}]]`);
   }

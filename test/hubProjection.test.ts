@@ -27,6 +27,32 @@ describe("renderGeneratedBlock", () => {
       ].join("\n"),
     );
   });
+
+  it("does not emit ## Unsorted twice when hub already has that H2", () => {
+    const block = renderGeneratedBlock(
+      [
+        { title: "loose" },
+        { title: "placed", section: "Unsorted" },
+      ],
+      ["Gift Ideas", "Unsorted"],
+    );
+    const opens = block.match(/^## Unsorted$/gm) ?? [];
+    expect(opens).toHaveLength(1);
+    expect(block).toBe(
+      ["## Unsorted", "- [[loose]]", "- [[placed]]"].join("\n"),
+    );
+  });
+
+  it("keeps unsectioned atoms under lowercase hub ## unsorted", () => {
+    const block = renderGeneratedBlock(
+      [{ title: "loose" }, { title: "placed", section: "Unsorted" }],
+      ["Gift Ideas", "unsorted"],
+    );
+    expect(block).toContain("## unsorted");
+    expect(block).toContain("- [[loose]]");
+    expect(block).toContain("- [[placed]]");
+    expect(block.match(/^## /gm) ?? []).toHaveLength(1);
+  });
 });
 
 describe("projectHubMarkdown", () => {

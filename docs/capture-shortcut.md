@@ -19,14 +19,18 @@ date in its stamp — creating that daily if missing — and marked, never delet
 
 ## The recipe
 
-Built and verified on device 2026-07-28 (iOS Shortcuts, Obsidian 1.12.7).
+Built and verified on device 2026-07-28 (iOS Shortcuts, Obsidian 1.12.7).  
+**2.2 intent (companion):** accept **Shortcut Input** when the Atoms Capture app
+(or anything else) runs Capture Atom with text, so users never build a second
+shortcut. Standalone ▶ still offers Type / Voice.
 
-On **iPhone**: Shortcuts → **+** → name it **Capture Atom**. Add these actions
-in order:
+On **iPhone**: install via Atoms Settings → Capture (or the companion hub button).
+Name must stay **Capture Atom**. Actions in order:
 
 | # | Action | Config |
 |---|---|---|
-| 1 | **Choose from Menu** | Two items: `Type` and `Voice`. Lets one shortcut serve both keyboard and dictation. |
+| 0 | **If** | Shortcut Input **has any value** → **Set Variable** `Capture` = **Shortcut Input** → skip to step 6. *Else* continue to step 1. |
+| 1 | **Choose from Menu** | Two items: `Type` and `Voice`. Standalone path only. |
 | 2 | *(Type branch)* **Ask for Input** | Prompt `What's on your mind?` · type **Text** |
 | 3 | *(Type branch)* **Set Variable** | Name `Capture` · value **Provided Input** |
 | 4 | *(Voice branch)* **Dictate Text** | Defaults are fine |
@@ -35,6 +39,13 @@ in order:
 | 7 | **Format Date** | Date **Current Date** · then open the *action's own* options: Date Format **Custom**, Format String `yyyy-MM-dd'T'HH:mm:ssZZZZZ`, Locale **Default**. |
 | 8 | **Text** | `- ` then **Formatted Date** (step 7), one space, then **Updated Text** (step 6). All on one line: `- <stamp> <capture>`. |
 | 9 | **Append to Bookmark** (Obsidian) | Bookmark **Atoms Inbox** · **Append** · Text = the **Text** from step 8. |
+
+**Companion app:** runs `shortcuts://run-shortcut?name=Capture%20Atom&input=text&text=…`
+with the **body only** (no stamp). Capture Atom still owns Format Date + append —
+one recipe for plugin install and the companion.
+
+**Until 2.2 is published on iCloud:** an older Capture Atom may ignore input and
+show the Type/Voice menu. Re-install from Atoms Settings after the link bumps.
 
 Run it with ▶ and confirm one new line lands in `Atoms System/Inbox.md`, shaped
 exactly like:
@@ -75,13 +86,36 @@ Why the rest is shaped this way:
 - **Append to Bookmark adds its own newline and no bullet**, so step 8 builds
   the whole `- ` bullet itself and step 9 supplies no trailing newline.
 
+## First run on a new phone (lock the bookmark once)
+
+The plugin creates **Atoms Inbox**. It cannot edit Shortcuts.app. A shared
+iCloud install often leaves **Append to Bookmark** empty or set to Ask Each
+Time, so every run asks which bookmark (or vault) to use even though capture
+still works after you pick.
+
+**Do this once per phone after Add Shortcut:**
+
+1. Open **Obsidian** on that phone with Atoms enabled (so **Atoms Inbox** exists
+   in Bookmarks).
+2. Open **Shortcuts** → **Capture Atom** → tap to **edit** (not just Run).
+3. Find **Append to Bookmark** (Obsidian).
+4. Set the bookmark to **Atoms Inbox**. Do not leave **Ask Each Time**.
+5. Tap **Done**.
+
+Run Capture Atom again. It should no longer prompt. Choosing only during a run
+does not save the choice; only the edit screen does.
+
+If it still asks every time: confirm Bookmarks is on in Obsidian, **Atoms Inbox**
+appears in the Bookmarks pane, and you are writing into the vault that has that
+bookmark.
+
 ## Three things to know
 
 **Renaming the inbox note breaks the Shortcut.** The Capture to Bookmark action
 binds its bookmark reference at setup time, so moving or renaming
 `Atoms System/Inbox.md` makes the Shortcut prompt for the bookmark on every run
-until you edit the shortcut and re-select it. This is why the path is a fixed
-constant, not a setting.
+until you edit the shortcut and re-select it. Same fix as above: edit → set
+**Atoms Inbox** → Done. This is why the path is a fixed constant, not a setting.
 
 **With Obsidian closed, a capture is on disk immediately but not yet synced.**
 The line is written to the local inbox note at once; it reaches your other
@@ -98,8 +132,9 @@ Bookmark writes to a note that already exists, so it never hits that bug.
 ## Install and update from the plugin
 
 Atoms ships a built-in iCloud link for this recipe, so most users paste
-nothing: Atoms home → **Install Capture Atom** opens the current one, and a
-plugin update moves everyone to a newer link automatically.
+nothing: **Settings → Capture → Install Capture Atom** (or Atoms home) opens
+the current one, and a plugin update moves everyone to a newer link
+automatically. After Add Shortcut, lock **Atoms Inbox** once (see above).
 
 **Settings → Atoms → Capture → Custom shortcut link is optional**, and only for
 people who modified the recipe:

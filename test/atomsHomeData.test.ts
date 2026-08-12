@@ -10,6 +10,9 @@ import {
   extractSourceDay,
   atomsPlusOfferCopy,
   atomsPlusTopUpCopy,
+  backfillDismissUntil,
+  backfillOfferCopy,
+  countUnprocessedSince,
   filingHeroCopy,
   filingPathFromAuth,
   filterLinkedOnly,
@@ -24,10 +27,12 @@ import {
   parseCreatedMs,
   personNameFromClaimTitle,
   planCreatedOrderBackfill,
+  shouldShowBackfillOffer,
   shouldShowWaitCard,
   titleFromAtomPath,
   updateNotesConfirmCopy,
   updateNotesStripCopy,
+  waitingSubtitle,
 } from "../src/home/atomsHomeData";
 import { inboxCounts } from "../src/pipeline/inbox";
 import { shouldShowBookmarkSetupNotice } from "../src/plugin/inboxBootstrap";
@@ -382,6 +387,24 @@ describe("filingHeroCopy", () => {
     expect(c?.secondaryAction).toBe("process");
   });
 
+  it("enable_auto never promises the waiting captures will file on their own", () => {
+    // The vault QA saw: 56 past captures, none of which enabling can ever reach,
+    // because the window it creates starts today.
+    const c = filingHeroCopy({
+      pastUnprocessed: 56,
+      windowUnprocessed: 0,
+      hasKey: true,
+      autoEnabled: false,
+      egressAcked: true,
+    });
+    expect(c?.mode).toBe("enable_auto");
+    expect(c?.title).toBe("56 Captures Waiting");
+    expect(c?.body.toLowerCase()).not.toMatch(/past days file/);
+    expect(c?.body.toLowerCase()).not.toMatch(/when you open obsidian/);
+    // What is already waiting is Process work, and the copy has to say so.
+    expect(c?.body).toMatch(/Process/);
+  });
+
   it("auto_on when automatic filing on — not Process-only homework", () => {
     const c = filingHeroCopy({
       pastUnprocessed: 4,
@@ -393,15 +416,176 @@ describe("filingHeroCopy", () => {
     expect(c?.body.toLowerCase()).toMatch(/automatic filing/);
     expect(c?.eyebrow).toBe("Automatic");
   });
+
+  it("auto_on counts the filing window, not all history", () => {
+    const c = filingHeroCopy({
+      pastUnprocessed: 9,
+      windowUnprocessed: 2,
+      hasKey: true,
+      autoEnabled: true,
+      egressAcked: true,
+    });
+    expect(c?.mode).toBe("auto_on");
+    expect(c?.title).toBe("2 Captures Waiting");
+    expect(c?.body.toLowerCase()).toMatch(/automatic filing/);
+  });
+
+  it("automatic filing on but nothing in the window — no promise it cannot keep", () => {
+    const c = filingHeroCopy({
+      pastUnprocessed: 9,
+      windowUnprocessed: 0,
+      hasKey: true,
+      autoEnabled: true,
+      egressAcked: true,
+    });
+    expect(c?.title).toBe("9 Captures Waiting");
+    expect(c?.body.toLowerCase()).not.toMatch(/automatic filing/);
+    expect(c?.body.toLowerCase()).not.toMatch(/file when you open/);
+    expect(c?.primaryAction).toBe("process");
+  });
+});
+
+describe("countUnprocessedSince", () => {
+  const notes = [
+    { date: "2026-08-01", unprocessed: [1, 2, 3] },
+    { date: "2026-08-05", unprocessed: [1] },
+    { date: "2026-08-07", unprocessed: [1, 2] },
+  ];
+
+  it("counts only days inside the window, boundary day included", () => {
+    expect(countUnprocessedSince(notes, "2026-08-05")).toBe(3);
+  });
+
+  it("pre-window captures alone count zero", () => {
+    expect(countUnprocessedSince(notes, "2026-08-10")).toBe(0);
+  });
+
+  it("a window older than every daily counts them all", () => {
+    expect(countUnprocessedSince(notes, "2026-07-01")).toBe(6);
+  });
+});
+
+describe("waitingSubtitle", () => {
+  it("promises automatic filing for the window count only", () => {
+    expect(
+      waitingSubtitle({
+        pastUnprocessed: 9,
+        windowUnprocessed: 2,
+        automaticFilingReady: true,
+      }),
+    ).toBe("2 past thoughts will file automatically");
+  });
+
+  it("pre-window captures alone never claim automatic filing", () => {
+    expect(
+      waitingSubtitle({
+        pastUnprocessed: 9,
+        windowUnprocessed: 0,
+        automaticFilingReady: true,
+      }),
+    ).toBe("9 thoughts ready to file");
+  });
+
+  it("automatic filing off reports what Process would file", () => {
+    expect(
+      waitingSubtitle({
+        pastUnprocessed: 1,
+        windowUnprocessed: 1,
+        automaticFilingReady: false,
+      }),
+    ).toBe("1 thought ready to file");
+  });
+
+  it("singular window copy", () => {
+    expect(
+      waitingSubtitle({
+        pastUnprocessed: 4,
+        windowUnprocessed: 1,
+        automaticFilingReady: true,
+      }),
+    ).toBe("1 past thought will file automatically");
+  });
 });
 
 describe("filingPathFromAuth", () => {
+  const T0 = Date.parse("2026-08-11T13:49:00.000Z");
+  const plus = (over: Record<string, unknown> = {}) =>
+    ({
+      mode: "plus",
+      sessionToken: "sess",
+      email: "u@example.com",
+      status: "exhausted",
+      ...over,
+    }) as Parameters<typeof filingPathFromAuth>[0];
+
   it("maps plus exhausted", () => {
+    expect(filingPathFromAuth(plus(), T0)).toBe("plus_exhausted");
+    expect(filingPathFromAuth({ mode: "byok", apiKey: "sk" }, T0)).toBe("byok");
+    expect(filingPathFromAuth({ mode: "none" }, T0)).toBe("none");
+  });
+
+  // #442 — the limit card's offer (buy more, or wait for the next billing date) is addressed
+  // to a subscriber. An ended period gets its own path so it can say something true.
+  it("takes its own path once the period has ended", () => {
     expect(
-      filingPathFromAuth({ mode: "plus", status: "exhausted" }),
+      filingPathFromAuth(
+        plus({ plan: "trial", periodEnd: "2026-08-10T14:52:03.632Z" }),
+        T0,
+      ),
+    ).toBe("plus_lapsed");
+    expect(
+      filingPathFromAuth(
+        plus({ plan: "monthly", periodEnd: "2026-09-10T00:00:00.000Z" }),
+        T0,
+      ),
     ).toBe("plus_exhausted");
-    expect(filingPathFromAuth({ mode: "byok" })).toBe("byok");
-    expect(filingPathFromAuth({ mode: "none" })).toBe("none");
+  });
+});
+
+describe("filingHeroCopy on an ended period (#442)", () => {
+  const base = {
+    pastUnprocessed: 3,
+    hasKey: false,
+    autoEnabled: false,
+    egressAcked: false,
+    filingPath: "plus_lapsed" as const,
+  };
+
+  it("names the trial, offers Subscribe, and promises no billing date", () => {
+    const hero = filingHeroCopy({ ...base, plusLapseKind: "trial" });
+    expect(hero?.title).toBe("Your trial has ended");
+    expect(hero?.primaryLabel).toBe("Subscribe");
+    expect(hero?.primaryAction).toBe("subscribe");
+    expect(hero?.body).not.toMatch(/billing date|allotment/i);
+  });
+
+  it("counts the captures in prose, not as a card title", () => {
+    // The title-cased label is for titles. Borrowed into a sentence it read
+    // "3 Captures Waiting — filing is paused", a proper noun opening a clause.
+    expect(filingHeroCopy({ ...base, plusLapseKind: "trial" })?.body).toMatch(
+      /^3 captures waiting — /,
+    );
+    expect(
+      filingHeroCopy({ ...base, pastUnprocessed: 1, plusLapseKind: "trial" })
+        ?.body,
+    ).toMatch(/^1 capture waiting — /);
+  });
+
+  it("has no Not Now, because waiting does not fix an ended period", () => {
+    const hero = filingHeroCopy({
+      ...base,
+      plusLapseKind: "trial",
+      plusLimitDismissedToday: true,
+    });
+    expect(hero?.secondaryAction).toBeNull();
+    // A dismissed card must not quietly become the limit card's quieter variant.
+    expect(hero?.title).toBe("Your trial has ended");
+  });
+
+  it("says subscription for a lapsed paid period", () => {
+    expect(
+      filingHeroCopy({ ...base, plusLapseKind: "subscription" })?.title,
+    ).toBe("Your subscription has ended");
   });
 });
 
@@ -644,5 +828,178 @@ describe("shouldShowBookmarkSetupNotice", () => {
   it("never fires when the bookmark was created or already present", () => {
     expect(shouldShowBookmarkSetupNotice("created", false)).toBe(false);
     expect(shouldShowBookmarkSetupNotice("already-present", false)).toBe(false);
+  });
+});
+
+/**
+ * U5 — the backfill offer card on home.
+ *
+ * Two bounds decide whether it renders, and the headline is the budgeted range rather than the
+ * complement total. Both rules exist because the failure they prevent is the common case on a
+ * real vault, not an edge: a card that offers a flow filing nothing, and a card promising 1,847
+ * captures above a run that files 100.
+ */
+describe("shouldShowBackfillOffer", () => {
+  const base = {
+    total: 1847,
+    budget: 50,
+    dismissedUntil: null,
+    today: "2026-08-10",
+  };
+
+  it("shows when there is a complement and a budget to spend on it", () => {
+    expect(shouldShowBackfillOffer(base)).toBe(true);
+  });
+
+  it("stays away when nothing sits outside the filing window", () => {
+    expect(shouldShowBackfillOffer({ ...base, total: 0 })).toBe(false);
+  });
+
+  it("stays away at zero budget even with a large complement", () => {
+    // The last third of a paid period at normal burn, and permanently for a heavy capturer:
+    // inviting a tap into a flow that files nothing is a dead end, not an edge case. Nothing
+    // to spend and nothing buyable that helps this period, so there is nowhere for a tap to go.
+    expect(shouldShowBackfillOffer({ ...base, budget: 0 })).toBe(false);
+  });
+
+  it("still shows when the budget cannot cover even the newest daily", () => {
+    // deriveRecentFirstRange takes whole dailies only, so a budget can be positive while the
+    // range is empty. That tap leads somewhere real: the modal's top-up branch (KTD11, "over
+    // budget offers a top-up, never a dead end"). Suppressing here would make that branch
+    // unreachable from the only discoverable surface. The empty *offer* is prevented in the
+    // copy, which names the situation instead of a count it cannot honor.
+    expect(shouldShowBackfillOffer({ ...base, budget: 5 })).toBe(true);
+  });
+
+  it("is suppressed for the period it was dismissed in", () => {
+    expect(
+      shouldShowBackfillOffer({ ...base, dismissedUntil: "2026-09-01" }),
+    ).toBe(false);
+  });
+
+  it("returns once the dismissed-through day arrives", () => {
+    expect(
+      shouldShowBackfillOffer({
+        ...base,
+        dismissedUntil: "2026-09-01",
+        today: "2026-09-01",
+      }),
+    ).toBe(true);
+    expect(
+      shouldShowBackfillOffer({
+        ...base,
+        dismissedUntil: "2026-09-01",
+        today: "2026-09-14",
+      }),
+    ).toBe(true);
+  });
+});
+
+describe("backfillDismissUntil", () => {
+  it("scopes a Plus dismissal to the end of the current period", () => {
+    expect(
+      backfillDismissUntil({ today: "2026-08-10", periodEnd: "2026-09-01" }),
+    ).toBe("2026-09-01");
+  });
+
+  it("accepts a full ISO period end and keeps only the day", () => {
+    expect(
+      backfillDismissUntil({
+        today: "2026-08-10",
+        periodEnd: "2026-09-01T04:00:00.000Z",
+      }),
+    ).toBe("2026-09-01");
+  });
+
+  it("falls back to 30 days for BYOK, which has no period at all", () => {
+    expect(backfillDismissUntil({ today: "2026-08-10" })).toBe("2026-09-09");
+  });
+
+  it("falls back to 30 days when the stored period end has already passed", () => {
+    expect(
+      backfillDismissUntil({ today: "2026-08-10", periodEnd: "2026-07-01" }),
+    ).toBe("2026-09-09");
+  });
+});
+
+describe("backfillOfferCopy", () => {
+  const plus = {
+    budgeted: 100,
+    total: 1847,
+    migrated: false,
+    currency: "filings" as const,
+    filingsRemaining: 150,
+  };
+
+  it("leads with the budgeted range and keeps the total subordinate", () => {
+    const copy = backfillOfferCopy(plus);
+    expect(copy.body).toContain("100");
+    // The total may appear, but never as the promise.
+    expect(copy.body.indexOf("100")).toBeLessThan(copy.body.indexOf("1,847"));
+  });
+
+  it("names filings on Plus and cost on BYOK", () => {
+    expect(backfillOfferCopy(plus).meter).toBe(
+      "Uses 100 of the 150 filings left this period.",
+    );
+    expect(
+      backfillOfferCopy({ ...plus, currency: "cost", filingsRemaining: undefined })
+        .meter,
+    ).toBe("Runs on your own API key. You see the cost before anything starts.");
+  });
+
+  it("names the pause on a migrated device instead of reading as a new offer", () => {
+    const fresh = backfillOfferCopy(plus);
+    const migrated = backfillOfferCopy({ ...plus, migrated: true });
+    expect(migrated.title).not.toBe(fresh.title);
+    expect(migrated.body).not.toBe(fresh.body);
+    expect(migrated.body).toContain("switched it on");
+  });
+
+  it("names the situation, never a count, when nothing fits the budget", () => {
+    // The over-budget variant routes to the modal's top-up branch. It must not promise a
+    // number, and a user who never tops up sees it every period, so it cannot read as a pitch.
+    const copy = backfillOfferCopy({ ...plus, budgeted: 0 });
+    expect(copy.body).not.toMatch(/\d/);
+    expect(copy.body).not.toContain("most recent");
+    expect(copy.meter).toBe("More than the 150 filings left this period.");
+    expect(copy.body).toBe(
+      "The next day back holds more captures than this period's filings cover.",
+    );
+  });
+
+  it("names the over-budget situation in the currency the device spends", () => {
+    expect(
+      backfillOfferCopy({
+        ...plus,
+        budgeted: 0,
+        currency: "cost",
+        filingsRemaining: undefined,
+      }).body,
+    ).toBe("The next day back holds more captures than one run covers.");
+  });
+
+  it("keeps every string clear of guilt language and em dashes", () => {
+    for (const migrated of [false, true]) {
+      for (const budgeted of [100, 0]) {
+        const copy = backfillOfferCopy({ ...plus, migrated, budgeted });
+        const all = Object.values(copy).join(" ");
+        expect(all).not.toMatch(/—/);
+        expect(all.toLowerCase()).not.toMatch(
+          /backlog|overdue|still need to|you haven't|catch up on|upgrade now|don't miss/,
+        );
+      }
+    }
+  });
+
+  it("keeps the ranged variants clear of guilt language and em dashes", () => {
+    for (const migrated of [false, true]) {
+      const copy = backfillOfferCopy({ ...plus, migrated });
+      const all = Object.values(copy).join(" ");
+      expect(all).not.toMatch(/—/);
+      expect(all.toLowerCase()).not.toMatch(
+        /backlog|overdue|still need to|you haven't|catch up on/,
+      );
+    }
   });
 });

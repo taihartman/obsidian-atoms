@@ -166,8 +166,10 @@ export function claimQuote(
     cls: mergeCls("atoms-ui-claim-quote", opts.className),
   });
   if (opts.maxLines != null && opts.maxLines > 0) {
-    el.style.webkitLineClamp = String(opts.maxLines);
-    el.classList.add("atoms-ui-claim-quote--clamp");
+    // Discrete classes only — community lint rejects runtime style assignment
+    // even via setCssProps for this surface. Call sites use 4 or 8.
+    const n = opts.maxLines <= 4 ? 4 : 8;
+    el.classList.add("atoms-ui-claim-quote--clamp", `atoms-ui-claim-quote--clamp-${n}`);
   }
   return el;
 }

@@ -4,7 +4,7 @@ import {
   CAPTURE_SHORTCUT_VERSION,
   customCaptureShortcutUrl,
   isAllowedCaptureShortcutUrl,
-  labelInstallOrUpdate,
+  labelCaptureShortcutCta,
   needsShortcutCta,
   readShortcutAck,
   resolveCaptureShortcutInstallUrl,
@@ -15,7 +15,7 @@ describe("needsShortcutCta / labels", () => {
   it("needs install when never acked", () => {
     expect(needsShortcutCta(null)).toBe(true);
     expect(needsShortcutCta("")).toBe(true);
-    expect(labelInstallOrUpdate(null)).toBe("Install Capture Atom");
+    expect(labelCaptureShortcutCta(null)).toBe("Install Capture Atom");
   });
 
   it("no CTA when acked matches shipped", () => {
@@ -24,7 +24,7 @@ describe("needsShortcutCta / labels", () => {
 
   it("needs update when acked differs from shipped", () => {
     expect(needsShortcutCta("0.9.0", "1.0.0")).toBe(true);
-    expect(labelInstallOrUpdate("0.9.0")).toBe("Update Capture Atom");
+    expect(labelCaptureShortcutCta("0.9.0")).toBe("Update Capture Atom");
   });
 });
 
@@ -80,6 +80,7 @@ describe("resolveCaptureShortcutInstallUrl", () => {
 // still stores each one. Dropping an entry re-pins those users silently — the
 // exact bug this module exists to fix — so removing one must fail here first.
 const SHIPPED_INSTALL_URLS = [
+  "https://www.icloud.com/shortcuts/d6ee1009562c4a9a9694f36a5f0c0187",
   "https://www.icloud.com/shortcuts/bbd26339dc874a13b36b31620cf3c457",
   "https://www.icloud.com/shortcuts/e8bfe486b2bc458cb37af87c107771a2",
   "https://www.icloud.com/shortcuts/b1a910ea39094d7b857a983529e3bf8b",

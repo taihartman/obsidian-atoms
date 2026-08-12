@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Atoms — Update hub lists (mock)</title>
+  <style>
+    :root {
+      --bg: #1e1e1e;
+      --modal: #2b2b2b;
+      --border: rgba(255, 255, 255, 0.08);
+      --text: #dadada;
+      --muted: rgba(255, 255, 255, 0.55);
+      --faint: rgba(255, 255, 255, 0.35);
+      --accent: #7f6df2;
+      --accent-hover: #9486f5;
+      --row: rgba(255, 255, 255, 0.03);
+      --row-hover: rgba(255, 255, 255, 0.06);
+      --ok: rgba(127, 109, 242, 0.2);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px 16px 48px;
+      gap: 28px;
+    }
+    h1.page {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--faint);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      margin: 0;
+    }
+    .stage {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 32px;
+      align-items: flex-start;
+      justify-content: center;
+      max-width: 960px;
+    }
+    .label {
+      font-size: 12px;
+      color: var(--muted);
+      margin: 0 0 10px 4px;
+    }
+    /* Backdrop like Obsidian modal */
+    .scrim {
+      background: rgba(0, 0, 0, 0.45);
+      border-radius: 12px;
+      padding: 40px 28px;
+      display: flex;
+      justify-content: center;
+    }
+    .modal {
+      width: min(420px, 92vw);
+      background: var(--modal);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      box-shadow: 0 24px 80px rgba(0, 0, 0, 0.55);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      max-height: min(560px, 85vh);
+    }
+    .modal.phone {
+      width: 360px;
+      max-height: 640px;
+    }
+    .head {
+      padding: 20px 20px 12px;
+      border-bottom: 1px solid var(--border);
+    }
+    .head h2 {
+      margin: 0 0 8px;
+      font-size: 18px;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+    }
+    .head p {
+      margin: 0;
+      font-size: 13px;
+      line-height: 1.45;
+      color: var(--muted);
+    }
+    .body {
+      padding: 8px 12px 12px;
+      overflow-y: auto;
+      flex: 1;
+    }
+    .hub {
+      background: var(--row);
+      border-radius: 8px;
+      padding: 12px 14px;
+      margin-bottom: 8px;
+    }
+    .hub:hover { background: var(--row-hover); }
+    .hub-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 12px;
+      margin-bottom: 6px;
+    }
+    .hub-title {
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .hub-count {
+      font-size: 12px;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    .secs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .chip {
+      font-size: 11px;
+      color: var(--muted);
+      background: rgba(255, 255, 255, 0.06);
+      border-radius: 999px;
+      padding: 3px 9px;
+    }
+    .chip.unsorted {
+      color: rgba(255, 255, 255, 0.45);
+      border: 1px dashed rgba(255, 255, 255, 0.12);
+      background: transparent;
+    }
+    .chip.dim {
+      opacity: 0.35;
+      text-decoration: line-through;
+    }
+    .opt {
+      margin: 12px 8px 4px;
+      padding: 12px 14px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      cursor: pointer;
+      user-select: none;
+    }
+    .opt input {
+      margin-top: 2px;
+      accent-color: var(--accent);
+      width: 16px;
+      height: 16px;
+      flex-shrink: 0;
+    }
+    .opt strong {
+      display: block;
+      font-size: 13px;
+      font-weight: 550;
+      margin-bottom: 3px;
+    }
+    .opt span {
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.4;
+    }
+    .foot {
+      padding: 12px 16px 16px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+    button {
+      font: inherit;
+      font-size: 13px;
+      font-weight: 550;
+      border-radius: 8px;
+      padding: 8px 14px;
+      border: none;
+      cursor: pointer;
+      min-height: 36px;
+    }
+    .btn-ghost {
+      background: transparent;
+      color: var(--muted);
+    }
+    .btn-ghost:hover { color: var(--text); background: var(--row-hover); }
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+    }
+    .btn-primary:hover { background: var(--accent-hover); }
+    .empty-body {
+      padding: 28px 20px 20px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .note {
+      max-width: 420px;
+      font-size: 12px;
+      color: var(--faint);
+      line-height: 1.5;
+      text-align: center;
+    }
+    .note code { color: var(--muted); }
+  </style>
+</head>
+<body>
+  <h1 class="page">Atoms · hub list preview mock</h1>
+
+  <div class="stage">
+    <!-- Desktop / default: Include Unsorted ON -->
+    <div>
+      <p class="label">A · Include Unsorted on (default)</p>
+      <div class="scrim">
+        <div class="modal" id="modal-a" role="dialog" aria-labelledby="t-a">
+          <div class="head">
+            <h2 id="t-a">Update hub lists?</h2>
+            <p>
+              These notes would get a list of linked atoms at the bottom.
+              Your writing above stays the same.
+            </p>
+          </div>
+          <div class="body">
+            <div class="hub">
+              <div class="hub-top">
+                <span class="hub-title">Movies</span>
+                <span class="hub-count">12 atoms</span>
+              </div>
+              <div class="secs">
+                <span class="chip">Want to watch · 8</span>
+                <span class="chip">Watched · 1</span>
+                <span class="chip unsorted u-chip">Unsorted · 3</span>
+              </div>
+            </div>
+            <div class="hub">
+              <div class="hub-top">
+                <span class="hub-title">Alex</span>
+                <span class="hub-count">5 atoms</span>
+              </div>
+              <div class="secs">
+                <span class="chip">Gift Ideas · 3</span>
+                <span class="chip unsorted u-chip">Unsorted · 2</span>
+              </div>
+            </div>
+            <div class="hub">
+              <div class="hub-top">
+                <span class="hub-title">Yosemite packing</span>
+                <span class="hub-count">4 atoms</span>
+              </div>
+              <div class="secs">
+                <span class="chip">Gear · 4</span>
+              </div>
+            </div>
+
+            <label class="opt">
+              <input type="checkbox" id="unsorted-a" checked />
+              <div>
+                <strong>Include Unsorted</strong>
+                <span>Atoms that do not match a heading still appear under Unsorted. Turn off to only fill real headings.</span>
+              </div>
+            </label>
+          </div>
+          <div class="foot">
+            <button type="button" class="btn-ghost">Not now</button>
+            <button type="button" class="btn-primary">Update lists</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Phone + Unsorted off -->
+    <div>
+      <p class="label">B · Phone · Include Unsorted off</p>
+      <div class="scrim">
+        <div class="modal phone" id="modal-b" role="dialog" aria-labelledby="t-b">
+          <div class="head">
+            <h2 id="t-b">Update hub lists?</h2>
+            <p>
+              These notes would get a list of linked atoms at the bottom.
+              Your writing above stays the same.
+            </p>
+          </div>
+          <div class="body">
+            <div class="hub">
+              <div class="hub-top">
+                <span class="hub-title">Movies</span>
+                <span class="hub-count">9 atoms</span>
+              </div>
+              <div class="secs">
+                <span class="chip">Want to watch · 8</span>
+                <span class="chip">Watched · 1</span>
+                <span class="chip unsorted dim">Unsorted · 3</span>
+              </div>
+            </div>
+            <div class="hub">
+              <div class="hub-top">
+                <span class="hub-title">Alex</span>
+                <span class="hub-count">3 atoms</span>
+              </div>
+              <div class="secs">
+                <span class="chip">Gift Ideas · 3</span>
+                <span class="chip unsorted dim">Unsorted · 2</span>
+              </div>
+            </div>
+            <div class="hub">
+              <div class="hub-top">
+                <span class="hub-title">Yosemite packing</span>
+                <span class="hub-count">4 atoms</span>
+              </div>
+              <div class="secs">
+                <span class="chip">Gear · 4</span>
+              </div>
+            </div>
+
+            <label class="opt">
+              <input type="checkbox" id="unsorted-b" />
+              <div>
+                <strong>Include Unsorted</strong>
+                <span>Off: only atoms that match a heading. Unsorted stays empty.</span>
+              </div>
+            </label>
+          </div>
+          <div class="foot">
+            <button type="button" class="btn-ghost">Not now</button>
+            <button type="button" class="btn-primary">Update lists</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Empty -->
+    <div>
+      <p class="label">C · Nothing to write yet</p>
+      <div class="scrim">
+        <div class="modal" role="dialog" aria-labelledby="t-c">
+          <div class="head">
+            <h2 id="t-c">Update hub lists?</h2>
+            <p>No hub notes have linked atoms ready to list yet.</p>
+          </div>
+          <div class="empty-body">
+            File a few captures, then try Refresh hub lists from Settings.
+          </div>
+          <div class="foot">
+            <button type="button" class="btn-primary">Done</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <p class="note">
+    Mock for plan <code>docs/plans/2026-08-10-002-feat-hub-list-preview-plan.md</code>.
+    Open this file in a browser. Interactive: toggle Include Unsorted on A to dim Unsorted chips.
+  </p>
+
+  <script>
+    const a = document.getElementById("unsorted-a");
+    a?.addEventListener("change", () => {
+      document.querySelectorAll("#modal-a .u-chip").forEach((el) => {
+        el.classList.toggle("dim", !a.checked);
+      });
+      const counts = document.querySelectorAll("#modal-a .hub-count");
+      // illustrative only
+      if (counts[0]) counts[0].textContent = a.checked ? "12 atoms" : "9 atoms";
+      if (counts[1]) counts[1].textContent = a.checked ? "5 atoms" : "3 atoms";
+    });
+  </script>
+</body>
+</html>

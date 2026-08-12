@@ -8,6 +8,7 @@ import {
   CHECKOUT_BINDING_TTL_MS,
   hashToken,
   id,
+  accountHasUsedTrial,
   isEntitledAccount,
   MAGIC_EXCHANGE_REFUSED,
   MAGIC_PEEK_MISS,
@@ -15,6 +16,7 @@ import {
   periodEndFromNow,
   publicAccount,
   rowToIncident,
+  subscriptionLive,
   toMs,
   verifierMatches,
 } from "./shared.mjs";
@@ -90,10 +92,23 @@ export function createMemoryStore() {
         periodEnd: new Date().toISOString(),
         plan: "trial",
         promoRedemptions: 0,
+        trialUsed: false,
       };
       accounts.set(key, a);
     }
+    if (a.trialUsed === undefined) a.trialUsed = false;
     return a;
+  }
+
+  /**
+   * Atomic free-trial claim. Winner may grantPeriod(trialing); loser must not.
+   * @returns {{ won: boolean }}
+   */
+  function tryClaimTrial(email) {
+    const a = ensureAccount(email);
+    if (a.trialUsed) return { won: false };
+    a.trialUsed = true;
+    return { won: true };
   }
 
   function refreshAccountStatus(a) {
@@ -165,11 +180,17 @@ export function createMemoryStore() {
     return session;
   }
 
+  /** @returns {number} rows newly revoked */
   function revokeAllSessionsForEmail(email) {
     const key = email.trim().toLowerCase();
+    let n = 0;
     for (const row of sessions.values()) {
-      if (row.email === key) row.revoked = true;
+      if (row.email === key && !row.revoked) {
+        row.revoked = true;
+        n += 1;
+      }
     }
+    return n;
   }
 
   function revokeUnverifiedSessionsForEmail(email) {
@@ -177,6 +198,28 @@ export function createMemoryStore() {
     for (const row of sessions.values()) {
       if (row.email === key && !row.verified) row.revoked = true;
     }
+  }
+
+  /** #320 — soft cap on live verified sessions (oldest by exp). */
+  function enforceSessionCapForEmail(email) {
+    const key = email.trim().toLowerCase();
+    const cap = Number(config.maxSessionsPerEmail) || 10;
+    const now = Date.now();
+    const live = [...sessions.entries()]
+      .filter(
+        ([, row]) =>
+          row.email === key &&
+          row.verified &&
+          !row.revoked &&
+          row.exp >= now,
+      )
+      .sort((a, b) => a[1].exp - b[1].exp);
+    const excess = live.length - cap;
+    if (excess <= 0) return 0;
+    for (let i = 0; i < excess; i++) {
+      live[i][1].revoked = true;
+    }
+    return excess;
   }
 
   /**
@@ -194,6 +237,19 @@ export function createMemoryStore() {
       exp: Date.now() + CHECKOUT_BINDING_TTL_MS,
     });
     return true;
+  }
+
+  /** #320 R10 — drop in-flight checkout bindings for this email. */
+  function clearCheckoutBindingsForEmail(email) {
+    const key = email.trim().toLowerCase();
+    let n = 0;
+    for (const [id, row] of checkoutBindings.entries()) {
+      if (row.email === key) {
+        checkoutBindings.delete(id);
+        n += 1;
+      }
+    }
+    return n;
   }
 
   /**
@@ -266,16 +322,30 @@ export function createMemoryStore() {
     ) {
       const st =
         config.dogfoodGrantStatus === "active" ? "active" : "trialing";
-      grantPeriod(row.email, {
-        status: st,
-        plan: st === "trialing" ? "trial" : "monthly",
-        days: st === "trialing" ? config.trialDays : 30,
-        remaining: config.includedFilings,
-      });
+      if (st === "trialing") {
+        const claim = tryClaimTrial(row.email);
+        if (claim.won) {
+          grantPeriod(row.email, {
+            status: "trialing",
+            plan: "trial",
+            days: config.trialDays,
+            remaining: config.includedFilings,
+          });
+        }
+      } else {
+        grantPeriod(row.email, {
+          status: "active",
+          plan: "monthly",
+          days: 30,
+          remaining: config.includedFilings,
+        });
+      }
     }
     refreshAccountStatus(a);
-    revokeAllSessionsForEmail(row.email);
+    // #320 — unverified only (multi-device). C1: soft sessions still die.
+    revokeUnverifiedSessionsForEmail(row.email);
     const session = createSession(row.email, { verified: true });
+    enforceSessionCapForEmail(row.email);
     return { session, account: a, vault: row.vault ?? null };
   }
 
@@ -668,7 +738,12 @@ export function createMemoryStore() {
 
   function outboxEnqueue(email, opts) {
     const e = normEmail(email);
-    const kind = opts.kind === "continue" ? "continue" : "create";
+    const kind =
+      opts.kind === "continue"
+        ? "continue"
+        : opts.kind === "set_loop"
+          ? "set_loop"
+          : "create";
     const crid = opts.client_request_id
       ? String(opts.client_request_id).trim().slice(0, 128)
       : "";
@@ -1009,7 +1084,7 @@ export function createMemoryStore() {
     if (!row || row.revoked || Date.now() > row.exp) return null;
     const a = refreshAccountStatus(getAccount(row.email));
     if (!a) return null;
-    if (a.status !== "active" && a.status !== "trialing") return null;
+    if (!subscriptionLive(a)) return null;
     const mcpScopes = Array.isArray(row.scopes)
       ? row.scopes
       : ["atoms:read"];
@@ -1064,13 +1139,17 @@ export function createMemoryStore() {
     revokeSession,
     revokeAllSessionsForEmail,
     revokeUnverifiedSessionsForEmail,
+    enforceSessionCapForEmail,
     bindCheckoutSession,
+    clearCheckoutBindingsForEmail,
     promoteCheckoutSession,
     markSessionVerified,
     tryConsumeFiling,
     completeUsage,
     refundFiling,
     grantPeriod,
+    tryClaimTrial,
+    accountHasUsedTrial,
     addTopUp,
     redeemPromo,
     publicAccount,
@@ -1193,6 +1272,21 @@ export function createMemoryStore() {
     setStripeSubscription(email, subId) {
       const a = ensureAccount(email);
       a.stripeSubscriptionId = subId;
+      return a;
+    },
+    /**
+     * Drop the Stripe customer/subscription ids without touching the meter.
+     * Used when the stored id is wrong-mode or deleted (#408).
+     */
+    clearStripeBillingLink(email) {
+      const a = ensureAccount(email);
+      const old = a.stripeCustomerId;
+      if (old) stripeCustomers.delete(old);
+      for (const [id, em] of [...stripeCustomers.entries()]) {
+        if (em === a.email) stripeCustomers.delete(id);
+      }
+      a.stripeCustomerId = undefined;
+      a.stripeSubscriptionId = undefined;
       return a;
     },
     emailFromStripeCustomer: (id) => stripeCustomers.get(id) ?? null,

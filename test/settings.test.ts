@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { App, PluginManifest } from "obsidian";
@@ -22,9 +22,11 @@ import {
   type AccountState,
   AtomsSettingTab,
   type ConnectivityRequest,
+  deriveAccountState,
 } from "../src/settings/settings";
 import {
   readPendingSignIns,
+  type FilingAuth,
   type PlusSession,
 } from "../src/platform/filingAuth";
 import { s256Challenge } from "../src/platform/pkce";
@@ -49,7 +51,9 @@ import {
   EGRESS_ACK_VERSION,
   LS_AUTO_RUN_EGRESS_ACK,
   LS_AUTO_RUN_ENABLED,
+  LS_AUTO_RUN_START_DAY,
   LS_LAST_RUN_DAY,
+  localDateString,
   readEgressPermitted,
 } from "../src/platform/autorun";
 import { LS_EGRESS_NOTICE } from "../src/platform/resume";
@@ -488,10 +492,14 @@ describe("account row", () => {
     expect(rowNames(tab)).toEqual([
       "Account",
       "Skip the API key",
-      "Email",
       // Renamed by #240: the emailed link now signs *this* device in, so "another device" is the
       // paste fallback's job rather than this row's.
+      //
+      // Signing in leads: most people who reach this screen already have an account (a second
+      // device, or a lapsed session) and the trial row below asks for a card, so leading with
+      // the trial charged the wrong question to the larger group.
       "Sign in with a link",
+      "Email",
       "Advanced: paste session",
     ]);
     expect(buttonLabels(tab, "Email")).toEqual(["Start free trial"]);
@@ -567,6 +575,75 @@ describe("account row", () => {
     // @ts-expect-error — "grandfathered" is not an account state.
     const notAState: AccountState = { kind: "grandfathered" };
     expect(notAState.kind).toBe("grandfathered");
+  });
+
+  /**
+   * #442 — the row a lapsed account actually reads. It said "Monthly limit reached", which is
+   * the sentence for someone whose allotment refills; a trial that ended has no allotment and
+   * no next billing date.
+   */
+  describe("an ended period is not a spent meter", () => {
+    const T0 = Date.parse("2026-08-11T13:49:00.000Z");
+    const lapsedTrial: PlusSession = {
+      sessionToken: "sess_abc",
+      email: "u@example.com",
+      status: "exhausted",
+      remaining: 0,
+      plan: "trial",
+      periodEnd: "2026-08-10T14:52:03.632Z",
+    };
+    const authFor = (s: PlusSession): FilingAuth => ({
+      mode: "plus",
+      sessionToken: s.sessionToken,
+      email: s.email,
+      status: s.status ?? "unknown",
+      remaining: s.remaining,
+      periodEnd: s.periodEnd,
+      plan: s.plan,
+    });
+
+    it("outranks exhausted, and carries the date the row prints", () => {
+      const state = deriveAccountState(
+        authFor(lapsedTrial),
+        lapsedTrial,
+        T0,
+      );
+      expect(state).toEqual({
+        kind: "periodEnded",
+        lapseKind: "trial",
+        endedOn: "2026-08-10T14:52:03.632Z",
+      });
+    });
+
+    it("names the trial and points at subscribing, with no billing-date promise", () => {
+      const row = accountRowDescriptor(
+        deriveAccountState(authFor(lapsedTrial), lapsedTrial, T0),
+      );
+      expect(row.name).toBe("Trial ended");
+      expect(row.desc).toMatch(/2026-08-10/);
+      expect(row.desc).toMatch(/Subscribe/);
+      expect(row.desc).not.toMatch(/billing date|allotment/i);
+    });
+
+    it("calls an ended paid period a subscription", () => {
+      const paid: PlusSession = { ...lapsedTrial, plan: "monthly" };
+      expect(
+        accountRowDescriptor(deriveAccountState(authFor(paid), paid, T0)).name,
+      ).toBe("Subscription ended");
+    });
+
+    it("leaves a spent meter inside a live period saying exactly what it said before", () => {
+      const capped: PlusSession = {
+        ...lapsedTrial,
+        plan: "monthly",
+        periodEnd: "2026-09-10T00:00:00.000Z",
+      };
+      const row = accountRowDescriptor(
+        deriveAccountState(authFor(capped), capped, T0),
+      );
+      expect(row.name).toBe("Monthly limit reached");
+      expect(row.desc).toMatch(/next billing date/);
+    });
   });
 });
 
@@ -1812,10 +1889,10 @@ describe("main screen row grammar (U9)", () => {
     const vocabulary = `Tag vocabulary — ${DEFAULT_SETTINGS.activeVocabulary.length} active`;
     return [
       account,
-      "iCloud shortcut link",
       "Capture Atom shortcut",
+      "Custom shortcut link",
       "Atom folder",
-      "List atoms in person notes",
+      "List atoms on hub notes",
       vocabulary,
       ...ASK_ROWS,
       "File automatically when Obsidian opens",
@@ -1829,7 +1906,7 @@ describe("main screen row grammar (U9)", () => {
     ];
   }
 
-  it("renders the fifteen rows of the plan's table, in order, signed in to Plus", () => {
+  it("renders the main settings rows in order, signed in to Plus", () => {
     const { tab } = plusTab();
     tab.display();
 
@@ -2302,6 +2379,16 @@ describe("signed-out Plus panel copy (R15, AE11)", () => {
     expect(desc).not.toMatch(/open it in the email on this device/i);
   });
 
+  it("puts signing in ahead of starting a trial", () => {
+    // Most people reaching the signed-out screen already have an account — a second device, or
+    // a lapsed session — and the trial row asks for a card. Leading with the trial charged the
+    // wrong question to the larger group.
+    const ui = renderSignedOutPanel(fakeLocalApp());
+    expect(ui.strings.indexOf("Email")).toBeGreaterThan(
+      ui.strings.indexOf(SIGN_IN_ROW),
+    );
+  });
+
   it("keeps the paste field below the link row, as the different-device fallback (AE9, R10)", () => {
     const ui = renderSignedOutPanel(fakeLocalApp());
     expect(ui.strings.indexOf(PASTE_ROW)).toBeGreaterThan(
@@ -2409,5 +2496,151 @@ describe("requesting a sign-in link (R15, U7 binding)", () => {
     await sendLink(fakeTab(app), "a@b.co");
 
     expect(readPendingSignIns(app)).toEqual([]);
+  });
+});
+
+/**
+ * U3 / KTD1 — the Settings toggle is an enable path too, and the one every re-enable takes.
+ *
+ * The already-acked branch short-circuits before the consent sheet, so a stamp written only
+ * inside the sheet's callback would miss every device whose ack is current. Both branches also
+ * fire `runFilingAfterEnable`, so enabling from Settings is not a worse first run than enabling
+ * from home. That pass never reaches today (the disclosure promises as much) — what it buys is
+ * the empty-window stamp that stops the hourly interval rescanning for the rest of the session.
+ */
+describe("automatic filing toggle stamps the window (U3)", () => {
+  const flush = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+  const TOGGLE = "File automatically when Obsidian opens";
+  const ACKED = { [LS_AUTO_RUN_EGRESS_ACK]: EGRESS_ACK_VERSION };
+
+  it("stamps today and fires one filing pass on the already-acked re-enable", async () => {
+    const { tab, local, calls } = settingTab({
+      local: { ...ACKED, [LS_AUTO_RUN_ENABLED]: false, [LS_AUTO_RUN_START_DAY]: "2026-01-01" },
+    });
+    tab.display();
+
+    flip(tab, TOGGLE);
+    await flush();
+
+    expect(sheetOpen()).toBe(false);
+    expect(local.get(LS_AUTO_RUN_ENABLED)).toBe(true);
+    expect(local.get(LS_AUTO_RUN_START_DAY)).toBe(localDateString());
+    expect(calls.filter((c) => c === "runFilingAfterEnable")).toHaveLength(1);
+  });
+
+  it("stamps today and fires one filing pass when the consent sheet is accepted", async () => {
+    const { tab, local, calls } = settingTab({});
+    tab.display();
+
+    flip(tab, TOGGLE);
+    await flush();
+    pressSheet("I understand");
+    await flush();
+
+    expect(local.get(LS_AUTO_RUN_ENABLED)).toBe(true);
+    expect(local.get(LS_AUTO_RUN_START_DAY)).toBe(localDateString());
+    expect(calls.filter((c) => c === "runFilingAfterEnable")).toHaveLength(1);
+  });
+
+  it("stamps nothing and files nothing when the sheet is declined", async () => {
+    const { tab, local, calls } = settingTab({});
+    tab.display();
+
+    flip(tab, TOGGLE);
+    await flush();
+    pressSheet("Cancel");
+    await flush();
+
+    expect(local.get(LS_AUTO_RUN_START_DAY)).toBeUndefined();
+    expect(calls).not.toContain("runFilingAfterEnable");
+  });
+
+  it("preserves the stamp when the toggle goes off (KTD6)", async () => {
+    const { tab, local, calls } = settingTab({
+      local: { ...ACKED, [LS_AUTO_RUN_ENABLED]: true, [LS_AUTO_RUN_START_DAY]: "2026-01-01" },
+    });
+    tab.display();
+
+    flip(tab, TOGGLE);
+    await flush();
+
+    expect(local.get(LS_AUTO_RUN_ENABLED)).toBe(false);
+    expect(local.get(LS_AUTO_RUN_START_DAY)).toBe("2026-01-01");
+    expect(calls).not.toContain("runFilingAfterEnable");
+  });
+});
+
+/**
+ * U7 — day one of automatic filing is deliberately silent: the window starts today and every
+ * pass excludes today, so a user who enables it and sees nothing concludes it is broken. The
+ * toggle carries a persistent line saying when filing starts and where the rest is offered.
+ *
+ * It must never name `Process unprocessed captures`. That is the one path left unbounded and
+ * unpriced, so recommending it beside the toggle hands a trial device a single tap that can
+ * spend the whole period allowance on years-old notes. The backfill offer on Atoms home is the
+ * bounded answer, and the only one this line may point at.
+ */
+describe("the enable-time window line (U7)", () => {
+  const flush = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+  const windowLine = (tab: AtomsSettingTab): string | undefined =>
+    prose(tab).find((t) => t.startsWith("Filing starts with tomorrow's note."));
+
+  it("renders beside the toggle before the user has enabled anything", () => {
+    const { tab } = settingTab();
+    const before = Notice.messages.length;
+    tab.display();
+
+    expect(windowLine(tab)).toBeDefined();
+    // Persistent, not a toast: the user is already reading the panel, and a Notice raised here
+    // is gone by the time day one's silence needs explaining.
+    expect(Notice.messages.slice(before)).toHaveLength(0);
+  });
+
+  it("stays on screen after the toggle goes on", async () => {
+    const { tab } = settingTab({
+      local: { [LS_AUTO_RUN_EGRESS_ACK]: EGRESS_ACK_VERSION },
+    });
+    tab.display();
+
+    flip(tab, "File automatically when Obsidian opens");
+    await flush();
+
+    expect(windowLine(tab)).toBeDefined();
+  });
+
+  it("points at the backfill offer and never at the unbounded process path", () => {
+    const { tab } = settingTab();
+    tab.display();
+
+    const line = windowLine(tab) ?? "";
+    expect(line.toLowerCase()).not.toContain("process");
+    expect(line).toContain("Atoms home");
+  });
+});
+
+/**
+ * The version the panel shows is how a user on a phone tells a stale Sync from a current build,
+ * so it has to be the manifest's own number, and the three files that carry it have to agree:
+ * CI cuts the GitHub Release from `manifest.json` and fails if the tag does not match.
+ */
+describe("the version the settings panel renders", () => {
+  const readJson = (name: string): Record<string, unknown> =>
+    JSON.parse(readFileSync(path.resolve(__dirname, `../${name}`), "utf8")) as Record<
+      string,
+      unknown
+    >;
+
+  it("is the one manifest.json carries", () => {
+    const version = readJson("manifest.json").version;
+    const { tab } = settingTab({ plugin: { manifest: { version } } });
+    tab.display();
+
+    expect(prose(tab).some((t) => t.startsWith(`Version ${String(version)} ·`))).toBe(true);
+  });
+
+  it("agrees across manifest, package, and versions", () => {
+    const version = String(readJson("manifest.json").version);
+    expect(readJson("package.json").version).toBe(version);
+    expect(Object.keys(readJson("versions.json"))).toContain(version);
   });
 });

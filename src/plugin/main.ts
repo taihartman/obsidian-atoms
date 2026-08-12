@@ -33,7 +33,9 @@ declare const ATOMS_DEV_COMMANDS: boolean;
 /** Dev diagnostics hook — no-op (Community plugin scan forbids console). */
 function devLog(..._args: unknown[]): void {
   void _args;
-  void ATOMS_DEV_COMMANDS;
+  // `typeof` guard: the define only exists inside an esbuild bundle, and a bare reference
+  // throws a ReferenceError anywhere else — including any test that reaches this file.
+  void (typeof ATOMS_DEV_COMMANDS !== "undefined" && ATOMS_DEV_COMMANDS);
 }
 import {
   classifyCapture,
@@ -53,6 +55,13 @@ import {
   DailyNotesDisabledError,
   getPastDailyNotesWithUnmarkedCaptures,
 } from "../pipeline/daily";
+import {
+  BACKFILL_CAP,
+  deriveRecentFirstRange,
+  resolveBackfillBudget,
+  type BackfillDaily,
+  type RecentFirstRange,
+} from "../pipeline/backfillOffer";
 import { AtomsSettingTab } from "../settings/settings";
 import {
   API_KEY_SECRET_ID_DEFAULT,
@@ -102,13 +111,15 @@ import {
   canBuildContext,
   enableAutomaticFiling,
   localDateString,
+  migrateAutoFilingWindow,
   PER_LAUNCH_CAP,
+  readAutoFilingSince,
   readDeviceAutoRunState,
   readEgressPermitted,
+  runAutoFilingCycle,
   shouldRunAutoProcess,
-  shouldStampLastRunDay,
   waitForVaultIndexReady,
-  writeLastRunDay,
+  type AutoRunSource,
   type DeviceAutoRunState,
 } from "../platform/autorun";
 import {
@@ -132,6 +143,7 @@ import {
   type StageTimingState,
 } from "../platform/resume";
 import {
+  plusNeedsPeriodRefresh,
   readPlusSession,
   resolveFilingAuth,
   writePlusSession,
@@ -155,8 +167,16 @@ import {
   submitMessageBatch,
   waitForBatchEnded,
   type ApplyBackfillReport,
+  type BackfillConfirmProps,
   type CostEstimate,
 } from "../pipeline/backfill";
+import {
+  createCheckout,
+  plusFetchRequest,
+  DEFAULT_PLUS_BASE_URL,
+  type PlusClientConfig,
+} from "../platform/plusClient";
+import { refreshPlusEntitlementRecord } from "../platform/plusRefresh";
 import {
   listLinkerAtoms,
   runRefreshEligibleAtoms,
@@ -173,8 +193,23 @@ import {
 } from "../settings/plusSignInConfirmModal";
 import { closeOpenConsentSheet } from "../settings/consent";
 
+/**
+ * How many times the backfill offer may be re-derived behind a top-up before it stops
+ * re-opening. The loop has to terminate on its own: each round costs a meter read and a vault
+ * scan, and an over-budget offer can legitimately stay over budget after a purchase.
+ */
+const BACKFILL_TOPUP_ROUNDS = 3;
+
+/** Meter polls after top-up checkout opens, and the gap between them. */
+const BACKFILL_TOPUP_POLL = { attempts: 24, intervalMs: 5000 } as const;
+
+/** How long one auth failure stays quiet after announcing itself. */
+const AUTH_NOTICE_QUIET_MS = 15_000;
+
 export default class AtomsPlugin extends Plugin {
   settings!: LinkerSettings;
+  /** Last auth-failure Notice, so a batch does not repeat it once per capture. */
+  private lastAuthNotice: { message: string; at: number } | null = null;
   /**
    * The settings tab while it is on screen, so `onExternalSettingsChange` can re-render what a
    * remote withdrawal just invalidated (#323). The tab registers and clears itself, so this is
@@ -216,11 +251,27 @@ export default class AtomsPlugin extends Plugin {
   lastBackfillEstimate: CostEstimate | null = null;
   lastBackfillReport: ApplyBackfillReport | null = null;
   lastBackfillBatchId: string | null = null;
+  /**
+   * Checkout completes in a browser, so the only signal the top-up round has is the meter
+   * itself. Held as a field rather than read from the constant directly so a test does not sit
+   * through two minutes of real polling.
+   */
+  private readonly backfillTopUpPoll: { attempts: number; intervalMs: number } =
+    BACKFILL_TOPUP_POLL;
   /** Last Update notes refresh report (CLI). */
   lastRefreshReport: RefreshReport | null = null;
   /** Guards double-fire of onload + interval auto-run. */
   private autoRunInFlight = false;
   private backfillInFlight = false;
+  /**
+   * Held by the two attended write passes — Process and Update notes — for their whole duration.
+   *
+   * Without it the exclusion is one-directional: those two can be told a backfill is running, but
+   * a backfill starting *after* them sees nothing and both write paths `vault.modify` the same
+   * dailies from divergent caches. Whichever finishes last drops the other's sentinels, and a
+   * capture with no sentinel is filed again on a metered path.
+   */
+  private manualFilingInFlight = false;
   /**
    * Shared in-flight drain (F1). Both entry points — bootstrapInbox (unawaited
    * from onLayoutReady) and runDrainInbox (command) — go through drainInboxOnce,
@@ -251,7 +302,7 @@ export default class AtomsPlugin extends Plugin {
     // so it happens above the first `await`. The handler only captures params;
     // the flow that needs `settings` drains once `loadSettings()` resolves.
     this.registerObsidianProtocolHandler("atoms-signin", (params) => {
-      void this.signInHandoff.accept(params as unknown as Record<string, string>);
+      void this.signInHandoff.accept(params);
     });
 
     // Disabling the plugin does not close a consent sheet it left on screen, and that sheet
@@ -260,6 +311,7 @@ export default class AtomsPlugin extends Plugin {
     this.register(() => closeOpenConsentSheet());
 
     await this.loadSettings();
+    void this.maybeShowHubProjectionListDisclosure();
     void this.signInHandoff.ready(this.plusSignInHost());
     this.contextProvider = new MetadataContextProvider(
       this.app,
@@ -294,6 +346,7 @@ export default class AtomsPlugin extends Plugin {
       "../platform/plusResume"
     );
     schedulePlusCheckoutResume(this);
+    void this.refreshEntitlementIfPeriodEnded();
 
     // Ask outbox + mirror catch-up when vault is open (coordinator owns state).
     this.ask.registerLifecycle();
@@ -519,7 +572,7 @@ export default class AtomsPlugin extends Plugin {
 
   /** Called from Atoms home ⋯ menu. */
   async runBackfillFromHome(): Promise<void> {
-    await this.runBackfillFlow();
+    await this.runBackfillFlow("card");
   }
 
   /**
@@ -527,6 +580,24 @@ export default class AtomsPlugin extends Plugin {
    * User-initiated only; never from auto-run.
    */
   async runUpdateNotes(opts?: {
+    fixtureResults?: import("../shared/types").ClassificationResult[];
+    limit?: number;
+  }): Promise<void> {
+    // Same reason as `runProcessUnprocessed`: this rewrites atoms and dailies another filing
+    // pass may be appending to, from a cache taken before those appends. Check and claim in one
+    // synchronous step — the body's first act is an `await`, and a claim made after it would
+    // leave a window a backfill starts in.
+    if (this.backfillBusy()) return;
+    this.manualFilingInFlight = true;
+    try {
+      await this.updateNotesRun(opts);
+    } finally {
+      this.manualFilingInFlight = false;
+    }
+  }
+
+  /** The refresh pass itself. Runs only under `manualFilingInFlight` — see its one caller. */
+  private async updateNotesRun(opts?: {
     fixtureResults?: import("../shared/types").ClassificationResult[];
     limit?: number;
   }): Promise<void> {
@@ -569,7 +640,7 @@ export default class AtomsPlugin extends Plugin {
         classifyDeps: {
           maxAttempts: 2,
           plus: plusDeps,
-          onAuthFailure: (msg) => new Notice(`Atoms: ${msg}`),
+          onAuthFailure: (msg) => this.noticeAuthFailureOnce(msg),
         },
         onProgress: (done, total, meta) => {
           this.updateHomeProgress(done, total, meta?.captureText);
@@ -954,6 +1025,28 @@ export default class AtomsPlugin extends Plugin {
       window.setTimeout(() => this.scheduleResumeCatchUp(), 2000);
     }
 
+    // U4 / KTD5: a device that had filing on before the window existed carries no start day.
+    // Stamp it here, ahead of the first pass, so the migration owns the window start instead of
+    // the read-side fallback writing the same day with nothing recording that it happened — and
+    // flag the device, because this pauses an in-progress silent sweep and an auto-update shows
+    // no release notes to explain why.
+    //
+    // Guarded like the index wait above: the onload pass and the hourly interval are registered
+    // below it, so an unguarded throw here — a full or hostile localStorage is enough — takes
+    // filing down for the whole session with nothing said. The migration is idempotent and
+    // retries on the next launch; the session's filing does not.
+    try {
+      migrateAutoFilingWindow(
+        (k) => this.app.loadLocalStorage(k) as unknown,
+        (k, v) => this.app.saveLocalStorage(k, v),
+      );
+    } catch (e) {
+      devLog("[atoms] auto-filing window migration failed", {
+        name: e instanceof Error ? e.name : "Error",
+        message: e instanceof Error ? e.message : "unknown",
+      });
+    }
+
     // Primary: once index is ready (app open).
     void this.maybeAutoRun("onload");
 
@@ -996,19 +1089,39 @@ export default class AtomsPlugin extends Plugin {
    */
   async enableAutomaticFilingFromHome(): Promise<void> {
     const save = (k: string, v: unknown) => this.app.saveLocalStorage(k, v);
-    enableAutomaticFiling(save);
+    const load = (k: string): unknown =>
+      this.app.loadLocalStorage(k) as unknown;
+    enableAutomaticFiling(save, { load });
     new Notice("Atoms: automatic filing on for this device");
     await this.refreshAtomsHomeLeaves();
-    void this.maybeAutoRun("manual");
+    void this.runFilingAfterEnable();
+  }
+
+  /**
+   * The pass the user's own enable tap fires, shared by home's filing card and the Settings
+   * toggle so enabling from Settings is not a worse first run.
+   *
+   * It does **not** reach today's daily. The consent sheet the user accepts one second earlier
+   * promises "today's daily note is never auto-touched", so day one is deliberately silent: the
+   * window starts today and today is excluded, and the first atoms appear tomorrow. The call is
+   * still worth making — on an empty window the cycle stamps the day, which is what stops the
+   * hourly interval from rescanning the vault for the rest of the session.
+   */
+  async runFilingAfterEnable(): Promise<void> {
+    await this.maybeAutoRun("manual");
   }
 
   /**
    * Device-local auto-run gate + silent failure (R13, U9).
    * Does not invoke buildContext until vaultIndexReady.
    * Stamps last-run day only when past queue is drained (not on attempt/failure).
+   *
+   * The pass itself lives in `runAutoFilingCycle` (KTD2): it resolves the filing-window bound
+   * once and hands that same day to the count and to the write, so the two can never drift
+   * into the silent forever-rescan. This method supplies the gate, the write, and the UI.
    */
   async maybeAutoRun(
-    source: "onload" | "interval" | "manual" | "resume",
+    source: AutoRunSource,
     catchUp?: { bypassEnabled?: boolean; silentHome?: boolean },
   ): Promise<{
     ran: boolean;
@@ -1024,104 +1137,144 @@ export default class AtomsPlugin extends Plugin {
       return { ran: false, reason: "cache_not_ready" };
     }
 
-    const pastRemaining = await this.countPastUnprocessed();
-
-    // Catch-up manual: bypass auto-run enable (KTD11). Still need privacy ack
-    // (auto-run egress) OR catch-up egress notice is gated earlier in decideResumeStages.
-    const enabled =
-      catchUp?.bypassEnabled === true ? true : state.enabled;
-    // For catch-up filing, egress notice already gated; treat auto-run ack OR
-    // catch-up notice as sufficient privacy for the paid path.
-    const egressOk = readEgressPermitted(load, { catchUp: catchUp != null });
-
-    if (
-      !shouldRunAutoProcess({
-        enabled,
-        lastRunDay:
-          catchUp?.bypassEnabled === true ? null : state.lastRunDay,
-        today,
-        egressAcked: egressOk,
-        pastUnprocessedRemaining: pastRemaining,
-      })
-    ) {
-      return {
-        ran: false,
-        reason: !enabled
-          ? "disabled"
-          : !egressOk
-            ? "no_egress_ack"
-            : pastRemaining > 0
-              ? "blocked"
-              : "same_day",
-      };
+    // Same verdict the gate reaches, taken before the claim and before the count.
+    //
+    // Disabling preserves the start day (KTD6), so a device with filing off still resolves a real
+    // window — and the cycle used to claim the in-flight slot and scan all of it every hour only
+    // to be refused for being disabled. Two costs: pointless hourly vault reads, and a lock held
+    // across a long count that a concurrent catch-up or the user's own enable tap then loses to.
+    // `bypassEnabled` is the manual catch-up, which files with the toggle off by design (KTD11).
+    if (catchUp?.bypassEnabled !== true && !state.enabled) {
+      return { ran: false, reason: "disabled" };
     }
 
-    if (this.autoRunInFlight) {
-      return { ran: false, reason: "in_flight" };
-    }
+    let auth: Extract<
+      ReturnType<typeof resolveClassifyAuth>,
+      { ok: true }
+    > | null = null;
+    // Boxed so the log after the cycle still sees the report the write callback set.
+    const written: { report: WritePathReport | null } = { report: null };
 
-    const filing = this.resolveFilingAuth();
-    const classifyAuth = resolveClassifyAuth(filing, {
-      plusBaseUrl: this.settings.plusBaseUrl,
-    });
-    if (!classifyAuth.ok) {
-      // Silent for auto path — manual commands still Notice. Do not stamp.
-      devLog("[atoms] auto-run skipped: no filing auth", classifyAuth.reason);
-      return { ran: false, reason: "missing_key" };
-    }
+    const outcome = await runAutoFilingCycle({
+      load,
+      save,
+      today,
+      count: (since, fallback) =>
+        // Same bound as the write (KTD2), and past-only like it: both sides of the cycle read
+        // exactly the same set of captures, so the recount can reach zero and stamp the day.
+        this.countPastUnprocessed({ since, fallback }),
+      gate: (pastRemaining) => {
+        // Catch-up manual: bypass auto-run enable (KTD11). Still need privacy ack
+        // (auto-run egress) OR catch-up egress notice is gated earlier in decideResumeStages.
+        const enabled =
+          catchUp?.bypassEnabled === true ? true : state.enabled;
+        // For catch-up filing, egress notice already gated; treat auto-run ack OR
+        // catch-up notice as sufficient privacy for the paid path.
+        const egressOk = readEgressPermitted(load, { catchUp: catchUp != null });
 
-    // Nothing to do — stamp day so hourly interval does not re-scan forever.
-    if (pastRemaining === 0) {
-      writeLastRunDay(save, today);
-      devLog("[atoms] auto-run empty success", { source });
-      return { ran: true, reason: "empty" };
-    }
+        if (
+          !shouldRunAutoProcess({
+            enabled,
+            lastRunDay:
+              catchUp?.bypassEnabled === true ? null : state.lastRunDay,
+            today,
+            egressAcked: egressOk,
+            pastUnprocessedRemaining: pastRemaining,
+          })
+        ) {
+          return {
+            ok: false,
+            reason: !enabled
+              ? "disabled"
+              : !egressOk
+                ? "no_egress_ack"
+                : pastRemaining > 0
+                  ? "blocked"
+                  : "same_day",
+          };
+        }
 
-    this.autoRunInFlight = true;
-    this.filingStartedAt = Date.now();
-    try {
-      const report = await runWritePath({
-        app: this.app,
-        contextProvider: this.contextProvider,
-        apiKey: classifyAuth.apiKey,
-        model: this.settings.model,
-        activeVocabulary: this.settings.activeVocabulary,
-        atomFolder: this.settings.atomFolder,
-        ...shortlistOptionsFromSettings(),
-        maxCaptures: PER_LAUNCH_CAP,
-        enableHubProjection: this.settings.enableHubProjection === true,
-        // never includeToday on auto-run
-        classifyDeps: {
-          maxAttempts: 2,
-          plus: classifyAuth.plus,
-          // Auto-run: no auth spam Notices every hour — log only.
-          onAuthFailure: (msg) => {
-            devLog("[atoms] auto-run auth failure", msg);
+        const filing = this.resolveFilingAuth();
+        const classifyAuth = resolveClassifyAuth(filing, {
+          plusBaseUrl: this.settings.plusBaseUrl,
+        });
+        if (!classifyAuth.ok) {
+          // Silent for auto path — manual commands still Notice. Do not stamp.
+          devLog("[atoms] auto-run skipped: no filing auth", classifyAuth.reason);
+          return { ok: false, reason: "missing_key" };
+        }
+        auth = classifyAuth;
+        return { ok: true };
+      },
+      // The in-flight check and set are one synchronous step here, and the cycle runs it before
+      // its first await — onload, the hourly interval, the manual path and the commands can all
+      // land in the same tick, and a check the gate made across an await would let two of them
+      // through into a paid write pass. The cycle reports the refusal as reason "in_flight".
+      beginWork: () => {
+        if (this.autoRunInFlight) return false;
+        // The other direction of the same guard: a Plus backfill runs through `runWritePath`
+        // and takes `backfillInFlight`, so without this check the hourly pass would start a
+        // second paid run against a second pinned context corpus.
+        if (this.backfillInFlight) return false;
+        // And the attended passes, which write the same dailies from their own caches.
+        if (this.manualFilingInFlight) return false;
+        this.autoRunInFlight = true;
+        return true;
+      },
+      endWork: () => {
+        this.autoRunInFlight = false;
+        this.filingStartedAt = null;
+      },
+      file: async (since) => {
+        // Marked here, not in `beginWork`: the claim has to happen before the cycle's first
+        // await, but the claim is not a filing pass — a run refused by the gate would otherwise
+        // report itself as filing to `decideResumeStages` and home's filing card. `endWork`
+        // clears it on every exit after the claim, this one included.
+        this.filingStartedAt = Date.now();
+        // The gate above is the only way here, and it always sets auth.
+        const resolved = auth;
+        if (!resolved) throw new Error("auto-run: filing auth unresolved");
+        const report = await runWritePath({
+          app: this.app,
+          contextProvider: this.contextProvider,
+          apiKey: resolved.apiKey,
+          model: this.settings.model,
+          activeVocabulary: this.settings.activeVocabulary,
+          atomFolder: this.settings.atomFolder,
+          ...shortlistOptionsFromSettings(),
+          maxCaptures: PER_LAUNCH_CAP,
+          enableHubProjection: this.settings.enableHubProjection === true,
+          // Never today, from any source — onload, the hourly interval, resume, the manual
+          // catch-up, and the enable tap all land here. The egress disclosure the user accepts
+          // says "today's daily note is never auto-touched"; written as a literal so no caller
+          // can thread a different value in. Explicit force lives on the attended commands.
+          includeToday: false,
+          since,
+          classifyDeps: {
+            maxAttempts: 2,
+            plus: resolved.plus,
+            // Auto-run: no auth spam Notices every hour — log only.
+            onAuthFailure: (msg) => {
+              devLog("[atoms] auto-run auth failure", msg);
+            },
           },
-        },
-      });
-      this.lastWriteReport = report;
+        });
+        written.report = report;
+        this.lastWriteReport = report;
 
-      if (report.proposedTagsMerged.length) {
-        this.settings.proposedTags = mergeProposedTags(
-          this.settings.proposedTags,
-          report.proposedTagsMerged,
-          this.settings.activeVocabulary,
-        );
-        await this.saveSettings();
-      }
-
-      const pastAfter = await this.countPastUnprocessed(
-        Math.max(0, pastRemaining - report.markersAppended),
-      );
-      const stamped = shouldStampLastRunDay({
-        threw: false,
-        pastRemainingAfter: pastAfter,
-      });
-      if (stamped) writeLastRunDay(save, today);
-
-      const filed = report.markersAppended;
-      if (filed > 0) {
+        if (report.proposedTagsMerged.length) {
+          this.settings.proposedTags = mergeProposedTags(
+            this.settings.proposedTags,
+            report.proposedTagsMerged,
+            this.settings.activeVocabulary,
+          );
+          await this.saveSettings();
+        }
+        return { markersAppended: report.markersAppended };
+      },
+      onFiled: async (filed) => {
+        const report = written.report;
+        if (filed <= 0 || !report) return;
         // Resume path stays silent (R5); no land-peak fanfare either.
         if (source !== "resume" && !catchUp?.silentHome) {
           new Notice(
@@ -1137,38 +1290,51 @@ export default class AtomsPlugin extends Plugin {
         } else {
           await this.refreshAtomsHomeLeaves();
         }
-      }
+      },
+      onError: (e) => {
+        // Never crash launch; never stamp on throw (retry same day).
+        devLog("[atoms] auto-run error", {
+          name: e instanceof Error ? e.name : "Error",
+          message: e instanceof Error ? e.message : "unknown",
+        });
+      },
+    });
+
+    if (outcome.reason === "empty") {
+      devLog("[atoms] auto-run empty success", { source, since: outcome.since });
+    } else if (outcome.reason === "ok") {
       // Offline / all-failed without stamp: silent; retry same day on next open.
       devLog("[atoms] auto-run complete", {
         source,
-        filed,
-        atoms: report.atomsCreated,
-        failed: report.failed,
-        scanned: report.scanned,
-        pastAfter,
-        stamped,
+        since: outcome.since,
+        filed: outcome.filed,
+        atoms: written.report?.atomsCreated ?? 0,
+        failed: written.report?.failed ?? 0,
+        scanned: written.report?.scanned ?? 0,
+        pastAfter: outcome.pastRemainingAfter,
+        stamped: outcome.stamped,
       });
-      return { ran: true, reason: "ok" };
-    } catch (e) {
-      // Never crash launch; never stamp on throw (retry same day).
-      devLog("[atoms] auto-run error", {
-        name: e instanceof Error ? e.name : "Error",
-        message: e instanceof Error ? e.message : "unknown",
-      });
-      return { ran: false, reason: "error" };
-    } finally {
-      this.autoRunInFlight = false;
-      this.filingStartedAt = null;
     }
+    return { ran: outcome.ran, reason: outcome.reason };
   }
 
-  /** Past-only unmarked count; on list failure use fallback (default 0). */
-  private async countPastUnprocessed(fallback = 0): Promise<number> {
+  /**
+   * Past-only unmarked count; on list failure use `fallback` (default 0).
+   *
+   * Options object on purpose: the bound and the fallback are both scalars, and the previous
+   * positional `fallback` sat at exactly the index a new leading `since` would have taken —
+   * a silent swap that would have made the recount count history (KTD2).
+   */
+  private async countPastUnprocessed(
+    opts: { since?: string; fallback?: number } = {},
+  ): Promise<number> {
     try {
-      const listed = await getPastDailyNotesWithUnmarkedCaptures(this.app);
+      const listed = await getPastDailyNotesWithUnmarkedCaptures(this.app, {
+        since: opts.since,
+      });
       return listed.totalUnprocessed;
     } catch {
-      return fallback;
+      return opts.fallback ?? 0;
     }
   }
 
@@ -1198,20 +1364,441 @@ export default class AtomsPlugin extends Plugin {
   }
 
   /**
-   * U10 — estimate (count_tokens) → confirm modal → batch submit → poll → write path.
-   * No batch is submitted until the user confirms the gate.
+   * The backfill entry point (U8), branched on filing auth.
+   *
+   * `requireApiKey()` used to be the first statement of this method, so a Plus or trial device
+   * was told to set an API key it does not have and could not reach backfill at all — on the same
+   * screen that reads "Plus · Trial · 150 filings left". Only the BYOK branch needs a key; the
+   * Plus branch spends filings through the proxy Process already uses.
+   *
+   * `source` bounds the **BYOK offer only** (KTD9). The card proposes a capped, recent-first
+   * range; the command stays the unbounded whole-history estimate it has always been, because it
+   * is the only path a BYOK user has to file a backlog larger than one run — capping it would be
+   * a capability regression, not a guardrail. Plus is budget-bounded from either entry: spending
+   * a whole period's allowance on years-old notes is the harm KTD9 and KTD10 exist to prevent,
+   * and the Plus escape hatch is the top-up, not an uncapped run.
    */
-  async runBackfillFlow() {
-    const apiKey = this.requireApiKey();
-    if (!apiKey) return;
-    if (this.backfillInFlight) {
-      new Notice("Atoms: backfill already in progress");
+  async runBackfillFlow(source: "card" | "command" = "command") {
+    if (this.resolveFilingAuth().mode === "plus") {
+      await this.runPlusBackfillFlow();
       return;
     }
+    await this.runByokBackfillFlow(source);
+  }
 
+  /**
+   * The complement's exclusive upper bound (KTD3).
+   *
+   * With auto-filing on, backfill owns everything strictly before the window that unattended
+   * filing owns. With it off no unattended pass is claiming any of it, so the stored start day
+   * is ignored and the offer covers all past captures. Read-only on purpose: a diagnostic or an
+   * offer that minted the window start would steal `migrateAutoFilingWindow`'s stamp.
+   */
+  private backfillComplementBefore(today: string): string {
+    const load = (k: string): unknown => this.app.loadLocalStorage(k) as unknown;
+    if (!readDeviceAutoRunState(load).enabled) return today;
+    return readAutoFilingSince(load, today);
+  }
+
+  /**
+   * Is another filing pass already running? Both directions, in one place.
+   *
+   * The check is one synchronous step on purpose: the hourly pass, the manual catch-up and a
+   * backfill can all land in the same tick, and two runs against two pinned context corpora is
+   * exactly what the flags exist to prevent.
+   */
+  private backfillBusy(): boolean {
+    if (this.autoRunInFlight) {
+      new Notice("Atoms: filing already in progress");
+      return true;
+    }
+    if (this.backfillInFlight) {
+      new Notice("Atoms: backfill already in progress");
+      return true;
+    }
+    if (this.manualFilingInFlight) {
+      new Notice("Atoms: filing already in progress");
+      return true;
+    }
+    return false;
+  }
+
+  /** The one bounded scan both engines derive their counts from. */
+  private async backfillComplement(bounds: {
+    since?: string;
+    before: string;
+  }): Promise<BackfillDaily[]> {
+    const listed = await getPastDailyNotesWithUnmarkedCaptures(
+      this.app,
+      bounds,
+    );
+    return listed.notes.map((note) => ({
+      date: note.date,
+      path: note.path,
+      unprocessedCount: note.unprocessed.length,
+    }));
+  }
+
+  /**
+   * Open the gate and wait for the verdict.
+   *
+   * The modal closes *before* it calls `onConfirm`, so it — not this caller — decides what counts
+   * as a dismissal, and answers on whichever callback actually applies (#438).
+   */
+  private confirmBackfill(
+    props: BackfillConfirmProps,
+  ): Promise<"confirm" | "cancel"> {
+    return new Promise((resolve) => {
+      new BackfillConfirmModal(
+        this.app,
+        props,
+        () => resolve("confirm"),
+        () => resolve("cancel"),
+      ).open();
+    });
+  }
+
+  private plusClientConfig(): PlusClientConfig {
+    return {
+      baseUrl: this.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL,
+      request: plusFetchRequest,
+    };
+  }
+
+  /**
+   * Price the offer against a meter read taken now (GET `/v1/me`), which returns `status`,
+   * `remaining` and `periodEnd` together so all three are equally fresh.
+   *
+   * Never `classifyViaProxy`: that is a POST to `/v1/classify` reporting `remaining` only as a
+   * side effect of actually classifying, so pricing through it would spend a filing and write an
+   * atom to quote an offer the user has not accepted. A failed or rejected refresh leaves the
+   * stored session untouched, takes the baseline reserve, and blocks nothing.
+   */
+  private async derivePlusBackfillOffer(): Promise<{
+    props: Extract<BackfillConfirmProps, { engine: "plus" }>;
+    range: RecentFirstRange;
+    meterKnown: boolean;
+  } | null> {
+    const today = localDateString();
+    const stored = readPlusSession(this.app);
+    let fresh = false;
+    if (stored) {
+      const record = await refreshPlusEntitlementRecord(
+        this.app,
+        this.plusClientConfig(),
+        stored,
+      );
+      fresh = record.kind === "ok";
+    }
+    // Re-read: a confirmed refresh has rewritten the session, a failed one has not.
+    const session = readPlusSession(this.app);
+    const budget = resolveBackfillBudget({
+      period: session?.status === "trialing" ? "trial" : "paid",
+      fresh,
+      today,
+      periodEnd: session?.periodEnd,
+      remaining: session?.remaining,
+    });
+    const before = this.backfillComplementBefore(today);
+    const range = deriveRecentFirstRange({
+      dailies: await this.backfillComplement({ before }),
+      before,
+      budget: budget.budget,
+    });
+    if (range.totalCaptures === 0) {
+      new Notice("Atoms: nothing to backfill (no unmarked past captures)");
+      return null;
+    }
+    const meterKnown = session?.remaining !== undefined;
+    return {
+      range,
+      meterKnown,
+      props: {
+        engine: "plus",
+        run: range,
+        // Omitted when nothing came back from the meter: a confidently wrong count on a
+        // consent surface is worse than no count at all.
+        ...(meterKnown ? { remaining: session?.remaining } : {}),
+        daysRemaining: budget.daysRemaining,
+      },
+    };
+  }
+
+  /**
+   * Plus/trial backfill: meter read → offer → confirm → bounded write pass.
+   *
+   * The loop exists for KTD11's top-up: the range, budget and counts on screen were all priced
+   * against the pre-top-up meter, so a purchase re-derives the whole offer rather than re-showing
+   * the one the user just paid to escape. It is bounded by `BACKFILL_TOPUP_ROUNDS` because an
+   * over-budget offer can still be over budget after a purchase, and every round costs a meter
+   * read and a vault scan.
+   */
+  private async runPlusBackfillFlow(): Promise<void> {
+    if (this.backfillBusy()) return;
+    // Held for the whole flow, not just the write pass: the confirm gate and the top-up poll are
+    // both windows a second tap lands in, and a concurrent flow there means a duplicate vault
+    // scan, a duplicate meter read and a second checkout tab.
+    this.backfillInFlight = true;
+    try {
+      await this.plusBackfillRounds();
+    } finally {
+      this.backfillInFlight = false;
+    }
+  }
+
+  /** The gate/run loop itself. Runs only under `backfillInFlight` — see its one caller. */
+  private async plusBackfillRounds(): Promise<void> {
+    for (let round = 0; round <= BACKFILL_TOPUP_ROUNDS; round += 1) {
+      let offer: Awaited<ReturnType<AtomsPlugin["derivePlusBackfillOffer"]>>;
+      try {
+        offer = await this.derivePlusBackfillOffer();
+      } catch (e) {
+        devLog("[atoms] backfill offer failed", {
+          name: e instanceof Error ? e.name : "Error",
+          message: e instanceof Error ? e.message.slice(0, 200) : "unknown",
+        });
+        new Notice(
+          `Atoms: backfill unavailable — ${e instanceof Error ? e.message.slice(0, 80) : "error"}`,
+        );
+        return;
+      }
+      if (!offer) return;
+      if ((await this.confirmBackfill(offer.props)) !== "confirm") return;
+
+      // No count came back, so the primary button read "Refresh status" — it asks for the meter
+      // again, not for a run.
+      if (!offer.meterKnown) {
+        await this.refreshPlusEntitlementNow();
+        return;
+      }
+      if (!offer.range.overBudget) {
+        await this.executePlusBackfill(offer.range);
+        return;
+      }
+      if (!(await this.buyBackfillTopUp())) return;
+    }
+    new Notice("Atoms: open backfill again to file the rest.");
+  }
+
+  /** The "Refresh status" branch of the gate — the meter, not a run. */
+  private async refreshPlusEntitlementNow(): Promise<void> {
+    const session = readPlusSession(this.app);
+    if (!session) return;
+    const record = await refreshPlusEntitlementRecord(
+      this.app,
+      this.plusClientConfig(),
+      session,
+    );
+    new Notice(`Atoms Plus: ${record.message}`);
+  }
+
+  /**
+   * Buy filings for the over-budget offer, then wait for them to land.
+   *
+   * Checkout completes in a browser tab this plugin does not own, so the meter is the only
+   * signal available. The poll is bounded rather than open-ended: a user who closed the tab must
+   * get the flow back, not a spinner.
+   */
+  private async buyBackfillTopUp(): Promise<boolean> {
+    const session = readPlusSession(this.app);
+    if (!session) return false;
+    const before = session.remaining ?? 0;
+    const checkout = await createCheckout(
+      this.plusClientConfig(),
+      session.sessionToken,
+      "topup_50",
+    );
+    if (!checkout.ok) {
+      new Notice(`Atoms Plus: ${checkout.message}`);
+      return false;
+    }
+    window.open(checkout.url, "_blank");
+    new Notice(
+      "Atoms Plus: finish checkout in the browser — backfill reopens with the new filings.",
+    );
+
+    for (let attempt = 0; attempt < this.backfillTopUpPoll.attempts; attempt += 1) {
+      await new Promise<void>((resolve) => {
+        window.setTimeout(resolve, this.backfillTopUpPoll.intervalMs);
+      });
+      const current = readPlusSession(this.app) ?? session;
+      const record = await refreshPlusEntitlementRecord(
+        this.app,
+        this.plusClientConfig(),
+        current,
+      ).catch(() => null);
+      if (record?.kind !== "ok") continue;
+      if ((readPlusSession(this.app)?.remaining ?? 0) > before) return true;
+    }
+    new Notice("Atoms: no new filings yet — open backfill again once your top-up lands.");
+    return false;
+  }
+
+  /**
+   * The Plus engine (KTD7): the same per-capture write path `maybeAutoRun` uses, bounded by the
+   * derived range. Not `backfill.ts`, which is Batch-API-and-BYOK by construction.
+   */
+  private async executePlusBackfill(range: RecentFirstRange): Promise<void> {
+    // No guard and no flag of its own: `runPlusBackfillFlow` already holds `backfillInFlight` for
+    // the whole flow this runs inside. Taking it a second time here would clear it on the way out
+    // while the top-up loop is still live.
+    const classifyAuth = this.requireClassifyAuth();
+    if (!classifyAuth) return;
+    // Home has to look busy for the duration. The flag above stops a second *backfill*, but
+    // home's Process button reads `AtomsHomeView.busy` — and a run that shows no progress
+    // anywhere is exactly what makes a user reach for Process while one is going.
+    this.beginHomeRun("process");
+    try {
+      const report = await runWritePath({
+        app: this.app,
+        contextProvider: this.contextProvider,
+        apiKey: classifyAuth.apiKey,
+        model: this.settings.model,
+        activeVocabulary: this.settings.activeVocabulary,
+        atomFolder: this.settings.atomFolder,
+        ...shortlistOptionsFromSettings(),
+        enableHubProjection: this.settings.enableHubProjection === true,
+        // Backfill is attended, but it is still past-only: today's daily belongs to nobody's
+        // automatic pass and to no offer priced off the complement.
+        includeToday: false,
+        // Both bounds. `since` alone would file straight through the filing window auto-run
+        // already owns — metered double-spend on the captures KTD3 exists to exclude.
+        since: range.since,
+        before: range.before,
+        // The range bounds *dates*; this bounds the count. The offer was priced at derivation
+        // time and this re-scans at write time, so captures that land in between — a phone Sync
+        // dropping bullets onto a mid-range daily, the inbox draining into a past note — would
+        // otherwise be filed past the number the gate quoted and into the period's reserve.
+        // Newest-first means the cap drops the oldest end, which the range already treats as
+        // spillover for the next run.
+        maxCaptures: range.captures,
+        order: "newest-first",
+        stopOnAuthExhausted: true,
+        classifyDeps: { maxAttempts: 2, plus: classifyAuth.plus },
+        onProgress: (done, total, meta) => {
+          this.updateHomeProgress(done, total, meta?.captureText);
+        },
+      });
+      this.lastWriteReport = report;
+
+      if (report.proposedTagsMerged.length) {
+        this.settings.proposedTags = mergeProposedTags(
+          this.settings.proposedTags,
+          report.proposedTagsMerged,
+          this.settings.activeVocabulary,
+        );
+        await this.saveSettings();
+      }
+
+      const filed = report.entries.length;
+      devLog("[atoms] plus backfill complete", {
+        since: range.since,
+        before: range.before,
+        offered: range.captures,
+        filed,
+        failed: report.failed,
+        stoppedReason: report.stoppedReason,
+      });
+      this.finishHomeRun(
+        formatRunSummary(summaryFromWrite(report)),
+        this.landPeakFromWrite(report, "process"),
+      );
+      new Notice(
+        report.stoppedReason === "exhausted"
+          ? `Atoms backfill: filed ${filed} of ${range.captures} — filings ran out. It picks up here when they reset.`
+          : `Atoms backfill: filed ${filed} capture${filed === 1 ? "" : "s"} (${report.atomsCreated} atom${report.atomsCreated === 1 ? "" : "s"})`,
+      );
+      if (report.atomsCreated > 0 || report.markersAppended > 0) {
+        this.scheduleAskMirrorSync();
+      }
+      // No `refreshAtomsHomeLeaves()` here: `finishHomeRun` above already refreshes every open
+      // home leaf. A second one is a duplicate vault read, and — as the only awaited call left
+      // on the success path — the one statement whose throw would land in the catch below and
+      // report a run that fully succeeded as "Backfill failed".
+    } catch (e) {
+      devLog("[atoms] plus backfill failed", {
+        name: e instanceof Error ? e.name : "Error",
+        message: e instanceof Error ? e.message.slice(0, 200) : "unknown",
+      });
+      this.failHomeRun("Backfill failed");
+      new Notice(
+        `Atoms: backfill failed — ${e instanceof Error ? e.message.slice(0, 100) : "error"}`,
+      );
+    }
+  }
+
+  /**
+   * The BYOK card's bounded range: no meter and nothing to reserve, but the same per-run cap.
+   * `"empty"` and `"over-budget"` are the two answers that have no range to submit.
+   */
+  private async deriveByokBackfillRange(): Promise<
+    RecentFirstRange | "empty" | "over-budget"
+  > {
+    const today = localDateString();
+    const before = this.backfillComplementBefore(today);
+    const budget = resolveBackfillBudget({
+      period: "byok",
+      fresh: false,
+      today,
+    });
+    const range = deriveRecentFirstRange({
+      dailies: await this.backfillComplement({ before }),
+      before,
+      budget: budget.budget,
+    });
+    if (range.totalCaptures === 0) return "empty";
+    if (range.overBudget) return "over-budget";
+    return range;
+  }
+
+  /**
+   * U10 — estimate (count_tokens) → confirm modal → batch submit → poll → write path.
+   * No batch is submitted until the user confirms the gate.
+   *
+   * BYOK has no meter and nothing to reserve, but the **card** takes the same per-run cap as
+   * Plus: one card shape, one modal shape, one code path, and a recent-first default that stays
+   * meaningful rather than decorative. Going beyond the cap stays this same command, unbounded.
+   */
+  private async runByokBackfillFlow(source: "card" | "command") {
+    const apiKey = this.requireApiKey();
+    if (!apiKey) return;
+    if (this.backfillBusy()) return;
+    // Held for the whole flow, exactly as `runPlusBackfillFlow` holds it: the estimate pins a
+    // whole vault's corpus and the gate is a long window a second tap lands in. The check above
+    // and this set are one synchronous step on purpose — an await between them lets two taps
+    // through into two estimates, two pinned corpora and two gates.
+    this.backfillInFlight = true;
+    try {
+      await this.byokBackfillEstimateAndSubmit(source, apiKey);
+    } finally {
+      this.backfillInFlight = false;
+    }
+  }
+
+  /** The estimate/gate/submit itself. Runs only under `backfillInFlight` — see its one caller. */
+  private async byokBackfillEstimateAndSubmit(
+    source: "card" | "command",
+    apiKey: string,
+  ): Promise<void> {
     new Notice("Atoms: counting tokens for backfill estimate…");
     try {
       const model = DEFAULT_BACKFILL_MODEL;
+      // The command scans all history, exactly as it did before the card existed. Only the card
+      // derives a bounded range.
+      const range =
+        source === "card" ? await this.deriveByokBackfillRange() : null;
+      if (range === "empty") {
+        new Notice("Atoms: nothing to backfill (no unmarked past captures)");
+        return;
+      }
+      if (range === "over-budget") {
+        // A single daily bigger than one run — nothing this card can submit, but not a dead
+        // end: the unbounded command still prices and submits the whole history.
+        new Notice(
+          `Atoms: the next day back is larger than one backfill run (${BACKFILL_CAP.byok} captures). Run "Backfill: estimate cost & confirm batch" for the whole history.`,
+        );
+        return;
+      }
       const prepared = await prepareBackfillEstimate({
         app: this.app,
         contextProvider: this.contextProvider,
@@ -1219,6 +1806,8 @@ export default class AtomsPlugin extends Plugin {
         model,
         atomFolder: this.settings.atomFolder,
         shortlistK: shortlistOptionsFromSettings().shortlistK,
+        since: range?.since,
+        before: range?.before,
       });
       this.lastBackfillEstimate = prepared.estimate;
 
@@ -1238,30 +1827,32 @@ export default class AtomsPlugin extends Plugin {
         `Atoms: ${prepared.estimate.summaryLine} — confirm in the dialog`,
       );
 
-      let confirmed = false;
-      const modal = new BackfillConfirmModal(this.app, prepared.estimate, async () => {
-        confirmed = true;
-        try {
-          await this.executeBackfillBatch({
-            apiKey,
-            model,
-            work: prepared.work,
-            run: prepared.run,
-            // Chunk one was priced against this same corpus with nothing yet written; resolving it
-            // again would be byte-for-byte the same answer.
-            firstChunk: prepared.chunks[0],
-          });
-        } finally {
-          prepared.run.end();
-        }
+      // The gate is awaited rather than fired and forgotten — the same `confirmBackfill` the Plus
+      // engine waits on. The in-flight flag this method's caller holds has to cover the confirm
+      // window and the batch it starts, not just the estimate above, and a gate answered from a
+      // callback after the flow returned covers neither.
+      const verdict = await this.confirmBackfill({
+        engine: "byok",
+        estimate: prepared.estimate,
       });
-      // Declining the gate must not leave a whole vault's corpus pinned.
-      const closeHook = modal.onClose.bind(modal);
-      modal.onClose = () => {
-        closeHook();
-        if (!confirmed) prepared.run.end();
-      };
-      modal.open();
+      // Declining must not leave a whole vault's corpus pinned; neither must a finished submit.
+      if (verdict !== "confirm") {
+        prepared.run.end();
+        return;
+      }
+      try {
+        await this.executeBackfillBatch({
+          apiKey,
+          model,
+          work: prepared.work,
+          run: prepared.run,
+          // Chunk one was priced against this same corpus with nothing yet written; resolving it
+          // again would be byte-for-byte the same answer.
+          firstChunk: prepared.chunks[0],
+        });
+      } finally {
+        prepared.run.end();
+      }
     } catch (e) {
       devLog("[atoms] backfill estimate failed", {
         name: e instanceof Error ? e.name : "Error",
@@ -1286,8 +1877,9 @@ export default class AtomsPlugin extends Plugin {
     run: import("../pipeline/context").ContextRun;
     firstChunk?: import("../pipeline/backfill").ResolvedBackfillChunk;
   }) {
-    if (this.backfillInFlight) return;
-    this.backfillInFlight = true;
+    // No flag of its own: `runByokBackfillFlow` already holds `backfillInFlight` across the
+    // estimate, the gate and this submit. Taking it a second time here would refuse the very
+    // batch the user just consented to pay for, and refuse it silently.
     try {
       const hubCtx = opts.run.vaultContext;
       const report = await runBackfillChunks({
@@ -1332,6 +1924,7 @@ export default class AtomsPlugin extends Plugin {
             atomFolder: this.settings.atomFolder,
             activeVocabulary: this.settings.activeVocabulary,
             personHubDetails: hubCtx.personHubDetails,
+            listHubDetails: hubCtx.listHubDetails,
             enableHubProjection: this.settings.enableHubProjection === true,
             // Feeds this chunk's atoms to the next chunk's shortlist (KTD4a).
             run: opts.run,
@@ -1364,8 +1957,6 @@ export default class AtomsPlugin extends Plugin {
       new Notice(
         `Atoms: backfill failed — ${e instanceof Error ? e.message.slice(0, 100) : "error"}`,
       );
-    } finally {
-      this.backfillInFlight = false;
     }
   }
 
@@ -1396,10 +1987,24 @@ export default class AtomsPlugin extends Plugin {
     await runOpenAtomGraph(this.app, this.settings.atomFolder);
   }
 
+  async runOpenLoops(mode: "browse" | "review"): Promise<void> {
+    const { runOpenLoopsCommand } = await import("./openLoopsUi");
+    await runOpenLoopsCommand(this.app, this.settings.atomFolder, mode);
+  }
+
   async showAutoRunStatus() {
     const snap = this.getAutoRunSnapshot();
     const today = localDateString();
-    const pastRemaining = await this.countPastUnprocessed();
+    // The same bound the next unattended pass will resolve. Unbounded here would report work
+    // remaining on a drained window and `wouldRunNow: true` on a day already stamped — and this
+    // command is what the CLI smoke reads as evidence, so that number would be read as a defect.
+    // Read-only: a diagnostic must not mint the window start, which would also rob
+    // `migrateAutoFilingWindow` of the stamp its flag depends on.
+    const since = readAutoFilingSince(
+      (k) => this.app.loadLocalStorage(k) as unknown,
+      today,
+    );
+    const pastRemaining = await this.countPastUnprocessed({ since });
     const would = shouldRunAutoProcess({
       enabled: snap.enabled,
       lastRunDay: snap.lastRunDay,
@@ -1410,6 +2015,7 @@ export default class AtomsPlugin extends Plugin {
     const payload = {
       ...snap,
       today,
+      filingSince: since,
       vaultIndexReady: this.vaultIndexReady,
       pastRemaining,
       wouldRunNow: would,
@@ -1434,19 +2040,48 @@ export default class AtomsPlugin extends Plugin {
    * A named seam, so the invariant can be asserted rather than only asserted about.
    */
   plusSignInHost() {
-    const plugin = this;
+    // Live getters (not a snapshot of `this.settings`): loadSettings replaces the object.
+    const getPlusBaseUrl = (): string => this.settings.plusBaseUrl;
     return {
       app: this.app,
       settings: {
         get plusBaseUrl() {
-          return plugin.settings.plusBaseUrl;
+          return getPlusBaseUrl();
         },
       },
       // The only gate in front of the exchange (#240 U10 / R4): the modal owns
       // the question, `platform/plusSignIn` owns what a "confirmed" spends.
       confirmSignIn: (request: Parameters<typeof askSignInApproval>[1]) =>
         askSignInApproval(this.app, request),
+      // Identity-aware install (#393) — same boundary Settings paste/trial use.
+      installSession: (session: import("../platform/filingAuth").PlusSession) =>
+        this.installPlusSession(session),
     };
+  }
+
+  /**
+   * Write a Plus session after disarming Ask when the identity changes (#393).
+   * Same-account re-auth keeps the hash baseline.
+   */
+  async installPlusSession(
+    session: import("../platform/filingAuth").PlusSession,
+  ): Promise<void> {
+    const { installPlusSession } = await import("../platform/plusSessionInstall");
+    await installPlusSession(
+      {
+        settings: this.settings,
+        saveSettings: () => this.saveSettings(),
+        mirrorPermitted: () => this.ask.mirrorPermitted(),
+        cancelPendingSync: () => this.ask.cancelPendingSync(),
+        saveLocalStorage: (k, v) => this.app.saveLocalStorage(k, v),
+        loadLocalStorage: (k): unknown => this.app.loadLocalStorage(k),
+      },
+      session,
+    );
+    // Magic-link install does not go through Settings' own redisplay. Paste and
+    // trial do. Without this, an open Account destination keeps the signed-out
+    // form until the user taps Back (#473).
+    this.settingTab?.refreshFromExternalSettings();
   }
 
   async loadSettings() {
@@ -1456,6 +2091,85 @@ export default class AtomsPlugin extends Plugin {
     // that path supplies its own `raw` and rejects the wipe shape first.
     const raw = ((await this.loadData()) ?? {}) as Partial<LinkerSettings>;
     if (this.applyLoadedSettings(raw)) await this.saveSettings();
+  }
+
+  /**
+   * R11b — already-on users learn list hubs are now included (one-shot).
+   */
+  async maybeShowHubProjectionListDisclosure(): Promise<void> {
+    if (this.settings.enableHubProjection !== true) return;
+    if (this.settings.hubProjectionListDisclosureSeen === true) return;
+    new Notice(
+      "Atoms: List atoms on hub notes now covers list hubs too (like Movies), not only people. Your writing above the list is still never changed.",
+      12000,
+    );
+    this.settings.hubProjectionListDisclosureSeen = true;
+    await this.saveSettings();
+  }
+
+  /**
+   * Preview hub list bulk update (toggle-on or Refresh), then write on confirm.
+   */
+  async openHubListPreview(_source: "toggle-on" | "refresh"): Promise<void> {
+    if (this.settings.enableHubProjection !== true) return;
+    const preparing = new Notice("Atoms: preparing hub list preview…", 0);
+    try {
+      const {
+        buildFullHubProjectionPlan,
+        applyHubProjectionPlan,
+        noticeHubProjectionErrors,
+      } = await import("../pipeline/runHubProjection");
+      const {
+        summarizeHubProjectionPlan,
+        filterPlanIncludeUnsorted,
+      } = await import("../pipeline/hubListPreview");
+      const { openHubListPreviewModal } = await import(
+        "../settings/hubListPreviewModal"
+      );
+
+      const built = await buildFullHubProjectionPlan({
+        app: this.app,
+        enabled: true,
+        atomFolder: this.settings.atomFolder,
+        personHubDetails: this.contextProvider?.buildContext()
+          .personHubDetails,
+      });
+      preparing.hide();
+
+      const withU = summarizeHubProjectionPlan(built.plan);
+      const withoutU = summarizeHubProjectionPlan(
+        filterPlanIncludeUnsorted(built.plan, false),
+      );
+
+      const result = await openHubListPreviewModal(this.app, withU, withoutU);
+      if (result.action !== "confirm") return;
+
+      const plan = filterPlanIncludeUnsorted(
+        built.plan,
+        result.includeUnsorted,
+      );
+      const applied = await applyHubProjectionPlan(this.app, plan);
+      const filled = plan.writes.filter((w) => w.changed).length;
+      new Notice(
+        `Atoms: updated ${applied.wrote} hub list${
+          applied.wrote === 1 ? "" : "s"
+        }${
+          filled > applied.wrote
+            ? ` (${filled - applied.wrote} planned but not written)`
+            : ""
+        }`,
+        10000,
+      );
+      noticeHubProjectionErrors(applied.errors, 2);
+    } catch {
+      preparing.hide();
+      new Notice("Atoms: could not refresh hub lists", 6000);
+    }
+  }
+
+  /** @deprecated use openHubListPreview — kept for any stray callers */
+  async runHubProjectionFullRegenNotice(): Promise<void> {
+    await this.openHubListPreview("toggle-on");
   }
 
   /**
@@ -1660,7 +2374,7 @@ export default class AtomsPlugin extends Plugin {
     }
 
     if (this.settings.useDeviceLocalKeyFallback) {
-      const local = this.app.loadLocalStorage(LOCAL_STORAGE_API_KEY);
+      const local: unknown = this.app.loadLocalStorage(LOCAL_STORAGE_API_KEY);
       if (typeof local === "string" && local.trim()) return local.trim();
     }
 
@@ -1676,6 +2390,70 @@ export default class AtomsPlugin extends Plugin {
       byokApiKey: this.getApiKey(),
       plusSession: readPlusSession(this.app),
     });
+  }
+
+  /**
+   * One quiet `/v1/me` when the stored period ended after the last confirmed refresh (#442).
+   *
+   * This is the half of #442 that is not copy. Nothing announces an expiry — the only automatic
+   * refresh is the post-Checkout poll, which returns early unless a checkout is in flight — so a
+   * device could hold a pre-expiry snapshot indefinitely and keep drawing a healthy account
+   * while every Ask route 403'd. The reported account sat that way for 23 hours.
+   *
+   * Deliberately *asking* rather than inferring: the surfaces refuse to call a period ended
+   * until the service says so, precisely so a converted trial is never told its trial expired.
+   * That refusal is only honest if something goes and gets the answer.
+   *
+   * Narrow by construction — a live period, a fresh snapshot, or no session does nothing, so
+   * this is not a per-load ping. `refreshPlusEntitlementRecord` already fails safe: an
+   * unreachable service records the outcome and leaves the stored session untouched.
+   */
+  private async refreshEntitlementIfPeriodEnded(): Promise<void> {
+    const session = readPlusSession(this.app);
+    if (!plusNeedsPeriodRefresh(session) || !session) return;
+    try {
+      const { refreshPlusEntitlementRecord } = await import(
+        "../platform/plusRefresh"
+      );
+      const { DEFAULT_PLUS_BASE_URL, plusFetchRequest } = await import(
+        "../platform/plusClient"
+      );
+      await refreshPlusEntitlementRecord(
+        this.app,
+        {
+          baseUrl: this.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL,
+          request: plusFetchRequest,
+        },
+        session,
+      );
+    } catch {
+      // Silent on purpose: this runs at load with no user waiting on it, and the stored
+      // session is untouched either way. Settings' Refresh status is the loud path.
+    }
+  }
+
+  /**
+   * The auth-failure Notice, once per burst rather than once per capture.
+   *
+   * `onAuthFailure` fires inside the classify loop (`pipeline/classify.ts`), so a single
+   * rejected session announced itself once for *every* capture in the run — fifteen identical
+   * Notices stacking down the edge of the window on a fifteen-capture preview, before the
+   * summary that actually said what happened. The message is about the session, not the
+   * capture, so repeating it per item told the user nothing new fourteen more times.
+   *
+   * Deduped by message rather than by run: every path that classifies a batch shares this
+   * helper, and a run boundary is not visible from here. The window extends while the same
+   * failure keeps arriving, so one burst speaks once however long it runs; a *different*
+   * failure still speaks immediately, and the same one speaks again after the quiet passes.
+   */
+  private noticeAuthFailureOnce(message: string): void {
+    const now = Date.now();
+    const recent =
+      this.lastAuthNotice?.message === message &&
+      now - this.lastAuthNotice.at < AUTH_NOTICE_QUIET_MS;
+    this.lastAuthNotice = { message, at: now };
+    if (recent) return;
+    new Notice(`Atoms: ${message}`);
   }
 
   private requireApiKey(): string | null {
@@ -1742,6 +2520,22 @@ export default class AtomsPlugin extends Plugin {
    * includeToday: manual force for testing on phone (never used by auto-run).
    */
   async runProcessUnprocessed(opts?: { includeToday?: boolean }) {
+    // `requireClassifyAuth` has no concurrency check of its own. `render.ts` rewrites a whole
+    // daily from the run's own cache, so a Process started under another filing pass can write
+    // back a snapshot taken before that pass appended its sentinels — and a capture with no
+    // sentinel is one the next run files again. Claiming as well as checking is what closes the
+    // other direction: a backfill started *after* this one has to be able to see it.
+    if (this.backfillBusy()) return;
+    this.manualFilingInFlight = true;
+    try {
+      await this.processUnprocessedRun(opts);
+    } finally {
+      this.manualFilingInFlight = false;
+    }
+  }
+
+  /** The write pass itself. Runs only under `manualFilingInFlight` — see its one caller. */
+  private async processUnprocessedRun(opts?: { includeToday?: boolean }) {
     const classifyAuth = this.requireClassifyAuth();
     if (!classifyAuth) return;
 
@@ -1766,7 +2560,7 @@ export default class AtomsPlugin extends Plugin {
         classifyDeps: {
           maxAttempts: 2,
           plus: classifyAuth.plus,
-          onAuthFailure: (msg) => new Notice(`Atoms: ${msg}`),
+          onAuthFailure: (msg) => this.noticeAuthFailureOnce(msg),
         },
         onProgress: (done, total, meta) => {
           this.updateHomeProgress(done, total, meta?.captureText);
@@ -1955,7 +2749,7 @@ export default class AtomsPlugin extends Plugin {
           // Fail fast on network blips during preview (still retries once).
           maxAttempts: 2,
           plus: classifyAuth.plus,
-          onAuthFailure: (msg) => new Notice(`Atoms: ${msg}`),
+          onAuthFailure: (msg) => this.noticeAuthFailureOnce(msg),
         },
         onProgress: (done, total, meta) => {
           this.updateHomeProgress(done, total, meta?.captureText);
@@ -2020,6 +2814,9 @@ export default class AtomsPlugin extends Plugin {
 
   async runListUnprocessed() {
     try {
+      // Deliberately unbounded, unlike every filing surface: this is the diagnostic that
+      // answers "what is actually unmarked in this vault", including everything outside the
+      // filing window. Bounding it would hide exactly what someone runs it to see.
       const { notes, totalUnprocessed } =
         await getPastDailyNotesWithUnmarkedCaptures(this.app);
       devLog("[atoms] unprocessed captures", {
@@ -2069,7 +2866,7 @@ export default class AtomsPlugin extends Plugin {
         apiKey,
         model: this.settings.model,
         activeVocabulary: this.settings.activeVocabulary,
-        onAuthFailure: (msg) => new Notice(`Atoms: ${msg}`),
+        onAuthFailure: (msg) => this.noticeAuthFailureOnce(msg),
       });
       this.lastClassifyOutcome = outcome;
       logClassifyOutcome("first-unprocessed", outcome);
@@ -2112,7 +2909,7 @@ export default class AtomsPlugin extends Plugin {
       apiKey,
       model: this.settings.model,
       activeVocabulary: this.settings.activeVocabulary,
-      onAuthFailure: (msg) => new Notice(`Atoms: ${msg}`),
+      onAuthFailure: (msg) => this.noticeAuthFailureOnce(msg),
     });
     this.lastClassifyOutcome = outcome;
     logClassifyOutcome("spike-classify", outcome);
@@ -2147,7 +2944,7 @@ export default class AtomsPlugin extends Plugin {
         apiKey,
         model: this.settings.model,
         activeVocabulary: this.settings.activeVocabulary,
-        onAuthFailure: (msg) => new Notice(`Atoms: ${msg}`),
+        onAuthFailure: (msg) => this.noticeAuthFailureOnce(msg),
       });
       logClassifyOutcome(`per-capture #${i + 1}`, outcome);
       if (outcome.ok) {
@@ -2288,7 +3085,7 @@ export default class AtomsPlugin extends Plugin {
         maxAttempts: 2,
         plus: classifyAuth.plus,
         ...shortlist,
-        onAuthFailure: (msg) => new Notice(`Atoms: ${msg}`),
+        onAuthFailure: (msg) => this.noticeAuthFailureOnce(msg),
       });
 
       loading.close();

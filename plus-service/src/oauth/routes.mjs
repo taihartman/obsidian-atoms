@@ -21,12 +21,15 @@ import {
   authorizeChooserForm,
   authorizeEmailForm,
   consentForm,
+  clientRedirectHandoff,
   simpleMessage,
 } from "./html.mjs";
 import {
   authorizationServerMetadata,
   protectedResourceMetadata,
 } from "./metadata.mjs";
+import { subscriptionLive } from "../store/shared.mjs";
+import { OAUTH_HTML_SECURITY_HEADERS } from "../html/shell.mjs";
 
 /**
  * RFC 9207: append iss on every 302 back to the client redirect_uri.
@@ -42,21 +45,37 @@ function appendIss(u) {
  * @param {string} redirectUri
  * @param {Record<string, string>} params
  */
+/**
+ * Finish OAuth by sending the browser to the AI app. Prefer a same-origin HTML
+ * handoff (200 + meta-refresh + link) so CSP form-action on the consent
+ * document cannot swallow the navigation. Also set Location for clients that
+ * follow redirects from fetch(redirect:manual) tests.
+ * @param {import('node:http').ServerResponse} res
+ * @param {string} redirectUri
+ * @param {Record<string, string>} params
+ */
 function redirectToClient(res, redirectUri, params) {
   const u = new URL(redirectUri);
   for (const [k, v] of Object.entries(params)) {
     if (v != null && v !== "") u.searchParams.set(k, v);
   }
   appendIss(u);
-  res.writeHead(302, { location: u.toString() });
-  res.end();
+  const loc = u.toString();
+  const data = clientRedirectHandoff(loc);
+  res.writeHead(200, {
+    ...OAUTH_HTML_SECURITY_HEADERS,
+    location: loc,
+    "content-length": Buffer.byteLength(data),
+  });
+  res.end(data);
 }
 
-function writeHtml(res, status, html) {
+function writeHtml(res, status, html, extraHeaders = {}) {
   const data = html;
   res.writeHead(status, {
-    "content-type": "text/html; charset=utf-8",
+    ...OAUTH_HTML_SECURITY_HEADERS,
     "content-length": Buffer.byteLength(data),
+    ...extraHeaders,
   });
   res.end(data);
 }
@@ -223,7 +242,7 @@ export async function handleOauthRoutes({
     const bs = bsId ? await store.mcpGetBrowserSession(bsId) : null;
     if (bs?.email) {
       const a = await store.getAccount(bs.email);
-      if (a && (a.status === "active" || a.status === "trialing")) {
+      if (subscriptionLive(a)) {
         // R5: chooser — never silent consent (wrong-tenant trap)
         writeHtml(res, 200, authorizeChooserForm(pendingId, bs.email));
         return true;
@@ -255,7 +274,7 @@ export async function handleOauthRoutes({
       const bs = bsId ? await store.mcpGetBrowserSession(bsId) : null;
       if (bs?.email) {
         const a = await store.getAccount(bs.email);
-        if (a && (a.status === "active" || a.status === "trialing")) {
+        if (subscriptionLive(a)) {
           writeHtml(res, 400, authorizeChooserForm(pendingId, bs.email, err));
           return;
         }
@@ -272,7 +291,7 @@ export async function handleOauthRoutes({
         return true;
       }
       const a = await store.getAccount(bs.email);
-      if (!a || (a.status !== "active" && a.status !== "trialing")) {
+      if (!subscriptionLive(a)) {
         writeHtml(
           res,
           403,
@@ -311,7 +330,7 @@ export async function handleOauthRoutes({
         return true;
       }
       const a = await store.getAccount(redeemed.email);
-      if (!a || (a.status !== "active" && a.status !== "trialing")) {
+      if (!subscriptionLive(a)) {
         writeHtml(
           res,
           403,
@@ -333,13 +352,11 @@ export async function handleOauthRoutes({
         a.email,
         oauthClientLabel(pending.clientId || "", pending.redirectUri || ""),
       );
-      res.writeHead(200, {
-        "content-type": "text/html; charset=utf-8",
+      writeHtml(res, 200, html, {
         "set-cookie": [
           `atoms_oauth_bs=${encodeURIComponent(newBs)}; Path=/; Max-Age=900; HttpOnly; SameSite=Lax${secure}`,
         ],
       });
-      res.end(html);
       return true;
     }
 
@@ -398,7 +415,7 @@ export async function handleOauthRoutes({
       return true;
     }
     const a = await store.getAccount(email);
-    if (!a || (a.status !== "active" && a.status !== "trialing")) {
+    if (!subscriptionLive(a)) {
       writeHtml(
         res,
         403,
@@ -456,7 +473,7 @@ export async function handleOauthRoutes({
       return true;
     }
     const a = await store.getAccount(email);
-    if (!a || (a.status !== "active" && a.status !== "trialing")) {
+    if (!subscriptionLive(a)) {
       writeHtml(res, 403, simpleMessage("Plus required", "Active Plus needed."));
       return true;
     }
@@ -561,7 +578,7 @@ export async function maybeFinishOauthAfterExchange(res, store, out, pendingId) 
   const pending = await store.mcpGetPending(pendingId);
   if (!pending) return false;
   const a = out.account;
-  if (!a || (a.status !== "active" && a.status !== "trialing")) {
+  if (!subscriptionLive(a)) {
     writeHtml(
       res,
       403,

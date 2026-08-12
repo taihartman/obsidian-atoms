@@ -242,12 +242,27 @@ export function publicAccount(a) {
 }
 
 /**
+ * Durable free-trial gate. Reads only `trialUsed` — never `plan === "trial"`
+ * (`ensureAccount` defaults inactive rows to that plan).
+ * @param {{ trialUsed?: boolean } | null | undefined} a
+ */
+/** Short stable id for logs (not reversible to email). */
+export function accountFingerprint(email) {
+  return hashToken(String(email || "").trim().toLowerCase()).slice(0, 12);
+}
+
+export function accountHasUsedTrial(a) {
+  return Boolean(a?.trialUsed);
+}
+
+/**
  * Map a DB row (snake_case) or in-memory account to the store account shape.
  * @param {Record<string, unknown> | null | undefined} r
  */
 export function rowToAccount(r) {
   if (!r) return null;
   const periodEnd = r.periodEnd ?? r.period_end;
+  const rawUsed = r.trialUsed ?? r.trial_used;
   return {
     email: r.email,
     status: r.status,
@@ -260,6 +275,7 @@ export function rowToAccount(r) {
       (r.stripeCustomerId ?? r.stripe_customer_id) || undefined,
     stripeSubscriptionId:
       (r.stripeSubscriptionId ?? r.stripe_subscription_id) || undefined,
+    trialUsed: Boolean(rawUsed === true || rawUsed === 1 || rawUsed === "1"),
   };
 }
 
@@ -281,7 +297,67 @@ export function applyStatusRules(a) {
   return { dirty };
 }
 
-/** Entitled accounts must not receive sess_ from unauthenticated auth/start. */
+/**
+ * Has this account's billing/trial period ended?
+ *
+ * The period boundary is the only thing that tells the two meanings of
+ * `exhausted` apart — see `subscriptionLive`.
+ *
+ * @param {{ periodEnd?: unknown } | null | undefined} a
+ * @param {number} [now]
+ */
+export function periodEnded(a, now = Date.now()) {
+  if (!a) return true;
+  const end = new Date(a.periodEnd).getTime();
+  // Unparsable (`undefined`, `""`, junk) → fail closed. `null` does not reach
+  // this branch — `new Date(null)` is epoch 0, which the comparison below
+  // already reads as ended. Both stores declare period_end NOT NULL, so
+  // neither case should occur; this is a backstop, not a live path.
+  if (!Number.isFinite(end)) return true;
+  return end < now;
+}
+
+/**
+ * Is the subscription still live — i.e. may this account use Ask/MCP?
+ *
+ * `exhausted` covers two unrelated situations, and only one of them revokes
+ * anything:
+ *
+ * - the period **ended** (`applyStatusRules` above) — revokes; the user has to
+ *   renew, and #442/#443 built the client story around telling them so
+ * - this period's filing allotment is **spent** (the meter's UPDATE, e.g.
+ *   `postgres.mjs`) — revokes nothing. Reading a brain that is already mirrored
+ *   has nothing to do with the filing meter. Note the meter's UPDATE also
+ *   accepts `trialing`, so this keeps reads for a trial whose allotment is
+ *   spent but whose period is still live — deliberate, and pinned by a test.
+ *
+ * The period check comes first on purpose, mirroring `applyStatusRules`' own
+ * precedence: a past `periodEnd` is not live whatever `status` still says. That
+ * matters because callers reach this both after `refreshAccountStatus` (the MCP
+ * token path) and straight off `getAccount` (the OAuth connect path), and only
+ * the former has normalized `status` first.
+ *
+ * `unknown` and `inactive` stay out — this widens `exhausted` only.
+ *
+ * @param {{ status?: unknown, periodEnd?: unknown } | null | undefined} a
+ * @param {number} [now]
+ */
+export function subscriptionLive(a, now = Date.now()) {
+  if (!a) return false;
+  const st = String(a.status || "");
+  if (st !== "active" && st !== "trialing" && st !== "exhausted") return false;
+  return !periodEnded(a, now);
+}
+
+/**
+ * Entitled accounts must not receive sess_ from unauthenticated auth/start.
+ *
+ * **Not an Ask/MCP gate, and not interchangeable with `subscriptionLive`.** It
+ * answers "has this account ever been granted anything?", so it deliberately
+ * ignores `periodEnd` and counts a `stripeCustomerId` alone. Gating Ask on it
+ * would hand a lapsed account everything #441 was careful to keep revoking.
+ * Callers are store-internal only; a test pins that.
+ */
 export function isEntitledAccount(a) {
   if (!a) return false;
   if (a.stripeCustomerId) return true;

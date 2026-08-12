@@ -136,6 +136,200 @@ describe("hubTitlesFromAtomContents", () => {
     );
     expect(titles).toEqual(["Nichita"]);
   });
+
+  it("finds list hub hard links when title is allowed", () => {
+    const titles = hubTitlesFromAtomContents(
+      ["---\n---\nx\n\nbelongs with [[Movies]] (watchlist).\n"],
+      ["Movies", "Alex"],
+    );
+    expect(titles).toEqual(["Movies"]);
+  });
+});
+
+describe("person hub empty detail sections", () => {
+  it("plan still places when hub content has H2s and sections filled from content", () => {
+    // Mirrors runHubProjection: empty detail.sections → parseHubSections(content)
+    const content = "# Alex\n\n## Gift Ideas\n";
+    const sections = ["Gift Ideas"]; // would come from parse of content
+    const plan = planHubProjection({
+      enabled: true,
+      touchedHubTitles: ["Alex"],
+      atoms: [
+        {
+          title: "Boots",
+          content:
+            '---\nhub-section: "Gift Ideas"\n---\nb\n\ngift for [[Alex]] (x).\n',
+        },
+      ],
+      hubs: new Map([
+        [
+          "alex",
+          {
+            title: "Alex",
+            path: "People/Alex.md",
+            content,
+            sections,
+            kind: "person",
+          },
+        ],
+      ]),
+    });
+    expect(plan.writes[0]!.next).toContain("## Gift Ideas");
+    expect(plan.writes[0]!.next).toContain("- [[Boots]]");
+  });
+});
+
+describe("planHubProjection list hubs", () => {
+  it("projects Movies when section matches (R3c)", () => {
+    const hubs = new Map([
+      [
+        "movies",
+        {
+          title: "Movies",
+          path: "Movies.md",
+          content: "# Movies\n\n## Want to watch\n",
+          sections: ["Want to watch", "Watched"],
+          kind: "list" as const,
+        },
+      ],
+    ]);
+    const plan = planHubProjection({
+      enabled: true,
+      touchedHubTitles: ["Movies"],
+      atoms: [
+        {
+          title: "Dune",
+          content: [
+            "---",
+            'hub-section: "Want to watch"',
+            "---",
+            "want to watch Dune",
+            "",
+            "belongs with [[Movies]] (watchlist).",
+          ].join("\n"),
+        },
+      ],
+      hubs,
+    });
+    expect(plan.errors).toEqual([]);
+    expect(plan.skipped).toEqual([]);
+    expect(plan.writes[0]!.changed).toBe(true);
+    expect(plan.writes[0]!.next).toContain("## Want to watch");
+    expect(plan.writes[0]!.next).toContain("- [[Dune]]");
+  });
+
+  it("writes list hub with two Unsorted members (R3c allow)", () => {
+    const hubs = new Map([
+      [
+        "movies",
+        {
+          title: "Movies",
+          path: "Movies.md",
+          content: "# Movies\n\n## Want to watch\n",
+          sections: ["Want to watch"],
+          kind: "list" as const,
+        },
+      ],
+    ]);
+    const plan = planHubProjection({
+      enabled: true,
+      touchedHubTitles: ["Movies"],
+      atoms: [
+        {
+          title: "A",
+          content: "---\n---\nx\n\nbelongs with [[Movies]] (list).\n",
+        },
+        {
+          title: "B",
+          content: "---\n---\ny\n\nbelongs with [[Movies]] (list).\n",
+        },
+      ],
+      hubs,
+    });
+    expect(plan.skipped).toEqual([]);
+    expect(plan.writes[0]!.changed).toBe(true);
+    expect(plan.writes[0]!.next).toContain("## Unsorted");
+    expect(plan.writes[0]!.next).toContain("- [[A]]");
+    expect(plan.writes[0]!.next).toContain("- [[B]]");
+  });
+
+  it("skips non-person single Unsorted without delimiters (R3c)", () => {
+    const hubs = new Map([
+      [
+        "meeting notes",
+        {
+          title: "Meeting Notes",
+          path: "Meeting Notes.md",
+          content: "# Meeting Notes\n\n## Agenda\n",
+          sections: ["Agenda"],
+          kind: "list" as const,
+        },
+      ],
+    ]);
+    const plan = planHubProjection({
+      enabled: true,
+      touchedHubTitles: ["Meeting Notes"],
+      atoms: [
+        {
+          title: "Accidental",
+          content: "---\n---\nx\n\nsee [[Meeting Notes]] (ref).\n",
+        },
+      ],
+      hubs,
+    });
+    expect(plan.writes).toEqual([]);
+    expect(plan.skipped).toHaveLength(1);
+    expect(plan.skipped[0]!.skipReason).toBe("non-person-write-brake");
+  });
+
+  it("places shared section name only when that hub has the H2", () => {
+    const hubs = new Map([
+      [
+        "movies",
+        {
+          title: "Movies",
+          path: "Movies.md",
+          content: "# M\n\n## Ideas\n",
+          sections: ["Ideas"],
+          kind: "list" as const,
+        },
+      ],
+      [
+        "alex",
+        {
+          title: "Alex",
+          path: "People/Alex.md",
+          content: "# A\n\n## Gift Ideas\n",
+          sections: ["Gift Ideas"],
+          kind: "person" as const,
+        },
+      ],
+    ]);
+    const atom = {
+      title: "Shared",
+      content: [
+        "---",
+        'hub-section: "Ideas"',
+        "---",
+        "b",
+        "",
+        "about [[Movies]] (list) and [[Alex]] (person).",
+      ].join("\n"),
+    };
+    const plan = planHubProjection({
+      enabled: true,
+      touchedHubTitles: ["Movies", "Alex"],
+      atoms: [atom],
+      hubs,
+    });
+    const movies = plan.writes.find((w) => w.hubTitle === "Movies")!;
+    const alex = plan.writes.find((w) => w.hubTitle === "Alex")!;
+    expect(movies.next).toContain("## Ideas");
+    expect(movies.next).toContain("- [[Shared]]");
+    expect(alex.next).toContain("## Unsorted");
+    expect(alex.next).toContain("- [[Shared]]");
+    expect(alex.next).not.toContain("## Ideas");
+  });
 });
 
 describe("normalizeHubSection", () => {

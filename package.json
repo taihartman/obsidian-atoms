@@ -1,6 +1,6 @@
 {
 	"name": "obsidian-atoms",
-	"version": "0.6.87",
+	"version": "0.7.7",
 	"description": "Classify past daily-note captures into atomic notes via Anthropic API",
 	"main": "main.js",
 	"type": "module",
@@ -25,7 +25,9 @@
 		"measure:links": "node scripts/measure-link-quality.mjs",
 		"measure:chrono": "node scripts/measure-chrono-linking.mjs",
 		"measure:hops": "node scripts/measure-hop-distance.mjs",
-		"measure:expansion": "node scripts/measure-doc-expansion.mjs"
+		"measure:expansion": "node scripts/measure-doc-expansion.mjs",
+		"lint": "eslint \"src/**/*.ts\" --max-warnings 0",
+		"lint:fix": "eslint \"src/**/*.ts\" --fix"
 	},
 	"keywords": [
 		"obsidian",
@@ -34,7 +36,11 @@
 	"license": "MIT",
 	"devDependencies": {
 		"@types/node": "^22.15.17",
+		"@typescript-eslint/eslint-plugin": "^8.66.0",
+		"@typescript-eslint/parser": "^8.66.0",
 		"esbuild": "0.25.5",
+		"eslint": "^9.39.5",
+		"eslint-plugin-obsidianmd": "^0.4.1",
 		"happy-dom": "^20.11.1",
 		"obsidian": "latest",
 		"typescript": "^5.8.3",

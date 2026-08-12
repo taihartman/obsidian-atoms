@@ -7,7 +7,12 @@
  */
 
 import type { RequestUrlParam, RequestUrlResponse } from "obsidian";
-import type { PlusEntitlementStatus, PlusSession } from "./filingAuth";
+import { parsePlusPlan } from "./filingAuth";
+import type {
+  PlusEntitlementStatus,
+  PlusPlan,
+  PlusSession,
+} from "./filingAuth";
 
 export type RequestFn = (params: RequestUrlParam) => Promise<RequestUrlResponse>;
 
@@ -21,8 +26,9 @@ export type RequestFn = (params: RequestUrlParam) => Promise<RequestUrlResponse>
 export async function plusFetchRequest(
   params: RequestUrlParam,
 ): Promise<RequestUrlResponse> {
-  // Community review: prefer requestUrl — see docstring (localhost + CORS).
-  const res = await fetch(params.url, {
+  // `window.fetch` (not bare `fetch`): community lint forbids disabling
+  // no-restricted-globals, and desktop requestUrl fails to localhost.
+  const res = await window.fetch(params.url, {
     method: params.method ?? "GET",
     headers: params.headers,
     body:
@@ -30,7 +36,9 @@ export async function plusFetchRequest(
         ? undefined
         : typeof params.body === "string"
           ? params.body
-          : String(params.body),
+          : params.body instanceof ArrayBuffer || ArrayBuffer.isView(params.body)
+            ? (params.body as BodyInit)
+            : undefined,
   });
   const text = await res.text();
   // Unparseable body stays `undefined` (not `{}`) so plusRequest can tell a
@@ -69,7 +77,7 @@ export type PlusEntitlement = {
   status: PlusEntitlementStatus;
   remaining: number;
   periodEnd?: string;
-  plan?: "monthly" | "yearly" | "trial" | "promo";
+  plan?: PlusPlan;
   email?: string;
 };
 
@@ -295,6 +303,11 @@ function parsePeriodEnd(json: Record<string, unknown>): string | undefined {
   return typeof json.periodEnd === "string" ? json.periodEnd : undefined;
 }
 
+/** Same strictness as the rest: unstated stays undefined, never a guess. */
+function parsePlan(json: Record<string, unknown>): PlusPlan | undefined {
+  return parsePlusPlan(json.plan);
+}
+
 /**
  * Strict: returns null unless the service actually said what the plan is.
  * A missing `status`/`remaining` used to coerce to `unknown`/0, which callers
@@ -311,13 +324,7 @@ function parseEntitlement(
     status,
     remaining,
     periodEnd: parsePeriodEnd(json),
-    plan:
-      json.plan === "monthly" ||
-      json.plan === "yearly" ||
-      json.plan === "trial" ||
-      json.plan === "promo"
-        ? json.plan
-        : undefined,
+    plan: parsePlan(json),
     email: typeof json.email === "string" ? json.email : undefined,
   };
 }
@@ -488,6 +495,7 @@ export async function startPlusAccount(
       status: !status || status === "unknown" ? "inactive" : status,
       remaining: parseRemaining(res.json) ?? 0,
       periodEnd: parsePeriodEnd(res.json),
+      plan: parsePlan(res.json),
       refreshedAt: Date.now(),
     },
   };
@@ -589,6 +597,7 @@ export async function exchangeMagicToken(
       status: !status || status === "unknown" ? "active" : status,
       remaining: parseRemaining(res.json) ?? undefined,
       periodEnd: parsePeriodEnd(res.json),
+      plan: parsePlan(res.json),
       refreshedAt: Date.now(),
     },
   };
@@ -741,6 +750,24 @@ export async function signOutPlus(
 ): Promise<{ ok: true } | PlusApiError> {
   const res = await plusRequest(cfg, {
     path: "/v1/auth/sign-out",
+    method: "POST",
+    sessionToken,
+    body: {},
+  });
+  if (!res.ok) return res;
+  if (res.status < 200 || res.status >= 300) {
+    return mapError(res.status, res.json);
+  }
+  return { ok: true };
+}
+
+/** #320 — revoke every session + MCP grants for this account (including this device). */
+export async function signOutAllDevices(
+  cfg: PlusClientConfig,
+  sessionToken: string,
+): Promise<{ ok: true } | PlusApiError> {
+  const res = await plusRequest(cfg, {
+    path: "/v1/auth/sign-out-all",
     method: "POST",
     sessionToken,
     body: {},
@@ -976,6 +1003,10 @@ export type AskOutboxItem = {
     links?: { note: string; reason?: string }[];
     parent_title?: string;
     relation?: string;
+    open_loop?: boolean;
+    close_answer?: string;
+    state?: string;
+    client_request_id?: string;
   } | null;
 };
 

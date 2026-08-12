@@ -256,6 +256,7 @@
   cursor: pointer;
   align-items: start;
   -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
 .atoms-home-cell:last-child {
@@ -1403,6 +1404,30 @@
   line-height: 1.4;
 }
 
+/* Backfill offer card — same flat-card spacing as the Update strip (kit) */
+.atoms-home-backfill-offer {
+  margin-bottom: 14px;
+  padding: 14px 14px 12px;
+}
+.atoms-home-backfill-offer h2 {
+  margin: 0 0 6px;
+  font-size: 1.1rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+.atoms-home-backfill-offer > p {
+  margin: 0 0 6px;
+  font-size: 0.88rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+/* The currency line sits quieter than the body: what it costs, not what it offers. */
+.atoms-home-backfill-offer > p.atoms-home-backfill-meter {
+  margin: 0 0 12px;
+  font-size: 0.8rem;
+  color: var(--text-faint);
+}
+
 /* Shortcut update banner */
 /* Update notes strip — flat card spacing (kit); not shortcut banner */
 .atoms-home-update-notes {
@@ -1671,6 +1696,14 @@
   display: -webkit-box;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+.atoms-ui-claim-quote--clamp-4 {
+  -webkit-line-clamp: 4;
+}
+
+.atoms-ui-claim-quote--clamp-8 {
+  -webkit-line-clamp: 8;
 }
 
 /* Kicker */
@@ -2043,4 +2076,76 @@
 
 .atoms-home-open-actions {
   margin-top: 14px;
+}
+
+/* Hub list preview modal */
+.atoms-hub-list-preview {
+  margin: 8px 0 12px;
+  max-height: min(360px, 50vh);
+  overflow-y: auto;
+}
+.atoms-hub-list-preview-hub {
+  padding: 10px 12px;
+  margin-bottom: 6px;
+  border-radius: 8px;
+  background: var(--background-secondary);
+}
+.atoms-hub-list-preview-hub-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+.atoms-hub-list-preview-title {
+  font-weight: 600;
+}
+.atoms-hub-list-preview-count {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  white-space: nowrap;
+}
+.atoms-hub-list-preview-secs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.atoms-hub-list-preview-chip {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  background: var(--background-modifier-border);
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+.atoms-hub-list-preview-chip.is-unsorted {
+  background: transparent;
+  border: 1px dashed var(--background-modifier-border);
+}
+.atoms-hub-list-preview-more {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  margin: 4px 0 0;
+}
+
+/* Backfill confirm: the aftermath of confirming, lifted out of the flat body list. */
+.atoms-backfill-aftermath {
+  border-left: 3px solid var(--interactive-accent);
+  background: var(--background-secondary);
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin: 12px 0;
+}
+.atoms-backfill-aftermath h3 {
+  margin: 0 0 6px;
+  font-size: var(--font-ui-small);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+.atoms-backfill-aftermath p {
+  margin: 0 0 6px;
+  font-size: var(--font-ui-small);
+}
+.atoms-backfill-aftermath p:last-child {
+  margin-bottom: 0;
 }

@@ -20,6 +20,7 @@ import {
 import {
   readDeviceAutoRunState,
   readEgressAckVersion,
+  setAutomaticFilingEnabled,
   writeAutoRunEnabled,
   writeEgressAck,
 } from "../platform/autorun";
@@ -28,16 +29,17 @@ import {
   LAST_CATCHUP_LABEL,
   readEgressNoticeAcked,
 } from "../platform/resume";
+import { CAPTURE_ATOM_VERSION } from "../shared/mobileInstall";
 import {
-  CAPTURE_SHORTCUT_VERSION,
   customCaptureShortcutUrl,
-  labelInstallOrUpdate,
+  labelCaptureShortcutCta,
   openShortcutInstallUrl,
   readShortcutAck,
   resolveCaptureShortcutInstallUrl,
   writeShortcutAck,
 } from "./captureShortcut";
 import { markDestructive } from "./destructiveButton";
+import { askSignOutAllApproval } from "./plusSignOutAllConfirmModal";
 import {
   ackStampIsReal,
   settleAckRecords,
@@ -45,6 +47,7 @@ import {
   ASK_PRIVACY_ACK_VERSION,
   ASK_WRITE_ACK_VERSION,
   askAckStanding,
+  askMirrorPermitted,
   askPrivacyAckIsCurrent,
   askWriteAckIsCurrent,
 } from "../shared/askAck";
@@ -80,13 +83,16 @@ import {
   clearPlusSession,
   hasPlusSetupSession,
   latestPendingSignIn,
+  parsePlusPlan,
   plusIsExhausted,
+  plusLapse,
   readPlusSession,
   recordPendingSignIn,
   setAwaitingCheckout,
-  writePlusSession,
+
   type FilingAuth,
   type PlusEntitlementStatus,
+  type PlusLapseKind,
   type PlusSession,
 } from "../platform/filingAuth";
 import { generateVerifier, hasWebCrypto, s256Challenge } from "../platform/pkce";
@@ -104,6 +110,7 @@ import {
   createCheckout,
   createBillingPortal,
   signOutPlus,
+  signOutAllDevices,
   askMcpUrl,
   askMcpPair,
   askMirrorStatus,
@@ -111,7 +118,8 @@ import {
   plusFetchRequest,
 } from "../platform/plusClient";
 import {
-  clearAskMirrorDeviceState,
+  type AskMirrorOffReason,
+  disarmAskMirror,
   formatAskMirrorStatusLine,
   formatAskMirrorServerCount,
   mirrorRefusalTitle,
@@ -121,8 +129,8 @@ import {
   saveAskMirrorStatus,
   LS_ASK_MIRROR_LAST_ERROR,
   LS_ASK_MIRROR_LAST_SUCCESS,
-  LS_ASK_MIRROR_SERVER_COUNT,
 } from "../platform/askMirror";
+import { installPlusSession } from "../platform/plusSessionInstall";
 import { fireAndForgetAsk } from "../shared/fireAndForget";
 import { syncNowNotice } from "../shared/mirrorOutcome";
 import type { ConfirmRequest, ConfirmVerdict } from "../shared/confirm";
@@ -151,6 +159,10 @@ export type AccountState =
   | { kind: "signedOut" }
   | { kind: "trialIncomplete"; email: string }
   | { kind: "active"; status: PlusEntitlementStatus; remaining?: number }
+  // `lapseKind`, not the raw plan: `plusLapse` already answered "trial or subscription", and
+  // three surfaces read this state. Re-deriving it from `plan` at each of them is how two of
+  // them end up disagreeing with the gate that decided it.
+  | { kind: "periodEnded"; lapseKind: PlusLapseKind; endedOn?: string }
   | { kind: "exhausted" };
 
 /** What the one main-screen account row says for a given state. */
@@ -164,11 +176,31 @@ export interface AccountRowDescriptor {
  * used to do: an exhausted Plus session outranks an active one, and a soft (inactive) session
  * still means "finish your trial" even when a BYOK key is present and `resolveFilingAuth`
  * therefore reports `byok`.
+ *
+ * An ended *period* outranks a spent *meter* (#442). They arrive as the same server `status`,
+ * `exhausted`, but they are different situations wanting opposite offers: a spent meter refills
+ * on the next billing date, while an ended period has no next billing date at all.
+ *
+ * The date alone does not decide it, because a monthly `periodEnd` is a *renewal* date — a
+ * device holding a just-lapsed one during a renewal it has not refreshed through would
+ * otherwise declare an active subscriber ended. So the past date must be joined by a reason it
+ * cannot be a pending renewal: either the service already said `exhausted`, or the plan is a
+ * trial, which never renews. The trial half is what lets a device notice its own expiry with no
+ * round-trip — the gap that let #442 look healthy for 23 hours.
  */
 export function deriveAccountState(
   auth: FilingAuth,
   session: PlusSession | null,
+  now: number = Date.now(),
 ): AccountState {
+  const lapse = plusLapse(auth, now);
+  if (lapse) {
+    return {
+      kind: "periodEnded",
+      lapseKind: lapse.kind,
+      endedOn: lapse.endedOn,
+    };
+  }
   if (plusIsExhausted(auth)) return { kind: "exhausted" };
   if (auth.mode === "plus") {
     return { kind: "active", status: auth.status, remaining: auth.remaining };
@@ -206,6 +238,27 @@ export function accountRowDescriptor(state: AccountState): AccountRowDescriptor 
           ? ` · ${state.remaining} filings left`
           : "";
       return { name: `${base}${remaining}` };
+    }
+    case "periodEnded": {
+      const on = state.endedOn ? ` on ${state.endedOn.slice(0, 10)}` : "";
+      // An unknown plan gets the neutral noun rather than a guess. A session stored before
+      // `plan` was persisted would otherwise be told a subscription ended that it never had.
+      const what =
+        state.lapseKind === "trial"
+          ? { name: "Trial ended", subject: `Your free trial ended${on}` }
+          : state.lapseKind === "subscription"
+            ? {
+                name: "Subscription ended",
+                subject: `Your subscription ended${on}`,
+              }
+            : {
+                name: "Plus ended",
+                subject: `Your Atoms Plus period ended${on}`,
+              };
+      return {
+        name: what.name,
+        desc: `${what.subject}. Subscribe to file captures again and to let Claude and ChatGPT reach your atoms.`,
+      };
     }
     case "exhausted":
       return {
@@ -598,20 +651,9 @@ export class AtomsSettingTab extends PluginSettingTab {
     // Read live rather than from `enabled`: the save is an await, and a withdrawal landing
     // inside it turns both the consent and the mirror off. The push is the egress itself, so
     // it answers to the state now, not to the gesture that started it.
-    if (this.askMirrorPermitted()) {
+    if (askMirrorPermitted(this.plugin.settings)) {
       fireAndForgetAsk(this.plugin.syncAskMirror({ force: false }));
     }
-  }
-
-  /**
-   * Whether the mirror may push right now: enabled, and under a privacy ack still granted
-   * *against the wording this build shows* (#360) — not merely one granted at some point.
-   */
-  private askMirrorPermitted(): boolean {
-    return (
-      this.plugin.settings.askEnabled &&
-      askPrivacyAckIsCurrent(this.plugin.settings)
-    );
   }
 
   /**
@@ -857,7 +899,7 @@ export class AtomsSettingTab extends PluginSettingTab {
       const modal = new Modal(this.app);
       modal.titleEl.setText("Wipe cloud copy?");
       modal.contentEl.createEl("p", {
-        text: "Wipe cloud atom mirror, pending Ask writes, and revoke Ask connector access (Claude + ChatGPT)? Local vault files are kept.",
+        text: "Wipe cloud atom mirror, pending Ask writes, and revoke Ask connector access (Claude + ChatGPT)? Local vault files are kept. Ask mirror turns off, so nothing uploads again until you turn it back on.",
       });
       // Cancel, Escape, and a click outside all arrive here. The wipe path closes the modal too,
       // and settles on the request instead — the row must stay held for that, not just for the
@@ -883,20 +925,31 @@ export class AtomsSettingTab extends PluginSettingTab {
                   new Notice(`Ask: ${r.message}`);
                   return;
                 }
-                // One owner for the reset. Re-listing the keys here is how the wipe and the
-                // gate's readers drift — and a wipe that leaves a *parseable* count behind hands
-                // the gate a fabricated authority for the cloud it just emptied.
-                clearAskMirrorDeviceState((k, v) =>
-                  this.app.saveLocalStorage(k, v),
-                );
-                await this.plugin.saveSettings();
-                new Notice("Ask mirror wiped");
+                // An emptied cloud must leave no arming and no baseline behind it (#371).
+                await this.disarmAskMirror();
+                new Notice("Ask mirror wiped and turned off");
                 this.redisplay();
               })().finally(resolve);
             }),
         );
       modal.open();
     });
+  }
+
+  /** Shared teardown host — Sign out, Wipe, and session install (#393) share one sequence. */
+  private askMirrorDisarmHost() {
+    return {
+      settings: this.plugin.settings,
+      saveSettings: () => this.plugin.saveSettings(),
+      mirrorPermitted: () => this.plugin.ask.mirrorPermitted(),
+      cancelPendingSync: () => this.plugin.ask.cancelPendingSync(),
+      saveLocalStorage: (k: string, v: string) => this.app.saveLocalStorage(k, v),
+      loadLocalStorage: (k: string): unknown => this.app.loadLocalStorage(k),
+    };
+  }
+
+  private async disarmAskMirror(): Promise<void> {
+    await disarmAskMirror(this.askMirrorDisarmHost());
   }
 
   /**
@@ -923,14 +976,16 @@ export class AtomsSettingTab extends PluginSettingTab {
       desc: "Anthropic model id. Default: claude-sonnet-5.",
       control: {
         kind: "text",
-        configure: (text) =>
+        configure: (text) => {
+          // Block body: Obsidian components are thenable; returning the chain trips misused-promises.
           text
             .setPlaceholder("claude-sonnet-5")
             .setValue(this.plugin.settings.model)
-            .onChange(async (value) => {
+            .onChange((value) => {
               this.plugin.settings.model = value.trim() || "claude-sonnet-5";
-              await this.plugin.saveSettings();
-            }),
+              void this.plugin.saveSettings();
+            });
+        },
       },
     });
 
@@ -940,14 +995,15 @@ export class AtomsSettingTab extends PluginSettingTab {
       desc: `Empty = production (${DEFAULT_PLUS_BASE_URL}). Local: http://127.0.0.1:8787`,
       control: {
         kind: "text",
-        configure: (text) =>
+        configure: (text) => {
           text
             .setPlaceholder(DEFAULT_PLUS_BASE_URL)
             .setValue(this.plugin.settings.plusBaseUrl)
-            .onChange(async (value) => {
+            .onChange((value) => {
               this.plugin.settings.plusBaseUrl = value.trim();
-              await this.plugin.saveSettings();
-            }),
+              void this.plugin.saveSettings();
+            });
+        },
       },
     });
   }
@@ -1125,6 +1181,51 @@ export class AtomsSettingTab extends PluginSettingTab {
     window.open(r.url, "_blank");
   }
 
+  /**
+   * Start a paid subscription for the session on this device — the way back from an ended
+   * period.
+   *
+   * `subscribe_monthly`, not `start_trial`: the service refuses a second trial once
+   * `trial_used` is set (plus-service/src/server.mjs), so the trial route is a 409 for exactly
+   * the people who see this row. Until #442 the plugin never asked for this kind at all, which
+   * left an expired trial with no path to paying without leaving the app.
+   *
+   * Confirms the lapse against the service before charging anyone. The row is drawn from a
+   * stored snapshot, and `subscribe_monthly` has no server-side already-subscribed guard — only
+   * `start_trial` is checked — so a snapshot that has gone stale against a renewal would
+   * otherwise open a second subscription on a live account.
+   */
+  private async openSubscribeCheckout(): Promise<void> {
+    const session = readPlusSession(this.app);
+    if (!session) {
+      new Notice("No Plus session on this device");
+      return;
+    }
+    const base =
+      this.plugin.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL;
+    const cfg = { baseUrl: base, request: plusFetchRequest };
+    const record = await refreshPlusEntitlementRecord(this.app, cfg, session);
+    // Only a confirmed answer may cancel the charge. An unreachable service must not strand a
+    // genuinely lapsed user on a button that refuses to work.
+    if (record.kind === "ok" && !plusLapse(this.plugin.resolveFilingAuth())) {
+      new Notice("Atoms Plus is already active on this account.", 6000);
+      this.redisplay();
+      return;
+    }
+    const r = await createCheckout(cfg, session.sessionToken, "subscribe_monthly");
+    if (!r.ok) {
+      new Notice(`Atoms Plus: ${r.message}`);
+      return;
+    }
+    setAwaitingCheckout(this.app, true);
+    window.open(r.url, "_blank");
+    new Notice(
+      "Complete checkout in the browser, then return here — status updates automatically.",
+      8000,
+    );
+    this.redisplay();
+  }
+
   /** Buy additional filings for the current period. */
   private async openTopUpCheckout(): Promise<void> {
     const session = readPlusSession(this.app);
@@ -1166,6 +1267,12 @@ export class AtomsSettingTab extends PluginSettingTab {
    */
   private async signOutOfPlus(): Promise<void> {
     const session = readPlusSession(this.app);
+    // Local teardown first. Awaiting the server revoke *before* disarm left the mirror
+    // permitted for the whole RTT, so an in-flight pass kept pushing chunks after Sign out
+    // (#372 live QA). Network is best-effort against a token we are about to drop.
+    await this.disarmAskMirror();
+    clearPlusSession(this.app);
+    clearPlusRefreshRecord(this.app);
     if (session) {
       const base =
         this.plugin.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL;
@@ -1174,9 +1281,36 @@ export class AtomsSettingTab extends PluginSettingTab {
         session.sessionToken,
       );
     }
+    new Notice("Atoms Plus signed out on this device");
+    this.redisplay();
+  }
+
+  /** #320 — confirm, then revoke every session + MCP (including this device). */
+  private async signOutAllDevicesOfPlus(): Promise<void> {
+    const session = readPlusSession(this.app);
+    if (!session) {
+      new Notice("No Plus session on this device");
+      return;
+    }
+    const verdict = await askSignOutAllApproval(this.app, session.email);
+    if (verdict !== "confirmed") return;
+    const base =
+      this.plugin.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL;
+    const r = await signOutAllDevices(
+      { baseUrl: base, request: plusFetchRequest },
+      session.sessionToken,
+    );
+    await this.disarmAskMirror();
     clearPlusSession(this.app);
     clearPlusRefreshRecord(this.app);
-    new Notice("Atoms Plus signed out on this device");
+    if (!r.ok) {
+      new Notice(
+        `Signed out locally. Server said: ${r.message || "request failed"}`,
+        8000,
+      );
+    } else {
+      new Notice("Signed out on every device");
+    }
     this.redisplay();
   }
 
@@ -1241,9 +1375,13 @@ export class AtomsSettingTab extends PluginSettingTab {
     if (state.kind !== "trialIncomplete") {
       statusRow(containerEl, {
         name: "Plan",
-        value: session?.periodEnd
-          ? `Renews ${session.periodEnd.slice(0, 10)}`
-          : "Monthly or yearly — see Manage subscription",
+        // "Renews" is a promise, and a date already in the past cannot keep it. An ended
+        // period says so instead — it was labelling its own expiry a renewal (#442).
+        value: state.kind === "periodEnded"
+          ? `Ended ${state.endedOn?.slice(0, 10) ?? "— see Subscribe"}`
+          : session?.periodEnd
+            ? `Renews ${session.periodEnd.slice(0, 10)}`
+            : "Monthly or yearly — see Manage subscription",
       });
     }
 
@@ -1254,6 +1392,15 @@ export class AtomsSettingTab extends PluginSettingTab {
         desc: "Complete Stripe checkout (card for the 14-day trial). Return here and status updates automatically.",
         label: "Finish trial setup",
         onClick: () => this.finishTrialCheckout(),
+      });
+    }
+    if (state.kind === "periodEnded") {
+      this.actionRow(containerEl, {
+        action: "plus:subscribe-checkout",
+        name: "Subscribe",
+        desc: accountRowDescriptor(state).desc ?? "",
+        label: "Subscribe",
+        onClick: () => this.openSubscribeCheckout(),
       });
     }
     if (state.kind === "exhausted") {
@@ -1273,7 +1420,16 @@ export class AtomsSettingTab extends PluginSettingTab {
       label: "Refresh status",
       onClick: () => this.refreshAndRedisplay(),
     });
-    if (state.kind !== "trialIncomplete") {
+    // A trial that ended without converting has no Stripe customer, so the portal has
+    // nothing to open. Offering it there sends the user to an error instead of a card form —
+    // Subscribe above is the row that actually does something (#442).
+    //
+    // Positive proof, not absence of proof: only a plan that implies a Stripe customer earns
+    // the row. Hiding merely on `=== "trial"` still let an unknown plan through — a session
+    // stored before `plan` was persisted, or a promo — to that same dead portal.
+    const portalHasSubject =
+      state.kind !== "periodEnded" || state.lapseKind === "subscription";
+    if (state.kind !== "trialIncomplete" && portalHasSubject) {
       this.actionRow(containerEl, {
         action: "plus:billing-portal",
         name: "Manage subscription",
@@ -1285,10 +1441,19 @@ export class AtomsSettingTab extends PluginSettingTab {
     this.destructiveRow(containerEl, {
       action: "plus:sign-out",
       name: "Sign out",
-      desc: "Remove the Plus session from this device only.",
+      desc: "Remove the Plus session from this device, and turn the Ask mirror off on every device this vault syncs to.",
       label: "Sign out",
       onClick: () => this.signOutOfPlus(),
     });
+    if (session) {
+      this.destructiveRow(containerEl, {
+        action: "plus:sign-out-all",
+        name: "Sign out all devices",
+        desc: "Sign out every device and disconnect Claude/ChatGPT. You will need a new sign-in link here too.",
+        label: "Sign out all devices",
+        onClick: () => this.signOutAllDevicesOfPlus(),
+      });
+    }
 
     containerEl.createEl("p", {
       text: "To use your own API key instead, add it under API Key. Plus is optional.",
@@ -1307,17 +1472,9 @@ export class AtomsSettingTab extends PluginSettingTab {
       },
     });
 
-    this.formRow(containerEl, {
-      name: "Email",
-      desc: "Start a free trial (card required). Checkout opens in your browser — then return to Obsidian.",
-      placeholder: "you@example.com",
-      submit: {
-        action: "plus:start-trial",
-        label: "Start free trial",
-        onSubmit: (email) => this.startTrial(email),
-      },
-    });
-
+    // Sign-in leads. Most people reaching this screen already have an account — a returning
+    // user on a second device, or one whose session lapsed — and the trial row asks for a card,
+    // so leading with it charged the wrong question to the larger group.
     this.formRow(containerEl, {
       name: "Sign in with a link",
       desc: this.signInLinkDesc(),
@@ -1326,6 +1483,17 @@ export class AtomsSettingTab extends PluginSettingTab {
         action: "plus:magic-link",
         label: "Send sign-in link",
         onSubmit: (email) => this.requestSignInLink(email),
+      },
+    });
+
+    this.formRow(containerEl, {
+      name: "Email",
+      desc: "Start a free trial (card required). Checkout opens in your browser — then return to Obsidian.",
+      placeholder: "you@example.com",
+      submit: {
+        action: "plus:start-trial",
+        label: "Start free trial",
+        onSubmit: (email) => this.startTrial(email),
       },
     });
 
@@ -1372,7 +1540,7 @@ export class AtomsSettingTab extends PluginSettingTab {
       if (!started.ok) {
         if ("needsMagicLink" in started && started.needsMagicLink) {
           new Notice(
-            "This email already has Plus — send a sign-in link below.",
+            "This email already has Plus — send a sign-in link above.",
             8000,
           );
           return;
@@ -1380,7 +1548,7 @@ export class AtomsSettingTab extends PluginSettingTab {
         new Notice(`Atoms Plus: ${started.message}`);
         return;
       }
-      writePlusSession(this.app, started.session);
+      await installPlusSession(this.askMirrorDisarmHost(), started.session);
       await this.openTrialCheckout(started.session);
     } finally {
       this.redisplay();
@@ -1426,7 +1594,7 @@ export class AtomsSettingTab extends PluginSettingTab {
         return;
       }
       const j = res.json as Record<string, unknown>;
-      const email = String(j.email || "").trim();
+      const email = typeof j.email === "string" ? j.email.trim() : "";
       if (!email) {
         new Notice("Plus service returned no email for this session.");
         return;
@@ -1438,12 +1606,13 @@ export class AtomsSettingTab extends PluginSettingTab {
         j.status === "inactive"
           ? j.status
           : "unknown";
-      writePlusSession(this.app, {
+      await installPlusSession(this.askMirrorDisarmHost(), {
         sessionToken,
         email,
         status,
         remaining: typeof j.remaining === "number" ? j.remaining : undefined,
         periodEnd: typeof j.periodEnd === "string" ? j.periodEnd : undefined,
+        plan: parsePlusPlan(j.plan),
         refreshedAt: Date.now(),
       });
       // Fresh session — the old "sign-in needed" row no longer applies.
@@ -1487,7 +1656,7 @@ export class AtomsSettingTab extends PluginSettingTab {
   private renderCaptureSection(containerEl: HTMLElement) {
     settingHeading(containerEl, "Capture");
 
-    const acked = readShortcutAck((k) => loadLocal(this.app, k));
+    const shortcutAcked = readShortcutAck((k) => loadLocal(this.app, k));
     const custom = customCaptureShortcutUrl(
       this.plugin.settings.captureShortcutInstallUrl,
     );
@@ -1496,74 +1665,23 @@ export class AtomsSettingTab extends PluginSettingTab {
     );
     const urlSet = Boolean(installUrl);
 
-    // The section's intro, not a row: it names no preference and offers no control, so it was a
-    // row with an empty right edge. As prose it is exempt from the row grammar.
     containerEl.createEl("p", {
       text: "Write top-level bullets in your daily note: “- thought…”. Today’s note is never auto-processed; use Atoms home → Preview after midnight (or past dailies).",
       cls: "setting-item-description",
     });
 
-    // Optional on purpose: a value here outranks the constant forever, so a
-    // user who fills it in with our own default stops receiving shipped link
-    // updates. Keep the copy pointed at "leave this empty".
-    //
-    // Stays a direct `Setting` rather than a `settingRow`, and is not the ratchet's next
-    // target: R2 bans a row wearing two *grammars* — a toggle and a button, a chevron and a
-    // toggle — and a text field with a small inline reset is not one of those pairs. The reset
-    // only exists to clear the field beside it, so forcing this through the builder would mean
-    // splitting one coherent row in two.
-    const shortcutUrlRow = new Setting(containerEl)
-      .setName("iCloud shortcut link")
-      .setDesc(
-        custom
-          ? "Using your own link. Clear it (or press Use built-in) to go back to the shortcut Atoms ships and keep getting updates to it."
-          : `Optional — leave empty. Atoms ships the Capture Atom shortcut (v${CAPTURE_SHORTCUT_VERSION}) and keeps it current for you. Only paste here if you modified the shortcut and made your own iCloud link (Share → Copy iCloud Link). See docs/capture-shortcut.md.`,
-      )
-      .addText((text) =>
-        text
-          .setPlaceholder("Using the shortcut Atoms ships")
-          .setValue(custom)
-          .onChange(async (value) => {
-            // Filter on the way in, not on the way out. Storing a link we ship
-            // would pin this device to it forever, and normalising at render
-            // instead would mean an unawaited write racing this awaited one.
-            this.plugin.settings.captureShortcutInstallUrl =
-              customCaptureShortcutUrl(value);
-            await this.plugin.saveSettings();
-          }),
-      )
-      .addExtraButton((btn) =>
-        btn
-          .setIcon("rotate-ccw")
-          .setTooltip("Use the shortcut Atoms ships")
-          .setDisabled(!custom)
-          .onClick(async () => {
-            this.plugin.settings.captureShortcutInstallUrl = "";
-            await this.plugin.saveSettings();
-            new Notice("Back to the built-in Capture Atom shortcut");
-            this.redisplay();
-          }),
-      );
-    // The reset icon shares the control edge with the field, and the field loses: unclassed, it
-    // collapsed to about 54px and showed "Usi" of its placeholder. The class is what `styles.css`
-    // needs to give the input back its width.
-    shortcutUrlRow.settingEl.addClass("atoms-capture-shortcut-url");
-
+    // Companion stays hidden until App Store. Capture Atom shortcut is the path.
     this.actionRow(containerEl, {
       action: "shortcut:install",
       name: "Capture Atom shortcut",
       desc: urlSet
-        ? `Install or update Capture Atom, the iOS shortcut (v${CAPTURE_SHORTCUT_VERSION}). Opens ${custom ? "your custom link" : "the link Atoms ships"} — Shortcuts.app still needs confirm. Acked: ${acked ?? "never"}.`
-        : `No link to open — the built-in is unset in this build, so paste your own iCloud URL above. Version tag: ${CAPTURE_SHORTCUT_VERSION}.`,
-      label: labelInstallOrUpdate(acked),
+        ? `iOS: opens Capture Atom v${CAPTURE_ATOM_VERSION}. After Add Shortcut: Shortcuts → Capture Atom → edit → Append to Bookmark → Atoms Inbox (not Ask Each Time) → Done. Open Obsidian with Atoms once first so that bookmark exists. Acked: ${shortcutAcked ?? "never"}.`
+        : `No link — check mobile-install.json Capture Atom urls.`,
+      label: labelCaptureShortcutCta(shortcutAcked),
       disabled: !urlSet,
       onClick: () => {
-        // Kept behind the disabled button rather than removed: `urlSet` is read once at render,
-        // so this is the row's own answer if it is ever pressed without a link behind it.
         if (!urlSet) {
-          new Notice(
-            "No shortcut link to open — paste your own iCloud link above.",
-          );
+          new Notice("No shortcut link to open.");
           return;
         }
         const ok = openShortcutInstallUrl(installUrl);
@@ -1575,14 +1693,46 @@ export class AtomsSettingTab extends PluginSettingTab {
         }
         writeShortcutAck(
           (k, v) => this.app.saveLocalStorage(k, v),
-          CAPTURE_SHORTCUT_VERSION,
+          CAPTURE_ATOM_VERSION,
         );
         new Notice(
-          `Opened capture shortcut v${CAPTURE_SHORTCUT_VERSION} — add it in Shortcuts`,
+          `Opened Capture Atom v${CAPTURE_ATOM_VERSION} — add it, then edit → set bookmark to Atoms Inbox once`,
         );
         this.redisplay();
       },
     });
+
+    const shortcutUrlRow = new Setting(containerEl)
+      .setName("Custom shortcut link")
+      .setDesc(
+        custom
+          ? "Using your own iCloud link. Clear it to use the built-in Capture Atom URL."
+          : `Optional. Only paste a link if you forked the recipe. Built-in is Capture Atom v${CAPTURE_ATOM_VERSION}.`,
+      )
+      .addText((text) =>
+        text
+          .setPlaceholder("Using the shortcut Atoms ships")
+          .setValue(custom)
+          .onChange((value) => {
+            this.plugin.settings.captureShortcutInstallUrl =
+              customCaptureShortcutUrl(value);
+            void this.plugin.saveSettings();
+          }),
+      )
+      .addExtraButton((btn) =>
+        btn
+          .setIcon("rotate-ccw")
+          .setTooltip("Use the shortcut Atoms ships")
+          .setDisabled(!custom)
+          .onClick(() => {
+            this.plugin.settings.captureShortcutInstallUrl = "";
+            void Promise.resolve(this.plugin.saveSettings()).then(() => {
+              new Notice("Back to the built-in Capture Atom shortcut");
+              this.redisplay();
+            });
+          }),
+      );
+    shortcutUrlRow.settingEl.addClass("atoms-capture-shortcut-url");
   }
 
   private renderApiSection(containerEl: HTMLElement) {
@@ -1606,11 +1756,12 @@ export class AtomsSettingTab extends PluginSettingTab {
       .addComponent((el) =>
         new SecretComponent(this.app, el)
           .setValue(this.plugin.settings.apiKeySecretId)
-          .onChange(async (value) => {
+          .onChange((value) => {
             this.plugin.settings.apiKeySecretId = value;
-            await this.plugin.saveSettings();
-            // Saving is the moment the answer can change, so it is the moment to re-ask.
-            this.checkApiKey();
+            void Promise.resolve(this.plugin.saveSettings()).then(() => {
+              // Saving is the moment the answer can change, so it is the moment to re-ask.
+              this.checkApiKey();
+            });
           }),
       );
     this.apiKeyStatusEl = setting.descEl.createDiv({
@@ -1626,17 +1777,19 @@ export class AtomsSettingTab extends PluginSettingTab {
       desc: "Only if SecretStorage fails: non-synced local storage (still never data.json). Turning this off deletes the key stored on this device.",
       control: {
         kind: "toggle",
-        configure: (toggle) =>
+        configure: (toggle) => {
           toggle
             .setValue(this.plugin.settings.useDeviceLocalKeyFallback)
-            .onChange(async (value) => {
+            .onChange((value) => {
               this.plugin.settings.useDeviceLocalKeyFallback = value;
               if (!value) {
                 this.app.saveLocalStorage(LOCAL_STORAGE_API_KEY, null);
               }
-              await this.plugin.saveSettings();
-              this.redisplay();
-            }),
+              void Promise.resolve(this.plugin.saveSettings()).then(() =>
+                this.redisplay(),
+              );
+            });
+        },
       },
     });
 
@@ -1741,14 +1894,17 @@ export class AtomsSettingTab extends PluginSettingTab {
       desc: "When enabled: once per calendar day after layout + metadata are ready. Caps work per launch; offline fails silently until next day.",
       control: {
         kind: "toggle",
-        configure: (toggle) =>
+        configure: (toggle) => {
           toggle.setValue(state.enabled && state.egressAcked).onChange((on) => {
             // Re-read rather than trusting the render-time `state` above, exactly as the Ask
             // mirror toggle does: this handler can outlive the screen it was built on, and a
             // withdrawal elsewhere would leave it holding an ack that no longer exists.
             const acked = readDeviceAutoRunState(load).egressAcked;
             if (!on || acked) {
-              writeAutoRunEnabled(save, on);
+              // The path every re-enable takes, since it short-circuits before the sheet
+              // whenever the ack is current — so it stamps the window start too (U3).
+              setAutomaticFilingEnabled(load, save, on);
+              if (on) void this.plugin.runFilingAfterEnable();
               this.redisplay();
               return;
             }
@@ -1756,13 +1912,29 @@ export class AtomsSettingTab extends PluginSettingTab {
               egressConsentSpec((verdict) => {
                 // Anything short of an explicit accept leaves the toggle exactly where the
                 // sheet found it: off, and unacknowledged.
-                writeEgressAck(save, verdict === "accepted");
-                writeAutoRunEnabled(save, verdict === "accepted");
+                const accepted = verdict === "accepted";
+                writeEgressAck(save, accepted);
+                setAutomaticFilingEnabled(load, save, accepted);
+                if (accepted) void this.plugin.runFilingAfterEnable();
                 this.redisplay();
               }),
             );
-          }),
+          });
+        },
       },
+    });
+
+    // Day one is deliberately silent: enabling stamps the window at today and every pass
+    // excludes today, so the first atoms land tomorrow and a user who watched nothing happen
+    // would otherwise conclude filing is broken. Persistent line rather than a Notice, since
+    // the panel is where that silence gets explained and a toast here is easy to miss.
+    //
+    // It points at the backfill offer on Atoms home, never at Process: that path is unbounded
+    // and unpriced, so naming it beside the toggle offers one tap that can spend a whole
+    // period's filings on years-old notes.
+    containerEl.createEl("p", {
+      text: "Filing starts with tomorrow's note. Older captures stay where they are until you backfill them from Atoms home.",
+      cls: "setting-item-description",
     });
 
     // Rendered from the grants themselves rather than from the toggle above it: a consent
@@ -1813,11 +1985,12 @@ export class AtomsSettingTab extends PluginSettingTab {
       desc: "When you return to Obsidian, drain the inbox, apply the Ask outbox, push the mirror, and file if automatic filing is on. Device-local only. Manual Sync everything now still works when this is off.",
       control: {
         kind: "toggle",
-        configure: (toggle) =>
+        configure: (toggle) => {
           toggle.setValue(this.plugin.getResumeEnabled()).onChange((on) => {
             this.plugin.setResumeEnabled(on);
             this.redisplay();
-          }),
+          });
+        },
       },
     });
 
@@ -1858,31 +2031,52 @@ export class AtomsSettingTab extends PluginSettingTab {
       desc: "Flat single folder for atom notes (e.g. Atoms). Paths with .. or subfolders are rejected.",
       control: {
         kind: "text",
-        configure: (text) =>
+        configure: (text) => {
           text
             .setPlaceholder("Atoms")
             .setValue(this.plugin.settings.atomFolder)
-            .onChange(async (value) => {
+            .onChange((value) => {
               this.plugin.settings.atomFolder = clampAtomFolder(value);
-              await this.plugin.saveSettings();
-            }),
+              void this.plugin.saveSettings();
+            });
+        },
       },
     });
 
     settingRow(containerEl, {
-      name: "List atoms in person notes",
-      desc: "When on, Process / Update / backfill write a managed section at the end of person hub notes listing linked atoms under your existing headings. Your text outside the markers is never changed. If Ask mirror is on, updated hub notes sync vault→cloud like other linked hubs. Off by default.",
+      name: "List atoms on hub notes",
+      desc: "After filing, add a list of linked atoms at the bottom of hub notes (people, Movies, packing lists, and similar). Your writing above the list stays the same. Off by default.",
       control: {
         kind: "toggle",
-        configure: (toggle) =>
+        configure: (toggle) => {
           toggle
             .setValue(this.plugin.settings.enableHubProjection === true)
-            .onChange(async (on) => {
+            .onChange((on) => {
+              const was = this.plugin.settings.enableHubProjection === true;
               this.plugin.settings.enableHubProjection = on;
-              await this.plugin.saveSettings();
-            }),
+              if (on) {
+                this.plugin.settings.hubProjectionListDisclosureSeen = true;
+              }
+              void Promise.resolve(this.plugin.saveSettings()).then(() => {
+                this.redisplay();
+                if (on && !was) {
+                  void this.plugin.openHubListPreview("toggle-on");
+                }
+              });
+            });
+        },
       },
     });
+
+    if (this.plugin.settings.enableHubProjection === true) {
+      this.actionRow(containerEl, {
+        action: "hub:refresh-lists",
+        name: "Refresh hub lists",
+        desc: "Preview which hub notes would get atom lists, then update them.",
+        label: "Preview…",
+        onClick: () => this.plugin.openHubListPreview("refresh"),
+      });
+    }
   }
 
   /**
@@ -1906,16 +2100,18 @@ export class AtomsSettingTab extends PluginSettingTab {
         desc: "Active — eligible for classification",
         control: {
           kind: "toggle",
-          configure: (toggle) =>
-            toggle.setValue(true).onChange(async (on) => {
+          configure: (toggle) => {
+            toggle.setValue(true).onChange((on) => {
               if (on) return;
               this.plugin.settings.activeVocabulary = removeActiveTag(
                 tag,
                 this.plugin.settings.activeVocabulary,
               );
-              await this.plugin.saveSettings();
-              this.redisplay();
-            }),
+              void Promise.resolve(this.plugin.saveSettings()).then(() =>
+                this.redisplay(),
+              );
+            });
+          },
         },
       });
     }
@@ -1928,16 +2124,17 @@ export class AtomsSettingTab extends PluginSettingTab {
       name: "Add a custom tag",
       desc: "Lowercase, no # required.",
       placeholder: "e.g. health",
-      configure: (text) =>
+      configure: (text) => {
         text.setValue(this.customTagDraft).onChange((v) => {
           this.customTagDraft = v;
-        }),
+        });
+      },
       submit: {
         action: "tags:add-custom",
         // Not shortened to "Add" the way the account labels were: the row name is the field's
         // label now, so the verb is the only thing left saying *which* list the tag joins.
         label: "Add to Active",
-        onSubmit: async (typed) => {
+        onSubmit: (typed) => {
           const checked = checkCustomTag(typed);
           if (!checked.ok) {
             // Said out loud, and the draft left in the field to be corrected. Returning in
@@ -1951,8 +2148,9 @@ export class AtomsSettingTab extends PluginSettingTab {
             this.plugin.settings.activeVocabulary,
           );
           this.customTagDraft = "";
-          await this.plugin.saveSettings();
-          this.redisplay();
+          void Promise.resolve(this.plugin.saveSettings()).then(() =>
+            this.redisplay(),
+          );
         },
       },
     });
@@ -2106,12 +2304,10 @@ export class AtomsSettingTab extends PluginSettingTab {
    * already the network call this file imports from `platform/plusClient`.
    */
   private mirrorStatusLine(sessionEmail: string): { line: string; failing: boolean } {
-    const lastOk = String(
-      (this.app.loadLocalStorage(LS_ASK_MIRROR_LAST_SUCCESS) as unknown) ?? "",
-    );
-    const lastErr = String(
-      (this.app.loadLocalStorage(LS_ASK_MIRROR_LAST_ERROR) as unknown) ?? "",
-    ).trim();
+    const okRaw: unknown = this.app.loadLocalStorage(LS_ASK_MIRROR_LAST_SUCCESS);
+    const errRaw: unknown = this.app.loadLocalStorage(LS_ASK_MIRROR_LAST_ERROR);
+    const lastOk = typeof okRaw === "string" ? okRaw : "";
+    const lastErr = typeof errRaw === "string" ? errRaw.trim() : "";
     const serverCount = formatAskMirrorServerCount(
       (k) => this.app.loadLocalStorage(k) as unknown,
     );
@@ -2135,6 +2331,14 @@ export class AtomsSettingTab extends PluginSettingTab {
       readAskMirrorEmail((k) => this.app.loadLocalStorage(k) as unknown) ||
       sessionEmail ||
       "";
+    // Asked of the gate itself, not of a second copy of its conditions, so the sentence and the
+    // egress it describes cannot disagree (#374).
+    const off = this.mirrorOffReason();
+    // The device can tell this from a date it already holds, which matters here more than
+    // anywhere: no push has been attempted since the account lapsed, so there is no error to
+    // report and the line would otherwise keep reading healthy indefinitely (#442).
+    const state = this.accountState();
+    const lapsed = state.kind === "periodEnded" ? state.lapseKind : undefined;
     return {
       line: formatAskMirrorStatusLine({
         serverCount,
@@ -2142,9 +2346,30 @@ export class AtomsSettingTab extends PluginSettingTab {
         relativeLastOk: relative(lastOk),
         lastErr: refused ? "" : lastErr,
         refused,
+        off,
+        lapsed,
       }),
-      failing: Boolean(lastErr) || refused,
+      // A mirror the gate has closed is not failing. Styling it as an error would tell someone
+      // who just withdrew consent that something went wrong when it went right.
+      failing: off ? false : Boolean(lapsed) || Boolean(lastErr) || refused,
     };
+  }
+
+  /**
+   * Why the mirror is not running, or `undefined` while it is.
+   *
+   * `askMirrorPermitted` decides *whether*, so this method can never be the reason the sentence
+   * and the gate part company. The fields below only choose *which* reason to name, and the ack
+   * is read first because it is the larger fact: withdrawal turns the toggle off on its way past,
+   * so "off" alone would be the smaller half of what happened.
+   */
+  private mirrorOffReason(): AskMirrorOffReason | undefined {
+    const s = this.plugin.settings;
+    if (askMirrorPermitted(s)) return undefined;
+    if (!askPrivacyAckIsCurrent(s)) {
+      return ackStampIsReal(s.askPrivacyAckAt) ? "stale-ack" : "no-ack";
+    }
+    return "disabled";
   }
 
   /**
@@ -2222,7 +2447,7 @@ export class AtomsSettingTab extends PluginSettingTab {
       desc: "Keep the cloud Atoms/ copy current while Obsidian is open (vault events + Process/Update).",
       control: {
         kind: "toggle",
-        configure: (tog) =>
+        configure: (tog) => {
           // `&& ack`, exactly as the auto-run toggle reads `enabled && egressAcked`: a device
           // whose grant went stale is not mirroring, and a switch that still showed on would
           // be reporting a push that is not happening — with no gesture left to re-prompt it.
@@ -2258,7 +2483,8 @@ export class AtomsSettingTab extends PluginSettingTab {
                 void this.setAskMirrorEnabled(true);
               },
             });
-          }),
+          });
+        },
       },
     });
 
@@ -2270,7 +2496,7 @@ export class AtomsSettingTab extends PluginSettingTab {
       desc: "When on, this vault applies create/continue outbox items under your Atoms folder (new files only; never rewrites existing bodies). Requires Ask mirror enabled.",
       control: {
         kind: "toggle",
-        configure: (tog) =>
+        configure: (tog) => {
           tog
             .setValue(writeAck)
             .setDisabled(!ack || !this.plugin.settings.askEnabled)
@@ -2314,7 +2540,8 @@ export class AtomsSettingTab extends PluginSettingTab {
                   void this.setAskWriteAck(true);
                 },
               });
-            }),
+            });
+        },
       },
     });
 

@@ -19,7 +19,7 @@ const MISSING_HINT =
 const HUB_NOT_SYNCED_HINT =
   "This name has backlinks from atoms but the hub note is not in the mirror yet. Open Obsidian with Ask on and Sync now (hubs linked from Atoms/ are included). Do not create a duplicate hub.";
 const PENDING_HINT =
-  "Queued for your vault—open Obsidian (Ask enabled + Allow filing). Usually lands within a minute when the app is open. Do not claim it is filed until fetch_atom returns it.";
+  "Queued. Lands when Obsidian is open (Ask + filing). Confirm with fetch_atom. Do not read outbox_id to the user unless they need to cancel.";
 
 function jsonTool(obj, isError = false) {
   return {
@@ -141,7 +141,7 @@ export function registerAskTools(mcp, ctx) {
     {
       title: "Search atoms",
       description:
-        "Search mirrored atoms by title, tags, body, and server search-expansion phrases when available. Each response includes retrieval (lexical|lexical_expanded) and expand_coverage (0–1). Hits have confidence high|medium and optional match_signals (title|tag|body|expand). Weak matches are omitted. Empty results mean no confident match in this mirror under the active retrieval mode—not that the topic is absent from the vault. Never tell the user they have no notes on a topic from one empty search alone. Medium expand/body hits are first-class—do not skip them only because confidence is not high. Optional tags filter (all must match). Snippets are truncated and non-authoritative—use fetch_atom before claiming what a note contains. Numeric score is ranking only.",
+        "Search mirrored atoms by title, tags, body, and server search-expansion phrases when available. Each hit includes open_now (boolean) and loop {state,source}|null — when open_now is true the note is an intention left for later, not finished substance; never pitch it as a ready asset (label among candidates; redeem with relation redeems to close). Also: retrieval (lexical|lexical_expanded), expand_coverage, confidence high|medium, optional match_signals. Weak matches omitted. Empty ≠ vault absence. Snippets non-authoritative—fetch_atom for body claims. Numeric score is ranking only.",
       annotations: { readOnlyHint: true, destructiveHint: false },
       inputSchema: {
         query: z.string().describe("Search query"),
@@ -229,7 +229,7 @@ export function registerAskTools(mcp, ctx) {
       title: "Fetch atom",
       annotations: { readOnlyHint: true, destructiveHint: false },
       description:
-        "Fetch one mirrored note by title or path (atoms under Atoms/ and hub notes linked from atoms). Returns verbatim body (authoritative), tags, kind (atom|hub), synced_at (when this row was last pushed to the cloud mirror), status (live|superseded|contradicted), inverse revision edges, and structured links. Hubs set revision_participant:false.",
+        "Fetch one mirrored note by title or path (atoms under Atoms/ and hub notes linked from atoms). Returns verbatim body (authoritative), open_now + loop when known (open_now true = intention not substance), tags, kind, synced_at, status, inverse revision edges (incl. redeemed_by), structured links. Hubs set revision_participant:false.",
       inputSchema: {
         id_or_title: z
           .string()
@@ -344,7 +344,7 @@ export function registerAskTools(mcp, ctx) {
       title: "Create atom",
       annotations: { readOnlyHint: false, destructiveHint: true },
       description:
-        "Queue a new atom for the user's vault (outbox). Does NOT write instantly—status stays pending until Obsidian applies it. Prefer user-dictated body text; do not invent facts.",
+        "Queue a new atom for the user's vault (outbox). Does NOT write instantly—status stays pending until Obsidian applies it. Prefer user-dictated body text; do not invent facts. Set open_loop when the note is an intention/IOU, not finished substance.",
       inputSchema: {
         title: z.string().describe("Declarative atom title"),
         body: z.string().describe("Atom body / capture text"),
@@ -357,6 +357,12 @@ export function registerAskTools(mcp, ctx) {
             }),
           )
           .optional(),
+        open_loop: z
+          .boolean()
+          .optional()
+          .describe(
+            "True when this note is an open loop (intention only). Marks atoms-loop active with source user.",
+          ),
         client_request_id: z
           .string()
           .optional()
@@ -417,9 +423,23 @@ export function registerAskTools(mcp, ctx) {
         title: z.string().describe("Title for the new child atom"),
         body: z.string().describe("Child atom body"),
         relation: z
-          .enum(["continues", "revises", "contradicts", "adds_detail"])
+          .enum([
+            "continues",
+            "revises",
+            "contradicts",
+            "adds_detail",
+            "redeems",
+          ])
           .optional()
-          .describe("Graph relation to parent (default continues)"),
+          .describe(
+            "Graph relation to parent (default continues). Use redeems only to close an open loop with substance — ordinary continues never closes a loop.",
+          ),
+        close_answer: z
+          .string()
+          .optional()
+          .describe(
+            "When relation is redeems: user's answer to what closing this loop looks like (logged on the child).",
+          ),
         tags: z.array(z.string()).optional(),
         links: z
           .array(
@@ -520,6 +540,103 @@ export function registerAskTools(mcp, ctx) {
   );
 
   mcp.registerTool(
+    "set_loop",
+    {
+      title: "Set loop state",
+      annotations: { readOnlyHint: false, destructiveHint: true },
+      description:
+        "Queue a frontmatter-only loop mark on an existing mirrored atom (outbox). Does NOT write instantly. Always sets atoms-loop-source to user. Ask the user before calling; do not invent marks. Use active for open intentions; not_a_loop / resolved_elsewhere / abandoned for corrections. Body never changes. Does not create children — substance close uses continue_atom with relation redeems. active does not reopen a loop that already has a redeeming child.",
+      inputSchema: {
+        title: z.string().describe("Existing mirrored atom title"),
+        state: z
+          .enum([
+            "active",
+            "not_a_loop",
+            "resolved_elsewhere",
+            "abandoned",
+          ])
+          .describe("Loop classification to write"),
+        client_request_id: z
+          .string()
+          .optional()
+          .describe("Idempotency key for retries"),
+      },
+    },
+    async (args) => {
+      const denied = requireWrite();
+      if (denied) return denied;
+      const rl = writeRateOk();
+      if (!rl.ok) {
+        return jsonTool(
+          {
+            error: "rate_limited",
+            retryAfterSec: rl.retryAfterSec,
+          },
+          true,
+        );
+      }
+      const title = String(args.title || "").trim();
+      const target = await store.mirrorFetch(email, title);
+      if (!target) {
+        const st = await store.mirrorStatus(email);
+        return jsonTool(
+          {
+            error: "atom_not_found",
+            title,
+            mirror_count: st.count,
+            ...absenceMeta(),
+            hint:
+              "Atom must be in the Ask mirror. Sync Ask after Process, or create_atom first and wait until it lands.",
+          },
+          true,
+        );
+      }
+      if (target.kind === "hub") {
+        return jsonTool(
+          {
+            error: "target_is_hub",
+            title,
+            path: target.path,
+            hint: "Hub notes are read-only in Ask. set_loop only against atoms under Atoms/.",
+          },
+          true,
+        );
+      }
+      const v = validateOutboxPayload("set_loop", {
+        title: target.title || title,
+        state: args.state,
+        client_request_id: args.client_request_id,
+      });
+      if (!v.ok) return jsonTool({ error: v.error }, true);
+      const enq = await store.outboxEnqueue(email, {
+        kind: "set_loop",
+        payload: v.payload,
+        client_request_id: v.payload.client_request_id,
+      });
+      if (!enq.ok) {
+        return jsonTool(
+          {
+            error: enq.error || "enqueue_failed",
+            hint:
+              enq.error === "outbox_full"
+                ? "Too many pending writes—open Obsidian to drain the queue"
+                : undefined,
+          },
+          true,
+        );
+      }
+      return jsonTool({
+        status: enq.status,
+        outbox_id: enq.id,
+        title: v.payload.title,
+        state: v.payload.state,
+        duplicate: Boolean(enq.duplicate),
+        hint: PENDING_HINT,
+      });
+    },
+  );
+
+  mcp.registerTool(
     "cancel_pending",
     {
       title: "Cancel pending write",
@@ -527,7 +644,11 @@ export function registerAskTools(mcp, ctx) {
       description:
         "Cancel a pending or claimed outbox write before Obsidian applies it. Cannot undo applied atoms. Use list_pending if you lost the outbox_id.",
       inputSchema: {
-        outbox_id: z.string().describe("outbox_id from create_atom/continue_atom/list_pending"),
+        outbox_id: z
+          .string()
+          .describe(
+            "outbox_id from create_atom/continue_atom/set_loop/list_pending",
+          ),
       },
     },
     async ({ outbox_id }) => {
@@ -584,7 +705,9 @@ export function registerAskTools(mcp, ctx) {
         kind:
           r.kind === "continue" || r.kind === "continue_atom"
             ? "continue_atom"
-            : "create_atom",
+            : r.kind === "set_loop"
+              ? "set_loop"
+              : "create_atom",
         status: r.status,
         title: r.payload?.title ?? null,
         created_at: r.created_at ?? null,
@@ -604,7 +727,7 @@ export function registerAskTools(mcp, ctx) {
       title: "List atoms",
       annotations: { readOnlyHint: true, destructiveHint: false },
       description:
-        "List mirrored atoms (title, path, tags, created, synced_at) with offset pagination. Default order is title ASC (unchanged). For newest-by-note-date use sort_by=created order=desc. Optional created_after/before (ISO or YYYY-MM-DD) and tags (all must match). Missing created sorts last on created sort.",
+        "List mirrored atoms (title, path, tags, created, synced_at, open_now, loop) with offset pagination. open_now true means intention not finished substance. Default order title ASC. For newest-by-note-date use sort_by=created order=desc. Optional created_after/before and tags (all must match).",
       inputSchema: {
         limit: z.number().int().min(1).max(50).optional(),
         offset: z.number().int().min(0).optional(),

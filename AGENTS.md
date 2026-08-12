@@ -2,58 +2,19 @@
 
 This repo is **two humans + many agents**. Humans may not read the process docs. **You (the agent) must.**
 
-## Session start (do this before any code)
+## Read this first
 
-1. Read **[CLAUDE.md](./CLAUDE.md)** (constitution + non-negotiables).  
-2. Read **[docs/collab.md](./docs/collab.md)** (multiplayer process).  
-3. Read **[STATUS.md](./STATUS.md)** (what is already claimed).  
-4. Check open GitHub Issues/PRs if `gh` is available.  
-5. On non-trivial work: pick a lane from **[docs/workflow-lanes.md](./docs/workflow-lanes.md)** (full / light / amend / debug) and state it before plan or code.
+**Read [CLAUDE.md](./CLAUDE.md).** That file is the constitution: non-negotiables, authority map, collab/claim rules, stack, shipping tail, and pointers to deeper docs (including Obsidian API conventions).
 
-**Do not implement until a hard claim exists:**
+Do not treat this file as a second rulebook. If something is not in CLAUDE.md, follow the docs it links.
 
-- GitHub Issue **assigned** to a human owner  
-- Row in `STATUS.md` (owner, branch, plan, hot files, state)  
-- **Draft PR** opened for the branch  
+## Session start (before any code)
 
-If hot files overlap an `In progress` claim → **stop** and re-scope or wait. Do not “just be careful.”
+1. Read **[CLAUDE.md](./CLAUDE.md)**  
+2. Read **[STATUS.md](./STATUS.md)** (what is already claimed)  
+3. Check open GitHub Issues/PRs if `gh` is available  
 
-**PR → Issue close (mandatory, agent-checked — no CI):** every shipping PR body must include `Closes #<issue>` (or `Fixes` / `Resolves`) for the claimed Issue. Plain “Issue #N” does **not** auto-close. Before mark-ready/merge, re-read the PR body and confirm. Docs/chore with no Issue: no fake `Closes`. After merge, clear the `STATUS.md` row.
-
-**PR evidence (mandatory):** check Test plan boxes only after real runs. UI / product-facing PRs must attach vault smoke **screenshots** under `docs/qa/screenshots/<feature>/` and link them in the PR body (CLAUDE.md shipping tail § PR evidence). Docs-only / pure logic: `N/A — no UI`.
-
-## Product guardrails (short)
-
-- **Body sacred** — never rewrite capture body into the atom.  
-- Flat `Atoms/` only — no folder intelligence. Plugin-owned *non-atom* files (the capture inbox) live in `Atoms System/`; atoms themselves never leave the flat folder.  
-- Default: do not process **today’s** daily (explicit force only).  
-- Sentinel markers = processed; never lossy.  
-- Second brain, **not** a task app.  
-- Desktop + iOS + Android are consumers; no silent platform-only product.  
-- Constitution changes (`CLAUDE.md` non-negotiables / `docs/architecture.md` north star) **only via PR**.  
-- **No agent phone/Remote Vault plugin install.** Humans update desktop + phone via **BRAT** (`taihartman/obsidian-atoms`) after a GitHub Release (or Community plugins when listed). Agents never copy plugin files into personal vaults. **Stable vs beta tags:** [`docs/runbooks/plugin-release-beta-stable.md`](docs/runbooks/plugin-release-beta-stable.md).
-- **Agent dogfood on demo/test vault only:** Process, Update notes, fixtures, classify smoke, screenshots → `test_vault/` or `docs/media/demo-vault/`. **Never** unattended mutate personal Remote Vault notes. Live personal data = human (or explicit user ask).
-- **Product dogfood ≠ fixture theater:** For “does the product work?” evidence, use the real loop — **capture bullets → Process / force Process today** — then observe. Do **not** pre-create hub notes, hand-write atom link-prose, or plant perfect graphs just to force a green screenshot (e.g. Also about). Label unit/UI-only fixture proofs honestly. Detail: `docs/qa/README.md` § Product dogfood honesty.
-
-## Authority map
-
-| Doc | Role |
-|---|---|
-| [CLAUDE.md](./CLAUDE.md) | Full project rules |
-| [docs/collab.md](./docs/collab.md) | Claim / conflict / AI-PM process |
-| [docs/workflow-lanes.md](./docs/workflow-lanes.md) | Full / light / amend / debug — process gates |
-| [STATUS.md](./STATUS.md) | Live in-flight claims |
-| [docs/architecture.md](./docs/architecture.md) | North star + system shape |
-| Active plan in `docs/plans/` | Feature implementation authority |
-| [docs/dev-obsidian-cli.md](./docs/dev-obsidian-cli.md) | Preferred agent verification (CLI) |
-| [docs/dev-obsidian-mcp.md](./docs/dev-obsidian-mcp.md) | Optional MCP |
-| [CONCEPTS.md](./CONCEPTS.md) | Domain vocabulary |
-| [docs/solutions/](./docs/solutions/) | Past learnings |
-
-## If the human says “just build X”
-
-Still: claim → plan (if non-trivial) → implement claimed scope only → shipping tail in `CLAUDE.md`.  
-Chat is not a ticket. Unclaimed work is out of bounds.
+Hard claim, lanes, product guardrails, PR close keywords, and QA rules: all in CLAUDE.md (and the docs it points at).
 
 ## Shared skills (`world-class-qa`, etc.)
 
@@ -66,5 +27,6 @@ If `world-class-qa` / `adversarial-qa` cannot load: stop the shipping-tail QA st
 |---|---|---|
 | **field-notes** | `.agents/skills/field-notes/` (symlink `.claude/skills/field-notes`) | User feeds a Field notes idea → draft, test email, broadcast on approval |
 | **atoms-voice** | `.agents/skills/atoms-voice/` (symlink `.claude/skills/atoms-voice`) | Any product copy / email tone |
+| **plus-promo** | `.agents/skills/plus-promo/` (symlink `.claude/skills/plus-promo`) | Mint/list/archive live Stripe coupons + promotion codes for Plus Checkout |
 
-Claude Code: project skills under `.claude/skills/`; also symlink into `~/.claude/skills/` on each machine if global discovery is needed. Docs: `docs/voice.md`, `docs/field-notes-email.md`, `docs/runbooks/atoms-notes-list.md`.
+Claude Code: project skills under `.claude/skills/`; also symlink into `~/.claude/skills/` on each machine if global discovery is needed. Docs: `docs/voice.md`, `docs/field-notes-email.md`, `docs/runbooks/atoms-notes-list.md`, `docs/runbooks/atoms-plus-prod.md`.

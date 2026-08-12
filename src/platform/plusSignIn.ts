@@ -12,8 +12,8 @@ import type { ConfirmVerdict, SignInConfirmRequest } from "../shared/confirm";
 import {
   clearPendingSignIn,
   readPendingSignIns,
-  writePlusSession,
   type LocalStorageLike,
+  type PlusSession,
 } from "./filingAuth";
 import {
   DEFAULT_PLUS_BASE_URL,
@@ -117,6 +117,11 @@ export type PlusSignInHost = {
    * under vitest, and so the exchange has exactly one gate in front of it.
    */
   confirmSignIn: (request: SignInConfirmRequest) => Promise<ConfirmVerdict>;
+  /**
+   * Install the session on this device. The host owns identity-aware Ask teardown
+   * (#393) so magic-link sign-in cannot skip the boundary Settings uses.
+   */
+  installSession: (session: PlusSession) => Promise<void>;
 };
 
 /**
@@ -129,8 +134,31 @@ export type PlusSignInHost = {
  * approving (R5). Stripped at render rather than rejected at mint, so no
  * legitimate non-Latin vault name is ever turned away.
  */
-const CONTROL_CHARS =
-  /[\u0000-\u001F\u007F\u200B-\u200F\u202A-\u202E\u2066-\u2069]+/g;
+/**
+ * Strip control / bidi / zero-width code points from attacker-controlled vault
+ * labels (R5). Built without a control-char regex literal so community lint
+ * does not flag no-control-regex.
+ */
+function stripControlAndBidi(raw: string): string {
+  let out = "";
+  for (const ch of raw) {
+    const c = ch.codePointAt(0) ?? 0;
+    if (c <= 0x1f || c === 0x7f) {
+      out += " ";
+      continue;
+    }
+    if (
+      (c >= 0x200b && c <= 0x200f) ||
+      (c >= 0x202a && c <= 0x202e) ||
+      (c >= 0x2066 && c <= 0x2069)
+    ) {
+      out += " ";
+      continue;
+    }
+    out += ch;
+  }
+  return out;
+}
 
 /**
  * The deep link's `vault=` is attacker-controlled prose — any web page can fire
@@ -139,7 +167,7 @@ const CONTROL_CHARS =
  * and inert; the refusal copy reads the server-attested name or names none.
  */
 export function sanitizeVaultLabel(raw: string): string {
-  const flat = raw.replace(CONTROL_CHARS, " ").replace(/\s+/g, " ").trim();
+  const flat = stripControlAndBidi(raw).replace(/\s+/g, " ").trim();
   return flat.length > 80 ? `${flat.slice(0, 79)}…` : flat;
 }
 
@@ -213,12 +241,11 @@ export async function runSignInHandoff(
       });
       return;
     }
-    const failure = result as MagicLinkFailure;
-    if (failure.verdict === "refused" || failure.code === "refused") {
-      lastRefusal = failure;
+    if (result.verdict === "refused" || result.code === "refused") {
+      lastRefusal = result;
       continue;
     }
-    status.fail(failureMessage(failure));
+    status.fail(failureMessage(result));
     return;
   }
   status.fail(
@@ -242,7 +269,7 @@ function plusConfig(host: Pick<PlusSignInHost, "settings">): PlusClientConfig {
  * this link's row would refuse a user whose only mistake was tapping twice.
  */
 export async function completeSignInHandoff(
-  host: Pick<PlusSignInHost, "app" | "settings" | "confirmSignIn">,
+  host: Pick<PlusSignInHost, "app" | "settings" | "confirmSignIn" | "installSession">,
   approval: MagicHandoffApproval,
 ): Promise<void> {
   const { status, isCurrent = () => true } = approval;
@@ -271,12 +298,12 @@ export async function completeSignInHandoff(
   if (!result.ok) {
     // The device stays signed out and the pending verifier survives, so the
     // user's next tap can still complete.
-    status.fail(failureMessage(result as MagicLinkFailure));
+    status.fail(failureMessage(result));
     return;
   }
 
   try {
-    writePlusSession(host.app, result.session);
+    await host.installSession(result.session);
     // The link is spent and the session is stored, so the verifiers it was
     // redeemed against have no further use.
     clearPendingSignIn(host.app);

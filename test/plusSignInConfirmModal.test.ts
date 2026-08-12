@@ -52,7 +52,8 @@ describe("PlusSignInConfirmModal — copy", () => {
 
   it("states the sign-out consequence, and states it above the buttons", () => {
     const copy = signInConfirmCopy(request);
-    expect(copy.disclosure).toMatch(/signs this account out on your other devices/i);
+    expect(copy.disclosure).toMatch(/other devices stay signed in/i);
+    expect(copy.disclosure.toLowerCase()).toMatch(/sign out all devices/);
     // Identity, not similarity: the disclosure is one of the rendered lines,
     // and every line renders before the two buttons.
     expect(copy.lines).toContain(copy.disclosure);

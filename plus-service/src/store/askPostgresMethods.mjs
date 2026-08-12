@@ -1,7 +1,7 @@
 /**
  * Ask mirror + MCP OAuth methods for Postgres Pool.
  */
-import { hashToken, id } from "./shared.mjs";
+import { hashToken, id, subscriptionLive } from "./shared.mjs";
 import { encryptMirrorField } from "../mirror/crypto.mjs";
 import {
   aggregateMirrorTags,
@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS atom_mirror (
   updated_at TIMESTAMPTZ NOT NULL,
   created TEXT,
   expand_enc TEXT,
+  loop_json TEXT,
   PRIMARY KEY (email, path)
 );
 CREATE INDEX IF NOT EXISTS idx_atom_mirror_email ON atom_mirror(email);
@@ -145,14 +146,15 @@ export function createAskPostgresMethods(pool, deps) {
         continue;
       }
       await pool.query(
-        `INSERT INTO atom_mirror (email, atom_id, title, path, body_enc, tags_json, links_json, content_hash, updated_at, created, expand_enc)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NULL)
+        `INSERT INTO atom_mirror (email, atom_id, title, path, body_enc, tags_json, links_json, content_hash, updated_at, created, expand_enc, loop_json)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NULL,$11)
          ON CONFLICT (email, path) DO UPDATE SET
            atom_id=EXCLUDED.atom_id, title=EXCLUDED.title, body_enc=EXCLUDED.body_enc,
            tags_json=EXCLUDED.tags_json, links_json=EXCLUDED.links_json,
            content_hash=EXCLUDED.content_hash, updated_at=EXCLUDED.updated_at,
            created=COALESCE(EXCLUDED.created, atom_mirror.created),
-           expand_enc=NULL`,
+           expand_enc=NULL,
+           loop_json=COALESCE(EXCLUDED.loop_json, atom_mirror.loop_json)`,
         [
           row.email,
           row.atomId,
@@ -164,6 +166,7 @@ export function createAskPostgresMethods(pool, deps) {
           row.contentHash,
           row.updatedAt,
           row.created,
+          row.loopJson,
         ],
       );
       upserted += 1;
@@ -374,7 +377,12 @@ export function createAskPostgresMethods(pool, deps) {
 
   async function outboxEnqueue(email, opts) {
     const e = normEmail(email);
-    const kind = opts.kind === "continue" ? "continue" : "create";
+    const kind =
+      opts.kind === "continue"
+        ? "continue"
+        : opts.kind === "set_loop"
+          ? "set_loop"
+          : "create";
     const crid = opts.client_request_id
       ? String(opts.client_request_id).trim().slice(0, 128)
       : "";
@@ -584,7 +592,7 @@ export function createAskPostgresMethods(pool, deps) {
     // List columns only — never pull body_enc for pagination scans.
     const { rows } = await pool.query(
       `SELECT email, atom_id, title, path, tags_json, links_json,
-              content_hash, updated_at, created
+              content_hash, updated_at, created, loop_json
        FROM atom_mirror WHERE email = $1`,
       [e],
     );
@@ -846,7 +854,7 @@ export function createAskPostgresMethods(pool, deps) {
     if (!r || r.revoked || Date.now() > Number(r.exp_ms)) return null;
     const a = await deps.refreshAccountStatus(await deps.getAccount(r.email));
     if (!a) return null;
-    if (a.status !== "active" && a.status !== "trialing") return null;
+    if (!subscriptionLive(a)) return null;
     let mcpScopes = ["atoms:read"];
     try {
       const parsed = JSON.parse(r.scopes_json || "[]");

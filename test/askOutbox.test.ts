@@ -4,10 +4,34 @@ import {
   buildAskAtomMarkdown,
   isAskMcpContent,
   planAskOutboxApply,
+  planSetLoopApply,
 } from "../src/platform/askOutbox";
 import { isGeneratedAtomContent } from "../src/home/atomsHomeData";
 
 describe("askOutbox", () => {
+  it("marks open_loop agent flag as user source", () => {
+    const { content } = buildAskAtomMarkdown({
+      title: "Newsletter idea",
+      body: "I will share my routine later.",
+      openLoop: true,
+    });
+    expect(content).toContain("atoms-loop: active");
+    expect(content).toContain("atoms-loop-source: user");
+  });
+
+  it("redeems child gets redeems prose and optional close answer", () => {
+    const { content } = buildAskAtomMarkdown({
+      title: "Cowork routine for atoms",
+      body: "Here is the full routine…",
+      parent: "Newsletter idea",
+      relation: "redeems",
+      closeAnswer: "write the substance from my head",
+    });
+    expect(content).toContain("relation: redeems");
+    expect(content).toContain("redeems [[Newsletter idea]]");
+    expect(content).toMatch(/atoms-loop-close-answer:/);
+  });
+
   it("builds Process-parity body: capture + link prose; no atom-links FM", () => {
     const { content, title } = buildAskAtomMarkdown({
       title: "Periwinkle still",
@@ -101,5 +125,54 @@ other body
     const body = bodyAfterFrontmatter(content);
     expect(body).toContain("It was a joke");
     expect(body).toMatch(/revises \[\[Andrew loves High School Musical\]\]/);
+  });
+
+  it("planSetLoopApply marks active user and keeps body", () => {
+    const prior = `---
+created: 2026-08-01T10:00:00
+tags: []
+---
+verbatim body stays
+`;
+    const plan = planSetLoopApply(
+      { title: "Prior", state: "active" },
+      "Atoms",
+      prior,
+    );
+    expect(plan.action).toBe("modify");
+    if (plan.action === "modify") {
+      expect(plan.content).toContain("atoms-loop: active");
+      expect(plan.content).toContain("atoms-loop-source: user");
+      expect(bodyAfterFrontmatter(plan.content)).toBe(
+        bodyAfterFrontmatter(prior),
+      );
+    }
+  });
+
+  it("planSetLoopApply rejects missing file", () => {
+    const plan = planSetLoopApply(
+      { title: "Missing", state: "active" },
+      "Atoms",
+      null,
+    );
+    expect(plan.action).toBe("reject");
+    if (plan.action === "reject") expect(plan.reason).toBe("missing");
+  });
+
+  it("planSetLoopApply is idempotent when already matching", () => {
+    const prior = `---
+created: 2026-08-01T10:00:00
+atoms-loop: not_a_loop
+atoms-loop-source: user
+tags: []
+---
+body
+`;
+    const plan = planSetLoopApply(
+      { title: "Prior", state: "not_a_loop" },
+      "Atoms",
+      prior,
+    );
+    expect(plan.action).toBe("applied_idempotent");
   });
 });

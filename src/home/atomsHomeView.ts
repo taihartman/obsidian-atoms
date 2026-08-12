@@ -12,6 +12,9 @@ import {
   ALSO_ABOUT_BODY_NOTE,
   bodyAfterFrontmatter,
   buildAlsoAboutStripModel,
+  backfillDismissUntil,
+  backfillOfferCopy,
+  countUnprocessedSince,
   countUpdateWorkRemaining,
   extractSourceDay,
   filingHeroCopy,
@@ -25,11 +28,14 @@ import {
   listAtomLibraryEntries,
   planCreatedOrderBackfill,
   queuePeekTexts,
+  shouldShowBackfillOffer,
   shouldShowWaitCard,
   titleFromAtomPath,
   updateNotesConfirmCopy,
   updateNotesStripCopy,
+  waitingSubtitle,
   type AtomLibraryEntry,
+  type BackfillOfferCopy,
   type FilingHeroAction,
   type FilingHeroCopy,
   type InboxStuckSummary,
@@ -72,9 +78,27 @@ import {
 import {
   isPlusLimitDismissedToday,
   localCalendarDay,
+  plusLapse,
   readPlusLimitDismissDay,
   writePlusLimitDismissDay,
+  type FilingAuth,
 } from "../platform/filingAuth";
+import {
+  localDateString,
+  readAutoFilingSince,
+  readAutoFilingWindowMigrated,
+  readBackfillOfferDismissedUntil,
+  readDeviceAutoRunState,
+  readEgressPermitted,
+  writeBackfillOfferDismissedUntil,
+  writeEgressAck,
+} from "../platform/autorun";
+import {
+  deriveRecentFirstRange,
+  resolveBackfillBudget,
+  type BackfillDaily,
+  type BackfillPeriod,
+} from "../pipeline/backfillOffer";
 import { UPDATE_NOTES_BATCH_LIMIT } from "../pipeline/refreshAtoms";
 import {
   formatAskMirrorRefusalLine,
@@ -132,9 +156,9 @@ import {
   writeContinueParent,
   type ContinueParentPending,
 } from "../platform/continueParent";
+import { CAPTURE_ATOM_VERSION } from "../shared/mobileInstall";
 import {
-  CAPTURE_SHORTCUT_VERSION,
-  labelInstallOrUpdate,
+  labelCaptureShortcutCta,
   needsShortcutCta,
   openShortcutInstallUrl,
   readShortcutAck,
@@ -213,7 +237,19 @@ export class AtomsHomeView extends ItemView {
   private skippedEntries: SkippedLibraryEntry[] = [];
   /** Daily path:mtime fingerprint; skip full Skipped re-scan when unchanged. */
   private skippedFingerprint: string | null = null;
+  /** All past unmarked captures — what an attended Process files. */
   private unprocessedCount = 0;
+  /**
+   * The subset inside the filing window — what unattended auto-run will file (KTD2).
+   * Only this number may appear beside an automatic-filing promise; `unprocessedCount`
+   * stays unbounded so the wait card, Process, and the first-day check keep their meaning.
+   */
+  private windowUnprocessedCount = 0;
+  /**
+   * Per-daily past counts, so the backfill offer can price a recent-first range without a second
+   * vault scan. Derived from the same pass that sets the two counts above.
+   */
+  private backfillDailies: BackfillDaily[] = [];
   /** Captures stuck in the capture inbox (drain health), null when clear. */
   private inboxStuck: InboxStuckSummary | null = null;
   /** Raw counts behind inboxStuck, kept so Dismiss can re-summarize without a re-read. */
@@ -226,6 +262,15 @@ export class AtomsHomeView extends ItemView {
   private todayUnprocessedCount = 0;
   private peek: Array<{ text: string; date: string }> = [];
   private busy = false;
+  /**
+   * The backfill card's own in-flight flag.
+   *
+   * `busy` cannot serve here. It stays a belt on the button, but the card only ever renders in
+   * phases where it is false, so on its own it disables nothing. The flow a tap starts spends a
+   * long time at an estimate and a confirm gate, and every one of those ticks is a second tap
+   * the card would otherwise let through.
+   */
+  private backfillCardBusy = false;
   private rootEl: HTMLElement | null = null;
   /** Detach long-press bindings before re-render (clears mid-hold timers). */
   private libraryPressDetach: Array<() => void> = [];
@@ -534,7 +579,9 @@ export class AtomsHomeView extends ItemView {
     }
     const track = el.createDiv({ cls: "atoms-home-progress-track" });
     const fill = track.createDiv({ cls: "atoms-home-progress-fill" });
-    fill.style.width = `${progressPercent(this.runDone, this.runTotal)}%`;
+    fill.setCssStyles({
+      width: `${progressPercent(this.runDone, this.runTotal)}%`,
+    });
   }
 
   private noteMindChangePairPaths(
@@ -568,8 +615,7 @@ export class AtomsHomeView extends ItemView {
   }
 
   private showShortcutBanner(): boolean {
-    if (!this.installUrl()) return false;
-    if (this.isFirstDay()) return false; // setup card owns Install
+    if (this.isFirstDay()) return false; // setup card owns Install Capture Atom
     return needsShortcutCta(this.shortcutAcked);
   }
 
@@ -666,6 +712,22 @@ export class AtomsHomeView extends ItemView {
     try {
       const past = await getPastDailyNotesWithUnmarkedCaptures(this.app);
       this.unprocessedCount = past.totalUnprocessed;
+      // Same bound an unattended pass resolves, through the reader that cannot persist it:
+      // opening home is not enabling filing, and a stamp written here would also beat
+      // `migrateAutoFilingWindow` to it — leaving that flag unset and the paused-sweep copy
+      // unshown. Derived from the scan above rather than a second vault pass.
+      this.windowUnprocessedCount = countUnprocessedSince(
+        past.notes,
+        readAutoFilingSince(
+          (k) => this.app.loadLocalStorage(k) as unknown,
+          localDateString(),
+        ),
+      );
+      this.backfillDailies = past.notes.map((note) => ({
+        date: note.date,
+        path: note.path,
+        unprocessedCount: note.unprocessed.length,
+      }));
       this.peek = queuePeekTexts(past.notes, 3);
 
       const withToday = await getPastDailyNotesWithUnmarkedCaptures(this.app, {
@@ -689,6 +751,8 @@ export class AtomsHomeView extends ItemView {
     } catch (e) {
       if (e instanceof DailyNotesDisabledError) {
         this.unprocessedCount = 0;
+        this.windowUnprocessedCount = 0;
+        this.backfillDailies = [];
         this.todayUnprocessedCount = 0;
         this.peek = [];
         this.skippedEntries = [];
@@ -1004,12 +1068,12 @@ export class AtomsHomeView extends ItemView {
       }
     }
     const foot = el.createDiv({ cls: "atoms-home-resurface-foot" });
-    foot.createEl("span", {
+    foot.createSpan({
       cls: "atoms-home-resurface-title",
       text: card.title,
     });
     if (card.matchDate) {
-      foot.createEl("span", {
+      foot.createSpan({
         cls: "atoms-home-resurface-meta",
         text: formatCueDate(card.matchDate),
       });
@@ -1540,6 +1604,14 @@ export class AtomsHomeView extends ItemView {
         }
         await this.app.vault.modify(file, nextContent);
       }
+      if (this.plugin.settings.enableHubProjection === true) {
+        await runHubProjectionForHubs({
+          app: this.app,
+          enabled: true,
+          atomFolder: this.plugin.settings.atomFolder,
+          touchedHubTitles: [label],
+        });
+      }
       new Notice(`Atoms: created ${label}`);
       this.entityInvite = null;
       this.plugin.scheduleAskMirrorSync();
@@ -1959,13 +2031,13 @@ export class AtomsHomeView extends ItemView {
                 ? this.runSummaryText
                 : this.runSummaryText
         : shouldShowWaitCard(this.unprocessedCount)
-          ? isAutomaticFilingReady(this.plugin.getAutoRunSnapshot())
-            ? this.unprocessedCount === 1
-              ? "1 past thought will file automatically"
-              : `${this.unprocessedCount} past thoughts will file automatically`
-            : this.unprocessedCount === 1
-              ? "1 thought ready to file"
-              : `${this.unprocessedCount} thoughts ready to file`
+          ? waitingSubtitle({
+              pastUnprocessed: this.unprocessedCount,
+              windowUnprocessed: this.windowUnprocessedCount,
+              automaticFilingReady: isAutomaticFilingReady(
+                this.plugin.getAutoRunSnapshot(),
+              ),
+            })
           : this.entries.length
             ? "Your second brain"
             : "Nothing filed yet";
@@ -2007,24 +2079,30 @@ export class AtomsHomeView extends ItemView {
 
     this.renderContinueChip(scroll);
 
+    // One read for the whole pass: the wait card's hero and the backfill offer both branch on
+    // it, and nothing between them can change what it answers.
+    const filingAuth = this.plugin.resolveFilingAuth();
+
     // Work first when past captures wait — automatic filing story (not homework-only).
     // Suppress while land peak is up (one hero: Done owns the screen).
     if (shouldShowWaitCard(this.unprocessedCount) && !this.landPeak) {
       const snap = this.plugin.getAutoRunSnapshot();
-      const filingAuth = this.plugin.resolveFilingAuth();
       const limitDismissed = isPlusLimitDismissedToday(
         readPlusLimitDismissDay(this.app),
         localCalendarDay(),
       );
+      const lapse = plusLapse(filingAuth);
       const hero =
         filingHeroCopy({
           pastUnprocessed: this.unprocessedCount,
+          windowUnprocessed: this.windowUnprocessedCount,
           hasKey: snap.hasKey,
           autoEnabled: snap.enabled,
           egressAcked: snap.egressAcked,
           inFlight: snap.inFlight,
           filingPath: filingPathFromAuth(filingAuth),
           plusLimitDismissedToday: limitDismissed,
+          plusLapseKind: lapse?.kind,
         }) ??
         ({
           mode: "enable_auto",
@@ -2074,7 +2152,9 @@ export class AtomsHomeView extends ItemView {
               openPluginSettingsTab(this.app, "atoms");
               return;
             }
-            if (action === "get_more") {
+            // Same destination as Get More: Settings opens on the account row, which now names
+            // the ended period and carries Subscribe.
+            if (action === "get_more" || action === "subscribe") {
               openPluginSettingsTab(this.app, "atoms");
               return;
             }
@@ -2169,6 +2249,18 @@ export class AtomsHomeView extends ItemView {
       this.renderUpdateNotesStrip(scroll);
     }
 
+    // Same suppression as the strip above: a quiet card, and never while a run is on screen.
+    if (
+      !firstDay &&
+      this.runPhase !== "preview" &&
+      this.runPhase !== "process" &&
+      this.runPhase !== "update" &&
+      !this.landPeak
+    ) {
+      const offer = this.backfillOfferModel(filingAuth);
+      if (offer) this.renderBackfillOffer(scroll, offer);
+    }
+
     if (this.showShortcutBanner()) {
       const banner = scroll.createDiv({ cls: "atoms-home-update-banner" });
       const text = banner.createDiv();
@@ -2178,13 +2270,13 @@ export class AtomsHomeView extends ItemView {
             ? "Capture shortcut"
             : "Shortcut update",
       });
-      text.createEl("span", {
-        text: `v${CAPTURE_SHORTCUT_VERSION}`,
+      text.createSpan({
+        text: `v${CAPTURE_ATOM_VERSION}`,
         cls: "atoms-home-update-meta",
       });
       button(banner, {
         grade: "secondary",
-        label: this.shortcutAcked == null ? "Install" : "Update",
+        label: labelCaptureShortcutCta(this.shortcutAcked),
         className: "atoms-home-update-btn",
         onClick: () => this.onInstallShortcut(),
       });
@@ -2215,14 +2307,14 @@ export class AtomsHomeView extends ItemView {
       });
       button(actions, {
         grade: "secondary",
-        label: labelInstallOrUpdate(this.shortcutAcked),
+        label: labelCaptureShortcutCta(this.shortcutAcked),
         disabled: !this.installUrl(),
-        attrs: !this.installUrl()
-          ? {
+        attrs: this.installUrl()
+          ? undefined
+          : {
               title:
                 "No shortcut link to open — add one in Settings → Capture",
-            }
-          : undefined,
+            },
         onClick: () => this.onInstallShortcut(),
       });
     }
@@ -2265,9 +2357,11 @@ export class AtomsHomeView extends ItemView {
         });
       } else if (shouldShowWaitCard(this.unprocessedCount)) {
         empty.createEl("p", {
-          text: isAutomaticFilingReady(this.plugin.getAutoRunSnapshot())
-            ? "Library fills after automatic filing (or Process now)."
-            : "Library fills after you Process.",
+          text:
+            isAutomaticFilingReady(this.plugin.getAutoRunSnapshot()) &&
+            this.windowUnprocessedCount > 0
+              ? "Library fills after automatic filing (or Process now)."
+              : "Library fills after you Process.",
         });
       } else if (!firstDay) {
         empty.createEl("p", {
@@ -2284,7 +2378,6 @@ export class AtomsHomeView extends ItemView {
           role: "button",
         });
         row.setAttr("tabindex", "0");
-        row.style.touchAction = "manipulation";
         this.libraryPressDetach.push(
           attachLongPress(row, {
             onTap: () => {
@@ -2365,7 +2458,6 @@ export class AtomsHomeView extends ItemView {
       });
       row.setAttr("tabindex", "0");
       row.setAttr("title", e.snippet);
-      row.style.touchAction = "manipulation";
       this.libraryPressDetach.push(
         attachLongPress(row, {
           onTap: () => {
@@ -2422,7 +2514,7 @@ export class AtomsHomeView extends ItemView {
     }
     menu.addItem((i) =>
       i
-        .setTitle(labelInstallOrUpdate(this.shortcutAcked))
+        .setTitle(labelCaptureShortcutCta(this.shortcutAcked))
         .onClick(() => this.onInstallShortcut()),
     );
     menu.addItem((i) =>
@@ -2515,6 +2607,151 @@ export class AtomsHomeView extends ItemView {
     });
   }
 
+  /**
+   * Price the backfill offer from stored state alone, or return null when it must not show.
+   *
+   * Every input is a device-local read: the filing auth it is handed comes from the stored Plus
+   * session (one `resolveFilingAuth` call for the whole render pass), and
+   * the window bound goes through `readAutoFilingSince`, the reader that cannot persist. Opening
+   * home is not enabling filing, and a stamp minted here would also beat `migrateAutoFilingWindow`
+   * to it, leaving the paused-sweep copy unshown on the one device that needs it.
+   *
+   * `fresh: false` always, and deliberately: the live `/v1/me` read happens when the confirm
+   * modal opens, so home never makes a network call to render and quotes the baseline reserve
+   * until the user asks for a number they can act on.
+   */
+  private backfillOfferModel(auth: FilingAuth): BackfillOfferCopy | null {
+    if (auth.mode === "none") return null;
+    const load = (k: string): unknown => this.app.loadLocalStorage(k) as unknown;
+    const today = localDateString();
+    const period: BackfillPeriod =
+      auth.mode === "byok"
+        ? "byok"
+        : auth.status === "trialing"
+          ? "trial"
+          : "paid";
+    const periodEnd = auth.mode === "plus" ? auth.periodEnd : undefined;
+    const remaining = auth.mode === "plus" ? auth.remaining : undefined;
+    const { budget } = resolveBackfillBudget({
+      period,
+      fresh: false,
+      today,
+      periodEnd,
+      remaining,
+    });
+    // Same complement bound the flow itself resolves (KTD3): with filing off no unattended pass
+    // claims any of it, so the offer covers everything past.
+    const before = readDeviceAutoRunState(load).enabled
+      ? readAutoFilingSince(load, today)
+      : today;
+    const range = deriveRecentFirstRange({
+      dailies: this.backfillDailies,
+      before,
+      budget,
+    });
+    if (
+      !shouldShowBackfillOffer({
+        total: range.totalCaptures,
+        budget,
+        dismissedUntil: readBackfillOfferDismissedUntil(load),
+        today,
+      })
+    ) {
+      return null;
+    }
+    return backfillOfferCopy({
+      budgeted: range.captures,
+      total: range.totalCaptures,
+      migrated: readAutoFilingWindowMigrated(load),
+      currency: auth.mode === "plus" ? "filings" : "cost",
+      filingsRemaining: remaining,
+    });
+  }
+
+  private renderBackfillOffer(
+    scroll: HTMLElement,
+    copy: BackfillOfferCopy,
+  ): void {
+    const card = flatCard(scroll, { className: "atoms-home-backfill-offer" });
+    card.createEl("h2", { text: copy.title });
+    card.createEl("p", { text: copy.body });
+    card.createEl("p", {
+      cls: "atoms-home-backfill-meter",
+      text: copy.meter,
+    });
+    const actions = actionRow(card, { className: "atoms-home-wait-actions" });
+    const start = button(actions, {
+      grade: "primary",
+      label: copy.primary,
+      disabled: this.busy || this.backfillCardBusy,
+      onClick: () => this.startBackfillFromCard(start),
+    });
+    button(actions, {
+      grade: "quiet",
+      label: copy.dismiss,
+      disabled: this.busy,
+      onClick: () => this.dismissBackfillOffer(),
+    });
+  }
+
+  /**
+   * The card's tap, behind the same egress ack every other send is behind.
+   *
+   * An absent or stale ack cannot reach the flow: the sheet is the only way through, and only
+   * `accepted` proceeds. Accepting stamps the ack, which is what "agreed to this disclosure"
+   * means everywhere else. It does not turn automatic filing on: `readEgressPermitted` grants
+   * the send, and `shouldRunAutoProcess` still wants the enable flag this never writes.
+   */
+  private startBackfillFromCard(start?: HTMLButtonElement): void {
+    if (this.backfillCardBusy) return;
+    const load = (k: string): unknown => this.app.loadLocalStorage(k) as unknown;
+    if (readEgressPermitted(load, { catchUp: false })) {
+      this.runBackfillFromCard(start);
+      return;
+    }
+    new ConsentSheetModal(
+      this.app,
+      egressConsentSpec((verdict) => {
+        // `accepted` and nothing else: `declined` covers Cancel, Escape, and a click outside.
+        if (verdict !== "accepted") return;
+        writeEgressAck((k, v) => this.app.saveLocalStorage(k, v), true);
+        this.runBackfillFromCard(start);
+      }),
+    ).open();
+  }
+
+  /**
+   * One tap, one flow. The button is disabled in the same synchronous step that claims the flag,
+   * so the DOM says what the state says without waiting for a re-render — and a re-render mid-run
+   * draws a fresh button that reads the flag and comes up disabled too.
+   *
+   * Releasing has to re-render, not just re-enable the button this tap captured. A Plus backfill
+   * calls `finishRun` on its way out, which refreshes home while the flag is still held: the card
+   * that lands is a *different* button, drawn disabled, and re-enabling the detached one would
+   * leave the visible card dead until something else happened to refresh it.
+   */
+  private runBackfillFromCard(start?: HTMLButtonElement): void {
+    this.backfillCardBusy = true;
+    if (start) start.disabled = true;
+    void this.plugin.runBackfillFromHome().finally(() => {
+      this.backfillCardBusy = false;
+      this.render();
+    });
+  }
+
+  /** Not now: quiet until the next period, never forever. */
+  private dismissBackfillOffer(): void {
+    const auth = this.plugin.resolveFilingAuth();
+    writeBackfillOfferDismissedUntil(
+      (k, v) => this.app.saveLocalStorage(k, v),
+      backfillDismissUntil({
+        today: localDateString(),
+        periodEnd: auth.mode === "plus" ? auth.periodEnd : undefined,
+      }),
+    );
+    this.render();
+  }
+
   private confirmUpdateNotes(opts: {
     refileBatch: number;
     polishable: number;
@@ -2547,6 +2784,7 @@ export class AtomsHomeView extends ItemView {
     modal.open();
   }
 
+  /** iOS Capture Atom shortcut — companion stays off until App Store. */
   private onInstallShortcut(): void {
     const url = this.installUrl();
     if (!url) {
@@ -2564,11 +2802,11 @@ export class AtomsHomeView extends ItemView {
     }
     writeShortcutAck(
       (k, v) => this.app.saveLocalStorage(k, v),
-      CAPTURE_SHORTCUT_VERSION,
+      CAPTURE_ATOM_VERSION,
     );
-    this.shortcutAcked = CAPTURE_SHORTCUT_VERSION;
+    this.shortcutAcked = CAPTURE_ATOM_VERSION;
     new Notice(
-      `Opened capture shortcut v${CAPTURE_SHORTCUT_VERSION} — add it in Shortcuts`,
+      `Opened Capture Atom v${CAPTURE_ATOM_VERSION} — add it, then edit → set bookmark to Atoms Inbox once`,
     );
     this.render();
   }

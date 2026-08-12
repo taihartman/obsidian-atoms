@@ -1,7 +1,7 @@
 /**
  * Ask mirror + MCP OAuth methods for SQLite DatabaseSync.
  */
-import { hashToken, id } from "./shared.mjs";
+import { hashToken, id, subscriptionLive } from "./shared.mjs";
 import { encryptMirrorField } from "../mirror/crypto.mjs";
 import {
   aggregateMirrorTags,
@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS atom_mirror (
   updated_at TEXT NOT NULL,
   created TEXT,
   expand_enc TEXT,
+  loop_json TEXT,
   PRIMARY KEY (email, path)
 );
 CREATE INDEX IF NOT EXISTS idx_atom_mirror_email ON atom_mirror(email);
@@ -125,8 +126,8 @@ export function createAskSqliteMethods(db, deps) {
       "SELECT content_hash, expand_enc FROM atom_mirror WHERE email = ? AND path = ?",
     );
     const ins = db.prepare(`
-      INSERT INTO atom_mirror (email, atom_id, title, path, body_enc, tags_json, links_json, content_hash, updated_at, created, expand_enc)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+      INSERT INTO atom_mirror (email, atom_id, title, path, body_enc, tags_json, links_json, content_hash, updated_at, created, expand_enc, loop_json)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?)
       ON CONFLICT(email, path) DO UPDATE SET
         atom_id=excluded.atom_id,
         title=excluded.title,
@@ -136,7 +137,8 @@ export function createAskSqliteMethods(db, deps) {
         content_hash=excluded.content_hash,
         updated_at=excluded.updated_at,
         created=COALESCE(excluded.created, atom_mirror.created),
-        expand_enc=NULL
+        expand_enc=NULL,
+        loop_json=COALESCE(excluded.loop_json, atom_mirror.loop_json)
     `);
     for (const atom of list) {
       const row = prepareMirrorRow(email, atom);
@@ -168,6 +170,7 @@ export function createAskSqliteMethods(db, deps) {
         row.contentHash,
         row.updatedAt,
         row.created,
+        row.loopJson,
       );
       upserted += 1;
       needExpand.push({
@@ -366,7 +369,12 @@ export function createAskSqliteMethods(db, deps) {
    */
   function outboxEnqueue(email, opts) {
     const e = normEmail(email);
-    const kind = opts.kind === "continue" ? "continue" : "create";
+    const kind =
+      opts.kind === "continue"
+        ? "continue"
+        : opts.kind === "set_loop"
+          ? "set_loop"
+          : "create";
     const crid = opts.client_request_id
       ? String(opts.client_request_id).trim().slice(0, 128)
       : "";
@@ -560,7 +568,7 @@ export function createAskSqliteMethods(db, deps) {
     const rows = db
       .prepare(
         `SELECT email, atom_id, title, path, tags_json, links_json,
-                content_hash, updated_at, created
+                content_hash, updated_at, created, loop_json
          FROM atom_mirror WHERE email = ?`,
       )
       .all(e);
@@ -799,7 +807,7 @@ export function createAskSqliteMethods(db, deps) {
     if (!r || r.revoked || Date.now() > r.exp_ms) return null;
     const a = deps.refreshAccountStatus(deps.getAccount(r.email));
     if (!a) return null;
-    if (a.status !== "active" && a.status !== "trialing") return null;
+    if (!subscriptionLive(a)) return null;
     let mcpScopes = ["atoms:read"];
     try {
       const parsed = JSON.parse(r.scopes_json || "[]");

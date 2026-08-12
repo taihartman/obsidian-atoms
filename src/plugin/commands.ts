@@ -135,7 +135,9 @@ export function registerAtomsCommands(plugin: AtomsPlugin): void {
     id: "backfill-estimate-confirm",
     name: "Backfill: estimate cost & confirm batch",
     callback: () => {
-      void plugin.runBackfillFlow();
+      // Explicit: the command is the unbounded whole-history path (KTD9). The Atoms home card
+      // passes "card" for the capped, recent-first offer.
+      void plugin.runBackfillFlow("command");
     },
   });
 
@@ -168,6 +170,22 @@ export function registerAtomsCommands(plugin: AtomsPlugin): void {
     name: "Open atom graph",
     callback: () => {
       void plugin.runOpenAtomGraph();
+    },
+  });
+
+  plugin.addCommand({
+    id: "open-loops-browse",
+    name: "Open loops: notes left for later",
+    callback: () => {
+      void plugin.runOpenLoops("browse");
+    },
+  });
+
+  plugin.addCommand({
+    id: "open-loops-review",
+    name: "Open loops: review proposals",
+    callback: () => {
+      void plugin.runOpenLoops("review");
     },
   });
 

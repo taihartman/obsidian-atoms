@@ -182,9 +182,10 @@ export function meetsPersonHubThreshold(opts: {
 }
 
 export function pathInDenylistFolder(path: string): boolean {
+  // Same walk as hubQualify.pathHasDeniedFolderPart; kept inline to avoid
+  // people↔hubQualify import cycles. Deny list = PERSON_HUB_DENY_FOLDER_PARTS.
   const parts = path.split("/");
   for (const part of parts.slice(0, -1)) {
-    // Vault configDir is user-configurable (not always `.obsidian`).
     if (part.startsWith(".")) return true;
     if (
       PERSON_HUB_DENY_FOLDER_PARTS.some(

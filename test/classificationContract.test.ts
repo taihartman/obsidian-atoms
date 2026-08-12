@@ -65,6 +65,7 @@ describe("enrich stage order (named lists)", () => {
       "normalizeHubSection",
       "enrichPersonLinks",
       "enrichMediaLinks",
+      "enrichListHubLinks",
       "maybeLinkPeopleIndex",
       "enrichEntityLinks",
       "improveClassificationLinks",
@@ -76,6 +77,7 @@ describe("enrich stage order (named lists)", () => {
       "rescueKeepableIdea",
       "enrichPersonLinks",
       "enrichMediaLinks",
+      "enrichListHubLinks",
       "maybeLinkPeopleIndex",
       "enrichEntityLinks",
       "improveClassificationLinks",
@@ -131,7 +133,9 @@ describe("enrich stage order (named lists)", () => {
     }
 
     // Offline repairHubSection is gated — keep the intentional conditional visible.
-    expect(offlineFn).toMatch(/if\s*\(\s*details\?\.length\s*\)/);
+    expect(offlineFn).toMatch(
+      /if\s*\(\s*details\?\.length\s*\|\|\s*listDetails\?\.length\s*\)/,
+    );
     expect(offlineFn).toMatch(/repairHubSection\s*\(/);
   });
 });

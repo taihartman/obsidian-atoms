@@ -29,7 +29,7 @@ import {
   rowNames,
   settingTab,
 } from "./helpers/settingsTab";
-import { labelInstallOrUpdate } from "../src/settings/captureShortcut";
+import { labelCaptureShortcutCta } from "../src/settings/captureShortcut";
 import type { PlusSession } from "../src/platform/filingAuth";
 
 /** The guide as a reader reads it: no markup, no line wrapping, so a label may straddle both. */
@@ -70,18 +70,17 @@ function buttonLabels(tab: ReturnType<typeof plusTab>["tab"], name: string): str
 }
 
 describe("setup guide quotes labels the plugin still renders", () => {
-  it("names the capture button the shortcut row actually renders", () => {
-    // Owning source: src/settings/captureShortcut.ts, rendered by settings.ts's capture row. The
-    // string is one arm of a conditional — an un-acked shortcut says Install, an acked one says
-    // Update — so the guide's step, which is written for a first install, is bound to the
-    // un-acked arm specifically. Hence the default tab: no ack recorded.
+  it("names the Capture Atom install button the settings screen renders", () => {
+    // Companion stays hidden until App Store; shortcut is the path.
     const { tab } = settingTab();
     tab.display();
 
-    const label = labelInstallOrUpdate(null);
-    expect(label).toBe("Install Capture Atom");
-    expect(buttonLabels(tab, "Capture Atom shortcut")).toContain(label);
-    expect(guide.includes(label), "guide does not name the capture button").toBe(true);
+    const shortcutLabel = labelCaptureShortcutCta(null);
+    expect(shortcutLabel).toBe("Install Capture Atom");
+    expect(buttonLabels(tab, "Capture Atom shortcut")).toContain(shortcutLabel);
+    expect(guide.includes("Install Capture Atom"), "guide does not name install CTA").toBe(
+      true,
+    );
   });
 
   it("names the two Ask switches the main screen renders", () => {

@@ -9,6 +9,7 @@ import type {
   AskMirrorSyncResult,
 } from "../src/platform/askMirror";
 import {
+  ASK_MIRROR_COUNT_UNKNOWN,
   ASK_MIRROR_REFUSAL_ESCALATION_NOTICE,
   MIRROR_HIGHWATER_DECAY_DAYS,
   clearAskMirrorDeviceState,
@@ -20,6 +21,7 @@ import {
   readAskMirrorRefusal,
   readAskMirrorServerCount,
   readMirrorHighWater,
+  truncateMessage,
   LS_ASK_MIRROR_HASHES,
   LS_ASK_MIRROR_REFUSAL,
   LS_ASK_MIRROR_SCAN_HIGHWATER,
@@ -770,6 +772,109 @@ describe("askMirror deletion gate (U1)", () => {
     );
   });
 
+  /**
+   * #442 — the reported screen said "84 · last pushed 23h ago" with no error styling, 23 hours
+   * after the account lapsed. Nothing was wrong with that sentence except that it described a
+   * mirror Claude could no longer read, and no push had been attempted since, so no error
+   * existed to displace it. Whole strings again, for #374's reason.
+   */
+  it("leads with the lapse, ahead of a stale push and a failed one", () => {
+    const lapsed = {
+      serverCount: "84",
+      email: "tai@ex.co",
+      relativeLastOk: "23h ago",
+    };
+    expect(
+      formatAskMirrorStatusLine({ ...lapsed, lapsed: "trial" as const }),
+    ).toBe(
+      "Ask mirror: 84 · as tai@ex.co · trial ended — Claude and ChatGPT can’t reach these until you subscribe",
+    );
+    // A push error and a refusal are both downstream of the lapse, and neither is actionable.
+    expect(
+      formatAskMirrorStatusLine({
+        ...lapsed,
+        lapsed: "subscription" as const,
+        lastErr: "Plus network error",
+        refused: true,
+      }),
+    ).toBe(
+      "Ask mirror: 84 · as tai@ex.co · subscription ended — Claude and ChatGPT can’t reach these until you subscribe",
+    );
+    // `off` still wins: a gate the user closed outranks a lapse they did not choose.
+    expect(
+      formatAskMirrorStatusLine({
+        ...lapsed,
+        lapsed: "trial" as const,
+        off: "disabled" as const,
+      }),
+    ).toBe(
+      "Ask mirror: off · 84 in the cloud at last check, Wipe cloud copy to delete",
+    );
+  });
+
+  /**
+   * #374 — the line is read on the consent surface itself, so a mirror the gate has closed may
+   * not describe itself as one that pushed, failed, or wants retrying. Each case asserts the
+   * whole string: the defect was never a missing word, it was three true-looking clauses about
+   * a mirror that is not running.
+   */
+  it("says the mirror is off, and why, once the gate has closed it", () => {
+    const gated = {
+      serverCount: "407",
+      email: "a@ex.co",
+      relativeLastOk: "1h ago",
+      lastErr: "Plus network error",
+    };
+    expect(formatAskMirrorStatusLine({ ...gated, off: "no-ack" })).toBe(
+      "Ask mirror: off · no current privacy acknowledgment · 407 in the cloud at last check, Wipe cloud copy to delete",
+    );
+    expect(formatAskMirrorStatusLine({ ...gated, off: "stale-ack" })).toBe(
+      "Ask mirror: off · privacy acknowledgment out of date, Review to resume · 407 in the cloud at last check, Wipe cloud copy to delete",
+    );
+    expect(formatAskMirrorStatusLine({ ...gated, off: "disabled" })).toBe(
+      "Ask mirror: off · 407 in the cloud at last check, Wipe cloud copy to delete",
+    );
+  });
+
+  /**
+   * A refusal outranks a push error, and the closed gate outranks both: consent withdrawn after
+   * a sync refusal is a reachable state, and it may not surface `Sync now to retry` either.
+   */
+  it("outranks a refusal, not just a push error", () => {
+    expect(
+      formatAskMirrorStatusLine({
+        serverCount: "10",
+        email: "a@ex.co",
+        relativeLastOk: "never",
+        refused: true,
+        off: "no-ack",
+      }),
+    ).toBe(
+      "Ask mirror: off · no current privacy acknowledgment · 10 in the cloud at last check, Wipe cloud copy to delete",
+    );
+  });
+
+  /**
+   * A wipe clears the count rather than zeroing it, so the off line must not turn that absence
+   * into a claim about a cloud copy that is gone.
+   */
+  it("omits the cloud clause when there is no cloud copy to point at", () => {
+    const off = { email: "a@ex.co", relativeLastOk: "never", off: "disabled" } as const;
+    // No count on record at all.
+    expect(
+      formatAskMirrorStatusLine({ ...off, serverCount: ASK_MIRROR_COUNT_UNKNOWN }),
+    ).toBe("Ask mirror: off");
+    // A recorded zero is an empty cloud, so a Wipe call to action would be an instruction to
+    // delete nothing.
+    expect(formatAskMirrorStatusLine({ ...off, serverCount: "0" })).toBe(
+      "Ask mirror: off",
+    );
+    // A value `data.json` should not have held degrades to silence, never to a sentence.
+    expect(formatAskMirrorStatusLine({ ...off, serverCount: "lots" })).toBe(
+      "Ask mirror: off",
+    );
+  });
+
   it("a refusal renders the literal status line and clears on the next clean pass", async () => {
     expect(formatAskMirrorRefusalLine("400")).toBe(
       "Ask mirror: 400 · sync refused — vault scan incomplete · Sync now to retry",
@@ -1112,5 +1217,201 @@ describe("askMirror confirmation (review)", () => {
     f.store[LS_ASK_MIRROR_HASHES] = "{}";
     await runAskMirrorSync(f.host, { force: false });
     expect(readAskMirrorRefusal((k) => f.store[k]).count).toBe(2);
+  });
+});
+
+// #397 — the merge of the two planners' hash maps. `planAskMirrorUpsert` hands back a full copy
+// of the map it was seeded with, and on a non-force pass both planners are seeded from the same
+// snapshot, so spreading one over the other reinstates whatever the loser had just freshened.
+// The old suite could not see this: its fake host resolved zero hubs, so the hub planner's map was
+// never populated and never shadowed anything.
+describe("askMirror hash convergence across planners (#397)", () => {
+  function makeHubbyHost(store: Record<string, string> = {}) {
+    const bodies: Record<string, string> = {
+      "Atoms/A0.md": "body zero",
+      "Atoms/A1.md": "body one",
+      "Movies.md": "hub body",
+    };
+    const uploads: string[][] = [];
+
+    const host: AskMirrorHost = {
+      async scanAtoms() {
+        return ["Atoms/A0.md", "Atoms/A1.md"].map((path) => ({
+          path,
+          basename: path.split("/").pop() as string,
+          content: `---\ntags: []\n---\n${bodies[path]}\n`,
+        }));
+      },
+      async resolveHubs() {
+        return [
+          {
+            path: "Movies.md",
+            basename: "Movies.md",
+            content: `---\ntags: []\n---\n${bodies["Movies.md"]}\n`,
+          },
+        ];
+      },
+      load: (k) => store[k],
+      save: (k, v) => {
+        store[k] = v;
+      },
+      async upsert(atoms) {
+        uploads.push(atoms.map((a) => a.path));
+        return { ok: true, upserted: atoms.length };
+      },
+      async deletePaths() {
+        return { ok: true };
+      },
+      async reconcile() {
+        return { ok: true };
+      },
+      async status() {
+        return { ok: true, count: 3 };
+      },
+      async confirm() {
+        return "dismissed" as ConfirmVerdict;
+      },
+      notice: () => {},
+      now: () => NOW,
+    };
+
+    return {
+      host,
+      store,
+      uploads,
+      edit: (path: string, body: string) => {
+        bodies[path] = body;
+      },
+      hashes: () =>
+        JSON.parse(store[LS_ASK_MIRROR_HASHES] || "{}") as Record<
+          string,
+          string
+        >,
+    };
+  }
+
+  it("a delta pass persists the hash it just uploaded, so the next pass sends nothing", async () => {
+    const f = makeHubbyHost();
+
+    // Seed the baseline through the product itself rather than by hand.
+    await runAskMirrorSync(f.host, { force: false });
+    expect(f.uploads[0]?.sort()).toEqual([
+      "Atoms/A0.md",
+      "Atoms/A1.md",
+      "Movies.md",
+    ]);
+    const seeded = f.hashes();
+
+    // One atom changes. The hub does not, which is what arms the bug: the hub planner returns the
+    // snapshot untouched, carrying A0's *old* hash with it.
+    f.edit("Atoms/A0.md", "body zero, edited");
+    await runAskMirrorSync(f.host, { force: false });
+    expect(f.uploads[1]).toEqual(["Atoms/A0.md"]);
+    expect(f.hashes()["Atoms/A0.md"]).not.toBe(seeded["Atoms/A0.md"]);
+
+    // The convergence claim: nothing changed since, so nothing should go.
+    await runAskMirrorSync(f.host, { force: false });
+    expect(f.uploads[2] ?? []).toEqual([]);
+  });
+
+  it("a hub edit converges too — the atom planner must not shadow fresh hub hashes", async () => {
+    const f = makeHubbyHost();
+    await runAskMirrorSync(f.host, { force: false });
+    const seeded = f.hashes();
+
+    f.edit("Movies.md", "hub body, edited");
+    await runAskMirrorSync(f.host, { force: false });
+    expect(f.uploads[1]).toEqual(["Movies.md"]);
+    expect(f.hashes()["Movies.md"]).not.toBe(seeded["Movies.md"]);
+
+    await runAskMirrorSync(f.host, { force: false });
+    expect(f.uploads[2] ?? []).toEqual([]);
+  });
+
+  it("force still yields a delta-only map, so the orphan sweep keeps its vault-set invariant", async () => {
+    const f = makeHubbyHost();
+    await runAskMirrorSync(f.host, { force: true });
+    // Every path present in the vault, and nothing else — a stale entry surviving here would let
+    // the sweep treat a deleted note as still-present.
+    expect(Object.keys(f.hashes()).sort()).toEqual([
+      "Atoms/A0.md",
+      "Atoms/A1.md",
+      "Movies.md",
+    ]);
+  });
+});
+
+/**
+ * #446 — a shortened service message must not read as a finished sentence. Both surfaces cut on
+ * characters, so an 85-character session-rejected message lost the second half of the only
+ * instruction it was giving and ended on a bare "t".
+ */
+describe("truncateMessage", () => {
+  // The verbatim message that produced the reported Notice.
+  const REJECTED =
+    "Your Atoms Plus session is no longer valid. Sign in again to reconnect to Atoms Plus.";
+
+  it("no longer ends the reported message mid-word", () => {
+    const out = truncateMessage(REJECTED, 72);
+    expect(out).not.toMatch(/reconnect t$/);
+    expect(out).toBe(
+      "Your Atoms Plus session is no longer valid. Sign in again to reconnect…",
+    );
+    // Whatever the budget, the visible text ends on a whole word plus the ellipsis.
+    expect(out).toMatch(/\w…$/);
+  });
+
+  it("says it was shortened, and only when it was", () => {
+    expect(truncateMessage("short enough", 72)).toBe("short enough");
+    expect(truncateMessage("short enough", 72)).not.toMatch(/…/);
+    expect(truncateMessage(REJECTED, 96)).toBe(REJECTED);
+    expect(truncateMessage(REJECTED, 40)).toMatch(/…$/);
+  });
+
+  it("keeps within the budget it was given", () => {
+    for (const limit of [20, 40, 72, 96]) {
+      // The ellipsis is one character beyond the body budget, never a smuggled extra word.
+      expect(truncateMessage(REJECTED, limit).length).toBeLessThanOrEqual(
+        limit + 1,
+      );
+    }
+  });
+
+  it("does not leave punctuation stranded against the ellipsis", () => {
+    expect(truncateMessage("Cannot reach Atoms Plus. Try again later.", 25))
+      .toBe("Cannot reach Atoms Plus…");
+  });
+
+  it("returns something for a single token longer than the budget", () => {
+    // No word boundary to fall back to. An empty string would drop the clause entirely,
+    // because the callers render it only when this is non-empty.
+    const out = truncateMessage("supercalifragilisticexpialidocious", 10);
+    expect(out).toBe("supercalif…");
+  });
+
+  it("treats absent, blank, and whitespace-only text as nothing to say", () => {
+    expect(truncateMessage(undefined, 72)).toBe("");
+    expect(truncateMessage(null, 72)).toBe("");
+    expect(truncateMessage("   \n  ", 72)).toBe("");
+  });
+
+  it("collapses internal whitespace, as both call sites always did", () => {
+    expect(truncateMessage("two   words\nhere", 72)).toBe("two words here");
+  });
+});
+
+describe("the status line carries the shortened message (#446)", () => {
+  it("ends the error clause on a whole word", () => {
+    const line = formatAskMirrorStatusLine({
+      serverCount: "84",
+      email: "a@ex.co",
+      relativeLastOk: "never",
+      lastErr:
+        "Your Atoms Plus session is no longer valid. Sign in again to reconnect to Atoms Plus, then run Sync now from Settings.",
+    });
+    expect(line).not.toMatch(/[a-z]{1,2} · Sync now to retry$/);
+    expect(line).toBe(
+      "Ask mirror: 84 · as a@ex.co · push failed — Your Atoms Plus session is no longer valid. Sign in again to reconnect to Atoms Plus, then run… · Sync now to retry",
+    );
   });
 });

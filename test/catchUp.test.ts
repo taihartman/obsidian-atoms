@@ -1,5 +1,41 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+/**
+ * The classify transport, swapped for the whole file (U6).
+ *
+ * `maybeAutoRun` builds its own `classifyDeps` and deliberately exposes no `request` seam — the
+ * point of the catch-up tests below is to drive the *real* filing path, so the double has to sit
+ * where production puts it. The stock `obsidian` mock's `requestUrl` throws, so overriding it
+ * cannot change any other test in this file.
+ */
+const classifyTransport = vi.hoisted(() => ({
+  handler: null as null | ((opts: unknown) => Promise<unknown>),
+}));
+vi.mock("obsidian", async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  requestUrl: (opts: unknown) =>
+    classifyTransport.handler
+      ? classifyTransport.handler(opts)
+      : Promise.reject(new Error("no classify stub installed")),
+}));
+
 import AtomsPlugin from "../src/plugin/main";
+import {
+  LS_AUTO_RUN_EGRESS_ACK,
+  LS_AUTO_RUN_ENABLED,
+  LS_AUTO_RUN_START_DAY,
+  LS_LAST_RUN_DAY,
+  EGRESS_ACK_VERSION,
+  localDateString,
+  setAutomaticFilingEnabled,
+} from "../src/platform/autorun";
+import {
+  atomResult,
+  contextProviderFor,
+  fakeClassify,
+  fakeVault,
+  stubDailyNotes,
+} from "./helpers/pipelineVault";
 import {
   applyOutboxItemToVault,
   runAskOutboxApply,
@@ -316,6 +352,9 @@ describe("runAskOutboxApply", () => {
         if (p in files) throw new Error("exists");
         files[p] = content;
       },
+      modify: async (p: string, content: string) => {
+        files[p] = content;
+      },
     };
     const f = fakeHost({
       items: [item("o1", "Tea")],
@@ -360,6 +399,10 @@ describe("applyOutboxItemToVault", () => {
           if (p in files) throw new Error("exists");
           files[p] = content;
         },
+        modify: async (p: string, content: string) => {
+          if (!(p in files)) throw new Error("missing");
+          files[p] = content;
+        },
       },
     };
   }
@@ -393,6 +436,129 @@ describe("applyOutboxItemToVault", () => {
       kind: "rejected",
       error: "create_failed",
     });
+  });
+
+  it("create open_loop flag reaches vault FM as user source", async () => {
+    const v = fakeVault();
+    expect(
+      await applyOutboxItemToVault(v.port, "Atoms", {
+        title: "Later",
+        body: "I will share my routine",
+        open_loop: true,
+      }),
+    ).toEqual({ kind: "applied" });
+    expect(v.files["Atoms/Later.md"]).toContain("atoms-loop: active");
+    expect(v.files["Atoms/Later.md"]).toContain("atoms-loop-source: user");
+  });
+
+  it("set_loop patches FM only and leaves body", async () => {
+    const prior = `---
+created: 2026-08-01T10:00:00
+tags: []
+---
+I will share my routine later.
+`;
+    const v = fakeVault({ "Atoms/Routine.md": prior });
+    const bodyBefore = prior.split("---").slice(2).join("---");
+    expect(
+      await applyOutboxItemToVault(
+        v.port,
+        "Atoms",
+        { title: "Routine", state: "active" },
+        "set_loop",
+      ),
+    ).toEqual({ kind: "applied" });
+    const next = v.files["Atoms/Routine.md"]!;
+    expect(next).toContain("atoms-loop: active");
+    expect(next).toContain("atoms-loop-source: user");
+    expect(next.split("---").slice(2).join("---")).toBe(bodyBefore);
+  });
+
+  it("set_loop rejects missing atom", async () => {
+    const v = fakeVault();
+    expect(
+      await applyOutboxItemToVault(
+        v.port,
+        "Atoms",
+        { title: "Gone", state: "active" },
+        "set_loop",
+      ),
+    ).toEqual({ kind: "rejected", error: "missing" });
+  });
+});
+
+describe("runAskOutboxApply payload integrity", () => {
+  it("forwards open_loop through to applyToVault", async () => {
+    const seen: unknown[] = [];
+    const f = fakeHost({
+      items: [
+        {
+          id: "o1",
+          kind: "create",
+          payload: {
+            title: "Intention",
+            body: "I will do it later",
+            open_loop: true,
+          },
+        },
+      ],
+    });
+    f.host.applyToVault = async (payload, kind) => {
+      seen.push({ payload, kind });
+      return { kind: "applied" };
+    };
+    await runAskOutboxApply(f.host);
+    expect(seen).toEqual([
+      {
+        kind: "create",
+        payload: {
+          title: "Intention",
+          body: "I will do it later",
+          open_loop: true,
+        },
+      },
+    ]);
+  });
+
+  it("accepts set_loop without body", async () => {
+    const seen: unknown[] = [];
+    const f = fakeHost({
+      items: [
+        {
+          id: "o1",
+          kind: "set_loop",
+          payload: { title: "Old note", state: "not_a_loop" },
+        },
+      ],
+    });
+    f.host.applyToVault = async (payload, kind) => {
+      seen.push({ payload, kind });
+      return { kind: "applied" };
+    };
+    await runAskOutboxApply(f.host);
+    expect(seen).toEqual([
+      {
+        kind: "set_loop",
+        payload: { title: "Old note", state: "not_a_loop" },
+      },
+    ]);
+    expect(f.acks).toEqual([{ id: "o1", status: "applied" }]);
+  });
+
+  it("rejects set_loop missing state", async () => {
+    const f = fakeHost({
+      items: [
+        {
+          id: "o1",
+          kind: "set_loop",
+          payload: { title: "Old note" },
+        },
+      ],
+    });
+    await runAskOutboxApply(f.host);
+    expect(f.acks).toEqual([
+      { id: "o1", status: "rejected", error: "invalid_payload" },
+    ]);
   });
 });
 
@@ -641,5 +807,289 @@ describe("runCatchUpPass single-flight", () => {
     expect(self.catchUpInFlight).toBe(false);
     // The early return sits inside the `try`, so its `finally` still clears the claim.
     expect((await runPass(self)).reason).not.toBe("in_flight");
+  });
+});
+
+// ---------------------------------------------------------------------------
+/**
+ * "Sync everything now" against the filing window (U6 / KTD4).
+ *
+ * The catch-up passes `bypassEnabled: manual`, so it files with the auto-run toggle *off* — which
+ * is exactly what makes it the candidate for a new silent full-history sweep. These cases drive
+ * the real `maybeAutoRun` with catch-up arguments, against a writable fake vault and the real
+ * `runAutoFilingCycle` → `resolveAutoFilingSince` → `runWritePath` chain, so what is asserted is
+ * the bound production actually resolves rather than a restatement of the rule.
+ *
+ * The enable tap is driven from the same harness at the end of this block: it is the other pass a
+ * user can fire by hand, and it is bound by the same past-only rule.
+ */
+describe("filing passes are scoped to the filing window", () => {
+  afterEach(() => {
+    classifyTransport.handler = null;
+    vi.restoreAllMocks();
+  });
+
+  const DAY_MS = 86_400_000;
+  /** A local calendar day `n` days back from today — the clock the pass itself reads. */
+  const dayBack = (n: number): string =>
+    localDateString(new Date(Date.now() - n * DAY_MS));
+
+  /**
+   * The smallest `this` `maybeAutoRun` touches, wired to a real vault double.
+   *
+   * `countPastUnprocessed` is the production method, not a stand-in: the window bound has to
+   * reach the count and the write as one value, and a hand-written counter would be the one
+   * place that could not drift.
+   */
+  function catchUpSelf(opts: {
+    store: Record<string, unknown>;
+    files: Record<string, string>;
+    dailies: Array<{ path: string; date: string }>;
+  }) {
+    const vault = fakeVault(opts.files);
+    stubDailyNotes(opts.dailies);
+    const store = opts.store;
+    const self = {
+      app: {
+        ...(vault.app as unknown as Record<string, unknown>),
+        loadLocalStorage: (k: string) => store[k] ?? null,
+        saveLocalStorage: (k: string, v: unknown) => {
+          store[k] = v;
+        },
+      },
+      vaultIndexReady: true,
+      contextProvider: contextProviderFor(vault.app),
+      settings: {
+        model: "claude-sonnet-5",
+        activeVocabulary: ["idea"],
+        atomFolder: "Atoms",
+        enableHubProjection: false,
+        proposedTags: [],
+      },
+      autoRunInFlight: false,
+      filingStartedAt: null as number | null,
+      lastWriteReport: null as unknown,
+      resolveFilingAuth: () => ({ mode: "byok", apiKey: "k" }),
+      saveSettings: async () => {},
+      hasOpenAtomsHome: () => false,
+      refreshAtomsHomeLeaves: async () => {},
+      landPeakFromWrite: () => null,
+      finishHomeRun: () => {},
+      countPastUnprocessed: (
+        AtomsPlugin.prototype as never as {
+          countPastUnprocessed: (...a: unknown[]) => unknown;
+        }
+      ).countPastUnprocessed,
+    };
+    return { self, vault };
+  }
+
+  /** What "Sync everything now" reaches when it decides to file (main.ts:818-825). */
+  const tapSyncEverythingNow = (
+    self: ReturnType<typeof catchUpSelf>["self"],
+  ): Promise<{ ran: boolean; reason: string }> =>
+    (
+      AtomsPlugin.prototype as never as {
+        maybeAutoRun: (
+          source: string,
+          catchUp?: { bypassEnabled?: boolean; silentHome?: boolean },
+        ) => Promise<{ ran: boolean; reason: string }>;
+      }
+    ).maybeAutoRun.call(self, "manual", {
+      bypassEnabled: true,
+      silentHome: true,
+    });
+
+  it("files inside the window only, with the auto-run toggle off", async () => {
+    const preWindow = "- an old thought from long before the window\n";
+    const inWindow = "- a thought from inside the window\n";
+    const { self, vault } = catchUpSelf({
+      // Filing was on once and has since been turned off, so the stamp survives (KTD6). The
+      // toggle being off is the whole point: `bypassEnabled` files anyway.
+      store: {
+        [LS_AUTO_RUN_ENABLED]: false,
+        [LS_AUTO_RUN_START_DAY]: dayBack(7),
+        [LS_AUTO_RUN_EGRESS_ACK]: EGRESS_ACK_VERSION,
+      },
+      files: {
+        [`Daily/${dayBack(40)}.md`]: preWindow,
+        [`Daily/${dayBack(2)}.md`]: inWindow,
+      },
+      dailies: [
+        { path: `Daily/${dayBack(40)}.md`, date: dayBack(40) },
+        { path: `Daily/${dayBack(2)}.md`, date: dayBack(2) },
+      ],
+    });
+    const classify = fakeClassify([atomResult("A thought inside the window")]);
+    classifyTransport.handler = classify.request as never;
+
+    const outcome = await tapSyncEverythingNow(self);
+
+    expect(outcome.ran).toBe(true);
+    // Only the in-window capture was ever sent, and only its daily gained a marker.
+    expect(classify.captures).toHaveLength(1);
+    expect(classify.captures[0]).toContain("a thought from inside the window");
+    expect(vault.read(`Daily/${dayBack(2)}.md`)).toContain("<!--linker-->");
+    expect(vault.read(`Daily/${dayBack(40)}.md`)).toBe(preWindow);
+  });
+
+  it("is bounded, not unbounded, on a device that never enabled automatic filing", async () => {
+    // The hole KTD2 fails closed against: no stamp, toggle never on, and a tap on a control
+    // named "Sync everything now". An unbounded resolve here would file the user's whole
+    // history in one tap, silently and unpriced.
+    const preWindow = "- an old thought from long before the window\n";
+    const alsoOld = "- another old thought, from a different day\n";
+    const { self, vault } = catchUpSelf({
+      store: { [LS_AUTO_RUN_EGRESS_ACK]: EGRESS_ACK_VERSION },
+      files: {
+        [`Daily/${dayBack(400)}.md`]: preWindow,
+        [`Daily/${dayBack(3)}.md`]: alsoOld,
+      },
+      dailies: [
+        { path: `Daily/${dayBack(400)}.md`, date: dayBack(400) },
+        { path: `Daily/${dayBack(3)}.md`, date: dayBack(3) },
+      ],
+    });
+    const classify = fakeClassify([atomResult("Never filed")]);
+    classifyTransport.handler = classify.request as never;
+
+    await tapSyncEverythingNow(self);
+
+    // Byte-identical: not "no atom created", not "fewer markers" — untouched.
+    expect(vault.read(`Daily/${dayBack(400)}.md`)).toBe(preWindow);
+    expect(vault.read(`Daily/${dayBack(3)}.md`)).toBe(alsoOld);
+    // Nothing was even sent to the model, so nothing was paid for either.
+    expect(classify.captures).toEqual([]);
+    expect(vault.paths()).toEqual([
+      `Daily/${dayBack(400)}.md`,
+      `Daily/${dayBack(3)}.md`,
+    ]);
+  });
+
+  it("never reaches today's daily, whatever bypassEnabled says", async () => {
+    // No filing pass reaches today, and `bypassEnabled` must not become a back door to it.
+    const todayText = "- something captured mid-day, still being edited\n";
+    const inWindow = "- a thought from inside the window\n";
+    const { self, vault } = catchUpSelf({
+      store: {
+        [LS_AUTO_RUN_ENABLED]: false,
+        [LS_AUTO_RUN_START_DAY]: dayBack(7),
+        [LS_AUTO_RUN_EGRESS_ACK]: EGRESS_ACK_VERSION,
+      },
+      files: {
+        [`Daily/${dayBack(0)}.md`]: todayText,
+        [`Daily/${dayBack(2)}.md`]: inWindow,
+      },
+      dailies: [
+        { path: `Daily/${dayBack(0)}.md`, date: dayBack(0) },
+        { path: `Daily/${dayBack(2)}.md`, date: dayBack(2) },
+      ],
+    });
+    const classify = fakeClassify([atomResult("A thought inside the window")]);
+    classifyTransport.handler = classify.request as never;
+
+    await tapSyncEverythingNow(self);
+
+    expect(vault.read(`Daily/${dayBack(2)}.md`)).toContain("<!--linker-->");
+    expect(vault.read(`Daily/${dayBack(0)}.md`)).toBe(todayText);
+    expect(classify.captures).toHaveLength(1);
+    expect(classify.captures[0]).not.toContain("still being edited");
+  });
+
+  it("stamps no window start on a device that never enabled automatic filing", async () => {
+    // Tapping catch-up is not turning filing on. A stamp written here would age: every later
+    // tap would resolve to that first-tap day and widen the window it was meant to bound.
+    const store: Record<string, unknown> = {
+      [LS_AUTO_RUN_EGRESS_ACK]: EGRESS_ACK_VERSION,
+    };
+    const { self } = catchUpSelf({
+      store,
+      files: { [`Daily/${dayBack(30)}.md`]: "- an old thought\n" },
+      dailies: [{ path: `Daily/${dayBack(30)}.md`, date: dayBack(30) }],
+    });
+    classifyTransport.handler = fakeClassify([atomResult("Never")]).request as never;
+
+    await tapSyncEverythingNow(self);
+    await tapSyncEverythingNow(self);
+
+    expect(store[LS_AUTO_RUN_START_DAY]).toBeUndefined();
+    expect(store[LS_AUTO_RUN_ENABLED]).toBeUndefined();
+  });
+
+  /**
+   * The enable tap keeps the promise the user just accepted.
+   *
+   * `EGRESS_DISCLOSURE` clause (3) — "today's daily note is never auto-touched" — is accepted a
+   * second before `runFilingAfterEnable` fires. The window also starts today, so day one files
+   * nothing at all: that silence is the shape of the promise, not a bug to be papered over with
+   * one today-including run. This drives the real `runFilingAfterEnable` → `maybeAutoRun` →
+   * `runAutoFilingCycle` → `runWritePath` chain, so a future caller that reintroduces today has
+   * to make this test go red.
+   */
+  describe("the enable tap does not touch today's daily", () => {
+    /** The pass the toggle fires, through the shared seam Settings and home both call. */
+    const tapEnable = async (
+      self: ReturnType<typeof catchUpSelf>["self"],
+      store: Record<string, unknown>,
+    ): Promise<void> => {
+      // What both enable paths do first: turn it on and stamp the window start (U3).
+      setAutomaticFilingEnabled(
+        (k) => store[k] ?? null,
+        (k, v) => {
+          store[k] = v;
+        },
+        true,
+      );
+      await (
+        AtomsPlugin.prototype as never as {
+          runFilingAfterEnable: () => Promise<void>;
+        }
+      ).runFilingAfterEnable.call({
+        ...self,
+        maybeAutoRun: (
+          AtomsPlugin.prototype as never as {
+            maybeAutoRun: (...a: unknown[]) => unknown;
+          }
+        ).maybeAutoRun,
+      });
+    };
+
+    it("leaves today byte-identical and sends nothing", async () => {
+      const todayText = "- something captured mid-day, still being edited\n";
+      // Enabling stamps *today*, so a two-day-old capture is already outside the window —
+      // asserted here so a widened bound fails too, not only a widened today rule.
+      const older = "- a thought from before filing was ever turned on\n";
+      const store: Record<string, unknown> = {
+        [LS_AUTO_RUN_EGRESS_ACK]: EGRESS_ACK_VERSION,
+      };
+      const { self, vault } = catchUpSelf({
+        store,
+        files: {
+          [`Daily/${dayBack(0)}.md`]: todayText,
+          [`Daily/${dayBack(2)}.md`]: older,
+        },
+        dailies: [
+          { path: `Daily/${dayBack(0)}.md`, date: dayBack(0) },
+          { path: `Daily/${dayBack(2)}.md`, date: dayBack(2) },
+        ],
+      });
+      const classify = fakeClassify([atomResult("Should never be filed")]);
+      classifyTransport.handler = classify.request as never;
+
+      await tapEnable(self, store);
+
+      expect(vault.read(`Daily/${dayBack(0)}.md`)).toBe(todayText);
+      expect(vault.read(`Daily/${dayBack(2)}.md`)).toBe(older);
+      // Nothing sent, so the disclosure's egress claim holds too — not just the marker count.
+      expect(classify.captures).toEqual([]);
+      // No atom file appeared beside the dailies.
+      expect(vault.paths()).toEqual([
+        `Daily/${dayBack(0)}.md`,
+        `Daily/${dayBack(2)}.md`,
+      ]);
+      // The empty window still burns the day, so the hourly interval stops rescanning.
+      expect(store[LS_AUTO_RUN_START_DAY]).toBe(dayBack(0));
+      expect(store[LS_LAST_RUN_DAY]).toBe(dayBack(0));
+    });
   });
 });

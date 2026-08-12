@@ -13,6 +13,7 @@ Turn **past** daily captures into a trusted second brain: classify → flat atom
 | Doc | Role |
 |---|---|
 | `docs/collab.md` + `STATUS.md` | Multiplayer + agent process; **hard claim before code** |
+| `docs/obsidian-api-conventions.md` | Community lint / Obsidian API do’s and don’ts for `src/**` |
 | `docs/architecture.md` | Long-lived system map + north star (constitution) |
 | Active plan under `docs/plans/` | Implementation authority for the claimed feature |
 | `docs/plans/2026-07-15-001-feat-obsidian-atoms-plugin-plan.md` | Historical core pipeline (U1–U10); not the live roadmap |
@@ -53,6 +54,7 @@ Where an **active feature plan** and amendments conflict, **that plan wins**. Am
 ## Stack + tests
 
 - Stack: sample-plugin template, TypeScript + esbuild, `obsidian-daily-notes-interface`, `isDesktopOnly: false`, network via `requestUrl` (not `fetch` — CORS).
+- **Obsidian API conventions (agents):** [`docs/obsidian-api-conventions.md`](docs/obsidian-api-conventions.md) — CSS/`setCssStyles` not `el.style.*`, `Platform.*` not `navigator`, `window.setTimeout`, `createEl`/`createSpan`, `instanceof TFile`, no bare `fetch` except documented Plus localhost. Read before any `src/**` UI or platform change.
 - **Test-first** on correctness cores: `parseCaptures`, `render`, and other pure logic touched by the claim.
 - Historical core pipeline units: U1–U10 in the 2026-07-15 plan (done/superseded for roadmap purposes).
 
@@ -62,6 +64,7 @@ Where an **active feature plan** and amendments conflict, **that plan wins**. Am
 npm install
 npm run dev          # watch main.js
 npm run build        # typecheck + production bundle
+npm run lint         # eslint-plugin-obsidianmd (community review rules)
 npm run spike:api    # offline classify+cache (needs ANTHROPIC_API_KEY env)
 ```
 

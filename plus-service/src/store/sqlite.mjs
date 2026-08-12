@@ -10,6 +10,7 @@ import {
   CHECKOUT_BINDING_TTL_MS,
   hashToken,
   id,
+  accountHasUsedTrial,
   isEntitledAccount,
   MAGIC_EXCHANGE_REFUSED,
   MAGIC_PEEK_MISS,
@@ -36,7 +37,8 @@ function migrate(db) {
       plan TEXT NOT NULL,
       promo_redemptions INTEGER NOT NULL DEFAULT 0,
       stripe_customer_id TEXT,
-      stripe_subscription_id TEXT
+      stripe_subscription_id TEXT,
+      trial_used INTEGER NOT NULL DEFAULT 0
     );
     CREATE TABLE IF NOT EXISTS magic_tokens (
       token TEXT PRIMARY KEY,
@@ -119,6 +121,25 @@ function migrate(db) {
   if (!mirrorCols.some((c) => c.name === "expand_enc")) {
     db.exec("ALTER TABLE atom_mirror ADD COLUMN expand_enc TEXT");
   }
+  if (!mirrorCols.some((c) => c.name === "loop_json")) {
+    db.exec("ALTER TABLE atom_mirror ADD COLUMN loop_json TEXT");
+  }
+  // One free trial per email — existing DBs gain the flag on open.
+  const acctCols = db.prepare("PRAGMA table_info(accounts)").all();
+  if (!acctCols.some((c) => c.name === "trial_used")) {
+    db.exec(
+      "ALTER TABLE accounts ADD COLUMN trial_used INTEGER NOT NULL DEFAULT 0",
+    );
+  }
+  // Best-effort backfill: entitled or Stripe-linked accounts already used trial.
+  db.exec(`
+    UPDATE accounts SET trial_used = 1
+    WHERE trial_used = 0
+      AND (
+        status IN ('trialing', 'active', 'exhausted')
+        OR stripe_customer_id IS NOT NULL
+      )
+  `);
 }
 
 export function createSqliteStore(dbPath = config.databasePath) {
@@ -155,7 +176,8 @@ export function createSqliteStore(dbPath = config.databasePath) {
   function saveAccount(a) {
     db.prepare(
       `UPDATE accounts SET status=?, remaining=?, period_end=?, plan=?,
-        promo_redemptions=?, stripe_customer_id=?, stripe_subscription_id=?
+        promo_redemptions=?, stripe_customer_id=?, stripe_subscription_id=?,
+        trial_used=?
        WHERE email=?`,
     ).run(
       a.status,
@@ -165,9 +187,24 @@ export function createSqliteStore(dbPath = config.databasePath) {
       a.promoRedemptions ?? 0,
       a.stripeCustomerId ?? null,
       a.stripeSubscriptionId ?? null,
+      a.trialUsed ? 1 : 0,
       a.email,
     );
     return a;
+  }
+
+  /** @returns {{ won: boolean }} */
+  function tryClaimTrial(email) {
+    const key = email.trim().toLowerCase();
+    ensureAccount(key);
+    const row = db
+      .prepare(
+        `UPDATE accounts SET trial_used = 1
+         WHERE email = ? AND trial_used = 0
+         RETURNING email`,
+      )
+      .get(key);
+    return { won: Boolean(row) };
   }
 
   function refreshAccountStatus(a) {
@@ -282,16 +319,41 @@ export function createSqliteStore(dbPath = config.databasePath) {
     return session;
   }
 
+  /** @returns {number} rows newly revoked */
   function revokeAllSessionsForEmail(email) {
-    db.prepare("UPDATE sessions SET revoked = 1 WHERE email = ?").run(
-      email.trim().toLowerCase(),
-    );
+    const info = db
+      .prepare(
+        "UPDATE sessions SET revoked = 1 WHERE email = ? AND revoked = 0",
+      )
+      .run(email.trim().toLowerCase());
+    return info.changes || 0;
   }
 
   function revokeUnverifiedSessionsForEmail(email) {
     db.prepare(
       "UPDATE sessions SET revoked = 1 WHERE email = ? AND verified = 0",
     ).run(email.trim().toLowerCase());
+  }
+
+  /** #320 — soft cap on live verified sessions (oldest by exp_ms). */
+  function enforceSessionCapForEmail(email) {
+    const key = email.trim().toLowerCase();
+    const cap = Number(config.maxSessionsPerEmail) || 10;
+    const rows = db
+      .prepare(
+        `SELECT token_hash FROM sessions
+          WHERE email = ? AND verified = 1 AND revoked = 0 AND exp_ms >= ?
+          ORDER BY exp_ms ASC`,
+      )
+      .all(key, Date.now());
+    const excess = rows.length - cap;
+    if (excess <= 0) return 0;
+    const victims = rows.slice(0, excess);
+    const upd = db.prepare(
+      "UPDATE sessions SET revoked = 1 WHERE token_hash = ? AND revoked = 0",
+    );
+    for (const r of victims) upd.run(r.token_hash);
+    return victims.length;
   }
 
   /**
@@ -317,6 +379,14 @@ export function createSqliteStore(dbPath = config.databasePath) {
       Date.now() + CHECKOUT_BINDING_TTL_MS,
     );
     return true;
+  }
+
+  /** #320 R10 — drop in-flight checkout bindings for this email. */
+  function clearCheckoutBindingsForEmail(email) {
+    const info = db
+      .prepare("DELETE FROM checkout_bindings WHERE email = ?")
+      .run(email.trim().toLowerCase());
+    return info.changes || 0;
   }
 
   /**
@@ -402,16 +472,30 @@ export function createSqliteStore(dbPath = config.databasePath) {
     ) {
       const st =
         config.dogfoodGrantStatus === "active" ? "active" : "trialing";
-      a = grantPeriod(row.email, {
-        status: st,
-        plan: st === "trialing" ? "trial" : "monthly",
-        days: st === "trialing" ? config.trialDays : 30,
-        remaining: config.includedFilings,
-      });
+      if (st === "trialing") {
+        const claim = tryClaimTrial(row.email);
+        if (claim.won) {
+          a = grantPeriod(row.email, {
+            status: "trialing",
+            plan: "trial",
+            days: config.trialDays,
+            remaining: config.includedFilings,
+          });
+        }
+      } else {
+        a = grantPeriod(row.email, {
+          status: "active",
+          plan: "monthly",
+          days: 30,
+          remaining: config.includedFilings,
+        });
+      }
     }
     a = refreshAccountStatus(a);
-    revokeAllSessionsForEmail(row.email);
+    // #320 — unverified only (multi-device). C1: soft sessions still die.
+    revokeUnverifiedSessionsForEmail(row.email);
     const session = createSession(row.email, { verified: true });
+    enforceSessionCapForEmail(row.email);
     return { session, account: a, vault: row.vault ?? null };
   }
 
@@ -613,13 +697,17 @@ export function createSqliteStore(dbPath = config.databasePath) {
     revokeSession,
     revokeAllSessionsForEmail,
     revokeUnverifiedSessionsForEmail,
+    enforceSessionCapForEmail,
     bindCheckoutSession,
+    clearCheckoutBindingsForEmail,
     promoteCheckoutSession,
     markSessionVerified,
     tryConsumeFiling,
     completeUsage,
     refundFiling,
     grantPeriod,
+    tryClaimTrial,
+    accountHasUsedTrial,
     addTopUp,
     redeemPromo,
     publicAccount,
@@ -719,6 +807,24 @@ export function createSqliteStore(dbPath = config.databasePath) {
       const a = ensureAccount(email);
       a.stripeSubscriptionId = subId;
       return saveAccount(a);
+    },
+    /**
+     * Drop the Stripe customer/subscription ids without touching the meter.
+     * Used when the stored id is wrong-mode or deleted (#408).
+     */
+    clearStripeBillingLink(email) {
+      const a = ensureAccount(email);
+      const old = a.stripeCustomerId;
+      a.stripeCustomerId = undefined;
+      a.stripeSubscriptionId = undefined;
+      saveAccount(a);
+      if (old) {
+        db.prepare("DELETE FROM stripe_customers WHERE customer_id = ?").run(
+          old,
+        );
+      }
+      db.prepare("DELETE FROM stripe_customers WHERE email = ?").run(a.email);
+      return a;
     },
     emailFromStripeCustomer(customerId) {
       const r = db

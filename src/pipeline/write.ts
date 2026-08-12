@@ -29,11 +29,8 @@ import {
   applyPersonPeerLinksToContents,
   resolveAtomPersonName,
 } from "./personInvite";
-import { Notice, TFile } from "obsidian";
-import {
-  hubTitlesFromAtomContents,
-  runHubProjectionForHubs,
-} from "./runHubProjection";
+import { TFile } from "obsidian";
+import { projectHubsFromAtomContents } from "./runHubProjection";
 import { localDateYmd } from "./atomQuality";
 import {
   appLoadLocal,
@@ -74,6 +71,12 @@ export interface WritePathReport {
   proposedTagsMerged: string[];
   personHubMisses: number;
   failures: WritePathFailure[];
+  /**
+   * Set when the run stopped before walking its whole slice. `exhausted` means the meter
+   * ran out mid-run — the remaining captures were never attempted, so the caller must not
+   * read `failed` as "these captures are broken". Markers make the resume idempotent.
+   */
+  stoppedReason?: "exhausted";
 }
 
 export interface RunWritePathOptions {
@@ -97,6 +100,31 @@ export interface RunWritePathOptions {
   fixtureResults?: ClassificationResult[];
   /** Manual force: include today's daily. Default false (never for auto-run). */
   includeToday?: boolean;
+  /**
+   * Filing-window start, `YYYY-MM-DD` inclusive (KTD2). Every unattended caller passes the
+   * same bound it counted with — a count that scans wider than the write never reaches zero,
+   * and the day is never stamped. Absent only on the attended commands.
+   */
+  since?: string;
+  /**
+   * Backfill complement bound, `YYYY-MM-DD` exclusive (KTD3). Only the backfill passes it:
+   * without it a run started at `since` files straight through the filing window the
+   * unattended auto-run already owns, which is metered double-spend on exactly the captures
+   * the complement exists to exclude.
+   */
+  before?: string;
+  /**
+   * Daily-note order. Defaults to `oldest-first` — the order every existing caller has
+   * always had. Backfill opts into `newest-first` because a paced or interrupted run must
+   * spend its budget on the notes the user can still remember writing; those are the only
+   * ones they can judge filing quality on.
+   */
+  order?: "oldest-first" | "newest-first";
+  /**
+   * Halt on the first exhausted-meter response instead of walking the rest of the slice.
+   * Default false: every existing caller keeps today's continue-through behaviour.
+   */
+  stopOnAuthExhausted?: boolean;
   enableHubProjection?: boolean;
   /** Shortlist size per capture. Defaults to DEFAULT_SHORTLIST_K. */
   shortlistK?: number;
@@ -113,6 +141,8 @@ export async function runWritePath(
 ): Promise<WritePathReport> {
   const listed = await getPastDailyNotesWithUnmarkedCaptures(opts.app, {
     includeToday: opts.includeToday,
+    since: opts.since,
+    before: opts.before,
   });
   const work: Array<{ note: DailyNoteWithCaptures; capture: Capture }> = [];
   for (const note of listed.notes) {
@@ -121,10 +151,14 @@ export async function runWritePath(
     }
   }
 
+  // Only the *daily* key flips for newest-first; the line key never does. Reversing the flat
+  // list instead would file each daily top-down, and an appended marker would then shift the
+  // line numbers of every capture the run has not reached yet.
+  const dailyDirection = opts.order === "newest-first" ? -1 : 1;
   // Bottom-up within each daily so inserted markers don't shift later line numbers.
   work.sort((a, b) => {
     const byPath = a.note.path.localeCompare(b.note.path);
-    if (byPath !== 0) return byPath;
+    if (byPath !== 0) return byPath * dailyDirection;
     return b.capture.startLine - a.capture.startLine;
   });
 
@@ -147,6 +181,7 @@ export async function runWritePath(
   let collisions = 0;
   let failed = 0;
   let personHubMisses = 0;
+  let stoppedReason: WritePathReport["stoppedReason"];
   const proposedIncoming: string[] = [];
   const hubs: PersonHub[] = (staticCtx.personHubDetails ?? []).map((d) => ({
     canonicalTitle: d.canonicalTitle,
@@ -206,6 +241,8 @@ export async function runWritePath(
             titles: ctx.titles ?? [],
             personHubs: hubs,
             personHubTitles: ctx.personHubs ?? [],
+            personHubDetails: ctx.personHubDetails,
+            listHubDetails: ctx.listHubDetails,
           },
         );
       } else {
@@ -222,6 +259,13 @@ export async function runWritePath(
             outcome.reason,
             outcome.message || outcome.reason,
           );
+          // The meter's 402 arrives per capture, so without this every remaining capture
+          // makes its own doomed round-trip and lands in `failed` indistinguishable from a
+          // network or schema failure.
+          if (opts.stopOnAuthExhausted && outcome.reason === "quota") {
+            stoppedReason = "exhausted";
+            break;
+          }
           continue;
         }
         result = outcome.result;
@@ -370,25 +414,14 @@ export async function runWritePath(
         /* skip */
       }
     }
-    const touched = hubTitlesFromAtomContents(
+    await projectHubsFromAtomContents({
+      app: opts.app,
+      enabled: true,
+      atomFolder: opts.atomFolder,
       atomContents,
-      staticCtx.personHubs ?? [],
-    );
-    if (touched.length) {
-      const proj = await runHubProjectionForHubs({
-        app: opts.app,
-        enabled: true,
-        atomFolder: opts.atomFolder,
-        touchedHubTitles: touched,
-        personHubDetails: staticCtx.personHubDetails,
-      });
-      for (const err of proj.errors.slice(0, 3)) {
-        new Notice(
-          `Atoms: hub projection skipped [[${err.hubTitle}]] — ${err.reason}`,
-          8000,
-        );
-      }
-    }
+      personHubTitles: staticCtx.personHubs ?? [],
+      personHubDetails: staticCtx.personHubDetails,
+    });
   }
 
   return {
@@ -401,6 +434,7 @@ export async function runWritePath(
     proposedTagsMerged,
     personHubMisses,
     failures,
+    stoppedReason,
   };
 }
 
