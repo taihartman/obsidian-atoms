@@ -222,6 +222,10 @@ export const config = {
   get sessionTtlDays() {
     return Number(env("ATOMS_PLUS_SESSION_TTL_DAYS", "60"));
   },
+  /** #320 — live verified sessions per email at magic-link exchange (oldest evicted). */
+  get maxSessionsPerEmail() {
+    return Number(env("ATOMS_PLUS_MAX_SESSIONS_PER_EMAIL", "10"));
+  },
   get maxCaptureChars() {
     return Number(env("ATOMS_PLUS_MAX_CAPTURE_CHARS", "8000"));
   },

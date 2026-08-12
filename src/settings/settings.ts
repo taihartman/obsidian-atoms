@@ -39,6 +39,7 @@ import {
   writeShortcutAck,
 } from "./captureShortcut";
 import { markDestructive } from "./destructiveButton";
+import { askSignOutAllApproval } from "./plusSignOutAllConfirmModal";
 import {
   ackStampIsReal,
   settleAckRecords,
@@ -109,6 +110,7 @@ import {
   createCheckout,
   createBillingPortal,
   signOutPlus,
+  signOutAllDevices,
   askMcpUrl,
   askMcpPair,
   askMirrorStatus,
@@ -1283,6 +1285,35 @@ export class AtomsSettingTab extends PluginSettingTab {
     this.redisplay();
   }
 
+  /** #320 — confirm, then revoke every session + MCP (including this device). */
+  private async signOutAllDevicesOfPlus(): Promise<void> {
+    const session = readPlusSession(this.app);
+    if (!session) {
+      new Notice("No Plus session on this device");
+      return;
+    }
+    const verdict = await askSignOutAllApproval(this.app, session.email);
+    if (verdict !== "confirmed") return;
+    const base =
+      this.plugin.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL;
+    const r = await signOutAllDevices(
+      { baseUrl: base, request: plusFetchRequest },
+      session.sessionToken,
+    );
+    await this.disarmAskMirror();
+    clearPlusSession(this.app);
+    clearPlusRefreshRecord(this.app);
+    if (!r.ok) {
+      new Notice(
+        `Signed out locally. Server said: ${r.message || "request failed"}`,
+        8000,
+      );
+    } else {
+      new Notice("Signed out on every device");
+    }
+    this.redisplay();
+  }
+
   private accountState(): AccountState {
     return deriveAccountState(
       this.plugin.resolveFilingAuth(),
@@ -1414,6 +1445,15 @@ export class AtomsSettingTab extends PluginSettingTab {
       label: "Sign out",
       onClick: () => this.signOutOfPlus(),
     });
+    if (session) {
+      this.destructiveRow(containerEl, {
+        action: "plus:sign-out-all",
+        name: "Sign out all devices",
+        desc: "Sign out every device and disconnect Claude/ChatGPT. You will need a new sign-in link here too.",
+        label: "Sign out all devices",
+        onClick: () => this.signOutAllDevicesOfPlus(),
+      });
+    }
 
     containerEl.createEl("p", {
       text: "To use your own API key instead, add it under API Key. Plus is optional.",

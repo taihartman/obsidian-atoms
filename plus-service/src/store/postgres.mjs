@@ -336,11 +336,13 @@ export async function createPostgresStore(databaseUrl) {
     return session;
   }
 
+  /** @returns {Promise<number>} rows newly revoked */
   async function revokeAllSessionsForEmail(email) {
-    await pool.query(
-      "UPDATE sessions SET revoked = TRUE WHERE email = $1",
+    const res = await pool.query(
+      "UPDATE sessions SET revoked = TRUE WHERE email = $1 AND revoked = FALSE",
       [email.trim().toLowerCase()],
     );
+    return res.rowCount || 0;
   }
 
   async function revokeUnverifiedSessionsForEmail(email) {
@@ -348,6 +350,30 @@ export async function createPostgresStore(databaseUrl) {
       "UPDATE sessions SET revoked = TRUE WHERE email = $1 AND verified = FALSE",
       [email.trim().toLowerCase()],
     );
+  }
+
+  /**
+   * #320 — soft cap on live verified sessions at exchange (oldest by exp_ms).
+   * @returns {Promise<number>} sessions revoked
+   */
+  async function enforceSessionCapForEmail(email) {
+    const key = email.trim().toLowerCase();
+    const cap = Number(config.maxSessionsPerEmail) || 10;
+    const { rows } = await pool.query(
+      `SELECT token_hash FROM sessions
+        WHERE email = $1 AND verified = TRUE AND revoked = FALSE AND exp_ms >= $2
+        ORDER BY exp_ms ASC`,
+      [key, Date.now()],
+    );
+    const excess = rows.length - cap;
+    if (excess <= 0) return 0;
+    const victims = rows.slice(0, excess).map((r) => r.token_hash);
+    await pool.query(
+      `UPDATE sessions SET revoked = TRUE
+        WHERE token_hash = ANY($1::text[]) AND revoked = FALSE`,
+      [victims],
+    );
+    return victims.length;
   }
 
   /**
@@ -518,8 +544,11 @@ export async function createPostgresStore(databaseUrl) {
       }
     }
     a = await refreshAccountStatus(a);
-    await revokeAllSessionsForEmail(email);
+    // #320 — unverified only. Revoking *every* session made desktop and phone
+    // mutually exclusive. C1 still holds: soft startWithEmail sessions die here.
+    await revokeUnverifiedSessionsForEmail(email);
     const session = await createSession(email, { verified: true });
+    await enforceSessionCapForEmail(email);
     return { session, account: a, vault };
   }
 
@@ -786,6 +815,7 @@ export async function createPostgresStore(databaseUrl) {
     revokeSession,
     revokeAllSessionsForEmail,
     revokeUnverifiedSessionsForEmail,
+    enforceSessionCapForEmail,
     bindCheckoutSession,
     promoteCheckoutSession,
     markSessionVerified,

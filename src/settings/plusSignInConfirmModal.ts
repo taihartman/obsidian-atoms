@@ -38,7 +38,7 @@ export type SignInConfirmCopy = {
  */
 export function signInConfirmCopy(request: SignInConfirmRequest): SignInConfirmCopy {
   const disclosure =
-    "Signing in here signs this account out on your other devices. They can sign back in with a new link.";
+    "Your other devices stay signed in. To sign them all out, use “Sign out all devices” in Settings → Atoms.";
   return {
     title: "Sign in to Atoms Plus?",
     lines: [

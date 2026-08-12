@@ -246,6 +246,11 @@ export function publicAccount(a) {
  * (`ensureAccount` defaults inactive rows to that plan).
  * @param {{ trialUsed?: boolean } | null | undefined} a
  */
+/** Short stable id for logs (not reversible to email). */
+export function accountFingerprint(email) {
+  return hashToken(String(email || "").trim().toLowerCase()).slice(0, 12);
+}
+
 export function accountHasUsedTrial(a) {
   return Boolean(a?.trialUsed);
 }

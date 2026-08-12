@@ -26,6 +26,7 @@ import {
 import { sendMagicLinkEmail } from "./email.mjs";
 import {
   INCIDENT_KIND,
+  accountFingerprint,
   accountHasUsedTrial,
   verifierMatches,
 } from "./store/shared.mjs";
@@ -579,6 +580,34 @@ ${
       const session = bearer(req);
       if (session && store.revokeSession) await store.revokeSession(session);
       return json(res, 200, { ok: true });
+    }
+
+    // POST /v1/auth/sign-out-all — #320 multi-device recovery (revokes this device too)
+    if (req.method === "POST" && path === "/v1/auth/sign-out-all") {
+      const a = await store.accountFromSession(bearer(req), {
+        requireVerified: true,
+      });
+      if (!a) {
+        return json(res, 401, {
+          message: "Sign in with a magic link to sign out all devices",
+        });
+      }
+      const rl = checkRateLimit(`signout_all:${a.email}`);
+      if (!rl.ok) {
+        return json(res, 429, {
+          message: "Too many requests",
+          retryAfterSec: rl.retryAfterSec,
+        });
+      }
+      const revoked = await store.revokeAllSessionsForEmail(a.email);
+      if (store.mcpRevokeForEmail) await store.mcpRevokeForEmail(a.email);
+      if (store.clearCheckoutBindingsForEmail) {
+        await store.clearCheckoutBindingsForEmail(a.email);
+      }
+      console.log(
+        `[plus] sign-out-all ${accountFingerprint(a.email)} sessions=${revoked}`,
+      );
+      return json(res, 200, { ok: true }, NO_STORE);
     }
 
     // #240 U5 — `GET /v1/auth/dev-exchange` is gone. It was a zero-caller
