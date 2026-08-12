@@ -18,7 +18,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.outlined.Circle
 import androidx.compose.material.icons.outlined.FolderOpen
-import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -37,8 +36,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import app.tryatoms.capture.data.FileTreeAccess
-import app.tryatoms.capture.domain.DiscoveredVault
 import app.tryatoms.capture.domain.VaultRef
 import app.tryatoms.capture.ui.theme.AtomsShapes
 import app.tryatoms.capture.ui.theme.AtomsThemeAccess
@@ -56,9 +53,7 @@ fun CaptureScreen(
     state: CaptureUiState,
     onDraftChange: (String) -> Unit,
     onCapture: () -> Unit,
-    onAllowFileAccess: () -> Unit,
     onFindVaultsSaf: () -> Unit,
-    onSelectDiscovered: (DiscoveredVault) -> Unit,
     onSelectVault: (VaultRef) -> Unit,
     onUseFolderAsVault: () -> Unit,
     onRescan: () -> Unit,
@@ -142,9 +137,7 @@ fun CaptureScreen(
 
             VaultChooserCard(
                 state = state,
-                onAllowFileAccess = onAllowFileAccess,
                 onFindVaultsSaf = onFindVaultsSaf,
-                onSelectDiscovered = onSelectDiscovered,
                 onSelectVault = onSelectVault,
                 onUseFolderAsVault = onUseFolderAsVault,
                 onRescan = onRescan,
@@ -211,9 +204,7 @@ fun CaptureScreen(
 @Composable
 private fun VaultChooserCard(
     state: CaptureUiState,
-    onAllowFileAccess: () -> Unit,
     onFindVaultsSaf: () -> Unit,
-    onSelectDiscovered: (DiscoveredVault) -> Unit,
     onSelectVault: (VaultRef) -> Unit,
     onUseFolderAsVault: () -> Unit,
     onRescan: () -> Unit,
@@ -231,8 +222,6 @@ private fun VaultChooserCard(
                 when {
                     state.vaultLinked -> state.vaultName ?: "Linked"
                     state.scanning -> "Looking for vaults…"
-                    state.discoveredVaults.isNotEmpty() ->
-                        "Found ${state.discoveredVaults.size} vault${if (state.discoveredVaults.size == 1) "" else "s"}"
                     state.listedVaults.isNotEmpty() -> "Your vaults"
                     else -> "Choose a vault"
                 },
@@ -256,120 +245,27 @@ private fun VaultChooserCard(
                 return@FlatCard
             }
 
-            // The Play build has no all-files permission to offer, so the folder
-            // picker is the whole story there rather than the fallback. It also
-            // has to carry the pick-a-vault step, since the scan branch below
-            // never runs and would otherwise strand a folder holding two vaults.
-            if (!state.fileScanSupported) {
-                if (state.listedVaults.isEmpty()) {
-                    Text(
-                        "Pick the folder that holds your Obsidian vault. Atoms reads and writes " +
-                            "inside that folder and nowhere else.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = extras.secondaryText,
-                    )
-                    FolderPickerButton(primary = true, onClick = onFindVaultsSaf)
-                } else {
-                    VaultRefList(state.listedVaults, onSelectVault)
-                    FolderPickerButton(primary = false, onClick = onFindVaultsSaf)
-                }
-                // The escape hatch for a folder that IS the vault, or one whose
-                // .obsidian the picker did not surface.
-                if (state.hasAccessRoot) {
-                    TextButton(onClick = onUseFolderAsVault, colors = atomsQuietButtonColors()) {
-                        Text("Use this folder as vault")
-                    }
-                }
-                return@FlatCard
-            }
-
-            if (!state.hasAllFilesAccess) {
+            if (state.listedVaults.isEmpty()) {
                 Text(
-                    "Allow file access once and we’ll find Obsidian vaults on this phone automatically.",
+                    "Pick your vault folder. Or pick Documents, and we'll list the vaults inside.",
                     style = MaterialTheme.typography.bodySmall,
                     color = extras.secondaryText,
                 )
-                Button(
-                    onClick = onAllowFileAccess,
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .heightIn(min = 48.dp),
-                    shape = AtomsShapes.button,
-                    colors = atomsPrimaryButtonColors(),
-                ) {
-                    Text("Allow file access", style = MaterialTheme.typography.labelLarge)
-                }
-                Text(
-                    "Or pick a folder manually",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = extras.tertiaryText,
-                )
-                FolderPickerButton(primary = false, onClick = onFindVaultsSaf)
-                return@FlatCard
-            }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    if (state.scanning) "Scanning…" else "On this phone",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = extras.secondaryText,
-                )
-                TextButton(
-                    onClick = onRescan,
-                    enabled = !state.scanning,
-                    colors = atomsQuietButtonColors(),
-                ) {
-                    Icon(
-                        Icons.Outlined.Refresh,
-                        contentDescription = "Scan again",
-                        modifier = Modifier.size(18.dp),
-                    )
-                }
-            }
-
-            if (state.discoveredVaults.isNotEmpty()) {
-                state.discoveredVaults.forEach { vault ->
-                    VaultPickRow(
-                        title = vault.name,
-                        subtitle = if (vault.score >= 11) "Atoms ready" else "Obsidian vault",
-                        onClick = { onSelectDiscovered(vault) },
-                    )
-                }
-            } else if (state.listedVaults.isNotEmpty()) {
+                FolderPickerButton(primary = true, onClick = onFindVaultsSaf)
+            } else {
                 VaultRefList(state.listedVaults, onSelectVault)
-            } else if (!state.scanning) {
-                Text(
-                    "No vaults found yet.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = extras.secondaryText,
-                )
-                OutlinedButton(
-                    onClick = onFindVaultsSaf,
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
-                    shape = AtomsShapes.button,
-                    border = BorderStroke(1.dp, extras.hairline),
-                ) {
-                    Text("Folder picker")
-                }
-                if (state.hasAccessRoot) {
-                    TextButton(onClick = onUseFolderAsVault, colors = atomsQuietButtonColors()) {
-                        Text("Use this folder as vault")
-                    }
+                FolderPickerButton(primary = false, onClick = onFindVaultsSaf)
+            }
+            if (state.hasAccessRoot) {
+                TextButton(onClick = onUseFolderAsVault, colors = atomsQuietButtonColors()) {
+                    Text("Use this folder as vault")
                 }
             }
         }
     }
 }
 
-/**
- * One folder-picker button. Which flavor the build is decides whether it leads
- * (Play, where it is the only route to a vault) or follows, never how it looks.
- */
+/** One folder-picker button. Primary on first link, outlined when switching. */
 @Composable
 private fun FolderPickerButton(
     primary: Boolean,
@@ -476,12 +372,7 @@ private fun SetupChecklist(
                     if (vaultLinked && vaultName != null) {
                         vaultName
                     } else {
-                        // The Play build cannot look; it has to be shown.
-                        if (FileTreeAccess.SUPPORTED) {
-                            "We’ll find vaults on this phone"
-                        } else {
-                            "Point us at your vault folder"
-                        }
+                        "Point us at your vault folder. Documents works if that's where it lives."
                     },
             )
             ChecklistRow(

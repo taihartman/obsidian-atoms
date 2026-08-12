@@ -2,9 +2,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <!--
-      No all-files access here. The vault is reached through the SAF folder
-      picker, which is all the Play build is allowed to ask for. The sideload
-      flavor adds the broader storage permission in its own manifest.
+      No all-files access. Play grants that only to file managers, backup, and
+      antivirus apps. The vault is reached through the SAF folder picker.
     -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />

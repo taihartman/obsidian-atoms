@@ -30,23 +30,6 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
-    // Where the build is going decides how it reaches the vault, so it is a
-    // flavor and not a setting: play can only ever use the folder picker.
-    flavorDimensions += "distribution"
-    productFlavors {
-        create("play") {
-            dimension = "distribution"
-            // Store build. SAF folder picker only — Play grants all-files access
-            // to file managers, backup, and antivirus apps, and nothing else.
-        }
-        create("sideload") {
-            dimension = "distribution"
-            // Direct install. Keeps MANAGE_EXTERNAL_STORAGE and the file-tree
-            // scan that finds vaults without the user pointing at a folder.
-            versionNameSuffix = "-sideload"
-        }
-    }
-
     signingConfigs {
         create("release") {
             if (hasKeystoreProps) {
@@ -118,11 +101,11 @@ dependencies {
 }
 
 /**
- * The play flavor exists to not have all-files access, and a permission can come
- * back from a merged library manifest as easily as from ours. So this reads the
- * *merged* manifest rather than the source, and runs before the artifact ships.
+ * Play rejects all-files access for anything that is not a file manager, and
+ * the listing says this app has no network. A permission can come back from a
+ * merged library as easily as from ours, so this reads the merged manifest.
  */
-abstract class VerifyPlayManifest : DefaultTask() {
+abstract class VerifyStoreManifest : DefaultTask() {
     @get:InputFile
     abstract val mergedManifest: RegularFileProperty
 
@@ -159,11 +142,11 @@ abstract class VerifyPlayManifest : DefaultTask() {
                 .distinct()
         if (found.isNotEmpty()) {
             throw GradleException(
-                "The play flavor declares ${found.joinToString()} in ${manifest.name}. " +
+                "This app declares ${found.joinToString()} in ${manifest.name}. " +
                     "Broad storage access is granted by Play only to file managers, backup, " +
                     "and antivirus apps; INTERNET would contradict what the store listing and " +
-                    "the privacy policy both say this app cannot do. Move the permission to " +
-                    "the sideload flavor, or reach the vault through the SAF folder picker.",
+                    "the privacy policy both say this app cannot do. Reach the vault through " +
+                    "the SAF folder picker.",
             )
         }
 
@@ -173,8 +156,8 @@ abstract class VerifyPlayManifest : DefaultTask() {
             }
         if (legacyStorage) {
             throw GradleException(
-                "The play flavor sets requestLegacyExternalStorage in ${manifest.name}. That " +
-                    "belongs to the sideload flavor only.",
+                "requestLegacyExternalStorage is set in ${manifest.name}. This app reaches " +
+                    "the vault through the SAF folder picker only.",
             )
         }
     }
@@ -185,11 +168,11 @@ abstract class VerifyPlayManifest : DefaultTask() {
 }
 
 androidComponents {
-    onVariants(selector().withFlavor("distribution" to "play")) { variant ->
+    onVariants { variant ->
         val capitalized = variant.name.replaceFirstChar { it.uppercase() }
         val verify =
-            tasks.register<VerifyPlayManifest>("verify${capitalized}Manifest") {
-                description = "Fails if the play flavor asks for broad storage access."
+            tasks.register<VerifyStoreManifest>("verify${capitalized}Manifest") {
+                description = "Fails if the store build asks for broad storage or internet."
                 mergedManifest.set(variant.artifacts.get(SingleArtifact.MERGED_MANIFEST))
             }
         tasks

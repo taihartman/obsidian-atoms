@@ -42,11 +42,8 @@ Move every pending inbox capture into **its own day's** daily as a `- HH:MM body
 ### Filed marker
 `<!--atoms:filed-->` after an inbox capture's extent — the inbox's own sentinel, distinct from daily `<!--linker:*-->` markers and unknown to `parse.ts`. Presence is a **region** property (scan to the next top-level bullet), so drifted whitespace never re-files a capture.
 
-### Capture distribution flavor
-Which store the Android companion is going to, and therefore how it can reach a vault. **play** ships to Google Play and holds no all-files permission, so the SAF folder picker is its only route. **sideload** installs directly and keeps all-files access plus the file-tree vault scan. Both share an applicationId, so one installs over the other in place and inherits its state — which is why the capability is enforced where state is read, not only where code is linked.
-
-### Vault link mode
-How the Android companion holds onto a vault. **File path** is an absolute path found by scanning, sideload only. **SAF** is a persisted tree URI plus a relative path, and the only mode a play build can have. A stored file path is ignored outright in a build that cannot read one, so it reads as unlinked rather than as a link that silently fails.
+### Vault link
+How the Android companion holds onto a vault: a persisted SAF tree URI plus a relative path. Play will not grant all-files access to a capture app, so there is no silent whole-phone scan. The user picks the vault folder, or a parent such as Documents, and the app lists vaults under that grant. A leftover absolute path from an older all-files install is ignored, so it reads as unlinked rather than as a link that silently fails.
 
 ### Held / unparseable
 Drain outcomes that are neither filed nor failed. **Held** = stamped ahead of the clock, so no daily exists to file into yet. **Unparseable** = no readable stamp. Both stay in place, counted and surfaced on home rather than dropped or guessed at.

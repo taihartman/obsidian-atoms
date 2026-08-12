@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| In progress | [#382](https://github.com/taihartman/obsidian-atoms/issues/382) | taihartman | `claude/atoms-capture-play-store-24f197` | [handoff](docs/handoffs/2026-08-07-android-play-store-listing.md) | `companion/android/**`, `www/src/privacy.html.tmpl` | Atoms Capture → Google Play: SAF-only `play` flavor (no `MANAGE_EXTERNAL_STORAGE`), release signing scaffold, privacy companion section · no plugin bump · rebased/merged onto 2026-08-12 master |
+| In progress | [#382](https://github.com/taihartman/obsidian-atoms/issues/382) | taihartman | `claude/atoms-capture-play-store-24f197` | [handoff](docs/handoffs/2026-08-07-android-play-store-listing.md) | `companion/android/**`, `www/src/privacy.html.tmpl` | Atoms Capture → Google Play: one SAF-only build (no flavors, no all-files). Pick vault folder or Documents. Signing scaffold + privacy companion section · no plugin bump |
 | In progress | #473 | agent | `fix/plus-signin-account-refresh` | n/a (debug) | `src/plugin/main.ts`, `src/settings/settings.ts` | Magic-link install never redraws open Account. |
 
 ## How to claim (copy)
