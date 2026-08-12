@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   HTML_SECURITY_HEADERS,
+  OAUTH_HTML_SECURITY_HEADERS,
   escHtml,
   renderPage,
 } from "../src/html/shell.mjs";
@@ -58,5 +59,13 @@ describe("html/shell renderPage", () => {
       "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'",
     );
     assert.equal(HTML_SECURITY_HEADERS["cache-control"], "no-store");
+  });
+
+  it("OAuth CSP form-action allows Claude and ChatGPT redirects after Allow", () => {
+    const csp = OAUTH_HTML_SECURITY_HEADERS["content-security-policy"];
+    assert.match(csp, /form-action 'self'/);
+    assert.match(csp, /https:\/\/claude\.ai/);
+    assert.match(csp, /https:\/\/chatgpt\.com/);
+    assert.match(csp, /127\.0\.0\.1/);
   });
 });
