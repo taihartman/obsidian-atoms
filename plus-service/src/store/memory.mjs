@@ -180,11 +180,17 @@ export function createMemoryStore() {
     return session;
   }
 
+  /** @returns {number} rows newly revoked */
   function revokeAllSessionsForEmail(email) {
     const key = email.trim().toLowerCase();
+    let n = 0;
     for (const row of sessions.values()) {
-      if (row.email === key) row.revoked = true;
+      if (row.email === key && !row.revoked) {
+        row.revoked = true;
+        n += 1;
+      }
     }
+    return n;
   }
 
   function revokeUnverifiedSessionsForEmail(email) {
@@ -192,6 +198,28 @@ export function createMemoryStore() {
     for (const row of sessions.values()) {
       if (row.email === key && !row.verified) row.revoked = true;
     }
+  }
+
+  /** #320 — soft cap on live verified sessions (oldest by exp). */
+  function enforceSessionCapForEmail(email) {
+    const key = email.trim().toLowerCase();
+    const cap = Number(config.maxSessionsPerEmail) || 10;
+    const now = Date.now();
+    const live = [...sessions.entries()]
+      .filter(
+        ([, row]) =>
+          row.email === key &&
+          row.verified &&
+          !row.revoked &&
+          row.exp >= now,
+      )
+      .sort((a, b) => a[1].exp - b[1].exp);
+    const excess = live.length - cap;
+    if (excess <= 0) return 0;
+    for (let i = 0; i < excess; i++) {
+      live[i][1].revoked = true;
+    }
+    return excess;
   }
 
   /**
@@ -301,8 +329,10 @@ export function createMemoryStore() {
       }
     }
     refreshAccountStatus(a);
-    revokeAllSessionsForEmail(row.email);
+    // #320 — unverified only (multi-device). C1: soft sessions still die.
+    revokeUnverifiedSessionsForEmail(row.email);
     const session = createSession(row.email, { verified: true });
+    enforceSessionCapForEmail(row.email);
     return { session, account: a, vault: row.vault ?? null };
   }
 
@@ -1091,6 +1121,7 @@ export function createMemoryStore() {
     revokeSession,
     revokeAllSessionsForEmail,
     revokeUnverifiedSessionsForEmail,
+    enforceSessionCapForEmail,
     bindCheckoutSession,
     promoteCheckoutSession,
     markSessionVerified,

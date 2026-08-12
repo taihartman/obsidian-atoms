@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-_Nothing in flight._
+| In progress | #320 | taihartman | `feat/320-multi-device-sessions` | `docs/plans/2026-08-06-001-feat-multi-device-sessions-plan.md` (on PR branch history) | `plus-service/src/store/*`, `server.mjs`, `settings.ts` | Multi-device: narrow exchange revoke; Sign out all devices. |
 
 ## How to claim (copy)
 

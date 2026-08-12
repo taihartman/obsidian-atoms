@@ -761,6 +761,24 @@ export async function signOutPlus(
   return { ok: true };
 }
 
+/** #320 — revoke every session + MCP grants for this account (including this device). */
+export async function signOutAllDevices(
+  cfg: PlusClientConfig,
+  sessionToken: string,
+): Promise<{ ok: true } | PlusApiError> {
+  const res = await plusRequest(cfg, {
+    path: "/v1/auth/sign-out-all",
+    method: "POST",
+    sessionToken,
+    body: {},
+  });
+  if (!res.ok) return res;
+  if (res.status < 200 || res.status >= 300) {
+    return mapError(res.status, res.json);
+  }
+  return { ok: true };
+}
+
 export async function askMirrorUpsert(
   cfg: PlusClientConfig,
   sessionToken: string,
