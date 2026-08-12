@@ -7,9 +7,10 @@ This folder is the project-specific adapter for the shared `world-class-qa` and 
 Before a QA pass, read:
 
 1. `docs/qa/testing-fixtures.md` for deterministic data, live-data constraints, and cleanup rules.
-2. `docs/qa/app-navigation-map.md` for surface and command anchors.
-3. The changed files, plan (if any), and adjacent tests for the feature under QA.
-4. **Acceptance authority** for product/UI claims: active plan under `docs/plans/`, product contract / architecture rules it cites (e.g. entity orbits Open contract R14), and on-screen copy next to CTAs. `world-class-qa` stories must use those acceptances — not handler bodies. **Shipped surfaces stay in scope** even if a plan slice deferred that tier.
+2. `docs/qa/app-navigation-map.md` for surface and command anchors. When a drive path is wrong, heal the row in the same change (world-class-qa gate 31).
+3. `docs/qa/learnings.md` for hard-won traps. Read before driving; append after a pass that taught something the next one would otherwise repeat.
+4. The changed files, plan (if any), and adjacent tests for the feature under QA.
+5. **Acceptance authority** for product/UI claims: active plan under `docs/plans/`, product contract / architecture rules it cites (e.g. entity orbits Open contract R14), and on-screen copy next to CTAs. `world-class-qa` stories must use those acceptances — not handler bodies. **Shipped surfaces stay in scope** even if a plan slice deferred that tier.
 
 ## Run Commands
 

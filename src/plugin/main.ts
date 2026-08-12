@@ -2078,6 +2078,10 @@ export default class AtomsPlugin extends Plugin {
       },
       session,
     );
+    // Magic-link install does not go through Settings' own redisplay. Paste and
+    // trial do. Without this, an open Account destination keeps the signed-out
+    // form until the user taps Back (#473).
+    this.settingTab?.refreshFromExternalSettings();
   }
 
   async loadSettings() {
