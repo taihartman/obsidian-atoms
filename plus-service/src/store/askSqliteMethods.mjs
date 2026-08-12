@@ -369,7 +369,12 @@ export function createAskSqliteMethods(db, deps) {
    */
   function outboxEnqueue(email, opts) {
     const e = normEmail(email);
-    const kind = opts.kind === "continue" ? "continue" : "create";
+    const kind =
+      opts.kind === "continue"
+        ? "continue"
+        : opts.kind === "set_loop"
+          ? "set_loop"
+          : "create";
     const crid = opts.client_request_id
       ? String(opts.client_request_id).trim().slice(0, 128)
       : "";

@@ -540,6 +540,103 @@ export function registerAskTools(mcp, ctx) {
   );
 
   mcp.registerTool(
+    "set_loop",
+    {
+      title: "Set loop state",
+      annotations: { readOnlyHint: false, destructiveHint: true },
+      description:
+        "Queue a frontmatter-only loop mark on an existing mirrored atom (outbox). Does NOT write instantly. Always sets atoms-loop-source to user. Ask the user before calling; do not invent marks. Use active for open intentions; not_a_loop / resolved_elsewhere / abandoned for corrections. Body never changes. Does not create children — substance close uses continue_atom with relation redeems. active does not reopen a loop that already has a redeeming child.",
+      inputSchema: {
+        title: z.string().describe("Existing mirrored atom title"),
+        state: z
+          .enum([
+            "active",
+            "not_a_loop",
+            "resolved_elsewhere",
+            "abandoned",
+          ])
+          .describe("Loop classification to write"),
+        client_request_id: z
+          .string()
+          .optional()
+          .describe("Idempotency key for retries"),
+      },
+    },
+    async (args) => {
+      const denied = requireWrite();
+      if (denied) return denied;
+      const rl = writeRateOk();
+      if (!rl.ok) {
+        return jsonTool(
+          {
+            error: "rate_limited",
+            retryAfterSec: rl.retryAfterSec,
+          },
+          true,
+        );
+      }
+      const title = String(args.title || "").trim();
+      const target = await store.mirrorFetch(email, title);
+      if (!target) {
+        const st = await store.mirrorStatus(email);
+        return jsonTool(
+          {
+            error: "atom_not_found",
+            title,
+            mirror_count: st.count,
+            ...absenceMeta(),
+            hint:
+              "Atom must be in the Ask mirror. Sync Ask after Process, or create_atom first and wait until it lands.",
+          },
+          true,
+        );
+      }
+      if (target.kind === "hub") {
+        return jsonTool(
+          {
+            error: "target_is_hub",
+            title,
+            path: target.path,
+            hint: "Hub notes are read-only in Ask. set_loop only against atoms under Atoms/.",
+          },
+          true,
+        );
+      }
+      const v = validateOutboxPayload("set_loop", {
+        title: target.title || title,
+        state: args.state,
+        client_request_id: args.client_request_id,
+      });
+      if (!v.ok) return jsonTool({ error: v.error }, true);
+      const enq = await store.outboxEnqueue(email, {
+        kind: "set_loop",
+        payload: v.payload,
+        client_request_id: v.payload.client_request_id,
+      });
+      if (!enq.ok) {
+        return jsonTool(
+          {
+            error: enq.error || "enqueue_failed",
+            hint:
+              enq.error === "outbox_full"
+                ? "Too many pending writes—open Obsidian to drain the queue"
+                : undefined,
+          },
+          true,
+        );
+      }
+      return jsonTool({
+        status: enq.status,
+        outbox_id: enq.id,
+        title: v.payload.title,
+        state: v.payload.state,
+        duplicate: Boolean(enq.duplicate),
+        hint: PENDING_HINT,
+      });
+    },
+  );
+
+  mcp.registerTool(
     "cancel_pending",
     {
       title: "Cancel pending write",
@@ -547,7 +644,11 @@ export function registerAskTools(mcp, ctx) {
       description:
         "Cancel a pending or claimed outbox write before Obsidian applies it. Cannot undo applied atoms. Use list_pending if you lost the outbox_id.",
       inputSchema: {
-        outbox_id: z.string().describe("outbox_id from create_atom/continue_atom/list_pending"),
+        outbox_id: z
+          .string()
+          .describe(
+            "outbox_id from create_atom/continue_atom/set_loop/list_pending",
+          ),
       },
     },
     async ({ outbox_id }) => {
@@ -604,7 +705,9 @@ export function registerAskTools(mcp, ctx) {
         kind:
           r.kind === "continue" || r.kind === "continue_atom"
             ? "continue_atom"
-            : "create_atom",
+            : r.kind === "set_loop"
+              ? "set_loop"
+              : "create_atom",
         status: r.status,
         title: r.payload?.title ?? null,
         created_at: r.created_at ?? null,

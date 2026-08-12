@@ -272,6 +272,7 @@ function writeUnauthorized(res, publicBaseUrl) {
 const WRITE_TOOL_NAMES = new Set([
   "create_atom",
   "continue_atom",
+  "set_loop",
   "cancel_pending",
   "list_pending",
 ]);

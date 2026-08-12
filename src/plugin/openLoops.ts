@@ -8,10 +8,8 @@ import {
 } from "../pipeline/parseLinkProse";
 import { extractCaptureBody } from "../pipeline/refreshAtoms";
 import {
-  OPEN_LOOP_KEY,
-  OPEN_LOOP_SOURCE_KEY,
   REDEEMS_RELATION,
-  formatOpenLoopFmLines,
+  applyOpenLoopFm,
   frontmatterBlock,
   linksIncludeRedeems,
   openNow,
@@ -19,11 +17,7 @@ import {
   type OpenLoopFm,
 } from "../shared/openLoop";
 
-function bodyAfterFm(content: string): string {
-  const fm = frontmatterBlock(content);
-  if (!fm) return content;
-  return content.slice(fm.length).replace(/^\n/, "");
-}
+export { applyOpenLoopFm };
 
 function parentRelationFromFm(content: string): {
   parent?: string;
@@ -90,27 +84,4 @@ export function isDismissCandidate(content: string): boolean {
   return loop?.state === "active" && loop.source === "inferred";
 }
 
-export function applyOpenLoopFm(content: string, next: OpenLoopFm): string {
-  const fm = frontmatterBlock(content);
-  const body = bodyAfterFm(content);
-  if (!fm) {
-    return ["---", ...formatOpenLoopFmLines(next), "---", "", body].join("\n");
-  }
-  const without = fm
-    .split(/\r?\n/)
-    .filter((line) => {
-      const t = line.trim();
-      return (
-        !t.startsWith(`${OPEN_LOOP_KEY}:`) &&
-        !t.startsWith(`${OPEN_LOOP_SOURCE_KEY}:`)
-      );
-    });
-  const close = without.lastIndexOf("---");
-  if (close <= 0) {
-    return content;
-  }
-  const head = without.slice(0, close);
-  const tail = without.slice(close);
-  const nextFm = [...head, ...formatOpenLoopFmLines(next), ...tail].join("\n");
-  return nextFm + (body.startsWith("\n") ? body : `\n${body}`);
-}
+

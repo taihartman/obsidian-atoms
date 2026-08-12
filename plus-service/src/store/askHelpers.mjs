@@ -1363,8 +1363,15 @@ export function relationReason(relation, parentTitle) {
   }
 }
 
+export const OUTBOX_LOOP_STATES = new Set([
+  "active",
+  "not_a_loop",
+  "resolved_elsewhere",
+  "abandoned",
+]);
+
 /**
- * @param {"create"|"continue"} kind
+ * @param {"create"|"continue"|"set_loop"} kind
  * @param {object} raw
  * @returns {{ ok: true, payload: object } | { ok: false, error: string }}
  */
@@ -1372,8 +1379,28 @@ export function validateOutboxPayload(kind, raw) {
   const title = String(raw?.title || "")
     .trim()
     .slice(0, OUTBOX_TITLE_MAX);
-  const body = String(raw?.body ?? "");
   if (!title) return { ok: false, error: "title required" };
+
+  const client_request_id = raw?.client_request_id
+    ? String(raw.client_request_id).trim().slice(0, 128)
+    : undefined;
+
+  if (kind === "set_loop") {
+    const state = String(raw?.state || "").trim();
+    if (!OUTBOX_LOOP_STATES.has(state)) {
+      return { ok: false, error: "invalid state" };
+    }
+    return {
+      ok: true,
+      payload: {
+        title,
+        state,
+        client_request_id,
+      },
+    };
+  }
+
+  const body = String(raw?.body ?? "");
   if (!body.trim()) return { ok: false, error: "body required" };
   if (body.length > OUTBOX_MAX_BODY) {
     return { ok: false, error: `body exceeds ${OUTBOX_MAX_BODY} chars` };
@@ -1397,9 +1424,6 @@ export function validateOutboxPayload(kind, raw) {
         .slice(0, 500),
     }))
     .filter((l) => l.note);
-  const client_request_id = raw?.client_request_id
-    ? String(raw.client_request_id).trim().slice(0, 128)
-    : undefined;
 
   if (kind === "continue") {
     const parent_title = String(raw?.parent_title || "").trim().slice(0, OUTBOX_TITLE_MAX);
