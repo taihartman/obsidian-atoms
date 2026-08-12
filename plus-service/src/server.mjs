@@ -599,13 +599,20 @@ ${
           retryAfterSec: rl.retryAfterSec,
         });
       }
+      // R10 — all three, or "sign out all devices" is incomplete.
       const revoked = await store.revokeAllSessionsForEmail(a.email);
-      if (store.mcpRevokeForEmail) await store.mcpRevokeForEmail(a.email);
-      if (store.clearCheckoutBindingsForEmail) {
-        await store.clearCheckoutBindingsForEmail(a.email);
+      if (typeof store.mcpRevokeForEmail !== "function") {
+        throw new Error("store.mcpRevokeForEmail missing");
       }
+      if (typeof store.clearCheckoutBindingsForEmail !== "function") {
+        throw new Error("store.clearCheckoutBindingsForEmail missing");
+      }
+      await store.mcpRevokeForEmail(a.email);
+      const bindingsCleared = await store.clearCheckoutBindingsForEmail(
+        a.email,
+      );
       console.log(
-        `[plus] sign-out-all ${accountFingerprint(a.email)} sessions=${revoked}`,
+        `[plus] sign-out-all ${accountFingerprint(a.email)} sessions=${revoked} bindings=${bindingsCleared}`,
       );
       return json(res, 200, { ok: true }, NO_STORE);
     }

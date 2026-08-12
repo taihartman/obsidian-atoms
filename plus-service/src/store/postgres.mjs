@@ -403,6 +403,19 @@ export async function createPostgresStore(databaseUrl) {
   }
 
   /**
+   * #320 R10 — drop in-flight checkout bindings so a webhook cannot re-verify
+   * a session after "Sign out all devices".
+   * @returns {Promise<number>} rows deleted
+   */
+  async function clearCheckoutBindingsForEmail(email) {
+    const res = await pool.query(
+      "DELETE FROM checkout_bindings WHERE email = $1",
+      [email.trim().toLowerCase()],
+    );
+    return res.rowCount || 0;
+  }
+
+  /**
    * Single-use: re-verify the one session that paid for this checkout, undoing
    * grantPeriod's revoke for it alone. A soft session that never opened checkout
    * has no binding and stays revoked — that is the C1 fixation case (#163).
@@ -817,6 +830,7 @@ export async function createPostgresStore(databaseUrl) {
     revokeUnverifiedSessionsForEmail,
     enforceSessionCapForEmail,
     bindCheckoutSession,
+    clearCheckoutBindingsForEmail,
     promoteCheckoutSession,
     markSessionVerified,
     tryConsumeFiling,
