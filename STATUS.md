@@ -7,7 +7,8 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| In progress | #471 | agent | `feat/ask-agent-stance` | `docs/plans/2026-08-12-002-feat-ask-agent-stance-plan.md` | `instructions.mjs` | MCP stance: search without “check my atoms”. No plugin bump. |
+| In review | #471 | agent | `feat/ask-agent-stance` | `docs/plans/2026-08-12-002-feat-ask-agent-stance-plan.md` | `instructions.mjs` | MCP stance: search without “check my atoms”. No plugin bump. Shipping tail. |
+| In progress | #473 | agent | `fix/plus-signin-account-refresh` | n/a (debug) | `src/plugin/main.ts`, `src/settings/settings.ts` | Magic-link install never redraws open Account. |
 
 ## How to claim (copy)
 
