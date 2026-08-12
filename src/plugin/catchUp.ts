@@ -197,7 +197,11 @@ export async function applyOutboxItemToVault(
       return { kind: "rejected", error: plan.reason };
     }
     if (plan.action === "modify") {
-      await vault.modify(plan.path, plan.content);
+      try {
+        await vault.modify(plan.path, plan.content);
+      } catch {
+        return { kind: "rejected", error: "modify_failed" };
+      }
     }
     return { kind: "applied" };
   }
