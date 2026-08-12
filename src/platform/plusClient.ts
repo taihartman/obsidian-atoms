@@ -1003,6 +1003,10 @@ export type AskOutboxItem = {
     links?: { note: string; reason?: string }[];
     parent_title?: string;
     relation?: string;
+    open_loop?: boolean;
+    close_answer?: string;
+    state?: string;
+    client_request_id?: string;
   } | null;
 };
 

@@ -352,6 +352,9 @@ describe("runAskOutboxApply", () => {
         if (p in files) throw new Error("exists");
         files[p] = content;
       },
+      modify: async (p: string, content: string) => {
+        files[p] = content;
+      },
     };
     const f = fakeHost({
       items: [item("o1", "Tea")],
@@ -396,6 +399,10 @@ describe("applyOutboxItemToVault", () => {
           if (p in files) throw new Error("exists");
           files[p] = content;
         },
+        modify: async (p: string, content: string) => {
+          if (!(p in files)) throw new Error("missing");
+          files[p] = content;
+        },
       },
     };
   }
@@ -429,6 +436,129 @@ describe("applyOutboxItemToVault", () => {
       kind: "rejected",
       error: "create_failed",
     });
+  });
+
+  it("create open_loop flag reaches vault FM as user source", async () => {
+    const v = fakeVault();
+    expect(
+      await applyOutboxItemToVault(v.port, "Atoms", {
+        title: "Later",
+        body: "I will share my routine",
+        open_loop: true,
+      }),
+    ).toEqual({ kind: "applied" });
+    expect(v.files["Atoms/Later.md"]).toContain("atoms-loop: active");
+    expect(v.files["Atoms/Later.md"]).toContain("atoms-loop-source: user");
+  });
+
+  it("set_loop patches FM only and leaves body", async () => {
+    const prior = `---
+created: 2026-08-01T10:00:00
+tags: []
+---
+I will share my routine later.
+`;
+    const v = fakeVault({ "Atoms/Routine.md": prior });
+    const bodyBefore = prior.split("---").slice(2).join("---");
+    expect(
+      await applyOutboxItemToVault(
+        v.port,
+        "Atoms",
+        { title: "Routine", state: "active" },
+        "set_loop",
+      ),
+    ).toEqual({ kind: "applied" });
+    const next = v.files["Atoms/Routine.md"]!;
+    expect(next).toContain("atoms-loop: active");
+    expect(next).toContain("atoms-loop-source: user");
+    expect(next.split("---").slice(2).join("---")).toBe(bodyBefore);
+  });
+
+  it("set_loop rejects missing atom", async () => {
+    const v = fakeVault();
+    expect(
+      await applyOutboxItemToVault(
+        v.port,
+        "Atoms",
+        { title: "Gone", state: "active" },
+        "set_loop",
+      ),
+    ).toEqual({ kind: "rejected", error: "missing" });
+  });
+});
+
+describe("runAskOutboxApply payload integrity", () => {
+  it("forwards open_loop through to applyToVault", async () => {
+    const seen: unknown[] = [];
+    const f = fakeHost({
+      items: [
+        {
+          id: "o1",
+          kind: "create",
+          payload: {
+            title: "Intention",
+            body: "I will do it later",
+            open_loop: true,
+          },
+        },
+      ],
+    });
+    f.host.applyToVault = async (payload, kind) => {
+      seen.push({ payload, kind });
+      return { kind: "applied" };
+    };
+    await runAskOutboxApply(f.host);
+    expect(seen).toEqual([
+      {
+        kind: "create",
+        payload: {
+          title: "Intention",
+          body: "I will do it later",
+          open_loop: true,
+        },
+      },
+    ]);
+  });
+
+  it("accepts set_loop without body", async () => {
+    const seen: unknown[] = [];
+    const f = fakeHost({
+      items: [
+        {
+          id: "o1",
+          kind: "set_loop",
+          payload: { title: "Old note", state: "not_a_loop" },
+        },
+      ],
+    });
+    f.host.applyToVault = async (payload, kind) => {
+      seen.push({ payload, kind });
+      return { kind: "applied" };
+    };
+    await runAskOutboxApply(f.host);
+    expect(seen).toEqual([
+      {
+        kind: "set_loop",
+        payload: { title: "Old note", state: "not_a_loop" },
+      },
+    ]);
+    expect(f.acks).toEqual([{ id: "o1", status: "applied" }]);
+  });
+
+  it("rejects set_loop missing state", async () => {
+    const f = fakeHost({
+      items: [
+        {
+          id: "o1",
+          kind: "set_loop",
+          payload: { title: "Old note" },
+        },
+      ],
+    });
+    await runAskOutboxApply(f.host);
+    expect(f.acks).toEqual([
+      { id: "o1", status: "rejected", error: "invalid_payload" },
+    ]);
   });
 });
 

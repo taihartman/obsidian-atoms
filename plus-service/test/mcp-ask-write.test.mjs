@@ -14,6 +14,8 @@ describe("MCP ask write helpers + store path", () => {
     assert.match(ASK_MCP_INSTRUCTIONS, /pending/i);
     assert.match(ASK_MCP_INSTRUCTIONS, /create_atom/);
     assert.match(ASK_MCP_INSTRUCTIONS, /continue_atom/);
+    assert.match(ASK_MCP_INSTRUCTIONS, /set_loop/);
+    assert.match(ASK_MCP_INSTRUCTIONS, /ask the user before/i);
     assert.match(ASK_MCP_INSTRUCTIONS, /invent/i);
     assert.doesNotMatch(ASK_MCP_INSTRUCTIONS, /tools cannot write/i);
   });
@@ -98,6 +100,46 @@ describe("MCP ask write helpers + store path", () => {
       body: "   ",
     });
     assert.equal(v.ok, false);
+  });
+
+  it("validate set_loop payload", () => {
+    const bad = validateOutboxPayload("set_loop", {
+      title: "Note",
+      state: "maybe",
+    });
+    assert.equal(bad.ok, false);
+    const ok = validateOutboxPayload("set_loop", {
+      title: "Note",
+      state: "active",
+    });
+    assert.equal(ok.ok, true);
+    assert.equal(ok.payload.state, "active");
+    assert.equal(ok.payload.body, undefined);
+  });
+
+  it("set_loop enqueue via store", async () => {
+    const store = await createStore({ mode: "memory" });
+    await store.grantPeriod("w@t.co", { status: "active", remaining: 10 });
+    await store.mirrorUpsert("w@t.co", [
+      {
+        path: "Atoms/Old intention.md",
+        title: "Old intention",
+        body: "I will write later",
+      },
+    ]);
+    const v = validateOutboxPayload("set_loop", {
+      title: "Old intention",
+      state: "active",
+    });
+    const enq = await store.outboxEnqueue("w@t.co", {
+      kind: "set_loop",
+      payload: v.payload,
+    });
+    assert.equal(enq.ok, true);
+    const pull = await store.outboxPull("w@t.co");
+    assert.equal(pull.items[0].kind, "set_loop");
+    assert.equal(pull.items[0].payload.state, "active");
+    assert.equal(pull.items[0].payload.body, undefined);
   });
 
   it("parses reason only from link-prose region (not capture)", () => {

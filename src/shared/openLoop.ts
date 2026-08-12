@@ -105,3 +105,35 @@ export function linksIncludeRedeems(
   }
   return false;
 }
+
+function bodyAfterFm(content: string): string {
+  const fm = frontmatterBlock(content);
+  if (!fm) return content;
+  return content.slice(fm.length).replace(/^\n/, "");
+}
+
+/** Write/replace loop FM keys; body bytes after FM stay intact. */
+export function applyOpenLoopFm(content: string, next: OpenLoopFm): string {
+  const fm = frontmatterBlock(content);
+  const body = bodyAfterFm(content);
+  if (!fm) {
+    return ["---", ...formatOpenLoopFmLines(next), "---", "", body].join("\n");
+  }
+  const without = fm
+    .split(/\r?\n/)
+    .filter((line) => {
+      const t = line.trim();
+      return (
+        !t.startsWith(`${OPEN_LOOP_KEY}:`) &&
+        !t.startsWith(`${OPEN_LOOP_SOURCE_KEY}:`)
+      );
+    });
+  const close = without.lastIndexOf("---");
+  if (close <= 0) {
+    return content;
+  }
+  const head = without.slice(0, close);
+  const tail = without.slice(close);
+  const nextFm = [...head, ...formatOpenLoopFmLines(next), ...tail].join("\n");
+  return nextFm + (body.startsWith("\n") ? body : `\n${body}`);
+}

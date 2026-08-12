@@ -212,6 +212,13 @@ export class AskCoordinator {
         }
       },
       create: (path, content) => p.app.vault.create(path, content).then(),
+      modify: async (path, content) => {
+        const f = p.app.vault.getAbstractFileByPath(path);
+        if (!(f instanceof TFile)) {
+          throw new Error("missing");
+        }
+        await p.app.vault.modify(f, content);
+      },
     };
 
     return {
@@ -236,7 +243,8 @@ export class AskCoordinator {
       // Same two halves the entry gate asks, asked again per item.
       writePermitted: () =>
         this.mirrorPermitted() && askWriteAckIsCurrent(p.settings),
-      applyToVault: (payload) => applyOutboxItemToVault(vault, folder, payload),
+      applyToVault: (payload, kind) =>
+        applyOutboxItemToVault(vault, folder, payload, kind),
       syncMirror: () => this.sync({ force: false }),
       notice: (message) => new Notice(message),
       onLanded: () => {

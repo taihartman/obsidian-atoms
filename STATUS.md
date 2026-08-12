@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-_Nothing in flight._
+| In progress | #467 | agent | `feat/467-set-loop` | `docs/plans/2026-08-12-001-feat-set-loop-conversational-plan.md` | `catchUp.ts`, `askOutbox.ts`, `tools.mjs`, `askHelpers.mjs`, `instructions.mjs` | Part 1 only: MCP `set_loop` + outbox FM patch + R15 payload passthrough. No Part 2. |
 
 ## How to claim (copy)
 
