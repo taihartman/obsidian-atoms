@@ -92,3 +92,20 @@ export function consentForm(pendingId, email, clientLabel) {
 export function simpleMessage(title, msg) {
   return htmlPage(title, `<h1>${escHtml(title)}</h1><p>${escHtml(msg)}</p>`);
 }
+
+/**
+ * Same-origin handoff after Allow/Deny when a 302 to the AI app might be
+ * blocked (CSP form-action). Meta-refresh + link are top-level navigations,
+ * not form targets.
+ * @param {string} url absolute redirect including code/state/iss or error
+ */
+export function clientRedirectHandoff(url) {
+  const safe = escHtml(url);
+  return htmlPage(
+    "Atoms Ask — Returning",
+    `<h1>Opening your AI app…</h1>
+<p class="muted">If nothing happens, use the button below.</p>
+<p><a class="btn btn--primary" href="${safe}">Continue</a></p>
+<meta http-equiv="refresh" content="0;url=${safe}" />`,
+  );
+}

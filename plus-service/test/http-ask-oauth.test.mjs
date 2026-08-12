@@ -147,9 +147,14 @@ describe("OAuth Ask AS", () => {
       }).toString(),
       redirect: "manual",
     });
-    assert.ok([302, 303].includes(consent.status));
+    assert.ok([200, 302, 303].includes(consent.status), `consent status ${consent.status}`);
     const loc = consent.headers.get("location") || "";
     assert.match(loc, new RegExp(`^${CLAUDE_CALLBACK.replace(/\./g, "\\.")}`));
+    if (consent.status === 200) {
+      const body = await consent.text();
+      assert.match(body, /Opening your AI app/);
+      assert.match(body, /code=/);
+    }
     const redir = new URL(loc);
     assert.equal(redir.searchParams.get("state"), state);
     assert.equal(redir.searchParams.get("iss"), BASE, "RFC 9207 iss on success");
@@ -330,10 +335,9 @@ describe("OAuth Ask AS", () => {
       const html = await r.text();
       assert.match(html, /pending_id/);
       assert.match(html, /Claude or ChatGPT|mirrored atoms/i);
-      assert.equal(
-        r.headers.get("content-security-policy"),
-        "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'",
-      );
+      const csp = r.headers.get("content-security-policy") || "";
+      assert.match(csp, /form-action 'self'/);
+      assert.match(csp, /claude\.ai/);
       assert.equal(r.headers.get("cache-control"), "no-store");
       assert.match(html, /name="viewport"/);
       assert.match(html, /btn--primary/);
@@ -387,7 +391,7 @@ describe("OAuth Ask AS", () => {
       }).toString(),
       redirect: "manual",
     });
-    assert.ok([302, 303].includes(deny.status));
+    assert.ok([200, 302, 303].includes(deny.status), `deny status ${deny.status}`);
     const loc = new URL(deny.headers.get("location") || "");
     assert.equal(loc.searchParams.get("error"), "access_denied");
     assert.equal(loc.searchParams.get("state"), state);
@@ -528,10 +532,9 @@ describe("OAuth Ask AS", () => {
     assert.ok(allowIdx > 0 && denyIdx > allowIdx, "Allow before Deny");
     assert.match(consentHtml, /btn--primary/);
     assert.match(consentHtml, /btn--secondary/);
-    assert.equal(
-      redeem.headers.get("content-security-policy"),
-      "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'",
-    );
+    const consentCsp = redeem.headers.get("content-security-policy") || "";
+    assert.match(consentCsp, /form-action 'self'/);
+    assert.match(consentCsp, /claude\.ai/);
 
     const setCookie = redeem.headers.getSetCookie?.() || [];
     const cookieHeader =
@@ -551,7 +554,7 @@ describe("OAuth Ask AS", () => {
       }).toString(),
       redirect: "manual",
     });
-    assert.ok([302, 303].includes(allow.status));
+    assert.ok([200, 302, 303].includes(allow.status), `allow status ${allow.status}`);
     const loc = new URL(allow.headers.get("location") || "");
     const code = loc.searchParams.get("code");
     assert.ok(code);

@@ -21,6 +21,7 @@ import {
   authorizeChooserForm,
   authorizeEmailForm,
   consentForm,
+  clientRedirectHandoff,
   simpleMessage,
 } from "./html.mjs";
 import {
@@ -28,7 +29,7 @@ import {
   protectedResourceMetadata,
 } from "./metadata.mjs";
 import { subscriptionLive } from "../store/shared.mjs";
-import { HTML_SECURITY_HEADERS } from "../html/shell.mjs";
+import { OAUTH_HTML_SECURITY_HEADERS } from "../html/shell.mjs";
 
 /**
  * RFC 9207: append iss on every 302 back to the client redirect_uri.
@@ -44,20 +45,35 @@ function appendIss(u) {
  * @param {string} redirectUri
  * @param {Record<string, string>} params
  */
+/**
+ * Finish OAuth by sending the browser to the AI app. Prefer a same-origin HTML
+ * handoff (200 + meta-refresh + link) so CSP form-action on the consent
+ * document cannot swallow the navigation. Also set Location for clients that
+ * follow redirects from fetch(redirect:manual) tests.
+ * @param {import('node:http').ServerResponse} res
+ * @param {string} redirectUri
+ * @param {Record<string, string>} params
+ */
 function redirectToClient(res, redirectUri, params) {
   const u = new URL(redirectUri);
   for (const [k, v] of Object.entries(params)) {
     if (v != null && v !== "") u.searchParams.set(k, v);
   }
   appendIss(u);
-  res.writeHead(302, { location: u.toString() });
-  res.end();
+  const loc = u.toString();
+  const data = clientRedirectHandoff(loc);
+  res.writeHead(200, {
+    ...OAUTH_HTML_SECURITY_HEADERS,
+    location: loc,
+    "content-length": Buffer.byteLength(data),
+  });
+  res.end(data);
 }
 
 function writeHtml(res, status, html, extraHeaders = {}) {
   const data = html;
   res.writeHead(status, {
-    ...HTML_SECURITY_HEADERS,
+    ...OAUTH_HTML_SECURITY_HEADERS,
     "content-length": Buffer.byteLength(data),
     ...extraHeaders,
   });

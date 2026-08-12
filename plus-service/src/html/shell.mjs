@@ -3,6 +3,7 @@
  * Token hexes track www/src/styles.css (:root + light scheme + .btn*).
  */
 
+/** Landing / magic-link pages — forms only post same-origin. */
 export const HTML_SECURITY_HEADERS = Object.freeze({
   "content-type": "text/html; charset=utf-8",
   "content-security-policy":
@@ -10,6 +11,19 @@ export const HTML_SECURITY_HEADERS = Object.freeze({
   "referrer-policy": "no-referrer",
   "cache-control": "no-store",
   "x-content-type-options": "nosniff",
+});
+
+/**
+ * OAuth authorize/consent HTML. Consent Allow ends in a 302 to Claude/ChatGPT
+ * (or loopback). CSP Level 3 applies form-action to that redirect chain; with
+ * only 'self', the browser completes Allow server-side then refuses to leave
+ * plus.tryatoms.app — first click looks dead, second Allow is Expired (pending
+ * already deleted). Allow connector hosts that isAllowedRedirectUri accepts.
+ */
+export const OAUTH_HTML_SECURITY_HEADERS = Object.freeze({
+  ...HTML_SECURITY_HEADERS,
+  "content-security-policy":
+    "default-src 'none'; style-src 'unsafe-inline'; form-action 'self' https://claude.ai https://chatgpt.com http://127.0.0.1:* http://localhost:* https://localhost:* http://[::1]:* https://[::1]:*",
 });
 
 export function escHtml(s) {
