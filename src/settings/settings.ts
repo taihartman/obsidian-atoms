@@ -394,7 +394,7 @@ export type SettingsRoute =
 const DESTINATION_TITLES: Record<Exclude<SettingsRoute, "main">, string> = {
   account: "Account",
   vocabulary: "Tag vocabulary",
-  connect: "Connect Claude or ChatGPT",
+  connect: "Connect Claude, ChatGPT, or Grok",
   advanced: "Advanced",
 };
 
@@ -793,7 +793,7 @@ export class AtomsSettingTab extends PluginSettingTab {
     this.actionRow(containerEl, {
       action: "ask:copy-mcp-url",
       name: "MCP connector URL",
-      desc: `${mcpUrl} — same URL for both. Claude → Settings → Connectors → Add custom connector. ChatGPT → Settings → Apps & connectors (Developer mode) → add this URL → complete OAuth.`,
+      desc: `${mcpUrl}. Same URL for Claude, ChatGPT, or Grok. Claude: Settings → Connectors → Add custom connector. ChatGPT: Settings → Apps & connectors (Developer mode) → add this URL → complete OAuth. Grok: grok.com/connectors → New Connector → Custom → this URL → complete OAuth.`,
       label: "Copy",
       onClick: async () => {
         try {
@@ -807,8 +807,8 @@ export class AtomsSettingTab extends PluginSettingTab {
 
     this.actionRow(containerEl, {
       action: "ask:pairing-code",
-      name: "Link Claude / ChatGPT",
-      desc: "Generate a short pairing code for the connector authorize page. Your Claude/ChatGPT account email need not match Atoms Plus — the code binds the Plus account shown above. Codes expire quickly and are secrets (do not share). After pairing, disconnect/reconnect the connector if counts still look stale.",
+      name: "Link Claude / ChatGPT / Grok",
+      desc: "Generate a short pairing code for the connector authorize page. Your AI-app account email need not match Atoms Plus. The code binds the Plus account shown above. Codes expire quickly and are secrets (do not share). After pairing, disconnect/reconnect the connector if counts still look stale.",
       label: "Get pairing code",
       onClick: async () => {
         if (!this.plugin.settings.askEnabled) {
@@ -2416,14 +2416,14 @@ export class AtomsSettingTab extends PluginSettingTab {
   }
 
   /**
-   * Ask — remote MCP for Claude / ChatGPT (Plus). No in-plugin chat.
+   * Ask — remote MCP for a connected assistant (Plus). No in-plugin chat.
    */
   private renderAskSection(containerEl: HTMLElement) {
-    settingHeading(containerEl, "Ask (Claude + ChatGPT)");
+    settingHeading(containerEl, "Ask");
     const session = readPlusSession(this.app);
 
     containerEl.createEl("p", {
-      text: "Cloud copy of Atoms/ on Plus — for chat search in Claude or ChatGPT. When Obsidian is open online, hand-edits and deletes push automatically. Full orphan cleanup is Sync now. Not a second library you maintain by hand.",
+      text: "Cloud copy of Atoms/ on Plus — for chat search in the assistant you connect. When Obsidian is open online, hand-edits and deletes push automatically. Full orphan cleanup is Sync now. Not a second library you maintain by hand.",
       cls: "setting-item-description",
     });
 

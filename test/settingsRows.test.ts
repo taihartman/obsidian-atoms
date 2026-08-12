@@ -873,7 +873,7 @@ describe("in-flight guard across a settings-tab rebuild", () => {
       },
     });
     tab.display();
-    open(tab, "Connect Claude or ChatGPT");
+    open(tab, "Connect Claude, ChatGPT, or Grok");
     await flush();
 
     pressRow(tab, "Sync now", "Sync now");
@@ -883,7 +883,7 @@ describe("in-flight guard across a settings-tab rebuild", () => {
     const back = backRowEl(tab);
     if (!back) throw new Error("no back row");
     back.click();
-    open(tab, "Connect Claude or ChatGPT");
+    open(tab, "Connect Claude, ChatGPT, or Grok");
     await flush();
 
     pressRow(tab, "Sync now", "Sync now");
@@ -928,7 +928,7 @@ function onMainScreen(tab: AtomsSettingTab): boolean {
 const DESTINATIONS: Array<[entry: string, title: string]> = [
   ["Set up automatic filing", "Account"],
   [`Tag vocabulary — ${DEFAULT_SETTINGS.activeVocabulary.length} active`, "Tag vocabulary"],
-  ["Connect Claude or ChatGPT", "Connect Claude or ChatGPT"],
+  ["Connect Claude, ChatGPT, or Grok", "Connect Claude, ChatGPT, or Grok"],
   ["Advanced", "Advanced"],
 ];
 

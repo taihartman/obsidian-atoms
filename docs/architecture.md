@@ -136,7 +136,7 @@ Atom frontmatter: `created`, `source` (wikilink), `generated-by`, `tags`, plus q
 
 ## Ask mirror sync (hybrid C — load-bearing)
 
-**Promise.** When Ask is on and Obsidian has been open online, the cloud copy of flat `Atoms/*.md` (Claude **and** ChatGPT connectors, same MCP URL) stays current (hand-edits, deletes, renames). Multi-device lag is OK until Obsidian Sync converges. Full orphan cleanup is **Sync now**. Not a second library the user maintains by hand.
+**Promise.** When Ask is on and Obsidian has been open online, the cloud copy of flat `Atoms/*.md` (Claude, ChatGPT, **and** Grok connectors, same MCP URL) stays current (hand-edits, deletes, renames). Multi-device lag is OK until Obsidian Sync converges. Full orphan cleanup is **Sync now**. Not a second library the user maintains by hand.
 
 **Authority.** Product/arch: `docs/plans/2026-07-27-004-feat-ask-mirror-parity-product.md`, `docs/plans/2026-07-27-004-arch-ask-mirror-sync.md`. Impl: `docs/plans/2026-07-27-005-feat-ask-mirror-parity-plan.md`. Learning: `docs/solutions/architecture-patterns/ask-mirror-parity.md`.
 

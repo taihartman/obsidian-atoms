@@ -145,13 +145,13 @@ Hosted UI is Stripe-first. On a **local dogfood** service (no Stripe keys, defau
 
 ### 3. Enable Ask and sync
 
-1. **Ask (Claude + ChatGPT)**  
+1. **Ask**  
    - Privacy acknowledgment  
    - **Enable Ask mirror**  
    - Optional: **Allow filing from Claude or ChatGPT** (outbox create/continue)  
 2. **Sync now** — push flat `Atoms/*.md` into the mirror DB  
 3. **MCP connector URL** → **Copy** (`{plusBase}/mcp`)  
-4. In Claude or ChatGPT, add a connector / custom MCP to that URL and complete **OAuth** (email + magic link + consent). Do **not** paste `sess_` into the connector.
+4. In Claude, ChatGPT, or Grok, add a connector / custom MCP to that URL and complete **OAuth** (email + magic link + consent). Do **not** paste `sess_` into the connector.
 
 Status / wipe / cloud mirror refresh stay on the same Settings section as hosted Ask.
 
@@ -170,7 +170,7 @@ Phone clients cannot reach `127.0.0.1` on your laptop. You need:
 OAuth requires:
 
 - `resource` = `{PUBLIC_BASE_URL}/mcp`
-- Redirect URI on the built-in allowlist (Claude callback, ChatGPT connector redirects, or loopback `http(s)://127.0.0.1|localhost|[::1]/callback`)
+- Redirect URI on the built-in allowlist (Claude callback, ChatGPT connector redirects, Grok’s pinned production callback once captured, or loopback `http(s)://127.0.0.1|localhost|[::1]/callback`)
 
 Mismatch → authorize failures (`resource must be …`, `redirect_uri not allowed`).
 

@@ -100,14 +100,14 @@ describe("setup guide quotes labels the plugin still renders", () => {
     // main screen, which is why the guide has to say where they went.
     const { tab } = plusTab();
     tab.display();
-    expect(destinationNames(tab)).toContain("Connect Claude or ChatGPT");
+    expect(destinationNames(tab)).toContain("Connect Claude, ChatGPT, or Grok");
 
-    open(tab, "Connect Claude or ChatGPT");
+    open(tab, "Connect Claude, ChatGPT, or Grok");
     expect(rowNames(tab)).toContain("MCP connector URL");
-    expect(buttonLabels(tab, "Link Claude / ChatGPT")).toContain("Get pairing code");
+    expect(buttonLabels(tab, "Link Claude / ChatGPT / Grok")).toContain("Get pairing code");
 
     for (const label of [
-      "Connect Claude or ChatGPT",
+      "Connect Claude, ChatGPT, or Grok",
       "MCP connector URL",
       "Get pairing code",
     ]) {
@@ -122,7 +122,7 @@ describe("setup guide quotes labels the plugin still renders", () => {
       .split(/(?<=\.)\s+/)
       .find((s) => s.includes("Get pairing code"));
     expect(sentence, "guide has no pairing-code step").toBeDefined();
-    expect(sentence).toContain("Connect Claude or ChatGPT");
+    expect(sentence).toContain("Connect Claude, ChatGPT, or Grok");
   });
 
   it("has dropped the label this unit retired", () => {

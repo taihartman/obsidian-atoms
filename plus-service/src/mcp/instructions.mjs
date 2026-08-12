@@ -48,4 +48,4 @@ Write rules (stance first: file only when they want it kept; set_loop only after
 - create_atom may set open_loop=true when the user is capturing an intention only.
 - set_loop marks an existing mirrored atom's loop frontmatter (source user). States: active | not_a_loop | resolved_elsewhere | abandoned. Ask the user before calling; act on their answer in the same turn. Body is never rewritten. Does not create children. Substance close stays continue_atom + redeems. set_loop(active) does not reopen a loop that already has a redeeming child (open_now stays false until derived open). Terminals are for never-a-loop / resolved outside vault / abandoned—not for filing the missing substance.
 
-Privacy: create/continue/set_loop payloads are stored encrypted on Atoms Plus outbox until applied, then mirrored like other atoms. The host model provider (Anthropic for Claude, OpenAI for ChatGPT) receives tool arguments/results in chat.`;
+Privacy: create/continue/set_loop payloads are stored encrypted on Atoms Plus outbox until applied, then mirrored like other atoms. The host model provider of this chat receives tool arguments/results.`;

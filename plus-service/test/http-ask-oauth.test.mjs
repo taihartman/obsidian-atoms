@@ -334,7 +334,7 @@ describe("OAuth Ask AS", () => {
       assert.equal(r.status, 200, redirect);
       const html = await r.text();
       assert.match(html, /pending_id/);
-      assert.match(html, /Claude or ChatGPT|mirrored atoms/i);
+      assert.match(html, /Claude, ChatGPT, or Grok/i);
       const csp = r.headers.get("content-security-policy") || "";
       assert.match(csp, /form-action 'self'/);
       assert.match(csp, /claude\.ai/);

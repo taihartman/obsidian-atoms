@@ -85,7 +85,7 @@ beforeEach(() => {
 function connect(opts: SettingTabOptions = {}) {
   const made = settingTab({ session: PLUS_SESSION, ...opts });
   made.tab.display();
-  open(made.tab, "Connect Claude or ChatGPT");
+  open(made.tab, "Connect Claude, ChatGPT, or Grok");
   return made;
 }
 
