@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-_Nothing in flight._
+| In progress | #473 | agent | `fix/plus-signin-account-refresh` | n/a (debug) | `src/plugin/main.ts`, `src/settings/settings.ts` | Magic-link install never redraws open Account. |
 
 ## How to claim (copy)
 
