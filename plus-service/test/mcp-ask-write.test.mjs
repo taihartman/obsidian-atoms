@@ -17,6 +17,7 @@ describe("MCP ask write helpers + store path", () => {
     assert.match(ASK_MCP_INSTRUCTIONS, /set_loop/);
     assert.match(ASK_MCP_INSTRUCTIONS, /ask the user before/i);
     assert.match(ASK_MCP_INSTRUCTIONS, /invent/i);
+    assert.match(ASK_MCP_INSTRUCTIONS, /Do not recite outbox_id/);
     assert.doesNotMatch(ASK_MCP_INSTRUCTIONS, /tools cannot write/i);
   });
 
