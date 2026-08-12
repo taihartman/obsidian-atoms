@@ -7,8 +7,8 @@ This folder is the project-specific adapter for the shared `world-class-qa` and 
 Before a QA pass, read:
 
 1. `docs/qa/testing-fixtures.md` for deterministic data, live-data constraints, and cleanup rules.
-2. `docs/qa/app-navigation-map.md` for surface and command anchors — **including the Settings eval traps**. That map is this project's QA memory: when a drive path is wrong, heal the row in the same change (world-class-qa gate 31).
-3. **QA memory** (this file, below) for hard-won traps that outlive one feature.
+2. `docs/qa/app-navigation-map.md` for surface and command anchors. When a drive path is wrong, heal the row in the same change (world-class-qa gate 31).
+3. `docs/qa/learnings.md` for hard-won traps. Read before driving; append after a pass that taught something the next one would otherwise repeat.
 4. The changed files, plan (if any), and adjacent tests for the feature under QA.
 5. **Acceptance authority** for product/UI claims: active plan under `docs/plans/`, product contract / architecture rules it cites (e.g. entity orbits Open contract R14), and on-screen copy next to CTAs. `world-class-qa` stories must use those acceptances — not handler bodies. **Shipped surfaces stay in scope** even if a plan slice deferred that tier.
 
@@ -89,20 +89,6 @@ Pure logic / docs-only PRs: write `N/A — no UI` in Evidence. Skipping screensh
 - Anthropic API key: **SecretStorage** (or device-local fallback). Never commit keys.
 - Auto-run flags: **device-local** (`loadLocalStorage`) — phone ≠ desktop.
 - Live classify needs a key on the device under test. Dry-run / fixture commands avoid spend when possible.
-
-## QA memory (hard-won traps)
-
-Project-owned. The shared `world-class-qa` skill does not remember Atoms. This section and the Settings notes in `docs/qa/app-navigation-map.md` do. Add a row when a live drive teaches something the next pass will otherwise repeat. Do not re-derive these from a report.
-
-| Trap | Do this | Learning |
-|---|---|---|
-| A Plus session write while Settings is open | Assert the **open** Account/main rows changed. A Notice or `loadLocalStorage` is not the screen. | `docs/solutions/logic-errors/a-session-write-is-not-a-settings-redraw.md` |
-| `document` / `app.setting.modalEl.ownerDocument` after a wait | Read `app.plugins.plugins.atoms.settingTab.containerEl`. If `settingTab` is `null`, Settings closed. | nav map → Settings → Atoms |
-| Completing a magic-link from plus.sqlite / service logs | Do not. Token store is a credential. Live post-confirm path is `plugin.installPlusSession` on the still-open tab; label it. Email-tap stays Not Tested unless a human opens the link. | #473 live check |
-| Two separately constructed settings tabs (signed-out vs signed-in) | The hole is the **transition**. Start on signed-out Account, install, assert **Sign out** without Back. | `test/plusSignInAccountRefresh.test.ts` |
-| First `dev:screenshot` after a re-render | Capture twice; keep the pair only when byte-identical **and** different from the previous state. | nav map; `docs/solutions/documentation-gaps/screenshot-capture-races-and-viewer-lies.md` |
-| `close(); open(); openTabById("atoms")` in one `eval` | Two evals ~1s apart. One eval leaves Settings closed. | nav map |
-| `emulateMobile(true)` at desktop width | `is-tablet`, not `is-phone`. `require("electron").getCurrentWindow` is undefined in 1.13.6 eval. | nav map |
 
 ## Merge gate (project)
 

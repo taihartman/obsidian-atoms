@@ -63,7 +63,7 @@ Paste and trial already knew this. Magic-link did not, because it enters through
 
 - Any new session writer that is not a Settings `onClick` must call `settingTab?.refreshFromExternalSettings()` (or go through `plugin.installPlusSession`). Bare `writePlusSession` is already forbidden for identity changes — see [session-install-must-disarm-on-identity-change](../security/session-install-must-disarm-on-identity-change.md).
 - A regression must start on the signed-out Account destination, install, and assert **Sign out** without a Back tap. `test/plusSignInAccountRefresh.test.ts` is that test. Two separately constructed tabs (signed-out vs signed-in) will not catch this again.
-- Live QA: read `plugin.settingTab.containerEl`, not `document`. After a wait, `app.setting.modalEl.ownerDocument` can be the main window. Driving notes live in `docs/qa/app-navigation-map.md` (Settings → Atoms) and `docs/qa/README.md` § QA memory.
+- Live QA: read `plugin.settingTab.containerEl`, not `document`. After a wait, `app.setting.modalEl.ownerDocument` can be the main window. Traps live in `docs/qa/learnings.md`; driving notes in `docs/qa/app-navigation-map.md` (Settings → Atoms).
 
 ## Related Issues
 
