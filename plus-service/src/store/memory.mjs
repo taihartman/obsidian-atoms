@@ -239,6 +239,19 @@ export function createMemoryStore() {
     return true;
   }
 
+  /** #320 R10 — drop in-flight checkout bindings for this email. */
+  function clearCheckoutBindingsForEmail(email) {
+    const key = email.trim().toLowerCase();
+    let n = 0;
+    for (const [id, row] of checkoutBindings.entries()) {
+      if (row.email === key) {
+        checkoutBindings.delete(id);
+        n += 1;
+      }
+    }
+    return n;
+  }
+
   /**
    * Single-use: re-verify the one session that paid for this checkout, undoing
    * grantPeriod's revoke for it alone. A soft session that never opened checkout
@@ -1123,6 +1136,7 @@ export function createMemoryStore() {
     revokeUnverifiedSessionsForEmail,
     enforceSessionCapForEmail,
     bindCheckoutSession,
+    clearCheckoutBindingsForEmail,
     promoteCheckoutSession,
     markSessionVerified,
     tryConsumeFiling,

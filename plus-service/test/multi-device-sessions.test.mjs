@@ -46,6 +46,26 @@ describe("multi-device sessions (#320)", () => {
     if (store.close) await store.close();
   });
 
+  it("clearCheckoutBindingsForEmail stops promote after wipe", async () => {
+    const store = createMemoryStore();
+    const email = `bind-${Date.now()}@ex.com`;
+    // Soft start only works while inactive (Stripe-first path).
+    const soft = await store.startWithEmail(email);
+    assert.equal(soft.ok, true);
+    const cs = `cs_test_${Date.now()}`;
+    assert.equal(store.bindCheckoutSession(cs, email, soft.session), true);
+    // Without clear, promote would re-verify the soft session after grant.
+    await store.grantPeriod(email, {
+      remaining: 50,
+      status: "active",
+      days: 30,
+    });
+    const cleared = store.clearCheckoutBindingsForEmail(email);
+    assert.ok(cleared >= 1);
+    assert.equal(store.promoteCheckoutSession(cs, email), false);
+    if (store.close) await store.close();
+  });
+
   it("C1: soft start session dies on exchange", async () => {
     const store = createMemoryStore();
     const email = `c1-${Date.now()}@ex.com`;

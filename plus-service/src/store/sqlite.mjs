@@ -381,6 +381,14 @@ export function createSqliteStore(dbPath = config.databasePath) {
     return true;
   }
 
+  /** #320 R10 — drop in-flight checkout bindings for this email. */
+  function clearCheckoutBindingsForEmail(email) {
+    const info = db
+      .prepare("DELETE FROM checkout_bindings WHERE email = ?")
+      .run(email.trim().toLowerCase());
+    return info.changes || 0;
+  }
+
   /**
    * Single-use: re-verify the one session that paid for this checkout, undoing
    * grantPeriod's revoke for it alone. A soft session that never opened checkout
@@ -691,6 +699,7 @@ export function createSqliteStore(dbPath = config.databasePath) {
     revokeUnverifiedSessionsForEmail,
     enforceSessionCapForEmail,
     bindCheckoutSession,
+    clearCheckoutBindingsForEmail,
     promoteCheckoutSession,
     markSessionVerified,
     tryConsumeFiling,
