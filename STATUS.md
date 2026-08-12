@@ -7,8 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| In review | #471 | agent | `feat/ask-agent-stance` | `docs/plans/2026-08-12-002-feat-ask-agent-stance-plan.md` | `instructions.mjs` | MCP stance: search without “check my atoms”. No plugin bump. Shipping tail. |
-| In progress | #473 | agent | `fix/plus-signin-account-refresh` | n/a (debug) | `src/plugin/main.ts`, `src/settings/settings.ts` | Magic-link install never redraws open Account. |
+_Nothing in flight._
 
 ## How to claim (copy)
 
@@ -24,6 +23,8 @@ States: `Queued` · `In progress` · `Blocked` · `In review` · `Done` (then re
 
 | Merged | Issue / PR | Summary |
 |---|---|---|
+| 2026-08-12 | #473 / #474 | Magic-link sign-in redraws the open Account page · **0.7.7**. `installPlusSession` notifies Settings; `docs/qa/learnings.md` is project QA memory. |
+| 2026-08-12 | #471 / #472 | Ask agent stance: search the mirror without “check my atoms” · plus-service only. One look = no `search_atoms` retry; fetch / list_tags / mirror_status still apply. **Fly v63**. New chat after deploy. |
 | 2026-08-12 | #467 / #468 | set_loop: mark existing atoms in conversation · **0.7.6**. MCP + outbox FM patch; R15 payload passthrough. Fly v60. |
 | 2026-08-12 | #320 / #322 | Multi-device Plus sessions: sign-in no longer boots other devices · **0.7.5**. exchangeMagic revokes unverified only; Sign out all devices for recovery; cap 10. |
 | 2026-08-11 | #461 / #462 | Open loops: intention notes are first-class · **0.7.4**. FM `atoms-loop` + sticky source; open-now = active ∧ ¬redeems child (ordinary continues never closes); MCP list/search/fetch project open_now; Process heuristic + Ask flag; Browse/Review commands (no Home guilt shelf). Review fixed list SELECT omitting `loop_json` (always false open_now). Residual: agent dogfood SC1–SC2 needs live Ask+Fly; plus-service deploy for MCP fields. |
