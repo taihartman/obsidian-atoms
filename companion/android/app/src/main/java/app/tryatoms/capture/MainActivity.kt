@@ -27,6 +27,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
+import app.tryatoms.capture.R
 import app.tryatoms.capture.tile.CaptureTileService
 import app.tryatoms.capture.ui.CaptureScreen
 import app.tryatoms.capture.ui.CaptureViewModel
@@ -67,7 +68,7 @@ class MainActivity : ComponentActivity() {
         registerForActivityResult(OpenPersistableTree()) { uri ->
             Log.i(TAG, "picker result uri=$uri")
             if (uri != null) {
-                Toast.makeText(this, "Scanning for vaults…", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, getString(R.string.toast_scanning), Toast.LENGTH_SHORT).show()
                 viewModel.onAccessRootPicked(uri)
             } else {
                 viewModel.onPickerCancelled()
@@ -114,7 +115,7 @@ class MainActivity : ComponentActivity() {
                             Toast
                                 .makeText(
                                     this,
-                                    "Pick your vault, or Documents to list the vaults inside",
+                                    getString(R.string.toast_pick_folder),
                                     Toast.LENGTH_LONG,
                                 ).show()
                             openTree.launch(null)
@@ -170,9 +171,9 @@ class MainActivity : ComponentActivity() {
             .makeText(
                 this,
                 if (ok) {
-                    "Confirm Add — then pull the shade anytime for Capture"
+                    getString(R.string.toast_tile_confirm)
                 } else {
-                    "Pull down shade → edit / pencil → add Capture"
+                    getString(R.string.toast_tile_manual)
                 },
                 Toast.LENGTH_LONG,
             ).show()
@@ -187,7 +188,7 @@ class MainActivity : ComponentActivity() {
             if (pinned) {
                 viewModel.markHomeWidgetAdded()
                 Toast
-                    .makeText(this, "Confirm the widget pin on your home screen", Toast.LENGTH_LONG)
+                    .makeText(this, getString(R.string.toast_widget_confirm), Toast.LENGTH_LONG)
                     .show()
                 return
             }
@@ -196,7 +197,7 @@ class MainActivity : ComponentActivity() {
         Toast
             .makeText(
                 this,
-                "Long-press home screen → Widgets → Atoms Capture",
+                getString(R.string.toast_widget_manual),
                 Toast.LENGTH_LONG,
             ).show()
     }

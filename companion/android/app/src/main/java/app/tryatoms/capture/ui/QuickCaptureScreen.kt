@@ -28,6 +28,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.res.stringResource
+import app.tryatoms.capture.R
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -113,9 +115,9 @@ fun QuickCaptureScreen(
                     Text(
                         text =
                             when {
-                                !linked -> "Link a vault first"
-                                listening -> "Listening…"
-                                else -> "What’s on your mind?"
+                                !linked -> stringResource(R.string.quick_link_first)
+                                listening -> stringResource(R.string.quick_listening)
+                                else -> stringResource(R.string.quick_whats_on_mind)
                             },
                         style =
                             TextStyle(
@@ -140,7 +142,7 @@ fun QuickCaptureScreen(
                 ) {
                     Icon(
                         Icons.Filled.Close,
-                        contentDescription = "Close",
+                        contentDescription = stringResource(R.string.quick_cd_close),
                         tint = extras.secondaryText,
                     )
                 }
@@ -148,12 +150,12 @@ fun QuickCaptureScreen(
 
             if (!linked) {
                 Text(
-                    "Open Atoms Capture once to choose your vault.",
+                    stringResource(R.string.quick_open_hub_hint),
                     style = MaterialTheme.typography.bodySmall,
                     color = extras.secondaryText,
                 )
                 TextButton(onClick = onOpenHub) {
-                    Text("Open hub", color = MaterialTheme.colorScheme.primary)
+                    Text(stringResource(R.string.quick_open_hub), color = MaterialTheme.colorScheme.primary)
                 }
                 return@Column
             }
@@ -200,7 +202,11 @@ fun QuickCaptureScreen(
                         Box {
                             if (fieldValue.text.isEmpty()) {
                                 Text(
-                                    if (listening) "Speak now…" else "Type or tap the mic…",
+                                    if (listening) {
+                                        stringResource(R.string.quick_speak_now)
+                                    } else {
+                                        stringResource(R.string.quick_type_or_mic)
+                                    },
                                     color = extras.tertiaryText,
                                     fontSize = 17.sp,
                                 )
@@ -227,7 +233,12 @@ fun QuickCaptureScreen(
                 ) {
                     Icon(
                         if (listening) Icons.Filled.Stop else Icons.Filled.Mic,
-                        contentDescription = if (listening) "Stop" else "Voice",
+                        contentDescription =
+                            if (listening) {
+                                stringResource(R.string.quick_cd_stop)
+                            } else {
+                                stringResource(R.string.quick_cd_voice)
+                            },
                         tint = if (listening) AtomsColor.Person else AtomsColor.Person,
                     )
                 }
@@ -256,7 +267,7 @@ fun QuickCaptureScreen(
                     } else {
                         Icon(
                             Icons.Filled.Check,
-                            contentDescription = "Send",
+                            contentDescription = stringResource(R.string.quick_cd_send),
                             tint =
                                 if (fieldValue.text.isNotBlank()) {
                                     MaterialTheme.colorScheme.onPrimary

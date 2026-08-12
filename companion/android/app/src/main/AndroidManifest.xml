@@ -51,7 +51,7 @@
             android:foregroundServiceType="specialUse|microphone">
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="Floating capture strip over the home screen" />
+                android:value="@string/fgs_special_use" />
         </service>
 
         <!-- Quick Settings tile (pull-down shade). User adds via edit tiles or hub prompt. -->

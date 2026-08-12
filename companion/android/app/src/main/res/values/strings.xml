@@ -5,10 +5,133 @@
     <string name="shortcut_capture_long">Capture to Atoms</string>
     <string name="widget_description">One-tap capture into your Obsidian vault</string>
     <string name="widget_label">Atoms Capture</string>
-    <string name="widget_label_legacy">Atoms Capture (old — remove me)</string>
+    <string name="widget_label_legacy">Atoms Capture (old, remove me)</string>
     <string name="widget_loading">Capture</string>
+    <string name="widget_capture_cd">Capture</string>
     <string name="tile_capture">Capture</string>
     <string name="tile_capture_sub">Atoms</string>
     <string name="tile_add">Add shade button</string>
-</resources>
+    <string name="fgs_special_use">Floating capture strip over the home screen</string>
 
+    <string name="hub_kicker">CAPTURE</string>
+    <string name="hub_title">Atoms</string>
+    <string name="hub_claim">“What\'s on your mind?”</string>
+    <string name="hub_subhead">A thought lands in your vault. Atoms files it later.</string>
+    <string name="hub_placeholder">Type freely…</string>
+    <string name="hub_capture">Capture</string>
+    <string name="hub_saving">Saving…</string>
+    <string name="hub_sync_note">With Obsidian closed, the line is on this device immediately. It reaches your other devices after you open Obsidian.</string>
+
+    <string name="vault_kicker">VAULT</string>
+    <string name="vault_linked_fallback">Linked</string>
+    <string name="vault_looking">Looking for vaults…</string>
+    <string name="vault_your_vaults">Your vaults</string>
+    <string name="vault_choose">Choose a vault</string>
+    <string name="vault_inbox_path">Captures go to Atoms System/Inbox.md</string>
+    <string name="vault_switch">Switch</string>
+    <string name="vault_unlink">Unlink</string>
+    <string name="vault_pick_hint">Most Obsidian vaults on Android live in Documents. Pick that folder and we\'ll list them. Or pick the vault itself.</string>
+    <string name="vault_use_this_folder">Use this folder as vault</string>
+    <string name="vault_folder_picker">Folder picker</string>
+    <string name="vault_kind_obsidian">Obsidian vault</string>
+    <string name="vault_name_fallback">Vault</string>
+
+    <string name="setup_kicker">GET ATOMS GOING</string>
+    <string name="setup_choose_vault">Choose your vault</string>
+    <string name="setup_choose_vault_detail">Usually Documents, on Internal storage</string>
+    <string name="setup_first_capture">Save a first capture</string>
+    <string name="setup_first_capture_detail">Try the box below once, then switch to one-tap</string>
+    <string name="setup_shade">Add the shade button</string>
+    <string name="setup_shade_detail">Pull down the shade → Capture. Fastest from any screen.</string>
+    <string name="setup_widget">Add the home widget</string>
+    <string name="setup_widget_detail">One tap on the home screen opens the strip</string>
+    <string name="setup_done_cd">Done</string>
+    <string name="setup_not_done_cd">Not done</string>
+
+    <string name="faster_kicker">CAPTURE IN ONE SECOND</string>
+    <string name="faster_intro">This hub is for setup. Day to day, don\'t open the app — use these:</string>
+    <string name="faster_shade_title">1. Shade button</string>
+    <string name="faster_shade_body">Pull down from the top of the screen → tap Capture. Works over any app. Add it once:</string>
+    <string name="faster_shade_added">Added · pull the shade anytime</string>
+    <string name="faster_shade_add">Add shade button</string>
+    <string name="faster_shade_or">Or: pull shade → pencil / edit → drag Capture into the tiles</string>
+    <string name="faster_widget_title">2. Home widget</string>
+    <string name="faster_widget_body">Long-press the home screen → Widgets → Atoms Capture. Or tap below and confirm the pin.</string>
+    <string name="faster_widget_added">Added · tap Capture on your home screen</string>
+    <string name="faster_widget_add">Add home widget</string>
+    <string name="faster_shortcut">Also works: long-press the app icon → Capture</string>
+
+    <string name="toast_pick_folder">Most vaults are in Documents. Pick that folder, or the vault itself</string>
+    <string name="toast_scanning">Scanning for vaults…</string>
+    <string name="toast_tile_confirm">Confirm Add — then pull the shade anytime for Capture</string>
+    <string name="toast_tile_manual">Pull down shade → edit / pencil → add Capture</string>
+    <string name="toast_widget_confirm">Confirm the widget pin on your home screen</string>
+    <string name="toast_widget_manual">Long-press home screen → Widgets → Atoms Capture</string>
+    <string name="toast_overlay_permission">Allow Display over other apps for Atoms Capture</string>
+    <string name="toast_overlay_start_failed">Could not start capture: %1$s</string>
+    <string name="toast_service_start_failed">Could not start capture service</string>
+    <string name="toast_show_capture_failed">Could not show capture: %1$s</string>
+    <string name="toast_saved">Saved</string>
+
+    <string name="banner_picker_cancelled">Folder picker closed without a choice. Most vaults are in Documents.</string>
+    <string name="banner_keep_access_failed">Could not keep folder access (%1$s). Try again.</string>
+    <string name="banner_grant_folder_first">Grant a folder first.</string>
+    <string name="banner_using_vault_inbox">Using %1$s. Captures go to Atoms System/Inbox.md.</string>
+    <string name="banner_using_vault">Using %1$s as your vault.</string>
+    <string name="banner_unlinked">Vault unlinked.</string>
+    <string name="banner_choose_vault_first">Choose a vault first.</string>
+    <string name="banner_type_first">Type something first.</string>
+    <string name="banner_saved_next">Saved. Next: add the shade button + home widget for one-second capture.</string>
+    <string name="banner_no_vaults_in_folder">No vaults in that folder. Most live in Documents. Pick that, or the vault itself.</string>
+    <string name="banner_linked_inbox">Linked %1$s. Captures go to Atoms System/Inbox.md.</string>
+    <plurals name="banner_found_vaults">
+        <item quantity="one">Found %d vault. Pick it to capture into.</item>
+        <item quantity="other">Found %d vaults. Pick which one to capture into.</item>
+    </plurals>
+
+    <string name="status_saved">Saved · %1$s · %2$s</string>
+    <string name="status_failed">Failed · %1$s</string>
+
+    <string name="err_not_linked">Vault not linked</string>
+    <string name="err_empty_capture">Empty capture</string>
+    <string name="err_vault_folder_missing">Vault folder missing: %1$s</string>
+    <string name="err_create_system_folder">Could not create %1$s</string>
+    <string name="err_create_inbox">Could not create %1$s</string>
+    <string name="err_write_failed">Write failed</string>
+    <string name="err_open_linked_folder">Could not open the linked folder</string>
+    <string name="err_open_vault_folder">Could not open the vault folder. Pick it again.</string>
+    <string name="err_no_write_permission">No permission to write this folder. Link again.</string>
+
+    <string name="quick_link_first">Link a vault first</string>
+    <string name="quick_listening">Listening…</string>
+    <string name="quick_whats_on_mind">What\'s on your mind?</string>
+    <string name="quick_open_hub_hint">Open Atoms Capture once to choose your vault.</string>
+    <string name="quick_open_hub">Open hub</string>
+    <string name="quick_speak_now">Speak now…</string>
+    <string name="quick_type_or_mic">Type or tap the mic…</string>
+    <string name="quick_cd_close">Close</string>
+    <string name="quick_cd_stop">Stop</string>
+    <string name="quick_cd_voice">Voice</string>
+    <string name="quick_cd_send">Send</string>
+    <string name="dismiss_ok">OK</string>
+
+    <string name="notif_listening">Listening…</string>
+    <string name="notif_capturing">Capturing…</string>
+    <string name="notif_stop">Stop</string>
+    <string name="overlay_mic_enable_failed">Could not enable microphone</string>
+    <string name="overlay_allow_mic">Allow microphone — open hub once to grant mic</string>
+
+    <string name="speech_unavailable">Voice not available on this device</string>
+    <string name="speech_start_failed">Could not start mic: %1$s</string>
+    <string name="speech_kept_dropping">Voice kept dropping — try again</string>
+    <string name="speech_mic_permission">Mic permission needed</string>
+    <string name="speech_network_needed">Network needed for voice</string>
+    <string name="speech_mic_error">Mic error</string>
+    <string name="speech_service_error">Voice service error</string>
+    <string name="speech_busy_retry">Voice busy — try again</string>
+    <string name="speech_language_missing">Language pack missing</string>
+    <string name="speech_language_unsupported">Language not supported</string>
+    <string name="speech_disconnected">Voice service disconnected</string>
+    <string name="speech_busy">Voice busy</string>
+    <string name="speech_failed">Voice failed (%1$d)</string>
+</resources>

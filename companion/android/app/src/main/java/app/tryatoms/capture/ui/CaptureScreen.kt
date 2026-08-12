@@ -34,8 +34,10 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import app.tryatoms.capture.R
 import app.tryatoms.capture.domain.VaultRef
 import app.tryatoms.capture.ui.theme.AtomsShapes
 import app.tryatoms.capture.ui.theme.AtomsThemeAccess
@@ -71,11 +73,11 @@ fun CaptureScreen(
                 title = {
                     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Text(
-                            "CAPTURE",
+                            stringResource(R.string.hub_kicker),
                             style = kickerStyle,
                         )
                         Text(
-                            "Atoms",
+                            stringResource(R.string.hub_title),
                             style = MaterialTheme.typography.titleLarge,
                             color = MaterialTheme.colorScheme.onSurface,
                         )
@@ -100,12 +102,12 @@ fun CaptureScreen(
         ) {
             // Claim-voice prompt
             Text(
-                "“What’s on your mind?”",
+                stringResource(R.string.hub_claim),
                 style = claimSerifStyle,
                 modifier = Modifier.padding(top = 4.dp, bottom = 2.dp),
             )
             Text(
-                "A thought lands in your vault. Atoms files it later.",
+                stringResource(R.string.hub_subhead),
                 style = MaterialTheme.typography.bodySmall,
                 color = extras.secondaryText,
             )
@@ -153,7 +155,7 @@ fun CaptureScreen(
                         .heightIn(min = 148.dp),
                 placeholder = {
                     Text(
-                        "Type freely…",
+                        stringResource(R.string.hub_placeholder),
                         style = MaterialTheme.typography.bodyLarge,
                         color = extras.tertiaryText,
                     )
@@ -176,7 +178,11 @@ fun CaptureScreen(
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
             ) {
                 Text(
-                    if (state.busy) "Saving…" else "Capture",
+                    if (state.busy) {
+                        stringResource(R.string.hub_saving)
+                    } else {
+                        stringResource(R.string.hub_capture)
+                    },
                     style = MaterialTheme.typography.labelLarge,
                 )
             }
@@ -190,8 +196,7 @@ fun CaptureScreen(
             }
 
             Text(
-                "With Obsidian closed, the line is on this device immediately. " +
-                    "It reaches your other devices after you open Obsidian.",
+                stringResource(R.string.hub_sync_note),
                 style = MaterialTheme.typography.bodySmall,
                 color = extras.tertiaryText,
             )
@@ -215,31 +220,31 @@ private fun VaultChooserCard(
     FlatCard {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(
-                "VAULT",
+                stringResource(R.string.vault_kicker),
                 style = kickerStyle,
             )
             Text(
                 when {
-                    state.vaultLinked -> state.vaultName ?: "Linked"
-                    state.scanning -> "Looking for vaults…"
-                    state.listedVaults.isNotEmpty() -> "Your vaults"
-                    else -> "Choose a vault"
+                    state.vaultLinked -> state.vaultName ?: stringResource(R.string.vault_linked_fallback)
+                    state.scanning -> stringResource(R.string.vault_looking)
+                    state.listedVaults.isNotEmpty() -> stringResource(R.string.vault_your_vaults)
+                    else -> stringResource(R.string.vault_choose)
                 },
                 style = MaterialTheme.typography.titleMedium,
             )
 
             if (state.vaultLinked) {
                 Text(
-                    "Captures go to Atoms System/Inbox.md",
+                    stringResource(R.string.vault_inbox_path),
                     style = MaterialTheme.typography.bodySmall,
                     color = extras.secondaryText,
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     TextButton(onClick = onRescan, colors = atomsQuietButtonColors()) {
-                        Text("Switch")
+                        Text(stringResource(R.string.vault_switch))
                     }
                     TextButton(onClick = onUnlink, colors = atomsQuietButtonColors()) {
-                        Text("Unlink")
+                        Text(stringResource(R.string.vault_unlink))
                     }
                 }
                 return@FlatCard
@@ -247,7 +252,7 @@ private fun VaultChooserCard(
 
             if (state.listedVaults.isEmpty()) {
                 Text(
-                    "Pick your vault folder. Or pick Documents, and we'll list the vaults inside.",
+                    stringResource(R.string.vault_pick_hint),
                     style = MaterialTheme.typography.bodySmall,
                     color = extras.secondaryText,
                 )
@@ -258,7 +263,7 @@ private fun VaultChooserCard(
             }
             if (state.hasAccessRoot) {
                 TextButton(onClick = onUseFolderAsVault, colors = atomsQuietButtonColors()) {
-                    Text("Use this folder as vault")
+                    Text(stringResource(R.string.vault_use_this_folder))
                 }
             }
         }
@@ -309,7 +314,7 @@ private fun VaultRefList(
     vaults.forEach { vault ->
         VaultPickRow(
             title = vault.name,
-            subtitle = "Obsidian vault",
+            subtitle = stringResource(R.string.vault_kind_obsidian),
             onClick = { onSelect(vault) },
         )
     }
@@ -320,11 +325,11 @@ private fun VaultRefList(
 private fun FolderPickerLabel() {
     Icon(
         Icons.Outlined.FolderOpen,
-        contentDescription = null,
+        contentDescription = stringResource(R.string.vault_folder_picker),
         modifier = Modifier.size(18.dp),
     )
     Spacer(modifier = Modifier.size(8.dp))
-    Text("Folder picker", style = MaterialTheme.typography.labelLarge)
+    Text(stringResource(R.string.vault_folder_picker), style = MaterialTheme.typography.labelLarge)
 }
 
 @Composable
@@ -364,31 +369,31 @@ private fun SetupChecklist(
 ) {
     FlatCard {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("GET ATOMS GOING", style = kickerStyle)
+            Text(stringResource(R.string.setup_kicker), style = kickerStyle)
             ChecklistRow(
                 done = vaultLinked,
-                label = "Choose your vault",
+                label = stringResource(R.string.setup_choose_vault),
                 detail =
                     if (vaultLinked && vaultName != null) {
                         vaultName
                     } else {
-                        "Point us at your vault folder. Documents works if that's where it lives."
+                        stringResource(R.string.setup_choose_vault_detail)
                     },
             )
             ChecklistRow(
                 done = firstCaptureDone,
-                label = "Save a first capture",
-                detail = "Try the box below once — then switch to one-tap",
+                label = stringResource(R.string.setup_first_capture),
+                detail = stringResource(R.string.setup_first_capture_detail),
             )
             ChecklistRow(
                 done = shadeTileAdded,
-                label = "Add the shade button",
-                detail = "Pull down the shade → Capture. Fastest from any screen.",
+                label = stringResource(R.string.setup_shade),
+                detail = stringResource(R.string.setup_shade_detail),
             )
             ChecklistRow(
                 done = homeWidgetAdded,
-                label = "Add the home widget",
-                detail = "One tap on the home screen opens the strip",
+                label = stringResource(R.string.setup_widget),
+                detail = stringResource(R.string.setup_widget_detail),
             )
         }
     }
@@ -408,27 +413,26 @@ private fun CaptureFasterCard(
     val extras = AtomsThemeAccess.extras
     FlatCard {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("CAPTURE IN ONE SECOND", style = kickerStyle)
+            Text(stringResource(R.string.faster_kicker), style = kickerStyle)
             Text(
-                "This hub is for setup. Day to day, don’t open the app — use these:",
+                stringResource(R.string.faster_intro),
                 style = MaterialTheme.typography.bodyMedium,
                 color = extras.secondaryText,
             )
 
             Text(
-                "1. Shade button",
+                stringResource(R.string.faster_shade_title),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
             )
             Text(
-                "Pull down from the top of the screen → tap Capture. " +
-                    "Works over any app. Add it once:",
+                stringResource(R.string.faster_shade_body),
                 style = MaterialTheme.typography.bodySmall,
                 color = extras.secondaryText,
             )
             if (shadeDone) {
                 Text(
-                    "Added · pull the shade anytime",
+                    stringResource(R.string.faster_shade_added),
                     style = MaterialTheme.typography.bodySmall,
                     color = extras.done,
                 )
@@ -442,10 +446,10 @@ private fun CaptureFasterCard(
                     shape = AtomsShapes.button,
                     colors = atomsPrimaryButtonColors(),
                 ) {
-                    Text("Add shade button", style = MaterialTheme.typography.labelLarge)
+                    Text(stringResource(R.string.faster_shade_add), style = MaterialTheme.typography.labelLarge)
                 }
                 Text(
-                    "Or: pull shade → pencil / edit → drag Capture into the tiles",
+                    stringResource(R.string.faster_shade_or),
                     style = MaterialTheme.typography.bodySmall,
                     color = extras.tertiaryText,
                 )
@@ -454,19 +458,18 @@ private fun CaptureFasterCard(
             Spacer(modifier = Modifier.height(4.dp))
 
             Text(
-                "2. Home widget",
+                stringResource(R.string.faster_widget_title),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
             )
             Text(
-                "Long-press the home screen → Widgets → Atoms Capture. " +
-                    "Or tap below and confirm the pin.",
+                stringResource(R.string.faster_widget_body),
                 style = MaterialTheme.typography.bodySmall,
                 color = extras.secondaryText,
             )
             if (widgetDone) {
                 Text(
-                    "Added · tap Capture on your home screen",
+                    stringResource(R.string.faster_widget_added),
                     style = MaterialTheme.typography.bodySmall,
                     color = extras.done,
                 )
@@ -480,12 +483,12 @@ private fun CaptureFasterCard(
                     shape = AtomsShapes.button,
                     border = BorderStroke(1.dp, extras.hairline),
                 ) {
-                    Text("Add home widget", style = MaterialTheme.typography.labelLarge)
+                    Text(stringResource(R.string.faster_widget_add), style = MaterialTheme.typography.labelLarge)
                 }
             }
 
             Text(
-                "Also works: long-press the app icon → Capture",
+                stringResource(R.string.faster_shortcut),
                 style = MaterialTheme.typography.bodySmall,
                 color = extras.tertiaryText,
             )
@@ -506,7 +509,12 @@ private fun ChecklistRow(
     ) {
         Icon(
             imageVector = if (done) Icons.Filled.CheckCircle else Icons.Outlined.Circle,
-            contentDescription = if (done) "Done" else "Not done",
+            contentDescription =
+                if (done) {
+                    stringResource(R.string.setup_done_cd)
+                } else {
+                    stringResource(R.string.setup_not_done_cd)
+                },
             tint = if (done) extras.done else extras.tertiaryText,
             modifier =
                 Modifier
@@ -564,7 +572,7 @@ private fun StatusBanner(
                 color = fg,
             )
             TextButton(onClick = onDismiss, colors = atomsQuietButtonColors()) {
-                Text("OK")
+                Text(stringResource(R.string.dismiss_ok))
             }
         }
     }

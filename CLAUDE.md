@@ -22,6 +22,7 @@ Turn **past** daily captures into a trusted second brain: classify → flat atom
 | `docs/solutions/` | Documented solutions to past problems (bugs, patterns, workflows), by category with YAML frontmatter (`module`, `tags`, `problem_type`) — relevant when implementing or debugging in those areas |
 | `CONCEPTS.md` | Shared domain vocabulary (entities, named processes, status concepts) — relevant when orienting or discussing domain terms |
 | `docs/voice.md` | Product voice (plugin + tryatoms + Field notes). Skill **`atoms-voice`**. |
+| `docs/localization.md` | User-facing copy lives in a locale catalog, never as a source literal |
 | `docs/field-notes-email.md` + skill **`field-notes`** | Field notes mailing list: idea → draft → test send → (approve) broadcast. Source: `.agents/skills/field-notes/` (also linked from `.claude/skills/`). |
 
 Where an **active feature plan** and amendments conflict, **that plan wins**. Amendments explain rationale for plan KTDs.  
@@ -55,6 +56,7 @@ Where an **active feature plan** and amendments conflict, **that plan wins**. Am
 
 - Stack: sample-plugin template, TypeScript + esbuild, `obsidian-daily-notes-interface`, `isDesktopOnly: false`, network via `requestUrl` (not `fetch` — CORS).
 - **Obsidian API conventions (agents):** [`docs/obsidian-api-conventions.md`](docs/obsidian-api-conventions.md) — CSS/`setCssStyles` not `el.style.*`, `Platform.*` not `navigator`, `window.setTimeout`, `createEl`/`createSpan`, `instanceof TFile`, no bare `fetch` except documented Plus localhost. Read before any `src/**` UI or platform change.
+- **Localization:** [`docs/localization.md`](docs/localization.md) — no user-facing string literals. Android companion uses `res/values/strings.xml`.
 - **Test-first** on correctness cores: `parseCaptures`, `render`, and other pure logic touched by the claim.
 - Historical core pipeline units: U1–U10 in the 2026-07-15 plan (done/superseded for roadmap purposes).
 

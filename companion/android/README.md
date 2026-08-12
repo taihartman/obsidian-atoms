@@ -18,6 +18,12 @@ One build. Play will not grant all-files access to a capture app, so there is
 no silent whole-phone scan. Pick the vault folder, or pick **Documents** and
 the app lists every vault inside that grant.
 
+## Localization
+
+User-facing copy lives in `app/src/main/res/values/strings.xml`. Never a
+literal in Kotlin or layout XML. See [`docs/localization.md`](../../docs/localization.md).
+A second language is `values-<lang>/strings.xml` with the same keys.
+
 `verify<Variant>Manifest` reads the **merged** manifest and fails the build if
 broad storage or `INTERNET` comes back, from our manifest or a library's.
 

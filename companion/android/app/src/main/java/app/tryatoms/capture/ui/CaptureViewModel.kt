@@ -5,8 +5,11 @@ import android.content.Intent
 import android.net.Uri
 import android.provider.DocumentsContract
 import android.util.Log
+import androidx.annotation.PluralsRes
+import androidx.annotation.StringRes
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import app.tryatoms.capture.R
 import app.tryatoms.capture.data.CaptureRepository
 import app.tryatoms.capture.data.InboxWriter
 import app.tryatoms.capture.data.SafVaultScanner
@@ -125,9 +128,16 @@ class CaptureViewModel(
     }
 
     fun onPickerCancelled() {
-        banner.value =
-            "Folder picker closed without a choice. Pick your vault, or Documents to list what's inside." to true
+        banner.value = s(R.string.banner_picker_cancelled) to true
     }
+
+    private fun s(@StringRes id: Int, vararg args: Any): String =
+        getApplication<Application>().getString(id, *args)
+
+    private fun quantity(
+        @PluralsRes id: Int,
+        count: Int,
+    ): String = getApplication<Application>().resources.getQuantityString(id, count, count)
 
     fun onAccessRootPicked(uri: Uri) {
         viewModelScope.launch {
@@ -139,7 +149,7 @@ class CaptureViewModel(
                 cr.takePersistableUriPermission(uri, flags)
             } catch (e: SecurityException) {
                 banner.value =
-                    "Could not keep folder access (${e.message}). Try again." to true
+                    s(R.string.banner_keep_access_failed, e.message.orEmpty()) to true
                 return@launch
             }
             store.setAccessRoot(uri)
@@ -150,20 +160,19 @@ class CaptureViewModel(
     fun selectVault(ref: VaultRef) {
         val root = store.current().accessRootUri
         if (root == null) {
-            banner.value = "Grant a folder first." to true
+            banner.value = s(R.string.banner_grant_folder_first) to true
             return
         }
         store.setSelectedVault(ref.relativePath, ref.name)
-        banner.value =
-            "Using ${ref.name}. Captures go to Atoms System/Inbox.md." to false
+        banner.value = s(R.string.banner_using_vault_inbox, ref.name) to false
     }
 
     fun useAccessRootAsVault() {
         val root = store.current().accessRootUri ?: return
-        val name = guessName(root) ?: "Vault"
+        val name = guessName(root) ?: s(R.string.vault_name_fallback)
         store.setVaultAsRoot(root, name)
         listed.value = listOf(VaultRef(name = name, relativePath = "", score = 1))
-        banner.value = "Using $name as your vault." to false
+        banner.value = s(R.string.banner_using_vault, name) to false
     }
 
     fun rescanListedVaults() {
@@ -174,16 +183,16 @@ class CaptureViewModel(
     fun unlinkVault() {
         store.clearVaultLink()
         listed.value = emptyList()
-        banner.value = "Vault unlinked." to false
+        banner.value = s(R.string.banner_unlinked) to false
     }
 
     fun capture() {
         if (!repo.isLinked()) {
-            banner.value = "Choose a vault first." to true
+            banner.value = s(R.string.banner_choose_vault_first) to true
             return
         }
         if (draft.value.isBlank()) {
-            banner.value = "Type something first." to true
+            banner.value = s(R.string.banner_type_first) to true
             return
         }
         if (busy.value) return
@@ -199,15 +208,14 @@ class CaptureViewModel(
             when (result) {
                 is InboxWriter.WriteResult.Ok -> {
                     draft.value = ""
-                    repo.markCaptureDone("Saved · ${result.stamp} · ${result.preview}")
+                    repo.markCaptureDone(s(R.string.status_saved, result.stamp, result.preview))
                     withContext(Dispatchers.IO) {
                         CaptureHomeWidget.updateAll(getApplication())
                     }
-                    banner.value =
-                        "Saved. Next: add the shade button + home widget for one-second capture." to false
+                    banner.value = s(R.string.banner_saved_next) to false
                 }
                 is InboxWriter.WriteResult.Err -> {
-                    repo.setLastStatus("Failed · ${result.message}")
+                    repo.setLastStatus(s(R.string.status_failed, result.message))
                     banner.value = result.message to true
                 }
             }
@@ -229,19 +237,16 @@ class CaptureViewModel(
 
         when {
             vaults.isEmpty() -> {
-                banner.value =
-                    "No vaults in that folder. Pick the vault itself, or Documents if it lives there." to true
+                banner.value = s(R.string.banner_no_vaults_in_folder) to true
             }
             vaults.size == 1 && autoSelectSingle -> {
                 val v = vaults.first()
                 store.setAccessRootAndVault(uri, v.relativePath, v.name)
-                banner.value =
-                    "Linked ${v.name}. Captures go to Atoms System/Inbox.md." to false
+                banner.value = s(R.string.banner_linked_inbox, v.name) to false
             }
             store.current().vaultLinked -> Unit
             else -> {
-                banner.value =
-                    "Found ${vaults.size} vaults. Pick which one to capture into." to false
+                banner.value = quantity(R.plurals.banner_found_vaults, vaults.size) to false
             }
         }
     }
