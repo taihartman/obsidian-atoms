@@ -19,7 +19,7 @@ const MISSING_HINT =
 const HUB_NOT_SYNCED_HINT =
   "This name has backlinks from atoms but the hub note is not in the mirror yet. Open Obsidian with Ask on and Sync now (hubs linked from Atoms/ are included). Do not create a duplicate hub.";
 const PENDING_HINT =
-  "Queued for your vault—open Obsidian (Ask enabled + Allow filing). Usually lands within a minute when the app is open. Do not claim it is filed until fetch_atom returns it.";
+  "Queued. Lands when Obsidian is open (Ask + filing). Confirm with fetch_atom. Do not read outbox_id to the user unless they need to cancel.";
 
 function jsonTool(obj, isError = false) {
   return {
