@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-_Nothing in flight._
+| In review | [#479](https://github.com/taihartman/obsidian-atoms/issues/479) | taihartman | `cursor/readme-community-plugins-install-41b8` | n/a (amend) | `README.md` | Community plugins is the current default in README. www/setup already directory-first (#299). |
 
 ## How to claim (copy)
 
