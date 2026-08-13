@@ -13,6 +13,7 @@ Dated reports under `docs/qa/YYYY-MM-DD-*.md` are evidence. This file is memory.
 | 2026-08-08 | `dev:screenshot` | The first frame after a re-render is often the previous state, and a stale pair is byte-identical. | Capture twice; keep only when byte-identical **and** different from the previous state's frame. |
 | 2026-08-07 | Settings open | `close(); open(); openTabById("atoms")` in one `eval` leaves Settings closed. | Two evals ~1s apart. |
 | 2026-08-12 | Phone viewport | `emulateMobile(true)` at desktop width is `is-tablet`. `require("electron").getCurrentWindow` is undefined in 1.13.6 eval. | Assert `document.body.classList.contains("is-phone")`. Try `@electron/remote` for `setContentSize(390, 844)`. |
+| 2026-08-13 | Daily Notes enable | `daily-notes.enable()` after `disable()` throws `Action "daily" is already registered` and still ends enabled. | Check `plugin.enabled` after the throw; do not treat the error as failed restore. |
 
 ## How to add a row
 
