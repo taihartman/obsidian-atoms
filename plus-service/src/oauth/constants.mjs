@@ -5,6 +5,15 @@ export const CLAUDE_CALLBACK = "https://claude.ai/api/mcp/auth_callback";
 export const CHATGPT_LEGACY_CALLBACK =
   "https://chatgpt.com/connector_platform_oauth_redirect";
 
+/**
+ * Grok web custom-connector callback, pinned 2026-08-12 from a live
+ * grok.com/rest/oauth/auth-url hop (DCR failed with invalid_redirect_uri).
+ * Exact strings only — do not invent a /connector/oauth/{id} family.
+ */
+export const GROK_CALLBACK = "https://grok.com/connectors-oauth-exchange-code/";
+export const GROK_CALLBACK_NOSLASH =
+  "https://grok.com/connectors-oauth-exchange-code";
+
 /** Allowed loopback path for Claude Code (port varies). */
 export const LOOPBACK_PATH = "/callback";
 
@@ -65,6 +74,7 @@ export function isAllowedRedirectUri(uri) {
   if (!uri || typeof uri !== "string") return false;
   if (uri === CLAUDE_CALLBACK) return true;
   if (uri === CHATGPT_LEGACY_CALLBACK) return true;
+  if (uri === GROK_CALLBACK || uri === GROK_CALLBACK_NOSLASH) return true;
   try {
     const u = new URL(uri);
     if (u.protocol !== "http:" && u.protocol !== "https:") return false;
@@ -99,9 +109,24 @@ export function isAllowedRedirectUri(uri) {
  * @param {string} clientId
  * @param {string} [redirectUri]
  */
+function hostnameOf(value) {
+  try {
+    const s = String(value || "");
+    if (!s.startsWith("http://") && !s.startsWith("https://")) return "";
+    return new URL(s).hostname;
+  } catch {
+    return "";
+  }
+}
+
 export function oauthClientLabel(clientId, redirectUri = "") {
   const id = String(clientId || "");
   const redir = String(redirectUri || "");
+  const redirHost = hostnameOf(redir);
+  const idHost = hostnameOf(id);
+  if (redirHost === "grok.com" || idHost === "grok.com") {
+    return "Grok";
+  }
   if (
     id.includes("chatgpt.com") ||
     redir.includes("chatgpt.com") ||

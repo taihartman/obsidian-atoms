@@ -170,7 +170,7 @@ Phone clients cannot reach `127.0.0.1` on your laptop. You need:
 OAuth requires:
 
 - `resource` = `{PUBLIC_BASE_URL}/mcp`
-- Redirect URI on the built-in allowlist (Claude callback, ChatGPT connector redirects, Grok’s pinned production callback once captured, or loopback `http(s)://127.0.0.1|localhost|[::1]/callback`)
+- Redirect URI on the built-in allowlist (Claude callback, ChatGPT connector redirects, Grok exact `https://grok.com/connectors-oauth-exchange-code/`, or loopback `http(s)://127.0.0.1|localhost|[::1]/callback`)
 
 Mismatch → authorize failures (`resource must be …`, `redirect_uri not allowed`).
 

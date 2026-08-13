@@ -7,7 +7,7 @@ Throwaway vault + Plus test account only. Do not use Remote Vault.
 1. Open grok.com/connectors → New Connector → Custom.
 2. Paste `https://plus.tryatoms.app/mcp` (or the dogfood Plus override).
 3. Start OAuth. On the first authorize URL, copy `redirect_uri` from the query (browser address bar, not a production log).
-4. Put that exact string in the PR. Do not invent a `grok.com/connector/oauth/{id}` path.
+4. Pin captured 2026-08-12 from grok.com/rest/oauth/auth-url: `https://grok.com/connectors-oauth-exchange-code/` (exact; DCR failed with `invalid_redirect_uri` until allowlisted).
 
 If the hop has no PKCE S256, no `state`, or `resource` ≠ `{plusBase}/mcp`, stop. File a follow-up. Do not weaken the AS.
 

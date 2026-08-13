@@ -11,6 +11,7 @@ import { fileURLToPath } from "node:url";
 import {
   CLAUDE_CALLBACK,
   CHATGPT_LEGACY_CALLBACK,
+  GROK_CALLBACK,
 } from "../src/oauth/constants.mjs";
 
 const root = path.dirname(fileURLToPath(import.meta.url)) + "/..";
@@ -316,6 +317,23 @@ describe("OAuth Ask AS", () => {
     assert.equal(r.status, 400);
   });
 
+  it("Grok pinned redirect_uri accepted on authorize page", async () => {
+    const { challenge } = pkce();
+    const authUrl = new URL(`${BASE}/oauth/authorize`);
+    authUrl.searchParams.set("response_type", "code");
+    authUrl.searchParams.set("client_id", "https://grok.com/oauth/client.json");
+    authUrl.searchParams.set("redirect_uri", GROK_CALLBACK);
+    authUrl.searchParams.set("state", "st_grok");
+    authUrl.searchParams.set("code_challenge", challenge);
+    authUrl.searchParams.set("code_challenge_method", "S256");
+    authUrl.searchParams.set("resource", RESOURCE);
+    const r = await fetch(authUrl);
+    assert.equal(r.status, 200);
+    const html = await r.text();
+    assert.match(html, /pending_id/);
+    assert.match(html, /Claude, ChatGPT, or Grok/i);
+  });
+
   it("ChatGPT redirect_uri accepted on authorize page", async () => {
     const { challenge } = pkce();
     for (const redirect of [
@@ -410,6 +428,25 @@ describe("OAuth Ask AS", () => {
       }),
     });
     assert.equal(ok.status, 201, await ok.clone().text());
+    const grok = await fetch(`${BASE}/oauth/register`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        redirect_uris: [GROK_CALLBACK],
+        client_name: "grok-pin",
+        token_endpoint_auth_method: "none",
+      }),
+    });
+    assert.equal(grok.status, 201, await grok.clone().text());
+    const mixed = await fetch(`${BASE}/oauth/register`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        redirect_uris: [GROK_CALLBACK, "https://evil.example/cb"],
+        token_endpoint_auth_method: "none",
+      }),
+    });
+    assert.equal(mixed.status, 400);
     const bad = await fetch(`${BASE}/oauth/register`, {
       method: "POST",
       headers: { "content-type": "application/json" },
