@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| In review | #486 | taihartman | `fix/account-email-form-actions-layout` | debug (locked mock) | `styles.css` | Email cluster stacked to match plus-promo-redeem mock · 0.7.10 |
+| _Nothing in flight._ |
 
 ## How to claim (copy)
 
@@ -23,6 +23,7 @@ States: `Queued` · `In progress` · `Blocked` · `In review` · `Done` (then re
 
 | Merged | Issue / PR | Summary |
 |---|---|---|
+| 2026-08-13 | #486 / #487 | Account Email cluster stacked so name and desc stay readable · **0.7.10** |
 | 2026-08-13 | #478 | DIY Ask self-host for non-Plus users · **0.7.8**. Advanced → DIY Ask guide; runbook requires public HTTPS. |
 | 2026-08-12 | #473 / #474 | Magic-link sign-in redraws the open Account page · **0.7.7**. `installPlusSession` notifies Settings; `docs/qa/learnings.md` is project QA memory. |
 | 2026-08-12 | #471 / #472 | Ask agent stance: search the mirror without “check my atoms” · plus-service only. One look = no `search_atoms` retry; fetch / list_tags / mirror_status still apply. **Fly v63**. New chat after deploy. |
