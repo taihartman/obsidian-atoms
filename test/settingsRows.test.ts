@@ -6,6 +6,7 @@ import {
   backRow,
   destinationRow,
   destructiveRow,
+  formActionsRow,
   formRow,
   InFlightActions,
   settingRow,
@@ -324,10 +325,70 @@ describe("row grammar", () => {
     expect(inFlight.pending("plus:start-trial")).toBeDefined();
   });
 
+  it("formActionsRow renders one input and each commit button", () => {
+    formActionsRow(container, {
+      name: "Email",
+      placeholder: "you@example.com",
+      submits: [
+        {
+          action: "plus:magic-link",
+          label: "Send sign-in link",
+          inFlight,
+          onSubmit: () => {},
+        },
+        {
+          action: "plus:start-trial",
+          label: "Start free trial",
+          accent: true,
+          inFlight,
+          onSubmit: () => {},
+        },
+        {
+          action: "plus:promo-subscribe",
+          label: "Use promo code",
+          inFlight,
+          onSubmit: () => {},
+        },
+      ],
+    });
+
+    expect(row(container).classList.contains("atoms-setting-form-actions")).toBe(true);
+    expect(controlEl(container).querySelectorAll("input")).toHaveLength(1);
+    expect(controlEl(container).querySelectorAll("button")).toHaveLength(3);
+    expect(
+      Array.from(controlEl(container).querySelectorAll("button")).map((b) => b.textContent),
+    ).toEqual(["Send sign-in link", "Start free trial", "Use promo code"]);
+    expect(controlEl(container).firstElementChild?.tagName).toBe("INPUT");
+  });
+
+  it("formActionsRow submits the same trimmed field to the pressed commit", () => {
+    const seen: string[] = [];
+    let captured: TextComponent | null = null;
+    formActionsRow(container, {
+      name: "Email",
+      configure: (text) => {
+        captured = text as unknown as TextComponent;
+      },
+      submits: [
+        {
+          action: "plus:promo-subscribe",
+          label: "Use promo code",
+          inFlight,
+          onSubmit: (value) => {
+            seen.push(value);
+          },
+        },
+      ],
+    });
+
+    captured!.fill("  friend@example.com  ");
+    controlEl(container).querySelector("button")!.click();
+    expect(seen).toEqual(["friend@example.com"]);
+  });
+
   /**
-   * `formRow` is the only kind allowed to pair a field with a button. Asserted over the other
-   * builders rather than trusted to review, because the rejected alternative — an optional
-   * `button` on `settingRow` — is exactly one PR away and would leave this file green.
+   * `formRow` and `formActionsRow` are the kinds allowed to pair a field with a button.
+   * Asserted over the other builders rather than trusted to review.
    */
   it("no other row kind pairs an input with a button", () => {
     const build: Array<[string, (el: HTMLElement) => void]> = [
@@ -355,7 +416,7 @@ describe("row grammar", () => {
       const control = controlEl(el);
       const paired =
         control.querySelector("input") !== null && control.querySelector("button") !== null;
-      expect(paired, `${name} paired an input with a button — that grammar is formRow's`).toBe(
+      expect(paired, `${name} paired an input with a button — that grammar is formRow / formActionsRow`).toBe(
         false,
       );
     }

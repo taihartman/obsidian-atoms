@@ -38,7 +38,7 @@ function liveAccountTab() {
 describe("#473 Account redraw after installPlusSession", () => {
   it("flips the open Account destination to signed-in without leaving", async () => {
     const { tab, app } = liveAccountTab();
-    expect(rowNames(tab)).toContain("Sign in with a link");
+    expect(rowNames(tab)).toContain("Email");
     expect(rowNames(tab)).not.toContain("Sign out");
 
     const plugin = new AtomsPlugin({} as App, {} as PluginManifest);
@@ -59,7 +59,7 @@ describe("#473 Account redraw after installPlusSession", () => {
     expect(rowNames(tab)).toContain("Sign out");
     expect(rowNames(tab)).toContain("Signed in as");
     expect(tab.containerEl.textContent).toContain("plus@example.com");
-    expect(rowNames(tab)).not.toContain("Sign in with a link");
+    expect(rowNames(tab)).not.toContain("Email");
   });
 
   it("installs when Settings is closed", async () => {

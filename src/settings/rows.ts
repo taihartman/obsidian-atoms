@@ -15,7 +15,7 @@ import { markDestructive } from "./destructiveButton";
 export { markDestructive };
 
 /**
- * Row grammar for the Atoms settings tab: six row kinds, six right edges.
+ * Row grammar for the Atoms settings tab: seven row kinds, seven right edges.
  *
  * | Kind          | Right edge                    |
  * |---------------|-------------------------------|
@@ -24,12 +24,17 @@ export { markDestructive };
  * | `actionRow`   | accent-text button            |
  * | `destructiveRow` | destructive/warning button |
  * | `formRow`     | input plus the one button that commits it |
+ * | `formActionsRow` | input plus several buttons that each commit it |
  * | `statusRow`   | muted trailing text, no control |
  *
  * `formRow`'s two controls are one grammar — "type this, then commit it" — the way a
  * `destinationRow`'s name and chevron are one. Its button is not an independent action: its only
  * job is to submit the field beside it, which is why the pair is its own kind rather than an
  * optional `button` bolted onto `settingRow`.
+ *
+ * `formActionsRow` is the same grammar with more than one commit: every button still only
+ * submits the field beside it. It exists because signed-out Account has one email and three
+ * things to do with it. Three `formRow`s would be three email boxes.
  *
  * No row may carry two grammars, so every builder applies exactly one affordance and returns
  * `void` — `Setting` is chainable, and handing the row back would let a caller bolt a second
@@ -309,6 +314,53 @@ export function formRow(containerEl: HTMLElement, row: FormRow): void {
     },
     (btn) => btn.setCta(),
   );
+}
+
+/** One field, and every button that may commit it. Each button still only submits that field. */
+export type FormActionsRowSpec = RowInfo & {
+  placeholder?: string;
+  configure?: (text: TextComponent) => void;
+  submits: Array<{
+    action: string;
+    label: string;
+    /** Accent the primary commit. Others stay quiet. */
+    accent?: boolean;
+    onSubmit: (value: string) => void | Promise<void>;
+  }>;
+};
+
+type FormActionsRow = Omit<FormActionsRowSpec, "submits"> & {
+  submits: Array<FormActionsRowSpec["submits"][number] & { inFlight: InFlightActions }>;
+};
+
+/**
+ * A field and several buttons that each submit it.
+ *
+ * Same trim and Enter rules as `formRow`. Each commit has its own in-flight id, so a double-tap
+ * on Start free trial does not also hold Use promo code.
+ */
+export function formActionsRow(containerEl: HTMLElement, row: FormActionsRow): void {
+  const setting = baseRow(containerEl, row);
+  setting.settingEl.addClass("atoms-setting-form");
+  setting.settingEl.addClass("atoms-setting-form-actions");
+  let field!: TextComponent;
+  setting.addText((text) => {
+    field = text;
+    if (row.placeholder !== undefined) text.setPlaceholder(row.placeholder);
+    row.configure?.(text);
+  });
+  for (const submit of row.submits) {
+    addGuardedButton(
+      setting,
+      {
+        label: submit.label,
+        action: submit.action,
+        inFlight: submit.inFlight,
+        onClick: () => submit.onSubmit(field.getValue().trim()),
+      },
+      (btn) => (submit.accent ? btn.setCta() : btn),
+    );
+  }
 }
 
 /** The question a destructive row asks before it acts. */

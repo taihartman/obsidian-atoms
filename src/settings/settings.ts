@@ -69,6 +69,8 @@ import {
   confirmSheet,
   destinationRow,
   destructiveRow,
+  formActionsRow,
+  type FormActionsRowSpec,
   formRow,
   type FormRowSpec,
   InFlightActions,
@@ -162,6 +164,7 @@ export const ATOMS_ASK_SELF_HOST_URL =
 export type AccountState =
   | { kind: "signedOut" }
   | { kind: "trialIncomplete"; email: string }
+  | { kind: "subscribeIncomplete"; email: string }
   | { kind: "active"; status: PlusEntitlementStatus; remaining?: number }
   // `lapseKind`, not the raw plan: `plusLapse` already answered "trial or subscription", and
   // three surfaces read this state. Re-deriving it from `plan` at each of them is how two of
@@ -210,6 +213,9 @@ export function deriveAccountState(
     return { kind: "active", status: auth.status, remaining: auth.remaining };
   }
   if (hasPlusSetupSession(session) && session?.status === "inactive") {
+    if (session.setupKind === "subscribe") {
+      return { kind: "subscribeIncomplete", email: session.email };
+    }
     return { kind: "trialIncomplete", email: session.email };
   }
   return { kind: "signedOut" };
@@ -234,6 +240,11 @@ export function accountRowDescriptor(state: AccountState): AccountRowDescriptor 
       return {
         name: "Finish trial setup",
         desc: `${state.email} — complete checkout to start the 14-day trial.`,
+      };
+    case "subscribeIncomplete":
+      return {
+        name: "Finish Plus checkout",
+        desc: `${state.email}. Complete subscription checkout. On the next page, tap Add promotion code.`,
       };
     case "active": {
       const base = state.status === "trialing" ? "Plus · Trial" : "Plus";
@@ -261,7 +272,7 @@ export function accountRowDescriptor(state: AccountState): AccountRowDescriptor 
               };
       return {
         name: what.name,
-        desc: `${what.subject}. Subscribe to file captures again and to let Claude and ChatGPT reach your atoms.`,
+        desc: `${what.subject}. Subscribe to file captures again and to let Claude and ChatGPT reach your atoms. Have a promo code? Enter it at checkout.`,
       };
     }
     case "exhausted":
@@ -475,6 +486,13 @@ export class AtomsSettingTab extends PluginSettingTab {
     formRow(containerEl, {
       ...row,
       submit: { ...row.submit, inFlight: this.inFlight },
+    });
+  }
+
+  private formActionsRow(containerEl: HTMLElement, row: FormActionsRowSpec): void {
+    formActionsRow(containerEl, {
+      ...row,
+      submits: row.submits.map((submit) => ({ ...submit, inFlight: this.inFlight })),
     });
   }
 
@@ -1089,18 +1107,18 @@ export class AtomsSettingTab extends PluginSettingTab {
   }
 
   /**
-   * Copy for the sign-in-link row. Three honest states: a device that cannot
-   * complete the handoff at all says so up front and names the fallback (R19);
-   * otherwise the emailed link is only described once one has been requested,
-   * since before that there is no email to send anyone to (R15).
+   * Copy for the signed-out Email cluster. A device that cannot complete the
+   * handoff says so up front and names the fallback (R19). Otherwise the emailed
+   * link is only described once one has been requested (R15). The idle line
+   * names sign-in, trial, and promo code on the one field.
    */
-  private signInLinkDesc(): string {
+  private accountEmailDesc(): string {
     if (!hasWebCrypto()) {
       return "This device can't sign itself in from an emailed link. Send one anyway, then finish with Advanced: paste session below.";
     }
     return latestPendingSignIn(this.app)
-      ? "Link sent — open it in the email on this device and Obsidian signs itself in. Send another if it has expired."
-      : "Already subscribed? We'll email a one-time link. Open it on this device and Obsidian signs itself in.";
+      ? "Link sent. Open it in the email on this device and Obsidian signs itself in. Send another if it has expired."
+      : "Sign in, start a trial, or use a promo code. On checkout, tap Add promotion code.";
   }
 
   /** This vault's name — what the link is bound to, and what the landing page shows. */
@@ -1382,11 +1400,12 @@ export class AtomsSettingTab extends PluginSettingTab {
       name: "Status",
       value: accountRowDescriptor(state).name,
     });
-    const email =
-      state.kind === "trialIncomplete" ? state.email : (session?.email ?? "");
+    const setupIncomplete =
+      state.kind === "trialIncomplete" || state.kind === "subscribeIncomplete";
+    const email = setupIncomplete ? state.email : (session?.email ?? "");
     // "Signed in as", not "Account": the back row leading this screen is already named Account.
     if (email) statusRow(containerEl, { name: "Signed in as", value: email });
-    if (state.kind !== "trialIncomplete") {
+    if (!setupIncomplete) {
       statusRow(containerEl, {
         name: "Plan",
         // "Renews" is a promise, and a date already in the past cannot keep it. An ended
@@ -1406,6 +1425,15 @@ export class AtomsSettingTab extends PluginSettingTab {
         desc: "Complete Stripe checkout (card for the 14-day trial). Return here and status updates automatically.",
         label: "Finish trial setup",
         onClick: () => this.finishTrialCheckout(),
+      });
+    }
+    if (state.kind === "subscribeIncomplete") {
+      this.actionRow(containerEl, {
+        action: "plus:promo-subscribe-checkout",
+        name: "Finish Plus checkout",
+        desc: "Complete subscription checkout. On the next page, tap Add promotion code.",
+        label: "Finish Plus checkout",
+        onClick: () => this.finishSubscribeCheckout(),
       });
     }
     if (state.kind === "periodEnded") {
@@ -1443,7 +1471,7 @@ export class AtomsSettingTab extends PluginSettingTab {
     // stored before `plan` was persisted, or a promo — to that same dead portal.
     const portalHasSubject =
       state.kind !== "periodEnded" || state.lapseKind === "subscription";
-    if (state.kind !== "trialIncomplete" && portalHasSubject) {
+    if (!setupIncomplete && portalHasSubject) {
       this.actionRow(containerEl, {
         action: "plus:billing-portal",
         name: "Manage subscription",
@@ -1486,29 +1514,28 @@ export class AtomsSettingTab extends PluginSettingTab {
       },
     });
 
-    // Sign-in leads. Most people reaching this screen already have an account — a returning
-    // user on a second device, or one whose session lapsed — and the trial row asks for a card,
-    // so leading with it charged the wrong question to the larger group.
-    this.formRow(containerEl, {
-      name: "Sign in with a link",
-      desc: this.signInLinkDesc(),
-      placeholder: "you@example.com",
-      submit: {
-        action: "plus:magic-link",
-        label: "Send sign-in link",
-        onSubmit: (email) => this.requestSignInLink(email),
-      },
-    });
-
-    this.formRow(containerEl, {
+    this.formActionsRow(containerEl, {
       name: "Email",
-      desc: "Start a free trial (card required). Checkout opens in your browser — then return to Obsidian.",
+      desc: this.accountEmailDesc(),
       placeholder: "you@example.com",
-      submit: {
-        action: "plus:start-trial",
-        label: "Start free trial",
-        onSubmit: (email) => this.startTrial(email),
-      },
+      submits: [
+        {
+          action: "plus:magic-link",
+          label: "Send sign-in link",
+          onSubmit: (email) => this.requestSignInLink(email),
+        },
+        {
+          action: "plus:start-trial",
+          label: "Start free trial",
+          accent: true,
+          onSubmit: (email) => this.startTrial(email),
+        },
+        {
+          action: "plus:promo-subscribe",
+          label: "Use promo code",
+          onSubmit: (email) => this.startSubscribeFromEmail(email),
+        },
+      ],
     });
 
     // Advanced: paste session — the different-device fallback, kept below the
@@ -1562,10 +1589,86 @@ export class AtomsSettingTab extends PluginSettingTab {
         new Notice(`Atoms Plus: ${started.message}`);
         return;
       }
-      await installPlusSession(this.askMirrorDisarmHost(), started.session);
+      await installPlusSession(this.askMirrorDisarmHost(), {
+        ...started.session,
+        setupKind: "trial",
+      });
       await this.openTrialCheckout(started.session);
     } finally {
       this.redisplay();
+    }
+  }
+
+  /**
+   * Start a paid subscription for a new email so a promo code can apply.
+   * Sibling of `startTrial`. Do not call `openSubscribeCheckout`: that helper
+   * treats an inactive new session as already active.
+   */
+  private async startSubscribeFromEmail(email: string): Promise<void> {
+    if (!requireEmail(email)) return;
+    try {
+      const base =
+        this.plugin.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL;
+      const started = await startPlusAccount(
+        { baseUrl: base, request: plusFetchRequest },
+        email,
+      );
+      if (!started.ok) {
+        if ("needsMagicLink" in started && started.needsMagicLink) {
+          new Notice(
+            "This email already has Plus — send a sign-in link above.",
+            8000,
+          );
+          return;
+        }
+        new Notice(`Atoms Plus: ${started.message}`);
+        return;
+      }
+      await installPlusSession(this.askMirrorDisarmHost(), {
+        ...started.session,
+        setupKind: "subscribe",
+      });
+      await this.openSubscribeCheckoutForSession(started.session);
+    } finally {
+      this.redisplay();
+    }
+  }
+
+  /** Resume the interrupted promo-code Subscribe checkout. */
+  private async finishSubscribeCheckout(): Promise<void> {
+    const session = readPlusSession(this.app);
+    if (!session) {
+      new Notice("No Plus session on this device");
+      return;
+    }
+    try {
+      await this.openSubscribeCheckoutForSession(session);
+    } finally {
+      this.redisplay();
+    }
+  }
+
+  private async openSubscribeCheckoutForSession(session: {
+    sessionToken: string;
+  }): Promise<void> {
+    const base =
+      this.plugin.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL;
+    const r = await createCheckout(
+      { baseUrl: base, request: plusFetchRequest },
+      session.sessionToken,
+      "subscribe_monthly",
+    );
+    if (!r.ok) {
+      new Notice(`Atoms Plus: ${r.message}`);
+      return;
+    }
+    if (r.url) {
+      setAwaitingCheckout(this.app, true);
+      window.open(r.url, "_blank");
+      new Notice(
+        "Complete checkout in the browser. On the next page, tap Add promotion code.",
+        12000,
+      );
     }
   }
 

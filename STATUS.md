@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-_Nothing in flight._
+| In progress | #483 | taihartman | `feat/plus-promo-code-account` | `docs/plans/2026-08-13-1146-feat-plus-have-a-code-plan.md` | `src/settings/settings.ts`, `src/settings/rows.ts`, `src/platform/filingAuth.ts` | Locked mock: one Email field, **Use promo code** → subscribe_monthly. |
 
 ## How to claim (copy)
 

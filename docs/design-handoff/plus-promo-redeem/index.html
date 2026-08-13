@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Plus code — Account mock</title>
+<style>
+  :root {
+    --bg: #000;
+    --card: #1c1c1e;
+    --elev: #2c2c2e;
+    --sep: rgba(84, 84, 88, 0.55);
+    --label: #fff;
+    --muted: rgba(235, 235, 245, 0.6);
+    --faint: rgba(235, 235, 245, 0.32);
+    --tint: #0a84ff;
+    --person: #ff9f0a;
+    --ok: #30d158;
+    --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: var(--font);
+    background: #0a0a0c;
+    color: var(--label);
+    line-height: 1.42;
+    -webkit-font-smoothing: antialiased;
+  }
+  .page {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 2rem 1.25rem 4rem;
+  }
+  header.top {
+    margin-bottom: 1.75rem;
+    border-bottom: 1px solid var(--sep);
+    padding-bottom: 1.25rem;
+  }
+  .eyebrow {
+    font-size: 0.68rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--person);
+    font-weight: 600;
+    margin: 0 0 0.4rem;
+  }
+  h1 {
+    font-size: 1.55rem;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    margin: 0 0 0.5rem;
+  }
+  .lede {
+    color: var(--muted);
+    font-size: 0.95rem;
+    max-width: 44rem;
+    margin: 0;
+  }
+  .principles {
+    margin: 1rem 0 0;
+    padding: 0.85rem 1rem;
+    background: var(--card);
+    border: 1px solid var(--sep);
+    border-radius: 12px;
+    font-size: 0.86rem;
+    color: var(--muted);
+  }
+  .principles strong { color: var(--label); }
+  nav.jump {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin: 1.25rem 0 0;
+  }
+  nav.jump a {
+    font-size: 0.78rem;
+    color: var(--tint);
+    text-decoration: none;
+    padding: 0.35rem 0.7rem;
+    border: 1px solid var(--sep);
+    border-radius: 980px;
+    background: var(--card);
+  }
+  section.block { margin-top: 2.5rem; }
+  section.block h2 {
+    font-size: 1.05rem;
+    font-weight: 650;
+    letter-spacing: -0.02em;
+    margin: 0 0 0.35rem;
+  }
+  section.block .sub {
+    color: var(--muted);
+    font-size: 0.85rem;
+    margin: 0 0 1.1rem;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1.5rem;
+  }
+  .wide { grid-column: 1 / -1; }
+  .phone {
+    background: #111;
+    border-radius: 28px;
+    border: 2px solid #2a2a2e;
+    padding: 10px;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.45);
+  }
+  .phone.desktop {
+    border-radius: 16px;
+    max-width: 720px;
+  }
+  .phone-notch {
+    height: 18px;
+    display: flex;
+    justify-content: center;
+    margin-bottom: 6px;
+  }
+  .phone-notch span {
+    width: 72px;
+    height: 5px;
+    border-radius: 3px;
+    background: #2c2c2e;
+  }
+  .phone.desktop .phone-notch { display: none; }
+  .screen {
+    background: var(--bg);
+    border-radius: 20px;
+    min-height: 560px;
+    padding: 14px 14px 22px;
+  }
+  .phone.desktop .screen {
+    border-radius: 10px;
+    min-height: 0;
+    padding: 18px 20px 24px;
+  }
+  .cap {
+    font-size: 0.72rem;
+    color: var(--faint);
+    margin: 0.65rem 0 0;
+    text-align: center;
+  }
+  .nav {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 2px 0 16px;
+    color: var(--tint);
+    font-size: 0.95rem;
+    font-weight: 500;
+  }
+  .nav .chev { font-size: 1.2rem; line-height: 1; }
+  .nav .title {
+    color: var(--label);
+    font-size: 1.05rem;
+    font-weight: 650;
+    letter-spacing: -0.02em;
+  }
+  .row {
+    padding: 12px 0 14px;
+    border-bottom: 1px solid var(--sep);
+  }
+  .row:last-child { border-bottom: none; }
+  .row .name {
+    font-size: 0.95rem;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+  }
+  .row .desc {
+    font-size: 0.8rem;
+    color: var(--muted);
+    margin: 3px 0 10px;
+    line-height: 1.35;
+  }
+  .row.action .ctrl,
+  .row.form .ctrl {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .row.form input {
+    flex: 1;
+    min-width: 0;
+    width: 100%;
+    height: 36px;
+    border: 0;
+    border-radius: 8px;
+    background: var(--elev);
+    color: var(--label);
+    padding: 0 10px;
+    font: inherit;
+    font-size: 0.84rem;
+  }
+  .row.form > input { margin-bottom: 8px; }
+  .row.form input::placeholder { color: var(--faint); }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 36px;
+    padding: 0 12px;
+    border-radius: 8px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+    background: var(--tint);
+    color: #fff;
+  }
+  .btn.block {
+    width: 100%;
+    min-height: 40px;
+  }
+  .picked {
+    outline: 2px solid color-mix(in srgb, var(--ok) 70%, transparent);
+    outline-offset: 6px;
+    border-radius: 34px;
+  }
+  .mark {
+    background: color-mix(in srgb, var(--person) 18%, transparent);
+    color: var(--person);
+    padding: 0 3px;
+    border-radius: 3px;
+  }
+  .notice {
+    margin: 10px 0 0;
+    padding: 10px 12px;
+    background: var(--elev);
+    border-radius: 10px;
+    font-size: 0.78rem;
+    color: var(--muted);
+  }
+  .checkout {
+    background: #fff;
+    color: #1a1a1a;
+    border-radius: 12px;
+    padding: 16px 16px 18px;
+    margin-top: 8px;
+  }
+  .checkout h3 {
+    margin: 0 0 4px;
+    font-size: 1rem;
+  }
+  .checkout .price {
+    font-size: 1.4rem;
+    font-weight: 700;
+    margin: 0 0 12px;
+  }
+  .checkout .promo {
+    font-size: 0.82rem;
+    color: #635bff;
+    font-weight: 600;
+    margin: 0 0 14px;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .checkout .promo.mark {
+    background: #fff4d6;
+    color: #9a6700;
+    padding: 4px 6px;
+    border-radius: 6px;
+    text-decoration: none;
+    display: inline-block;
+  }
+  .checkout .pay {
+    background: #635bff;
+    color: #fff;
+    min-height: 40px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 650;
+    font-size: 0.9rem;
+  }
+  .status-line {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--sep);
+    font-size: 0.9rem;
+  }
+  .status-line .k { color: var(--muted); }
+  .actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 2px;
+  }
+  .actions .btn {
+    width: 100%;
+    min-height: 40px;
+  }
+  .btn.quiet {
+    background: var(--elev);
+    color: var(--label);
+  }
+  .phone.desktop .actions {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  .phone.desktop .actions .btn {
+    width: auto;
+    flex: 1;
+  }
+  .note {
+    margin-top: 2rem;
+    padding: 1rem 1.15rem;
+    background: var(--card);
+    border-radius: 12px;
+    border: 1px solid var(--sep);
+    font-size: 0.88rem;
+    color: var(--muted);
+  }
+  .note strong { color: var(--label); }
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="top">
+    <p class="eyebrow">U1 mock · Settings → Account · not implemented</p>
+    <h1>Plus code</h1>
+    <p class="lede">
+      Someone sent them a Plus code. Account should get them to Subscribe checkout.
+      They type the code on Stripe, not in the plugin.
+    </p>
+    <div class="principles">
+      <strong>One email.</strong> Sign in, start a trial, and use a Plus code share it. Paste session stays separate. That needs a new row kind: one field, several commits.
+    </div>
+    <nav class="jump">
+      <a href="#today">0 Today</a>
+      <a href="#unified">Unified</a>
+      <a href="#c">Unfinished</a>
+      <a href="#d">Period ended</a>
+      <a href="#e">Checkout</a>
+      <a href="#desk">Desktop</a>
+    </nav>
+  </header>
+
+  <section class="block" id="today">
+    <h2>0 · Today</h2>
+    <p class="sub">Signed out. Trial is the only checkout. A Plus code has nowhere to go.</p>
+    <div class="grid">
+      <div>
+        <div class="phone">
+          <div class="phone-notch"><span></span></div>
+          <div class="screen">
+            <div class="nav"><span class="chev">‹</span><span class="title">Account</span></div>
+            <div class="row action">
+              <div class="name">Skip the API key</div>
+              <p class="desc">Atoms Plus files your captures for you. Or keep using your own key. It’s free forever, and the full app stays yours either way.</p>
+              <div class="ctrl"><span class="btn">See plans</span></div>
+            </div>
+            <div class="row form">
+              <div class="name">Sign in with a link</div>
+              <p class="desc">Already subscribed? We’ll email a one-time link.</p>
+              <div class="ctrl"><input placeholder="you@example.com" disabled /><span class="btn">Send sign-in link</span></div>
+            </div>
+            <div class="row form">
+              <div class="name">Email</div>
+              <p class="desc">Start a free trial (card required). Checkout opens in your browser.</p>
+              <div class="ctrl"><input placeholder="you@example.com" disabled /><span class="btn">Start free trial</span></div>
+            </div>
+            <div class="row form">
+              <div class="name">Advanced: paste session</div>
+              <p class="desc">Only if your email opens on a different device from Obsidian.</p>
+              <div class="ctrl"><input placeholder="sess_…" disabled /><span class="btn">Save session</span></div>
+            </div>
+          </div>
+        </div>
+        <p class="cap">Control · no Plus-code path</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="unified">
+    <h2>Unified · one email</h2>
+    <p class="sub">Type the address once. Each button does a different thing with it.</p>
+    <div class="grid">
+      <div>
+        <div class="phone picked">
+          <div class="phone-notch"><span></span></div>
+          <div class="screen">
+            <div class="nav"><span class="chev">‹</span><span class="title">Account</span></div>
+            <div class="row action">
+              <div class="name">Skip the API key</div>
+              <p class="desc">Atoms Plus files your captures for you. Or keep using your own key. It’s free forever, and the full app stays yours either way.</p>
+              <div class="ctrl"><span class="btn">See plans</span></div>
+            </div>
+            <div class="row form">
+              <div class="name">Email</div>
+              <p class="desc">Sign in, start a trial, or use a promo code. On checkout, tap Add promotion code.</p>
+              <input placeholder="you@example.com" disabled />
+              <div class="actions">
+                <span class="btn quiet">Send sign-in link</span>
+                <span class="btn">Start free trial</span>
+                <span class="btn quiet">Use promo code</span>
+              </div>
+            </div>
+            <div class="row form">
+              <div class="name">Advanced: paste session</div>
+              <p class="desc">Only if your email opens on a different device from Obsidian.</p>
+              <div class="ctrl"><input placeholder="sess_…" disabled /><span class="btn">Save session</span></div>
+            </div>
+          </div>
+        </div>
+        <p class="cap">Recommended · one field</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="c">
+    <h2>C · Plus-code start left unfinished</h2>
+    <p class="sub">They closed Checkout. Today this would say Finish trial setup. That would grant 14 days.</p>
+    <div class="grid">
+      <div>
+        <div class="phone">
+          <div class="phone-notch"><span></span></div>
+          <div class="screen">
+            <div class="nav"><span class="chev">‹</span><span class="title">Account</span></div>
+            <div class="status-line"><span class="k">Status</span><span>Finish Plus checkout</span></div>
+            <div class="status-line"><span class="k">Signed in as</span><span>friend@example.com</span></div>
+            <div class="row action">
+              <div class="name">Finish Plus checkout</div>
+              <p class="desc">Complete subscription checkout. On the next page, tap Add promotion code.</p>
+              <div class="ctrl"><span class="btn">Finish Plus checkout</span></div>
+            </div>
+            <div class="row action">
+              <div class="name">Refresh status</div>
+              <p class="desc">After checkout, pull the latest plan from the Plus service.</p>
+              <div class="ctrl"><span class="btn">Refresh status</span></div>
+            </div>
+          </div>
+        </div>
+        <p class="cap">C · not Finish trial setup</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="d">
+    <h2>D · Period ended</h2>
+    <p class="sub">Subscribe already exists. One added sentence.</p>
+    <div class="grid">
+      <div>
+        <div class="phone">
+          <div class="phone-notch"><span></span></div>
+          <div class="screen">
+            <div class="nav"><span class="chev">‹</span><span class="title">Account</span></div>
+            <div class="status-line"><span class="k">Status</span><span>Trial ended</span></div>
+            <div class="status-line"><span class="k">Signed in as</span><span>friend@example.com</span></div>
+            <div class="row action">
+              <div class="name">Subscribe</div>
+              <p class="desc">Your free trial ended. Subscribe to file captures again. Have a promo code? Enter it at checkout.</p>
+              <div class="ctrl"><span class="btn">Subscribe</span></div>
+            </div>
+          </div>
+        </div>
+        <p class="cap">D · existing row, extra sentence</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="e">
+    <h2>E · After Use promo code</h2>
+    <p class="sub">Notice names the Stripe tap. We cannot restyle their field.</p>
+    <div class="grid">
+      <div>
+        <div class="phone">
+          <div class="phone-notch"><span></span></div>
+          <div class="screen">
+            <div class="nav"><span class="chev">‹</span><span class="title">Account</span></div>
+            <div class="notice">Complete checkout in the browser. On the next page, tap Add promotion code.</div>
+            <div class="checkout">
+              <h3>Atoms Plus</h3>
+              <p class="price">$6.00 / month</p>
+              <p class="promo mark">Add promotion code</p>
+              <div class="pay">Subscribe</div>
+            </div>
+          </div>
+        </div>
+        <p class="cap">E · the only place the code is typed</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="desk">
+    <h2>Desktop · same cluster</h2>
+    <p class="sub">Buttons sit in one row under the field.</p>
+    <div class="grid">
+      <div class="wide">
+        <div class="phone desktop">
+          <div class="screen">
+            <div class="nav"><span class="chev">‹</span><span class="title">Account</span></div>
+            <div class="row action">
+              <div class="name">Skip the API key</div>
+              <p class="desc">Atoms Plus files your captures for you. Or keep using your own key. It’s free forever, and the full app stays yours either way.</p>
+              <div class="ctrl"><span class="btn">See plans</span></div>
+            </div>
+            <div class="row form">
+              <div class="name">Email</div>
+              <p class="desc">Sign in, start a trial, or use a promo code. On checkout, tap Add promotion code.</p>
+              <input placeholder="you@example.com" disabled />
+              <div class="actions">
+                <span class="btn quiet">Send sign-in link</span>
+                <span class="btn">Start free trial</span>
+                <span class="btn quiet">Use promo code</span>
+              </div>
+            </div>
+            <div class="row form">
+              <div class="name">Advanced: paste session</div>
+              <p class="desc">Only if your email opens on a different device from Obsidian.</p>
+              <div class="ctrl"><input placeholder="sess_…" disabled /><span class="btn">Save session</span></div>
+            </div>
+          </div>
+        </div>
+        <p class="cap">Desktop · one field</p>
+      </div>
+    </div>
+  </section>
+
+  <div class="note">
+    <strong>This is the layout.</strong> One email. Three commits. Paste session stays a form row.<br />
+    <strong>Copy:</strong> <em>Use promo code</em> on the third button. Trial stays the accent.
+  </div>
+</div>
+</body>
+</html>
