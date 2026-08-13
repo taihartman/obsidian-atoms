@@ -52,15 +52,17 @@ It’s a **second brain inside your vault**, not a separate app and not a CRM. P
 
 ## Install
 
-### Community plugins (stable / prod)
+### Community plugins
 
-Once listed in the directory (or when you install from a **stable** GitHub Release):
+Atoms is in Obsidian's [community directory](https://obsidian.md/plugins?id=atoms). That is the usual way to install.
 
 1. Settings → **Community plugins** → Browse → **Atoms** → Install → Enable.
-2. Updates come from the **community plugin** channel (official builds), not BRAT betas.
+2. Updates come from the community plugin channel.
 3. Continue with [First-run setup](#first-run-setup).
 
-### BRAT (phone + desktop dogfood)
+### BRAT (dogfood / beta)
+
+Use BRAT if you want prerelease builds before they hit the directory.
 
 1. Install [BRAT](https://obsidian.md/plugins?id=obsidian42-brat).
 2. BRAT → **Add beta plugin** → `taihartman/obsidian-atoms`.
@@ -70,13 +72,15 @@ Once listed in the directory (or when you install from a **stable** GitHub Relea
 
 | Channel | Tag / version shape | GitHub Release | Who gets it |
 |---|---|---|---|
-| **Stable** | `0.6.77` (no suffix) | **not** marked prerelease | BRAT default · community directory (when listed) |
+| **Stable** | `0.6.77` (no suffix) | **not** marked prerelease | Community plugins · BRAT with betas off |
 | **Beta** | `0.6.78-beta.1` or `-rc.1` | marked **prerelease** | BRAT only if **Enable betas** is on |
 
 - Dogfooders: BRAT → turn on **Enable betas** → Check for updates.
-- Everyone else: leave betas **off** (or use Community plugins) → only stable tags.
+- Everyone else: Community plugins, or BRAT with betas **off**.
 
 ### Manual (GitHub Release)
+
+If you cannot use the directory:
 
 1. Download `main.js`, `manifest.json`, and `styles.css` from the latest **stable** [Release](https://github.com/taihartman/obsidian-atoms/releases) (skip “Pre-release” unless you want beta).
 2. Put them in `<Vault>/.obsidian/plugins/atoms/`.
@@ -208,7 +212,7 @@ README screenshots use **`docs/media/demo-vault/`** with fictional sample notes 
 
 **[taihartman/obsidian-atoms](https://github.com/taihartman/obsidian-atoms)**
 
-Releases ship `main.js`, `manifest.json`, and `styles.css` (plus `SHA256SUMS.txt`) for manual install and for the Community directory once listed. Assets are built in GitHub Actions on version tags with [artifact attestations](https://docs.github.com/en/actions/security-for-github-actions/using-artifact-attestations/using-artifact-attestations-to-establish-provenance-for-builds).
+Releases ship `main.js`, `manifest.json`, and `styles.css` (plus `SHA256SUMS.txt`) for the Community directory and for manual install. Assets are built in GitHub Actions on version tags with [artifact attestations](https://docs.github.com/en/actions/security-for-github-actions/using-artifact-attestations/using-artifact-attestations-to-establish-provenance-for-builds).
 
 **Cut a release (maintainers):** bump `manifest.json` + `package.json` (+ `versions.json` via `npm version` / `version-bump.mjs`) on `master`, then:
 
