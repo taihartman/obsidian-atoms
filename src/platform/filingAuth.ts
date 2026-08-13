@@ -33,6 +33,12 @@ export type PlusSession = {
   plan?: PlusPlan;
   /** Epoch ms of last successful entitlement refresh. */
   refreshedAt?: number;
+  /**
+   * What the unfinished Account start was aiming at. An inactive session with
+   * no kind is a trial start (the only start that existed). `subscribe` is a
+   * promo-code start and must not reopen trial checkout.
+   */
+  setupKind?: "trial" | "subscribe";
 };
 
 /**
@@ -230,6 +236,7 @@ export function parsePlusSession(raw: unknown): PlusSession | null {
     periodEnd,
     plan: parsePlusPlan(o.plan),
     refreshedAt,
+    setupKind: o.setupKind === "subscribe" || o.setupKind === "trial" ? o.setupKind : undefined,
   };
 }
 
@@ -263,6 +270,7 @@ export function serializePlusSession(session: PlusSession): string {
     periodEnd: session.periodEnd,
     plan: session.plan,
     refreshedAt: session.refreshedAt,
+    setupKind: session.setupKind,
   });
 }
 

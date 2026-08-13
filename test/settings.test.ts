@@ -492,18 +492,14 @@ describe("account row", () => {
     expect(rowNames(tab)).toEqual([
       "Account",
       "Skip the API key",
-      // Renamed by #240: the emailed link now signs *this* device in, so "another device" is the
-      // paste fallback's job rather than this row's.
-      //
-      // Signing in leads: most people who reach this screen already have an account (a second
-      // device, or a lapsed session) and the trial row below asks for a card, so leading with
-      // the trial charged the wrong question to the larger group.
-      "Sign in with a link",
       "Email",
       "Advanced: paste session",
     ]);
-    expect(buttonLabels(tab, "Email")).toEqual(["Start free trial"]);
-    expect(buttonLabels(tab, "Sign in with a link")).toEqual(["Send sign-in link"]);
+    expect(buttonLabels(tab, "Email")).toEqual([
+      "Send sign-in link",
+      "Start free trial",
+      "Use promo code",
+    ]);
     expect(buttonLabels(tab, "Advanced: paste session")).toEqual(["Save session"]);
   });
 
@@ -537,18 +533,26 @@ describe("account row", () => {
 
     it("hands the typed email to the sign-in link", () => {
       const { tab, handler } = accountScreen("sendPlusMagicLink");
-      fill(tab, "Sign in with a link", "back@example.com");
-      press(tab, "Sign in with a link", "Send sign-in link");
+      fill(tab, "Email", "back@example.com");
+      press(tab, "Email", "Send sign-in link");
 
       expect(handler).toHaveBeenCalledWith("back@example.com");
+    });
+
+    it("hands the typed email to Use promo code, not startTrial", () => {
+      const { tab, handler } = accountScreen("startSubscribeFromEmail");
+      fill(tab, "Email", "friend@example.com");
+      press(tab, "Email", "Use promo code");
+
+      expect(handler).toHaveBeenCalledWith("friend@example.com");
     });
 
     it("refuses a sign-in link for an address without an @", () => {
       const { tab, handler } = accountScreen("sendPlusMagicLink");
       const ui = captureObsidianUi();
 
-      fill(tab, "Sign in with a link", "nobody");
-      press(tab, "Sign in with a link", "Send sign-in link");
+      fill(tab, "Email", "nobody");
+      press(tab, "Email", "Send sign-in link");
 
       expect(handler).not.toHaveBeenCalled();
       expect(ui.notices).toEqual(["Enter a valid email first"]);
@@ -612,6 +616,33 @@ describe("account row", () => {
         kind: "periodEnded",
         lapseKind: "trial",
         endedOn: "2026-08-10T14:52:03.632Z",
+      });
+    });
+
+    it("treats an inactive subscribe start as Finish Plus checkout, not trial", () => {
+      const pending: PlusSession = {
+        sessionToken: "sess_promo",
+        email: "friend@example.com",
+        status: "inactive",
+        setupKind: "subscribe",
+      };
+      const state = deriveAccountState({ mode: "none" }, pending);
+      expect(state).toEqual({
+        kind: "subscribeIncomplete",
+        email: "friend@example.com",
+      });
+      expect(accountRowDescriptor(state).name).toBe("Finish Plus checkout");
+    });
+
+    it("keeps a kindless inactive session as the trial finish", () => {
+      const pending: PlusSession = {
+        sessionToken: "sess_trial",
+        email: "buyer@example.com",
+        status: "inactive",
+      };
+      expect(deriveAccountState({ mode: "none" }, pending)).toEqual({
+        kind: "trialIncomplete",
+        email: "buyer@example.com",
       });
     });
 
@@ -2303,7 +2334,7 @@ describe("adversarial regressions", () => {
  * ------------------------------------------------------------------ */
 
 const VAULT = "Vault A";
-const SIGN_IN_ROW = "Sign in with a link";
+const EMAIL_ROW = "Email";
 const PASTE_ROW = "Advanced: paste session";
 
 type FakeApp = ReturnType<typeof fakeLocalApp>;
@@ -2390,7 +2421,7 @@ describe("signed-out Plus panel copy (R15, AE11)", () => {
       const ui = renderSignedOutPanel(app);
       // The assertion is only meaningful if the panel really rendered: both the
       // sign-in-link row and the paste row have to be among the strings checked.
-      expect(ui.strings).toContain(SIGN_IN_ROW);
+      expect(ui.strings).toContain(EMAIL_ROW);
       expect(ui.strings).toContain(PASTE_ROW);
       const offenders = ui.strings.filter((s) => s.includes("Refresh status"));
       expect(offenders).toEqual([]);
@@ -2398,37 +2429,38 @@ describe("signed-out Plus panel copy (R15, AE11)", () => {
   });
 
   it("describes the emailed link only once a link has been requested", () => {
-    const before = descAfter(renderSignedOutPanel(fakeLocalApp()), SIGN_IN_ROW);
-    expect(before).toMatch(/email a one-time link/i);
+    const before = descAfter(renderSignedOutPanel(fakeLocalApp()), EMAIL_ROW);
+    expect(before).toMatch(/promo code/i);
     expect(before).not.toMatch(/sent/i);
 
     const after = descAfter(
       renderSignedOutPanel(fakeLocalApp(pendingSeed())),
-      SIGN_IN_ROW,
+      EMAIL_ROW,
     );
     expect(after).toMatch(/open it in the email on this device/i);
   });
 
   it("ignores a pending record too old to still matter", () => {
     const stale = pendingSeed(Date.now() - 3 * 24 * 60 * 60 * 1000);
-    const desc = descAfter(renderSignedOutPanel(fakeLocalApp(stale)), SIGN_IN_ROW);
+    const desc = descAfter(renderSignedOutPanel(fakeLocalApp(stale)), EMAIL_ROW);
     expect(desc).not.toMatch(/open it in the email on this device/i);
   });
 
-  it("puts signing in ahead of starting a trial", () => {
-    // Most people reaching the signed-out screen already have an account — a second device, or
-    // a lapsed session — and the trial row asks for a card. Leading with the trial charged the
-    // wrong question to the larger group.
+  it("puts the sign-in commit ahead of Start free trial on the Email row", () => {
     const ui = renderSignedOutPanel(fakeLocalApp());
-    expect(ui.strings.indexOf("Email")).toBeGreaterThan(
-      ui.strings.indexOf(SIGN_IN_ROW),
+    const labels = ui.buttons.map((b) => b.text);
+    expect(labels.indexOf("Send sign-in link")).toBeLessThan(
+      labels.indexOf("Start free trial"),
+    );
+    expect(labels.indexOf("Start free trial")).toBeLessThan(
+      labels.indexOf("Use promo code"),
     );
   });
 
-  it("keeps the paste field below the link row, as the different-device fallback (AE9, R10)", () => {
+  it("keeps the paste field below the Email cluster, as the different-device fallback (AE9, R10)", () => {
     const ui = renderSignedOutPanel(fakeLocalApp());
     expect(ui.strings.indexOf(PASTE_ROW)).toBeGreaterThan(
-      ui.strings.indexOf(SIGN_IN_ROW),
+      ui.strings.indexOf(EMAIL_ROW),
     );
     expect(descAfter(ui, PASTE_ROW)).toMatch(/different device/i);
     expect(ui.buttons.map((b) => b.text)).toContain("Save session");
@@ -2436,7 +2468,7 @@ describe("signed-out Plus panel copy (R15, AE11)", () => {
 
   it("says up front when this device cannot sign itself in from a link (R19)", () => {
     stubNoWebCrypto();
-    const desc = descAfter(renderSignedOutPanel(fakeLocalApp()), SIGN_IN_ROW);
+    const desc = descAfter(renderSignedOutPanel(fakeLocalApp()), EMAIL_ROW);
     expect(desc).toMatch(/Advanced: paste session/);
     // It must not promise the automatic sign-in it cannot deliver.
     expect(desc).not.toMatch(/signs itself in\./);

@@ -2000,6 +2000,10 @@
   flex: 1 0 100%;
 }
 
+.is-phone .modal .setting-item.atoms-setting-form-actions .setting-item-control button {
+  flex: 1 0 100%;
+}
+
 /* Everywhere else: the field keeps a readable floor rather than yielding to its button.
    Tablet is the case this exists for. Obsidian's row stacking is gated on `.is-phone`, and
    `.is-mobile` — the class that does cover both phone and tablet — carries no row layout of its

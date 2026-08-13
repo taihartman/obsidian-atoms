@@ -359,6 +359,18 @@ describe("plusLapse", () => {
       undefined,
     );
   });
+
+  it("carries setupKind through storage so a promo start is not a trial finish", () => {
+    const round = parsePlusSession(
+      JSON.parse(
+        serializePlusSession({ ...activeSession, setupKind: "subscribe" }),
+      ),
+    );
+    expect(round?.setupKind).toBe("subscribe");
+    expect(
+      parsePlusSession({ ...activeSession, setupKind: "lifetime" })?.setupKind,
+    ).toBeUndefined();
+  });
 });
 
 /**
