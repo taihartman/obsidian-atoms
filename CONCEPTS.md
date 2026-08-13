@@ -155,7 +155,7 @@ Calm modal before a bulk hub-list write (turning the setting on, or **Refresh hu
 ## Ask (pull recall + optional write)
 
 ### Atoms Ask
-Product name for **pull recall** (and optional **write-via-outbox**) via remote MCP: the user chats in Claude or ChatGPT; Atoms exposes tools over an optional cloud mirror of `Atoms/`. Not an in-plugin chat UI. Distinct from Local REST / dev MCP agent tooling.
+Product name for **pull recall** (and optional **write-via-outbox**) via remote MCP: the user chats in a connected assistant (Claude, ChatGPT, or Grok); Atoms exposes tools over an optional cloud mirror of `Atoms/`. Not an in-plugin chat UI. Distinct from Local REST / dev MCP agent tooling.
 
 ### Atom mirror
 Hosted, opt-in copy of flat `Atoms/*.md` (title, tags, link reasons, verbatim body) used for Ask search/fetch. Vault remains source of truth; sync is vault→cloud only. User can wipe. Not full-vault backup; not dailies. See **Ask mirror parity**.
@@ -187,7 +187,7 @@ MCP tools `create_atom` and `continue_atom`. Continue = new child atom + relatio
 From an open atom on home, **Continue** sets a **device-local pending parent** and opens today’s daily. The next **today** capture that successfully files (Process / Process today / auto on that day) gets parent in classify context and a reason-bearing link on the **new** child atom. Parent body never modified. Pending is one-shot and same-device (not synced). Preview injects parent for dry-run but does not clear.
 
 ### Remote MCP (Ask)
-Public Streamable HTTP MCP endpoint (Plus host) that **Claude and ChatGPT** connectors call (same `{plusBase}/mcp` URL). Read tools plus optional write-via-outbox. Connector auth is MCP OAuth bound to Plus identity, not the plugin’s device-local `sess_` token as the connector credential. OAuth redirect allowlist includes Claude callback + ChatGPT `chatgpt.com/connector/oauth/*` (and legacy ChatGPT redirect). Self-host the same stack: [`docs/ask-self-host.md`](docs/ask-self-host.md).
+Public Streamable HTTP MCP endpoint (Plus host) that **Claude, ChatGPT, and Grok** connectors call (same `{plusBase}/mcp` URL). Read tools plus optional write-via-outbox. Connector auth is MCP OAuth bound to Plus identity, not the plugin’s device-local `sess_` token as the connector credential. OAuth redirect allowlist includes Claude callback + ChatGPT `chatgpt.com/connector/oauth/*` (and legacy ChatGPT redirect) + Grok exact `https://grok.com/connectors-oauth-exchange-code/` (pinned 2026-08-12 from a live `auth-url` hop). Self-host the same stack: [`docs/ask-self-host.md`](docs/ask-self-host.md).
 
 ### Ask MCP pairing code
 Short-lived, single-use code minted from a verified Plus plugin session so connector OAuth can bind `mcp_` tokens to the **Plus account email** without opening that inbox in the OAuth browser. Parallel to email + magic link on the authorize page. Does not create secondary emails or share the mirror with a second tenant. Requirements: `docs/plans/2026-08-04-002-feat-ask-mcp-pairing-plan.md`.

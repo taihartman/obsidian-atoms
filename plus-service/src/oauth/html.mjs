@@ -12,7 +12,7 @@ export function authorizeEmailForm(pendingId, error = "") {
   return htmlPage(
     "Atoms Ask — Sign in",
     `<h1>Atoms Ask</h1>
-<p>Connect Claude or ChatGPT to your <strong>Atoms Plus</strong> cloud atom mirror. Your Claude/ChatGPT account email does not need to match.</p>
+<p>Connect Claude, ChatGPT, or Grok to your <strong>Atoms Plus</strong> cloud atom mirror. Your AI-app account email does not need to match.</p>
 ${error ? `<p class="error">${escHtml(error)}</p>` : ""}
 <form method="POST" action="/oauth/authorize">
   <input type="hidden" name="pending_id" value="${escHtml(pendingId)}" />
@@ -24,7 +24,7 @@ ${error ? `<p class="error">${escHtml(error)}</p>` : ""}
 </form>
 <hr />
 <p><strong>Or use a code from Obsidian</strong></p>
-<p class="muted">In Obsidian: Settings → Atoms → Ask → <em>Link Claude / ChatGPT</em>. Paste the code here. Codes are secrets — do not share them.</p>
+<p class="muted">In Obsidian: Settings → Atoms → Ask → <em>Link Claude / ChatGPT / Grok</em>. Paste the code here. Codes are secrets — do not share them.</p>
 <form method="POST" action="/oauth/authorize">
   <input type="hidden" name="pending_id" value="${escHtml(pendingId)}" />
   <input type="hidden" name="mode" value="pair" />
@@ -57,7 +57,7 @@ ${error ? `<p class="error">${escHtml(error)}</p>` : ""}
   </label>
   <button type="submit" class="btn btn--secondary">Continue with code</button>
 </form>
-<p class="muted">Open Obsidian → Settings → Atoms → Ask → Link Claude / ChatGPT if you need a code. Or use a different Atoms Plus email:</p>
+<p class="muted">Open Obsidian → Settings → Atoms → Ask → Link Claude / ChatGPT / Grok if you need a code. Or use a different Atoms Plus email:</p>
 <form method="POST" action="/oauth/authorize">
   <input type="hidden" name="pending_id" value="${escHtml(pendingId)}" />
   <input type="hidden" name="mode" value="email" />
@@ -80,7 +80,7 @@ export function consentForm(pendingId, email, clientLabel) {
 <li><code>atoms:read</code> — search &amp; fetch your cloud atom mirror (not the whole vault)</li>
 <li><code>atoms:write</code> — queue new atoms via outbox; they land in Obsidian only after you enable <strong>Allow filing</strong> and the vault applies them. Does not rewrite existing note bodies.</li>
 </ul>
-<p class="muted">Tool results are sent to the AI provider (Anthropic or OpenAI) when you chat. Host can decrypt the mirror (not zero-knowledge).</p>
+<p class="muted">Tool results go to the provider of the assistant you connected. Host can decrypt the mirror (not zero-knowledge).</p>
 <form method="POST" action="/oauth/consent" class="stack">
   <input type="hidden" name="pending_id" value="${escHtml(pendingId)}" />
   <button type="submit" name="decision" value="allow" class="btn btn--primary">Allow</button>

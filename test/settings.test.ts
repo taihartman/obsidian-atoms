@@ -1665,10 +1665,10 @@ describe("closing Settings", () => {
   });
 });
 
-describe("Connect Claude or ChatGPT destination (U6)", () => {
+describe("Connect Claude, ChatGPT, or Grok destination (U6)", () => {
   const CONNECT_ROWS = [
     "MCP connector URL",
-    "Link Claude / ChatGPT",
+    "Link Claude / ChatGPT / Grok",
     "Sync now",
     "Cloud mirror status",
     "Wipe cloud copy",
@@ -1678,14 +1678,14 @@ describe("Connect Claude or ChatGPT destination (U6)", () => {
     const { tab } = settingTab({ session: PLUS_SESSION });
     tab.display();
 
-    expect(destinationNames(tab)).toContain("Connect Claude or ChatGPT");
+    expect(destinationNames(tab)).toContain("Connect Claude, ChatGPT, or Grok");
     for (const name of CONNECT_ROWS) expect(rowNames(tab)).not.toContain(name);
   });
 
   it("holds every moved row", () => {
     const { tab } = settingTab({ session: PLUS_SESSION });
     tab.display();
-    open(tab, "Connect Claude or ChatGPT");
+    open(tab, "Connect Claude, ChatGPT, or Grok");
 
     for (const name of CONNECT_ROWS) expect(rowNames(tab)).toContain(name);
   });
@@ -1696,7 +1696,7 @@ describe("Connect Claude or ChatGPT destination (U6)", () => {
       settings: { askEnabled: true, ...PRIVACY_GRANTED },
     });
     tab.display();
-    open(tab, "Connect Claude or ChatGPT");
+    open(tab, "Connect Claude, ChatGPT, or Grok");
 
     press(tab, "Wipe cloud copy", "Wipe");
     expect(sheetOpen()).toBe(true);
@@ -1713,7 +1713,7 @@ describe("Connect Claude or ChatGPT destination (U6)", () => {
       settings: { askEnabled: true, ...PRIVACY_GRANTED },
     });
     tab.display();
-    open(tab, "Connect Claude or ChatGPT");
+    open(tab, "Connect Claude, ChatGPT, or Grok");
 
     // The one destructive row on the screen. Two confirm modals over each other is a question
     // the user answers once and a wipe they authorized once.
@@ -1903,7 +1903,7 @@ describe("main screen row grammar (U9)", () => {
   const ASK_ROWS = [
     "Ask mirror",
     "Allow filing from Claude or ChatGPT",
-    "Connect Claude or ChatGPT",
+    "Connect Claude, ChatGPT, or Grok",
   ];
 
   function expectedRows(account: string): string[] {

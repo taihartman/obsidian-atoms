@@ -23,7 +23,7 @@ export const HTML_SECURITY_HEADERS = Object.freeze({
 export const OAUTH_HTML_SECURITY_HEADERS = Object.freeze({
   ...HTML_SECURITY_HEADERS,
   "content-security-policy":
-    "default-src 'none'; style-src 'unsafe-inline'; form-action 'self' https://claude.ai https://chatgpt.com http://127.0.0.1:* http://localhost:* https://localhost:* http://[::1]:* https://[::1]:*",
+    "default-src 'none'; style-src 'unsafe-inline'; form-action 'self' https://claude.ai https://chatgpt.com https://grok.com http://127.0.0.1:* http://localhost:* https://localhost:* http://[::1]:* https://[::1]:*",
 });
 
 export function escHtml(s) {

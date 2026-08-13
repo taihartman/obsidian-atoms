@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import {
   CLAUDE_CALLBACK,
   CHATGPT_LEGACY_CALLBACK,
+  GROK_CALLBACK,
+  GROK_CALLBACK_NOSLASH,
   isAllowedRedirectUri,
   oauthClientLabel,
 } from "../src/oauth/constants.mjs";
@@ -61,6 +63,46 @@ describe("isAllowedRedirectUri", () => {
       false,
     );
   });
+
+  it("allows the pinned Grok callback only", () => {
+    assert.equal(isAllowedRedirectUri(GROK_CALLBACK), true);
+    assert.equal(isAllowedRedirectUri(GROK_CALLBACK_NOSLASH), true);
+    assert.equal(isAllowedRedirectUri("https://grok.com/evil"), false);
+    assert.equal(
+      isAllowedRedirectUri(
+        "https://grok.com.evil.example/connectors-oauth-exchange-code/",
+      ),
+      false,
+    );
+    assert.equal(
+      isAllowedRedirectUri(
+        "https://evil.grok.com/connectors-oauth-exchange-code/",
+      ),
+      false,
+    );
+    assert.equal(
+      isAllowedRedirectUri("http://grok.com/connectors-oauth-exchange-code/"),
+      false,
+    );
+    assert.equal(
+      isAllowedRedirectUri(
+        "https://user:pass@grok.com/connectors-oauth-exchange-code/",
+      ),
+      false,
+    );
+    assert.equal(
+      isAllowedRedirectUri(
+        "https://grok.com/connectors-oauth-exchange-code/?next=https://x.ai",
+      ),
+      false,
+    );
+    assert.equal(
+      isAllowedRedirectUri(
+        "https://grok.com/connectors-oauth-exchange-code/#x",
+      ),
+      false,
+    );
+  });
 });
 
 describe("oauthClientLabel", () => {
@@ -76,6 +118,14 @@ describe("oauthClientLabel", () => {
     assert.equal(
       oauthClientLabel("https://claude.ai/api/mcp/auth_callback"),
       "Claude",
+    );
+    assert.equal(oauthClientLabel("opaque", GROK_CALLBACK), "Grok");
+    assert.equal(
+      oauthClientLabel(
+        "cli",
+        "https://chatgpt.com/connector/oauth/1?next=https://x.ai",
+      ),
+      "ChatGPT",
     );
   });
 });

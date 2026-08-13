@@ -1,6 +1,6 @@
 # Self-host Atoms Ask (DIY)
 
-Run **your own** Atoms Plus service so Claude or ChatGPT can Ask your atoms without a hosted Plus bill, and without sending that traffic to `plus.tryatoms.app`.
+Run **your own** Atoms Plus service so Claude, ChatGPT, or Grok can Ask your atoms without a hosted Plus bill, and without sending that traffic to `plus.tryatoms.app`.
 
 This page is for advanced, non-Plus users. Hosted Plus is still the usual path: sign in under Settings → Atoms, turn on Ask, connect to `https://plus.tryatoms.app/mcp`.
 
@@ -174,9 +174,9 @@ Settings → **Set up automatic filing** → **Email** → **Start free trial**.
 
 ## 4. Enable Ask and sync
 
-1. Settings → **Ask (Claude + ChatGPT)** → accept the privacy sheet → turn on **Ask mirror**
+1. Settings → **Ask** → accept the privacy sheet → turn on **Ask mirror**
 2. Optional: **Allow filing from Claude or ChatGPT** (outbox create/continue)
-3. Open **Connect Claude or ChatGPT**
+3. Open **Connect Claude, ChatGPT, or Grok**
 4. **Sync now** — push flat `Atoms/*.md` into your mirror DB
 5. **MCP connector URL** → **Copy**. It must be `https://YOUR-ORIGIN/mcp`, not localhost.
 6. Optional: **Get pairing code** if the OAuth browser cannot complete the magic link on your Plus email
@@ -193,7 +193,9 @@ Claude Team / Enterprise: an Owner adds it first under Organization settings →
 
 **ChatGPT:** Settings → **Apps** → **Advanced settings** → turn on Developer mode, then **Apps → Create**, paste the URL, choose OAuth, complete sign-in. Pro can use read/fetch this way. Full write MCP is on Business / Enterprise / Edu.
 
-If authorize fails with `resource must be …` or `redirect_uri not allowed`, `PUBLIC_BASE_URL` does not match the URL the client is using, or the redirect is not on the allowlist (Claude `https://claude.ai/api/mcp/auth_callback`, ChatGPT `https://chatgpt.com/connector/oauth/…` or the legacy redirect, or loopback `/callback`).
+**Grok:** grok.com/connectors → **New Connector** → **Custom**, paste the URL, complete sign-in.
+
+If authorize fails with `resource must be …` or `redirect_uri not allowed`, `PUBLIC_BASE_URL` does not match the URL the client is using, or the redirect is not on the allowlist (Claude `https://claude.ai/api/mcp/auth_callback`, ChatGPT `https://chatgpt.com/connector/oauth/…` or the legacy redirect, Grok exact `https://grok.com/connectors-oauth-exchange-code/`, or loopback `/callback`).
 
 ---
 
@@ -217,7 +219,7 @@ Personal DIY does **not** need that. Development + dogfood + sqlite is the path.
 
 - Only flat **`Atoms/*.md`** leave the device (not dailies, not the rest of the vault).
 - Mirror bodies live in **your** store. With `ATOMS_ASK_MIRROR_KEY` they are AES-GCM (`v1:`). Without a key, local/dev uses `plain:`.
-- This is **not** zero-knowledge. Claude or ChatGPT receive tool results in their chat context.
+- This is **not** zero-knowledge. The assistant you connect receives tool results in its chat context.
 - **Wipe cloud copy** (Connect screen) deletes mirror rows, outbox, and MCP tokens for that account. Turning Ask off does not wipe.
 - **Search expansion** is on by default (`ASK_EXPAND_ENABLED=1`) since 0.6.87. It only spends if `ANTHROPIC_API_KEY` is set on the service. Set `ASK_EXPAND_ENABLED=0` to turn it off. Expansion text is never returned on MCP payloads.
 - **Sync now** can delete cloud paths missing from **this** vault. Do not force-sync from an incomplete second device.
@@ -234,7 +236,7 @@ Personal DIY does **not** need that. Development + dogfood + sqlite is the path.
 - Hubs outside `Atoms/` or daily notes in the mirror
 - Mirror → vault reverse body sync
 - In-plugin chat UI
-- Pasting `http://127.0.0.1:…/mcp` into Claude or ChatGPT
+- Pasting `http://127.0.0.1:…/mcp` into Claude, ChatGPT, or Grok
 
 ---
 

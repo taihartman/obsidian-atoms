@@ -66,6 +66,7 @@ describe("html/shell renderPage", () => {
     assert.match(csp, /form-action 'self'/);
     assert.match(csp, /https:\/\/claude\.ai/);
     assert.match(csp, /https:\/\/chatgpt\.com/);
+    assert.match(csp, /https:\/\/grok\.com/);
     assert.match(csp, /127\.0\.0\.1/);
   });
 });

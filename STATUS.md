@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-_Nothing in flight._
+| In review | #476 | agent | `feat/ask-grok-mcp` | `docs/plans/2026-08-12-003-feat-ask-grok-mcp-plan.md` | `plus-service/src/oauth/constants.mjs`, `plus-service/src/oauth/html.mjs`, `plus-service/src/html/shell.mjs`, `src/settings/settings.ts`, `www/src/setup.html.tmpl`, `www/src/privacy.html.tmpl` | Grok as third optional Ask MCP client. Live callback pinned. **0.7.9**. |
 
 ## How to claim (copy)
 
