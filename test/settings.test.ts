@@ -1773,31 +1773,52 @@ describe("Advanced destination (U6, R5)", () => {
    * and the walk still terminates.
    */
   function exerciseEveryControl(tab: AtomsSettingTab): void {
-    const exercised = new Set<Element>();
-    for (let guard = 0; guard < 200; guard += 1) {
-      const el = Array.from(tab.containerEl.querySelectorAll(".setting-item")).find(
-        (candidate) =>
-          !candidate.classList.contains("atoms-setting-back") && !exercised.has(candidate),
-      );
-      if (!el) return;
-      exercised.add(el);
-      for (const toggle of Array.from(el.querySelectorAll(".checkbox-container"))) {
-        (toggle as HTMLElement).click();
+    const opened = vi.spyOn(window, "open").mockImplementation(() => null);
+    try {
+      const exercised = new Set<Element>();
+      for (let guard = 0; guard < 200; guard += 1) {
+        const el = Array.from(tab.containerEl.querySelectorAll(".setting-item")).find(
+          (candidate) =>
+            !candidate.classList.contains("atoms-setting-back") && !exercised.has(candidate),
+        );
+        if (!el) return;
+        exercised.add(el);
+        for (const toggle of Array.from(el.querySelectorAll(".checkbox-container"))) {
+          (toggle as HTMLElement).click();
+        }
+        for (const input of Array.from(el.querySelectorAll("input"))) {
+          input.value = "exercised";
+          input.dispatchEvent(new Event("input"));
+        }
+        for (const button of Array.from(el.querySelectorAll("button"))) {
+          button.click();
+        }
       }
-      for (const input of Array.from(el.querySelectorAll("input"))) {
-        input.value = "exercised";
-        input.dispatchEvent(new Event("input"));
-      }
-      for (const button of Array.from(el.querySelectorAll("button"))) {
-        button.click();
-      }
+      throw new Error("screen never settled: 200 rows exercised and it is still re-rendering");
+    } finally {
+      opened.mockRestore();
     }
-    throw new Error("screen never settled: 200 rows exercised and it is still re-rendering");
   }
 
-  it("holds the two rows and nothing else", () => {
+  it("holds the plumbing rows and the DIY guide", () => {
     const { tab } = advanced();
-    expect(rowNames(tab)).toEqual(["Advanced", "Model", "Plus service URL override"]);
+    expect(rowNames(tab)).toEqual([
+      "Advanced",
+      "Model",
+      "Plus service URL override",
+      "DIY Ask guide",
+    ]);
+  });
+
+  it("opens the committed GitHub self-host guide", () => {
+    const { tab } = advanced();
+    const open = vi.spyOn(window, "open").mockImplementation(() => null);
+    press(tab, "DIY Ask guide", "Open");
+    expect(open).toHaveBeenCalledWith(
+      "https://github.com/taihartman/obsidian-atoms/blob/master/docs/ask-self-host.md",
+      "_blank",
+    );
+    open.mockRestore();
   });
 
   it("keeps the device-local key path out — it is a credential path, not plumbing", () => {
@@ -1958,11 +1979,26 @@ describe("main screen row grammar (U9)", () => {
     expect(rowNames(tab, { headings: false })).not.toContain("Open today's daily");
   });
 
-  it("leaves the self-host guide to documentation rather than a settings row", () => {
+  it("leaves Self-host Ask off the main screen and points signed-out Ask at Advanced", () => {
     const { tab } = plusTab();
     tab.display();
     expect(rowNames(tab, { headings: false })).not.toContain("Self-host Ask");
     expect(existsSync(path.resolve(__dirname, "../docs/ask-self-host.md"))).toBe(true);
+
+    const signedOut = settingTab();
+    signedOut.tab.display();
+    expect(signedOut.tab.containerEl.textContent).toContain(
+      "open Advanced and follow the DIY Ask guide",
+    );
+
+    const guide = readFileSync(
+      path.resolve(__dirname, "../docs/ask-self-host.md"),
+      "utf8",
+    );
+    expect(guide).toContain("Advanced → Plus service URL override");
+    expect(guide).toContain("Public HTTPS is required");
+    expect(guide).not.toContain("Development → Plus service URL override");
+    expect(guide).not.toContain("local `http://127.0.0.1:8787` can work");
   });
 
   /**

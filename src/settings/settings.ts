@@ -147,6 +147,10 @@ import {
 /** Public marketing + pricing page. Source lives in `www/` in this repo. */
 export const ATOMS_SITE_URL = "https://tryatoms.app";
 
+/** DIY Ask runbook. Advanced opens this so a non-Plus user can host plus-service. */
+export const ATOMS_ASK_SELF_HOST_URL =
+  "https://github.com/taihartman/obsidian-atoms/blob/master/docs/ask-self-host.md";
+
 /**
  * Everything the Atoms Plus account can be, as one sealed type.
  *
@@ -793,7 +797,7 @@ export class AtomsSettingTab extends PluginSettingTab {
     this.actionRow(containerEl, {
       action: "ask:copy-mcp-url",
       name: "MCP connector URL",
-      desc: `${mcpUrl}. Same URL for Claude, ChatGPT, or Grok. Claude: Settings → Connectors → Add custom connector. ChatGPT: Settings → Apps & connectors (Developer mode) → add this URL → complete OAuth. Grok: grok.com/connectors → New Connector → Custom → this URL → complete OAuth.`,
+      desc: `${mcpUrl}. Same URL for Claude, ChatGPT, or Grok. Claude: Customize → Connectors → + → Add custom connector. ChatGPT: Settings → Apps → Advanced settings → Developer mode, then Apps → Create. Grok: grok.com/connectors → New Connector → Custom. Paste this URL and complete OAuth.`,
       label: "Copy",
       onClick: async () => {
         try {
@@ -992,7 +996,7 @@ export class AtomsSettingTab extends PluginSettingTab {
     // Override only for local dogfood. Shipping builds leave this empty → DEFAULT_PLUS_BASE_URL.
     settingRow(containerEl, {
       name: "Plus service URL override",
-      desc: `Empty = production (${DEFAULT_PLUS_BASE_URL}). Local: http://127.0.0.1:8787`,
+      desc: `Empty = production (${DEFAULT_PLUS_BASE_URL}). Plugin can use http://127.0.0.1:8787. Claude and ChatGPT need the public HTTPS origin.`,
       control: {
         kind: "text",
         configure: (text) => {
@@ -1004,6 +1008,16 @@ export class AtomsSettingTab extends PluginSettingTab {
               void this.plugin.saveSettings();
             });
         },
+      },
+    });
+
+    this.actionRow(containerEl, {
+      action: "ask:open-self-host-guide",
+      name: "DIY Ask guide",
+      desc: "Run plus-service on your machine so Claude or ChatGPT never hit plus.tryatoms.app.",
+      label: "Open",
+      onClick: () => {
+        window.open(ATOMS_ASK_SELF_HOST_URL, "_blank");
       },
     });
   }
@@ -2429,7 +2443,7 @@ export class AtomsSettingTab extends PluginSettingTab {
 
     if (!session) {
       containerEl.createEl("p", {
-        text: "Sign in to Atoms Plus above first.",
+        text: "Sign in to Atoms Plus above to use the hosted connector. To run the server yourself, open Advanced and follow the DIY Ask guide.",
         cls: "setting-item-description",
       });
       // Signing out leaves both acks on record — deliberately, so signing back in does not
