@@ -209,6 +209,7 @@ README screenshots use **`docs/media/demo-vault/`** with fictional sample notes 
 |---|---|
 | [CLAUDE.md](./CLAUDE.md) | Agent rules / non-negotiables |
 | [docs/architecture.md](./docs/architecture.md) | System map |
+| [docs/how-atoms-works.html](./docs/how-atoms-works.html) | Visual walkthrough of capture → file → resurface |
 | [docs/capture-shortcut.md](./docs/capture-shortcut.md) | iOS shortcut + iCloud link |
 | [docs/ask-self-host.md](./docs/ask-self-host.md) | DIY Ask (run plus-service yourself) |
 | [docs/design-handoff/atoms-view/](./docs/design-handoff/atoms-view/) | Home UI mocks |
