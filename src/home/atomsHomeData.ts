@@ -877,6 +877,51 @@ export function waitingSubtitle(input: {
     : `${input.pastUnprocessed} thoughts ready to file`;
 }
 
+/** Settings → Core plugins. Live tab id is `plugins` (Obsidian 1.13.6). Not `core-plugins`. */
+export const CORE_PLUGINS_SETTINGS_TAB_ID = "plugins";
+
+export type FirstDayPrimaryAction = "open_today" | "open_core_plugins";
+
+export type FirstDaySetupCopy = {
+  subtitle: string;
+  eyebrow: string;
+  title: string;
+  body: string;
+  example: string | null;
+  primaryLabel: string;
+  primaryAction: FirstDayPrimaryAction;
+  showShortcut: boolean;
+};
+
+/**
+ * First-day home card. Daily Notes off is a setup wall, not an empty library.
+ * Existing on-path strings stay byte-identical when the plugin is already loaded.
+ */
+export function firstDaySetupCopy(dailyNotesLoaded: boolean): FirstDaySetupCopy {
+  if (!dailyNotesLoaded) {
+    return {
+      subtitle: "Daily Notes is off",
+      eyebrow: "Get started",
+      title: "Turn on Daily Notes",
+      body: "Atoms files thoughts from your daily notes. Enable the core Daily Notes plugin under Settings → Core plugins.",
+      example: null,
+      primaryLabel: "Open Core plugins",
+      primaryAction: "open_core_plugins",
+      showShortcut: false,
+    };
+  }
+  return {
+    subtitle: "Capture starts in your daily note",
+    eyebrow: "Get started",
+    title: "Write one bullet today",
+    body: "Atoms files thoughts from past days. Capture stays in Daily — this list shows what was filed.",
+    example: "- Alex likes periwinkle\n- watch Past Lives",
+    primaryLabel: "Open today",
+    primaryAction: "open_today",
+    showShortcut: true,
+  };
+}
+
 /**
  * Map resolveFilingAuth result → wait-card path.
  *

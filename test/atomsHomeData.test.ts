@@ -15,6 +15,8 @@ import {
   countUnprocessedSince,
   filingHeroCopy,
   filingPathFromAuth,
+  firstDaySetupCopy,
+  CORE_PLUGINS_SETTINGS_TAB_ID,
   filterLinkedOnly,
   formatRelativeTime,
   inboxStuckSummary,
@@ -1001,5 +1003,39 @@ describe("backfillOfferCopy", () => {
         /backlog|overdue|still need to|you haven't|catch up on/,
       );
     }
+  });
+});
+
+describe("firstDaySetupCopy", () => {
+  it("keeps the existing first-day card when Daily Notes is on", () => {
+    const copy = firstDaySetupCopy(true);
+    expect(copy.subtitle).toBe("Capture starts in your daily note");
+    expect(copy.title).toBe("Write one bullet today");
+    expect(copy.body).toBe(
+      "Atoms files thoughts from past days. Capture stays in Daily — this list shows what was filed.",
+    );
+    expect(copy.example).toBe("- Alex likes periwinkle\n- watch Past Lives");
+    expect(copy.primaryAction).toBe("open_today");
+    expect(copy.primaryLabel).toBe("Open today");
+    expect(copy.showShortcut).toBe(true);
+  });
+
+  it("names the Daily Notes switch when the core plugin is off", () => {
+    const copy = firstDaySetupCopy(false);
+    expect(copy.subtitle).toBe("Daily Notes is off");
+    expect(copy.title).toBe("Turn on Daily Notes");
+    expect(copy.body).toContain("Settings → Core plugins");
+    expect(copy.example).toBeNull();
+    expect(CORE_PLUGINS_SETTINGS_TAB_ID).toBe("plugins");
+    expect(copy.primaryAction).toBe("open_core_plugins");
+    expect(copy.primaryLabel).toBe("Open Core plugins");
+    expect(copy.showShortcut).toBe(false);
+    const spoken = [copy.subtitle, copy.title, copy.body, copy.primaryLabel].join(
+      " ",
+    );
+    expect(spoken).not.toMatch(/—/);
+    expect(spoken.toLowerCase()).not.toMatch(
+      /backlog|overdue|still need to|you haven't/,
+    );
   });
 });
