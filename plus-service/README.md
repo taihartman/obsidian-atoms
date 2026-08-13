@@ -13,7 +13,7 @@ export DOGFOOD_AUTO_GRANT=1         # first login gets trialing + 150
 npm start                           # http://127.0.0.1:8787
 ```
 
-In Obsidian **Settings → Atoms Plus → Plus service URL**:
+In Obsidian **Settings → Atoms → Advanced → Plus service URL override**:
 
 ```
 http://127.0.0.1:8787

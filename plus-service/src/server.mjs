@@ -293,7 +293,7 @@ function renderFallbackSession(res, out) {
     `<h1>Signed in</h1>
 <p>Email: <strong>${escHtml(pub.email)}</strong></p>
 <p>Status: <strong>${escHtml(pub.status)}</strong> · remaining ${escHtml(String(pub.remaining))}</p>
-<p>Copy the session below, then in Obsidian open <strong>Settings → Atoms Plus → Advanced: paste session</strong> and paste it there.</p>
+<p>Copy the session below, then in Obsidian open <strong>Settings → Atoms → Set up automatic filing → Advanced: paste session</strong> and paste it there.</p>
 <p class="token-block">${escHtml(out.session)}</p>
 <p class="muted">This session signs in the vault you paste it into. Treat it like a password, and close this page when you are done.</p>`,
   );
