@@ -11,7 +11,7 @@ The loop is simple:
 It’s a **second brain inside your vault**, not a separate app and not a CRM. Person hubs you already keep get real links and backlinks.
 
 > **Paid services notice.** Atoms needs a paid AI service to file anything. Pick one:
-> **bring your own [Anthropic](https://console.anthropic.com) API key** and Anthropic bills you directly for your usage, or subscribe to **Atoms Plus** (hosted, no key to set up, and the only way to ask from Claude or ChatGPT) from Settings inside the plugin. Pricing and a free trial are at [tryatoms.app](https://tryatoms.app). The plugin code itself is MIT and free.
+> **bring your own [Anthropic](https://console.anthropic.com) API key** and Anthropic bills you directly for your usage, or subscribe to **Atoms Plus** (hosted, no key to set up) from Settings inside the plugin. Asking Claude or ChatGPT about your atoms uses a cloud mirror: hosted Plus, or run [`plus-service` yourself](docs/ask-self-host.md) (Settings → Advanced → DIY Ask guide). Pricing and a free trial are at [tryatoms.app](https://tryatoms.app). The plugin code itself is MIT and free.
 
 **Plugin id:** `atoms` · **Version:** see `manifest.json` · **Requires:** Obsidian ≥ 1.11.4, core **Daily Notes**, and either an Anthropic API key or Atoms Plus
 

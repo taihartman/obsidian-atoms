@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-_Nothing in flight._
+| In progress | — | agent | `feat/ask-self-host-discover` | (session: non-Plus DIY Ask) | `docs/ask-self-host.md`, `src/settings/settings.ts`, `www/src/setup.html.tmpl`, `README.md` | Advanced DIY guide link + corrected self-host runbook. GitHub issue blocked in this session. |
 
 ## How to claim (copy)
 
