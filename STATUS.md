@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| _Nothing in flight._ |
+| In review | #486 | taihartman | `fix/account-email-form-actions-layout` | debug (locked mock) | `styles.css` | Email cluster stacked to match plus-promo-redeem mock · 0.7.10 |
 
 ## How to claim (copy)
 
