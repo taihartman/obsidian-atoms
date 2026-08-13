@@ -121,7 +121,7 @@ When a feature adds a stable seed, CLI command, or device flag, update this file
 
 - **qaPurpose:** The Ask rows — `Ask mirror`, `Allow filing from Claude or ChatGPT`, and the two
   consent sheets — render only behind `readPlusSession`. Without one, Settings prints
-  `Sign in to Atoms Plus above first.` and every Ask story is unreachable. This fixture makes the
+  `Sign in to Atoms Plus above to use the hosted connector…` and every hosted Ask story is unreachable. This fixture makes the
   whole Ask surface drivable with no cloud account and no network.
 - **Mode:** Live (device-local key; never `data.json`).
 - **Surface:** Settings → Atoms, Ask section + Connect destination.

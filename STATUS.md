@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| In review | [#479](https://github.com/taihartman/obsidian-atoms/issues/479) | taihartman | `cursor/readme-community-plugins-install-41b8` | n/a (amend) | `README.md` | Community plugins is the current default in README. www/setup already directory-first (#299). |
+_Nothing in flight._
 
 ## How to claim (copy)
 
@@ -23,6 +23,7 @@ States: `Queued` · `In progress` · `Blocked` · `In review` · `Done` (then re
 
 | Merged | Issue / PR | Summary |
 |---|---|---|
+| 2026-08-13 | #478 | DIY Ask self-host for non-Plus users · **0.7.8**. Advanced → DIY Ask guide; runbook requires public HTTPS. |
 | 2026-08-12 | #473 / #474 | Magic-link sign-in redraws the open Account page · **0.7.7**. `installPlusSession` notifies Settings; `docs/qa/learnings.md` is project QA memory. |
 | 2026-08-12 | #471 / #472 | Ask agent stance: search the mirror without “check my atoms” · plus-service only. One look = no `search_atoms` retry; fetch / list_tags / mirror_status still apply. **Fly v63**. New chat after deploy. |
 | 2026-08-12 | #467 / #468 | set_loop: mark existing atoms in conversation · **0.7.6**. MCP + outbox FM patch; R15 payload passthrough. Fly v60. |
