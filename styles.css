@@ -2027,6 +2027,37 @@
   }
 }
 
+/* form-actions: name + desc own the first line; the field and its commits sit under them.
+   #349's 164px floor saves one button. Three commits plus the field still win the row, and
+   the yielded name column collapses to ~20px — "Email" becomes "E..", the desc wraps at two
+   or three characters. That is the signed-out Account crush. Stack this kind only; formRow
+   stays inline. Matches docs/design-handoff/plus-promo-redeem/. */
+.modal .setting-item.atoms-setting-form-actions {
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+.modal .setting-item.atoms-setting-form-actions .setting-item-info {
+  flex: 1 1 100%;
+}
+
+.modal .setting-item.atoms-setting-form-actions .setting-item-control {
+  flex: 1 1 100%;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: 8px;
+}
+
+.modal .setting-item.atoms-setting-form-actions .setting-item-control input {
+  flex: 1 0 100%;
+}
+
+/* Desktop: the three commits share one wrapping row under the field.
+   Phone already stacks them via the is-phone rule above (0,6,0 beats this 0,5,0). */
+.modal .setting-item.atoms-setting-form-actions .setting-item-control button {
+  flex: 1 1 auto;
+}
+
 /* The one settings row pairing a text field with an inline reset icon. Obsidian sizes the
    control edge to its contents, so the icon squeezed the input down to about 54px — enough for
    "Usi" of a placeholder reading "Using the shortcut Atoms ships". Let the control edge grow and
