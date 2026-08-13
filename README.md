@@ -23,7 +23,7 @@ It’s a **second brain inside your vault**, not a separate app and not a CRM. P
 - Filing costs money either way. With your own key (stored in SecretStorage, never `data.json`) **Anthropic bills you** for the usage. With **Atoms Plus** you pay a monthly or yearly subscription instead, and requests go through the Atoms service. The plugin code is free (MIT); the AI behind it is not.
 - The model never rewrites your hand-authored daily bullets. It creates flat atom files, appends markers, and (only when you choose **Update notes**) refreshes titles/links/tags on existing linker atoms — **never** the capture body.
 - On Process title collision, **existing atom files are not overwritten** (protect-existing).
-- Auto-run (device-local, default off) requires a one-time egress acknowledgment.
+- Automatic filing (device-local, default off) requires a one-time privacy acknowledgment. Unattended passes only file from the **day you turn it on**, forward, and never today’s daily. Older unmarked captures are a priced **Backfill** offer on home, not a background sweep.
 
 ---
 
@@ -37,13 +37,15 @@ It’s a **second brain inside your vault**, not a separate app and not a CRM. P
 | **Update notes** | Optional: re-run the same AI path on older atoms so titles/links match newer filing quality; body stays put. |
 | **People** | Vault-aware person hubs + structural tags — no AI folders, no CRM. |
 | **Home** | Mobile-first leaf: wait to file, library, first-day setup, **For you** resurface (incl. mind-change), progress while Preview/Process runs. |
-| **Atom graph** | Command palette → **Open atom graph** — Global Graph filtered to atoms and notes they connect to (not the whole vault hairball). |
+| **Ask** | Optional cloud copy of flat `Atoms/*.md` so Claude and ChatGPT can search. Vault stays the source of truth. Never writes atom bodies back. Hosted Plus, or [DIY Ask](docs/ask-self-host.md). |
+| **Open loops** | Intention notes stay open until a later atom redeems them. Command palette: **Open loops: notes left for later** and **Open loops: review proposals**. |
+| **Atom graph** | Command palette → **Open atom graph**. Global Graph filtered to atoms and notes they connect to (not the whole vault hairball). |
 
 ### Non-negotiables
 
 - Body of every atom = capture text **verbatim**
 - Never move files or invent folders
-- **Auto-run never processes today’s daily** (manual “Preview/Process today” exists for testing)
+- **Automatic filing never processes today’s daily**, and never reaches history from before the day you enabled it (manual “Preview/Process today” exists for testing; **Backfill** is the attended history path)
 - API key in SecretStorage (or device-local fallback), never in `data.json`
 - Write types: new atom files · append-only markers · user-initiated Update notes (model surfaces only)
 - Second brain, not a task app — no due-date queue
@@ -72,8 +74,8 @@ Use BRAT if you want prerelease builds before they hit the directory.
 
 | Channel | Tag / version shape | GitHub Release | Who gets it |
 |---|---|---|---|
-| **Stable** | `0.6.77` (no suffix) | **not** marked prerelease | Community plugins · BRAT with betas off |
-| **Beta** | `0.6.78-beta.1` or `-rc.1` | marked **prerelease** | BRAT only if **Enable betas** is on |
+| **Stable** | `0.7.10` (no suffix) | **not** marked prerelease | Community plugins · BRAT with betas off |
+| **Beta** | `0.7.11-beta.1` or `-rc.1` | marked **prerelease** | BRAT only if **Enable betas** is on |
 
 - Dogfooders: BRAT → turn on **Enable betas** → Check for updates.
 - Everyone else: Community plugins, or BRAT with betas **off**.
@@ -95,7 +97,7 @@ gh attestation verify main.js -R taihartman/obsidian-atoms
 
 ### First-run setup
 
-1. Settings → **Atoms** → set your Anthropic API key (SecretStorage).
+1. Settings → **Atoms**. File with **Atoms Plus** (Email → **Start free trial** or **Send sign-in link**), or paste an Anthropic key under **Your API key (optional)** (SecretStorage).
 2. Confirm core **Daily Notes** is enabled.
 3. Settings → Capture → install the iOS shortcut (or use the default iCloud link).
 4. Capture bullets in daily notes, then use **Atoms** home → Preview → Process on **past** days (or the “including today” commands only for testing).
@@ -120,7 +122,7 @@ Get it out of your head: top-level bullets in a **past** daily note (or today’
 
 ### 3. Waiting to file
 
-When past days have unmarked bullets, home shows a **waiting** card (and a queue peek). Today’s daily is never auto-processed. Add an API key if prompted, then Preview / Process (or enable automatic filing after the privacy ack).
+When past days have unmarked bullets, home shows a **waiting** card (and a queue peek). Today’s daily is never auto-processed. Sign in to Plus or add an API key if prompted, then Preview / Process (or enable automatic filing after the privacy ack).
 
 ![Atoms home showing past captures waiting to file](docs/media/readme/03-waiting-to-file.png)
 
@@ -144,14 +146,17 @@ Link to a person note you already keep (e.g. `People/Jordan`). Backlinks surface
 
 ### 7. Settings
 
-**Settings → Atoms**: API key (SecretStorage), capture shortcut URL, model, atom folder, vocabulary. Version is shown at the top of the tab.
+**Settings → Atoms**: Plus account (or your own API key), Ask mirror, capture shortcut URL, model, atom folder, vocabulary. Version is at the top of the tab.
 
 ![Atoms plugin settings](docs/media/readme/07-settings-atoms.png)
 
 ### After you’re set up
 
-- **For you** on home gently resurfaces filed atoms (calendar day, connections, quiet spacing) and mind-change pairs when you revised yourself — stream, not a review queue.
+- **For you** on home gently resurfaces filed atoms (calendar day, connections, quiet spacing) and mind-change pairs when you revised yourself: stream, not a review queue.
 - **Update notes** (home strip or command) refreshes older atoms to current filing quality when the pipeline improves; original capture text still never changes.
+- **Automatic filing** (home, after the privacy ack) files new past captures on this device from the day you turn it on. Today stays untouched. Older history is **Backfill** on home (or the command), priced before it runs.
+- **Ask mirror** (Settings) keeps a cloud copy of `Atoms/` current while Obsidian is open, so Claude and ChatGPT can ask. Wipe and Sync now live there too.
+- **Open loops** (command palette) lists intention notes that are still open.
 
 ---
 
@@ -193,6 +198,8 @@ README screenshots use **`docs/media/demo-vault/`** with fictional sample notes 
 - **Update notes (refresh older atoms to current quality)**
 - **Test connection**
 - **Backfill: estimate cost & confirm batch**
+- **Open loops: notes left for later** / **Open loops: review proposals**
+- **Sync everything now**
 
 ---
 
@@ -203,6 +210,7 @@ README screenshots use **`docs/media/demo-vault/`** with fictional sample notes 
 | [CLAUDE.md](./CLAUDE.md) | Agent rules / non-negotiables |
 | [docs/architecture.md](./docs/architecture.md) | System map |
 | [docs/capture-shortcut.md](./docs/capture-shortcut.md) | iOS shortcut + iCloud link |
+| [docs/ask-self-host.md](./docs/ask-self-host.md) | DIY Ask (run plus-service yourself) |
 | [docs/design-handoff/atoms-view/](./docs/design-handoff/atoms-view/) | Home UI mocks |
 | [docs/plans/](./docs/plans/) | Implementation plans |
 
@@ -212,16 +220,11 @@ README screenshots use **`docs/media/demo-vault/`** with fictional sample notes 
 
 **[taihartman/obsidian-atoms](https://github.com/taihartman/obsidian-atoms)**
 
-Releases ship `main.js`, `manifest.json`, and `styles.css` (plus `SHA256SUMS.txt`) for the Community directory and for manual install. Assets are built in GitHub Actions on version tags with [artifact attestations](https://docs.github.com/en/actions/security-for-github-actions/using-artifact-attestations/using-artifact-attestations-to-establish-provenance-for-builds).
+Releases ship `main.js`, `manifest.json`, and `styles.css` (plus `SHA256SUMS.txt`) for the Community directory and for manual install. Assets are built in GitHub Actions when a new version lands on `master`, with [artifact attestations](https://docs.github.com/en/actions/security-for-github-actions/using-artifact-attestations/using-artifact-attestations-to-establish-provenance-for-builds).
 
-**Cut a release (maintainers):** bump `manifest.json` + `package.json` (+ `versions.json` via `npm version` / `version-bump.mjs`) on `master`, then:
+**Cut a release (maintainers):** bump `manifest.json` + `package.json` (+ `versions.json` via `npm version` / `version-bump.mjs`) and merge to `master`. CI creates the matching GitHub Release and tag. Do not hand-tag after a normal version-bump merge.
 
-```bash
-git tag 0.6.x
-git push origin 0.6.x
-```
-
-The [Release](https://github.com/taihartman/obsidian-atoms/actions/workflows/release.yml) workflow builds, attests, and attaches assets. Tag must equal `package.json` / `manifest.json` version. **Stable:** `git tag 0.6.77 && git push origin 0.6.77`. **Beta:** bump to `0.6.78-beta.1` in package+manifest, then tag the same string — CI marks the Release as prerelease for BRAT betas. Do not upload laptop-built `main.js` for production tags.
+The [Release](https://github.com/taihartman/obsidian-atoms/actions/workflows/release.yml) workflow builds, attests, and attaches assets. Tag must equal `package.json` / `manifest.json` version. **Stable:** version `0.7.10` → ordinary Release. **Beta:** bump to `0.7.11-beta.1` in package+manifest, then merge: CI marks the Release as prerelease for BRAT betas. Manual tag is recovery only: [`docs/runbooks/plugin-release-beta-stable.md`](docs/runbooks/plugin-release-beta-stable.md). Do not upload laptop-built `main.js` for production tags.
 
 (Previously `obsidian-ai-linker`; renamed with the product.)
 
