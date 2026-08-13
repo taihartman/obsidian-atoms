@@ -537,6 +537,11 @@ describe("setup guide", () => {
     expect(setup).toContain("Turn on community plugins");
   });
 
+  it("names Daily Notes after Restricted Mode, the next silent wall", () => {
+    expect(setup).toContain("Daily Notes");
+    expect(setup).toContain("Settings → Core plugins → Daily Notes");
+  });
+
   it("installs from the plugin directory, with no BRAT left anywhere", () => {
     // Atoms shipped to the community directory, which made the BRAT walkthrough
     // actively misdirecting — it sent every new reader to install a beta-plugin

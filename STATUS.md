@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| _Nothing in flight._ |
+| In progress | #490 | taihartman | feat/daily-notes-first-day | amend (no plan) | `src/home/atomsHomeData.ts`, `src/home/atomsHomeView.ts`, `www/src/setup.html.tmpl` | First-day card + /setup name Daily Notes when the core plugin is off. Do not auto-enable. |
 
 ## How to claim (copy)
 

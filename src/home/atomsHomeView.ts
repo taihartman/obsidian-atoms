@@ -15,10 +15,12 @@ import {
   backfillDismissUntil,
   backfillOfferCopy,
   countUnprocessedSince,
+  CORE_PLUGINS_SETTINGS_TAB_ID,
   countUpdateWorkRemaining,
   extractSourceDay,
   filingHeroCopy,
   filingPathFromAuth,
+  firstDaySetupCopy,
   filterLinkedOnly,
   formatRelativeTime,
   inboxStuckSummary,
@@ -260,6 +262,8 @@ export class AtomsHomeView extends ItemView {
   private updatePolishableCount = 0;
   /** Unprocessed bullets on today's daily only (for force-test UI). */
   private todayUnprocessedCount = 0;
+  /** Core Daily Notes or Periodic Notes daily. First-day card branches on this. */
+  private dailyNotesLoaded = true;
   private peek: Array<{ text: string; date: string }> = [];
   private busy = false;
   /**
@@ -709,6 +713,7 @@ export class AtomsHomeView extends ItemView {
 
     this.inboxStuck = await this.loadInboxStuck();
 
+    this.dailyNotesLoaded = appHasDailyNotesPluginLoaded();
     try {
       const past = await getPastDailyNotesWithUnmarkedCaptures(this.app);
       this.unprocessedCount = past.totalUnprocessed;
@@ -1989,6 +1994,9 @@ export class AtomsHomeView extends ItemView {
     }
 
     const firstDay = this.isFirstDay();
+    const firstDayCopy = firstDay
+      ? firstDaySetupCopy(this.dailyNotesLoaded)
+      : null;
 
     // Header
     const header = root.createDiv({ cls: "atoms-home-header" });
@@ -2018,8 +2026,8 @@ export class AtomsHomeView extends ItemView {
     });
 
     // One calm subtitle per state — no product jargon
-    const subtitle = firstDay
-      ? "Capture starts in your daily note"
+    const subtitle = firstDayCopy
+      ? firstDayCopy.subtitle
       : this.runPhase !== "idle"
         ? this.runPhase === "preview"
           ? "Previewing…"
@@ -2282,41 +2290,49 @@ export class AtomsHomeView extends ItemView {
       });
     }
 
-    if (firstDay) {
+    if (firstDay && firstDayCopy) {
       const setup = flatCard(scroll, { className: "atoms-home-setup-card" });
       setup.createEl("p", {
         cls: "atoms-home-card-eyebrow",
-        text: "Get started",
+        text: firstDayCopy.eyebrow,
       });
-      setup.createEl("h2", { text: "Write one bullet today" });
-      setup.createEl("p", {
-        text: "Atoms files thoughts from past days. Capture stays in Daily — this list shows what was filed.",
-      });
-      setup.createDiv({
-        cls: "atoms-home-mono",
-        text: "- Alex likes periwinkle\n- watch Past Lives",
-      });
+      setup.createEl("h2", { text: firstDayCopy.title });
+      setup.createEl("p", { text: firstDayCopy.body });
+      if (firstDayCopy.example) {
+        setup.createDiv({
+          cls: "atoms-home-mono",
+          text: firstDayCopy.example,
+        });
+      }
 
       const actions = actionRow(setup, {
         className: "atoms-home-setup-actions",
       });
       button(actions, {
         grade: "primary",
-        label: "Open today",
-        onClick: () => void this.onOpenToday(),
+        label: firstDayCopy.primaryLabel,
+        onClick: () => {
+          if (firstDayCopy.primaryAction === "open_core_plugins") {
+            openPluginSettingsTab(this.app, CORE_PLUGINS_SETTINGS_TAB_ID);
+            return;
+          }
+          void this.onOpenToday();
+        },
       });
-      button(actions, {
-        grade: "secondary",
-        label: labelCaptureShortcutCta(this.shortcutAcked),
-        disabled: !this.installUrl(),
-        attrs: this.installUrl()
-          ? undefined
-          : {
-              title:
-                "No shortcut link to open — add one in Settings → Capture",
-            },
-        onClick: () => this.onInstallShortcut(),
-      });
+      if (firstDayCopy.showShortcut) {
+        button(actions, {
+          grade: "secondary",
+          label: labelCaptureShortcutCta(this.shortcutAcked),
+          disabled: !this.installUrl(),
+          attrs: this.installUrl()
+            ? undefined
+            : {
+                title:
+                  "No shortcut link to open — add one in Settings → Capture",
+              },
+          onClick: () => this.onInstallShortcut(),
+        });
+      }
     }
 
     // Library — secondary surface
