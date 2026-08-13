@@ -55,6 +55,15 @@ then:
 Without `keystore.properties` the bundle task fails rather than quietly producing
 an unsigned AAB. Output: `app/build/outputs/bundle/release/app-release.aab`.
 
+Store and tracking Releases: [`docs/runbooks/companion-release-beta-stable.md`](../../docs/runbooks/companion-release-beta-stable.md).
+
+```bash
+bundle install
+bundle exec fastlane android beta   # GitHub prerelease + Play Internal if PLAY_STORE_JSON_KEY is set
+bundle exec fastlane android prod   # GitHub Release (not Latest) + Play production draft
+bundle exec fastlane android build  # signed AAB only
+```
+
 ## Dogfood
 
 ### Hub (once)

@@ -27,6 +27,9 @@ data.json
 !.env.example
 !plus-service/.env.example
 *.pem
+*.p8
+AuthKey_*.p8
+tmp-play-store/
 
 # Local throwaway vault (may contain secrets)
 test_vault/

@@ -1,0 +1,123 @@
+# frozen_string_literal: true
+
+require "json"
+require "shellwords"
+
+default_platform(:ios)
+
+CHANNEL = File.expand_path("../../release/channel.mjs", __dir__)
+PROJECT_YML = File.expand_path("../project.yml", __dir__)
+
+def channel_json(lane, version, existing_tags)
+  raw = sh(
+    "node #{CHANNEL.shellescape} --platform ios --lane #{lane.shellescape} " \
+    "--version #{version.shellescape} --existing-tags #{existing_tags.join(',').shellescape}",
+    log: false,
+  )
+  JSON.parse(raw)
+end
+
+def current_ios_marketing
+  text = File.read(PROJECT_YML)
+  name = text[/MARKETING_VERSION: "([^"]+)"/, 1]
+  UI.user_error!("could not read MARKETING_VERSION") if name.nil?
+  name
+end
+
+def current_ios_build
+  text = File.read(PROJECT_YML)
+  code = text[/CURRENT_PROJECT_VERSION: (\d+)/, 1]
+  UI.user_error!("could not read CURRENT_PROJECT_VERSION") if code.nil?
+  code.to_i
+end
+
+def bump_ios_build(next_code)
+  text = File.read(PROJECT_YML)
+  text = text.gsub(/CURRENT_PROJECT_VERSION: \d+/, "CURRENT_PROJECT_VERSION: #{next_code}")
+  text = text.gsub(/CFBundleVersion: "\d+"/, "CFBundleVersion: \"#{next_code}\"")
+  File.write(PROJECT_YML, text)
+end
+
+def existing_ios_tags
+  sh("git tag -l 'capture-ios-*'", log: false).to_s.split(/\s+/).reject(&:empty?)
+end
+
+def require_no_release(tag)
+  status = sh("gh release view #{tag.shellescape} --repo taihartman/obsidian-atoms >/dev/null 2>&1; echo $?", log: false).to_s.strip
+  UI.user_error!("GitHub Release #{tag} already exists") if status == "0"
+end
+
+def create_github_release(ch, ipa_path)
+  notes = "Atoms Capture iOS #{ch['marketing']} (build #{current_ios_build})"
+  prerelease = ch["prerelease"] ? "--prerelease" : ""
+  sh(
+    "gh release create #{ch['tag'].shellescape} #{ipa_path.shellescape} " \
+    "--repo taihartman/obsidian-atoms --title #{notes.shellescape} " \
+    "--notes #{notes.shellescape} --latest=false #{prerelease}",
+  )
+end
+
+def asc_status
+  missing = %w[ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_PATH].select { |k| ENV[k].to_s.empty? }
+  return [:missing, missing] unless missing.empty?
+  path = ENV["ASC_KEY_PATH"]
+  return [:invalid, path] unless File.file?(path) && File.readable?(path)
+  [:ok, path]
+end
+
+def maybe_upload_ios(lane_name)
+  status, detail = asc_status
+  case status
+  when :ok
+    api_key = app_store_connect_api_key(
+      key_id: ENV["ASC_KEY_ID"],
+      issuer_id: ENV["ASC_ISSUER_ID"],
+      key_filepath: ENV["ASC_KEY_PATH"],
+    )
+    if lane_name == :beta
+      upload_to_testflight(api_key: api_key, skip_waiting_for_build_processing: true)
+    else
+      upload_to_app_store(api_key: api_key, submit_for_review: false)
+    end
+  when :missing
+    UI.important("App Store Connect skipped — set #{detail.join(', ')}")
+  else
+    UI.user_error!("ASC_KEY_PATH is set but not a readable file: #{detail}")
+  end
+end
+
+platform :ios do
+  desc "Generate project and build"
+  lane :build do
+    Dir.chdir("..") { sh("xcodegen generate") }
+    build_app(project: "AtomsCapture.xcodeproj", scheme: "AtomsCapture")
+  end
+
+  desc "Bump build, IPA, GitHub Release, TestFlight if ASC env present"
+  lane :beta do
+    marketing = current_ios_marketing
+    ch = channel_json("beta", marketing, existing_ios_tags)
+    require_no_release(ch["tag"])
+    bump_ios_build(current_ios_build + 1)
+    Dir.chdir("..") { sh("xcodegen generate") }
+    build_app(project: "AtomsCapture.xcodeproj", scheme: "AtomsCapture")
+    ipa = lane_context[SharedValues::IPA_OUTPUT_PATH]
+    UI.user_error!("no IPA") if ipa.nil? || !File.exist?(ipa)
+    create_github_release(ch, ipa)
+    maybe_upload_ios(:beta)
+  end
+
+  desc "Bump build, IPA, GitHub Release, App Store (no submit) if ASC env present"
+  lane :prod do
+    marketing = current_ios_marketing
+    ch = channel_json("prod", marketing, existing_ios_tags)
+    require_no_release(ch["tag"])
+    bump_ios_build(current_ios_build + 1)
+    Dir.chdir("..") { sh("xcodegen generate") }
+    build_app(project: "AtomsCapture.xcodeproj", scheme: "AtomsCapture")
+    ipa = lane_context[SharedValues::IPA_OUTPUT_PATH]
+    UI.user_error!("no IPA") if ipa.nil? || !File.exist?(ipa)
+    create_github_release(ch, ipa)
+    maybe_upload_ios(:prod)
+  end
+end
