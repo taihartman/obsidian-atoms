@@ -36,6 +36,8 @@ before(async () => {
     env: {
       ...process.env,
       PORT: String(PORT),
+      PUBLIC_BASE_URL: BASE,
+      ATOMS_PLUS_STORE: "memory",
       DOGFOOD_AUTO_GRANT: "1",
       // leave ANTHROPIC unset to prove refund path
       ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || "",
