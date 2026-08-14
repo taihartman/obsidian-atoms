@@ -696,6 +696,28 @@ const ADVANCED_SCREEN = {
  * the account screen. Now that it is actually on Advanced, the address is the route and the name
  * is just a name.
  */
+/**
+ * The account screen's group headers. Mock SSOT `docs/design-handoff/settings/account.html`.
+ *
+ * Headers only, and no state in them, because U8 restyles this screen without re-shaping it
+ * (KTD14). The mock names each group for the state it is showing — `Trial`, `Plus`, `Trial ended`
+ * — which works there because the mock has already replaced the `Status` row with the facts
+ * underneath it. Here that row is still on screen carrying exactly those words, so a state-named
+ * eyebrow would say the same thing twice, one line apart. `Atoms Plus` names the subject instead
+ * and lets the row keep naming the state.
+ *
+ * Two groups rather than the mock's three. The third is its sign-out block, whose whole shape is
+ * one red row with `Sign out all devices` demoted to a footer link, and demoting that row is on
+ * KTD14's deferred list. Both sign-out rows therefore stay where they are, under `Manage`, until
+ * the buy-now plan re-shapes them.
+ */
+const ACCOUNT_SCREEN = {
+  plus: "Atoms Plus",
+  manage: "Manage",
+  whatPlusDoes: "What Plus does",
+  signIn: "Sign in or start a trial",
+} as const;
+
 const PASTE_SESSION_ROW = "Paste a session";
 const PASTE_SESSION_ROUTE = `Advanced → ${PASTE_SESSION_ROW}`;
 
@@ -2051,18 +2073,62 @@ export class AtomsSettingTab extends PluginSettingTab {
     });
   }
 
+  /**
+   * The signed-in account, as two groups: what the account is, then what you can do to it.
+   *
+   * U8 is a restyle. Every row below is the row that was here before it, in the order it was in,
+   * under the same conditions — the unit's whole regression bar is that the nine renders produce
+   * the same lists (KTD14), which `test/settings.test.ts` pins state by state. What changed is
+   * that the facts, the one action the state offers, and the account-management rows stopped
+   * being one undifferentiated column.
+   *
+   * The state's action row sits with the facts rather than with `Manage`, because it is the
+   * answer to what those facts say: `Trial ended` and `Subscribe` are one thought, and putting
+   * the offer next to the management rows would make the reader hold the state in their head
+   * while scanning past two rows that have nothing to do with it.
+   */
   private renderSignedInAccount(
     containerEl: HTMLElement,
     state: Exclude<AccountState, { kind: "signedOut" }>,
   ): void {
     const session = readPlusSession(this.app);
+    const setupIncomplete =
+      state.kind === "trialIncomplete" || state.kind === "subscribeIncomplete";
+    group(containerEl, {
+      header: ACCOUNT_SCREEN.plus,
+      render: (groupEl) =>
+        this.renderAccountFacts(groupEl, state, session, setupIncomplete),
+    });
+    group(containerEl, {
+      header: ACCOUNT_SCREEN.manage,
+      render: (groupEl) =>
+        this.renderAccountActions(groupEl, state, session, setupIncomplete),
+    });
+
+    containerEl.createEl("p", {
+      text: "To use your own API key instead, add it under API Key. Plus is optional.",
+      cls: "setting-item-description",
+    });
+  }
+
+  /** What this account is, and the one thing its state offers to do about it. */
+  private renderAccountFacts(
+    containerEl: HTMLElement,
+    state: Exclude<AccountState, { kind: "signedOut" }>,
+    session: PlusSession | null,
+    setupIncomplete: boolean,
+  ): void {
     statusRow(containerEl, {
       name: "Status",
       value: accountRowDescriptor(state).name,
     });
-    const setupIncomplete =
-      state.kind === "trialIncomplete" || state.kind === "subscribeIncomplete";
-    const email = setupIncomplete ? state.email : (session?.email ?? "");
+    // Read off `state.kind` rather than off the `setupIncomplete` flag: the flag is a boolean by
+    // the time it arrives here, and only the kind check narrows the union to the two variants
+    // that carry an email of their own.
+    const email =
+      state.kind === "trialIncomplete" || state.kind === "subscribeIncomplete"
+        ? state.email
+        : (session?.email ?? "");
     // "Signed in as", not "Account": the back row leading this screen is already named Account.
     if (email) statusRow(containerEl, { name: "Signed in as", value: email });
     if (!setupIncomplete) {
@@ -2114,7 +2180,15 @@ export class AtomsSettingTab extends PluginSettingTab {
         onClick: () => this.openTopUpCheckout(),
       });
     }
+  }
 
+  /** Everything you can do to the account, whatever state it is in. */
+  private renderAccountActions(
+    containerEl: HTMLElement,
+    state: Exclude<AccountState, { kind: "signedOut" }>,
+    session: PlusSession | null,
+    setupIncomplete: boolean,
+  ): void {
     this.actionRow(containerEl, {
       action: "plus:refresh-status",
       name: "Refresh status",
@@ -2156,24 +2230,41 @@ export class AtomsSettingTab extends PluginSettingTab {
         onClick: () => this.signOutAllDevicesOfPlus(),
       });
     }
-
-    containerEl.createEl("p", {
-      text: "To use your own API key instead, add it under API Key. Plus is optional.",
-      cls: "setting-item-description",
-    });
   }
 
+  /**
+   * The signed-out account: what Plus does, then the one field that starts it.
+   *
+   * Restyle only, same as the signed-in half (KTD14). The mock's `What Plus does` group is a pair
+   * of rows naming the two things Plus is for, and replacing this row with those is the buy-now
+   * plan's change; here the header goes over the one row that already makes the pitch. The
+   * three-action email cluster is a locked frame (`docs/design-handoff/settings/account.html`)
+   * and is untouched.
+   */
   private renderSignedOutAccount(containerEl: HTMLElement): void {
-    this.actionRow(containerEl, {
-      action: "plus:see-plans",
-      name: "Skip the API key",
-      desc: "Atoms Plus files your captures for you. Or keep using your own key. It’s free forever, and the full app stays yours either way.",
-      label: "See plans",
-      onClick: () => {
-        window.open(ATOMS_SITE_URL, "_blank");
+    group(containerEl, {
+      header: ACCOUNT_SCREEN.whatPlusDoes,
+      render: (groupEl) => {
+        this.actionRow(groupEl, {
+          action: "plus:see-plans",
+          name: "Skip the API key",
+          desc: "Atoms Plus files your captures for you. Or keep using your own key. It’s free forever, and the full app stays yours either way.",
+          label: "See plans",
+          onClick: () => {
+            window.open(ATOMS_SITE_URL, "_blank");
+          },
+        });
       },
     });
 
+    group(containerEl, {
+      header: ACCOUNT_SCREEN.signIn,
+      render: (groupEl) => this.renderSignInRow(groupEl),
+    });
+  }
+
+  /** The locked three-action email cluster: one field, one primary, two secondaries. */
+  private renderSignInRow(containerEl: HTMLElement): void {
     this.formActionsRow(containerEl, {
       name: "Email",
       desc: this.accountEmailDesc(),

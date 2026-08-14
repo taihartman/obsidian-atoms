@@ -705,6 +705,158 @@ describe("account row", () => {
 });
 
 /**
+ * U8's regression bar: the account screen changes how it *looks* and not what it *holds*.
+ *
+ * The restyle wraps existing rows in the group primitive and applies the v2 tokens. KTD14 keeps
+ * everything that would re-shape the actions out of this unit — reducing to one primary per
+ * state, demoting `Refresh status` or `Manage subscription`, folding `Sign out all devices` into
+ * a footer link, and the `Ended`-versus-`Renews` correction — because the buy-now plan rewrites
+ * those rows and two plans editing the same rows is how they end up disagreeing.
+ *
+ * So this list is written down rather than derived: nine renders, each pinned to the exact rows
+ * it produced before the restyle, in order. A grouping pass that quietly drops a conditional row
+ * has to fail here, and "it looked fine" is not evidence that it did not.
+ */
+describe("account screen holds the same rows through the restyle (U8, KTD14)", () => {
+  const T_PAST = "2026-08-10T14:52:03.632Z";
+
+  const authFor = (s: PlusSession): FilingAuth => ({
+    mode: "plus",
+    sessionToken: s.sessionToken,
+    email: s.email,
+    status: s.status ?? "unknown",
+    remaining: s.remaining,
+    periodEnd: s.periodEnd,
+    plan: s.plan,
+  });
+
+  /** A session whose period is already over, in whichever plan the case is about. */
+  const lapsed = (plan: PlusSession["plan"]): PlusSession => ({
+    sessionToken: "sess_lapsed",
+    email: "user@example.com",
+    status: "exhausted",
+    remaining: 0,
+    plan,
+    periodEnd: T_PAST,
+  });
+
+  const live: PlusSession = {
+    sessionToken: "sess_live",
+    email: "user@example.com",
+    status: "active",
+    remaining: 12,
+    periodEnd: "2099-09-01T00:00:00.000Z",
+  };
+
+  const plusSession = (session: PlusSession): SettingTabOptions => ({
+    session,
+    auth: authFor(session),
+  });
+
+  /** Every signed-in render opens with these, and closes with the sign-out pair. */
+  const HEAD = ["Account", "Status", "Signed in as"];
+  const TAIL = ["Refresh status", "Manage subscription", "Sign out", "Sign out all devices"];
+  /** Same tail on a state the billing portal has no subject for (#442). */
+  const TAIL_NO_PORTAL = ["Refresh status", "Sign out", "Sign out all devices"];
+
+  const NINE: Array<[name: string, opts: SettingTabOptions, rows: string[]]> = [
+    ["signed out", {}, ["Account", "Skip the API key", "Email"]],
+    [
+      "trial started, checkout unfinished",
+      { session: { sessionToken: "sess_soft", email: "user@example.com", status: "inactive" } },
+      // No Plan and no portal: an unfinished setup has neither a period nor a Stripe customer.
+      [...HEAD, "Finish trial setup", ...TAIL_NO_PORTAL],
+    ],
+    [
+      "promo subscribe started, checkout unfinished",
+      {
+        session: {
+          sessionToken: "sess_promo",
+          email: "user@example.com",
+          status: "inactive",
+          setupKind: "subscribe",
+        },
+      },
+      [...HEAD, "Finish Plus checkout", ...TAIL_NO_PORTAL],
+    ],
+    ["active with filings left", plusSession(live), [...HEAD, "Plan", ...TAIL]],
+    [
+      "active with no count to show",
+      plusSession({ ...live, remaining: undefined }),
+      [...HEAD, "Plan", ...TAIL],
+    ],
+    [
+      "meter spent inside a live period",
+      plusSession({ ...live, status: "exhausted", remaining: 0, plan: "monthly" }),
+      [...HEAD, "Plan", "Get more filings", ...TAIL],
+    ],
+    [
+      "paid period ended",
+      plusSession(lapsed("monthly")),
+      [...HEAD, "Plan", "Subscribe", ...TAIL],
+    ],
+    [
+      "trial period ended",
+      plusSession(lapsed("trial")),
+      // The portal has nothing to open for a trial that never converted (#442).
+      [...HEAD, "Plan", "Subscribe", ...TAIL_NO_PORTAL],
+    ],
+    [
+      "period ended on a session stored before plans were persisted",
+      plusSession(lapsed(undefined)),
+      // Unknown is not proof of a Stripe customer, so it is treated like the trial.
+      [...HEAD, "Plan", "Subscribe", ...TAIL_NO_PORTAL],
+    ],
+  ];
+
+  it.each(NINE)("renders %s unchanged", (_case, opts, expected) => {
+    const { tab } = settingTab(opts);
+    tab.display();
+    open(tab, "Who does the filing");
+    open(tab, opts.session ? accountEntryName(tab) : "Set up automatic filing");
+
+    expect(rowNames(tab)).toEqual(expected);
+  });
+
+  it("groups the signed-in screen into what the account is and what you can do to it", () => {
+    const { tab } = settingTab(plusSession(live));
+    tab.display();
+    open(tab, "Who does the filing");
+    open(tab, accountEntryName(tab));
+
+    // Two, not the mock's three: its third is the sign-out block, whose shape is one red row
+    // with `Sign out all devices` demoted to a footer link, and that demotion is deferred.
+    expect(groupHeaders(tab)).toEqual(["Atoms Plus", "Manage"]);
+    // No state in the eyebrow. The `Status` row is still on screen saying exactly that, and a
+    // group named for the state would repeat it one line above itself.
+    expect(row(tab, "Status").textContent).toContain("Plus");
+  });
+
+  it("groups the signed-out screen into the pitch and the way in", () => {
+    const { tab } = settingTab();
+    tab.display();
+    open(tab, "Who does the filing");
+    open(tab, "Set up automatic filing");
+
+    expect(groupHeaders(tab)).toEqual(["What Plus does", "Sign in or start a trial"]);
+    // The locked three-action frame survives the wrap intact.
+    expect(buttonLabels(tab, "Email")).toEqual([
+      "Send sign-in link",
+      "Start free trial",
+      "Use promo code",
+    ]);
+  });
+
+  /** The engine screen names the account row for its state, so the walk has to read it. */
+  function accountEntryName(tab: AtomsSettingTab): string {
+    const names = destinationNames(tab);
+    const entry = names.find((n) => n !== "Account");
+    if (entry === undefined) throw new Error("engine screen has no account row");
+    return entry;
+  }
+});
+
+/**
  * The vocabulary is the cluster that grows without bound — one row per active tag, per proposal,
  * and per tag already used in the vault, which is how the settings screen was heading for ninety
  * rows. These assert the replacement: one counted row on the main screen, and every capability
