@@ -18,6 +18,7 @@ import {
   aggregateTagsFromFileCaches,
 } from "../pipeline/context";
 import {
+  type DeviceAutoRunState,
   readDeviceAutoRunState,
   readEgressAckVersion,
   setAutomaticFilingEnabled,
@@ -456,6 +457,34 @@ const FILING_STATE_DESC = {
   off: "Atoms files a past day only when you ask it to.",
 } as const;
 
+/**
+ * Whether the automatic-filing toggle stands on — enabled *and* acked, never one of the two.
+ *
+ * Named because two places answer it in the same render: the status group spends the answer on
+ * prose, the row spends it on the toggle. Two copies of this conjunction is how a device that
+ * withdrew its ack ends up reading "Atoms files each past day" next to an off switch.
+ */
+function automaticFilingOn(state: DeviceAutoRunState): boolean {
+  return state.enabled && state.egressAcked;
+}
+
+/**
+ * Whether this device holds an egress grant of either kind: the stamped ack, or the catch-up
+ * notice on its own.
+ *
+ * Two surfaces answer this and they must not disagree — the privacy entry counts the grant, the
+ * record row is the only screen that withdraws it. A row that stops rendering while the count
+ * still says "1 on record" is a grant that still spends with nothing left to take it back, which
+ * is the failure `docs/solutions/logic-errors/narrowing-one-grant-removed-the-only-way-to-revoke-the-other.md`
+ * already cost once.
+ */
+function egressGrantOnRecord(
+  state: DeviceAutoRunState,
+  load: (key: string) => unknown,
+): boolean {
+  return state.egressAcked || readEgressNoticeAcked(load);
+}
+
 /** Which of the three lines this device has earned, by whether it runs and whether it has run. */
 function filingStateDesc(on: boolean, hasRun: boolean): string {
   if (!on) return FILING_STATE_DESC.off;
@@ -699,15 +728,6 @@ const ADVANCED_SCREEN = {
 } as const;
 
 /**
- * The paste-a-session escape hatch, and the route to it.
- *
- * Named once because three surfaces have to agree: the row itself, the signed-out email
- * description, and the notice a device without WebCrypto gets when its link is sent. The old name
- * was `Advanced: paste session`, whose prefix was doing the job of an address while the row sat on
- * the account screen. Now that it is actually on Advanced, the address is the route and the name
- * is just a name.
- */
-/**
  * The account screen's group headers. Mock SSOT `docs/design-handoff/settings/account.html`.
  *
  * Headers only, and no state in them, because U8 restyles this screen without re-shaping it
@@ -729,6 +749,15 @@ const ACCOUNT_SCREEN = {
   signIn: "Sign in or start a trial",
 } as const;
 
+/**
+ * The paste-a-session escape hatch, and the route to it.
+ *
+ * Named once because three surfaces have to agree: the row itself, the signed-out email
+ * description, and the notice a device without WebCrypto gets when its link is sent. The old name
+ * was `Advanced: paste session`, whose prefix was doing the job of an address while the row sat on
+ * the account screen. Now that it is actually on Advanced, the address is the route and the name
+ * is just a name.
+ */
 const PASTE_SESSION_ROW = "Paste a session";
 const PASTE_SESSION_ROUTE = `Advanced → ${PASTE_SESSION_ROW}`;
 
@@ -1449,10 +1478,15 @@ export class AtomsSettingTab extends PluginSettingTab {
       cls: "setting-item-description",
     });
 
+    // Read once for the whole render pass. `resolveFilingAuth` reaches SecretStorage, which is
+    // an OS keychain round-trip rather than a field read, and this screen redisplays on every
+    // toggle — so the setup step and the engine row share one answer instead of each asking.
+    const filing = this.plugin.resolveFilingAuth();
+
     // Decided once and handed to both groups: the same answer says what the status group is
     // *for* and whether the File group still holds the automatic-filing toggle. Asking twice is
     // how the two halves of that seam would eventually disagree.
-    const step = this.nextSetupStep();
+    const step = this.nextSetupStep(filing);
 
     // Whether Atoms is filing, before anything the screen offers to change (R18).
     this.renderStatusGroup(containerEl, step);
@@ -1461,7 +1495,7 @@ export class AtomsSettingTab extends PluginSettingTab {
     // does with it, then how it comes back. Nothing else is a section any more — the records,
     // the diagnostics, the manual sync and the escape hatches all live behind the utility group.
     this.renderCaptureGroup(containerEl);
-    this.renderFileGroup(containerEl, step);
+    this.renderFileGroup(containerEl, step, filing);
     this.renderResurfaceGroups(containerEl);
     this.renderUtilityGroup(containerEl);
   }
@@ -1472,10 +1506,10 @@ export class AtomsSettingTab extends PluginSettingTab {
    * Read out of `firstDaySetupCopy` rather than decided here (KTD11): Atoms home's first-day wall
    * answers the same question, and the moment this screen keeps its own list the two drift.
    */
-  private nextSetupStep(): SetupStep | null {
+  private nextSetupStep(filing: FilingAuth): SetupStep | null {
     return firstDaySetupCopy(
       appHasDailyNotesPluginLoaded(),
-      this.plugin.resolveFilingAuth().mode !== "none",
+      filing.mode !== "none",
     ).nextStep;
   }
 
@@ -1515,14 +1549,18 @@ export class AtomsSettingTab extends PluginSettingTab {
       return;
     }
     const state = readDeviceAutoRunState((k) => loadLocal(this.app, k));
-    const on = state.enabled && state.egressAcked;
+    const on = automaticFilingOn(state);
     group(containerEl, {
       ...STATUS_GROUP.filing,
       render: (groupEl) => {
-        this.renderAutomaticFilingRow(groupEl, {
-          name: FILING_ROW_NAME,
-          desc: filingStateDesc(on, Boolean(state.lastRunDay)),
-        });
+        this.renderAutomaticFilingRow(
+          groupEl,
+          {
+            name: FILING_ROW_NAME,
+            desc: filingStateDesc(on, Boolean(state.lastRunDay)),
+          },
+          state,
+        );
         if (on) statusRow(groupEl, { ...NEXT_RUN_ROW });
       },
     });
@@ -1558,11 +1596,15 @@ export class AtomsSettingTab extends PluginSettingTab {
    * seam from the other side. Order follows the mock: who files, whether it runs on its own,
    * where atoms land, what they may be tagged, and what gets listed on hub notes.
    */
-  private renderFileGroup(containerEl: HTMLElement, step: SetupStep | null): void {
+  private renderFileGroup(
+    containerEl: HTMLElement,
+    step: SetupStep | null,
+    filing: FilingAuth,
+  ): void {
     group(containerEl, {
       ...FILE_GROUP,
       render: (groupEl) => {
-        this.renderEngineRow(groupEl);
+        this.renderEngineRow(groupEl, filing);
         if (step) {
           this.renderAutomaticFilingRow(groupEl, { ...FILING_ROW_UNCONFIGURED });
         }
@@ -1619,8 +1661,7 @@ export class AtomsSettingTab extends PluginSettingTab {
     any: boolean;
   } {
     const load = (k: string): unknown => loadLocal(this.app, k);
-    const egress =
-      readDeviceAutoRunState(load).egressAcked || readEgressNoticeAcked(load);
+    const egress = egressGrantOnRecord(readDeviceAutoRunState(load), load);
     const { askPrivacyAckAt, askWriteAckAt } = this.plugin.settings;
     // The egress pair is one row however many of its two grants are live, so it counts once.
     const records =
@@ -1668,7 +1709,7 @@ export class AtomsSettingTab extends PluginSettingTab {
     // Withdrawing the last grant re-renders this screen underneath the user, so it has to be
     // able to say that it is empty. A destination holding nothing but a back row reads as
     // broken rather than as finished.
-    if (grants.records === 0 && !grants.session && grants.cloudCount === null) {
+    if (!grants.any) {
       containerEl.createEl("p", {
         text: "Nothing on record, and no cloud copy. Anything you allow later shows up here, with the way to take it back.",
         cls: "setting-item-description",
@@ -1977,9 +2018,14 @@ export class AtomsSettingTab extends PluginSettingTab {
     this.redisplay();
   }
 
-  private accountState(): AccountState {
+  /**
+   * `filing` is optional so a render pass that already resolved it can hand it back rather than
+   * paying a second SecretStorage read; every other caller reads fresh, which is what a click
+   * handler outliving its render wants.
+   */
+  private accountState(filing?: FilingAuth): AccountState {
     return deriveAccountState(
-      this.plugin.resolveFilingAuth(),
+      filing ?? this.plugin.resolveFilingAuth(),
       readPlusSession(this.app),
     );
   }
@@ -1994,10 +2040,10 @@ export class AtomsSettingTab extends PluginSettingTab {
    * where filing was already set up. Naming the decision lets the answer be whatever it is, and
    * it always spends a subtitle rather than rendering the question blank (R20).
    */
-  private renderEngineRow(containerEl: HTMLElement): void {
+  private renderEngineRow(containerEl: HTMLElement, filing: FilingAuth): void {
     destinationRow(containerEl, {
       name: DESTINATION_TITLES.engine,
-      desc: this.engineAnswer(),
+      desc: this.engineAnswer(filing),
       onOpen: () => this.openRoute("engine"),
     });
   }
@@ -2012,10 +2058,10 @@ export class AtomsSettingTab extends PluginSettingTab {
    * ended"), so it borrows `accountRowDescriptor` rather than keeping a second table of those
    * words (KTD7).
    */
-  private engineAnswer(): string {
-    const state = this.accountState();
+  private engineAnswer(filing: FilingAuth): string {
+    const state = this.accountState(filing);
     if (state.kind !== "signedOut") return accountRowDescriptor(state).name;
-    return this.plugin.resolveFilingAuth().mode === "none" ? "Not chosen" : "Your own key";
+    return filing.mode === "none" ? "Not chosen" : "Your own key";
   }
 
   /**
@@ -2571,7 +2617,6 @@ export class AtomsSettingTab extends PluginSettingTab {
       this.plugin.settings.captureShortcutInstallUrl,
     );
     new CaptureShortcutSheetModal(this.app, {
-      app: this.app,
       installLabel: labelCaptureShortcutCta(shortcutAcked),
       // Companion stays hidden until App Store, so a missing link is a packaging fault rather
       // than a state the user can fix — say which file, and leave the button dead.
@@ -2795,10 +2840,13 @@ export class AtomsSettingTab extends PluginSettingTab {
   private renderAutomaticFilingRow(
     containerEl: HTMLElement,
     row: { name: string; desc: string },
+    rendered?: DeviceAutoRunState,
   ): void {
     const load = (k: string): unknown => loadLocal(this.app, k);
     const save = (k: string, v: unknown) => this.app.saveLocalStorage(k, v);
-    const state = readDeviceAutoRunState(load);
+    // The status group already read this to write its own prose; taking its copy is what keeps
+    // the switch and the sentence above it answering from the same read.
+    const state = rendered ?? readDeviceAutoRunState(load);
 
     settingRow(containerEl, {
       name: row.name,
@@ -2806,7 +2854,7 @@ export class AtomsSettingTab extends PluginSettingTab {
       control: {
         kind: "toggle",
         configure: (toggle) => {
-          toggle.setValue(state.enabled && state.egressAcked).onChange((on) => {
+          toggle.setValue(automaticFilingOn(state)).onChange((on) => {
             // Re-read rather than trusting the render-time `state` above, exactly as the Ask
             // mirror toggle does: this handler can outlive the screen it was built on, and a
             // withdrawal elsewhere would leave it holding an ack that no longer exists.
@@ -3308,7 +3356,7 @@ export class AtomsSettingTab extends PluginSettingTab {
     const load = (k: string): unknown => loadLocal(this.app, k);
     const save = (k: string, v: unknown) => this.app.saveLocalStorage(k, v);
     const state = readDeviceAutoRunState(load);
-    if (!state.egressAcked && !readEgressNoticeAcked(load)) return;
+    if (!egressGrantOnRecord(state, load)) return;
 
     // Say which consent is actually on record. A device carrying only the notice never saw the
     // unioned disclosure, and this row must not claim on its behalf that it did.

@@ -12,7 +12,6 @@ import { CAPTURE_SHORTCUT_STEPS } from "./captureShortcut";
  * disagreeing about whether this phone is set up.
  */
 export interface CaptureShortcutSheetSpec {
-  app: App;
   /** "Install Capture Atom" or "Update Capture Atom". */
   installLabel: string;
   /** Set when `mobile-install.json` yields no link, and the reason to show instead. */
