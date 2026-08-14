@@ -1,5 +1,6 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
+import ts from "typescript";
 import { describe, expect, it } from "vitest";
 
 /**
@@ -17,8 +18,8 @@ import { describe, expect, it } from "vitest";
  * (`test/entityInvite.test.ts`, `test/atomsHomeData.test.ts`) also stay — they check that a string
  * *assembled at runtime* carries no em dash, which a source scan cannot see.
  *
- * Comments are stripped first. The rule is about copy a user reads, and prose written for the next
- * maintainer is not that.
+ * Only string, template and regex literals count. The rule is about copy a user reads, and prose
+ * written for the next maintainer is not that, so comments are out of scope by construction.
  */
 
 const SRC_ROOT = "src";
@@ -140,94 +141,44 @@ const EXEMPT_LINES: ReadonlyArray<{ file: string; line: string; reason: string }
   },
 ];
 
-/** Tokens after which a `/` opens a regex literal rather than dividing. */
-const BEFORE_REGEX = "(,=:[!&|?{};+-*%^~<>";
-const REGEX_KEYWORDS = /\b(return|case|typeof|instanceof|in|of|do|else|yield|await)$/;
-
 /**
- * Strips block comments, full-line `//` and **trailing** `//` while leaving string, template and
- * **regex** literals intact, so `https://…` inside copy survives and a trailing `// note —` is not
- * mistaken for copy. Line count is preserved so offender line numbers stay true to the file.
+ * 1-based line numbers whose em dash sits inside a string, template or regex literal — that is,
+ * inside something a user could read, rather than in prose written for the next maintainer.
  *
- * Regex literals have to be understood, not merely skipped past: `/^created:\s*["']?…/` in
- * `src/resurface/resurface.ts` carries a quote inside a character class, and a scanner that reads
- * it as the start of a string never finds the close. Every block comment in the rest of that file
- * then survives the strip and gets reported as copy. The first cut of this guard did exactly that.
+ * The TypeScript parser draws that boundary, deliberately. The first cut of this guard hand-rolled
+ * a scanner, and it was wrong within a day: `/^created:\s*["']?…/` in `src/resurface/resurface.ts`
+ * carries a quote inside a character class, a string-aware scanner reads it as an unterminated
+ * string, and every block comment in the rest of that file then survives and is reported as copy.
+ * Telling a regex literal from a division needs real parser state, not a lookback heuristic, and
+ * `typescript` is already a devDependency.
+ *
+ * Multi-line templates report the line the em dash is actually on, not the line the template opens
+ * on, which is what lets the region exemptions and the offender report point at real lines.
  */
-export function stripComments(source: string): string {
-  let out = "";
-  let i = 0;
-  let significant = "";
-
-  const opensRegex = (): boolean =>
-    significant === "" ||
-    BEFORE_REGEX.includes(significant.at(-1) as string) ||
-    REGEX_KEYWORDS.test(significant);
-
-  while (i < source.length) {
-    const c = source[i];
-    const next = source[i + 1];
-
-    if (c === "/" && next === "*") {
-      i += 2;
-      while (i < source.length && !(source[i] === "*" && source[i + 1] === "/")) {
-        if (source[i] === "\n") out += "\n";
-        i++;
-      }
-      i += 2;
-      continue;
+export function copyLinesWithEmDash(source: string): Set<number> {
+  const file = ts.createSourceFile("f.ts", source, ts.ScriptTarget.Latest, true);
+  const found = new Set<number>();
+  const visit = (node: ts.Node): void => {
+    if (
+      ts.isStringLiteral(node) ||
+      ts.isNoSubstitutionTemplateLiteral(node) ||
+      ts.isTemplateHead(node) ||
+      ts.isTemplateMiddle(node) ||
+      ts.isTemplateTail(node) ||
+      ts.isRegularExpressionLiteral(node)
+    ) {
+      const first = file.getLineAndCharacterOfPosition(node.getStart(file)).line;
+      node
+        .getText(file)
+        .split("\n")
+        .forEach((line, i) => {
+          if (line.includes(EM_DASH)) found.add(first + i + 1);
+        });
     }
-
-    if (c === "/" && next === "/") {
-      while (i < source.length && source[i] !== "\n") i++;
-      continue;
-    }
-
-    if (c === "/" && opensRegex()) {
-      out += c;
-      i++;
-      let inClass = false;
-      while (i < source.length && source[i] !== "\n") {
-        const r = source[i];
-        if (r === "\\") {
-          out += r + (source[i + 1] ?? "");
-          i += 2;
-          continue;
-        }
-        out += r;
-        i++;
-        if (r === "[") inClass = true;
-        else if (r === "]") inClass = false;
-        else if (r === "/" && !inClass) break;
-      }
-      significant = "/";
-      continue;
-    }
-
-    if (c === '"' || c === "'" || c === "`") {
-      out += c;
-      i++;
-      while (i < source.length) {
-        const s = source[i];
-        if (s === "\\") {
-          out += s + (source[i + 1] ?? "");
-          i += 2;
-          continue;
-        }
-        out += s;
-        i++;
-        if (s === c) break;
-      }
-      significant = c;
-      continue;
-    }
-
-    out += c;
-    if (!/\s/.test(c)) significant += c;
-    else if (c === "\n") significant = "";
-    i++;
-  }
-  return out;
+    ts.forEachChild(node, visit);
+  };
+  visit(file);
+  return found;
 }
 
 function sourceFiles(dir: string): string[] {
@@ -254,50 +205,51 @@ function exemptRegionLines(file: string, lines: readonly string[]): Set<number> 
 }
 
 function offenders(file: string): string[] {
-  const lines = stripComments(readFileSync(file, "utf8")).split("\n");
+  const lines = readFileSync(file, "utf8").split("\n");
   const regionLines = exemptRegionLines(file, lines);
   const exactLines = EXEMPT_LINES.filter((e) => e.file === file).map((e) => e.line);
-  return lines
-    .map((line, i) => [i + 1, line] as const)
-    .filter(([n, line]) => line.includes(EM_DASH) && !regionLines.has(n))
-    .filter(([, line]) => !exactLines.includes(line.trim()))
-    .map(([n, line]) => `  ${file}:${n}  ${line.trim()}`);
+  return [...copyLinesWithEmDash(lines.join("\n"))]
+    .sort((a, b) => a - b)
+    .filter((n) => !regionLines.has(n))
+    .filter((n) => !exactLines.includes(lines[n - 1].trim()))
+    .map((n) => `  ${file}:${n}  ${lines[n - 1].trim()}`);
 }
 
 const COVERED = sourceFiles(SRC_ROOT).filter(
   (f) => !EXEMPT_FILES.some((e) => e.file === f),
 );
 
-describe("stripComments keeps copy and drops prose written for maintainers", () => {
-  const lines = (s: string) => stripComments(s).split("\n");
+describe("copyLinesWithEmDash separates copy from prose written for maintainers", () => {
+  const at = (s: string) => [...copyLinesWithEmDash(s)].sort((a, b) => a - b);
 
-  it("drops a trailing // comment but keeps the code beside it", () => {
-    expect(lines('const a = "keep"; // drop — this em dash is not copy')[0]).toBe(
-      'const a = "keep"; ',
-    );
+  it("flags a string but not the trailing comment beside it", () => {
+    expect(at('const a = "keep — this";\nconst b = 1; // drop — not copy')).toEqual([1]);
   });
 
-  it("keeps a URL inside a string, which a naive // strip would truncate", () => {
-    expect(lines('const u = "https://example.com/x — and copy after it";')[0]).toContain(
-      "— and copy after it",
-    );
+  it("flags a URL-bearing string, which a naive // strip would truncate away", () => {
+    expect(at('const u = "https://example.com/x — and copy after it";')).toEqual([1]);
   });
 
-  it("keeps regex literals intact, including quotes in a character class", () => {
-    // The bug this guard shipped with: a quote inside a regex read as an unterminated string, so
+  it("is not derailed by a quote inside a regex character class", () => {
+    // The bug the hand-rolled scanner shipped with: this quote read as an unterminated string, so
     // every block comment after it survived and was reported as copy.
-    const src = 'const RE = /^created:\\s*["\']?(\\d{4})/m;\n/** doc — comment */\nconst b = 1;';
-    expect(lines(src)[1]).toBe("");
-    expect(lines(src)[0]).toContain('["\']?');
+    expect(at('const RE = /^created:\\s*["\']?(\\d{4})/m;\n/** doc — comment */\nconst b = 1;')).toEqual(
+      [],
+    );
   });
 
-  it("treats a keyword-preceded slash as a regex, not a division", () => {
-    const src = 'return /^\\d{4}["\']$/.test(x);\n/** doc — comment */';
-    expect(lines(src)[1]).toBe("");
+  it("tells a keyword-preceded regex from a division", () => {
+    expect(at('return /^\\d{4}["\']$/.test(x);\n/** doc — comment */')).toEqual([]);
   });
 
-  it("preserves line numbers across a multi-line block comment", () => {
-    expect(lines("/*\n\n*/\nconst a = 1;")).toHaveLength(4);
+  it("reports the line the em dash is on, not the line its template opens on", () => {
+    // Region exemptions and the offender report both depend on this: SYSTEM_PROMPT is one template
+    // spanning ~90 lines, and blaming its opening line for all of them would make both useless.
+    expect(at("const t = `line one\nline two — here\nline three`;")).toEqual([2]);
+  });
+
+  it("flags an em dash inside a regex, which is behavior rather than prose", () => {
+    expect(at("const strip = /[\\s—]+$/;")).toEqual([1]);
   });
 });
 
@@ -322,25 +274,28 @@ describe("product copy follows the voice rules", () => {
 describe("every em-dash exemption is still earning its place", () => {
   for (const { file } of EXEMPT_FILES) {
     it(`${file} still holds the em dashes it is exempt for`, () => {
-      expect(stripComments(readFileSync(file, "utf8"))).toContain(EM_DASH);
+      expect(copyLinesWithEmDash(readFileSync(file, "utf8")).size).toBeGreaterThan(0);
     });
   }
 
   for (const region of EXEMPT_REGIONS) {
     it(`${region.file} region "${region.start}" still resolves and still holds em dashes`, () => {
-      const lines = stripComments(readFileSync(region.file, "utf8")).split("\n");
+      const source = readFileSync(region.file, "utf8");
+      const lines = source.split("\n");
       const starts = lines.filter((l) => l.includes(region.start)).length;
       expect(starts, `region start marker must match exactly one line, matched ${starts}`).toBe(1);
 
       const exempt = exemptRegionLines(region.file, lines);
       expect(exempt.size, "region start matched but its end marker did not").toBeGreaterThan(0);
-      expect([...exempt].some((n) => lines[n - 1].includes(EM_DASH))).toBe(true);
+
+      const copy = copyLinesWithEmDash(source);
+      expect([...exempt].some((n) => copy.has(n))).toBe(true);
     });
   }
 
   for (const { file, line } of EXEMPT_LINES) {
     it(`${file} still contains the exempt line "${line.slice(0, 48)}"`, () => {
-      const lines = stripComments(readFileSync(file, "utf8")).split("\n");
+      const lines = readFileSync(file, "utf8").split("\n");
       expect(lines.map((l) => l.trim())).toContain(line);
       expect(line).toContain(EM_DASH);
     });
