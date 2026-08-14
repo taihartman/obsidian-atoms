@@ -1625,8 +1625,17 @@ export class AtomsSettingTab extends PluginSettingTab {
           // the window and the ack still spent. The day-one promise survives an enable — nothing
           // has landed yet, so it stays true — and stops being true only once a run is on the
           // books, which is exactly when the status group would have retired it too.
+          //
+          // The engine is the exception, and it is why `filing` is consulted here rather than only
+          // the device's own stamps. A spent window argues that filing *was* happening; a deleted
+          // key means nothing can be sent at all, so the running line would describe a device that
+          // files nothing. Found by the adversarial pass: configure a device-local key, watch the
+          // status group take the toggle, then turn the fallback back off.
           const state = readDeviceAutoRunState((k) => loadLocal(this.app, k));
-          const hasFiled = automaticFilingOn(state) && Boolean(state.lastRunDay);
+          const hasFiled =
+            filing.mode !== "none" &&
+            automaticFilingOn(state) &&
+            Boolean(state.lastRunDay);
           this.renderAutomaticFilingRow(
             groupEl,
             {

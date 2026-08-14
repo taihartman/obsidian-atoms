@@ -3152,6 +3152,39 @@ describe("status group (U2)", () => {
       row(tab, "File automatically when Obsidian opens").textContent,
     ).toContain("Filing starts with tomorrow's note");
   });
+
+  /**
+   * The other side of the test above, and the line between them is what the device can still do.
+   *
+   * A spent window argues filing *was* happening, which is why Daily Notes going off keeps the
+   * running line. A deleted engine argues nothing can be sent at all. Adversarial repro, live:
+   * engine screen → device-local key fallback on → paste a key → back, and the status group takes
+   * the toggle; then engine screen → fallback off, which deletes the key → back. The status group
+   * correctly hands the toggle down again and the engine row reads `Not chosen`, while the toggle
+   * itself went on claiming the device files every past day. It files nothing: `resolveFilingAuth`
+   * reports `none`, so there is no credential to send a capture with.
+   */
+  it("does not claim a device with no engine is filing each past day", () => {
+    vi.spyOn(dni, "appHasDailyNotesPluginLoaded").mockReturnValue(true);
+    // No `auth`, so `resolveFilingAuth()` is `{ mode: "none" }` — the state deleting the key left.
+    const { tab } = settingTab({
+      local: { ...FILING_ON, [LS_LAST_RUN_DAY]: "2026-08-11" },
+    });
+    tab.display();
+
+    // The screen agrees setup is unfinished, twice.
+    expect(rowNames(tab, { headings: false })[0]).toBe(
+      "Choose who files your captures",
+    );
+    expect(row(tab, "Who does the filing").textContent).toContain("Not chosen");
+
+    // So the toggle may not say otherwise.
+    const toggle = row(tab, "File automatically when Obsidian opens");
+    expect(toggle.textContent).not.toContain(
+      "Atoms files each past day when Obsidian opens.",
+    );
+    expect(toggle.textContent).toContain("Filing starts with tomorrow's note");
+  });
 });
 
 /**
