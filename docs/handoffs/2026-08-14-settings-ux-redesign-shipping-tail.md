@@ -11,10 +11,23 @@ supersedes: docs/handoffs/2026-08-14-settings-ux-redesign-u7.md
 
 # Handoff — Settings three-leg overhaul: all units landed, start the shipping tail
 
+You are picking up this work in a fresh session. Read this file top to bottom, run **How to
+resume** to land on the right branch and worktree, then **start Next steps step 1 immediately** —
+capturing device evidence is your current task. Do not ask the user what to work on, do not
+re-plan what the plan already decided, and do not summarize this doc back to them. Start working
+and report what you did.
+
 Every unit in `docs/plans/2026-08-14-001-feat-settings-three-leg-overhaul-plan.md` is implemented
 and pushed. What is left is **device evidence** and the **shipping tail**, in that order. Do not
 re-open the design: the plan is still the authority and every rejected alternative is recorded in
 a commit message rather than only in a doc.
+
+## Goal
+
+Restructure the Atoms settings tab around the product's three legs (Capture, File, Resurface), so
+the main screen answers "is Atoms filing, and what will it do with my notes" without scrolling.
+Passive consent records, diagnostics, and escape hatches move onto destination screens. Eleven
+units; all eleven have landed. Your job is to prove it on a device and ship it.
 
 ## Current status
 
@@ -196,6 +209,21 @@ to reverse it.
 ## Open questions / blockers
 
 - None blocking. The device evidence is work to do, not a decision to make.
+
+## Git state
+
+- Branch `claude/settings-ux-redesign-69acd6` (base `master`), pushed to `origin`,
+  **0 ahead / 0 behind**.
+- Working tree was **clean** at handoff. There is **no WIP snapshot commit** — every change on
+  this branch is a real commit with a real message, and those messages carry the *why* for
+  anything a reviewer would otherwise want to undo.
+- Last code commit: `db89129` — `feat(settings): close the copy lockstep, reconcile the audit,
+  bump to 0.8.0`. Everything after it is this handoff doc. (No SHA is quoted for the handoff
+  commit itself: it would have to name the commit it is inside, and amending to backfill it just
+  changes the SHA again. `git log --oneline -3` is the answer.)
+- Diff since base: **37 files, +6825 / -579** (`git diff --stat master...HEAD`)
+- You are in a **linked worktree**, not the main checkout. `git worktree add` will refuse this
+  branch; work in the path below.
 
 ## How to resume
 
