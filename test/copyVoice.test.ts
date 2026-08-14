@@ -81,7 +81,9 @@ const EXEMPT_REGIONS: ReadonlyArray<{
   {
     file: "src/pipeline/context.ts",
     start: "export function buildContextPrefixBlock",
-    end: "}",
+    // Deliberately the join, not a bare "}": the end marker matches the first line after the start
+    // that ends with it, so "}" would truncate the region at the first nested brace anyone adds.
+    end: '].join("\\n");',
     reason:
       "Feeds the Anthropic prompt-cache stable prefix. Any edit invalidates every cached prefix " +
       "and costs a full re-read on the next run, for text no user sees.",
@@ -250,6 +252,13 @@ describe("copyLinesWithEmDash separates copy from prose written for maintainers"
 
   it("flags an em dash inside a regex, which is behavior rather than prose", () => {
     expect(at("const strip = /[\\s—]+$/;")).toEqual([1]);
+  });
+
+  it("sees into a nested template literal", () => {
+    // The hand-rolled scanner this replaced took the first backtick it met as the closing one, so
+    // a `//` in the mis-split span read as a real comment and quietly deleted the copy after it.
+    // No nested template exists in src/** today, which is exactly why it needs a test.
+    expect(at("const a = `outer ${`inner // not a comment — here`} end`;")).toEqual([1]);
   });
 });
 

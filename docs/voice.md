@@ -52,6 +52,7 @@ Grounded in shipped landing and home copy, `docs/design-handoff/tokens/README.md
 ## Hard rules (all surfaces)
 
 - **No em dashes** in product-authored copy (tryatoms honesty tests + app). Use period, colon, or comma.
+  In *prose*, that is the whole list. Two exceptions already shipped and are worth naming so they do not read as drift: **`·`** is the house separator for status lines and compound labels (`Ask mirror: 407 · as you@example.com · Sync now`, `Tag vocabulary · 12 active`), and an inline error detail takes **parentheses** (`push failed (network)`). Neither is licence for a dash. Guarded by `test/copyVoice.test.ts`, which bans `—` across all of `src/**` and carries the reason for every exemption.
 - **No guilt language:** due, overdue, still need to, backlog, streak broken, “you haven’t processed.”
 - **No task-app gravity** in marketing the product identity.
 - **No “use case” / “use-case notes”** in user-facing marketing (sounds like a deck). Prefer *how people run it*, *practice*, *field notes*, *second brain in real life*.
