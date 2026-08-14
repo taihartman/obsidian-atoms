@@ -455,6 +455,55 @@ const NEXT_RUN_ROW = {
 } as const;
 
 /**
+ * The two legs the main screen can actually hold controls for (R1).
+ *
+ * Named for `docs/architecture.md` § North star rather than for a vocabulary this screen invents,
+ * and numbered the way `docs/design-handoff/settings/overhaul.html` numbers them, so the eyebrows
+ * read as one sequence instead of three unrelated labels.
+ *
+ * Each footer is the group's whole explanation, written once for every row above it — which is
+ * what lets a row go back to a name and a control (R2). Capture's carries the fact no other
+ * surface states: the plugin captures nothing, ever (R10). It also keeps the word "top-level",
+ * which is the R19 carve-out on this group: `isContinuationLine` (`src/pipeline/parse.ts:41`)
+ * folds an indented bullet into the capture above it silently, so a footer that said "write a
+ * bullet" would leave the user with no way to predict why two thoughts became one atom. File's
+ * carries the trust question a new
+ * user actually has, and it has to name all three things Atoms writes, because a promise that
+ * names two of them is the kind of near-miss that gets found later by someone reading a diff
+ * (R11). Its last sentence is the one rule the restructure could not drop: automatic filing starts
+ * with the next day and never walks backwards on its own.
+ */
+const CAPTURE_GROUP = {
+  header: "1 · Capture",
+  footer:
+    "Atoms never captures for you. Write a top-level bullet in your daily note, like “- Alex likes periwinkle”, or add the phone shortcut and say one out loud. An indented bullet is read as part of the one above it.",
+} as const;
+
+const FILE_GROUP = {
+  header: "2 · File",
+  footer:
+    "What you wrote is never rewritten. Atoms only adds new atom files, one small marker line under the capture it read, and a list inside its own marked block on hub notes. Older captures wait until you backfill them from Atoms home.",
+} as const;
+
+/**
+ * The File group's own name and line for the automatic-filing toggle, on the installs where the
+ * status group has not taken it.
+ *
+ * The line says when the *window* opens rather than when atoms arrive: this is the branch where
+ * nobody files yet, so promising an arrival would be promising something no engine can deliver.
+ * The status group's day-one promise is the other half of the same pair, and the two never render
+ * together — `nextSetupStep()` decides which home the toggle has, so only one of them is on
+ * screen and the screen states the day-one rule exactly once.
+ */
+const FILING_ROW_UNCONFIGURED = {
+  name: "File automatically when Obsidian opens",
+  desc: "Filing starts with tomorrow's note, on this device.",
+} as const;
+
+/** Whether the vault's Daily Notes plugin is on. The Capture leg's one derived value (R20). */
+const DAILY_NOTES_ROW = { name: "Daily notes", on: "On", off: "Off" } as const;
+
+/**
  * Obsidian's core settings modal, which is undocumented and not on the public `App` type. The
  * same narrow local interface Atoms home keeps for the same deep link; kept local rather than
  * shared because it is a description of somebody else's private API, and one file owning a wrong
@@ -1119,13 +1168,11 @@ export class AtomsSettingTab extends PluginSettingTab {
     // Whether Atoms is filing, before anything the screen offers to change (R18).
     this.renderStatusGroup(containerEl);
 
-    // The plan's main-screen table, in its order: who you are → what you capture → where it
-    // lands → what the model may say → who else can read it → when it runs → keys → advanced.
-    // Ask sits under Plus because it is the only cluster a signed-out install does not render.
-    this.renderPlusSection(containerEl);
-    this.renderCaptureSection(containerEl);
-    this.renderModelSection(containerEl);
-    this.renderVocabularyEntry(containerEl);
+    // The product's own legs, in the product's own order (R1): what you write, then what Atoms
+    // does with it. Everything below them is still a heading, because the units that group the
+    // Resurface leg and fold the records and diagnostics away have not landed yet.
+    this.renderCaptureGroup(containerEl);
+    this.renderFileGroup(containerEl);
     this.renderAskSection(containerEl);
     this.renderAutoRunSection(containerEl);
     this.renderApiSection(containerEl);
@@ -1151,7 +1198,7 @@ export class AtomsSettingTab extends PluginSettingTab {
    * Two variants, not one variant with an empty slot. Nobody files yet, so the group says what
    * Atoms does and names one thing to do; or somebody does, so it says filing is on and when the
    * first atoms land. The second variant borrows the automatic-filing toggle from the File leg,
-   * which is why `renderAutoRunSection` asks whether this group took it — the File composition is
+   * which is why `renderFileGroup` asks whether this group took it — the File composition is
    * state-dependent, and that seam is where it lives.
    *
    * No fill, no tint, no border: setup state is not transient, so the token system's soft-fill
@@ -1189,6 +1236,51 @@ export class AtomsSettingTab extends PluginSettingTab {
               : FILING_STATE_DESC.dayOne,
         });
         if (on) statusRow(groupEl, { ...NEXT_RUN_ROW });
+      },
+    });
+  }
+
+  /**
+   * Leg one: everything the user does, and nothing Atoms does.
+   *
+   * Two of its three rows still carry prose. That is R19 rather than an oversight: the iCloud
+   * link rule only matters to somebody who forked the recipe, and the shortcut's six-step iOS
+   * procedure is a wizard in a caption that a footer cannot hold and a later unit turns into a
+   * sheet. A rule the user needs to predict behavior is never deleted by a footer sweep.
+   */
+  private renderCaptureGroup(containerEl: HTMLElement): void {
+    group(containerEl, {
+      ...CAPTURE_GROUP,
+      render: (groupEl) => {
+        statusRow(groupEl, {
+          name: DAILY_NOTES_ROW.name,
+          value: appHasDailyNotesPluginLoaded()
+            ? DAILY_NOTES_ROW.on
+            : DAILY_NOTES_ROW.off,
+        });
+        this.renderCaptureShortcutRows(groupEl);
+      },
+    });
+  }
+
+  /**
+   * Leg two: everything Atoms does with what it finds.
+   *
+   * The automatic-filing toggle is here only while the status group has not taken it — the same
+   * seam from the other side. Order follows the mock: who files, whether it runs on its own,
+   * where atoms land, what they may be tagged, and what gets listed on hub notes.
+   */
+  private renderFileGroup(containerEl: HTMLElement): void {
+    group(containerEl, {
+      ...FILE_GROUP,
+      render: (groupEl) => {
+        this.renderEngineRow(groupEl);
+        if (this.nextSetupStep()) {
+          this.renderAutomaticFilingRow(groupEl, { ...FILING_ROW_UNCONFIGURED });
+        }
+        this.renderAtomFolderRow(groupEl);
+        this.renderVocabularyEntry(groupEl);
+        this.renderHubListRows(groupEl);
       },
     });
   }
@@ -1492,12 +1584,33 @@ export class AtomsSettingTab extends PluginSettingTab {
    * each rendered their own Refresh status / Sign out / Account rows; now the state picks a
    * label and everything you can *do* to the account lives one tap in.
    */
-  private renderPlusSection(containerEl: HTMLElement) {
-    settingHeading(containerEl, "Atoms Plus");
-    const row = accountRowDescriptor(this.accountState());
+  /**
+   * Who files the captures — the File leg's first row, and the one decision Atoms cannot make.
+   *
+   * The row name is still the account state's own label, because every Plus state already names
+   * the engine and the condition it is in ("Plus · 12 filings left", "Trial ended"). Signed out is
+   * the one state that says nothing about the engine, and it is also the state where the answer is
+   * genuinely two-valued: an install with an Anthropic key is filing perfectly well without a Plus
+   * session and must not be told nothing is chosen. So that is the only branch that spends a
+   * subtitle, and it always spends one rather than rendering the question blank (R20).
+   *
+   * The account state's own signed-out description is dropped here: it was a sales line for a
+   * screen this row now only points at, and it carried an em dash into a footer sweep whose whole
+   * job is R15. The destination behind the row still renders it.
+   *
+   * Opens `account`, which is where the engine is chosen today. The engine destination that
+   * gathers both engines onto one screen is a later unit; this row will point at it then.
+   */
+  private renderEngineRow(containerEl: HTMLElement): void {
+    const state = this.accountState();
     destinationRow(containerEl, {
-      name: row.name,
-      desc: row.desc,
+      name: accountRowDescriptor(state).name,
+      desc:
+        state.kind === "signedOut"
+          ? this.plugin.resolveFilingAuth().mode === "none"
+            ? "Not chosen"
+            : "Your own key"
+          : undefined,
       onOpen: () => this.openRoute("account"),
     });
   }
@@ -1902,9 +2015,8 @@ export class AtomsSettingTab extends PluginSettingTab {
     }
   }
 
-  private renderCaptureSection(containerEl: HTMLElement) {
-    settingHeading(containerEl, "Capture");
-
+  /** The two phone-shortcut rows, inside whatever container the Capture leg hands them. */
+  private renderCaptureShortcutRows(containerEl: HTMLElement) {
     const shortcutAcked = readShortcutAck((k) => loadLocal(this.app, k));
     const custom = customCaptureShortcutUrl(
       this.plugin.settings.captureShortcutInstallUrl,
@@ -1913,11 +2025,6 @@ export class AtomsSettingTab extends PluginSettingTab {
       this.plugin.settings.captureShortcutInstallUrl,
     );
     const urlSet = Boolean(installUrl);
-
-    containerEl.createEl("p", {
-      text: "Write top-level bullets in your daily note: “- thought…”. Today’s note is never auto-processed; use Atoms home → Preview after midnight (or past dailies).",
-      cls: "setting-item-description",
-    });
 
     // Companion stays hidden until App Store. Capture Atom shortcut is the path.
     this.actionRow(containerEl, {
@@ -2130,8 +2237,8 @@ export class AtomsSettingTab extends PluginSettingTab {
   /**
    * The automatic-filing toggle, wherever it is currently standing.
    *
-   * One implementation, two homes: the status group holds it once somebody files, the auto-run
-   * section holds it while nobody does. Only the prose differs, so only the prose is a parameter
+   * One implementation, two homes: the status group holds it once somebody files, the File group
+   * holds it while nobody does. Only the prose differs, so only the prose is a parameter
    * — a second copy of this handler is a second consent gate to keep in step, and the gate is the
    * whole reason the row is delicate.
    */
@@ -2179,41 +2286,29 @@ export class AtomsSettingTab extends PluginSettingTab {
     });
   }
 
+  /**
+   * What is left of the old automatic-filing section once the toggle moved into the two groups.
+   *
+   * It is named for what it now holds rather than for what it used to: the resume switch, the
+   * manual run, the consent that permits both, and this device's two run records. The toggle's
+   * own heading and its two paragraphs went with the toggle — a heading over no control is chrome
+   * with nothing under it, and one of those paragraphs was the second copy of the day-one promise
+   * the status group already makes. The rules they carried did not vanish: device scope is on the
+   * toggle's own line in both of its homes, the consent wording is the sheet's (which is frozen),
+   * and the pointer at Atoms home for older captures is in the File group's footer, where it is
+   * true whichever home the toggle has.
+   *
+   * The rows below are still headed rather than grouped because the units that move the records
+   * to Privacy and the diagnostics to Advanced have not landed.
+   */
   private renderAutoRunSection(containerEl: HTMLElement) {
-    settingHeading(containerEl, "Automatic filing (this device)");
-    containerEl.createEl("p", {
-      text: "Stored only on this device (not synced via data.json). Default off. Turning it on asks for a one-time acknowledgment — unattended runs send titles + captures to Anthropic.",
-      cls: "setting-item-description",
-    });
+    settingHeading(containerEl, "Sync");
 
     const load = (k: string): unknown => loadLocal(this.app, k);
     const save = (k: string, v: unknown) => this.app.saveLocalStorage(k, v);
     const state = readDeviceAutoRunState(load);
 
-    // Shed to the status group once somebody files, so the screen states what is happening
-    // before it offers the switch that changes it. Rendered here while nobody does: the status
-    // group is asking who files, and a toggle beside that question is a second decision.
-    if (this.nextSetupStep()) {
-      this.renderAutomaticFilingRow(containerEl, {
-        name: "File automatically when Obsidian opens",
-        desc: "When enabled: once per calendar day after layout + metadata are ready. Caps work per launch; offline fails silently until next day.",
-      });
-    }
-
-    // Day one is deliberately silent: enabling stamps the window at today and every pass
-    // excludes today, so the first atoms land tomorrow and a user who watched nothing happen
-    // would otherwise conclude filing is broken. Persistent line rather than a Notice, since
-    // the panel is where that silence gets explained and a toast here is easy to miss.
-    //
-    // It points at the backfill offer on Atoms home, never at Process: that path is unbounded
-    // and unpriced, so naming it beside the toggle offers one tap that can spend a whole
-    // period's filings on years-old notes.
-    containerEl.createEl("p", {
-      text: "Filing starts with tomorrow's note. Older captures stay where they are until you backfill them from Atoms home.",
-      cls: "setting-item-description",
-    });
-
-    // Rendered from the grants themselves rather than from the toggle above it: a consent
+    // Rendered from the grants themselves rather than from the automatic-filing toggle: a consent
     // recorded against a feature that is currently off is still live, and still revocable.
     //
     // Gated on *either* device-local grant, not on the egress stamp alone. Two booleans satisfy
@@ -2299,12 +2394,19 @@ export class AtomsSettingTab extends PluginSettingTab {
     }
   }
 
-  private renderModelSection(containerEl: HTMLElement) {
-    settingHeading(containerEl, "Filing");
-
+  /**
+   * Where atoms land — the one File row whose rule outlives the footer sweep (R19).
+   *
+   * `clampAtomFolder` silently rewrites anything it will not take back to `Atoms`, and there is no
+   * error surface anywhere that reports it. Delete this subtitle and a user who typed
+   * `Notes/Atoms` watches the field snap back with nothing on screen explaining why, so it says
+   * what actually happens rather than the older "are rejected", which described a refusal the
+   * code never performs.
+   */
+  private renderAtomFolderRow(containerEl: HTMLElement) {
     settingRow(containerEl, {
       name: "Atom folder",
-      desc: "Flat single folder for atom notes (e.g. Atoms). Paths with .. or subfolders are rejected.",
+      desc: "One flat folder. A path with .. or subfolders falls back to Atoms.",
       control: {
         kind: "text",
         configure: (text) => {
@@ -2318,10 +2420,18 @@ export class AtomsSettingTab extends PluginSettingTab {
         },
       },
     });
+  }
 
+  /**
+   * The hub-list toggle, and the preview that only exists while it is on.
+   *
+   * The toggle's old description said the list lands at the bottom of a hub note and that the
+   * writing above it is untouched. The group footer says that now, for every row at once, which
+   * is the whole point of the footer: this row is a name and a switch again.
+   */
+  private renderHubListRows(containerEl: HTMLElement) {
     settingRow(containerEl, {
       name: "List atoms on hub notes",
-      desc: "After filing, add a list of linked atoms at the bottom of hub notes (people, Movies, packing lists, and similar). Your writing above the list stays the same. Off by default.",
       control: {
         kind: "toggle",
         configure: (toggle) => {

@@ -1950,16 +1950,21 @@ describe("main screen row grammar (U9)", () => {
     const vocabulary = `Tag vocabulary — ${DEFAULT_SETTINGS.activeVocabulary.length} active`;
     return [
       filingChosen ? "File automatically" : "Choose who files your captures",
-      account,
+      // 1 · Capture. Daily Notes is a fact the leg reports rather than a preference it owns,
+      // which is why it is the one row here with no control (U3).
+      "Daily notes",
       "Capture Atom shortcut",
       "Custom shortcut link",
-      "Atom folder",
-      "List atoms on hub notes",
-      vocabulary,
-      ...ASK_ROWS,
-      // Shed to the status group once somebody files; the auto-run section keeps it while the
-      // screen is still asking who that is.
+      // 2 · File, in the mock's order: who files, whether it runs on its own, where atoms land,
+      // what they may be tagged, what gets listed on hub notes.
+      account,
+      // Shed to the status group once somebody files; the File group keeps it while the screen
+      // is still asking who that is.
       ...(filingChosen ? [] : ["File automatically when Obsidian opens"]),
+      "Atom folder",
+      vocabulary,
+      "List atoms on hub notes",
+      ...ASK_ROWS,
       "Sync when you return to Obsidian",
       "Sync everything now",
       "Anthropic API key",
@@ -1976,10 +1981,10 @@ describe("main screen row grammar (U9)", () => {
 
     const rows = rowNames(tab, { headings: false });
     expect(rows).toEqual(expectedRows("Plus · 12 filings left", true));
-    expect(rows).toHaveLength(15);
+    expect(rows).toHaveLength(16);
   });
 
-  it("renders thirteen rows signed out — the Ask cluster is the only difference", () => {
+  it("renders fourteen rows signed out — the Ask cluster is the only difference", () => {
     const { tab } = settingTab();
     tab.display();
 
@@ -1989,7 +1994,7 @@ describe("main screen row grammar (U9)", () => {
         (name) => !ASK_ROWS.includes(name),
       ),
     );
-    expect(rows).toHaveLength(13);
+    expect(rows).toHaveLength(14);
   });
 
   it("adds the device-local key row under its toggle, and nowhere else", () => {
@@ -1997,7 +2002,7 @@ describe("main screen row grammar (U9)", () => {
     tab.display();
 
     const rows = rowNames(tab, { headings: false });
-    expect(rows).toHaveLength(14);
+    expect(rows).toHaveLength(15);
     expect(rows.indexOf("Device-local API key")).toBe(
       rows.indexOf("Device-local key fallback") + 1,
     );
@@ -2011,7 +2016,16 @@ describe("main screen row grammar (U9)", () => {
     const prose = Array.from(
       tab.containerEl.querySelectorAll("p.setting-item-description"),
     ).map((el) => el.textContent ?? "");
-    expect(prose.some((text) => text.includes("Write top-level bullets"))).toBe(true);
+    // U3 moved it out of a section intro and into the Capture group's one footer, which is the
+    // same claim about where it lives: prose under the rows, never a row of its own.
+    const format = prose.find((text) => text.includes("in your daily note")) ?? "";
+    expect(format).not.toBe("");
+    // "top-level" is the whole guarantee this test has ever carried, and the footer sweep is
+    // exactly where it would get dropped: `isContinuationLine` folds an indented bullet into the
+    // capture above it with no error, so a user who loses this word loses the only way to predict
+    // why two thoughts landed in one atom (R19).
+    expect(format).toContain("top-level");
+    expect(format).toContain("indented");
   });
 
   it("keeps opening today's daily as a command, and off the settings screen", () => {
@@ -2802,18 +2816,28 @@ describe("automatic filing toggle stamps the window (U3)", () => {
  * unpriced, so recommending it beside the toggle hands a trial device a single tap that can
  * spend the whole period allowance on years-old notes. The backfill offer on Atoms home is the
  * bounded answer, and the only one this line may point at.
+ *
+ * U3 split the line in two rather than deleting it. The paragraph used to say both halves twice
+ * over — once here and once as the status group's day-one promise — so the *when* now lives on
+ * the toggle's own line, in whichever of its two homes is rendering, and the *where the rest is*
+ * lives in the File group's footer, which is on screen in every state.
  */
 describe("the enable-time window line (U7)", () => {
   const flush = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
-  const windowLine = (tab: AtomsSettingTab): string | undefined =>
-    prose(tab).find((t) => t.startsWith("Filing starts with tomorrow's note."));
+  /** The half that says when filing starts: the toggle's own line, either home. */
+  const whenLine = (tab: AtomsSettingTab): string =>
+    row(tab, "File automatically when Obsidian opens").textContent ?? "";
+  /** The half that says where the older captures are: the File group's footer. */
+  const backfillLine = (tab: AtomsSettingTab): string =>
+    prose(tab).find((t) => t.includes("backfill")) ?? "";
 
   it("renders beside the toggle before the user has enabled anything", () => {
     const { tab } = settingTab();
     const before = Notice.messages.length;
     tab.display();
 
-    expect(windowLine(tab)).toBeDefined();
+    expect(whenLine(tab)).toContain("Filing starts with tomorrow's note");
+    expect(backfillLine(tab)).not.toBe("");
     // Persistent, not a toast: the user is already reading the panel, and a Notice raised here
     // is gone by the time day one's silence needs explaining.
     expect(Notice.messages.slice(before)).toHaveLength(0);
@@ -2828,16 +2852,19 @@ describe("the enable-time window line (U7)", () => {
     flip(tab, "File automatically when Obsidian opens");
     await flush();
 
-    expect(windowLine(tab)).toBeDefined();
+    expect(whenLine(tab)).toContain("Filing starts with tomorrow's note");
+    expect(backfillLine(tab)).not.toBe("");
   });
 
   it("points at the backfill offer and never at the unbounded process path", () => {
     const { tab } = settingTab();
     tab.display();
 
-    const line = windowLine(tab) ?? "";
-    expect(line.toLowerCase()).not.toContain("process");
-    expect(line).toContain("Atoms home");
+    // Both halves, not just the one that names the offer. Splitting the paragraph in two is
+    // exactly how the pointer could survive on the half nobody re-checked.
+    expect(backfillLine(tab).toLowerCase()).not.toContain("process");
+    expect(whenLine(tab).toLowerCase()).not.toContain("process");
+    expect(backfillLine(tab)).toContain("Atoms home");
   });
 });
 
@@ -2865,5 +2892,221 @@ describe("the version the settings panel renders", () => {
     const version = String(readJson("manifest.json").version);
     expect(readJson("package.json").version).toBe(version);
     expect(Object.keys(readJson("versions.json"))).toContain(version);
+  });
+});
+
+/**
+ * The Capture and File legs, as two groups instead of five headings (U3, R1).
+ *
+ * The assertions are about what a reader can see: the eyebrows in order, the one footer under
+ * each group, and the handful of rules that could not survive the footer sweep as prose and had
+ * to stay on their rows (R19).
+ */
+describe("Capture and File groups (U3)", () => {
+  const PLUS_SESSION: PlusSession = {
+    sessionToken: "sess_legs",
+    email: "user@example.com",
+    status: "active",
+    periodEnd: "2099-01-01T00:00:00.000Z",
+  };
+
+  /** An install where somebody files, so the status group owns the automatic-filing toggle. */
+  function filingTab(opts: SettingTabOptions = {}) {
+    return settingTab({
+      ...opts,
+      session: PLUS_SESSION,
+      auth: {
+        mode: "plus",
+        sessionToken: PLUS_SESSION.sessionToken,
+        email: PLUS_SESSION.email,
+        status: "active",
+        remaining: 12,
+        periodEnd: PLUS_SESSION.periodEnd,
+      },
+    });
+  }
+
+  /** The one footer under a group, by the header above it. */
+  function footerUnder(tab: AtomsSettingTab, header: string): string {
+    const headers = groupHeaders(tab);
+    const at = headers.indexOf(header);
+    if (at < 0) throw new Error(`no group headed ${header}`);
+    const feet = Array.from(
+      tab.containerEl.querySelectorAll("p.atoms-setting-group-foot"),
+    ).map((el) => el.textContent ?? "");
+    const foot = feet[at];
+    if (foot === undefined) throw new Error(`group ${header} has no footer`);
+    return foot;
+  }
+
+  it("groups the two legs under their own headers, in the product's order", () => {
+    const { tab } = settingTab();
+    tab.display();
+
+    expect(groupHeaders(tab).slice(0, 3)).toEqual(["Get started", "1 · Capture", "2 · File"]);
+    const text = tab.containerEl.textContent ?? "";
+    expect(text.indexOf("1 · Capture")).toBeLessThan(text.indexOf("2 · File"));
+  });
+
+  it("reports Daily Notes as a fact, and never as a blank right edge (R20)", () => {
+    const { tab } = filingTab();
+    tab.display();
+    expect(row(tab, "Daily notes").querySelector(".atoms-setting-status")?.textContent).toBe("On");
+
+    vi.spyOn(dni, "appHasDailyNotesPluginLoaded").mockReturnValue(false);
+    const off = settingTab();
+    off.tab.display();
+    expect(row(off.tab, "Daily notes").querySelector(".atoms-setting-status")?.textContent).toBe(
+      "Off",
+    );
+  });
+
+  // Four, not the plan's five: `Your API key (optional)` survives U3 because its rows belong on
+  // the engine destination U4 builds, and folding a credential into a group whose footer is about
+  // what Atoms writes would put it under the wrong promise.
+  it("retires the four headings the two groups replace", () => {
+    const { tab } = filingTab();
+    tab.display();
+
+    const headings = rowNames(tab).filter((name) => !rowNames(tab, { headings: false }).includes(name));
+    for (const gone of ["Atoms Plus", "Capture", "Filing", "Automatic filing (this device)"]) {
+      expect(headings).not.toContain(gone);
+    }
+  });
+
+  describe("the engine row", () => {
+    it("says nothing is chosen when no engine is", () => {
+      const { tab } = settingTab();
+      tab.display();
+
+      expect(row(tab, "Set up automatic filing").textContent).toContain("Not chosen");
+    });
+
+    it("names the user's own key as the engine when one is set", () => {
+      const { tab } = settingTab({ auth: { mode: "byok", apiKey: "sk-ant-x" } });
+      tab.display();
+
+      expect(row(tab, "Set up automatic filing").textContent).toContain("Your own key");
+    });
+
+    it("names Plus as the engine, and walks into the screen that changes it", () => {
+      const { tab } = filingTab();
+      tab.display();
+
+      expect(destinationNames(tab)).toContain("Plus · 12 filings left");
+      open(tab, "Plus · 12 filings left");
+      expect(rowNames(tab)).toContain("Account");
+    });
+  });
+
+  describe("the atom folder row", () => {
+    it("still rejects .. and subfolders", () => {
+      const { tab, plugin } = filingTab();
+      tab.display();
+
+      fill(tab, "Atom folder", "../escape");
+      expect(plugin.settings.atomFolder).toBe("Atoms");
+      fill(tab, "Atom folder", "Notes/Atoms");
+      expect(plugin.settings.atomFolder).toBe("Atoms");
+      fill(tab, "Atom folder", "Thoughts");
+      expect(plugin.settings.atomFolder).toBe("Thoughts");
+    });
+
+    it("still states that rule to the user, because nothing else reports the fallback", () => {
+      const { tab } = filingTab();
+      tab.display();
+
+      const desc = row(tab, "Atom folder").querySelector(".setting-item-description");
+      expect(desc?.textContent).toContain("..");
+      expect(desc?.textContent).toContain("subfolders");
+    });
+
+    it("keeps an overlong value in the field rather than in the row's own text", () => {
+      const long = "L".repeat(200);
+      const { tab } = filingTab({ settings: { atomFolder: long } });
+      tab.display();
+
+      const folder = row(tab, "Atom folder");
+      expect(folder.querySelector("input")?.value).toBe(long);
+      // The name is what a truncating right edge must never eat, so it has to survive whole —
+      // and the value must not be row text, which would grow the row instead of clipping.
+      expect(folder.querySelector(".setting-item-name")?.textContent).toBe("Atom folder");
+      expect(folder.textContent).not.toContain(long);
+    });
+  });
+
+  it("reveals the hub-list refresh only while its toggle is on", async () => {
+    const { tab } = filingTab();
+    tab.display();
+    expect(rowNames(tab, { headings: false })).not.toContain("Refresh hub lists");
+
+    flip(tab, "List atoms on hub notes");
+    // The toggle saves before it rebuilds, so the row it reveals arrives a microtask later.
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    const rows = rowNames(tab, { headings: false });
+    expect(rows).toContain("Refresh hub lists");
+    expect(rows.indexOf("Refresh hub lists")).toBe(rows.indexOf("List atoms on hub notes") + 1);
+  });
+
+  describe("the two footers", () => {
+    it("says Atoms never captures for you, under the Capture group (R10)", () => {
+      const { tab } = filingTab();
+      tab.display();
+
+      expect(footerUnder(tab, "1 · Capture")).toContain("Atoms never captures for you.");
+    });
+
+    it("names every kind of write Atoms makes, under the File group (R11)", () => {
+      const { tab } = filingTab();
+      tab.display();
+
+      const foot = footerUnder(tab, "2 · File");
+      expect(foot).toContain("never rewritten");
+      expect(foot).toContain("atom files");
+      expect(foot).toContain("marker line");
+      expect(foot).toContain("block on hub notes");
+    });
+
+    it("carries no em dash on any group footer (R15)", () => {
+      const { tab } = filingTab();
+      tab.display();
+
+      const feet = Array.from(
+        tab.containerEl.querySelectorAll("p.atoms-setting-group-foot"),
+      ).map((el) => el.textContent ?? "");
+      expect(feet.length).toBeGreaterThan(0);
+      for (const foot of feet) expect(foot).not.toContain("—");
+    });
+  });
+
+  /**
+   * The orphan U2 left: the automatic-filing heading and its two paragraphs stayed behind when
+   * the toggle moved, so a filing install read a heading with no control under it and the
+   * day-one promise twice on one screen.
+   */
+  describe("the automatic-filing chrome the toggle left behind", () => {
+    it("leaves no headed section without its control", () => {
+      const { tab } = filingTab();
+      tab.display();
+
+      const text = tab.containerEl.textContent ?? "";
+      expect(text).not.toContain("Automatic filing (this device)");
+      expect(prose(tab).some((t) => t.startsWith("Stored only on this device"))).toBe(false);
+    });
+
+    it("promises the first atoms exactly once", () => {
+      const { tab } = filingTab({
+        local: {
+          [LS_AUTO_RUN_ENABLED]: true,
+          [LS_AUTO_RUN_EGRESS_ACK]: EGRESS_ACK_VERSION,
+        },
+      });
+      tab.display();
+
+      const said = (tab.containerEl.textContent ?? "").match(/tomorrow/gi) ?? [];
+      // "First atoms arrive tomorrow morning." and the "Next run" row's own fact, and nothing
+      // else: the auto-run section used to say it a third time under a heading of its own.
+      expect(said).toHaveLength(2);
+    });
   });
 });
