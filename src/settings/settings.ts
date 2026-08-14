@@ -31,6 +31,7 @@ import {
 } from "../platform/resume";
 import { CAPTURE_ATOM_VERSION } from "../shared/mobileInstall";
 import {
+  captureShortcutStatus,
   customCaptureShortcutUrl,
   labelCaptureShortcutCta,
   openShortcutInstallUrl,
@@ -38,6 +39,7 @@ import {
   resolveCaptureShortcutInstallUrl,
   writeShortcutAck,
 } from "./captureShortcut";
+import { CAPTURE_SHEET_TITLE, CaptureShortcutSheetModal } from "./captureSheet";
 import { markDestructive } from "./destructiveButton";
 import { askSignOutAllApproval } from "./plusSignOutAllConfirmModal";
 import {
@@ -2532,51 +2534,58 @@ export class AtomsSettingTab extends PluginSettingTab {
   }
 
   /**
-   * The phone-shortcut install row, inside whatever container the Capture leg hands it.
+   * The one Capture row about the phone: what this device has, and a way into how to get it.
    *
-   * Its sibling — the field for a forked recipe's own link — is not here any more. It is only
-   * ever relevant to somebody who edited the shortcut themselves, and a Capture group that shows
-   * it to everybody spends its second row on the one reader in a hundred who wants it (R4). It
-   * lives under Advanced → Escape hatches, which is what that group is for.
+   * It used to be an action row whose description carried the whole six-step procedure as one
+   * arrow-separated line ending in `Acked: never`. That is a procedure written as a footnote, and
+   * a row cannot hold one — it has a single line and no order — so the steps moved into a sheet
+   * (R2) and the row went back to a name and a status (R19).
+   *
+   * The forked-recipe field that used to sit beside it is gone too, to Advanced → Escape hatches:
+   * it only matters to somebody who edited the shortcut themselves, and a Capture group that
+   * shows it to everybody spends a row on the one reader in a hundred who wants it (R4).
    */
   private renderCaptureShortcutRows(containerEl: HTMLElement) {
     const shortcutAcked = readShortcutAck((k) => loadLocal(this.app, k));
+    destinationRow(containerEl, {
+      name: CAPTURE_SHEET_TITLE,
+      desc: captureShortcutStatus(shortcutAcked),
+      onOpen: () => this.openCaptureShortcutSheet(shortcutAcked),
+    });
+  }
+
+  /** The procedure, and the install. Dismissing writes nothing — only a successful open acks. */
+  private openCaptureShortcutSheet(shortcutAcked: string | null): void {
     const installUrl = resolveCaptureShortcutInstallUrl(
       this.plugin.settings.captureShortcutInstallUrl,
     );
-    const urlSet = Boolean(installUrl);
+    new CaptureShortcutSheetModal(this.app, {
+      app: this.app,
+      installLabel: labelCaptureShortcutCta(shortcutAcked),
+      // Companion stays hidden until App Store, so a missing link is a packaging fault rather
+      // than a state the user can fix — say which file, and leave the button dead.
+      disabledNote: installUrl
+        ? undefined
+        : "No link — check mobile-install.json Capture Atom urls.",
+      onInstall: () => this.installCaptureShortcut(installUrl),
+    }).open();
+  }
 
-    // Companion stays hidden until App Store. Capture Atom shortcut is the path.
-    this.actionRow(containerEl, {
-      action: "shortcut:install",
-      name: "Capture Atom shortcut",
-      desc: urlSet
-        ? `iOS: opens Capture Atom v${CAPTURE_ATOM_VERSION}. After Add Shortcut: Shortcuts → Capture Atom → edit → Append to Bookmark → Atoms Inbox (not Ask Each Time) → Done. Open Obsidian with Atoms once first so that bookmark exists. Acked: ${shortcutAcked ?? "never"}.`
-        : `No link — check mobile-install.json Capture Atom urls.`,
-      label: labelCaptureShortcutCta(shortcutAcked),
-      disabled: !urlSet,
-      onClick: () => {
-        if (!urlSet) {
-          new Notice("No shortcut link to open.");
-          return;
-        }
-        const ok = openShortcutInstallUrl(installUrl);
-        if (!ok) {
-          new Notice(
-            "Shortcut link must be an https://www.icloud.com/shortcuts/… URL",
-          );
-          return;
-        }
-        writeShortcutAck(
-          (k, v) => this.app.saveLocalStorage(k, v),
-          CAPTURE_ATOM_VERSION,
-        );
-        new Notice(
-          `Opened Capture Atom v${CAPTURE_ATOM_VERSION} — add it, then edit → set bookmark to Atoms Inbox once`,
-        );
-        this.redisplay();
-      },
-    });
+  private installCaptureShortcut(installUrl: string): void {
+    if (!openShortcutInstallUrl(installUrl)) {
+      new Notice(
+        "Shortcut link must be an https://www.icloud.com/shortcuts/… URL",
+      );
+      return;
+    }
+    writeShortcutAck(
+      (k, v) => this.app.saveLocalStorage(k, v),
+      CAPTURE_ATOM_VERSION,
+    );
+    new Notice(
+      `Opened Capture Atom v${CAPTURE_ATOM_VERSION} — add it, then set its bookmark to Atoms Inbox once`,
+    );
+    this.redisplay();
   }
 
   /** The forked-recipe escape hatch: your own iCloud link instead of the one Atoms ships. */

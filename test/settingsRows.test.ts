@@ -1141,11 +1141,16 @@ const DESTINATIONS: Array<[entry: string, title: string]> = [
  * one that leaves Settings entirely.
  *
  * `Atoms home` is a destination row and not a settings route: it closes the modal and activates
- * the view behind it (U5). It is listed here so the main screen's chevrons stay pinned, and kept
- * out of the walk table above, which is about screens you can come *back* from.
+ * the view behind it (U5). `Capture on your phone` is the same shape for a different reason —
+ * U9 put the install procedure in a sheet, which has no route and no back stack. Both are listed
+ * here so the main screen's chevrons stay pinned, and both are kept out of the walk table above,
+ * which is about screens you can come *back* from.
  */
 const MAIN_DESTINATION_ROWS = [
   "Choose who files your captures",
+  // U9 made this a chevron: it opens the procedure sheet rather than a route, the same way
+  // `Atoms home` opens a view. Both are here and neither is in the walk table.
+  "Capture on your phone",
   "Who does the filing",
   `Tag vocabulary — ${DEFAULT_SETTINGS.activeVocabulary.length} active`,
   "Atoms home",

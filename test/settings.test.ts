@@ -53,11 +53,18 @@ import {
   row,
   rowNames,
   settingTab,
+  sheet,
+  sheetButtons,
   sheetOpen,
   sheetText,
   fill,
   type SettingTabOptions,
 } from "./helpers/settingsTab";
+import {
+  LS_CAPTURE_SHORTCUT_ACK,
+  resolveCaptureShortcutInstallUrl,
+} from "../src/settings/captureShortcut";
+import { CAPTURE_ATOM_VERSION } from "../src/shared/mobileInstall";
 import {
   EGRESS_ACK_VERSION,
   LS_AUTO_RUN_EGRESS_ACK,
@@ -701,6 +708,102 @@ describe("account row", () => {
       expect(row.name).toBe("Monthly limit reached");
       expect(row.desc).toMatch(/next billing date/);
     });
+  });
+});
+
+/**
+ * U9 — the capture-on-phone procedure, out of a row description and into a sheet.
+ *
+ * The row used to carry all six steps as one arrow-separated line ending in `Acked: never`, on
+ * the main screen, in a group whose whole point is that a row is a name and a control (R2). What
+ * matters about the move is that nothing was lost in it: the step people skip is still first, the
+ * failure mode is still named, and the ack still happens only on a successful open.
+ */
+describe("capture on your phone (U9, R2/R19)", () => {
+  const ROW = "Capture on your phone";
+
+  /** The install URL the shipped `mobile-install.json` yields, so the button is live. */
+  const shipped = () => resolveCaptureShortcutInstallUrl("");
+
+  it("says what this device has, and nothing about how to get it", () => {
+    const { tab } = settingTab();
+    tab.display();
+
+    // "Not set up" is the whole status. The six steps that used to be here are one tap away.
+    expect(row(tab, ROW).textContent).toContain("Not set up");
+    expect(row(tab, ROW).textContent).not.toContain("Ask Each Time");
+    expect(row(tab, ROW).querySelectorAll("button")).toHaveLength(0);
+  });
+
+  it("names the acked version once this device has installed it", () => {
+    const { tab } = settingTab({ local: { [LS_CAPTURE_SHORTCUT_ACK]: "2.1.0" } });
+    tab.display();
+
+    // The version this device acked, not the one it would get by updating: a device holding an
+    // older ack is out of date, and printing the shipped version would hide exactly that.
+    expect(row(tab, ROW).textContent).toContain("Capture Atom 2.1.0");
+  });
+
+  it("opens a sheet with three numbered steps and the install", () => {
+    const { tab } = settingTab();
+    tab.display();
+    open(tab, ROW);
+
+    const steps = Array.from(sheet().contentEl.querySelectorAll("ol li")).map(
+      (el) => el.textContent ?? "",
+    );
+    expect(steps).toHaveLength(3);
+    // Step 1 is the one people skip, and skipping it leaves step 3 with nothing to point at.
+    expect(steps[0]).toContain("bookmark exists");
+    // The single failure this procedure exists to prevent, still named where it happens.
+    expect(steps[2]).toContain("Ask Each Time");
+    expect(sheetButtons()).toEqual(["Close", "Install Capture Atom"]);
+  });
+
+  it("writes no ack when the sheet is dismissed", () => {
+    const { tab, local } = settingTab();
+    tab.display();
+    open(tab, ROW);
+    dismissSheet();
+
+    // Reading the steps is not installing them. Only a successful open acks.
+    expect(local.get(LS_CAPTURE_SHORTCUT_ACK)).toBeUndefined();
+    expect(row(tab, ROW).textContent).toContain("Not set up");
+  });
+
+  it("acks the shipped version when the install opens", () => {
+    const opened = vi.spyOn(window, "open").mockImplementation(() => null);
+    const { tab, local } = settingTab();
+    tab.display();
+    open(tab, ROW);
+    pressSheet("Install Capture Atom");
+
+    expect(opened).toHaveBeenCalledWith(shipped(), "_blank");
+    expect(local.get(LS_CAPTURE_SHORTCUT_ACK)).toBe(CAPTURE_ATOM_VERSION);
+    opened.mockRestore();
+  });
+
+  it("still refuses a malformed link with the same guidance, and acks nothing", () => {
+    const ui = captureObsidianUi();
+    const { tab, local } = settingTab({
+      settings: { captureShortcutInstallUrl: "https://evil.example.com/shortcuts/x" },
+    });
+    tab.display();
+    open(tab, ROW);
+    pressSheet("Install Capture Atom");
+
+    expect(ui.notices[0]).toContain("https://www.icloud.com/shortcuts/");
+    expect(local.get(LS_CAPTURE_SHORTCUT_ACK)).toBeUndefined();
+    stopCapturingObsidianUi();
+  });
+
+  it("offers Update once installed, not Install", () => {
+    const { tab } = settingTab({ local: { [LS_CAPTURE_SHORTCUT_ACK]: "2.1.0" } });
+    tab.display();
+    open(tab, ROW);
+
+    expect(sheetButtons()).toContain("Update Capture Atom");
+    dismissSheet();
   });
 });
 
@@ -2573,7 +2676,9 @@ describe("main screen row grammar (U9)", () => {
       // 1 · Capture. Daily Notes is a fact the leg reports rather than a preference it owns,
       // which is why it is the one row here with no control (U3).
       "Daily notes",
-      "Capture Atom shortcut",
+      // U9: a name and a status, with the procedure behind it. It was an action row whose
+      // description carried all six steps.
+      "Capture on your phone",
       // `Custom shortcut link` is not here since U7: it only matters to somebody who forked the
       // recipe, so it sits with the other escape hatches on Advanced.
       // 2 · File, in the mock's order: who files, whether it runs on its own, where atoms land,

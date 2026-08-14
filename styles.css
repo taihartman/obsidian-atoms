@@ -2131,6 +2131,20 @@
   min-width: 260px;
 }
 
+/* The capture-on-phone procedure inside its sheet. An ordered list, because the steps only work
+   in order — step 3 has nothing to point at until step 1 has happened. The indent is pulled in
+   from the browser default so the numbers line up with the sheet's own prose rather than sitting
+   in a gutter of their own, and the steps are spaced because each is a separate trip to a
+   different app. */
+.atoms-capture-steps {
+  padding-left: 20px;
+  margin: 0 0 var(--size-4-4);
+}
+
+.atoms-capture-steps li {
+  margin-bottom: var(--size-4-2);
+}
+
 /* Ask mirror push failure in Settings */
 .atoms-ask-mirror-error {
   color: var(--text-error);

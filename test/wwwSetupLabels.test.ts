@@ -24,10 +24,12 @@ import { readFileSync } from "fs";
 import { join } from "path";
 import {
   destinationNames,
+  dismissSheet,
   open,
   row,
   rowNames,
   settingTab,
+  sheetButtons,
 } from "./helpers/settingsTab";
 import { labelCaptureShortcutCta } from "../src/settings/captureShortcut";
 import type { PlusSession } from "../src/platform/filingAuth";
@@ -70,17 +72,28 @@ function buttonLabels(tab: ReturnType<typeof plusTab>["tab"], name: string): str
 }
 
 describe("setup guide quotes labels the plugin still renders", () => {
-  it("names the Capture Atom install button the settings screen renders", () => {
-    // Companion stays hidden until App Store; shortcut is the path.
+  it("names the Capture Atom install button, now inside the sheet that holds it", () => {
+    // Companion stays hidden until App Store; shortcut is the path. U9 moved the CTA off the
+    // row and into the procedure sheet, so this asserts it where a user now finds it —
+    // asserting the label helper alone would be #302 with one indirection added.
     const { tab } = settingTab();
     tab.display();
 
     const shortcutLabel = labelCaptureShortcutCta(null);
     expect(shortcutLabel).toBe("Install Capture Atom");
-    expect(buttonLabels(tab, "Capture Atom shortcut")).toContain(shortcutLabel);
+    open(tab, "Capture on your phone");
+    expect(sheetButtons()).toContain(shortcutLabel);
+    dismissSheet();
+
     expect(guide.includes("Install Capture Atom"), "guide does not name install CTA").toBe(
       true,
     );
+    // Naming the button without naming the row that opens it is not a followable instruction.
+    const sentence = guide
+      .split(/(?<=\.)\s+/)
+      .find((s) => s.includes("Install Capture Atom"));
+    expect(sentence, "guide has no install step").toBeDefined();
+    expect(sentence).toContain("Capture on your phone");
   });
 
   it("names the two Ask switches the main screen renders", () => {

@@ -167,6 +167,13 @@ export function sheetText(): string {
   return `${open.titleEl.textContent ?? ""} ${open.contentEl.textContent ?? ""}`;
 }
 
+/** Every label the open sheet offers, in order — for asserting what a sheet lets you do. */
+export function sheetButtons(): string[] {
+  return Array.from(sheet().contentEl.querySelectorAll("button")).map(
+    (el) => el.textContent ?? "",
+  );
+}
+
 /** Press the sheet's button carrying this label. */
 export function pressSheet(label: string): void {
   const button = Array.from(sheet().contentEl.querySelectorAll("button")).find(
