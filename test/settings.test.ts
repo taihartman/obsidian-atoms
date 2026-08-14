@@ -2967,6 +2967,21 @@ const FILING_SESSION: PlusSession = {
  * variant off it, and the File group sheds its automatic-filing toggle off it. Two copies of this
  * setup would let one of those describes drift onto an install the other never sees.
  */
+/**
+ * The footer under the "Your data" group. Located through its own header rather than by taking
+ * the last footer on screen, so a group added after it does not quietly retarget the assertion.
+ */
+function utilityFooter(tab: AtomsSettingTab): string {
+  const header = Array.from(
+    tab.containerEl.querySelectorAll("h3.atoms-setting-group-header"),
+  ).find((el) => el.textContent === "Your data");
+  const foot = header?.nextElementSibling?.nextElementSibling;
+  if (!foot?.classList.contains("atoms-setting-group-foot")) {
+    throw new Error("no footer under the 'Your data' group");
+  }
+  return foot.textContent ?? "";
+}
+
 function filingTab(opts: SettingTabOptions = {}) {
   return settingTab({
     ...opts,
@@ -3104,6 +3119,38 @@ describe("status group (U2)", () => {
     expect(step?.name).toBe("Turn on Daily Notes");
     expect(groupHeaders(tab)[0]).toBe("Get started");
     expect(rowNames(tab, { headings: false })[0]).toBe(step?.name);
+  });
+
+  /**
+   * Unfinished setup and "not filing" are two different questions, and Daily Notes is where they
+   * come apart: switching that core plugin off under a configured engine leaves the window and
+   * the ack spent while the toggle falls back to the File group. Telling that device its first
+   * atoms arrive tomorrow describes a silence window it already spent.
+   */
+  it("does not promise a first arrival to a device that is already filing", () => {
+    vi.spyOn(dni, "appHasDailyNotesPluginLoaded").mockReturnValue(false);
+    const { tab } = filingTab({
+      local: { ...FILING_ON, [LS_LAST_RUN_DAY]: "2026-08-13" },
+    });
+    tab.display();
+
+    // The setup step is still the honest headline — nothing files without a daily note.
+    expect(rowNames(tab, { headings: false })[0]).toBe("Turn on Daily Notes");
+
+    const toggle = row(tab, "File automatically when Obsidian opens");
+    expect(toggle.textContent).not.toContain("Filing starts with tomorrow's note");
+    expect(toggle.textContent).toContain("Atoms files each past day when Obsidian opens.");
+  });
+
+  it("keeps the day-one promise until a run is actually on the books", () => {
+    vi.spyOn(dni, "appHasDailyNotesPluginLoaded").mockReturnValue(false);
+    // Enabled, acked, and nothing filed yet: the promise is still true, so it must survive.
+    const { tab } = filingTab({ local: FILING_ON });
+    tab.display();
+
+    expect(
+      row(tab, "File automatically when Obsidian opens").textContent,
+    ).toContain("Filing starts with tomorrow's note");
   });
 });
 
@@ -4060,6 +4107,34 @@ describe("Capture and File groups (U3)", () => {
       ).map((el) => el.textContent ?? "");
       expect(feet.length).toBeGreaterThan(0);
       for (const foot of feet) expect(foot).not.toContain("—");
+    });
+
+    /**
+     * The "Your data" footer says what is behind each row under it, and the Privacy row is
+     * conditional — a fresh install has allowed nothing, so it renders no such row. A footer that
+     * describes a row that is not there is worst on the one state every user starts in.
+     */
+    it("does not name Privacy in the footer when there is no Privacy row", () => {
+      const { tab } = settingTab();
+      tab.display();
+
+      expect(rowNames(tab, { headings: false })).not.toContain("Privacy and consents");
+      const foot = utilityFooter(tab);
+      expect(foot).not.toContain("Privacy");
+      expect(foot).toContain("Advanced holds the settings almost nobody needs.");
+    });
+
+    it("names Privacy again once there is something to take back", () => {
+      const { tab } = settingTab({
+        local: {
+          [LS_AUTO_RUN_ENABLED]: true,
+          [LS_AUTO_RUN_EGRESS_ACK]: EGRESS_ACK_VERSION,
+        },
+      });
+      tab.display();
+
+      expect(rowNames(tab, { headings: false })).toContain("Privacy and consents");
+      expect(utilityFooter(tab)).toContain("Privacy holds what you have allowed");
     });
   });
 

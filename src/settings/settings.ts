@@ -650,6 +650,13 @@ const UTILITY_GROUP = {
   header: "Your data",
   footer:
     "Privacy holds what you have allowed and the way to take it back. Advanced holds the settings almost nobody needs.",
+  /**
+   * The same sentence with the Privacy clause removed.
+   *
+   * A fresh install has allowed nothing, so `renderPrivacyEntry` renders no row — and the full
+   * footer would then describe a row that is not on screen, on the one state every user starts in.
+   */
+  footerAdvancedOnly: "Advanced holds the settings almost nobody needs.",
 } as const;
 
 /**
@@ -1534,14 +1541,21 @@ export class AtomsSettingTab extends PluginSettingTab {
             name: step.name,
             desc: "Required",
             onOpen: () => {
-              if (step.kind === "daily_notes") {
-                openSettingsTab(this.app, CORE_PLUGINS_SETTINGS_TAB_ID);
-                return;
+              // Switched with no catch-all so a third setup step cannot quietly inherit the
+              // engine screen: adding one is a compile error here until it names its own home.
+              switch (step.kind) {
+                case "daily_notes":
+                  openSettingsTab(this.app, CORE_PLUGINS_SETTINGS_TAB_ID);
+                  return;
+                case "filing_owner":
+                  // The step is "choose who files", so it lands on the screen that asks exactly
+                  // that. It used to open Account, which offered one of the two answers and never
+                  // named the other.
+                  this.openRoute("engine");
+                  return;
               }
-              // The step is "choose who files", so it lands on the screen that asks exactly
-              // that. It used to open Account, which offered one of the two answers and never
-              // named the other.
-              this.openRoute("engine");
+              const exhaustive: never = step.kind;
+              return exhaustive;
             },
           });
         },
@@ -1606,7 +1620,23 @@ export class AtomsSettingTab extends PluginSettingTab {
       render: (groupEl) => {
         this.renderEngineRow(groupEl, filing);
         if (step) {
-          this.renderAutomaticFilingRow(groupEl, { ...FILING_ROW_UNCONFIGURED });
+          // Setup is unfinished, but that does not mean this device has never filed: switching the
+          // Daily Notes core plugin off under a configured engine puts the toggle back here with
+          // the window and the ack still spent. The day-one promise survives an enable — nothing
+          // has landed yet, so it stays true — and stops being true only once a run is on the
+          // books, which is exactly when the status group would have retired it too.
+          const state = readDeviceAutoRunState((k) => loadLocal(this.app, k));
+          const hasFiled = automaticFilingOn(state) && Boolean(state.lastRunDay);
+          this.renderAutomaticFilingRow(
+            groupEl,
+            {
+              name: FILING_ROW_UNCONFIGURED.name,
+              desc: hasFiled
+                ? filingStateDesc(true, true)
+                : FILING_ROW_UNCONFIGURED.desc,
+            },
+            state,
+          );
         }
         this.renderAtomFolderRow(groupEl);
         this.renderVocabularyEntry(groupEl);
@@ -1630,8 +1660,14 @@ export class AtomsSettingTab extends PluginSettingTab {
 
   /** The two screens nobody opens on an ordinary day, under one header (R4). */
   private renderUtilityGroup(containerEl: HTMLElement): void {
+    // The Privacy row is conditional, so the footer that names it has to be conditional too —
+    // asked once here rather than inside the render callback, which cannot reach the header.
+    const showPrivacy = this.privacyGrants().any;
     group(containerEl, {
-      ...UTILITY_GROUP,
+      header: UTILITY_GROUP.header,
+      footer: showPrivacy
+        ? UTILITY_GROUP.footer
+        : UTILITY_GROUP.footerAdvancedOnly,
       render: (groupEl) => {
         this.renderPrivacyEntry(groupEl);
         destinationRow(groupEl, {
@@ -2203,42 +2239,52 @@ export class AtomsSettingTab extends PluginSettingTab {
       });
     }
 
-    if (state.kind === "trialIncomplete") {
-      this.actionRow(containerEl, {
-        action: "plus:trial-checkout",
-        name: "Finish trial setup",
-        desc: "Complete Stripe checkout (card for the 14-day trial). Return here and status updates automatically.",
-        label: "Finish trial setup",
-        onClick: () => this.finishTrialCheckout(),
-      });
+    // One row at most, and switched with no catch-all: a new account state that needs the user to
+    // do something is a compile error here until it says what that something is. `active` and
+    // `trialing` are the two that ask for nothing, and they have to say so out loud.
+    switch (state.kind) {
+      case "trialIncomplete":
+        this.actionRow(containerEl, {
+          action: "plus:trial-checkout",
+          name: "Finish trial setup",
+          desc: "Complete Stripe checkout (card for the 14-day trial). Return here and status updates automatically.",
+          label: "Finish trial setup",
+          onClick: () => this.finishTrialCheckout(),
+        });
+        return;
+      case "subscribeIncomplete":
+        this.actionRow(containerEl, {
+          action: "plus:promo-subscribe-checkout",
+          name: "Finish Plus checkout",
+          desc: "Complete subscription checkout. On the next page, tap Add promotion code.",
+          label: "Finish Plus checkout",
+          onClick: () => this.finishSubscribeCheckout(),
+        });
+        return;
+      case "periodEnded":
+        this.actionRow(containerEl, {
+          action: "plus:subscribe-checkout",
+          name: "Subscribe",
+          desc: accountRowDescriptor(state).desc ?? "",
+          label: "Subscribe",
+          onClick: () => this.openSubscribeCheckout(),
+        });
+        return;
+      case "exhausted":
+        this.actionRow(containerEl, {
+          action: "plus:top-up-checkout",
+          name: "Get more filings",
+          desc: "Buy additional filings now instead of waiting for your next billing date.",
+          label: "Get more",
+          onClick: () => this.openTopUpCheckout(),
+        });
+        return;
+      case "active":
+        // Nothing to finish and nothing to buy — the facts above are the whole screen.
+        return;
     }
-    if (state.kind === "subscribeIncomplete") {
-      this.actionRow(containerEl, {
-        action: "plus:promo-subscribe-checkout",
-        name: "Finish Plus checkout",
-        desc: "Complete subscription checkout. On the next page, tap Add promotion code.",
-        label: "Finish Plus checkout",
-        onClick: () => this.finishSubscribeCheckout(),
-      });
-    }
-    if (state.kind === "periodEnded") {
-      this.actionRow(containerEl, {
-        action: "plus:subscribe-checkout",
-        name: "Subscribe",
-        desc: accountRowDescriptor(state).desc ?? "",
-        label: "Subscribe",
-        onClick: () => this.openSubscribeCheckout(),
-      });
-    }
-    if (state.kind === "exhausted") {
-      this.actionRow(containerEl, {
-        action: "plus:top-up-checkout",
-        name: "Get more filings",
-        desc: "Buy additional filings now instead of waiting for your next billing date.",
-        label: "Get more",
-        onClick: () => this.openTopUpCheckout(),
-      });
-    }
+    const exhaustive: never = state;
+    return exhaustive;
   }
 
   /** Everything you can do to the account, whatever state it is in. */

@@ -55,27 +55,33 @@ fi
 
 # Guards 1 and 2 — settled, and not the previous state.
 PREV=$(cat "$PREV_FILE" 2>/dev/null)
-HA=""; HB=""
+HA=""; HB=""; FAIL=""
 for i in 1 2 3 4 5; do
   A=$(obsidian dev:screenshot 2>&1 | tail -1)
   sleep 1
   B=$(obsidian dev:screenshot 2>&1 | tail -1)
   HA=$(md5 -q "$A"); HB=$(md5 -q "$B")
   if [[ "$HA" == "$HB" && "$HB" != "$PREV" ]]; then break; fi
+  # Why this pass failed, kept for the message after the loop. Clearing HB is what ends the
+  # loop in a failed state, so without remembering the reason first, a settled-but-stale pair
+  # would be reported as "never agreed" — the opposite of what it is, and the harder bug to find.
   if [[ "$HA" == "$HB" ]]; then
     echo "  (still the previous state, pass $i: $HB)"
+    FAIL=stale
   else
     echo "  (unsettled pass $i: $HA vs $HB)"
+    FAIL=unsettled
   fi
-  rm -f "$A"; HB=""
+  rm -f "$A" "$B"; HB=""
   sleep 1
 done
 
 if [[ -z "$HB" || "$HA" != "$HB" ]]; then
-  echo "UNSTABLE $DEST — two shots never agreed"; rm -f "$A" "$B"; exit 1
-fi
-if [[ "$HB" == "$PREV" ]]; then
-  echo "STALE $DEST — identical to the previous state's frame ($PREV)"; rm -f "$A" "$B"; exit 1
+  rm -f "$A" "$B"
+  if [[ "$FAIL" == "stale" ]]; then
+    echo "STALE $DEST — settled, but identical to the previous state's frame ($PREV)"; exit 1
+  fi
+  echo "UNSTABLE $DEST — two shots never agreed"; exit 1
 fi
 
 mkdir -p "$(dirname "$DEST")"
