@@ -184,6 +184,35 @@ describe("row grammar", () => {
     expect(controlEl(container).querySelector("input")?.value).toBe("Notes");
   });
 
+  /**
+   * The marker the width floor hangs off. A text field is the one control whose usable width is a
+   * floor rather than a preference, and the rule that holds that floor keys off this class, so a
+   * text row that stops carrying it silently goes back to sharing a 366px `is-tablet` line with
+   * its name column: measured at 768×1024, `Plus service URL` kept a 300px name and left its URL
+   * field 66px wide. A toggle has no such floor and must not pick the class up by accident.
+   */
+  it("marks text rows for the width floor, and only text rows", () => {
+    settingRow(container, {
+      name: "Plus service URL",
+      control: { kind: "text", configure: () => {} },
+    });
+    expect(row(container).classList.contains("atoms-setting-text")).toBe(true);
+
+    const toggles = document.createElement("div");
+    settingRow(toggles, {
+      name: "File automatically",
+      control: { kind: "toggle", configure: () => {} },
+    });
+    expect(row(toggles).classList.contains("atoms-setting-text")).toBe(false);
+
+    const dropdowns = document.createElement("div");
+    settingRow(dropdowns, {
+      name: "Model",
+      control: { kind: "dropdown", configure: () => {} },
+    });
+    expect(row(dropdowns).classList.contains("atoms-setting-text")).toBe(false);
+  });
+
   it("destinationRow renders a chevron and opens on click, with no toggle", () => {
     let opened = 0;
     destinationRow(container, {
@@ -1130,7 +1159,7 @@ const DESTINATIONS: Array<[entry: string, title: string]> = [
   // nobody files yet is a second way into the engine screen.
   ["Choose who files your captures", "Who does the filing"],
   ["Who does the filing", "Who does the filing"],
-  [`Tag vocabulary — ${DEFAULT_SETTINGS.activeVocabulary.length} active`, "Tag vocabulary"],
+  [`Tag vocabulary · ${DEFAULT_SETTINGS.activeVocabulary.length} active`, "Tag vocabulary"],
   ["Connect Claude or ChatGPT", "Connect Claude or ChatGPT"],
   ["Privacy and consents", "Privacy and consents"],
   ["Advanced", "Advanced"],
@@ -1152,7 +1181,7 @@ const MAIN_DESTINATION_ROWS = [
   // `Atoms home` opens a view. Both are here and neither is in the walk table.
   "Capture on your phone",
   "Who does the filing",
-  `Tag vocabulary — ${DEFAULT_SETTINGS.activeVocabulary.length} active`,
+  `Tag vocabulary · ${DEFAULT_SETTINGS.activeVocabulary.length} active`,
   "Atoms home",
   "Connect Claude or ChatGPT",
   // The `SESSION` fixture is one of KTD6's six disjuncts on its own, so the Privacy entry

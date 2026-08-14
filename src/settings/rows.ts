@@ -112,6 +112,11 @@ export function settingRow(
       setting.addToggle(row.control.configure);
       return;
     case "text":
+      // A text field is the one control whose usable width is a hard floor rather than a
+      // preference: a toggle reads the same at any size, a half-width URL field does not. The
+      // class is what lets one CSS rule hold that floor for every text row at once, instead of
+      // each site rediscovering the squeeze the way `Custom shortcut link` did (#347/#348).
+      setting.settingEl.addClass("atoms-setting-text");
       setting.addText(row.control.configure);
       return;
     case "dropdown":
