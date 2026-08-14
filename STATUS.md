@@ -8,6 +8,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
 | In progress | [#493](https://github.com/taihartman/obsidian-atoms/issues/493) | @taihartman | `claude/settings-ux-redesign-69acd6` | [2026-08-14-001](docs/plans/2026-08-14-001-feat-settings-three-leg-overhaul-plan.md) | `src/settings/settings.ts`, `src/settings/rows.ts`, `styles.css`, `test/settings.test.ts`, `test/settingsRows.test.ts` | Settings three-leg overhaul. U2-U9 land **sequentially** (shared `expectedRows()` fixture). `DIRECT_SETTING_BUDGET` has zero headroom — `group()` must live in `rows.ts`. Versioned **and** ack-standing strings frozen. |
+| In progress | [#495](https://github.com/taihartman/obsidian-atoms/issues/495) | @taihartman | `chore/plugin-wide-em-dash-guard` | [2026-08-14-002](docs/plans/2026-08-14-002-chore-plugin-wide-em-dash-guard-plan.md) | `test/copyVoice.test.ts`, user-facing strings across `src/**` (not `src/settings/`) | **Stacked on #494** — cannot merge until it does. Replaces the five-file allowlist with one default-deny guard over `src/**`. Does **not** touch `src/settings/`, so no collision with #493. Exempt on purpose: `consent.ts` (ack), the two prompt blocks (parity freeze + prompt cache), `continueParent`'s ` — continued` (it is a **filename**). |
 
 ## How to claim (copy)
 
