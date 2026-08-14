@@ -1049,7 +1049,7 @@ describe("account screen holds the same rows through the restyle (U8, KTD14)", (
  * still reachable one screen in.
  */
 describe("tag vocabulary", () => {
-  const entry = (n: number) => `Tag vocabulary — ${n} active`;
+  const entry = (n: number) => `Tag vocabulary · ${n} active`;
 
   /** Let the `await plugin.saveSettings()` inside a row's handler land before asserting. */
   const flush = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
@@ -2753,7 +2753,7 @@ describe("main screen row grammar (U9)", () => {
     askRows: string[],
     privacy: boolean,
   ): string[] {
-    const vocabulary = `Tag vocabulary — ${DEFAULT_SETTINGS.activeVocabulary.length} active`;
+    const vocabulary = `Tag vocabulary · ${DEFAULT_SETTINGS.activeVocabulary.length} active`;
     return [
       filingChosen ? "File automatically" : "Choose who files your captures",
       // 1 · Capture. Daily Notes is a fact the leg reports rather than a preference it owns,
@@ -2917,15 +2917,38 @@ describe("main screen row grammar (U9)", () => {
       expect(prose(tab).some((t) => t.startsWith("Last catch-up"))).toBe(false);
     });
 
-    it("keeps the secret-id example with the key row instead of splitting the pair below it", () => {
+    /**
+     * The secret-id naming rule has had three homes, and the invariant is the same in all three:
+     * it must stay reachable, and it must not come between the key row and the fallback toggle,
+     * which answer for the same key. It was prose wedged between them, then it moved into the key
+     * row's own description, and now it is the group footer — under *both* rows, so the pair still
+     * touches, and off the row itself, which was making somebody four minutes into Atoms read the
+     * word `SecretStorage` and an Android emulator command to decide who pays (F4).
+     *
+     * The jargon assertions are the half that would otherwise rot: a future edit can put the tip
+     * back on the row and still satisfy "reachable and not between the pair".
+     */
+    it("keeps the key naming rule under the pair, and jargon off the key row", () => {
       const { tab } = plusTab();
       tab.display();
       open(tab, "Who does the filing");
 
-      // The tip belongs to the field it describes, so it lives in that row — not as a paragraph
-      // wedged between the key row and the fallback toggle that answers for the same key.
-      expect(row(tab, "Anthropic API key").textContent).toContain(API_KEY_SECRET_ID_DEFAULT);
-      expect(prose(tab).some((t) => t.startsWith("Tip: secret id example"))).toBe(false);
+      // Reachable, and in the footer rather than the row.
+      expect(prose(tab).some((t) => t.includes(API_KEY_SECRET_ID_DEFAULT))).toBe(true);
+      const keyRow = row(tab, "Anthropic API key");
+      expect(keyRow.textContent).not.toContain(API_KEY_SECRET_ID_DEFAULT);
+
+      // The pair still touches: nothing renders between them.
+      const names = rowNames(tab, { headings: false });
+      expect(names.indexOf("Device-local key fallback")).toBe(
+        names.indexOf("Anthropic API key") + 1,
+      );
+
+      // The who-pays screen is not the place for implementation nouns.
+      const engineCopy = [keyRow.textContent ?? "", ...prose(tab)].join(" ");
+      for (const jargon of ["SecretStorage", "emulator", "data.json", "alphanumeric"]) {
+        expect(engineCopy).not.toContain(jargon);
+      }
     });
   });
 });
@@ -3107,7 +3130,7 @@ describe("adversarial regressions", () => {
     function vocabularyTab(active: string[], vaultTags: string[]) {
       const { tab } = settingTab({ settings: { activeVocabulary: active }, vaultTags });
       tab.display();
-      open(tab, `Tag vocabulary — ${active.length} active`);
+      open(tab, `Tag vocabulary · ${active.length} active`);
       return tab;
     }
 
@@ -3154,7 +3177,7 @@ describe("adversarial regressions", () => {
     function vocabularyTab() {
       const { tab } = settingTab({ settings: { activeVocabulary: ["alpha"] } });
       tab.display();
-      open(tab, "Tag vocabulary — 1 active");
+      open(tab, "Tag vocabulary · 1 active");
       Notice.messages.length = 0;
       return tab;
     }
@@ -3186,7 +3209,7 @@ describe("adversarial regressions", () => {
     it("keeps a half-typed tag when deactivating another tag rebuilds the screen", async () => {
       const { tab } = settingTab({ settings: { activeVocabulary: ["alpha", "beta"] } });
       tab.display();
-      open(tab, "Tag vocabulary — 2 active");
+      open(tab, "Tag vocabulary · 2 active");
       fill(tab, "Add a custom tag", "healt");
       flip(tab, "#beta");
       await flush();

@@ -247,12 +247,12 @@ export function accountRowDescriptor(state: AccountState): AccountRowDescriptor 
     case "signedOut":
       return {
         name: "Set up automatic filing",
-        desc: "Atoms Plus files your captures for you. Or keep using your own API key — the full app stays yours either way.",
+        desc: "Atoms Plus files your captures for you. Or keep using your own API key: the full app stays yours either way.",
       };
     case "trialIncomplete":
       return {
         name: "Finish trial setup",
-        desc: `${state.email} — complete checkout to start the 14-day trial.`,
+        desc: `${state.email}. Complete checkout to start the 14-day trial.`,
       };
     case "subscribeIncomplete":
       return {
@@ -357,13 +357,13 @@ export function apiKeyStatusText(state: ApiKeyState): string {
     case "checking":
       return "Checking this key…";
     case "malformed":
-      return "That does not look like an Anthropic API key — keys start with sk-ant-.";
+      return "That does not look like an Anthropic API key: keys start with sk-ant-.";
     case "unreachable":
       return "Could not reach Anthropic from this device, so the key was not checked. Try again when you are online.";
     case "rejected":
       return "Anthropic answered, but rejected this key. Check that it is current and has credit.";
     case "ok":
-      return "This key works — Anthropic answered from this device.";
+      return "This key works. Anthropic answered from this device.";
   }
   const _exhaustive: never = state;
   return _exhaustive;
@@ -531,8 +531,17 @@ const ENGINE_SCREEN = {
   lead: "Atoms sends each capture to Anthropic to be titled and linked. Somebody has to pay for that: us, or you.",
   pickOne: {
     header: "Pick one",
+    /**
+     * The naming rule sits here rather than in the key row's own description (F4). It used to be
+     * prose *between* the key row and the fallback toggle, which split a pair that answers for the
+     * same key, and it was moved into the row to stop that. The row is the wrong home too: it put
+     * `SecretStorage`, an Android emulator command and a charset spec on the screen where somebody
+     * four minutes into Atoms decides who pays. A group footer is the third option and the one the
+     * plan already asks for — under *both* rows, so the pair stays together, and out of the way of
+     * a reader who only wanted to pick an engine.
+     */
     footer: () =>
-      `Filing works the same either way. Atoms Plus is ${PLUS_PRICING.trialDays} days free, then ${formatUsd(PLUS_PRICING.monthlyUsd)} a month. Your own key bills you at Anthropic's rates instead.`,
+      `Filing works the same either way. Atoms Plus is ${PLUS_PRICING.trialDays} days free, then ${formatUsd(PLUS_PRICING.monthlyUsd)} a month. Your own key bills you at Anthropic's rates instead. The key row asks for a name to file your key under, not the key itself: lowercase letters, numbers and dashes, like ${API_KEY_SECRET_ID_DEFAULT}.`,
   },
   /**
    * The egress facts as three lines rather than one paragraph, so a reader can check them one at
@@ -1165,7 +1174,7 @@ export class AtomsSettingTab extends PluginSettingTab {
     this.actionRow(containerEl, {
       action: "ask:pairing-code",
       name: "Link Claude / ChatGPT",
-      desc: "Generate a short pairing code for the connector authorize page. Your Claude/ChatGPT account email need not match Atoms Plus — the code binds the Plus account shown above. Codes expire quickly and are secrets (do not share). After pairing, disconnect/reconnect the connector if counts still look stale.",
+      desc: "Generate a short pairing code for the connector authorize page. Your Claude/ChatGPT account email need not match Atoms Plus: the code binds the Plus account shown above. Codes expire quickly and are secrets (do not share). After pairing, disconnect/reconnect the connector if counts still look stale.",
       label: "Get pairing code",
       onClick: async () => {
         if (!this.plugin.settings.askEnabled) {
@@ -1186,11 +1195,11 @@ export class AtomsSettingTab extends PluginSettingTab {
         try {
           await navigator.clipboard.writeText(display);
           new Notice(
-            `Pairing code ${display} copied — paste on the connector authorize page (expires soon)`,
+            `Pairing code ${display} copied. Paste on the connector authorize page (expires soon)`,
           );
         } catch {
           new Notice(
-            `Pairing code: ${display} — paste on the connector authorize page (expires soon)`,
+            `Pairing code: ${display}. Paste on the connector authorize page (expires soon)`,
           );
         }
       },
@@ -1572,7 +1581,7 @@ export class AtomsSettingTab extends PluginSettingTab {
   private renderVocabularyEntry(containerEl: HTMLElement): void {
     const active = this.plugin.settings.activeVocabulary.length;
     destinationRow(containerEl, {
-      name: `${DESTINATION_TITLES.vocabulary} — ${active} active`,
+      name: `${DESTINATION_TITLES.vocabulary} · ${active} active`,
       onOpen: () => this.openRoute("vocabulary"),
     });
   }
@@ -1874,7 +1883,7 @@ export class AtomsSettingTab extends PluginSettingTab {
     setAwaitingCheckout(this.app, true);
     window.open(r.url, "_blank");
     new Notice(
-      "Complete checkout in the browser, then return here — status updates automatically.",
+      "Complete checkout in the browser, then return here. Status updates automatically.",
       8000,
     );
     this.redisplay();
@@ -2139,10 +2148,12 @@ export class AtomsSettingTab extends PluginSettingTab {
         // "Renews" is a promise, and a date already in the past cannot keep it. An ended
         // period says so instead — it was labelling its own expiry a renewal (#442).
         value: state.kind === "periodEnded"
-          ? `Ended ${state.endedOn?.slice(0, 10) ?? "— see Subscribe"}`
+          ? state.endedOn
+            ? `Ended ${state.endedOn.slice(0, 10)}`
+            : "Ended. See Subscribe"
           : session?.periodEnd
             ? `Renews ${session.periodEnd.slice(0, 10)}`
-            : "Monthly or yearly — see Manage subscription",
+            : "Monthly or yearly. See Manage subscription",
       });
     }
 
@@ -2344,7 +2355,7 @@ export class AtomsSettingTab extends PluginSettingTab {
       if (!started.ok) {
         if ("needsMagicLink" in started && started.needsMagicLink) {
           new Notice(
-            "This email already has Plus — send a sign-in link above.",
+            "This email already has Plus. Send a sign-in link above.",
             8000,
           );
           return;
@@ -2379,7 +2390,7 @@ export class AtomsSettingTab extends PluginSettingTab {
       if (!started.ok) {
         if ("needsMagicLink" in started && started.needsMagicLink) {
           new Notice(
-            "This email already has Plus — send a sign-in link above.",
+            "This email already has Plus. Send a sign-in link above.",
             8000,
           );
           return;
@@ -2524,7 +2535,7 @@ export class AtomsSettingTab extends PluginSettingTab {
       setAwaitingCheckout(this.app, true);
       window.open(r.url, "_blank");
       new Notice(
-        "Complete checkout in the browser, then return here — status updates automatically.",
+        "Complete checkout in the browser, then return here. Status updates automatically.",
         12000,
       );
     } else {
@@ -2643,10 +2654,10 @@ export class AtomsSettingTab extends PluginSettingTab {
     const setting = new Setting(containerEl)
       .setName("Anthropic API key")
       .setDesc(
-        // The secret-id example lives here rather than in a paragraph below the row: as prose it
-        // sat between this row and the fallback toggle that answers for the same key, splitting
-        // a pair that belongs together. It describes this field, so it belongs to this field.
-        `SecretStorage on this vault + device only (not synced). Switching vaults or clearing app data (e.g. emulator pm clear) drops the key — re-enter once per vault. Secret ids: lowercase alphanumeric with dashes, e.g. ${API_KEY_SECRET_ID_DEFAULT}.`,
+        // What a reader needs at the moment they are choosing an engine: where the key lives, and
+        // the one consequence they will actually hit. The naming rule that used to be here moved
+        // to the group footer above (F4) — it belongs under the pair, not on the who-pays screen.
+        "Kept on this device only, never synced and never in your vault files. A different vault, or a reinstall, asks for it once more.",
       )
       .addComponent((el) =>
         new SecretComponent(this.app, el)
@@ -2669,7 +2680,7 @@ export class AtomsSettingTab extends PluginSettingTab {
     // answers for rather than behind Advanced. The toggle also deletes the key, and nothing else does.
     settingRow(containerEl, {
       name: "Device-local key fallback",
-      desc: "Only if SecretStorage fails: non-synced local storage (still never data.json). Turning this off deletes the key stored on this device.",
+      desc: "For devices where Obsidian cannot store the key itself. Keeps it on this device, still never synced and still never in your vault files. Turning this off deletes that copy.",
       control: {
         kind: "toggle",
         configure: (toggle) => {
@@ -2953,7 +2964,7 @@ export class AtomsSettingTab extends PluginSettingTab {
    */
   private renderVocabularyDestination(containerEl: HTMLElement): void {
     containerEl.createEl("p", {
-      text: "Active tags may be applied by the model. #person, #preferences, and #relationship always work (smart defaults). Proposed tags need one-tap approval. People: link to a hub note (e.g. Alex); atoms stay flat — use backlinks, not AI folders.",
+      text: "Active tags may be applied by the model. #person, #preferences, and #relationship always work (smart defaults). Proposed tags need one-tap approval. People: link to a hub note (e.g. Alex); atoms stay flat: use backlinks, not AI folders.",
       cls: "setting-item-description",
     });
 
@@ -2965,7 +2976,7 @@ export class AtomsSettingTab extends PluginSettingTab {
     for (const tag of active) {
       settingRow(containerEl, {
         name: `#${tag}`,
-        desc: "Active — eligible for classification",
+        desc: "Active, eligible for classification",
         control: {
           kind: "toggle",
           configure: (toggle) => {
@@ -3040,7 +3051,7 @@ export class AtomsSettingTab extends PluginSettingTab {
         this.actionRow(containerEl, {
           action: `tags:approve:${tag}`,
           name: `#${tag}`,
-          desc: "From classify runs — not applied until approved",
+          desc: "From classify runs, not applied until approved",
           label: "Approve",
           onClick: async () => {
             const next = approveProposedTag(
@@ -3117,7 +3128,7 @@ export class AtomsSettingTab extends PluginSettingTab {
       this.actionRow(containerEl, {
         action: `tags:activate:${tag}`,
         name: `#${tag}`,
-        desc: `${count} use(s) — tap to promote to Active`,
+        desc: `${count} use(s). Tap to promote to Active`,
         label: "Activate",
         onClick: async () => {
           this.plugin.settings.activeVocabulary = addCustomActiveTag(
@@ -3575,7 +3586,7 @@ export class AskMirrorDeleteConfirmModal extends Modal {
       text: `Cloud count right now: ${this.request.lastKnownServerCount}`,
     });
     contentEl.createEl("p", {
-      text: "Deleting from the cloud cannot be undone — the only way back is re-uploading from this vault. Confirm only if you meant to delete these atoms.",
+      text: "Deleting from the cloud cannot be undone: the only way back is re-uploading from this vault. Confirm only if you meant to delete these atoms.",
       cls: "setting-item-description",
     });
 
