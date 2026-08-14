@@ -312,7 +312,7 @@ None of these exist on the screen today, and together they cost about forty word
 covers. This is the native iOS Settings grammar, which every phone user can already read, and it is
 what turns a 180px row into a 52px one. Everything else in the overhaul follows from it:
 
-1. **Inset rounded groups** — `--background-primary-alt`, hairline separators, 13px radius.
+1. **Inset rounded groups** — `--background-secondary`, hairline separators, 14px radius.
 2. **A row is icon + name + control.** 52px, one line, 44pt touch target. No paragraphs.
 3. **A muted footer under each group** carries the explanation, and is the only prose on the screen.
 4. **Anything wordy or deep drills down** — the engine fork, tags, connected apps, privacy records.
@@ -541,7 +541,7 @@ the ack version fields, which are read by the records rather than rendered as ro
 
 ### Theme safety
 
-Every surface colour maps to an Obsidian variable, never a literal: `--background-primary-alt`,
+Every surface colour maps to an Obsidian variable, never a literal: `--background-secondary`,
 `--background-modifier-border`, `--text-normal` / `--text-muted` / `--text-faint`,
 `--interactive-accent`. Green and amber are the only added hues and carry state only. A user on a
 light or custom theme gets their theme, in this shape.
