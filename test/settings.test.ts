@@ -2102,6 +2102,35 @@ describe("main screen row grammar (U9)", () => {
   });
 });
 
+const FILING_SESSION: PlusSession = {
+  sessionToken: "sess_filing",
+  email: "user@example.com",
+  status: "active",
+  periodEnd: "2099-01-01T00:00:00.000Z",
+};
+
+/**
+ * An install where somebody files: a live Plus session, and the auth that goes with it.
+ *
+ * Shared by the two groups the same state decides between — the status group renders its filing
+ * variant off it, and the File group sheds its automatic-filing toggle off it. Two copies of this
+ * setup would let one of those describes drift onto an install the other never sees.
+ */
+function filingTab(opts: SettingTabOptions = {}) {
+  return settingTab({
+    ...opts,
+    session: FILING_SESSION,
+    auth: {
+      mode: "plus",
+      sessionToken: FILING_SESSION.sessionToken,
+      email: FILING_SESSION.email,
+      status: "active",
+      remaining: 12,
+      periodEnd: FILING_SESSION.periodEnd,
+    },
+  });
+}
+
 /**
  * The element that answers "is Atoms filing?" before the screen offers a single control (R18).
  *
@@ -2111,29 +2140,6 @@ describe("main screen row grammar (U9)", () => {
  * through raw markup — `groupHeaders` for the eyebrow, `prose` for the footer.
  */
 describe("status group (U2)", () => {
-  const PLUS_SESSION: PlusSession = {
-    sessionToken: "sess_status",
-    email: "user@example.com",
-    status: "active",
-    periodEnd: "2099-01-01T00:00:00.000Z",
-  };
-
-  /** An install where somebody files: the Plus branch of the two the status group renders. */
-  function filingTab(opts: SettingTabOptions = {}) {
-    return settingTab({
-      ...opts,
-      session: PLUS_SESSION,
-      auth: {
-        mode: "plus",
-        sessionToken: PLUS_SESSION.sessionToken,
-        email: PLUS_SESSION.email,
-        status: "active",
-        remaining: 12,
-        periodEnd: PLUS_SESSION.periodEnd,
-      },
-    });
-  }
-
   /** Automatic filing already on and acknowledged, with no run behind it yet: day one. */
   const FILING_ON = {
     [LS_AUTO_RUN_ENABLED]: true,
@@ -2903,29 +2909,6 @@ describe("the version the settings panel renders", () => {
  * to stay on their rows (R19).
  */
 describe("Capture and File groups (U3)", () => {
-  const PLUS_SESSION: PlusSession = {
-    sessionToken: "sess_legs",
-    email: "user@example.com",
-    status: "active",
-    periodEnd: "2099-01-01T00:00:00.000Z",
-  };
-
-  /** An install where somebody files, so the status group owns the automatic-filing toggle. */
-  function filingTab(opts: SettingTabOptions = {}) {
-    return settingTab({
-      ...opts,
-      session: PLUS_SESSION,
-      auth: {
-        mode: "plus",
-        sessionToken: PLUS_SESSION.sessionToken,
-        email: PLUS_SESSION.email,
-        status: "active",
-        remaining: 12,
-        periodEnd: PLUS_SESSION.periodEnd,
-      },
-    });
-  }
-
   /** The one footer under a group, by the header above it. */
   function footerUnder(tab: AtomsSettingTab, header: string): string {
     const headers = groupHeaders(tab);

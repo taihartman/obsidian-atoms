@@ -105,6 +105,7 @@ import {
   plusRefreshRowRecord,
   refreshPlusEntitlementRecord,
 } from "../platform/plusRefresh";
+import { openSettingsTab } from "../platform/obsidianSettings";
 import { appHasDailyNotesPluginLoaded } from "obsidian-daily-notes-interface";
 import {
   atomsPlusTopUpCopy,
@@ -448,6 +449,12 @@ const FILING_STATE_DESC = {
   off: "Atoms files a past day only when you ask it to.",
 } as const;
 
+/** Which of the three lines this device has earned, by whether it runs and whether it has run. */
+function filingStateDesc(on: boolean, hasRun: boolean): string {
+  if (!on) return FILING_STATE_DESC.off;
+  return hasRun ? FILING_STATE_DESC.running : FILING_STATE_DESC.dayOne;
+}
+
 /** When the next unattended pass happens. Same promise as the day-one line, as a fact. */
 const NEXT_RUN_ROW = {
   name: "Next run",
@@ -502,25 +509,6 @@ const FILING_ROW_UNCONFIGURED = {
 
 /** Whether the vault's Daily Notes plugin is on. The Capture leg's one derived value (R20). */
 const DAILY_NOTES_ROW = { name: "Daily notes", on: "On", off: "Off" } as const;
-
-/**
- * Obsidian's core settings modal, which is undocumented and not on the public `App` type. The
- * same narrow local interface Atoms home keeps for the same deep link; kept local rather than
- * shared because it is a description of somebody else's private API, and one file owning a wrong
- * guess is better than two.
- */
-type SettingsModalApi = {
-  open: () => void | Promise<void>;
-  openTabById: (id: string) => void;
-};
-
-function openCoreSettingsTab(app: App, tabId: string): void {
-  const setting = (app as { setting?: SettingsModalApi }).setting;
-  if (!setting) return;
-  void Promise.resolve(setting.open()).then(() => {
-    setting.openTabById(tabId);
-  });
-}
 
 /** Destination title, shown on its entry row and again on its back row. */
 const DESTINATION_TITLES: Record<Exclude<SettingsRoute, "main">, string> = {
@@ -1165,14 +1153,19 @@ export class AtomsSettingTab extends PluginSettingTab {
       cls: "setting-item-description",
     });
 
+    // Decided once and handed to both groups: the same answer says what the status group is
+    // *for* and whether the File group still holds the automatic-filing toggle. Asking twice is
+    // how the two halves of that seam would eventually disagree.
+    const step = this.nextSetupStep();
+
     // Whether Atoms is filing, before anything the screen offers to change (R18).
-    this.renderStatusGroup(containerEl);
+    this.renderStatusGroup(containerEl, step);
 
     // The product's own legs, in the product's own order (R1): what you write, then what Atoms
     // does with it. Everything below them is still a heading, because the units that group the
     // Resurface leg and fold the records and diagnostics away have not landed yet.
     this.renderCaptureGroup(containerEl);
-    this.renderFileGroup(containerEl);
+    this.renderFileGroup(containerEl, step);
     this.renderAskSection(containerEl);
     this.renderAutoRunSection(containerEl);
     this.renderApiSection(containerEl);
@@ -1198,14 +1191,13 @@ export class AtomsSettingTab extends PluginSettingTab {
    * Two variants, not one variant with an empty slot. Nobody files yet, so the group says what
    * Atoms does and names one thing to do; or somebody does, so it says filing is on and when the
    * first atoms land. The second variant borrows the automatic-filing toggle from the File leg,
-   * which is why `renderFileGroup` asks whether this group took it — the File composition is
-   * state-dependent, and that seam is where it lives.
+   * which is why `step` arrives as an argument rather than being read here: the File composition
+   * is state-dependent on the same answer, and one answer cannot disagree with itself.
    *
    * No fill, no tint, no border: setup state is not transient, so the token system's soft-fill
    * carve-out does not reach it (R14). Position is the emphasis.
    */
-  private renderStatusGroup(containerEl: HTMLElement): void {
-    const step = this.nextSetupStep();
+  private renderStatusGroup(containerEl: HTMLElement, step: SetupStep | null): void {
     if (step) {
       group(containerEl, {
         ...STATUS_GROUP.unconfigured,
@@ -1213,10 +1205,13 @@ export class AtomsSettingTab extends PluginSettingTab {
           destinationRow(groupEl, {
             name: step.name,
             desc: "Required",
-            onOpen: () =>
-              step.kind === "daily_notes"
-                ? openCoreSettingsTab(this.app, CORE_PLUGINS_SETTINGS_TAB_ID)
-                : this.openRoute("account"),
+            onOpen: () => {
+              if (step.kind === "daily_notes") {
+                openSettingsTab(this.app, CORE_PLUGINS_SETTINGS_TAB_ID);
+                return;
+              }
+              this.openRoute("account");
+            },
           });
         },
       });
@@ -1229,11 +1224,7 @@ export class AtomsSettingTab extends PluginSettingTab {
       render: (groupEl) => {
         this.renderAutomaticFilingRow(groupEl, {
           name: FILING_ROW_NAME,
-          desc: !on
-            ? FILING_STATE_DESC.off
-            : state.lastRunDay
-              ? FILING_STATE_DESC.running
-              : FILING_STATE_DESC.dayOne,
+          desc: filingStateDesc(on, Boolean(state.lastRunDay)),
         });
         if (on) statusRow(groupEl, { ...NEXT_RUN_ROW });
       },
@@ -1270,12 +1261,12 @@ export class AtomsSettingTab extends PluginSettingTab {
    * seam from the other side. Order follows the mock: who files, whether it runs on its own,
    * where atoms land, what they may be tagged, and what gets listed on hub notes.
    */
-  private renderFileGroup(containerEl: HTMLElement): void {
+  private renderFileGroup(containerEl: HTMLElement, step: SetupStep | null): void {
     group(containerEl, {
       ...FILE_GROUP,
       render: (groupEl) => {
         this.renderEngineRow(groupEl);
-        if (this.nextSetupStep()) {
+        if (step) {
           this.renderAutomaticFilingRow(groupEl, { ...FILING_ROW_UNCONFIGURED });
         }
         this.renderAtomFolderRow(groupEl);
@@ -1578,14 +1569,12 @@ export class AtomsSettingTab extends PluginSettingTab {
   }
 
   /**
-   * Atoms Plus — mock SSOT docs/design-handoff/atoms-plus/index.html (v3).
+   * Who files the captures — the File leg's first row, and the one decision Atoms cannot make.
+   * Mock SSOT docs/design-handoff/atoms-plus/index.html (v3).
    *
    * One row, whatever the account is doing. The four states used to be four `if` branches that
    * each rendered their own Refresh status / Sign out / Account rows; now the state picks a
    * label and everything you can *do* to the account lives one tap in.
-   */
-  /**
-   * Who files the captures — the File leg's first row, and the one decision Atoms cannot make.
    *
    * The row name is still the account state's own label, because every Plus state already names
    * the engine and the condition it is in ("Plus · 12 filings left", "Trial ended"). Signed out is
@@ -1603,14 +1592,14 @@ export class AtomsSettingTab extends PluginSettingTab {
    */
   private renderEngineRow(containerEl: HTMLElement): void {
     const state = this.accountState();
+    let desc: string | undefined;
+    if (state.kind === "signedOut") {
+      desc =
+        this.plugin.resolveFilingAuth().mode === "none" ? "Not chosen" : "Your own key";
+    }
     destinationRow(containerEl, {
       name: accountRowDescriptor(state).name,
-      desc:
-        state.kind === "signedOut"
-          ? this.plugin.resolveFilingAuth().mode === "none"
-            ? "Not chosen"
-            : "Your own key"
-          : undefined,
+      desc,
       onOpen: () => this.openRoute("account"),
     });
   }

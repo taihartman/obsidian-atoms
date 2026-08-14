@@ -894,6 +894,35 @@ export type SetupStep = {
   name: string;
 };
 
+/**
+ * The words each step is asked for by, written once.
+ *
+ * Home's first-day card titles itself from this same record rather than repeating the sentence,
+ * so the card and the settings line cannot say two different things (KTD11) — and a new kind
+ * cannot be added without naming it, because the record is keyed by the union.
+ */
+const SETUP_STEP_NAMES: Record<SetupStep["kind"], string> = {
+  daily_notes: "Turn on Daily Notes",
+  filing_owner: "Choose who files your captures",
+};
+
+/**
+ * The one step still outstanding, in the order that matters: Daily Notes first, because there is
+ * nothing to file until captures have somewhere to land.
+ */
+function nextSetupStep(
+  dailyNotesLoaded: boolean,
+  filingChosen: boolean,
+): SetupStep | null {
+  if (!dailyNotesLoaded) {
+    return { kind: "daily_notes", name: SETUP_STEP_NAMES.daily_notes };
+  }
+  if (!filingChosen) {
+    return { kind: "filing_owner", name: SETUP_STEP_NAMES.filing_owner };
+  }
+  return null;
+}
+
 export type FirstDaySetupCopy = {
   subtitle: string;
   eyebrow: string;
@@ -915,8 +944,7 @@ export type FirstDaySetupCopy = {
  *
  * Two surfaces read this, and only this, for what is not set up yet (KTD11): home draws it as a
  * card, settings draws it as a line above every control. Two hand-maintained lists is the shape
- * that produces "fixed one, forgot the twin", so the ordering lives here once — Daily Notes
- * first, because there is nothing to file until captures have somewhere to land.
+ * that produces "fixed one, forgot the twin", so `nextSetupStep` above owns the ordering once.
  *
  * `filingChosen` defaults to true because home does not pass it: home's card has never spoken
  * about who pays, and its wait card already owns that. The default keeps this card exactly as it
@@ -926,17 +954,13 @@ export function firstDaySetupCopy(
   dailyNotesLoaded: boolean,
   filingChosen = true,
 ): FirstDaySetupCopy {
-  const nextStep: SetupStep | null = !dailyNotesLoaded
-    ? { kind: "daily_notes", name: "Turn on Daily Notes" }
-    : !filingChosen
-      ? { kind: "filing_owner", name: "Choose who files your captures" }
-      : null;
+  const nextStep = nextSetupStep(dailyNotesLoaded, filingChosen);
   if (!dailyNotesLoaded) {
     return {
       subtitle: "Daily Notes is off",
       eyebrow: "Get started",
-      // Same words as the step above, so the card and the settings line say one thing.
-      title: "Turn on Daily Notes",
+      // The step's own words, not a second copy of them: one string, two surfaces.
+      title: SETUP_STEP_NAMES.daily_notes,
       body: "Atoms files thoughts from your daily notes. Enable the core Daily Notes plugin under Settings → Core plugins.",
       example: null,
       primaryLabel: "Open Core plugins",
