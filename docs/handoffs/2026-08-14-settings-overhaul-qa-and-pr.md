@@ -4,11 +4,17 @@ branch: claude/settings-ux-redesign-69acd6
 worktree: /Users/a515138832/StudioProjects/obsidian_plugin/.claude/worktrees/mystifying-pasteur-1c6642
 base: master
 tracking: https://github.com/taihartman/obsidian-atoms/pull/494
-status: in-progress
+status: done
 supersedes: docs/handoffs/2026-08-14-settings-overhaul-shipping-tail-part-2.md
 ---
 
 # Handoff — Settings three-leg overhaul: two shipping-tail steps left
+
+> **Closed 2026-08-14.** Both steps are done. The QA report has its story-coverage and adversarial
+> halves, the adversarial gate found one real hole in this branch (a device with no engine claiming
+> it files every past day) which is fixed in `b825b12` with a regression test, and PR #494 is out of
+> draft with a rewritten title and body. Three findings outside this branch's scope are filed as
+> follow-ups. Nothing below is still outstanding; it is kept as the record of what was handed over.
 
 You are picking up this work in a fresh session. Read this file top to bottom, run the **How to
 resume** commands to land on the right branch and worktree, then **start executing Next steps
