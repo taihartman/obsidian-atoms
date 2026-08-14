@@ -645,6 +645,60 @@ const PRIVACY_SCREEN = {
 /** Whether the vault's Daily Notes plugin is on. The Capture leg's one derived value (R20). */
 const DAILY_NOTES_ROW = { name: "Daily notes", on: "On", off: "Off" } as const;
 
+/**
+ * The Advanced screen, as five groups. Mock SSOT `docs/design-handoff/settings/overhaul.html`
+ * § Advanced, with names taken from `docs/design-handoff/settings/README.md` § Coverage audit
+ * where the two disagree: the audit maps row by row and is what U11 reconciles against.
+ *
+ * The mock calls the URL field `Ask server`. It is not one — it takes the origin of a
+ * `plus-service` instance, which is the name `docs/ask-self-host.md` uses throughout and the name
+ * a reader following that guide will be looking for, so the audit's `Plus service URL` wins.
+ *
+ * The sync footer says what the two rows above it are *for*, which is the thing neither row can
+ * say about itself: filing already runs on its own, so a user who finds a `Sync everything now`
+ * button with no such sentence reasonably concludes they are supposed to press it.
+ *
+ * The self-host footer carries the two constraints `docs/ask-self-host.md` is emphatic about and
+ * that are easy to lose: point the plugin at your own server *before* signing in, so it never
+ * touches production, and give that server a public HTTPS address, because Claude and ChatGPT
+ * call it from their own cloud rather than from the machine it runs on.
+ */
+const ADVANCED_SCREEN = {
+  model: {
+    header: "Model",
+    footer:
+      "Atoms is tuned for the default. Leave it alone unless you have a reason to change it.",
+  },
+  sync: {
+    header: "Sync",
+    footer:
+      "Filing normally runs on its own. These are for when you want it to happen right now.",
+  },
+  thisDevice: { header: "This device" },
+  selfHost: {
+    header: "Run Ask yourself",
+    footer:
+      "Claude and ChatGPT need a copy of your atoms online. Atoms Plus hosts that copy for you, or you can run the server yourself. Point Atoms at your own server before you sign in, and give it a public HTTPS address.",
+  },
+  escapeHatches: {
+    header: "Escape hatches",
+    footer:
+      "You should not need any of these. They are here for when something else has gone wrong.",
+  },
+} as const;
+
+/**
+ * The paste-a-session escape hatch, and the route to it.
+ *
+ * Named once because three surfaces have to agree: the row itself, the signed-out email
+ * description, and the notice a device without WebCrypto gets when its link is sent. The old name
+ * was `Advanced: paste session`, whose prefix was doing the job of an address while the row sat on
+ * the account screen. Now that it is actually on Advanced, the address is the route and the name
+ * is just a name.
+ */
+const PASTE_SESSION_ROW = "Paste a session";
+const PASTE_SESSION_ROUTE = `Advanced → ${PASTE_SESSION_ROW}`;
+
 /** Destination title, shown on its entry row and again on its back row. */
 const DESTINATION_TITLES: Record<Exclude<SettingsRoute, "main">, string> = {
   engine: "Who does the filing",
@@ -1228,67 +1282,128 @@ export class AtomsSettingTab extends PluginSettingTab {
   }
 
   /**
-   * The two rows that are nobody's everyday business.
+   * Everything that is nobody's everyday business: the two plumbing preferences, the manual sync,
+   * what this device last did, the self-host route (R13), and the escape hatches.
    *
-   * R5 rules what may be here: no gate on money, cloud egress, or vault writes. *Model* affects
-   * what a capture costs but cannot enable spend, and *Plus service URL override* redirects where
-   * already-enabled egress goes rather than turning any on — inert until a main-screen gate is on.
-   * Both are here on the record rather than by silence.
+   * The screen used to open with "leave these alone unless you self-host", which stopped being
+   * true the moment it took the sync rows: `Sync everything now` is a thing an ordinary user is
+   * meant to reach for. The caution is not dropped, it is split — each group now warns about its
+   * own rows, which is the only place a warning can be specific enough to act on.
+   *
+   * What may be here has narrowed with it. The old rule was "no gate on money, cloud egress, or
+   * vault writes", and the sync rows plainly reach all three. The rule that survives is that
+   * nothing here **grants**: *Model* affects what a capture costs but cannot enable spend, *Plus
+   * service URL* redirects where already-permitted egress goes rather than permitting any, and
+   * the sync rows ask the plugin to run a pass that carries its own consent gate inside it.
    *
    * The device-local key rows are *not* here, though they read as plumbing: `getApiKey()` falls
    * back to that key, so the pair is a complete credential path that enables Anthropic spend —
-   * and the toggle is also the only thing that deletes the stored key. R5 puts both on the engine
+   * and the toggle is also the only thing that deletes the stored key. Both live on the engine
    * destination, beside the key field they answer for.
    */
   private renderAdvancedDestination(containerEl: HTMLElement): void {
-    containerEl.createEl("p", {
-      text: "Leave these alone unless you self-host or dogfood a local Plus server.",
-      cls: "setting-item-description",
-    });
-
-    settingRow(containerEl, {
-      name: "Model",
-      desc: "Anthropic model id. Default: claude-sonnet-5.",
-      control: {
-        kind: "text",
-        configure: (text) => {
-          // Block body: Obsidian components are thenable; returning the chain trips misused-promises.
-          text
-            .setPlaceholder("claude-sonnet-5")
-            .setValue(this.plugin.settings.model)
-            .onChange((value) => {
-              this.plugin.settings.model = value.trim() || "claude-sonnet-5";
-              void this.plugin.saveSettings();
-            });
-        },
+    group(containerEl, {
+      ...ADVANCED_SCREEN.model,
+      render: (groupEl) => {
+        settingRow(groupEl, {
+          name: "Model",
+          desc: "Anthropic model id. Default: claude-sonnet-5.",
+          control: {
+            kind: "text",
+            configure: (text) => {
+              // Block body: Obsidian components are thenable; returning the chain trips
+              // misused-promises.
+              text
+                .setPlaceholder("claude-sonnet-5")
+                .setValue(this.plugin.settings.model)
+                .onChange((value) => {
+                  this.plugin.settings.model = value.trim() || "claude-sonnet-5";
+                  void this.plugin.saveSettings();
+                });
+            },
+          },
+        });
       },
     });
 
-    // Override only for local dogfood. Shipping builds leave this empty → DEFAULT_PLUS_BASE_URL.
-    settingRow(containerEl, {
-      name: "Plus service URL override",
-      desc: `Empty = production (${DEFAULT_PLUS_BASE_URL}). Plugin can use http://127.0.0.1:8787. Claude and ChatGPT need the public HTTPS origin.`,
-      control: {
-        kind: "text",
-        configure: (text) => {
-          text
-            .setPlaceholder(DEFAULT_PLUS_BASE_URL)
-            .setValue(this.plugin.settings.plusBaseUrl)
-            .onChange((value) => {
-              this.plugin.settings.plusBaseUrl = value.trim();
-              void this.plugin.saveSettings();
-            });
-        },
+    group(containerEl, {
+      ...ADVANCED_SCREEN.sync,
+      render: (groupEl) => this.renderSyncRows(groupEl),
+    });
+
+    this.renderThisDeviceGroup(containerEl);
+
+    group(containerEl, {
+      ...ADVANCED_SCREEN.selfHost,
+      render: (groupEl) => {
+        // Empty is production. Anything else points the plugin at an instance the user runs.
+        settingRow(groupEl, {
+          name: "Plus service URL",
+          desc: `Empty is ${DEFAULT_PLUS_BASE_URL}. Your own server can be http://127.0.0.1:8787 for the plugin, but Claude and ChatGPT need its public HTTPS address.`,
+          control: {
+            kind: "text",
+            configure: (text) => {
+              text
+                .setPlaceholder(DEFAULT_PLUS_BASE_URL)
+                .setValue(this.plugin.settings.plusBaseUrl)
+                .onChange((value) => {
+                  this.plugin.settings.plusBaseUrl = value.trim();
+                  void this.plugin.saveSettings();
+                });
+            },
+          },
+        });
+
+        this.actionRow(groupEl, {
+          action: "ask:open-self-host-guide",
+          name: "Self-host guide",
+          desc: "How to run the Atoms service yourself, so nothing of yours reaches plus.tryatoms.app.",
+          label: "Open",
+          onClick: () => {
+            window.open(ATOMS_ASK_SELF_HOST_URL, "_blank");
+          },
+        });
       },
     });
 
-    this.actionRow(containerEl, {
-      action: "ask:open-self-host-guide",
-      name: "DIY Ask guide",
-      desc: "Run plus-service on your machine so Claude or ChatGPT never hit plus.tryatoms.app.",
-      label: "Open",
-      onClick: () => {
-        window.open(ATOMS_ASK_SELF_HOST_URL, "_blank");
+    group(containerEl, {
+      ...ADVANCED_SCREEN.escapeHatches,
+      render: (groupEl) => {
+        this.renderCustomShortcutRow(groupEl);
+        this.renderPasteSessionRow(groupEl);
+      },
+    });
+  }
+
+  /**
+   * What this device last did, when it has done anything.
+   *
+   * Rendered as a group or not at all: a fresh install has neither record, and an empty box under
+   * a `This device` eyebrow reads as a screen that failed to load rather than as one with nothing
+   * to report.
+   */
+  private renderThisDeviceGroup(containerEl: HTMLElement): void {
+    const lastRunDay = readDeviceAutoRunState((k) => loadLocal(this.app, k))
+      .lastRunDay;
+    const catchLine = this.plugin.getLastCatchupLine();
+    if (!lastRunDay && !catchLine) return;
+
+    // Both are name-plus-value facts, which is what `statusRow` is for. As paragraphs they read
+    // as prose the user has to parse for the value buried in it.
+    group(containerEl, {
+      ...ADVANCED_SCREEN.thisDevice,
+      render: (groupEl) => {
+        if (lastRunDay) {
+          statusRow(groupEl, { name: "Last filing run", value: lastRunDay });
+        }
+        if (catchLine) {
+          statusRow(groupEl, {
+            name: LAST_CATCHUP_LABEL,
+            // The formatter owns one line for Atoms home, which prints it whole. Splitting it on
+            // the label it single-sources keeps the two surfaces saying the same thing.
+            value: catchLine.slice(LAST_CATCHUP_LABEL.length + 1),
+          });
+        }
       },
     });
   }
@@ -1310,12 +1425,11 @@ export class AtomsSettingTab extends PluginSettingTab {
     this.renderStatusGroup(containerEl, step);
 
     // The product's own legs, in the product's own order (R1): what you write, then what Atoms
-    // does with it. Everything below them is still a heading, because the units that group the
-    // Resurface leg and fold the records and diagnostics away have not landed yet.
+    // does with it, then how it comes back. Nothing else is a section any more — the records,
+    // the diagnostics, the manual sync and the escape hatches all live behind the utility group.
     this.renderCaptureGroup(containerEl);
     this.renderFileGroup(containerEl, step);
     this.renderResurfaceGroups(containerEl);
-    this.renderAutoRunSection(containerEl);
     this.renderUtilityGroup(containerEl);
   }
 
@@ -1598,7 +1712,7 @@ export class AtomsSettingTab extends PluginSettingTab {
    */
   private accountEmailDesc(): string {
     if (!hasWebCrypto()) {
-      return "This device can't sign itself in from an emailed link. Send one anyway, then finish with Advanced: paste session below.";
+      return `This device can't sign itself in from an emailed link. Send one anyway, then finish in ${PASTE_SESSION_ROUTE}.`;
     }
     return latestPendingSignIn(this.app)
       ? "Link sent. Open it in the email on this device and Obsidian signs itself in. Send another if it has expired."
@@ -1650,14 +1764,14 @@ export class AtomsSettingTab extends PluginSettingTab {
     new Notice(
       canSignInFromLink
         ? "Sign-in link sent. Open it in your email on this device and Obsidian signs itself in."
-        : "Sign-in link sent, but this device can't sign itself in from a link. Open the link, then paste the session it shows you into Advanced: paste session below.",
+        : `Sign-in link sent, but this device can't sign itself in from a link. Open the link, then paste the session it shows you into ${PASTE_SESSION_ROUTE}.`,
       10000,
     );
   }
 
   /**
    * Inline result of the last entitlement refresh. An expired session gets the
-   * sign-in link right here — no hunting for "Advanced: paste session".
+   * sign-in link right here — no hunting for the paste-a-session escape hatch.
    */
   private renderPlusRefreshOutcome(containerEl: HTMLElement): void {
     const record = plusRefreshRowRecord(this.app);
@@ -2084,10 +2198,20 @@ export class AtomsSettingTab extends PluginSettingTab {
       ],
     });
 
-    // Advanced: paste session — the different-device fallback, kept below the
-    // link row until #286 replaces it (KD3, R10).
+  }
+
+  /**
+   * The different-device fallback (KD3, R10), on the screen the escape hatches live on.
+   *
+   * It sat under the sign-in form until U7, where it was the third thing a new user read on the
+   * one screen that has to sell them the product. It is genuinely one-case-only: the case is an
+   * email that opens somewhere Obsidian is not. Both notices that name this route name where it
+   * is now, so moving it costs nobody the path — `accountEmailDesc()` and `sendPlusMagicLink()`
+   * are the two places that must stay in step with this row's name.
+   */
+  private renderPasteSessionRow(containerEl: HTMLElement): void {
     this.formRow(containerEl, {
-      name: "Advanced: paste session",
+      name: PASTE_SESSION_ROW,
       desc: "Only if your email opens on a different device from Obsidian. Sign in there, then paste the session it gives you.",
       placeholder: "sess_…",
       configure: (text) => {
@@ -2316,12 +2440,16 @@ export class AtomsSettingTab extends PluginSettingTab {
     }
   }
 
-  /** The two phone-shortcut rows, inside whatever container the Capture leg hands them. */
+  /**
+   * The phone-shortcut install row, inside whatever container the Capture leg hands it.
+   *
+   * Its sibling — the field for a forked recipe's own link — is not here any more. It is only
+   * ever relevant to somebody who edited the shortcut themselves, and a Capture group that shows
+   * it to everybody spends its second row on the one reader in a hundred who wants it (R4). It
+   * lives under Advanced → Escape hatches, which is what that group is for.
+   */
   private renderCaptureShortcutRows(containerEl: HTMLElement) {
     const shortcutAcked = readShortcutAck((k) => loadLocal(this.app, k));
-    const custom = customCaptureShortcutUrl(
-      this.plugin.settings.captureShortcutInstallUrl,
-    );
     const installUrl = resolveCaptureShortcutInstallUrl(
       this.plugin.settings.captureShortcutInstallUrl,
     );
@@ -2358,7 +2486,13 @@ export class AtomsSettingTab extends PluginSettingTab {
         this.redisplay();
       },
     });
+  }
 
+  /** The forked-recipe escape hatch: your own iCloud link instead of the one Atoms ships. */
+  private renderCustomShortcutRow(containerEl: HTMLElement) {
+    const custom = customCaptureShortcutUrl(
+      this.plugin.settings.captureShortcutInstallUrl,
+    );
     const shortcutUrlRow = new Setting(containerEl)
       .setName("Custom shortcut link")
       .setDesc(
@@ -2606,14 +2740,20 @@ export class AtomsSettingTab extends PluginSettingTab {
    * The rows below are still headed rather than grouped because the units that move the records
    * to Privacy and the diagnostics to Advanced have not landed.
    */
-  private renderAutoRunSection(containerEl: HTMLElement) {
-    settingHeading(containerEl, "Sync");
-
-    const state = readDeviceAutoRunState((k) => loadLocal(this.app, k));
-
+  /**
+   * The two sync controls, inside the Advanced screen's `Sync` group.
+   *
+   * Neither description names a pipeline stage any more. `drain → outbox → mirror → filing` is
+   * how the code is built, not a thing a user has vocabulary for, and a settings screen that
+   * teaches its own internals is asking the reader to learn the implementation in order to press
+   * a button. What survives the rewrite is every claim that changes a decision: this is one
+   * device only, the button ignores the usual pause between runs, and filing still stops at the
+   * catch-up notice when Atoms home is showing one.
+   */
+  private renderSyncRows(containerEl: HTMLElement) {
     settingRow(containerEl, {
       name: "Sync when you return to Obsidian",
-      desc: "When you return to Obsidian, drain the inbox, apply the Ask outbox, push the mirror, and file if automatic filing is on. Device-local only. Manual Sync everything now still works when this is off.",
+      desc: "This device only. Coming back to Obsidian picks up whatever is waiting, and files it if automatic filing is on. Sync everything now still works when this is off.",
       control: {
         kind: "toggle",
         configure: (toggle) => {
@@ -2628,30 +2768,12 @@ export class AtomsSettingTab extends PluginSettingTab {
     this.actionRow(containerEl, {
       action: "catchup:sync-everything",
       name: "Sync everything now",
-      desc: "Run drain → outbox → mirror → filing now (ignores resume cooldowns). Filing still needs the catch-up notice on Atoms home when present.",
+      desc: "Do all of it right now, without waiting for the usual pause between runs. Filing still needs the catch-up notice on Atoms home when present.",
       label: "Sync everything now",
       // Returned rather than fire-and-forget: that is what engages `actionRow`'s in-flight
       // guard, and a full sync is long enough that a second tap used to start a second one.
       onClick: () => this.plugin.runSyncEverythingNow(),
     });
-
-    // Both are name-plus-value facts, which is what `statusRow` is for. As paragraphs they read
-    // as prose the user has to parse for the value buried in it.
-    if (state.lastRunDay) {
-      statusRow(containerEl, {
-        name: "Last auto-run day (this device)",
-        value: state.lastRunDay,
-      });
-    }
-    const catchLine = this.plugin.getLastCatchupLine();
-    if (catchLine) {
-      statusRow(containerEl, {
-        name: LAST_CATCHUP_LABEL,
-        // The formatter owns one line for Atoms home, which prints it whole. Splitting it on
-        // the label it single-sources keeps the two surfaces saying the same thing.
-        value: catchLine.slice(LAST_CATCHUP_LABEL.length + 1),
-      });
-    }
   }
 
   /**

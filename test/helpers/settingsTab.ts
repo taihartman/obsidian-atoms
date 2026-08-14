@@ -287,6 +287,19 @@ export function openPrivacy(tab: AtomsSettingTab): void {
   open(tab, "Privacy and consents");
 }
 
+/**
+ * Render the tab and walk to the Advanced screen, where U7 put the manual sync, the device
+ * records, the self-host route and the escape hatches.
+ *
+ * Same shape and same reason as `openPrivacy` — several files reach for rows that now live one
+ * tap in, and the `hide()` is what keeps the walk working from whatever route the tab was left on.
+ */
+export function openAdvanced(tab: AtomsSettingTab): void {
+  tab.hide();
+  tab.display();
+  open(tab, "Advanced");
+}
+
 /** Walk into the destination whose entry row carries this name. */
 export function open(tab: AtomsSettingTab, name: string): void {
   const entry = Array.from(tab.containerEl.querySelectorAll(".atoms-setting-destination")).find(

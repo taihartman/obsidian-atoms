@@ -125,6 +125,28 @@ describe("setup guide quotes labels the plugin still renders", () => {
     expect(sentence).toContain("Connect Claude or ChatGPT");
   });
 
+  it("names the self-host controls the Advanced screen renders, and where they are", () => {
+    // Owning source: src/settings/settings.ts, renderAdvancedDestination. U7 renamed both — the
+    // URL field lost its "override" and the guide link stopped being "DIY" — so the shipped page
+    // has to have moved with them or it names two controls that no longer exist.
+    const { tab } = plusTab();
+    tab.display();
+    open(tab, "Advanced");
+
+    const rows = rowNames(tab);
+    for (const label of ["Plus service URL", "Self-host guide"]) {
+      expect(rows, `no row named ${label}`).toContain(label);
+      expect(guide.includes(label), `guide does not name ${label}`).toBe(true);
+    }
+    // Two screens in, so naming the control without the route is not a followable instruction.
+    const sentence = guide
+      .split(/(?<=\.)\s+/)
+      .find((s) => s.includes("Plus service URL"));
+    expect(sentence, "guide has no self-host step").toBeDefined();
+    expect(sentence).toContain("Advanced");
+    expect(guide.includes("DIY Ask guide"), "guide still says DIY Ask guide").toBe(false);
+  });
+
   it("has dropped the label this unit retired", () => {
     // The switch is named "Ask mirror" now: a row grammar's toggle already says "enable", so the
     // label does not repeat it. Guard the old wording rather than trusting the edit.

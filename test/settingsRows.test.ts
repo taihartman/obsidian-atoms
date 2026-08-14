@@ -22,6 +22,7 @@ import {
   flip as flipRow,
   groupHeaders,
   open,
+  openAdvanced,
   press as pressRow,
   prose,
   rowNames,
@@ -435,7 +436,7 @@ describe("row grammar", () => {
     const submitted: string[] = [];
     let captured: TextComponent | null = null;
     formRow(container, {
-      name: "Advanced: paste session",
+      name: "Paste a session",
       configure: (text) => {
         captured = text as unknown as TextComponent;
       },
@@ -1031,7 +1032,8 @@ describe("in-flight guard across a settings-tab rebuild", () => {
         },
       },
     });
-    tab.display();
+    // Both rows live on Advanced since U7, which is what makes this a same-screen re-render.
+    openAdvanced(tab);
 
     pressRow(tab, "Sync everything now", "Sync everything now");
     await flush();

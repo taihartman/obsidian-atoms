@@ -45,6 +45,7 @@ import {
   flip,
   groupHeaders,
   open,
+  openAdvanced,
   openPrivacy,
   press,
   pressSheet,
@@ -510,18 +511,17 @@ describe("account row", () => {
     // The exact list, not a membership check: each field and the one button that commits it is
     // now a single row, and a regression that re-splits a pair shows up here as an extra row.
     // "Start free trial" survives as the button label on the Email row, never as a row name.
-    expect(rowNames(tab)).toEqual([
-      "Account",
-      "Skip the API key",
-      "Email",
-      "Advanced: paste session",
-    ]);
+    // The paste fallback is not here since U7 — it is an escape hatch, and the third thing on
+    // the one screen that has to explain the product was the wrong place for it.
+    expect(rowNames(tab)).toEqual(["Account", "Skip the API key", "Email"]);
     expect(buttonLabels(tab, "Email")).toEqual([
       "Send sign-in link",
       "Start free trial",
       "Use promo code",
     ]);
-    expect(buttonLabels(tab, "Advanced: paste session")).toEqual(["Save session"]);
+
+    openAdvanced(tab);
+    expect(buttonLabels(tab, PASTE_ROW)).toEqual(["Save session"]);
   });
 
   /**
@@ -581,10 +581,14 @@ describe("account row", () => {
     });
 
     it("trims the pasted session before the sess_ check ever sees it", () => {
-      const { tab, handler } = accountScreen("savePastedSession");
+      // Same wiring claim, one screen over: U7 moved this row to Advanced → Escape hatches.
+      const { tab } = settingTab();
+      const handler = vi.fn(async () => {});
+      openAdvanced(tab);
+      (tab as unknown as Record<string, unknown>).savePastedSession = handler;
       // A token pasted out of an email arrives with the whitespace around it.
-      fill(tab, "Advanced: paste session", "  sess_live  ");
-      press(tab, "Advanced: paste session", "Save session");
+      fill(tab, PASTE_ROW, "  sess_live  ");
+      press(tab, PASTE_ROW, "Save session");
 
       expect(handler).toHaveBeenCalledWith("sess_live");
     });
@@ -1680,10 +1684,9 @@ describe("closing Settings", () => {
         },
       },
     });
-    tab.display();
+    openAdvanced(tab);
 
-    // drain → outbox → mirror → filing is long enough that an impatient second tap lands while
-    // the first run is still going.
+    // A full sync is long enough that an impatient second tap lands while the first is going.
     press(tab, "Sync everything now", "Sync everything now");
     press(tab, "Sync everything now", "Sync everything now");
 
@@ -2139,11 +2142,19 @@ describe("Connect Claude or ChatGPT destination (U6)", () => {
 });
 
 /**
- * U6 / R5 — Advanced may hold only rows that neither enable nor disable money spend, cloud
- * egress, or vault writes. Asserted by exercising whatever rows are actually there rather than
+ * Advanced grants nothing. Asserted by exercising whatever rows are actually there rather than
  * by listing their names: a list passes forever, including the day a gate is moved in.
+ *
+ * The claim used to be stronger — that no row here could *reach* money spend, egress, or vault
+ * writes at all — and U7 retired that shape rather than weakening it quietly. This screen now
+ * holds `Sync everything now`, whose entire job is to run the pass, so "touches nothing" stopped
+ * being a description of the screen. What is still true, and is the thing worth guarding, is that
+ * no control here **grants**: nothing writes or clears an acknowledgment, flips `askEnabled`,
+ * plants a device-local key, or opens a consent sheet. Every gate the sync button passes through
+ * lives in the plugin and is asserted where it lives, which is why the ack keys are what this
+ * snapshot watches rather than the call list.
  */
-describe("Advanced destination (U6, R5)", () => {
+describe("Advanced destination (U7, R4)", () => {
   const flush = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 
   function advanced(opts: SettingTabOptions = {}) {
@@ -2182,21 +2193,26 @@ describe("Advanced destination (U6, R5)", () => {
    *
    * The screen is re-queried after each row rather than snapshotted once: a handler that calls
    * `redisplay()` replaces every element, and a snapshot would spend the rest of the run
-   * clicking detached nodes while never touching the screen the user is looking at. Rows already
-   * exercised are remembered by element identity, so a re-render's fresh rows are exercised too
-   * and the walk still terminates.
+   * clicking detached nodes while never touching the screen the user is looking at.
+   *
+   * Rows already exercised are remembered **by name**, not by element identity. Identity was
+   * enough until U7 put a redisplaying toggle on this screen: flipping it replaces every element,
+   * so an identity set treats the same row as new each pass and the walk flips it forever. A name
+   * is what "this control has been touched" actually means, and the set of names is finite, so
+   * the walk terminates. Every name on Advanced is unique, which is what makes this sound.
    */
   function exerciseEveryControl(tab: AtomsSettingTab): void {
     const opened = vi.spyOn(window, "open").mockImplementation(() => null);
     try {
-      const exercised = new Set<Element>();
+      const exercised = new Set<string>();
       for (let guard = 0; guard < 200; guard += 1) {
         const el = Array.from(tab.containerEl.querySelectorAll(".setting-item")).find(
           (candidate) =>
-            !candidate.classList.contains("atoms-setting-back") && !exercised.has(candidate),
+            !candidate.classList.contains("atoms-setting-back") &&
+            !exercised.has(candidate.querySelector(".setting-item-name")?.textContent ?? ""),
         );
         if (!el) return;
-        exercised.add(el);
+        exercised.add(el.querySelector(".setting-item-name")?.textContent ?? "");
         for (const toggle of Array.from(el.querySelectorAll(".checkbox-container"))) {
           (toggle as HTMLElement).click();
         }
@@ -2214,20 +2230,45 @@ describe("Advanced destination (U6, R5)", () => {
     }
   }
 
-  it("holds the plumbing rows and the DIY guide", () => {
-    const { tab } = advanced();
+  it("holds the plumbing, the sync, the self-host route and the escape hatches, in that order", () => {
+    const { tab } = advanced({
+      local: { [LS_LAST_RUN_DAY]: "2026-08-13" },
+    });
+    // The back row first, then one group after another. `This device` is here because the
+    // fixture gives the device a run to report; a fresh install renders neither that group nor
+    // its header, which the next test is about.
     expect(rowNames(tab)).toEqual([
       "Advanced",
       "Model",
-      "Plus service URL override",
-      "DIY Ask guide",
+      "Sync when you return to Obsidian",
+      "Sync everything now",
+      "Last filing run",
+      "Plus service URL",
+      "Self-host guide",
+      "Custom shortcut link",
+      PASTE_ROW,
     ]);
+    expect(groupHeaders(tab)).toEqual([
+      "Model",
+      "Sync",
+      "This device",
+      "Run Ask yourself",
+      "Escape hatches",
+    ]);
+  });
+
+  it("leaves out the device group entirely when this device has nothing to report", () => {
+    // A group header over an empty box reads as a screen that failed to load, so a fresh
+    // install gets neither.
+    const { tab } = advanced();
+    expect(groupHeaders(tab)).not.toContain("This device");
+    expect(rowNames(tab)).not.toContain("Last filing run");
   });
 
   it("opens the committed GitHub self-host guide", () => {
     const { tab } = advanced();
     const open = vi.spyOn(window, "open").mockImplementation(() => null);
-    press(tab, "DIY Ask guide", "Open");
+    press(tab, "Self-host guide", "Open");
     expect(open).toHaveBeenCalledWith(
       "https://github.com/taihartman/obsidian-atoms/blob/master/docs/ask-self-host.md",
       "_blank",
@@ -2242,14 +2283,31 @@ describe("Advanced destination (U6, R5)", () => {
     expect(rowNames(tab)).not.toContain("Device-local API key");
   });
 
-  it("carries the caution that used to sit above these rows", () => {
+  it("cautions about each group's own rows, where the caution can be acted on", () => {
     const { tab } = advanced();
-    expect(tab.containerEl.textContent).toContain(
-      "Leave these alone unless you self-host or dogfood a local Plus server",
-    );
+    const text = tab.containerEl.textContent ?? "";
+    // The screen used to open with one blanket "leave these alone unless you self-host", which
+    // stopped being true when it took a button ordinary users are meant to press. Each group
+    // warns about itself instead.
+    expect(text).toContain("Leave it alone unless you have a reason to change it");
+    expect(text).toContain("You should not need any of these");
+    // And the two constraints the self-host guide is emphatic about, which are the easiest
+    // thing on this screen to get wrong.
+    expect(text).toContain("before you sign in");
+    expect(text).toContain("public HTTPS address");
   });
 
-  it("holds no control that enables or disables money, egress, or vault writes", async () => {
+  it("says nothing about drains, outboxes or mirrors", () => {
+    const { tab } = advanced({ local: { [LS_LAST_RUN_DAY]: "2026-08-13" } });
+    const text = tab.containerEl.textContent ?? "";
+    // Pipeline stage names are how the code is built, not vocabulary a reader has. The old
+    // `Sync everything now` description spelled the whole pipeline out.
+    for (const stage of ["drain", "outbox", "mirror", "auto-run"]) {
+      expect(text.toLowerCase()).not.toContain(stage);
+    }
+  });
+
+  it("grants nothing: no ack, no key, no consent sheet", async () => {
     const { tab, local, calls } = advanced({
       settings: { useDeviceLocalKeyFallback: true },
     });
@@ -2262,20 +2320,38 @@ describe("Advanced destination (U6, R5)", () => {
     await flush();
 
     expect(gateState(tab, local)).toEqual(before);
-    // Every gate acts through the plugin to do its work, so a screen of pure preferences
-    // reaches the plugin for persistence and for nothing else.
-    expect([...new Set(calls.slice(from))]).toEqual(["saveSettings"]);
     // A gate reached from here would ask for consent before it moved a value, and an unanswered
     // sheet moves nothing — so the values matching above is not on its own proof of no gate.
     // The sheet appearing at all is.
     expect(sheetOpen()).toBe(false);
   });
 
+  it("reaches a named handful of plugin entry points, and widening that is a decision", async () => {
+    const { tab, calls } = advanced();
+    const from = calls.length;
+
+    exerciseEveryControl(tab);
+    await flush();
+
+    // The allowlist, not a "calls nothing" assertion, because U7 gave this screen two rows whose
+    // whole job is to act. Every gate they pass through is inside the plugin. Two of these are
+    // reads the re-render performs, and only `runSyncEverythingNow` and `setResumeEnabled` are
+    // acts. A sixth name appearing here means a row that acts was moved onto Advanced, which is
+    // the thing to look at rather than the thing to add to this list.
+    expect([...new Set(calls.slice(from))].sort()).toEqual([
+      "getLastCatchupLine",
+      "getResumeEnabled",
+      "runSyncEverythingNow",
+      "saveSettings",
+      "setResumeEnabled",
+    ]);
+  });
+
   it("keeps the one redirect it does hold inert on its own", async () => {
     const { tab, local } = advanced();
     const before = gateState(tab, local);
 
-    fill(tab, "Plus service URL override", "http://127.0.0.1:8787");
+    fill(tab, "Plus service URL", "http://127.0.0.1:8787");
     await flush();
 
     // The override redirects where egress goes; it cannot turn egress on.
@@ -2346,7 +2422,8 @@ describe("main screen row grammar (U9)", () => {
       // which is why it is the one row here with no control (U3).
       "Daily notes",
       "Capture Atom shortcut",
-      "Custom shortcut link",
+      // `Custom shortcut link` is not here since U7: it only matters to somebody who forked the
+      // recipe, so it sits with the other escape hatches on Advanced.
       // 2 · File, in the mock's order: who files, whether it runs on its own, where atoms land,
       // what they may be tagged, what gets listed on hub notes. The engine row names the
       // question rather than the account's state, which is the state's own screen two taps in.
@@ -2360,8 +2437,8 @@ describe("main screen row grammar (U9)", () => {
       // 3 · Resurface, as two groups: home needs nothing, Ask needs a session (R3).
       "Atoms home",
       ...askRows,
-      "Sync when you return to Obsidian",
-      "Sync everything now",
+      // The sync pair is not here since U7 either: both are diagnostics-shaped, and the main
+      // screen answers "is Atoms filing", not "make it file this second".
       // The key rows are not here since U4: a credential path belongs beside the engine choice
       // it enables, which is the engine destination rather than the main screen or Advanced.
       ...(privacy ? ["Privacy and consents"] : []),
@@ -2375,17 +2452,17 @@ describe("main screen row grammar (U9)", () => {
 
     const rows = rowNames(tab, { headings: false });
     expect(rows).toEqual(expectedRows(true, ASK_ROWS, true));
-    expect(rows).toHaveLength(16);
+    expect(rows).toHaveLength(13);
   });
 
-  it("renders fourteen rows signed out — the Ask group is the only difference", () => {
+  it("renders eleven rows signed out — the Ask group is the only difference", () => {
     const { tab } = settingTab();
     tab.display();
 
     const rows = rowNames(tab, { headings: false });
     // No session, no ack, no cloud copy: nothing to take back, so no Privacy row either.
     expect(rows).toEqual(expectedRows(false, [ASK_OFF_ROW], false));
-    expect(rows).toHaveLength(14);
+    expect(rows).toHaveLength(11);
   });
 
   it("adds the device-local key row under its toggle, and nowhere else", () => {
@@ -2444,19 +2521,21 @@ describe("main screen row grammar (U9)", () => {
     const signedOut = settingTab();
     signedOut.tab.display();
     const main = signedOut.tab.containerEl.textContent ?? "";
-    expect(main).not.toContain("DIY Ask guide");
+    expect(main).not.toContain("Self-host guide");
     expect(main).not.toContain("run the server yourself");
     // And it is one tap away, named, on the screen R13 puts it on.
     open(signedOut.tab, "Advanced");
-    expect(rowNames(signedOut.tab, { headings: false })).toContain("DIY Ask guide");
+    expect(rowNames(signedOut.tab, { headings: false })).toContain("Self-host guide");
 
     const guide = readFileSync(
       path.resolve(__dirname, "../docs/ask-self-host.md"),
       "utf8",
     );
-    expect(guide).toContain("Advanced → Plus service URL override");
+    // KTD10 in both directions: the guide names the row, so renaming the row without editing
+    // the guide leaves a reader hunting a label that no longer exists.
+    expect(guide).toContain("Advanced → Plus service URL");
     expect(guide).toContain("Public HTTPS is required");
-    expect(guide).not.toContain("Development → Plus service URL override");
+    expect(guide).not.toContain("Development → Plus service URL");
     expect(guide).not.toContain("local `http://127.0.0.1:8787` can work");
   });
 
@@ -2465,17 +2544,20 @@ describe("main screen row grammar (U9)", () => {
    * paragraph it drifts out of the grammar and reads as prose the user has to parse.
    */
   describe("status facts", () => {
-    it("names the last auto-run day on a status row", () => {
+    // Both records moved to Advanced → This device in U7, and the first shed the "auto-run"
+    // in its name with the move: the group header says whose device it is, and "auto-run" was
+    // a stage name rather than a word a reader brings with them.
+    it("names the last filing run on a status row", () => {
       const { tab } = settingTab({
         session: PLUS_SESSION,
         local: { [LS_LAST_RUN_DAY]: "2026-07-29" },
       });
-      tab.display();
+      openAdvanced(tab);
 
       const rows = rowNames(tab, { headings: false });
-      expect(rows).toContain("Last auto-run day (this device)");
-      expect(row(tab, "Last auto-run day (this device)").textContent).toContain("2026-07-29");
-      expect(prose(tab).some((t) => t.startsWith("Last auto-run day"))).toBe(false);
+      expect(rows).toContain("Last filing run");
+      expect(row(tab, "Last filing run").textContent).toContain("2026-07-29");
+      expect(prose(tab).some((t) => t.startsWith("Last filing run"))).toBe(false);
     });
 
     it("names the last catch-up on a status row", () => {
@@ -2483,7 +2565,7 @@ describe("main screen row grammar (U9)", () => {
         session: PLUS_SESSION,
         plugin: { getLastCatchupLine: () => "Last catch-up 18m ago: caught up" },
       });
-      tab.display();
+      openAdvanced(tab);
 
       expect(rowNames(tab, { headings: false })).toContain("Last catch-up");
       expect(row(tab, "Last catch-up").textContent).toContain("18m ago: caught up");
@@ -2921,7 +3003,10 @@ describe("adversarial regressions", () => {
 
 const VAULT = "Vault A";
 const EMAIL_ROW = "Email";
-const PASTE_ROW = "Advanced: paste session";
+// U7 moved this row to Advanced → Escape hatches and dropped the `Advanced:` prefix with it: the
+// prefix was an address, and the row now lives at the address.
+const PASTE_ROW = "Paste a session";
+const PASTE_ROUTE = `Advanced → ${PASTE_ROW}`;
 
 type FakeApp = ReturnType<typeof fakeLocalApp>;
 
@@ -2942,6 +3027,10 @@ function fakeTab(app: FakeApp) {
     settings: { ...DEFAULT_SETTINGS, plusBaseUrl: "https://plus.test" },
     manifest: { version: "9.9.9" },
     resolveFilingAuth: () => ({ mode: "none" as const }),
+    // Read by the Advanced screen's sync group and its device group. This double predates that
+    // screen, so both are stubs rather than behavior — the panels under test here are about copy.
+    getResumeEnabled: () => false,
+    getLastCatchupLine: () => null,
   };
   const tab = new AtomsSettingTab(app as never, plugin as never);
   (tab as unknown as { app: unknown }).app = app;
@@ -2964,6 +3053,18 @@ function renderSignedOutPanel(app: FakeApp): UiCapture {
   (
     tab as unknown as { renderAccountDestination: (el: HTMLElement) => void }
   ).renderAccountDestination(containerEl);
+  return ui;
+}
+
+/** The same harness pointed at the screen U7 moved the paste fallback onto. */
+function renderAdvancedPanel(app: FakeApp): UiCapture {
+  const ui = captureObsidianUi();
+  const containerEl = document.createElement("div");
+  const tab = fakeTab(app);
+  (tab as unknown as { containerEl: unknown }).containerEl = containerEl;
+  (
+    tab as unknown as { renderAdvancedDestination: (el: HTMLElement) => void }
+  ).renderAdvancedDestination(containerEl);
   return ui;
 }
 
@@ -3005,10 +3106,11 @@ describe("signed-out Plus panel copy (R15, AE11)", () => {
   it("points at Refresh status nowhere on the panel, in either state", () => {
     for (const app of [fakeLocalApp(), fakeLocalApp(pendingSeed())]) {
       const ui = renderSignedOutPanel(app);
-      // The assertion is only meaningful if the panel really rendered: both the
-      // sign-in-link row and the paste row have to be among the strings checked.
+      // The assertion is only meaningful if the panel really rendered: both of the rows it is
+      // made of have to be among the strings checked. The paste row was the second witness
+      // until U7 moved it to Advanced, so the plans row stands in for it.
       expect(ui.strings).toContain(EMAIL_ROW);
-      expect(ui.strings).toContain(PASTE_ROW);
+      expect(ui.strings).toContain("Skip the API key");
       const offenders = ui.strings.filter((s) => s.includes("Refresh status"));
       expect(offenders).toEqual([]);
     }
@@ -3043,11 +3145,12 @@ describe("signed-out Plus panel copy (R15, AE11)", () => {
     );
   });
 
-  it("keeps the paste field below the Email cluster, as the different-device fallback (AE9, R10)", () => {
-    const ui = renderSignedOutPanel(fakeLocalApp());
-    expect(ui.strings.indexOf(PASTE_ROW)).toBeGreaterThan(
-      ui.strings.indexOf(EMAIL_ROW),
-    );
+  it("keeps the paste field off the sign-in panel and on Advanced, still the different-device fallback (AE9, R10)", () => {
+    // The row itself is unchanged (AE9, R10 hold): what moved is where it is. Nothing sells the
+    // product on the signed-out screen if the third thing a new reader meets is a token field.
+    expect(renderSignedOutPanel(fakeLocalApp()).strings).not.toContain(PASTE_ROW);
+
+    const ui = renderAdvancedPanel(fakeLocalApp());
     expect(descAfter(ui, PASTE_ROW)).toMatch(/different device/i);
     expect(ui.buttons.map((b) => b.text)).toContain("Save session");
   });
@@ -3055,7 +3158,8 @@ describe("signed-out Plus panel copy (R15, AE11)", () => {
   it("says up front when this device cannot sign itself in from a link (R19)", () => {
     stubNoWebCrypto();
     const desc = descAfter(renderSignedOutPanel(fakeLocalApp()), EMAIL_ROW);
-    expect(desc).toMatch(/Advanced: paste session/);
+    // Now that the fallback is two screens away, the sentence has to carry the route to it.
+    expect(desc).toContain(PASTE_ROUTE);
     // It must not promise the automatic sign-in it cannot deliver.
     expect(desc).not.toMatch(/signs itself in\./);
   });
@@ -3126,7 +3230,7 @@ describe("requesting a sign-in link (R15, U7 binding)", () => {
     expect(readPendingSignIns(app)).toEqual([]);
     // And the user is told where to go instead, in their own terms.
     expect(ui.notices).toHaveLength(1);
-    expect(ui.notices[0]).toMatch(/Advanced: paste session/);
+    expect(ui.notices[0]).toContain(PASTE_ROUTE);
     expect(ui.notices[0]).not.toMatch(/crypto|verifier/i);
   });
 
@@ -3134,7 +3238,8 @@ describe("requesting a sign-in link (R15, U7 binding)", () => {
     const ui = captureObsidianUi();
     await sendLink(fakeTab(fakeLocalApp()), "a@b.co");
 
-    expect(ui.notices[0]).not.toMatch(/paste session/i);
+    expect(ui.notices[0]).not.toContain(PASTE_ROUTE);
+    expect(ui.notices[0]).not.toMatch(/paste/i);
     expect(ui.notices[0]).not.toMatch(/can't/i);
   });
 
