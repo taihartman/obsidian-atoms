@@ -470,12 +470,21 @@ export function confirmSheet(sheet: ConfirmSheet): Promise<void> {
   });
 }
 
-/** Read-only state: muted trailing text, no control, and no description paragraph. */
+/**
+ * Read-only state: muted trailing text, no control, and no description paragraph.
+ *
+ * `value` is optional because the same grammar covers a fact with nothing to report on its right
+ * edge — a plain statement the user reads and cannot act on, like the three lines the engine
+ * screen uses to say what leaves the device. Omitting it renders no span at all rather than an
+ * empty one, so a row that has nothing to say does not reserve a column for saying it. This is
+ * not a second kind: a statement is read-only state whose state is the sentence.
+ */
 export function statusRow(
   containerEl: HTMLElement,
-  row: { name: string | DocumentFragment; value: string },
+  row: { name: string | DocumentFragment; value?: string },
 ): void {
   const setting = new Setting(containerEl).setName(row.name);
   setting.settingEl.addClass("atoms-setting-status-row");
+  if (row.value === undefined) return;
   setting.controlEl.createSpan({ cls: "atoms-setting-status", text: row.value });
 }

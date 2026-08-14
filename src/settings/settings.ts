@@ -82,6 +82,7 @@ import {
   API_KEY_SECRET_ID_DEFAULT,
   LOCAL_STORAGE_API_KEY,
 } from "../shared/types";
+import { formatUsd, PLUS_PRICING } from "../shared/plusPricing";
 import {
   clearPlusSession,
   hasPlusSetupSession,
@@ -408,6 +409,7 @@ function requireEmail(email: string): boolean {
  */
 export type SettingsRoute =
   | "main"
+  | "engine"
   | "account"
   | "vocabulary"
   | "connect"
@@ -507,11 +509,51 @@ const FILING_ROW_UNCONFIGURED = {
   desc: "Filing starts with tomorrow's note, on this device.",
 } as const;
 
+/**
+ * The engine screen: the one decision Atoms cannot make for anybody, with room to say what it
+ * costs. Mock SSOT `docs/design-handoff/settings/overhaul.html` § Who does the filing.
+ *
+ * One claim from the mock is not here, because it is not true. "Nothing here unlocks features" is
+ * false the moment Ask is considered: Ask needs a session from the Atoms service (R13), so the
+ * choice is not purely about who pays. The footer says only the part that holds — filing itself
+ * is identical either way.
+ *
+ * The price is real but is never a literal: `plus-pricing.json` is the SSOT and
+ * `src/shared/plusPricing.ts` is the only thing allowed to format it, which is why the footer is
+ * a function. A number typed into this file is a copy that goes stale in silence.
+ */
+const ENGINE_SCREEN = {
+  lead: "Atoms sends each capture to Anthropic to be titled and linked. Somebody has to pay for that: us, or you.",
+  pickOne: {
+    header: "Pick one",
+    footer: () =>
+      `Filing works the same either way. Atoms Plus is ${PLUS_PRICING.trialDays} days free, then ${formatUsd(PLUS_PRICING.monthlyUsd)} a month. Your own key bills you at Anthropic's rates instead.`,
+  },
+  /**
+   * The egress facts as three lines rather than one paragraph, so a reader can check them one at
+   * a time. Each is a promise the code keeps: `EGRESS_DISCLOSURE` clause (1) is what leaves,
+   * `ContextProvider` sends titles and never bodies, and every pass excludes today unless the
+   * user forces it. The footer points at the sheet rather than restating it, because the sheet is
+   * versioned (KTD5) and a second copy of versioned wording is the #315 shape.
+   */
+  whatGetsSent: {
+    header: "What gets sent",
+    footer:
+      "You will see the full wording, and have to accept it, before Atoms files on its own.",
+    lines: [
+      "Each capture, and your note titles, over TLS",
+      "Never the body of another note, and never your whole vault",
+      "Nothing from today, unless you ask for it",
+    ],
+  },
+} as const;
+
 /** Whether the vault's Daily Notes plugin is on. The Capture leg's one derived value (R20). */
 const DAILY_NOTES_ROW = { name: "Daily notes", on: "On", off: "Off" } as const;
 
 /** Destination title, shown on its entry row and again on its back row. */
 const DESTINATION_TITLES: Record<Exclude<SettingsRoute, "main">, string> = {
+  engine: "Who does the filing",
   account: "Account",
   vocabulary: "Tag vocabulary",
   connect: "Connect Claude or ChatGPT",
@@ -848,11 +890,19 @@ export class AtomsSettingTab extends PluginSettingTab {
     this.plugin.settingTab = this;
     const { containerEl } = this;
     containerEl.empty();
+    // Emptying the container detaches whatever element the key check was painting into, and only
+    // the engine screen makes a new one. Without this, a check that settles after the user walks
+    // away would paint a verdict into a node nobody can see, and the next visit to the engine
+    // screen would find a live-looking handle onto a detached element.
+    this.apiKeyStatusEl = null;
 
     const route = this.route;
     switch (route) {
       case "main":
         this.renderMainScreen(containerEl);
+        return;
+      case "engine":
+        this.renderDestination(containerEl, route, (el) => this.renderEngineDestination(el));
         return;
       case "account":
         this.renderDestination(containerEl, route, (el) => this.renderAccountDestination(el));
@@ -1089,8 +1139,8 @@ export class AtomsSettingTab extends PluginSettingTab {
    *
    * The device-local key rows are *not* here, though they read as plumbing: `getApiKey()` falls
    * back to that key, so the pair is a complete credential path that enables Anthropic spend —
-   * and the toggle is also the only thing that deletes the stored key. R5 puts both on the main
-   * screen, under the API-key section.
+   * and the toggle is also the only thing that deletes the stored key. R5 puts both on the engine
+   * destination, beside the key field they answer for.
    */
   private renderAdvancedDestination(containerEl: HTMLElement): void {
     containerEl.createEl("p", {
@@ -1168,7 +1218,6 @@ export class AtomsSettingTab extends PluginSettingTab {
     this.renderFileGroup(containerEl, step);
     this.renderAskSection(containerEl);
     this.renderAutoRunSection(containerEl);
-    this.renderApiSection(containerEl);
     this.renderAdvancedEntry(containerEl);
   }
 
@@ -1210,7 +1259,10 @@ export class AtomsSettingTab extends PluginSettingTab {
                 openSettingsTab(this.app, CORE_PLUGINS_SETTINGS_TAB_ID);
                 return;
               }
-              this.openRoute("account");
+              // The step is "choose who files", so it lands on the screen that asks exactly
+              // that. It used to open Account, which offered one of the two answers and never
+              // named the other.
+              this.openRoute("engine");
             },
           });
         },
@@ -1570,37 +1622,80 @@ export class AtomsSettingTab extends PluginSettingTab {
 
   /**
    * Who files the captures — the File leg's first row, and the one decision Atoms cannot make.
-   * Mock SSOT docs/design-handoff/atoms-plus/index.html (v3).
+   * Mock SSOT docs/design-handoff/settings/overhaul.html § 2 · File.
    *
-   * One row, whatever the account is doing. The four states used to be four `if` branches that
-   * each rendered their own Refresh status / Sign out / Account rows; now the state picks a
-   * label and everything you can *do* to the account lives one tap in.
-   *
-   * The row name is still the account state's own label, because every Plus state already names
-   * the engine and the condition it is in ("Plus · 12 filings left", "Trial ended"). Signed out is
-   * the one state that says nothing about the engine, and it is also the state where the answer is
-   * genuinely two-valued: an install with an Anthropic key is filing perfectly well without a Plus
-   * session and must not be told nothing is chosen. So that is the only branch that spends a
-   * subtitle, and it always spends one rather than rendering the question blank (R20).
-   *
-   * The account state's own signed-out description is dropped here: it was a sales line for a
-   * screen this row now only points at, and it carried an em dash into a footer sweep whose whole
-   * job is R15. The destination behind the row still renders it.
-   *
-   * Opens `account`, which is where the engine is chosen today. The engine destination that
-   * gathers both engines onto one screen is a later unit; this row will point at it then.
+   * The row names the *question* and spends its subtitle on the current answer, which is the
+   * swap U4 makes: while the row was the account row it was named for the account's state, so an
+   * install with an Anthropic key and no Plus session read "Set up automatic filing" on a screen
+   * where filing was already set up. Naming the decision lets the answer be whatever it is, and
+   * it always spends a subtitle rather than rendering the question blank (R20).
    */
   private renderEngineRow(containerEl: HTMLElement): void {
-    const state = this.accountState();
-    let desc: string | undefined;
-    if (state.kind === "signedOut") {
-      desc =
-        this.plugin.resolveFilingAuth().mode === "none" ? "Not chosen" : "Your own key";
-    }
     destinationRow(containerEl, {
-      name: accountRowDescriptor(state).name,
-      desc,
-      onOpen: () => this.openRoute("account"),
+      name: DESTINATION_TITLES.engine,
+      desc: this.engineAnswer(),
+      onOpen: () => this.openRoute("engine"),
+    });
+  }
+
+  /**
+   * What is filing right now, in the fewest words that are true.
+   *
+   * Signed out is the only state that says nothing about the engine, and it is also the state
+   * where the answer is genuinely two-valued: an install with an Anthropic key is filing
+   * perfectly well without a Plus session and must not be told nothing is chosen. Every other
+   * state already names the engine and the condition it is in ("Plus · 12 filings left", "Trial
+   * ended"), so it borrows `accountRowDescriptor` rather than keeping a second table of those
+   * words (KTD7).
+   */
+  private engineAnswer(): string {
+    const state = this.accountState();
+    if (state.kind !== "signedOut") return accountRowDescriptor(state).name;
+    return this.plugin.resolveFilingAuth().mode === "none" ? "Not chosen" : "Your own key";
+  }
+
+  /**
+   * The screen behind the engine row: both ways to pay for filing, and what leaves the device
+   * either way.
+   *
+   * One group rather than two, because "pick one" is one decision: Atoms Plus is a chevron into
+   * the account screen that manages it, and the other option is not a chevron at all — it is the
+   * key field itself, because pasting a key *is* choosing it. The device-local pair sits with the
+   * field it answers for and is the only thing that deletes the stored key, which is why R5 keeps
+   * it beside a credential rather than filing it under Advanced as plumbing.
+   *
+   * The Plus row keeps the account state's own label. It is the row that walks into the account
+   * screen, so what it says about that account is the same sentence `accountRowDescriptor`
+   * already owns for every state (KTD7).
+   */
+  private renderEngineDestination(containerEl: HTMLElement): void {
+    containerEl.createEl("p", {
+      text: ENGINE_SCREEN.lead,
+      cls: "setting-item-description",
+    });
+
+    const account = accountRowDescriptor(this.accountState());
+    group(containerEl, {
+      header: ENGINE_SCREEN.pickOne.header,
+      footer: ENGINE_SCREEN.pickOne.footer(),
+      render: (groupEl) => {
+        destinationRow(groupEl, {
+          name: account.name,
+          desc: account.desc,
+          onOpen: () => this.openRoute("account"),
+        });
+        this.renderKeyRows(groupEl);
+      },
+    });
+
+    group(containerEl, {
+      header: ENGINE_SCREEN.whatGetsSent.header,
+      footer: ENGINE_SCREEN.whatGetsSent.footer,
+      render: (groupEl) => {
+        for (const name of ENGINE_SCREEN.whatGetsSent.lines) {
+          statusRow(groupEl, { name });
+        }
+      },
     });
   }
 
@@ -2080,13 +2175,17 @@ export class AtomsSettingTab extends PluginSettingTab {
     shortcutUrlRow.settingEl.addClass("atoms-capture-shortcut-url");
   }
 
-  private renderApiSection(containerEl: HTMLElement) {
-    settingHeading(containerEl, "Your API key (optional)");
-    containerEl.createEl("p", {
-      text: "Only if you are not using Atoms Plus. Process sends titles, tags, and capture text to Anthropic over TLS. Your notes are never rewritten — only new atom files and markers.",
-      cls: "setting-item-description",
-    });
-
+  /**
+   * The own-key half of the engine choice: the key, and the device-local pair that answers for it.
+   *
+   * Built without a heading or a lead paragraph of its own, because it is no longer a section —
+   * it is the second option inside the engine screen's `Pick one` group, and that group's header
+   * and footer are its explanation. What the retired lead used to disclose ("titles, tags, and
+   * capture text to Anthropic over TLS", "your notes are never rewritten") is not dropped: the
+   * first is the `What gets sent` group below it, and the second is the File group's own footer
+   * on the main screen (R11), which states it for both engines rather than only for this one.
+   */
+  private renderKeyRows(containerEl: HTMLElement) {
     // Still a direct `new Setting(`: the control is a `SecretComponent`, which the row grammar's
     // toggle/text/dropdown union does not carry, and the row needs its own element to report the
     // check into. Both are reasons this one row cannot go through a builder as it stands.
@@ -2115,8 +2214,8 @@ export class AtomsSettingTab extends PluginSettingTab {
     this.checkApiKey();
 
     // Plumbing by tone, a credential path by effect: `getApiKey()` falls back to this key, so
-    // the pair below can enable Anthropic spend on its own — which R5 keeps on the main screen
-    // rather than behind Advanced. The toggle is also the only thing that deletes the key.
+    // the pair below can enable Anthropic spend on its own — which R5 keeps beside the key it
+    // answers for rather than behind Advanced. The toggle also deletes the key, and nothing else does.
     settingRow(containerEl, {
       name: "Device-local key fallback",
       desc: "Only if SecretStorage fails: non-synced local storage (still never data.json). Turning this off deletes the key stored on this device.",

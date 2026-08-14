@@ -1113,19 +1113,21 @@ function onMainScreen(tab: AtomsSettingTab): boolean {
 }
 
 /**
- * Entry-row name paired with the title of the screen it opens. They match everywhere except
- * Account, whose entry row is named for the account's state (U3), and Tag vocabulary, whose entry
- * row carries the active count (U4) — both screens keep their own title.
- */
-/**
+ * Entry-row name paired with the title of the screen it opens. They match everywhere except the
+ * status group's step row, which is named for the step rather than the screen, and Tag
+ * vocabulary, whose entry row carries the active count — both screens keep their own title.
+ *
  * In rendered order. U9's section-ordering pass put the vocabulary entry above Connect, which is
  * the order the plan's main-screen table asks for.
+ *
+ * Account is not here: U4 took it off the main screen. It is reachable from the engine screen,
+ * which is where choosing Plus is one of two answers rather than the only one on offer.
  */
 const DESTINATIONS: Array<[entry: string, title: string]> = [
   // U2's status group opens the screen with the one unfinished step, which on an install where
-  // nobody files yet is a second way into Account.
-  ["Choose who files your captures", "Account"],
-  ["Set up automatic filing", "Account"],
+  // nobody files yet is a second way into the engine screen.
+  ["Choose who files your captures", "Who does the filing"],
+  ["Who does the filing", "Who does the filing"],
   [`Tag vocabulary — ${DEFAULT_SETTINGS.activeVocabulary.length} active`, "Tag vocabulary"],
   ["Connect Claude or ChatGPT", "Connect Claude or ChatGPT"],
   ["Advanced", "Advanced"],
@@ -1188,7 +1190,7 @@ describe("destination shell", () => {
     tab.display();
     scroller.scrollTop = 420;
 
-    open(tab, "Set up automatic filing");
+    open(tab, "Who does the filing");
     expect(scroller.scrollTop).toBe(0);
 
     scroller.scrollTop = 260;
