@@ -526,7 +526,7 @@ export function countUpdateWorkRemaining(
 export function updateNotesBatchWhy(
   batchLimit: number = UPDATE_NOTES_BATCH_LIMIT,
 ): string {
-  return `Up to ${batchLimit} per Update so each run stays short and cost stays predictable — tap again for the rest.`;
+  return `Up to ${batchLimit} per Update so each run stays short and cost stays predictable. Tap again for the rest.`;
 }
 
 /** Strip copy for Update notes (product strings). */
@@ -598,8 +598,8 @@ export function updateNotesConfirmCopy(
   }
   if (refile <= 0) {
     return polish === 1
-      ? "Clean up link wording on 1 note? Free — no API call. Your original capture text will not change."
-      : `Clean up link wording on older notes (about ${polish})? Free — no API call. Your original capture text will not change.`;
+      ? "Clean up link wording on 1 note? Free, no API call. Your original capture text will not change."
+      : `Clean up link wording on older notes (about ${polish})? Free, no API call. Your original capture text will not change.`;
   }
   const cost = updateNotesBillingLine(billing);
   const batch =
@@ -723,7 +723,7 @@ export function filingHeroCopy(input: {
       mode: "plus_limit",
       eyebrow: "Atoms Plus",
       title: `Your ${what} has ended`,
-      body: `${capturesWaitingSentence(n)} — filing is paused, and Claude and ChatGPT can’t reach your atoms. Subscribe to pick up where you left off.`,
+      body: `${capturesWaitingSentence(n)}. Filing is paused, and Claude and ChatGPT can’t reach your atoms. Subscribe to pick up where you left off.`,
       primaryLabel: "Subscribe",
       primaryAction: "subscribe",
       secondaryLabel: null,
@@ -772,7 +772,7 @@ export function filingHeroCopy(input: {
       mode: "auto_running",
       eyebrow: "Filing",
       title: "Filing past thoughts…",
-      body: "Automatic filing is running. You can keep browsing — nothing needs a tap.",
+      body: "Automatic filing is running. You can keep browsing. Nothing needs a tap.",
       primaryLabel: null,
       primaryAction: null,
       secondaryLabel: "Process now",
@@ -818,7 +818,7 @@ export function filingHeroCopy(input: {
     eyebrow: "Automatic",
     // The window count, not the total: this card's body promises an unattended pass.
     title: capturesWaitingLabel(windowN),
-    body: "Automatic filing is on for this device. Past days file when you open Obsidian — Process only if you want them sooner.",
+    body: "Automatic filing is on for this device. Past days file when you open Obsidian. Process only if you want them sooner.",
     primaryLabel: "Process now",
     primaryAction: "process",
     secondaryLabel: "Preview",
@@ -973,7 +973,7 @@ export function firstDaySetupCopy(
     subtitle: "Capture starts in your daily note",
     eyebrow: "Get started",
     title: "Write one bullet today",
-    body: "Atoms files thoughts from past days. Capture stays in Daily — this list shows what was filed.",
+    body: "Atoms files thoughts from past days. Capture stays in Daily. This list shows what was filed.",
     example: "- Alex likes periwinkle\n- watch Past Lives",
     primaryLabel: "Open today",
     primaryAction: "open_today",

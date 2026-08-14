@@ -56,14 +56,14 @@ export function mirrorConfirmedReceipt(
 export function describeMirrorRefusal(reason?: MirrorDeletionRefusal): string {
   switch (reason) {
     case "no-server-count":
-      return "Ask mirror: sync refused — this device has never seen the cloud count; nothing was deleted";
+      return "Ask mirror: sync refused, this device has never seen the cloud count; nothing was deleted";
     case "server-count-tripwire":
-      return "Ask mirror: sync refused — this vault holds far fewer atoms than the cloud; nothing was deleted";
+      return "Ask mirror: sync refused, this vault holds far fewer atoms than the cloud; nothing was deleted";
     case "baseline-unreadable":
-      return "Ask mirror: sync refused — this device's sync baseline is unreadable; nothing was deleted";
+      return "Ask mirror: sync refused, this device's sync baseline is unreadable; nothing was deleted";
     case "scan-incomplete":
     case undefined:
-      return "Ask mirror: sync refused — vault scan looks incomplete; nothing was deleted";
+      return "Ask mirror: sync refused, vault scan looks incomplete; nothing was deleted";
   }
 }
 
@@ -83,7 +83,7 @@ export function syncNowNotice(outcome: MirrorSyncOutcome): string | null {
       // dialog only the forced path can reach — never runs. Dropping it is the
       // fail-closed direction and deletes nothing; claiming it happened is the
       // part that misleads. Say what is true and name the recovery.
-      return "Ask mirror: a sync was already running — press Sync now again when it finishes";
+      return "Ask mirror: a sync was already running. Press Sync now again when it finishes";
     case "refused":
       return describeMirrorRefusal(outcome.reason);
     case "worked":

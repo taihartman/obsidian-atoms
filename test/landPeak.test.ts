@@ -33,7 +33,7 @@ describe("formatLandBody", () => {
   it("update body", () => {
     expect(formatLandBody("update", 2)).toMatch(/Bodies unchanged/);
     expect(formatLandBody("update", 0, undefined, 9)).toMatch(/model id/);
-    expect(formatLandBody("update", 3, undefined, 6)).toMatch(/try Update again/);
+    expect(formatLandBody("update", 3, undefined, 6)).toMatch(/Try Update again/);
     expect(formatLandBody("update", 0, undefined, 0, 4)).toMatch(
       /link wording/i,
     );

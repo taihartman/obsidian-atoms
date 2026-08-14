@@ -113,7 +113,7 @@ export class ReconsiderModal extends Modal {
       } else {
         next.createEl("p", {
           cls: "atoms-reconsider-quiet",
-          text: "Still logistics — not worth keeping.",
+          text: "Still logistics, not worth keeping.",
         });
       }
     }

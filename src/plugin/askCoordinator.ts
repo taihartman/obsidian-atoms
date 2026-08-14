@@ -407,7 +407,7 @@ export class AskCoordinator {
         this.askMirrorNoticeShown = true;
         new Notice(
           snip
-            ? `Ask: push failed — ${snip} · Sync now to retry`
+            ? `Ask: push failed (${snip}) · Sync now to retry`
             : "Ask: last push failed · Sync now to retry",
         );
       }

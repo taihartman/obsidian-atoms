@@ -38,7 +38,7 @@ export const PLUS_REFRESH_REJECTED_MESSAGE =
   "Your Atoms Plus session expired, so this device needs re-linking. Send yourself a sign-in link and open it on this device.";
 
 export const PLUS_REFRESH_UNREACHABLE_MESSAGE =
-  "Couldn’t reach Atoms Plus — check your connection and try again. Your session on this device is untouched.";
+  "Couldn’t reach Atoms Plus. Check your connection and try again. Your session on this device is untouched.";
 
 export function readPlusRefreshRecord(
   app: LocalStorageLike,

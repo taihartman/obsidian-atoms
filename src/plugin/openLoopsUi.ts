@@ -122,7 +122,7 @@ class OpenLoopsReviewModal extends Modal {
     contentEl.empty();
     contentEl.createEl("h2", { text: "Review open-loop proposals" });
     if (this.queue >= this.rows.length) {
-      contentEl.createEl("p", { text: "Done — nothing left in this pass." });
+      contentEl.createEl("p", { text: "Done. Nothing left in this pass." });
       new Setting(contentEl).addButton((b) =>
         b.setButtonText("Close").onClick(() => this.close()),
       );

@@ -565,12 +565,12 @@ describe("filingHeroCopy on an ended period (#442)", () => {
     // The title-cased label is for titles. Borrowed into a sentence it read
     // "3 Captures Waiting — filing is paused", a proper noun opening a clause.
     expect(filingHeroCopy({ ...base, plusLapseKind: "trial" })?.body).toMatch(
-      /^3 captures waiting — /,
+      /^3 captures waiting\. /,
     );
     expect(
       filingHeroCopy({ ...base, pastUnprocessed: 1, plusLapseKind: "trial" })
         ?.body,
-    ).toMatch(/^1 capture waiting — /);
+    ).toMatch(/^1 capture waiting\. /);
   });
 
   it("has no Not Now, because waiting does not fix an ended period", () => {
@@ -1012,7 +1012,7 @@ describe("firstDaySetupCopy", () => {
     expect(copy.subtitle).toBe("Capture starts in your daily note");
     expect(copy.title).toBe("Write one bullet today");
     expect(copy.body).toBe(
-      "Atoms files thoughts from past days. Capture stays in Daily — this list shows what was filed.",
+      "Atoms files thoughts from past days. Capture stays in Daily. This list shows what was filed.",
     );
     expect(copy.example).toBe("- Alex likes periwinkle\n- watch Past Lives");
     expect(copy.primaryAction).toBe("open_today");

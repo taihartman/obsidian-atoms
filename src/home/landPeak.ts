@@ -80,7 +80,7 @@ export function formatLandBody(
       return "Check Settings → model id and API key, then try Update again.";
     }
     if (atomCount > 0 && failedCount > 0) {
-      return "Some notes refreshed. Failed ones stay eligible — try Update again.";
+      return "Some notes refreshed. Failed ones stay eligible. Try Update again.";
     }
     if (atomCount <= 0 && polishedCount > 0) {
       return "Cleaned up older link wording. Bodies unchanged.";
