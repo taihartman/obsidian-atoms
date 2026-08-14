@@ -362,11 +362,17 @@ without drawing a box around it.
 Every row that exists today, walked live in the running app (main screen plus all four
 destinations), mapped to where it lands. **34 rows in, 34 rows accounted for, 0 settings removed.**
 
+> **Reconciled against source at U11 (2026-08-14).** Three entries below record where the shipped
+> home differs from the one this table first proposed, and why. Nothing was dropped: the main
+> screen now holds 13 rows signed in and 11 signed out, and every other row is behind one of the
+> six destinations or the capture sheet. `test/settings.test.ts` pins both lists and every
+> destination's contents.
+
 **1 · Capture**
 
 | Today | New home |
 |---|---|
-| Capture Atom shortcut | Root → `Capture on your phone`, with the 6-step procedure as a sheet |
+| Capture Atom shortcut | Root → `Capture on your phone`, with the procedure as a sheet. **Shipped as three steps, not six** — the original six were four instructions and two asides |
 | Custom shortcut link | **Advanced → Escape hatches.** Only relevant if you forked the recipe |
 
 **2 · File**
@@ -383,9 +389,9 @@ destinations), mapped to where it lands. **34 rows in, 34 rows accounted for, 0 
 | Sync when you return to Obsidian | **Advanced → Sync** |
 | Sync everything now | **Advanced → Sync** |
 | Last auto-run day (this device) | **Advanced → This device**, as `Last filing run` |
-| Last catch-up | **Advanced → This device**, as `Last catch up` |
-| Device-local key fallback | **Advanced → Escape hatches**, as `Store the key on this device` |
-| Device-local API key (conditional) | Same row's detail, when that fallback is on |
+| Last catch-up | **Advanced → This device**. Kept as `Last catch-up`: `LAST_CATCHUP_LABEL` is single-sourced with Atoms home, which prints the same line |
+| Device-local key fallback | ~~Advanced → Escape hatches~~ → **shipped on `Who does the filing ›`**, beside the key field. `getApiKey()` falls back to that key, so the pair is a complete credential path that enables Anthropic spend on its own, and the toggle is also the only thing that deletes the stored key. Filing it under Advanced as plumbing would have put a spend gate on the one screen that holds none (U4) |
+| Device-local API key (conditional) | Same place, revealed under that toggle |
 
 **3 · Resurface** — two groups, not one. Atoms home and Ask answer the same user question (*how do
 my thoughts come back?*) but are independent features with independent state, and one footer could
@@ -424,9 +430,10 @@ call it from their cloud rather than from the user's machine.
 | What Ask stores and shares (record) | Privacy and consents |
 | Vault write acknowledgment (record) | Privacy and consents |
 | Wipe cloud copy | Privacy and consents → `Delete cloud copy` |
-| Model | Advanced |
-| Plus service URL override | Advanced → `Plus service URL` |
-| DIY Ask guide | Advanced → `Run Ask yourself` |
+| Model | Advanced → `Model` |
+| Plus service URL override | Advanced → `Run Ask yourself`, as `Plus service URL` |
+| DIY Ask guide | Advanced → `Run Ask yourself`, as `Self-host guide` |
+| Advanced: paste session | **Advanced → Escape hatches**, as `Paste a session`. The `Advanced:` prefix was an address; the row now lives at the address |
 
 **Account** — all of these sit behind `Who does the filing ›` → *Atoms Plus*. Mocked in full across
 all nine states in [`account.html`](account.html).
@@ -435,7 +442,7 @@ all nine states in [`account.html`](account.html).
 |---|---|
 | Skip the API key / See plans | Folded into the signed-out screen's `What Plus does` group |
 | Email / Send sign-in link | Signed-out screen, as the one primary action |
-| Advanced: paste session | **Advanced → Escape hatches**, with the other one-case-only controls |
+| Advanced: paste session | **Advanced → Escape hatches**, with the other one-case-only controls. Landed in U7; listed again under *Your data* above |
 | Status · Signed in as · Plan | One group per state. The state names the group; the rows carry facts |
 | Refresh status | A quiet row, not a full-width button |
 | Manage subscription | Quiet row, still gated on `lapseKind === "subscription"` |

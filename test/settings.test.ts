@@ -712,6 +712,89 @@ describe("account row", () => {
 });
 
 /**
+ * U11 — the copy lockstep, over the screens this plan authored.
+ *
+ * The existing em-dash guards cover main-screen prose, the engine screen, and the File group's
+ * footers. They were written before the two screens that now hold most of this plan's new copy
+ * existed, and a rule enforced on three surfaces out of seven is a rule with three surfaces'
+ * worth of teeth. This walks every string a reader can see on the screens U7 through U9 wrote:
+ * prose, group footers, and row descriptions alike, which is where the old guards stopped.
+ *
+ * Scoped to those screens rather than to the whole tab on purpose. The plan's rule is about copy
+ * *this plan* added or edited (R15), and sweeping the untouched screens would fail on strings
+ * nobody here wrote, which is how a guard gets deleted instead of obeyed.
+ */
+describe("copy lockstep on the screens this plan wrote (U11, R15)", () => {
+  /** Everything a reader sees: paragraphs, group footers, and the line under each row name. */
+  function readableText(tab: AtomsSettingTab): string[] {
+    return Array.from(
+      tab.containerEl.querySelectorAll(
+        "p.setting-item-description, p.atoms-setting-group-foot, .setting-item-description",
+      ),
+    ).map((el) => el.textContent ?? "");
+  }
+
+  it("writes no em dash on the Advanced screen", () => {
+    const { tab } = settingTab({
+      session: PLUS_SESSION,
+      local: { [LS_LAST_RUN_DAY]: "2026-08-13" },
+    });
+    openAdvanced(tab);
+
+    const lines = readableText(tab);
+    expect(lines.length).toBeGreaterThan(0);
+    for (const line of lines) expect(line).not.toContain("—");
+  });
+
+  it("writes no em dash on either account screen", () => {
+    for (const opts of [{}, { session: PLUS_SESSION }]) {
+      const { tab } = settingTab(opts);
+      tab.display();
+      open(tab, "Who does the filing");
+      open(tab, destinationNames(tab).find((n) => n !== "Account") ?? "");
+
+      const lines = readableText(tab);
+      expect(lines.length).toBeGreaterThan(0);
+      for (const line of lines) expect(line).not.toContain("—");
+    }
+  });
+
+  it("writes no em dash in the capture sheet, in either of its shapes", () => {
+    for (const settings of [{}, { captureShortcutInstallUrl: " " }]) {
+      const { tab } = settingTab({ settings });
+      tab.display();
+      open(tab, "Capture on your phone");
+      expect(sheetText()).not.toContain("—");
+      dismissSheet();
+    }
+  });
+
+  /**
+   * KTD5's other half. The three ack versions and the standing suffixes are frozen, and this
+   * plan moved records between screens without touching a word of them — a record describing
+   * wording the user never saw is #315 wearing new paint. The suffix pair is asserted where the
+   * records render; this pins the versions themselves, so a copy edit that "tidied" a
+   * disclosure without bumping its version fails here rather than on somebody's device.
+   */
+  it("moved every consent record without moving an ack version", () => {
+    expect(EGRESS_ACK_VERSION).toBe("2026-08-06");
+    expect(ASK_PRIVACY_ACK_VERSION).toBe("2026-08-07");
+    expect(ASK_WRITE_ACK_VERSION).toBe("2026-08-06");
+  });
+
+  /** R8: a user reading Settings has to be able to say which build they are looking at. */
+  it("keeps the three manifests on one version", () => {
+    const read = (name: string) =>
+      JSON.parse(
+        readFileSync(path.resolve(__dirname, "..", name), "utf8"),
+      ) as Record<string, unknown>;
+    const pkg = read("package.json").version as string;
+    expect(read("manifest.json").version).toBe(pkg);
+    expect(Object.keys(read("versions.json"))).toContain(pkg);
+  });
+});
+
+/**
  * U9 — the capture-on-phone procedure, out of a row description and into a sheet.
  *
  * The row used to carry all six steps as one arrow-separated line ending in `Acked: never`, on
@@ -2725,7 +2808,12 @@ describe("main screen row grammar (U9)", () => {
   it("adds the device-local key row under its toggle, and nowhere else", () => {
     const { tab } = settingTab({ settings: { useDeviceLocalKeyFallback: true } });
     tab.display();
-    // Not on the main screen at all now: both live on the engine destination.
+    // Not on the main screen at all now: both live on the engine destination. The whole list,
+    // not just the absence — a conditional row that leaked here would otherwise only be caught
+    // if somebody thought to name it (U11).
+    expect(rowNames(tab, { headings: false })).toEqual(
+      expectedRows(false, [ASK_OFF_ROW], false),
+    );
     expect(rowNames(tab, { headings: false })).not.toContain("Device-local key fallback");
 
     open(tab, "Who does the filing");

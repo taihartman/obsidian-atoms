@@ -2566,7 +2566,7 @@ export class AtomsSettingTab extends PluginSettingTab {
       // than a state the user can fix — say which file, and leave the button dead.
       disabledNote: installUrl
         ? undefined
-        : "No link — check mobile-install.json Capture Atom urls.",
+        : "No link to open. Check the Capture Atom urls in mobile-install.json.",
       onInstall: () => this.installCaptureShortcut(installUrl),
     }).open();
   }
@@ -2583,7 +2583,7 @@ export class AtomsSettingTab extends PluginSettingTab {
       CAPTURE_ATOM_VERSION,
     );
     new Notice(
-      `Opened Capture Atom v${CAPTURE_ATOM_VERSION} — add it, then set its bookmark to Atoms Inbox once`,
+      `Opened Capture Atom v${CAPTURE_ATOM_VERSION}. Add it, then set its bookmark to Atoms Inbox once.`,
     );
     this.redisplay();
   }
