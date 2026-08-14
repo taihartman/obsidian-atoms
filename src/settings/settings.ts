@@ -106,7 +106,7 @@ import {
   plusRefreshRowRecord,
   refreshPlusEntitlementRecord,
 } from "../platform/plusRefresh";
-import { openSettingsTab } from "../platform/obsidianSettings";
+import { closeSettings, openSettingsTab } from "../platform/obsidianSettings";
 import { appHasDailyNotesPluginLoaded } from "obsidian-daily-notes-interface";
 import {
   atomsPlusTopUpCopy,
@@ -545,6 +545,54 @@ const ENGINE_SCREEN = {
       "Never the body of another note, and never your whole vault",
       "Nothing from today, unless you ask for it",
     ],
+  },
+} as const;
+
+/**
+ * Leg three, as two groups rather than one (R3).
+ *
+ * Atoms home and Ask are independent features with independent state: one is on from the moment
+ * anything is filed and needs no setup at all, the other is off until a session and two consents
+ * say otherwise. A single footer would have to describe both and would end up describing neither,
+ * so the leg's number sits on the first group and Ask carries its own name.
+ *
+ * The home group's footer leads with the fact a settings screen almost never gets to state: there
+ * is nothing here to configure. That is the answer to the question the eyebrow raises, and
+ * withholding it would make a reader hunt for a control that does not exist.
+ */
+const HOME_GROUP = {
+  header: "3 · Resurface",
+  footer:
+    "Nothing to set up. Atoms home brings old thoughts back on its own: something from this day last year, or a note that connects to what you just filed.",
+} as const;
+
+/** The one row in the home group, so the group has a control rather than prose alone. */
+const HOME_ROW = {
+  name: "Atoms home",
+  desc: "Everything Atoms has filed, and what it is bringing back.",
+} as const;
+
+/**
+ * Ask, in the two shapes the device can be in.
+ *
+ * Signed out is one row saying `Off` and a footer naming what is missing. It names a **session
+ * from the Atoms service**, never a paid subscription (R13) — a self-hosted server yields the
+ * same session and the same Ask — and it does not mention self-hosting at all, because that
+ * route is named on the Advanced screen rather than offered to somebody who has not yet decided
+ * whether they want Ask (R13 again).
+ *
+ * The signed-out row is read-only rather than a chevron: the screen behind it can offer nothing
+ * without a session, and a chevron onto a dead end is worse than no chevron.
+ */
+const ASK_GROUP = {
+  header: "Ask",
+  signedOut: {
+    row: { name: "Ask in Claude and ChatGPT", value: "Off" },
+    footer:
+      "Claude and ChatGPT can search your atoms once a copy of them is online. That copy needs a session from the Atoms service.",
+  },
+  signedIn: {
+    footer: "Claude and ChatGPT read that cloud copy, never your vault.",
   },
 } as const;
 
@@ -1216,7 +1264,7 @@ export class AtomsSettingTab extends PluginSettingTab {
     // Resurface leg and fold the records and diagnostics away have not landed yet.
     this.renderCaptureGroup(containerEl);
     this.renderFileGroup(containerEl, step);
-    this.renderAskSection(containerEl);
+    this.renderResurfaceGroups(containerEl);
     this.renderAutoRunSection(containerEl);
     this.renderAdvancedEntry(containerEl);
   }
@@ -2890,31 +2938,68 @@ export class AtomsSettingTab extends PluginSettingTab {
   }
 
   /**
-   * Ask — remote MCP for Claude / ChatGPT (Plus). No in-plugin chat.
+   * Leg three: the two things Atoms does with what it has filed (R1, R3).
+   *
+   * Home first because it needs nothing, then Ask, which needs a session and two consents. The
+   * order is the mock's and it is also the order of increasing commitment.
    */
-  private renderAskSection(containerEl: HTMLElement) {
-    settingHeading(containerEl, "Ask (Claude + ChatGPT)");
+  private renderResurfaceGroups(containerEl: HTMLElement): void {
+    group(containerEl, {
+      ...HOME_GROUP,
+      render: (groupEl) => {
+        destinationRow(groupEl, {
+          ...HOME_ROW,
+          onOpen: () => {
+            // The modal has to go first: the view opens in the workspace behind it, so a row
+            // that only activated the view would look like it did nothing at all.
+            closeSettings(this.app);
+            void this.plugin.activateAtomsHome();
+          },
+        });
+      },
+    });
+    this.renderAskGroup(containerEl);
+  }
+
+  /**
+   * Ask — remote MCP for Claude / ChatGPT. No in-plugin chat.
+   *
+   * The lead paragraph this replaces is not missed. Its automatic-push half is the `Ask mirror`
+   * row's own subtitle, and its orphan-cleanup half is stated on the `Sync now` row that performs
+   * it, one screen in — R19's escalation rather than a footer sweep deleting a rule. What did go
+   * is the sentence pointing at "Atoms Plus **above**", which named a heading U3 retired, and the
+   * self-host invitation, which R13 keeps on the Advanced screen.
+   */
+  private renderAskGroup(containerEl: HTMLElement): void {
     const session = readPlusSession(this.app);
 
-    containerEl.createEl("p", {
-      text: "Cloud copy of Atoms/ on Plus — for chat search in Claude or ChatGPT. When Obsidian is open online, hand-edits and deletes push automatically. Full orphan cleanup is Sync now. Not a second library you maintain by hand.",
-      cls: "setting-item-description",
-    });
-
     if (!session) {
-      containerEl.createEl("p", {
-        text: "Sign in to Atoms Plus above to use the hosted connector. To run the server yourself, open Advanced and follow the DIY Ask guide.",
-        cls: "setting-item-description",
+      group(containerEl, {
+        header: ASK_GROUP.header,
+        footer: ASK_GROUP.signedOut.footer,
+        render: (groupEl) => {
+          statusRow(groupEl, { ...ASK_GROUP.signedOut.row });
+          // Signing out leaves both acks on record — deliberately, so signing back in does not
+          // re-ask. A consent on record with no way out is not a consent, and the next sign-in
+          // may be a *different* Plus account, so the withdrawal surface outlives the session
+          // exactly as the egress ack's does. U6 gives these records a home of their own; until
+          // it lands they stay here, because R7 wants them reachable, not tidy.
+          this.renderAskPrivacyAckRecord(groupEl);
+          this.renderAskWriteAckRecord(groupEl);
+        },
       });
-      // Signing out leaves both acks on record — deliberately, so signing back in does not
-      // re-ask. A consent on record with no way out is not a consent, and the next sign-in may
-      // be a *different* Plus account, so the withdrawal surface outlives the session exactly
-      // as the egress ack's does.
-      this.renderAskPrivacyAckRecord(containerEl);
-      this.renderAskWriteAckRecord(containerEl);
       return;
     }
 
+    group(containerEl, {
+      header: ASK_GROUP.header,
+      footer: ASK_GROUP.signedIn.footer,
+      render: (groupEl) => this.renderAskControls(groupEl, session),
+    });
+  }
+
+  /** The switches and the way in to the plumbing, once a session exists to run them. */
+  private renderAskControls(containerEl: HTMLElement, session: PlusSession): void {
     const ack = askPrivacyAckIsCurrent(this.plugin.settings);
     settingRow(containerEl, {
       name: "Ask mirror",
@@ -3027,10 +3112,23 @@ export class AtomsSettingTab extends PluginSettingTab {
     const status = this.mirrorStatusLine(session.email);
     destinationRow(containerEl, {
       name: DESTINATION_TITLES.connect,
-      desc: status.line,
+      // A fragment rather than a string, so a failing mirror reads as failing here and not only
+      // on the screen behind this row. `destinationRow` carries no class hook by design, and a
+      // status that looks identical whether it worked or not is the row saying nothing.
+      desc: statusDesc(status),
       onOpen: () => this.openRoute("connect"),
     });
   }
+}
+
+/** The mirror's status line, marked up so a failure is visible without opening anything. */
+function statusDesc(status: { line: string; failing: boolean }): DocumentFragment {
+  return createFragment((frag) => {
+    frag.createSpan({
+      cls: status.failing ? "atoms-ask-mirror-error" : undefined,
+      text: status.line,
+    });
+  });
 }
 
 /**

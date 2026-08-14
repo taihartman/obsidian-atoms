@@ -29,7 +29,8 @@ import {
   type FilingAuth,
   type PlusSession,
 } from "../src/platform/filingAuth";
-import { EGRESS_DISCLOSURE } from "../src/settings/consent";
+import { ASK_PRIVACY_ACK_TITLE, EGRESS_DISCLOSURE } from "../src/settings/consent";
+import { LS_ASK_MIRROR_LAST_ERROR } from "../src/platform/askMirror";
 import { formatUsd, PLUS_PRICING } from "../src/shared/plusPricing";
 import { s256Challenge } from "../src/platform/pkce";
 import { requestMagicLink } from "../src/platform/plusClient";
@@ -1719,6 +1720,139 @@ describe("closing Settings", () => {
   });
 });
 
+/**
+ * U5 — leg three as two groups. Atoms home needs nothing and says so; Ask needs a session and
+ * two consents, and says *that* without naming a price or a self-hosted server (R13).
+ */
+describe("the Resurface leg (U5)", () => {
+  const ASK_OFF_ROW = "Ask in Claude and ChatGPT";
+
+  it("renders Atoms home and Ask as two groups, in that order", () => {
+    const { tab } = settingTab();
+    tab.display();
+
+    expect(groupHeaders(tab)).toEqual(["Get started", "1 · Capture", "2 · File", "3 · Resurface", "Ask"]);
+  });
+
+  it("opens the home view, and gets the settings modal out of its way", () => {
+    const { tab, calls } = settingTab();
+    tab.display();
+
+    open(tab, "Atoms home");
+
+    expect(calls).toContain("activateAtomsHome");
+    // Still on the settings screen as far as the tab is concerned: this row leaves the modal
+    // rather than walking to another route, so nothing here should have re-routed.
+    expect(tab.containerEl.querySelector(".atoms-setting-back")).toBeNull();
+  });
+
+  it("says there is nothing to set up, because there is not", () => {
+    const { tab } = settingTab();
+    tab.display();
+
+    expect(prose(tab)).toContain(
+      "Nothing to set up. Atoms home brings old thoughts back on its own: something from this day last year, or a note that connects to what you just filed.",
+    );
+  });
+
+  describe("signed out", () => {
+    it("is one row reading Off, with no consent toggles to reach", () => {
+      const { tab } = settingTab();
+      tab.display();
+
+      const rows = rowNames(tab, { headings: false });
+      expect(rows).toContain(ASK_OFF_ROW);
+      expect(rows).not.toContain("Ask mirror");
+      expect(rows).not.toContain("Allow filing from Claude or ChatGPT");
+      expect(rows).not.toContain("Connect Claude or ChatGPT");
+      expect(row(tab, ASK_OFF_ROW).textContent).toContain("Off");
+    });
+
+    it("names a session from the Atoms service, never a subscription or a price", () => {
+      const { tab } = settingTab();
+      tab.display();
+
+      expect(prose(tab)).toContain(
+        "Claude and ChatGPT can search your atoms once a copy of them is online. That copy needs a session from the Atoms service.",
+      );
+      const text = tab.containerEl.textContent ?? "";
+      expect(text).not.toContain("subscription");
+      expect(text).not.toMatch(/\$\d/);
+    });
+
+    it("stops naming a heading that no longer exists", () => {
+      const { tab } = settingTab();
+      tab.display();
+
+      // U3 retired the `Atoms Plus` heading this sentence pointed at. A direction to somewhere
+      // "above" outlives the thing above it in silence, which is why it is gone rather than
+      // reworded.
+      expect(tab.containerEl.textContent).not.toContain("Sign in to Atoms Plus above");
+    });
+
+    it("keeps a withdrawal reachable for an ack still on record", () => {
+      const { tab } = settingTab({ settings: { ...PRIVACY_GRANTED } });
+      tab.display();
+
+      // No session, but a live grant: R7 wants the way out reachable whenever one exists, and
+      // signing out deliberately leaves the record standing so signing back in does not re-ask.
+      expect(rowNames(tab, { headings: false })).toContain(ASK_PRIVACY_ACK_TITLE);
+    });
+  });
+
+  describe("signed in", () => {
+    it("renders both switches, with vault-write held until the privacy ack is current", () => {
+      const { tab } = settingTab({ session: PLUS_SESSION });
+      tab.display();
+
+      const rows = rowNames(tab, { headings: false });
+      expect(rows).toContain("Ask mirror");
+      expect(rows).toContain("Allow filing from Claude or ChatGPT");
+      expect(rows).not.toContain(ASK_OFF_ROW);
+
+      const write = row(tab, "Allow filing from Claude or ChatGPT").querySelector(
+        ".checkbox-container",
+      );
+      expect(write?.classList.contains("is-disabled")).toBe(true);
+    });
+
+    it("shows a failing mirror as failing on the entry row, not only one screen in", () => {
+      const failing = settingTab({
+        session: PLUS_SESSION,
+        settings: { askEnabled: true, ...PRIVACY_GRANTED },
+        local: { [LS_ASK_MIRROR_LAST_ERROR]: "429 rate limited" },
+      });
+      failing.tab.display();
+
+      const healthy = settingTab({
+        session: PLUS_SESSION,
+        settings: { askEnabled: true, ...PRIVACY_GRANTED },
+      });
+      healthy.tab.display();
+
+      const entry = (t: AtomsSettingTab) => row(t, "Connect Claude or ChatGPT");
+      expect(entry(failing.tab).querySelector(".atoms-ask-mirror-error")).not.toBeNull();
+      expect(entry(healthy.tab).querySelector(".atoms-ask-mirror-error")).toBeNull();
+    });
+
+    it("promises only what the mirror does, and never that it reads the vault", () => {
+      const { tab } = settingTab({ session: PLUS_SESSION });
+      tab.display();
+
+      expect(prose(tab)).toContain(
+        "Claude and ChatGPT read that cloud copy, never your vault.",
+      );
+    });
+  });
+
+  it("writes no em dash into any main-screen prose", () => {
+    const { tab } = settingTab({ session: PLUS_SESSION });
+    tab.display();
+
+    for (const line of prose(tab)) expect(line).not.toContain("—");
+  });
+});
+
 describe("Connect Claude or ChatGPT destination (U6)", () => {
   const CONNECT_ROWS = [
     "MCP connector URL",
@@ -1960,12 +2094,18 @@ describe("main screen row grammar (U9)", () => {
     "Connect Claude or ChatGPT",
   ];
 
+  /** What leg 3's Ask group renders with no session: one row, saying so. */
+  const ASK_OFF_ROW = "Ask in Claude and ChatGPT";
+
   /**
    * @param filingChosen whether someone is set up to file. U2's status group opens the screen
    *   either way: with the one next step when nobody files, and with the automatic-filing
    *   toggle it takes off the auto-run section when somebody does.
+   * @param askRows what leg 3's Ask group holds: the three-row cluster with a session, or the
+   *   single `Off` row without one. Not a filter on one list, because the signed-out shape is a
+   *   different row rather than the signed-in rows minus some.
    */
-  function expectedRows(filingChosen: boolean): string[] {
+  function expectedRows(filingChosen: boolean, askRows: string[]): string[] {
     const vocabulary = `Tag vocabulary — ${DEFAULT_SETTINGS.activeVocabulary.length} active`;
     return [
       filingChosen ? "File automatically" : "Choose who files your captures",
@@ -1984,7 +2124,9 @@ describe("main screen row grammar (U9)", () => {
       "Atom folder",
       vocabulary,
       "List atoms on hub notes",
-      ...ASK_ROWS,
+      // 3 · Resurface, as two groups: home needs nothing, Ask needs a session (R3).
+      "Atoms home",
+      ...askRows,
       "Sync when you return to Obsidian",
       "Sync everything now",
       // The key rows are not here since U4: a credential path belongs beside the engine choice
@@ -1998,17 +2140,17 @@ describe("main screen row grammar (U9)", () => {
     tab.display();
 
     const rows = rowNames(tab, { headings: false });
-    expect(rows).toEqual(expectedRows(true));
-    expect(rows).toHaveLength(14);
+    expect(rows).toEqual(expectedRows(true, ASK_ROWS));
+    expect(rows).toHaveLength(15);
   });
 
-  it("renders twelve rows signed out — the Ask cluster is the only difference", () => {
+  it("renders fourteen rows signed out — the Ask group is the only difference", () => {
     const { tab } = settingTab();
     tab.display();
 
     const rows = rowNames(tab, { headings: false });
-    expect(rows).toEqual(expectedRows(false).filter((name) => !ASK_ROWS.includes(name)));
-    expect(rows).toHaveLength(12);
+    expect(rows).toEqual(expectedRows(false, [ASK_OFF_ROW]));
+    expect(rows).toHaveLength(14);
   });
 
   it("adds the device-local key row under its toggle, and nowhere else", () => {
@@ -2054,17 +2196,24 @@ describe("main screen row grammar (U9)", () => {
     expect(rowNames(tab, { headings: false })).not.toContain("Open today's daily");
   });
 
-  it("leaves Self-host Ask off the main screen and points signed-out Ask at Advanced", () => {
+  it("keeps self-hosting off the main screen entirely, on the Advanced screen instead", () => {
     const { tab } = plusTab();
     tab.display();
     expect(rowNames(tab, { headings: false })).not.toContain("Self-host Ask");
     expect(existsSync(path.resolve(__dirname, "../docs/ask-self-host.md"))).toBe(true);
 
+    // U5 stopped offering the route on the main screen (R13). Signed out is exactly the moment
+    // somebody has not decided whether they want Ask at all, and "or run the server yourself"
+    // is not the sentence that helps them decide. The Advanced screen still names it, so the
+    // route is described rather than hidden.
     const signedOut = settingTab();
     signedOut.tab.display();
-    expect(signedOut.tab.containerEl.textContent).toContain(
-      "open Advanced and follow the DIY Ask guide",
-    );
+    const main = signedOut.tab.containerEl.textContent ?? "";
+    expect(main).not.toContain("DIY Ask guide");
+    expect(main).not.toContain("run the server yourself");
+    // And it is one tap away, named, on the screen R13 puts it on.
+    open(signedOut.tab, "Advanced");
+    expect(rowNames(signedOut.tab, { headings: false })).toContain("DIY Ask guide");
 
     const guide = readFileSync(
       path.resolve(__dirname, "../docs/ask-self-host.md"),
@@ -2172,9 +2321,12 @@ describe("status group (U2)", () => {
       const footer =
         "Atoms reads thoughts you already wrote and files each one as its own note, linked to the people and topics it mentions.";
       expect(prose(tab)).toContain(footer);
-      // R9 is about order, not just presence: the sentence has to land before the first row.
+      // R9 is about order, not just presence: the sentence has to land before the first leg the
+      // screen offers controls under. The old anchor was the phrase "Atoms Plus", which U5 took
+      // off the main screen with the Ask sign-in paragraph.
       const text = tab.containerEl.textContent ?? "";
-      expect(text.indexOf("Get started")).toBeLessThan(text.indexOf("Atoms Plus"));
+      expect(text.indexOf("Get started")).toBeLessThan(text.indexOf(footer));
+      expect(text.indexOf(footer)).toBeLessThan(text.indexOf("1 · Capture"));
     });
 
     it("names one next step, and walks into the screen that answers it", () => {

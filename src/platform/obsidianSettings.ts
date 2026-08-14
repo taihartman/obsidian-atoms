@@ -16,6 +16,7 @@ import type { App } from "obsidian";
  */
 type SettingsModalApi = {
   open: () => void | Promise<void>;
+  close: () => void;
   openTabById: (id: string) => void;
 };
 
@@ -32,4 +33,15 @@ export function openSettingsTab(app: App, tabId: string): void {
     .catch(() => {
       /* no modal opened — there is no tab to land on, and nothing to report */
     });
+}
+
+/**
+ * Get the settings modal out of the way, for a row whose target is the workspace behind it.
+ *
+ * The settings screen is not the product, so a row that opens a view has to leave: activating
+ * Atoms home under an open modal looks like the row did nothing. Same narrow local interface as
+ * the deep link above, and the same tolerance for a modal that is not there.
+ */
+export function closeSettings(app: App): void {
+  (app as { setting?: SettingsModalApi }).setting?.close();
 }

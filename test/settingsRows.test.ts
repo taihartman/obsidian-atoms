@@ -1134,6 +1134,23 @@ const DESTINATIONS: Array<[entry: string, title: string]> = [
 ];
 
 /**
+ * Every chevron row on the main screen, in rendered order — which is the routes above plus the
+ * one that leaves Settings entirely.
+ *
+ * `Atoms home` is a destination row and not a settings route: it closes the modal and activates
+ * the view behind it (U5). It is listed here so the main screen's chevrons stay pinned, and kept
+ * out of the walk table above, which is about screens you can come *back* from.
+ */
+const MAIN_DESTINATION_ROWS = [
+  "Choose who files your captures",
+  "Who does the filing",
+  `Tag vocabulary — ${DEFAULT_SETTINGS.activeVocabulary.length} active`,
+  "Atoms home",
+  "Connect Claude or ChatGPT",
+  "Advanced",
+];
+
+/**
  * A Plus session, because U6 moved the Ask plumbing behind the Connect entry row and the Ask
  * section — that row included — renders only when the device has one.
  */
@@ -1152,7 +1169,7 @@ describe("destination shell", () => {
 
     expect(onMainScreen(tab)).toBe(true);
     expect(backRowEl(tab)).toBeNull();
-    expect(destinationNames(tab)).toEqual(DESTINATIONS.map(([entry]) => entry));
+    expect(destinationNames(tab)).toEqual(MAIN_DESTINATION_ROWS);
   });
 
   it.each(DESTINATIONS)("enters %s and comes back to the main screen", (entry, title) => {
