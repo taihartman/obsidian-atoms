@@ -30,7 +30,10 @@ import {
   type PlusSession,
 } from "../src/platform/filingAuth";
 import { ASK_PRIVACY_ACK_TITLE, EGRESS_DISCLOSURE } from "../src/settings/consent";
-import { LS_ASK_MIRROR_LAST_ERROR } from "../src/platform/askMirror";
+import {
+  LS_ASK_MIRROR_LAST_ERROR,
+  LS_ASK_MIRROR_SERVER_COUNT,
+} from "../src/platform/askMirror";
 import { formatUsd, PLUS_PRICING } from "../src/shared/plusPricing";
 import { s256Challenge } from "../src/platform/pkce";
 import { requestMagicLink } from "../src/platform/plusClient";
@@ -42,6 +45,7 @@ import {
   flip,
   groupHeaders,
   open,
+  openPrivacy,
   press,
   pressSheet,
   prose,
@@ -1048,6 +1052,23 @@ describe("consent sheets", () => {
     return made;
   }
 
+  /**
+   * The same tab, standing where U6 put every passive record.
+   *
+   * The switches that grant these consents stayed on the main screen and the records moved to
+   * Privacy, so a case about a *record* has to walk in. `openPrivacy` throws when the entry row
+   * is absent, which is the assertion these cases care most about: the way out has to be
+   * reachable whenever a grant is live (KTD6).
+   */
+  function recordsTab(
+    settings: Partial<LinkerSettings> = {},
+    local: Record<string, unknown> = {},
+  ) {
+    const made = settingTab({ session: SESSION, settings, local });
+    openPrivacy(made.tab);
+    return made;
+  }
+
   /** What the plugin double persisted, read back the way the tab wrote it. */
   const persisted = (tab: AtomsSettingTab) => tab.plugin.settings;
 
@@ -1137,7 +1158,7 @@ describe("consent sheets", () => {
 
   describe("the acknowledgment record", () => {
     it("shows the egress ack even while auto-run is off, and still offers Review", () => {
-      const { tab } = askTab(
+      const { tab } = recordsTab(
         {},
         { [LS_AUTO_RUN_EGRESS_ACK]: EGRESS_ACK_VERSION, [LS_AUTO_RUN_ENABLED]: false },
       );
@@ -1157,7 +1178,7 @@ describe("consent sheets", () => {
      * they cannot reach. The row has to key on either grant, and say which one it is.
      */
     it("still offers Review when only the catch-up notice is granted", () => {
-      const { tab, local } = askTab({}, {
+      const { tab, local } = recordsTab({}, {
         [LS_AUTO_RUN_EGRESS_ACK]: true,
         [LS_AUTO_RUN_ENABLED]: true,
         [LS_EGRESS_NOTICE]: true,
@@ -1193,7 +1214,13 @@ describe("consent sheets", () => {
         [LS_AUTO_RUN_ENABLED]: true,
       });
 
+      // The record is on Privacy since U6 and the toggle stayed on main, so this case spans the
+      // two: no record to find, then a grant made where grants are made, then a record.
+      openPrivacy(tab);
       expect(rowNames(tab)).not.toContain("What Atoms sends to Anthropic");
+
+      tab.hide();
+      tab.display();
       expect(
         row(tab, "File automatically when Obsidian opens").querySelector(".is-enabled"),
       ).toBeNull();
@@ -1206,11 +1233,12 @@ describe("consent sheets", () => {
 
       // Accepting once replaces the wordless record with one that names what was shown.
       expect(local.get(LS_AUTO_RUN_EGRESS_ACK)).toBe(EGRESS_ACK_VERSION);
+      openPrivacy(tab);
       expect(rowNames(tab)).toContain("What Atoms sends to Anthropic");
     });
 
     it("shows the Ask privacy ack even while the mirror is off", () => {
-      const { tab } = askTab({ ...PRIVACY_GRANTED, askEnabled: false });
+      const { tab } = recordsTab({ ...PRIVACY_GRANTED, askEnabled: false });
 
       expect(rowNames(tab)).toContain("What Ask stores and shares");
       expect(row(tab, "What Ask stores and shares").textContent).toContain("2026-08-01");
@@ -1224,7 +1252,9 @@ describe("consent sheets", () => {
         session: null,
         settings: { ...PRIVACY_GRANTED, ...WRITE_GRANTED, askEnabled: true },
       });
-      tab.display();
+      // Signed out there is no session disjunct, so the Privacy entry renders on the acks alone
+      // — which is exactly the reachability KTD6 exists to hold. `openPrivacy` throws otherwise.
+      openPrivacy(tab);
 
       expect(rowNames(tab)).toContain(ASK_PRIVACY_ACK_ROW);
       expect(rowNames(tab)).toContain(ASK_WRITE_ACK_ROW);
@@ -1239,7 +1269,7 @@ describe("consent sheets", () => {
     });
 
     it("keeps no acknowledgment row for an ack that was never granted", () => {
-      const { tab } = askTab();
+      const { tab } = recordsTab();
 
       expect(rowNames(tab)).not.toContain("What Atoms sends to Anthropic");
       expect(rowNames(tab)).not.toContain("What Ask stores and shares");
@@ -1249,7 +1279,7 @@ describe("consent sheets", () => {
 
   describe("withdrawing", () => {
     it("clears the egress ack and force-disables auto-run", async () => {
-      const { tab, local } = askTab({}, {
+      const { tab, local } = recordsTab({}, {
         [LS_AUTO_RUN_EGRESS_ACK]: EGRESS_ACK_VERSION,
         [LS_AUTO_RUN_ENABLED]: true,
       });
@@ -1265,7 +1295,7 @@ describe("consent sheets", () => {
       // Both booleans granted: the auto-run ack from this row, and the catch-up notice from the
       // "Got it" card on Atoms home. Withdrawing here has to answer for both, because the
       // disclosure this row shows names "Sync everything now" — the button the notice permits.
-      const { tab, local } = askTab(
+      const { tab, local } = recordsTab(
         {},
         {
           [LS_AUTO_RUN_EGRESS_ACK]: EGRESS_ACK_VERSION,
@@ -1289,7 +1319,7 @@ describe("consent sheets", () => {
     });
 
     it("clears the vault-write ack when the privacy ack is withdrawn", async () => {
-      const { tab } = askTab({
+      const { tab } = recordsTab({
         ...PRIVACY_GRANTED,
         askEnabled: true,
         ...WRITE_GRANTED,
@@ -1317,7 +1347,7 @@ describe("consent sheets", () => {
     });
 
     it("withdraws the vault-write ack on its own without touching the privacy ack", async () => {
-      const { tab } = askTab({
+      const { tab } = recordsTab({
         ...PRIVACY_GRANTED,
         askEnabled: true,
         ...WRITE_GRANTED,
@@ -1338,6 +1368,9 @@ describe("consent sheets", () => {
       const stale = row(tab, "Ask mirror").querySelector(".checkbox-container");
       if (!(stale instanceof HTMLElement)) throw new Error("no Ask mirror toggle");
 
+      // Walking to the record is what makes the toggle stale in the first place now: the switch
+      // is on the screen the user just left, and its handler outlives the DOM it was built on.
+      open(tab, "Privacy and consents");
       press(tab, "What Ask stores and shares", "Review");
       pressSheet("Withdraw acknowledgment");
       await flush();
@@ -1369,8 +1402,10 @@ describe("consent sheets", () => {
       });
       tab.display();
 
-      // Enable, then withdraw while the enable is still waiting on its own write to disk.
+      // Enable, then withdraw while the enable is still waiting on its own write to disk. The
+      // withdrawal is a screen away since U6, which only widens the window this guards.
       flip(tab, "Ask mirror");
+      open(tab, "Privacy and consents");
       press(tab, "What Ask stores and shares", "Review");
       pressSheet("Withdraw acknowledgment");
       release();
@@ -1731,7 +1766,14 @@ describe("the Resurface leg (U5)", () => {
     const { tab } = settingTab();
     tab.display();
 
-    expect(groupHeaders(tab)).toEqual(["Get started", "1 · Capture", "2 · File", "3 · Resurface", "Ask"]);
+    expect(groupHeaders(tab)).toEqual([
+      "Get started",
+      "1 · Capture",
+      "2 · File",
+      "3 · Resurface",
+      "Ask",
+      "Your data",
+    ]);
   });
 
   it("opens the home view, and gets the settings modal out of its way", () => {
@@ -1792,10 +1834,11 @@ describe("the Resurface leg (U5)", () => {
 
     it("keeps a withdrawal reachable for an ack still on record", () => {
       const { tab } = settingTab({ settings: { ...PRIVACY_GRANTED } });
-      tab.display();
+      openPrivacy(tab);
 
       // No session, but a live grant: R7 wants the way out reachable whenever one exists, and
       // signing out deliberately leaves the record standing so signing back in does not re-ask.
+      // Since U6 the way out is the Privacy screen, which `openPrivacy` throws if it cannot find.
       expect(rowNames(tab, { headings: false })).toContain(ASK_PRIVACY_ACK_TITLE);
     });
   });
@@ -1853,13 +1896,198 @@ describe("the Resurface leg (U5)", () => {
   });
 });
 
+/**
+ * U6 — the Privacy destination, and the union that decides whether it exists.
+ *
+ * Its render condition is the whole unit. Every disjunct is a grant that outlives the others, so
+ * a screen gated on the wrong one takes away the only surface that can revoke what is still
+ * live. These are written open-then-closed per the plan's execution note: a walk over rendered
+ * rows cannot catch a required row that renders zero times.
+ */
+describe("the Privacy destination (U6)", () => {
+  const flush = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+  const ENTRY = "Privacy and consents";
+  const EGRESS_RECORD = "What Atoms sends to Anthropic";
+  const NO_SESSION = { session: null } as const;
+
+  /** Whether the entry row is on the main screen at all, which is the reachability question. */
+  function entryRenders(opts: SettingTabOptions): boolean {
+    const { tab } = settingTab(opts);
+    tab.display();
+    return destinationNames(tab).includes(ENTRY);
+  }
+
+  describe("each grant alone keeps the way out reachable", () => {
+    const ALONE: Array<[string, SettingTabOptions, string]> = [
+      [
+        "the egress ack",
+        { ...NO_SESSION, local: { [LS_AUTO_RUN_EGRESS_ACK]: EGRESS_ACK_VERSION } },
+        EGRESS_RECORD,
+      ],
+      [
+        "the catch-up notice, with no egress stamp at all",
+        { ...NO_SESSION, local: { [LS_EGRESS_NOTICE]: true } },
+        EGRESS_RECORD,
+      ],
+      [
+        "the Ask privacy ack, with no egress grant",
+        { ...NO_SESSION, settings: { ...PRIVACY_GRANTED } },
+        ASK_PRIVACY_ACK_TITLE,
+      ],
+      [
+        "the Ask vault-write ack, with no egress grant",
+        { ...NO_SESSION, settings: { ...WRITE_GRANTED } },
+        "Vault write acknowledgment",
+      ],
+    ];
+
+    it.each(ALONE)("renders under %s, and holds its record", (_name, opts, record) => {
+      const { tab } = settingTab(opts);
+      openPrivacy(tab);
+
+      expect(rowNames(tab, { headings: false })).toContain(record);
+      // And it is reviewable, which is what makes it a withdrawal surface rather than a label.
+      expect(buttonLabels(tab, record)).toContain("Review");
+    });
+  });
+
+  it("renders for a Plus session with nothing acked, so the cloud copy is never stranded", () => {
+    const { tab } = settingTab({ session: PLUS_SESSION });
+    openPrivacy(tab);
+
+    expect(rowNames(tab, { headings: false })).toContain("Wipe cloud copy");
+  });
+
+  it("renders for a known cloud copy with no session and no ack", () => {
+    expect(
+      entryRenders({ ...NO_SESSION, local: { [LS_ASK_MIRROR_SERVER_COUNT]: "407" } }),
+    ).toBe(true);
+  });
+
+  it("says the wipe needs a session rather than offering a button that cannot work", () => {
+    const { tab } = settingTab({
+      ...NO_SESSION,
+      local: { [LS_ASK_MIRROR_SERVER_COUNT]: "407" },
+    });
+    openPrivacy(tab);
+
+    expect(row(tab, "Atoms in the cloud copy").textContent).toContain("407");
+    expect(rowNames(tab, { headings: false })).not.toContain("Wipe cloud copy");
+    expect(prose(tab).join(" ")).toContain("needs a session");
+  });
+
+  it("does not render with no grant, no session, and no cloud copy", () => {
+    expect(entryRenders({ ...NO_SESSION })).toBe(false);
+  });
+
+  it("counts what is on record, and says so when the answer is none", () => {
+    const two = settingTab({
+      ...NO_SESSION,
+      settings: { ...PRIVACY_GRANTED, ...WRITE_GRANTED },
+    });
+    two.tab.display();
+    expect(row(two.tab, ENTRY).textContent).toContain("2 on record");
+
+    // A session alone puts the row on screen with nothing acked behind it. R20: it declares the
+    // empty answer rather than rendering a blank value nobody can interpret.
+    const none = settingTab({ session: PLUS_SESSION });
+    none.tab.display();
+    expect(row(none.tab, ENTRY).textContent).toContain("Nothing on record");
+  });
+
+  it("leads with the back row, so leaving never means scrolling", () => {
+    const { tab } = settingTab({ session: PLUS_SESSION });
+    openPrivacy(tab);
+
+    const back = tab.containerEl.querySelector(".atoms-setting-back");
+    expect(back).not.toBeNull();
+    expect(tab.containerEl.firstElementChild).toBe(back);
+    expect(back?.querySelector(".setting-item-name")?.textContent).toBe(ENTRY);
+  });
+
+  it("offers no permanent acknowledgment toggle, here or anywhere", () => {
+    const { tab } = settingTab({
+      session: PLUS_SESSION,
+      settings: { ...PRIVACY_GRANTED, ...WRITE_GRANTED },
+      local: { [LS_AUTO_RUN_EGRESS_ACK]: EGRESS_ACK_VERSION },
+    });
+    openPrivacy(tab);
+
+    // A record is reviewed through a sheet. A switch would grant or revoke with one tap and no
+    // wording on screen, which is the shape the consent sheets replaced.
+    for (const name of [EGRESS_RECORD, ASK_PRIVACY_ACK_TITLE, "Vault write acknowledgment"]) {
+      expect(row(tab, name).querySelector(".checkbox-container")).toBeNull();
+    }
+  });
+
+  it("does not shout louder than the switches that granted it (R17)", () => {
+    const { tab } = settingTab({
+      session: PLUS_SESSION,
+      settings: { ...PRIVACY_GRANTED },
+      local: { [LS_AUTO_RUN_EGRESS_ACK]: EGRESS_ACK_VERSION },
+    });
+    openPrivacy(tab);
+
+    for (const name of [EGRESS_RECORD, ASK_PRIVACY_ACK_TITLE]) {
+      const review = Array.from(row(tab, name).querySelectorAll("button")).find(
+        (el) => el.textContent === "Review",
+      );
+      expect(review?.classList.contains("mod-cta")).toBe(false);
+    }
+    // The destructive row keeps its own weight: it is the one thing here that destroys data.
+    const wipe = Array.from(row(tab, "Wipe cloud copy").querySelectorAll("button")).find(
+      (el) => el.textContent === "Wipe",
+    );
+    expect(wipe?.classList.contains("mod-cta")).toBe(false);
+  });
+
+  it("says it is empty rather than leaving a back row over nothing", async () => {
+    const { tab } = settingTab({ ...NO_SESSION, settings: { ...PRIVACY_GRANTED } });
+    openPrivacy(tab);
+
+    press(tab, ASK_PRIVACY_ACK_TITLE, "Review");
+    pressSheet("Withdraw acknowledgment");
+    await flush();
+
+    // The withdrawal re-renders this screen underneath the user, and there is nothing left on
+    // it. A destination holding only a back row reads as broken rather than as finished, so the
+    // screen says what happened instead.
+    expect(rowNames(tab, { headings: false })).toEqual([ENTRY]);
+    expect(groupHeaders(tab)).toEqual([]);
+    expect(prose(tab).join(" ")).toContain("Nothing on record");
+  });
+
+  it("keeps the frozen egress standing strings exactly as they were", () => {
+    // KTD5 freezes these: each names wording a stored ack version was recorded against, and
+    // rewording without a bump leaves every device holding a record for text it never saw. U6
+    // moved the row and changed none of them, including the one that says "Sync everything now"
+    // about a consent that is really for unattended filing.
+    const legacy = settingTab({ ...NO_SESSION, local: { [LS_EGRESS_NOTICE]: true } });
+    openPrivacy(legacy.tab);
+    expect(row(legacy.tab, EGRESS_RECORD).textContent).toContain(
+      "Acknowledged on this device for Sync everything now, against earlier wording",
+    );
+
+    const stranded = settingTab({
+      ...NO_SESSION,
+      local: { [LS_AUTO_RUN_EGRESS_ACK]: "2027-01-01", [LS_EGRESS_NOTICE]: true },
+    });
+    openPrivacy(stranded.tab);
+    expect(row(stranded.tab, EGRESS_RECORD).textContent).toContain(
+      "Acknowledged on this device for Sync everything now, against different wording",
+    );
+  });
+});
+
 describe("Connect Claude or ChatGPT destination (U6)", () => {
+  // `Wipe cloud copy` left this list in U6: it moved to Privacy, beside the count of what it
+  // deletes and under a render condition that survives a withdrawal turning the mirror off.
   const CONNECT_ROWS = [
     "MCP connector URL",
     "Link Claude / ChatGPT",
     "Sync now",
     "Cloud mirror status",
-    "Wipe cloud copy",
   ];
 
   it("moves the Ask plumbing off the main screen, behind one entry row", () => {
@@ -1883,8 +2111,7 @@ describe("Connect Claude or ChatGPT destination (U6)", () => {
       session: PLUS_SESSION,
       settings: { askEnabled: true, ...PRIVACY_GRANTED },
     });
-    tab.display();
-    open(tab, "Connect Claude or ChatGPT");
+    openPrivacy(tab);
 
     press(tab, "Wipe cloud copy", "Wipe");
     expect(sheetOpen()).toBe(true);
@@ -1900,8 +2127,7 @@ describe("Connect Claude or ChatGPT destination (U6)", () => {
       session: PLUS_SESSION,
       settings: { askEnabled: true, ...PRIVACY_GRANTED },
     });
-    tab.display();
-    open(tab, "Connect Claude or ChatGPT");
+    openPrivacy(tab);
 
     // The one destructive row on the screen. Two confirm modals over each other is a question
     // the user answers once and a wipe they authorized once.
@@ -2104,8 +2330,15 @@ describe("main screen row grammar (U9)", () => {
    * @param askRows what leg 3's Ask group holds: the three-row cluster with a session, or the
    *   single `Off` row without one. Not a filter on one list, because the signed-out shape is a
    *   different row rather than the signed-in rows minus some.
+   * @param privacy whether the utility group carries its Privacy entry, which renders only when
+   *   this device has something to take back or delete (KTD6). A live Plus session is one of the
+   *   six disjuncts, so the signed-in screen has it and the bare signed-out screen does not.
    */
-  function expectedRows(filingChosen: boolean, askRows: string[]): string[] {
+  function expectedRows(
+    filingChosen: boolean,
+    askRows: string[],
+    privacy: boolean,
+  ): string[] {
     const vocabulary = `Tag vocabulary — ${DEFAULT_SETTINGS.activeVocabulary.length} active`;
     return [
       filingChosen ? "File automatically" : "Choose who files your captures",
@@ -2131,6 +2364,7 @@ describe("main screen row grammar (U9)", () => {
       "Sync everything now",
       // The key rows are not here since U4: a credential path belongs beside the engine choice
       // it enables, which is the engine destination rather than the main screen or Advanced.
+      ...(privacy ? ["Privacy and consents"] : []),
       "Advanced",
     ];
   }
@@ -2140,8 +2374,8 @@ describe("main screen row grammar (U9)", () => {
     tab.display();
 
     const rows = rowNames(tab, { headings: false });
-    expect(rows).toEqual(expectedRows(true, ASK_ROWS));
-    expect(rows).toHaveLength(15);
+    expect(rows).toEqual(expectedRows(true, ASK_ROWS, true));
+    expect(rows).toHaveLength(16);
   });
 
   it("renders fourteen rows signed out — the Ask group is the only difference", () => {
@@ -2149,7 +2383,8 @@ describe("main screen row grammar (U9)", () => {
     tab.display();
 
     const rows = rowNames(tab, { headings: false });
-    expect(rows).toEqual(expectedRows(false, [ASK_OFF_ROW]));
+    // No session, no ack, no cloud copy: nothing to take back, so no Privacy row either.
+    expect(rows).toEqual(expectedRows(false, [ASK_OFF_ROW], false));
     expect(rows).toHaveLength(14);
   });
 
@@ -2584,6 +2819,9 @@ describe("adversarial regressions", () => {
       );
       if (!(stale instanceof HTMLElement)) throw new Error("no auto-run toggle");
 
+      // The withdrawal is on the Privacy screen since U6; the toggle it must not re-enable is on
+      // the screen behind it, still held by the test the way a finger holds a stale button.
+      open(tab, "Privacy and consents");
       press(tab, "What Atoms sends to Anthropic", "Review");
       pressSheet("Withdraw acknowledgment");
       await flush();

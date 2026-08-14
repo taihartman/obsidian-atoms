@@ -1130,6 +1130,7 @@ const DESTINATIONS: Array<[entry: string, title: string]> = [
   ["Who does the filing", "Who does the filing"],
   [`Tag vocabulary — ${DEFAULT_SETTINGS.activeVocabulary.length} active`, "Tag vocabulary"],
   ["Connect Claude or ChatGPT", "Connect Claude or ChatGPT"],
+  ["Privacy and consents", "Privacy and consents"],
   ["Advanced", "Advanced"],
 ];
 
@@ -1147,6 +1148,9 @@ const MAIN_DESTINATION_ROWS = [
   `Tag vocabulary — ${DEFAULT_SETTINGS.activeVocabulary.length} active`,
   "Atoms home",
   "Connect Claude or ChatGPT",
+  // The `SESSION` fixture is one of KTD6's six disjuncts on its own, so the Privacy entry
+  // renders here without the walk needing a seeded ack.
+  "Privacy and consents",
   "Advanced",
 ];
 

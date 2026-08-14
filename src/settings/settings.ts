@@ -75,6 +75,7 @@ import {
   type FormRowSpec,
   group,
   InFlightActions,
+  recordRow,
   settingRow,
   statusRow,
 } from "./rows";
@@ -133,6 +134,7 @@ import {
   disarmAskMirror,
   formatAskMirrorStatusLine,
   formatAskMirrorServerCount,
+  readAskMirrorServerCount,
   mirrorRefusalTitle,
   mirrorRefusalBody,
   readAskMirrorEmail,
@@ -413,6 +415,7 @@ export type SettingsRoute =
   | "account"
   | "vocabulary"
   | "connect"
+  | "privacy"
   | "advanced";
 
 /**
@@ -596,6 +599,49 @@ const ASK_GROUP = {
   },
 } as const;
 
+/**
+ * The utility group: the two screens that are nobody's everyday business (R4).
+ *
+ * It carries no leg number because it is not one of the product's legs. Its footer says what is
+ * behind each row, which is the only thing a reader needs in order to decide whether to open
+ * either of them.
+ */
+const UTILITY_GROUP = {
+  header: "Your data",
+  footer:
+    "Privacy holds what you have allowed and the way to take it back. Advanced holds the settings almost nobody needs.",
+} as const;
+
+/**
+ * The privacy screen's two groups.
+ *
+ * The records group's footer states the one thing a passive record cannot say about itself: that
+ * opening one is safe. A row whose only button is `Review` still reads as a thing that might do
+ * something, and a user who will not touch it cannot use the withdrawal it exists to offer.
+ *
+ * The cloud group's footer has two branches because the wipe genuinely is not always available:
+ * deleting the cloud copy is a call to the Atoms service, so a device holding a count but no
+ * session can see what is out there and cannot remove it. Saying so is better than a dead button
+ * or a hidden row (KTD6 keeps this screen reachable precisely so the copy is never stranded).
+ */
+const PRIVACY_SCREEN = {
+  records: {
+    header: "On record",
+    footer:
+      "Opening a record shows the wording you agreed to and offers to withdraw it. Nothing is sent by looking.",
+  },
+  cloud: {
+    header: "Cloud copy",
+    countRow: "Atoms in the cloud copy",
+    footer: {
+      wipeable:
+        "Wiping deletes the mirrored atoms, anything Claude or ChatGPT queued for this vault, and the connector tokens. Your vault files are untouched.",
+      stranded:
+        "Deleting the cloud copy is a request to the Atoms service, so it needs a session. Sign back in to remove what is out there.",
+    },
+  },
+} as const;
+
 /** Whether the vault's Daily Notes plugin is on. The Capture leg's one derived value (R20). */
 const DAILY_NOTES_ROW = { name: "Daily notes", on: "On", off: "Off" } as const;
 
@@ -605,6 +651,7 @@ const DESTINATION_TITLES: Record<Exclude<SettingsRoute, "main">, string> = {
   account: "Account",
   vocabulary: "Tag vocabulary",
   connect: "Connect Claude or ChatGPT",
+  privacy: "Privacy and consents",
   advanced: "Advanced",
 };
 
@@ -675,6 +722,10 @@ export class AtomsSettingTab extends PluginSettingTab {
 
   private destructiveRow(containerEl: HTMLElement, row: ButtonRowSpec): void {
     destructiveRow(containerEl, { ...row, inFlight: this.inFlight });
+  }
+
+  private recordRow(containerEl: HTMLElement, row: ButtonRowSpec): void {
+    recordRow(containerEl, { ...row, inFlight: this.inFlight });
   }
 
   private formRow(containerEl: HTMLElement, row: FormRowSpec): void {
@@ -839,7 +890,7 @@ export class AtomsSettingTab extends PluginSettingTab {
     // screen to close it, which is the exact failure the ack predicates exist to prevent.
     const day = ackStampIsReal(record.at) ? record.at.slice(0, 10) : "";
     const desc = `Acknowledged ${day}${ACK_STANDING_SUFFIX[record.standing]}`;
-    this.actionRow(containerEl, {
+    this.recordRow(containerEl, {
       action: `ack:review:${record.name}`,
       name: record.name,
       desc,
@@ -960,6 +1011,9 @@ export class AtomsSettingTab extends PluginSettingTab {
         return;
       case "connect":
         this.renderDestination(containerEl, route, (el) => this.renderConnectDestination(el));
+        return;
+      case "privacy":
+        this.renderDestination(containerEl, route, (el) => this.renderPrivacyDestination(el));
         return;
       case "advanced":
         this.renderDestination(containerEl, route, (el) => this.renderAdvancedDestination(el));
@@ -1103,13 +1157,9 @@ export class AtomsSettingTab extends PluginSettingTab {
       },
     });
 
-    this.destructiveRow(containerEl, {
-      action: "ask:wipe-cloud-copy",
-      name: "Wipe cloud copy",
-      desc: "Delete mirrored atoms, pending Ask writes (outbox), and revoke Ask connector tokens for this account. Does not delete vault files.",
-      label: "Wipe",
-      onClick: () => this.confirmWipeCloudCopy(base, session.sessionToken),
-    });
+    // `Wipe cloud copy` is not here since U6. It moved to Privacy, beside the count of what it
+    // deletes and under the union that keeps it reachable after a withdrawal turns the mirror
+    // off — the case where leaving it on this screen would have stranded the copy (KTD6).
   }
 
   /**
@@ -1266,7 +1316,7 @@ export class AtomsSettingTab extends PluginSettingTab {
     this.renderFileGroup(containerEl, step);
     this.renderResurfaceGroups(containerEl);
     this.renderAutoRunSection(containerEl);
-    this.renderAdvancedEntry(containerEl);
+    this.renderUtilityGroup(containerEl);
   }
 
   /**
@@ -1389,11 +1439,130 @@ export class AtomsSettingTab extends PluginSettingTab {
     });
   }
 
-  /** Where the dev hints used to sit, in the same place and with the same name. */
-  private renderAdvancedEntry(containerEl: HTMLElement): void {
+  /** The two screens nobody opens on an ordinary day, under one header (R4). */
+  private renderUtilityGroup(containerEl: HTMLElement): void {
+    group(containerEl, {
+      ...UTILITY_GROUP,
+      render: (groupEl) => {
+        this.renderPrivacyEntry(groupEl);
+        destinationRow(groupEl, {
+          name: DESTINATION_TITLES.advanced,
+          onOpen: () => this.openRoute("advanced"),
+        });
+      },
+    });
+  }
+
+  /**
+   * Everything this device could still take back, or still delete.
+   *
+   * Six disjuncts, and the reason there are six is that each one is a thing that outlives the
+   * others. Narrowing to "the egress ack" is exactly
+   * `docs/solutions/logic-errors/narrowing-one-grant-removed-the-only-way-to-revoke-the-other.md`
+   * one level up: the catch-up notice alone still permits filing, either Ask ack alone is still a
+   * live consent, and withdrawing the Ask privacy ack clears the acks and `askEnabled` **without**
+   * wiping the mirror — so a user who withdrew everything would keep a cloud copy with no screen
+   * left that can delete it. The session disjunct covers the mirror-off case for the same reason
+   * (KTD6).
+   */
+  private privacyGrants(): {
+    records: number;
+    session: boolean;
+    cloudCount: number | null;
+    any: boolean;
+  } {
+    const load = (k: string): unknown => loadLocal(this.app, k);
+    const egress =
+      readDeviceAutoRunState(load).egressAcked || readEgressNoticeAcked(load);
+    const { askPrivacyAckAt, askWriteAckAt } = this.plugin.settings;
+    // The egress pair is one row however many of its two grants are live, so it counts once.
+    const records =
+      (egress ? 1 : 0) + (askPrivacyAckAt ? 1 : 0) + (askWriteAckAt ? 1 : 0);
+    const session = readPlusSession(this.app) !== null;
+    const cloudCount = readAskMirrorServerCount(load);
+    return {
+      records,
+      session,
+      cloudCount,
+      any: records > 0 || session || cloudCount !== null,
+    };
+  }
+
+  /**
+   * The way in, whenever there is anything to take back or delete.
+   *
+   * The subtitle counts records rather than describing them, the way the Connect entry row
+   * carries its status line: the number is what a reader checks this row for, and a row that
+   * rendered blank when nothing is on record would leave "why is this here" unanswered on the
+   * one path where the answer is a cloud copy rather than a consent (R20).
+   */
+  private renderPrivacyEntry(containerEl: HTMLElement): void {
+    const grants = this.privacyGrants();
+    if (!grants.any) return;
     destinationRow(containerEl, {
-      name: DESTINATION_TITLES.advanced,
-      onOpen: () => this.openRoute("advanced"),
+      name: DESTINATION_TITLES.privacy,
+      desc: grants.records > 0 ? `${grants.records} on record` : "Nothing on record",
+      onOpen: () => this.openRoute("privacy"),
+    });
+  }
+
+  /**
+   * Every passive record, and the cloud copy they are mostly about.
+   *
+   * The records are only ever *moved* here, never re-worded: each one names wording an ack
+   * version was recorded against, and a record that describes text the user never saw is the #315
+   * bug wearing new paint (KTD5 freezes all of it). What changes is loudness — a granted consent
+   * is not asking to be granted again, so `recordRow` gives it a plain button instead of the
+   * accent one it used to wear beside the switches that actually decide something (R17).
+   */
+  private renderPrivacyDestination(containerEl: HTMLElement): void {
+    const grants = this.privacyGrants();
+
+    // Withdrawing the last grant re-renders this screen underneath the user, so it has to be
+    // able to say that it is empty. A destination holding nothing but a back row reads as
+    // broken rather than as finished.
+    if (grants.records === 0 && !grants.session && grants.cloudCount === null) {
+      containerEl.createEl("p", {
+        text: "Nothing on record, and no cloud copy. Anything you allow later shows up here, with the way to take it back.",
+        cls: "setting-item-description",
+      });
+      return;
+    }
+
+    if (grants.records > 0) {
+      group(containerEl, {
+        ...PRIVACY_SCREEN.records,
+        render: (groupEl) => {
+          this.renderEgressAckRecord(groupEl);
+          this.renderAskPrivacyAckRecord(groupEl);
+          this.renderAskWriteAckRecord(groupEl);
+        },
+      });
+    }
+
+    if (!grants.session && grants.cloudCount === null) return;
+    group(containerEl, {
+      header: PRIVACY_SCREEN.cloud.header,
+      footer: grants.session
+        ? PRIVACY_SCREEN.cloud.footer.wipeable
+        : PRIVACY_SCREEN.cloud.footer.stranded,
+      render: (groupEl) => {
+        statusRow(groupEl, {
+          name: PRIVACY_SCREEN.cloud.countRow,
+          // The formatter's own unknown marker rather than a blank: a count nobody has asked the
+          // server for yet is not zero atoms (R20).
+          value: formatAskMirrorServerCount((k) => loadLocal(this.app, k)),
+        });
+        const session = readPlusSession(this.app);
+        if (!session) return;
+        const base = this.plugin.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL;
+        this.destructiveRow(groupEl, {
+          action: "ask:wipe-cloud-copy",
+          name: "Wipe cloud copy",
+          label: "Wipe",
+          onClick: () => this.confirmWipeCloudCopy(base, session.sessionToken),
+        });
+      },
     });
   }
 
@@ -2440,52 +2609,7 @@ export class AtomsSettingTab extends PluginSettingTab {
   private renderAutoRunSection(containerEl: HTMLElement) {
     settingHeading(containerEl, "Sync");
 
-    const load = (k: string): unknown => loadLocal(this.app, k);
-    const save = (k: string, v: unknown) => this.app.saveLocalStorage(k, v);
-    const state = readDeviceAutoRunState(load);
-
-    // Rendered from the grants themselves rather than from the automatic-filing toggle: a consent
-    // recorded against a feature that is currently off is still live, and still revocable.
-    //
-    // Gated on *either* device-local grant, not on the egress stamp alone. Two booleans satisfy
-    // the egress gate — the stamped ack and the catch-up notice — and this row is the only
-    // surface that withdraws either. Keying it to the stamp would mean a device whose ack went
-    // stale (a legacy grant, or any future EGRESS_ACK_VERSION bump) loses this row while its
-    // notice keeps permitting catch-up filing: a grant that still spends, with nothing left on
-    // screen to take it back.
-    const noticeAcked = readEgressNoticeAcked(load);
-    if (state.egressAcked || noticeAcked) {
-      // Say which consent is actually on record. A device carrying only the notice never saw
-      // the unioned disclosure, and this row must not claim on its behalf that it did.
-      //
-      // "earlier" is the upgrade case, where the stale grant named no wording at all. A stamp
-      // that exists but is not ours is the downgrade case — the wording it names is *later*
-      // than this build's, so "earlier" would be its own small lie.
-      const strandedStamp = readEgressAckVersion(load) != null;
-      const record = state.egressAcked
-        ? "Acknowledged on this device"
-        : strandedStamp
-          ? "Acknowledged on this device for Sync everything now, against different wording"
-          : "Acknowledged on this device for Sync everything now, against earlier wording";
-      this.actionRow(containerEl, {
-        action: `ack:review:${EGRESS_ACK_TITLE}`,
-        name: EGRESS_ACK_TITLE,
-        desc: record,
-        label: "Review",
-        onClick: () =>
-          this.presentConsent(
-            egressConsentSpec((verdict) => {
-              if (verdict !== "withdrawn") return;
-              writeEgressAck(save, false);
-              writeAutoRunEnabled(save, false);
-              // Clearing one grant would leave the other still permitting "Sync everything
-              // now" — which the disclosure just above names.
-              clearEgressNoticeAcked(save);
-              this.redisplay();
-            }, `${record}.`),
-          ),
-      });
-    }
+    const state = readDeviceAutoRunState((k) => loadLocal(this.app, k));
 
     settingRow(containerEl, {
       name: "Sync when you return to Obsidian",
@@ -2924,6 +3048,67 @@ export class AtomsSettingTab extends PluginSettingTab {
     });
   }
 
+  /**
+   * The egress consent on record, on the screen that holds records rather than under the
+   * heading that happened to be nearest it.
+   *
+   * Rendered from the grants themselves rather than from the automatic-filing toggle: a consent
+   * recorded against a feature that is currently off is still live, and still revocable.
+   *
+   * Gated on *either* device-local grant, not on the egress stamp alone. Two booleans satisfy
+   * the egress gate — the stamped ack and the catch-up notice — and this row is the only surface
+   * that withdraws either. Keying it to the stamp would mean a device whose ack went stale (a
+   * legacy grant, or any future EGRESS_ACK_VERSION bump) loses this row while its notice keeps
+   * permitting catch-up filing: a grant that still spends, with nothing left on screen to take
+   * it back.
+   *
+   * Its three standing strings are frozen (KTD5) and not touched by the move. One of them names
+   * "Sync everything now" while the record is really about unattended filing, which reads oddly
+   * now that it no longer sits under a heading called Sync — but the words are what a stored ack
+   * version was recorded against, and rewording them without a version bump leaves every existing
+   * device holding a record for text it never saw. The placement was the fixable half.
+   *
+   * Not a `renderAckRecord` caller: that helper dates its record from a stored timestamp, and
+   * this grant is a device-local boolean with no stamp to print.
+   */
+  private renderEgressAckRecord(containerEl: HTMLElement): void {
+    const load = (k: string): unknown => loadLocal(this.app, k);
+    const save = (k: string, v: unknown) => this.app.saveLocalStorage(k, v);
+    const state = readDeviceAutoRunState(load);
+    if (!state.egressAcked && !readEgressNoticeAcked(load)) return;
+
+    // Say which consent is actually on record. A device carrying only the notice never saw the
+    // unioned disclosure, and this row must not claim on its behalf that it did.
+    //
+    // "earlier" is the upgrade case, where the stale grant named no wording at all. A stamp that
+    // exists but is not ours is the downgrade case — the wording it names is *later* than this
+    // build's, so "earlier" would be its own small lie.
+    const strandedStamp = readEgressAckVersion(load) != null;
+    const record = state.egressAcked
+      ? "Acknowledged on this device"
+      : strandedStamp
+        ? "Acknowledged on this device for Sync everything now, against different wording"
+        : "Acknowledged on this device for Sync everything now, against earlier wording";
+    this.recordRow(containerEl, {
+      action: `ack:review:${EGRESS_ACK_TITLE}`,
+      name: EGRESS_ACK_TITLE,
+      desc: record,
+      label: "Review",
+      onClick: () =>
+        this.presentConsent(
+          egressConsentSpec((verdict) => {
+            if (verdict !== "withdrawn") return;
+            writeEgressAck(save, false);
+            writeAutoRunEnabled(save, false);
+            // Clearing one grant would leave the other still permitting "Sync everything now" —
+            // which the disclosure names.
+            clearEgressNoticeAcked(save);
+            this.redisplay();
+          }, `${record}.`),
+        ),
+    });
+  }
+
   /** The vault-write ack on record. Withdrawing it leaves the mirror exactly as it was. */
   private renderAskWriteAckRecord(containerEl: HTMLElement): void {
     const { askWriteAckAt, askWriteAckVersion } = this.plugin.settings;
@@ -2977,15 +3162,14 @@ export class AtomsSettingTab extends PluginSettingTab {
       group(containerEl, {
         header: ASK_GROUP.header,
         footer: ASK_GROUP.signedOut.footer,
+        // Signing out leaves both acks on record — deliberately, so signing back in does not
+        // re-ask. A consent on record with no way out is not a consent, and the next sign-in may
+        // be a *different* Plus account, so the withdrawal surface outlives the session exactly
+        // as the egress ack's does. It lives on the Privacy screen since U6, which renders under
+        // a union that includes each Ask ack on its own (KTD6) — so signing out moves the way
+        // out rather than removing it.
         render: (groupEl) => {
           statusRow(groupEl, { ...ASK_GROUP.signedOut.row });
-          // Signing out leaves both acks on record — deliberately, so signing back in does not
-          // re-ask. A consent on record with no way out is not a consent, and the next sign-in
-          // may be a *different* Plus account, so the withdrawal surface outlives the session
-          // exactly as the egress ack's does. U6 gives these records a home of their own; until
-          // it lands they stay here, because R7 wants them reachable, not tidy.
-          this.renderAskPrivacyAckRecord(groupEl);
-          this.renderAskWriteAckRecord(groupEl);
         },
       });
       return;
@@ -3047,8 +3231,9 @@ export class AtomsSettingTab extends PluginSettingTab {
       },
     });
 
-    this.renderAskPrivacyAckRecord(containerEl);
-
+    // The two records that used to sit under these switches are on the Privacy screen since U6.
+    // A record beside the switch that granted it competes with the switch for the same glance,
+    // and it is the switch that decides something (R17).
     const writeAck = askWriteAckIsCurrent(this.plugin.settings);
     settingRow(containerEl, {
       name: "Allow filing from Claude or ChatGPT",
@@ -3104,9 +3289,7 @@ export class AtomsSettingTab extends PluginSettingTab {
       },
     });
 
-    this.renderAskWriteAckRecord(containerEl);
-
-    // The plumbing — connector URL, pairing, sync, status, wipe — is one destination now. Its
+    // The plumbing — connector URL, pairing, sync, status — is one destination now. Its
     // entry row carries the mirror's status line, so the main screen still says at a glance
     // whether the cloud copy is current.
     const status = this.mirrorStatusLine(session.email);

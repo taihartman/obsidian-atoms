@@ -37,6 +37,7 @@ import {
   press,
   pressSheet,
   row,
+  openPrivacy,
   settingTab,
   sheetOpen,
   sheetText,
@@ -66,6 +67,19 @@ const SESSION: PlusSession = {
 function askTab(settings: Partial<LinkerSettings> = {}) {
   const made = settingTab({ session: SESSION, settings });
   made.tab.display();
+  return made;
+}
+
+/**
+ * The same tab, standing on the Privacy screen.
+ *
+ * U6 split the two apart: the switches that grant these consents are on the main screen, the
+ * records of them are here. A test about the *switch* uses `askTab`; a test about the *record*
+ * uses this.
+ */
+function recordsTab(settings: Partial<LinkerSettings> = {}) {
+  const made = settingTab({ session: SESSION, settings });
+  openPrivacy(made.tab);
   return made;
 }
 
@@ -352,26 +366,26 @@ describe("#360 Settings, on a device carrying a legacy grant", () => {
   });
 
   it("still offers the record and its withdrawal — a stale grant is not an absent one", () => {
-    const { tab } = askTab(LEGACY_PRIVACY);
+    const { tab } = recordsTab(LEGACY_PRIVACY);
     expect(() => row(tab, ASK_PRIVACY_ACK_ROW)).not.toThrow();
   });
 
   it("says which wording the record actually names, rather than claiming the current one", () => {
-    const { tab } = askTab(LEGACY_PRIVACY);
+    const { tab } = recordsTab(LEGACY_PRIVACY);
     expect(rowDesc(tab, ASK_PRIVACY_ACK_ROW)).toBe(
       "Acknowledged 2026-08-01, against earlier wording",
     );
   });
 
   it("calls an unrecognised stamp different, not earlier — a downgrade names later text", () => {
-    const { tab } = askTab({ ...LEGACY_PRIVACY, askPrivacyAckVersion: "2027-01-01" });
+    const { tab } = recordsTab({ ...LEGACY_PRIVACY, askPrivacyAckVersion: "2027-01-01" });
     expect(rowDesc(tab, ASK_PRIVACY_ACK_ROW)).toBe(
       "Acknowledged 2026-08-01, against different wording",
     );
   });
 
   it("says nothing extra once the record names the wording on screen", () => {
-    const { tab } = askTab(CURRENT_PRIVACY);
+    const { tab } = recordsTab(CURRENT_PRIVACY);
     expect(rowDesc(tab, ASK_PRIVACY_ACK_ROW)).toBe("Acknowledged 2026-08-01");
   });
 
@@ -391,7 +405,7 @@ describe("#360 Settings, on a device carrying a legacy grant", () => {
   });
 
   it("clears the version, not only the timestamp, when the record is withdrawn", async () => {
-    const { tab } = askTab({
+    const { tab } = recordsTab({
       ...CURRENT_PRIVACY,
       askWriteAckAt: AT,
       askWriteAckVersion: ASK_WRITE_ACK_VERSION,
@@ -428,12 +442,12 @@ describe("#360 Settings, the vault-write ack", () => {
   // The suffix is wired for both acks; asserting it only on the privacy row would leave the
   // write row's copy free to drift.
   it("names the wording its own record holds, the same three ways the privacy row does", () => {
-    expect(rowDesc(askTab(granted).tab, ASK_WRITE_ACK_ROW)).toBe("Acknowledged 2026-08-01");
+    expect(rowDesc(recordsTab(granted).tab, ASK_WRITE_ACK_ROW)).toBe("Acknowledged 2026-08-01");
     expect(
-      rowDesc(askTab({ ...granted, askWriteAckVersion: "" }).tab, ASK_WRITE_ACK_ROW),
+      rowDesc(recordsTab({ ...granted, askWriteAckVersion: "" }).tab, ASK_WRITE_ACK_ROW),
     ).toBe("Acknowledged 2026-08-01, against earlier wording");
     expect(
-      rowDesc(askTab({ ...granted, askWriteAckVersion: "2027-01-01" }).tab, ASK_WRITE_ACK_ROW),
+      rowDesc(recordsTab({ ...granted, askWriteAckVersion: "2027-01-01" }).tab, ASK_WRITE_ACK_ROW),
     ).toBe("Acknowledged 2026-08-01, against different wording");
   });
 
@@ -449,7 +463,7 @@ describe("#360 Settings, the vault-write ack", () => {
   });
 
   it("clears the version when its own record is withdrawn, leaving the mirror alone", async () => {
-    const { tab } = askTab(granted);
+    const { tab } = recordsTab(granted);
     press(tab, ASK_WRITE_ACK_ROW, "Review");
     pressSheet("Withdraw acknowledgment");
     await flush();

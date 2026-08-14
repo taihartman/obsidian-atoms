@@ -319,6 +319,19 @@ export function destructiveRow(containerEl: HTMLElement, row: ButtonRow): void {
   buttonRow(containerEl, row, markDestructive);
 }
 
+/**
+ * A passive record you may open and reconsider: one plain button, never accent.
+ *
+ * A third kind rather than a flag on `actionRow`, for the reason the other two are separate: the
+ * button's weight *is* the meaning. An accent button says "do this"; a consent already granted is
+ * not asking to be done, and a record that shouts louder than the switch that granted it inverts
+ * which of the two the eye lands on (R17, #364 C2). The row is otherwise `actionRow` exactly,
+ * in-flight guard included, because reviewing raises a sheet and a sheet can be double-tapped.
+ */
+export function recordRow(containerEl: HTMLElement, row: ButtonRow): void {
+  buttonRow(containerEl, row, (btn) => btn);
+}
+
 /** A form row's shape: the field, and the one button that commits it. */
 export type FormRowSpec = RowInfo & {
   placeholder?: string;

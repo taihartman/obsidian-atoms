@@ -269,6 +269,24 @@ export function destinationNames(tab: AtomsSettingTab): string[] {
   );
 }
 
+/**
+ * Render the tab and walk to the Privacy screen, where U6 put every passive consent record and
+ * the wipe.
+ *
+ * A helper rather than two lines inlined at each call site: five test files reach for those
+ * records, and the next unit that moves them would otherwise be five edits and a chance to miss
+ * one. Throws through `open()` if the entry row is not there, which is the assertion that matters
+ * on a screen whose whole job is being reachable (KTD6).
+ */
+export function openPrivacy(tab: AtomsSettingTab): void {
+  // `hide()` first, so this lands on the main screen whatever route the tab was left on. A bare
+  // `display()` re-renders the current route, and every destination's back row is named for that
+  // destination — so on Privacy itself the name check would match the back row.
+  tab.hide();
+  tab.display();
+  open(tab, "Privacy and consents");
+}
+
 /** Walk into the destination whose entry row carries this name. */
 export function open(tab: AtomsSettingTab, name: string): void {
   const entry = Array.from(tab.containerEl.querySelectorAll(".atoms-setting-destination")).find(
