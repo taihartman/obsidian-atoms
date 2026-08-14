@@ -31,10 +31,13 @@ import {
 } from "../src/platform/filingAuth";
 import { s256Challenge } from "../src/platform/pkce";
 import { requestMagicLink } from "../src/platform/plusClient";
+import * as dni from "obsidian-daily-notes-interface";
+import { firstDaySetupCopy } from "../src/home/atomsHomeData";
 import {
   destinationNames,
   dismissSheet,
   flip,
+  groupHeaders,
   open,
   press,
   pressSheet,
@@ -1937,9 +1940,16 @@ describe("main screen row grammar (U9)", () => {
     "Connect Claude or ChatGPT",
   ];
 
-  function expectedRows(account: string): string[] {
+  /**
+   * @param account the account row's name for this auth state
+   * @param filingChosen whether someone is set up to file. U2's status group opens the screen
+   *   either way: with the one next step when nobody files, and with the automatic-filing
+   *   toggle it takes off the auto-run section when somebody does.
+   */
+  function expectedRows(account: string, filingChosen: boolean): string[] {
     const vocabulary = `Tag vocabulary — ${DEFAULT_SETTINGS.activeVocabulary.length} active`;
     return [
+      filingChosen ? "File automatically" : "Choose who files your captures",
       account,
       "Capture Atom shortcut",
       "Custom shortcut link",
@@ -1947,7 +1957,9 @@ describe("main screen row grammar (U9)", () => {
       "List atoms on hub notes",
       vocabulary,
       ...ASK_ROWS,
-      "File automatically when Obsidian opens",
+      // Shed to the status group once somebody files; the auto-run section keeps it while the
+      // screen is still asking who that is.
+      ...(filingChosen ? [] : ["File automatically when Obsidian opens"]),
       "Sync when you return to Obsidian",
       "Sync everything now",
       "Anthropic API key",
@@ -1963,19 +1975,21 @@ describe("main screen row grammar (U9)", () => {
     tab.display();
 
     const rows = rowNames(tab, { headings: false });
-    expect(rows).toEqual(expectedRows("Plus · 12 filings left"));
+    expect(rows).toEqual(expectedRows("Plus · 12 filings left", true));
     expect(rows).toHaveLength(15);
   });
 
-  it("renders twelve rows signed out — the Ask cluster is the only difference", () => {
+  it("renders thirteen rows signed out — the Ask cluster is the only difference", () => {
     const { tab } = settingTab();
     tab.display();
 
     const rows = rowNames(tab, { headings: false });
     expect(rows).toEqual(
-      expectedRows("Set up automatic filing").filter((name) => !ASK_ROWS.includes(name)),
+      expectedRows("Set up automatic filing", false).filter(
+        (name) => !ASK_ROWS.includes(name),
+      ),
     );
-    expect(rows).toHaveLength(12);
+    expect(rows).toHaveLength(13);
   });
 
   it("adds the device-local key row under its toggle, and nowhere else", () => {
@@ -1983,7 +1997,7 @@ describe("main screen row grammar (U9)", () => {
     tab.display();
 
     const rows = rowNames(tab, { headings: false });
-    expect(rows).toHaveLength(13);
+    expect(rows).toHaveLength(14);
     expect(rows.indexOf("Device-local API key")).toBe(
       rows.indexOf("Device-local key fallback") + 1,
     );
@@ -2071,6 +2085,147 @@ describe("main screen row grammar (U9)", () => {
       expect(row(tab, "Anthropic API key").textContent).toContain(API_KEY_SECRET_ID_DEFAULT);
       expect(prose(tab).some((t) => t.startsWith("Tip: secret id example"))).toBe(false);
     });
+  });
+});
+
+/**
+ * The element that answers "is Atoms filing?" before the screen offers a single control (R18).
+ *
+ * Two variants, because the honest answer has two shapes: nobody files yet, so the screen says
+ * what Atoms does and names the one step; or somebody does, so the screen says filing is on and
+ * when the first atoms land (R12). Both are read back through the group chrome rather than
+ * through raw markup — `groupHeaders` for the eyebrow, `prose` for the footer.
+ */
+describe("status group (U2)", () => {
+  const PLUS_SESSION: PlusSession = {
+    sessionToken: "sess_status",
+    email: "user@example.com",
+    status: "active",
+    periodEnd: "2099-01-01T00:00:00.000Z",
+  };
+
+  /** An install where somebody files: the Plus branch of the two the status group renders. */
+  function filingTab(opts: SettingTabOptions = {}) {
+    return settingTab({
+      ...opts,
+      session: PLUS_SESSION,
+      auth: {
+        mode: "plus",
+        sessionToken: PLUS_SESSION.sessionToken,
+        email: PLUS_SESSION.email,
+        status: "active",
+        remaining: 12,
+        periodEnd: PLUS_SESSION.periodEnd,
+      },
+    });
+  }
+
+  /** Automatic filing already on and acknowledged, with no run behind it yet: day one. */
+  const FILING_ON = {
+    [LS_AUTO_RUN_ENABLED]: true,
+    [LS_AUTO_RUN_EGRESS_ACK]: EGRESS_ACK_VERSION,
+  };
+
+  describe("nobody files yet", () => {
+    it("opens the screen by saying what Atoms does, above every control", () => {
+      const { tab } = settingTab();
+      tab.display();
+
+      expect(groupHeaders(tab)[0]).toBe("Get started");
+      const footer =
+        "Atoms reads thoughts you already wrote and files each one as its own note, linked to the people and topics it mentions.";
+      expect(prose(tab)).toContain(footer);
+      // R9 is about order, not just presence: the sentence has to land before the first row.
+      const text = tab.containerEl.textContent ?? "";
+      expect(text.indexOf("Get started")).toBeLessThan(text.indexOf("Atoms Plus"));
+    });
+
+    it("names one next step, and walks into the screen that answers it", () => {
+      const { tab } = settingTab();
+      tab.display();
+
+      const rows = rowNames(tab, { headings: false });
+      expect(rows[0]).toBe("Choose who files your captures");
+      expect(destinationNames(tab)).toContain("Choose who files your captures");
+
+      open(tab, "Choose who files your captures");
+      expect(rowNames(tab, { headings: false })).toContain("Account");
+    });
+
+    it("leaves the automatic filing toggle where it was", () => {
+      const { tab } = settingTab();
+      tab.display();
+
+      expect(rowNames(tab, { headings: false })).toContain(
+        "File automatically when Obsidian opens",
+      );
+      expect(rowNames(tab, { headings: false })).not.toContain("File automatically");
+    });
+  });
+
+  describe("somebody files", () => {
+    it("states filing is on and when the first atoms arrive", () => {
+      const { tab } = filingTab({ local: FILING_ON });
+      tab.display();
+
+      expect(groupHeaders(tab)[0]).toBe("Status");
+      expect(rowNames(tab, { headings: false })[0]).toBe("File automatically");
+      expect(row(tab, "File automatically").querySelector(".is-enabled")).not.toBeNull();
+      expect(row(tab, "File automatically").textContent).toContain(
+        "First atoms arrive tomorrow morning.",
+      );
+      expect(row(tab, "Next run").textContent).toContain(
+        "Tomorrow, when Obsidian opens.",
+      );
+      expect(prose(tab)).toContain(
+        "Atoms waits until a day is done, so it never files a thought you are still writing.",
+      );
+    });
+
+    it("stops promising a first arrival once a run is behind it", () => {
+      const { tab } = filingTab({
+        local: { ...FILING_ON, [LS_LAST_RUN_DAY]: "2026-08-13" },
+      });
+      tab.display();
+
+      expect(row(tab, "File automatically").textContent).not.toContain(
+        "First atoms arrive",
+      );
+      expect(row(tab, "Next run").textContent).toContain("Tomorrow, when Obsidian opens.");
+    });
+
+    it("says filing is off without a next run, when the toggle is off", () => {
+      const { tab } = filingTab();
+      tab.display();
+
+      expect(groupHeaders(tab)[0]).toBe("Status");
+      expect(row(tab, "File automatically").querySelector(".is-enabled")).toBeNull();
+      expect(rowNames(tab, { headings: false })).not.toContain("Next run");
+    });
+
+    it("sheds the toggle from the auto-run section rather than rendering it twice", () => {
+      const { tab, local } = filingTab({ local: FILING_ON });
+      tab.display();
+
+      const rows = rowNames(tab, { headings: false });
+      expect(rows).not.toContain("File automatically when Obsidian opens");
+      expect(rows.filter((name) => name === "File automatically")).toHaveLength(1);
+      // Still the same toggle, with the same consent behind it: flipping it off writes through.
+      flip(tab, "File automatically");
+      expect(local.get(LS_AUTO_RUN_ENABLED)).toBe(false);
+    });
+  });
+
+  /** KTD11: one computation of what is unfinished, rendered as a card and as a line. */
+  it("agrees with Atoms home about what is unfinished", () => {
+    vi.spyOn(dni, "appHasDailyNotesPluginLoaded").mockReturnValue(false);
+    const { tab } = filingTab();
+    tab.display();
+
+    const step = firstDaySetupCopy(false).nextStep;
+    expect(step?.name).toBe("Turn on Daily Notes");
+    expect(groupHeaders(tab)[0]).toBe("Get started");
+    expect(rowNames(tab, { headings: false })[0]).toBe(step?.name);
   });
 });
 

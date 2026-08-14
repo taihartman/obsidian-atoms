@@ -1122,6 +1122,9 @@ function onMainScreen(tab: AtomsSettingTab): boolean {
  * the order the plan's main-screen table asks for.
  */
 const DESTINATIONS: Array<[entry: string, title: string]> = [
+  // U2's status group opens the screen with the one unfinished step, which on an install where
+  // nobody files yet is a second way into Account.
+  ["Choose who files your captures", "Account"],
   ["Set up automatic filing", "Account"],
   [`Tag vocabulary — ${DEFAULT_SETTINGS.activeVocabulary.length} active`, "Tag vocabulary"],
   ["Connect Claude or ChatGPT", "Connect Claude or ChatGPT"],

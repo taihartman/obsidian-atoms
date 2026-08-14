@@ -882,6 +882,18 @@ export const CORE_PLUGINS_SETTINGS_TAB_ID = "plugins";
 
 export type FirstDayPrimaryAction = "open_today" | "open_core_plugins";
 
+/**
+ * The one thing still unfinished, for the surface that shows a step rather than a card.
+ *
+ * `kind` is what a surface switches on to decide where the step sends the user: Obsidian's core
+ * plugins pane, or the screen that asks who pays for filing. `name` is the words both surfaces
+ * use, so the settings line and this card cannot drift apart (KTD11).
+ */
+export type SetupStep = {
+  kind: "daily_notes" | "filing_owner";
+  name: string;
+};
+
 export type FirstDaySetupCopy = {
   subtitle: string;
   eyebrow: string;
@@ -891,23 +903,46 @@ export type FirstDaySetupCopy = {
   primaryLabel: string;
   primaryAction: FirstDayPrimaryAction;
   showShortcut: boolean;
+  /** The step still outstanding, or `null` when Atoms can file. */
+  nextStep: SetupStep | null;
 };
 
 /**
- * First-day home card. Daily Notes off is a setup wall, not an empty library.
- * Existing on-path strings stay byte-identical when the plugin is already loaded.
+ * First-day home card, and the one unfinished step the settings status group renders.
+ *
+ * Daily Notes off is a setup wall, not an empty library. Existing on-path strings stay
+ * byte-identical when the plugin is already loaded.
+ *
+ * Two surfaces read this, and only this, for what is not set up yet (KTD11): home draws it as a
+ * card, settings draws it as a line above every control. Two hand-maintained lists is the shape
+ * that produces "fixed one, forgot the twin", so the ordering lives here once — Daily Notes
+ * first, because there is nothing to file until captures have somewhere to land.
+ *
+ * `filingChosen` defaults to true because home does not pass it: home's card has never spoken
+ * about who pays, and its wait card already owns that. The default keeps this card exactly as it
+ * was while the settings line, which does ask, gets a real answer.
  */
-export function firstDaySetupCopy(dailyNotesLoaded: boolean): FirstDaySetupCopy {
+export function firstDaySetupCopy(
+  dailyNotesLoaded: boolean,
+  filingChosen = true,
+): FirstDaySetupCopy {
+  const nextStep: SetupStep | null = !dailyNotesLoaded
+    ? { kind: "daily_notes", name: "Turn on Daily Notes" }
+    : !filingChosen
+      ? { kind: "filing_owner", name: "Choose who files your captures" }
+      : null;
   if (!dailyNotesLoaded) {
     return {
       subtitle: "Daily Notes is off",
       eyebrow: "Get started",
+      // Same words as the step above, so the card and the settings line say one thing.
       title: "Turn on Daily Notes",
       body: "Atoms files thoughts from your daily notes. Enable the core Daily Notes plugin under Settings → Core plugins.",
       example: null,
       primaryLabel: "Open Core plugins",
       primaryAction: "open_core_plugins",
       showShortcut: false,
+      nextStep,
     };
   }
   return {
@@ -919,6 +954,7 @@ export function firstDaySetupCopy(dailyNotesLoaded: boolean): FirstDaySetupCopy 
     primaryLabel: "Open today",
     primaryAction: "open_today",
     showShortcut: true,
+    nextStep,
   };
 }
 

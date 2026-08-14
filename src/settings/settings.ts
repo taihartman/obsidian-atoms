@@ -73,6 +73,7 @@ import {
   type FormActionsRowSpec,
   formRow,
   type FormRowSpec,
+  group,
   InFlightActions,
   settingRow,
   statusRow,
@@ -104,7 +105,13 @@ import {
   plusRefreshRowRecord,
   refreshPlusEntitlementRecord,
 } from "../platform/plusRefresh";
-import { atomsPlusTopUpCopy } from "../home/atomsHomeData";
+import { appHasDailyNotesPluginLoaded } from "obsidian-daily-notes-interface";
+import {
+  atomsPlusTopUpCopy,
+  CORE_PLUGINS_SETTINGS_TAB_ID,
+  firstDaySetupCopy,
+  type SetupStep,
+} from "../home/atomsHomeData";
 import {
   DEFAULT_PLUS_BASE_URL,
   requestMagicLink,
@@ -404,6 +411,67 @@ export type SettingsRoute =
   | "vocabulary"
   | "connect"
   | "advanced";
+
+/**
+ * The screen's opening statement, in its two shapes (R18).
+ *
+ * Nobody files yet, so the screen says what Atoms is for before it offers a single control (R9);
+ * or somebody does, so it says filing is on and when the first atoms land, because day one is
+ * deliberately silent and silence reads as breakage (R12).
+ */
+const STATUS_GROUP = {
+  unconfigured: {
+    header: "Get started",
+    footer:
+      "Atoms reads thoughts you already wrote and files each one as its own note, linked to the people and topics it mentions.",
+  },
+  filing: {
+    header: "Status",
+    footer:
+      "Atoms waits until a day is done, so it never files a thought you are still writing.",
+  },
+} as const;
+
+/** The status group's own name for the automatic-filing toggle it borrows from the File leg. */
+const FILING_ROW_NAME = "File automatically";
+
+/**
+ * What the filing row says under its name, by what the device is actually doing.
+ *
+ * The day-one line is the point of the whole group: enabling stamps the filing window at today
+ * and every pass excludes today, so nothing lands until tomorrow. It retires itself the moment a
+ * run is on the books, because by then it would be a small lie.
+ */
+const FILING_STATE_DESC = {
+  dayOne: "First atoms arrive tomorrow morning.",
+  running: "Atoms files each past day when Obsidian opens.",
+  off: "Atoms files a past day only when you ask it to.",
+} as const;
+
+/** When the next unattended pass happens. Same promise as the day-one line, as a fact. */
+const NEXT_RUN_ROW = {
+  name: "Next run",
+  value: "Tomorrow, when Obsidian opens.",
+} as const;
+
+/**
+ * Obsidian's core settings modal, which is undocumented and not on the public `App` type. The
+ * same narrow local interface Atoms home keeps for the same deep link; kept local rather than
+ * shared because it is a description of somebody else's private API, and one file owning a wrong
+ * guess is better than two.
+ */
+type SettingsModalApi = {
+  open: () => void | Promise<void>;
+  openTabById: (id: string) => void;
+};
+
+function openCoreSettingsTab(app: App, tabId: string): void {
+  const setting = (app as { setting?: SettingsModalApi }).setting;
+  if (!setting) return;
+  void Promise.resolve(setting.open()).then(() => {
+    setting.openTabById(tabId);
+  });
+}
 
 /** Destination title, shown on its entry row and again on its back row. */
 const DESTINATION_TITLES: Record<Exclude<SettingsRoute, "main">, string> = {
@@ -1048,6 +1116,9 @@ export class AtomsSettingTab extends PluginSettingTab {
       cls: "setting-item-description",
     });
 
+    // Whether Atoms is filing, before anything the screen offers to change (R18).
+    this.renderStatusGroup(containerEl);
+
     // The plan's main-screen table, in its order: who you are → what you capture → where it
     // lands → what the model may say → who else can read it → when it runs → keys → advanced.
     // Ask sits under Plus because it is the only cluster a signed-out install does not render.
@@ -1059,6 +1130,67 @@ export class AtomsSettingTab extends PluginSettingTab {
     this.renderAutoRunSection(containerEl);
     this.renderApiSection(containerEl);
     this.renderAdvancedEntry(containerEl);
+  }
+
+  /**
+   * The one step still unfinished, or null when Atoms can file.
+   *
+   * Read out of `firstDaySetupCopy` rather than decided here (KTD11): Atoms home's first-day wall
+   * answers the same question, and the moment this screen keeps its own list the two drift.
+   */
+  private nextSetupStep(): SetupStep | null {
+    return firstDaySetupCopy(
+      appHasDailyNotesPluginLoaded(),
+      this.plugin.resolveFilingAuth().mode !== "none",
+    ).nextStep;
+  }
+
+  /**
+   * The screen's first element: whether Atoms is filing, and the single step when it is not.
+   *
+   * Two variants, not one variant with an empty slot. Nobody files yet, so the group says what
+   * Atoms does and names one thing to do; or somebody does, so it says filing is on and when the
+   * first atoms land. The second variant borrows the automatic-filing toggle from the File leg,
+   * which is why `renderAutoRunSection` asks whether this group took it — the File composition is
+   * state-dependent, and that seam is where it lives.
+   *
+   * No fill, no tint, no border: setup state is not transient, so the token system's soft-fill
+   * carve-out does not reach it (R14). Position is the emphasis.
+   */
+  private renderStatusGroup(containerEl: HTMLElement): void {
+    const step = this.nextSetupStep();
+    if (step) {
+      group(containerEl, {
+        ...STATUS_GROUP.unconfigured,
+        render: (groupEl) => {
+          destinationRow(groupEl, {
+            name: step.name,
+            desc: "Required",
+            onOpen: () =>
+              step.kind === "daily_notes"
+                ? openCoreSettingsTab(this.app, CORE_PLUGINS_SETTINGS_TAB_ID)
+                : this.openRoute("account"),
+          });
+        },
+      });
+      return;
+    }
+    const state = readDeviceAutoRunState((k) => loadLocal(this.app, k));
+    const on = state.enabled && state.egressAcked;
+    group(containerEl, {
+      ...STATUS_GROUP.filing,
+      render: (groupEl) => {
+        this.renderAutomaticFilingRow(groupEl, {
+          name: FILING_ROW_NAME,
+          desc: !on
+            ? FILING_STATE_DESC.off
+            : state.lastRunDay
+              ? FILING_STATE_DESC.running
+              : FILING_STATE_DESC.dayOne,
+        });
+        if (on) statusRow(groupEl, { ...NEXT_RUN_ROW });
+      },
+    });
   }
 
   /**
@@ -1995,20 +2127,25 @@ export class AtomsSettingTab extends PluginSettingTab {
       });
   }
 
-  private renderAutoRunSection(containerEl: HTMLElement) {
-    settingHeading(containerEl, "Automatic filing (this device)");
-    containerEl.createEl("p", {
-      text: "Stored only on this device (not synced via data.json). Default off. Turning it on asks for a one-time acknowledgment — unattended runs send titles + captures to Anthropic.",
-      cls: "setting-item-description",
-    });
-
+  /**
+   * The automatic-filing toggle, wherever it is currently standing.
+   *
+   * One implementation, two homes: the status group holds it once somebody files, the auto-run
+   * section holds it while nobody does. Only the prose differs, so only the prose is a parameter
+   * — a second copy of this handler is a second consent gate to keep in step, and the gate is the
+   * whole reason the row is delicate.
+   */
+  private renderAutomaticFilingRow(
+    containerEl: HTMLElement,
+    row: { name: string; desc: string },
+  ): void {
     const load = (k: string): unknown => loadLocal(this.app, k);
     const save = (k: string, v: unknown) => this.app.saveLocalStorage(k, v);
     const state = readDeviceAutoRunState(load);
 
     settingRow(containerEl, {
-      name: "File automatically when Obsidian opens",
-      desc: "When enabled: once per calendar day after layout + metadata are ready. Caps work per launch; offline fails silently until next day.",
+      name: row.name,
+      desc: row.desc,
       control: {
         kind: "toggle",
         configure: (toggle) => {
@@ -2040,6 +2177,28 @@ export class AtomsSettingTab extends PluginSettingTab {
         },
       },
     });
+  }
+
+  private renderAutoRunSection(containerEl: HTMLElement) {
+    settingHeading(containerEl, "Automatic filing (this device)");
+    containerEl.createEl("p", {
+      text: "Stored only on this device (not synced via data.json). Default off. Turning it on asks for a one-time acknowledgment — unattended runs send titles + captures to Anthropic.",
+      cls: "setting-item-description",
+    });
+
+    const load = (k: string): unknown => loadLocal(this.app, k);
+    const save = (k: string, v: unknown) => this.app.saveLocalStorage(k, v);
+    const state = readDeviceAutoRunState(load);
+
+    // Shed to the status group once somebody files, so the screen states what is happening
+    // before it offers the switch that changes it. Rendered here while nobody does: the status
+    // group is asking who files, and a toggle beside that question is a second decision.
+    if (this.nextSetupStep()) {
+      this.renderAutomaticFilingRow(containerEl, {
+        name: "File automatically when Obsidian opens",
+        desc: "When enabled: once per calendar day after layout + metadata are ready. Caps work per launch; offline fails silently until next day.",
+      });
+    }
 
     // Day one is deliberately silent: enabling stamps the window at today and every pass
     // excludes today, so the first atoms land tomorrow and a user who watched nothing happen

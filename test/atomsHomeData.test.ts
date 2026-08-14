@@ -1038,4 +1038,50 @@ describe("firstDaySetupCopy", () => {
       /backlog|overdue|still need to|you haven't/,
     );
   });
+
+  /**
+   * The settings status group and this card read the same unfinished work (KTD11). Two
+   * hand-maintained lists of "what is not set up yet" is the twin-bug shape, so the step the
+   * settings line names is computed here, beside the card that names the same thing.
+   */
+  describe("the one unfinished step", () => {
+    it("names the Daily Notes step with the same words the card's title uses", () => {
+      const copy = firstDaySetupCopy(false);
+      expect(copy.nextStep).toEqual({
+        kind: "daily_notes",
+        name: "Turn on Daily Notes",
+      });
+      expect(copy.nextStep?.name).toBe(copy.title);
+    });
+
+    it("names choosing who files once Daily Notes is on and nobody files", () => {
+      const copy = firstDaySetupCopy(true, false);
+      expect(copy.nextStep).toEqual({
+        kind: "filing_owner",
+        name: "Choose who files your captures",
+      });
+    });
+
+    it("puts Daily Notes first when both are unfinished", () => {
+      expect(firstDaySetupCopy(false, false).nextStep?.kind).toBe("daily_notes");
+    });
+
+    it("reports nothing unfinished once someone files, and stays silent for home", () => {
+      expect(firstDaySetupCopy(true, true).nextStep).toBeNull();
+      // Home passes one argument: its card has never spoken about who pays, and the wait card
+      // already owns that. Defaulting to "chosen" keeps this card exactly as it was.
+      expect(firstDaySetupCopy(true).nextStep).toBeNull();
+    });
+
+    it("keeps the step names inside the voice", () => {
+      const spoken = [
+        firstDaySetupCopy(false).nextStep?.name,
+        firstDaySetupCopy(true, false).nextStep?.name,
+      ].join(" ");
+      expect(spoken).not.toMatch(/—/);
+      expect(spoken.toLowerCase()).not.toMatch(
+        /backlog|overdue|still need to|you haven't/,
+      );
+    });
+  });
 });
