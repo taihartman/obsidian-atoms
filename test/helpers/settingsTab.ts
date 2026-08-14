@@ -204,6 +204,20 @@ export function rowNames(
 }
 
 /**
+ * Every group header on the rendered screen, in document order.
+ *
+ * Separate from {@link rowNames} because a group header is not a `Setting`: `group()` builds it
+ * with `createEl`, so it carries no `.setting-item` and `rowNames()` cannot see it. That is the
+ * point — a header is chrome around rows, not a row — but a screen's structure still has to be
+ * readable back, which is what this does.
+ */
+export function groupHeaders(tab: AtomsSettingTab): string[] {
+  return Array.from(tab.containerEl.querySelectorAll(".atoms-setting-group-header")).map(
+    (el) => el.textContent ?? "",
+  );
+}
+
+/**
  * Every loose paragraph on the rendered screen — the text that is *not* a row. Section intros
  * belong here by design; a status fact does not.
  */

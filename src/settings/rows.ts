@@ -36,10 +36,49 @@ export { markDestructive };
  * submits the field beside it. It exists because signed-out Account has one email and three
  * things to do with it. Three `formRow`s would be three email boxes.
  *
+ * `group()` sits alongside them without being one: it is the container those rows compose into,
+ * carrying the header and the single footer that used to be a description on every row.
+ *
  * No row may carry two grammars, so every builder applies exactly one affordance and returns
  * `void` — `Setting` is chainable, and handing the row back would let a caller bolt a second
  * affordance on after the fact. Same shape and same `void` return as `settingHeading()`.
  */
+
+/** A group's prose, and the rows that sit between the two halves of it. */
+export interface SettingGroupSpec {
+  /** The eyebrow above the group — what these rows are for, in the reader's words. */
+  header: string;
+  /**
+   * The one sentence under the group. Prose only, never an action: a group explains itself
+   * once, at the bottom, instead of repeating a description on every row inside it.
+   */
+  footer?: string;
+  /** Builds the rows into the group's own container. Same `containerEl`-first shape as a row. */
+  render: (groupEl: HTMLElement) => void;
+}
+
+/**
+ * A run of rows as one inset block: header above, rows inside, one footer below.
+ *
+ * A container rather than a row kind — it carries no name, no control, and no right edge, so it
+ * is to rows what `renderDestination` is to screens. Every builder already takes its container
+ * first, so a row composes into a group with no signature of its own changing.
+ *
+ * The header is built with `createEl` rather than `settingHeading()`: a heading made from a
+ * `Setting` renders as a `.setting-item`, which would put a row-shaped element *outside* the
+ * group box it labels, and the eyebrow the design asks for is chrome around rows rather than one
+ * of them. The footer keeps `setting-item-description` alongside its own class so it stays the
+ * same prose element the rest of the tab uses.
+ */
+export function group(containerEl: HTMLElement, spec: SettingGroupSpec): void {
+  containerEl.createEl("h3", { cls: "atoms-setting-group-header", text: spec.header });
+  spec.render(containerEl.createDiv({ cls: "atoms-setting-group" }));
+  if (spec.footer === undefined) return;
+  containerEl.createEl("p", {
+    cls: ["setting-item-description", "atoms-setting-group-foot"],
+    text: spec.footer,
+  });
+}
 
 /** Name + optional description shared by every row kind that has a description. */
 interface RowInfo {
@@ -81,6 +120,30 @@ export function settingRow(
   }
 }
 
+/**
+ * Make a whole row the target, for a pointer and for a keyboard alike.
+ *
+ * The chevron is an `extraButton` — a div, not a `<button>` — so a row whose only affordance is
+ * "the row is the target" is reachable by pointer and by nothing else. `tabindex` puts it in the
+ * tab order, `role="button"` tells a screen reader what landing there means, and Enter and Space
+ * share the click handler so the announced role is the truth. Space is prevented because its
+ * default is scrolling the pane behind the row the user just activated.
+ */
+function activatableRow(setting: Setting, onActivate: () => void): void {
+  const el = setting.settingEl;
+  el.addClass("mod-clickable");
+  el.setAttribute("tabindex", "0");
+  el.setAttribute("role", "button");
+  // The listener lives on the row, not the chevron: a chevron click bubbles here, so the row
+  // acts exactly once wherever the user aims.
+  el.addEventListener("click", () => onActivate());
+  el.addEventListener("keydown", (evt: KeyboardEvent) => {
+    if (evt.key !== "Enter" && evt.key !== " ") return;
+    evt.preventDefault();
+    onActivate();
+  });
+}
+
 /** A way into somewhere else: chevron right edge, whole row clickable, never a toggle. */
 export function destinationRow(
   containerEl: HTMLElement,
@@ -89,10 +152,7 @@ export function destinationRow(
   const setting = baseRow(containerEl, row);
   setting.addExtraButton((chevron) => chevron.setIcon("chevron-right"));
   setting.settingEl.addClass("atoms-setting-destination");
-  setting.settingEl.addClass("mod-clickable");
-  // The listener lives on the row, not the chevron: a chevron click bubbles here, so the
-  // destination opens exactly once wherever the user aims.
-  setting.settingEl.addEventListener("click", () => row.onOpen());
+  activatableRow(setting, () => row.onOpen());
 }
 
 /**
@@ -110,8 +170,7 @@ export function backRow(
   const setting = baseRow(containerEl, row);
   setting.addExtraButton((chevron) => chevron.setIcon("chevron-left"));
   setting.settingEl.addClass("atoms-setting-back");
-  setting.settingEl.addClass("mod-clickable");
-  setting.settingEl.addEventListener("click", () => row.onBack());
+  activatableRow(setting, () => row.onBack());
 }
 
 /**

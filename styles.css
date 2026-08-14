@@ -1954,6 +1954,60 @@
   flex: 0 0 auto;
 }
 
+/* Settings row grammar — the grouped list. A run of rows sits inside one inset block, under an
+   eyebrow header and over a single explanatory footer, so a row can go back to being a name and a
+   control. Flat surface, hairline separators, no accent fill and no border: the v2 tokens
+   (docs/design-handoff/tokens/README.md) and docs/design-handoff/settings/overhaul.html. */
+.atoms-setting-group-header {
+  margin: 22px 0 6px;
+  padding: 0 4px;
+  font-size: var(--font-ui-smaller);
+  font-weight: 600;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.atoms-setting-group {
+  background: var(--background-secondary);
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+/* One hairline *between* neighbouring rows and none at the block's edges — the radius is the
+   boundary there, and Obsidian paints a top border on every `.setting-item` including the first. */
+.atoms-setting-group .setting-item {
+  border-top: none;
+}
+
+.atoms-setting-group .setting-item + .setting-item {
+  border-top: 1px solid var(--background-modifier-border);
+}
+
+/* The block owns the inset, so its rows carry their own side padding rather than sitting flush
+   against the fill. Written twice on purpose: Obsidian's row padding is set at (0,3,0) in the
+   modal and its phone rules gate on `.is-phone` at (0,4,0), and a single (0,2,0) selector loses
+   to both. The unprefixed rule is what covers `is-tablet`, where neither of Obsidian's phone
+   rules fires at all — the same gap #347/#348 opened for the form row above. */
+.modal .atoms-setting-group .setting-item,
+.is-phone .modal .atoms-setting-group .setting-item {
+  padding-left: 14px;
+  padding-right: 14px;
+}
+
+.atoms-setting-group-foot {
+  margin: 7px 0 0;
+  padding: 0 4px;
+}
+
+/* A row activated as a whole keeps a thumb-sized target, on every platform: a destination, a back
+   row, and every row inside a group, whether or not the pointer that finds it is a finger. */
+.setting-item.atoms-setting-destination,
+.setting-item.atoms-setting-back,
+.atoms-setting-group .setting-item {
+  min-height: 44px;
+}
+
 /* Phone: keep a row's right edge on the row.
    Obsidian stacks every settings row it does not recognise as inline. Three rules in `app.css`
    share one gate — `.setting-item:not(:is(.mod-toggle, .mod-navigable, .mod-action,

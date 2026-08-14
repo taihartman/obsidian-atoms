@@ -8,6 +8,7 @@ import {
   destructiveRow,
   formActionsRow,
   formRow,
+  group,
   InFlightActions,
   settingRow,
   statusRow,
@@ -19,8 +20,11 @@ import {
   // Aliased: this file already has a local `row()` reader, and `press`/`flip` read better
   // alongside it under names that say they act on a rendered row.
   flip as flipRow,
+  groupHeaders,
   open,
   press as pressRow,
+  prose,
+  rowNames,
   settingTab,
 } from "./helpers/settingsTab";
 import { DEFAULT_SETTINGS } from "../src/shared/types";
@@ -595,9 +599,11 @@ describe("row grammar", () => {
         submit: { action: "e", label: "Send", inFlight, onSubmit: () => {} },
       }),
       statusRow(container, { name: "F", value: "ok" }),
+      group(container, { header: "G", render: () => {} }),
     ];
 
     expect(returns).toEqual([
+      undefined,
       undefined,
       undefined,
       undefined,
@@ -879,6 +885,135 @@ describe("row grammar", () => {
  * itself. `redisplay()` and `openRoute()` are the two rebuilds, and before the registry moved
  * off the component both handed back a fresh, enabled button mid-flight.
  */
+/**
+ * `styles.css` itself, live in the test document. A touch target is a CSS fact, so the assertion
+ * below reads the shipped rule rather than a number restated in a test that could agree with
+ * nothing. Loaded once: the document outlives a single case.
+ */
+function loadShippedStyles(): void {
+  if (document.getElementById("atoms-shipped-styles")) return;
+  const style = document.createElement("style");
+  style.id = "atoms-shipped-styles";
+  style.textContent = readFileSync(path.resolve(__dirname, "../styles.css"), "utf8");
+  document.head.appendChild(style);
+}
+
+/**
+ * The grouped list: rows nested inside one inset container, under one header and over one footer.
+ *
+ * Asserted on rendered structure rather than on what the builder was handed, because the nesting
+ * is the risk — `rowNames()` and `prose()` read a screen back through `querySelectorAll`, and a
+ * wrapper div is the first element the settings tab has ever put between them and a row.
+ */
+describe("grouped list", () => {
+  let container: HTMLElement;
+
+  beforeEach(() => {
+    container = document.createElement("div");
+  });
+
+  it("renders one header, the rows it was handed, and one footer", () => {
+    group(container, {
+      header: "1 · Capture",
+      footer: "Atoms never captures for you.",
+      render: (el) => {
+        for (const name of ["Daily notes", "Capture on your phone", "Atoms land in"]) {
+          settingRow(el, { name, control: { kind: "toggle", configure: () => {} } });
+        }
+      },
+    });
+
+    const headers = container.querySelectorAll(".atoms-setting-group-header");
+    expect(headers).toHaveLength(1);
+    expect(headers[0]?.textContent).toBe("1 · Capture");
+
+    const groupEl = container.querySelector(".atoms-setting-group");
+    if (!(groupEl instanceof HTMLElement)) throw new Error("no group container rendered");
+    expect(groupEl.childElementCount).toBe(3);
+    expect(
+      Array.from(groupEl.children).every((el) => el.classList.contains("setting-item")),
+    ).toBe(true);
+
+    const foot = container.querySelectorAll("p.setting-item-description.atoms-setting-group-foot");
+    expect(foot).toHaveLength(1);
+    expect(foot[0]?.textContent).toBe("Atoms never captures for you.");
+  });
+
+  it("renders no paragraph at all for a group with no footer", () => {
+    group(container, {
+      header: "Get started",
+      render: (el) => destinationRow(el, { name: "Choose who files your captures", onOpen: () => {} }),
+    });
+
+    expect(container.querySelectorAll("p")).toHaveLength(0);
+  });
+
+  it("leaves nested rows, headers, and footers readable off the rendered screen", () => {
+    const { tab } = settingTab();
+
+    group(tab.containerEl, {
+      header: "1 · Capture",
+      footer: "Write a bullet in today's daily note.",
+      render: (el) => {
+        settingRow(el, { name: "Daily notes", control: { kind: "toggle", configure: () => {} } });
+        destinationRow(el, { name: "Capture on your phone", onOpen: () => {} });
+      },
+    });
+    group(tab.containerEl, {
+      header: "2 · File",
+      render: (el) => destinationRow(el, { name: "Who does the filing", onOpen: () => {} }),
+    });
+
+    // Document order, across the two wrappers — nesting must not reorder or hide a row.
+    expect(rowNames(tab)).toEqual([
+      "Daily notes",
+      "Capture on your phone",
+      "Who does the filing",
+    ]);
+    // The header is chrome, not a row: `rowNames()` cannot see it, `groupHeaders()` can.
+    expect(groupHeaders(tab)).toEqual(["1 · Capture", "2 · File"]);
+    expect(prose(tab)).toEqual(["Write a bullet in today's daily note."]);
+  });
+
+  it("activates a chevron row from the keyboard and gives it a 44px target", () => {
+    loadShippedStyles();
+    document.body.appendChild(container);
+    let opened = 0;
+    group(container, {
+      header: "2 · File",
+      render: (el) =>
+        destinationRow(el, {
+          name: "Who does the filing",
+          onOpen: () => {
+            opened += 1;
+          },
+        }),
+    });
+    const rowEl = row(container);
+
+    expect(rowEl.getAttribute("role")).toBe("button");
+    expect(rowEl.getAttribute("tabindex")).toBe("0");
+
+    const press = (key: string): KeyboardEvent => {
+      const evt = new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true });
+      rowEl.dispatchEvent(evt);
+      return evt;
+    };
+
+    expect(press("Enter").defaultPrevented).toBe(true);
+    expect(opened).toBe(1);
+    // Space activates too, and must not also scroll the settings pane behind the row.
+    expect(press(" ").defaultPrevented).toBe(true);
+    expect(opened).toBe(2);
+    // Anything else is a keystroke passing through, not an activation.
+    expect(press("a").defaultPrevented).toBe(false);
+    expect(opened).toBe(2);
+
+    expect(getComputedStyle(rowEl).minHeight).toBe("44px");
+    container.remove();
+  });
+});
+
 describe("in-flight guard across a settings-tab rebuild", () => {
   const flush = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 
