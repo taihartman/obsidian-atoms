@@ -93,6 +93,19 @@ const EXEMPT_REGIONS: ReadonlyArray<{
  */
 const EXEMPT_LINES: ReadonlyArray<{ file: string; line: string; reason: string }> = [
   {
+    file: "src/home/atomsHomeView.ts",
+    line:
+      'text: "Filing now runs when you come back to Obsidian, not only on launch. Sync everything ' +
+      'now can spend API even if automatic filing is off — same TLS path to Anthropic as before.",',
+    reason:
+      "The egress catch-up card. Unlike consent.ts this text is pinned by nothing, so rewording it " +
+      "turns no test red — which is the problem. Its ack is a bare un-stamped boolean " +
+      "(LS_EGRESS_NOTICE, src/platform/resume.ts), and it grants paid egress through " +
+      "readEgressPermitted, so a reword leaves already-acked devices holding a grant against text " +
+      "they never saw. That is the #315 failure class with no mechanism to catch it. Sweep this " +
+      "line in the same change that gives the notice a versioned ack, not before.",
+  },
+  {
     file: "src/platform/continueParent.ts",
     line: "let next = `${parent} — continued`;",
     reason:
