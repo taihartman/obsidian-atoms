@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| _Nothing in flight._ |
+| In progress | [#493](https://github.com/taihartman/obsidian-atoms/issues/493) | @taihartman | `claude/settings-ux-redesign-69acd6` | [2026-08-14-001](docs/plans/2026-08-14-001-feat-settings-three-leg-overhaul-plan.md) | `src/settings/settings.ts`, `src/settings/rows.ts`, `styles.css`, `test/settings.test.ts`, `test/settingsRows.test.ts` | Settings three-leg overhaul. U2-U9 land **sequentially** (shared `expectedRows()` fixture). `DIRECT_SETTING_BUDGET` has zero headroom — `group()` must live in `rows.ts`. Versioned **and** ack-standing strings frozen. |
 
 ## How to claim (copy)
 
