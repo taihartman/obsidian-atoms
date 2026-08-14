@@ -1,6 +1,8 @@
 ---
 handoff_date: 2026-08-14
 branch: claude/settings-ux-redesign-69acd6
+worktree: /Users/a515138832/StudioProjects/obsidian_plugin-settings-ux-redesign
+worktree_note: not yet created — the branch is still checked out in the non-durable harness worktree at /Users/a515138832/StudioProjects/obsidian_plugin/.claude/worktrees/mystifying-pasteur-1c6642. See How to resume.
 base: master
 tracking: https://github.com/taihartman/obsidian-atoms/issues/493
 pr: https://github.com/taihartman/obsidian-atoms/pull/494
@@ -116,20 +118,43 @@ groups are multi-row, so the next capture finally exercises `.atoms-setting-grou
 Also expected and not a defect: the group card currently looks identical to the ungrouped rows below
 it, so grouping signals nothing yet. That resolves as U5-U7 convert the rest of the screen.
 
+## Git state
+
+- Branch `claude/settings-ux-redesign-69acd6` (base `master`), pushed to `origin`, **0 ahead / 0 behind**.
+- Working tree was **clean** at handoff. There is no WIP snapshot commit — every change is a real commit.
+- Last code commit: `6b3c65b` — `refactor(settings): fold the U1-U3 twins into one owner each`
+- Head is this doc: `c30a0d8` — `docs(handoff): record git state and the worktree resume path`
+- Diff since base: **20 files, +3905 / -100** (`git diff --stat master...HEAD`)
+
 ## How to resume
 
-The branch is checked out in a harness worktree. If it is gone, recreate a sibling:
+Nothing is at risk: every commit is on `origin`. But the branch is currently checked out in a
+**non-durable harness worktree** (`.claude/worktrees/mystifying-pasteur-1c6642`), which is why
+`git worktree add` will refuse the branch until that one is released.
+
+Try the durable sibling first:
 
 ```bash
 cd /Users/a515138832/StudioProjects/obsidian_plugin
 git fetch origin
+git worktree prune
 git worktree add ../obsidian_plugin-settings-ux-redesign claude/settings-ux-redesign-69acd6
 cd ../obsidian_plugin-settings-ux-redesign && npm install
-npm test && npm run lint && npm run build
 ```
 
-If `worktree add` says the branch is already checked out, run `git worktree list | grep settings-ux-redesign`
-and `cd` to the path it names.
+If `worktree add` still reports the branch is already checked out, the harness worktree is alive —
+just work in it instead. Do not fight this and do not delete anything to force the sibling:
+
+```bash
+git worktree list | grep settings-ux-redesign   # cd to the path it prints
+```
+
+Either way, confirm the baseline before you write a line of code. All three must pass, and the test
+count must read **1801**:
+
+```bash
+npm test && npm run lint && npm run build
+```
 
 ## Execution shape that has been working
 
