@@ -92,7 +92,8 @@ issued the token cannot know which account it belongs to. The repo already holds
 
 ## KTD1 — what an absent `issuedBase` means
 
-**PENDING USER DECISION. Blocks U3 onward; U1 and U2 can proceed without it.**
+**DECIDED 2026-08-15, user-directed: row 1, with the carve-out below.** An absent issuer means
+*unknown*, never *production*. The plugin does not guess where a session came from.
 
 Sessions already on disk carry no issuer. Three readings:
 
@@ -119,13 +120,28 @@ So row 1 is conditional on the field:
 
 - **unknown issuer + a configured base** → probe it. The user chose that host.
 - **unknown issuer + an empty field** → treat it as *no base at all*, not as the hosted default.
-  Refuse content-bearing calls and ask the user to confirm the address once. Do not auto-probe.
+  Refuse content-bearing calls until the address is confirmed. Do not auto-probe.
 
 That single carve-out is what makes row 1's residual hole actually "none" rather than "one token".
 
-The plan below is written for **row 1 plus the carve-out**. If the user picks row 2, U3 changes to
-`session.issuedBase ?? DEFAULT_PLUS_BASE_URL`, the carve-out disappears, and the migration tests
-invert.
+**The carve-out is bounded to the upgrade cohort. It is not a new meaning for an empty field.**
+`plusBaseUrl` ships as `""` (`shared/types.ts:225`), so empty is the *normal* state for every hosted
+user, and redefining it as "not connected" would strand nearly the whole install base. It does not
+need redefining: from U2 onward a hosted user's session is stamped `plus.tryatoms.app` at sign-in,
+their field stays empty, the resolved base matches the stamp, and nothing ever prompts. The session
+knows, so the field does not have to mean anything. The only population that cannot be told apart is
+the one that upgrades with no stamp *and* an empty field, and that state is one-time and
+self-clearing.
+
+**Surface it as a state, not a dialog** (user-directed, on the Apple read). No modal asking the user
+to re-supply something the plugin lost track of. Settings shows Atoms Plus as needing its address
+confirmed, with the field and its existing inline error region (`settings.ts:1490-1500`) doing the
+work; a content-bearing call in that state refuses with the Notice pointing at Settings; nothing is
+sent anywhere until it resolves. The feature is visibly off rather than quietly re-pointed.
+
+If row 2 had been chosen, U3 would instead read `session.issuedBase ?? DEFAULT_PLUS_BASE_URL`, the
+carve-out would disappear, and the migration tests would invert. It was not chosen: it grandfathers
+in exactly the state #508 exists to catch.
 
 ## KTD2 — comparison is normalized, and normalization is narrow
 
@@ -254,7 +270,8 @@ four callers: `settings.ts:2567` (trial), `:2602` (subscribe), `:2708` (paste, f
 KTD4). Each supplies the base it actually talked to, not the one currently configured. Tests: each
 path stamps; the two direct `writePlusSession` callers preserve an existing stamp.
 
-**U3 — verification. Depends on KTD1.**
+**U3 — verification.** Implements KTD1 row 1 plus the carve-out: an absent stamp is *unknown*, and
+unknown with an empty field does not probe at all.
 New `src/platform/plusBaseVerify.ts`: given a session and a resolved base, return `verified`,
 `refused`, or `unreachable`. Match on normalized bases; on mismatch or `undefined`, verify by
 calling the **existing** `getEntitlement` (`plusClient.ts:696`) with
@@ -329,7 +346,7 @@ depending on a reviewer noticing it.
 
 ## Copy
 
-Three new messages. No em dashes: `test/copyVoice.test.ts` enforces that plugin-wide over string,
+Four new messages. No em dashes: `test/copyVoice.test.ts` enforces that plugin-wide over string,
 template and regex literals. Drafts, subject to `atoms-voice`:
 
 **Refusal.**
@@ -338,6 +355,11 @@ template and regex literals. Drafts, subject to `atoms-voice`:
 
 It must not say "your token was not sent", which invites the question of when it is. It should point
 at the field, because the field is what the user changed.
+
+**Needs confirming.** The KTD1 carve-out state: no stamp and an empty field, so the plugin has no
+address it can trust. One-time, self-clearing, and it must not read as an error the user caused:
+
+> `Atoms Plus needs its address before your notes are sent. Open Settings to confirm it.`
 
 **Couldn't check.** Distinct from the refusal, because under KTD1 row 1 the first content call after
 upgrade depends on a live probe for *every* existing session, including hosted users who changed
@@ -373,7 +395,7 @@ changes, and it can name the host.
 
 ## Open questions
 
-- **KTD1**, above. Blocking, with the user.
+- ~~KTD1~~ — decided 2026-08-15, user-directed. See above.
 - **Should the resolver itself stop falling back, rather than six consumers being gated?** The plan
   names `plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL` at 23 sites as the cause, then fixes six
   consumers and leaves the expression everywhere, so the next content-bearing sender inherits the
