@@ -1386,6 +1386,30 @@ describe("settings modal marker (#364 C1)", () => {
     expect(modal.classList.contains("atoms-settings-open")).toBe(false);
   });
 
+  /**
+   * The one that matters, and the one the first version of this test could not fail: Obsidian
+   * detaches `containerEl` *before* it calls `hide()`, so a remove path that walks up from the
+   * container finds nothing and leaves the class on. The modal is reused between visits, so the
+   * marker then sat on every core and third-party settings tab for the rest of the session —
+   * measured on device, not imagined. Detaching first is what makes this test honest.
+   */
+  it("unmarks even though Obsidian detaches the container before hiding", () => {
+    const { tab, scroller } = settingTab();
+    const modal = inModal(tab, scroller);
+    document.body.appendChild(modal);
+    tab.display();
+    expect(modal.classList.contains("atoms-settings-open")).toBe(true);
+
+    // Exactly what Obsidian does on the way out.
+    tab.containerEl.detach?.();
+    tab.containerEl.remove();
+    tab.hide();
+
+    expect(modal.classList.contains("atoms-settings-open")).toBe(false);
+    expect(document.querySelectorAll(".atoms-settings-open")).toHaveLength(0);
+    modal.remove();
+  });
+
   it("survives a route walk, which re-renders without leaving the tab", () => {
     const { tab, scroller } = settingTab();
     const modal = inModal(tab, scroller);

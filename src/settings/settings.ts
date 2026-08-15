@@ -415,6 +415,9 @@ function requireEmail(email: string): boolean {
  * costs one field and a switch, while a second view type would need its own lifecycle,
  * registration, and mobile back handling to say the same thing.
  */
+/** Marks Obsidian's settings modal while this tab is the one on screen; paired with styles.css. */
+const SETTINGS_OPEN_CLASS = "atoms-settings-open";
+
 export type SettingsRoute =
   | "main"
   | "engine"
@@ -819,6 +822,11 @@ export class AtomsSettingTab extends PluginSettingTab {
    */
   private hiding = false;
   /**
+   * The modal this tab marked on the way in (#364 C1). Held because `hide()` runs after Obsidian
+   * has already detached `containerEl`, so there is nothing left to walk up to by then.
+   */
+  private markedModal: HTMLElement | null = null;
+  /**
    * The last answer the API-key row got, and when. Keyed by the key it was about, so a new key
    * is always a fresh question and a re-render of the same key is not.
    */
@@ -966,13 +974,30 @@ export class AtomsSettingTab extends PluginSettingTab {
    * that: without one, a plugin rule on `.modal-header` would restyle Obsidian's own tabs and
    * every other plugin's, which is not ours to change.
    *
-   * `closest()` returning null is normal rather than exceptional: the tab renders into a detached
-   * container in tests, and Obsidian is free to change its own modal structure.
+   * **The remove path cannot use `closest()`.** Obsidian detaches `containerEl` *before* calling
+   * `hide()` — probed at `hide()` entry: no parent, no modal ancestor — so looking upward finds
+   * nothing and the class stays on. The consequence is not subtle, because the modal element is
+   * reused across visits: after one trip to this tab, every core and third-party settings tab wore
+   * our scrim for the rest of the session. Caught on device, and the first version of the test
+   * missed it because a test container is still attached when `hide()` runs.
+   *
+   * So the element is remembered on the way in, and the way out also sweeps any stray marker in
+   * the document. The sweep is safe because the class is ours alone: removing it wherever it is
+   * found can only undo our own leak, including one left behind by a modal that was rebuilt.
    */
   private markSettingsModal(on: boolean): void {
-    const modal = this.containerEl.closest(".modal");
-    if (!modal) return;
-    modal.classList.toggle("atoms-settings-open", on);
+    if (on) {
+      const modal = this.containerEl.closest(".modal");
+      if (!(modal instanceof HTMLElement)) return;
+      modal.classList.add(SETTINGS_OPEN_CLASS);
+      this.markedModal = modal;
+      return;
+    }
+    this.markedModal?.classList.remove(SETTINGS_OPEN_CLASS);
+    this.markedModal = null;
+    this.containerEl.ownerDocument
+      ?.querySelectorAll(`.${SETTINGS_OPEN_CLASS}`)
+      .forEach((el) => el.classList.remove(SETTINGS_OPEN_CLASS));
   }
 
   /**
