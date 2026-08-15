@@ -144,8 +144,9 @@ Recorded in the plan's Open questions section. Summarised:
   `origin/claude/plus-session-issuer`.
 - Draft PR [#526](https://github.com/taihartman/obsidian-atoms/pull/526), `Closes #508`.
 - `STATUS.md` row is claimed and current.
-- **Head `1f5e6b3` (this doc). Working tree clean, everything pushed. There is no WIP snapshot
-  commit — nothing was left uncommitted.**
+- **Last code commit: `7105839` (U2). Everything after it is docs.** Working tree clean, everything
+  pushed. There is no WIP snapshot commit — nothing was left uncommitted. (This section does not pin
+  the head SHA: the commit that carries this doc cannot state its own hash.)
 - Diff since base: 18 files, +1334/-39.
 - Recent commits, newest first:
   - `f952c53` docs: confirm the `/v1/me` identity field against the service
