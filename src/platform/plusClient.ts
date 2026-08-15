@@ -164,6 +164,51 @@ function joinUrl(base: string, path: string): string {
   return `${b}${p}`;
 }
 
+/** Shown when the Plus service URL override is a host we refuse to talk to (#500). */
+export const PLUS_BASE_URL_INVALID_MESSAGE =
+  "Plus service URL must start with https:// — http:// is allowed only for localhost. Fix it in Settings → Atoms → Advanced, or clear it to use the hosted service.";
+
+/**
+ * Loopback never leaves the device, so plain http is safe there and nowhere
+ * else. Exact match only: a resolver can point `localhost.example.com`
+ * anywhere, so a suffix test would hand the session token to that host.
+ */
+function isLoopbackHost(hostname: string): boolean {
+  const h = hostname.toLowerCase();
+  // WHATWG keeps the brackets on an IPv6 literal in some runtimes.
+  if (h === "localhost" || h === "::1" || h === "[::1]") return true;
+  // The whole 127/8 block is loopback, not only 127.0.0.1.
+  return /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(h);
+}
+
+/**
+ * Whether a Plus service URL override may receive this device's session token
+ * (#500). Every Plus call attaches `Bearer <session>`, so an unvalidated
+ * override is a one-typo credential leak — and the checkout and portal URLs
+ * the service replies with are handed to `window.open`, so a hostile host also
+ * gets a browser-open primitive.
+ *
+ * `docs/ask-self-host.md` already sets the rule: a public host must be HTTPS,
+ * and `http://127.0.0.1:8787` is the documented local listen address.
+ *
+ * Empty is *not* the caller's answer here — an empty setting means "use the
+ * default" and is resolved by the call sites before this ever sees it.
+ */
+export function isAllowedPlusBaseUrl(raw: string): boolean {
+  const value = (raw ?? "").trim();
+  if (!value) return false;
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    // A bare host (`plus.tryatoms.app`) is the likeliest typo and does not parse.
+    return false;
+  }
+  if (url.protocol === "https:") return true;
+  if (url.protocol === "http:") return isLoopbackHost(url.hostname);
+  return false;
+}
+
 type PlusHttpOk = { ok: true; status: number; json: Record<string, unknown> };
 
 async function plusRequest(
@@ -183,6 +228,18 @@ async function plusRequest(
       status: 0,
       code: "unknown",
       message: "Plus service URL not configured",
+    };
+  }
+  // #500. Refuse before the request is built, not after — the point is that the
+  // session token never reaches a host we did not vet. Falling back to the
+  // hosted default would be worse than failing: a self-host session token would
+  // then be sent to plus.tryatoms.app.
+  if (!isAllowedPlusBaseUrl(base)) {
+    return {
+      ok: false,
+      status: 0,
+      code: "invalid",
+      message: PLUS_BASE_URL_INVALID_MESSAGE,
     };
   }
   const headers: Record<string, string> = {

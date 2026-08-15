@@ -9,7 +9,9 @@ import {
   createCheckout,
   exchangeMagicToken,
   getEntitlement,
+  isAllowedPlusBaseUrl,
   peekMagicToken,
+  PLUS_BASE_URL_INVALID_MESSAGE,
   requestMagicLink,
   startPlusAccount,
   SESSION_REJECTED_MESSAGE,
@@ -565,6 +567,121 @@ describe("plusClient", () => {
           }
         }
       }
+    });
+  });
+
+  /**
+   * #500. The Plus service URL override took any scheme and any host, and every
+   * call attaches the device session token to it. The guard lives at the one
+   * choke point every Plus call routes through, so a bad override cannot leak
+   * the token no matter which caller resolved the base.
+   */
+  describe("isAllowedPlusBaseUrl", () => {
+    it("accepts https on any host", () => {
+      for (const url of [
+        "https://plus.tryatoms.app",
+        "https://plus.test/",
+        "https://YOUR-SUBDOMAIN.trycloudflare.com",
+        "https://example.com/plus",
+        "https://example.com:8443",
+        // Scheme and host are case-insensitive per the URL parser.
+        "HTTPS://PLUS.TEST",
+      ]) {
+        expect(isAllowedPlusBaseUrl(url), url).toBe(true);
+      }
+    });
+
+    it("accepts http only on loopback, which is the documented dogfood address", () => {
+      for (const url of [
+        // docs/ask-self-host.md names this one explicitly.
+        "http://127.0.0.1:8787",
+        "http://localhost:8787",
+        "http://[::1]:8787",
+        // The whole 127/8 block is loopback, not just .0.1.
+        "http://127.0.0.2:8787",
+      ]) {
+        expect(isAllowedPlusBaseUrl(url), url).toBe(true);
+      }
+    });
+
+    it("rejects plain http to anywhere off the device", () => {
+      for (const url of [
+        "http://example.com",
+        "http://plus.tryatoms.app",
+        "http://192.168.1.5:8787",
+        // Host suffixed onto the loopback name — a resolver can send this
+        // anywhere, so an exact match is the only safe test.
+        "http://localhost.evil.com",
+        "http://evil.com/?host=localhost",
+        "http://notlocalhost",
+      ]) {
+        expect(isAllowedPlusBaseUrl(url), url).toBe(false);
+      }
+    });
+
+    it("rejects non-http schemes and unparseable values", () => {
+      for (const url of [
+        "ftp://example.com",
+        "file:///etc/passwd",
+        "javascript:alert(1)",
+        "data:text/html,x",
+        // The likeliest typo: a bare host with no scheme does not parse.
+        "plus.tryatoms.app",
+        "//evil.com",
+        "not a url",
+        // Empty is the caller's question, not this predicate's — an empty
+        // setting means "use the default" and never reaches a request.
+        "",
+        "   ",
+      ]) {
+        expect(isAllowedPlusBaseUrl(url), JSON.stringify(url)).toBe(false);
+      }
+    });
+  });
+
+  describe("plusRequest base URL guard", () => {
+    it("issues no request at all when the base is not https or loopback", async () => {
+      const request = vi.fn(async () => {
+        throw new Error("must not be called");
+      }) as unknown as RequestFn;
+
+      const r = await getEntitlement(
+        { baseUrl: "http://evil.example", request },
+        "sess",
+      );
+
+      expect(request).not.toHaveBeenCalled();
+      expect(r.ok).toBe(false);
+      if (!r.ok) {
+        expect(r.code).toBe("invalid");
+        expect(r.message).toBe(PLUS_BASE_URL_INVALID_MESSAGE);
+      }
+    });
+
+    it("still reports an empty base as unconfigured rather than falling back", async () => {
+      const request = vi.fn(async () => {
+        throw new Error("must not be called");
+      }) as unknown as RequestFn;
+
+      const r = await getEntitlement({ baseUrl: "  ", request }, "sess");
+
+      expect(request).not.toHaveBeenCalled();
+      expect(r.ok).toBe(false);
+      if (!r.ok) expect(r.message).toContain("not configured");
+    });
+
+    it("lets the documented loopback override through", async () => {
+      const request = mockRequest((p) => {
+        expect(p.url).toBe("http://127.0.0.1:8787/v1/me");
+        return { status: 200, json: { status: "active", remaining: 5 } };
+      });
+
+      const r = await getEntitlement(
+        { baseUrl: "http://127.0.0.1:8787", request },
+        "sess",
+      );
+
+      expect(r.ok).toBe(true);
     });
   });
 });

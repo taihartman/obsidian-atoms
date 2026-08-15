@@ -1929,6 +1929,20 @@
   text-align: right;
 }
 
+/* Settings row grammar — a rejected input explains itself under its own row rather than inside
+   it, so the row stays a plain row and no control grows an error mode. `:empty` carries the
+   hide/show, so the only state the code sets is the text. */
+.atoms-setting-error {
+  color: var(--text-error);
+  font-size: var(--font-ui-smaller);
+  padding: 0 0 12px;
+  margin-top: -6px;
+}
+
+.atoms-setting-error:empty {
+  display: none;
+}
+
 /* Settings row grammar — a destination row opens somewhere else; the whole row is the target. */
 .atoms-setting-destination {
   cursor: pointer;

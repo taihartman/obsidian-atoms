@@ -107,6 +107,8 @@ import {
 import { atomsPlusTopUpCopy } from "../home/atomsHomeData";
 import {
   DEFAULT_PLUS_BASE_URL,
+  isAllowedPlusBaseUrl,
+  PLUS_BASE_URL_INVALID_MESSAGE,
   requestMagicLink,
   startPlusAccount,
   createCheckout,
@@ -1024,10 +1026,27 @@ export class AtomsSettingTab extends PluginSettingTab {
             .onChange((value) => {
               this.plugin.settings.plusBaseUrl = value.trim();
               void this.plugin.saveSettings();
+              syncPlusBaseUrlError();
             });
         },
       },
     });
+
+    // #500. The field still saves whatever is typed — it persists on every
+    // keystroke, so `https://…` passes through `h`, `ht`, `htt`, and refusing the
+    // save would fight the user mid-word. The request guard in `plusRequest` is
+    // what keeps the session token off an unvetted host; this line only explains
+    // why Plus went quiet, so a rejected override does not read as a dead plugin.
+    const plusBaseUrlErrorEl = containerEl.createDiv({
+      cls: "atoms-setting-error",
+    });
+    const syncPlusBaseUrlError = (): void => {
+      const raw = this.plugin.settings.plusBaseUrl;
+      // Empty is the hosted default, not a mistake.
+      const rejected = raw !== "" && !isAllowedPlusBaseUrl(raw);
+      plusBaseUrlErrorEl.setText(rejected ? PLUS_BASE_URL_INVALID_MESSAGE : "");
+    };
+    syncPlusBaseUrlError();
 
     this.actionRow(containerEl, {
       action: "ask:open-self-host-guide",
