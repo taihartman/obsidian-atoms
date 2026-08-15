@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| _Nothing in flight._ |
+| In progress | [#516](https://github.com/taihartman/obsidian-atoms/issues/516) | agent | `feat/qa-vault-lock` | light lane (no plan doc) | `scripts/qa-vault-lock.sh` (new), `scripts/install-to-vault.sh`, `docs/qa/README.md`, `docs/qa/learnings.md` | Shared QA vault has no lock, so a peer's install silently replaces your build mid-pass. Guard goes where the destructive write is. Touches no `src/`. |
 
 ## How to claim (copy)
 
