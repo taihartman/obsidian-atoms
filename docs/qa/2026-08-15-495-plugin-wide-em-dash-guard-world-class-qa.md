@@ -111,18 +111,28 @@ Every story below is **Not tested** on the live surface, because the drive never
 rather than deleted so the next session inherits the scenario list and the reachability answer for
 each — which is the expensive part, and which is now known.
 
-| Story | Acceptance | Reachable without credentials? | Status |
+Driven live in vault `atoms-qa-433`, plugin verified **loaded at runtime** (not merely enabled),
+build fingerprint `b08e93090aae77f2` **identical before and after** the pass.
+
+| Story | Acceptance | Observed (verbatim) | Status |
 |---|---|---|---|
-| US-unprocessed | `atoms:list-unprocessed-captures` notices reads `… past day(s) · see console`, `·` renders, no `—` | **Yes** — no auth guard | Not tested (CLI wedged) |
-| US-connection | `atoms:test-connection` renders the parenthetical detail shape, e.g. `Anthropic reachable (HTTP 401: set an API key …)` | **Yes** — designed for the no-key state | Not tested (CLI wedged) |
-| US-home-hero | Home hero renders reworded filing copy, unclipped | **Partly** — the `need_key` card only; the two reworded byok/auto cards need a key present | Not tested (CLI wedged) |
-| US-mirror-refusal | Home Ask-mirror refusal card reads `Ask mirror: N · sync refused, vault scan incomplete · Sync now to retry` | **Yes** — reads device-local storage only, no session | Not tested (CLI wedged) |
-| US-mirror-status | Settings → Connect status line carries `·` separators and `(err)` detail | **Only with the Plus-session fixture** — signed out the destination returns early at `Sign in to Atoms Plus first.` and the status line does not render at all | Not tested (CLI wedged) |
-| US-update-batch | Update-notes modal reads `Up to 15 per Update so each run stays short and cost stays predictable. Tap again for the rest.` | **Yes** — the modal is built before any auth call, and the vault has 81 update-eligible atoms | Not tested (CLI wedged) |
-| US-backfill-estimate | Backfill estimate notice and dialog carry `(async, ~50% off)` / `(atoms + markers)` | **No** — `requireApiKey()` gates it, and the estimate makes a live `count_tokens` call per chunk | Not tested (needs credentials) |
-| US-process | Process / dry-run notices | **No** — `requireClassifyAuth()` aborts | Not tested (needs credentials) |
-| US-landpeak-partial | `Some notes refreshed. Failed ones stay eligible. Try Update again.` | **No** — needs a real mixed-outcome refresh; a garbage key yields all-failed, which renders a different, unchanged branch | Not tested (needs credentials) |
-| US-no-dash-sweep | Full-document scan finds no `—` in product chrome | **Yes** | Not tested (CLI wedged) |
+| US-unprocessed | `· see console`, no `—` | `Atoms: 34 unprocessed capture(s) across 18 past day(s) · see console` | **Passed** |
+| US-connection | Connectivity copy renders correctly in the no-key state | `Atoms: testing connection…` then `Atoms: Anthropic is reachable from Obsidian. Set your API key in settings to classify captures.` | **Passed** (see note) |
+| US-home-hero | Home hero renders reworded filing copy, unclipped | `34 Captures Waiting` / `Turn on automatic filing so new captures file on their own from today on. Process files the ones already waiting, when you are ready.` | **Passed** |
+| US-mirror-refusal | Two `·` separators, single line, no clipping | `Ask mirror: 400 · sync refused, vault scan incomplete · Sync now to retry` — `scrollWidth == clientWidth` (915px), one clean line | **Passed** (device-local fixture) |
+| US-mirror-status | Connect status line carries `·` separators | `Ask mirror: off · no current privacy acknowledgment · 400 in the cloud at last check, Wipe cloud copy to delete` | **Passed** — reached unexpectedly; the vault carries a Plus trial session from the #433 pass, so Connect rendered in full rather than the signed-out early return |
+| US-update-batch | Batch-limit sentence renders | `Up to 15 per Update so each run stays short and cost stays predictable. Tap again for the rest.` plus `Uses Atoms Plus (counts toward your monthly filings).` | **Passed** — modal cancelled, not confirmed |
+| US-openloops | `Set-aside daily lines. Hold to try filing · tap opens the daily` | exact match; prompt placeholder `Notes left for later · Enter open · Shift+Enter dismiss` | **Passed** |
+| US-settings | No `—` across settings surfaces | Main screen, Connect, Privacy, Advanced, Who does the filing, Tag vocabulary, Capture-on-phone modal all transcribed; section labels use the house separator (`1 · CAPTURE`, `Tag vocabulary · 13 active`, `Plus · Trial · 117 filings left`) | **Passed** — zero em dashes |
+| US-no-dash-sweep | No `—` in product chrome | **Exactly one hit**, `charCodeAt` verified 8212: the egress catch-up card at `atomsHomeView.ts:926` | **Passed** — that line is the documented exemption (see F6) |
+| US-backfill-estimate | `(async, ~50% off)` / `(atoms + markers)` | — | Not tested — `requireApiKey()`, plus a live `count_tokens` call per chunk |
+| US-process | Process / dry-run notices | — | Not tested — `requireClassifyAuth()` aborts |
+| US-landpeak-partial | `Some notes refreshed. Failed ones stay eligible. Try Update again.` | — | Not tested — needs a real mixed-outcome refresh; a garbage key yields all-failed, a different and unchanged branch |
+
+**US-connection note.** The no-key branch (`connectivity.ts:226`, `verdict: no_key`) carries **no**
+parenthetical. The parenthetical convention lives in the `partial` branch
+(`Check the key in settings (SecretStorage).`), which this device state cannot reach. So the
+parenthetical convention is proven live by US-update-batch and US-mirror-status, not by this story.
 
 ## Risk Matrix
 
@@ -212,8 +222,33 @@ the new build. The repo locks a shared *device*; nothing locks a shared *vault*.
 review did run (5 local reviewers plus a cross-model pass), and the vault does exist. Corrected in
 this change.
 
-**No product defect was found.** Nothing above is a defect in the copy sweep. F3/F4 are QA-harness
-and multiplayer-coordination problems; F1/F2 are merge-order facts; F5 is a stale doc.
+**F6 · The one em dash on screen is the documented exemption, and seeing it is the point.** The
+full-document scan found **exactly one** em dash in product chrome across home, settings and every
+modal — `charCodeAt` verified 8212, not a look-alike. It is the egress catch-up card
+(`atomsHomeView.ts:926`), and its rendered text is **byte-identical** to the string sitting in
+`EXEMPT_LINES` in `test/copyVoice.test.ts` with its written rationale. The craft frame
+(`s3-atoms-home.png`) shows it live: *"filing is off — same TLS path to Anthropic as before."* That
+makes #497 concrete rather than theoretical — this is user-facing text whose consent ack is a bare
+un-stamped boolean, so it cannot be reworded until the ack is versioned.
+
+**F7 · A pre-existing copy inconsistency the sweep did NOT introduce.** Two variants of one message
+disagree on terminal punctuation: `atomsHomeView.ts:2315` ends `… Settings → Capture` and `:2792`
+ends `… Settings → Capture.` The drive reported this as sweep-introduced. **It is not** — checked
+against `8f6f225^`, both lines already disagreed, and the sweep faithfully preserved each one's
+terminal punctuation while replacing only the dash. Touched is not introduced. Left alone
+deliberately: this PR is a dash sweep, not a punctuation-normalisation pass, and widening a clean
+copy-only diff to fix a pre-existing nit is the wrong trade. Worth a follow-up issue, not a change
+here.
+
+**F8 · Craft read: passed.** `s3-atoms-home.png` shows three stacked chrome blocks — egress card,
+catch-up status strip, Ready card. Gaps are clean with no flush seams, no overlap, and no collision
+with the cards' CTAs; tap targets are comfortably past 44pt; the eyebrow → title → body → CTA
+hierarchy reads as intentional; no clipping, no bad wrap. The stacked-chrome adjacency check
+(§5b.3) specifically passes.
+
+**No defect attributable to this change was found.** F6 is a deliberate exemption, F7 pre-dates the
+sweep, F8 passes. F3/F3b/F3c and F4 are QA-harness and multiplayer problems; F1/F2 are merge-order
+facts; F5 was a stale doc, now corrected.
 
 ## Adversarial QA
 
