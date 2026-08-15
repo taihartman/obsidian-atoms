@@ -118,6 +118,7 @@ import {
   askMirrorStatus,
   askMirrorWipe,
   plusFetchRequest,
+  PLUS_UNREACHABLE_MESSAGE,
 } from "../platform/plusClient";
 import {
   type AskMirrorOffReason,
@@ -1736,9 +1737,10 @@ export class AtomsSettingTab extends PluginSettingTab {
       clearPlusRefreshRecord(this.app);
       new Notice("Atoms Plus session saved on this device");
       this.redisplay();
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : "network error";
-      new Notice(`Could not reach Plus service (${msg})`, 8000);
+    } catch {
+      // Same rule as plusClient's network path: the thrown text here is
+      // `Failed to fetch`, which a reader cannot act on.
+      new Notice(PLUS_UNREACHABLE_MESSAGE, 8000);
     }
   }
 
