@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| _Nothing in flight._ |
+| In progress | [#500](https://github.com/taihartman/obsidian-atoms/issues/500) | claude | `fix/plus-base-url-scheme-guard` | issue body | `src/platform/plusClient.ts`, `src/settings/settings.ts` | Scheme guard on the Plus service URL override: https, or http only on loopback. Enforced in `plusRequest` so an invalid base never sends the session token. Light lane. |
 
 ## How to claim (copy)
 
