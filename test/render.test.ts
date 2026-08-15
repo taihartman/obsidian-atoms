@@ -118,15 +118,40 @@ describe("clampAtomFolder (AE3)", () => {
   });
 
   /**
-   * The folder half of a path must not be looser than the filename half. `sanitizeFilename`
-   * already strips leading dots and caps length; every rule tested above is the folder catching up
-   * with rules the filename beside it has always had.
+   * The folder half of a path must not be looser than the filename half. `sanitizeFilename` has
+   * always stripped leading and trailing dots, refused the reserved device names and capped
+   * length; every rule tested above is the folder catching up with rules the filename beside it
+   * already keeps. A review caught this comment claiming that parity before the last three rules
+   * were actually there.
+   *
+   * `Atoms.`, `con` and a trailing space are legal on macOS and refused by Windows, and a vault
+   * syncs, so the cross-platform rule is the real one.
    */
   it("holds atom folders to the rules atom filenames already keep", () => {
     expect(sanitizeFilename(".hidden").filename).not.toMatch(/^\./);
     expect(sanitizeFilename("L".repeat(300)).filename.length).toBeLessThanOrEqual(
       TITLE_MAX_LEN,
     );
+    expect(sanitizeFilename("con").filename).toBe("Untitled");
+
+    expect(clampAtomFolder("Atoms.")).toBe("Atoms");
+    expect(clampAtomFolder("con")).toBe("Atoms");
+    expect(clampAtomFolder("NUL")).toBe("Atoms");
+    // The trailing-slash strip hands back the space in front of it; the segment is re-trimmed.
+    expect(clampAtomFolder("My Atoms /")).toBe("My Atoms");
+    expect(clampAtomFolder("   ")).toBe("Atoms");
+    // Not reserved, merely starts like one.
+    expect(clampAtomFolder("console")).toBe("console");
+  });
+
+  /**
+   * The cap's value is the decision, not the comparison. Every boundary test above derives its
+   * expectation from the constant, so all of them stay green if someone edits 255 to 64 — and
+   * that edit is precisely the harmful one, because this value is applied to the *stored* setting
+   * at load, so lowering it silently relocates working vaults on upgrade.
+   */
+  it("keeps the folder cap at the filesystem's own limit", () => {
+    expect(FOLDER_MAX_BYTES).toBe(255);
   });
 });
 

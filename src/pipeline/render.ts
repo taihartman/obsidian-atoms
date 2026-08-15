@@ -126,15 +126,21 @@ function stripUnsafeControlChars(s: string): string {
 }
 
 /**
- * Safe single-segment atom folder. Rejects `..`, absolute paths, multi-segment, a leading dot,
- * and anything too long to write. Default `Atoms` when invalid/empty.
+ * Safe single-segment atom folder. Rejects `..`, absolute paths, multi-segment, a leading or
+ * trailing dot, a reserved device name, and anything too long to write. Default `Atoms` when
+ * invalid/empty.
  *
- * The two guards added for #501 are the ones `sanitizeFilename` has always had for the other half
- * of the same path, and the folder was the looser of the pair. Both failed silently and in ways a
- * user could not diagnose: a dot-folder is written successfully and then never indexed by
- * Obsidian, so the atoms are missing from the explorer, from search and from the graph while the
- * marker links pointing at them can never resolve; an over-long name makes every write throw
- * `ENAMETOOLONG`, so filing simply stops producing atoms.
+ * #501 brought this in line with `sanitizeFilename`, which has always held the other half of the
+ * same path to these rules; the folder was the looser of the pair, and its two live failures were
+ * both silent and both undiagnosable from the screen. A dot-folder is written successfully and
+ * then never indexed by Obsidian, so the atoms are missing from the explorer, from search and
+ * from the graph while the marker links pointing at them can never resolve. An over-long name
+ * makes every write throw `ENAMETOOLONG`, so filing simply stops producing atoms.
+ *
+ * The trailing dot, the trailing space and the reserved names are the same parity: they are legal
+ * on macOS and rejected by Windows, and a vault syncs. `sanitizeFilename` already refuses them in
+ * every atom title on every platform, so refusing them in the folder is consistency rather than
+ * new policy.
  */
 export function clampAtomFolder(raw: string | null | undefined): string {
   const s = (raw ?? "").trim().replace(/\\/g, "/").replace(/\/+$/, "");
@@ -142,8 +148,13 @@ export function clampAtomFolder(raw: string | null | undefined): string {
   if (s.startsWith("/") || /^[a-zA-Z]:/.test(s)) return "Atoms";
   const parts = s.split("/").filter((p) => p.length > 0);
   if (parts.length !== 1) return "Atoms";
-  const seg = parts[0]!;
+  // Re-trimmed: the strip above removes a trailing slash and can hand back the space that was in
+  // front of it, and a component ending in a space is another name Windows will not take.
+  const seg = parts[0]!.trim();
+  if (!seg) return "Atoms";
   if (seg.startsWith(".") || seg.includes("..")) return "Atoms";
+  if (seg.endsWith(".")) return "Atoms";
+  if (RESERVED.test(seg)) return "Atoms";
   if (byteLength(seg) > FOLDER_MAX_BYTES) return "Atoms";
   if (hasUnsafeControlChars(seg)) return "Atoms";
   if (ILLEGAL_FILENAME_CHAR.test(seg)) return "Atoms";

@@ -45,11 +45,30 @@ describe("a stored atom folder that cannot work (#501)", () => {
     expect(plugin.settings.atomFolder).toBe("Atoms");
   });
 
+  /**
+   * In memory alone this is not a repair. `data.json` syncs, so a device that only fixed its own
+   * copy keeps receiving the broken name from every other device and re-clamps it on every load
+   * forever, and any surface that re-merges the file reads the bad value again. Both the
+   * cross-model review and the live drive caught this: after a reload the setting read `Atoms`
+   * while the file on disk still said `.hidden`.
+   */
+  it("writes the repair to disk, so it does not have to happen again", async () => {
+    const { plugin, read } = pluginWithStoredSettings({ atomFolder: ".hidden" });
+
+    await plugin.loadSettings();
+
+    expect(read().atomFolder).toBe("Atoms");
+  });
+
   it("leaves a folder that works exactly as the user set it", async () => {
-    const { plugin } = pluginWithStoredSettings({ atomFolder: "Second Brain" });
+    const { plugin, read } = pluginWithStoredSettings({
+      atomFolder: "Second Brain",
+    });
 
     await plugin.loadSettings();
 
     expect(plugin.settings.atomFolder).toBe("Second Brain");
+    // And no gratuitous rewrite of a file that was already right.
+    expect(read().atomFolder).toBe("Second Brain");
   });
 });
