@@ -7,8 +7,10 @@
  */
 import { afterEach, describe, expect, it } from "vitest";
 import { Modal } from "./mocks/obsidian";
+import type { AtomsSettingTab } from "../src/settings/settings";
 import {
   flip,
+  open,
   press,
   pressSheet,
   row,
@@ -37,6 +39,31 @@ afterEach(() => {
 const flush = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 const AUTO_ROW = "File automatically when Obsidian opens";
 const ACK_ROW = "What Atoms sends to Anthropic";
+const PRIVACY_ENTRY = "Privacy and consents";
+
+/**
+ * Re-render and land wherever the egress record currently is.
+ *
+ * U6 moved the record to the Privacy screen while the grant stayed on the main-screen toggle, so
+ * every case here now spans two screens. Walking in only when the entry row exists is what keeps
+ * the "the row is gone" assertions honest: with no grant left there is no entry row either, and
+ * the check still runs against a screen the user could actually be looking at.
+ */
+function records(tab: AtomsSettingTab): AtomsSettingTab {
+  // From the main screen, always. A plain `display()` re-renders whatever route is current, and
+  // on the Privacy screen that is a back row *named for the destination* — which reads as the
+  // entry row to any name-based check and then cannot be clicked as one.
+  mainScreen(tab);
+  if (rowNames(tab).includes(PRIVACY_ENTRY)) open(tab, PRIVACY_ENTRY);
+  return tab;
+}
+
+/** Back to the screen the automatic-filing toggle is on, after `records()` walked away from it. */
+function mainScreen(tab: AtomsSettingTab): AtomsSettingTab {
+  tab.hide();
+  tab.display();
+  return tab;
+}
 
 /** Every button on the open sheet carrying this label — a double-fire needs the same element. */
 function sheetButton(label: string): HTMLButtonElement {
@@ -91,7 +118,7 @@ describe("adversarial: sheet double-settle", () => {
       },
     });
     tab.display();
-    press(tab, ACK_ROW, "Review");
+    press(records(tab), ACK_ROW, "Review");
     const withdraw = sheetButton("Withdraw acknowledgment");
     withdraw.click();
     withdraw.click();
@@ -99,7 +126,7 @@ describe("adversarial: sheet double-settle", () => {
 
     const load = (k: string) => local.get(k) ?? null;
     expect(readEgressPermitted(load, { catchUp: true })).toBe(false);
-    expect(rowNames(tab)).not.toContain(ACK_ROW);
+    expect(rowNames(records(tab))).not.toContain(ACK_ROW);
   });
 });
 
@@ -112,7 +139,7 @@ describe("adversarial: re-entry", () => {
       },
     });
     tab.display();
-    press(tab, ACK_ROW, "Review");
+    press(records(tab), ACK_ROW, "Review");
     const close = sheetButton("Close");
     const withdraw = sheetButton("Withdraw acknowledgment");
     close.click();
@@ -133,15 +160,15 @@ describe("adversarial: re-entry", () => {
       },
     });
     tab.display();
-    const stale = Array.from(row(tab, ACK_ROW).querySelectorAll("button")).find(
+    const stale = Array.from(row(records(tab), ACK_ROW).querySelectorAll("button")).find(
       (el) => el.textContent === "Review",
     );
     if (!stale) throw new Error("no Review button");
 
-    press(tab, ACK_ROW, "Review");
+    press(records(tab), ACK_ROW, "Review");
     pressSheet("Withdraw acknowledgment");
     await flush();
-    expect(rowNames(tab)).not.toContain(ACK_ROW);
+    expect(rowNames(records(tab))).not.toContain(ACK_ROW);
 
     // The row is gone from the screen; its button is not gone from the user's finger.
     stale.click();
@@ -151,7 +178,7 @@ describe("adversarial: re-entry", () => {
 
     const load = (k: string) => local.get(k) ?? null;
     expect(readEgressPermitted(load, { catchUp: true })).toBe(false);
-    expect(rowNames(tab)).not.toContain(ACK_ROW);
+    expect(rowNames(records(tab))).not.toContain(ACK_ROW);
   });
 
   it("closes Settings on an open egress sheet without granting", async () => {
@@ -175,7 +202,9 @@ describe("adversarial: re-entry", () => {
     const load = (k: string) => local.get(k) ?? null;
 
     for (let cycle = 0; cycle < 3; cycle += 1) {
-      flip(tab, AUTO_ROW);
+      // The previous cycle's withdrawal happened on the Privacy screen, so the toggle this one
+      // starts from is a screen away.
+      flip(mainScreen(tab), AUTO_ROW);
       await flush();
       pressSheet("I understand");
       await flush();
@@ -183,16 +212,16 @@ describe("adversarial: re-entry", () => {
       expect(local.get(LS_AUTO_RUN_EGRESS_ACK)).toBe(EGRESS_ACK_VERSION);
       expect(local.get(LS_AUTO_RUN_ENABLED)).toBe(true);
       expect(readEgressPermitted(load, { catchUp: true })).toBe(true);
-      expect(rowNames(tab)).toContain(ACK_ROW);
+      expect(rowNames(records(tab))).toContain(ACK_ROW);
 
-      press(tab, ACK_ROW, "Review");
+      press(records(tab), ACK_ROW, "Review");
       pressSheet("Withdraw acknowledgment");
       await flush();
 
       expect(local.get(LS_AUTO_RUN_EGRESS_ACK)).not.toBe(EGRESS_ACK_VERSION);
       expect(local.get(LS_AUTO_RUN_ENABLED)).not.toBe(true);
       expect(readEgressPermitted(load, { catchUp: true })).toBe(false);
-      expect(rowNames(tab)).not.toContain(ACK_ROW);
+      expect(rowNames(records(tab))).not.toContain(ACK_ROW);
     }
   });
 
@@ -210,9 +239,9 @@ describe("adversarial: re-entry", () => {
     await flush();
     expect(local.get(LS_AUTO_RUN_ENABLED)).toBe(false);
     expect(local.get(LS_AUTO_RUN_EGRESS_ACK)).toBe(EGRESS_ACK_VERSION);
-    expect(rowNames(tab)).toContain(ACK_ROW);
+    expect(rowNames(records(tab))).toContain(ACK_ROW);
 
-    flip(tab, AUTO_ROW);
+    flip(mainScreen(tab), AUTO_ROW);
     await flush();
     expect(sheetOpen()).toBe(false);
     expect(local.get(LS_AUTO_RUN_ENABLED)).toBe(true);
@@ -235,7 +264,7 @@ describe("adversarial: notice interactions", () => {
     const load = (k: string) => local.get(k) ?? null;
     expect(readEgressPermitted(load, { catchUp: true })).toBe(true);
 
-    press(tab, ACK_ROW, "Review");
+    press(records(tab), ACK_ROW, "Review");
     pressSheet("Withdraw acknowledgment");
     await flush();
 
@@ -255,7 +284,7 @@ describe("adversarial: version boundary", () => {
 
     expect(readDeviceAutoRunState(load).egressAcked).toBe(false);
     expect(readEgressPermitted(load, { catchUp: true })).toBe(false);
-    expect(rowNames(tab)).not.toContain(ACK_ROW);
+    expect(rowNames(records(tab))).not.toContain(ACK_ROW);
     expect(row(tab, AUTO_ROW).querySelector(".is-enabled")).toBeNull();
   });
 
@@ -266,8 +295,8 @@ describe("adversarial: version boundary", () => {
     tab.display();
     const load = (k: string) => local.get(k) ?? null;
 
-    expect(rowNames(tab)).toContain(ACK_ROW);
-    press(tab, ACK_ROW, "Review");
+    expect(rowNames(records(tab))).toContain(ACK_ROW);
+    press(records(tab), ACK_ROW, "Review");
     pressSheet("Withdraw acknowledgment");
 
     // Total: the withdrawal clears the future stamp too, not just the notice.
@@ -418,7 +447,7 @@ describe("adversarial: home consent lifecycle", () => {
     view.confirmEnableAutomaticFiling();
     expect(Modal.open.length).toBe(1);
 
-    press(tab, ACK_ROW, "Review");
+    press(records(tab), ACK_ROW, "Review");
     // One sheet at a time: posing the Review settles home's, so there is no second target left.
     expect(Modal.open.length).toBe(1);
     pressSheet("Withdraw acknowledgment");
@@ -441,7 +470,7 @@ describe("adversarial: which wording the stranded record names", () => {
     });
     tab.display();
 
-    expect(row(tab, ACK_ROW).textContent).toContain("against earlier wording");
+    expect(row(records(tab), ACK_ROW).textContent).toContain("against earlier wording");
   });
 
   it("says 'different' for the downgrade case, where the stamp names later wording", () => {
@@ -454,7 +483,7 @@ describe("adversarial: which wording the stranded record names", () => {
     });
     tab.display();
 
-    const desc = row(tab, ACK_ROW).textContent ?? "";
+    const desc = row(records(tab), ACK_ROW).textContent ?? "";
     expect(desc).toContain("against different wording");
     expect(desc).not.toContain("against earlier wording");
   });

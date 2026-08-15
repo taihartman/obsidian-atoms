@@ -150,6 +150,25 @@ export function installObsidianDomSugar(): void {
     if (proto[name]) continue;
     Object.defineProperty(proto, name, { value: impl, writable: true, configurable: true });
   }
+  // Obsidian puts the element-building half of the sugar on `DocumentFragment` too, which is
+  // what makes `createFragment((f) => f.createSpan(...))` work. Only that half: `empty`, `show`,
+  // and the class helpers are element concerns and a fragment has no business answering them.
+  const fragProto = DocumentFragment.prototype as unknown as Record<string, unknown>;
+  for (const name of ["createEl", "createDiv", "createSpan"]) {
+    if (fragProto[name]) continue;
+    const impl = (sugar as unknown as Record<string, unknown>)[name];
+    Object.defineProperty(fragProto, name, { value: impl, writable: true, configurable: true });
+  }
+
+  // A global rather than a prototype member: Obsidian exposes `createFragment` on `window`, and
+  // `eslint-plugin-obsidianmd` requires it over `document.createDocumentFragment()`. A row whose
+  // description carries markup — a mirror status that has to read as failing — is built this way.
+  const globals = globalThis as unknown as Record<string, unknown>;
+  globals.createFragment ??= (cb?: (frag: DocumentFragment) => void): DocumentFragment => {
+    const frag = document.createDocumentFragment();
+    cb?.(frag);
+    return frag;
+  };
 }
 
 installObsidianDomSugar();

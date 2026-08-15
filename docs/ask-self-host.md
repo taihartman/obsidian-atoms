@@ -14,7 +14,7 @@ Grounded in what the code does today. Not a roadmap.
 |---|---|---|
 | Who runs `plus-service` | Atoms (`plus.tryatoms.app`) | You |
 | Entitlement | Stripe trial / paid | Local dogfood grant (`DOGFOOD_AUTO_GRANT=1`) |
-| Plugin URL | empty override → production | **Advanced → Plus service URL override** |
+| Plugin URL | empty override → production | **Advanced → Plus service URL** |
 | MCP auth | OAuth → `mcp_*` | Same code path against your base URL |
 | MCP scopes | `atoms:read` + `atoms:write` (Allow grants both) | Same |
 | Mirror data | Plus DB | Your store (use **sqlite**) |
@@ -57,7 +57,7 @@ So:
 | `plus-service` listen address | `http://127.0.0.1:8787` |
 | Tunnel target | that same listen address |
 | `PUBLIC_BASE_URL` | the **public HTTPS origin** the tunnel prints |
-| Plugin **Plus service URL override** | that **same** public origin (no `/mcp`) |
+| Plugin **Plus service URL** | that **same** public origin (no `/mcp`) |
 | URL you paste into Claude / ChatGPT | `{that origin}/mcp` |
 
 Those three public values must match. Restart `plus-service` after you set `PUBLIC_BASE_URL`.
@@ -144,11 +144,11 @@ Copy-paste template: `plus-service/.env.example`.
 
 Do this **before** any sign-in so the plugin never talks to production.
 
-**Settings → Atoms → Advanced → Plus service URL override** = your public origin, e.g. `https://YOUR-SUBDOMAIN.trycloudflare.com`.
+**Settings → Atoms → Advanced → Plus service URL** = your public origin, e.g. `https://YOUR-SUBDOMAIN.trycloudflare.com`.
 
 Leave it empty only for hosted production (`https://plus.tryatoms.app`).
 
-The same Advanced screen has **DIY Ask guide**, which opens this page.
+The same Advanced screen has **Self-host guide**, which opens this page.
 
 ---
 
@@ -162,7 +162,7 @@ You need a session whose status is `active` or `trialing`. Ask refuses `inactive
 2. Or: `curl -s -X POST http://127.0.0.1:8787/v1/auth/magic-link -H 'content-type: application/json' -d '{"email":"you@example.com"}'`
 3. Copy the link from the **server console** (`[plus] magic link for …`). Resend is unset, so nothing is emailed.
 4. Open the link. The page says signed in. Return to Obsidian.
-5. If Obsidian does not pick it up: landing page shows a `sess_…` token → Settings → **Set up automatic filing** → **Advanced: paste session** → **Save session**
+5. If Obsidian does not pick it up: landing page shows a `sess_…` token → Settings → **Advanced** → **Paste a session** → **Save session**
 
 `DOGFOOD_AUTO_GRANT=1` grants `trialing` on that first exchange.
 
