@@ -636,9 +636,35 @@ the nav map's note that a record row appears only once an ack has been granted).
 that decision.
 
 **F9 · P3 · The sticky header title overlaps scrolled body text** on every mid/bottom frame. The
-back and close circles are opaque and the bar between them is not. This looks like Obsidian's own
-mobile chrome with a backdrop filter that does not render under desktop mobile emulation, rather
-than a plugin bug — it needs one real-device check before anyone spends time on it.
+back and close circles are opaque and the bar between them is not.
+
+**RESOLVED 2026-08-15: Obsidian's, not ours, and not an emulation artifact.** The original guess
+here — a backdrop filter that does not render under desktop mobile emulation — was wrong on both
+halves, so it is worth stating what is actually true. Nobody needs to go and find a phone.
+
+*Whose it is.* `styles.css` contains no rule touching the header: no `sticky`, no `z-index`, no
+`position: fixed`, and nothing selecting `.modal-header`, `.modal-title` or `.mod-raised`. The
+rules that apply come from `app.css` inside the Obsidian bundle. With the plugin's stylesheet
+disabled entirely, the overlap reproduces unchanged at every scroll position and the header's
+computed values are byte-identical.
+
+*What it actually is.* Not an unrendered backdrop filter — `backdrop-filter` renders fine, which is
+why the two circles look right: `.mod-raised` carries `background: color(srgb 1 1 1 / 0.65)` plus
+`blur(6px) saturate(1.5) brightness(1.15)`. The bar between them has no filter and no background of
+its own. Behind it sits `.modal-header::after`, an opaque `--settings-background` scrim about 128px
+tall masked by `linear-gradient(black 20%, transparent)`: solid for roughly the first 26px, then
+fading, so by the title's own band it is down to ~57% and falling. Body text stays legible straight
+through it. A mask gradient composites the same everywhere.
+
+*Confirmed on real mobile.* Driven on an Android emulator running the actual Obsidian APK on
+WebView 150 — a real Chromium WebView, not Electron's `emulateMobile`. It **reproduces**: with a
+paragraph parked behind the title, the bold "Atoms" sits on top of "…never captures for you. Write
+a top-level bullet in your daily…" with both readable at once. So this is a genuine mobile defect,
+it belongs to Obsidian, and it is not a 0.8.0 blocker for this plugin.
+
+*The part that is ours to decide.* The overhaul did not cause it, but it does amplify it: this
+screen's long group footers put far more prose behind that bar than the short setting names that
+were there before. Whether the footers shorten is a product call, not a bug fix, and it is open.
 
 **F10 · P3 · Value placement is not uniform** — right-aligned on some rows (`Daily notes / On`),
 carried as a description on chevron rows (`Who does the filing / Not chosen`). Defensible, but the
