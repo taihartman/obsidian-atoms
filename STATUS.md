@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| In progress | [#505](https://github.com/taihartman/obsidian-atoms/issues/505) | claude | `fix/plus-url-commit-on-blur` | issue body | `src/settings/settings.ts` | Plus service URL row commits on blur, not per keystroke — closes the window where a half-typed host is saved and synced. #500 follow-up. Light lane. |
+| In progress | [#504](https://github.com/taihartman/obsidian-atoms/issues/504) | claude | `fix/plus-open-url-scheme` | issue body | `src/platform/plusClient.ts` | Scheme-check the checkout/portal URL the service returns before it reaches `window.open`. #500 follow-up. Light lane. |
 
 ## How to claim (copy)
 
