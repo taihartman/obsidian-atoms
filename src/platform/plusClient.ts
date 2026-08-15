@@ -177,8 +177,16 @@ function isLoopbackHost(hostname: string): boolean {
   const h = hostname.toLowerCase();
   // WHATWG keeps the brackets on an IPv6 literal in some runtimes.
   if (h === "localhost" || h === "::1" || h === "[::1]") return true;
-  // The whole 127/8 block is loopback, not only 127.0.0.1.
-  return /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(h);
+  // The whole 127/8 block is loopback, not only 127.0.0.1. Octets are range
+  // checked rather than merely shaped: `new URL` already refuses `127.256.0.1`
+  // before this is reached, so the range check is not load-bearing today — it is
+  // here so the guard does not silently depend on that parser behavior.
+  const octets = h.split(".");
+  if (octets.length !== 4) return false;
+  if (!octets.every((o) => /^\d{1,3}$/.test(o) && Number(o) <= 255)) {
+    return false;
+  }
+  return octets[0] === "127";
 }
 
 /**

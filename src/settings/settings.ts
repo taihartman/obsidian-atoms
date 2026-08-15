@@ -801,6 +801,18 @@ export class AtomsSettingTab extends PluginSettingTab {
     }
     const base =
       this.plugin.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL;
+    // #500. The one surface that hands the override to somebody else instead of
+    // calling it: this screen tells the user to paste the URL into Claude or
+    // ChatGPT and complete OAuth there. A refused base must not be published —
+    // pairing already fails through `plusRequest`, so the screen has nothing to
+    // offer, and printing the origin would point another agent at it.
+    if (!isAllowedPlusBaseUrl(base)) {
+      containerEl.createEl("p", {
+        text: PLUS_BASE_URL_INVALID_MESSAGE,
+        cls: "setting-item-description atoms-ask-mirror-error",
+      });
+      return;
+    }
     const mcpUrl = askMcpUrl(base);
 
     const status = this.mirrorStatusLine(session.email);
@@ -1047,7 +1059,10 @@ export class AtomsSettingTab extends PluginSettingTab {
       cls: "atoms-setting-error",
     });
     const syncPlusBaseUrlError = (): void => {
-      const raw = this.plugin.settings.plusBaseUrl;
+      // Trimmed, because that is how every consumer resolves it — a value of
+      // `"   "` reaches the hosted default and works, so calling it refused
+      // would announce a failure that is not happening.
+      const raw = this.plugin.settings.plusBaseUrl.trim();
       // Empty is the hosted default, not a mistake.
       const rejected = raw !== "" && !isAllowedPlusBaseUrl(raw);
       plusBaseUrlErrorEl.setText(rejected ? PLUS_BASE_URL_INVALID_MESSAGE : "");

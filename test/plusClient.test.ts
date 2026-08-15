@@ -604,6 +604,20 @@ describe("plusClient", () => {
       }
     });
 
+    it("accepts the numeric spellings of loopback the URL parser normalizes", () => {
+      // All three canonicalize to hostname 127.0.0.1 before the guard sees them.
+      // Pinned because they *are* loopback: a future hand-rolled host check that
+      // only string-matched "127.0.0.1" would wrongly refuse a working dogfood
+      // address.
+      for (const url of [
+        "http://127.1",
+        "http://0x7f.0.0.1",
+        "http://2130706433",
+      ]) {
+        expect(isAllowedPlusBaseUrl(url), url).toBe(true);
+      }
+    });
+
     it("rejects plain http to anywhere off the device", () => {
       for (const url of [
         "http://example.com",
@@ -614,9 +628,35 @@ describe("plusClient", () => {
         "http://localhost.evil.com",
         "http://evil.com/?host=localhost",
         "http://notlocalhost",
+        // Userinfo confusion: the loopback text is the *username*, and the real
+        // host is what follows the `@`. Reading the raw string instead of the
+        // parsed hostname would hand the session token to evil.example.
+        "http://localhost@evil.example",
+        "http://127.0.0.1@evil.example",
+        // 0.0.0.0 reaches a local listener on some stacks but is not loopback.
+        "http://0",
+        // Trailing dot is a distinct name to a resolver, so it is not `localhost`.
+        "http://localhost.",
       ]) {
         expect(isAllowedPlusBaseUrl(url), url).toBe(false);
       }
+    });
+
+    it("refuses an out-of-range 127.x octet without relying on the URL parser", () => {
+      // `new URL` already throws on these, so the guard's own range check is
+      // belt-and-braces. Pinned so the guard does not silently come to depend on
+      // that parser behavior.
+      for (const url of ["http://127.256.0.1", "http://127.999.1.1"]) {
+        expect(isAllowedPlusBaseUrl(url), url).toBe(false);
+      }
+    });
+
+    it("refuses IPv4-mapped IPv6 loopback — a deliberate false negative", () => {
+      // `http://[::ffff:127.0.0.1]` normalizes to hostname `[::ffff:7f00:1]`,
+      // which is genuinely loopback but is not one of the three literal forms
+      // allowed. Refusing over-refuses, which is the safe direction; this test
+      // records that as a decision rather than an unnoticed gap.
+      expect(isAllowedPlusBaseUrl("http://[::ffff:127.0.0.1]:8787")).toBe(false);
     });
 
     it("rejects non-http schemes and unparseable values", () => {

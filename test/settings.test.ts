@@ -1745,6 +1745,28 @@ describe("Connect Claude or ChatGPT destination (U6)", () => {
     for (const name of CONNECT_ROWS) expect(rowNames(tab)).toContain(name);
   });
 
+  /**
+   * #500. This screen is the one place the service URL is handed to somebody
+   * else rather than called: it prints the MCP URL and tells the user to paste
+   * it into Claude or ChatGPT and complete OAuth there. Withholding the session
+   * token is not enough — publishing a refused origin points another agent at
+   * it, where whatever the user authorizes is the attacker's to keep.
+   */
+  it("publishes no MCP URL for a service URL we would not talk to", () => {
+    const { tab } = settingTab({
+      session: PLUS_SESSION,
+      settings: { plusBaseUrl: "http://evil.example" },
+    });
+    tab.display();
+    open(tab, "Connect Claude or ChatGPT");
+
+    expect(tab.containerEl.textContent).not.toContain("evil.example");
+    expect(tab.containerEl.textContent).toContain(
+      PLUS_BASE_URL_INVALID_MESSAGE,
+    );
+    expect(rowNames(tab)).not.toContain("MCP connector URL");
+  });
+
   it("still asks before wiping the cloud copy", async () => {
     const { tab, calls } = settingTab({
       session: PLUS_SESSION,

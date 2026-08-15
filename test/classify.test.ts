@@ -409,6 +409,30 @@ describe("classifyCapture request layer", () => {
     expect(notices.length).toBe(1);
   });
 
+  /**
+   * #500. Every other Plus call routes through `plusRequest` and inherits its
+   * base-URL guard; this one builds its own request and carries the capture body
+   * as well as the session token. `resolveClassifyAuth` already refuses a bad
+   * base upstream, so this pins the egress itself — the coverage that fails if a
+   * future caller constructs `deps.plus` without going through that function.
+   */
+  it("a Plus base that is not https or loopback sends no request and no capture", async () => {
+    const request = vi.fn(async () => {
+      throw new Error("must not be called");
+    });
+
+    const outcome = await classifyCapture("private note text", ctx, {
+      apiKey: "",
+      model: "m",
+      plus: { baseUrl: "http://evil.example", sessionToken: "sess" },
+      request: request as never,
+    });
+
+    expect(request).not.toHaveBeenCalled();
+    expect(outcome.ok).toBe(false);
+    if (!outcome.ok) expect(outcome.reason).toBe("auth");
+  });
+
   it("missing key does not call network", async () => {
     const request = vi.fn();
     const outcome = await classifyCapture("x", ctx, {
