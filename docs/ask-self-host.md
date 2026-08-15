@@ -148,6 +148,20 @@ Do this **before** any sign-in so the plugin never talks to production.
 
 Leave it empty only for hosted production (`https://plus.tryatoms.app`).
 
+**The plugin refuses any other shape.** Every Plus call carries this device's session token, and the classify call carries your capture text with it, so the override must be:
+
+| Value | Accepted |
+|---|---|
+| Empty | Yes — hosted production |
+| `https://anything` | Yes |
+| `http://127.0.0.1:…`, `http://localhost:…`, `http://[::1]:…` | Yes — loopback never leaves the device |
+| `http://` anything else, including your LAN | **No** — that is your session token in the clear |
+| `plus.tryatoms.app` (no scheme), `ftp://…`, `file://…` | **No** |
+
+A rejected value is not silently swapped for production — a self-host token does not belong at `plus.tryatoms.app` either. Plus goes quiet and the settings row says why. Hosting on your LAN? Front it with TLS and use the `https://` name.
+
+> **Do not clear this field while signed in to your own server.** Empty means the hosted service, so the next call sends your self-host session token — and your capture text — to `plus.tryatoms.app`. Sign out first, then clear. Tracked as [#508](https://github.com/taihartman/obsidian-atoms/issues/508); until it lands, clearing is the one way to leave your own server by accident.
+
 The same Advanced screen has **Self-host guide**, which opens this page.
 
 ---

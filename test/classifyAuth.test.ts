@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { resolveClassifyAuth } from "../src/platform/classifyAuth";
 import type { FilingAuth } from "../src/platform/filingAuth";
+import { PLUS_BASE_URL_INVALID_MESSAGE } from "../src/platform/plusClient";
 
 describe("resolveClassifyAuth", () => {
   it("byok passes key", () => {
@@ -37,6 +38,49 @@ describe("resolveClassifyAuth", () => {
       expect(r.plus?.baseUrl).toBe("https://plus.test");
       expect(r.plus?.sessionToken).toBe("sess");
     }
+  });
+
+  /**
+   * #500. The classify call is the one Plus path that sends the *capture body*
+   * alongside the session token, so a base we would not talk to has to be
+   * refused here — before Process, Preview, Update or auto-run build a request.
+   */
+  it("plus refuses a base URL that is not https or loopback, before any capture leaves", () => {
+    const auth: FilingAuth = {
+      mode: "plus",
+      sessionToken: "sess",
+      email: "a@b.co",
+      status: "active",
+      remaining: 10,
+    };
+    for (const bad of [
+      "http://evil.example",
+      "http://192.168.1.5:8787",
+      "ftp://example.com",
+      "plus.tryatoms.app",
+    ]) {
+      const r = resolveClassifyAuth(auth, { plusBaseUrl: bad });
+      expect(r.ok, bad).toBe(false);
+      if (!r.ok) {
+        expect(r.reason).toBe("none");
+        expect(r.message).toBe(PLUS_BASE_URL_INVALID_MESSAGE);
+      }
+    }
+  });
+
+  it("plus keeps the documented loopback override working", () => {
+    const auth: FilingAuth = {
+      mode: "plus",
+      sessionToken: "sess",
+      email: "a@b.co",
+      status: "active",
+      remaining: 10,
+    };
+    const r = resolveClassifyAuth(auth, {
+      plusBaseUrl: "http://127.0.0.1:8787",
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.plus?.baseUrl).toBe("http://127.0.0.1:8787");
   });
 
   it("plus exhausted blocks without BYOK pitch", () => {

@@ -1929,6 +1929,20 @@
   text-align: right;
 }
 
+/* Settings row grammar — a rejected input explains itself under its own row rather than inside
+   it, so the row stays a plain row and no control grows an error mode. `:empty` carries the
+   hide/show, so the only state the code sets is the text. */
+.atoms-setting-error {
+  color: var(--text-error);
+  font-size: var(--font-ui-smaller);
+  padding: 0 0 12px;
+  margin-top: -6px;
+}
+
+.atoms-setting-error:empty {
+  display: none;
+}
+
 /* Settings row grammar — a destination row opens somewhere else; the whole row is the target. */
 .atoms-setting-destination {
   cursor: pointer;
@@ -2003,7 +2017,13 @@
   margin-bottom: 0;
 }
 
-.atoms-setting-group .setting-item + .setting-item {
+/* General sibling, not adjacent. The rule is "every row after the first", and `+` only expressed
+   that while a group contained nothing but rows. The moment anything else renders between two of
+   them — #500's error line under the Plus service URL row is the first — the row below silently
+   loses its separator, including when that element is empty or `display:none`, because a hidden
+   sibling still breaks adjacency. Caught on device: `Self-host guide` measured `border-top: 0px
+   none` in every state. `~` says what was always meant and cannot be broken by an insertion. */
+.atoms-setting-group .setting-item ~ .setting-item {
   border-top: 1px solid var(--background-modifier-border);
 }
 

@@ -36,7 +36,10 @@ import {
 } from "../src/platform/askMirror";
 import { formatUsd, PLUS_PRICING } from "../src/shared/plusPricing";
 import { s256Challenge } from "../src/platform/pkce";
-import { requestMagicLink } from "../src/platform/plusClient";
+import {
+  PLUS_BASE_URL_INVALID_MESSAGE,
+  requestMagicLink,
+} from "../src/platform/plusClient";
 import * as dni from "obsidian-daily-notes-interface";
 import { firstDaySetupCopy } from "../src/home/atomsHomeData";
 import {
@@ -598,6 +601,27 @@ describe("account row", () => {
       press(tab, PASTE_ROW, "Save session");
 
       expect(handler).toHaveBeenCalledWith("sess_live");
+    });
+
+    /**
+     * #500. This path verifies the pasted token by sending it to `/v1/me` with
+     * `requestUrl` directly, so it does not inherit `plusRequest`'s guard and
+     * needs its own. The obsidian mock's `requestUrl` throws when called, which
+     * is the assertion: a guard that stopped working fails this test loudly.
+     */
+    it("will not verify a pasted session against a Plus URL we would not talk to", async () => {
+      const { tab } = settingTab({
+        settings: { plusBaseUrl: "http://evil.example" },
+      });
+      const ui = captureObsidianUi();
+
+      await (
+        tab as unknown as {
+          savePastedSession: (token: string) => Promise<void>;
+        }
+      ).savePastedSession("sess_live_abc");
+
+      expect(ui.notices).toEqual([PLUS_BASE_URL_INVALID_MESSAGE]);
     });
   });
 
@@ -2447,6 +2471,28 @@ describe("Connect Claude or ChatGPT destination (U6)", () => {
     for (const name of CONNECT_ROWS) expect(rowNames(tab)).toContain(name);
   });
 
+  /**
+   * #500. This screen is the one place the service URL is handed to somebody
+   * else rather than called: it prints the MCP URL and tells the user to paste
+   * it into Claude or ChatGPT and complete OAuth there. Withholding the session
+   * token is not enough — publishing a refused origin points another agent at
+   * it, where whatever the user authorizes is the attacker's to keep.
+   */
+  it("publishes no MCP URL for a service URL we would not talk to", () => {
+    const { tab } = settingTab({
+      session: PLUS_SESSION,
+      settings: { plusBaseUrl: "http://evil.example" },
+    });
+    tab.display();
+    open(tab, "Connect Claude or ChatGPT");
+
+    expect(tab.containerEl.textContent).not.toContain("evil.example");
+    expect(tab.containerEl.textContent).toContain(
+      PLUS_BASE_URL_INVALID_MESSAGE,
+    );
+    expect(rowNames(tab)).not.toContain("MCP connector URL");
+  });
+
   it("still asks before wiping the cloud copy", async () => {
     const { tab, calls } = settingTab({
       session: PLUS_SESSION,
@@ -2695,6 +2741,54 @@ describe("Advanced destination (U7, R4)", () => {
     // The override redirects where egress goes; it cannot turn egress on.
     expect(tab.plugin.settings.plusBaseUrl).toBe("http://127.0.0.1:8787");
     expect(gateState(tab, local)).toEqual(before);
+  });
+
+  /**
+   * #500. The guards refuse an unvetted host at the request; without this line
+   * the user only sees Plus stop working, with nothing naming the reason. The
+   * value is still saved — the field persists on every keystroke, so refusing
+   * the save would fight `https://…` at `h`, `ht`, `htt`.
+   */
+  describe("a rejected service URL says so under its own row", () => {
+    it("explains a bad value already saved, on first render", () => {
+      const { tab } = advanced({ settings: { plusBaseUrl: "http://evil.example" } });
+
+      expect(tab.containerEl.textContent).toContain(
+        PLUS_BASE_URL_INVALID_MESSAGE,
+      );
+    });
+
+    it("appears when a bad value is typed and clears when it is fixed", async () => {
+      const { tab } = advanced();
+      expect(tab.containerEl.textContent).not.toContain(
+        PLUS_BASE_URL_INVALID_MESSAGE,
+      );
+
+      fill(tab, "Plus service URL", "http://evil.example");
+      await flush();
+      expect(tab.containerEl.textContent).toContain(
+        PLUS_BASE_URL_INVALID_MESSAGE,
+      );
+      // Saved anyway — the request guard is the protection, not the field.
+      expect(tab.plugin.settings.plusBaseUrl).toBe("http://evil.example");
+
+      fill(tab, "Plus service URL", "https://my.example");
+      await flush();
+      expect(tab.containerEl.textContent).not.toContain(
+        PLUS_BASE_URL_INVALID_MESSAGE,
+      );
+    });
+
+    it("stays quiet for an empty field, which means the hosted service", async () => {
+      const { tab } = advanced({ settings: { plusBaseUrl: "https://my.example" } });
+
+      fill(tab, "Plus service URL", "");
+      await flush();
+
+      expect(tab.containerEl.textContent).not.toContain(
+        PLUS_BASE_URL_INVALID_MESSAGE,
+      );
+    });
   });
 });
 

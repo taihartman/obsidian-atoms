@@ -9,7 +9,11 @@ import {
   plusLapse,
   type FilingAuth,
 } from "./filingAuth";
-import { DEFAULT_PLUS_BASE_URL } from "./plusClient";
+import {
+  DEFAULT_PLUS_BASE_URL,
+  isAllowedPlusBaseUrl,
+  PLUS_BASE_URL_INVALID_MESSAGE,
+} from "./plusClient";
 
 export type ClassifyAuthOk = {
   ok: true;
@@ -71,6 +75,17 @@ export function resolveClassifyAuth(
     }
     const base =
       opts?.plusBaseUrl?.trim() || DEFAULT_PLUS_BASE_URL;
+    // #500. `/v1/classify` is the one Plus call that carries the capture body as
+    // well as the session token, so an unvetted base would leak the note text
+    // too. Refuse here, where the base is resolved, rather than at the request:
+    // Process, Preview, Update and auto-run all come through this function.
+    if (!isAllowedPlusBaseUrl(base)) {
+      return {
+        ok: false,
+        reason: "none",
+        message: PLUS_BASE_URL_INVALID_MESSAGE,
+      };
+    }
     return {
       ok: true,
       apiKey: "",

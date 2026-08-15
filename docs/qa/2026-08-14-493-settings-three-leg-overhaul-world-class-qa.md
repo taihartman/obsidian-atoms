@@ -149,6 +149,12 @@ two undefined terms, `Process` and `atoms`, against the baseline's nine.
 
 ## Measurement — the between-row hairline
 
+> **Superseded by #500/#502.** The selector below is now `~` rather than `+`. Adjacency only
+> expressed "every row after the first" while a group held nothing but rows; the first element
+> rendered between two of them — the refused-URL error line — silently took the separator off the
+> row beneath it, measured on device as `border-top: 0px none` in every state. The measurements in
+> this section still hold; the rule that produces them is one character different.
+
 `.atoms-setting-group .setting-item + .setting-item` had never been rendered on a device: every
 group captured before this pass had exactly one row. Computed styles on the signed-out root, all
 six groups:

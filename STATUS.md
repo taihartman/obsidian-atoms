@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| In review | [#509](https://github.com/taihartman/obsidian-atoms/issues/509) | claude | `claude/strange-lichterman-27146b` | amend lane (no plan) | `src/platform/plusClient.ts`, `src/settings/settings.ts` | Plus unreachable Notice says what to do · **0.8.0-beta.2** |
+| In review | [#509](https://github.com/taihartman/obsidian-atoms/issues/509) / [PR #510](https://github.com/taihartman/obsidian-atoms/pull/510) | claude | `claude/strange-lichterman-27146b` | amend lane (no plan) | `src/platform/plusClient.ts`, `src/settings/settings.ts` | Plus unreachable Notice says what to do, instead of `TypeError: Failed to fetch` · **0.8.0-beta.3**. #500 merged, so its row is gone. |
 
 ## How to claim (copy)
 
