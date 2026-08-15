@@ -1,6 +1,6 @@
 # QA — Settings three-leg overhaul (#493 / PR #494)
 
-- **Branch:** `claude/settings-ux-redesign-69acd6` · **Version:** 0.8.0
+- **Branch:** `claude/settings-ux-redesign-69acd6` · **Version:** tested at 0.8.0, ships as **0.8.0-beta.1**
 - **Plan:** `docs/plans/2026-08-14-001-feat-settings-three-leg-overhaul-plan.md`
 - **Mock SSOT:** `docs/design-handoff/settings/overhaul.html`, `account.html`
 - **Vault lane:** throwaway `test_vault/test vault` (agent QA). No personal vault touched.
