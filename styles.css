@@ -2346,3 +2346,28 @@ body:not(.is-phone) .atoms-setting-text .setting-item-control {
 .atoms-backfill-aftermath p:last-child {
   margin-bottom: 0;
 }
+
+/* The settings header is Obsidian's, and on phones it floats over the scrolling content with a
+   scrim rather than a solid bar: `.is-phone .modal.mod-settings .modal-header::after` is an
+   opaque `--settings-background` rectangle 130% of the header's height, masked by
+   `linear-gradient(black 20%, transparent)`. Twenty percent is 27.8px of the 139px scrim, and the
+   title sits at 70-91px with the back and close circles reaching 103px — so everything a reader
+   needs to see is in the part that has already faded to ~57% and falling, and scrolled rows read
+   straight through it (#364 C1, and F9 in the #493 QA report). Reproduced on a real Android
+   WebView, so it is not an artifact of desktop mobile emulation.
+
+   80% keeps the fade the design wants while covering what has to stay legible. It cannot be a
+   pixel stop: the header is `safe-area-inset-top + 48` tall, so the percentage that clears the
+   circles moves with the notch — 70.5% at inset 0, 74% at the measured 59, asymptotic to 76.9%.
+   80% covers every inset with room, and still leaves ~28px of fade below.
+
+   Scoped to `.atoms-settings-open`, which this tab puts on the modal while it is the one on
+   screen and takes off in `hide()`. Obsidian's rule carries no `!important`, so the extra class is
+   enough to win on specificity — and it keeps the override off every other plugin's settings tab.
+
+   `--settings-background` is reused rather than resolved: it tracks `--background-secondary` in
+   light and `--background-primary` in dark, so substituting either base breaks one theme. */
+.is-phone .modal.mod-settings.atoms-settings-open .modal-header::after {
+  -webkit-mask-image: linear-gradient(to bottom, black 80%, transparent);
+  mask-image: linear-gradient(to bottom, black 80%, transparent);
+}

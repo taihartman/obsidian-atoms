@@ -1357,3 +1357,51 @@ describe("row-grammar repository guard", () => {
     expect(source.match(/new Setting\(/g)?.length ?? 0).toBeGreaterThan(0);
   });
 });
+
+/**
+ * #364 C1 — the marker class that lets one CSS rule reach Obsidian's own settings header.
+ *
+ * The header floats over the scrolling content behind a scrim that has already faded out by the
+ * time it reaches the title, so rows read through it. The fix is a rule on `.modal-header::after`,
+ * which lives outside `containerEl` on chrome every settings tab shares — so the class is what
+ * keeps the override from restyling Obsidian's own tabs and every other plugin's. Leaving it
+ * behind after `hide()` would do exactly that to whichever tab opens next.
+ */
+describe("settings modal marker (#364 C1)", () => {
+  function inModal(tab: { containerEl: HTMLElement }, scroller: HTMLElement) {
+    const modal = document.createElement("div");
+    modal.className = "modal mod-settings";
+    modal.appendChild(scroller);
+    return modal;
+  }
+
+  it("marks the modal while the tab is on screen and unmarks it on the way out", () => {
+    const { tab, scroller } = settingTab();
+    const modal = inModal(tab, scroller);
+
+    tab.display();
+    expect(modal.classList.contains("atoms-settings-open")).toBe(true);
+
+    tab.hide();
+    expect(modal.classList.contains("atoms-settings-open")).toBe(false);
+  });
+
+  it("survives a route walk, which re-renders without leaving the tab", () => {
+    const { tab, scroller } = settingTab();
+    const modal = inModal(tab, scroller);
+    tab.display();
+
+    openAdvanced(tab);
+
+    expect(modal.classList.contains("atoms-settings-open")).toBe(true);
+  });
+
+  /** The tab renders into a detached container in tests and Obsidian may restructure its modal. */
+  it("does not throw when there is no modal to mark", () => {
+    const { tab } = settingTab();
+    expect(() => {
+      tab.display();
+      tab.hide();
+    }).not.toThrow();
+  });
+});

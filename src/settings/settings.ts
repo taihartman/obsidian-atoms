@@ -959,11 +959,32 @@ export class AtomsSettingTab extends PluginSettingTab {
   }
 
   /**
+   * Mark Obsidian's settings modal while this tab owns the screen (#364 C1).
+   *
+   * The header that needs fixing is not inside `containerEl` — it is chrome the whole settings
+   * modal shares — so the CSS has to reach up and out. A marker class is the narrowest way to do
+   * that: without one, a plugin rule on `.modal-header` would restyle Obsidian's own tabs and
+   * every other plugin's, which is not ours to change.
+   *
+   * `closest()` returning null is normal rather than exceptional: the tab renders into a detached
+   * container in tests, and Obsidian is free to change its own modal structure.
+   */
+  private markSettingsModal(on: boolean): void {
+    const modal = this.containerEl.closest(".modal");
+    if (!modal) return;
+    modal.classList.toggle("atoms-settings-open", on);
+  }
+
+  /**
    * A visit to Settings ends when the tab is hidden, so the next one starts on the main list
    * rather than dropping the user back into whichever destination they last opened.
    */
   hide(): void {
     this.hiding = true;
+    // Taken off the moment this tab stops being the one on screen. The class is on Obsidian's own
+    // modal, which every settings tab shares, so leaving it behind would restyle the next
+    // plugin's tab as if it were ours (#364 C1).
+    this.markSettingsModal(false);
     // #505. Closing Settings mid-edit commits what was typed rather than dropping it. Blur does
     // not reliably fire when the modal goes away, and silently losing a typed URL would be a
     // worse bug than the mid-word window commit-on-blur exists to close.
@@ -1136,6 +1157,7 @@ export class AtomsSettingTab extends PluginSettingTab {
     this.hiding = false;
     // On screen from here, so an external settings change knows there is something to refresh.
     this.plugin.settingTab = this;
+    this.markSettingsModal(true);
     const { containerEl } = this;
     containerEl.empty();
     // Emptying the container detaches whatever element the key check was painting into, and only
