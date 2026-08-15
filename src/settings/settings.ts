@@ -3002,7 +3002,11 @@ export class AtomsSettingTab extends PluginSettingTab {
   private renderAtomFolderRow(containerEl: HTMLElement) {
     settingRow(containerEl, {
       name: "Atom folder",
-      desc: "One flat folder. A path with .. or subfolders falls back to Atoms.",
+      // This description is the only surface that ever reports the fallback, so it names every
+      // rule that triggers one (#501), in this screen's shorter row voice. The dot is the rule
+      // nobody would guess: Obsidian does not index a folder starting with one, so atoms filed
+      // there are invisible everywhere and the markers pointing at them never resolve.
+      desc: "One flat folder. Subfolders, a path with .., a leading dot, or a name too long to write fall back to Atoms.",
       control: {
         kind: "text",
         configure: (text) => {

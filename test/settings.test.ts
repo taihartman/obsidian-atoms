@@ -4076,13 +4076,25 @@ describe("Capture and File groups (U3)", () => {
       expect(plugin.settings.atomFolder).toBe("Thoughts");
     });
 
-    it("still states that rule to the user, because nothing else reports the fallback", () => {
+    /**
+     * Every rule, not only the two this row started with. `clampAtomFolder` rejects four kinds of
+     * folder now (#501 added the leading dot and the length cap), and this description is still
+     * the only surface that ever tells a user a fallback happened — silently for the two new ones
+     * would be the same bug wearing a newer guard. Matched case-insensitively so the sentence can
+     * be worded naturally.
+     */
+    it("still states those rules to the user, because nothing else reports the fallback", () => {
       const { tab } = filingTab();
       tab.display();
 
-      const desc = row(tab, "Atom folder").querySelector(".setting-item-description");
-      expect(desc?.textContent).toContain("..");
-      expect(desc?.textContent).toContain("subfolders");
+      const desc =
+        row(tab, "Atom folder")
+          .querySelector(".setting-item-description")
+          ?.textContent?.toLowerCase() ?? "";
+      expect(desc).toContain("..");
+      expect(desc).toContain("subfolder");
+      expect(desc).toContain("dot");
+      expect(desc).toContain("too long");
     });
 
     it("keeps an overlong value in the field rather than in the row's own text", () => {
