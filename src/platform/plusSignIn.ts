@@ -12,6 +12,7 @@ import type { ConfirmVerdict, SignInConfirmRequest } from "../shared/confirm";
 import {
   clearPendingSignIn,
   readPendingSignIns,
+  type IssuedBase,
   type LocalStorageLike,
   type PlusSession,
 } from "./filingAuth";
@@ -120,8 +121,13 @@ export type PlusSignInHost = {
   /**
    * Install the session on this device. The host owns identity-aware Ask teardown
    * (#393) so magic-link sign-in cannot skip the boundary Settings uses.
+   *
+   * `issuedBase` rides through the port rather than being resolved by the host
+   * (#508 KTD4). Widening only the platform function would let the host satisfy
+   * the compiler with `settings.plusBaseUrl` — the exact source the stamp
+   * exists to distrust, and it would compile.
    */
-  installSession: (session: PlusSession) => Promise<void>;
+  installSession: (session: PlusSession, issuedBase: IssuedBase) => Promise<void>;
 };
 
 /**
@@ -303,7 +309,7 @@ export async function completeSignInHandoff(
   }
 
   try {
-    await host.installSession(result.session);
+    await host.installSession(result.session, result.issuedBase);
     // The link is spent and the session is stored, so the verifiers it was
     // redeemed against have no further use.
     clearPendingSignIn(host.app);

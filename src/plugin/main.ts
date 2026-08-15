@@ -2054,17 +2054,24 @@ export default class AtomsPlugin extends Plugin {
       confirmSignIn: (request: Parameters<typeof askSignInApproval>[1]) =>
         askSignInApproval(this.app, request),
       // Identity-aware install (#393) — same boundary Settings paste/trial use.
-      installSession: (session: import("../platform/filingAuth").PlusSession) =>
-        this.installPlusSession(session),
+      installSession: (
+        session: import("../platform/filingAuth").PlusSession,
+        issuedBase: import("../platform/filingAuth").IssuedBase,
+      ) => this.installPlusSession(session, issuedBase),
     };
   }
 
   /**
    * Write a Plus session after disarming Ask when the identity changes (#393).
    * Same-account re-auth keeps the hash baseline.
+   *
+   * Takes and forwards `issuedBase` rather than resolving one (#508 KTD4): the
+   * only base this wrapper could resolve is `this.settings.plusBaseUrl`, which
+   * is the source the stamp exists to be independent of.
    */
   async installPlusSession(
     session: import("../platform/filingAuth").PlusSession,
+    issuedBase: import("../platform/filingAuth").IssuedBase,
   ): Promise<void> {
     const { installPlusSession } = await import("../platform/plusSessionInstall");
     await installPlusSession(
@@ -2077,6 +2084,7 @@ export default class AtomsPlugin extends Plugin {
         loadLocalStorage: (k): unknown => this.app.loadLocalStorage(k),
       },
       session,
+      issuedBase,
     );
     // Magic-link install does not go through Settings' own redisplay. Paste and
     // trial do. Without this, an open Account destination keeps the signed-out

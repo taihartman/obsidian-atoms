@@ -583,7 +583,7 @@ export async function startPlusAccount(
   cfg: PlusClientConfig,
   email: string,
 ): Promise<
-  | { ok: true; session: PlusSession }
+  | { ok: true; session: PlusSession; issuedBase: IssuedBase }
   | { ok: false; needsMagicLink: true; email: string; message: string }
   | PlusApiError
 > {
@@ -628,6 +628,9 @@ export async function startPlusAccount(
   const status = parseStatus(res.json);
   return {
     ok: true,
+    // Minted here, where the round trip happened (#508 KTD4). A caller handed
+    // the stamp cannot fabricate one from settings.
+    issuedBase: issuedBaseFromResponse(cfg.baseUrl),
     session: {
       sessionToken,
       email: em,
@@ -690,7 +693,9 @@ export async function exchangeMagicToken(
   cfg: PlusClientConfig,
   token: string,
   opts?: { verifier?: string },
-): Promise<{ ok: true; session: PlusSession } | PlusApiError> {
+): Promise<
+  { ok: true; session: PlusSession; issuedBase: IssuedBase } | PlusApiError
+> {
   const verifier = opts?.verifier?.trim();
   const res = await plusRequest(cfg, {
     path: "/v1/auth/exchange",
@@ -730,6 +735,9 @@ export async function exchangeMagicToken(
   const status = parseStatus(res.json);
   return {
     ok: true,
+    // The magic-link chain's stamp is minted here for the same reason as the
+    // start path: the base that answered, not the one configured (#508 KTD4).
+    issuedBase: issuedBaseFromResponse(cfg.baseUrl),
     session: {
       sessionToken,
       email,

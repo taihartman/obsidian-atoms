@@ -11,8 +11,12 @@ import {
   resolveFilingAuth,
   type PlusSession,
 } from "../src/platform/filingAuth";
+import { issuedBaseFromResponse } from "../src/platform/plusClient";
 import { DEFAULT_SETTINGS } from "../src/shared/types";
 import { open, rowNames, settingTab } from "./helpers/settingsTab";
+
+/** The base the exchange answered from, which is all the wrapper is given. */
+const ISSUER = issuedBaseFromResponse("https://self.host.example");
 
 const SESSION: PlusSession = {
   sessionToken: "sess_live",
@@ -56,7 +60,7 @@ describe("#473 Account redraw after installPlusSession", () => {
       settingTab: tab,
     });
 
-    await plugin.installPlusSession(SESSION);
+    await plugin.installPlusSession(SESSION, ISSUER);
 
     expect(readPlusSession(app)?.email).toBe("plus@example.com");
     expect(rowNames(tab)).toContain("Sign out");
@@ -79,7 +83,34 @@ describe("#473 Account redraw after installPlusSession", () => {
       settingTab: null,
     });
 
-    await plugin.installPlusSession(SESSION);
+    await plugin.installPlusSession(SESSION, ISSUER);
     expect(readPlusSession(app)?.email).toBe("plus@example.com");
+  });
+
+  /**
+   * #508 U2 — the wrapper is the indirection where a stamp is likeliest to be
+   * re-resolved from settings, because the plugin has `this.settings` right
+   * there. The configured base here is a different host, so a wrapper that read
+   * it instead of forwarding its argument fails both assertions.
+   */
+  it("forwards the issuer it was handed instead of reading plusBaseUrl", async () => {
+    const { app } = liveAccountTab();
+    const plugin = new AtomsPlugin({} as App, {} as PluginManifest);
+    Object.assign(plugin, {
+      app,
+      settings: { ...DEFAULT_SETTINGS, plusBaseUrl: "https://plus.tryatoms.app" },
+      saveSettings: async () => {},
+      ask: {
+        mirrorPermitted: () => false,
+        cancelPendingSync: () => {},
+      },
+      settingTab: null,
+    });
+
+    await plugin.installPlusSession(SESSION, ISSUER);
+
+    const stored = readPlusSession(app);
+    expect(stored?.issuedBase).toBe("https://self.host.example");
+    expect(stored?.verifiedBase).toBe("https://self.host.example");
   });
 });

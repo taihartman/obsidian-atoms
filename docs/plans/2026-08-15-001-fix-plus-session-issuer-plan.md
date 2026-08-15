@@ -429,3 +429,4 @@ changes, and it can name the host.
 | A future refactor rebuilds a session as a fresh literal and blanks the issuer | regression test on both direct `writePlusSession` callers |
 | Extra `/v1/me` on every classify if the re-stamp does not persist | assert the stamp is written, and that a second call issues no second `/v1/me` |
 | Quick-tunnel rotation reads as an attack | by design it is one round trip and a re-stamp, never a sign-out; covered by a test named for the rotation case |
+| **`tsconfig.test.json` typechecks only a named list of test files.** A `@ts-expect-error` in an unlisted file is inert, and a stub whose signature drifts is caught by nobody. U2 hit this: `test/plusSignIn.test.ts` is not on the list, so its `installSession` stubs had to be updated by hand rather than by the compiler | add any test file carrying a compile-time assertion to the list in the same unit that writes it; U3 must re-check if it widens that port again |

@@ -121,6 +121,7 @@ import {
 import {
   DEFAULT_PLUS_BASE_URL,
   isAllowedPlusBaseUrl,
+  issuedBaseFromResponse,
   PLUS_BASE_URL_INVALID_MESSAGE,
   requestMagicLink,
   startPlusAccount,
@@ -2907,10 +2908,11 @@ export class AtomsSettingTab extends PluginSettingTab {
         new Notice(`Atoms Plus: ${started.message}`);
         return;
       }
-      await installPlusSession(this.askMirrorDisarmHost(), {
-        ...started.session,
-        setupKind: "trial",
-      });
+      await installPlusSession(
+        this.askMirrorDisarmHost(),
+        { ...started.session, setupKind: "trial" },
+        started.issuedBase,
+      );
       await this.openTrialCheckout(started.session);
     } finally {
       this.redisplay();
@@ -2942,10 +2944,11 @@ export class AtomsSettingTab extends PluginSettingTab {
         new Notice(`Atoms Plus: ${started.message}`);
         return;
       }
-      await installPlusSession(this.askMirrorDisarmHost(), {
-        ...started.session,
-        setupKind: "subscribe",
-      });
+      await installPlusSession(
+        this.askMirrorDisarmHost(),
+        { ...started.session, setupKind: "subscribe" },
+        started.issuedBase,
+      );
       await this.openSubscribeCheckoutForSession(started.session);
     } finally {
       this.redisplay();
@@ -3048,15 +3051,22 @@ export class AtomsSettingTab extends PluginSettingTab {
         j.status === "inactive"
           ? j.status
           : "unknown";
-      await installPlusSession(this.askMirrorDisarmHost(), {
-        sessionToken,
-        email,
-        status,
-        remaining: typeof j.remaining === "number" ? j.remaining : undefined,
-        periodEnd: typeof j.periodEnd === "string" ? j.periodEnd : undefined,
-        plan: parsePlusPlan(j.plan),
-        refreshedAt: Date.now(),
-      });
+      await installPlusSession(
+        this.askMirrorDisarmHost(),
+        {
+          sessionToken,
+          email,
+          status,
+          remaining: typeof j.remaining === "number" ? j.remaining : undefined,
+          periodEnd: typeof j.periodEnd === "string" ? j.periodEnd : undefined,
+          plan: parsePlusPlan(j.plan),
+          refreshedAt: Date.now(),
+        },
+        // This path hand-rolls its own request, so it mints its own stamp —
+        // from `base`, the URL just fetched above, and only after the 2xx and
+        // the email check have both passed (#508 KTD4).
+        issuedBaseFromResponse(base),
+      );
       // Fresh session — the old "sign-in needed" row no longer applies.
       clearPlusRefreshRecord(this.app);
       new Notice("Atoms Plus session saved on this device");
