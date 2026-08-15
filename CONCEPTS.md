@@ -97,7 +97,7 @@ A For you cue when a hard supersession pair exists (`revises` / `contradicts` in
 One-line subsequent-history chips on Atoms home when an open atom participates in hard supersession edges. Home product chrome only — not injected into the Obsidian editor.
 
 ### Row grammar (settings)
-The rule that every settings row visibly declares what kind of thing it is, through its right edge. Seven kinds: **setting** (toggle or input — the only kind that may carry a toggle), **destination** (chevron), **action** (accent button), **destructive** (warning button), **form** (an input plus the one button that commits it), **form-actions** (an input plus several buttons that each commit it), **status** (muted text, no control). No row wears two kinds. A section-intro paragraph is prose, not a row, and is exempt. A **confirm sheet** is not a kind at all — it is what a destructive row may open, and it lives beside the row primitives rather than in the screen that calls it.
+The rule that every settings row visibly declares what kind of thing it is, through its right edge. It governs the row; a **setting group** governs the block a run of rows is composed into. Seven kinds: **setting** (toggle or input — the only kind that may carry a toggle), **destination** (chevron), **action** (accent button), **destructive** (warning button), **form** (an input plus the one button that commits it), **form-actions** (an input plus several buttons that each commit it), **status** (muted text, no control). No row wears two kinds. A section-intro paragraph is prose, not a row, and is exempt. A **confirm sheet** is not a kind at all — it is what a destructive row may open, and it lives beside the row primitives rather than in the screen that calls it.
 
 A **form** row is the exception that proves the rule rather than a hole in it: its field and its button are one grammar — "type this, then commit it" — the way a destination row's name and chevron are one, so the button may only submit the field beside it and can never be an independent action. It exists as its own kind because the alternative, an optional button on the setting row, is one PR away from a button on a toggle row. That is also how the grammar grows: when the rule keeps forcing an awkward shape at one kind of call site — here, two cards where a field and its commit button belonged in one ([#347](https://github.com/taihartman/obsidian-atoms/issues/347)) — it is missing a kind, not too strict.
 
@@ -105,8 +105,20 @@ A **form** row is the exception that proves the rule rather than a hole in it: i
 
 The rule governs how a row is drawn, not whether the surface is really a settings screen. Applied mechanically to a list of inbox items, it produced one row per item plus a second row per item carrying nothing but its own button label — the shape [#342](https://github.com/taihartman/obsidian-atoms/issues/342) removed. When a section is a queue rather than a set of settings, give the section one control instead of giving every item two rows.
 
+### Setting group
+The block a run of settings rows is composed into: a header above it, one inset surface holding the rows, and an optional footer under it. The footer says what is behind the rows rather than repeating them, which makes it a claim about the group's contents — a footer that names a row the group did not render is a defect, not a wording choice, and a group whose rows are conditional needs a footer that is conditional too.
+
+The block owns the fill, the corners and the hairlines between rows; its rows are flush rows inside it, not cards. That inversion is against Obsidian's grain, which styles each row as its own floating card on mobile, so composing rows into a group means un-styling the child chrome rather than only styling the parent.
+
+Groups are how the main screen states the product's three **legs** — Capture, File, Resurface — in the product's own order, numbered in their headers. A group is not a **destination**: it is a division of one screen, reached by scrolling rather than by navigating.
+
 ### Destination (settings)
 A settings sub-screen reached from a chevron row and left by a back row. A re-render of the same settings surface under a route value — not a new Obsidian view, and not a modal used as navigation. Leaving and reopening settings always returns to the main screen.
+
+### Setup step
+The single unfinished thing standing between this vault and filing — Daily Notes not turned on, or nobody chosen to do the filing — or nothing, once neither is outstanding. One computation, rendered twice: as Atoms home's first-day card and as the settings screen's status line, so the two surfaces cannot name different next steps.
+
+It is ordered, not a set: Daily Notes comes first because there is nothing to file until captures have somewhere to land. It is also not the negation of **automatic filing** — a device can hold an outstanding setup step while already filing, since switching the Daily Notes core plugin off leaves an earned filing window and a live egress grant untouched. A surface that reads "setup unfinished" as "has never filed" will describe a silence window the device already spent.
 
 ### Confirm sheet
 The question a destructive row asks before it acts — the destructive row's other half: the row declares the kind, the sheet asks the question. Distinct from a **consent sheet**, which authorizes an ongoing capability; a confirm sheet authorizes one act and records nothing. It names what will be destroyed and how much of it, and it holds its row for the whole exchange, so a double-tap cannot stack two questions. Cancel, Escape, and clicking outside are all the same answer: no.

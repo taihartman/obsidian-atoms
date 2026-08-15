@@ -87,6 +87,36 @@ export function needsShortcutCta(
   return ackIsStale(acked, shipped);
 }
 
+/**
+ * The whole capture-on-phone procedure, as the three steps it actually is.
+ *
+ * It used to be one run-on description on a settings row: six arrow-separated fragments plus an
+ * "Acked:" stamp, which is a procedure written as a footnote. A row cannot hold a procedure — it
+ * has one line and no order — so U9 gives it a sheet and the sheet gives it numbers.
+ *
+ * Step 1 is first because it is the one people skip. The shortcut appends to a bookmark, and the
+ * bookmark does not exist until Obsidian has opened this vault with Atoms once, so a phone that
+ * installs before that has nothing to point step 3 at.
+ *
+ * Step 3 keeps **Ask Each Time** named. It is the default the picker offers and it is the single
+ * failure this procedure exists to prevent: a shortcut left on it prompts for a destination at
+ * every capture, which is exactly the friction the shortcut was for, and nothing else on any
+ * screen would tell the user why.
+ */
+export const CAPTURE_SHORTCUT_STEPS: readonly string[] = [
+  "Open this vault in Obsidian once, so the Atoms Inbox bookmark exists.",
+  "Add Capture Atom to Shortcuts on your phone.",
+  "In Shortcuts, open Capture Atom, edit it, and set Append to Bookmark to Atoms Inbox. Not Ask Each Time.",
+];
+
+/** What the row says about this device, without opening the sheet to find out. */
+export function captureShortcutStatus(acked: string | null | undefined): string {
+  const version = (acked ?? "").trim();
+  // The *acked* version, not the shipped one: a device holding an older ack is out of date, and
+  // printing the version it would have after updating would hide exactly that.
+  return version ? `Capture Atom ${version}` : "Not set up";
+}
+
 /** Shortcut install CTA — Install until ack, then Update. */
 export function labelCaptureShortcutCta(
   acked: string | null | undefined,

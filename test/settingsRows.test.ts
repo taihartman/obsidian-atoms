@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
@@ -8,6 +8,7 @@ import {
   destructiveRow,
   formActionsRow,
   formRow,
+  group,
   InFlightActions,
   settingRow,
   statusRow,
@@ -19,8 +20,12 @@ import {
   // Aliased: this file already has a local `row()` reader, and `press`/`flip` read better
   // alongside it under names that say they act on a rendered row.
   flip as flipRow,
+  groupHeaders,
   open,
+  openAdvanced,
   press as pressRow,
+  prose,
+  rowNames,
   settingTab,
 } from "./helpers/settingsTab";
 import { DEFAULT_SETTINGS } from "../src/shared/types";
@@ -177,6 +182,35 @@ describe("row grammar", () => {
     captured!.fill("Notes");
     expect(typed).toBe("Notes");
     expect(controlEl(container).querySelector("input")?.value).toBe("Notes");
+  });
+
+  /**
+   * The marker the width floor hangs off. A text field is the one control whose usable width is a
+   * floor rather than a preference, and the rule that holds that floor keys off this class, so a
+   * text row that stops carrying it silently goes back to sharing a 366px `is-tablet` line with
+   * its name column: measured at 768×1024, `Plus service URL` kept a 300px name and left its URL
+   * field 66px wide. A toggle has no such floor and must not pick the class up by accident.
+   */
+  it("marks text rows for the width floor, and only text rows", () => {
+    settingRow(container, {
+      name: "Plus service URL",
+      control: { kind: "text", configure: () => {} },
+    });
+    expect(row(container).classList.contains("atoms-setting-text")).toBe(true);
+
+    const toggles = document.createElement("div");
+    settingRow(toggles, {
+      name: "File automatically",
+      control: { kind: "toggle", configure: () => {} },
+    });
+    expect(row(toggles).classList.contains("atoms-setting-text")).toBe(false);
+
+    const dropdowns = document.createElement("div");
+    settingRow(dropdowns, {
+      name: "Model",
+      control: { kind: "dropdown", configure: () => {} },
+    });
+    expect(row(dropdowns).classList.contains("atoms-setting-text")).toBe(false);
   });
 
   it("destinationRow renders a chevron and opens on click, with no toggle", () => {
@@ -431,7 +465,7 @@ describe("row grammar", () => {
     const submitted: string[] = [];
     let captured: TextComponent | null = null;
     formRow(container, {
-      name: "Advanced: paste session",
+      name: "Paste a session",
       configure: (text) => {
         captured = text as unknown as TextComponent;
       },
@@ -595,9 +629,11 @@ describe("row grammar", () => {
         submit: { action: "e", label: "Send", inFlight, onSubmit: () => {} },
       }),
       statusRow(container, { name: "F", value: "ok" }),
+      group(container, { header: "G", render: () => {} }),
     ];
 
     expect(returns).toEqual([
+      undefined,
       undefined,
       undefined,
       undefined,
@@ -879,6 +915,135 @@ describe("row grammar", () => {
  * itself. `redisplay()` and `openRoute()` are the two rebuilds, and before the registry moved
  * off the component both handed back a fresh, enabled button mid-flight.
  */
+/**
+ * `styles.css` itself, live in the test document. A touch target is a CSS fact, so the assertion
+ * below reads the shipped rule rather than a number restated in a test that could agree with
+ * nothing. Loaded once: the document outlives a single case.
+ */
+function loadShippedStyles(): void {
+  if (document.getElementById("atoms-shipped-styles")) return;
+  const style = document.createElement("style");
+  style.id = "atoms-shipped-styles";
+  style.textContent = readFileSync(path.resolve(__dirname, "../styles.css"), "utf8");
+  document.head.appendChild(style);
+}
+
+/**
+ * The grouped list: rows nested inside one inset container, under one header and over one footer.
+ *
+ * Asserted on rendered structure rather than on what the builder was handed, because the nesting
+ * is the risk — `rowNames()` and `prose()` read a screen back through `querySelectorAll`, and a
+ * wrapper div is the first element the settings tab has ever put between them and a row.
+ */
+describe("grouped list", () => {
+  let container: HTMLElement;
+
+  beforeEach(() => {
+    container = document.createElement("div");
+  });
+
+  it("renders one header, the rows it was handed, and one footer", () => {
+    group(container, {
+      header: "1 · Capture",
+      footer: "Atoms never captures for you.",
+      render: (el) => {
+        for (const name of ["Daily notes", "Capture on your phone", "Atoms land in"]) {
+          settingRow(el, { name, control: { kind: "toggle", configure: () => {} } });
+        }
+      },
+    });
+
+    const headers = container.querySelectorAll(".atoms-setting-group-header");
+    expect(headers).toHaveLength(1);
+    expect(headers[0]?.textContent).toBe("1 · Capture");
+
+    const groupEl = container.querySelector(".atoms-setting-group");
+    if (!(groupEl instanceof HTMLElement)) throw new Error("no group container rendered");
+    expect(groupEl.childElementCount).toBe(3);
+    expect(
+      Array.from(groupEl.children).every((el) => el.classList.contains("setting-item")),
+    ).toBe(true);
+
+    const foot = container.querySelectorAll("p.setting-item-description.atoms-setting-group-foot");
+    expect(foot).toHaveLength(1);
+    expect(foot[0]?.textContent).toBe("Atoms never captures for you.");
+  });
+
+  it("renders no paragraph at all for a group with no footer", () => {
+    group(container, {
+      header: "Get started",
+      render: (el) => destinationRow(el, { name: "Choose who files your captures", onOpen: () => {} }),
+    });
+
+    expect(container.querySelectorAll("p")).toHaveLength(0);
+  });
+
+  it("leaves nested rows, headers, and footers readable off the rendered screen", () => {
+    const { tab } = settingTab();
+
+    group(tab.containerEl, {
+      header: "1 · Capture",
+      footer: "Write a bullet in today's daily note.",
+      render: (el) => {
+        settingRow(el, { name: "Daily notes", control: { kind: "toggle", configure: () => {} } });
+        destinationRow(el, { name: "Capture on your phone", onOpen: () => {} });
+      },
+    });
+    group(tab.containerEl, {
+      header: "2 · File",
+      render: (el) => destinationRow(el, { name: "Who does the filing", onOpen: () => {} }),
+    });
+
+    // Document order, across the two wrappers — nesting must not reorder or hide a row.
+    expect(rowNames(tab)).toEqual([
+      "Daily notes",
+      "Capture on your phone",
+      "Who does the filing",
+    ]);
+    // The header is chrome, not a row: `rowNames()` cannot see it, `groupHeaders()` can.
+    expect(groupHeaders(tab)).toEqual(["1 · Capture", "2 · File"]);
+    expect(prose(tab)).toEqual(["Write a bullet in today's daily note."]);
+  });
+
+  it("activates a chevron row from the keyboard and gives it a 44px target", () => {
+    loadShippedStyles();
+    document.body.appendChild(container);
+    let opened = 0;
+    group(container, {
+      header: "2 · File",
+      render: (el) =>
+        destinationRow(el, {
+          name: "Who does the filing",
+          onOpen: () => {
+            opened += 1;
+          },
+        }),
+    });
+    const rowEl = row(container);
+
+    expect(rowEl.getAttribute("role")).toBe("button");
+    expect(rowEl.getAttribute("tabindex")).toBe("0");
+
+    const press = (key: string): KeyboardEvent => {
+      const evt = new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true });
+      rowEl.dispatchEvent(evt);
+      return evt;
+    };
+
+    expect(press("Enter").defaultPrevented).toBe(true);
+    expect(opened).toBe(1);
+    // Space activates too, and must not also scroll the settings pane behind the row.
+    expect(press(" ").defaultPrevented).toBe(true);
+    expect(opened).toBe(2);
+    // Anything else is a keystroke passing through, not an activation.
+    expect(press("a").defaultPrevented).toBe(false);
+    expect(opened).toBe(2);
+
+    expect(getComputedStyle(rowEl).minHeight).toBe("44px");
+    container.remove();
+  });
+});
+
 describe("in-flight guard across a settings-tab rebuild", () => {
   const flush = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 
@@ -896,7 +1061,8 @@ describe("in-flight guard across a settings-tab rebuild", () => {
         },
       },
     });
-    tab.display();
+    // Both rows live on Advanced since U7, which is what makes this a same-screen re-render.
+    openAdvanced(tab);
 
     pressRow(tab, "Sync everything now", "Sync everything now");
     await flush();
@@ -978,19 +1144,50 @@ function onMainScreen(tab: AtomsSettingTab): boolean {
 }
 
 /**
- * Entry-row name paired with the title of the screen it opens. They match everywhere except
- * Account, whose entry row is named for the account's state (U3), and Tag vocabulary, whose entry
- * row carries the active count (U4) — both screens keep their own title.
- */
-/**
+ * Entry-row name paired with the title of the screen it opens. They match everywhere except the
+ * status group's step row, which is named for the step rather than the screen, and Tag
+ * vocabulary, whose entry row carries the active count — both screens keep their own title.
+ *
  * In rendered order. U9's section-ordering pass put the vocabulary entry above Connect, which is
  * the order the plan's main-screen table asks for.
+ *
+ * Account is not here: U4 took it off the main screen. It is reachable from the engine screen,
+ * which is where choosing Plus is one of two answers rather than the only one on offer.
  */
 const DESTINATIONS: Array<[entry: string, title: string]> = [
-  ["Set up automatic filing", "Account"],
-  [`Tag vocabulary — ${DEFAULT_SETTINGS.activeVocabulary.length} active`, "Tag vocabulary"],
+  // U2's status group opens the screen with the one unfinished step, which on an install where
+  // nobody files yet is a second way into the engine screen.
+  ["Choose who files your captures", "Who does the filing"],
+  ["Who does the filing", "Who does the filing"],
+  [`Tag vocabulary · ${DEFAULT_SETTINGS.activeVocabulary.length} active`, "Tag vocabulary"],
   ["Connect Claude or ChatGPT", "Connect Claude or ChatGPT"],
+  ["Privacy and consents", "Privacy and consents"],
   ["Advanced", "Advanced"],
+];
+
+/**
+ * Every chevron row on the main screen, in rendered order — which is the routes above plus the
+ * one that leaves Settings entirely.
+ *
+ * `Atoms home` is a destination row and not a settings route: it closes the modal and activates
+ * the view behind it (U5). `Capture on your phone` is the same shape for a different reason —
+ * U9 put the install procedure in a sheet, which has no route and no back stack. Both are listed
+ * here so the main screen's chevrons stay pinned, and both are kept out of the walk table above,
+ * which is about screens you can come *back* from.
+ */
+const MAIN_DESTINATION_ROWS = [
+  "Choose who files your captures",
+  // U9 made this a chevron: it opens the procedure sheet rather than a route, the same way
+  // `Atoms home` opens a view. Both are here and neither is in the walk table.
+  "Capture on your phone",
+  "Who does the filing",
+  `Tag vocabulary · ${DEFAULT_SETTINGS.activeVocabulary.length} active`,
+  "Atoms home",
+  "Connect Claude or ChatGPT",
+  // The `SESSION` fixture is one of KTD6's six disjuncts on its own, so the Privacy entry
+  // renders here without the walk needing a seeded ack.
+  "Privacy and consents",
+  "Advanced",
 ];
 
 /**
@@ -1012,7 +1209,7 @@ describe("destination shell", () => {
 
     expect(onMainScreen(tab)).toBe(true);
     expect(backRowEl(tab)).toBeNull();
-    expect(destinationNames(tab)).toEqual(DESTINATIONS.map(([entry]) => entry));
+    expect(destinationNames(tab)).toEqual(MAIN_DESTINATION_ROWS);
   });
 
   it.each(DESTINATIONS)("enters %s and comes back to the main screen", (entry, title) => {
@@ -1050,7 +1247,7 @@ describe("destination shell", () => {
     tab.display();
     scroller.scrollTop = 420;
 
-    open(tab, "Set up automatic filing");
+    open(tab, "Who does the filing");
     expect(scroller.scrollTop).toBe(0);
 
     scroller.scrollTop = 260;
@@ -1090,6 +1287,29 @@ describe("destination shell", () => {
  */
 const DIRECT_SETTING_BUDGET = 5;
 
+/**
+ * The modules the budget is counted over, and the ones it deliberately does not count.
+ *
+ * The ratchet used to read `settings.ts` and nothing else, which quietly assumed the tab would
+ * always be one file. Splitting a screen out would have moved its sites into a module nobody
+ * counted and reset the budget to a number that was never earned. Naming both lists means the
+ * split has to say which side the new file is on, and `every file is on exactly one list` below
+ * is what stops a third answer.
+ */
+const SCREEN_MODULES = ["settings.ts"];
+
+/** Not screens: the row grammar itself, and modals that build their own button bars. */
+const NON_SCREEN_MODULES = [
+  "rows.ts",
+  "captureSheet.ts",
+  "captureShortcut.ts",
+  "consent.ts",
+  "destructiveButton.ts",
+  "hubListPreviewModal.ts",
+  "plusSignInConfirmModal.ts",
+  "plusSignOutAllConfirmModal.ts",
+];
+
 /** Source with comments removed, so only code counts against the ratchet. */
 function withoutComments(source: string): string {
   return source
@@ -1100,18 +1320,36 @@ function withoutComments(source: string): string {
 }
 
 describe("row-grammar repository guard", () => {
-  it("settings.ts does not grow new direct `new Setting(` sites", () => {
-    const source = readFileSync(
-      path.resolve(__dirname, "../src/settings/settings.ts"),
-      "utf8",
-    );
-    const direct = withoutComments(source).match(/new Setting\(/g)?.length ?? 0;
+  it("the screen modules do not grow new direct `new Setting(` sites", () => {
+    const direct = SCREEN_MODULES.reduce((total, file) => {
+      const source = readFileSync(
+        path.resolve(__dirname, "../src/settings", file),
+        "utf8",
+      );
+      return total + (withoutComments(source).match(/new Setting\(/g)?.length ?? 0);
+    }, 0);
 
     expect(
       direct,
-      `settings.ts constructs Setting directly ${direct} times (budget ${DIRECT_SETTING_BUDGET}). ` +
+      `${SCREEN_MODULES.join(", ")} construct Setting directly ${direct} times ` +
+        `(budget ${DIRECT_SETTING_BUDGET}). ` +
         "Build rows through src/settings/rows.ts; lower DIRECT_SETTING_BUDGET as sites migrate.",
     ).toBeLessThanOrEqual(DIRECT_SETTING_BUDGET);
+  });
+
+  it("every module in src/settings is on exactly one side of the budget", () => {
+    const present = readdirSync(path.resolve(__dirname, "../src/settings"))
+      .filter((f) => f.endsWith(".ts"))
+      .sort();
+    const known = [...SCREEN_MODULES, ...NON_SCREEN_MODULES].sort();
+
+    expect(
+      present,
+      "A new module under src/settings is neither counted against the direct-Setting budget nor " +
+        "exempted from it. Add it to SCREEN_MODULES if it renders settings screens (its sites " +
+        "count), or to NON_SCREEN_MODULES if it is a modal or the row grammar. Leaving it off " +
+        "both lists is how a screen split resets a ratchet it never earned.",
+    ).toEqual(known);
   });
 
   it("rows.ts is the one place that constructs Setting", () => {

@@ -18,6 +18,7 @@ import {
   aggregateTagsFromFileCaches,
 } from "../pipeline/context";
 import {
+  type DeviceAutoRunState,
   readDeviceAutoRunState,
   readEgressAckVersion,
   setAutomaticFilingEnabled,
@@ -31,6 +32,7 @@ import {
 } from "../platform/resume";
 import { CAPTURE_ATOM_VERSION } from "../shared/mobileInstall";
 import {
+  captureShortcutStatus,
   customCaptureShortcutUrl,
   labelCaptureShortcutCta,
   openShortcutInstallUrl,
@@ -38,6 +40,7 @@ import {
   resolveCaptureShortcutInstallUrl,
   writeShortcutAck,
 } from "./captureShortcut";
+import { CAPTURE_SHEET_TITLE, CaptureShortcutSheetModal } from "./captureSheet";
 import { markDestructive } from "./destructiveButton";
 import { askSignOutAllApproval } from "./plusSignOutAllConfirmModal";
 import {
@@ -73,7 +76,9 @@ import {
   type FormActionsRowSpec,
   formRow,
   type FormRowSpec,
+  group,
   InFlightActions,
+  recordRow,
   settingRow,
   statusRow,
 } from "./rows";
@@ -81,6 +86,7 @@ import {
   API_KEY_SECRET_ID_DEFAULT,
   LOCAL_STORAGE_API_KEY,
 } from "../shared/types";
+import { formatUsd, PLUS_PRICING } from "../shared/plusPricing";
 import {
   clearPlusSession,
   hasPlusSetupSession,
@@ -104,7 +110,14 @@ import {
   plusRefreshRowRecord,
   refreshPlusEntitlementRecord,
 } from "../platform/plusRefresh";
-import { atomsPlusTopUpCopy } from "../home/atomsHomeData";
+import { closeSettings, openSettingsTab } from "../platform/obsidianSettings";
+import { appHasDailyNotesPluginLoaded } from "obsidian-daily-notes-interface";
+import {
+  atomsPlusTopUpCopy,
+  CORE_PLUGINS_SETTINGS_TAB_ID,
+  firstDaySetupCopy,
+  type SetupStep,
+} from "../home/atomsHomeData";
 import {
   DEFAULT_PLUS_BASE_URL,
   requestMagicLink,
@@ -124,6 +137,7 @@ import {
   disarmAskMirror,
   formatAskMirrorStatusLine,
   formatAskMirrorServerCount,
+  readAskMirrorServerCount,
   mirrorRefusalTitle,
   mirrorRefusalBody,
   readAskMirrorEmail,
@@ -234,12 +248,12 @@ export function accountRowDescriptor(state: AccountState): AccountRowDescriptor 
     case "signedOut":
       return {
         name: "Set up automatic filing",
-        desc: "Atoms Plus files your captures for you. Or keep using your own API key — the full app stays yours either way.",
+        desc: "Atoms Plus files your captures for you. Or keep using your own API key: the full app stays yours either way.",
       };
     case "trialIncomplete":
       return {
         name: "Finish trial setup",
-        desc: `${state.email} — complete checkout to start the 14-day trial.`,
+        desc: `${state.email}. Complete checkout to start the 14-day trial.`,
       };
     case "subscribeIncomplete":
       return {
@@ -344,13 +358,13 @@ export function apiKeyStatusText(state: ApiKeyState): string {
     case "checking":
       return "Checking this key…";
     case "malformed":
-      return "That does not look like an Anthropic API key — keys start with sk-ant-.";
+      return "That does not look like an Anthropic API key: keys start with sk-ant-.";
     case "unreachable":
       return "Could not reach Anthropic from this device, so the key was not checked. Try again when you are online.";
     case "rejected":
       return "Anthropic answered, but rejected this key. Check that it is current and has credit.";
     case "ok":
-      return "This key works — Anthropic answered from this device.";
+      return "This key works. Anthropic answered from this device.";
   }
   const _exhaustive: never = state;
   return _exhaustive;
@@ -400,16 +414,367 @@ function requireEmail(email: string): boolean {
  */
 export type SettingsRoute =
   | "main"
+  | "engine"
   | "account"
   | "vocabulary"
   | "connect"
+  | "privacy"
   | "advanced";
+
+/**
+ * The screen's opening statement, in its two shapes (R18).
+ *
+ * Nobody files yet, so the screen says what Atoms is for before it offers a single control (R9);
+ * or somebody does, so it says filing is on and when the first atoms land, because day one is
+ * deliberately silent and silence reads as breakage (R12).
+ */
+const STATUS_GROUP = {
+  unconfigured: {
+    header: "Get started",
+    footer:
+      "Atoms reads thoughts you already wrote and files each one as its own note, linked to the people and topics it mentions.",
+  },
+  filing: {
+    header: "Status",
+    footer:
+      "Atoms waits until a day is done, so it never files a thought you are still writing.",
+  },
+} as const;
+
+/** The status group's own name for the automatic-filing toggle it borrows from the File leg. */
+const FILING_ROW_NAME = "File automatically";
+
+/**
+ * What the filing row says under its name, by what the device is actually doing.
+ *
+ * The day-one line is the point of the whole group: enabling stamps the filing window at today
+ * and every pass excludes today, so nothing lands until tomorrow. It retires itself the moment a
+ * run is on the books, because by then it would be a small lie.
+ */
+const FILING_STATE_DESC = {
+  dayOne: "First atoms arrive tomorrow morning.",
+  running: "Atoms files each past day when Obsidian opens.",
+  off: "Atoms files a past day only when you ask it to.",
+} as const;
+
+/**
+ * Whether the automatic-filing toggle stands on — enabled *and* acked, never one of the two.
+ *
+ * Named because two places answer it in the same render: the status group spends the answer on
+ * prose, the row spends it on the toggle. Two copies of this conjunction is how a device that
+ * withdrew its ack ends up reading "Atoms files each past day" next to an off switch.
+ */
+function automaticFilingOn(state: DeviceAutoRunState): boolean {
+  return state.enabled && state.egressAcked;
+}
+
+/**
+ * Whether this device holds an egress grant of either kind: the stamped ack, or the catch-up
+ * notice on its own.
+ *
+ * Two surfaces answer this and they must not disagree — the privacy entry counts the grant, the
+ * record row is the only screen that withdraws it. A row that stops rendering while the count
+ * still says "1 on record" is a grant that still spends with nothing left to take it back, which
+ * is the failure `docs/solutions/logic-errors/narrowing-one-grant-removed-the-only-way-to-revoke-the-other.md`
+ * already cost once.
+ */
+function egressGrantOnRecord(
+  state: DeviceAutoRunState,
+  load: (key: string) => unknown,
+): boolean {
+  return state.egressAcked || readEgressNoticeAcked(load);
+}
+
+/** Which of the three lines this device has earned, by whether it runs and whether it has run. */
+function filingStateDesc(on: boolean, hasRun: boolean): string {
+  if (!on) return FILING_STATE_DESC.off;
+  return hasRun ? FILING_STATE_DESC.running : FILING_STATE_DESC.dayOne;
+}
+
+/** When the next unattended pass happens. Same promise as the day-one line, as a fact. */
+const NEXT_RUN_ROW = {
+  name: "Next run",
+  value: "Tomorrow, when Obsidian opens.",
+} as const;
+
+/**
+ * The two legs the main screen can actually hold controls for (R1).
+ *
+ * Named for `docs/architecture.md` § North star rather than for a vocabulary this screen invents,
+ * and numbered the way `docs/design-handoff/settings/overhaul.html` numbers them, so the eyebrows
+ * read as one sequence instead of three unrelated labels.
+ *
+ * Each footer is the group's whole explanation, written once for every row above it — which is
+ * what lets a row go back to a name and a control (R2). Capture's carries the fact no other
+ * surface states: the plugin captures nothing, ever (R10). It also keeps the word "top-level",
+ * which is the R19 carve-out on this group: `isContinuationLine` (`src/pipeline/parse.ts:41`)
+ * folds an indented bullet into the capture above it silently, so a footer that said "write a
+ * bullet" would leave the user with no way to predict why two thoughts became one atom. File's
+ * carries the trust question a new
+ * user actually has, and it has to name all three things Atoms writes, because a promise that
+ * names two of them is the kind of near-miss that gets found later by someone reading a diff
+ * (R11). Its last sentence is the one rule the restructure could not drop: automatic filing starts
+ * with the next day and never walks backwards on its own.
+ */
+const CAPTURE_GROUP = {
+  header: "1 · Capture",
+  footer:
+    "Atoms never captures for you. Write a top-level bullet in your daily note, like “- Alex likes periwinkle”, or add the phone shortcut and say one out loud. An indented bullet is read as part of the one above it.",
+} as const;
+
+const FILE_GROUP = {
+  header: "2 · File",
+  footer:
+    "What you wrote is never rewritten. Atoms only adds new atom files, one small marker line under the capture it read, and a list inside its own marked block on hub notes. Older captures wait until you backfill them from Atoms home.",
+} as const;
+
+/**
+ * The File group's own name and line for the automatic-filing toggle, on the installs where the
+ * status group has not taken it.
+ *
+ * The line says when the *window* opens rather than when atoms arrive: this is the branch where
+ * nobody files yet, so promising an arrival would be promising something no engine can deliver.
+ * The status group's day-one promise is the other half of the same pair, and the two never render
+ * together — `nextSetupStep()` decides which home the toggle has, so only one of them is on
+ * screen and the screen states the day-one rule exactly once.
+ */
+const FILING_ROW_UNCONFIGURED = {
+  name: "File automatically when Obsidian opens",
+  desc: "Filing starts with tomorrow's note, on this device.",
+} as const;
+
+/**
+ * The engine screen: the one decision Atoms cannot make for anybody, with room to say what it
+ * costs. Mock SSOT `docs/design-handoff/settings/overhaul.html` § Who does the filing.
+ *
+ * One claim from the mock is not here, because it is not true. "Nothing here unlocks features" is
+ * false the moment Ask is considered: Ask needs a session from the Atoms service (R13), so the
+ * choice is not purely about who pays. The footer says only the part that holds — filing itself
+ * is identical either way.
+ *
+ * The price is real but is never a literal: `plus-pricing.json` is the SSOT and
+ * `src/shared/plusPricing.ts` is the only thing allowed to format it, which is why the footer is
+ * a function. A number typed into this file is a copy that goes stale in silence.
+ */
+const ENGINE_SCREEN = {
+  lead: "Atoms sends each capture to Anthropic to be titled and linked. Somebody has to pay for that: us, or you.",
+  pickOne: {
+    header: "Pick one",
+    /**
+     * The naming rule sits here rather than in the key row's own description (F4). It used to be
+     * prose *between* the key row and the fallback toggle, which split a pair that answers for the
+     * same key, and it was moved into the row to stop that. The row is the wrong home too: it put
+     * `SecretStorage`, an Android emulator command and a charset spec on the screen where somebody
+     * four minutes into Atoms decides who pays. A group footer is the third option and the one the
+     * plan already asks for — under *both* rows, so the pair stays together, and out of the way of
+     * a reader who only wanted to pick an engine.
+     */
+    footer: () =>
+      `Filing works the same either way. Atoms Plus is ${PLUS_PRICING.trialDays} days free, then ${formatUsd(PLUS_PRICING.monthlyUsd)} a month. Your own key bills you at Anthropic's rates instead. The key row asks for a name to file your key under, not the key itself: lowercase letters, numbers and dashes, like ${API_KEY_SECRET_ID_DEFAULT}.`,
+  },
+  /**
+   * The egress facts as three lines rather than one paragraph, so a reader can check them one at
+   * a time. Each is a promise the code keeps: `EGRESS_DISCLOSURE` clause (1) is what leaves,
+   * `ContextProvider` sends titles and never bodies, and every pass excludes today unless the
+   * user forces it. The footer points at the sheet rather than restating it, because the sheet is
+   * versioned (KTD5) and a second copy of versioned wording is the #315 shape.
+   */
+  whatGetsSent: {
+    header: "What gets sent",
+    footer:
+      "You will see the full wording, and have to accept it, before Atoms files on its own.",
+    lines: [
+      "Each capture, and your note titles, over TLS",
+      "Never the body of another note, and never your whole vault",
+      "Nothing from today, unless you ask for it",
+    ],
+  },
+} as const;
+
+/**
+ * Leg three, as two groups rather than one (R3).
+ *
+ * Atoms home and Ask are independent features with independent state: one is on from the moment
+ * anything is filed and needs no setup at all, the other is off until a session and two consents
+ * say otherwise. A single footer would have to describe both and would end up describing neither,
+ * so the leg's number sits on the first group and Ask carries its own name.
+ *
+ * The home group's footer leads with the fact a settings screen almost never gets to state: there
+ * is nothing here to configure. That is the answer to the question the eyebrow raises, and
+ * withholding it would make a reader hunt for a control that does not exist.
+ */
+const HOME_GROUP = {
+  header: "3 · Resurface",
+  footer:
+    "Nothing to set up. Atoms home brings old thoughts back on its own: something from this day last year, or a note that connects to what you just filed.",
+} as const;
+
+/** The one row in the home group, so the group has a control rather than prose alone. */
+const HOME_ROW = {
+  name: "Atoms home",
+  desc: "Everything Atoms has filed, and what it is bringing back.",
+} as const;
+
+/**
+ * Ask, in the two shapes the device can be in.
+ *
+ * Signed out is one row saying `Off` and a footer naming what is missing. It names a **session
+ * from the Atoms service**, never a paid subscription (R13) — a self-hosted server yields the
+ * same session and the same Ask — and it does not mention self-hosting at all, because that
+ * route is named on the Advanced screen rather than offered to somebody who has not yet decided
+ * whether they want Ask (R13 again).
+ *
+ * The signed-out row is read-only rather than a chevron: the screen behind it can offer nothing
+ * without a session, and a chevron onto a dead end is worse than no chevron.
+ */
+const ASK_GROUP = {
+  header: "Ask",
+  signedOut: {
+    row: { name: "Ask in Claude and ChatGPT", value: "Off" },
+    footer:
+      "Claude and ChatGPT can search your atoms once a copy of them is online. That copy needs a session from the Atoms service.",
+  },
+  signedIn: {
+    footer: "Claude and ChatGPT read that cloud copy, never your vault.",
+  },
+} as const;
+
+/**
+ * The utility group: the two screens that are nobody's everyday business (R4).
+ *
+ * It carries no leg number because it is not one of the product's legs. Its footer says what is
+ * behind each row, which is the only thing a reader needs in order to decide whether to open
+ * either of them.
+ */
+const UTILITY_GROUP = {
+  header: "Your data",
+  footer:
+    "Privacy holds what you have allowed and the way to take it back. Advanced holds the settings almost nobody needs.",
+  /**
+   * The same sentence with the Privacy clause removed.
+   *
+   * A fresh install has allowed nothing, so `renderPrivacyEntry` renders no row — and the full
+   * footer would then describe a row that is not on screen, on the one state every user starts in.
+   */
+  footerAdvancedOnly: "Advanced holds the settings almost nobody needs.",
+} as const;
+
+/**
+ * The privacy screen's two groups.
+ *
+ * The records group's footer states the one thing a passive record cannot say about itself: that
+ * opening one is safe. A row whose only button is `Review` still reads as a thing that might do
+ * something, and a user who will not touch it cannot use the withdrawal it exists to offer.
+ *
+ * The cloud group's footer has two branches because the wipe genuinely is not always available:
+ * deleting the cloud copy is a call to the Atoms service, so a device holding a count but no
+ * session can see what is out there and cannot remove it. Saying so is better than a dead button
+ * or a hidden row (KTD6 keeps this screen reachable precisely so the copy is never stranded).
+ */
+const PRIVACY_SCREEN = {
+  records: {
+    header: "On record",
+    footer:
+      "Opening a record shows the wording you agreed to and offers to withdraw it. Nothing is sent by looking.",
+  },
+  cloud: {
+    header: "Cloud copy",
+    countRow: "Atoms in the cloud copy",
+    footer: {
+      wipeable:
+        "Wiping deletes the mirrored atoms, anything Claude or ChatGPT queued for this vault, and the connector tokens. Your vault files are untouched.",
+      stranded:
+        "Deleting the cloud copy is a request to the Atoms service, so it needs a session. Sign back in to remove what is out there.",
+    },
+  },
+} as const;
+
+/** Whether the vault's Daily Notes plugin is on. The Capture leg's one derived value (R20). */
+const DAILY_NOTES_ROW = { name: "Daily notes", on: "On", off: "Off" } as const;
+
+/**
+ * The Advanced screen, as five groups. Mock SSOT `docs/design-handoff/settings/overhaul.html`
+ * § Advanced, with names taken from `docs/design-handoff/settings/README.md` § Coverage audit
+ * where the two disagree: the audit maps row by row and is what U11 reconciles against.
+ *
+ * The mock calls the URL field `Ask server`. It is not one — it takes the origin of a
+ * `plus-service` instance, which is the name `docs/ask-self-host.md` uses throughout and the name
+ * a reader following that guide will be looking for, so the audit's `Plus service URL` wins.
+ *
+ * The sync footer says what the two rows above it are *for*, which is the thing neither row can
+ * say about itself: filing already runs on its own, so a user who finds a `Sync everything now`
+ * button with no such sentence reasonably concludes they are supposed to press it.
+ *
+ * The self-host footer carries the two constraints `docs/ask-self-host.md` is emphatic about and
+ * that are easy to lose: point the plugin at your own server *before* signing in, so it never
+ * touches production, and give that server a public HTTPS address, because Claude and ChatGPT
+ * call it from their own cloud rather than from the machine it runs on.
+ */
+const ADVANCED_SCREEN = {
+  model: {
+    header: "Model",
+    footer:
+      "Atoms is tuned for the default. Leave it alone unless you have a reason to change it.",
+  },
+  sync: {
+    header: "Sync",
+    footer:
+      "Filing normally runs on its own. These are for when you want it to happen right now.",
+  },
+  thisDevice: { header: "This device" },
+  selfHost: {
+    header: "Run Ask yourself",
+    footer:
+      "Claude and ChatGPT need a copy of your atoms online. Atoms Plus hosts that copy for you, or you can run the server yourself. Point Atoms at your own server before you sign in, and give it a public HTTPS address.",
+  },
+  escapeHatches: {
+    header: "Escape hatches",
+    footer:
+      "You should not need any of these. They are here for when something else has gone wrong.",
+  },
+} as const;
+
+/**
+ * The account screen's group headers. Mock SSOT `docs/design-handoff/settings/account.html`.
+ *
+ * Headers only, and no state in them, because U8 restyles this screen without re-shaping it
+ * (KTD14). The mock names each group for the state it is showing — `Trial`, `Plus`, `Trial ended`
+ * — which works there because the mock has already replaced the `Status` row with the facts
+ * underneath it. Here that row is still on screen carrying exactly those words, so a state-named
+ * eyebrow would say the same thing twice, one line apart. `Atoms Plus` names the subject instead
+ * and lets the row keep naming the state.
+ *
+ * Two groups rather than the mock's three. The third is its sign-out block, whose whole shape is
+ * one red row with `Sign out all devices` demoted to a footer link, and demoting that row is on
+ * KTD14's deferred list. Both sign-out rows therefore stay where they are, under `Manage`, until
+ * the buy-now plan re-shapes them.
+ */
+const ACCOUNT_SCREEN = {
+  plus: "Atoms Plus",
+  manage: "Manage",
+  whatPlusDoes: "What Plus does",
+  signIn: "Sign in or start a trial",
+} as const;
+
+/**
+ * The paste-a-session escape hatch, and the route to it.
+ *
+ * Named once because three surfaces have to agree: the row itself, the signed-out email
+ * description, and the notice a device without WebCrypto gets when its link is sent. The old name
+ * was `Advanced: paste session`, whose prefix was doing the job of an address while the row sat on
+ * the account screen. Now that it is actually on Advanced, the address is the route and the name
+ * is just a name.
+ */
+const PASTE_SESSION_ROW = "Paste a session";
+const PASTE_SESSION_ROUTE = `Advanced → ${PASTE_SESSION_ROW}`;
 
 /** Destination title, shown on its entry row and again on its back row. */
 const DESTINATION_TITLES: Record<Exclude<SettingsRoute, "main">, string> = {
+  engine: "Who does the filing",
   account: "Account",
   vocabulary: "Tag vocabulary",
   connect: "Connect Claude or ChatGPT",
+  privacy: "Privacy and consents",
   advanced: "Advanced",
 };
 
@@ -480,6 +845,10 @@ export class AtomsSettingTab extends PluginSettingTab {
 
   private destructiveRow(containerEl: HTMLElement, row: ButtonRowSpec): void {
     destructiveRow(containerEl, { ...row, inFlight: this.inFlight });
+  }
+
+  private recordRow(containerEl: HTMLElement, row: ButtonRowSpec): void {
+    recordRow(containerEl, { ...row, inFlight: this.inFlight });
   }
 
   private formRow(containerEl: HTMLElement, row: FormRowSpec): void {
@@ -644,7 +1013,7 @@ export class AtomsSettingTab extends PluginSettingTab {
     // screen to close it, which is the exact failure the ack predicates exist to prevent.
     const day = ackStampIsReal(record.at) ? record.at.slice(0, 10) : "";
     const desc = `Acknowledged ${day}${ACK_STANDING_SUFFIX[record.standing]}`;
-    this.actionRow(containerEl, {
+    this.recordRow(containerEl, {
       action: `ack:review:${record.name}`,
       name: record.name,
       desc,
@@ -743,11 +1112,19 @@ export class AtomsSettingTab extends PluginSettingTab {
     this.plugin.settingTab = this;
     const { containerEl } = this;
     containerEl.empty();
+    // Emptying the container detaches whatever element the key check was painting into, and only
+    // the engine screen makes a new one. Without this, a check that settles after the user walks
+    // away would paint a verdict into a node nobody can see, and the next visit to the engine
+    // screen would find a live-looking handle onto a detached element.
+    this.apiKeyStatusEl = null;
 
     const route = this.route;
     switch (route) {
       case "main":
         this.renderMainScreen(containerEl);
+        return;
+      case "engine":
+        this.renderDestination(containerEl, route, (el) => this.renderEngineDestination(el));
         return;
       case "account":
         this.renderDestination(containerEl, route, (el) => this.renderAccountDestination(el));
@@ -757,6 +1134,9 @@ export class AtomsSettingTab extends PluginSettingTab {
         return;
       case "connect":
         this.renderDestination(containerEl, route, (el) => this.renderConnectDestination(el));
+        return;
+      case "privacy":
+        this.renderDestination(containerEl, route, (el) => this.renderPrivacyDestination(el));
         return;
       case "advanced":
         this.renderDestination(containerEl, route, (el) => this.renderAdvancedDestination(el));
@@ -830,7 +1210,7 @@ export class AtomsSettingTab extends PluginSettingTab {
     this.actionRow(containerEl, {
       action: "ask:pairing-code",
       name: "Link Claude / ChatGPT",
-      desc: "Generate a short pairing code for the connector authorize page. Your Claude/ChatGPT account email need not match Atoms Plus — the code binds the Plus account shown above. Codes expire quickly and are secrets (do not share). After pairing, disconnect/reconnect the connector if counts still look stale.",
+      desc: "Generate a short pairing code for the connector authorize page. Your Claude/ChatGPT account email need not match Atoms Plus: the code binds the Plus account shown above. Codes expire quickly and are secrets (do not share). After pairing, disconnect/reconnect the connector if counts still look stale.",
       label: "Get pairing code",
       onClick: async () => {
         if (!this.plugin.settings.askEnabled) {
@@ -851,11 +1231,11 @@ export class AtomsSettingTab extends PluginSettingTab {
         try {
           await navigator.clipboard.writeText(display);
           new Notice(
-            `Pairing code ${display} copied — paste on the connector authorize page (expires soon)`,
+            `Pairing code ${display} copied. Paste on the connector authorize page (expires soon)`,
           );
         } catch {
           new Notice(
-            `Pairing code: ${display} — paste on the connector authorize page (expires soon)`,
+            `Pairing code: ${display}. Paste on the connector authorize page (expires soon)`,
           );
         }
       },
@@ -900,13 +1280,9 @@ export class AtomsSettingTab extends PluginSettingTab {
       },
     });
 
-    this.destructiveRow(containerEl, {
-      action: "ask:wipe-cloud-copy",
-      name: "Wipe cloud copy",
-      desc: "Delete mirrored atoms, pending Ask writes (outbox), and revoke Ask connector tokens for this account. Does not delete vault files.",
-      label: "Wipe",
-      onClick: () => this.confirmWipeCloudCopy(base, session.sessionToken),
-    });
+    // `Wipe cloud copy` is not here since U6. It moved to Privacy, beside the count of what it
+    // deletes and under the union that keeps it reachable after a withdrawal turns the mirror
+    // off — the case where leaving it on this screen would have stranded the copy (KTD6).
   }
 
   /**
@@ -975,67 +1351,128 @@ export class AtomsSettingTab extends PluginSettingTab {
   }
 
   /**
-   * The two rows that are nobody's everyday business.
+   * Everything that is nobody's everyday business: the two plumbing preferences, the manual sync,
+   * what this device last did, the self-host route (R13), and the escape hatches.
    *
-   * R5 rules what may be here: no gate on money, cloud egress, or vault writes. *Model* affects
-   * what a capture costs but cannot enable spend, and *Plus service URL override* redirects where
-   * already-enabled egress goes rather than turning any on — inert until a main-screen gate is on.
-   * Both are here on the record rather than by silence.
+   * The screen used to open with "leave these alone unless you self-host", which stopped being
+   * true the moment it took the sync rows: `Sync everything now` is a thing an ordinary user is
+   * meant to reach for. The caution is not dropped, it is split — each group now warns about its
+   * own rows, which is the only place a warning can be specific enough to act on.
+   *
+   * What may be here has narrowed with it. The old rule was "no gate on money, cloud egress, or
+   * vault writes", and the sync rows plainly reach all three. The rule that survives is that
+   * nothing here **grants**: *Model* affects what a capture costs but cannot enable spend, *Plus
+   * service URL* redirects where already-permitted egress goes rather than permitting any, and
+   * the sync rows ask the plugin to run a pass that carries its own consent gate inside it.
    *
    * The device-local key rows are *not* here, though they read as plumbing: `getApiKey()` falls
    * back to that key, so the pair is a complete credential path that enables Anthropic spend —
-   * and the toggle is also the only thing that deletes the stored key. R5 puts both on the main
-   * screen, under the API-key section.
+   * and the toggle is also the only thing that deletes the stored key. Both live on the engine
+   * destination, beside the key field they answer for.
    */
   private renderAdvancedDestination(containerEl: HTMLElement): void {
-    containerEl.createEl("p", {
-      text: "Leave these alone unless you self-host or dogfood a local Plus server.",
-      cls: "setting-item-description",
-    });
-
-    settingRow(containerEl, {
-      name: "Model",
-      desc: "Anthropic model id. Default: claude-sonnet-5.",
-      control: {
-        kind: "text",
-        configure: (text) => {
-          // Block body: Obsidian components are thenable; returning the chain trips misused-promises.
-          text
-            .setPlaceholder("claude-sonnet-5")
-            .setValue(this.plugin.settings.model)
-            .onChange((value) => {
-              this.plugin.settings.model = value.trim() || "claude-sonnet-5";
-              void this.plugin.saveSettings();
-            });
-        },
+    group(containerEl, {
+      ...ADVANCED_SCREEN.model,
+      render: (groupEl) => {
+        settingRow(groupEl, {
+          name: "Model",
+          desc: "Anthropic model id. Default: claude-sonnet-5.",
+          control: {
+            kind: "text",
+            configure: (text) => {
+              // Block body: Obsidian components are thenable; returning the chain trips
+              // misused-promises.
+              text
+                .setPlaceholder("claude-sonnet-5")
+                .setValue(this.plugin.settings.model)
+                .onChange((value) => {
+                  this.plugin.settings.model = value.trim() || "claude-sonnet-5";
+                  void this.plugin.saveSettings();
+                });
+            },
+          },
+        });
       },
     });
 
-    // Override only for local dogfood. Shipping builds leave this empty → DEFAULT_PLUS_BASE_URL.
-    settingRow(containerEl, {
-      name: "Plus service URL override",
-      desc: `Empty = production (${DEFAULT_PLUS_BASE_URL}). Plugin can use http://127.0.0.1:8787. Claude and ChatGPT need the public HTTPS origin.`,
-      control: {
-        kind: "text",
-        configure: (text) => {
-          text
-            .setPlaceholder(DEFAULT_PLUS_BASE_URL)
-            .setValue(this.plugin.settings.plusBaseUrl)
-            .onChange((value) => {
-              this.plugin.settings.plusBaseUrl = value.trim();
-              void this.plugin.saveSettings();
-            });
-        },
+    group(containerEl, {
+      ...ADVANCED_SCREEN.sync,
+      render: (groupEl) => this.renderSyncRows(groupEl),
+    });
+
+    this.renderThisDeviceGroup(containerEl);
+
+    group(containerEl, {
+      ...ADVANCED_SCREEN.selfHost,
+      render: (groupEl) => {
+        // Empty is production. Anything else points the plugin at an instance the user runs.
+        settingRow(groupEl, {
+          name: "Plus service URL",
+          desc: `Empty is ${DEFAULT_PLUS_BASE_URL}. Your own server can be http://127.0.0.1:8787 for the plugin, but Claude and ChatGPT need its public HTTPS address.`,
+          control: {
+            kind: "text",
+            configure: (text) => {
+              text
+                .setPlaceholder(DEFAULT_PLUS_BASE_URL)
+                .setValue(this.plugin.settings.plusBaseUrl)
+                .onChange((value) => {
+                  this.plugin.settings.plusBaseUrl = value.trim();
+                  void this.plugin.saveSettings();
+                });
+            },
+          },
+        });
+
+        this.actionRow(groupEl, {
+          action: "ask:open-self-host-guide",
+          name: "Self-host guide",
+          desc: "How to run the Atoms service yourself, so nothing of yours reaches plus.tryatoms.app.",
+          label: "Open",
+          onClick: () => {
+            window.open(ATOMS_ASK_SELF_HOST_URL, "_blank");
+          },
+        });
       },
     });
 
-    this.actionRow(containerEl, {
-      action: "ask:open-self-host-guide",
-      name: "DIY Ask guide",
-      desc: "Run plus-service on your machine so Claude or ChatGPT never hit plus.tryatoms.app.",
-      label: "Open",
-      onClick: () => {
-        window.open(ATOMS_ASK_SELF_HOST_URL, "_blank");
+    group(containerEl, {
+      ...ADVANCED_SCREEN.escapeHatches,
+      render: (groupEl) => {
+        this.renderCustomShortcutRow(groupEl);
+        this.renderPasteSessionRow(groupEl);
+      },
+    });
+  }
+
+  /**
+   * What this device last did, when it has done anything.
+   *
+   * Rendered as a group or not at all: a fresh install has neither record, and an empty box under
+   * a `This device` eyebrow reads as a screen that failed to load rather than as one with nothing
+   * to report.
+   */
+  private renderThisDeviceGroup(containerEl: HTMLElement): void {
+    const lastRunDay = readDeviceAutoRunState((k) => loadLocal(this.app, k))
+      .lastRunDay;
+    const catchLine = this.plugin.getLastCatchupLine();
+    if (!lastRunDay && !catchLine) return;
+
+    // Both are name-plus-value facts, which is what `statusRow` is for. As paragraphs they read
+    // as prose the user has to parse for the value buried in it.
+    group(containerEl, {
+      ...ADVANCED_SCREEN.thisDevice,
+      render: (groupEl) => {
+        if (lastRunDay) {
+          statusRow(groupEl, { name: "Last filing run", value: lastRunDay });
+        }
+        if (catchLine) {
+          statusRow(groupEl, {
+            name: LAST_CATCHUP_LABEL,
+            // The formatter owns one line for Atoms home, which prints it whole. Splitting it on
+            // the label it single-sources keeps the two surfaces saying the same thing.
+            value: catchLine.slice(LAST_CATCHUP_LABEL.length + 1),
+          });
+        }
       },
     });
   }
@@ -1048,17 +1485,173 @@ export class AtomsSettingTab extends PluginSettingTab {
       cls: "setting-item-description",
     });
 
-    // The plan's main-screen table, in its order: who you are → what you capture → where it
-    // lands → what the model may say → who else can read it → when it runs → keys → advanced.
-    // Ask sits under Plus because it is the only cluster a signed-out install does not render.
-    this.renderPlusSection(containerEl);
-    this.renderCaptureSection(containerEl);
-    this.renderModelSection(containerEl);
-    this.renderVocabularyEntry(containerEl);
-    this.renderAskSection(containerEl);
-    this.renderAutoRunSection(containerEl);
-    this.renderApiSection(containerEl);
-    this.renderAdvancedEntry(containerEl);
+    // Read once for the whole render pass. `resolveFilingAuth` reaches SecretStorage, which is
+    // an OS keychain round-trip rather than a field read, and this screen redisplays on every
+    // toggle — so the setup step and the engine row share one answer instead of each asking.
+    const filing = this.plugin.resolveFilingAuth();
+
+    // Decided once and handed to both groups: the same answer says what the status group is
+    // *for* and whether the File group still holds the automatic-filing toggle. Asking twice is
+    // how the two halves of that seam would eventually disagree.
+    const step = this.nextSetupStep(filing);
+
+    // Whether Atoms is filing, before anything the screen offers to change (R18).
+    this.renderStatusGroup(containerEl, step);
+
+    // The product's own legs, in the product's own order (R1): what you write, then what Atoms
+    // does with it, then how it comes back. Nothing else is a section any more — the records,
+    // the diagnostics, the manual sync and the escape hatches all live behind the utility group.
+    this.renderCaptureGroup(containerEl);
+    this.renderFileGroup(containerEl, step, filing);
+    this.renderResurfaceGroups(containerEl);
+    this.renderUtilityGroup(containerEl);
+  }
+
+  /**
+   * The one step still unfinished, or null when Atoms can file.
+   *
+   * Read out of `firstDaySetupCopy` rather than decided here (KTD11): Atoms home's first-day wall
+   * answers the same question, and the moment this screen keeps its own list the two drift.
+   */
+  private nextSetupStep(filing: FilingAuth): SetupStep | null {
+    return firstDaySetupCopy(
+      appHasDailyNotesPluginLoaded(),
+      filing.mode !== "none",
+    ).nextStep;
+  }
+
+  /**
+   * The screen's first element: whether Atoms is filing, and the single step when it is not.
+   *
+   * Two variants, not one variant with an empty slot. Nobody files yet, so the group says what
+   * Atoms does and names one thing to do; or somebody does, so it says filing is on and when the
+   * first atoms land. The second variant borrows the automatic-filing toggle from the File leg,
+   * which is why `step` arrives as an argument rather than being read here: the File composition
+   * is state-dependent on the same answer, and one answer cannot disagree with itself.
+   *
+   * No fill, no tint, no border: setup state is not transient, so the token system's soft-fill
+   * carve-out does not reach it (R14). Position is the emphasis.
+   */
+  private renderStatusGroup(containerEl: HTMLElement, step: SetupStep | null): void {
+    if (step) {
+      group(containerEl, {
+        ...STATUS_GROUP.unconfigured,
+        render: (groupEl) => {
+          destinationRow(groupEl, {
+            name: step.name,
+            desc: "Required",
+            onOpen: () => {
+              // Switched with no catch-all so a third setup step cannot quietly inherit the
+              // engine screen: adding one is a compile error here until it names its own home.
+              switch (step.kind) {
+                case "daily_notes":
+                  openSettingsTab(this.app, CORE_PLUGINS_SETTINGS_TAB_ID);
+                  return;
+                case "filing_owner":
+                  // The step is "choose who files", so it lands on the screen that asks exactly
+                  // that. It used to open Account, which offered one of the two answers and never
+                  // named the other.
+                  this.openRoute("engine");
+                  return;
+              }
+              const exhaustive: never = step.kind;
+              return exhaustive;
+            },
+          });
+        },
+      });
+      return;
+    }
+    const state = readDeviceAutoRunState((k) => loadLocal(this.app, k));
+    const on = automaticFilingOn(state);
+    group(containerEl, {
+      ...STATUS_GROUP.filing,
+      render: (groupEl) => {
+        this.renderAutomaticFilingRow(
+          groupEl,
+          {
+            name: FILING_ROW_NAME,
+            desc: filingStateDesc(on, Boolean(state.lastRunDay)),
+          },
+          state,
+        );
+        if (on) statusRow(groupEl, { ...NEXT_RUN_ROW });
+      },
+    });
+  }
+
+  /**
+   * Leg one: everything the user does, and nothing Atoms does.
+   *
+   * Two of its three rows still carry prose. That is R19 rather than an oversight: the iCloud
+   * link rule only matters to somebody who forked the recipe, and the shortcut's six-step iOS
+   * procedure is a wizard in a caption that a footer cannot hold and a later unit turns into a
+   * sheet. A rule the user needs to predict behavior is never deleted by a footer sweep.
+   */
+  private renderCaptureGroup(containerEl: HTMLElement): void {
+    group(containerEl, {
+      ...CAPTURE_GROUP,
+      render: (groupEl) => {
+        statusRow(groupEl, {
+          name: DAILY_NOTES_ROW.name,
+          value: appHasDailyNotesPluginLoaded()
+            ? DAILY_NOTES_ROW.on
+            : DAILY_NOTES_ROW.off,
+        });
+        this.renderCaptureShortcutRows(groupEl);
+      },
+    });
+  }
+
+  /**
+   * Leg two: everything Atoms does with what it finds.
+   *
+   * The automatic-filing toggle is here only while the status group has not taken it — the same
+   * seam from the other side. Order follows the mock: who files, whether it runs on its own,
+   * where atoms land, what they may be tagged, and what gets listed on hub notes.
+   */
+  private renderFileGroup(
+    containerEl: HTMLElement,
+    step: SetupStep | null,
+    filing: FilingAuth,
+  ): void {
+    group(containerEl, {
+      ...FILE_GROUP,
+      render: (groupEl) => {
+        this.renderEngineRow(groupEl, filing);
+        if (step) {
+          // Setup is unfinished, but that does not mean this device has never filed: switching the
+          // Daily Notes core plugin off under a configured engine puts the toggle back here with
+          // the window and the ack still spent. The day-one promise survives an enable — nothing
+          // has landed yet, so it stays true — and stops being true only once a run is on the
+          // books, which is exactly when the status group would have retired it too.
+          //
+          // The engine is the exception, and it is why `filing` is consulted here rather than only
+          // the device's own stamps. A spent window argues that filing *was* happening; a deleted
+          // key means nothing can be sent at all, so the running line would describe a device that
+          // files nothing. Found by the adversarial pass: configure a device-local key, watch the
+          // status group take the toggle, then turn the fallback back off.
+          const state = readDeviceAutoRunState((k) => loadLocal(this.app, k));
+          const hasFiled =
+            filing.mode !== "none" &&
+            automaticFilingOn(state) &&
+            Boolean(state.lastRunDay);
+          this.renderAutomaticFilingRow(
+            groupEl,
+            {
+              name: FILING_ROW_UNCONFIGURED.name,
+              desc: hasFiled
+                ? filingStateDesc(true, true)
+                : FILING_ROW_UNCONFIGURED.desc,
+            },
+            state,
+          );
+        }
+        this.renderAtomFolderRow(groupEl);
+        this.renderVocabularyEntry(groupEl);
+        this.renderHubListRows(groupEl);
+      },
+    });
   }
 
   /**
@@ -1069,16 +1662,140 @@ export class AtomsSettingTab extends PluginSettingTab {
   private renderVocabularyEntry(containerEl: HTMLElement): void {
     const active = this.plugin.settings.activeVocabulary.length;
     destinationRow(containerEl, {
-      name: `${DESTINATION_TITLES.vocabulary} — ${active} active`,
+      name: `${DESTINATION_TITLES.vocabulary} · ${active} active`,
       onOpen: () => this.openRoute("vocabulary"),
     });
   }
 
-  /** Where the dev hints used to sit, in the same place and with the same name. */
-  private renderAdvancedEntry(containerEl: HTMLElement): void {
+  /** The two screens nobody opens on an ordinary day, under one header (R4). */
+  private renderUtilityGroup(containerEl: HTMLElement): void {
+    // The Privacy row is conditional, so the footer that names it has to be conditional too —
+    // asked once here rather than inside the render callback, which cannot reach the header.
+    const showPrivacy = this.privacyGrants().any;
+    group(containerEl, {
+      header: UTILITY_GROUP.header,
+      footer: showPrivacy
+        ? UTILITY_GROUP.footer
+        : UTILITY_GROUP.footerAdvancedOnly,
+      render: (groupEl) => {
+        this.renderPrivacyEntry(groupEl);
+        destinationRow(groupEl, {
+          name: DESTINATION_TITLES.advanced,
+          onOpen: () => this.openRoute("advanced"),
+        });
+      },
+    });
+  }
+
+  /**
+   * Everything this device could still take back, or still delete.
+   *
+   * Six disjuncts, and the reason there are six is that each one is a thing that outlives the
+   * others. Narrowing to "the egress ack" is exactly
+   * `docs/solutions/logic-errors/narrowing-one-grant-removed-the-only-way-to-revoke-the-other.md`
+   * one level up: the catch-up notice alone still permits filing, either Ask ack alone is still a
+   * live consent, and withdrawing the Ask privacy ack clears the acks and `askEnabled` **without**
+   * wiping the mirror — so a user who withdrew everything would keep a cloud copy with no screen
+   * left that can delete it. The session disjunct covers the mirror-off case for the same reason
+   * (KTD6).
+   */
+  private privacyGrants(): {
+    records: number;
+    session: boolean;
+    cloudCount: number | null;
+    any: boolean;
+  } {
+    const load = (k: string): unknown => loadLocal(this.app, k);
+    const egress = egressGrantOnRecord(readDeviceAutoRunState(load), load);
+    const { askPrivacyAckAt, askWriteAckAt } = this.plugin.settings;
+    // The egress pair is one row however many of its two grants are live, so it counts once.
+    const records =
+      (egress ? 1 : 0) + (askPrivacyAckAt ? 1 : 0) + (askWriteAckAt ? 1 : 0);
+    const session = readPlusSession(this.app) !== null;
+    const cloudCount = readAskMirrorServerCount(load);
+    return {
+      records,
+      session,
+      cloudCount,
+      any: records > 0 || session || cloudCount !== null,
+    };
+  }
+
+  /**
+   * The way in, whenever there is anything to take back or delete.
+   *
+   * The subtitle counts records rather than describing them, the way the Connect entry row
+   * carries its status line: the number is what a reader checks this row for, and a row that
+   * rendered blank when nothing is on record would leave "why is this here" unanswered on the
+   * one path where the answer is a cloud copy rather than a consent (R20).
+   */
+  private renderPrivacyEntry(containerEl: HTMLElement): void {
+    const grants = this.privacyGrants();
+    if (!grants.any) return;
     destinationRow(containerEl, {
-      name: DESTINATION_TITLES.advanced,
-      onOpen: () => this.openRoute("advanced"),
+      name: DESTINATION_TITLES.privacy,
+      desc: grants.records > 0 ? `${grants.records} on record` : "Nothing on record",
+      onOpen: () => this.openRoute("privacy"),
+    });
+  }
+
+  /**
+   * Every passive record, and the cloud copy they are mostly about.
+   *
+   * The records are only ever *moved* here, never re-worded: each one names wording an ack
+   * version was recorded against, and a record that describes text the user never saw is the #315
+   * bug wearing new paint (KTD5 freezes all of it). What changes is loudness — a granted consent
+   * is not asking to be granted again, so `recordRow` gives it a plain button instead of the
+   * accent one it used to wear beside the switches that actually decide something (R17).
+   */
+  private renderPrivacyDestination(containerEl: HTMLElement): void {
+    const grants = this.privacyGrants();
+
+    // Withdrawing the last grant re-renders this screen underneath the user, so it has to be
+    // able to say that it is empty. A destination holding nothing but a back row reads as
+    // broken rather than as finished.
+    if (!grants.any) {
+      containerEl.createEl("p", {
+        text: "Nothing on record, and no cloud copy. Anything you allow later shows up here, with the way to take it back.",
+        cls: "setting-item-description",
+      });
+      return;
+    }
+
+    if (grants.records > 0) {
+      group(containerEl, {
+        ...PRIVACY_SCREEN.records,
+        render: (groupEl) => {
+          this.renderEgressAckRecord(groupEl);
+          this.renderAskPrivacyAckRecord(groupEl);
+          this.renderAskWriteAckRecord(groupEl);
+        },
+      });
+    }
+
+    if (!grants.session && grants.cloudCount === null) return;
+    group(containerEl, {
+      header: PRIVACY_SCREEN.cloud.header,
+      footer: grants.session
+        ? PRIVACY_SCREEN.cloud.footer.wipeable
+        : PRIVACY_SCREEN.cloud.footer.stranded,
+      render: (groupEl) => {
+        statusRow(groupEl, {
+          name: PRIVACY_SCREEN.cloud.countRow,
+          // The formatter's own unknown marker rather than a blank: a count nobody has asked the
+          // server for yet is not zero atoms (R20).
+          value: formatAskMirrorServerCount((k) => loadLocal(this.app, k)),
+        });
+        const session = readPlusSession(this.app);
+        if (!session) return;
+        const base = this.plugin.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL;
+        this.destructiveRow(groupEl, {
+          action: "ask:wipe-cloud-copy",
+          name: "Wipe cloud copy",
+          label: "Wipe",
+          onClick: () => this.confirmWipeCloudCopy(base, session.sessionToken),
+        });
+      },
     });
   }
 
@@ -1114,7 +1831,7 @@ export class AtomsSettingTab extends PluginSettingTab {
    */
   private accountEmailDesc(): string {
     if (!hasWebCrypto()) {
-      return "This device can't sign itself in from an emailed link. Send one anyway, then finish with Advanced: paste session below.";
+      return `This device can't sign itself in from an emailed link. Send one anyway, then finish in ${PASTE_SESSION_ROUTE}.`;
     }
     return latestPendingSignIn(this.app)
       ? "Link sent. Open it in the email on this device and Obsidian signs itself in. Send another if it has expired."
@@ -1166,14 +1883,14 @@ export class AtomsSettingTab extends PluginSettingTab {
     new Notice(
       canSignInFromLink
         ? "Sign-in link sent. Open it in your email on this device and Obsidian signs itself in."
-        : "Sign-in link sent, but this device can't sign itself in from a link. Open the link, then paste the session it shows you into Advanced: paste session below.",
+        : `Sign-in link sent, but this device can't sign itself in from a link. Open the link, then paste the session it shows you into ${PASTE_SESSION_ROUTE}.`,
       10000,
     );
   }
 
   /**
    * Inline result of the last entitlement refresh. An expired session gets the
-   * sign-in link right here — no hunting for "Advanced: paste session".
+   * sign-in link right here — no hunting for the paste-a-session escape hatch.
    */
   private renderPlusRefreshOutcome(containerEl: HTMLElement): void {
     const record = plusRefreshRowRecord(this.app);
@@ -1252,7 +1969,7 @@ export class AtomsSettingTab extends PluginSettingTab {
     setAwaitingCheckout(this.app, true);
     window.open(r.url, "_blank");
     new Notice(
-      "Complete checkout in the browser, then return here — status updates automatically.",
+      "Complete checkout in the browser, then return here. Status updates automatically.",
       8000,
     );
     this.redisplay();
@@ -1346,27 +2063,94 @@ export class AtomsSettingTab extends PluginSettingTab {
     this.redisplay();
   }
 
-  private accountState(): AccountState {
+  /**
+   * `filing` is optional so a render pass that already resolved it can hand it back rather than
+   * paying a second SecretStorage read; every other caller reads fresh, which is what a click
+   * handler outliving its render wants.
+   */
+  private accountState(filing?: FilingAuth): AccountState {
     return deriveAccountState(
-      this.plugin.resolveFilingAuth(),
+      filing ?? this.plugin.resolveFilingAuth(),
       readPlusSession(this.app),
     );
   }
 
   /**
-   * Atoms Plus — mock SSOT docs/design-handoff/atoms-plus/index.html (v3).
+   * Who files the captures — the File leg's first row, and the one decision Atoms cannot make.
+   * Mock SSOT docs/design-handoff/settings/overhaul.html § 2 · File.
    *
-   * One row, whatever the account is doing. The four states used to be four `if` branches that
-   * each rendered their own Refresh status / Sign out / Account rows; now the state picks a
-   * label and everything you can *do* to the account lives one tap in.
+   * The row names the *question* and spends its subtitle on the current answer, which is the
+   * swap U4 makes: while the row was the account row it was named for the account's state, so an
+   * install with an Anthropic key and no Plus session read "Set up automatic filing" on a screen
+   * where filing was already set up. Naming the decision lets the answer be whatever it is, and
+   * it always spends a subtitle rather than rendering the question blank (R20).
    */
-  private renderPlusSection(containerEl: HTMLElement) {
-    settingHeading(containerEl, "Atoms Plus");
-    const row = accountRowDescriptor(this.accountState());
+  private renderEngineRow(containerEl: HTMLElement, filing: FilingAuth): void {
     destinationRow(containerEl, {
-      name: row.name,
-      desc: row.desc,
-      onOpen: () => this.openRoute("account"),
+      name: DESTINATION_TITLES.engine,
+      desc: this.engineAnswer(filing),
+      onOpen: () => this.openRoute("engine"),
+    });
+  }
+
+  /**
+   * What is filing right now, in the fewest words that are true.
+   *
+   * Signed out is the only state that says nothing about the engine, and it is also the state
+   * where the answer is genuinely two-valued: an install with an Anthropic key is filing
+   * perfectly well without a Plus session and must not be told nothing is chosen. Every other
+   * state already names the engine and the condition it is in ("Plus · 12 filings left", "Trial
+   * ended"), so it borrows `accountRowDescriptor` rather than keeping a second table of those
+   * words (KTD7).
+   */
+  private engineAnswer(filing: FilingAuth): string {
+    const state = this.accountState(filing);
+    if (state.kind !== "signedOut") return accountRowDescriptor(state).name;
+    return filing.mode === "none" ? "Not chosen" : "Your own key";
+  }
+
+  /**
+   * The screen behind the engine row: both ways to pay for filing, and what leaves the device
+   * either way.
+   *
+   * One group rather than two, because "pick one" is one decision: Atoms Plus is a chevron into
+   * the account screen that manages it, and the other option is not a chevron at all — it is the
+   * key field itself, because pasting a key *is* choosing it. The device-local pair sits with the
+   * field it answers for and is the only thing that deletes the stored key, which is why R5 keeps
+   * it beside a credential rather than filing it under Advanced as plumbing.
+   *
+   * The Plus row keeps the account state's own label. It is the row that walks into the account
+   * screen, so what it says about that account is the same sentence `accountRowDescriptor`
+   * already owns for every state (KTD7).
+   */
+  private renderEngineDestination(containerEl: HTMLElement): void {
+    containerEl.createEl("p", {
+      text: ENGINE_SCREEN.lead,
+      cls: "setting-item-description",
+    });
+
+    const account = accountRowDescriptor(this.accountState());
+    group(containerEl, {
+      header: ENGINE_SCREEN.pickOne.header,
+      footer: ENGINE_SCREEN.pickOne.footer(),
+      render: (groupEl) => {
+        destinationRow(groupEl, {
+          name: account.name,
+          desc: account.desc,
+          onOpen: () => this.openRoute("account"),
+        });
+        this.renderKeyRows(groupEl);
+      },
+    });
+
+    group(containerEl, {
+      header: ENGINE_SCREEN.whatGetsSent.header,
+      footer: ENGINE_SCREEN.whatGetsSent.footer,
+      render: (groupEl) => {
+        for (const name of ENGINE_SCREEN.whatGetsSent.lines) {
+          statusRow(groupEl, { name });
+        }
+      },
     });
   }
 
@@ -1391,18 +2175,62 @@ export class AtomsSettingTab extends PluginSettingTab {
     });
   }
 
+  /**
+   * The signed-in account, as two groups: what the account is, then what you can do to it.
+   *
+   * U8 is a restyle. Every row below is the row that was here before it, in the order it was in,
+   * under the same conditions — the unit's whole regression bar is that the nine renders produce
+   * the same lists (KTD14), which `test/settings.test.ts` pins state by state. What changed is
+   * that the facts, the one action the state offers, and the account-management rows stopped
+   * being one undifferentiated column.
+   *
+   * The state's action row sits with the facts rather than with `Manage`, because it is the
+   * answer to what those facts say: `Trial ended` and `Subscribe` are one thought, and putting
+   * the offer next to the management rows would make the reader hold the state in their head
+   * while scanning past two rows that have nothing to do with it.
+   */
   private renderSignedInAccount(
     containerEl: HTMLElement,
     state: Exclude<AccountState, { kind: "signedOut" }>,
   ): void {
     const session = readPlusSession(this.app);
+    const setupIncomplete =
+      state.kind === "trialIncomplete" || state.kind === "subscribeIncomplete";
+    group(containerEl, {
+      header: ACCOUNT_SCREEN.plus,
+      render: (groupEl) =>
+        this.renderAccountFacts(groupEl, state, session, setupIncomplete),
+    });
+    group(containerEl, {
+      header: ACCOUNT_SCREEN.manage,
+      render: (groupEl) =>
+        this.renderAccountActions(groupEl, state, session, setupIncomplete),
+    });
+
+    containerEl.createEl("p", {
+      text: "To use your own API key instead, add it under API Key. Plus is optional.",
+      cls: "setting-item-description",
+    });
+  }
+
+  /** What this account is, and the one thing its state offers to do about it. */
+  private renderAccountFacts(
+    containerEl: HTMLElement,
+    state: Exclude<AccountState, { kind: "signedOut" }>,
+    session: PlusSession | null,
+    setupIncomplete: boolean,
+  ): void {
     statusRow(containerEl, {
       name: "Status",
       value: accountRowDescriptor(state).name,
     });
-    const setupIncomplete =
-      state.kind === "trialIncomplete" || state.kind === "subscribeIncomplete";
-    const email = setupIncomplete ? state.email : (session?.email ?? "");
+    // Read off `state.kind` rather than off the `setupIncomplete` flag: the flag is a boolean by
+    // the time it arrives here, and only the kind check narrows the union to the two variants
+    // that carry an email of their own.
+    const email =
+      state.kind === "trialIncomplete" || state.kind === "subscribeIncomplete"
+        ? state.email
+        : (session?.email ?? "");
     // "Signed in as", not "Account": the back row leading this screen is already named Account.
     if (email) statusRow(containerEl, { name: "Signed in as", value: email });
     if (!setupIncomplete) {
@@ -1411,50 +2239,70 @@ export class AtomsSettingTab extends PluginSettingTab {
         // "Renews" is a promise, and a date already in the past cannot keep it. An ended
         // period says so instead — it was labelling its own expiry a renewal (#442).
         value: state.kind === "periodEnded"
-          ? `Ended ${state.endedOn?.slice(0, 10) ?? "— see Subscribe"}`
+          ? state.endedOn
+            ? `Ended ${state.endedOn.slice(0, 10)}`
+            : "Ended. See Subscribe"
           : session?.periodEnd
             ? `Renews ${session.periodEnd.slice(0, 10)}`
-            : "Monthly or yearly — see Manage subscription",
+            : "Monthly or yearly. See Manage subscription",
       });
     }
 
-    if (state.kind === "trialIncomplete") {
-      this.actionRow(containerEl, {
-        action: "plus:trial-checkout",
-        name: "Finish trial setup",
-        desc: "Complete Stripe checkout (card for the 14-day trial). Return here and status updates automatically.",
-        label: "Finish trial setup",
-        onClick: () => this.finishTrialCheckout(),
-      });
+    // One row at most, and switched with no catch-all: a new account state that needs the user to
+    // do something is a compile error here until it says what that something is. `active` and
+    // `trialing` are the two that ask for nothing, and they have to say so out loud.
+    switch (state.kind) {
+      case "trialIncomplete":
+        this.actionRow(containerEl, {
+          action: "plus:trial-checkout",
+          name: "Finish trial setup",
+          desc: "Complete Stripe checkout (card for the 14-day trial). Return here and status updates automatically.",
+          label: "Finish trial setup",
+          onClick: () => this.finishTrialCheckout(),
+        });
+        return;
+      case "subscribeIncomplete":
+        this.actionRow(containerEl, {
+          action: "plus:promo-subscribe-checkout",
+          name: "Finish Plus checkout",
+          desc: "Complete subscription checkout. On the next page, tap Add promotion code.",
+          label: "Finish Plus checkout",
+          onClick: () => this.finishSubscribeCheckout(),
+        });
+        return;
+      case "periodEnded":
+        this.actionRow(containerEl, {
+          action: "plus:subscribe-checkout",
+          name: "Subscribe",
+          desc: accountRowDescriptor(state).desc ?? "",
+          label: "Subscribe",
+          onClick: () => this.openSubscribeCheckout(),
+        });
+        return;
+      case "exhausted":
+        this.actionRow(containerEl, {
+          action: "plus:top-up-checkout",
+          name: "Get more filings",
+          desc: "Buy additional filings now instead of waiting for your next billing date.",
+          label: "Get more",
+          onClick: () => this.openTopUpCheckout(),
+        });
+        return;
+      case "active":
+        // Nothing to finish and nothing to buy — the facts above are the whole screen.
+        return;
     }
-    if (state.kind === "subscribeIncomplete") {
-      this.actionRow(containerEl, {
-        action: "plus:promo-subscribe-checkout",
-        name: "Finish Plus checkout",
-        desc: "Complete subscription checkout. On the next page, tap Add promotion code.",
-        label: "Finish Plus checkout",
-        onClick: () => this.finishSubscribeCheckout(),
-      });
-    }
-    if (state.kind === "periodEnded") {
-      this.actionRow(containerEl, {
-        action: "plus:subscribe-checkout",
-        name: "Subscribe",
-        desc: accountRowDescriptor(state).desc ?? "",
-        label: "Subscribe",
-        onClick: () => this.openSubscribeCheckout(),
-      });
-    }
-    if (state.kind === "exhausted") {
-      this.actionRow(containerEl, {
-        action: "plus:top-up-checkout",
-        name: "Get more filings",
-        desc: "Buy additional filings now instead of waiting for your next billing date.",
-        label: "Get more",
-        onClick: () => this.openTopUpCheckout(),
-      });
-    }
+    const exhaustive: never = state;
+    return exhaustive;
+  }
 
+  /** Everything you can do to the account, whatever state it is in. */
+  private renderAccountActions(
+    containerEl: HTMLElement,
+    state: Exclude<AccountState, { kind: "signedOut" }>,
+    session: PlusSession | null,
+    setupIncomplete: boolean,
+  ): void {
     this.actionRow(containerEl, {
       action: "plus:refresh-status",
       name: "Refresh status",
@@ -1496,24 +2344,41 @@ export class AtomsSettingTab extends PluginSettingTab {
         onClick: () => this.signOutAllDevicesOfPlus(),
       });
     }
-
-    containerEl.createEl("p", {
-      text: "To use your own API key instead, add it under API Key. Plus is optional.",
-      cls: "setting-item-description",
-    });
   }
 
+  /**
+   * The signed-out account: what Plus does, then the one field that starts it.
+   *
+   * Restyle only, same as the signed-in half (KTD14). The mock's `What Plus does` group is a pair
+   * of rows naming the two things Plus is for, and replacing this row with those is the buy-now
+   * plan's change; here the header goes over the one row that already makes the pitch. The
+   * three-action email cluster is a locked frame (`docs/design-handoff/settings/account.html`)
+   * and is untouched.
+   */
   private renderSignedOutAccount(containerEl: HTMLElement): void {
-    this.actionRow(containerEl, {
-      action: "plus:see-plans",
-      name: "Skip the API key",
-      desc: "Atoms Plus files your captures for you. Or keep using your own key. It’s free forever, and the full app stays yours either way.",
-      label: "See plans",
-      onClick: () => {
-        window.open(ATOMS_SITE_URL, "_blank");
+    group(containerEl, {
+      header: ACCOUNT_SCREEN.whatPlusDoes,
+      render: (groupEl) => {
+        this.actionRow(groupEl, {
+          action: "plus:see-plans",
+          name: "Skip the API key",
+          desc: "Atoms Plus files your captures for you. Or keep using your own key. It’s free forever, and the full app stays yours either way.",
+          label: "See plans",
+          onClick: () => {
+            window.open(ATOMS_SITE_URL, "_blank");
+          },
+        });
       },
     });
 
+    group(containerEl, {
+      header: ACCOUNT_SCREEN.signIn,
+      render: (groupEl) => this.renderSignInRow(groupEl),
+    });
+  }
+
+  /** The locked three-action email cluster: one field, one primary, two secondaries. */
+  private renderSignInRow(containerEl: HTMLElement): void {
     this.formActionsRow(containerEl, {
       name: "Email",
       desc: this.accountEmailDesc(),
@@ -1538,10 +2403,20 @@ export class AtomsSettingTab extends PluginSettingTab {
       ],
     });
 
-    // Advanced: paste session — the different-device fallback, kept below the
-    // link row until #286 replaces it (KD3, R10).
+  }
+
+  /**
+   * The different-device fallback (KD3, R10), on the screen the escape hatches live on.
+   *
+   * It sat under the sign-in form until U7, where it was the third thing a new user read on the
+   * one screen that has to sell them the product. It is genuinely one-case-only: the case is an
+   * email that opens somewhere Obsidian is not. Both notices that name this route name where it
+   * is now, so moving it costs nobody the path — `accountEmailDesc()` and `sendPlusMagicLink()`
+   * are the two places that must stay in step with this row's name.
+   */
+  private renderPasteSessionRow(containerEl: HTMLElement): void {
     this.formRow(containerEl, {
-      name: "Advanced: paste session",
+      name: PASTE_SESSION_ROW,
       desc: "Only if your email opens on a different device from Obsidian. Sign in there, then paste the session it gives you.",
       placeholder: "sess_…",
       configure: (text) => {
@@ -1581,7 +2456,7 @@ export class AtomsSettingTab extends PluginSettingTab {
       if (!started.ok) {
         if ("needsMagicLink" in started && started.needsMagicLink) {
           new Notice(
-            "This email already has Plus — send a sign-in link above.",
+            "This email already has Plus. Send a sign-in link above.",
             8000,
           );
           return;
@@ -1616,7 +2491,7 @@ export class AtomsSettingTab extends PluginSettingTab {
       if (!started.ok) {
         if ("needsMagicLink" in started && started.needsMagicLink) {
           new Notice(
-            "This email already has Plus — send a sign-in link above.",
+            "This email already has Plus. Send a sign-in link above.",
             8000,
           );
           return;
@@ -1761,7 +2636,7 @@ export class AtomsSettingTab extends PluginSettingTab {
       setAwaitingCheckout(this.app, true);
       window.open(r.url, "_blank");
       new Notice(
-        "Complete checkout in the browser, then return here — status updates automatically.",
+        "Complete checkout in the browser, then return here. Status updates automatically.",
         12000,
       );
     } else {
@@ -1770,55 +2645,65 @@ export class AtomsSettingTab extends PluginSettingTab {
     }
   }
 
-  private renderCaptureSection(containerEl: HTMLElement) {
-    settingHeading(containerEl, "Capture");
-
+  /**
+   * The one Capture row about the phone: what this device has, and a way into how to get it.
+   *
+   * It used to be an action row whose description carried the whole six-step procedure as one
+   * arrow-separated line ending in `Acked: never`. That is a procedure written as a footnote, and
+   * a row cannot hold one — it has a single line and no order — so the steps moved into a sheet
+   * (R2) and the row went back to a name and a status (R19).
+   *
+   * The forked-recipe field that used to sit beside it is gone too, to Advanced → Escape hatches:
+   * it only matters to somebody who edited the shortcut themselves, and a Capture group that
+   * shows it to everybody spends a row on the one reader in a hundred who wants it (R4).
+   */
+  private renderCaptureShortcutRows(containerEl: HTMLElement) {
     const shortcutAcked = readShortcutAck((k) => loadLocal(this.app, k));
-    const custom = customCaptureShortcutUrl(
-      this.plugin.settings.captureShortcutInstallUrl,
-    );
+    destinationRow(containerEl, {
+      name: CAPTURE_SHEET_TITLE,
+      desc: captureShortcutStatus(shortcutAcked),
+      onOpen: () => this.openCaptureShortcutSheet(shortcutAcked),
+    });
+  }
+
+  /** The procedure, and the install. Dismissing writes nothing — only a successful open acks. */
+  private openCaptureShortcutSheet(shortcutAcked: string | null): void {
     const installUrl = resolveCaptureShortcutInstallUrl(
       this.plugin.settings.captureShortcutInstallUrl,
     );
-    const urlSet = Boolean(installUrl);
+    new CaptureShortcutSheetModal(this.app, {
+      installLabel: labelCaptureShortcutCta(shortcutAcked),
+      // Companion stays hidden until App Store, so a missing link is a packaging fault rather
+      // than a state the user can fix — say which file, and leave the button dead.
+      disabledNote: installUrl
+        ? undefined
+        : "No link to open. Check the Capture Atom urls in mobile-install.json.",
+      onInstall: () => this.installCaptureShortcut(installUrl),
+    }).open();
+  }
 
-    containerEl.createEl("p", {
-      text: "Write top-level bullets in your daily note: “- thought…”. Today’s note is never auto-processed; use Atoms home → Preview after midnight (or past dailies).",
-      cls: "setting-item-description",
-    });
+  private installCaptureShortcut(installUrl: string): void {
+    if (!openShortcutInstallUrl(installUrl)) {
+      new Notice(
+        "Shortcut link must be an https://www.icloud.com/shortcuts/… URL",
+      );
+      return;
+    }
+    writeShortcutAck(
+      (k, v) => this.app.saveLocalStorage(k, v),
+      CAPTURE_ATOM_VERSION,
+    );
+    new Notice(
+      `Opened Capture Atom v${CAPTURE_ATOM_VERSION}. Add it, then set its bookmark to Atoms Inbox once.`,
+    );
+    this.redisplay();
+  }
 
-    // Companion stays hidden until App Store. Capture Atom shortcut is the path.
-    this.actionRow(containerEl, {
-      action: "shortcut:install",
-      name: "Capture Atom shortcut",
-      desc: urlSet
-        ? `iOS: opens Capture Atom v${CAPTURE_ATOM_VERSION}. After Add Shortcut: Shortcuts → Capture Atom → edit → Append to Bookmark → Atoms Inbox (not Ask Each Time) → Done. Open Obsidian with Atoms once first so that bookmark exists. Acked: ${shortcutAcked ?? "never"}.`
-        : `No link — check mobile-install.json Capture Atom urls.`,
-      label: labelCaptureShortcutCta(shortcutAcked),
-      disabled: !urlSet,
-      onClick: () => {
-        if (!urlSet) {
-          new Notice("No shortcut link to open.");
-          return;
-        }
-        const ok = openShortcutInstallUrl(installUrl);
-        if (!ok) {
-          new Notice(
-            "Shortcut link must be an https://www.icloud.com/shortcuts/… URL",
-          );
-          return;
-        }
-        writeShortcutAck(
-          (k, v) => this.app.saveLocalStorage(k, v),
-          CAPTURE_ATOM_VERSION,
-        );
-        new Notice(
-          `Opened Capture Atom v${CAPTURE_ATOM_VERSION} — add it, then edit → set bookmark to Atoms Inbox once`,
-        );
-        this.redisplay();
-      },
-    });
-
+  /** The forked-recipe escape hatch: your own iCloud link instead of the one Atoms ships. */
+  private renderCustomShortcutRow(containerEl: HTMLElement) {
+    const custom = customCaptureShortcutUrl(
+      this.plugin.settings.captureShortcutInstallUrl,
+    );
     const shortcutUrlRow = new Setting(containerEl)
       .setName("Custom shortcut link")
       .setDesc(
@@ -1852,23 +2737,27 @@ export class AtomsSettingTab extends PluginSettingTab {
     shortcutUrlRow.settingEl.addClass("atoms-capture-shortcut-url");
   }
 
-  private renderApiSection(containerEl: HTMLElement) {
-    settingHeading(containerEl, "Your API key (optional)");
-    containerEl.createEl("p", {
-      text: "Only if you are not using Atoms Plus. Process sends titles, tags, and capture text to Anthropic over TLS. Your notes are never rewritten — only new atom files and markers.",
-      cls: "setting-item-description",
-    });
-
+  /**
+   * The own-key half of the engine choice: the key, and the device-local pair that answers for it.
+   *
+   * Built without a heading or a lead paragraph of its own, because it is no longer a section —
+   * it is the second option inside the engine screen's `Pick one` group, and that group's header
+   * and footer are its explanation. What the retired lead used to disclose ("titles, tags, and
+   * capture text to Anthropic over TLS", "your notes are never rewritten") is not dropped: the
+   * first is the `What gets sent` group below it, and the second is the File group's own footer
+   * on the main screen (R11), which states it for both engines rather than only for this one.
+   */
+  private renderKeyRows(containerEl: HTMLElement) {
     // Still a direct `new Setting(`: the control is a `SecretComponent`, which the row grammar's
     // toggle/text/dropdown union does not carry, and the row needs its own element to report the
     // check into. Both are reasons this one row cannot go through a builder as it stands.
     const setting = new Setting(containerEl)
       .setName("Anthropic API key")
       .setDesc(
-        // The secret-id example lives here rather than in a paragraph below the row: as prose it
-        // sat between this row and the fallback toggle that answers for the same key, splitting
-        // a pair that belongs together. It describes this field, so it belongs to this field.
-        `SecretStorage on this vault + device only (not synced). Switching vaults or clearing app data (e.g. emulator pm clear) drops the key — re-enter once per vault. Secret ids: lowercase alphanumeric with dashes, e.g. ${API_KEY_SECRET_ID_DEFAULT}.`,
+        // What a reader needs at the moment they are choosing an engine: where the key lives, and
+        // the one consequence they will actually hit. The naming rule that used to be here moved
+        // to the group footer above (F4) — it belongs under the pair, not on the who-pays screen.
+        "Kept on this device only, never synced and never in your vault files. A different vault, or a reinstall, asks for it once more.",
       )
       .addComponent((el) =>
         new SecretComponent(this.app, el)
@@ -1887,11 +2776,11 @@ export class AtomsSettingTab extends PluginSettingTab {
     this.checkApiKey();
 
     // Plumbing by tone, a credential path by effect: `getApiKey()` falls back to this key, so
-    // the pair below can enable Anthropic spend on its own — which R5 keeps on the main screen
-    // rather than behind Advanced. The toggle is also the only thing that deletes the key.
+    // the pair below can enable Anthropic spend on its own — which R5 keeps beside the key it
+    // answers for rather than behind Advanced. The toggle also deletes the key, and nothing else does.
     settingRow(containerEl, {
       name: "Device-local key fallback",
-      desc: "Only if SecretStorage fails: non-synced local storage (still never data.json). Turning this off deletes the key stored on this device.",
+      desc: "For devices where Obsidian cannot store the key itself. Keeps it on this device, still never synced and still never in your vault files. Turning this off deletes that copy.",
       control: {
         kind: "toggle",
         configure: (toggle) => {
@@ -1995,24 +2884,32 @@ export class AtomsSettingTab extends PluginSettingTab {
       });
   }
 
-  private renderAutoRunSection(containerEl: HTMLElement) {
-    settingHeading(containerEl, "Automatic filing (this device)");
-    containerEl.createEl("p", {
-      text: "Stored only on this device (not synced via data.json). Default off. Turning it on asks for a one-time acknowledgment — unattended runs send titles + captures to Anthropic.",
-      cls: "setting-item-description",
-    });
-
+  /**
+   * The automatic-filing toggle, wherever it is currently standing.
+   *
+   * One implementation, two homes: the status group holds it once somebody files, the File group
+   * holds it while nobody does. Only the prose differs, so only the prose is a parameter
+   * — a second copy of this handler is a second consent gate to keep in step, and the gate is the
+   * whole reason the row is delicate.
+   */
+  private renderAutomaticFilingRow(
+    containerEl: HTMLElement,
+    row: { name: string; desc: string },
+    rendered?: DeviceAutoRunState,
+  ): void {
     const load = (k: string): unknown => loadLocal(this.app, k);
     const save = (k: string, v: unknown) => this.app.saveLocalStorage(k, v);
-    const state = readDeviceAutoRunState(load);
+    // The status group already read this to write its own prose; taking its copy is what keeps
+    // the switch and the sentence above it answering from the same read.
+    const state = rendered ?? readDeviceAutoRunState(load);
 
     settingRow(containerEl, {
-      name: "File automatically when Obsidian opens",
-      desc: "When enabled: once per calendar day after layout + metadata are ready. Caps work per launch; offline fails silently until next day.",
+      name: row.name,
+      desc: row.desc,
       control: {
         kind: "toggle",
         configure: (toggle) => {
-          toggle.setValue(state.enabled && state.egressAcked).onChange((on) => {
+          toggle.setValue(automaticFilingOn(state)).onChange((on) => {
             // Re-read rather than trusting the render-time `state` above, exactly as the Ask
             // mirror toggle does: this handler can outlive the screen it was built on, and a
             // withdrawal elsewhere would leave it holding an ack that no longer exists.
@@ -2040,66 +2937,37 @@ export class AtomsSettingTab extends PluginSettingTab {
         },
       },
     });
+  }
 
-    // Day one is deliberately silent: enabling stamps the window at today and every pass
-    // excludes today, so the first atoms land tomorrow and a user who watched nothing happen
-    // would otherwise conclude filing is broken. Persistent line rather than a Notice, since
-    // the panel is where that silence gets explained and a toast here is easy to miss.
-    //
-    // It points at the backfill offer on Atoms home, never at Process: that path is unbounded
-    // and unpriced, so naming it beside the toggle offers one tap that can spend a whole
-    // period's filings on years-old notes.
-    containerEl.createEl("p", {
-      text: "Filing starts with tomorrow's note. Older captures stay where they are until you backfill them from Atoms home.",
-      cls: "setting-item-description",
-    });
-
-    // Rendered from the grants themselves rather than from the toggle above it: a consent
-    // recorded against a feature that is currently off is still live, and still revocable.
-    //
-    // Gated on *either* device-local grant, not on the egress stamp alone. Two booleans satisfy
-    // the egress gate — the stamped ack and the catch-up notice — and this row is the only
-    // surface that withdraws either. Keying it to the stamp would mean a device whose ack went
-    // stale (a legacy grant, or any future EGRESS_ACK_VERSION bump) loses this row while its
-    // notice keeps permitting catch-up filing: a grant that still spends, with nothing left on
-    // screen to take it back.
-    const noticeAcked = readEgressNoticeAcked(load);
-    if (state.egressAcked || noticeAcked) {
-      // Say which consent is actually on record. A device carrying only the notice never saw
-      // the unioned disclosure, and this row must not claim on its behalf that it did.
-      //
-      // "earlier" is the upgrade case, where the stale grant named no wording at all. A stamp
-      // that exists but is not ours is the downgrade case — the wording it names is *later*
-      // than this build's, so "earlier" would be its own small lie.
-      const strandedStamp = readEgressAckVersion(load) != null;
-      const record = state.egressAcked
-        ? "Acknowledged on this device"
-        : strandedStamp
-          ? "Acknowledged on this device for Sync everything now, against different wording"
-          : "Acknowledged on this device for Sync everything now, against earlier wording";
-      this.actionRow(containerEl, {
-        action: `ack:review:${EGRESS_ACK_TITLE}`,
-        name: EGRESS_ACK_TITLE,
-        desc: record,
-        label: "Review",
-        onClick: () =>
-          this.presentConsent(
-            egressConsentSpec((verdict) => {
-              if (verdict !== "withdrawn") return;
-              writeEgressAck(save, false);
-              writeAutoRunEnabled(save, false);
-              // Clearing one grant would leave the other still permitting "Sync everything
-              // now" — which the disclosure just above names.
-              clearEgressNoticeAcked(save);
-              this.redisplay();
-            }, `${record}.`),
-          ),
-      });
-    }
-
+  /**
+   * What is left of the old automatic-filing section once the toggle moved into the two groups.
+   *
+   * It is named for what it now holds rather than for what it used to: the resume switch, the
+   * manual run, the consent that permits both, and this device's two run records. The toggle's
+   * own heading and its two paragraphs went with the toggle — a heading over no control is chrome
+   * with nothing under it, and one of those paragraphs was the second copy of the day-one promise
+   * the status group already makes. The rules they carried did not vanish: device scope is on the
+   * toggle's own line in both of its homes, the consent wording is the sheet's (which is frozen),
+   * and the pointer at Atoms home for older captures is in the File group's footer, where it is
+   * true whichever home the toggle has.
+   *
+   * The rows below are still headed rather than grouped because the units that move the records
+   * to Privacy and the diagnostics to Advanced have not landed.
+   */
+  /**
+   * The two sync controls, inside the Advanced screen's `Sync` group.
+   *
+   * Neither description names a pipeline stage any more. `drain → outbox → mirror → filing` is
+   * how the code is built, not a thing a user has vocabulary for, and a settings screen that
+   * teaches its own internals is asking the reader to learn the implementation in order to press
+   * a button. What survives the rewrite is every claim that changes a decision: this is one
+   * device only, the button ignores the usual pause between runs, and filing still stops at the
+   * catch-up notice when Atoms home is showing one.
+   */
+  private renderSyncRows(containerEl: HTMLElement) {
     settingRow(containerEl, {
       name: "Sync when you return to Obsidian",
-      desc: "When you return to Obsidian, drain the inbox, apply the Ask outbox, push the mirror, and file if automatic filing is on. Device-local only. Manual Sync everything now still works when this is off.",
+      desc: "This device only. Coming back to Obsidian picks up whatever is waiting, and files it if automatic filing is on. Sync everything now still works when this is off.",
       control: {
         kind: "toggle",
         configure: (toggle) => {
@@ -2114,42 +2982,31 @@ export class AtomsSettingTab extends PluginSettingTab {
     this.actionRow(containerEl, {
       action: "catchup:sync-everything",
       name: "Sync everything now",
-      desc: "Run drain → outbox → mirror → filing now (ignores resume cooldowns). Filing still needs the catch-up notice on Atoms home when present.",
+      desc: "Do all of it right now, without waiting for the usual pause between runs. Filing still needs the catch-up notice on Atoms home when present.",
       label: "Sync everything now",
       // Returned rather than fire-and-forget: that is what engages `actionRow`'s in-flight
       // guard, and a full sync is long enough that a second tap used to start a second one.
       onClick: () => this.plugin.runSyncEverythingNow(),
     });
-
-    // Both are name-plus-value facts, which is what `statusRow` is for. As paragraphs they read
-    // as prose the user has to parse for the value buried in it.
-    if (state.lastRunDay) {
-      statusRow(containerEl, {
-        name: "Last auto-run day (this device)",
-        value: state.lastRunDay,
-      });
-    }
-    const catchLine = this.plugin.getLastCatchupLine();
-    if (catchLine) {
-      statusRow(containerEl, {
-        name: LAST_CATCHUP_LABEL,
-        // The formatter owns one line for Atoms home, which prints it whole. Splitting it on
-        // the label it single-sources keeps the two surfaces saying the same thing.
-        value: catchLine.slice(LAST_CATCHUP_LABEL.length + 1),
-      });
-    }
   }
 
-  private renderModelSection(containerEl: HTMLElement) {
-    settingHeading(containerEl, "Filing");
-
+  /**
+   * Where atoms land — the one File row whose rule outlives the footer sweep (R19).
+   *
+   * `clampAtomFolder` silently rewrites anything it will not take back to `Atoms`, and there is no
+   * error surface anywhere that reports it. Delete this subtitle and a user who typed
+   * `Notes/Atoms` watches the field snap back with nothing on screen explaining why, so it says
+   * what actually happens rather than the older "are rejected", which described a refusal the
+   * code never performs.
+   */
+  private renderAtomFolderRow(containerEl: HTMLElement) {
     settingRow(containerEl, {
       name: "Atom folder",
-      // This description is the only surface that ever reports the fallback, so it has to name
-      // every rule that triggers one (#501). The dot is the rule nobody would guess: Obsidian
-      // does not index a folder starting with one, so atoms filed there are invisible everywhere
-      // and the markers pointing at them never resolve.
-      desc: "Flat single folder for atom notes (e.g. Atoms). Subfolders, paths with .., names starting with a dot, and names too long to write all fall back to Atoms.",
+      // This description is the only surface that ever reports the fallback, so it names every
+      // rule that triggers one (#501), in this screen's shorter row voice. The dot is the rule
+      // nobody would guess: Obsidian does not index a folder starting with one, so atoms filed
+      // there are invisible everywhere and the markers pointing at them never resolve.
+      desc: "One flat folder. Subfolders, a path with .., a leading dot, or a name too long to write fall back to Atoms.",
       control: {
         kind: "text",
         configure: (text) => {
@@ -2163,10 +3020,18 @@ export class AtomsSettingTab extends PluginSettingTab {
         },
       },
     });
+  }
 
+  /**
+   * The hub-list toggle, and the preview that only exists while it is on.
+   *
+   * The toggle's old description said the list lands at the bottom of a hub note and that the
+   * writing above it is untouched. The group footer says that now, for every row at once, which
+   * is the whole point of the footer: this row is a name and a switch again.
+   */
+  private renderHubListRows(containerEl: HTMLElement) {
     settingRow(containerEl, {
       name: "List atoms on hub notes",
-      desc: "After filing, add a list of linked atoms at the bottom of hub notes (people, Movies, packing lists, and similar). Your writing above the list stays the same. Off by default.",
       control: {
         kind: "toggle",
         configure: (toggle) => {
@@ -2206,7 +3071,7 @@ export class AtomsSettingTab extends PluginSettingTab {
    */
   private renderVocabularyDestination(containerEl: HTMLElement): void {
     containerEl.createEl("p", {
-      text: "Active tags may be applied by the model. #person, #preferences, and #relationship always work (smart defaults). Proposed tags need one-tap approval. People: link to a hub note (e.g. Alex); atoms stay flat — use backlinks, not AI folders.",
+      text: "Active tags may be applied by the model. #person, #preferences, and #relationship always work (smart defaults). Proposed tags need one-tap approval. People: link to a hub note (e.g. Alex); atoms stay flat: use backlinks, not AI folders.",
       cls: "setting-item-description",
     });
 
@@ -2218,7 +3083,7 @@ export class AtomsSettingTab extends PluginSettingTab {
     for (const tag of active) {
       settingRow(containerEl, {
         name: `#${tag}`,
-        desc: "Active — eligible for classification",
+        desc: "Active, eligible for classification",
         control: {
           kind: "toggle",
           configure: (toggle) => {
@@ -2293,7 +3158,7 @@ export class AtomsSettingTab extends PluginSettingTab {
         this.actionRow(containerEl, {
           action: `tags:approve:${tag}`,
           name: `#${tag}`,
-          desc: "From classify runs — not applied until approved",
+          desc: "From classify runs, not applied until approved",
           label: "Approve",
           onClick: async () => {
             const next = approveProposedTag(
@@ -2370,7 +3235,7 @@ export class AtomsSettingTab extends PluginSettingTab {
       this.actionRow(containerEl, {
         action: `tags:activate:${tag}`,
         name: `#${tag}`,
-        desc: `${count} use(s) — tap to promote to Active`,
+        desc: `${count} use(s). Tap to promote to Active`,
         label: "Activate",
         onClick: async () => {
           this.plugin.settings.activeVocabulary = addCustomActiveTag(
@@ -2523,6 +3388,67 @@ export class AtomsSettingTab extends PluginSettingTab {
     });
   }
 
+  /**
+   * The egress consent on record, on the screen that holds records rather than under the
+   * heading that happened to be nearest it.
+   *
+   * Rendered from the grants themselves rather than from the automatic-filing toggle: a consent
+   * recorded against a feature that is currently off is still live, and still revocable.
+   *
+   * Gated on *either* device-local grant, not on the egress stamp alone. Two booleans satisfy
+   * the egress gate — the stamped ack and the catch-up notice — and this row is the only surface
+   * that withdraws either. Keying it to the stamp would mean a device whose ack went stale (a
+   * legacy grant, or any future EGRESS_ACK_VERSION bump) loses this row while its notice keeps
+   * permitting catch-up filing: a grant that still spends, with nothing left on screen to take
+   * it back.
+   *
+   * Its three standing strings are frozen (KTD5) and not touched by the move. One of them names
+   * "Sync everything now" while the record is really about unattended filing, which reads oddly
+   * now that it no longer sits under a heading called Sync — but the words are what a stored ack
+   * version was recorded against, and rewording them without a version bump leaves every existing
+   * device holding a record for text it never saw. The placement was the fixable half.
+   *
+   * Not a `renderAckRecord` caller: that helper dates its record from a stored timestamp, and
+   * this grant is a device-local boolean with no stamp to print.
+   */
+  private renderEgressAckRecord(containerEl: HTMLElement): void {
+    const load = (k: string): unknown => loadLocal(this.app, k);
+    const save = (k: string, v: unknown) => this.app.saveLocalStorage(k, v);
+    const state = readDeviceAutoRunState(load);
+    if (!egressGrantOnRecord(state, load)) return;
+
+    // Say which consent is actually on record. A device carrying only the notice never saw the
+    // unioned disclosure, and this row must not claim on its behalf that it did.
+    //
+    // "earlier" is the upgrade case, where the stale grant named no wording at all. A stamp that
+    // exists but is not ours is the downgrade case — the wording it names is *later* than this
+    // build's, so "earlier" would be its own small lie.
+    const strandedStamp = readEgressAckVersion(load) != null;
+    const record = state.egressAcked
+      ? "Acknowledged on this device"
+      : strandedStamp
+        ? "Acknowledged on this device for Sync everything now, against different wording"
+        : "Acknowledged on this device for Sync everything now, against earlier wording";
+    this.recordRow(containerEl, {
+      action: `ack:review:${EGRESS_ACK_TITLE}`,
+      name: EGRESS_ACK_TITLE,
+      desc: record,
+      label: "Review",
+      onClick: () =>
+        this.presentConsent(
+          egressConsentSpec((verdict) => {
+            if (verdict !== "withdrawn") return;
+            writeEgressAck(save, false);
+            writeAutoRunEnabled(save, false);
+            // Clearing one grant would leave the other still permitting "Sync everything now" —
+            // which the disclosure names.
+            clearEgressNoticeAcked(save);
+            this.redisplay();
+          }, `${record}.`),
+        ),
+    });
+  }
+
   /** The vault-write ack on record. Withdrawing it leaves the mirror exactly as it was. */
   private renderAskWriteAckRecord(containerEl: HTMLElement): void {
     const { askWriteAckAt, askWriteAckVersion } = this.plugin.settings;
@@ -2537,31 +3463,67 @@ export class AtomsSettingTab extends PluginSettingTab {
   }
 
   /**
-   * Ask — remote MCP for Claude / ChatGPT (Plus). No in-plugin chat.
+   * Leg three: the two things Atoms does with what it has filed (R1, R3).
+   *
+   * Home first because it needs nothing, then Ask, which needs a session and two consents. The
+   * order is the mock's and it is also the order of increasing commitment.
    */
-  private renderAskSection(containerEl: HTMLElement) {
-    settingHeading(containerEl, "Ask (Claude + ChatGPT)");
+  private renderResurfaceGroups(containerEl: HTMLElement): void {
+    group(containerEl, {
+      ...HOME_GROUP,
+      render: (groupEl) => {
+        destinationRow(groupEl, {
+          ...HOME_ROW,
+          onOpen: () => {
+            // The modal has to go first: the view opens in the workspace behind it, so a row
+            // that only activated the view would look like it did nothing at all.
+            closeSettings(this.app);
+            void this.plugin.activateAtomsHome();
+          },
+        });
+      },
+    });
+    this.renderAskGroup(containerEl);
+  }
+
+  /**
+   * Ask — remote MCP for Claude / ChatGPT. No in-plugin chat.
+   *
+   * The lead paragraph this replaces is not missed. Its automatic-push half is the `Ask mirror`
+   * row's own subtitle, and its orphan-cleanup half is stated on the `Sync now` row that performs
+   * it, one screen in — R19's escalation rather than a footer sweep deleting a rule. What did go
+   * is the sentence pointing at "Atoms Plus **above**", which named a heading U3 retired, and the
+   * self-host invitation, which R13 keeps on the Advanced screen.
+   */
+  private renderAskGroup(containerEl: HTMLElement): void {
     const session = readPlusSession(this.app);
 
-    containerEl.createEl("p", {
-      text: "Cloud copy of Atoms/ on Plus — for chat search in Claude or ChatGPT. When Obsidian is open online, hand-edits and deletes push automatically. Full orphan cleanup is Sync now. Not a second library you maintain by hand.",
-      cls: "setting-item-description",
-    });
-
     if (!session) {
-      containerEl.createEl("p", {
-        text: "Sign in to Atoms Plus above to use the hosted connector. To run the server yourself, open Advanced and follow the DIY Ask guide.",
-        cls: "setting-item-description",
+      group(containerEl, {
+        header: ASK_GROUP.header,
+        footer: ASK_GROUP.signedOut.footer,
+        // Signing out leaves both acks on record — deliberately, so signing back in does not
+        // re-ask. A consent on record with no way out is not a consent, and the next sign-in may
+        // be a *different* Plus account, so the withdrawal surface outlives the session exactly
+        // as the egress ack's does. It lives on the Privacy screen since U6, which renders under
+        // a union that includes each Ask ack on its own (KTD6) — so signing out moves the way
+        // out rather than removing it.
+        render: (groupEl) => {
+          statusRow(groupEl, { ...ASK_GROUP.signedOut.row });
+        },
       });
-      // Signing out leaves both acks on record — deliberately, so signing back in does not
-      // re-ask. A consent on record with no way out is not a consent, and the next sign-in may
-      // be a *different* Plus account, so the withdrawal surface outlives the session exactly
-      // as the egress ack's does.
-      this.renderAskPrivacyAckRecord(containerEl);
-      this.renderAskWriteAckRecord(containerEl);
       return;
     }
 
+    group(containerEl, {
+      header: ASK_GROUP.header,
+      footer: ASK_GROUP.signedIn.footer,
+      render: (groupEl) => this.renderAskControls(groupEl, session),
+    });
+  }
+
+  /** The switches and the way in to the plumbing, once a session exists to run them. */
+  private renderAskControls(containerEl: HTMLElement, session: PlusSession): void {
     const ack = askPrivacyAckIsCurrent(this.plugin.settings);
     settingRow(containerEl, {
       name: "Ask mirror",
@@ -2609,8 +3571,9 @@ export class AtomsSettingTab extends PluginSettingTab {
       },
     });
 
-    this.renderAskPrivacyAckRecord(containerEl);
-
+    // The two records that used to sit under these switches are on the Privacy screen since U6.
+    // A record beside the switch that granted it competes with the switch for the same glance,
+    // and it is the switch that decides something (R17).
     const writeAck = askWriteAckIsCurrent(this.plugin.settings);
     settingRow(containerEl, {
       name: "Allow filing from Claude or ChatGPT",
@@ -2666,18 +3629,29 @@ export class AtomsSettingTab extends PluginSettingTab {
       },
     });
 
-    this.renderAskWriteAckRecord(containerEl);
-
-    // The plumbing — connector URL, pairing, sync, status, wipe — is one destination now. Its
+    // The plumbing — connector URL, pairing, sync, status — is one destination now. Its
     // entry row carries the mirror's status line, so the main screen still says at a glance
     // whether the cloud copy is current.
     const status = this.mirrorStatusLine(session.email);
     destinationRow(containerEl, {
       name: DESTINATION_TITLES.connect,
-      desc: status.line,
+      // A fragment rather than a string, so a failing mirror reads as failing here and not only
+      // on the screen behind this row. `destinationRow` carries no class hook by design, and a
+      // status that looks identical whether it worked or not is the row saying nothing.
+      desc: statusDesc(status),
       onOpen: () => this.openRoute("connect"),
     });
   }
+}
+
+/** The mirror's status line, marked up so a failure is visible without opening anything. */
+function statusDesc(status: { line: string; failing: boolean }): DocumentFragment {
+  return createFragment((frag) => {
+    frag.createSpan({
+      cls: status.failing ? "atoms-ask-mirror-error" : undefined,
+      text: status.line,
+    });
+  });
 }
 
 /**
@@ -2719,7 +3693,7 @@ export class AskMirrorDeleteConfirmModal extends Modal {
       text: `Cloud count right now: ${this.request.lastKnownServerCount}`,
     });
     contentEl.createEl("p", {
-      text: "Deleting from the cloud cannot be undone — the only way back is re-uploading from this vault. Confirm only if you meant to delete these atoms.",
+      text: "Deleting from the cloud cannot be undone: the only way back is re-uploading from this vault. Confirm only if you meant to delete these atoms.",
       cls: "setting-item-description",
     });
 

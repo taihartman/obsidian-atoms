@@ -158,6 +158,7 @@ import {
   writeContinueParent,
   type ContinueParentPending,
 } from "../platform/continueParent";
+import { openSettingsTab } from "../platform/obsidianSettings";
 import { CAPTURE_ATOM_VERSION } from "../shared/mobileInstall";
 import {
   labelCaptureShortcutCta,
@@ -210,23 +211,6 @@ const LS_ENTITY_INVITE_SNOOZE = "atoms-entity-invite-snooze";
 const LS_PERSON_INVITE_SNOOZE = "atoms-person-invite-snooze";
 
 type FilterMode = "all" | "linked" | "skipped";
-
-/**
- * Undocumented core settings modal — used by many plugins to deep-link.
- * Not on the public App type; keep a narrow local interface (no `any`).
- */
-type SettingsModalApi = {
-  open: () => void | Promise<void>;
-  openTabById: (id: string) => void;
-};
-
-function openPluginSettingsTab(app: object, tabId: string): void {
-  const setting = (app as { setting?: SettingsModalApi }).setting;
-  if (!setting) return;
-  void Promise.resolve(setting.open()).then(() => {
-    setting.openTabById(tabId);
-  });
-}
 
 /**
  * Mobile-first Atoms home: library when clear, wait card when pending,
@@ -2022,7 +2006,7 @@ export class AtomsHomeView extends ItemView {
       attr: { "aria-label": "Settings" },
     });
     gearBtn.addEventListener("click", () => {
-      openPluginSettingsTab(this.app, "atoms");
+      openSettingsTab(this.app, "atoms");
     });
 
     // One calm subtitle per state — no product jargon
@@ -2153,17 +2137,17 @@ export class AtomsHomeView extends ItemView {
           disabled: this.busy,
           onClick: () => {
             if (action === "open_settings" || action === "open_plus") {
-              openPluginSettingsTab(this.app, "atoms");
+              openSettingsTab(this.app, "atoms");
               return;
             }
             if (action === "open_byok_settings") {
-              openPluginSettingsTab(this.app, "atoms");
+              openSettingsTab(this.app, "atoms");
               return;
             }
             // Same destination as Get More: Settings opens on the account row, which now names
             // the ended period and carries Subscribe.
             if (action === "get_more" || action === "subscribe") {
-              openPluginSettingsTab(this.app, "atoms");
+              openSettingsTab(this.app, "atoms");
               return;
             }
             if (action === "dismiss_limit") {
@@ -2313,7 +2297,7 @@ export class AtomsHomeView extends ItemView {
         label: firstDayCopy.primaryLabel,
         onClick: () => {
           if (firstDayCopy.primaryAction === "open_core_plugins") {
-            openPluginSettingsTab(this.app, CORE_PLUGINS_SETTINGS_TAB_ID);
+            openSettingsTab(this.app, CORE_PLUGINS_SETTINGS_TAB_ID);
             return;
           }
           void this.onOpenToday();
