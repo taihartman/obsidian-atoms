@@ -84,6 +84,24 @@ const RESERVED = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i;
 /** Bound model titles for paths + markers (pre-community security). */
 export const TITLE_MAX_LEN = 120;
 
+/**
+ * Bound the atom folder, in **bytes** rather than characters (#501).
+ *
+ * 255 is not a round number picked for comfort, it is the limit every common filesystem enforces
+ * on a single path component, and exceeding it is what made `createFolder` and `create` throw
+ * `ENAMETOOLONG`. The guard is set exactly there on purpose. A tidier ceiling — 64, say — would
+ * also reject names that work today, and this value is read at *load*, so shipping a stricter
+ * rule would silently relocate a working vault's folder on upgrade and strand every atom already
+ * filed in it. Rejecting what the filesystem refuses is a repair; rejecting what merely looks
+ * excessive is a migration nobody asked for.
+ *
+ * Bytes, because a character count is the wrong unit for the limit it stands in for: sixty-four
+ * 4-byte emoji are 256 bytes and would sail through a character check.
+ */
+export const FOLDER_MAX_BYTES = 255;
+
+const byteLength = (s: string): number => new TextEncoder().encode(s).length;
+
 /** C0 controls, DEL, line/paragraph separators — no control-char regex. */
 function hasUnsafeControlChars(s: string): boolean {
   for (let i = 0; i < s.length; i++) {
@@ -108,8 +126,15 @@ function stripUnsafeControlChars(s: string): string {
 }
 
 /**
- * Safe single-segment atom folder. Rejects `..`, absolute paths, multi-segment.
- * Default `Atoms` when invalid/empty.
+ * Safe single-segment atom folder. Rejects `..`, absolute paths, multi-segment, a leading dot,
+ * and anything too long to write. Default `Atoms` when invalid/empty.
+ *
+ * The two guards added for #501 are the ones `sanitizeFilename` has always had for the other half
+ * of the same path, and the folder was the looser of the pair. Both failed silently and in ways a
+ * user could not diagnose: a dot-folder is written successfully and then never indexed by
+ * Obsidian, so the atoms are missing from the explorer, from search and from the graph while the
+ * marker links pointing at them can never resolve; an over-long name makes every write throw
+ * `ENAMETOOLONG`, so filing simply stops producing atoms.
  */
 export function clampAtomFolder(raw: string | null | undefined): string {
   const s = (raw ?? "").trim().replace(/\\/g, "/").replace(/\/+$/, "");
@@ -118,7 +143,8 @@ export function clampAtomFolder(raw: string | null | undefined): string {
   const parts = s.split("/").filter((p) => p.length > 0);
   if (parts.length !== 1) return "Atoms";
   const seg = parts[0]!;
-  if (seg === "." || seg === ".." || seg.includes("..")) return "Atoms";
+  if (seg.startsWith(".") || seg.includes("..")) return "Atoms";
+  if (byteLength(seg) > FOLDER_MAX_BYTES) return "Atoms";
   if (hasUnsafeControlChars(seg)) return "Atoms";
   if (ILLEGAL_FILENAME_CHAR.test(seg)) return "Atoms";
   return seg;

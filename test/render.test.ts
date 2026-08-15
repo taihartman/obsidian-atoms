@@ -11,6 +11,7 @@ import {
   sanitizeFilename,
   stripMarkersAfterCapture,
   formatAtomBody,
+  FOLDER_MAX_BYTES,
   TITLE_MAX_LEN,
 } from "../src/pipeline/render";
 import type { Capture, ClassificationResult } from "../src/shared/types";
@@ -70,6 +71,62 @@ describe("clampAtomFolder (AE3)", () => {
     expect(clampAtomFolder("foo/bar")).toBe("Atoms");
     expect(clampAtomFolder("..")).toBe("Atoms");
     expect(clampAtomFolder("")).toBe("Atoms");
+  });
+
+  /**
+   * #501 H2. A dotfile is not a traversal, so none of the guards above catch it, and Obsidian does
+   * not index one: a file written to `.hidden/` lands on disk and is then absent from
+   * `getAbstractFileByPath`, from `getMarkdownFiles()` and from `metadataCache` — so it is missing
+   * from the explorer, from search and from the graph, and the `↳ [[title]]` marker the pipeline
+   * appends to the daily note can never resolve. `.obsidian` is worse still: it aims atoms at the
+   * config directory.
+   */
+  it("rejects a folder Obsidian will not index", () => {
+    expect(clampAtomFolder(".hidden")).toBe("Atoms");
+    expect(clampAtomFolder(".obsidian")).toBe("Atoms");
+    expect(clampAtomFolder(".")).toBe("Atoms");
+    // A dot inside the name is ordinary and stays allowed.
+    expect(clampAtomFolder("v1.2 Atoms")).toBe("v1.2 Atoms");
+  });
+
+  /**
+   * #501 H3. macOS caps a path component at 255 bytes, so an over-long folder fails every write —
+   * `createFolder` and `create` both throw `ENAMETOOLONG` and Obsidian's own scanner logs it —
+   * while the setting keeps the value and filing silently stops producing atoms.
+   *
+   * The cap is on **bytes**, not characters, because bytes are what the limit is: sixty-four
+   * 4-byte emoji are 256 bytes and would sail through a character count.
+   *
+   * It sits exactly at the filesystem's own limit rather than at a tidier smaller number, because
+   * `applyLoadedSettings` clamps at load: a stricter rule would move a working vault's folder on
+   * upgrade and strand the atoms already in it. A long name is not a broken one.
+   */
+  it("rejects a folder no filesystem will take, and only that", () => {
+    expect(clampAtomFolder("L".repeat(300))).toBe("Atoms");
+    expect(clampAtomFolder("L".repeat(FOLDER_MAX_BYTES + 1))).toBe("Atoms");
+    expect(clampAtomFolder("L".repeat(FOLDER_MAX_BYTES))).toBe(
+      "L".repeat(FOLDER_MAX_BYTES),
+    );
+    // Long, unusual, and entirely writable: a name like this must survive an upgrade.
+    expect(clampAtomFolder("A very long but perfectly legal atom folder name")).toBe(
+      "A very long but perfectly legal atom folder name",
+    );
+    // Counted in bytes: 64 characters, 256 bytes.
+    expect(clampAtomFolder("🧠".repeat(64))).toBe("Atoms");
+    // 32 of the same emoji is 128 bytes and stays legal.
+    expect(clampAtomFolder("🧠".repeat(32))).toBe("🧠".repeat(32));
+  });
+
+  /**
+   * The folder half of a path must not be looser than the filename half. `sanitizeFilename`
+   * already strips leading dots and caps length; every rule tested above is the folder catching up
+   * with rules the filename beside it has always had.
+   */
+  it("holds atom folders to the rules atom filenames already keep", () => {
+    expect(sanitizeFilename(".hidden").filename).not.toMatch(/^\./);
+    expect(sanitizeFilename("L".repeat(300)).filename.length).toBeLessThanOrEqual(
+      TITLE_MAX_LEN,
+    );
   });
 });
 

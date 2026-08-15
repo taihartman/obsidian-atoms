@@ -2145,7 +2145,11 @@ export class AtomsSettingTab extends PluginSettingTab {
 
     settingRow(containerEl, {
       name: "Atom folder",
-      desc: "Flat single folder for atom notes (e.g. Atoms). Paths with .. or subfolders are rejected.",
+      // This description is the only surface that ever reports the fallback, so it has to name
+      // every rule that triggers one (#501). The dot is the rule nobody would guess: Obsidian
+      // does not index a folder starting with one, so atoms filed there are invisible everywhere
+      // and the markers pointing at them never resolve.
+      desc: "Flat single folder for atom notes (e.g. Atoms). Subfolders, paths with .., names starting with a dot, and names too long to write all fall back to Atoms.",
       control: {
         kind: "text",
         configure: (text) => {
