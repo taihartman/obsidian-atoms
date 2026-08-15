@@ -4,109 +4,151 @@ branch: claude/plus-session-issuer
 worktree: /Users/a515138832/StudioProjects/obsidian_plugin/.claude/worktrees/mystifying-hellman-4e183c
 base: master
 tracking: https://github.com/taihartman/obsidian-atoms/issues/508
+pr: https://github.com/taihartman/obsidian-atoms/pull/526
 status: in-progress
+units_done: U1, U2
+units_left: U3, U4, U5, U6, U7
 ---
 
-# Handoff — #508: a cleared Plus service URL sends a self-host session token and capture text to production
+# Handoff — #508: a Plus session records the base that issued it
 
-You are picking up this work in a fresh session. Read this file top to bottom, run the **How to resume** commands to land on the right branch and worktree, then **start executing Next steps immediately** — step 1 is your current task. Do not ask the user what to work on and do not summarize this doc back to them; just begin, and report what you did. Everything you need is below.
+Read this file top to bottom, run **How to resume**, then start at **Next steps**. Do not re-plan
+what the plan already decided and do not ask the user what to work on. The blocking decision that
+opened this work is **answered**; nothing is waiting on a human.
 
-## Goal
+## Where this stands
 
-Close [#508](https://github.com/taihartman/obsidian-atoms/issues/508). Today, a user signed in to their **own** Plus server who clears the `Plus service URL` field silently starts sending their session token **and their verbatim capture text** to `plus.tryatoms.app`. Self-hosting exists precisely so note text never reaches the hosted service, so this reverses the one promise that feature makes, with no warning and no visible failure.
+The design is settled, the plan has been through a four-lens doc-review against the real code, and
+**U1 and U2 are implemented, verified and pushed**. Five units remain, and U3 is the substantial one.
 
-## Current status
+**The plan is the authority: [`docs/plans/2026-08-15-001-fix-plus-session-issuer-plan.md`](../plans/2026-08-15-001-fix-plus-session-issuer-plan.md).**
+Read it in full before writing code. It carries four KTDs, the six gated call sites, the copy, the
+risks, and the open questions. This handoff does not restate it.
 
-Nothing is implemented yet. This branch is a clean cut of `master` carrying only this doc. What exists is a proven bug, a converged design, and one decision you need from the user.
+## The bug, in one paragraph
 
-**The bug is proven, not theorised.** From the #500 adversarial pass, using a `window.fetch` recorder that blocked real egress so "no call" and "call to the wrong host" were distinguishable:
+A user signed in to their own Plus server who clears `Plus service URL` silently starts sending their
+session token **and their verbatim capture text** to `plus.tryatoms.app`. Empty has always resolved
+to the hosted default. #500 guarded *invalid* base URLs and deliberately refused to fall back; that
+covered every input class except the one that is not invalid at all: **absent**. Proven live in the
+#500 adversarial pass with a fetch recorder that blocked real egress.
 
-```
-{"url":"https://plus.tryatoms.app/v1/me","auth":"Bearer qa-token"}
-{"url":"https://plus.tryatoms.app/v1/classify","auth":"Bearer qa-token",
- "body":"{\"capture\":\"unmarked observation 110 that should still process\",…"}
-```
+## What is done
 
-Five classify calls carried capture bodies plus the vault title list. On screen the user saw only `Couldn't reach Atoms Plus — check your connection and try again.` Screenshots: `docs/qa/screenshots/500-plus-base-url-guard/adversarial-B1-selfhost-token-to-production.png` and `adversarial-B1-cleared-field-no-warning.png`.
+| Unit | Commit | What landed |
+|---|---|---|
+| U1 | `4513adb` | `issuedBase` (immutable, branded) + `verifiedBase` (mutable) on `PlusSession`; both added to all **three** allowlists between disk and the gate; `normalizePlusBase` / `plusBaseMatches` / `issuedBaseFromResponse` in `plusClient.ts` |
+| U2 | `7105839` | `installPlusSession(host, session, issuedBase)` with the third arg required; brand minted inside the helpers that made the successful request; magic-link port and `AtomsPlugin` wrapper widened end to end; all four acquisition paths stamp |
 
-**Cause.** ~20 call sites across 5 files resolve the base as `settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL`. Empty has always meant production. #500 added a guard that refuses *invalid* values and deliberately does **not** fall back to the hosted default — its own comment says a self-host token does not belong at `plus.tryatoms.app`. That reasoning covers every input class except the one that is not invalid at all: **absent**. Clearing a field is also a far likelier user action than typing something malformed.
+Both are behaviour-neutral. **Nothing gates yet.** `npm run build && npm test && npm run lint` was
+green at each commit (1963 tests at U2).
 
-**What already shipped** (all merged, do not redo):
-- #500 / PR #502 — the scheme guard itself (`isAllowedPlusBaseUrl`), on four egress paths.
-- #505 / PR #513 — the field commits on blur, not per keystroke (`0.8.0-beta.5`).
-- #504 / PR #520 — service-returned billing URLs are scheme-checked before `window.open` (`0.8.0-beta.6`).
-- `src/platform/plusClient.ts` already carries a comment stating this gap honestly and pointing at #508. `docs/ask-self-host.md` carries a user-facing warning. **Both must be removed or rewritten when you land the fix** — leaving them would make the docs lie in the other direction.
+Each unit was verified by neutering its guard and watching tests go red, then restoring. Do the same
+for every unit you write — it is U7 and it is not optional. Two #500 tests passed against a broken
+guard until someone checked.
 
 ## Next steps
 
-1. **Get the blocking decision from the user first — this is step 1 and everything else depends on it.** See **Open questions** below. Ask it plainly, with the two options and their costs. Do not pick one yourself; it changes what every existing installed device does on upgrade.
-2. **Hard claim before any code**, per `docs/collab.md`: the Issue (#508) already exists and is assigned — add a `STATUS.md` row and open a **draft** PR, then implement. `STATUS.md` on master currently reads `_Nothing in flight._`.
-3. **Write a plan under `docs/plans/`** and run at least a light `ce-doc-review` on it before implementing. This is a security/auth surface, so per `CLAUDE.md`'s lane rules it is the **full lane**, not an amend — do not shortcut it because the diff looks small.
-4. Implement the two halves described in **Decisions & constraints**: record the issuing base on the session, then gate content-bearing egress behind a content-free re-verification when the base changes.
-5. Ship the tail: `ce-simplify-code` → `ce-code-review` → `ce-compound` → `world-class-qa` (which ends in `adversarial-qa`). The QA notes below will save you real time.
+1. **U3 — the verification module.** `src/platform/plusBaseVerify.ts`. This is the largest unit and
+   the one the rest hang off. Read the plan's U3 section carefully; the accept condition is not what
+   the original design said (see **Corrections** below).
+2. **U4 — gate classify.** `resolveClassifyAuth` plus the `classify.ts:761` egress backstop. The plan
+   lists the three signature facts that will otherwise stall you: `resolveClassifyAuth` is
+   synchronous today and has no request fn or storage, the ripple set is `requireClassifyAuth` and
+   its five call sites, and `ClassifyDeps.plus` needs a new field for the backstop to compare.
+3. **U5 — gate mirror push**, including the backstop inside `askMirrorUpsert` / `Delete` / `Reconcile`.
+4. **U6 — docs stop hedging.** The #508 comment at `plusClient.ts:259-268` and the warning in
+   `docs/ask-self-host.md` both currently describe this as an open gap. Rewrite both or the docs lie
+   in the other direction. Bump `manifest.json` + `package.json` + `versions.json` to `0.8.0-beta.7`.
+5. **U7 — both checks**, not just neutering: also the source-enumeration test that re-derives the
+   sender inventory, because neutering cannot catch a sender nobody listed.
+6. **Shipping tail:** `ce-simplify-code` → `ce-code-review` → `ce-compound` → `world-class-qa`
+   (ending in `adversarial-qa`). Then the PR body per `CLAUDE.md`, with real Test plan checkboxes and
+   vault screenshots.
 
-## Key files
+## Corrections the doc-review made to the original design
 
-- `src/platform/filingAuth.ts:18` — `PlusSession` type. This is where the issuing-base field goes. Note it has no such field today, which is the whole problem.
-- `src/platform/plusSessionInstall.ts:24` — `installPlusSession`, the **single install boundary** (built for #320/#372). Sessions from magic link, paste, and trial all funnel here. This is the natural stamp point.
-- `src/platform/plusRefresh.ts:120` — a second `writePlusSession` caller. Do not miss it; a refresh must not blank the issuer.
-- `src/platform/plusClient.ts` — `isAllowedPlusBaseUrl`, `PLUS_BASE_URL_INVALID_MESSAGE`, `plusRequest` (the guard choke point), and the honest-gap comment that must be updated when this lands.
-- `src/platform/classifyAuth.ts` — `resolveClassifyAuth`, which resolves and snapshots the base once per run.
-- `src/pipeline/classify.ts` — the one Plus path that builds its own request and carries the **capture body**. The highest-value thing to gate.
-- `src/settings/settings.ts` — 14 of the ~20 base resolutions live here, plus `savePastedSession`, which builds its own `requestUrl` call.
-- `docs/solutions/security/a-guard-needs-two-inventories-send-sites-and-input-classes.md` — the learning from #500. Read it; it is about this exact failure mode and will stop you repeating it.
-- `docs/solutions/security/consent-gate-must-be-checked-at-egress-not-at-entry.md` — prior art on gate placement in this repo.
+**Do not revert to the handoff-era shape. These were changed for reasons, with evidence.**
 
-## Decisions & constraints
+- **A bare 2xx is not proof of issuance.** The original design said stamp the base that returns 2xx.
+  But 2xx proves a server is *willing to accept* a token, not that it minted one — a host that
+  accepts everything passes trivially, becomes the permanent stamped issuer, and capture text then
+  flows there unchecked. **Re-stamp only when the returned entitlement email matches
+  `session.email`.** Found independently by the security and adversarial lenses. Route the probe
+  through the existing `getEntitlement`, not a hand-rolled request, so it inherits `plusRequest`'s
+  #500 guard and error mapping; map results the way `plusRefresh.ts:100-104` already does.
+- **KTD1 is decided: an absent stamp means *unknown*, never *production*.** With a carve-out that is
+  load-bearing: unknown stamp **plus an empty field** must **not** auto-probe, because an empty field
+  already resolves to the hosted default, so probing would send a self-hoster's token to production
+  on first run — the exact user this protects. Surface it as a Settings state, not a dialog.
+- **The carve-out is bounded to the upgrade cohort.** `plusBaseUrl` ships as `""`
+  (`shared/types.ts:225`), so empty is the *normal* state for every hosted user. An earlier framing
+  would have made empty mean "not connected" generally; that would strand nearly the whole install
+  base. From U2 onward a hosted session is stamped at sign-in and its empty field matches its stamp
+  forever, so the field never needs to mean anything.
+- **Two fields, not one.** A single mutable stamp erases its own evidence: after one tunnel rotation
+  nothing on disk records that the session began at a private host.
+- **The inventory is six sites, not four.** The outbox ack (which sends `plan.reason`, free text, not
+  just id and status) and the Connect destination (which publishes an origin for Claude or ChatGPT to
+  OAuth against, then sends the token there). Sorting the Connect screen as "content-free" was the
+  wrong axis, and that is precisely the #500 learning.
+- **This closes the capture-text half of #508, not the token half.** The 17 content-free calls still
+  send the token to whatever base resolves, and the `/v1/me` probe deliberately does too — a check
+  cannot gate itself. Say so; do not let the issue read as "the token no longer leaks".
 
-**Do not relitigate these. They were settled this session with reasons.**
+## Traps that already bit, or will
 
-- **The design is two halves.** (a) `PlusSession` records the base that issued it, stamped at `installPlusSession`. (b) When the resolved base differs from the session's issuer, mark the session *unverified at this base* and block **content-bearing** calls (classify, mirror push) until a **content-free** `/v1/me` confirms it. `/v1/me` sends the bare token and nothing else, so the worst case is a token to a host the user configured, never note text.
-- **Stamp on first successful call, not at migration.** A 2xx from a base with that token is proof that base accepts it. Stamping at migration time from whatever base happens to be configured is a *guess*, and it is wrong precisely for the user who already cleared the field — you would stamp "production" onto a self-host token and bless the exact state you are trying to catch.
-- **REJECTED: dropping the session whenever the base changes.** `docs/ask-self-host.md` tells self-hosters to run `cloudflared tunnel --url`, and quick tunnels mint a **fresh random subdomain on every start**. Same server, different URL, routinely. That design would sign out exactly the people the guard protects, on every rotation. Do not resurrect it.
-- **REJECTED: a confirm dialog on clear.** It cannot tell a self-host session from a production one, so it would interrupt users for whom clearing is harmless — and it cannot reach a base arriving from Obsidian Sync rather than from someone typing. The dialog would be standing in for information the plugin should just have, which is what (a) fixes.
-- **`https` on any host stays allowed.** That is deliberate — self-hosters need arbitrary HTTPS. This work does not narrow it.
-- **Watch the Sync coupling.** `plusBaseUrl` is synced (it is in `data.json`); session state is device-local. So any rule keyed on "the base changed" also fires on **remote** changes via `onExternalSettingsChange` (`src/plugin/main.ts`, ~line 2267). Note its generation-mismatch branch returns early after `adoptExternalWithdrawal` and never reaches the normal apply path — do not hang security behaviour off that hook without accounting for it. Related open issue: [#394](https://github.com/taihartman/obsidian-atoms/issues/394).
-- **Repo conventions that will bite you:** no em dashes in product-authored copy (`test/copyVoice.test.ts` enforces it plugin-wide over string/template/regex literals; comments are exempt) — this failed CI on me once. Bump `manifest.json` + `package.json` + `versions.json` together; master is on the `0.8.0-beta.N` line, so use the next beta. Never log tokens, headers or bodies.
-- **Test at the level that proves nothing left the device.** `expect(request).not.toHaveBeenCalled()` is the assertion; a returned error object only proves a branch was chosen. Then neuter each guard and confirm the test fails — two #500 tests passed against a broken guard until that was checked.
+- **There are three allowlists between disk and the gate, and U3/U4 may create a fourth.**
+  `parsePlusSession`, `serializePlusSession`, and the `FilingAuth` plus variant that
+  `resolveFilingAuth` fills field by field. `resolveClassifyAuth` never sees a `PlusSession`, only
+  that projection. If U3 threads the stamp through `ClassifyAuthOk` into `ClassifyDeps.plus`, that
+  return literal is a fourth with the same silent-drop hazard. Give it the same round-trip assertion.
+- **`tsconfig.test.json` typechecks only a named list of test files.** A `@ts-expect-error` in an
+  unlisted file is inert and a drifted stub signature is caught by nobody. `test/plusSignIn.test.ts`
+  and `test/plusSignInAccountRefresh.test.ts` are **not** on the list; U2 had to fix their stubs by
+  hand. Add any file carrying a compile-time assertion in the same unit that writes it.
+- **`main.ts`'s `onRemaining` closure had zero test coverage before U1.** It is one of two paths that
+  write a session directly. U1 added coverage; do not let it regress.
+- **No em dashes in any string, template, or regex literal under `src/**`.** `test/copyVoice.test.ts`
+  enforces it plugin-wide and fails CI. Comments are exempt.
+- **Test at the level that proves nothing left the device.** `expect(request).not.toHaveBeenCalled()`
+  is the assertion. A returned error object only proves a branch was chosen.
+- **The throwaway QA vault is shared.** A peer session's `install-to-vault.sh` can replace your build
+  mid-pass. `install-to-vault.sh` now takes a worktree lock (exit 3 if held), but still assert build
+  identity by grepping the installed `main.js` for a string your branch introduced, before and after
+  every capture batch.
+- **An unfocused Obsidian window fires no `focus`/`blur` events at all.** Chromium suppresses them
+  when `document.hasFocus()` is false, which it is whenever the CLI drives. Attach CDP and
+  `Emulation.setFocusEmulationEnabled`. Full detail in `docs/qa/learnings.md`.
+- **Reading `plus.sqlite` or service logs to complete a magic link is credential extraction.** Do not.
 
-## Open questions / blockers
+## Open questions (none blocking)
 
-**BLOCKING — ask the user before writing code.** Existing sessions on real devices carry no issuing base. What does `undefined` mean?
+Recorded in the plan's Open questions section. Summarised:
 
-- **Treat unknown as production.** Nobody is signed out; compatible. But it leaves the hole open for exactly the self-hosters this protects, until they happen to re-sign-in.
-- **Treat unknown as a mismatch.** Closes it completely, but signs every existing user out once, on upgrade.
-
-There may be a third path worth putting to them: treat unknown as *unverified* rather than as either — no sign-out, but content-bearing calls wait for one `/v1/me` before the first classify. That gets compatibility and safety at the cost of one extra round trip on first use after upgrade. It is untested reasoning, not a settled decision.
-
-**Also unresolved, lower stakes:** `savePastedSession` (`src/settings/settings.ts`) has the identical `|| DEFAULT_PLUS_BASE_URL` shape and very likely sends a pasted self-host token to production too. It was **never executed** during the #500 pass — that path uses `requestUrl`, outside the fetch recorder, so proving it meant sending a token to real production. Treat as very likely, not proven.
+- Should the *resolver* stop falling back, rather than six consumers being gated? Deferred with
+  reasons, not rejected. Worth its own issue.
+- Should a hosted session verify silently onto a self-host base, or does that direction need a
+  gesture?
+- What identity field does `/v1/me` actually return, and is it stable enough for the email-match
+  predicate? **Confirm this against the service before implementing U3** — the accept condition
+  depends on it.
+- Should the outbox-ack refusal surface anything, or stay silent like the existing `return idle`?
 
 ## Git state
 
-- Branch `claude/plus-session-issuer` (base `master`), pushed to `origin`.
-- Cut clean from `master` at `36aea09` — no code changes, this doc only.
-- Last real commit on base: `36aea09 Merge pull request #521 from taihartman/chore/status-clear-504-505`
-- Snapshot commit: `0a0eaa5` — `wip: handoff snapshot — plus-session-issuer`
-- Diff since base: 1 file, this document.
-
-## QA notes that will save you an hour
-
-From the #500 and #505 live drives. All of this is in `docs/qa/learnings.md` — read that file before driving anything, but these are the ones that bite hardest here:
-
-- **An unfocused Obsidian window fires no `focus`/`blur` events at all.** Chromium suppresses them when `document.hasFocus()` is false, which it is whenever the CLI drives while another app is frontmost. A blur-triggered feature silently never runs while `document.activeElement` moves normally, so it reads as a product bug. Fix: attach CDP and `Emulation.setFocusEmulationEnabled`. That also unlocks real keystrokes and clicks.
-- **The throwaway vault is shared and unlocked.** A peer session's `install-to-vault.sh` can replace your build mid-pass. Assert build identity by grepping the installed `main.js` for a string your branch introduced, before **and after** every capture batch.
-- The Plus session fixture is catalogued in `docs/qa/testing-fixtures.md` — reuse it, do not mint another.
-- Reading `plus.sqlite` or service logs to complete a magic link is credential extraction. Do not.
+- Branch `claude/plus-session-issuer`, base `master` at `f544110`.
+- Draft PR [#526](https://github.com/taihartman/obsidian-atoms/pull/526), `Closes #508`.
+- `STATUS.md` row is claimed and current.
+- Head `7105839`. Working tree clean, everything pushed.
+- Version still `0.8.0-beta.6`; the bump is U6.
 
 ## How to resume
-
-Check out the work exactly here — this is your branch and worktree:
 
 ```bash
 cd /Users/a515138832/StudioProjects/obsidian_plugin/.claude/worktrees/mystifying-hellman-4e183c
 git fetch origin && git switch claude/plus-session-issuer && git pull --ff-only
-npm install
 npm run build && npm test && npm run lint
 ```
 
-Then continue from **Next steps** above — starting with the blocking question in **Open questions**.
+Then read the plan and start at **Next steps** above.
