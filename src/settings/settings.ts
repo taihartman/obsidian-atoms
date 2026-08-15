@@ -831,6 +831,19 @@ export class AtomsSettingTab extends PluginSettingTab {
    */
   private apiKeyStatusEl: HTMLElement | null = null;
   /**
+   * #505. What the user has typed into `Plus service URL` but not yet committed. Null means the
+   * field and the setting agree, so there is nothing owed.
+   *
+   * A field rather than a closure variable because `hide()` has to be able to flush it, and
+   * `hide()` cannot see inside the render callback that built the row.
+   */
+  private plusBaseUrlDraft: string | null = null;
+  /**
+   * Flushes that draft. Set by the Self-host group when it renders, so it is null on every
+   * screen that does not carry the row — `hide()` from the main list has nothing to commit.
+   */
+  private commitPlusBaseUrlDraft: (() => void) | null = null;
+  /**
    * What is running right now, by action rather than by button. Lives on the tab because every
    * button is minted fresh by `display()`: a guard held on the component dies at the next
    * `redisplay()` or `openRoute()`, which is one impatient tap-back-and-in away.
@@ -921,6 +934,10 @@ export class AtomsSettingTab extends PluginSettingTab {
     // re-render nobody will look at; `display()` clears it.
     this.hiding = true;
     this.settleOpenSheet();
+    // #505. Leaving the screen ends the edit, exactly as blurring the field does. Without this,
+    // walking out of Advanced with a half-typed URL would discard it — the row is rebuilt from
+    // settings on the way back, so the draft has nowhere to survive.
+    this.commitPlusBaseUrlDraft?.();
     this.route = route;
     this.display();
     const scroller = this.settingsScrollEl();
@@ -947,6 +964,12 @@ export class AtomsSettingTab extends PluginSettingTab {
    */
   hide(): void {
     this.hiding = true;
+    // #505. Closing Settings mid-edit commits what was typed rather than dropping it. Blur does
+    // not reliably fire when the modal goes away, and silently losing a typed URL would be a
+    // worse bug than the mid-word window commit-on-blur exists to close.
+    this.commitPlusBaseUrlDraft?.();
+    this.commitPlusBaseUrlDraft = null;
+    this.plusBaseUrlDraft = null;
     this.route = "main";
     // A new visit re-asks whether the key works. Without this, a user who saved a key offline
     // would see that verdict forever — the row's only other trigger is saving the key again.
@@ -1433,27 +1456,37 @@ export class AtomsSettingTab extends PluginSettingTab {
               text
                 .setPlaceholder(DEFAULT_PLUS_BASE_URL)
                 .setValue(this.plugin.settings.plusBaseUrl)
-                .onChange((value) => {
-                  this.plugin.settings.plusBaseUrl = value.trim();
-                  void this.plugin.saveSettings();
-                  syncPlusBaseUrlError();
+                // #505. Deliberately no `onChange` commit. Every keystroke used to
+                // write and save, so typing `https://my-tunnel.example` also made
+                // `https://m` and `https://my` live — each a valid https URL that
+                // #500's guard accepts, replicated to other devices by Sync, and
+                // able to receive the session token from any call landing mid-word.
+                // The draft lives in the input until the user is done with it.
+                .onChange(() => {
+                  this.plusBaseUrlDraft = text.inputEl.value;
                 });
+              // Blur is the ordinary end of an edit; Enter is the one users expect
+              // to mean "done" without moving the focus themselves.
+              text.inputEl.addEventListener("blur", () => {
+                commitPlusBaseUrl(text.inputEl.value);
+              });
+              text.inputEl.addEventListener("keydown", (evt: KeyboardEvent) => {
+                if (evt.key !== "Enter") return;
+                evt.preventDefault();
+                commitPlusBaseUrl(text.inputEl.value);
+              });
             },
           },
         });
 
-        // #500. The row still saves whatever is typed: it persists on every keystroke, so
-        // `https://…` passes through `h`, `ht`, `htt`, and refusing the save would fight the
-        // user mid-word. The guards in `plusRequest`, `resolveClassifyAuth` and
-        // `savePastedSession` are what keep the session token off an unvetted host; this line
-        // only explains why Plus went quiet, so a rejected override does not read as a dead
-        // plugin.
+        // #500. A rejected value still saves — refusing the save would fight the user, and the
+        // guards in `plusRequest`, `resolveClassifyAuth`, `classifyCapture` and
+        // `savePastedSession` are what actually keep the session token off an unvetted host.
+        // This line only explains why Plus went quiet, so a rejected override does not read as
+        // a dead plugin.
         //
         // Under the row rather than inside it: `settingRow` returns void on purpose, so the row
-        // keeps one grammar and no control grows an error mode. The handler above closes over
-        // `syncPlusBaseUrlError` before it is initialized, which holds because `onChange` is a
-        // DOM input listener and cannot fire during `display()` — the three tests in
-        // settings.test.ts pin that.
+        // keeps one grammar and no control grows an error mode.
         const plusBaseUrlErrorEl = groupEl.createDiv({
           cls: "atoms-setting-error",
         });
@@ -1469,6 +1502,26 @@ export class AtomsSettingTab extends PluginSettingTab {
           );
         };
         syncPlusBaseUrlError();
+
+        // #505. The one place a typed value becomes live. Validating here rather than per
+        // keystroke also ends the mid-word flicker: `h`, `ht` and `htt` are all refused on the
+        // way to `https://…`, and the old handler rendered the error for each of them.
+        //
+        // `hide()` calls this through `commitPlusBaseUrlDraft` so closing Settings mid-edit
+        // commits instead of discarding — losing what someone typed would be a worse bug than
+        // the window this closes.
+        const commitPlusBaseUrl = (value: string): void => {
+          this.plusBaseUrlDraft = null;
+          const next = value.trim();
+          if (next === this.plugin.settings.plusBaseUrl) return;
+          this.plugin.settings.plusBaseUrl = next;
+          void this.plugin.saveSettings();
+          syncPlusBaseUrlError();
+        };
+        this.commitPlusBaseUrlDraft = () => {
+          if (this.plusBaseUrlDraft === null) return;
+          commitPlusBaseUrl(this.plusBaseUrlDraft);
+        };
 
         this.actionRow(groupEl, {
           action: "ask:open-self-host-guide",
