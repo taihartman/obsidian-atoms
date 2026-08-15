@@ -262,6 +262,31 @@ export function fill(tab: AtomsSettingTab, name: string, value: string): void {
   input.dispatchEvent(new Event("input"));
 }
 
+/**
+ * End an edit on the named row the way a user does — by leaving the field.
+ *
+ * Separate from `fill` on purpose. Most rows commit on input, so blurring them is inert and
+ * folding it into `fill` would say nothing; `Plus service URL` commits on blur (#505), so a test
+ * that wants the typed value to become live has to say so. Keeping the two verbs apart is what
+ * lets a test assert the *gap* between them — that typing alone changes nothing.
+ */
+export function blurRow(tab: AtomsSettingTab, name: string): void {
+  const input = row(tab, name).querySelector("input");
+  if (!input) throw new Error(`row ${name} has no input`);
+  input.dispatchEvent(new Event("blur"));
+}
+
+/** Press a key on the named row's input, for the rows where a key means something. */
+export function pressKey(
+  tab: AtomsSettingTab,
+  name: string,
+  key: string,
+): void {
+  const input = row(tab, name).querySelector("input");
+  if (!input) throw new Error(`row ${name} has no input`);
+  input.dispatchEvent(new KeyboardEvent("keydown", { key, cancelable: true }));
+}
+
 /** Flip the named row's switch. */
 export function flip(tab: AtomsSettingTab, name: string): void {
   const toggle = row(tab, name).querySelector(".checkbox-container");

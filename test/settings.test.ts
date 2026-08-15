@@ -61,6 +61,8 @@ import {
   sheetOpen,
   sheetText,
   fill,
+  blurRow,
+  pressKey,
   type SettingTabOptions,
 } from "./helpers/settingsTab";
 import {
@@ -2736,6 +2738,7 @@ describe("Advanced destination (U7, R4)", () => {
     const before = gateState(tab, local);
 
     fill(tab, "Plus service URL", "http://127.0.0.1:8787");
+    blurRow(tab, "Plus service URL");
     await flush();
 
     // The override redirects where egress goes; it cannot turn egress on.
@@ -2758,13 +2761,14 @@ describe("Advanced destination (U7, R4)", () => {
       );
     });
 
-    it("appears when a bad value is typed and clears when it is fixed", async () => {
+    it("appears when a bad value is committed and clears when it is fixed", async () => {
       const { tab } = advanced();
       expect(tab.containerEl.textContent).not.toContain(
         PLUS_BASE_URL_INVALID_MESSAGE,
       );
 
       fill(tab, "Plus service URL", "http://evil.example");
+      blurRow(tab, "Plus service URL");
       await flush();
       expect(tab.containerEl.textContent).toContain(
         PLUS_BASE_URL_INVALID_MESSAGE,
@@ -2773,10 +2777,75 @@ describe("Advanced destination (U7, R4)", () => {
       expect(tab.plugin.settings.plusBaseUrl).toBe("http://evil.example");
 
       fill(tab, "Plus service URL", "https://my.example");
+      blurRow(tab, "Plus service URL");
       await flush();
       expect(tab.containerEl.textContent).not.toContain(
         PLUS_BASE_URL_INVALID_MESSAGE,
       );
+    });
+
+    /**
+     * #505. The row used to write and save on every keystroke, so typing
+     * `https://my-tunnel.example` made `https://m` and `https://my` live on the way —
+     * each a valid https URL that #500's guard accepts, replicated by Obsidian Sync,
+     * and able to receive the session token from any Plus call landing mid-word.
+     *
+     * These four pin the whole commit contract: typing alone changes nothing, and each
+     * of the three ways an edit can end commits it.
+     */
+    describe("a half-typed URL never goes live (#505)", () => {
+      it("typing alone writes nothing and says nothing", async () => {
+        const { tab } = advanced();
+
+        // The dangerous prefixes are the ones the guard *accepts*: a single-label host
+        // a search domain can expand into something that resolves.
+        for (const partial of ["h", "ht", "https://m", "https://my-tunnel"]) {
+          fill(tab, "Plus service URL", partial);
+          await flush();
+          expect(tab.plugin.settings.plusBaseUrl, partial).toBe("");
+        }
+        // No error either — an unfinished value is not a rejected one.
+        expect(tab.containerEl.textContent).not.toContain(
+          PLUS_BASE_URL_INVALID_MESSAGE,
+        );
+      });
+
+      it("blur commits", async () => {
+        const { tab } = advanced();
+
+        fill(tab, "Plus service URL", "https://my-tunnel.example");
+        blurRow(tab, "Plus service URL");
+        await flush();
+
+        expect(tab.plugin.settings.plusBaseUrl).toBe(
+          "https://my-tunnel.example",
+        );
+      });
+
+      it("Enter commits without moving focus", async () => {
+        const { tab } = advanced();
+
+        fill(tab, "Plus service URL", "https://my-tunnel.example");
+        pressKey(tab, "Plus service URL", "Enter");
+        await flush();
+
+        expect(tab.plugin.settings.plusBaseUrl).toBe(
+          "https://my-tunnel.example",
+        );
+      });
+
+      it("closing Settings mid-edit commits rather than discarding", async () => {
+        const { tab } = advanced();
+
+        fill(tab, "Plus service URL", "https://my-tunnel.example");
+        // No blur: the modal going away is the only signal.
+        tab.hide();
+        await flush();
+
+        expect(tab.plugin.settings.plusBaseUrl).toBe(
+          "https://my-tunnel.example",
+        );
+      });
     });
 
     it("stays quiet for an empty field, which means the hosted service", async () => {

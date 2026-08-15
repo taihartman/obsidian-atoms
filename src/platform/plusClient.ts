@@ -781,6 +781,33 @@ export async function classifyViaProxy(
   };
 }
 
+/** Shown when the service answers a billing call with a URL we refuse to open (#504). */
+export const PLUS_UNOPENABLE_URL_MESSAGE =
+  "Atoms Plus replied with a link this device will not open. Nothing was charged. Try again, or open the billing page from your account email.";
+
+/**
+ * A URL the plugin is willing to hand to `window.open`, or `""` (#504).
+ *
+ * `createCheckout` and `createBillingPortal` return a string the *service* chose, and five call
+ * sites open it. #500 narrowed which hosts can answer, but `https` on any host stays allowed by
+ * design so people can self-host — so a hostile or compromised service is inside the threat
+ * model, and `javascript:`, `file:` and `obsidian:` are all a browser-open primitive it should
+ * not have. In an Electron renderer a `javascript:` URL opened this way can run in the opener's
+ * origin.
+ *
+ * Scheme only. Which *host* may be opened is not this function's question: a self-hoster's
+ * checkout legitimately lives wherever their service says, and Stripe redirects across domains.
+ */
+export function openableHttpUrl(value: unknown): string {
+  if (typeof value !== "string") return "";
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" || url.protocol === "http:" ? value : "";
+  } catch {
+    return "";
+  }
+}
+
 export async function createCheckout(
   cfg: PlusClientConfig,
   sessionToken: string,
@@ -796,13 +823,24 @@ export async function createCheckout(
   if (res.status < 200 || res.status >= 300) {
     return mapError(res.status, res.json);
   }
-  const url = typeof res.json.url === "string" ? res.json.url : "";
-  if (!url) {
+  // Two different failures, told apart on purpose: a service that sent nothing is broken, and a
+  // service that sent `javascript:` is hostile. Collapsing them would report "missing url" for a
+  // body that very much had one.
+  if (typeof res.json.url !== "string" || res.json.url === "") {
     return {
       ok: false,
       status: res.status,
       code: "unknown",
       message: "Checkout response missing url",
+    };
+  }
+  const url = openableHttpUrl(res.json.url);
+  if (!url) {
+    return {
+      ok: false,
+      status: res.status,
+      code: "invalid",
+      message: PLUS_UNOPENABLE_URL_MESSAGE,
     };
   }
   return { ok: true, url };
@@ -822,13 +860,21 @@ export async function createBillingPortal(
   if (res.status < 200 || res.status >= 300) {
     return mapError(res.status, res.json);
   }
-  const url = typeof res.json.url === "string" ? res.json.url : "";
-  if (!url) {
+  if (typeof res.json.url !== "string" || res.json.url === "") {
     return {
       ok: false,
       status: res.status,
       code: "unknown",
       message: "Portal response missing url",
+    };
+  }
+  const url = openableHttpUrl(res.json.url);
+  if (!url) {
+    return {
+      ok: false,
+      status: res.status,
+      code: "invalid",
+      message: PLUS_UNOPENABLE_URL_MESSAGE,
     };
   }
   return { ok: true, url };
