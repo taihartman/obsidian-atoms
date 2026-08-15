@@ -11,7 +11,10 @@ import {
   exchangeMagicToken,
   getEntitlement,
   isAllowedPlusBaseUrl,
+  issuedBaseFromResponse,
+  normalizePlusBase,
   openableHttpUrl,
+  plusBaseMatches,
   PLUS_UNOPENABLE_URL_MESSAGE,
   peekMagicToken,
   PLUS_BASE_URL_INVALID_MESSAGE,
@@ -773,6 +776,59 @@ describe("plusClient", () => {
       ]) {
         expect(isAllowedPlusBaseUrl(url), JSON.stringify(url)).toBe(false);
       }
+    });
+  });
+
+  describe("normalizePlusBase / plusBaseMatches (#508 KTD2)", () => {
+    it("treats trailing slashes and scheme/host case as noise", () => {
+      for (const [a, b] of [
+        ["https://my.host", "https://my.host/"],
+        ["https://my.host", "https://my.host///"],
+        ["https://my.host", "HTTPS://my.host"],
+        ["https://my.host", "https://MY.HOST"],
+        ["https://my.host", "  https://My.Host/  "],
+        // new URL() drops a default port, so these are the same server here.
+        // Decided in KTD2: same parser as isAllowedPlusBaseUrl, and a spurious
+        // mismatch would only have cost one probe anyway.
+        ["https://my.host", "https://my.host:443"],
+        ["http://127.0.0.1:8787", "http://127.0.0.1:8787/"],
+      ]) {
+        expect(normalizePlusBase(a), `${a} vs ${b}`).toBe(normalizePlusBase(b));
+        expect(plusBaseMatches(a, b), `${a} vs ${b}`).toBe(true);
+      }
+    });
+
+    it("keeps port, path and subdomain significant", () => {
+      for (const [a, b] of [
+        ["https://my.host", "https://my.host:8443"],
+        ["https://my.host:8443", "https://my.host:9443"],
+        ["https://my.host", "https://my.host/plus"],
+        ["https://my.host/plus", "https://my.host/Plus"],
+        ["https://a.trycloudflare.com", "https://b.trycloudflare.com"],
+        ["https://my.host", "http://my.host"],
+      ]) {
+        expect(normalizePlusBase(a), `${a} vs ${b}`).not.toBe(normalizePlusBase(b));
+        expect(plusBaseMatches(a, b), `${a} vs ${b}`).toBe(false);
+      }
+    });
+
+    it("an unknown side never matches", () => {
+      expect(plusBaseMatches(undefined, "https://my.host")).toBe(false);
+      expect(plusBaseMatches("https://my.host", undefined)).toBe(false);
+      expect(plusBaseMatches(undefined, undefined)).toBe(false);
+      expect(plusBaseMatches("", "")).toBe(false);
+      expect(plusBaseMatches("   ", "https://my.host")).toBe(false);
+    });
+
+    it("does not throw on an unparseable base, and never matches a real one", () => {
+      expect(normalizePlusBase("plus.tryatoms.app/")).toBe("plus.tryatoms.app");
+      expect(plusBaseMatches("plus.tryatoms.app", "https://plus.tryatoms.app")).toBe(false);
+    });
+
+    it("mints a stamp in the same normalized form the comparison uses", () => {
+      const stamp = issuedBaseFromResponse("HTTPS://My.Host/");
+      expect(stamp).toBe("https://my.host");
+      expect(plusBaseMatches(stamp, "https://my.host")).toBe(true);
     });
   });
 

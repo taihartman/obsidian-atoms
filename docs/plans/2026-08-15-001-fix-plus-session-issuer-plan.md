@@ -207,6 +207,11 @@ of resolving one. Otherwise KTD4 buys nothing on the path most likely to be wron
 
 ## What the survey found that changes the work
 
+- **A fourth allowlist appears if U3 puts the stamp in `resolveClassifyAuth`'s output.** U1 stops at
+  the `FilingAuth` projection, which is where the gate can read it. If U3 instead threads the stamp
+  through `ClassifyAuthOk` into `ClassifyDeps.plus` — which the `classify.ts:761` backstop needs, per
+  U4's `verifiedBase` field — that return shape is another explicit literal with the same
+  drop-silently hazard. Give it the same round-trip assertion.
 - **There are three allowlists on the path from disk to the gate, not two.** `parsePlusSession`
   (`src/platform/filingAuth.ts:215`) and `serializePlusSession` (`:264`) are explicit field
   allowlists, and so is the `FilingAuth` plus variant (`:65-73`), which `resolveFilingAuth`

@@ -5,6 +5,7 @@ import {
   readPlusSession,
   serializePlusSession,
   LS_PLUS_SESSION,
+  type IssuedBase,
   type LocalStorageLike,
   type PlusSession,
 } from "../src/platform/filingAuth";
@@ -83,6 +84,31 @@ describe("plusRefresh", () => {
     expect(record.lastOkAt).toBe(5000);
     expect(readPlusSession(app)?.status).toBe("active");
     expect(readPlusSession(app)?.remaining).toBe(120);
+  });
+
+  /**
+   * #508 U1. This is one of two mutation paths that write a session without
+   * going through `installPlusSession`. It spreads the existing session today,
+   * so the issuer stamp survives — but a future refactor to a fresh object
+   * literal would blank it, and an unstamped session fails the gate open.
+   */
+  it("a refresh preserves the issuer stamp it did not set", async () => {
+    const app = fakeApp();
+    const stamped: PlusSession = {
+      ...live,
+      issuedBase: "https://my.host" as IssuedBase,
+      verifiedBase: "https://my.host",
+    };
+    app.saveLocalStorage(LS_PLUS_SESSION, serializePlusSession(stamped));
+    const request = mockRequest(() => ({
+      status: 200,
+      json: { status: "active", remaining: 120, email: "a@b.co" },
+    }));
+
+    await refreshPlusEntitlementRecord(app, { baseUrl: base, request }, stamped, 5000);
+
+    expect(readPlusSession(app)?.issuedBase).toBe("https://my.host");
+    expect(readPlusSession(app)?.verifiedBase).toBe("https://my.host");
   });
 
   it("401 records a rejected session and offers the sign-in link recovery", async () => {

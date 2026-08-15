@@ -9,6 +9,7 @@
 import type { RequestUrlParam, RequestUrlResponse } from "obsidian";
 import { parsePlusPlan } from "./filingAuth";
 import type {
+  IssuedBase,
   PlusEntitlementStatus,
   PlusPlan,
   PlusSession,
@@ -232,6 +233,54 @@ export function isAllowedPlusBaseUrl(raw: string): boolean {
   if (url.protocol === "https:") return true;
   if (url.protocol === "http:") return isLoopbackHost(url.hostname);
   return false;
+}
+
+/**
+ * Canonical form of a Plus base for comparison (KTD2). Narrow on purpose:
+ * strip trailing slashes, lowercase scheme and host, nothing else. Port and
+ * path stay significant, because `https://my.host` and `https://my.host:8443`
+ * are different servers and guessing otherwise is how a guard fails open.
+ *
+ * Parsed with `new URL()`, the same parser `isAllowedPlusBaseUrl` uses, which
+ * drops a default port — so `https://h` and `https://h:443` normalize *equal*.
+ * That is decided, not incidental: a spurious mismatch only costs one probe,
+ * and using a second parser here is how the stamp and compare sides drift.
+ *
+ * Unparseable input is returned trimmed and de-slashed rather than thrown on,
+ * so it can never accidentally equal a real base.
+ */
+export function normalizePlusBase(raw: string): string {
+  const value = (raw ?? "").trim();
+  if (!value) return "";
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return value.replace(/\/+$/, "");
+  }
+  const path = url.pathname.replace(/\/+$/, "");
+  return `${url.protocol.toLowerCase()}//${url.host.toLowerCase()}${path}${url.search}${url.hash}`;
+}
+
+/**
+ * Whether two Plus bases name the same server. Undefined on either side is
+ * *unknown*, and unknown is never a match: an unstamped session must be
+ * re-verified, not waved through.
+ */
+export function plusBaseMatches(a: string | undefined, b: string | undefined): boolean {
+  if (!a?.trim() || !b?.trim()) return false;
+  return normalizePlusBase(a) === normalizePlusBase(b);
+}
+
+/**
+ * The only way to produce an {@link IssuedBase} (KTD4). Call it with the base a
+ * Plus response actually came back from, never with one read from settings —
+ * the brand exists so the compiler can refuse the latter, but it cannot tell
+ * which string you hand it here. Normalizing at mint time keeps the stamp side
+ * and the compare side in one form.
+ */
+export function issuedBaseFromResponse(base: string): IssuedBase {
+  return normalizePlusBase(base) as IssuedBase;
 }
 
 type PlusHttpOk = { ok: true; status: number; json: Record<string, unknown> };

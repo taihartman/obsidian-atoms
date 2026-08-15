@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { resolveClassifyAuth } from "../src/platform/classifyAuth";
 import {
+  LS_PLUS_SESSION,
   LS_PLUS_SIGNIN_PENDING,
   PENDING_SIGNIN_MAX_AGE_MS,
   clearPendingSignIn,
@@ -17,6 +19,7 @@ import {
   serializePlusSession,
   writePlusSession,
   type FilingAuth,
+  type IssuedBase,
   type PlusSession,
 } from "../src/platform/filingAuth";
 
@@ -131,6 +134,104 @@ describe("plus session storage", () => {
     expect(readPlusSession(app)?.email).toBe("u@example.com");
     clearPlusSession(app);
     expect(readPlusSession(app)).toBeNull();
+  });
+});
+
+/**
+ * #508 U1. Three allowlists sit between disk and the classify gate:
+ * `parsePlusSession`, `serializePlusSession`, and the `FilingAuth` plus variant
+ * that `resolveFilingAuth` fills field by field. `resolveClassifyAuth` never
+ * sees a `PlusSession`, only that last projection — so a field missing from any
+ * one of them vanishes before the gate reads it, and the gate fails open on
+ * every device. These tests walk the whole path rather than a round trip.
+ */
+describe("issuer stamp survives disk to the classify gate (#508)", () => {
+  const stamped: PlusSession = {
+    ...activeSession,
+    issuedBase: "https://my.host" as IssuedBase,
+    verifiedBase: "https://tunnel-a.trycloudflare.com",
+  };
+
+  function diskApp(raw?: string) {
+    const store = new Map<string, string>();
+    if (raw != null) store.set(LS_PLUS_SESSION, raw);
+    return {
+      loadLocalStorage: (k: string) => store.get(k),
+      saveLocalStorage: (k: string, v: string) => {
+        store.set(k, v);
+      },
+    };
+  }
+
+  it("reaches the shape resolveClassifyAuth consumes, not just parse/serialize", () => {
+    const app = diskApp();
+    writePlusSession(app, stamped);
+
+    // Disk is JSON text: the stamp has to clear serialize *and* parse.
+    expect(JSON.parse(app.loadLocalStorage(LS_PLUS_SESSION) as string)).toMatchObject({
+      issuedBase: "https://my.host",
+      verifiedBase: "https://tunnel-a.trycloudflare.com",
+    });
+
+    const session = readPlusSession(app);
+    expect(session?.issuedBase).toBe("https://my.host");
+    expect(session?.verifiedBase).toBe("https://tunnel-a.trycloudflare.com");
+
+    const auth = resolveFilingAuth({ byokApiKey: null, plusSession: session });
+    expect(auth.mode).toBe("plus");
+    if (auth.mode === "plus") {
+      expect(auth.issuedBase).toBe("https://my.host");
+      expect(auth.verifiedBase).toBe("https://tunnel-a.trycloudflare.com");
+    }
+    // The projection is what classify actually receives.
+    const classify = resolveClassifyAuth(auth, { plusBaseUrl: "https://my.host" });
+    expect(classify.ok).toBe(true);
+  });
+
+  it("carries the stamp on the unknown-status branch too", () => {
+    const auth = resolveFilingAuth({
+      byokApiKey: null,
+      plusSession: { ...stamped, status: "unknown" },
+    });
+    expect(auth.mode).toBe("plus");
+    if (auth.mode === "plus") {
+      expect(auth.status).toBe("unknown");
+      expect(auth.issuedBase).toBe("https://my.host");
+      expect(auth.verifiedBase).toBe("https://tunnel-a.trycloudflare.com");
+    }
+  });
+
+  it("a session predating the field parses to unknown rather than throwing", () => {
+    const legacy = JSON.stringify({
+      sessionToken: "sess_abc",
+      email: "u@example.com",
+      status: "active",
+      remaining: 120,
+    });
+    const session = readPlusSession(diskApp(legacy));
+    expect(session?.sessionToken).toBe("sess_abc");
+    // Unknown, never the hosted default: the plugin does not guess the issuer.
+    expect(session?.issuedBase).toBeUndefined();
+    expect(session?.verifiedBase).toBeUndefined();
+
+    const auth = resolveFilingAuth({ byokApiKey: null, plusSession: session });
+    if (auth.mode === "plus") {
+      expect(auth.issuedBase).toBeUndefined();
+      expect(auth.verifiedBase).toBeUndefined();
+    }
+  });
+
+  it("drops a wrong-typed stamp instead of coercing it", () => {
+    for (const bad of [42, true, null, {}, ["https://my.host"], "", "   "]) {
+      const parsed = parsePlusSession({
+        sessionToken: "sess_abc",
+        email: "u@example.com",
+        issuedBase: bad,
+        verifiedBase: bad,
+      });
+      expect(parsed?.issuedBase, JSON.stringify(bad)).toBeUndefined();
+      expect(parsed?.verifiedBase, JSON.stringify(bad)).toBeUndefined();
+    }
   });
 });
 

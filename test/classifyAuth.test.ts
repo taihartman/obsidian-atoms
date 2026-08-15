@@ -1,7 +1,17 @@
 import { describe, expect, it } from "vitest";
+import type { App, PluginManifest } from "obsidian";
+import AtomsPlugin from "../src/plugin/main";
 import { resolveClassifyAuth } from "../src/platform/classifyAuth";
-import type { FilingAuth } from "../src/platform/filingAuth";
+import {
+  LS_PLUS_SESSION,
+  readPlusSession,
+  serializePlusSession,
+  type FilingAuth,
+  type IssuedBase,
+  type PlusSession,
+} from "../src/platform/filingAuth";
 import { PLUS_BASE_URL_INVALID_MESSAGE } from "../src/platform/plusClient";
+import { DEFAULT_SETTINGS } from "../src/shared/types";
 
 describe("resolveClassifyAuth", () => {
   it("byok passes key", () => {
@@ -146,5 +156,55 @@ describe("resolveClassifyAuth on an ended period", () => {
       expect(r.message).toMatch(/Monthly Limit Reached/);
       expect(r.message).toMatch(/next billing date/);
     }
+  });
+});
+
+/**
+ * #508 U1. The `onRemaining` callback in `AtomsPlugin.requireClassifyAuth` is
+ * the second mutation path that writes a session without `installPlusSession`.
+ * It spreads the stored session today, so the issuer stamp survives a meter
+ * update — but a refactor to a fresh literal would blank it, and an unstamped
+ * session is exactly what makes the issuer gate fail open.
+ */
+describe("#508 meter update preserves the issuer stamp", () => {
+  const stamped: PlusSession = {
+    sessionToken: "sess_live",
+    email: "plus@example.com",
+    status: "active",
+    remaining: 12,
+    periodEnd: "2026-09-01T00:00:00.000Z",
+    issuedBase: "https://my.host" as IssuedBase,
+    verifiedBase: "https://my.host",
+  };
+
+  it("keeps issuedBase and verifiedBase when the remaining count changes", () => {
+    const store = new Map<string, string>();
+    store.set(LS_PLUS_SESSION, serializePlusSession(stamped));
+    const app = {
+      loadLocalStorage: (k: string) => store.get(k),
+      saveLocalStorage: (k: string, v: string) => {
+        store.set(k, v);
+      },
+    };
+
+    const plugin = new AtomsPlugin({} as App, {} as PluginManifest);
+    Object.assign(plugin, {
+      app,
+      settings: { ...DEFAULT_SETTINGS, plusBaseUrl: "https://my.host" },
+      getApiKey: () => null,
+    });
+
+    const resolved = (
+      plugin as unknown as {
+        requireClassifyAuth: () => { plus?: { onRemaining?: (n: number) => void } } | null;
+      }
+    ).requireClassifyAuth();
+    expect(resolved?.plus?.onRemaining).toBeTypeOf("function");
+    resolved?.plus?.onRemaining?.(3);
+
+    const after = readPlusSession(app);
+    expect(after?.remaining).toBe(3);
+    expect(after?.issuedBase).toBe("https://my.host");
+    expect(after?.verifiedBase).toBe("https://my.host");
   });
 });
