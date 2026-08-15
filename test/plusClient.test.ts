@@ -14,6 +14,7 @@ import {
   PLUS_BASE_URL_INVALID_MESSAGE,
   requestMagicLink,
   startPlusAccount,
+  PLUS_UNREACHABLE_MESSAGE,
   SESSION_REJECTED_MESSAGE,
   UNREADABLE_RESPONSE_MESSAGE,
   upstreamRefusedMessage,
@@ -260,6 +261,30 @@ describe("plusClient", () => {
     const r = await getEntitlement({ baseUrl: base, request }, "sess");
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.code).toBe("network");
+  });
+
+  it("network throw shows advice, not the thrown shape", async () => {
+    const request: RequestFn = async () => {
+      throw new TypeError("Failed to fetch");
+    };
+    const r = await getEntitlement({ baseUrl: base, request }, "sess");
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.message).toBe(PLUS_UNREACHABLE_MESSAGE);
+    expect(r.message).not.toContain("Failed to fetch");
+    // The engine shape survives for diagnostics, off every user surface.
+    expect(r.detail).toBe("TypeError: Failed to fetch");
+  });
+
+  it("network detail stays redacted", async () => {
+    const request: RequestFn = async () => {
+      throw new Error("refused Bearer sess_abc123def456 at edge");
+    };
+    const r = await getEntitlement({ baseUrl: base, request }, "sess");
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.detail).not.toContain("sess_abc123def456");
+    expect(r.detail).toContain("[redacted]");
   });
 
   it("askMirrorStatus parses email", async () => {

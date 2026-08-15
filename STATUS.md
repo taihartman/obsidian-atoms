@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| In review | [#500](https://github.com/taihartman/obsidian-atoms/issues/500) | claude | `fix/plus-base-url-scheme-guard` | [QA report](docs/qa/2026-08-14-500-plus-base-url-guard-world-class-qa.md) | `src/platform/plusClient.ts`, `src/settings/settings.ts`, `src/pipeline/classify.ts` | Scheme guard on the Plus service URL override: https, or http only on loopback. Enforced in `plusRequest` so an invalid base never sends the session token. Light lane. |
+| In review | [#509](https://github.com/taihartman/obsidian-atoms/issues/509) / [PR #510](https://github.com/taihartman/obsidian-atoms/pull/510) | claude | `claude/strange-lichterman-27146b` | amend lane (no plan) | `src/platform/plusClient.ts`, `src/settings/settings.ts` | Plus unreachable Notice says what to do, instead of `TypeError: Failed to fetch` · **0.8.0-beta.3**. #500 merged, so its row is gone. |
 
 ## How to claim (copy)
 

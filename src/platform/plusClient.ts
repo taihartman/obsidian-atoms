@@ -107,11 +107,28 @@ export type PlusApiError = {
     | "expired"
     | "invalid"
     | "unknown";
+  /**
+   * Redacted engine-level shape of the failure (`TypeError: Failed to fetch`).
+   * Diagnostics only: never render it in a Notice or a settings row. It names
+   * the browser API that gave up, which tells a reader nothing they can do.
+   */
+  detail?: string;
 };
 
 /** Shown when the service answers with something we cannot read as JSON. */
 export const UNREADABLE_RESPONSE_MESSAGE =
   "Atoms Plus sent a reply this device could not read. Nothing changed here — try again in a moment.";
+
+/**
+ * Shown when the request never reached the service at all: no connection, a
+ * wrong `plusBaseUrl`, DNS or TLS. Says the one thing a reader can act on. The
+ * thrown shape stays on {@link PlusApiError.detail} for diagnostics.
+ *
+ * Names "the Plus service" rather than "Atoms Plus" because most callers
+ * already prefix the Notice with `Atoms Plus: `.
+ */
+export const PLUS_UNREACHABLE_MESSAGE =
+  "Could not reach the Plus service. Check your connection and try again.";
 
 /** Shown when our own service rejects the device session (401/403 with a body). */
 export const SESSION_REJECTED_MESSAGE =
@@ -299,7 +316,8 @@ async function plusRequest(
       ok: false,
       status: 0,
       code: "network",
-      message: `Plus network error (${name}: ${redact(msg)})`,
+      message: PLUS_UNREACHABLE_MESSAGE,
+      detail: `${name}: ${redact(msg)}`,
     };
   }
 }
