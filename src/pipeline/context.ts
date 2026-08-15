@@ -498,7 +498,7 @@ export class ContextRun implements ContextProvider {
   async getCandidates(capture: Capture | string): Promise<ShortlistContext> {
     const corpus = this.corpus;
     if (!corpus) {
-      throw new Error("[atoms] context run has ended — begin a new run to score captures");
+      throw new Error("[atoms] context run has ended. Begin a new run to score captures");
     }
     // Scores against the run's standing index: only the query is tokenised here (KTD4). Zero is an
     // absolute miss, so the same filter `rankShortlist` applies drops those before the cap.
@@ -553,7 +553,7 @@ export class ContextRun implements ContextProvider {
     captures: ReadonlyArray<Capture | string>,
   ): Promise<ShortlistContext> {
     if (!this.corpus) {
-      throw new Error("[atoms] context run has ended — begin a new run to score captures");
+      throw new Error("[atoms] context run has ended. Begin a new run to score captures");
     }
     const per = await Promise.all(captures.map((c) => this.getCandidates(c)));
     if (per.length === 1) return per[0]!;

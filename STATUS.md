@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| _Nothing in flight._ |
+| In review | [#495](https://github.com/taihartman/obsidian-atoms/issues/495) | @taihartman | `chore/plugin-wide-em-dash-guard` | [2026-08-14-002](docs/plans/2026-08-14-002-chore-plugin-wide-em-dash-guard-plan.md) | `test/copyVoice.test.ts`, user-facing strings across `src/**` | **Now targets `master`** ([PR #496](https://github.com/taihartman/obsidian-atoms/pull/496)) — #494 merged, so the stack is gone. **Shipping tail COMPLETE**: simplify, `ce-code-review`, `ce-compound`, `world-class-qa` (9 scenarios live, screenshots) and `adversarial-qa` all done — [QA report](docs/qa/2026-08-15-495-plugin-wide-em-dash-guard-world-class-qa.md). The break-it pass found **two holes in the guard itself**, both fixed and mutation-checked: the walk covered only `.ts` (default-deny was default-allow for `.tsx`/`.mts`/`.cts`), and one exemption's stated reason was false. **The guard then caught its first live offender on merge**: `PLUS_BASE_URL_INVALID_MESSAGE` (#500) landed on master with an em dash after QA ran, turning the merge red. Swept here. **Version bumped to `0.8.0-beta.4`** — beta.3 is already released, and 93 user-visible strings need an identifiable build. Exempt on purpose: `consent.ts` (ack), the classify + context prompt blocks (parity freeze + prompt cache), `continueParent`'s ` — continued` (a **filename**), and the egress catch-up card pending #497. Follow-ups: #497 #498 #499. **QA vault note:** drive in `atoms-qa-433` (trusted); `test vault` is shared with no lock and a peer overwrote this build mid-pass once. |
 
 ## How to claim (copy)
 

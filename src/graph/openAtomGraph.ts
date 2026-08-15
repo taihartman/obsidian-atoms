@@ -179,7 +179,7 @@ function noticeForQuery(
   }
   if (!applied) {
     new Notice(
-      "Opened Graph. Filter could not be set automatically — use the graph search box.",
+      "Opened Graph. Filter could not be set automatically. Use the graph search box.",
       6000,
     );
     return;
@@ -217,7 +217,7 @@ export async function runOpenAtomGraph(
 
   const seedPaths = collectAtomSeedPaths(fileInputs, folder);
   if (seedPaths.length === 0) {
-    new Notice("No atoms yet — file some captures first.");
+    new Notice("No atoms yet. File some captures first.");
     return;
   }
 

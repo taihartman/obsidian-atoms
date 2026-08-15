@@ -1701,7 +1701,7 @@ export class AtomsHomeView extends ItemView {
     this.closeHomeOpen();
     void this.onOpenToday();
     this.render();
-    new Notice(`Continuing ${title} — write in today, then Process today`);
+    new Notice(`Continuing ${title}. Write in today, then Process today`);
   }
 
   private onCancelContinue(): void {
@@ -2312,7 +2312,7 @@ export class AtomsHomeView extends ItemView {
             ? undefined
             : {
                 title:
-                  "No shortcut link to open — add one in Settings → Capture",
+                  "No shortcut link to open. Add one in Settings → Capture",
               },
           onClick: () => this.onInstallShortcut(),
         });
@@ -2446,7 +2446,7 @@ export class AtomsHomeView extends ItemView {
 
     scroll.createEl("p", {
       cls: "atoms-home-empty-hint",
-      text: "Set-aside daily lines — hold to try filing · tap opens the daily",
+      text: "Set-aside daily lines. Hold to try filing · tap opens the daily",
     });
 
     const list = listGroup(scroll, { className: "atoms-home-list" });
@@ -2789,7 +2789,7 @@ export class AtomsHomeView extends ItemView {
     const url = this.installUrl();
     if (!url) {
       new Notice(
-        "No shortcut link to open — add one in Settings → Capture.",
+        "No shortcut link to open. Add one in Settings → Capture.",
       );
       return;
     }
@@ -2806,7 +2806,7 @@ export class AtomsHomeView extends ItemView {
     );
     this.shortcutAcked = CAPTURE_ATOM_VERSION;
     new Notice(
-      `Opened Capture Atom v${CAPTURE_ATOM_VERSION} — add it, then edit → set bookmark to Atoms Inbox once`,
+      `Opened Capture Atom v${CAPTURE_ATOM_VERSION}. Add it, then edit → set bookmark to Atoms Inbox once`,
     );
     this.render();
   }

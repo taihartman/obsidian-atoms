@@ -895,7 +895,7 @@ export async function classifyCapture(
               // an unexplained one (gateway, proxy, WAF) must not blame the
               // session, which is probably fine.
               plusErrorMessage?.trim() ||
-              `Atoms Plus refused this request (HTTP ${status}) for an unexpected reason. Nothing was filed — try again in a moment.`;
+              `Atoms Plus refused this request (HTTP ${status}) for an unexpected reason. Nothing was filed. Try again in a moment.`;
       deps.onAuthFailure?.(message);
       return { ok: false, reason: "auth", status, message };
     }

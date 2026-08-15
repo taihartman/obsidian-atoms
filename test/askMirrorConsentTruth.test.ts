@@ -200,7 +200,7 @@ describe("#374 — the status line consults the consent gate", () => {
     // The positive control. Without it, every assertion below passes on a screen that renders
     // no status line at all.
     expect(statusLine(made)).toBe(
-      "Ask mirror: 407 · as user@example.com · push failed — Plus network error · Sync now to retry",
+      "Ask mirror: 407 · as user@example.com · push failed (Plus network error) · Sync now to retry",
     );
     expect(statusIsError(made)).toBe(true);
   });

@@ -436,7 +436,7 @@ export default class AtomsPlugin extends Plugin {
       this.app.loadLocalStorage(LS_INBOX_BOOKMARK_NOTICE_ACK) === true;
     if (!shouldShowBookmarkSetupNotice(result, acked)) return;
     new Notice(
-      `Atoms: bookmark "${INBOX_NOTE_PATH}" by hand — the Bookmarks core plugin is off, so iOS capture has no target until you do.`,
+      `Atoms: bookmark "${INBOX_NOTE_PATH}" by hand. The Bookmarks core plugin is off, so iOS capture has no target until you do.`,
       10000,
     );
     this.app.saveLocalStorage(LS_INBOX_BOOKMARK_NOTICE_ACK, true);
@@ -453,7 +453,7 @@ export default class AtomsPlugin extends Plugin {
       await this.refreshAtomsHomeLeaves();
     } catch (e) {
       new Notice(
-        `Atoms: inbox drain failed — ${e instanceof Error ? e.message.slice(0, 80) : "error"}`,
+        `Atoms: inbox drain failed: ${e instanceof Error ? e.message.slice(0, 80) : "error"}`,
       );
     }
   }
@@ -669,7 +669,7 @@ export default class AtomsPlugin extends Plugin {
       this.finishHomeRun(summary, landPeak);
       new Notice(
         report.failed > 0 && report.updated <= 0 && polished <= 0
-          ? `Atoms: couldn't update ${report.failed} note${report.failed === 1 ? "" : "s"} — check model id and API key`
+          ? `Atoms: couldn't update ${report.failed} note${report.failed === 1 ? "" : "s"}. Check model id and API key`
           : `Atoms: polished ${polished}, updated ${report.updated}, renamed ${report.renamed}, failed ${report.failed}`,
       );
       // After projection + atom writes settle — end-of-run push (hubs included).
@@ -784,7 +784,7 @@ export default class AtomsPlugin extends Plugin {
 
     if (this.catchUpInFlight) {
       if (opts.manual) {
-        new Notice("Atoms: catch-up already running — try again in a moment");
+        new Notice("Atoms: catch-up already running. Try again in a moment");
       }
       return { ran: false, reason: "in_flight" };
     }
@@ -820,7 +820,7 @@ export default class AtomsPlugin extends Plugin {
             decision.stages.drain.reason) ||
           "blocked";
         if (opts.manual && reason === "vault_not_ready") {
-          new Notice("Atoms: vault still loading — try Sync everything now again");
+          new Notice("Atoms: vault still loading. Try Sync everything now again");
         }
         return { ran: false, reason: String(reason) };
       }
@@ -908,7 +908,7 @@ export default class AtomsPlugin extends Plugin {
             "Atoms: acknowledge the catch-up notice on Atoms home before filing can spend API",
           );
         } else if ("reason" in fr && fr.reason === "budget") {
-          new Notice("Atoms: filing budget full for this hour — try later");
+          new Notice("Atoms: filing budget full for this hour. Try later");
         }
       }
 
@@ -1558,7 +1558,7 @@ export default class AtomsPlugin extends Plugin {
           message: e instanceof Error ? e.message.slice(0, 200) : "unknown",
         });
         new Notice(
-          `Atoms: backfill unavailable — ${e instanceof Error ? e.message.slice(0, 80) : "error"}`,
+          `Atoms: backfill unavailable: ${e instanceof Error ? e.message.slice(0, 80) : "error"}`,
         );
         return;
       }
@@ -1614,7 +1614,7 @@ export default class AtomsPlugin extends Plugin {
     }
     window.open(checkout.url, "_blank");
     new Notice(
-      "Atoms Plus: finish checkout in the browser — backfill reopens with the new filings.",
+      "Atoms Plus: finish checkout in the browser. Backfill reopens with the new filings.",
     );
 
     for (let attempt = 0; attempt < this.backfillTopUpPoll.attempts; attempt += 1) {
@@ -1630,7 +1630,7 @@ export default class AtomsPlugin extends Plugin {
       if (record?.kind !== "ok") continue;
       if ((readPlusSession(this.app)?.remaining ?? 0) > before) return true;
     }
-    new Notice("Atoms: no new filings yet — open backfill again once your top-up lands.");
+    new Notice("Atoms: no new filings yet. Open backfill again once your top-up lands.");
     return false;
   }
 
@@ -1705,7 +1705,7 @@ export default class AtomsPlugin extends Plugin {
       );
       new Notice(
         report.stoppedReason === "exhausted"
-          ? `Atoms backfill: filed ${filed} of ${range.captures} — filings ran out. It picks up here when they reset.`
+          ? `Atoms backfill: filed ${filed} of ${range.captures}. Filings ran out. It picks up here when they reset.`
           : `Atoms backfill: filed ${filed} capture${filed === 1 ? "" : "s"} (${report.atomsCreated} atom${report.atomsCreated === 1 ? "" : "s"})`,
       );
       if (report.atomsCreated > 0 || report.markersAppended > 0) {
@@ -1722,7 +1722,7 @@ export default class AtomsPlugin extends Plugin {
       });
       this.failHomeRun("Backfill failed");
       new Notice(
-        `Atoms: backfill failed — ${e instanceof Error ? e.message.slice(0, 100) : "error"}`,
+        `Atoms: backfill failed: ${e instanceof Error ? e.message.slice(0, 100) : "error"}`,
       );
     }
   }
@@ -1824,7 +1824,7 @@ export default class AtomsPlugin extends Plugin {
       }
 
       new Notice(
-        `Atoms: ${prepared.estimate.summaryLine} — confirm in the dialog`,
+        `Atoms: ${prepared.estimate.summaryLine}. Confirm in the dialog`,
       );
 
       // The gate is awaited rather than fired and forgotten — the same `confirmBackfill` the Plus
@@ -1859,7 +1859,7 @@ export default class AtomsPlugin extends Plugin {
         message: e instanceof Error ? e.message.slice(0, 200) : "unknown",
       });
       new Notice(
-        `Atoms: backfill estimate failed — ${e instanceof Error ? e.message.slice(0, 80) : "error"}`,
+        `Atoms: backfill estimate failed: ${e instanceof Error ? e.message.slice(0, 80) : "error"}`,
       );
     }
   }
@@ -1955,7 +1955,7 @@ export default class AtomsPlugin extends Plugin {
         message: e instanceof Error ? e.message.slice(0, 200) : "unknown",
       });
       new Notice(
-        `Atoms: backfill failed — ${e instanceof Error ? e.message.slice(0, 100) : "error"}`,
+        `Atoms: backfill failed: ${e instanceof Error ? e.message.slice(0, 100) : "error"}`,
       );
     }
   }
@@ -2534,7 +2534,7 @@ export default class AtomsPlugin extends Plugin {
       head: prefix.slice(0, 400),
     });
     new Notice(
-      `Atoms: context ${ctx.titles.length} titles, ${ctx.tags.length} tags — stable=${prefix === prefix2}`,
+      `Atoms: context ${ctx.titles.length} titles, ${ctx.tags.length} tags · stable=${prefix === prefix2}`,
     );
   }
 
@@ -2623,7 +2623,7 @@ export default class AtomsPlugin extends Plugin {
         if (report.failures.length > 0) {
           const f = report.failures[0]!;
           const snip = f.captureText.replace(/\s+/g, " ").trim().slice(0, 48);
-          notice += ` — ${f.reason}: ${snip}${f.captureText.length > 48 ? "…" : ""}`;
+          notice += ` · ${f.reason}: ${snip}${f.captureText.length > 48 ? "…" : ""}`;
         }
         new Notice(notice);
       }
@@ -2856,7 +2856,7 @@ export default class AtomsPlugin extends Plugin {
         })),
       });
       new Notice(
-        `Atoms: ${totalUnprocessed} unprocessed capture(s) across ${notes.length} past day(s) — see console`,
+        `Atoms: ${totalUnprocessed} unprocessed capture(s) across ${notes.length} past day(s) · see console`,
       );
     } catch (e) {
       if (e instanceof DailyNotesDisabledError) {
@@ -2904,7 +2904,7 @@ export default class AtomsPlugin extends Plugin {
         }
         new Notice(
           `Atoms: ${outcome.result.verdict}${
-            outcome.result.title ? ` — ${outcome.result.title}` : ""
+            outcome.result.title ? ` · ${outcome.result.title}` : ""
           } (cache_read=${outcome.usage.cache_read_input_tokens})`,
         );
       } else {
@@ -2940,7 +2940,7 @@ export default class AtomsPlugin extends Plugin {
     if (outcome.ok) {
       new Notice(
         `Atoms: ${outcome.result.verdict}${
-          outcome.result.title ? ` — ${outcome.result.title}` : ""
+          outcome.result.title ? ` · ${outcome.result.title}` : ""
         }`,
       );
     } else {
@@ -2955,7 +2955,7 @@ export default class AtomsPlugin extends Plugin {
     const captures = [
       SPIKE_CAPTURE,
       "buy oat milk and eggs on the way home",
-      "reminded me of [[Sleep debt doesn't accumulate linearly]] — maybe the plateau is just denial",
+      "reminded me of [[Sleep debt doesn't accumulate linearly]], maybe the plateau is just denial",
     ];
 
     new Notice("Atoms: measuring per-capture cache + day-batch…");
@@ -3141,7 +3141,7 @@ export default class AtomsPlugin extends Plugin {
           if (report.reason === "collision") {
             new Notice(collisionNotice());
           } else if (report.reason === "stale") {
-            new Notice("Capture changed — open the daily and try again");
+            new Notice("Capture changed. Open the daily and try again");
           } else if (report.reason === "no_change") {
             /* Apply should have been disabled */
           } else {
@@ -3183,7 +3183,7 @@ export default class AtomsPlugin extends Plugin {
 
     if (!this.app.secretStorage) {
       new Notice(
-        "Atoms: SecretStorage API missing — use device-local fallback",
+        "Atoms: SecretStorage API missing. Use device-local fallback",
       );
       return;
     }
@@ -3200,7 +3200,7 @@ export default class AtomsPlugin extends Plugin {
       new Notice(
         ok
           ? "Atoms: SecretStorage read/write OK"
-          : "Atoms: SecretStorage mismatch — consider device-local fallback",
+          : "Atoms: SecretStorage mismatch. Consider device-local fallback",
       );
     } catch (e) {
       devLog("[atoms] SecretStorage probe FAILED", {
@@ -3208,7 +3208,7 @@ export default class AtomsPlugin extends Plugin {
         message: e instanceof Error ? e.message : "unknown",
       });
       new Notice(
-        "Atoms: SecretStorage failed — enable device-local key fallback",
+        "Atoms: SecretStorage failed. Enable device-local key fallback",
       );
     }
   }

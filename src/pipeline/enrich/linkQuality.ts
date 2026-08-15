@@ -54,17 +54,17 @@ export function rewriteWeakLinkReason(
     if (rec && rec.toLowerCase() !== n.toLowerCase()) {
       return `watchlist: ${n}, recommended by ${rec}`;
     }
-    return `watchlist item — ${n} from this capture`;
+    return `watchlist item: ${n} from this capture`;
   }
 
   // Career / interview status
   if (/\b(interview|waiting|hear back|job|hospital|offer)\b/i.test(c)) {
-    return `career status follow-up about [[${n}]] — not a settled fact yet`;
+    return `career status follow-up about [[${n}]], not a settled fact yet`;
   }
 
   // Games
   if (/\b(game|playing|played|detective|rpg)\b/i.test(c)) {
-    return `adds a game preference for [[${n}]] — why they like it lives in the body`;
+    return `adds a game preference for [[${n}]]. Why they like it lives in the body`;
   }
 
   // Aesthetic / gift-usable prefs
@@ -85,7 +85,7 @@ export function rewriteWeakLinkReason(
   // Workplace / index
   if (/\b(crg|coworker|colleague|hospital|works at)\b/i.test(c)) {
     if (/^people$/i.test(n)) {
-      return `workplace / social index — identity cue from this capture ([[${n}]])`;
+      return `workplace / social index: identity cue from this capture ([[${n}]])`;
     }
     return `workplace social map involving [[${n}]]`;
   }

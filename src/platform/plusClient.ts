@@ -117,7 +117,7 @@ export type PlusApiError = {
 
 /** Shown when the service answers with something we cannot read as JSON. */
 export const UNREADABLE_RESPONSE_MESSAGE =
-  "Atoms Plus sent a reply this device could not read. Nothing changed here — try again in a moment.";
+  "Atoms Plus sent a reply this device could not read. Nothing changed here. Try again in a moment.";
 
 /**
  * Shown when the request never reached the service at all: no connection, a
@@ -149,7 +149,7 @@ export function isSessionRejectedMessage(msg: string | undefined): boolean {
  * call, so blaming the session would be a lie (mirrors classify.ts wording).
  */
 export function upstreamRefusedMessage(status: number): string {
-  return `Atoms Plus refused this request (HTTP ${status}) for an unexpected reason. Your session on this device looks fine — try again in a moment.`;
+  return `Atoms Plus refused this request (HTTP ${status}) for an unexpected reason. Your session on this device looks fine. Try again in a moment.`;
 }
 
 /**
@@ -183,7 +183,7 @@ function joinUrl(base: string, path: string): string {
 
 /** Shown when the Plus service URL is a host we refuse to talk to (#500). */
 export const PLUS_BASE_URL_INVALID_MESSAGE =
-  "Plus service URL must start with https:// — http:// is allowed only for localhost. Fix it in Settings → Atoms → Advanced, or clear it to use the hosted service.";
+  "Plus service URL must start with https:// (http:// is allowed only for localhost). Fix it in Settings → Atoms → Advanced, or clear it to use the hosted service.";
 
 /**
  * Loopback never leaves the device, so plain http is safe there and nowhere
@@ -440,7 +440,7 @@ export type MagicPeekResult =
   | (PlusApiError & { verdict?: MagicRefusal; vault?: string });
 
 export const MAGIC_LINK_REFUSED_MESSAGE =
-  "This sign-in link was requested by a different vault, so it was not used here. The link still works — open it from the vault that asked for it.";
+  "This sign-in link was requested by a different vault, so it was not used here. The link still works. Open it from the vault that asked for it.";
 
 export const MAGIC_LINK_EXPIRED_MESSAGE =
   "This sign-in link has expired. Request a new one from Settings → Atoms.";
