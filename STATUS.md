@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| _Nothing in flight._ |
+| In review | [#509](https://github.com/taihartman/obsidian-atoms/issues/509) | claude | `claude/strange-lichterman-27146b` | amend lane (no plan) | `src/platform/plusClient.ts`, `src/settings/settings.ts` | Plus unreachable Notice says what to do · **0.7.12** |
 
 ## How to claim (copy)
 
