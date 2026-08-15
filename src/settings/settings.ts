@@ -415,6 +415,9 @@ function requireEmail(email: string): boolean {
  * costs one field and a switch, while a second view type would need its own lifecycle,
  * registration, and mobile back handling to say the same thing.
  */
+/** Marks Obsidian's settings modal while this tab is the one on screen; paired with styles.css. */
+const SETTINGS_OPEN_CLASS = "atoms-settings-open";
+
 export type SettingsRoute =
   | "main"
   | "engine"
@@ -819,6 +822,11 @@ export class AtomsSettingTab extends PluginSettingTab {
    */
   private hiding = false;
   /**
+   * The modal this tab marked on the way in (#364 C1). Held because `hide()` runs after Obsidian
+   * has already detached `containerEl`, so there is nothing left to walk up to by then.
+   */
+  private markedModal: HTMLElement | null = null;
+  /**
    * The last answer the API-key row got, and when. Keyed by the key it was about, so a new key
    * is always a fresh question and a re-render of the same key is not.
    */
@@ -959,11 +967,49 @@ export class AtomsSettingTab extends PluginSettingTab {
   }
 
   /**
+   * Mark Obsidian's settings modal while this tab owns the screen (#364 C1).
+   *
+   * The header that needs fixing is not inside `containerEl` — it is chrome the whole settings
+   * modal shares — so the CSS has to reach up and out. A marker class is the narrowest way to do
+   * that: without one, a plugin rule on `.modal-header` would restyle Obsidian's own tabs and
+   * every other plugin's, which is not ours to change.
+   *
+   * **The remove path cannot use `closest()`.** Obsidian detaches `containerEl` *before* calling
+   * `hide()` — probed at `hide()` entry: no parent, no modal ancestor — so looking upward finds
+   * nothing and the class stays on. The consequence is not subtle, because the modal element is
+   * reused across visits: after one trip to this tab, every core and third-party settings tab wore
+   * our scrim for the rest of the session. Caught on device, and the first version of the test
+   * missed it because a test container is still attached when `hide()` runs.
+   *
+   * So the element is remembered on the way in, and the way out also sweeps any stray marker in
+   * the document. The sweep is safe because the class is ours alone: removing it wherever it is
+   * found can only undo our own leak, including one left behind by a modal that was rebuilt.
+   */
+  private markSettingsModal(on: boolean): void {
+    if (on) {
+      const modal = this.containerEl.closest(".modal");
+      if (!(modal instanceof HTMLElement)) return;
+      modal.classList.add(SETTINGS_OPEN_CLASS);
+      this.markedModal = modal;
+      return;
+    }
+    this.markedModal?.classList.remove(SETTINGS_OPEN_CLASS);
+    this.markedModal = null;
+    this.containerEl.ownerDocument
+      ?.querySelectorAll(`.${SETTINGS_OPEN_CLASS}`)
+      .forEach((el) => el.classList.remove(SETTINGS_OPEN_CLASS));
+  }
+
+  /**
    * A visit to Settings ends when the tab is hidden, so the next one starts on the main list
    * rather than dropping the user back into whichever destination they last opened.
    */
   hide(): void {
     this.hiding = true;
+    // Taken off the moment this tab stops being the one on screen. The class is on Obsidian's own
+    // modal, which every settings tab shares, so leaving it behind would restyle the next
+    // plugin's tab as if it were ours (#364 C1).
+    this.markSettingsModal(false);
     // #505. Closing Settings mid-edit commits what was typed rather than dropping it. Blur does
     // not reliably fire when the modal goes away, and silently losing a typed URL would be a
     // worse bug than the mid-word window commit-on-blur exists to close.
@@ -1136,6 +1182,7 @@ export class AtomsSettingTab extends PluginSettingTab {
     this.hiding = false;
     // On screen from here, so an external settings change knows there is something to refresh.
     this.plugin.settingTab = this;
+    this.markSettingsModal(true);
     const { containerEl } = this;
     containerEl.empty();
     // Emptying the container detaches whatever element the key check was painting into, and only
