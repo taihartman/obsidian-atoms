@@ -148,7 +148,16 @@ each — which is the expensive part, and which is now known.
 | E5 | Merged version resolves without a bump | `manifest.json` in the merged tree | `0.8.0-beta.1` (the base's value; this branch never touches the file) |
 | E6 | Retargeted assertions are not vacuous | `git diff` on the four retargeted test files | The #446 regex gained `\)` so it looks *inside* the new parentheses; without it, it could never match the new copy and would pass regardless of truncation |
 | E7 | Reachability of every changed-copy surface without credentials | source trace | Recorded per story in User Stories Tested |
-| **No screenshots.** | | | The drive never ran; there is nothing to attach. `N/A — blocked`, not `N/A — no UI`. |
+| E8 | Installed bundle carries the swept copy | `grep` + `shasum` on the installed `main.js` | New strings present, old absent; fingerprint `b08e93090aae77f2`, **identical before and after the drive attempt** (no peer overwrote it) |
+| E9 | **Static** scan of the installed bundle for em dashes | read-only inspection | **Exactly one** em dash in the whole bundle, and it is not copy: the truncation regex `/[\s.,;:!?—-]+$/`, which *matches* an em dash in order to strip it from user-derived excerpt text. That is the documented `askMirror` exemption. **Zero em dashes in product-authored strings.** |
+| E10 | **Static** scan of separator usage | read-only inspection | 57 `·` separators, zero literal en dashes; no doubled separators, no `. ·`, no `· .`, no missing spaces |
+| **No screenshots.** | | | The drive never rendered a surface. `N/A — blocked`, not `N/A — no UI`. |
+
+**E9 and E10 are supplementary, not a substitute.** They cover only check 1 of the three this pass
+owes (no em dash in copy). Checks 2 and 3 — mojibake, clipping, doubled or orphaned punctuation, and
+whether a dash-to-period rewrite left a fragment or a run-on — are questions about **rendered
+output** and cannot be answered by reading the bundle. A string that is correct in `main.js` can
+still clip, wrap badly, or collide with adjacent chrome.
 
 ## Findings
 
@@ -168,13 +177,28 @@ and never touched the file. Since the branch does not modify `manifest.json`/`pa
 `versions.json`, the merge resolves to the base's `0.8.0-beta.1` on its own. **No bump belongs on
 this branch.** The conclusion the handoff reached is right; the reason it gave is stale.
 
-**F3 · BLOCKER: Obsidian's CLI is wedged, and I wedged it.** Trying to mint an isolated QA vault, I
-opened it with `open "obsidian://open?path=…"`. The vault never registered in `obsidian.json`, and
-from that moment every `obsidian` invocation hangs indefinitely — five orphan clients stacked up
-before I caught it. The app process is alive at 0% CPU, so it looks healthy from the outside.
-**This blocks every concurrent session's Obsidian QA, not only this one.** Recovery is to quit and
-relaunch Obsidian, which is why it is the user's call rather than mine: another session is mid-pass.
-Logged in `docs/qa/learnings.md`.
+**F3 · RESOLVED: Obsidian's CLI was wedged.** Trying to mint an isolated QA vault, I opened it with
+`open "obsidian://open?path=…"`. The vault never registered in `obsidian.json`, and from that moment
+every `obsidian` invocation hung indefinitely — five orphan clients stacked up. The app stayed alive
+at 0% CPU, so it looked healthy from the outside. Recovered with the user's approval: registry backed
+up, force-quit (a graceful quit did not take), `atoms-qa-495` registered **directly in
+`obsidian.json`** rather than by URI, and relaunched with **both** vaults open so the concurrent
+#494 session kept its target. Both verified answering independently. Logged in `docs/qa/learnings.md`.
+
+**F3b · BLOCKER (current): the isolated vault opens in Restricted Mode.** A vault Obsidian has never
+opened before shows the first-run trust prompt, and until a human answers it **no plugin runs** —
+`Object.keys(app.plugins.plugins)` is `[]` while `app.plugins.enabledPlugins` still lists `atoms`,
+so the config looks correct and nothing executes. `eval` and `dev:screenshot` keep working normally
+against the vault, so the CLI looks healthy and every plugin command silently does nothing. Trust is
+**not** stored in `.obsidian/` — the trusted and untrusted vaults have byte-identical `.obsidian`
+file lists and the global registry carries no trust flag — so it cannot be copied in, and clearing it
+is a security gate that needs a human click, not an agent. **One click unblocks the entire S1–S8 run;
+nothing else is missing.**
+
+**F3c · The already-trusted vault is not an option.** `test vault` is trusted and working, but the
+concurrent #494 session reinstalled into it at 09:46 with `0.8.0-beta.2` and is actively using it.
+Driving there means overwriting a peer's build mid-pass — the same failure that cost this pass its
+first drive (F4). Ruled out deliberately, not overlooked.
 
 **F4 · The shared throwaway vault has no lock, and a peer overwrote this build mid-pass.** v0.8.0 was
 installed at 09:19 and confirmed by probe at 09:21; by 09:23 a peer worktree on `claude/settings-ux-
