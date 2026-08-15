@@ -1,4 +1,5 @@
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import ts from "typescript";
 import { describe, expect, it } from "vitest";
@@ -47,12 +48,21 @@ const EXEMPT_REGIONS: ReadonlyArray<{
   file: string;
   start: string;
   end: string;
+  /**
+   * How many lines the region is expected to cover. The end marker resolves to the *first* later
+   * line that ends with it, and markers like `] as const;` legitimately repeat inside one file, so
+   * uniqueness cannot be asserted. This can: if the intended terminator moves or disappears, the
+   * region silently runs on to the next match and the span changes. Without this the staleness
+   * test still passes, because a widened region contains all the em dashes the narrow one did.
+   */
+  spanLines: number;
   reason: string;
 }> = [
   {
     file: "src/pipeline/classify.ts",
     start: "export const CLASSIFICATION_PARITY_PHRASES = [",
     end: "] as const;",
+    spanLines: 8,
     reason:
       "The parity freeze itself. Every entry is a phrase that must match plus-service " +
       "classifyTemplate.mjs byte-for-byte; the list exists precisely so the words cannot drift. " +
@@ -63,6 +73,7 @@ const EXEMPT_REGIONS: ReadonlyArray<{
     file: "src/pipeline/classify.ts",
     start: "export const CLASSIFICATION_SCHEMA = {",
     end: "} as const;",
+    spanLines: 75,
     reason:
       "JSON-schema `description` fields, sent to the model as part of the tool definition. Same " +
       "rationale as SYSTEM_PROMPT: model-facing instruction, never rendered to a user.",
@@ -71,6 +82,7 @@ const EXEMPT_REGIONS: ReadonlyArray<{
     file: "src/pipeline/classify.ts",
     start: "export const SYSTEM_PROMPT = `",
     end: "`;",
+    spanLines: 88,
     reason:
       "Prompt text, not product copy — no user reads it. Also frozen in practice: " +
       '"people[] — who is named, and how" is in CLASSIFICATION_PARITY_PHRASES, which must match ' +
@@ -84,6 +96,7 @@ const EXEMPT_REGIONS: ReadonlyArray<{
     // Deliberately the join, not a bare "}": the end marker matches the first line after the start
     // that ends with it, so "}" would truncate the region at the first nested brace anyone adds.
     end: '].join("\\n");',
+    spanLines: 24,
     reason:
       "Feeds the Anthropic prompt-cache stable prefix. Any edit invalidates every cached prefix " +
       "and costs a full re-read on the next run, for text no user sees.",
@@ -144,6 +157,26 @@ const EXEMPT_LINES: ReadonlyArray<{ file: string; line: string; reason: string }
 ];
 
 /**
+ * User-facing copy that shares a file with an exempt region, and so is one bad marker away from
+ * being exempted by accident. `classify.ts:881` is the case that motivated this: it is a Notice a
+ * user reads, sitting below three model-facing regions in a file a whole-file exemption would have
+ * swallowed. The region's end marker resolves to the *first* later line ending in `` `; ``, and
+ * that Notice is a later line ending in `` `; ``.
+ */
+const NEVER_EXEMPT: ReadonlyArray<{ file: string; contains: string }> = [
+  { file: "src/pipeline/classify.ts", contains: "Atoms Plus refused this request" },
+];
+
+/**
+ * `—` and `\u{2014}`, the escape spellings of an em dash. Scanned on the raw literal text so
+ * the reported line stays true, and because the rule is about what the user sees: an escape
+ * renders identically and would otherwise walk straight past a guard that only looks for the
+ * character. Not exhaustive by construction — a runtime `String.fromCodePoint(0x2014)` is a call
+ * expression, not a literal, and no source scan can see it.
+ */
+const ESCAPED_EM_DASH = /\\u\{?2014\}?/i;
+
+/**
  * 1-based line numbers whose em dash sits inside a string, template or regex literal — that is,
  * inside something a user could read, rather than in prose written for the next maintainer.
  *
@@ -174,7 +207,7 @@ export function copyLinesWithEmDash(source: string): Set<number> {
         .getText(file)
         .split("\n")
         .forEach((line, i) => {
-          if (line.includes(EM_DASH)) found.add(first + i + 1);
+          if (line.includes(EM_DASH) || ESCAPED_EM_DASH.test(line)) found.add(first + i + 1);
         });
     }
     ts.forEachChild(node, visit);
@@ -193,15 +226,25 @@ function sourceFiles(dir: string): string[] {
   return found.sort();
 }
 
+/** Line numbers (1-based) covered by one region, empty when either marker does not resolve. */
+function regionLines(
+  region: (typeof EXEMPT_REGIONS)[number],
+  lines: readonly string[],
+): Set<number> {
+  const covered = new Set<number>();
+  const start = lines.findIndex((l) => l.includes(region.start));
+  if (start < 0) return covered;
+  const end = lines.findIndex((l, i) => i > start && l.trimEnd().endsWith(region.end));
+  if (end < 0) return covered;
+  for (let n = start + 1; n <= end + 1; n++) covered.add(n);
+  return covered;
+}
+
 /** Line numbers (1-based) inside every exempt region of `file`. */
 function exemptRegionLines(file: string, lines: readonly string[]): Set<number> {
   const exempt = new Set<number>();
   for (const region of EXEMPT_REGIONS.filter((r) => r.file === file)) {
-    const start = lines.findIndex((l) => l.includes(region.start));
-    if (start < 0) continue;
-    const end = lines.findIndex((l, i) => i > start && l.trimEnd().endsWith(region.end));
-    if (end < 0) continue;
-    for (let n = start + 1; n <= end + 1; n++) exempt.add(n);
+    for (const n of regionLines(region, lines)) exempt.add(n);
   }
   return exempt;
 }
@@ -254,6 +297,11 @@ describe("copyLinesWithEmDash separates copy from prose written for maintainers"
     expect(at("const strip = /[\\s—]+$/;")).toEqual([1]);
   });
 
+  it("flags an escaped em dash, which renders identically to the reader", () => {
+    expect(at('const a = "Nothing was filed\\u2014try again.";')).toEqual([1]);
+    expect(at('const b = "Nothing was filed\\u{2014}try again.";')).toEqual([1]);
+  });
+
   it("sees into a nested template literal", () => {
     // The hand-rolled scanner this replaced took the first backtick it met as the closing one, so
     // a `//` in the mis-split span read as a real comment and quietly deleted the copy after it.
@@ -268,6 +316,25 @@ describe("product copy follows the voice rules", () => {
     // vacuously and the rule quietly stops existing.
     expect(COVERED.length).toBeGreaterThan(50);
     expect(COVERED).toContain("src/plugin/main.ts");
+  });
+
+  it("catches an em dash in a file no exemption table has ever heard of", () => {
+    // The property the deleted five-file allowlist could not have: a brand-new file is covered on
+    // arrival. This is the mutation check made permanent. It ran once by hand against a green
+    // baseline and caught all four cases; a check that only ever ran once is a check the next
+    // regression walks past, so it lives here now.
+    const dir = mkdtempSync(join(tmpdir(), "copy-voice-"));
+    try {
+      const file = join(dir, "brandNewSurface.ts");
+      writeFileSync(file, 'export const S = "Filed 3 atoms — nothing else to do.";\n', "utf8");
+      expect(sourceFiles(dir)).toEqual([file]);
+      expect(offenders(file)).toHaveLength(1);
+
+      writeFileSync(file, 'export const S = "Filed 3 atoms. Nothing else to do.";\n', "utf8");
+      expect(offenders(file)).toEqual([]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it("uses no em dashes anywhere in src/**", () => {
@@ -294,11 +361,29 @@ describe("every em-dash exemption is still earning its place", () => {
       const starts = lines.filter((l) => l.includes(region.start)).length;
       expect(starts, `region start marker must match exactly one line, matched ${starts}`).toBe(1);
 
-      const exempt = exemptRegionLines(region.file, lines);
+      const exempt = regionLines(region, lines);
       expect(exempt.size, "region start matched but its end marker did not").toBeGreaterThan(0);
+      expect(
+        exempt.size,
+        "region no longer covers the span it was written for. Its end marker resolves to the " +
+          "first later line that ends with it, so a moved or deleted terminator runs the region " +
+          "on to the next match and re-exempts whatever it swallows.",
+      ).toBe(region.spanLines);
 
       const copy = copyLinesWithEmDash(source);
       expect([...exempt].some((n) => copy.has(n))).toBe(true);
+    });
+  }
+
+  for (const canary of NEVER_EXEMPT) {
+    it(`${canary.file} keeps "${canary.contains.slice(0, 40)}" outside every exempt region`, () => {
+      const lines = readFileSync(canary.file, "utf8").split("\n");
+      const n = lines.findIndex((l) => l.includes(canary.contains));
+      expect(n, "canary line is gone; re-point or delete this entry").toBeGreaterThanOrEqual(0);
+      expect(
+        exemptRegionLines(canary.file, lines).has(n + 1),
+        `${canary.file}:${n + 1} is user-facing copy and must never fall inside an exempt region`,
+      ).toBe(false);
     });
   }
 
