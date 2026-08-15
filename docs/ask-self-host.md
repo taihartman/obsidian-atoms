@@ -148,6 +148,18 @@ Do this **before** any sign-in so the plugin never talks to production.
 
 Leave it empty only for hosted production (`https://plus.tryatoms.app`).
 
+**The plugin refuses any other shape.** Every Plus call carries this device's session token, and the classify call carries your capture text with it, so the override must be:
+
+| Value | Accepted |
+|---|---|
+| Empty | Yes — hosted production |
+| `https://anything` | Yes |
+| `http://127.0.0.1:…`, `http://localhost:…`, `http://[::1]:…` | Yes — loopback never leaves the device |
+| `http://` anything else, including your LAN | **No** — that is your session token in the clear |
+| `plus.tryatoms.app` (no scheme), `ftp://…`, `file://…` | **No** |
+
+A rejected value is not silently swapped for production — a self-host token does not belong at `plus.tryatoms.app` either. Plus goes quiet and the settings row says why. Hosting on your LAN? Front it with TLS and use the `https://` name.
+
 The same Advanced screen has **DIY Ask guide**, which opens this page.
 
 ---

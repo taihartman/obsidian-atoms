@@ -1718,6 +1718,13 @@ export class AtomsSettingTab extends PluginSettingTab {
     }
     const base =
       this.plugin.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL;
+    // #500. This is the one Plus call that builds its own request instead of
+    // going through `plusRequest`, so it needs the guard in its own words —
+    // otherwise a bad override sends the pasted session straight off the device.
+    if (!isAllowedPlusBaseUrl(base)) {
+      new Notice(PLUS_BASE_URL_INVALID_MESSAGE, 10000);
+      return;
+    }
     try {
       const res = await requestUrl({
         url: `${base.replace(/\/+$/, "")}/v1/me`,

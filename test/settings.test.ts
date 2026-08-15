@@ -30,7 +30,10 @@ import {
   type PlusSession,
 } from "../src/platform/filingAuth";
 import { s256Challenge } from "../src/platform/pkce";
-import { requestMagicLink } from "../src/platform/plusClient";
+import {
+  PLUS_BASE_URL_INVALID_MESSAGE,
+  requestMagicLink,
+} from "../src/platform/plusClient";
 import {
   destinationNames,
   dismissSheet,
@@ -565,6 +568,27 @@ describe("account row", () => {
       press(tab, "Advanced: paste session", "Save session");
 
       expect(handler).toHaveBeenCalledWith("sess_live");
+    });
+
+    /**
+     * #500. This path verifies the pasted token by sending it to `/v1/me` with
+     * `requestUrl` directly, so it does not inherit `plusRequest`'s guard and
+     * needs its own. The obsidian mock's `requestUrl` throws when called, which
+     * is the assertion: a guard that stopped working fails this test loudly.
+     */
+    it("will not verify a pasted session against a Plus URL we would not talk to", async () => {
+      const { tab } = settingTab({
+        settings: { plusBaseUrl: "http://evil.example" },
+      });
+      const ui = captureObsidianUi();
+
+      await (
+        tab as unknown as {
+          savePastedSession: (token: string) => Promise<void>;
+        }
+      ).savePastedSession("sess_live_abc");
+
+      expect(ui.notices).toEqual([PLUS_BASE_URL_INVALID_MESSAGE]);
     });
   });
 
