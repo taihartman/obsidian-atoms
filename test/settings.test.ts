@@ -1923,6 +1923,54 @@ describe("Advanced destination (U6, R5)", () => {
     expect(tab.plugin.settings.plusBaseUrl).toBe("http://127.0.0.1:8787");
     expect(gateState(tab, local)).toEqual(before);
   });
+
+  /**
+   * #500. The guards refuse an unvetted host at the request; without this line
+   * the user only sees Plus stop working, with nothing naming the reason. The
+   * value is still saved — the field persists on every keystroke, so refusing
+   * the save would fight `https://…` at `h`, `ht`, `htt`.
+   */
+  describe("a rejected service URL says so under its own row", () => {
+    it("explains a bad value already saved, on first render", () => {
+      const { tab } = advanced({ settings: { plusBaseUrl: "http://evil.example" } });
+
+      expect(tab.containerEl.textContent).toContain(
+        PLUS_BASE_URL_INVALID_MESSAGE,
+      );
+    });
+
+    it("appears when a bad value is typed and clears when it is fixed", async () => {
+      const { tab } = advanced();
+      expect(tab.containerEl.textContent).not.toContain(
+        PLUS_BASE_URL_INVALID_MESSAGE,
+      );
+
+      fill(tab, "Plus service URL override", "http://evil.example");
+      await flush();
+      expect(tab.containerEl.textContent).toContain(
+        PLUS_BASE_URL_INVALID_MESSAGE,
+      );
+      // Saved anyway — the request guard is the protection, not the field.
+      expect(tab.plugin.settings.plusBaseUrl).toBe("http://evil.example");
+
+      fill(tab, "Plus service URL override", "https://my.example");
+      await flush();
+      expect(tab.containerEl.textContent).not.toContain(
+        PLUS_BASE_URL_INVALID_MESSAGE,
+      );
+    });
+
+    it("stays quiet for an empty field, which means the hosted service", async () => {
+      const { tab } = advanced({ settings: { plusBaseUrl: "https://my.example" } });
+
+      fill(tab, "Plus service URL override", "");
+      await flush();
+
+      expect(tab.containerEl.textContent).not.toContain(
+        PLUS_BASE_URL_INVALID_MESSAGE,
+      );
+    });
+  });
 });
 
 /**

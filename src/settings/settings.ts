@@ -1013,6 +1013,13 @@ export class AtomsSettingTab extends PluginSettingTab {
       },
     });
 
+    // #500. The row still saves whatever is typed — it persists on every keystroke,
+    // so `https://…` passes through `h`, `ht`, `htt`, and refusing the save would
+    // fight the user mid-word. The guards in `plusRequest`, `resolveClassifyAuth`
+    // and `savePastedSession` are what keep the session token off an unvetted host;
+    // this line only explains why Plus went quiet, so a rejected override does not
+    // read as a dead plugin.
+    //
     // Override only for local dogfood. Shipping builds leave this empty → DEFAULT_PLUS_BASE_URL.
     settingRow(containerEl, {
       name: "Plus service URL override",
@@ -1031,12 +1038,11 @@ export class AtomsSettingTab extends PluginSettingTab {
         },
       },
     });
-
-    // #500. The field still saves whatever is typed — it persists on every
-    // keystroke, so `https://…` passes through `h`, `ht`, `htt`, and refusing the
-    // save would fight the user mid-word. The request guard in `plusRequest` is
-    // what keeps the session token off an unvetted host; this line only explains
-    // why Plus went quiet, so a rejected override does not read as a dead plugin.
+    // Under the row, not inside it: `settingRow` returns void on purpose, so the
+    // row keeps one grammar and no control grows an error mode. The handler above
+    // closes over `syncPlusBaseUrlError` before it is initialized, which holds
+    // because `onChange` is a DOM input listener and cannot fire during
+    // `display()` — the three tests in settings.test.ts pin that.
     const plusBaseUrlErrorEl = containerEl.createDiv({
       cls: "atoms-setting-error",
     });
