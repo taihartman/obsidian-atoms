@@ -1035,7 +1035,10 @@ export class AtomsSettingTab extends PluginSettingTab {
     // Override only for local dogfood. Shipping builds leave this empty → DEFAULT_PLUS_BASE_URL.
     settingRow(containerEl, {
       name: "Plus service URL override",
-      desc: `Empty = production (${DEFAULT_PLUS_BASE_URL}). Plugin can use http://127.0.0.1:8787. Claude and ChatGPT need the public HTTPS origin.`,
+      // The rule belongs in the description, not only in the error: a NAS
+      // self-hoster typing http://nas.local:8787 should learn it is refused
+      // before they type it, not after (#500 adversarial pass, I1).
+      desc: `Empty = production (${DEFAULT_PLUS_BASE_URL}). Must be https://, or http:// on localhost — nothing else is accepted. Claude and ChatGPT need the public HTTPS origin.`,
       control: {
         kind: "text",
         configure: (text) => {

@@ -242,6 +242,13 @@ async function plusRequest(
   // session token never reaches a host we did not vet. Falling back to the
   // hosted default would be worse than failing: a self-host session token would
   // then be sent to plus.tryatoms.app.
+  //
+  // That reasoning holds for a *refused* value and not yet for an empty one:
+  // clearing the field resolves to the hosted default at every call site, so a
+  // self-hoster who empties it does ship their token — and their capture bodies —
+  // to plus.tryatoms.app. Proven live in the #500 adversarial pass. Closing it
+  // needs the session to record the base that issued it, which is #508, not a
+  // check that can be made here.
   if (!isAllowedPlusBaseUrl(base)) {
     return {
       ok: false,

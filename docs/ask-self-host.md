@@ -160,6 +160,8 @@ Leave it empty only for hosted production (`https://plus.tryatoms.app`).
 
 A rejected value is not silently swapped for production — a self-host token does not belong at `plus.tryatoms.app` either. Plus goes quiet and the settings row says why. Hosting on your LAN? Front it with TLS and use the `https://` name.
 
+> **Do not clear this field while signed in to your own server.** Empty means the hosted service, so the next call sends your self-host session token — and your capture text — to `plus.tryatoms.app`. Sign out first, then clear. Tracked as [#508](https://github.com/taihartman/obsidian-atoms/issues/508); until it lands, clearing is the one way to leave your own server by accident.
+
 The same Advanced screen has **DIY Ask guide**, which opens this page.
 
 ---
