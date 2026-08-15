@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| _Nothing in flight._ |
+| In progress | [#364](https://github.com/taihartman/obsidian-atoms/issues/364) C1 | agent | `fix/364-header-scrim` | light lane; deferred from the #493 plan as "its own PR" | `styles.css`, `src/settings/settings.ts` (marker class), `test/settingsRows.test.ts` | Settings header is translucent, so scrolled rows read *through* the title. Same defect as F9 in the #493 QA report, confirmed Obsidian's own `.modal-header::after` mask gradient and reproduced on a real Android WebView. Fix is scoped to the Atoms tab: a marker class on the modal, one rule on the scrim. Must not restyle other plugins' settings tabs. |
 
 ## How to claim (copy)
 
