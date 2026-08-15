@@ -140,11 +140,24 @@ Recorded in the plan's Open questions section. Summarised:
 
 ## Git state
 
-- Branch `claude/plus-session-issuer`, base `master` at `f544110`.
+- Branch `claude/plus-session-issuer`, base `master` at `f544110`, tracking
+  `origin/claude/plus-session-issuer`.
 - Draft PR [#526](https://github.com/taihartman/obsidian-atoms/pull/526), `Closes #508`.
 - `STATUS.md` row is claimed and current.
-- Head `7105839`. Working tree clean, everything pushed.
+- **Head `1f5e6b3` (this doc). Working tree clean, everything pushed. There is no WIP snapshot
+  commit — nothing was left uncommitted.**
+- Diff since base: 18 files, +1334/-39.
+- Recent commits, newest first:
+  - `f952c53` docs: confirm the `/v1/me` identity field against the service
+  - `8062881` docs(handoff): U1 and U2 landed, U3 next
+  - `7105839` feat(plus): U2 — stamp the base that actually issued the session
+  - `4513adb` feat(plus): U1 — a session can record the base that issued it
+  - `7cc88f2` docs(plan): KTD1 decided, absent issuer means unknown
+  - `f2811a0` docs(plan): fold in four-lens doc-review findings
+  - `2eae679` docs(plan): a Plus session records the base that issued it
 - Version still `0.8.0-beta.6`; the bump is U6.
+- You are in a **linked worktree** (`--git-common-dir` is the main checkout's `.git`). Reuse it. Do
+  not create another.
 
 ## How to resume
 
