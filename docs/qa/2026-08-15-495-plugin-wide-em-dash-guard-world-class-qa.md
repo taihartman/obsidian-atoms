@@ -343,6 +343,48 @@ stale exemption whose string is gone.
   `need_key` card.
 - **First-day setup copy**, unreachable in a vault with 146 captures already filed.
 
+## Post-QA: the decaying check fired, and the guard caught its first live offender
+
+Between the QA pass finishing and the merge check being re-run (~40 minutes), the ground moved:
+
+- **#494 merged** at 13:26 UTC, so the stack is gone and PR #496 was retargeted from
+  `claude/settings-ux-redesign-69acd6` to **`master`**.
+- **Three prereleases were cut today** — `0.8.0-beta.1` (13:28), `beta.2` (13:57), `beta.3` (14:03).
+- Two more PRs landed on master: **#500/#502** (Plus base URL scheme guard) and **#509/#510**
+  (friendlier Plus network failures).
+
+Re-running E4 against `master` turned the suite **red**, exactly the failure mode the check exists
+to catch:
+
+```
+src/platform/plusClient.ts:186
+"Plus service URL must start with https:// — http:// is allowed only for localhost. …"
+```
+
+`PLUS_BASE_URL_INVALID_MESSAGE` shipped with #500 **after** this QA pass ran. A default-deny guard is
+supposed to catch exactly this, and it did — on its first contact with code written by someone who
+had never seen it. That is the property the deleted five-file allowlist could not have had.
+
+**Swept here** using the house parenthetical convention, since the line is byte-pinned by no test and
+is the only new offender:
+
+```
+"Plus service URL must start with https:// (http:// is allowed only for localhost). Fix it in …"
+```
+
+**Version bumped to `0.8.0-beta.4`.** The earlier "no bump belongs here" call was explicitly
+conditional on 0.8.0 being unreleased. It no longer is: `beta.3` is cut, and shipping 93 changed
+user-visible strings under an already-released version is precisely the identifiability problem
+`CLAUDE.md` § Versioning exists to prevent.
+
+**One follow-up was overtaken.** The A1 truncation repro rode on
+`Plus network error (${name}: ${redact(msg)})`. #510 replaced that with a fixed
+`Could not reach the Plus service. Check your connection and try again.` — no interpolation, no
+parentheses. The concrete repro is gone; `truncateMessage` remains paren-unaware in principle, but
+the case that motivated the follow-up no longer exists.
+
+Merging `master` conflicts only in `STATUS.md`; `src/` auto-merged clean.
+
 ## Merge Decision
 
 **Merge after #494, having re-run E4 first.** Both QA halves ran, the two holes the adversarial pass

@@ -2176,7 +2176,7 @@ export default class AtomsPlugin extends Plugin {
    * The merge tail shared by startup and the external-change hook. Replaces
    * `this.settings` rather than mutating it — the "never alias `plugin.settings`"
    * invariant below is what makes one assignment close every gate at once.
-   * Returns whether the legacy strip left disk owing a write.
+   * Returns whether the legacy strip or a folder repair left disk owing a write.
    */
   private applyLoadedSettings(raw: Partial<LinkerSettings>): boolean {
     // One-time strip of the retired synced hash map: mirror evidence is
@@ -2185,9 +2185,32 @@ export default class AtomsPlugin extends Plugin {
     // and dropping it fails safe (no evidence plans no deletes).
     const stripped = stripLegacyAskMirrorHashes(raw);
     this.settings = Object.assign({}, DEFAULT_SETTINGS, raw);
-    this.settings.atomFolder = clampAtomFolder(this.settings.atomFolder);
+    const storedFolder = this.settings.atomFolder;
+    this.settings.atomFolder = clampAtomFolder(storedFolder);
+    // A folder this device cannot file into is repaired here, and the repair has to reach disk
+    // (#501). In memory alone it is not a repair at all: `data.json` syncs, so every other device
+    // keeps receiving the broken name, and this one re-clamps it from scratch on every load
+    // forever. Writing it once ends that, and is also what keeps the notice below to one showing.
+    const folderRepaired = this.settings.atomFolder !== storedFolder;
+    if (folderRepaired) this.noticeFolderRepair(storedFolder);
     settleAckRecords(this.settings);
-    return stripped;
+    return stripped || folderRepaired;
+  }
+
+  /**
+   * Say so, once, when a stored atom folder had to be given up.
+   *
+   * The alternative is a device that quietly starts filing somewhere else: home reads the new
+   * folder and shows an empty library, while the atoms already written under the old name sit
+   * where they are with their daily-note markers still claiming them, so Process will not rebuild
+   * them either. Nothing is destroyed and nothing is moved (non-negotiable 2 forbids moving
+   * files), but a user who is never told cannot go and look.
+   */
+  private noticeFolderRepair(storedFolder: string): void {
+    new Notice(
+      `Atoms could not file into "${storedFolder}", so filing moved back to "${this.settings.atomFolder}". Anything already filed under the old name was left where it is.`,
+      12000,
+    );
   }
 
   /**

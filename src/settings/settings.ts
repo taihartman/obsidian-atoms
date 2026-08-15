@@ -18,6 +18,7 @@ import {
   aggregateTagsFromFileCaches,
 } from "../pipeline/context";
 import {
+  type DeviceAutoRunState,
   readDeviceAutoRunState,
   readEgressAckVersion,
   setAutomaticFilingEnabled,
@@ -119,6 +120,8 @@ import {
 } from "../home/atomsHomeData";
 import {
   DEFAULT_PLUS_BASE_URL,
+  isAllowedPlusBaseUrl,
+  PLUS_BASE_URL_INVALID_MESSAGE,
   requestMagicLink,
   startPlusAccount,
   createCheckout,
@@ -130,6 +133,7 @@ import {
   askMirrorStatus,
   askMirrorWipe,
   plusFetchRequest,
+  PLUS_UNREACHABLE_MESSAGE,
 } from "../platform/plusClient";
 import {
   type AskMirrorOffReason,
@@ -456,6 +460,34 @@ const FILING_STATE_DESC = {
   off: "Atoms files a past day only when you ask it to.",
 } as const;
 
+/**
+ * Whether the automatic-filing toggle stands on — enabled *and* acked, never one of the two.
+ *
+ * Named because two places answer it in the same render: the status group spends the answer on
+ * prose, the row spends it on the toggle. Two copies of this conjunction is how a device that
+ * withdrew its ack ends up reading "Atoms files each past day" next to an off switch.
+ */
+function automaticFilingOn(state: DeviceAutoRunState): boolean {
+  return state.enabled && state.egressAcked;
+}
+
+/**
+ * Whether this device holds an egress grant of either kind: the stamped ack, or the catch-up
+ * notice on its own.
+ *
+ * Two surfaces answer this and they must not disagree — the privacy entry counts the grant, the
+ * record row is the only screen that withdraws it. A row that stops rendering while the count
+ * still says "1 on record" is a grant that still spends with nothing left to take it back, which
+ * is the failure `docs/solutions/logic-errors/narrowing-one-grant-removed-the-only-way-to-revoke-the-other.md`
+ * already cost once.
+ */
+function egressGrantOnRecord(
+  state: DeviceAutoRunState,
+  load: (key: string) => unknown,
+): boolean {
+  return state.egressAcked || readEgressNoticeAcked(load);
+}
+
 /** Which of the three lines this device has earned, by whether it runs and whether it has run. */
 function filingStateDesc(on: boolean, hasRun: boolean): string {
   if (!on) return FILING_STATE_DESC.off;
@@ -621,6 +653,13 @@ const UTILITY_GROUP = {
   header: "Your data",
   footer:
     "Privacy holds what you have allowed and the way to take it back. Advanced holds the settings almost nobody needs.",
+  /**
+   * The same sentence with the Privacy clause removed.
+   *
+   * A fresh install has allowed nothing, so `renderPrivacyEntry` renders no row — and the full
+   * footer would then describe a row that is not on screen, on the one state every user starts in.
+   */
+  footerAdvancedOnly: "Advanced holds the settings almost nobody needs.",
 } as const;
 
 /**
@@ -699,15 +738,6 @@ const ADVANCED_SCREEN = {
 } as const;
 
 /**
- * The paste-a-session escape hatch, and the route to it.
- *
- * Named once because three surfaces have to agree: the row itself, the signed-out email
- * description, and the notice a device without WebCrypto gets when its link is sent. The old name
- * was `Advanced: paste session`, whose prefix was doing the job of an address while the row sat on
- * the account screen. Now that it is actually on Advanced, the address is the route and the name
- * is just a name.
- */
-/**
  * The account screen's group headers. Mock SSOT `docs/design-handoff/settings/account.html`.
  *
  * Headers only, and no state in them, because U8 restyles this screen without re-shaping it
@@ -729,6 +759,15 @@ const ACCOUNT_SCREEN = {
   signIn: "Sign in or start a trial",
 } as const;
 
+/**
+ * The paste-a-session escape hatch, and the route to it.
+ *
+ * Named once because three surfaces have to agree: the row itself, the signed-out email
+ * description, and the notice a device without WebCrypto gets when its link is sent. The old name
+ * was `Advanced: paste session`, whose prefix was doing the job of an address while the row sat on
+ * the account screen. Now that it is actually on Advanced, the address is the route and the name
+ * is just a name.
+ */
 const PASTE_SESSION_ROW = "Paste a session";
 const PASTE_SESSION_ROUTE = `Advanced → ${PASTE_SESSION_ROW}`;
 
@@ -1143,6 +1182,18 @@ export class AtomsSettingTab extends PluginSettingTab {
     }
     const base =
       this.plugin.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL;
+    // #500. The one surface that hands the override to somebody else instead of
+    // calling it: this screen tells the user to paste the URL into Claude or
+    // ChatGPT and complete OAuth there. A refused base must not be published —
+    // pairing already fails through `plusRequest`, so the screen has nothing to
+    // offer, and printing the origin would point another agent at it.
+    if (!isAllowedPlusBaseUrl(base)) {
+      containerEl.createEl("p", {
+        text: PLUS_BASE_URL_INVALID_MESSAGE,
+        cls: "setting-item-description atoms-ask-mirror-error",
+      });
+      return;
+    }
     const mcpUrl = askMcpUrl(base);
 
     const status = this.mirrorStatusLine(session.email);
@@ -1372,7 +1423,10 @@ export class AtomsSettingTab extends PluginSettingTab {
         // Empty is production. Anything else points the plugin at an instance the user runs.
         settingRow(groupEl, {
           name: "Plus service URL",
-          desc: `Empty is ${DEFAULT_PLUS_BASE_URL}. Your own server can be http://127.0.0.1:8787 for the plugin, but Claude and ChatGPT need its public HTTPS address.`,
+          // The rule belongs in the description and not only in the error (#500 adversarial
+          // pass, I1): a NAS self-hoster typing http://nas.local:8787 should learn it is
+          // refused before they type it, not after.
+          desc: `Empty is ${DEFAULT_PLUS_BASE_URL}. Must be https, or http on localhost like http://127.0.0.1:8787. Claude and ChatGPT need its public HTTPS address.`,
           control: {
             kind: "text",
             configure: (text) => {
@@ -1382,10 +1436,39 @@ export class AtomsSettingTab extends PluginSettingTab {
                 .onChange((value) => {
                   this.plugin.settings.plusBaseUrl = value.trim();
                   void this.plugin.saveSettings();
+                  syncPlusBaseUrlError();
                 });
             },
           },
         });
+
+        // #500. The row still saves whatever is typed: it persists on every keystroke, so
+        // `https://…` passes through `h`, `ht`, `htt`, and refusing the save would fight the
+        // user mid-word. The guards in `plusRequest`, `resolveClassifyAuth` and
+        // `savePastedSession` are what keep the session token off an unvetted host; this line
+        // only explains why Plus went quiet, so a rejected override does not read as a dead
+        // plugin.
+        //
+        // Under the row rather than inside it: `settingRow` returns void on purpose, so the row
+        // keeps one grammar and no control grows an error mode. The handler above closes over
+        // `syncPlusBaseUrlError` before it is initialized, which holds because `onChange` is a
+        // DOM input listener and cannot fire during `display()` — the three tests in
+        // settings.test.ts pin that.
+        const plusBaseUrlErrorEl = groupEl.createDiv({
+          cls: "atoms-setting-error",
+        });
+        const syncPlusBaseUrlError = (): void => {
+          // Trimmed, because that is how every consumer resolves it — a value of `"   "`
+          // reaches the hosted default and works, so calling it refused would announce a
+          // failure that is not happening.
+          const raw = this.plugin.settings.plusBaseUrl.trim();
+          // Empty is the hosted default, not a mistake.
+          const rejected = raw !== "" && !isAllowedPlusBaseUrl(raw);
+          plusBaseUrlErrorEl.setText(
+            rejected ? PLUS_BASE_URL_INVALID_MESSAGE : "",
+          );
+        };
+        syncPlusBaseUrlError();
 
         this.actionRow(groupEl, {
           action: "ask:open-self-host-guide",
@@ -1449,10 +1532,15 @@ export class AtomsSettingTab extends PluginSettingTab {
       cls: "setting-item-description",
     });
 
+    // Read once for the whole render pass. `resolveFilingAuth` reaches SecretStorage, which is
+    // an OS keychain round-trip rather than a field read, and this screen redisplays on every
+    // toggle — so the setup step and the engine row share one answer instead of each asking.
+    const filing = this.plugin.resolveFilingAuth();
+
     // Decided once and handed to both groups: the same answer says what the status group is
     // *for* and whether the File group still holds the automatic-filing toggle. Asking twice is
     // how the two halves of that seam would eventually disagree.
-    const step = this.nextSetupStep();
+    const step = this.nextSetupStep(filing);
 
     // Whether Atoms is filing, before anything the screen offers to change (R18).
     this.renderStatusGroup(containerEl, step);
@@ -1461,7 +1549,7 @@ export class AtomsSettingTab extends PluginSettingTab {
     // does with it, then how it comes back. Nothing else is a section any more — the records,
     // the diagnostics, the manual sync and the escape hatches all live behind the utility group.
     this.renderCaptureGroup(containerEl);
-    this.renderFileGroup(containerEl, step);
+    this.renderFileGroup(containerEl, step, filing);
     this.renderResurfaceGroups(containerEl);
     this.renderUtilityGroup(containerEl);
   }
@@ -1472,10 +1560,10 @@ export class AtomsSettingTab extends PluginSettingTab {
    * Read out of `firstDaySetupCopy` rather than decided here (KTD11): Atoms home's first-day wall
    * answers the same question, and the moment this screen keeps its own list the two drift.
    */
-  private nextSetupStep(): SetupStep | null {
+  private nextSetupStep(filing: FilingAuth): SetupStep | null {
     return firstDaySetupCopy(
       appHasDailyNotesPluginLoaded(),
-      this.plugin.resolveFilingAuth().mode !== "none",
+      filing.mode !== "none",
     ).nextStep;
   }
 
@@ -1500,14 +1588,21 @@ export class AtomsSettingTab extends PluginSettingTab {
             name: step.name,
             desc: "Required",
             onOpen: () => {
-              if (step.kind === "daily_notes") {
-                openSettingsTab(this.app, CORE_PLUGINS_SETTINGS_TAB_ID);
-                return;
+              // Switched with no catch-all so a third setup step cannot quietly inherit the
+              // engine screen: adding one is a compile error here until it names its own home.
+              switch (step.kind) {
+                case "daily_notes":
+                  openSettingsTab(this.app, CORE_PLUGINS_SETTINGS_TAB_ID);
+                  return;
+                case "filing_owner":
+                  // The step is "choose who files", so it lands on the screen that asks exactly
+                  // that. It used to open Account, which offered one of the two answers and never
+                  // named the other.
+                  this.openRoute("engine");
+                  return;
               }
-              // The step is "choose who files", so it lands on the screen that asks exactly
-              // that. It used to open Account, which offered one of the two answers and never
-              // named the other.
-              this.openRoute("engine");
+              const exhaustive: never = step.kind;
+              return exhaustive;
             },
           });
         },
@@ -1515,14 +1610,18 @@ export class AtomsSettingTab extends PluginSettingTab {
       return;
     }
     const state = readDeviceAutoRunState((k) => loadLocal(this.app, k));
-    const on = state.enabled && state.egressAcked;
+    const on = automaticFilingOn(state);
     group(containerEl, {
       ...STATUS_GROUP.filing,
       render: (groupEl) => {
-        this.renderAutomaticFilingRow(groupEl, {
-          name: FILING_ROW_NAME,
-          desc: filingStateDesc(on, Boolean(state.lastRunDay)),
-        });
+        this.renderAutomaticFilingRow(
+          groupEl,
+          {
+            name: FILING_ROW_NAME,
+            desc: filingStateDesc(on, Boolean(state.lastRunDay)),
+          },
+          state,
+        );
         if (on) statusRow(groupEl, { ...NEXT_RUN_ROW });
       },
     });
@@ -1558,13 +1657,42 @@ export class AtomsSettingTab extends PluginSettingTab {
    * seam from the other side. Order follows the mock: who files, whether it runs on its own,
    * where atoms land, what they may be tagged, and what gets listed on hub notes.
    */
-  private renderFileGroup(containerEl: HTMLElement, step: SetupStep | null): void {
+  private renderFileGroup(
+    containerEl: HTMLElement,
+    step: SetupStep | null,
+    filing: FilingAuth,
+  ): void {
     group(containerEl, {
       ...FILE_GROUP,
       render: (groupEl) => {
-        this.renderEngineRow(groupEl);
+        this.renderEngineRow(groupEl, filing);
         if (step) {
-          this.renderAutomaticFilingRow(groupEl, { ...FILING_ROW_UNCONFIGURED });
+          // Setup is unfinished, but that does not mean this device has never filed: switching the
+          // Daily Notes core plugin off under a configured engine puts the toggle back here with
+          // the window and the ack still spent. The day-one promise survives an enable — nothing
+          // has landed yet, so it stays true — and stops being true only once a run is on the
+          // books, which is exactly when the status group would have retired it too.
+          //
+          // The engine is the exception, and it is why `filing` is consulted here rather than only
+          // the device's own stamps. A spent window argues that filing *was* happening; a deleted
+          // key means nothing can be sent at all, so the running line would describe a device that
+          // files nothing. Found by the adversarial pass: configure a device-local key, watch the
+          // status group take the toggle, then turn the fallback back off.
+          const state = readDeviceAutoRunState((k) => loadLocal(this.app, k));
+          const hasFiled =
+            filing.mode !== "none" &&
+            automaticFilingOn(state) &&
+            Boolean(state.lastRunDay);
+          this.renderAutomaticFilingRow(
+            groupEl,
+            {
+              name: FILING_ROW_UNCONFIGURED.name,
+              desc: hasFiled
+                ? filingStateDesc(true, true)
+                : FILING_ROW_UNCONFIGURED.desc,
+            },
+            state,
+          );
         }
         this.renderAtomFolderRow(groupEl);
         this.renderVocabularyEntry(groupEl);
@@ -1588,8 +1716,14 @@ export class AtomsSettingTab extends PluginSettingTab {
 
   /** The two screens nobody opens on an ordinary day, under one header (R4). */
   private renderUtilityGroup(containerEl: HTMLElement): void {
+    // The Privacy row is conditional, so the footer that names it has to be conditional too —
+    // asked once here rather than inside the render callback, which cannot reach the header.
+    const showPrivacy = this.privacyGrants().any;
     group(containerEl, {
-      ...UTILITY_GROUP,
+      header: UTILITY_GROUP.header,
+      footer: showPrivacy
+        ? UTILITY_GROUP.footer
+        : UTILITY_GROUP.footerAdvancedOnly,
       render: (groupEl) => {
         this.renderPrivacyEntry(groupEl);
         destinationRow(groupEl, {
@@ -1619,8 +1753,7 @@ export class AtomsSettingTab extends PluginSettingTab {
     any: boolean;
   } {
     const load = (k: string): unknown => loadLocal(this.app, k);
-    const egress =
-      readDeviceAutoRunState(load).egressAcked || readEgressNoticeAcked(load);
+    const egress = egressGrantOnRecord(readDeviceAutoRunState(load), load);
     const { askPrivacyAckAt, askWriteAckAt } = this.plugin.settings;
     // The egress pair is one row however many of its two grants are live, so it counts once.
     const records =
@@ -1668,7 +1801,7 @@ export class AtomsSettingTab extends PluginSettingTab {
     // Withdrawing the last grant re-renders this screen underneath the user, so it has to be
     // able to say that it is empty. A destination holding nothing but a back row reads as
     // broken rather than as finished.
-    if (grants.records === 0 && !grants.session && grants.cloudCount === null) {
+    if (!grants.any) {
       containerEl.createEl("p", {
         text: "Nothing on record, and no cloud copy. Anything you allow later shows up here, with the way to take it back.",
         cls: "setting-item-description",
@@ -1977,9 +2110,14 @@ export class AtomsSettingTab extends PluginSettingTab {
     this.redisplay();
   }
 
-  private accountState(): AccountState {
+  /**
+   * `filing` is optional so a render pass that already resolved it can hand it back rather than
+   * paying a second SecretStorage read; every other caller reads fresh, which is what a click
+   * handler outliving its render wants.
+   */
+  private accountState(filing?: FilingAuth): AccountState {
     return deriveAccountState(
-      this.plugin.resolveFilingAuth(),
+      filing ?? this.plugin.resolveFilingAuth(),
       readPlusSession(this.app),
     );
   }
@@ -1994,10 +2132,10 @@ export class AtomsSettingTab extends PluginSettingTab {
    * where filing was already set up. Naming the decision lets the answer be whatever it is, and
    * it always spends a subtitle rather than rendering the question blank (R20).
    */
-  private renderEngineRow(containerEl: HTMLElement): void {
+  private renderEngineRow(containerEl: HTMLElement, filing: FilingAuth): void {
     destinationRow(containerEl, {
       name: DESTINATION_TITLES.engine,
-      desc: this.engineAnswer(),
+      desc: this.engineAnswer(filing),
       onOpen: () => this.openRoute("engine"),
     });
   }
@@ -2012,10 +2150,10 @@ export class AtomsSettingTab extends PluginSettingTab {
    * ended"), so it borrows `accountRowDescriptor` rather than keeping a second table of those
    * words (KTD7).
    */
-  private engineAnswer(): string {
-    const state = this.accountState();
+  private engineAnswer(filing: FilingAuth): string {
+    const state = this.accountState(filing);
     if (state.kind !== "signedOut") return accountRowDescriptor(state).name;
-    return this.plugin.resolveFilingAuth().mode === "none" ? "Not chosen" : "Your own key";
+    return filing.mode === "none" ? "Not chosen" : "Your own key";
   }
 
   /**
@@ -2157,42 +2295,52 @@ export class AtomsSettingTab extends PluginSettingTab {
       });
     }
 
-    if (state.kind === "trialIncomplete") {
-      this.actionRow(containerEl, {
-        action: "plus:trial-checkout",
-        name: "Finish trial setup",
-        desc: "Complete Stripe checkout (card for the 14-day trial). Return here and status updates automatically.",
-        label: "Finish trial setup",
-        onClick: () => this.finishTrialCheckout(),
-      });
+    // One row at most, and switched with no catch-all: a new account state that needs the user to
+    // do something is a compile error here until it says what that something is. `active` and
+    // `trialing` are the two that ask for nothing, and they have to say so out loud.
+    switch (state.kind) {
+      case "trialIncomplete":
+        this.actionRow(containerEl, {
+          action: "plus:trial-checkout",
+          name: "Finish trial setup",
+          desc: "Complete Stripe checkout (card for the 14-day trial). Return here and status updates automatically.",
+          label: "Finish trial setup",
+          onClick: () => this.finishTrialCheckout(),
+        });
+        return;
+      case "subscribeIncomplete":
+        this.actionRow(containerEl, {
+          action: "plus:promo-subscribe-checkout",
+          name: "Finish Plus checkout",
+          desc: "Complete subscription checkout. On the next page, tap Add promotion code.",
+          label: "Finish Plus checkout",
+          onClick: () => this.finishSubscribeCheckout(),
+        });
+        return;
+      case "periodEnded":
+        this.actionRow(containerEl, {
+          action: "plus:subscribe-checkout",
+          name: "Subscribe",
+          desc: accountRowDescriptor(state).desc ?? "",
+          label: "Subscribe",
+          onClick: () => this.openSubscribeCheckout(),
+        });
+        return;
+      case "exhausted":
+        this.actionRow(containerEl, {
+          action: "plus:top-up-checkout",
+          name: "Get more filings",
+          desc: "Buy additional filings now instead of waiting for your next billing date.",
+          label: "Get more",
+          onClick: () => this.openTopUpCheckout(),
+        });
+        return;
+      case "active":
+        // Nothing to finish and nothing to buy — the facts above are the whole screen.
+        return;
     }
-    if (state.kind === "subscribeIncomplete") {
-      this.actionRow(containerEl, {
-        action: "plus:promo-subscribe-checkout",
-        name: "Finish Plus checkout",
-        desc: "Complete subscription checkout. On the next page, tap Add promotion code.",
-        label: "Finish Plus checkout",
-        onClick: () => this.finishSubscribeCheckout(),
-      });
-    }
-    if (state.kind === "periodEnded") {
-      this.actionRow(containerEl, {
-        action: "plus:subscribe-checkout",
-        name: "Subscribe",
-        desc: accountRowDescriptor(state).desc ?? "",
-        label: "Subscribe",
-        onClick: () => this.openSubscribeCheckout(),
-      });
-    }
-    if (state.kind === "exhausted") {
-      this.actionRow(containerEl, {
-        action: "plus:top-up-checkout",
-        name: "Get more filings",
-        desc: "Buy additional filings now instead of waiting for your next billing date.",
-        label: "Get more",
-        onClick: () => this.openTopUpCheckout(),
-      });
-    }
+    const exhaustive: never = state;
+    return exhaustive;
   }
 
   /** Everything you can do to the account, whatever state it is in. */
@@ -2473,6 +2621,13 @@ export class AtomsSettingTab extends PluginSettingTab {
     }
     const base =
       this.plugin.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL;
+    // #500. This is the one Plus call that builds its own request instead of
+    // going through `plusRequest`, so it needs the guard in its own words —
+    // otherwise a bad override sends the pasted session straight off the device.
+    if (!isAllowedPlusBaseUrl(base)) {
+      new Notice(PLUS_BASE_URL_INVALID_MESSAGE, 10000);
+      return;
+    }
     try {
       const res = await requestUrl({
         url: `${base.replace(/\/+$/, "")}/v1/me`,
@@ -2510,9 +2665,10 @@ export class AtomsSettingTab extends PluginSettingTab {
       clearPlusRefreshRecord(this.app);
       new Notice("Atoms Plus session saved on this device");
       this.redisplay();
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : "network error";
-      new Notice(`Could not reach Plus service (${msg})`, 8000);
+    } catch {
+      // Same rule as plusClient's network path: the thrown text here is
+      // `Failed to fetch`, which a reader cannot act on.
+      new Notice(PLUS_UNREACHABLE_MESSAGE, 8000);
     }
   }
 
@@ -2571,7 +2727,6 @@ export class AtomsSettingTab extends PluginSettingTab {
       this.plugin.settings.captureShortcutInstallUrl,
     );
     new CaptureShortcutSheetModal(this.app, {
-      app: this.app,
       installLabel: labelCaptureShortcutCta(shortcutAcked),
       // Companion stays hidden until App Store, so a missing link is a packaging fault rather
       // than a state the user can fix — say which file, and leave the button dead.
@@ -2795,10 +2950,13 @@ export class AtomsSettingTab extends PluginSettingTab {
   private renderAutomaticFilingRow(
     containerEl: HTMLElement,
     row: { name: string; desc: string },
+    rendered?: DeviceAutoRunState,
   ): void {
     const load = (k: string): unknown => loadLocal(this.app, k);
     const save = (k: string, v: unknown) => this.app.saveLocalStorage(k, v);
-    const state = readDeviceAutoRunState(load);
+    // The status group already read this to write its own prose; taking its copy is what keeps
+    // the switch and the sentence above it answering from the same read.
+    const state = rendered ?? readDeviceAutoRunState(load);
 
     settingRow(containerEl, {
       name: row.name,
@@ -2806,7 +2964,7 @@ export class AtomsSettingTab extends PluginSettingTab {
       control: {
         kind: "toggle",
         configure: (toggle) => {
-          toggle.setValue(state.enabled && state.egressAcked).onChange((on) => {
+          toggle.setValue(automaticFilingOn(state)).onChange((on) => {
             // Re-read rather than trusting the render-time `state` above, exactly as the Ask
             // mirror toggle does: this handler can outlive the screen it was built on, and a
             // withdrawal elsewhere would leave it holding an ack that no longer exists.
@@ -2899,7 +3057,11 @@ export class AtomsSettingTab extends PluginSettingTab {
   private renderAtomFolderRow(containerEl: HTMLElement) {
     settingRow(containerEl, {
       name: "Atom folder",
-      desc: "One flat folder. A path with .. or subfolders falls back to Atoms.",
+      // This description is the only surface that ever reports the fallback, so it names every
+      // rule that triggers one (#501), in this screen's shorter row voice. The dot is the rule
+      // nobody would guess: Obsidian does not index a folder starting with one, so atoms filed
+      // there are invisible everywhere and the markers pointing at them never resolve.
+      desc: "One flat folder. Subfolders, a path with .., a leading dot, or a name too long to write fall back to Atoms.",
       control: {
         kind: "text",
         configure: (text) => {
@@ -3308,7 +3470,7 @@ export class AtomsSettingTab extends PluginSettingTab {
     const load = (k: string): unknown => loadLocal(this.app, k);
     const save = (k: string, v: unknown) => this.app.saveLocalStorage(k, v);
     const state = readDeviceAutoRunState(load);
-    if (!state.egressAcked && !readEgressNoticeAcked(load)) return;
+    if (!egressGrantOnRecord(state, load)) return;
 
     // Say which consent is actually on record. A device carrying only the notice never saw the
     // unioned disclosure, and this row must not claim on its behalf that it did.

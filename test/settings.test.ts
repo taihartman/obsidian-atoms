@@ -36,7 +36,10 @@ import {
 } from "../src/platform/askMirror";
 import { formatUsd, PLUS_PRICING } from "../src/shared/plusPricing";
 import { s256Challenge } from "../src/platform/pkce";
-import { requestMagicLink } from "../src/platform/plusClient";
+import {
+  PLUS_BASE_URL_INVALID_MESSAGE,
+  requestMagicLink,
+} from "../src/platform/plusClient";
 import * as dni from "obsidian-daily-notes-interface";
 import { firstDaySetupCopy } from "../src/home/atomsHomeData";
 import {
@@ -598,6 +601,27 @@ describe("account row", () => {
       press(tab, PASTE_ROW, "Save session");
 
       expect(handler).toHaveBeenCalledWith("sess_live");
+    });
+
+    /**
+     * #500. This path verifies the pasted token by sending it to `/v1/me` with
+     * `requestUrl` directly, so it does not inherit `plusRequest`'s guard and
+     * needs its own. The obsidian mock's `requestUrl` throws when called, which
+     * is the assertion: a guard that stopped working fails this test loudly.
+     */
+    it("will not verify a pasted session against a Plus URL we would not talk to", async () => {
+      const { tab } = settingTab({
+        settings: { plusBaseUrl: "http://evil.example" },
+      });
+      const ui = captureObsidianUi();
+
+      await (
+        tab as unknown as {
+          savePastedSession: (token: string) => Promise<void>;
+        }
+      ).savePastedSession("sess_live_abc");
+
+      expect(ui.notices).toEqual([PLUS_BASE_URL_INVALID_MESSAGE]);
     });
   });
 
@@ -2447,6 +2471,28 @@ describe("Connect Claude or ChatGPT destination (U6)", () => {
     for (const name of CONNECT_ROWS) expect(rowNames(tab)).toContain(name);
   });
 
+  /**
+   * #500. This screen is the one place the service URL is handed to somebody
+   * else rather than called: it prints the MCP URL and tells the user to paste
+   * it into Claude or ChatGPT and complete OAuth there. Withholding the session
+   * token is not enough — publishing a refused origin points another agent at
+   * it, where whatever the user authorizes is the attacker's to keep.
+   */
+  it("publishes no MCP URL for a service URL we would not talk to", () => {
+    const { tab } = settingTab({
+      session: PLUS_SESSION,
+      settings: { plusBaseUrl: "http://evil.example" },
+    });
+    tab.display();
+    open(tab, "Connect Claude or ChatGPT");
+
+    expect(tab.containerEl.textContent).not.toContain("evil.example");
+    expect(tab.containerEl.textContent).toContain(
+      PLUS_BASE_URL_INVALID_MESSAGE,
+    );
+    expect(rowNames(tab)).not.toContain("MCP connector URL");
+  });
+
   it("still asks before wiping the cloud copy", async () => {
     const { tab, calls } = settingTab({
       session: PLUS_SESSION,
@@ -2695,6 +2741,54 @@ describe("Advanced destination (U7, R4)", () => {
     // The override redirects where egress goes; it cannot turn egress on.
     expect(tab.plugin.settings.plusBaseUrl).toBe("http://127.0.0.1:8787");
     expect(gateState(tab, local)).toEqual(before);
+  });
+
+  /**
+   * #500. The guards refuse an unvetted host at the request; without this line
+   * the user only sees Plus stop working, with nothing naming the reason. The
+   * value is still saved — the field persists on every keystroke, so refusing
+   * the save would fight `https://…` at `h`, `ht`, `htt`.
+   */
+  describe("a rejected service URL says so under its own row", () => {
+    it("explains a bad value already saved, on first render", () => {
+      const { tab } = advanced({ settings: { plusBaseUrl: "http://evil.example" } });
+
+      expect(tab.containerEl.textContent).toContain(
+        PLUS_BASE_URL_INVALID_MESSAGE,
+      );
+    });
+
+    it("appears when a bad value is typed and clears when it is fixed", async () => {
+      const { tab } = advanced();
+      expect(tab.containerEl.textContent).not.toContain(
+        PLUS_BASE_URL_INVALID_MESSAGE,
+      );
+
+      fill(tab, "Plus service URL", "http://evil.example");
+      await flush();
+      expect(tab.containerEl.textContent).toContain(
+        PLUS_BASE_URL_INVALID_MESSAGE,
+      );
+      // Saved anyway — the request guard is the protection, not the field.
+      expect(tab.plugin.settings.plusBaseUrl).toBe("http://evil.example");
+
+      fill(tab, "Plus service URL", "https://my.example");
+      await flush();
+      expect(tab.containerEl.textContent).not.toContain(
+        PLUS_BASE_URL_INVALID_MESSAGE,
+      );
+    });
+
+    it("stays quiet for an empty field, which means the hosted service", async () => {
+      const { tab } = advanced({ settings: { plusBaseUrl: "https://my.example" } });
+
+      fill(tab, "Plus service URL", "");
+      await flush();
+
+      expect(tab.containerEl.textContent).not.toContain(
+        PLUS_BASE_URL_INVALID_MESSAGE,
+      );
+    });
   });
 });
 
@@ -2967,6 +3061,21 @@ const FILING_SESSION: PlusSession = {
  * variant off it, and the File group sheds its automatic-filing toggle off it. Two copies of this
  * setup would let one of those describes drift onto an install the other never sees.
  */
+/**
+ * The footer under the "Your data" group. Located through its own header rather than by taking
+ * the last footer on screen, so a group added after it does not quietly retarget the assertion.
+ */
+function utilityFooter(tab: AtomsSettingTab): string {
+  const header = Array.from(
+    tab.containerEl.querySelectorAll("h3.atoms-setting-group-header"),
+  ).find((el) => el.textContent === "Your data");
+  const foot = header?.nextElementSibling?.nextElementSibling;
+  if (!foot?.classList.contains("atoms-setting-group-foot")) {
+    throw new Error("no footer under the 'Your data' group");
+  }
+  return foot.textContent ?? "";
+}
+
 function filingTab(opts: SettingTabOptions = {}) {
   return settingTab({
     ...opts,
@@ -3104,6 +3213,71 @@ describe("status group (U2)", () => {
     expect(step?.name).toBe("Turn on Daily Notes");
     expect(groupHeaders(tab)[0]).toBe("Get started");
     expect(rowNames(tab, { headings: false })[0]).toBe(step?.name);
+  });
+
+  /**
+   * Unfinished setup and "not filing" are two different questions, and Daily Notes is where they
+   * come apart: switching that core plugin off under a configured engine leaves the window and
+   * the ack spent while the toggle falls back to the File group. Telling that device its first
+   * atoms arrive tomorrow describes a silence window it already spent.
+   */
+  it("does not promise a first arrival to a device that is already filing", () => {
+    vi.spyOn(dni, "appHasDailyNotesPluginLoaded").mockReturnValue(false);
+    const { tab } = filingTab({
+      local: { ...FILING_ON, [LS_LAST_RUN_DAY]: "2026-08-13" },
+    });
+    tab.display();
+
+    // The setup step is still the honest headline — nothing files without a daily note.
+    expect(rowNames(tab, { headings: false })[0]).toBe("Turn on Daily Notes");
+
+    const toggle = row(tab, "File automatically when Obsidian opens");
+    expect(toggle.textContent).not.toContain("Filing starts with tomorrow's note");
+    expect(toggle.textContent).toContain("Atoms files each past day when Obsidian opens.");
+  });
+
+  it("keeps the day-one promise until a run is actually on the books", () => {
+    vi.spyOn(dni, "appHasDailyNotesPluginLoaded").mockReturnValue(false);
+    // Enabled, acked, and nothing filed yet: the promise is still true, so it must survive.
+    const { tab } = filingTab({ local: FILING_ON });
+    tab.display();
+
+    expect(
+      row(tab, "File automatically when Obsidian opens").textContent,
+    ).toContain("Filing starts with tomorrow's note");
+  });
+
+  /**
+   * The other side of the test above, and the line between them is what the device can still do.
+   *
+   * A spent window argues filing *was* happening, which is why Daily Notes going off keeps the
+   * running line. A deleted engine argues nothing can be sent at all. Adversarial repro, live:
+   * engine screen → device-local key fallback on → paste a key → back, and the status group takes
+   * the toggle; then engine screen → fallback off, which deletes the key → back. The status group
+   * correctly hands the toggle down again and the engine row reads `Not chosen`, while the toggle
+   * itself went on claiming the device files every past day. It files nothing: `resolveFilingAuth`
+   * reports `none`, so there is no credential to send a capture with.
+   */
+  it("does not claim a device with no engine is filing each past day", () => {
+    vi.spyOn(dni, "appHasDailyNotesPluginLoaded").mockReturnValue(true);
+    // No `auth`, so `resolveFilingAuth()` is `{ mode: "none" }` — the state deleting the key left.
+    const { tab } = settingTab({
+      local: { ...FILING_ON, [LS_LAST_RUN_DAY]: "2026-08-11" },
+    });
+    tab.display();
+
+    // The screen agrees setup is unfinished, twice.
+    expect(rowNames(tab, { headings: false })[0]).toBe(
+      "Choose who files your captures",
+    );
+    expect(row(tab, "Who does the filing").textContent).toContain("Not chosen");
+
+    // So the toggle may not say otherwise.
+    const toggle = row(tab, "File automatically when Obsidian opens");
+    expect(toggle.textContent).not.toContain(
+      "Atoms files each past day when Obsidian opens.",
+    );
+    expect(toggle.textContent).toContain("Filing starts with tomorrow's note");
   });
 });
 
@@ -3996,13 +4170,25 @@ describe("Capture and File groups (U3)", () => {
       expect(plugin.settings.atomFolder).toBe("Thoughts");
     });
 
-    it("still states that rule to the user, because nothing else reports the fallback", () => {
+    /**
+     * Every rule, not only the two this row started with. `clampAtomFolder` rejects four kinds of
+     * folder now (#501 added the leading dot and the length cap), and this description is still
+     * the only surface that ever tells a user a fallback happened — silently for the two new ones
+     * would be the same bug wearing a newer guard. Matched case-insensitively so the sentence can
+     * be worded naturally.
+     */
+    it("still states those rules to the user, because nothing else reports the fallback", () => {
       const { tab } = filingTab();
       tab.display();
 
-      const desc = row(tab, "Atom folder").querySelector(".setting-item-description");
-      expect(desc?.textContent).toContain("..");
-      expect(desc?.textContent).toContain("subfolders");
+      const desc =
+        row(tab, "Atom folder")
+          .querySelector(".setting-item-description")
+          ?.textContent?.toLowerCase() ?? "";
+      expect(desc).toContain("..");
+      expect(desc).toContain("subfolder");
+      expect(desc).toContain("dot");
+      expect(desc).toContain("too long");
     });
 
     it("keeps an overlong value in the field rather than in the row's own text", () => {
@@ -4060,6 +4246,34 @@ describe("Capture and File groups (U3)", () => {
       ).map((el) => el.textContent ?? "");
       expect(feet.length).toBeGreaterThan(0);
       for (const foot of feet) expect(foot).not.toContain("—");
+    });
+
+    /**
+     * The "Your data" footer says what is behind each row under it, and the Privacy row is
+     * conditional — a fresh install has allowed nothing, so it renders no such row. A footer that
+     * describes a row that is not there is worst on the one state every user starts in.
+     */
+    it("does not name Privacy in the footer when there is no Privacy row", () => {
+      const { tab } = settingTab();
+      tab.display();
+
+      expect(rowNames(tab, { headings: false })).not.toContain("Privacy and consents");
+      const foot = utilityFooter(tab);
+      expect(foot).not.toContain("Privacy");
+      expect(foot).toContain("Advanced holds the settings almost nobody needs.");
+    });
+
+    it("names Privacy again once there is something to take back", () => {
+      const { tab } = settingTab({
+        local: {
+          [LS_AUTO_RUN_ENABLED]: true,
+          [LS_AUTO_RUN_EGRESS_ACK]: EGRESS_ACK_VERSION,
+        },
+      });
+      tab.display();
+
+      expect(rowNames(tab, { headings: false })).toContain("Privacy and consents");
+      expect(utilityFooter(tab)).toContain("Privacy holds what you have allowed");
     });
   });
 

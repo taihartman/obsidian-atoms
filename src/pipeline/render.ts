@@ -84,6 +84,24 @@ const RESERVED = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i;
 /** Bound model titles for paths + markers (pre-community security). */
 export const TITLE_MAX_LEN = 120;
 
+/**
+ * Bound the atom folder, in **bytes** rather than characters (#501).
+ *
+ * 255 is not a round number picked for comfort, it is the limit every common filesystem enforces
+ * on a single path component, and exceeding it is what made `createFolder` and `create` throw
+ * `ENAMETOOLONG`. The guard is set exactly there on purpose. A tidier ceiling — 64, say — would
+ * also reject names that work today, and this value is read at *load*, so shipping a stricter
+ * rule would silently relocate a working vault's folder on upgrade and strand every atom already
+ * filed in it. Rejecting what the filesystem refuses is a repair; rejecting what merely looks
+ * excessive is a migration nobody asked for.
+ *
+ * Bytes, because a character count is the wrong unit for the limit it stands in for: sixty-four
+ * 4-byte emoji are 256 bytes and would sail through a character check.
+ */
+export const FOLDER_MAX_BYTES = 255;
+
+const byteLength = (s: string): number => new TextEncoder().encode(s).length;
+
 /** C0 controls, DEL, line/paragraph separators — no control-char regex. */
 function hasUnsafeControlChars(s: string): boolean {
   for (let i = 0; i < s.length; i++) {
@@ -108,8 +126,21 @@ function stripUnsafeControlChars(s: string): string {
 }
 
 /**
- * Safe single-segment atom folder. Rejects `..`, absolute paths, multi-segment.
- * Default `Atoms` when invalid/empty.
+ * Safe single-segment atom folder. Rejects `..`, absolute paths, multi-segment, a leading or
+ * trailing dot, a reserved device name, and anything too long to write. Default `Atoms` when
+ * invalid/empty.
+ *
+ * #501 brought this in line with `sanitizeFilename`, which has always held the other half of the
+ * same path to these rules; the folder was the looser of the pair, and its two live failures were
+ * both silent and both undiagnosable from the screen. A dot-folder is written successfully and
+ * then never indexed by Obsidian, so the atoms are missing from the explorer, from search and
+ * from the graph while the marker links pointing at them can never resolve. An over-long name
+ * makes every write throw `ENAMETOOLONG`, so filing simply stops producing atoms.
+ *
+ * The trailing dot, the trailing space and the reserved names are the same parity: they are legal
+ * on macOS and rejected by Windows, and a vault syncs. `sanitizeFilename` already refuses them in
+ * every atom title on every platform, so refusing them in the folder is consistency rather than
+ * new policy.
  */
 export function clampAtomFolder(raw: string | null | undefined): string {
   const s = (raw ?? "").trim().replace(/\\/g, "/").replace(/\/+$/, "");
@@ -117,8 +148,14 @@ export function clampAtomFolder(raw: string | null | undefined): string {
   if (s.startsWith("/") || /^[a-zA-Z]:/.test(s)) return "Atoms";
   const parts = s.split("/").filter((p) => p.length > 0);
   if (parts.length !== 1) return "Atoms";
-  const seg = parts[0]!;
-  if (seg === "." || seg === ".." || seg.includes("..")) return "Atoms";
+  // Re-trimmed: the strip above removes a trailing slash and can hand back the space that was in
+  // front of it, and a component ending in a space is another name Windows will not take.
+  const seg = parts[0]!.trim();
+  if (!seg) return "Atoms";
+  if (seg.startsWith(".") || seg.includes("..")) return "Atoms";
+  if (seg.endsWith(".")) return "Atoms";
+  if (RESERVED.test(seg)) return "Atoms";
+  if (byteLength(seg) > FOLDER_MAX_BYTES) return "Atoms";
   if (hasUnsafeControlChars(seg)) return "Atoms";
   if (ILLEGAL_FILENAME_CHAR.test(seg)) return "Atoms";
   return seg;

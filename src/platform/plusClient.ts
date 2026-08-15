@@ -107,11 +107,28 @@ export type PlusApiError = {
     | "expired"
     | "invalid"
     | "unknown";
+  /**
+   * Redacted engine-level shape of the failure (`TypeError: Failed to fetch`).
+   * Diagnostics only: never render it in a Notice or a settings row. It names
+   * the browser API that gave up, which tells a reader nothing they can do.
+   */
+  detail?: string;
 };
 
 /** Shown when the service answers with something we cannot read as JSON. */
 export const UNREADABLE_RESPONSE_MESSAGE =
   "Atoms Plus sent a reply this device could not read. Nothing changed here. Try again in a moment.";
+
+/**
+ * Shown when the request never reached the service at all: no connection, a
+ * wrong `plusBaseUrl`, DNS or TLS. Says the one thing a reader can act on. The
+ * thrown shape stays on {@link PlusApiError.detail} for diagnostics.
+ *
+ * Names "the Plus service" rather than "Atoms Plus" because most callers
+ * already prefix the Notice with `Atoms Plus: `.
+ */
+export const PLUS_UNREACHABLE_MESSAGE =
+  "Could not reach the Plus service. Check your connection and try again.";
 
 /** Shown when our own service rejects the device session (401/403 with a body). */
 export const SESSION_REJECTED_MESSAGE =
@@ -164,6 +181,59 @@ function joinUrl(base: string, path: string): string {
   return `${b}${p}`;
 }
 
+/** Shown when the Plus service URL is a host we refuse to talk to (#500). */
+export const PLUS_BASE_URL_INVALID_MESSAGE =
+  "Plus service URL must start with https:// (http:// is allowed only for localhost). Fix it in Settings → Atoms → Advanced, or clear it to use the hosted service.";
+
+/**
+ * Loopback never leaves the device, so plain http is safe there and nowhere
+ * else. Exact match only: a resolver can point `localhost.example.com`
+ * anywhere, so a suffix test would hand the session token to that host.
+ */
+function isLoopbackHost(hostname: string): boolean {
+  const h = hostname.toLowerCase();
+  // WHATWG keeps the brackets on an IPv6 literal in some runtimes.
+  if (h === "localhost" || h === "::1" || h === "[::1]") return true;
+  // The whole 127/8 block is loopback, not only 127.0.0.1. Octets are range
+  // checked rather than merely shaped: `new URL` already refuses `127.256.0.1`
+  // before this is reached, so the range check is not load-bearing today — it is
+  // here so the guard does not silently depend on that parser behavior.
+  const octets = h.split(".");
+  if (octets.length !== 4) return false;
+  if (!octets.every((o) => /^\d{1,3}$/.test(o) && Number(o) <= 255)) {
+    return false;
+  }
+  return octets[0] === "127";
+}
+
+/**
+ * Whether a Plus service URL override may receive this device's session token
+ * (#500). Every Plus call attaches `Bearer <session>`, so an unvalidated
+ * override is a one-typo credential leak — and the checkout and portal URLs
+ * the service replies with are handed to `window.open`, so a hostile host also
+ * gets a browser-open primitive.
+ *
+ * `docs/ask-self-host.md` already sets the rule: a public host must be HTTPS,
+ * and `http://127.0.0.1:8787` is the documented local listen address.
+ *
+ * Empty is *not* the caller's answer here — an empty setting means "use the
+ * default" and is resolved by the call sites before this ever sees it.
+ */
+export function isAllowedPlusBaseUrl(raw: string): boolean {
+  const value = (raw ?? "").trim();
+  if (!value) return false;
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    // A bare host (`plus.tryatoms.app`) is the likeliest typo and does not parse.
+    return false;
+  }
+  if (url.protocol === "https:") return true;
+  if (url.protocol === "http:") return isLoopbackHost(url.hostname);
+  return false;
+}
+
 type PlusHttpOk = { ok: true; status: number; json: Record<string, unknown> };
 
 async function plusRequest(
@@ -183,6 +253,25 @@ async function plusRequest(
       status: 0,
       code: "unknown",
       message: "Plus service URL not configured",
+    };
+  }
+  // #500. Refuse before the request is built, not after — the point is that the
+  // session token never reaches a host we did not vet. Falling back to the
+  // hosted default would be worse than failing: a self-host session token would
+  // then be sent to plus.tryatoms.app.
+  //
+  // That reasoning holds for a *refused* value and not yet for an empty one:
+  // clearing the field resolves to the hosted default at every call site, so a
+  // self-hoster who empties it does ship their token — and their capture bodies —
+  // to plus.tryatoms.app. Proven live in the #500 adversarial pass. Closing it
+  // needs the session to record the base that issued it, which is #508, not a
+  // check that can be made here.
+  if (!isAllowedPlusBaseUrl(base)) {
+    return {
+      ok: false,
+      status: 0,
+      code: "invalid",
+      message: PLUS_BASE_URL_INVALID_MESSAGE,
     };
   }
   const headers: Record<string, string> = {
@@ -227,7 +316,8 @@ async function plusRequest(
       ok: false,
       status: 0,
       code: "network",
-      message: `Plus network error (${name}: ${redact(msg)})`,
+      message: PLUS_UNREACHABLE_MESSAGE,
+      detail: `${name}: ${redact(msg)}`,
     };
   }
 }

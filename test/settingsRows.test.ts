@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
@@ -1287,6 +1287,29 @@ describe("destination shell", () => {
  */
 const DIRECT_SETTING_BUDGET = 5;
 
+/**
+ * The modules the budget is counted over, and the ones it deliberately does not count.
+ *
+ * The ratchet used to read `settings.ts` and nothing else, which quietly assumed the tab would
+ * always be one file. Splitting a screen out would have moved its sites into a module nobody
+ * counted and reset the budget to a number that was never earned. Naming both lists means the
+ * split has to say which side the new file is on, and `every file is on exactly one list` below
+ * is what stops a third answer.
+ */
+const SCREEN_MODULES = ["settings.ts"];
+
+/** Not screens: the row grammar itself, and modals that build their own button bars. */
+const NON_SCREEN_MODULES = [
+  "rows.ts",
+  "captureSheet.ts",
+  "captureShortcut.ts",
+  "consent.ts",
+  "destructiveButton.ts",
+  "hubListPreviewModal.ts",
+  "plusSignInConfirmModal.ts",
+  "plusSignOutAllConfirmModal.ts",
+];
+
 /** Source with comments removed, so only code counts against the ratchet. */
 function withoutComments(source: string): string {
   return source
@@ -1297,18 +1320,36 @@ function withoutComments(source: string): string {
 }
 
 describe("row-grammar repository guard", () => {
-  it("settings.ts does not grow new direct `new Setting(` sites", () => {
-    const source = readFileSync(
-      path.resolve(__dirname, "../src/settings/settings.ts"),
-      "utf8",
-    );
-    const direct = withoutComments(source).match(/new Setting\(/g)?.length ?? 0;
+  it("the screen modules do not grow new direct `new Setting(` sites", () => {
+    const direct = SCREEN_MODULES.reduce((total, file) => {
+      const source = readFileSync(
+        path.resolve(__dirname, "../src/settings", file),
+        "utf8",
+      );
+      return total + (withoutComments(source).match(/new Setting\(/g)?.length ?? 0);
+    }, 0);
 
     expect(
       direct,
-      `settings.ts constructs Setting directly ${direct} times (budget ${DIRECT_SETTING_BUDGET}). ` +
+      `${SCREEN_MODULES.join(", ")} construct Setting directly ${direct} times ` +
+        `(budget ${DIRECT_SETTING_BUDGET}). ` +
         "Build rows through src/settings/rows.ts; lower DIRECT_SETTING_BUDGET as sites migrate.",
     ).toBeLessThanOrEqual(DIRECT_SETTING_BUDGET);
+  });
+
+  it("every module in src/settings is on exactly one side of the budget", () => {
+    const present = readdirSync(path.resolve(__dirname, "../src/settings"))
+      .filter((f) => f.endsWith(".ts"))
+      .sort();
+    const known = [...SCREEN_MODULES, ...NON_SCREEN_MODULES].sort();
+
+    expect(
+      present,
+      "A new module under src/settings is neither counted against the direct-Setting budget nor " +
+        "exempted from it. Add it to SCREEN_MODULES if it renders settings screens (its sites " +
+        "count), or to NON_SCREEN_MODULES if it is a modal or the row grammar. Leaving it off " +
+        "both lists is how a screen split resets a ratchet it never earned.",
+    ).toEqual(known);
   });
 
   it("rows.ts is the one place that constructs Setting", () => {
