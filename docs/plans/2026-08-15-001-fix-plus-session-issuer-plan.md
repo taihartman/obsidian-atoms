@@ -413,8 +413,24 @@ changes, and it can name the host.
 - **Should a hosted session be allowed to verify silently onto a self-host base?** `plusBaseMatches`
   currently treats the hosted default like any other host. Moving a *hosted* session onto a private
   one is the direction that leaks nothing new, so silent is probably right, but it is unexamined.
-- **What identity field does `/v1/me` actually return, and is it stable?** The email-match re-stamp
-  predicate depends on it. Confirm against the service before implementing U3.
+- ~~What identity field does `/v1/me` actually return, and is it stable?~~ **Answered against the
+  service source, 2026-08-15.** `publicAccount` (`plus-service/src/store/shared.mjs:234`) returns
+  `{ email, status, remaining, periodEnd, plan }`. `email` is the only identity field — no account id
+  is exposed — and it is stable: it is the primary key of the `accounts` table (every lookup is
+  `WHERE email = ?`) and no route changes it. The service normalizes with `trim().toLowerCase()` at
+  every write, and the plugin takes `session.email` from the service's own response on every
+  acquisition path, so both sides already hold the same form; the case-insensitive compare stays as
+  cheap insurance. Absent email must refuse — `plusClient.ts:467` already types it optional.
+
+  **Why the predicate is real rather than a heuristic:** session tokens are
+  `` `${prefix}_${randomBytes(16).toString("hex")}` `` (`shared.mjs:8`), opaque with no derivable
+  link to an account. A host handed only that token cannot name the account unless it issued it.
+
+  **Boundary, stated so nobody over-claims it:** this defeats a host that *accepts* anything — a dev
+  mock, a misconfigured proxy, a partially implemented self-host. It does not defeat a hostile server
+  that already knows the user's email, and it is not meant to. #500 settled that arbitrary HTTPS is
+  allowed because self-hosters need it; a host the user deliberately configured is their trust
+  decision.
 - **Does the outbox-ack refusal surface anything?** `askCoordinator.ts:200` sits in
   `createOutboxHost`, whose `null` return `runAskOutbox` consumes as `return idle` (`:183-184`).
   Refusing there is safe for egress but silent, so the refusal copy may never reach the user on that

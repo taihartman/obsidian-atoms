@@ -130,9 +130,12 @@ Recorded in the plan's Open questions section. Summarised:
   reasons, not rejected. Worth its own issue.
 - Should a hosted session verify silently onto a self-host base, or does that direction need a
   gesture?
-- What identity field does `/v1/me` actually return, and is it stable enough for the email-match
-  predicate? **Confirm this against the service before implementing U3** — the accept condition
-  depends on it.
+- ~~What identity field does `/v1/me` return, and is it stable?~~ **Answered against the service
+  source; U3 is unblocked.** `email`, and nothing else identity-bearing. It is the `accounts` primary
+  key with no route that changes it, normalized `trim().toLowerCase()` service-side. Tokens are
+  opaque `randomBytes(16)`, so a host that did not issue one cannot name its account — the predicate
+  is a real proof of issuance, not a heuristic. Full detail and the threat-model boundary are in the
+  plan's Open questions.
 - Should the outbox-ack refusal surface anything, or stay silent like the existing `return idle`?
 
 ## Git state
