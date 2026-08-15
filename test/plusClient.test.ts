@@ -6,10 +6,13 @@ import {
   askMirrorStatus,
   askMcpPair,
   classifyViaProxy,
+  createBillingPortal,
   createCheckout,
   exchangeMagicToken,
   getEntitlement,
   isAllowedPlusBaseUrl,
+  openableHttpUrl,
+  PLUS_UNOPENABLE_URL_MESSAGE,
   peekMagicToken,
   PLUS_BASE_URL_INVALID_MESSAGE,
   requestMagicLink,
@@ -245,6 +248,75 @@ describe("plusClient", () => {
       "topup_50",
     );
     expect(r).toEqual({ ok: true, url: "https://checkout.test/c" });
+  });
+
+  /**
+   * #504. The billing URL is chosen by the *service*, and five call sites hand it to
+   * `window.open`. #500 narrowed which hosts may answer, but https on any host stays allowed so
+   * people can self-host — so a hostile or compromised service is inside the threat model, and
+   * a `javascript:` URL opened in an Electron renderer can run in the opener's origin.
+   */
+  describe("a billing URL the plugin will not open (#504)", () => {
+    const hostile = [
+      "javascript:alert(document.cookie)",
+      "JavaScript:alert(1)",
+      "file:///etc/passwd",
+      "data:text/html,<script>alert(1)</script>",
+      "obsidian://open?vault=x",
+      "vbscript:msgbox(1)",
+      "not a url",
+    ];
+
+    it("createCheckout refuses it and says so", async () => {
+      for (const url of hostile) {
+        const request = mockRequest(() => ({ status: 200, json: { url } }));
+        const r = await createCheckout(
+          { baseUrl: base, request },
+          "sess",
+          "topup_50",
+        );
+        expect(r.ok, url).toBe(false);
+        if (!r.ok) {
+          expect(r.message, url).toBe(PLUS_UNOPENABLE_URL_MESSAGE);
+          // Not the missing-url message: the body had one, it was just unopenable.
+          expect(r.message).not.toContain("missing url");
+        }
+      }
+    });
+
+    it("createBillingPortal refuses it too", async () => {
+      for (const url of hostile) {
+        const request = mockRequest(() => ({ status: 200, json: { url } }));
+        const r = await createBillingPortal({ baseUrl: base, request }, "sess");
+        expect(r.ok, url).toBe(false);
+        if (!r.ok) expect(r.message, url).toBe(PLUS_UNOPENABLE_URL_MESSAGE);
+      }
+    });
+
+    it("still tells an absent url apart from a hostile one", async () => {
+      for (const json of [{}, { url: "" }, { url: 42 }]) {
+        const request = mockRequest(() => ({ status: 200, json }));
+        const r = await createCheckout(
+          { baseUrl: base, request },
+          "sess",
+          "topup_50",
+        );
+        expect(r.ok).toBe(false);
+        if (!r.ok) expect(r.message).toBe("Checkout response missing url");
+      }
+    });
+
+    it("lets a real checkout through, including a cross-domain redirect target", () => {
+      // Stripe redirects across domains and a self-hoster's checkout lives wherever their
+      // service says, so the guard is about the scheme and never about the host.
+      for (const url of [
+        "https://checkout.stripe.com/c/pay/cs_test_123",
+        "https://my-tunnel.example/billing/portal",
+        "http://127.0.0.1:8787/billing/portal",
+      ]) {
+        expect(openableHttpUrl(url), url).toBe(url);
+      }
+    });
   });
 
   it("missing baseUrl fails safely", async () => {
