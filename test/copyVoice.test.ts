@@ -144,8 +144,15 @@ const EXEMPT_LINES: ReadonlyArray<{ file: string; line: string; reason: string }
     line: 'export const ASK_MIRROR_COUNT_UNKNOWN = "—";',
     reason:
       "A placeholder glyph standing for 'no value', the way a table leaves an em dash in an empty " +
-      "cell. It is not a sentence, and it renders on both the home and settings surfaces, so " +
-      "changing it moves two screens for no voice gain.",
+      "cell. Be honest about the cost: it is NOT confined to a cell. " +
+      "formatAskMirrorServerCount returns it whenever the stored count is missing or blank, and " +
+      "it is then interpolated into whole sentences on two surfaces -- " +
+      '"Ask mirror: <dash> . sync refused, vault scan incomplete . Sync now to retry" on Atoms ' +
+      "home, and the settings status line. That state is reachable, not theoretical: " +
+      "clearAskMirrorDeviceState blanks the count on every wipe, and the no-server-count refusal " +
+      "means precisely 'this device has never seen the cloud count'. So this is the one place the " +
+      "guard's own rule is knowingly bent, and it is exempt on cost, not on principle: the glyph " +
+      "is byte-pinned by tests on both surfaces. Retiring it is a copy decision, filed separately.",
   },
   {
     file: "src/platform/askMirror.ts",
@@ -216,12 +223,24 @@ export function copyLinesWithEmDash(source: string): Set<number> {
   return found;
 }
 
+/**
+ * Every TypeScript extension, not just `.ts`.
+ *
+ * A default-deny guard that only walks one extension is default-allow for the
+ * rest, and the gap is invisible: adding `src/ui/thing.tsx` with an em-dashed
+ * Notice leaves the suite green. `tsc` happens to catch a `.tsx` today only
+ * because `jsx` is unset, and `.mts`/`.cts` are unreachable only under the
+ * current module resolution -- so the build is standing in for the guard on a
+ * config that a future UI change is entitled to flip. Own it here instead.
+ */
+const SOURCE_EXTENSIONS = [".ts", ".tsx", ".mts", ".cts"];
+
 function sourceFiles(dir: string): string[] {
   const found: string[] = [];
   for (const name of readdirSync(dir)) {
     const path = join(dir, name);
     if (statSync(path).isDirectory()) found.push(...sourceFiles(path));
-    else if (name.endsWith(".ts")) found.push(path);
+    else if (SOURCE_EXTENSIONS.some((ext) => name.endsWith(ext))) found.push(path);
   }
   return found.sort();
 }
@@ -334,6 +353,25 @@ describe("product copy follows the voice rules", () => {
       expect(offenders(file)).toEqual([]);
     } finally {
       rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("walks every TypeScript extension, not only .ts", () => {
+    // The walk used to filter on `.ts` alone, which made a default-deny guard default-ALLOW for
+    // .tsx/.mts/.cts. Adversarial QA smuggled an em-dashed string past it in all three and the
+    // suite stayed green. `tsc` catches a .tsx today only because `jsx` is unset -- the build was
+    // standing in for the guard on a config a future UI change is entitled to flip. Mutation
+    // check: revert SOURCE_EXTENSIONS to [".ts"] and this test fails on the first extension.
+    for (const ext of [".tsx", ".mts", ".cts"]) {
+      const dir = mkdtempSync(join(tmpdir(), "copy-voice-ext-"));
+      try {
+        const file = join(dir, `mutSurface${ext}`);
+        writeFileSync(file, 'export const S = "Filed 3 atoms — nothing else to do.";\n', "utf8");
+        expect(sourceFiles(dir), `${ext} must be walked`).toEqual([file]);
+        expect(offenders(file), `${ext} must be scanned`).toHaveLength(1);
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
     }
   });
 

@@ -5,15 +5,25 @@ Base `claude/settings-ux-redesign-69acd6` (stacked on #494, not `master`)
 
 ## Verdict
 
-**BLOCKED — the live vault smoke did not run.** Obsidian's CLI is wedged on this machine (see
-Findings F3), so no surface was driven and no screenshot was taken. Per this skill's anti-fallback
-rule that is a blocker, not "world-class QA, code-level only." The PR's live-smoke checkbox stays
-unchecked.
+**Ready to merge, behind #494 and one pre-merge re-check.**
 
-What this pass *did* establish, and which is worth keeping, is stronger than the smoke it replaced:
-the **merge-order risk nobody had checked** is now closed (F1), and two pieces of the handoff's
-stated situation were wrong (see Preflight corrections). Nothing found so far argues against the
-change; the copy sweep simply has not been seen on a screen.
+The live smoke ran: nine scenarios driven in a trusted vault with the plugin verified loaded at
+runtime and the build fingerprint stable across the pass. No mojibake, no clipping, no orphaned or
+doubled separators, no fragment or run-on from the dash-to-period rewrite, and craft passed on the
+decisive frame. The full-document scan found **exactly one** em dash in product chrome, and it is
+byte-identical to the documented exemption.
+
+`adversarial-qa` ran against the same build and **found two real holes in the deliverable**, both
+fixed here and both mutation-checked: an exemption whose stated reason was false (H2), and a
+default-deny guard that walked only `.ts`, leaving `.tsx`/`.mts`/`.cts` silently uncovered (H3).
+Suite is 98 files / 1887 tests green, build and lint clean.
+
+Two conditions before merge, neither of them a defect:
+
+1. **#494 must merge first** — this PR's base is that branch.
+2. **Re-run the base-merge guard check (E4)** immediately beforehand. It was green at the tip
+   observed today, but the base is under active development and moved from `0.8.0-beta.1` to
+   `0.8.0-beta.2` during this session. That check decays with every commit the base takes.
 
 ## Charter
 
@@ -252,8 +262,72 @@ facts; F5 was a stale doc, now corrected.
 
 ## Adversarial QA
 
-**Not run.** `adversarial-qa` is a hard gate for this skill and it drives the same build, so it is
-blocked behind F3 for the same reason the constructive pass is. It must run before merge.
+Scaled to the change: this PR creates and mutates **no persistent objects**, so the usual
+edit/delete/re-share taxonomy does not apply and the ledger was not padded with it. The attack was
+weighted to what a copy sweep actually risks — runtime string composition, truncation, degenerate
+interpolation, and whether the **guard itself** can be defeated.
+
+| # | Scenario | Verdict |
+|---|---|---|
+| A1 | Truncation vs the new parenthetical error detail | Hole found, but **pre-existing** (see below) |
+| A2 | Degenerate interpolation in `·` status lines | Solid for reachable inputs, **except H2** |
+| A3 | Boundary counts in reworded copy | Solid |
+| A4 | Defeat the guard | **Holed** — 3 extension gaps, 1 look-alike glyph |
+| A5 | Exemption premises, all seven | **1 of 7 reasons false** (H2); other six verified true |
+| A6 | Does the sweep's goal survive the runtime path? | Holed — already filed as #498 |
+
+### Fixed in this PR
+
+**H2 · An exemption's stated reason was false, and the guard's own rule is bent by it.**
+`EXEMPT_LINES` justified `ASK_MIRROR_COUNT_UNKNOWN = "—"` with *"It is not a sentence."* It is:
+`formatAskMirrorServerCount` (`askMirror.ts:625`) returns it whenever the stored count is missing or
+blank, and `formatAskMirrorRefusalLine` (`:471`) interpolates it into
+`Ask mirror: — · sync refused, vault scan incomplete · Sync now to retry`, rendered on Atoms home and
+the settings status line. Reachable, not theoretical — `clearAskMirrorDeviceState` blanks the count on
+every wipe, and the `no-server-count` refusal means exactly "this device has never seen the cloud
+count." A guard whose whole design is "every exemption carries a reason you can check" cannot carry a
+reason that is untrue. **The reason is now honest**: the exemption stands on *cost* (the glyph is
+byte-pinned on two surfaces), not on principle, and it is named as the one place the rule is
+knowingly bent. Retiring the glyph is a copy decision and belongs in its own issue.
+
+**H3 · The guard walked only `.ts`, making a default-deny rule default-allow for three extensions.**
+`sourceFiles` filtered on `name.endsWith(".ts")`, so an em-dashed string in `.tsx`, `.mts` or `.cts`
+left the suite green — proven by mutation, all three missed. `tsc` catches a `.tsx` today *only*
+because `jsx` is unset, so the build was standing in for the guard on a config any future UI change
+is entitled to flip. Fixed via `SOURCE_EXTENSIONS`, and **mutation-checked against a green
+baseline**: reverting the list to `[".ts"]` fails the new test with
+`.tsx must be walked: expected [] to deeply equal [ Array(1) ]`.
+
+### Adjudicated as out of scope
+
+**A1 · Unbalanced parenthesis after truncation — real, but this PR did not cause it.** The adversarial
+pass reported it as sweep-introduced. It is not. Service messages already carried their own
+parentheses before the sweep (`plusClient.ts:230`, unchanged by it), and `truncateMessage` was never
+paren-aware:
+
+```
+before: Ask: push failed — Plus network error (TypeError: Failed to fetch…    → 1 unclosed
+after:  Ask: push failed (Plus network error (TypeError: Failed to fetch…)   → 1 unclosed
+```
+
+The imbalance is identical on both sides; the swept version actually terminates *more* cleanly
+because it emits a closing paren. My own stated suspicion — that the sweep's own parens get split —
+was **refuted**: truncation runs before the wrap at both sites, and `/[\s.,;:!?—-]+$/` contains no
+`)`. This is a pre-existing `truncateMessage` defect in the same family as #446 and wants its own
+issue.
+
+**M8 · A look-alike glyph defeats the guard.** U+2015 `―` renders indistinguishably from `—` and is
+not caught. `docs/voice.md:54` bans the em dash by name, so this sits outside the rule's letter, but
+it is a one-keystroke bypass no reviewer would catch in a diff. Worth an issue; not a defect in this
+PR.
+
+### Verified honest
+
+The other six exemptions hold. The `classify.ts` parity phrases were diffed against
+`plus-service/src/classifyTemplate.mjs` and all six are still byte-identical. Every case the PR
+claims to catch did catch: escaped `—`, nested and multi-line templates, `String.raw`, a
+brand-new subdirectory, a widened region marker (`spanLines` fires: `expected 26 to be 8`), and a
+stale exemption whose string is gone.
 
 ## Not Tested
 
@@ -271,16 +345,29 @@ blocked behind F3 for the same reason the constructive pass is. It must run befo
 
 ## Merge Decision
 
-**Do not mark the live-smoke checkbox, and do not merge on this pass.** The code is in good shape —
-suite, build and lint are green, the guard survives the base merge, and the assertion retargets hold
-up — but the one box this session existed to tick is still unticked, and the required adversarial
-gate has not run.
+**Merge after #494, having re-run E4 first.** Both QA halves ran, the two holes the adversarial pass
+found in the deliverable are fixed and mutation-checked, and nothing outstanding is a defect in the
+copy sweep.
 
-Order of operations for whoever picks this up:
+Order of operations:
 
-1. Recover Obsidian (quit and relaunch) — **coordinate first**, a peer session is mid-pass.
-2. Drive the six credential-free stories in User Stories Tested, asserting build identity before and
-   after each capture batch per the new learnings row.
-3. Run `adversarial-qa` against the same build.
-4. Re-run E4 against the then-current base tip; it decays with every commit the base takes.
-5. #494 must merge first regardless — this PR's base is that branch.
+1. #494 merges.
+2. Re-run **E4** against the then-current base tip: merge it into this branch in a scratch worktree
+   and run `npx vitest run test/copyVoice.test.ts`. Green at today's tip; decays with every base
+   commit, and `src/settings/` is exactly where that branch works.
+3. Confirm the version files still need no change — they did not today, and this branch never touches
+   them, so the merge resolves to the base's value on its own.
+4. Merge, then clear `STATUS.md`.
+
+### Follow-ups this pass earned (none blocking)
+
+- **`truncateMessage` is not paren-aware.** A service message carrying its own parentheses truncates
+  to a dangling `(` at both the 72- and 96-char sites. Pre-existing, same family as #446.
+- **A look-alike glyph defeats the guard.** U+2015 `―` is visually identical to `—` and uncaught. A
+  one-keystroke bypass no reviewer would spot.
+- **`ASK_MIRROR_COUNT_UNKNOWN` renders an em dash inside a product sentence.** Now honestly
+  documented as exempt-on-cost; retiring the glyph is a copy decision.
+- **Pre-existing copy inconsistency** at `atomsHomeView.ts:2315` vs `:2792` (F7).
+- **`npm run lint` has the same blind spot H3 had** — its glob is `src/**/*.ts`, so `.tsx`/`.mts`/
+  `.cts` would escape eslint too. Harmless today (no such files), worth closing alongside any future
+  decision to enable JSX.
