@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| _Nothing in flight._ |
+| In review | [#501](https://github.com/taihartman/obsidian-atoms/issues/501) / [PR #503](https://github.com/taihartman/obsidian-atoms/pull/503) | agent | `fix/atom-folder-clamp` | debug lane, no plan doc | `src/pipeline/render.ts`, `src/settings/settings.ts` (Atom folder row copy), `test/render.test.ts` | Dot-folder and over-long atom folder names are accepted, so atoms land where Obsidian will not index them. Found by the adversarial pass on #493. **Touches `settings.ts`, which PR #494 rewrites** — expect a one-row conflict on the Atom folder description, and carry the wording across whichever merges second. |
 
 ## How to claim (copy)
 
