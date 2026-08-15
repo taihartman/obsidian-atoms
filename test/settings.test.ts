@@ -29,27 +29,45 @@ import {
   type FilingAuth,
   type PlusSession,
 } from "../src/platform/filingAuth";
+import { ASK_PRIVACY_ACK_TITLE, EGRESS_DISCLOSURE } from "../src/settings/consent";
+import {
+  LS_ASK_MIRROR_LAST_ERROR,
+  LS_ASK_MIRROR_SERVER_COUNT,
+} from "../src/platform/askMirror";
+import { formatUsd, PLUS_PRICING } from "../src/shared/plusPricing";
 import { s256Challenge } from "../src/platform/pkce";
 import {
   PLUS_BASE_URL_INVALID_MESSAGE,
   requestMagicLink,
 } from "../src/platform/plusClient";
+import * as dni from "obsidian-daily-notes-interface";
+import { firstDaySetupCopy } from "../src/home/atomsHomeData";
 import {
   destinationNames,
   dismissSheet,
   flip,
+  groupHeaders,
   open,
+  openAdvanced,
+  openPrivacy,
   press,
   pressSheet,
   prose,
   row,
   rowNames,
   settingTab,
+  sheet,
+  sheetButtons,
   sheetOpen,
   sheetText,
   fill,
   type SettingTabOptions,
 } from "./helpers/settingsTab";
+import {
+  LS_CAPTURE_SHORTCUT_ACK,
+  resolveCaptureShortcutInstallUrl,
+} from "../src/settings/captureShortcut";
+import { CAPTURE_ATOM_VERSION } from "../src/shared/mobileInstall";
 import {
   EGRESS_ACK_VERSION,
   LS_AUTO_RUN_EGRESS_ACK,
@@ -455,9 +473,18 @@ describe("account row", () => {
     ],
   ];
 
-  it.each(STATES)("renders the %s main-screen label", (_name, opts, label) => {
+  /**
+   * U4 moved this row off the main screen and onto the engine screen, where choosing Plus is one
+   * of two answers rather than the only one on offer. The label per state is unchanged, and so is
+   * the invariant that matters: one account row, not one per branch.
+   */
+  it.each(STATES)("renders the %s label on the engine screen", (_name, opts, label) => {
     const { tab } = settingTab(opts);
     tab.display();
+    // The main screen names the question, never the account state.
+    expect(destinationNames(tab)).not.toContain(label);
+
+    open(tab, "Who does the filing");
 
     expect(destinationNames(tab)).toContain(label);
     // One account row, not one per branch: no other state's label is on screen with it.
@@ -468,6 +495,7 @@ describe("account row", () => {
   it("holds Refresh status, Sign out, and Account exactly once in the destination", () => {
     const { tab } = activeTab();
     tab.display();
+    open(tab, "Who does the filing");
     open(tab, "Plus · 12 filings left");
 
     const names = rowNames(tab);
@@ -477,7 +505,7 @@ describe("account row", () => {
     // The email is still shown, under the back row that already says "Account".
     expect(names.filter((name) => name === "Signed in as")).toEqual(["Signed in as"]);
     expect(tab.containerEl.textContent).toContain("user@example.com");
-    // And nowhere else: the main screen carries the account row alone.
+    // And nowhere else: the main screen carries neither the account row nor its actions.
     tab.hide();
     tab.display();
     expect(rowNames(tab)).not.toContain("Refresh status");
@@ -487,23 +515,23 @@ describe("account row", () => {
   it("offers account setup and no Manage row when signed out", () => {
     const { tab } = settingTab();
     tab.display();
+    open(tab, "Who does the filing");
     open(tab, "Set up automatic filing");
 
     // The exact list, not a membership check: each field and the one button that commits it is
     // now a single row, and a regression that re-splits a pair shows up here as an extra row.
     // "Start free trial" survives as the button label on the Email row, never as a row name.
-    expect(rowNames(tab)).toEqual([
-      "Account",
-      "Skip the API key",
-      "Email",
-      "Advanced: paste session",
-    ]);
+    // The paste fallback is not here since U7 — it is an escape hatch, and the third thing on
+    // the one screen that has to explain the product was the wrong place for it.
+    expect(rowNames(tab)).toEqual(["Account", "Skip the API key", "Email"]);
     expect(buttonLabels(tab, "Email")).toEqual([
       "Send sign-in link",
       "Start free trial",
       "Use promo code",
     ]);
-    expect(buttonLabels(tab, "Advanced: paste session")).toEqual(["Save session"]);
+
+    openAdvanced(tab);
+    expect(buttonLabels(tab, PASTE_ROW)).toEqual(["Save session"]);
   });
 
   /**
@@ -518,6 +546,7 @@ describe("account row", () => {
     function accountScreen(name: string) {
       const { tab } = settingTab();
       tab.display();
+      open(tab, "Who does the filing");
       open(tab, "Set up automatic filing");
       const handler = vi.fn(async () => {});
       // An own property shadowing the prototype method: the row's `onSubmit` resolves
@@ -562,10 +591,14 @@ describe("account row", () => {
     });
 
     it("trims the pasted session before the sess_ check ever sees it", () => {
-      const { tab, handler } = accountScreen("savePastedSession");
+      // Same wiring claim, one screen over: U7 moved this row to Advanced → Escape hatches.
+      const { tab } = settingTab();
+      const handler = vi.fn(async () => {});
+      openAdvanced(tab);
+      (tab as unknown as Record<string, unknown>).savePastedSession = handler;
       // A token pasted out of an email arrives with the whitespace around it.
-      fill(tab, "Advanced: paste session", "  sess_live  ");
-      press(tab, "Advanced: paste session", "Save session");
+      fill(tab, PASTE_ROW, "  sess_live  ");
+      press(tab, PASTE_ROW, "Save session");
 
       expect(handler).toHaveBeenCalledWith("sess_live");
     });
@@ -703,13 +736,344 @@ describe("account row", () => {
 });
 
 /**
+ * U11 — the copy lockstep, over the screens this plan authored.
+ *
+ * The existing em-dash guards cover main-screen prose, the engine screen, and the File group's
+ * footers. They were written before the two screens that now hold most of this plan's new copy
+ * existed, and a rule enforced on three surfaces out of seven is a rule with three surfaces'
+ * worth of teeth. This walks every string a reader can see on the screens U7 through U9 wrote:
+ * prose, group footers, and row descriptions alike, which is where the old guards stopped.
+ *
+ * Scoped to those screens rather than to the whole tab on purpose. The plan's rule is about copy
+ * *this plan* added or edited (R15), and sweeping the untouched screens would fail on strings
+ * nobody here wrote, which is how a guard gets deleted instead of obeyed.
+ */
+describe("copy lockstep on the screens this plan wrote (U11, R15)", () => {
+  /** Everything a reader sees: paragraphs, group footers, and the line under each row name. */
+  function readableText(tab: AtomsSettingTab): string[] {
+    return Array.from(
+      tab.containerEl.querySelectorAll(
+        "p.setting-item-description, p.atoms-setting-group-foot, .setting-item-description",
+      ),
+    ).map((el) => el.textContent ?? "");
+  }
+
+  it("writes no em dash on the Advanced screen", () => {
+    const { tab } = settingTab({
+      session: PLUS_SESSION,
+      local: { [LS_LAST_RUN_DAY]: "2026-08-13" },
+    });
+    openAdvanced(tab);
+
+    const lines = readableText(tab);
+    expect(lines.length).toBeGreaterThan(0);
+    for (const line of lines) expect(line).not.toContain("—");
+  });
+
+  it("writes no em dash on either account screen", () => {
+    for (const opts of [{}, { session: PLUS_SESSION }]) {
+      const { tab } = settingTab(opts);
+      tab.display();
+      open(tab, "Who does the filing");
+      open(tab, destinationNames(tab).find((n) => n !== "Account") ?? "");
+
+      const lines = readableText(tab);
+      expect(lines.length).toBeGreaterThan(0);
+      for (const line of lines) expect(line).not.toContain("—");
+    }
+  });
+
+  it("writes no em dash in the capture sheet, in either of its shapes", () => {
+    for (const settings of [{}, { captureShortcutInstallUrl: " " }]) {
+      const { tab } = settingTab({ settings });
+      tab.display();
+      open(tab, "Capture on your phone");
+      expect(sheetText()).not.toContain("—");
+      dismissSheet();
+    }
+  });
+
+  /**
+   * KTD5's other half. The three ack versions and the standing suffixes are frozen, and this
+   * plan moved records between screens without touching a word of them — a record describing
+   * wording the user never saw is #315 wearing new paint. The suffix pair is asserted where the
+   * records render; this pins the versions themselves, so a copy edit that "tidied" a
+   * disclosure without bumping its version fails here rather than on somebody's device.
+   */
+  it("moved every consent record without moving an ack version", () => {
+    expect(EGRESS_ACK_VERSION).toBe("2026-08-06");
+    expect(ASK_PRIVACY_ACK_VERSION).toBe("2026-08-07");
+    expect(ASK_WRITE_ACK_VERSION).toBe("2026-08-06");
+  });
+
+  /** R8: a user reading Settings has to be able to say which build they are looking at. */
+  it("keeps the three manifests on one version", () => {
+    const read = (name: string) =>
+      JSON.parse(
+        readFileSync(path.resolve(__dirname, "..", name), "utf8"),
+      ) as Record<string, unknown>;
+    const pkg = read("package.json").version as string;
+    expect(read("manifest.json").version).toBe(pkg);
+    expect(Object.keys(read("versions.json"))).toContain(pkg);
+  });
+});
+
+/**
+ * U9 — the capture-on-phone procedure, out of a row description and into a sheet.
+ *
+ * The row used to carry all six steps as one arrow-separated line ending in `Acked: never`, on
+ * the main screen, in a group whose whole point is that a row is a name and a control (R2). What
+ * matters about the move is that nothing was lost in it: the step people skip is still first, the
+ * failure mode is still named, and the ack still happens only on a successful open.
+ */
+describe("capture on your phone (U9, R2/R19)", () => {
+  const ROW = "Capture on your phone";
+
+  /** The install URL the shipped `mobile-install.json` yields, so the button is live. */
+  const shipped = () => resolveCaptureShortcutInstallUrl("");
+
+  it("says what this device has, and nothing about how to get it", () => {
+    const { tab } = settingTab();
+    tab.display();
+
+    // "Not set up" is the whole status. The six steps that used to be here are one tap away.
+    expect(row(tab, ROW).textContent).toContain("Not set up");
+    expect(row(tab, ROW).textContent).not.toContain("Ask Each Time");
+    expect(row(tab, ROW).querySelectorAll("button")).toHaveLength(0);
+  });
+
+  it("names the acked version once this device has installed it", () => {
+    const { tab } = settingTab({ local: { [LS_CAPTURE_SHORTCUT_ACK]: "2.1.0" } });
+    tab.display();
+
+    // The version this device acked, not the one it would get by updating: a device holding an
+    // older ack is out of date, and printing the shipped version would hide exactly that.
+    expect(row(tab, ROW).textContent).toContain("Capture Atom 2.1.0");
+  });
+
+  it("opens a sheet with three numbered steps and the install", () => {
+    const { tab } = settingTab();
+    tab.display();
+    open(tab, ROW);
+
+    const steps = Array.from(sheet().contentEl.querySelectorAll("ol li")).map(
+      (el) => el.textContent ?? "",
+    );
+    expect(steps).toHaveLength(3);
+    // Step 1 is the one people skip, and skipping it leaves step 3 with nothing to point at.
+    expect(steps[0]).toContain("bookmark exists");
+    // The single failure this procedure exists to prevent, still named where it happens.
+    expect(steps[2]).toContain("Ask Each Time");
+    expect(sheetButtons()).toEqual(["Close", "Install Capture Atom"]);
+  });
+
+  it("writes no ack when the sheet is dismissed", () => {
+    const { tab, local } = settingTab();
+    tab.display();
+    open(tab, ROW);
+    dismissSheet();
+
+    // Reading the steps is not installing them. Only a successful open acks.
+    expect(local.get(LS_CAPTURE_SHORTCUT_ACK)).toBeUndefined();
+    expect(row(tab, ROW).textContent).toContain("Not set up");
+  });
+
+  it("acks the shipped version when the install opens", () => {
+    const opened = vi.spyOn(window, "open").mockImplementation(() => null);
+    const { tab, local } = settingTab();
+    tab.display();
+    open(tab, ROW);
+    pressSheet("Install Capture Atom");
+
+    expect(opened).toHaveBeenCalledWith(shipped(), "_blank");
+    expect(local.get(LS_CAPTURE_SHORTCUT_ACK)).toBe(CAPTURE_ATOM_VERSION);
+    opened.mockRestore();
+  });
+
+  it("still refuses a malformed link with the same guidance, and acks nothing", () => {
+    const ui = captureObsidianUi();
+    const { tab, local } = settingTab({
+      settings: { captureShortcutInstallUrl: "https://evil.example.com/shortcuts/x" },
+    });
+    tab.display();
+    open(tab, ROW);
+    pressSheet("Install Capture Atom");
+
+    expect(ui.notices[0]).toContain("https://www.icloud.com/shortcuts/");
+    expect(local.get(LS_CAPTURE_SHORTCUT_ACK)).toBeUndefined();
+    stopCapturingObsidianUi();
+  });
+
+  it("offers Update once installed, not Install", () => {
+    const { tab } = settingTab({ local: { [LS_CAPTURE_SHORTCUT_ACK]: "2.1.0" } });
+    tab.display();
+    open(tab, ROW);
+
+    expect(sheetButtons()).toContain("Update Capture Atom");
+    dismissSheet();
+  });
+});
+
+/**
+ * U8's regression bar: the account screen changes how it *looks* and not what it *holds*.
+ *
+ * The restyle wraps existing rows in the group primitive and applies the v2 tokens. KTD14 keeps
+ * everything that would re-shape the actions out of this unit — reducing to one primary per
+ * state, demoting `Refresh status` or `Manage subscription`, folding `Sign out all devices` into
+ * a footer link, and the `Ended`-versus-`Renews` correction — because the buy-now plan rewrites
+ * those rows and two plans editing the same rows is how they end up disagreeing.
+ *
+ * So this list is written down rather than derived: nine renders, each pinned to the exact rows
+ * it produced before the restyle, in order. A grouping pass that quietly drops a conditional row
+ * has to fail here, and "it looked fine" is not evidence that it did not.
+ */
+describe("account screen holds the same rows through the restyle (U8, KTD14)", () => {
+  const T_PAST = "2026-08-10T14:52:03.632Z";
+
+  const authFor = (s: PlusSession): FilingAuth => ({
+    mode: "plus",
+    sessionToken: s.sessionToken,
+    email: s.email,
+    status: s.status ?? "unknown",
+    remaining: s.remaining,
+    periodEnd: s.periodEnd,
+    plan: s.plan,
+  });
+
+  /** A session whose period is already over, in whichever plan the case is about. */
+  const lapsed = (plan: PlusSession["plan"]): PlusSession => ({
+    sessionToken: "sess_lapsed",
+    email: "user@example.com",
+    status: "exhausted",
+    remaining: 0,
+    plan,
+    periodEnd: T_PAST,
+  });
+
+  const live: PlusSession = {
+    sessionToken: "sess_live",
+    email: "user@example.com",
+    status: "active",
+    remaining: 12,
+    periodEnd: "2099-09-01T00:00:00.000Z",
+  };
+
+  const plusSession = (session: PlusSession): SettingTabOptions => ({
+    session,
+    auth: authFor(session),
+  });
+
+  /** Every signed-in render opens with these, and closes with the sign-out pair. */
+  const HEAD = ["Account", "Status", "Signed in as"];
+  const TAIL = ["Refresh status", "Manage subscription", "Sign out", "Sign out all devices"];
+  /** Same tail on a state the billing portal has no subject for (#442). */
+  const TAIL_NO_PORTAL = ["Refresh status", "Sign out", "Sign out all devices"];
+
+  const NINE: Array<[name: string, opts: SettingTabOptions, rows: string[]]> = [
+    ["signed out", {}, ["Account", "Skip the API key", "Email"]],
+    [
+      "trial started, checkout unfinished",
+      { session: { sessionToken: "sess_soft", email: "user@example.com", status: "inactive" } },
+      // No Plan and no portal: an unfinished setup has neither a period nor a Stripe customer.
+      [...HEAD, "Finish trial setup", ...TAIL_NO_PORTAL],
+    ],
+    [
+      "promo subscribe started, checkout unfinished",
+      {
+        session: {
+          sessionToken: "sess_promo",
+          email: "user@example.com",
+          status: "inactive",
+          setupKind: "subscribe",
+        },
+      },
+      [...HEAD, "Finish Plus checkout", ...TAIL_NO_PORTAL],
+    ],
+    ["active with filings left", plusSession(live), [...HEAD, "Plan", ...TAIL]],
+    [
+      "active with no count to show",
+      plusSession({ ...live, remaining: undefined }),
+      [...HEAD, "Plan", ...TAIL],
+    ],
+    [
+      "meter spent inside a live period",
+      plusSession({ ...live, status: "exhausted", remaining: 0, plan: "monthly" }),
+      [...HEAD, "Plan", "Get more filings", ...TAIL],
+    ],
+    [
+      "paid period ended",
+      plusSession(lapsed("monthly")),
+      [...HEAD, "Plan", "Subscribe", ...TAIL],
+    ],
+    [
+      "trial period ended",
+      plusSession(lapsed("trial")),
+      // The portal has nothing to open for a trial that never converted (#442).
+      [...HEAD, "Plan", "Subscribe", ...TAIL_NO_PORTAL],
+    ],
+    [
+      "period ended on a session stored before plans were persisted",
+      plusSession(lapsed(undefined)),
+      // Unknown is not proof of a Stripe customer, so it is treated like the trial.
+      [...HEAD, "Plan", "Subscribe", ...TAIL_NO_PORTAL],
+    ],
+  ];
+
+  it.each(NINE)("renders %s unchanged", (_case, opts, expected) => {
+    const { tab } = settingTab(opts);
+    tab.display();
+    open(tab, "Who does the filing");
+    open(tab, opts.session ? accountEntryName(tab) : "Set up automatic filing");
+
+    expect(rowNames(tab)).toEqual(expected);
+  });
+
+  it("groups the signed-in screen into what the account is and what you can do to it", () => {
+    const { tab } = settingTab(plusSession(live));
+    tab.display();
+    open(tab, "Who does the filing");
+    open(tab, accountEntryName(tab));
+
+    // Two, not the mock's three: its third is the sign-out block, whose shape is one red row
+    // with `Sign out all devices` demoted to a footer link, and that demotion is deferred.
+    expect(groupHeaders(tab)).toEqual(["Atoms Plus", "Manage"]);
+    // No state in the eyebrow. The `Status` row is still on screen saying exactly that, and a
+    // group named for the state would repeat it one line above itself.
+    expect(row(tab, "Status").textContent).toContain("Plus");
+  });
+
+  it("groups the signed-out screen into the pitch and the way in", () => {
+    const { tab } = settingTab();
+    tab.display();
+    open(tab, "Who does the filing");
+    open(tab, "Set up automatic filing");
+
+    expect(groupHeaders(tab)).toEqual(["What Plus does", "Sign in or start a trial"]);
+    // The locked three-action frame survives the wrap intact.
+    expect(buttonLabels(tab, "Email")).toEqual([
+      "Send sign-in link",
+      "Start free trial",
+      "Use promo code",
+    ]);
+  });
+
+  /** The engine screen names the account row for its state, so the walk has to read it. */
+  function accountEntryName(tab: AtomsSettingTab): string {
+    const names = destinationNames(tab);
+    const entry = names.find((n) => n !== "Account");
+    if (entry === undefined) throw new Error("engine screen has no account row");
+    return entry;
+  }
+});
+
+/**
  * The vocabulary is the cluster that grows without bound — one row per active tag, per proposal,
  * and per tag already used in the vault, which is how the settings screen was heading for ninety
  * rows. These assert the replacement: one counted row on the main screen, and every capability
  * still reachable one screen in.
  */
 describe("tag vocabulary", () => {
-  const entry = (n: number) => `Tag vocabulary — ${n} active`;
+  const entry = (n: number) => `Tag vocabulary · ${n} active`;
 
   /** Let the `await plugin.saveSettings()` inside a row's handler land before asserting. */
   const flush = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
@@ -1054,6 +1418,23 @@ describe("consent sheets", () => {
     return made;
   }
 
+  /**
+   * The same tab, standing where U6 put every passive record.
+   *
+   * The switches that grant these consents stayed on the main screen and the records moved to
+   * Privacy, so a case about a *record* has to walk in. `openPrivacy` throws when the entry row
+   * is absent, which is the assertion these cases care most about: the way out has to be
+   * reachable whenever a grant is live (KTD6).
+   */
+  function recordsTab(
+    settings: Partial<LinkerSettings> = {},
+    local: Record<string, unknown> = {},
+  ) {
+    const made = settingTab({ session: SESSION, settings, local });
+    openPrivacy(made.tab);
+    return made;
+  }
+
   /** What the plugin double persisted, read back the way the tab wrote it. */
   const persisted = (tab: AtomsSettingTab) => tab.plugin.settings;
 
@@ -1143,7 +1524,7 @@ describe("consent sheets", () => {
 
   describe("the acknowledgment record", () => {
     it("shows the egress ack even while auto-run is off, and still offers Review", () => {
-      const { tab } = askTab(
+      const { tab } = recordsTab(
         {},
         { [LS_AUTO_RUN_EGRESS_ACK]: EGRESS_ACK_VERSION, [LS_AUTO_RUN_ENABLED]: false },
       );
@@ -1163,7 +1544,7 @@ describe("consent sheets", () => {
      * they cannot reach. The row has to key on either grant, and say which one it is.
      */
     it("still offers Review when only the catch-up notice is granted", () => {
-      const { tab, local } = askTab({}, {
+      const { tab, local } = recordsTab({}, {
         [LS_AUTO_RUN_EGRESS_ACK]: true,
         [LS_AUTO_RUN_ENABLED]: true,
         [LS_EGRESS_NOTICE]: true,
@@ -1199,7 +1580,13 @@ describe("consent sheets", () => {
         [LS_AUTO_RUN_ENABLED]: true,
       });
 
+      // The record is on Privacy since U6 and the toggle stayed on main, so this case spans the
+      // two: no record to find, then a grant made where grants are made, then a record.
+      openPrivacy(tab);
       expect(rowNames(tab)).not.toContain("What Atoms sends to Anthropic");
+
+      tab.hide();
+      tab.display();
       expect(
         row(tab, "File automatically when Obsidian opens").querySelector(".is-enabled"),
       ).toBeNull();
@@ -1212,11 +1599,12 @@ describe("consent sheets", () => {
 
       // Accepting once replaces the wordless record with one that names what was shown.
       expect(local.get(LS_AUTO_RUN_EGRESS_ACK)).toBe(EGRESS_ACK_VERSION);
+      openPrivacy(tab);
       expect(rowNames(tab)).toContain("What Atoms sends to Anthropic");
     });
 
     it("shows the Ask privacy ack even while the mirror is off", () => {
-      const { tab } = askTab({ ...PRIVACY_GRANTED, askEnabled: false });
+      const { tab } = recordsTab({ ...PRIVACY_GRANTED, askEnabled: false });
 
       expect(rowNames(tab)).toContain("What Ask stores and shares");
       expect(row(tab, "What Ask stores and shares").textContent).toContain("2026-08-01");
@@ -1230,7 +1618,9 @@ describe("consent sheets", () => {
         session: null,
         settings: { ...PRIVACY_GRANTED, ...WRITE_GRANTED, askEnabled: true },
       });
-      tab.display();
+      // Signed out there is no session disjunct, so the Privacy entry renders on the acks alone
+      // — which is exactly the reachability KTD6 exists to hold. `openPrivacy` throws otherwise.
+      openPrivacy(tab);
 
       expect(rowNames(tab)).toContain(ASK_PRIVACY_ACK_ROW);
       expect(rowNames(tab)).toContain(ASK_WRITE_ACK_ROW);
@@ -1245,7 +1635,7 @@ describe("consent sheets", () => {
     });
 
     it("keeps no acknowledgment row for an ack that was never granted", () => {
-      const { tab } = askTab();
+      const { tab } = recordsTab();
 
       expect(rowNames(tab)).not.toContain("What Atoms sends to Anthropic");
       expect(rowNames(tab)).not.toContain("What Ask stores and shares");
@@ -1255,7 +1645,7 @@ describe("consent sheets", () => {
 
   describe("withdrawing", () => {
     it("clears the egress ack and force-disables auto-run", async () => {
-      const { tab, local } = askTab({}, {
+      const { tab, local } = recordsTab({}, {
         [LS_AUTO_RUN_EGRESS_ACK]: EGRESS_ACK_VERSION,
         [LS_AUTO_RUN_ENABLED]: true,
       });
@@ -1271,7 +1661,7 @@ describe("consent sheets", () => {
       // Both booleans granted: the auto-run ack from this row, and the catch-up notice from the
       // "Got it" card on Atoms home. Withdrawing here has to answer for both, because the
       // disclosure this row shows names "Sync everything now" — the button the notice permits.
-      const { tab, local } = askTab(
+      const { tab, local } = recordsTab(
         {},
         {
           [LS_AUTO_RUN_EGRESS_ACK]: EGRESS_ACK_VERSION,
@@ -1295,7 +1685,7 @@ describe("consent sheets", () => {
     });
 
     it("clears the vault-write ack when the privacy ack is withdrawn", async () => {
-      const { tab } = askTab({
+      const { tab } = recordsTab({
         ...PRIVACY_GRANTED,
         askEnabled: true,
         ...WRITE_GRANTED,
@@ -1323,7 +1713,7 @@ describe("consent sheets", () => {
     });
 
     it("withdraws the vault-write ack on its own without touching the privacy ack", async () => {
-      const { tab } = askTab({
+      const { tab } = recordsTab({
         ...PRIVACY_GRANTED,
         askEnabled: true,
         ...WRITE_GRANTED,
@@ -1344,6 +1734,9 @@ describe("consent sheets", () => {
       const stale = row(tab, "Ask mirror").querySelector(".checkbox-container");
       if (!(stale instanceof HTMLElement)) throw new Error("no Ask mirror toggle");
 
+      // Walking to the record is what makes the toggle stale in the first place now: the switch
+      // is on the screen the user just left, and its handler outlives the DOM it was built on.
+      open(tab, "Privacy and consents");
       press(tab, "What Ask stores and shares", "Review");
       pressSheet("Withdraw acknowledgment");
       await flush();
@@ -1375,8 +1768,10 @@ describe("consent sheets", () => {
       });
       tab.display();
 
-      // Enable, then withdraw while the enable is still waiting on its own write to disk.
+      // Enable, then withdraw while the enable is still waiting on its own write to disk. The
+      // withdrawal is a screen away since U6, which only widens the window this guards.
       flip(tab, "Ask mirror");
+      open(tab, "Privacy and consents");
       press(tab, "What Ask stores and shares", "Review");
       pressSheet("Withdraw acknowledgment");
       release();
@@ -1491,10 +1886,21 @@ describe("API key row (U6)", () => {
   const keyRowText = (tab: AtomsSettingTab) =>
     row(tab, "Anthropic API key").textContent ?? "";
 
+  /**
+   * The screen the key row lives on since U4. It is a destination now, not a main-screen
+   * section, so every one of these has to walk in — which is also what makes the row's check
+   * cost nothing until somebody is actually looking at the key.
+   */
+  function engineTab(opts: SettingTabOptions) {
+    const made = settingTab(opts);
+    made.tab.display();
+    open(made.tab, "Who does the filing");
+    return made;
+  }
+
   it("reports a malformed key inline, without claiming success or asking the network", async () => {
     const net = network(200);
-    const { tab } = settingTab({ apiKey: "hunter2", request: net.request });
-    tab.display();
+    const { tab } = engineTab({ apiKey: "hunter2", request: net.request });
     await flush();
 
     expect(keyRowText(tab)).toContain("does not look like an Anthropic API key");
@@ -1503,12 +1909,10 @@ describe("API key row (U6)", () => {
   });
 
   it("distinguishes a key it could not check from a key that was rejected", async () => {
-    const offline = settingTab({ apiKey: KEY, request: network("offline").request });
-    offline.tab.display();
+    const offline = engineTab({ apiKey: KEY, request: network("offline").request });
     await flush();
 
-    const rejected = settingTab({ apiKey: KEY, request: network(401).request });
-    rejected.tab.display();
+    const rejected = engineTab({ apiKey: KEY, request: network(401).request });
     await flush();
 
     expect(keyRowText(offline.tab)).toContain("Could not reach Anthropic");
@@ -1518,16 +1922,14 @@ describe("API key row (U6)", () => {
   });
 
   it("says the key works when Anthropic answers", async () => {
-    const { tab } = settingTab({ apiKey: KEY, request: network(200).request });
-    tab.display();
+    const { tab } = engineTab({ apiKey: KEY, request: network(200).request });
     await flush();
 
     expect(keyRowText(tab)).toContain("works");
   });
 
   it("shows a checking state while the network check is in flight", async () => {
-    const { tab } = settingTab({ apiKey: KEY, request: network(200).request });
-    tab.display();
+    const { tab } = engineTab({ apiKey: KEY, request: network(200).request });
 
     // Before the probes settle: neither terminal outcome, and visibly in progress.
     expect(keyRowText(tab)).toContain("Checking");
@@ -1540,8 +1942,7 @@ describe("API key row (U6)", () => {
 
   it("re-verifies a key already saved, with no re-entry", async () => {
     const net = network(200);
-    const { tab } = settingTab({ apiKey: KEY, request: net.request });
-    tab.display();
+    const { tab } = engineTab({ apiKey: KEY, request: net.request });
     await flush();
 
     expect(net.anthropicCalls()).toBe(1);
@@ -1550,15 +1951,14 @@ describe("API key row (U6)", () => {
 
   it("does not re-check on every redisplay", async () => {
     const net = network(200);
-    const { tab } = settingTab({ apiKey: KEY, request: net.request });
-    tab.display();
+    const { tab } = engineTab({ apiKey: KEY, request: net.request });
     await flush();
 
-    // Any toggle elsewhere on the screen re-renders the whole tab.
-    flip(tab, "Sync when you return to Obsidian");
-    flip(tab, "Sync when you return to Obsidian");
-    flip(tab, "Sync when you return to Obsidian");
-    await flush();
+    // Any toggle on the screen re-renders the whole tab.
+    for (let i = 0; i < 3; i += 1) {
+      flip(tab, "Device-local key fallback");
+      await flush();
+    }
 
     expect(net.anthropicCalls()).toBe(1);
     expect(keyRowText(tab)).toContain("works");
@@ -1566,13 +1966,13 @@ describe("API key row (U6)", () => {
 
   it("re-checks on the next visit to Settings", async () => {
     const net = network(200);
-    const { tab } = settingTab({ apiKey: KEY, request: net.request });
-    tab.display();
+    const { tab } = engineTab({ apiKey: KEY, request: net.request });
     await flush();
     expect(net.anthropicCalls()).toBe(1);
 
     tab.hide();
     tab.display();
+    open(tab, "Who does the filing");
     await flush();
 
     expect(net.anthropicCalls()).toBe(2);
@@ -1584,8 +1984,15 @@ describe("API key row (U6)", () => {
       seen.push({ url: params.url, body: params.body });
       return { status: 200, text: "", json: {}, arrayBuffer: new ArrayBuffer(0), headers: {} } as never;
     };
-    const { tab } = settingTab({ apiKey: KEY, request });
-    tab.display();
+    const made = settingTab({ apiKey: KEY, request });
+    made.tab.display();
+    await flush();
+
+    // Since U4 the main screen holds no key row, so opening Settings asks nothing at all — the
+    // check is a cost the user opts into by walking to the screen that shows the key.
+    expect(seen).toEqual([]);
+
+    open(made.tab, "Who does the filing");
     await flush();
 
     // The GitHub baseline answers a question this row never asks — it reads the Anthropic
@@ -1639,10 +2046,9 @@ describe("closing Settings", () => {
         },
       },
     });
-    tab.display();
+    openAdvanced(tab);
 
-    // drain → outbox → mirror → filing is long enough that an impatient second tap lands while
-    // the first run is still going.
+    // A full sync is long enough that an impatient second tap lands while the first is going.
     press(tab, "Sync everything now", "Sync everything now");
     press(tab, "Sync everything now", "Sync everything now");
 
@@ -1661,51 +2067,45 @@ describe("closing Settings", () => {
     const pendingSave = new Promise<void>((resolve) => {
       release = resolve;
     });
-    const urls: string[] = [];
-    const request: ConnectivityRequest = async (params) => {
-      urls.push(params.url);
-      return { status: 200, text: "", json: {}, arrayBuffer: new ArrayBuffer(0), headers: {} } as never;
-    };
-    const anthropicCalls = () => urls.filter((u) => u.includes("anthropic")).length;
 
     const { tab } = settingTab({
       session: PLUS_SESSION,
-      apiKey: KEY,
-      request,
       settings: { ...PRIVACY_GRANTED, askEnabled: true },
       plugin: { saveSettings: () => pendingSave },
     });
     tab.display();
     await flush();
-    expect(anthropicCalls()).toBe(1);
 
     // A gesture that waits on something — here a write to disk, in the app a network round
     // trip — and a user who leaves Settings before it comes back.
     flip(tab, "Ask mirror");
+
+    // A marker only a render can remove: `display()` empties `containerEl` before it builds, so
+    // this survives exactly as long as nothing re-renders. It replaces the Anthropic probe this
+    // used to count, which stopped witnessing main-screen renders once U4 moved the key row to
+    // the engine screen. Placed after the flip, so what it witnesses is the continuation alone.
+    const marker = tab.containerEl.createDiv();
+
     tab.hide();
     release();
     await flush();
 
-    // Nothing re-renders for a tab that is gone, and nothing re-asks Anthropic about it.
-    expect(anthropicCalls()).toBe(1);
+    // Nothing re-renders for a tab that is gone.
+    expect(marker.parentElement).toBe(tab.containerEl);
   });
 
   it("declines an open sheet without rebuilding the screen it is leaving", async () => {
-    const urls: string[] = [];
-    const request: ConnectivityRequest = async (params) => {
-      urls.push(params.url);
-      return { status: 200, text: "", json: {}, arrayBuffer: new ArrayBuffer(0), headers: {} } as never;
-    };
-    const anthropicCalls = () => urls.filter((u) => u.includes("anthropic")).length;
-
-    const { tab } = settingTab({ session: PLUS_SESSION, apiKey: KEY, request });
+    const { tab } = settingTab({ session: PLUS_SESSION });
     tab.display();
     await flush();
-    expect(anthropicCalls()).toBe(1);
 
     flip(tab, "Ask mirror");
     await flush();
     expect(sheetOpen()).toBe(true);
+
+    // Same render witness as above: `display()` empties the container, so a surviving child
+    // means no rebuild happened.
+    const marker = tab.containerEl.createDiv();
 
     tab.hide();
     await flush();
@@ -1714,19 +2114,345 @@ describe("closing Settings", () => {
     expect(sheetOpen()).toBe(false);
     expect(tab.plugin.settings.askPrivacyAckAt).toBe("");
     expect(tab.plugin.settings.askEnabled).toBe(false);
-    // But nothing re-renders on the way out, so the screen the user just closed asks Anthropic
-    // nothing on its way to being thrown away.
-    expect(anthropicCalls()).toBe(1);
+    // But nothing re-renders on the way out: the screen the user just closed is not rebuilt on
+    // its way to being thrown away.
+    expect(marker.parentElement).toBe(tab.containerEl);
+  });
+});
+
+/**
+ * U5 — leg three as two groups. Atoms home needs nothing and says so; Ask needs a session and
+ * two consents, and says *that* without naming a price or a self-hosted server (R13).
+ */
+describe("the Resurface leg (U5)", () => {
+  const ASK_OFF_ROW = "Ask in Claude and ChatGPT";
+
+  it("renders Atoms home and Ask as two groups, in that order", () => {
+    const { tab } = settingTab();
+    tab.display();
+
+    expect(groupHeaders(tab)).toEqual([
+      "Get started",
+      "1 · Capture",
+      "2 · File",
+      "3 · Resurface",
+      "Ask",
+      "Your data",
+    ]);
+  });
+
+  it("opens the home view, and gets the settings modal out of its way", () => {
+    const { tab, calls } = settingTab();
+    tab.display();
+
+    open(tab, "Atoms home");
+
+    expect(calls).toContain("activateAtomsHome");
+    // Still on the settings screen as far as the tab is concerned: this row leaves the modal
+    // rather than walking to another route, so nothing here should have re-routed.
+    expect(tab.containerEl.querySelector(".atoms-setting-back")).toBeNull();
+  });
+
+  it("says there is nothing to set up, because there is not", () => {
+    const { tab } = settingTab();
+    tab.display();
+
+    expect(prose(tab)).toContain(
+      "Nothing to set up. Atoms home brings old thoughts back on its own: something from this day last year, or a note that connects to what you just filed.",
+    );
+  });
+
+  describe("signed out", () => {
+    it("is one row reading Off, with no consent toggles to reach", () => {
+      const { tab } = settingTab();
+      tab.display();
+
+      const rows = rowNames(tab, { headings: false });
+      expect(rows).toContain(ASK_OFF_ROW);
+      expect(rows).not.toContain("Ask mirror");
+      expect(rows).not.toContain("Allow filing from Claude or ChatGPT");
+      expect(rows).not.toContain("Connect Claude or ChatGPT");
+      expect(row(tab, ASK_OFF_ROW).textContent).toContain("Off");
+    });
+
+    it("names a session from the Atoms service, never a subscription or a price", () => {
+      const { tab } = settingTab();
+      tab.display();
+
+      expect(prose(tab)).toContain(
+        "Claude and ChatGPT can search your atoms once a copy of them is online. That copy needs a session from the Atoms service.",
+      );
+      const text = tab.containerEl.textContent ?? "";
+      expect(text).not.toContain("subscription");
+      expect(text).not.toMatch(/\$\d/);
+    });
+
+    it("stops naming a heading that no longer exists", () => {
+      const { tab } = settingTab();
+      tab.display();
+
+      // U3 retired the `Atoms Plus` heading this sentence pointed at. A direction to somewhere
+      // "above" outlives the thing above it in silence, which is why it is gone rather than
+      // reworded.
+      expect(tab.containerEl.textContent).not.toContain("Sign in to Atoms Plus above");
+    });
+
+    it("keeps a withdrawal reachable for an ack still on record", () => {
+      const { tab } = settingTab({ settings: { ...PRIVACY_GRANTED } });
+      openPrivacy(tab);
+
+      // No session, but a live grant: R7 wants the way out reachable whenever one exists, and
+      // signing out deliberately leaves the record standing so signing back in does not re-ask.
+      // Since U6 the way out is the Privacy screen, which `openPrivacy` throws if it cannot find.
+      expect(rowNames(tab, { headings: false })).toContain(ASK_PRIVACY_ACK_TITLE);
+    });
+  });
+
+  describe("signed in", () => {
+    it("renders both switches, with vault-write held until the privacy ack is current", () => {
+      const { tab } = settingTab({ session: PLUS_SESSION });
+      tab.display();
+
+      const rows = rowNames(tab, { headings: false });
+      expect(rows).toContain("Ask mirror");
+      expect(rows).toContain("Allow filing from Claude or ChatGPT");
+      expect(rows).not.toContain(ASK_OFF_ROW);
+
+      const write = row(tab, "Allow filing from Claude or ChatGPT").querySelector(
+        ".checkbox-container",
+      );
+      expect(write?.classList.contains("is-disabled")).toBe(true);
+    });
+
+    it("shows a failing mirror as failing on the entry row, not only one screen in", () => {
+      const failing = settingTab({
+        session: PLUS_SESSION,
+        settings: { askEnabled: true, ...PRIVACY_GRANTED },
+        local: { [LS_ASK_MIRROR_LAST_ERROR]: "429 rate limited" },
+      });
+      failing.tab.display();
+
+      const healthy = settingTab({
+        session: PLUS_SESSION,
+        settings: { askEnabled: true, ...PRIVACY_GRANTED },
+      });
+      healthy.tab.display();
+
+      const entry = (t: AtomsSettingTab) => row(t, "Connect Claude or ChatGPT");
+      expect(entry(failing.tab).querySelector(".atoms-ask-mirror-error")).not.toBeNull();
+      expect(entry(healthy.tab).querySelector(".atoms-ask-mirror-error")).toBeNull();
+    });
+
+    it("promises only what the mirror does, and never that it reads the vault", () => {
+      const { tab } = settingTab({ session: PLUS_SESSION });
+      tab.display();
+
+      expect(prose(tab)).toContain(
+        "Claude and ChatGPT read that cloud copy, never your vault.",
+      );
+    });
+  });
+
+  it("writes no em dash into any main-screen prose", () => {
+    const { tab } = settingTab({ session: PLUS_SESSION });
+    tab.display();
+
+    for (const line of prose(tab)) expect(line).not.toContain("—");
+  });
+});
+
+/**
+ * U6 — the Privacy destination, and the union that decides whether it exists.
+ *
+ * Its render condition is the whole unit. Every disjunct is a grant that outlives the others, so
+ * a screen gated on the wrong one takes away the only surface that can revoke what is still
+ * live. These are written open-then-closed per the plan's execution note: a walk over rendered
+ * rows cannot catch a required row that renders zero times.
+ */
+describe("the Privacy destination (U6)", () => {
+  const flush = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+  const ENTRY = "Privacy and consents";
+  const EGRESS_RECORD = "What Atoms sends to Anthropic";
+  const NO_SESSION = { session: null } as const;
+
+  /** Whether the entry row is on the main screen at all, which is the reachability question. */
+  function entryRenders(opts: SettingTabOptions): boolean {
+    const { tab } = settingTab(opts);
+    tab.display();
+    return destinationNames(tab).includes(ENTRY);
+  }
+
+  describe("each grant alone keeps the way out reachable", () => {
+    const ALONE: Array<[string, SettingTabOptions, string]> = [
+      [
+        "the egress ack",
+        { ...NO_SESSION, local: { [LS_AUTO_RUN_EGRESS_ACK]: EGRESS_ACK_VERSION } },
+        EGRESS_RECORD,
+      ],
+      [
+        "the catch-up notice, with no egress stamp at all",
+        { ...NO_SESSION, local: { [LS_EGRESS_NOTICE]: true } },
+        EGRESS_RECORD,
+      ],
+      [
+        "the Ask privacy ack, with no egress grant",
+        { ...NO_SESSION, settings: { ...PRIVACY_GRANTED } },
+        ASK_PRIVACY_ACK_TITLE,
+      ],
+      [
+        "the Ask vault-write ack, with no egress grant",
+        { ...NO_SESSION, settings: { ...WRITE_GRANTED } },
+        "Vault write acknowledgment",
+      ],
+    ];
+
+    it.each(ALONE)("renders under %s, and holds its record", (_name, opts, record) => {
+      const { tab } = settingTab(opts);
+      openPrivacy(tab);
+
+      expect(rowNames(tab, { headings: false })).toContain(record);
+      // And it is reviewable, which is what makes it a withdrawal surface rather than a label.
+      expect(buttonLabels(tab, record)).toContain("Review");
+    });
+  });
+
+  it("renders for a Plus session with nothing acked, so the cloud copy is never stranded", () => {
+    const { tab } = settingTab({ session: PLUS_SESSION });
+    openPrivacy(tab);
+
+    expect(rowNames(tab, { headings: false })).toContain("Wipe cloud copy");
+  });
+
+  it("renders for a known cloud copy with no session and no ack", () => {
+    expect(
+      entryRenders({ ...NO_SESSION, local: { [LS_ASK_MIRROR_SERVER_COUNT]: "407" } }),
+    ).toBe(true);
+  });
+
+  it("says the wipe needs a session rather than offering a button that cannot work", () => {
+    const { tab } = settingTab({
+      ...NO_SESSION,
+      local: { [LS_ASK_MIRROR_SERVER_COUNT]: "407" },
+    });
+    openPrivacy(tab);
+
+    expect(row(tab, "Atoms in the cloud copy").textContent).toContain("407");
+    expect(rowNames(tab, { headings: false })).not.toContain("Wipe cloud copy");
+    expect(prose(tab).join(" ")).toContain("needs a session");
+  });
+
+  it("does not render with no grant, no session, and no cloud copy", () => {
+    expect(entryRenders({ ...NO_SESSION })).toBe(false);
+  });
+
+  it("counts what is on record, and says so when the answer is none", () => {
+    const two = settingTab({
+      ...NO_SESSION,
+      settings: { ...PRIVACY_GRANTED, ...WRITE_GRANTED },
+    });
+    two.tab.display();
+    expect(row(two.tab, ENTRY).textContent).toContain("2 on record");
+
+    // A session alone puts the row on screen with nothing acked behind it. R20: it declares the
+    // empty answer rather than rendering a blank value nobody can interpret.
+    const none = settingTab({ session: PLUS_SESSION });
+    none.tab.display();
+    expect(row(none.tab, ENTRY).textContent).toContain("Nothing on record");
+  });
+
+  it("leads with the back row, so leaving never means scrolling", () => {
+    const { tab } = settingTab({ session: PLUS_SESSION });
+    openPrivacy(tab);
+
+    const back = tab.containerEl.querySelector(".atoms-setting-back");
+    expect(back).not.toBeNull();
+    expect(tab.containerEl.firstElementChild).toBe(back);
+    expect(back?.querySelector(".setting-item-name")?.textContent).toBe(ENTRY);
+  });
+
+  it("offers no permanent acknowledgment toggle, here or anywhere", () => {
+    const { tab } = settingTab({
+      session: PLUS_SESSION,
+      settings: { ...PRIVACY_GRANTED, ...WRITE_GRANTED },
+      local: { [LS_AUTO_RUN_EGRESS_ACK]: EGRESS_ACK_VERSION },
+    });
+    openPrivacy(tab);
+
+    // A record is reviewed through a sheet. A switch would grant or revoke with one tap and no
+    // wording on screen, which is the shape the consent sheets replaced.
+    for (const name of [EGRESS_RECORD, ASK_PRIVACY_ACK_TITLE, "Vault write acknowledgment"]) {
+      expect(row(tab, name).querySelector(".checkbox-container")).toBeNull();
+    }
+  });
+
+  it("does not shout louder than the switches that granted it (R17)", () => {
+    const { tab } = settingTab({
+      session: PLUS_SESSION,
+      settings: { ...PRIVACY_GRANTED },
+      local: { [LS_AUTO_RUN_EGRESS_ACK]: EGRESS_ACK_VERSION },
+    });
+    openPrivacy(tab);
+
+    for (const name of [EGRESS_RECORD, ASK_PRIVACY_ACK_TITLE]) {
+      const review = Array.from(row(tab, name).querySelectorAll("button")).find(
+        (el) => el.textContent === "Review",
+      );
+      expect(review?.classList.contains("mod-cta")).toBe(false);
+    }
+    // The destructive row keeps its own weight: it is the one thing here that destroys data.
+    const wipe = Array.from(row(tab, "Wipe cloud copy").querySelectorAll("button")).find(
+      (el) => el.textContent === "Wipe",
+    );
+    expect(wipe?.classList.contains("mod-cta")).toBe(false);
+  });
+
+  it("says it is empty rather than leaving a back row over nothing", async () => {
+    const { tab } = settingTab({ ...NO_SESSION, settings: { ...PRIVACY_GRANTED } });
+    openPrivacy(tab);
+
+    press(tab, ASK_PRIVACY_ACK_TITLE, "Review");
+    pressSheet("Withdraw acknowledgment");
+    await flush();
+
+    // The withdrawal re-renders this screen underneath the user, and there is nothing left on
+    // it. A destination holding only a back row reads as broken rather than as finished, so the
+    // screen says what happened instead.
+    expect(rowNames(tab, { headings: false })).toEqual([ENTRY]);
+    expect(groupHeaders(tab)).toEqual([]);
+    expect(prose(tab).join(" ")).toContain("Nothing on record");
+  });
+
+  it("keeps the frozen egress standing strings exactly as they were", () => {
+    // KTD5 freezes these: each names wording a stored ack version was recorded against, and
+    // rewording without a bump leaves every device holding a record for text it never saw. U6
+    // moved the row and changed none of them, including the one that says "Sync everything now"
+    // about a consent that is really for unattended filing.
+    const legacy = settingTab({ ...NO_SESSION, local: { [LS_EGRESS_NOTICE]: true } });
+    openPrivacy(legacy.tab);
+    expect(row(legacy.tab, EGRESS_RECORD).textContent).toContain(
+      "Acknowledged on this device for Sync everything now, against earlier wording",
+    );
+
+    const stranded = settingTab({
+      ...NO_SESSION,
+      local: { [LS_AUTO_RUN_EGRESS_ACK]: "2027-01-01", [LS_EGRESS_NOTICE]: true },
+    });
+    openPrivacy(stranded.tab);
+    expect(row(stranded.tab, EGRESS_RECORD).textContent).toContain(
+      "Acknowledged on this device for Sync everything now, against different wording",
+    );
   });
 });
 
 describe("Connect Claude or ChatGPT destination (U6)", () => {
+  // `Wipe cloud copy` left this list in U6: it moved to Privacy, beside the count of what it
+  // deletes and under a render condition that survives a withdrawal turning the mirror off.
   const CONNECT_ROWS = [
     "MCP connector URL",
     "Link Claude / ChatGPT",
     "Sync now",
     "Cloud mirror status",
-    "Wipe cloud copy",
   ];
 
   it("moves the Ask plumbing off the main screen, behind one entry row", () => {
@@ -1772,8 +2498,7 @@ describe("Connect Claude or ChatGPT destination (U6)", () => {
       session: PLUS_SESSION,
       settings: { askEnabled: true, ...PRIVACY_GRANTED },
     });
-    tab.display();
-    open(tab, "Connect Claude or ChatGPT");
+    openPrivacy(tab);
 
     press(tab, "Wipe cloud copy", "Wipe");
     expect(sheetOpen()).toBe(true);
@@ -1789,8 +2514,7 @@ describe("Connect Claude or ChatGPT destination (U6)", () => {
       session: PLUS_SESSION,
       settings: { askEnabled: true, ...PRIVACY_GRANTED },
     });
-    tab.display();
-    open(tab, "Connect Claude or ChatGPT");
+    openPrivacy(tab);
 
     // The one destructive row on the screen. Two confirm modals over each other is a question
     // the user answers once and a wipe they authorized once.
@@ -1802,11 +2526,19 @@ describe("Connect Claude or ChatGPT destination (U6)", () => {
 });
 
 /**
- * U6 / R5 — Advanced may hold only rows that neither enable nor disable money spend, cloud
- * egress, or vault writes. Asserted by exercising whatever rows are actually there rather than
+ * Advanced grants nothing. Asserted by exercising whatever rows are actually there rather than
  * by listing their names: a list passes forever, including the day a gate is moved in.
+ *
+ * The claim used to be stronger — that no row here could *reach* money spend, egress, or vault
+ * writes at all — and U7 retired that shape rather than weakening it quietly. This screen now
+ * holds `Sync everything now`, whose entire job is to run the pass, so "touches nothing" stopped
+ * being a description of the screen. What is still true, and is the thing worth guarding, is that
+ * no control here **grants**: nothing writes or clears an acknowledgment, flips `askEnabled`,
+ * plants a device-local key, or opens a consent sheet. Every gate the sync button passes through
+ * lives in the plugin and is asserted where it lives, which is why the ack keys are what this
+ * snapshot watches rather than the call list.
  */
-describe("Advanced destination (U6, R5)", () => {
+describe("Advanced destination (U7, R4)", () => {
   const flush = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 
   function advanced(opts: SettingTabOptions = {}) {
@@ -1845,21 +2577,26 @@ describe("Advanced destination (U6, R5)", () => {
    *
    * The screen is re-queried after each row rather than snapshotted once: a handler that calls
    * `redisplay()` replaces every element, and a snapshot would spend the rest of the run
-   * clicking detached nodes while never touching the screen the user is looking at. Rows already
-   * exercised are remembered by element identity, so a re-render's fresh rows are exercised too
-   * and the walk still terminates.
+   * clicking detached nodes while never touching the screen the user is looking at.
+   *
+   * Rows already exercised are remembered **by name**, not by element identity. Identity was
+   * enough until U7 put a redisplaying toggle on this screen: flipping it replaces every element,
+   * so an identity set treats the same row as new each pass and the walk flips it forever. A name
+   * is what "this control has been touched" actually means, and the set of names is finite, so
+   * the walk terminates. Every name on Advanced is unique, which is what makes this sound.
    */
   function exerciseEveryControl(tab: AtomsSettingTab): void {
     const opened = vi.spyOn(window, "open").mockImplementation(() => null);
     try {
-      const exercised = new Set<Element>();
+      const exercised = new Set<string>();
       for (let guard = 0; guard < 200; guard += 1) {
         const el = Array.from(tab.containerEl.querySelectorAll(".setting-item")).find(
           (candidate) =>
-            !candidate.classList.contains("atoms-setting-back") && !exercised.has(candidate),
+            !candidate.classList.contains("atoms-setting-back") &&
+            !exercised.has(candidate.querySelector(".setting-item-name")?.textContent ?? ""),
         );
         if (!el) return;
-        exercised.add(el);
+        exercised.add(el.querySelector(".setting-item-name")?.textContent ?? "");
         for (const toggle of Array.from(el.querySelectorAll(".checkbox-container"))) {
           (toggle as HTMLElement).click();
         }
@@ -1877,20 +2614,45 @@ describe("Advanced destination (U6, R5)", () => {
     }
   }
 
-  it("holds the plumbing rows and the DIY guide", () => {
-    const { tab } = advanced();
+  it("holds the plumbing, the sync, the self-host route and the escape hatches, in that order", () => {
+    const { tab } = advanced({
+      local: { [LS_LAST_RUN_DAY]: "2026-08-13" },
+    });
+    // The back row first, then one group after another. `This device` is here because the
+    // fixture gives the device a run to report; a fresh install renders neither that group nor
+    // its header, which the next test is about.
     expect(rowNames(tab)).toEqual([
       "Advanced",
       "Model",
-      "Plus service URL override",
-      "DIY Ask guide",
+      "Sync when you return to Obsidian",
+      "Sync everything now",
+      "Last filing run",
+      "Plus service URL",
+      "Self-host guide",
+      "Custom shortcut link",
+      PASTE_ROW,
     ]);
+    expect(groupHeaders(tab)).toEqual([
+      "Model",
+      "Sync",
+      "This device",
+      "Run Ask yourself",
+      "Escape hatches",
+    ]);
+  });
+
+  it("leaves out the device group entirely when this device has nothing to report", () => {
+    // A group header over an empty box reads as a screen that failed to load, so a fresh
+    // install gets neither.
+    const { tab } = advanced();
+    expect(groupHeaders(tab)).not.toContain("This device");
+    expect(rowNames(tab)).not.toContain("Last filing run");
   });
 
   it("opens the committed GitHub self-host guide", () => {
     const { tab } = advanced();
     const open = vi.spyOn(window, "open").mockImplementation(() => null);
-    press(tab, "DIY Ask guide", "Open");
+    press(tab, "Self-host guide", "Open");
     expect(open).toHaveBeenCalledWith(
       "https://github.com/taihartman/obsidian-atoms/blob/master/docs/ask-self-host.md",
       "_blank",
@@ -1905,14 +2667,31 @@ describe("Advanced destination (U6, R5)", () => {
     expect(rowNames(tab)).not.toContain("Device-local API key");
   });
 
-  it("carries the caution that used to sit above these rows", () => {
+  it("cautions about each group's own rows, where the caution can be acted on", () => {
     const { tab } = advanced();
-    expect(tab.containerEl.textContent).toContain(
-      "Leave these alone unless you self-host or dogfood a local Plus server",
-    );
+    const text = tab.containerEl.textContent ?? "";
+    // The screen used to open with one blanket "leave these alone unless you self-host", which
+    // stopped being true when it took a button ordinary users are meant to press. Each group
+    // warns about itself instead.
+    expect(text).toContain("Leave it alone unless you have a reason to change it");
+    expect(text).toContain("You should not need any of these");
+    // And the two constraints the self-host guide is emphatic about, which are the easiest
+    // thing on this screen to get wrong.
+    expect(text).toContain("before you sign in");
+    expect(text).toContain("public HTTPS address");
   });
 
-  it("holds no control that enables or disables money, egress, or vault writes", async () => {
+  it("says nothing about drains, outboxes or mirrors", () => {
+    const { tab } = advanced({ local: { [LS_LAST_RUN_DAY]: "2026-08-13" } });
+    const text = tab.containerEl.textContent ?? "";
+    // Pipeline stage names are how the code is built, not vocabulary a reader has. The old
+    // `Sync everything now` description spelled the whole pipeline out.
+    for (const stage of ["drain", "outbox", "mirror", "auto-run"]) {
+      expect(text.toLowerCase()).not.toContain(stage);
+    }
+  });
+
+  it("grants nothing: no ack, no key, no consent sheet", async () => {
     const { tab, local, calls } = advanced({
       settings: { useDeviceLocalKeyFallback: true },
     });
@@ -1925,20 +2704,38 @@ describe("Advanced destination (U6, R5)", () => {
     await flush();
 
     expect(gateState(tab, local)).toEqual(before);
-    // Every gate acts through the plugin to do its work, so a screen of pure preferences
-    // reaches the plugin for persistence and for nothing else.
-    expect([...new Set(calls.slice(from))]).toEqual(["saveSettings"]);
     // A gate reached from here would ask for consent before it moved a value, and an unanswered
     // sheet moves nothing — so the values matching above is not on its own proof of no gate.
     // The sheet appearing at all is.
     expect(sheetOpen()).toBe(false);
   });
 
+  it("reaches a named handful of plugin entry points, and widening that is a decision", async () => {
+    const { tab, calls } = advanced();
+    const from = calls.length;
+
+    exerciseEveryControl(tab);
+    await flush();
+
+    // The allowlist, not a "calls nothing" assertion, because U7 gave this screen two rows whose
+    // whole job is to act. Every gate they pass through is inside the plugin. Two of these are
+    // reads the re-render performs, and only `runSyncEverythingNow` and `setResumeEnabled` are
+    // acts. A sixth name appearing here means a row that acts was moved onto Advanced, which is
+    // the thing to look at rather than the thing to add to this list.
+    expect([...new Set(calls.slice(from))].sort()).toEqual([
+      "getLastCatchupLine",
+      "getResumeEnabled",
+      "runSyncEverythingNow",
+      "saveSettings",
+      "setResumeEnabled",
+    ]);
+  });
+
   it("keeps the one redirect it does hold inert on its own", async () => {
     const { tab, local } = advanced();
     const before = gateState(tab, local);
 
-    fill(tab, "Plus service URL override", "http://127.0.0.1:8787");
+    fill(tab, "Plus service URL", "http://127.0.0.1:8787");
     await flush();
 
     // The override redirects where egress goes; it cannot turn egress on.
@@ -1967,7 +2764,7 @@ describe("Advanced destination (U6, R5)", () => {
         PLUS_BASE_URL_INVALID_MESSAGE,
       );
 
-      fill(tab, "Plus service URL override", "http://evil.example");
+      fill(tab, "Plus service URL", "http://evil.example");
       await flush();
       expect(tab.containerEl.textContent).toContain(
         PLUS_BASE_URL_INVALID_MESSAGE,
@@ -1975,7 +2772,7 @@ describe("Advanced destination (U6, R5)", () => {
       // Saved anyway — the request guard is the protection, not the field.
       expect(tab.plugin.settings.plusBaseUrl).toBe("http://evil.example");
 
-      fill(tab, "Plus service URL override", "https://my.example");
+      fill(tab, "Plus service URL", "https://my.example");
       await flush();
       expect(tab.containerEl.textContent).not.toContain(
         PLUS_BASE_URL_INVALID_MESSAGE,
@@ -1985,7 +2782,7 @@ describe("Advanced destination (U6, R5)", () => {
     it("stays quiet for an empty field, which means the hosted service", async () => {
       const { tab } = advanced({ settings: { plusBaseUrl: "https://my.example" } });
 
-      fill(tab, "Plus service URL override", "");
+      fill(tab, "Plus service URL", "");
       await flush();
 
       expect(tab.containerEl.textContent).not.toContain(
@@ -2031,23 +2828,54 @@ describe("main screen row grammar (U9)", () => {
     "Connect Claude or ChatGPT",
   ];
 
-  function expectedRows(account: string): string[] {
-    const vocabulary = `Tag vocabulary — ${DEFAULT_SETTINGS.activeVocabulary.length} active`;
+  /** What leg 3's Ask group renders with no session: one row, saying so. */
+  const ASK_OFF_ROW = "Ask in Claude and ChatGPT";
+
+  /**
+   * @param filingChosen whether someone is set up to file. U2's status group opens the screen
+   *   either way: with the one next step when nobody files, and with the automatic-filing
+   *   toggle it takes off the auto-run section when somebody does.
+   * @param askRows what leg 3's Ask group holds: the three-row cluster with a session, or the
+   *   single `Off` row without one. Not a filter on one list, because the signed-out shape is a
+   *   different row rather than the signed-in rows minus some.
+   * @param privacy whether the utility group carries its Privacy entry, which renders only when
+   *   this device has something to take back or delete (KTD6). A live Plus session is one of the
+   *   six disjuncts, so the signed-in screen has it and the bare signed-out screen does not.
+   */
+  function expectedRows(
+    filingChosen: boolean,
+    askRows: string[],
+    privacy: boolean,
+  ): string[] {
+    const vocabulary = `Tag vocabulary · ${DEFAULT_SETTINGS.activeVocabulary.length} active`;
     return [
-      account,
-      "Capture Atom shortcut",
-      "Custom shortcut link",
+      filingChosen ? "File automatically" : "Choose who files your captures",
+      // 1 · Capture. Daily Notes is a fact the leg reports rather than a preference it owns,
+      // which is why it is the one row here with no control (U3).
+      "Daily notes",
+      // U9: a name and a status, with the procedure behind it. It was an action row whose
+      // description carried all six steps.
+      "Capture on your phone",
+      // `Custom shortcut link` is not here since U7: it only matters to somebody who forked the
+      // recipe, so it sits with the other escape hatches on Advanced.
+      // 2 · File, in the mock's order: who files, whether it runs on its own, where atoms land,
+      // what they may be tagged, what gets listed on hub notes. The engine row names the
+      // question rather than the account's state, which is the state's own screen two taps in.
+      "Who does the filing",
+      // Shed to the status group once somebody files; the File group keeps it while the screen
+      // is still asking who that is.
+      ...(filingChosen ? [] : ["File automatically when Obsidian opens"]),
       "Atom folder",
-      "List atoms on hub notes",
       vocabulary,
-      ...ASK_ROWS,
-      "File automatically when Obsidian opens",
-      "Sync when you return to Obsidian",
-      "Sync everything now",
-      "Anthropic API key",
-      // A credential path that enables Anthropic spend, so R5 keeps it on the main screen
-      // rather than in Advanced — with the key row itself appearing only once it is on.
-      "Device-local key fallback",
+      "List atoms on hub notes",
+      // 3 · Resurface, as two groups: home needs nothing, Ask needs a session (R3).
+      "Atoms home",
+      ...askRows,
+      // The sync pair is not here since U7 either: both are diagnostics-shaped, and the main
+      // screen answers "is Atoms filing", not "make it file this second".
+      // The key rows are not here since U4: a credential path belongs beside the engine choice
+      // it enables, which is the engine destination rather than the main screen or Advanced.
+      ...(privacy ? ["Privacy and consents"] : []),
       "Advanced",
     ];
   }
@@ -2057,27 +2885,33 @@ describe("main screen row grammar (U9)", () => {
     tab.display();
 
     const rows = rowNames(tab, { headings: false });
-    expect(rows).toEqual(expectedRows("Plus · 12 filings left"));
-    expect(rows).toHaveLength(15);
+    expect(rows).toEqual(expectedRows(true, ASK_ROWS, true));
+    expect(rows).toHaveLength(13);
   });
 
-  it("renders twelve rows signed out — the Ask cluster is the only difference", () => {
+  it("renders eleven rows signed out — the Ask group is the only difference", () => {
     const { tab } = settingTab();
     tab.display();
 
     const rows = rowNames(tab, { headings: false });
-    expect(rows).toEqual(
-      expectedRows("Set up automatic filing").filter((name) => !ASK_ROWS.includes(name)),
-    );
-    expect(rows).toHaveLength(12);
+    // No session, no ack, no cloud copy: nothing to take back, so no Privacy row either.
+    expect(rows).toEqual(expectedRows(false, [ASK_OFF_ROW], false));
+    expect(rows).toHaveLength(11);
   });
 
   it("adds the device-local key row under its toggle, and nowhere else", () => {
     const { tab } = settingTab({ settings: { useDeviceLocalKeyFallback: true } });
     tab.display();
+    // Not on the main screen at all now: both live on the engine destination. The whole list,
+    // not just the absence — a conditional row that leaked here would otherwise only be caught
+    // if somebody thought to name it (U11).
+    expect(rowNames(tab, { headings: false })).toEqual(
+      expectedRows(false, [ASK_OFF_ROW], false),
+    );
+    expect(rowNames(tab, { headings: false })).not.toContain("Device-local key fallback");
 
+    open(tab, "Who does the filing");
     const rows = rowNames(tab, { headings: false });
-    expect(rows).toHaveLength(13);
     expect(rows.indexOf("Device-local API key")).toBe(
       rows.indexOf("Device-local key fallback") + 1,
     );
@@ -2091,7 +2925,16 @@ describe("main screen row grammar (U9)", () => {
     const prose = Array.from(
       tab.containerEl.querySelectorAll("p.setting-item-description"),
     ).map((el) => el.textContent ?? "");
-    expect(prose.some((text) => text.includes("Write top-level bullets"))).toBe(true);
+    // U3 moved it out of a section intro and into the Capture group's one footer, which is the
+    // same claim about where it lives: prose under the rows, never a row of its own.
+    const format = prose.find((text) => text.includes("in your daily note")) ?? "";
+    expect(format).not.toBe("");
+    // "top-level" is the whole guarantee this test has ever carried, and the footer sweep is
+    // exactly where it would get dropped: `isContinuationLine` folds an indented bullet into the
+    // capture above it with no error, so a user who loses this word loses the only way to predict
+    // why two thoughts landed in one atom (R19).
+    expect(format).toContain("top-level");
+    expect(format).toContain("indented");
   });
 
   it("keeps opening today's daily as a command, and off the settings screen", () => {
@@ -2104,25 +2947,34 @@ describe("main screen row grammar (U9)", () => {
     expect(rowNames(tab, { headings: false })).not.toContain("Open today's daily");
   });
 
-  it("leaves Self-host Ask off the main screen and points signed-out Ask at Advanced", () => {
+  it("keeps self-hosting off the main screen entirely, on the Advanced screen instead", () => {
     const { tab } = plusTab();
     tab.display();
     expect(rowNames(tab, { headings: false })).not.toContain("Self-host Ask");
     expect(existsSync(path.resolve(__dirname, "../docs/ask-self-host.md"))).toBe(true);
 
+    // U5 stopped offering the route on the main screen (R13). Signed out is exactly the moment
+    // somebody has not decided whether they want Ask at all, and "or run the server yourself"
+    // is not the sentence that helps them decide. The Advanced screen still names it, so the
+    // route is described rather than hidden.
     const signedOut = settingTab();
     signedOut.tab.display();
-    expect(signedOut.tab.containerEl.textContent).toContain(
-      "open Advanced and follow the DIY Ask guide",
-    );
+    const main = signedOut.tab.containerEl.textContent ?? "";
+    expect(main).not.toContain("Self-host guide");
+    expect(main).not.toContain("run the server yourself");
+    // And it is one tap away, named, on the screen R13 puts it on.
+    open(signedOut.tab, "Advanced");
+    expect(rowNames(signedOut.tab, { headings: false })).toContain("Self-host guide");
 
     const guide = readFileSync(
       path.resolve(__dirname, "../docs/ask-self-host.md"),
       "utf8",
     );
-    expect(guide).toContain("Advanced → Plus service URL override");
+    // KTD10 in both directions: the guide names the row, so renaming the row without editing
+    // the guide leaves a reader hunting a label that no longer exists.
+    expect(guide).toContain("Advanced → Plus service URL");
     expect(guide).toContain("Public HTTPS is required");
-    expect(guide).not.toContain("Development → Plus service URL override");
+    expect(guide).not.toContain("Development → Plus service URL");
     expect(guide).not.toContain("local `http://127.0.0.1:8787` can work");
   });
 
@@ -2131,17 +2983,20 @@ describe("main screen row grammar (U9)", () => {
    * paragraph it drifts out of the grammar and reads as prose the user has to parse.
    */
   describe("status facts", () => {
-    it("names the last auto-run day on a status row", () => {
+    // Both records moved to Advanced → This device in U7, and the first shed the "auto-run"
+    // in its name with the move: the group header says whose device it is, and "auto-run" was
+    // a stage name rather than a word a reader brings with them.
+    it("names the last filing run on a status row", () => {
       const { tab } = settingTab({
         session: PLUS_SESSION,
         local: { [LS_LAST_RUN_DAY]: "2026-07-29" },
       });
-      tab.display();
+      openAdvanced(tab);
 
       const rows = rowNames(tab, { headings: false });
-      expect(rows).toContain("Last auto-run day (this device)");
-      expect(row(tab, "Last auto-run day (this device)").textContent).toContain("2026-07-29");
-      expect(prose(tab).some((t) => t.startsWith("Last auto-run day"))).toBe(false);
+      expect(rows).toContain("Last filing run");
+      expect(row(tab, "Last filing run").textContent).toContain("2026-07-29");
+      expect(prose(tab).some((t) => t.startsWith("Last filing run"))).toBe(false);
     });
 
     it("names the last catch-up on a status row", () => {
@@ -2149,22 +3004,280 @@ describe("main screen row grammar (U9)", () => {
         session: PLUS_SESSION,
         plugin: { getLastCatchupLine: () => "Last catch-up 18m ago: caught up" },
       });
-      tab.display();
+      openAdvanced(tab);
 
       expect(rowNames(tab, { headings: false })).toContain("Last catch-up");
       expect(row(tab, "Last catch-up").textContent).toContain("18m ago: caught up");
       expect(prose(tab).some((t) => t.startsWith("Last catch-up"))).toBe(false);
     });
 
-    it("keeps the secret-id example with the key row instead of splitting the pair below it", () => {
+    /**
+     * The secret-id naming rule has had three homes, and the invariant is the same in all three:
+     * it must stay reachable, and it must not come between the key row and the fallback toggle,
+     * which answer for the same key. It was prose wedged between them, then it moved into the key
+     * row's own description, and now it is the group footer — under *both* rows, so the pair still
+     * touches, and off the row itself, which was making somebody four minutes into Atoms read the
+     * word `SecretStorage` and an Android emulator command to decide who pays (F4).
+     *
+     * The jargon assertions are the half that would otherwise rot: a future edit can put the tip
+     * back on the row and still satisfy "reachable and not between the pair".
+     */
+    it("keeps the key naming rule under the pair, and jargon off the key row", () => {
       const { tab } = plusTab();
       tab.display();
+      open(tab, "Who does the filing");
 
-      // The tip belongs to the field it describes, so it lives in that row — not as a paragraph
-      // wedged between the key row and the fallback toggle that answers for the same key.
-      expect(row(tab, "Anthropic API key").textContent).toContain(API_KEY_SECRET_ID_DEFAULT);
-      expect(prose(tab).some((t) => t.startsWith("Tip: secret id example"))).toBe(false);
+      // Reachable, and in the footer rather than the row.
+      expect(prose(tab).some((t) => t.includes(API_KEY_SECRET_ID_DEFAULT))).toBe(true);
+      const keyRow = row(tab, "Anthropic API key");
+      expect(keyRow.textContent).not.toContain(API_KEY_SECRET_ID_DEFAULT);
+
+      // The pair still touches: nothing renders between them.
+      const names = rowNames(tab, { headings: false });
+      expect(names.indexOf("Device-local key fallback")).toBe(
+        names.indexOf("Anthropic API key") + 1,
+      );
+
+      // The who-pays screen is not the place for implementation nouns.
+      const engineCopy = [keyRow.textContent ?? "", ...prose(tab)].join(" ");
+      for (const jargon of ["SecretStorage", "emulator", "data.json", "alphanumeric"]) {
+        expect(engineCopy).not.toContain(jargon);
+      }
     });
+  });
+});
+
+const FILING_SESSION: PlusSession = {
+  sessionToken: "sess_filing",
+  email: "user@example.com",
+  status: "active",
+  periodEnd: "2099-01-01T00:00:00.000Z",
+};
+
+/**
+ * An install where somebody files: a live Plus session, and the auth that goes with it.
+ *
+ * Shared by the two groups the same state decides between — the status group renders its filing
+ * variant off it, and the File group sheds its automatic-filing toggle off it. Two copies of this
+ * setup would let one of those describes drift onto an install the other never sees.
+ */
+/**
+ * The footer under the "Your data" group. Located through its own header rather than by taking
+ * the last footer on screen, so a group added after it does not quietly retarget the assertion.
+ */
+function utilityFooter(tab: AtomsSettingTab): string {
+  const header = Array.from(
+    tab.containerEl.querySelectorAll("h3.atoms-setting-group-header"),
+  ).find((el) => el.textContent === "Your data");
+  const foot = header?.nextElementSibling?.nextElementSibling;
+  if (!foot?.classList.contains("atoms-setting-group-foot")) {
+    throw new Error("no footer under the 'Your data' group");
+  }
+  return foot.textContent ?? "";
+}
+
+function filingTab(opts: SettingTabOptions = {}) {
+  return settingTab({
+    ...opts,
+    session: FILING_SESSION,
+    auth: {
+      mode: "plus",
+      sessionToken: FILING_SESSION.sessionToken,
+      email: FILING_SESSION.email,
+      status: "active",
+      remaining: 12,
+      periodEnd: FILING_SESSION.periodEnd,
+    },
+  });
+}
+
+/**
+ * The element that answers "is Atoms filing?" before the screen offers a single control (R18).
+ *
+ * Two variants, because the honest answer has two shapes: nobody files yet, so the screen says
+ * what Atoms does and names the one step; or somebody does, so the screen says filing is on and
+ * when the first atoms land (R12). Both are read back through the group chrome rather than
+ * through raw markup — `groupHeaders` for the eyebrow, `prose` for the footer.
+ */
+describe("status group (U2)", () => {
+  /** Automatic filing already on and acknowledged, with no run behind it yet: day one. */
+  const FILING_ON = {
+    [LS_AUTO_RUN_ENABLED]: true,
+    [LS_AUTO_RUN_EGRESS_ACK]: EGRESS_ACK_VERSION,
+  };
+
+  describe("nobody files yet", () => {
+    it("opens the screen by saying what Atoms does, above every control", () => {
+      const { tab } = settingTab();
+      tab.display();
+
+      expect(groupHeaders(tab)[0]).toBe("Get started");
+      const footer =
+        "Atoms reads thoughts you already wrote and files each one as its own note, linked to the people and topics it mentions.";
+      expect(prose(tab)).toContain(footer);
+      // R9 is about order, not just presence: the sentence has to land before the first leg the
+      // screen offers controls under. The old anchor was the phrase "Atoms Plus", which U5 took
+      // off the main screen with the Ask sign-in paragraph.
+      const text = tab.containerEl.textContent ?? "";
+      expect(text.indexOf("Get started")).toBeLessThan(text.indexOf(footer));
+      expect(text.indexOf(footer)).toBeLessThan(text.indexOf("1 · Capture"));
+    });
+
+    it("names one next step, and walks into the screen that answers it", () => {
+      const { tab } = settingTab();
+      tab.display();
+
+      const rows = rowNames(tab, { headings: false });
+      expect(rows[0]).toBe("Choose who files your captures");
+      expect(destinationNames(tab)).toContain("Choose who files your captures");
+
+      // The screen that answers "who files" is the one offering both answers, not the one that
+      // manages only the paid half of it.
+      open(tab, "Choose who files your captures");
+      const answers = rowNames(tab, { headings: false });
+      expect(answers).toContain("Set up automatic filing");
+      expect(answers).toContain("Anthropic API key");
+    });
+
+    it("leaves the automatic filing toggle where it was", () => {
+      const { tab } = settingTab();
+      tab.display();
+
+      expect(rowNames(tab, { headings: false })).toContain(
+        "File automatically when Obsidian opens",
+      );
+      expect(rowNames(tab, { headings: false })).not.toContain("File automatically");
+    });
+  });
+
+  describe("somebody files", () => {
+    it("states filing is on and when the first atoms arrive", () => {
+      const { tab } = filingTab({ local: FILING_ON });
+      tab.display();
+
+      expect(groupHeaders(tab)[0]).toBe("Status");
+      expect(rowNames(tab, { headings: false })[0]).toBe("File automatically");
+      expect(row(tab, "File automatically").querySelector(".is-enabled")).not.toBeNull();
+      expect(row(tab, "File automatically").textContent).toContain(
+        "First atoms arrive tomorrow morning.",
+      );
+      expect(row(tab, "Next run").textContent).toContain(
+        "Tomorrow, when Obsidian opens.",
+      );
+      expect(prose(tab)).toContain(
+        "Atoms waits until a day is done, so it never files a thought you are still writing.",
+      );
+    });
+
+    it("stops promising a first arrival once a run is behind it", () => {
+      const { tab } = filingTab({
+        local: { ...FILING_ON, [LS_LAST_RUN_DAY]: "2026-08-13" },
+      });
+      tab.display();
+
+      expect(row(tab, "File automatically").textContent).not.toContain(
+        "First atoms arrive",
+      );
+      expect(row(tab, "Next run").textContent).toContain("Tomorrow, when Obsidian opens.");
+    });
+
+    it("says filing is off without a next run, when the toggle is off", () => {
+      const { tab } = filingTab();
+      tab.display();
+
+      expect(groupHeaders(tab)[0]).toBe("Status");
+      expect(row(tab, "File automatically").querySelector(".is-enabled")).toBeNull();
+      expect(rowNames(tab, { headings: false })).not.toContain("Next run");
+    });
+
+    it("sheds the toggle from the auto-run section rather than rendering it twice", () => {
+      const { tab, local } = filingTab({ local: FILING_ON });
+      tab.display();
+
+      const rows = rowNames(tab, { headings: false });
+      expect(rows).not.toContain("File automatically when Obsidian opens");
+      expect(rows.filter((name) => name === "File automatically")).toHaveLength(1);
+      // Still the same toggle, with the same consent behind it: flipping it off writes through.
+      flip(tab, "File automatically");
+      expect(local.get(LS_AUTO_RUN_ENABLED)).toBe(false);
+    });
+  });
+
+  /** KTD11: one computation of what is unfinished, rendered as a card and as a line. */
+  it("agrees with Atoms home about what is unfinished", () => {
+    vi.spyOn(dni, "appHasDailyNotesPluginLoaded").mockReturnValue(false);
+    const { tab } = filingTab();
+    tab.display();
+
+    const step = firstDaySetupCopy(false).nextStep;
+    expect(step?.name).toBe("Turn on Daily Notes");
+    expect(groupHeaders(tab)[0]).toBe("Get started");
+    expect(rowNames(tab, { headings: false })[0]).toBe(step?.name);
+  });
+
+  /**
+   * Unfinished setup and "not filing" are two different questions, and Daily Notes is where they
+   * come apart: switching that core plugin off under a configured engine leaves the window and
+   * the ack spent while the toggle falls back to the File group. Telling that device its first
+   * atoms arrive tomorrow describes a silence window it already spent.
+   */
+  it("does not promise a first arrival to a device that is already filing", () => {
+    vi.spyOn(dni, "appHasDailyNotesPluginLoaded").mockReturnValue(false);
+    const { tab } = filingTab({
+      local: { ...FILING_ON, [LS_LAST_RUN_DAY]: "2026-08-13" },
+    });
+    tab.display();
+
+    // The setup step is still the honest headline — nothing files without a daily note.
+    expect(rowNames(tab, { headings: false })[0]).toBe("Turn on Daily Notes");
+
+    const toggle = row(tab, "File automatically when Obsidian opens");
+    expect(toggle.textContent).not.toContain("Filing starts with tomorrow's note");
+    expect(toggle.textContent).toContain("Atoms files each past day when Obsidian opens.");
+  });
+
+  it("keeps the day-one promise until a run is actually on the books", () => {
+    vi.spyOn(dni, "appHasDailyNotesPluginLoaded").mockReturnValue(false);
+    // Enabled, acked, and nothing filed yet: the promise is still true, so it must survive.
+    const { tab } = filingTab({ local: FILING_ON });
+    tab.display();
+
+    expect(
+      row(tab, "File automatically when Obsidian opens").textContent,
+    ).toContain("Filing starts with tomorrow's note");
+  });
+
+  /**
+   * The other side of the test above, and the line between them is what the device can still do.
+   *
+   * A spent window argues filing *was* happening, which is why Daily Notes going off keeps the
+   * running line. A deleted engine argues nothing can be sent at all. Adversarial repro, live:
+   * engine screen → device-local key fallback on → paste a key → back, and the status group takes
+   * the toggle; then engine screen → fallback off, which deletes the key → back. The status group
+   * correctly hands the toggle down again and the engine row reads `Not chosen`, while the toggle
+   * itself went on claiming the device files every past day. It files nothing: `resolveFilingAuth`
+   * reports `none`, so there is no credential to send a capture with.
+   */
+  it("does not claim a device with no engine is filing each past day", () => {
+    vi.spyOn(dni, "appHasDailyNotesPluginLoaded").mockReturnValue(true);
+    // No `auth`, so `resolveFilingAuth()` is `{ mode: "none" }` — the state deleting the key left.
+    const { tab } = settingTab({
+      local: { ...FILING_ON, [LS_LAST_RUN_DAY]: "2026-08-11" },
+    });
+    tab.display();
+
+    // The screen agrees setup is unfinished, twice.
+    expect(rowNames(tab, { headings: false })[0]).toBe(
+      "Choose who files your captures",
+    );
+    expect(row(tab, "Who does the filing").textContent).toContain("Not chosen");
+
+    // So the toggle may not say otherwise.
+    const toggle = row(tab, "File automatically when Obsidian opens");
+    expect(toggle.textContent).not.toContain(
+      "Atoms files each past day when Obsidian opens.",
+    );
+    expect(toggle.textContent).toContain("Filing starts with tomorrow's note");
   });
 });
 
@@ -2191,7 +3304,7 @@ describe("adversarial regressions", () => {
     function vocabularyTab(active: string[], vaultTags: string[]) {
       const { tab } = settingTab({ settings: { activeVocabulary: active }, vaultTags });
       tab.display();
-      open(tab, `Tag vocabulary — ${active.length} active`);
+      open(tab, `Tag vocabulary · ${active.length} active`);
       return tab;
     }
 
@@ -2238,7 +3351,7 @@ describe("adversarial regressions", () => {
     function vocabularyTab() {
       const { tab } = settingTab({ settings: { activeVocabulary: ["alpha"] } });
       tab.display();
-      open(tab, "Tag vocabulary — 1 active");
+      open(tab, "Tag vocabulary · 1 active");
       Notice.messages.length = 0;
       return tab;
     }
@@ -2270,7 +3383,7 @@ describe("adversarial regressions", () => {
     it("keeps a half-typed tag when deactivating another tag rebuilds the screen", async () => {
       const { tab } = settingTab({ settings: { activeVocabulary: ["alpha", "beta"] } });
       tab.display();
-      open(tab, "Tag vocabulary — 2 active");
+      open(tab, "Tag vocabulary · 2 active");
       fill(tab, "Add a custom tag", "healt");
       flip(tab, "#beta");
       await flush();
@@ -2330,6 +3443,9 @@ describe("adversarial regressions", () => {
       );
       if (!(stale instanceof HTMLElement)) throw new Error("no auto-run toggle");
 
+      // The withdrawal is on the Privacy screen since U6; the toggle it must not re-enable is on
+      // the screen behind it, still held by the test the way a finger holds a stale button.
+      open(tab, "Privacy and consents");
       press(tab, "What Atoms sends to Anthropic", "Review");
       pressSheet("Withdraw acknowledgment");
       await flush();
@@ -2429,7 +3545,10 @@ describe("adversarial regressions", () => {
 
 const VAULT = "Vault A";
 const EMAIL_ROW = "Email";
-const PASTE_ROW = "Advanced: paste session";
+// U7 moved this row to Advanced → Escape hatches and dropped the `Advanced:` prefix with it: the
+// prefix was an address, and the row now lives at the address.
+const PASTE_ROW = "Paste a session";
+const PASTE_ROUTE = `Advanced → ${PASTE_ROW}`;
 
 type FakeApp = ReturnType<typeof fakeLocalApp>;
 
@@ -2450,6 +3569,10 @@ function fakeTab(app: FakeApp) {
     settings: { ...DEFAULT_SETTINGS, plusBaseUrl: "https://plus.test" },
     manifest: { version: "9.9.9" },
     resolveFilingAuth: () => ({ mode: "none" as const }),
+    // Read by the Advanced screen's sync group and its device group. This double predates that
+    // screen, so both are stubs rather than behavior — the panels under test here are about copy.
+    getResumeEnabled: () => false,
+    getLastCatchupLine: () => null,
   };
   const tab = new AtomsSettingTab(app as never, plugin as never);
   (tab as unknown as { app: unknown }).app = app;
@@ -2472,6 +3595,18 @@ function renderSignedOutPanel(app: FakeApp): UiCapture {
   (
     tab as unknown as { renderAccountDestination: (el: HTMLElement) => void }
   ).renderAccountDestination(containerEl);
+  return ui;
+}
+
+/** The same harness pointed at the screen U7 moved the paste fallback onto. */
+function renderAdvancedPanel(app: FakeApp): UiCapture {
+  const ui = captureObsidianUi();
+  const containerEl = document.createElement("div");
+  const tab = fakeTab(app);
+  (tab as unknown as { containerEl: unknown }).containerEl = containerEl;
+  (
+    tab as unknown as { renderAdvancedDestination: (el: HTMLElement) => void }
+  ).renderAdvancedDestination(containerEl);
   return ui;
 }
 
@@ -2513,10 +3648,11 @@ describe("signed-out Plus panel copy (R15, AE11)", () => {
   it("points at Refresh status nowhere on the panel, in either state", () => {
     for (const app of [fakeLocalApp(), fakeLocalApp(pendingSeed())]) {
       const ui = renderSignedOutPanel(app);
-      // The assertion is only meaningful if the panel really rendered: both the
-      // sign-in-link row and the paste row have to be among the strings checked.
+      // The assertion is only meaningful if the panel really rendered: both of the rows it is
+      // made of have to be among the strings checked. The paste row was the second witness
+      // until U7 moved it to Advanced, so the plans row stands in for it.
       expect(ui.strings).toContain(EMAIL_ROW);
-      expect(ui.strings).toContain(PASTE_ROW);
+      expect(ui.strings).toContain("Skip the API key");
       const offenders = ui.strings.filter((s) => s.includes("Refresh status"));
       expect(offenders).toEqual([]);
     }
@@ -2551,11 +3687,12 @@ describe("signed-out Plus panel copy (R15, AE11)", () => {
     );
   });
 
-  it("keeps the paste field below the Email cluster, as the different-device fallback (AE9, R10)", () => {
-    const ui = renderSignedOutPanel(fakeLocalApp());
-    expect(ui.strings.indexOf(PASTE_ROW)).toBeGreaterThan(
-      ui.strings.indexOf(EMAIL_ROW),
-    );
+  it("keeps the paste field off the sign-in panel and on Advanced, still the different-device fallback (AE9, R10)", () => {
+    // The row itself is unchanged (AE9, R10 hold): what moved is where it is. Nothing sells the
+    // product on the signed-out screen if the third thing a new reader meets is a token field.
+    expect(renderSignedOutPanel(fakeLocalApp()).strings).not.toContain(PASTE_ROW);
+
+    const ui = renderAdvancedPanel(fakeLocalApp());
     expect(descAfter(ui, PASTE_ROW)).toMatch(/different device/i);
     expect(ui.buttons.map((b) => b.text)).toContain("Save session");
   });
@@ -2563,7 +3700,8 @@ describe("signed-out Plus panel copy (R15, AE11)", () => {
   it("says up front when this device cannot sign itself in from a link (R19)", () => {
     stubNoWebCrypto();
     const desc = descAfter(renderSignedOutPanel(fakeLocalApp()), EMAIL_ROW);
-    expect(desc).toMatch(/Advanced: paste session/);
+    // Now that the fallback is two screens away, the sentence has to carry the route to it.
+    expect(desc).toContain(PASTE_ROUTE);
     // It must not promise the automatic sign-in it cannot deliver.
     expect(desc).not.toMatch(/signs itself in\./);
   });
@@ -2634,7 +3772,7 @@ describe("requesting a sign-in link (R15, U7 binding)", () => {
     expect(readPendingSignIns(app)).toEqual([]);
     // And the user is told where to go instead, in their own terms.
     expect(ui.notices).toHaveLength(1);
-    expect(ui.notices[0]).toMatch(/Advanced: paste session/);
+    expect(ui.notices[0]).toContain(PASTE_ROUTE);
     expect(ui.notices[0]).not.toMatch(/crypto|verifier/i);
   });
 
@@ -2642,7 +3780,8 @@ describe("requesting a sign-in link (R15, U7 binding)", () => {
     const ui = captureObsidianUi();
     await sendLink(fakeTab(fakeLocalApp()), "a@b.co");
 
-    expect(ui.notices[0]).not.toMatch(/paste session/i);
+    expect(ui.notices[0]).not.toContain(PASTE_ROUTE);
+    expect(ui.notices[0]).not.toMatch(/paste/i);
     expect(ui.notices[0]).not.toMatch(/can't/i);
   });
 
@@ -2741,18 +3880,28 @@ describe("automatic filing toggle stamps the window (U3)", () => {
  * unpriced, so recommending it beside the toggle hands a trial device a single tap that can
  * spend the whole period allowance on years-old notes. The backfill offer on Atoms home is the
  * bounded answer, and the only one this line may point at.
+ *
+ * U3 split the line in two rather than deleting it. The paragraph used to say both halves twice
+ * over — once here and once as the status group's day-one promise — so the *when* now lives on
+ * the toggle's own line, in whichever of its two homes is rendering, and the *where the rest is*
+ * lives in the File group's footer, which is on screen in every state.
  */
 describe("the enable-time window line (U7)", () => {
   const flush = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
-  const windowLine = (tab: AtomsSettingTab): string | undefined =>
-    prose(tab).find((t) => t.startsWith("Filing starts with tomorrow's note."));
+  /** The half that says when filing starts: the toggle's own line, either home. */
+  const whenLine = (tab: AtomsSettingTab): string =>
+    row(tab, "File automatically when Obsidian opens").textContent ?? "";
+  /** The half that says where the older captures are: the File group's footer. */
+  const backfillLine = (tab: AtomsSettingTab): string =>
+    prose(tab).find((t) => t.includes("backfill")) ?? "";
 
   it("renders beside the toggle before the user has enabled anything", () => {
     const { tab } = settingTab();
     const before = Notice.messages.length;
     tab.display();
 
-    expect(windowLine(tab)).toBeDefined();
+    expect(whenLine(tab)).toContain("Filing starts with tomorrow's note");
+    expect(backfillLine(tab)).not.toBe("");
     // Persistent, not a toast: the user is already reading the panel, and a Notice raised here
     // is gone by the time day one's silence needs explaining.
     expect(Notice.messages.slice(before)).toHaveLength(0);
@@ -2767,16 +3916,19 @@ describe("the enable-time window line (U7)", () => {
     flip(tab, "File automatically when Obsidian opens");
     await flush();
 
-    expect(windowLine(tab)).toBeDefined();
+    expect(whenLine(tab)).toContain("Filing starts with tomorrow's note");
+    expect(backfillLine(tab)).not.toBe("");
   });
 
   it("points at the backfill offer and never at the unbounded process path", () => {
     const { tab } = settingTab();
     tab.display();
 
-    const line = windowLine(tab) ?? "";
-    expect(line.toLowerCase()).not.toContain("process");
-    expect(line).toContain("Atoms home");
+    // Both halves, not just the one that names the offer. Splitting the paragraph in two is
+    // exactly how the pointer could survive on the half nobody re-checked.
+    expect(backfillLine(tab).toLowerCase()).not.toContain("process");
+    expect(whenLine(tab).toLowerCase()).not.toContain("process");
+    expect(backfillLine(tab)).toContain("Atoms home");
   });
 });
 
@@ -2804,5 +3956,355 @@ describe("the version the settings panel renders", () => {
     const version = String(readJson("manifest.json").version);
     expect(readJson("package.json").version).toBe(version);
     expect(Object.keys(readJson("versions.json"))).toContain(version);
+  });
+});
+
+/**
+ * The Capture and File legs, as two groups instead of five headings (U3, R1).
+ *
+ * The assertions are about what a reader can see: the eyebrows in order, the one footer under
+ * each group, and the handful of rules that could not survive the footer sweep as prose and had
+ * to stay on their rows (R19).
+ */
+describe("Capture and File groups (U3)", () => {
+  /** The one footer under a group, by the header above it. */
+  function footerUnder(tab: AtomsSettingTab, header: string): string {
+    const headers = groupHeaders(tab);
+    const at = headers.indexOf(header);
+    if (at < 0) throw new Error(`no group headed ${header}`);
+    const feet = Array.from(
+      tab.containerEl.querySelectorAll("p.atoms-setting-group-foot"),
+    ).map((el) => el.textContent ?? "");
+    const foot = feet[at];
+    if (foot === undefined) throw new Error(`group ${header} has no footer`);
+    return foot;
+  }
+
+  it("groups the two legs under their own headers, in the product's order", () => {
+    const { tab } = settingTab();
+    tab.display();
+
+    expect(groupHeaders(tab).slice(0, 3)).toEqual(["Get started", "1 · Capture", "2 · File"]);
+    const text = tab.containerEl.textContent ?? "";
+    expect(text.indexOf("1 · Capture")).toBeLessThan(text.indexOf("2 · File"));
+  });
+
+  it("reports Daily Notes as a fact, and never as a blank right edge (R20)", () => {
+    const { tab } = filingTab();
+    tab.display();
+    expect(row(tab, "Daily notes").querySelector(".atoms-setting-status")?.textContent).toBe("On");
+
+    vi.spyOn(dni, "appHasDailyNotesPluginLoaded").mockReturnValue(false);
+    const off = settingTab();
+    off.tab.display();
+    expect(row(off.tab, "Daily notes").querySelector(".atoms-setting-status")?.textContent).toBe(
+      "Off",
+    );
+  });
+
+  // Five, as the plan said: `Your API key (optional)` outlived U3 because its rows belong on the
+  // engine destination, and folding a credential into a group whose footer is about what Atoms
+  // writes would have put it under the wrong promise. U4 built that destination and took it.
+  it("retires the five headings the two groups replace", () => {
+    const { tab } = filingTab();
+    tab.display();
+
+    const headings = rowNames(tab).filter((name) => !rowNames(tab, { headings: false }).includes(name));
+    for (const gone of [
+      "Atoms Plus",
+      "Capture",
+      "Filing",
+      "Automatic filing (this device)",
+      "Your API key (optional)",
+    ]) {
+      expect(headings).not.toContain(gone);
+    }
+  });
+
+  describe("the engine row", () => {
+    /** What the row says under its name: the answer to the question the name asks. */
+    const answer = (tab: AtomsSettingTab) =>
+      row(tab, "Who does the filing").textContent ?? "";
+
+    it("says nothing is chosen when no engine is", () => {
+      const { tab } = settingTab();
+      tab.display();
+
+      expect(answer(tab)).toContain("Not chosen");
+    });
+
+    it("names the user's own key as the engine when one is set", () => {
+      const { tab } = settingTab({ auth: { mode: "byok", apiKey: "sk-ant-x" } });
+      tab.display();
+
+      expect(answer(tab)).toContain("Your own key");
+    });
+
+    it("names Plus as the engine, and walks into the screen that changes it", () => {
+      const { tab } = filingTab();
+      tab.display();
+
+      expect(answer(tab)).toContain("Plus · 12 filings left");
+      open(tab, "Who does the filing");
+      expect(destinationNames(tab)).toContain("Plus · 12 filings left");
+    });
+  });
+
+  /**
+   * U4 — the screen the engine row opens: both ways to pay for filing on one screen, and what
+   * leaves the device either way. Before it, choosing an engine meant finding an Account row
+   * that named only the paid half and a key field three headings further down.
+   */
+  describe("the engine destination (U4)", () => {
+    /**
+     * The three egress facts, pinned here rather than imported: each is a promise the pipeline
+     * keeps, and a test that reads the same constant the screen renders would pass however the
+     * promise changed.
+     */
+    const ENGINE_STATEMENTS = [
+      "Each capture, and your note titles, over TLS",
+      "Never the body of another note, and never your whole vault",
+      "Nothing from today, unless you ask for it",
+    ];
+
+    /** The engine screen, walked into the way a user reaches it. */
+    function engineScreen(opts: SettingTabOptions = {}) {
+      const made = settingTab(opts);
+      made.tab.display();
+      open(made.tab, "Who does the filing");
+      return made;
+    }
+
+    it("renders both groups, titled for the question the entry row asks", () => {
+      const { tab } = engineScreen();
+
+      expect(groupHeaders(tab)).toEqual(["Pick one", "What gets sent"]);
+      // The back row doubles as the screen's title, so leaving never means scrolling down.
+      const back = tab.containerEl.querySelector(".atoms-setting-back");
+      expect(back?.querySelector(".setting-item-name")?.textContent).toBe(
+        "Who does the filing",
+      );
+    });
+
+    it("offers both engines: Plus one tap in, and the key field in place", () => {
+      const { tab } = engineScreen();
+
+      expect(rowNames(tab, { headings: false })).toEqual([
+        // The back row is a row too, and it leads the screen.
+        "Who does the filing",
+        "Set up automatic filing",
+        "Anthropic API key",
+        "Device-local key fallback",
+        ...ENGINE_STATEMENTS,
+      ]);
+      // Plus is a chevron because the account has a screen of its own; the key is not, because
+      // pasting one is the whole of choosing it.
+      expect(destinationNames(tab)).toEqual(["Set up automatic filing"]);
+    });
+
+    it("stores a typed secret id through SecretStorage, not data.json", () => {
+      const { tab, plugin } = engineScreen();
+
+      fill(tab, "Anthropic API key", "my-other-key");
+      expect(plugin.settings.apiKeySecretId).toBe("my-other-key");
+    });
+
+    it("deletes the device-local key when the fallback toggle goes off", () => {
+      const { tab, local } = engineScreen({
+        settings: { useDeviceLocalKeyFallback: true },
+        local: { [LOCAL_STORAGE_API_KEY]: "sk-ant-local" },
+      });
+      expect(rowNames(tab, { headings: false })).toContain("Device-local API key");
+
+      flip(tab, "Device-local key fallback");
+
+      expect(local.get(LOCAL_STORAGE_API_KEY)).toBeNull();
+    });
+
+    it("states what leaves the device without repeating the versioned disclosure", () => {
+      const { tab } = engineScreen();
+      const text = tab.containerEl.textContent ?? "";
+
+      for (const line of ENGINE_STATEMENTS) expect(text).toContain(line);
+      // The sheet owns the wording an ack is recorded against (KTD5). A second copy on a screen
+      // no ack version covers is the #315 shape: a record naming text the user never saw.
+      expect(text).not.toContain(EGRESS_DISCLOSURE);
+    });
+
+    it("promises nothing about features, because a Plus session does unlock Ask", () => {
+      const { tab } = engineScreen();
+      const text = tab.containerEl.textContent ?? "";
+
+      expect(text).toContain("Filing works the same either way");
+      expect(text).not.toContain("Nothing here unlocks features");
+    });
+
+    it("quotes the price from the pricing SSOT rather than a literal in the screen", () => {
+      const { tab } = engineScreen();
+      const text = tab.containerEl.textContent ?? "";
+
+      expect(text).toContain(`${PLUS_PRICING.trialDays} days free`);
+      expect(text).toContain(`${formatUsd(PLUS_PRICING.monthlyUsd)} a month`);
+      // Nothing else on the screen quotes money: a second amount is a copy that goes stale in
+      // silence, which is the rule `src/shared/plusPricing.ts` exists to enforce.
+      expect(text.match(/\$\d+/g)).toEqual([formatUsd(PLUS_PRICING.monthlyUsd)]);
+    });
+
+    it("writes no em dash into any of its prose", () => {
+      const { tab } = engineScreen();
+
+      for (const line of prose(tab)) expect(line).not.toContain("—");
+    });
+  });
+
+  describe("the atom folder row", () => {
+    it("still rejects .. and subfolders", () => {
+      const { tab, plugin } = filingTab();
+      tab.display();
+
+      fill(tab, "Atom folder", "../escape");
+      expect(plugin.settings.atomFolder).toBe("Atoms");
+      fill(tab, "Atom folder", "Notes/Atoms");
+      expect(plugin.settings.atomFolder).toBe("Atoms");
+      fill(tab, "Atom folder", "Thoughts");
+      expect(plugin.settings.atomFolder).toBe("Thoughts");
+    });
+
+    /**
+     * Every rule, not only the two this row started with. `clampAtomFolder` rejects four kinds of
+     * folder now (#501 added the leading dot and the length cap), and this description is still
+     * the only surface that ever tells a user a fallback happened — silently for the two new ones
+     * would be the same bug wearing a newer guard. Matched case-insensitively so the sentence can
+     * be worded naturally.
+     */
+    it("still states those rules to the user, because nothing else reports the fallback", () => {
+      const { tab } = filingTab();
+      tab.display();
+
+      const desc =
+        row(tab, "Atom folder")
+          .querySelector(".setting-item-description")
+          ?.textContent?.toLowerCase() ?? "";
+      expect(desc).toContain("..");
+      expect(desc).toContain("subfolder");
+      expect(desc).toContain("dot");
+      expect(desc).toContain("too long");
+    });
+
+    it("keeps an overlong value in the field rather than in the row's own text", () => {
+      const long = "L".repeat(200);
+      const { tab } = filingTab({ settings: { atomFolder: long } });
+      tab.display();
+
+      const folder = row(tab, "Atom folder");
+      expect(folder.querySelector("input")?.value).toBe(long);
+      // The name is what a truncating right edge must never eat, so it has to survive whole —
+      // and the value must not be row text, which would grow the row instead of clipping.
+      expect(folder.querySelector(".setting-item-name")?.textContent).toBe("Atom folder");
+      expect(folder.textContent).not.toContain(long);
+    });
+  });
+
+  it("reveals the hub-list refresh only while its toggle is on", async () => {
+    const { tab } = filingTab();
+    tab.display();
+    expect(rowNames(tab, { headings: false })).not.toContain("Refresh hub lists");
+
+    flip(tab, "List atoms on hub notes");
+    // The toggle saves before it rebuilds, so the row it reveals arrives a microtask later.
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    const rows = rowNames(tab, { headings: false });
+    expect(rows).toContain("Refresh hub lists");
+    expect(rows.indexOf("Refresh hub lists")).toBe(rows.indexOf("List atoms on hub notes") + 1);
+  });
+
+  describe("the two footers", () => {
+    it("says Atoms never captures for you, under the Capture group (R10)", () => {
+      const { tab } = filingTab();
+      tab.display();
+
+      expect(footerUnder(tab, "1 · Capture")).toContain("Atoms never captures for you.");
+    });
+
+    it("names every kind of write Atoms makes, under the File group (R11)", () => {
+      const { tab } = filingTab();
+      tab.display();
+
+      const foot = footerUnder(tab, "2 · File");
+      expect(foot).toContain("never rewritten");
+      expect(foot).toContain("atom files");
+      expect(foot).toContain("marker line");
+      expect(foot).toContain("block on hub notes");
+    });
+
+    it("carries no em dash on any group footer (R15)", () => {
+      const { tab } = filingTab();
+      tab.display();
+
+      const feet = Array.from(
+        tab.containerEl.querySelectorAll("p.atoms-setting-group-foot"),
+      ).map((el) => el.textContent ?? "");
+      expect(feet.length).toBeGreaterThan(0);
+      for (const foot of feet) expect(foot).not.toContain("—");
+    });
+
+    /**
+     * The "Your data" footer says what is behind each row under it, and the Privacy row is
+     * conditional — a fresh install has allowed nothing, so it renders no such row. A footer that
+     * describes a row that is not there is worst on the one state every user starts in.
+     */
+    it("does not name Privacy in the footer when there is no Privacy row", () => {
+      const { tab } = settingTab();
+      tab.display();
+
+      expect(rowNames(tab, { headings: false })).not.toContain("Privacy and consents");
+      const foot = utilityFooter(tab);
+      expect(foot).not.toContain("Privacy");
+      expect(foot).toContain("Advanced holds the settings almost nobody needs.");
+    });
+
+    it("names Privacy again once there is something to take back", () => {
+      const { tab } = settingTab({
+        local: {
+          [LS_AUTO_RUN_ENABLED]: true,
+          [LS_AUTO_RUN_EGRESS_ACK]: EGRESS_ACK_VERSION,
+        },
+      });
+      tab.display();
+
+      expect(rowNames(tab, { headings: false })).toContain("Privacy and consents");
+      expect(utilityFooter(tab)).toContain("Privacy holds what you have allowed");
+    });
+  });
+
+  /**
+   * The orphan U2 left: the automatic-filing heading and its two paragraphs stayed behind when
+   * the toggle moved, so a filing install read a heading with no control under it and the
+   * day-one promise twice on one screen.
+   */
+  describe("the automatic-filing chrome the toggle left behind", () => {
+    it("leaves no headed section without its control", () => {
+      const { tab } = filingTab();
+      tab.display();
+
+      const text = tab.containerEl.textContent ?? "";
+      expect(text).not.toContain("Automatic filing (this device)");
+      expect(prose(tab).some((t) => t.startsWith("Stored only on this device"))).toBe(false);
+    });
+
+    it("promises the first atoms exactly once", () => {
+      const { tab } = filingTab({
+        local: {
+          [LS_AUTO_RUN_ENABLED]: true,
+          [LS_AUTO_RUN_EGRESS_ACK]: EGRESS_ACK_VERSION,
+        },
+      });
+      tab.display();
+
+      const said = (tab.containerEl.textContent ?? "").match(/tomorrow/gi) ?? [];
+      // "First atoms arrive tomorrow morning." and the "Next run" row's own fact, and nothing
+      // else: the auto-run section used to say it a third time under a heading of its own.
+      expect(said).toHaveLength(2);
+    });
   });
 });

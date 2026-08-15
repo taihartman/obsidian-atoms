@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Atoms settings — “Is it filing?” redesign</title>
+<style>
+  :root {
+    --page-bg: #0d0d0f;
+    --pane: #1e1e1e;
+    --pane-2: #161616;
+    --border: #2f2f33;
+    --border-soft: #262629;
+    --normal: #dadada;
+    --muted: #9a9a9f;
+    --faint: #6a6a70;
+    --accent: #7f6df2;
+    --accent-soft: rgba(127, 109, 242, 0.16);
+    --green: #4ac26b;
+    --amber: #e0a33a;
+    --red: #e05252;
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--page-bg); color: var(--normal);
+    font-family: var(--font); -webkit-font-smoothing: antialiased;
+  }
+  .page { max-width: 1180px; margin: 0 auto; padding: 30px 20px 100px; }
+  h1 { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.03em; margin: 0 0 8px; }
+  .lede { color: var(--muted); max-width: 46rem; line-height: 1.55; margin: 0 0 18px; font-size: 0.95rem; }
+  .lede b { color: var(--normal); font-weight: 600; }
+
+  .decisions {
+    background: #141416; border: 1px solid var(--border-soft); border-radius: 14px;
+    padding: 14px 18px; margin-bottom: 24px; font-size: 0.85rem; color: var(--muted); line-height: 1.5;
+  }
+  .decisions strong { color: var(--normal); font-weight: 600; }
+  .decisions ol { margin: 8px 0 0; padding-left: 1.2rem; }
+  .decisions li { margin: 5px 0; }
+
+  .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
+  .toolbar .lbl {
+    font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.09em; color: var(--faint);
+    margin-right: 4px;
+  }
+  .chip {
+    border: 1px solid var(--border); background: #17171a; color: var(--muted);
+    border-radius: 980px; padding: 7px 15px; font-size: 0.82rem; font-weight: 500; cursor: pointer;
+    font-family: inherit;
+  }
+  .chip:hover { color: var(--normal); }
+  .chip.on { background: var(--accent-soft); color: #b8aaff; border-color: rgba(127,109,242,0.45); }
+  .toolbar-sep { width: 100%; height: 0; }
+
+  .stage { display: grid; grid-template-columns: 1fr 1fr; gap: 26px; align-items: start; margin-top: 22px; }
+  @media (max-width: 980px) { .stage { grid-template-columns: 1fr; } }
+  .stage.solo { grid-template-columns: minmax(0, 640px); justify-content: center; }
+
+  .col-cap {
+    font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.09em; color: var(--faint);
+    margin-bottom: 9px; display: flex; justify-content: space-between; align-items: baseline;
+  }
+  .col-cap .count { color: var(--muted); letter-spacing: 0; text-transform: none; font-size: 0.74rem; }
+
+  /* ---------- Obsidian settings pane shell ---------- */
+  .pane {
+    background: var(--pane); border: 1px solid var(--border); border-radius: 12px;
+    overflow: hidden; box-shadow: 0 20px 50px rgba(0,0,0,0.45);
+  }
+  .pane-head {
+    background: var(--pane-2); border-bottom: 1px solid var(--border);
+    padding: 11px 18px; font-size: 0.8rem; color: var(--faint);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .pane-head .dot { width: 9px; height: 9px; border-radius: 50%; background: #3a3a3e; }
+  .pane-body { padding: 6px 18px 20px; max-height: 760px; overflow-y: auto; }
+
+  .heading {
+    font-size: 1.02rem; font-weight: 650; color: var(--normal);
+    padding: 20px 0 8px; letter-spacing: -0.01em;
+  }
+  .heading.first { padding-top: 14px; }
+  .prose { font-size: 0.78rem; color: var(--muted); line-height: 1.5; margin: 0 0 6px; }
+
+  .row {
+    display: flex; align-items: center; gap: 16px;
+    padding: 13px 0; border-top: 1px solid var(--border-soft);
+  }
+  .row.no-line { border-top: none; }
+  .row-info { flex: 1; min-width: 0; }
+  .row-name { font-size: 0.9rem; color: var(--normal); }
+  .row-desc { font-size: 0.76rem; color: var(--muted); line-height: 1.45; margin-top: 3px; }
+  .row-ctl { flex-shrink: 0; display: flex; align-items: center; gap: 8px; }
+
+  /* controls */
+  .toggle { width: 42px; height: 24px; border-radius: 980px; background: #3a3a3e; position: relative; }
+  .toggle::after {
+    content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px;
+    border-radius: 50%; background: #d0d0d4;
+  }
+  .toggle.on { background: var(--accent); }
+  .toggle.on::after { left: 21px; background: #fff; }
+  .toggle.dim { opacity: 0.38; }
+
+  .btn {
+    background: var(--accent); color: #fff; border: none; border-radius: 6px;
+    padding: 6px 13px; font-size: 0.8rem; font-weight: 550; font-family: inherit;
+  }
+  .btn.ghost { background: #2a2a2e; color: var(--normal); }
+  .btn.danger { background: transparent; color: var(--red); border: 1px solid rgba(224,82,82,0.4); }
+  .status { font-size: 0.82rem; color: var(--muted); }
+  .status.good { color: var(--green); }
+  .chev { color: var(--faint); font-size: 1rem; }
+  .input {
+    background: #131315; border: 1px solid var(--border); border-radius: 6px;
+    padding: 6px 10px; font-size: 0.8rem; color: var(--normal); min-width: 150px;
+  }
+  .link { font-size: 0.8rem; color: var(--muted); text-decoration: underline; text-underline-offset: 2px; }
+  .devchip {
+    font-size: 0.66rem; color: var(--faint); border: 1px solid var(--border);
+    border-radius: 980px; padding: 2px 8px; white-space: nowrap;
+  }
+
+  /* segmented engine control */
+  .seg { display: flex; background: #131315; border: 1px solid var(--border); border-radius: 8px; padding: 3px; gap: 3px; }
+  .seg span {
+    font-size: 0.79rem; padding: 5px 12px; border-radius: 6px; color: var(--muted); white-space: nowrap;
+  }
+  .seg span.on { background: var(--accent); color: #fff; font-weight: 550; }
+  .seg.unset span { color: var(--faint); }
+
+  /* ---------- status card (the new hero) ---------- */
+  .card {
+    border-radius: 12px; padding: 16px 18px; margin: 14px 0 4px;
+    border: 1px solid var(--border);
+  }
+  .card.blocked { background: rgba(224,163,58,0.07); border-color: rgba(224,163,58,0.32); }
+  .card.ok { background: rgba(74,194,107,0.07); border-color: rgba(74,194,107,0.26); padding: 12px 18px; }
+  .card-top { display: flex; align-items: center; gap: 9px; }
+  .pulse { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+  .pulse.amber { background: var(--amber); }
+  .pulse.green { background: var(--green); box-shadow: 0 0 0 4px rgba(74,194,107,0.16); }
+  .card-title { font-size: 1.02rem; font-weight: 650; letter-spacing: -0.01em; }
+  .card-sub { font-size: 0.8rem; color: var(--muted); margin: 5px 0 0 18px; line-height: 1.45; }
+  .card-action {
+    margin: 13px 0 0 18px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  }
+  .card-action .ask { font-size: 0.85rem; color: var(--normal); font-weight: 550; }
+  .steps { margin: 10px 0 0 18px; display: flex; flex-direction: column; gap: 5px; }
+  .step { font-size: 0.79rem; color: var(--muted); display: flex; gap: 8px; align-items: center; }
+  .step .mark { width: 14px; text-align: center; font-size: 0.8rem; }
+  .step.done .mark { color: var(--green); }
+  .step.todo .mark { color: var(--amber); }
+  .step.done { color: var(--faint); }
+
+  .note {
+    margin-top: 12px; font-size: 0.76rem; color: var(--faint); line-height: 1.5;
+    border-left: 2px solid var(--border); padding-left: 12px;
+  }
+  .flag {
+    display: inline-block; font-size: 0.62rem; font-weight: 700; letter-spacing: 0.06em;
+    color: #ff8f8f; background: rgba(224,82,82,0.14); border-radius: 4px;
+    padding: 1px 6px; margin-left: 7px; vertical-align: 1px;
+  }
+  .flag.fix { color: #8fe0a8; background: rgba(74,194,107,0.14); }
+
+  .legend { margin-top: 26px; font-size: 0.8rem; color: var(--muted); line-height: 1.6; }
+  .legend b { color: var(--normal); }
+  .legend code {
+    background: #17171a; border: 1px solid var(--border-soft); border-radius: 4px;
+    padding: 1px 5px; font-size: 0.75rem; color: #b8aaff;
+  }
+
+  /* sheet */
+  .sheet-wrap { margin-top: 26px; display: flex; gap: 22px; flex-wrap: wrap; align-items: flex-start; }
+  .sheet {
+    width: 340px; background: var(--pane); border: 1px solid var(--border);
+    border-radius: 14px; padding: 18px; box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+  }
+  .sheet h3 { margin: 0 0 4px; font-size: 1rem; font-weight: 650; }
+  .sheet p { margin: 0 0 14px; font-size: 0.79rem; color: var(--muted); line-height: 1.5; }
+  .sheet ol { margin: 0 0 16px; padding-left: 1.15rem; font-size: 0.82rem; color: var(--normal); line-height: 1.6; }
+  .sheet ol li { margin-bottom: 6px; }
+  .sheet ol li span { color: var(--muted); font-size: 0.78rem; }
+  .sheet .btn { width: 100%; padding: 9px; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <h1>Atoms settings — “Is it filing?”</h1>
+  <p class="lede">
+    The complaint is <b>“it’s hard to know how to do things.”</b> The screen’s row grammar is already
+    fine — <a style="color:#b8aaff" href="https://github.com/taihartman/obsidian-atoms/issues/304">#304</a>
+    fixed that. What’s missing is <b>state</b>: a signed-out install that cannot file anything looks
+    almost exactly like one that files happily. This mock leads with the answer to
+    <i>“is Atoms working, and what’s the one next thing?”</i>, then regroups the rest by the three
+    questions the pipeline actually asks.
+  </p>
+
+  <div class="decisions">
+    <strong>What this mock changes</strong>
+    <ol>
+      <li><b>A status card is the first thing on the screen</b> — one sentence about this install, and the single next step as the only primary action.</li>
+      <li><b>The engine becomes one segmented row.</b> <code>Atoms Plus</code> and <code>Your API key (optional)</code> are five headings apart today; nothing says pick one. Now it’s one fork, made once.</li>
+      <li><b><code>Filing</code> + <code>Automatic filing (this device)</code> merge.</b> Two near-identical headings owning unrelated things is the clearest navigation bug on the screen.</li>
+      <li><b>Ask collapses to one row when it’s unusable</b> — signed out it currently spends a heading, two paragraphs, and two full-width buttons on a feature you can’t reach.</li>
+      <li><b>Consent records gather under Privacy &amp; data, quiet.</b> Closes <a style="color:#b8aaff" href="https://github.com/taihartman/obsidian-atoms/issues/364">#364</a> C2 — records currently shout louder than the toggles that grant them.</li>
+      <li><b>Diagnostics and internal vocabulary move out</b> — <code>Last auto-run day</code>, <code>drain → outbox → mirror</code>, <code>data.json</code>, <code>SecretStorage</code>.</li>
+    </ol>
+  </div>
+
+  <div class="toolbar">
+    <span class="lbl">View</span>
+    <button class="chip on" data-view="split">Before / after</button>
+    <button class="chip" data-view="after">After only</button>
+    <button class="chip" data-view="before">Before only</button>
+    <div class="toolbar-sep"></div>
+    <span class="lbl">Install state</span>
+    <button class="chip on" data-state="fresh">Fresh install</button>
+    <button class="chip" data-state="half">Half set up</button>
+    <button class="chip" data-state="plus">Running · Plus</button>
+    <button class="chip" data-state="byok">Running · own key</button>
+  </div>
+
+  <div class="stage" id="stage">
+    <div id="col-before">
+      <div class="col-cap"><span>Today — 0.7.11, live capture</span><span class="count" id="cnt-before"></span></div>
+      <div class="pane">
+        <div class="pane-head"><span class="dot"></span> Settings → Community plugins → Atoms</div>
+        <div class="pane-body" id="before"></div>
+      </div>
+    </div>
+    <div id="col-after">
+      <div class="col-cap"><span>Proposed — “Is it filing?”</span><span class="count" id="cnt-after"></span></div>
+      <div class="pane">
+        <div class="pane-head"><span class="dot" style="background:#7f6df2"></span> Settings → Community plugins → Atoms</div>
+        <div class="pane-body" id="after"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sheet-wrap">
+    <div class="sheet">
+      <h3>Capture on your phone</h3>
+      <p>Three steps, once. Takes about a minute.</p>
+      <ol>
+        <li>Add the shortcut<br><span>Opens Capture Atom v2.2.0 in Shortcuts</span></li>
+        <li>Point it at this vault<br><span>Shortcuts → Capture Atom → edit → Append to Bookmark → <b>Atoms Inbox</b></span></li>
+        <li>Try it<br><span>Say or type a thought. It lands in today’s daily note.</span></li>
+      </ol>
+      <button class="btn">Add the shortcut</button>
+    </div>
+    <div style="flex:1; min-width: 280px;">
+      <div class="col-cap"><span>Why this is a sheet, not a caption</span></div>
+      <p class="lede" style="font-size:0.85rem; margin:0;">
+        Today this six-step procedure lives inside a row <i>description</i>:
+        “After Add Shortcut: Shortcuts → Capture Atom → edit → Append to Bookmark → Atoms Inbox (not
+        Ask Each Time) → Done. Open Obsidian with Atoms once first so that bookmark exists.”
+        <br><br>
+        A caption is where a user skims. A procedure with a mandatory ordering and a failure mode
+        (“not Ask Each Time”) needs its own surface, one step visible at a time, with the outcome
+        stated. The row that opens it carries only a status: <code>Not set up</code> or
+        <code>Capture Atom v2.2.0</code>.
+      </p>
+    </div>
+  </div>
+
+  <div class="legend">
+    <b>Row grammar is unchanged from #304</b> — toggle = preference, chevron = destination, accent
+    button = action, muted right text = status. This restructure moves rows between groups and adds
+    one card; it does not invent a fifth grammar.
+    <br><br>
+    <b>Every money, egress, and vault-write gate stays on the main screen.</b> What moves into
+    <code>Privacy &amp; data</code> is the passive <i>record</i> of a consent, never the grant itself —
+    the toggle that grants stays beside the feature it turns on.
+  </div>
+</div>
+
+<script>
+/* ------------------------------------------------------------------ */
+/* Row helpers                                                         */
+/* ------------------------------------------------------------------ */
+const esc = (s) => String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+
+function heading(t, first) { return `<div class="heading${first ? ' first' : ''}">${t}</div>`; }
+function prose(t) { return `<p class="prose">${t}</p>`; }
+function row(name, desc, ctl, opts = {}) {
+  return `<div class="row${opts.noLine ? ' no-line' : ''}">
+    <div class="row-info">
+      <div class="row-name">${name}</div>
+      ${desc ? `<div class="row-desc">${desc}</div>` : ''}
+    </div>
+    <div class="row-ctl">${ctl || ''}</div>
+  </div>`;
+}
+const toggle = (on, dim) => `<div class="toggle${on ? ' on' : ''}${dim ? ' dim' : ''}"></div>`;
+const btn = (t, k) => `<button class="btn${k ? ' ' + k : ''}">${t}</button>`;
+const stat = (t, good) => `<span class="status${good ? ' good' : ''}">${t}</span>`;
+const chev = () => `<span class="chev">›</span>`;
+const input = (v) => `<span class="input">${v}</span>`;
+const dev = () => `<span class="devchip">this device</span>`;
+const flag = (t) => `<span class="flag">${t}</span>`;
+const fix = (t) => `<span class="flag fix">${t}</span>`;
+
+/* ------------------------------------------------------------------ */
+/* BEFORE — transcribed from the live 0.7.11 DOM dump                  */
+/* ------------------------------------------------------------------ */
+function renderBefore(state) {
+  const signedIn = state === 'plus';
+  const key = state === 'byok';
+  let h = '';
+
+  h += heading('Atoms', true);
+  h += prose('Version 0.7.11 · Capture with your shortcut; Process turns past bullets into linked atoms.');
+
+  h += heading('Atoms Plus');
+  if (signedIn) {
+    h += row('Atoms Plus <span class="flag">engine A of 2, five headings from engine B</span>',
+      'tai@example.com · 43 filings left this month', stat('Signed in') + chev());
+  } else {
+    h += row('Set up automatic filing <span class="flag">engine A of 2, five headings from engine B</span>',
+      'Atoms Plus files your captures for you. Or keep using your own API key — the full app stays yours either way.', chev());
+  }
+
+  h += heading('Capture');
+  h += prose('Write top-level bullets in your daily note: “- thought…”. Today’s note is never auto-processed; use Atoms home → Preview after midnight (or past dailies).');
+  h += row('Capture Atom shortcut <span class="flag">6-step procedure in a caption</span>',
+    'iOS: opens Capture Atom v2.2.0. After Add Shortcut: Shortcuts → Capture Atom → edit → Append to Bookmark → Atoms Inbox (not Ask Each Time) → Done. Open Obsidian with Atoms once first so that bookmark exists. Acked: never.',
+    btn('Update Capture Atom'));
+  h += row('Custom shortcut link', 'Optional. Only paste a link if you forked the recipe. Built-in is Capture Atom v2.2.0.', input('https://…'));
+
+  h += heading('Filing <span class="flag">near-identical to “Automatic filing” below, unrelated contents</span>');
+  h += row('Atom folder', 'Flat single folder for atom notes (e.g. Atoms). Paths with .. or subfolders are rejected.', input('Atoms'));
+  h += row('List atoms on hub notes', 'After filing, add a list of linked atoms at the bottom of hub notes (people, Movies, packing lists, and similar). Your writing above the list stays the same. Off by default.', toggle(false));
+  h += row('Refresh hub lists', 'Preview which hub notes would get atom lists, then update them.', btn('Preview…'));
+  h += row('Tag vocabulary — 8 active', '', chev());
+
+  h += heading('Ask (Claude + ChatGPT)');
+  h += prose('Cloud copy of Atoms/ on Plus — for chat search in Claude or ChatGPT. When Obsidian is open online, hand-edits and deletes push automatically. Full orphan cleanup is Sync now. Not a second library you maintain by hand.');
+  if (signedIn) {
+    h += row('Ask mirror', 'Keep the cloud Atoms/ copy current while Obsidian is open (vault events + Process/Update).', toggle(true));
+    h += row('Allow filing from Claude or ChatGPT', 'When on, this vault applies create/continue outbox items under your Atoms folder (new files only; never rewrites existing bodies). Requires Ask mirror enabled.', toggle(true));
+  } else {
+    h += prose('Sign in to Atoms Plus above to use the hosted connector. To run the server yourself, open Advanced and follow the DIY Ask guide. <span class="flag">a heading, 2 paragraphs and 2 loud buttons for a feature you can’t use</span>');
+  }
+  h += row('What Ask stores and shares', 'Acknowledged 2026-08-07', btn('Review'));
+  h += row('Vault write acknowledgment', 'Acknowledged 2026-08-06', btn('Review'));
+  if (signedIn) h += row('Connect Claude or ChatGPT', 'Ask mirror: 214 atoms · pushed just now', chev());
+
+  h += heading('Automatic filing (this device) <span class="flag">device scope marked 3 different ways</span>');
+  h += prose('Stored only on this device (not synced via data.json). Default off. Turning it on asks for a one-time acknowledgment — unattended runs send titles + captures to Anthropic.');
+  h += row('File automatically when Obsidian opens', 'When enabled: once per calendar day after layout + metadata are ready. Caps work per launch; offline fails silently until next day.', toggle(signedIn || key));
+  h += prose('Filing starts with tomorrow’s note. Older captures stay where they are until you backfill them from Atoms home.');
+  h += row('What Atoms sends to Anthropic', 'Acknowledged on this device <span class="flag">records shout, grants whisper (#364 C2)</span>', btn('Review'));
+  h += row('Sync when you return to Obsidian', 'When you return to Obsidian, drain the inbox, apply the Ask outbox, push the mirror, and file if automatic filing is on. Device-local only. Manual Sync everything now still works when this is off.', toggle(false));
+  h += row('Sync everything now', 'Run drain → outbox → mirror → filing now (ignores resume cooldowns). Filing still needs the catch-up notice on Atoms home when present. <span class="flag">internal pipeline stage names</span>', btn('Sync everything now'));
+  h += row('Last auto-run day (this device) <span class="flag">diagnostic</span>', '', stat('2026-08-11'));
+  h += row('Last catch-up <span class="flag">diagnostic</span>', '', stat('just now: caught up'));
+
+  h += heading('Your API key (optional) <span class="flag">engine B of 2 — labelled optional</span>');
+  h += prose('Only if you are not using Atoms Plus. Process sends titles, tags, and capture text to Anthropic over TLS. Your notes are never rewritten — only new atom files and markers.');
+  h += row('Anthropic API key', 'SecretStorage on this vault + device only (not synced). Switching vaults or clearing it means re-entering.', key ? stat('Set', true) + btn('Change') : btn('Link…'));
+  h += row('Device-local key fallback', 'Only if SecretStorage fails: non-synced local storage (still never data.json). Turning this off deletes the key stored on this device.', toggle(false));
+
+  h += row('Advanced', '', chev());
+  return h;
+}
+
+/* ------------------------------------------------------------------ */
+/* AFTER — “Is it filing?”                                             */
+/* ------------------------------------------------------------------ */
+function statusCard(state) {
+  if (state === 'fresh') {
+    return `<div class="card blocked">
+      <div class="card-top"><span class="pulse amber"></span><span class="card-title">Atoms isn’t filing yet</span></div>
+      <div class="card-sub">Two things left. Pick who does the filing first — everything else follows.</div>
+      <div class="card-action">
+        <span class="ask">Who files your captures?</span>
+        <span class="seg unset"><span>Atoms Plus</span><span>My own API key</span></span>
+      </div>
+      <div class="steps">
+        <div class="step done"><span class="mark">✓</span> Daily notes are on</div>
+        <div class="step todo"><span class="mark">•</span> Choose who files your captures</div>
+        <div class="step todo"><span class="mark">•</span> Turn on automatic filing</div>
+      </div>
+    </div>`;
+  }
+  if (state === 'half') {
+    return `<div class="card blocked">
+      <div class="card-top"><span class="pulse amber"></span><span class="card-title">Atoms isn’t filing yet</span></div>
+      <div class="card-sub">One thing left. Atoms reads thoughts from your daily notes, and Daily Notes is switched off.</div>
+      <div class="card-action">${btn('Turn on Daily Notes')}<span class="link">What is this?</span></div>
+      <div class="steps">
+        <div class="step todo"><span class="mark">•</span> Turn on Daily Notes</div>
+        <div class="step done"><span class="mark">✓</span> Atoms Plus — 43 filings left this month</div>
+        <div class="step done"><span class="mark">✓</span> Filing automatically each morning</div>
+      </div>
+    </div>`;
+  }
+  const engine = state === 'plus' ? 'Atoms Plus · 43 filings left' : 'Your API key';
+  return `<div class="card ok">
+    <div class="card-top">
+      <span class="pulse green"></span>
+      <span class="card-title" style="font-size:0.95rem;font-weight:600">Atoms is filing automatically</span>
+    </div>
+    <div class="card-sub" style="margin-top:4px">${engine} · 12 atoms this week · last run 2 hours ago</div>
+  </div>`;
+}
+
+function renderAfter(state) {
+  const plus = state === 'plus';
+  const byok = state === 'byok';
+  const running = plus || byok;
+  const dailyOn = state !== 'half';
+  let h = '';
+
+  h += `<div class="heading first" style="padding-bottom:2px">Atoms <span style="font-size:0.72rem;color:var(--faint);font-weight:400">0.7.11</span></div>`;
+  h += statusCard(state);
+
+  /* ---- 1. Where thoughts come in ---- */
+  h += heading('Where thoughts come in');
+  h += row('Daily notes', 'Atoms files thoughts from bullets in past daily notes.',
+    dailyOn ? stat('On', true) : btn('Turn on'));
+  h += row('Capture on your phone', 'Say or type a thought; it lands in today’s note. <span class="flag fix">6-step procedure → 3-step sheet</span>',
+    running ? stat('Capture Atom v2.2.0') + chev() : stat('Not set up') + chev());
+
+  /* ---- 2. Who files them ---- */
+  h += heading('Who files them <span class="flag fix">was two headings: “Filing” + “Automatic filing (this device)”</span>');
+  if (state === 'fresh') {
+    h += row('Who files your captures', 'Atoms Plus files for you, or bring your own Anthropic key. Free either way. <span class="flag fix">was 2 headings, 5 apart, one “optional”</span>',
+      `<span class="seg unset"><span>Atoms Plus</span><span>My own key</span></span>`);
+  } else {
+    h += row('Who files your captures', plus
+        ? 'tai@example.com · 43 filings left this month · Manage plan'
+        : 'Anthropic key, stored on this device only. Never in your vault files.',
+      `<span class="seg"><span class="${plus ? 'on' : ''}">Atoms Plus</span><span class="${plus ? '' : 'on'}">My own key</span></span>` + chev());
+  }
+  h += row('File automatically', running
+      ? 'Once each morning, for yesterday and earlier. Today’s note is never touched.'
+      : 'Once each morning, for yesterday and earlier. Choose an engine above first.',
+    (running ? toggle(true) : toggle(false, true)) + dev());
+  h += row('Atoms land in', 'One flat folder. Atoms are never moved or foldered.', input('Atoms'));
+  h += row('Tags the model may use', '8 active · 2 waiting for you', chev());
+  h += row('List atoms on hub notes', 'Add a list of linked atoms at the bottom of people and topic notes. Your own writing is never changed.', toggle(false));
+
+  /* ---- 3. Who else can read them ---- */
+  h += heading('Who else can read them');
+  if (plus) {
+    h += row('Ask — Claude &amp; ChatGPT', 'A cloud copy of your atoms so Claude and ChatGPT can search them.', toggle(true));
+    h += row('Let Claude file new atoms', 'New files only. Nothing you already wrote is ever rewritten.', toggle(true));
+    h += row('Connected apps', '214 atoms · pushed just now', stat('Claude, ChatGPT') + chev());
+  } else {
+    h += row('Ask — Claude &amp; ChatGPT', 'Let Claude and ChatGPT search your atoms. <span class="flag fix">was a heading, 2 paragraphs and 2 full-width buttons</span>',
+      stat('Needs Atoms Plus') + chev());
+  }
+
+  /* ---- 4 & 5 ---- */
+  h += heading('Your data');
+  h += row('Privacy &amp; consents', running
+      ? 'What Atoms sends, and what Ask stores · 3 on record <span class="flag fix">records leave the controls, and stop shouting</span>'
+      : 'What Atoms sends to Anthropic, and what Ask stores.', chev());
+  h += row('Advanced', 'Model, service URL, diagnostics, self-hosting. <span class="flag fix">absorbed “Last auto-run day”, “Last catch-up”</span>', chev());
+
+  return h;
+}
+
+/* ------------------------------------------------------------------ */
+let view = 'split', state = 'fresh';
+function draw() {
+  document.getElementById('before').innerHTML = renderBefore(state);
+  document.getElementById('after').innerHTML = renderAfter(state);
+
+  const cb = document.querySelectorAll('#before .row').length;
+  const hb = document.querySelectorAll('#before .heading').length;
+  const ca = document.querySelectorAll('#after .row').length;
+  const ha = document.querySelectorAll('#after .heading').length;
+  document.getElementById('cnt-before').textContent = `${hb} headings · ${cb} rows`;
+  document.getElementById('cnt-after').textContent = `${ha} headings · ${ca} rows · 1 status card`;
+
+  const stage = document.getElementById('stage');
+  const colB = document.getElementById('col-before');
+  const colA = document.getElementById('col-after');
+  colB.style.display = view === 'after' ? 'none' : '';
+  colA.style.display = view === 'before' ? 'none' : '';
+  stage.classList.toggle('solo', view !== 'split');
+}
+document.querySelectorAll('.chip').forEach(c => c.addEventListener('click', () => {
+  const grp = c.dataset.view ? 'view' : 'state';
+  document.querySelectorAll(`.chip[data-${grp}]`).forEach(o => o.classList.remove('on'));
+  c.classList.add('on');
+  if (grp === 'view') view = c.dataset.view; else state = c.dataset.state;
+  draw();
+}));
+draw();
+</script>
+</body>
+</html>

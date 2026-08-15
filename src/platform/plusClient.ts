@@ -164,7 +164,7 @@ function joinUrl(base: string, path: string): string {
   return `${b}${p}`;
 }
 
-/** Shown when the Plus service URL override is a host we refuse to talk to (#500). */
+/** Shown when the Plus service URL is a host we refuse to talk to (#500). */
 export const PLUS_BASE_URL_INVALID_MESSAGE =
   "Plus service URL must start with https:// — http:// is allowed only for localhost. Fix it in Settings → Atoms → Advanced, or clear it to use the hosted service.";
 

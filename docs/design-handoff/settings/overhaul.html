@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Atoms settings — new-user pass, on the v2 tokens</title>
+<style>
+  /* ============================================================
+     Tokens: docs/design-handoff/tokens/README.md (v2 editorial)
+     Dark hex here is the mock fallback; ship resolves through
+     Obsidian vars. No gradients. No accent-tinted card fills.
+     No accent borders. Purple is typographic only (unused here).
+     ============================================================ */
+  :root {
+    --bg:        #000;                      /* --background-primary   */
+    --group:     #1c1c1e;                   /* --background-secondary */
+    --elev:      #2c2c2e;                   /* elevated fill          */
+    --sep:       rgba(84, 84, 88, 0.55);    /* separator              */
+    --label:     #fff;                      /* --text-normal          */
+    --secondary: rgba(235, 235, 245, 0.6);  /* --text-muted           */
+    --tertiary:  rgba(235, 235, 245, 0.32); /* --text-faint           */
+    --tint:      #0a84ff;                   /* --interactive-accent   */
+    --orange:    #ff9f0a;                   /* person / setup hints   */
+    --green:     #30d158;                   /* progress success only  */
+    --error:     #ff453a;                   /* --text-error           */
+    --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+
+    /* page chrome only */
+    --page: #0a0a0b;
+    --pline: #232326;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page); color: var(--label); font-family: var(--sans); -webkit-font-smoothing: antialiased; }
+  .page { max-width: 1400px; margin: 0 auto; padding: 30px 20px 110px; }
+
+  h1 { font-size: 1.85rem; font-weight: 700; letter-spacing: -0.035em; margin: 0 0 10px; }
+  h2 { font-size: 1.1rem; font-weight: 650; letter-spacing: -0.02em; margin: 50px 0 8px; }
+  .lede { color: var(--secondary); max-width: 48rem; line-height: 1.5; margin: 0 0 20px; font-size: 0.95rem; }
+  .lede b { color: var(--label); font-weight: 600; }
+  .sub { color: var(--secondary); max-width: 47rem; line-height: 1.5; font-size: 0.87rem; margin: 0 0 18px; }
+  .sub b { color: var(--label); font-weight: 600; }
+  a { color: var(--tint); }
+  code { background: #141416; border: 1px solid var(--pline); border-radius: 6px; padding: 1px 5px; font-size: 0.8em; color: var(--secondary); }
+
+  /* fixed-token list on the doc page */
+  .fixes { border-top: 1px solid var(--pline); margin: 6px 0 10px; }
+  .fix { display: grid; grid-template-columns: 1.1fr 1fr; gap: 20px; padding: 13px 2px; border-bottom: 1px solid var(--pline); }
+  @media (max-width: 760px) { .fix { grid-template-columns: 1fr; gap: 6px; } }
+  .fix .was { font-size: 0.85rem; color: var(--secondary); line-height: 1.5; }
+  .fix .was b { color: var(--error); font-weight: 600; }
+  .fix .rule { font-size: 0.82rem; color: var(--tertiary); line-height: 1.5; }
+  .fix .rule em { color: var(--secondary); font-style: normal; }
+
+  .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(255px, 1fr)); gap: 0 26px; margin: 4px 0 8px; }
+  .kn { padding: 13px 0; border-bottom: 1px solid var(--pline); }
+  .kn .q { font-size: 0.87rem; font-weight: 600; color: var(--label); line-height: 1.4; }
+  .kn .a { font-size: 0.8rem; color: var(--secondary); line-height: 1.5; margin-top: 6px; }
+  .kn .a em { color: var(--orange); font-style: normal; }
+
+  .legs { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 0 26px; }
+  .leg { padding: 14px 0; border-bottom: 1px solid var(--pline); }
+  .leg .n { font-size: 0.7rem; letter-spacing: 0.13em; color: var(--tertiary); font-weight: 600; }
+  .leg h4 { margin: 5px 0 0; font-size: 1.05rem; font-weight: 650; letter-spacing: -0.02em; }
+  .leg .who { font-size: 0.78rem; color: var(--secondary); margin-top: 3px; }
+  .leg .who.zero { color: var(--orange); }
+  .leg p { margin: 8px 0 0; font-size: 0.81rem; color: var(--secondary); line-height: 1.5; }
+
+  .rail { display: flex; flex-wrap: wrap; gap: 28px; align-items: flex-start; }
+  .slot { display: flex; flex-direction: column; align-items: center; }
+  .cap { font-size: 0.72rem; letter-spacing: 0.02em; color: var(--tertiary); margin-bottom: 11px; text-align: center; max-width: 390px; line-height: 1.5; }
+  .cap b { color: var(--secondary); font-weight: 600; }
+
+  /* ================= phone shell ================= */
+  .phone {
+    width: 390px; height: 844px; background: var(--bg); border-radius: 42px;
+    border: 4px solid #1a1a1c; box-shadow: 0 26px 64px rgba(0,0,0,0.6);
+    overflow: hidden; display: flex; flex-direction: column; position: relative; flex-shrink: 0;
+  }
+  .phone.short { height: 620px; }
+  .nav { padding: 15px 16px 11px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--sep); flex-shrink: 0; }
+  .nav .back { color: var(--tint); font-size: 1.05rem; }
+  .nav .ttl { font-size: 1.05rem; font-weight: 650; letter-spacing: -0.02em; }
+  .nav .x { margin-left: auto; color: var(--tertiary); font-size: 1.05rem; }
+  .scroll { overflow-y: auto; flex: 1; padding: 0 0 44px; scrollbar-width: thin; }
+  .scroll::-webkit-scrollbar { width: 4px; }
+  .scroll::-webkit-scrollbar-thumb { background: #303034; border-radius: 4px; }
+
+  /* ---- eyebrow group header: the three legs, typographic ---- */
+  .eyebrow {
+    font-size: 0.7rem; font-weight: 600; letter-spacing: 0.13em; text-transform: uppercase;
+    color: var(--tertiary); padding: 26px 32px 8px;
+  }
+  .eyebrow.first { padding-top: 18px; }
+
+  /* ---- plain grouped list: flat, hairline, no fills ---- */
+  .group { background: var(--group); border-radius: 14px; margin: 0 16px; overflow: hidden; }
+  .gfoot { font-size: 0.8rem; color: var(--tertiary); line-height: 1.5; padding: 9px 32px 0; }
+  .gfoot b { color: var(--secondary); font-weight: 600; }
+
+  .r { display: flex; align-items: center; gap: 12px; min-height: 58px; padding: 11px 16px; position: relative; }
+  .r + .r::before { content: ""; position: absolute; top: 0; left: 16px; right: 0; height: 1px; background: var(--sep); }
+  .r .nm { font-size: 0.98rem; font-weight: 500; letter-spacing: -0.015em; color: var(--label); flex: 1; min-width: 0; }
+  .r .nm small { display: block; font-size: 0.8rem; font-weight: 400; color: var(--tertiary); margin-top: 3px; letter-spacing: 0; line-height: 1.4; }
+  .r .val { font-size: 0.9rem; color: var(--secondary); flex-shrink: 0; }
+  .r .val.hint { color: var(--orange); }
+  .r .val.act { color: var(--tint); }
+  .r .cv { color: var(--tertiary); font-size: 1.05rem; flex-shrink: 0; margin-left: -3px; }
+  .r .nm.dest { color: var(--error); }
+
+  .tg { width: 51px; height: 31px; border-radius: 99px; background: #39393d; position: relative; flex-shrink: 0; }
+  .tg::after { content:""; position:absolute; top:2px; left:2px; width:27px; height:27px; border-radius:50%; background:#fff; }
+  .tg.on { background: var(--green); }
+  .tg.on::after { left: 22px; }
+  .tg.dim { opacity: 0.4; }
+
+  /* ---- buttons: solid tint / elevated / quiet ---- */
+  .btns { display: flex; gap: 10px; margin: 14px 16px 0; }
+  .btn {
+    flex: 1; border: none; border-radius: 12px; padding: 13px; font-size: 0.95rem;
+    font-weight: 600; font-family: inherit; letter-spacing: -0.015em;
+  }
+  .btn.primary { background: var(--tint); color: #fff; }
+  .btn.secondary { background: var(--elev); color: var(--label); }
+
+  /* ---- BEFORE phone ---- */
+  .b-head { font-size: 1.02rem; font-weight: 650; padding: 18px 16px 5px; letter-spacing: -0.02em; }
+  .b-p { font-size: 0.78rem; color: var(--secondary); line-height: 1.5; padding: 0 16px 9px; }
+  .b-r { padding: 14px 16px; border-top: 1px solid var(--sep); }
+  .b-r .n { font-size: 0.94rem; }
+  .b-r .d { font-size: 0.78rem; color: var(--secondary); line-height: 1.5; margin-top: 4px; }
+  .jar { color: #ff9d9d; border-bottom: 1px dashed rgba(255,69,58,0.55); }
+  .b-btn { background: var(--tint); color:#fff; border:none; border-radius:8px; padding:8px 14px; font-size:0.82rem; font-family:inherit; margin-top:10px; }
+
+  /* ---- sheet ---- */
+  .sw { position: relative; }
+  .scrim { position: absolute; inset: 0; background: rgba(0,0,0,0.6); }
+  .sheet { position: absolute; left: 0; right: 0; bottom: 0; background: var(--group); border-radius: 16px 16px 0 0; padding: 22px 18px 26px; }
+  .sheet h3 { margin: 0 0 6px; font-size: 1.35rem; font-weight: 700; letter-spacing: -0.03em; }
+  .sheet .lead { font-size: 0.87rem; color: var(--secondary); margin: 0 0 8px; line-height: 1.45; }
+  .stp { display: flex; gap: 13px; padding: 13px 0; border-top: 1px solid var(--sep); }
+  .stp .num { width: 23px; height: 23px; border-radius: 50%; background: var(--elev); color: var(--secondary); font-size: 0.75rem; font-weight: 600; display: grid; place-items: center; flex-shrink: 0; margin-top: 1px; }
+  .stp .tx { font-size: 0.9rem; line-height: 1.45; }
+  .stp .tx small { display: block; color: var(--secondary); font-size: 0.8rem; margin-top: 3px; }
+  .sheet .btn { width: 100%; margin-top: 18px; }
+
+  /* ---- desktop ---- */
+  .dpane { width: 810px; background: var(--bg); border: 1px solid var(--pline); border-radius: 12px; overflow: hidden; box-shadow: 0 22px 55px rgba(0,0,0,0.5); flex-shrink: 0; }
+  .dpane .bar { background: #141416; border-bottom: 1px solid var(--pline); padding: 11px 18px; font-size: 0.79rem; color: var(--tertiary); }
+  .dpane .body { padding: 2px 0 28px; max-height: 720px; overflow-y: auto; }
+  .dpane .group { margin: 0 62px; }
+  .dpane .eyebrow, .dpane .gfoot { padding-left: 78px; padding-right: 78px; }
+  .dpane .btns { margin: 14px 62px 0; max-width: 420px; }
+
+  .note { border-left: 2px solid var(--pline); padding-left: 15px; margin: 22px 0 0; font-size: 0.84rem; color: var(--secondary); line-height: 1.6; max-width: 47rem; }
+  .note b { color: var(--label); }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <h1>Atoms settings, on the v2 tokens</h1>
+  <p class="lede">
+    Rebuilt against <code>docs/design-handoff/tokens/README.md</code>. That document already diagnosed
+    this exact failure a month ago: <i>“the v1 system read as generic AI-designed iOS-dark.”</i> Its
+    answer was flat cards, no accent-tinted fills, no accent borders, and colour that states a category
+    rather than decorating one. The previous mock broke four of those rules at once.
+  </p>
+
+  <h2>What was violating the tokens</h2>
+  <div class="fixes">
+    <div class="fix">
+      <div class="was"><b>Accent-tinted status card.</b> An amber fill with an amber border behind “One thing to choose.”</div>
+      <div class="rule"><em>Rule:</em> flat cards, no accent-tinted card fills, no accent borders. Soft fill is reserved for <em>transient</em> status only: waiting, progress, done, error. Setup state is not transient.</div>
+    </div>
+    <div class="fix">
+      <div class="was"><b>Coloured icon chips on every row.</b> Green, amber and purple rounded squares used as decoration.</div>
+      <div class="rule"><em>Rule:</em> chips are functional wayfinding and must map to a stable classifier output. Person orange and work cyan only, 2 per row, ≤5 categories app-wide. Row icons were none of that, so they are gone.</div>
+    </div>
+    <div class="fix">
+      <div class="was"><b>Purple as the accent.</b> Primary buttons and highlights in <code>#7f6df2</code>.</div>
+      <div class="rule"><em>Rule:</em> the tint is <code>#0a84ff</code>. Purple is <code>#bf5af2</code>, means mind-change, and is typographic only. It never fills anything.</div>
+    </div>
+    <div class="fix">
+      <div class="was"><b>A decorative pipeline diagram.</b> Three tinted bubbles with arrows, permanently in Settings.</div>
+      <div class="rule"><em>Rule:</em> accents are semantic, colour never decorates. The three legs now carry themselves as uppercase eyebrow headers, which is where a grouped list already puts its structure.</div>
+    </div>
+    <div class="fix">
+      <div class="was"><b>Em dashes throughout the app copy.</b></div>
+      <div class="rule"><em>Rule:</em> no em dashes anywhere in app copy. Periods and colons. Every string below is rewritten.</div>
+    </div>
+  </div>
+
+  <h2>How Apple would do it, concretely</h2>
+  <p class="sub">
+    iOS Settings is the precedent and it is almost aggressively plain: a grouped inset list, a muted
+    uppercase header above each group, an explanatory footer below it, and a right-aligned muted value
+    on each row. There are no status cards. There is no progress diagram. Colour appears in exactly
+    three places: the tint on interactive text, green on a live switch, red on a destructive row.
+    <br><br>
+    The pattern for an incomplete setup is <b>Finish Setting Up Your iPhone</b>, which is not a banner
+    or a hero. It is one ordinary row, in an ordinary group, sitting first. Position is the emphasis.
+    That is what the top group does here.
+  </p>
+
+  <h2>Today, and the same screen on the tokens</h2>
+  <p class="sub">
+    Left is the real screen at 390px with every term a four-minute-old user cannot know underlined,
+    <b>30 distinct ones</b>. Middle and right are first open and day one.
+  </p>
+
+  <div class="rail">
+
+    <!-- ============ BEFORE ============ -->
+    <div class="slot">
+      <div class="cap"><b>Today</b>. First open, signed out.<br>30 unknowable terms. 3,444px, 4.1 screens.</div>
+      <div class="phone">
+        <div class="nav"><span class="ttl">Atoms</span><span class="x">✕</span></div>
+        <div class="scroll">
+          <div class="b-head">Atoms</div>
+          <div class="b-p">Version 0.7.11 · Capture with your shortcut; <span class="jar">Process</span> turns past bullets into <span class="jar">linked atoms</span>.</div>
+
+          <div class="b-head">Atoms Plus</div>
+          <div class="b-r">
+            <div class="n">Set up automatic <span class="jar">filing</span></div>
+            <div class="d">Atoms Plus <span class="jar">files</span> your <span class="jar">captures</span> for you. Or keep using your own <span class="jar">API key</span> — the full app stays yours either way.</div>
+            <button class="b-btn">Set up</button>
+          </div>
+
+          <div class="b-head">Capture</div>
+          <div class="b-p">Write top-level bullets in your daily note: “- thought…”. Today’s note is never <span class="jar">auto-processed</span>; use <span class="jar">Atoms home</span> → <span class="jar">Preview</span> after midnight (or past <span class="jar">dailies</span>).</div>
+          <div class="b-r">
+            <div class="n">Capture Atom shortcut</div>
+            <div class="d">iOS: opens Capture Atom v2.2.0. After Add Shortcut: Shortcuts → Capture Atom → edit → Append to Bookmark → <span class="jar">Atoms Inbox</span> (not Ask Each Time) → Done. Open Obsidian with Atoms once first so that bookmark exists. <span class="jar">Acked</span>: never.</div>
+            <button class="b-btn">Update Capture Atom</button>
+          </div>
+
+          <div class="b-head"><span class="jar">Filing</span></div>
+          <div class="b-r"><div class="n"><span class="jar">Atom folder</span></div><div class="d">Flat single folder for <span class="jar">atom notes</span> (e.g. Atoms). Paths with .. or subfolders are rejected.</div></div>
+          <div class="b-r"><div class="n">List atoms on <span class="jar">hub notes</span></div><div class="d">After filing, add a list of linked atoms at the bottom of hub notes (people, Movies, packing lists, and similar). Your writing above the list stays the same. Off by default.</div></div>
+          <div class="b-r"><div class="n"><span class="jar">Tag vocabulary</span> — 8 active</div></div>
+
+          <div class="b-head"><span class="jar">Ask</span> (Claude + ChatGPT)</div>
+          <div class="b-p">Cloud copy of Atoms/ on Plus — for chat search. When Obsidian is open online, hand-edits and deletes push automatically. Full <span class="jar">orphan cleanup</span> is <span class="jar">Sync now</span>. Not a second library you maintain by hand.</div>
+          <div class="b-r"><div class="n">What Ask stores and shares</div><div class="d"><span class="jar">Acknowledged</span> 2026-08-07</div><button class="b-btn">Review</button></div>
+          <div class="b-r"><div class="n"><span class="jar">Vault write acknowledgment</span></div><div class="d">Acknowledged 2026-08-06</div><button class="b-btn">Review</button></div>
+
+          <div class="b-head">Automatic filing (this device)</div>
+          <div class="b-p">Stored only on this device (not synced via <span class="jar">data.json</span>). Default off. Turning it on asks for a one-time acknowledgment — <span class="jar">unattended runs</span> send titles + captures to Anthropic.</div>
+          <div class="b-r"><div class="n">File automatically when Obsidian opens</div><div class="d">When enabled: once per calendar day after <span class="jar">layout + metadata are ready</span>. Caps work per launch; offline fails silently until next day.</div></div>
+          <div class="b-r"><div class="n"><span class="jar">Sync everything now</span></div><div class="d">Run <span class="jar">drain → outbox → mirror → filing</span> now (ignores <span class="jar">resume cooldowns</span>). Filing still needs the catch-up notice on Atoms home when present.</div><button class="b-btn">Sync everything now</button></div>
+          <div class="b-r"><div class="n"><span class="jar">Last auto-run day</span> (this device)</div><div class="d">2026-08-11</div></div>
+
+          <div class="b-head">Your API key (optional)</div>
+          <div class="b-p">Only if you are not using Atoms Plus. Process sends titles, tags, and capture text to Anthropic over TLS. Your notes are never rewritten — only new atom files and <span class="jar">markers</span>.</div>
+          <div class="b-r"><div class="n">Anthropic API key</div><div class="d"><span class="jar">SecretStorage</span> on this vault + device only (not synced). Switching vaults or clearing it means re-entering.</div><button class="b-btn">Link…</button></div>
+          <div class="b-r"><div class="n">Device-local key fallback</div><div class="d">Only if SecretStorage fails: non-synced local storage (still never data.json).</div></div>
+          <div class="b-r"><div class="n">Advanced</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ AFTER · first open ============ -->
+    <div class="slot">
+      <div class="cap"><b>On the tokens</b>. First open.<br>Flat groups. One tint. Position is the emphasis.</div>
+      <div class="phone">
+        <div class="nav"><span class="ttl">Atoms</span><span class="x">✕</span></div>
+        <div class="scroll">
+
+          <div class="eyebrow first">Get started</div>
+          <div class="group">
+            <div class="r"><span class="nm">Choose who files your captures</span><span class="val hint">Required</span><span class="cv">›</span></div>
+          </div>
+          <div class="gfoot">Atoms reads thoughts you already wrote and files each one as its own note, linked to the people and topics it mentions.</div>
+
+          <div class="eyebrow">1 · Capture</div>
+          <div class="group">
+            <div class="r"><span class="nm">Daily notes</span><span class="val">On</span></div>
+            <div class="r"><span class="nm">Capture on your phone</span><span class="val hint">Not set up</span><span class="cv">›</span></div>
+          </div>
+          <div class="gfoot"><b>Atoms never captures for you.</b> Write a bullet in today’s daily note, like “- Alex likes periwinkle”, or add the phone shortcut to say one out loud.</div>
+
+          <div class="eyebrow">2 · File</div>
+          <div class="group">
+            <div class="r"><span class="nm">Who does the filing</span><span class="val hint">Not chosen</span><span class="cv">›</span></div>
+            <div class="r"><span class="nm">File automatically <small>This device.</small></span><span class="tg dim"></span></div>
+            <div class="r"><span class="nm">Atoms land in</span><span class="val">Atoms/</span><span class="cv">›</span></div>
+            <div class="r"><span class="nm">Tags it may use</span><span class="val">8</span><span class="cv">›</span></div>
+          </div>
+          <div class="gfoot"><b>Your notes are never rewritten.</b> Atoms only adds new files, plus one small marker line in the daily note it read.</div>
+
+          <div class="eyebrow">3 · Resurface</div>
+          <div class="group">
+            <div class="r"><span class="nm">Atoms home</span><span class="val">Nothing filed yet</span><span class="cv">›</span></div>
+          </div>
+          <div class="gfoot"><b>Nothing to set up.</b> Atoms home brings old thoughts back on its own: something from this day last year, or a note that connects to what you just filed.</div>
+          <div class="group" style="margin-top:22px">
+            <div class="r"><span class="nm">Ask in Claude and ChatGPT</span><span class="val">Off</span><span class="cv">›</span></div>
+          </div>
+          <div class="gfoot">Claude and ChatGPT can search your atoms once a copy of them is online. Atoms Plus hosts that copy for you. You can also run it yourself, from Advanced.</div>
+
+          <div class="eyebrow">&nbsp;</div>
+          <div class="group">
+            <div class="r"><span class="nm">Privacy and consents</span><span class="cv">›</span></div>
+            <div class="r"><span class="nm">Advanced</span><span class="cv">›</span></div>
+          </div>
+          <div class="gfoot" style="padding-bottom:20px">Atoms 0.7.11</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ AFTER · day one ============ -->
+    <div class="slot">
+      <div class="cap"><b>On the tokens</b>. Set up, day one.<br>The intended silence is promised, not tinted.</div>
+      <div class="phone">
+        <div class="nav"><span class="ttl">Atoms</span><span class="x">✕</span></div>
+        <div class="scroll">
+
+          <div class="eyebrow first">Status</div>
+          <div class="group">
+            <div class="r"><span class="nm">Filing automatically <small>First atoms arrive tomorrow morning.</small></span><span class="tg on"></span></div>
+          </div>
+          <div class="gfoot">Atoms waits until a day is done, so it never files a thought you are still writing.</div>
+
+          <div class="eyebrow">1 · Capture</div>
+          <div class="group">
+            <div class="r"><span class="nm">Daily notes</span><span class="val">On</span></div>
+            <div class="r"><span class="nm">Capture on your phone</span><span class="val">Capture Atom 2.2.0</span><span class="cv">›</span></div>
+          </div>
+          <div class="gfoot"><b>Atoms never captures for you.</b> Write a bullet in today’s daily note, or say one into the shortcut.</div>
+
+          <div class="eyebrow">2 · File</div>
+          <div class="group">
+            <div class="r"><span class="nm">Who does the filing <small>Atoms Plus. 43 filings left this month.</small></span><span class="cv">›</span></div>
+            <div class="r"><span class="nm">Next run <small>Tomorrow, when Obsidian opens.</small></span></div>
+            <div class="r"><span class="nm">Atoms land in</span><span class="val">Atoms/</span><span class="cv">›</span></div>
+            <div class="r"><span class="nm">Tags it may use</span><span class="val">8</span><span class="cv">›</span></div>
+            <div class="r"><span class="nm">List atoms on people notes</span><span class="tg"></span></div>
+          </div>
+          <div class="gfoot"><b>Your notes are never rewritten.</b> Atoms only adds new files, plus one small marker line in the daily note it read.</div>
+
+          <div class="eyebrow">3 · Resurface</div>
+          <div class="group">
+            <div class="r"><span class="nm">Atoms home</span><span class="val">Nothing filed yet</span><span class="cv">›</span></div>
+          </div>
+          <div class="gfoot"><b>Nothing to set up.</b> Atoms home brings old thoughts back on its own: something from this day last year, or a note that connects to what you just filed.</div>
+          <div class="group" style="margin-top:22px">
+            <div class="r"><span class="nm">Ask in Claude and ChatGPT</span><span class="tg on"></span></div>
+            <div class="r"><span class="nm">Let Claude file new atoms</span><span class="tg on"></span></div>
+            <div class="r"><span class="nm">Connected apps</span><span class="val">Claude, ChatGPT</span><span class="cv">›</span></div>
+          </div>
+          <div class="gfoot">214 atoms are mirrored. Claude and ChatGPT read that copy, never your vault.</div>
+
+          <div class="eyebrow">&nbsp;</div>
+          <div class="group">
+            <div class="r"><span class="nm">Privacy and consents</span><span class="val">3 on record</span><span class="cv">›</span></div>
+            <div class="r"><span class="nm">Advanced</span><span class="cv">›</span></div>
+          </div>
+          <div class="gfoot" style="padding-bottom:20px">Atoms 0.7.11</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h2>The two screens underneath</h2>
+  <p class="sub">
+    The choice screen is where the one mandatory decision gets made, with room to say what it costs.
+    The capture sheet is where a six step procedure gets six steps. Both replace a caption.
+  </p>
+
+  <div class="rail">
+    <div class="slot">
+      <div class="cap"><b>Who does the filing</b>. One primary per screen.</div>
+      <div class="phone short">
+        <div class="nav"><span class="back">‹</span><span class="ttl">Who does the filing</span><span class="x">✕</span></div>
+        <div class="scroll">
+          <div class="gfoot" style="padding:18px 32px 0">Atoms sends each thought to Claude to be titled and linked. Someone has to pay for that. Either us, or you.</div>
+          <div class="eyebrow">Pick one</div>
+          <div class="group">
+            <div class="r"><span class="nm">Atoms Plus <small>We handle it. 14 days free, then $6 a month.</small></span><span class="cv">›</span></div>
+            <div class="r"><span class="nm">My own Anthropic key <small>You pay Anthropic. Usually cents a month.</small></span><span class="cv">›</span></div>
+          </div>
+          <div class="gfoot">The plugin is the same either way. This is only about who pays for it. Nothing here unlocks features.</div>
+
+          <div class="eyebrow">What gets sent</div>
+          <div class="group">
+            <div class="r"><span class="nm">The thought itself, and your note titles</span></div>
+            <div class="r"><span class="nm">Never your whole vault</span></div>
+            <div class="r"><span class="nm">Never used to train models</span></div>
+          </div>
+          <div class="gfoot">You will see this again, in full, before anything is sent.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="slot">
+      <div class="cap"><b>Capture on your phone</b>. A procedure, not a caption.</div>
+      <div class="phone short sw">
+        <div class="nav"><span class="ttl">Atoms</span><span class="x">✕</span></div>
+        <div class="scroll" style="filter:blur(2px)">
+          <div class="eyebrow first">1 · Capture</div>
+          <div class="group">
+            <div class="r"><span class="nm">Daily notes</span><span class="val">On</span></div>
+            <div class="r"><span class="nm">Capture on your phone</span><span class="val hint">Not set up</span><span class="cv">›</span></div>
+          </div>
+        </div>
+        <div class="scrim"></div>
+        <div class="sheet">
+          <h3>Capture on your phone</h3>
+          <p class="lead">Say a thought without opening Obsidian. Three steps, about a minute.</p>
+          <div class="stp"><span class="num">1</span><span class="tx">Add the shortcut<small>Opens Capture Atom 2.2.0 in the Shortcuts app.</small></span></div>
+          <div class="stp"><span class="num">2</span><span class="tx">Point it at this vault<small>Capture Atom, edit, Append to Bookmark, then <b>Atoms Inbox</b>. Not “Ask Each Time”.</small></span></div>
+          <div class="stp"><span class="num">3</span><span class="tx">Say something<small>It lands in today’s note. Atoms files it tomorrow morning.</small></span></div>
+          <button class="btn primary">Add the shortcut</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="slot">
+      <div class="cap"><b>Privacy and consents</b>. Records are records.</div>
+      <div class="phone short">
+        <div class="nav"><span class="back">‹</span><span class="ttl">Privacy and consents</span><span class="x">✕</span></div>
+        <div class="scroll">
+          <div class="eyebrow first">On record</div>
+          <div class="group">
+            <div class="r"><span class="nm">What Atoms sends to Anthropic <small>Agreed 6 August. This device.</small></span><span class="cv">›</span></div>
+            <div class="r"><span class="nm">What Ask stores and shares <small>Agreed 7 August.</small></span><span class="cv">›</span></div>
+            <div class="r"><span class="nm">Filing from Claude or ChatGPT <small>Agreed 6 August.</small></span><span class="cv">›</span></div>
+          </div>
+          <div class="gfoot">These are records of what you agreed to. The switches that turn them on and off live beside the features themselves.</div>
+
+          <div class="eyebrow">Cloud copy</div>
+          <div class="group">
+            <div class="r"><span class="nm">Mirrored atoms</span><span class="val">214</span></div>
+            <div class="r"><span class="nm dest">Delete cloud copy</span><span class="cv">›</span></div>
+          </div>
+          <div class="gfoot">Your vault files are never touched.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="slot">
+      <div class="cap"><b>Advanced</b>. Where the diagnostics and escape hatches land.</div>
+      <div class="phone short">
+        <div class="nav"><span class="back">‹</span><span class="ttl">Advanced</span><span class="x">✕</span></div>
+        <div class="scroll">
+          <div class="eyebrow first">Model</div>
+          <div class="group">
+            <div class="r"><span class="nm">Model</span><span class="val">claude-sonnet-5</span><span class="cv">›</span></div>
+          </div>
+
+          <div class="eyebrow">Sync</div>
+          <div class="group">
+            <div class="r"><span class="nm">Sync when you return <small>This device.</small></span><span class="tg"></span></div>
+            <div class="r"><span class="nm">Sync everything now</span><span class="cv">›</span></div>
+          </div>
+          <div class="gfoot">Filing normally runs on its own. These are for when you want it to happen right now.</div>
+
+          <div class="eyebrow">This device</div>
+          <div class="group">
+            <div class="r"><span class="nm">Last filing run</span><span class="val">11 August</span></div>
+            <div class="r"><span class="nm">Last catch up</span><span class="val">Just now</span></div>
+          </div>
+
+          <div class="eyebrow">Run Ask yourself</div>
+          <div class="group">
+            <div class="r"><span class="nm">Ask server</span><span class="val">Atoms</span><span class="cv">›</span></div>
+            <div class="r"><span class="nm">Self-host guide</span><span class="cv">›</span></div>
+          </div>
+          <div class="gfoot">Claude and ChatGPT need a copy of your atoms online. Atoms Plus hosts it for you. You can run that server yourself instead, on your own machine. Point this at it <b>before you sign in</b>, and it needs a public HTTPS address.</div>
+
+          <div class="eyebrow">Escape hatches</div>
+          <div class="group">
+            <div class="r"><span class="nm">Custom shortcut link <small>Only if you forked the recipe.</small></span><span class="cv">›</span></div>
+            <div class="r"><span class="nm">Store the key on this device <small>Only if the vault keychain fails.</small></span><span class="tg"></span></div>
+            <div class="r"><span class="nm">Paste a session <small>Only if your email opens on another device.</small></span><span class="cv">›</span></div>
+          </div>
+          <div class="gfoot">You should not need any of these. They exist for when something else has gone wrong.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h2>Desktop, same screen wider</h2>
+  <div class="rail">
+    <div class="slot">
+      <div class="dpane">
+        <div class="bar">Settings → Community plugins → Atoms</div>
+        <div class="body">
+          <div class="eyebrow first">Status</div>
+          <div class="group">
+            <div class="r"><span class="nm">Filing automatically <small>12 atoms this week. Last run 2 hours ago.</small></span><span class="tg on"></span></div>
+          </div>
+          <div class="gfoot">Atoms reads thoughts you already wrote and files each one as its own note, linked to the people and topics it mentions.</div>
+
+          <div class="eyebrow">1 · Capture</div>
+          <div class="group">
+            <div class="r"><span class="nm">Daily notes</span><span class="val">On</span></div>
+            <div class="r"><span class="nm">Capture on your phone</span><span class="val">Capture Atom 2.2.0</span><span class="cv">›</span></div>
+          </div>
+          <div class="gfoot"><b>Atoms never captures for you.</b> Write a bullet in today’s daily note, or say one into the phone shortcut.</div>
+
+          <div class="eyebrow">2 · File</div>
+          <div class="group">
+            <div class="r"><span class="nm">Who does the filing <small>Atoms Plus. 43 filings left this month.</small></span><span class="cv">›</span></div>
+            <div class="r"><span class="nm">File automatically <small>This device.</small></span><span class="tg on"></span></div>
+            <div class="r"><span class="nm">Atoms land in</span><span class="val">Atoms/</span><span class="cv">›</span></div>
+            <div class="r"><span class="nm">Tags it may use</span><span class="val">8 active, 2 new</span><span class="cv">›</span></div>
+            <div class="r"><span class="nm">List atoms on people notes</span><span class="tg on"></span></div>
+            <div class="r"><span class="nm">Refresh those lists <small>Preview which notes change, then update them.</small></span><span class="cv">›</span></div>
+          </div>
+          <div class="gfoot"><b>Your notes are never rewritten.</b> Atoms only adds new files, plus one small marker line in the daily note it read.</div>
+
+          <div class="eyebrow">3 · Resurface</div>
+          <div class="group">
+            <div class="r"><span class="nm">Atoms home <small>214 atoms. 3 resurfaced today.</small></span><span class="cv">›</span></div>
+          </div>
+          <div class="gfoot"><b>Nothing to set up.</b> Atoms home brings old thoughts back on its own: something from this day last year, or a note that connects to what you just filed.</div>
+          <div class="group" style="margin-top:22px">
+            <div class="r"><span class="nm">Ask in Claude and ChatGPT</span><span class="tg on"></span></div>
+            <div class="r"><span class="nm">Let Claude file new atoms</span><span class="tg on"></span></div>
+            <div class="r"><span class="nm">Connected apps</span><span class="val">Claude, ChatGPT</span><span class="cv">›</span></div>
+          </div>
+          <div class="gfoot">214 atoms are mirrored. Claude and ChatGPT read that copy, never your vault.</div>
+
+          <div class="eyebrow">&nbsp;</div>
+          <div class="group">
+            <div class="r"><span class="nm">Privacy and consents</span><span class="val">3 on record</span><span class="cv">›</span></div>
+            <div class="r"><span class="nm">Advanced</span><span class="cv">›</span></div>
+          </div>
+          <div class="gfoot" style="padding-bottom:22px">Atoms 0.7.11</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h2>Where the colour went</h2>
+  <p class="sub">
+    Four hues on the whole surface, each stating one thing, none of them filling a card.
+  </p>
+  <div class="cols">
+    <div class="kn"><div class="q">Tint <code>#0a84ff</code></div><div class="a">Back chevrons and the one primary button. Nothing else is blue.</div></div>
+    <div class="kn"><div class="q">Person orange <code>#ff9f0a</code></div><div class="a">Setup hints only: “Required”, “Not set up”, “Not chosen”. The token map already sanctions orange for setup hints, so no new meaning was invented.</div></div>
+    <div class="kn"><div class="q">Green <code>#30d158</code></div><div class="a">A live switch, which is the system control, not our colour.</div></div>
+    <div class="kn"><div class="q">Red <code>#ff453a</code></div><div class="a">One destructive row, on the screen that owns it.</div></div>
+  </div>
+
+  <div class="note">
+    <b>What is doing the work instead.</b> Position, since the first group is the one that needs you.
+    Type scale, since a row title at 0.98/500 against a footer at 0.8/tertiary is already three levels
+    of hierarchy. Whitespace, since 26px between groups separates them better than a border. And the
+    right-aligned value, which is how a grouped list has always said “here is the state of this”
+    without drawing a box around it.
+    <br><br>
+    <b>Still true from before.</b> Grouped into the product’s three legs from
+    <code>docs/architecture.md</code>. Explanation lives in group footers, not row descriptions, which
+    is what keeps rows at 58px on a phone. Every money, egress and vault write gate stays on the root
+    screen; only the passive record of a consent moves.
+    <br><br>
+    <b>Cost, unchanged.</b> A <code>group()</code> builder beside the row grammar in
+    <code>src/settings/rows.ts</code>, a restructure of <code>renderMainScreen</code>, two new
+    destinations, one sheet, and a copy pass turning 18 row descriptions into 5 group footers.
+  </div>
+
+</div>
+</body>
+</html>

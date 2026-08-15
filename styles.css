@@ -1968,6 +1968,83 @@
   flex: 0 0 auto;
 }
 
+/* Settings row grammar — the grouped list. A run of rows sits inside one inset block, under an
+   eyebrow header and over a single explanatory footer, so a row can go back to being a name and a
+   control. Flat surface, hairline separators, no accent fill and no border: the v2 tokens
+   (docs/design-handoff/tokens/README.md) and docs/design-handoff/settings/overhaul.html. */
+.atoms-setting-group-header {
+  margin: 22px 0 6px;
+  padding: 0 4px;
+  font-size: var(--font-ui-smaller);
+  font-weight: 600;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+/* `--background-primary`, though the mock's `.group` maps to `--background-secondary`. The mock
+   draws a full-screen page, where the ground is primary and the block sits a step off it. Obsidian's
+   settings modal inverts that: the pane is already `--background-secondary` (measured
+   `rgb(246,246,246)` on the default light theme, against `--background-primary` `#ffffff`), so a
+   secondary block is the same colour as the ground it is meant to sit on — no edge, no radius, no
+   card. Worse, a text field is `--background-secondary` too, so on a secondary block the fields
+   stop looking like fields.
+
+   This is not an invented fill. Obsidian already paints `--background-primary` behind every mobile
+   settings row; the rule below only moves it from thirteen separate cards onto the one block they
+   belong to. The relationship the mock asks for — block a step off its ground — is what survives,
+   in both themes. */
+.atoms-setting-group {
+  background: var(--background-primary);
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+/* One hairline *between* neighbouring rows and none at the block's edges — the radius is the
+   boundary there, and Obsidian paints a top border on every `.setting-item` including the first.
+
+   The rest of this rule is what makes that hairline visible at all. On mobile Obsidian styles
+   every `.setting-item` as its own card: an opaque `--background-primary` fill, a 30px radius and
+   an 8px bottom margin. Inside a group that is the wrong grammar twice over — the rows detach
+   into separate pills instead of forming one inset block, and the separator ends up drawn across
+   the curved top edge of a floating card, where it cannot be seen. Measured at `is-tablet`:
+   rows `rgb(255,255,255)` on a group fill of `rgb(246,246,246)`, radius 30px, 8px gaps. The block
+   owns the fill, the corners and the separators; its rows are flush rows inside it. */
+.atoms-setting-group .setting-item {
+  border-top: none;
+  background: transparent;
+  border-radius: 0;
+  margin-bottom: 0;
+}
+
+.atoms-setting-group .setting-item + .setting-item {
+  border-top: 1px solid var(--background-modifier-border);
+}
+
+/* The block owns the inset, so its rows carry their own side padding rather than sitting flush
+   against the fill. Written twice on purpose: Obsidian's row padding is set at (0,3,0) in the
+   modal and its phone rules gate on `.is-phone` at (0,4,0), and a single (0,2,0) selector loses
+   to both. The unprefixed rule is what covers `is-tablet`, where neither of Obsidian's phone
+   rules fires at all — the same gap #347/#348 opened for the form row above. */
+.modal .atoms-setting-group .setting-item,
+.is-phone .modal .atoms-setting-group .setting-item {
+  padding-left: 14px;
+  padding-right: 14px;
+}
+
+.atoms-setting-group-foot {
+  margin: 7px 0 0;
+  padding: 0 4px;
+}
+
+/* A row activated as a whole keeps a thumb-sized target, on every platform: a destination, a back
+   row, and every row inside a group, whether or not the pointer that finds it is a finger. */
+.setting-item.atoms-setting-destination,
+.setting-item.atoms-setting-back,
+.atoms-setting-group .setting-item {
+  min-height: 44px;
+}
+
 /* Phone: keep a row's right edge on the row.
    Obsidian stacks every settings row it does not recognise as inline. Three rules in `app.css`
    share one gate — `.setting-item:not(:is(.mod-toggle, .mod-navigable, .mod-action,
@@ -2072,6 +2149,57 @@
   flex: 1 1 auto;
 }
 
+/* Every row carrying a text field, at the width where the row cannot hold both halves.
+   `is-tablet` is the case this exists for, and it is worse than the window suggests: at 768px the
+   settings modal keeps its nav sidebar, so the pane is 489px and a group inside it is 410px — the
+   row's content line is about 366px, not 768. Neither Obsidian's `.is-phone` row stacking nor the
+   `#349` floor below fires there, so the two halves split a 366px line by whichever one asserts a
+   width. Measured at 768×1024 before this rule: `Plus service URL` kept a 300px name column and
+   left its URL field 66px, while `Custom shortcut link` — which does assert a floor — starved its
+   name to 54px, ellipsing "Custom shortcut link" and towering the row to 311px as the description
+   wrapped in a 54px gutter. Opposite failures, one cause.
+
+   A floor on *both* halves and `wrap`, rather than a stacking gate: flexbox then keeps the row
+   inline wherever both floors fit (desktop, and a wide tablet pane) and stacks it exactly where
+   they do not, with no platform class to get wrong.
+
+   Scoped off `is-phone`, where Obsidian already turns the row into a column and a `flex-basis`
+   would be read as a *height*. The basis has to be `0` rather than `auto`: left at auto the name
+   column asks for its description's max-content width, which on a 596px desktop pane is wider
+   than the line, so the field wrapped under it there too — stacking rows that had every reason to
+   stay inline. At `0` the floor below is what the column actually asks for. */
+body:not(.is-phone) .atoms-setting-text,
+body:not(.is-phone) .atoms-capture-shortcut-url,
+body:not(.is-phone) .atoms-setting-form:not(.atoms-setting-form-actions) {
+  flex-wrap: wrap;
+}
+
+/* The name column's floor: enough for the longest of these names on one line with its description
+   wrapping under it, rather than the name itself ellipsing. */
+body:not(.is-phone) .atoms-setting-text .setting-item-info,
+body:not(.is-phone) .atoms-capture-shortcut-url .setting-item-info,
+body:not(.is-phone)
+  .atoms-setting-form:not(.atoms-setting-form-actions)
+  .setting-item-info {
+  /* Grows far harder than the field on purpose. While the row is inline the surplus belongs to
+     the name column, exactly as it did before this rule existed — letting the field take it
+     instead shrank `Atom folder`'s name from 371px to 240px on desktop and pushed the row 16px
+     taller, which is a tablet fix charging desktop for it. Once the field has wrapped it is the
+     only thing on its line and takes the whole of it whatever its grow factor says. */
+  flex: 100 1 0;
+  min-width: 240px;
+}
+
+/* #349's placeholder floor, now on every text row instead of only the form row. */
+body:not(.is-phone) .atoms-setting-text .setting-item-control {
+  flex: 1 1 auto;
+}
+
+.atoms-setting-text .setting-item-control input[type="text"] {
+  min-width: 164px;
+  width: 100%;
+}
+
 /* The one settings row pairing a text field with an inline reset icon. Obsidian sizes the
    control edge to its contents, so the icon squeezed the input down to about 54px — enough for
    "Usi" of a placeholder reading "Using the shortcut Atoms ships". Let the control edge grow and
@@ -2089,6 +2217,20 @@
 .atoms-capture-shortcut-url .setting-item-control input[type="text"] {
   flex: 1 1 260px;
   min-width: 260px;
+}
+
+/* The capture-on-phone procedure inside its sheet. An ordered list, because the steps only work
+   in order — step 3 has nothing to point at until step 1 has happened. The indent is pulled in
+   from the browser default so the numbers line up with the sheet's own prose rather than sitting
+   in a gutter of their own, and the steps are spaced because each is a separate trip to a
+   different app. */
+.atoms-capture-steps {
+  padding-left: 20px;
+  margin: 0 0 var(--size-4-4);
+}
+
+.atoms-capture-steps li {
+  margin-bottom: var(--size-4-2);
 }
 
 /* Ask mirror push failure in Settings */
