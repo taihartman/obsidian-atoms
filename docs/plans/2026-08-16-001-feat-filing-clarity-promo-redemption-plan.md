@@ -24,16 +24,18 @@ approved by the owner 2026-08-16; committed to `docs/design-handoff/filing-clari
 
 **Stop when.** The File row is a noun carrying its state; the decision screen carries no term it does
 not define; the API key field, the device-local fallback and the secret-id naming rule sit behind the
-option that needs them; one `Redeem code` row reaches Stripe's own `Add promotion code`; `npm test`, `npm run lint` and
+option that needs them; a `Redeem code` row renders in all six account states and reaches a working
+destination in each; the main screen carries an `Atoms Plus` group; `npm test`, `npm run lint` and
 `npm run build` pass; `test/copyVoice.test.ts` is green with no new exemption; `www/dist` is
 regenerated and committed; phone and tablet evidence captured on a live vault.
 
 **Out of scope.** Any change to how the key is stored, read, or transmitted (U2 relocates rows, not
 credentials). Any new Stripe route, coupon logic, or `/v1/promo` wiring. Re-shaping the locked
-email cluster. The billing-portal promotion-code toggle. Pricing values.
+email cluster. Pricing values. **No longer out of scope:** the billing-portal promotion-code
+configuration, pulled in by KD6 because it is the only thing that gives a trialing user a route.
 
-**Execution profile.** U1 to U4 each mutate the shared `expectedRows()` fixture and therefore land
-**sequentially, not in parallel**, the same constraint KTD12 of the three-leg plan recorded. U5 closes
+**Execution profile.** U1 to U5 each mutate the shared `expectedRows()` fixture and therefore land
+**sequentially, not in parallel**, the same constraint KTD12 of the three-leg plan recorded. U6 closes
 copy lockstep and version.
 
 **Lane: full.** Escalated from light, deliberately. `docs/workflow-lanes.md` auto-escalates anything
@@ -126,22 +128,45 @@ form on the decision screen, which is the fault that produces the vocabulary in 
   closes with "Locked. Implement the unified cluster." Discovery is fixed by adding entry points
   around it, not by re-opening it. Governs R7.
 
-- **KD6. Promo is one permanent `Redeem code` row in the Plus group.** (session-settled: user-directed.)
-  Apple's *Redeem Gift Card or Code* is instructive for three things it is not: not conditional on
-  state, not near the feature it pays for, and not phrased as a question. The first draft had three
-  rows phrased "Have a promo code?", one of them on the engine screen. One noun row, one action id,
-  in the group where the money lives.
+- **KD6. One permanent `Redeem code` row, with two destinations decided by whether a live
+  subscription exists.** (session-settled: user-directed, twice.) Apple's *Redeem Gift Card or Code* is
+  instructive for three things it is not: not conditional on state, not near the feature it pays for,
+  and not phrased as a question. The first draft had three rows phrased "Have a promo code?", one of
+  them on the engine screen. One noun row, one action id, in the group where the money lives.
 
-  **Where the pattern does not survive Stripe, and why that is not a labelling problem.** Apple's row
-  is unconditional because a code credits an account balance. Atoms has no balance: a code applies to
-  a subscription at Checkout. So the row is permanent in every state *except* a live subscription,
-  where tapping it opens a **second** one. See KTD6. Separately, Apple's redeem sheet offers *Use
-  Camera* because typing codes is miserable; KD4 forecloses that, and it is a real cost of the
-  constraint rather than a free win. Governs R6, R7.
+  **The first draft then hid that row on a live subscription, which was wrong.** `start_trial` Checkout
+  creates a real Stripe subscription carrying `subscription_data[trial_period_days]`
+  (`plus-service/src/stripe.mjs:213-228`), so a user three days into a fourteen-day trial is `active`
+  with `status: "trialing"` — and that is precisely the person most likely to be holding a founding or
+  friend code. Hiding the row left them with no route and no explanation. A hidden affordance is worse
+  than a dead end because it is an invisible one.
+
+  So the row is **never hidden**, and routes by state (KTD6): no live subscription goes to subscribe
+  Checkout; a live subscription goes to the **billing portal**, where the coupon attaches to the
+  subscription that already exists instead of starting a second one. Apple's row is unconditional
+  because a code credits an account balance; Atoms has no balance, so the branch is the price of the
+  same guarantee. Separately, Apple's redeem sheet offers *Use Camera* because typing codes is
+  miserable; KD7 forecloses that, and it is a real cost of the constraint rather than a free win.
+  Governs R6, R7.
 
 - **KD7. The plugin never renders a promo-code field.** Inherited, not decided here:
   `docs/plans/2026-08-13-1146-feat-plus-have-a-code-plan.md:47` states it and the locked mock repeats
   it. Every entry point this plan adds ends on Stripe's hosted `Add promotion code`. Governs R6.
+
+- **KD8. A fourth group at the bottom of the main screen: `Atoms Plus`, holding Account and Redeem
+  code.** (session-settled: user-directed.) `openRoute("account")` has exactly one call site
+  (`settings.ts:2287`), the Plus row on the engine screen, so today a user manages their subscription
+  by opening a row named after filing. Billing has no presence on the main screen at all.
+
+  A bare `Redeem code` at the bottom would therefore be an orphan: a lone billing action under **Your
+  data**, whose footer names privacy and Advanced and nothing else. Two rows instead, so redemption
+  sits beside the account it belongs to and the wayfinding fault closes as a side effect.
+
+  **This deviates from R1 of the three-leg overhaul**, which says the main screen is a status group,
+  the three legs, and utility, and that nothing else is a section. That design was doc-reviewed on
+  2026-08-14, so the deviation is named here rather than discovered in review, and the design lens
+  should be asked to confirm it. Apple would put the account at the *top* (the Apple ID banner); #493
+  gave the top to the status group and this plan does not relitigate that. Governs R10.
 
 ### Requirements
 
@@ -156,12 +181,16 @@ form on the decision screen, which is the fault that produces the vocabulary in 
 - **R5.** No term renders on the decision screen without being defined on that screen. `TLS` is stated
   as the promise it was making rather than as an acronym.
 - **R6.** One permanent `Redeem code` row in the Plus group reaches Stripe's `Add promotion code`, and
-  names that tap before handing off.
-- **R7.** A signed-in user with no live subscription reaches Checkout with no email round-trip. A user
-  with a live subscription is **not** offered the row at all, because a second subscribe is not a
-  redemption.
-- **R8.** `www/src/setup.html.tmpl` and the regenerated `www/dist` describe the screen that ships.
-- **R9.** No string added by this plan contains an em dash, and no exemption is added to
+  names that tap before handing off. It renders in **every** account state.
+- **R7.** The row's destination is decided by whether a live Stripe subscription exists: subscribe
+  Checkout when it does not, billing portal when it does. No state opens a second subscription, and no
+  state renders a button that cannot work (KTD11).
+- **R8.** A signed-in user with no live subscription reaches Checkout with no email round-trip.
+- **R9.** The spent-meter state says that a code works on the top-up purchase too, which it already
+  does.
+- **R10.** The main screen carries an `Atoms Plus` group holding Account and Redeem code.
+- **R11.** `www/src/setup.html.tmpl` and the regenerated `www/dist` describe the screen that ships.
+- **R12.** No string added by this plan contains an em dash, and no exemption is added to
   `test/copyVoice.test.ts`.
 
 ### Scope Boundaries
@@ -221,12 +250,18 @@ Collecting a promo code in the plugin. Any second subscription path. Folder inte
   entry points, which retires the hazard rather than managing it. Do not reuse `plus:promo-subscribe`;
   that id belongs to the locked cluster's third submit, which stays.
 
-- **KTD6. The `Redeem code` row is gated on the absence of a live subscription, not the presence of a
-  session.** `AccountState`'s kinds (`settings.ts:249-303`) already distinguish them; the switch at
-  `:2401-2441` is exhaustive with no catch-all and is exhaustive-checked at `:2442`, so a new
-  affordance must name the states it appears in. Offering redemption to an `active` subscriber sends
-  them into a **second** subscription: a billing incident, not a bad label. This is the one place KD6's
-  "permanent row" borrowing from Apple has to bend, and the bend is recorded rather than smoothed over.
+- **KTD6. The `Redeem code` row is never hidden; its destination is a function of state.**
+  `deriveAccountState` (`settings.ts:215-238`) returns six kinds, and "signed in" spans five of them.
+  Four have **no** live Stripe subscription and take subscribe Checkout: `signedOut`,
+  `trialIncomplete` (its checkout never completed), `subscribeIncomplete`, `periodEnded`. Two **do**
+  and take the portal: `active` (both `status: "trialing"` and paying) and `exhausted`.
+
+  Two notes the implementation must not lose. `exhausted` is the spent-meter state that #442 split
+  from an ended period, and its existing **Get more** button already opens `topup_50` Checkout, where
+  `allow_promotion_codes` is set unconditionally in payment mode too (`stripe.mjs:208-210`) — so a code
+  already works there and only the sentence saying so is new (R9). And `subscribeIncomplete` already
+  carries promo-aware copy in `accountRowDescriptor` ("On the next page, tap Add promotion code",
+  `settings.ts:263`), so confirm the new row reads as a second route rather than a contradiction.
 
 - **KTD7. `/v1/promo` stays unwired.** `plus-service/src/server.mjs:859-877` implements an
   env-configured promo system (`ATOMS_PLUS_PROMOS`, empty in production) that grants `plan: "promo"`
@@ -242,6 +277,11 @@ Collecting a promo code in the plugin. Any second subscription path. Folder inte
   `["Recommended", "Instead", "What gets sent"]` — three headers where there were two, so both the
   contents and the length of that assertion move.
 
+- **KTD9. Pricing stays a function.** `ENGINE_SCREEN.pickOne.footer` is a function precisely because
+  `plus-pricing.json` is the SSOT and `src/shared/plusPricing.ts` is the only formatter. The option
+  rows this plan adds each carry a price and must take it the same way. A number typed into
+  `settings.ts` is a copy that goes stale in silence.
+
 - **KTD10. `SettingGroupSpec.header` stays required.** `group()` (`rows.ts:73-81`) takes
   `header: string` and always emits the `h3`; only `footer` is optional. The purer iOS shape for KD2
   is an unheadered primary group, and getting it means widening the shared primitive to
@@ -250,10 +290,16 @@ Collecting a promo code in the plugin. Any second subscription path. Folder inte
   above it. That is a change to the primitive every group on the tab renders through, bought for a
   cosmetic gain on one screen. Rejected: `Recommended` is a real header carrying real information.
 
-- **KTD9. Pricing stays a function.** `ENGINE_SCREEN.pickOne.footer` is a function precisely because
-  `plus-pricing.json` is the SSOT and `src/shared/plusPricing.ts` is the only formatter. The option
-  rows this plan adds each carry a price and must take it the same way. A number typed into
-  `settings.ts` is a copy that goes stale in silence.
+- **KTD11. The portal route has two preconditions, and neither is code in this repo.** First, the
+  promotion-code option must be enabled in the Stripe **portal configuration**: `createPortalSession`
+  (`stripe.mjs:308-312`) sends no `configuration` param, so the account runs on the Dashboard default,
+  and nothing in this repo sets it. It has to be turned on and **seen working** before the route can be
+  promised — treat an unverified Dashboard setting as a blocker, not an assumption. Second,
+  `portalHasSubject` (`settings.ts:2467-2468`) gates portal access on a real Stripe customer, so an
+  account without one has no portal at all; that state must say so rather than render a button that
+  fails. `createPortalSessionForAccount` (`stripe.mjs:337-368`) already self-heals a stale or missing
+  customer id by falling back to subscribe Checkout, which is the wrong answer for a live
+  subscription — check whether that fallback needs suppressing on this path.
 
 ### High-Level Technical Design
 
@@ -283,9 +329,15 @@ Main screen
 Account screen
 └─ Atoms Plus group
    ├─ [locked, untouched] Email cluster: Send sign-in link · Start free trial · Use promo code
-   ├─ [KD6, new] "Redeem code"    one row, one action id, hidden only on a live subscription  [KTD6]
+   ├─ [KD6, new] "Redeem code"    one row, one action id, never hidden        [KTD6]
+   │     ├─ no live subscription  → subscribe Checkout → Stripe "Add promotion code"   [KD7, KD4]
+   │     └─ live subscription     → billing portal     → coupon on the existing sub    [KTD11]
    └─ footer: the code is typed on the checkout page, and applies to a subscription not a trial
-                                          └→ subscribe Checkout → Stripe "Add promotion code"  [KD7, KD4]
+
+Main screen, bottom  [KD8, deviates from #493 R1]
+└─ "Atoms Plus"
+   ├─ Account        value: the signed-in email        → route: account   (today: reachable from
+   └─ "Redeem code"                                                        the engine screen only)
 ```
 
 ### Assumptions
@@ -323,8 +375,9 @@ Account screen
 | U1 | Decision screen: `Recommended` and `Instead` | `settings.ts`, `settings.test.ts` | U0 |
 | U2 | `engineKey` destination | `settings.ts`, `settingsRows.test.ts`, `settings.test.ts` | U1 |
 | U3 | Row becomes a noun, and www lockstep | `settings.ts`, `setup.html.tmpl`, `www/dist/`, `wwwSetupLabels.test.ts` | U2 |
-| U4 | `Redeem code` | `settings.ts`, `settings.test.ts` | U3 |
-| U5 | Stale pointer, voice pass, version | `settings.ts`, manifests, `versions.json` | U1-U4 |
+| U4 | `Redeem code`, six states, two destinations | `settings.ts`, `settings.test.ts` | U3 |
+| U5 | Main-screen `Atoms Plus` group | `settings.ts`, `settings.test.ts` | U4 |
+| U6 | Stale pointer, voice pass, version | `settings.ts`, manifests, `versions.json` | U1-U5 |
 
 ### U0. Commit the mock as handoff
 
@@ -367,23 +420,38 @@ Edit `www/src/setup.html.tmpl:161-163` for **both** the new name and the moved k
 `build:www`, commit `www/dist` (KTD4). **Done:** `wwwSetupLabels.test.ts` green; `git diff --exit-code`
 clean after `npm test`.
 
-### U4. `Redeem code`
+### U4. `Redeem code`, six states, two destinations
 
-One `destinationRow` in the Plus group, one action id `plus:redeem-code` (KTD5), rendered in every
-account state except a live subscription (KTD6). Behind it: a screen whose whole job is naming the tap
-on the next page, with the email field only when there is no session, and the group footer carrying
-the two facts the locked cluster cannot state — the code is typed on the checkout page, and it applies
-to a subscription rather than a trial (KD4). Routes to `subscribe_monthly` only. The locked email
-cluster and its `plus:promo-subscribe` submit are untouched (KD5). **Done:** the row reaches Stripe's
-`Add promotion code`; no route exists from an `active` state.
+One `destinationRow` in the Plus group, one action id `plus:redeem-code` (KTD5), rendered in **every**
+account state (KD6, R6). Behind it a screen whose whole job is naming the tap on the next page: the
+email field only when there is no session, and a group footer carrying the two facts the locked
+cluster cannot state, that the code is typed on the checkout page and applies to a subscription rather
+than a trial (KD4).
 
-### U5. Stale pointer, voice pass, version
+Destination branches on whether a live Stripe subscription exists (KTD6): four states to
+`subscribe_monthly` Checkout, two to the billing portal. The trialing copy is the one that has to be
+right, because that reader has a code and a subscription at the same time: *"You are on a trial. Add
+your code now and it applies when the trial becomes a subscription."* Add the top-up sentence to
+`exhausted` (R9). The locked email cluster and its `plus:promo-subscribe` submit are untouched (KD5).
+
+**Blocked until** the portal's promotion-code option is verified in the Stripe Dashboard (KTD11).
+**Done:** every state reaches a working destination; no state opens a second subscription; no state
+renders a button that cannot work.
+
+### U5. Main-screen `Atoms Plus` group
+
+A fourth group at the bottom of the main screen holding an `Account` destination row (valued with the
+signed-in email, or unvalued when signed out) and `Redeem code` (KD8, R10). Deviates from #493's R1;
+named in KD8 so the design lens can confirm it rather than discover it. Mutates `expectedRows()` and
+the main-screen group-header assertions.
+
+### U6. Stale pointer, voice pass, version
 
 Fix `settings.ts:2358` ("add it under **API Key**" names a row that has not existed since #493, and
 after U2 and U3 the address is wrong twice over). Run every new or changed string through the
 **`atoms-voice`** skill, including OQ2's question of whether "We pay for the AI" is too blunt for the
 product's voice. Bump `manifest.json`, `package.json`, `versions.json`. **Done:** voice pass recorded;
-`test/copyVoice.test.ts` green with no new exemption (R9).
+`test/copyVoice.test.ts` green with no new exemption (R12).
 
 ---
 
@@ -394,15 +462,16 @@ product's voice. Bump `manifest.json`, `package.json`, `versions.json`. **Done:*
 | Types, tests | `npm test` | All units |
 | Community lint | `npm run lint` | All units touching `src/**` |
 | Production build | `npm run build` | All units |
-| Em-dash guard, no new exemption | `npm test` + inspect `test/copyVoice.test.ts` diff | U1-U5 |
+| Em-dash guard, no new exemption | `npm test` + inspect `test/copyVoice.test.ts` diff | U1-U6 |
 | No test-time mutation | `git diff --exit-code` after `npm test` | U3 especially (`www/dist`) |
 | Setting budget unchanged at 5 | `test/settingsRows.test.ts` | U2 |
 | Route exhaustiveness | `@ts-expect-error` at `settingsRows.test.ts:1068` still errors | U2 |
-| Live vault smoke | `./scripts/install-to-vault.sh` then `./scripts/verify.sh` | U1-U4 |
-| Phone evidence | `dev:screenshot` 390×844 | U1, U2, U3, U4 |
+| Live vault smoke | `./scripts/install-to-vault.sh` then `./scripts/verify.sh` | U1-U5 |
+| Phone evidence | `dev:screenshot` 390×844 | U1, U2, U3, U4, U5 |
 | Tablet evidence | `dev:screenshot` 768×1024 | U1, U2 |
-| Promo reaches Stripe | Manual: `Redeem code` lands on hosted Checkout showing `Add promotion code` | U4 |
-| No promo route from `active` | Fixture per account state | U4 |
+| Promo reaches Stripe | Manual, **per state**: four states land on hosted Checkout showing `Add promotion code`; `active` and `exhausted` land on a portal that accepts one | U4 |
+| Redeem renders in every state | Fixture per account state, all six | U4 |
+| No second subscription | Manual: `active` never reaches a subscribe Checkout | U4 |
 
 **Vault lock.** `install-to-vault.sh` takes the lock itself and exits 3 when another worktree holds
 it (#516). Do not work around it.
@@ -431,6 +500,9 @@ Test plan boxes are checked only against evidence that exists; UI screenshots ar
 - **R-3. The promo half is unverifiable without live Stripe.** Source and unit tests prove the flag is
   sent; only a real Checkout proves the field renders. Record it as a gap rather than closing it
   silently, the way #433's `maxCaptures` ceiling was recorded.
+- **R-5. KD6 puts a Stripe Dashboard dependency on a plan that had none.** The portal route cannot be
+  unit-tested into existence: if the portal configuration lacks promotion codes, `active` users get a
+  portal with no code field and the row is a polished dead end. Verify first, build second (KTD11).
 - **R-4. KD1 is one string with a wide blast radius.** Rename touches settings, home, the public setup
   guide and `www/dist`. Cheap to reverse in code, not cheap to reverse after a release.
 
@@ -441,14 +513,18 @@ Test plan boxes are checked only against evidence that exists; UI screenshots ar
 - **OQ1 (blocks U2, and the lane). Split the key screen?** Recommendation: yes. It is what clears the
   decision screen, and it is the only reason this is a full-lane change. If declined, U2 drops, KD2
   survives on its own, and the lane falls back to light.
-- **OQ2 (U5). "We pay for the AI".** Plain, possibly too plain; the alternative is Apple's own word,
-  *Included*. Settled by the `atoms-voice` skill during U5 unless the owner rules first.
+- **OQ2 (U6). "We pay for the AI".** Plain, possibly too plain; the alternative is Apple's own word,
+  *Included*. Settled by the `atoms-voice` skill during U6 unless the owner rules first.
 
-**Closed by the Apple read**, recorded so the reasoning is not relitigated:
+- **OQ3 (blocks U4, ops not code). Is the Stripe portal's promotion-code option on?** Owner or ops to
+  confirm in the Dashboard. Until then U4's portal half is written but unproven (KTD11, R-5).
+
+**Closed in session**, recorded so the reasoning is not relitigated:
 
 - ~~Row name, three-way~~. Closed by KD1: a settings row is a noun, so none of the three questions
   ship. The row is `Filing` and the value carries the answer.
-- ~~Option M, a promo row on the main screen~~. Withdrawn. It fights R18 of the three-leg plan, which
-  makes the Get started group deliberately one required step, and it puts an account action on the
-  product screen. The owner asked for it with "maybe"; the mock keeps a frame of what it would have
-  looked like, and it is one row to restore.
+- ~~Option M, a promo row *inside the Get started group*~~. Withdrawn: it fights R18, which makes that
+  group deliberately one required step. **Superseded by KD8**, which puts redemption at the bottom of
+  the main screen instead, next to the Account row it belongs beside.
+- ~~Hide `Redeem code` on a live subscription~~. Reversed by KD6: it took the row away from a trialing
+  user, who is the likeliest holder of a code.
