@@ -4,6 +4,7 @@ import {
   askMirrorDelete,
   askMirrorReconcile,
   askMirrorUpsert,
+  askOutboxAck,
   PLUS_BASE_REFUSED_MESSAGE,
   askMirrorStatus,
   askMcpPair,
@@ -432,6 +433,19 @@ describe("plusClient", () => {
       });
       expect(unverified.request).not.toHaveBeenCalled();
       expect(r.ok).toBe(false);
+    });
+
+    it("askOutboxAck sends no plan.reason, which is free text from the vault", async () => {
+      // Not a mirror call. It is here because its id-and-status shape reads as
+      // content-free and is not: `error` is `plan.reason` upstream.
+      const r = await askOutboxAck(unverified, "sess", {
+        id: "item-1",
+        status: "rejected",
+        error: "collided with a note the user already wrote",
+      });
+      expect(unverified.request).not.toHaveBeenCalled();
+      expect(r.ok).toBe(false);
+      if (!r.ok) expect(r.message).toBe(PLUS_BASE_REFUSED_MESSAGE);
     });
 
     it("an unstamped config refuses too, rather than reading as a match", async () => {

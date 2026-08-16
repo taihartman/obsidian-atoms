@@ -1289,11 +1289,24 @@ export async function askOutboxPull(
   };
 }
 
+/**
+ * `PlusMirrorConfig`, not `PlusClientConfig`, because `error` is `plan.reason`
+ * upstream: free text from the vault, not a fixed literal. The id-and-status
+ * shape reads as content-free and is not, which is the axis #500 warns about.
+ *
+ * It is gated at its one call site too. This is the same deliberate belt-and-
+ * braces as the three mirror calls: the entry gate is a property of whoever
+ * currently builds the config, and a second call site added later would compile
+ * clean with no refusal at all. See
+ * docs/solutions/security/consent-gate-must-be-checked-at-egress-not-at-entry.md.
+ */
 export async function askOutboxAck(
-  cfg: PlusClientConfig,
+  cfg: PlusMirrorConfig,
   sessionToken: string,
   opts: { id: string; status: "applied" | "rejected"; error?: string },
 ): Promise<{ ok: true; id: string; status: string } | PlusApiError> {
+  const refusal = refuseUnverifiedBase(cfg);
+  if (refusal) return refusal;
   const res = await plusRequest(cfg, {
     path: "/v1/ask/outbox/ack",
     method: "POST",

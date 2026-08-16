@@ -129,7 +129,15 @@ describe("#508 — the Plus sender inventory is a test, not a claim", () => {
  * takes a plain `PlusClientConfig` would have no backstop, so pin the set.
  */
 describe("#508 — the content-bearing Plus calls all demand a verified base", () => {
-  const CONTENT_BEARING = ["askMirrorUpsert", "askMirrorDelete", "askMirrorReconcile"];
+  const CONTENT_BEARING = [
+    "askMirrorUpsert",
+    "askMirrorDelete",
+    "askMirrorReconcile",
+    // Not a mirror call, and that is the point: `error` is `plan.reason`, free
+    // text from the vault. The id-and-status shape reads as content-free and is
+    // not.
+    "askOutboxAck",
+  ];
 
   it("exactly the registered calls take a PlusMirrorConfig", () => {
     const source = readFileSync("src/platform/plusClient.ts", "utf8");
