@@ -138,6 +138,7 @@ import {
   plusFetchRequest,
   PLUS_UNREACHABLE_MESSAGE,
 } from "../platform/plusClient";
+import { plusAddressStateMessage } from "../platform/plusBaseVerify";
 import {
   type AskMirrorOffReason,
   disarmAskMirror,
@@ -1724,7 +1725,9 @@ export class AtomsSettingTab extends PluginSettingTab {
           // Empty is the hosted default, not a mistake.
           const rejected = raw !== "" && !isAllowedPlusBaseUrl(raw);
           plusBaseUrlErrorEl.setText(
-            rejected ? PLUS_BASE_URL_INVALID_MESSAGE : "",
+            rejected
+              ? PLUS_BASE_URL_INVALID_MESSAGE
+              : plusAddressStateMessage(readPlusSession(this.app), raw),
           );
         };
         syncPlusBaseUrlError();

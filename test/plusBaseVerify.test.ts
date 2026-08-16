@@ -26,6 +26,7 @@ import {
 import type { RequestFn } from "../src/platform/plusClient";
 import {
   createPlusBaseVerifyCache,
+  plusAddressStateMessage,
   plusBaseHost,
   plusIssuerMovedMessage,
   verifyPlusBase,
@@ -495,6 +496,38 @@ describe("verifyPlusBase — the per-run cache", () => {
       configuredBase: "https://other.host.example",
     });
     expect(request).toHaveBeenCalledTimes(2);
+  });
+});
+
+/**
+ * KTD1 says surface the carve-out as a Settings *state*, not a dialog. This is
+ * that state's predicate, kept next to the gate whose rule it repeats so the two
+ * cannot drift into disagreeing about what an unstamped session means.
+ */
+describe("the needs-address Settings state", () => {
+  it("names the one state that cannot resolve on its own", () => {
+    expect(plusAddressStateMessage({}, "")).toBe(PLUS_BASE_NEEDS_ADDRESS_MESSAGE);
+    expect(plusAddressStateMessage({}, "   ")).toBe(PLUS_BASE_NEEDS_ADDRESS_MESSAGE);
+  });
+
+  it("says nothing to the hosted majority, whose empty field is normal", () => {
+    expect(
+      plusAddressStateMessage({ issuedBase: PRODUCTION as IssuedBase }, ""),
+    ).toBe("");
+  });
+
+  it("says nothing when the user has chosen a host, stamped or not", () => {
+    expect(plusAddressStateMessage({}, SELF_HOST)).toBe("");
+  });
+
+  it("says nothing about a mismatch, which the next push may still settle", () => {
+    // Announcing a refusal before anything has tried would alarm a self-hoster
+    // who simply rotated their tunnel.
+    expect(plusAddressStateMessage({ verifiedBase: SELF_HOST }, PRODUCTION)).toBe("");
+  });
+
+  it("says nothing when there is no session at all", () => {
+    expect(plusAddressStateMessage(null, "")).toBe("");
   });
 });
 

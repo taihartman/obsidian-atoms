@@ -101,6 +101,27 @@ export function plusIssuerMovedMessage(base: string): string {
   return `Atoms Plus is now using ${plusBaseHost(base)}. Your notes will be sent there.`;
 }
 
+/**
+ * The KTD1 carve-out, rendered as a Settings *state* rather than a dialog: no
+ * stamp and an empty field, so the plugin has no address it can trust and will
+ * not send note text anywhere until one is confirmed. Empty string when there is
+ * nothing to say.
+ *
+ * Only that one state. A stamp that names a *different* server is not shown
+ * here, because it is not settled: the next Process or mirror push probes and
+ * may well re-stamp, and announcing a refusal before anything has tried would
+ * alarm a self-hoster who simply rotated their tunnel. The needs-address state
+ * is the one that cannot resolve on its own.
+ */
+export function plusAddressStateMessage(
+  session: Pick<PlusSession, "issuedBase" | "verifiedBase"> | null | undefined,
+  configuredBase: string,
+): string {
+  if (!session) return "";
+  const stamp = session.verifiedBase?.trim() || session.issuedBase?.trim() || "";
+  return !stamp && !configuredBase.trim() ? PLUS_BASE_NEEDS_ADDRESS_MESSAGE : "";
+}
+
 /** Host for user-facing copy. Falls back to the whole base when unparseable. */
 export function plusBaseHost(base: string): string {
   try {
