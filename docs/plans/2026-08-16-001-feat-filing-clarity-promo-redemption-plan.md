@@ -22,9 +22,9 @@ per group, prose only, never an action) governs structure. `docs/design-handoff/
 is **locked** and constrains the promo half. Mock for this plan: published artifact, reviewed and
 approved by the owner 2026-08-16; committed to `docs/design-handoff/filing-clarity-promo/` in U0.
 
-**Stop when.** The engine screen carries no term it does not define; the API key field, the
-device-local fallback and the secret-id naming rule sit behind the option that needs them; three
-promo entry points reach Stripe's own `Add promotion code`; `npm test`, `npm run lint` and
+**Stop when.** The File row is a noun carrying its state; the decision screen carries no term it does
+not define; the API key field, the device-local fallback and the secret-id naming rule sit behind the
+option that needs them; one `Redeem code` row reaches Stripe's own `Add promotion code`; `npm test`, `npm run lint` and
 `npm run build` pass; `test/copyVoice.test.ts` is green with no new exemption; `www/dist` is
 regenerated and committed; phone and tablet evidence captured on a live vault.
 
@@ -33,14 +33,14 @@ credentials). Any new Stripe route, coupon logic, or `/v1/promo` wiring. Re-shap
 email cluster. The billing-portal promotion-code toggle. Pricing values.
 
 **Execution profile.** U1 to U4 each mutate the shared `expectedRows()` fixture and therefore land
-**sequentially, not in parallel**, the same constraint KTD12 of the three-leg plan recorded. U5 is
-severable by owner call. U6 closes copy lockstep and version.
+**sequentially, not in parallel**, the same constraint KTD12 of the three-leg plan recorded. U5 closes
+copy lockstep and version.
 
 **Lane: full.** Escalated from light, deliberately. `docs/workflow-lanes.md` auto-escalates anything
 that "touches security / auth / API keys / secret storage", and U2 moves the Anthropic API key row
 to a new screen. It is a relocation with no change to storage or transmission, which is exactly the
 reasoning the rule exists to refuse. **Doc-review: full** (coherence, feasibility, product, design).
-If the owner drops KD2, the remaining work is copy plus three rows and the lane drops to light.
+If the owner drops KD3, the remaining work is copy plus two rows and the lane drops to light.
 
 **Hard-claim prerequisite.** No issue covers this. Per `docs/collab.md`: create and assign a GitHub
 Issue, add a `STATUS.md` row, open a **draft** PR, and only then implement. Branch is
@@ -83,27 +83,40 @@ form on the decision screen, which is the fault that produces the vocabulary in 
 
 ### Key Decisions
 
-- **KD1. The row is renamed to the words the product already uses elsewhere: `Who files your captures`.**
-  Chosen over two alternatives the mock put in front of the owner. **Direction A** (keep *Who does
-  the filing*, define filing in the lead) leaves the main screen opaque, which is the reported
-  complaint. **Direction B** (*Who pays for filing*) is clear but frames the row as a paywall on the
-  main settings screen, which is false for a BYOK user who pays Anthropic and not us. The recommended
-  third reading costs no more than B and converges two surfaces instead of adding a third phrasing:
-  `SETUP_STEP_NAMES.filing_owner` (`src/home/atomsHomeData.ts:906`) **already reads "Choose who files
-  your captures"**, and today the Get started step and the File row name the same decision two
-  different ways. *Pending owner confirmation, see OQ1 - this is one string and reverses cheaply.*
-  Governs R1, R2.
+- **KD1. The row is a noun with state on the right: `Filing`.** (session-settled: user-directed, after
+  an explicit "how would Apple handle this" read.) An iOS Settings row never asks a question; it names
+  a thing and puts its condition in the value slot (*Wi-Fi › Home*, *Screen Time › On*). All three
+  candidates this plan first carried were questions in a row label: *Who does the filing* (shipped),
+  *Who pays for filing*, *Who files your captures*. The debate was about which phrasing of a question
+  is clearest, which is downstream of a premise a settings row should reject. `Filing › Not set up` is
+  shorter than all three and teaches the word through the value rather than the label.
 
-- **KD2. The credential form leaves the decision screen.** The API key field, the device-local
-  fallback toggle and the secret-id naming rule move behind a new *Your own Anthropic account*
-  destination. This single relocation takes seven of the eight terms off the decision screen with no
-  word deleted from the product: every one still renders, in front of the person who chose to deal
-  with it. It is also the only structural change in this plan and the sole reason for the full lane.
-  Governs R3, R4.
+  The word itself gets defined once, in the **File group footer** on the main screen, which is exactly
+  the job the #493 grammar gives group footers. `SETUP_STEP_NAMES.filing_owner`
+  (`src/home/atomsHomeData.ts:906`) keeps its verb form ("Choose who files your captures") and no
+  longer needs reconciling: a *step* is an instruction, a *row* is a noun. Two shapes, each right for
+  its slot. Governs R1, R2.
 
-- **KD3. The plugin never renders a promo-code field.** Inherited, not decided here:
-  `docs/plans/2026-08-13-1146-feat-plus-have-a-code-plan.md:47` states it and the locked mock repeats
-  it. Every entry point this plan adds ends on Stripe's hosted `Add promotion code`. Governs R6.
+- **KD2. Atoms Plus is the screen; the user's own key is the alternative underneath it.** (session-settled:
+  user-directed.) The first draft gave both a peer row inside *Pick one*. A recommended path and an
+  escape hatch are never peers: Plus becomes a group of its own and the key route becomes a second
+  group beneath it. `Pick one` is retired.
+
+  The two headers are **`Recommended`** and **`Instead`**. An unheadered primary group would be the
+  purer iOS shape, but `SettingGroupSpec.header` is a required `string` (`rows.ts:50`) and widening it
+  is rejected in KTD10. `Recommended` turns out to be the better answer anyway: for the reader this
+  plan exists to serve, being told which one to pick is the most useful sentence on the screen.
+
+  Paired with the relocation below, this takes **all eight** terms off the decision screen rather than
+  seven. What it must not do is bury BYOK: `docs/ask-self-host.md` documents self-hosting as a
+  supported route, so the alternative is visually demoted and **not** moved under Advanced. An honest
+  option must not be styled like an unsupported one. Governs R3.
+
+- **KD3. The credential form leaves the decision screen.** The API key field, the device-local fallback
+  toggle and the secret-id naming rule move behind a new *Use your own Anthropic key* destination. No
+  word is deleted from the product: every one still renders, in front of the person who chose to deal
+  with it. This is the only structural change in the plan and the sole reason for the full lane.
+  Governs R4, R5.
 
 - **KD4. Promo entry points route through Subscribe, never Start trial.**
   `.agents/skills/plus-promo/SKILL.md` records why: the trial webhook grants a 14-day `trialing` row
@@ -113,23 +126,40 @@ form on the decision screen, which is the fault that produces the vocabulary in 
   closes with "Locked. Implement the unified cluster." Discovery is fixed by adding entry points
   around it, not by re-opening it. Governs R7.
 
+- **KD6. Promo is one permanent `Redeem code` row in the Plus group.** (session-settled: user-directed.)
+  Apple's *Redeem Gift Card or Code* is instructive for three things it is not: not conditional on
+  state, not near the feature it pays for, and not phrased as a question. The first draft had three
+  rows phrased "Have a promo code?", one of them on the engine screen. One noun row, one action id,
+  in the group where the money lives.
+
+  **Where the pattern does not survive Stripe, and why that is not a labelling problem.** Apple's row
+  is unconditional because a code credits an account balance. Atoms has no balance: a code applies to
+  a subscription at Checkout. So the row is permanent in every state *except* a live subscription,
+  where tapping it opens a **second** one. See KTD6. Separately, Apple's redeem sheet offers *Use
+  Camera* because typing codes is miserable; KD4 forecloses that, and it is a real cost of the
+  constraint rather than a free win. Governs R6, R7.
+
+- **KD7. The plugin never renders a promo-code field.** Inherited, not decided here:
+  `docs/plans/2026-08-13-1146-feat-plus-have-a-code-plan.md:47` states it and the locked mock repeats
+  it. Every entry point this plan adds ends on Stripe's hosted `Add promotion code`. Governs R6.
+
 ### Requirements
 
-- **R1.** The File-group row names the decision in words that survive a reader who has never heard
-  the word "filing", and its subtitle answers it in every account state (`engineAnswer`, `settings.ts:2253-2257`).
-- **R2.** The engine screen defines filing, names Anthropic as a company, and states that filing
-  costs money, before it asks who pays.
-- **R3.** *Pick one* holds exactly two options, each with its price and its consequence, and no
-  credential control.
+- **R1.** The File-group row is a noun carrying its state in the value slot, and that value answers it
+  in every account state (`engineAnswer`, `settings.ts:2253-2257`). No account state renders a blank value.
+- **R2.** The word "filing" is defined where it first appears, in the File group footer, before any
+  reader has to tap anything to find out what it means.
+- **R3.** The decision screen presents one recommendation and one alternative, each with its price and
+  its consequence, and holds no credential control.
 - **R4.** A new destination holds the key field, the fallback toggle and the naming rule, with a lead
   that says what the reader is about to need.
-- **R5.** No term renders on the engine screen without being defined on that screen. `TLS` is stated
-  as a promise rather than an acronym.
-- **R6.** A person holding a promo code finds an entry point from the engine screen and from the Plus
-  group, and each reaches Stripe's `Add promotion code`.
-- **R7.** A signed-in user with no live subscription reaches Checkout in one tap, with no email
-  round-trip. A user with a live subscription is **not** offered one, because a second subscribe is
-  not a redemption.
+- **R5.** No term renders on the decision screen without being defined on that screen. `TLS` is stated
+  as the promise it was making rather than as an acronym.
+- **R6.** One permanent `Redeem code` row in the Plus group reaches Stripe's `Add promotion code`, and
+  names that tap before handing off.
+- **R7.** A signed-in user with no live subscription reaches Checkout with no email round-trip. A user
+  with a live subscription is **not** offered the row at all, because a second subscribe is not a
+  redemption.
 - **R8.** `www/src/setup.html.tmpl` and the regenerated `www/dist` describe the screen that ships.
 - **R9.** No string added by this plan contains an em dash, and no exemption is added to
   `test/copyVoice.test.ts`.
@@ -138,7 +168,8 @@ form on the decision screen, which is the fault that produces the vocabulary in 
 
 #### Deferred to Follow-Up Work
 
-- Option M, the main-screen promo row (U5) if the owner declines it: see OQ3.
+- Option M, a promo row on the main settings screen. Withdrawn rather than deferred; see the closed
+  questions at the end of this plan for the reasoning and the one row that restores it.
 - The billing portal's promotion-code configuration, which is Dashboard state, not code.
 - `POST /v1/promo` and `ATOMS_PLUS_PROMOS`: a **different, non-Stripe** system that grants
   `plan: "promo"` with no Stripe customer. Deliberately left unwired, see KTD7.
@@ -183,17 +214,19 @@ Collecting a promo code in the plugin. Any second subscription path. Folder inte
   `www/dist`, so the rebuilt page is committed alongside the template edit or the
   `git diff --exit-code` gate fails.
 
-- **KTD5. Every new button needs its own stable `action` id.** `InFlightActions`
-  (`src/settings/rows.ts:198-226`, rationale for money paths at `:187-197`) keys the double-press
-  guard by action id. Three promo entry points sharing `plus:promo-subscribe` would let one in-flight
-  tap silently disable the others, and the failure is invisible: the button simply does nothing.
-  New ids: `plus:promo-from-engine`, `plus:promo-from-account`, `plus:promo-signed-in`.
+- **KTD5. One promo entry point means one stable `action` id: `plus:redeem-code`.** `InFlightActions`
+  (`src/settings/rows.ts:198-226`, rationale for money paths at `:187-197`) keys the double-press guard
+  by action id, so the first draft's three entry points needed three ids or one in-flight tap would
+  have silently disabled the other two, invisibly: the button simply does nothing. KD6 collapses the
+  entry points, which retires the hazard rather than managing it. Do not reuse `plus:promo-subscribe`;
+  that id belongs to the locked cluster's third submit, which stays.
 
-- **KTD6. The signed-in promo button is gated on the absence of a live subscription, not on the
-  presence of a session.** `AccountState`'s kinds (`settings.ts:249-303`) already distinguish them;
-  the switch at `:2401-2441` is exhaustive with no catch-all and is exhaustive-checked at `:2442`, so
-  a new affordance must name the states it appears in. Offering "Have a promo code?" to an `active`
-  subscriber sends them into a **second** subscription, which is a billing incident, not a bad label.
+- **KTD6. The `Redeem code` row is gated on the absence of a live subscription, not the presence of a
+  session.** `AccountState`'s kinds (`settings.ts:249-303`) already distinguish them; the switch at
+  `:2401-2441` is exhaustive with no catch-all and is exhaustive-checked at `:2442`, so a new
+  affordance must name the states it appears in. Offering redemption to an `active` subscriber sends
+  them into a **second** subscription: a billing incident, not a bad label. This is the one place KD6's
+  "permanent row" borrowing from Apple has to bend, and the bend is recorded rather than smoothed over.
 
 - **KTD7. `/v1/promo` stays unwired.** `plus-service/src/server.mjs:859-877` implements an
   env-configured promo system (`ATOMS_PLUS_PROMOS`, empty in production) that grants `plan: "promo"`
@@ -204,9 +237,18 @@ Collecting a promo code in the plugin. Any second subscription path. Folder inte
 
 - **KTD8. Three test surfaces move in lockstep with every row change.** `expectedRows()`
   (`test/settings.test.ts:1943`) and its `toHaveLength` assertions; the engine-answer and group-header
-  assertions at `:4096-4170`, where `["Pick one", "What gets sent"]` is pinned at `:4150`; and the
-  `DESTINATIONS` walk. U1 changes group contents, U2 changes the group set, U3 changes a name that
-  three fixtures spell out.
+  assertions at `:4096-4170`; and the `DESTINATIONS` walk. Note the specific breakage KD2 causes:
+  `["Pick one", "What gets sent"]` is pinned at `:4150`, and the new set is
+  `["Recommended", "Instead", "What gets sent"]` — three headers where there were two, so both the
+  contents and the length of that assertion move.
+
+- **KTD10. `SettingGroupSpec.header` stays required.** `group()` (`rows.ts:73-81`) takes
+  `header: string` and always emits the `h3`; only `footer` is optional. The purer iOS shape for KD2
+  is an unheadered primary group, and getting it means widening the shared primitive to
+  `header?: string`, adding a branch in `group()`, and re-checking `.atoms-setting-group-header`
+  spacing plus the group's top corner treatment (`styles.css:1975`, `:1997`) for a group with nothing
+  above it. That is a change to the primitive every group on the tab renders through, bought for a
+  cosmetic gain on one screen. Rejected: `Recommended` is a real header carrying real information.
 
 - **KTD9. Pricing stays a function.** `ENGINE_SCREEN.pickOne.footer` is a function precisely because
   `plus-pricing.json` is the SSOT and `src/shared/plusPricing.ts` is the only formatter. The option
@@ -218,17 +260,21 @@ Collecting a promo code in the plugin. Any second subscription path. Folder inte
 ```
 Main screen
 └─ 2 · File
-   └─ [KD1] "Who files your captures"  ·  answer: engineAnswer()          → route: engine
+   ├─ [KD1] "Filing"          value: engineAnswer()   "Not set up" / "Atoms Plus" / …  → route: engine
+   ├─ File automatically when Obsidian opens                                             (unchanged)
+   └─ footer  [R2] defines "filing" once, where the word first appears
                                                                              │
-      engine screen ─────────────────────────────────────────────────────────┘
-      ├─ lead        [R2] defines filing, names Anthropic, states the cost
-      ├─ Pick one    [R3]
-      │  ├─ "Atoms Plus"                    price + consequence          → route: account
-      │  ├─ "Your own Anthropic account"    price + consequence          → route: engineKey   [KTD2, new]
-      │  └─ "Have a promo code?"            [R6]  plus:promo-from-engine → account / Checkout
-      └─ What gets sent  [R5]  three promises, no acronyms
+      Filing screen ─────────────────────────────────────────────────────────┘
+      ├─ lead  defines filing, names Anthropic as a company, states the cost, then "us, or you"
+      ├─ "Recommended"  [KD2, KTD10]
+      │  └─ "Atoms Plus"   value: 14 days free   desc: we pay for the AI      → route: account
+      │     footer: price after trial
+      ├─ "Instead"  [KD2]
+      │  └─ "Use your own Anthropic key"   desc: Anthropic bills you          → route: engineKey  [KTD2, new]
+      │     footer: same atoms, same links; only the bill differs
+      └─ "What gets sent"  [R5]  three promises, inline, no acronyms   (Apple's linked-sheet move refused)
 
-      engineKey screen  [KD2, KTD3 - renderKeyRows moved, not recreated]
+      engineKey screen  [KD3, KTD3 - renderKeyRows moved, not recreated]
       ├─ lead: what you are about to need
       ├─ Anthropic API key        (SecretComponent, the one raw `new Setting(`)
       ├─ Device-local key fallback
@@ -237,16 +283,16 @@ Main screen
 Account screen
 └─ Atoms Plus group
    ├─ [locked, untouched] Email cluster: Send sign-in link · Start free trial · Use promo code
-   ├─ [R6, new] "Have a promo code?" explanatory row      plus:promo-from-account
-   └─ [R7, new] signed-in button, gated by KTD6           plus:promo-signed-in  → subscribe Checkout
-                                                                                   └→ Stripe "Add promotion code"  [KD3]
+   ├─ [KD6, new] "Redeem code"    one row, one action id, hidden only on a live subscription  [KTD6]
+   └─ footer: the code is typed on the checkout page, and applies to a subscription not a trial
+                                          └→ subscribe Checkout → Stripe "Add promotion code"  [KD7, KD4]
 ```
 
 ### Assumptions
 
 1. The owner's "this is good" approves the mock's **direction**; the four decisions it closes with
-   are open until answered (OQ1 to OQ4). U1 and U2 are safe to build under the recommendations;
-   U3 and U5 are not, and are sequenced accordingly.
+   were revisited against iOS Settings patterns in the same session, which closed two of them
+   outright. OQ1 gates U2; everything else is safe to build under the recorded decisions.
 2. `allow_promotion_codes` needs no server change. Verified in source and in
    `plus-service/test/stripe-checkout-promos.test.mjs`; **not** re-verified against live Stripe.
 3. No live-vault evidence can be produced in this container: the Obsidian CLI is absent and
@@ -274,12 +320,11 @@ Account screen
 | U | Title | Key files | Depends on |
 |---|---|---|---|
 | U0 | Commit the mock as handoff | `docs/design-handoff/filing-clarity-promo/` | — |
-| U1 | Engine screen copy and *Pick one* | `settings.ts`, `settings.test.ts` | U0 |
+| U1 | Decision screen: `Recommended` and `Instead` | `settings.ts`, `settings.test.ts` | U0 |
 | U2 | `engineKey` destination | `settings.ts`, `settingsRows.test.ts`, `settings.test.ts` | U1 |
-| U3 | Row rename and www lockstep | `settings.ts`, `atomsHomeData.ts`, `setup.html.tmpl`, `www/dist/`, `wwwSetupLabels.test.ts` | U2, **OQ1** |
-| U4 | Promo entry points | `settings.ts`, `settings.test.ts` | U3 |
-| U5 | Option M, main-screen promo row | `settings.ts`, `settings.test.ts` | U4, **OQ3** |
-| U6 | Stale pointer, voice pass, version | `settings.ts`, manifests, `versions.json` | U1-U5 |
+| U3 | Row becomes a noun, and www lockstep | `settings.ts`, `setup.html.tmpl`, `www/dist/`, `wwwSetupLabels.test.ts` | U2 |
+| U4 | `Redeem code` | `settings.ts`, `settings.test.ts` | U3 |
+| U5 | Stale pointer, voice pass, version | `settings.ts`, manifests, `versions.json` | U1-U4 |
 
 ### U0. Commit the mock as handoff
 
@@ -288,17 +333,18 @@ Port the approved artifact into `docs/design-handoff/filing-clarity-promo/index.
 `plus-promo-redeem/`. Strip the em dashes from the draft copy table so the handoff and the shipped
 strings agree (KTD1). **Done:** the mock is in the repo and its copy table is the U1/U2 source.
 
-### U1. Engine screen copy and *Pick one*
+### U1. Decision screen: `Recommended` and `Instead`
 
-Rewrite `ENGINE_SCREEN` (`settings.ts:565-598`): the lead gains the definition of filing, the
-introduction of Anthropic as a company, and the cost, before "us, or you". *Pick one* becomes two
-`destinationRow`s, each with a price and a consequence in its description; the Plus row stops
-borrowing `accountRowDescriptor`'s signed-out pitch for its name. Footer collapses to the difference
-that survives ("Same atoms, same links, same speed. The only difference is who gets the bill.") with
-the naming rule removed, held for U2. Egress line 1 drops `TLS` for a promise. Prices via
-`src/shared/plusPricing.ts` only (KTD9). Update the group-header and answer assertions at
-`test/settings.test.ts:4096-4170`. **Done:** the engine screen renders two option rows and no
-credential control; `["Pick one", "What gets sent"]` still holds.
+Rewrite `ENGINE_SCREEN` (`settings.ts:565-598`). The lead gains the definition of filing, the
+introduction of Anthropic as a company, and the cost, before "us, or you". `Pick one` retires: one
+`Recommended` group holding the Plus `destinationRow` (value `14 days free`, footer carrying the price
+after trial), then an `Instead` group holding the key route. The Plus row stops borrowing
+`accountRowDescriptor`'s signed-out pitch for its name. The `Instead` footer keeps the difference that
+survives: "Same atoms, same links, same speed. The only difference is who gets the bill." The naming
+rule is removed here and lands in U2. Egress line 1 drops `TLS` for the promise it was making. Prices
+via `src/shared/plusPricing.ts` only (KTD9). Update `:4150` to
+`["Recommended", "Instead", "What gets sent"]` (KTD8). **Done:** one recommendation, one alternative,
+no credential control on the decision screen.
 
 ### U2. `engineKey` destination
 
@@ -308,35 +354,35 @@ rather than re-implemented, so the raw `new Setting(` moves and `DIRECT_SETTING_
 Seed the `DESTINATIONS` fixture in the same change. **Done:** every one of the eight terms renders on
 `engineKey` or not at all; budget unchanged; `@ts-expect-error` still errors.
 
-### U3. Row rename and www lockstep
+### U3. Row becomes a noun, and www lockstep
 
-**Gated on OQ1.** Rename per KD1 across `DESTINATION_TITLES.engine` (:779), the back row it also
-titles, and the three fixtures that spell it. Reconcile with `SETUP_STEP_NAMES.filing_owner`
-(`atomsHomeData.ts:906`) so the Get started step and the File row say one thing. Subtitle
-`Not chosen` becomes an answer that reads as one. Edit `www/src/setup.html.tmpl:161-163` for **both**
-the new name and the moved key field, run `build:www`, commit `www/dist` (KTD4). **Done:**
-`wwwSetupLabels.test.ts` green; `git diff --exit-code` clean after `npm test`.
+`DESTINATION_TITLES.engine` becomes `Filing` (:779), which retitles both the entry row and the back
+row. `engineAnswer`'s signed-out branch returns `Not set up` rather than `Not chosen`; every other
+state already returns a noun phrase and is untouched (KD1, R1). The definition of filing joins the
+**File group footer** (`FILE_GROUP`, `:531-535`) ahead of the existing sentence, which is unchanged.
+`SETUP_STEP_NAMES.filing_owner` keeps its verb form and is **not** edited: a step is an instruction, a
+row is a noun.
 
-### U4. Promo entry points
+Edit `www/src/setup.html.tmpl:161-163` for **both** the new name and the moved key field, run
+`build:www`, commit `www/dist` (KTD4). **Done:** `wwwSetupLabels.test.ts` green; `git diff --exit-code`
+clean after `npm test`.
 
-Three rows, three action ids (KTD5). Engine-screen row routes to Account when signed out and straight
-to subscribe Checkout when signed in. Account row is prose above the locked cluster, naming the
-email-first order the three-button row cannot express. Signed-in button added only to the states
-KTD6 permits, inside the exhaustive switch at `:2401-2441`. All land on `subscribe_monthly` (KD4).
-**Done:** each entry point reaches Stripe's `Add promotion code`; no route from an `active` state.
+### U4. `Redeem code`
 
-### U5. Option M, main-screen promo row
+One `destinationRow` in the Plus group, one action id `plus:redeem-code` (KTD5), rendered in every
+account state except a live subscription (KTD6). Behind it: a screen whose whole job is naming the tap
+on the next page, with the email field only when there is no session, and the group footer carrying
+the two facts the locked cluster cannot state — the code is typed on the checkout page, and it applies
+to a subscription rather than a trial (KD4). Routes to `subscribe_monthly` only. The locked email
+cluster and its `plus:promo-subscribe` submit are untouched (KD5). **Done:** the row reaches Stripe's
+`Add promotion code`; no route exists from an `active` state.
 
-**Gated on OQ3, severable.** A quiet row in the Get started group. Carries a real cost: R18 of the
-three-leg plan makes that group deliberately one required step, and a second row competes with the
-one thing the group exists to say.
-
-### U6. Stale pointer, voice pass, version
+### U5. Stale pointer, voice pass, version
 
 Fix `settings.ts:2358` ("add it under **API Key**" names a row that has not existed since #493, and
-after U2 the address is wrong twice over). Run every new or changed string through the **`atoms-voice`**
-skill, including the OQ4 question of whether "we pay / you pay" is too blunt for the product's voice.
-Bump `manifest.json`, `package.json`, `versions.json`. **Done:** voice pass recorded;
+after U2 and U3 the address is wrong twice over). Run every new or changed string through the
+**`atoms-voice`** skill, including OQ2's question of whether "We pay for the AI" is too blunt for the
+product's voice. Bump `manifest.json`, `package.json`, `versions.json`. **Done:** voice pass recorded;
 `test/copyVoice.test.ts` green with no new exemption (R9).
 
 ---
@@ -348,14 +394,14 @@ Bump `manifest.json`, `package.json`, `versions.json`. **Done:** voice pass reco
 | Types, tests | `npm test` | All units |
 | Community lint | `npm run lint` | All units touching `src/**` |
 | Production build | `npm run build` | All units |
-| Em-dash guard, no new exemption | `npm test` + inspect `test/copyVoice.test.ts` diff | U1-U6 |
+| Em-dash guard, no new exemption | `npm test` + inspect `test/copyVoice.test.ts` diff | U1-U5 |
 | No test-time mutation | `git diff --exit-code` after `npm test` | U3 especially (`www/dist`) |
 | Setting budget unchanged at 5 | `test/settingsRows.test.ts` | U2 |
 | Route exhaustiveness | `@ts-expect-error` at `settingsRows.test.ts:1068` still errors | U2 |
-| Live vault smoke | `./scripts/install-to-vault.sh` then `./scripts/verify.sh` | U1-U5 |
-| Phone evidence | `dev:screenshot` 390×844 | U1, U2, U3, U4, U5 |
+| Live vault smoke | `./scripts/install-to-vault.sh` then `./scripts/verify.sh` | U1-U4 |
+| Phone evidence | `dev:screenshot` 390×844 | U1, U2, U3, U4 |
 | Tablet evidence | `dev:screenshot` 768×1024 | U1, U2 |
-| Promo reaches Stripe | Manual: each entry point lands on hosted Checkout showing `Add promotion code` | U4, U5 |
+| Promo reaches Stripe | Manual: `Redeem code` lands on hosted Checkout showing `Add promotion code` | U4 |
 | No promo route from `active` | Fixture per account state | U4 |
 
 **Vault lock.** `install-to-vault.sh` takes the lock itself and exits 3 when another worktree holds
@@ -392,13 +438,17 @@ Test plan boxes are checked only against evidence that exists; UI screenshots ar
 
 ## Open Questions
 
-- **OQ1 (blocks U3). Row name.** Recommendation: `Who files your captures`, converging with the
-  Get started step that already says it (KD1). Alternatives the mock showed: keep *Who does the
-  filing* (A), or *Who pays for filing* (B).
-- **OQ2 (blocks U2, and the lane). Split the key screen?** Recommendation: yes. It is what removes
-  seven of eight terms, and it is the only reason this is a full-lane change.
-- **OQ3 (blocks U5). Option M on the main screen?** Recommendation: no. The engine screen is one tap
-  from the File group and does not fight R18. Requested by the owner with "maybe", so it is built as
-  a severable unit rather than dropped.
-- **OQ4 (U6). "We pay" / "you pay".** Blunt by design. Settled by the `atoms-voice` skill during U6
-  unless the owner rules first.
+- **OQ1 (blocks U2, and the lane). Split the key screen?** Recommendation: yes. It is what clears the
+  decision screen, and it is the only reason this is a full-lane change. If declined, U2 drops, KD2
+  survives on its own, and the lane falls back to light.
+- **OQ2 (U5). "We pay for the AI".** Plain, possibly too plain; the alternative is Apple's own word,
+  *Included*. Settled by the `atoms-voice` skill during U5 unless the owner rules first.
+
+**Closed by the Apple read**, recorded so the reasoning is not relitigated:
+
+- ~~Row name, three-way~~. Closed by KD1: a settings row is a noun, so none of the three questions
+  ship. The row is `Filing` and the value carries the answer.
+- ~~Option M, a promo row on the main screen~~. Withdrawn. It fights R18 of the three-leg plan, which
+  makes the Get started group deliberately one required step, and it puts an account action on the
+  product screen. The owner asked for it with "maybe"; the mock keeps a frame of what it would have
+  looked like, and it is one row to restore.
