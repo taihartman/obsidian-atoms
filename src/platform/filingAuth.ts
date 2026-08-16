@@ -130,7 +130,21 @@ export function resolveFilingAuth(input: {
 
   if (token && email) {
     const status = session?.status ?? "unknown";
-    if (status === "active" || status === "trialing" || status === "exhausted") {
+    // One literal, not two. This projection is the third allowlist between disk
+    // and the issuer gate, and it used to be spelled out once per status branch
+    // — so every new `PlusSession` field had to be added in both places, and a
+    // field added to only one would reach the gate as `undefined` on some
+    // sessions and not others. That is a fail-open that reads as a typo.
+    //
+    // `unknown` is kept alongside the live statuses because a token with an
+    // unread entitlement should still resolve to plus, so the client can go
+    // refresh it rather than falling through to BYOK.
+    if (
+      status === "active" ||
+      status === "trialing" ||
+      status === "exhausted" ||
+      status === "unknown"
+    ) {
       return {
         mode: "plus",
         sessionToken: token,
@@ -139,21 +153,6 @@ export function resolveFilingAuth(input: {
         periodEnd: session?.periodEnd,
         plan: session?.plan,
         status,
-        issuedBase: session?.issuedBase,
-        verifiedBase: session?.verifiedBase,
-      };
-    }
-    // inactive / unknown with token: still prefer plus if we have a token
-    // so client can refresh entitlement; treat as plus unknown
-    if (status === "unknown") {
-      return {
-        mode: "plus",
-        sessionToken: token,
-        email,
-        remaining: session?.remaining,
-        periodEnd: session?.periodEnd,
-        plan: session?.plan,
-        status: "unknown",
         issuedBase: session?.issuedBase,
         verifiedBase: session?.verifiedBase,
       };

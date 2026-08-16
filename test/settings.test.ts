@@ -32,6 +32,7 @@ import {
 } from "../src/platform/filingAuth";
 import { ASK_PRIVACY_ACK_TITLE, EGRESS_DISCLOSURE } from "../src/settings/consent";
 import { PLUS_BASE_REFUSED_MESSAGE } from "../src/platform/plusClient";
+import { PLUS_BASE_NEEDS_ADDRESS_MESSAGE } from "../src/platform/plusBaseVerify";
 import {
   LS_ASK_MIRROR_LAST_ERROR,
   LS_ASK_MIRROR_SERVER_COUNT,
@@ -2702,6 +2703,24 @@ describe("Connect Claude or ChatGPT destination (U6)", () => {
    * against, since `askMcpPair` then sends the session token there.
    */
   it("publishes no MCP URL at a base this session was not issued by", () => {
+    // A stamp that names a different server: the refusal proper.
+    const { tab } = settingTab({
+      session: {
+        ...PLUS_SESSION,
+        issuedBase: undefined,
+        verifiedBase: "https://my.host",
+      },
+    });
+    tab.display();
+    open(tab, "Connect Claude or ChatGPT");
+
+    expect(rowNames(tab)).not.toContain("MCP connector URL");
+    expect(tab.containerEl.textContent).toContain(PLUS_BASE_REFUSED_MESSAGE);
+  });
+
+  it("tells the upgrade cohort to supply an address, not that we distrust one", () => {
+    // No stamp and an empty field. "Can't confirm your sign-in at this address"
+    // names an address this user never chose; they need to supply one.
     const { tab } = settingTab({
       session: { ...PLUS_SESSION, issuedBase: undefined, verifiedBase: undefined },
     });
@@ -2709,7 +2728,8 @@ describe("Connect Claude or ChatGPT destination (U6)", () => {
     open(tab, "Connect Claude or ChatGPT");
 
     expect(rowNames(tab)).not.toContain("MCP connector URL");
-    expect(tab.containerEl.textContent).toContain(PLUS_BASE_REFUSED_MESSAGE);
+    expect(tab.containerEl.textContent).toContain(PLUS_BASE_NEEDS_ADDRESS_MESSAGE);
+    expect(tab.containerEl.textContent).not.toContain(PLUS_BASE_REFUSED_MESSAGE);
   });
 
   it("publishes it again once the stamp names the base in use", () => {

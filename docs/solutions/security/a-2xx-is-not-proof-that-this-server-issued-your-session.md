@@ -20,9 +20,26 @@ The first design said: on a mismatch, call the resolved base; if it answers 2xx,
 
 A host that accepts *every* bearer token passes a status-only check trivially. It then becomes the permanently stamped issuer, and from that moment every capture body flows to it unchecked — with the plugin's own record now asserting that this is where the session came from. The check would not merely fail to stop the attack; it would launder it.
 
-**The predicate has to be something only the issuer can produce.** Here that is the account: `/v1/me` returns the entitlement `email`, session tokens are opaque `randomBytes(16)`, and the service normalizes the address `trim().toLowerCase()` as the `accounts` primary key. A host that did not issue the token cannot name its account. So the rule is: 2xx **and** the returned email matches the session's email, compared case-insensitively. A 2xx that names nobody, or names somebody else, is refused exactly like an auth failure.
+**The predicate has to be something only the issuer can produce.** Here that is the account: `/v1/me` returns the entitlement `email`, and the service treats it as the `accounts` primary key. So the rule is: 2xx **and** the returned email matches the session's email, compared case-insensitively. A 2xx that names nobody, or names somebody else, is refused exactly like an auth failure.
 
 Generalized: **when a check asks a party to vouch for itself, the answer must be something only the genuine party could know.** A status code is a claim about willingness, not about identity.
+
+### And then be honest about how far that gets you
+
+The first draft of this document asserted "a host that did not issue the token cannot name its account." **That is false, and an independent adversarial review said so.** An email address is not a secret. The predicate defeats an accept-anything host that does not know the victim; it does not defeat a *targeted* host that does, because that host can just echo the address back and be stamped as the permanent issuer.
+
+What the check actually buys is a bar raise from "answers 2xx" to "answers 2xx and knows the account" — real, and worth having, and not authentication. Getting to authentication needs something the client does not already know: a session-bound challenge the issuer alone can answer, or a human gesture before a *known* issuer is replaced (auto-probe stays fine for a first stamp, where there is no prior trust to lose).
+
+The lesson is not "the check was wrong." It is that **a security claim written in a doc will be believed by the next person, so it has to state its limit, not just its mechanism.** The failure mode here was not the code; it was a sentence that would have let a future maintainer treat a bar raise as a proof.
+
+### The check's own dependencies are part of its attack surface
+
+The same review found the sharper version of this. The predicate compares the returned address against `session.email` — so anything that can *write* `session.email` can choose what the check compares against.
+
+`refreshPlusEntitlementRecord` could. It is content-free, therefore deliberately ungated, therefore reaches whatever base is configured, and it adopted the address that base returned (`email: e.email || session.email`). A rogue base answered `/v1/me`, renamed the local account to a string of its choosing, then passed the gate against that string. **No guard had to break.** Every neuter check still went red; every test still passed.
+
+Scoping a call as "content-free, out of scope" answers the question *what does this send*. It does not answer *what does this write*. For any check of the form "compare a remote answer against local state X", enumerate every writer of X and confirm none of them is reachable by the party being checked. That enumeration is a distinct inventory from the send-site one in
+[`a-guard-needs-two-inventories-send-sites-and-input-classes.md`](a-guard-needs-two-inventories-send-sites-and-input-classes.md) — call it the third inventory.
 
 ## What else this shape forces
 

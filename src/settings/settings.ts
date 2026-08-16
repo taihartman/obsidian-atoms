@@ -1441,8 +1441,17 @@ export class AtomsSettingTab extends PluginSettingTab {
     // stale stamp reads as "not yet confirmed", which is the safe direction --
     // a Process or a mirror push re-verifies and this row then resolves.
     if (!plusBaseMatches(plusSessionStamp(session), base)) {
+      // Two states block this row, and they ask the reader for different
+      // things. The upgrade cohort has no stamp and an empty field, so telling
+      // them we cannot confirm a sign-in "at this address" names an address
+      // they never chose; they need to supply one. Everyone else has a stamp
+      // that disagrees with the configured base, which is the refusal proper.
+      const needsAddress = plusAddressStateMessage(
+        session,
+        this.plugin.settings.plusBaseUrl,
+      );
       containerEl.createEl("p", {
-        text: PLUS_BASE_REFUSED_MESSAGE,
+        text: needsAddress || PLUS_BASE_REFUSED_MESSAGE,
         cls: "setting-item-description atoms-ask-mirror-error",
       });
       return;

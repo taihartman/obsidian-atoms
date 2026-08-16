@@ -420,6 +420,34 @@ describe("verifyPlusBase — re-stamp persistence", () => {
     expect(after?.setupKind).toBe("trial");
   });
 
+  it("refuses when the stamp could not land, rather than reporting verified", async () => {
+    // Found by the cross-model adversarial pass. The TOCTOU guard protected the
+    // stamp on disk but not the send decision: the caller still got `verified`
+    // for a token this device may no longer hold.
+    const s = session({ verifiedBase: PRODUCTION });
+    const app = appWith(session({ sessionToken: "sess_new", verifiedBase: PRODUCTION }));
+    const verdict = await verifyPlusBase(deps(app, namesAccount(EMAIL)), {
+      session: s,
+      resolvedBase: SELF_HOST,
+      configuredBase: SELF_HOST,
+    });
+    expect(verdict.kind).toBe("refused");
+  });
+
+  it("refuses when the storage write throws, and does not escape", async () => {
+    const s = session({ verifiedBase: PRODUCTION });
+    const app = appWith(s);
+    app.saveLocalStorage = () => {
+      throw new Error("quota exceeded");
+    };
+    const verdict = await verifyPlusBase(deps(app, namesAccount(EMAIL)), {
+      session: s,
+      resolvedBase: SELF_HOST,
+      configuredBase: SELF_HOST,
+    });
+    expect(verdict.kind).toBe("refused");
+  });
+
   it("does not write when the session was replaced while the probe was in flight", async () => {
     const s = session({ verifiedBase: PRODUCTION });
     const app = appWith(session({ sessionToken: "sess_new", verifiedBase: PRODUCTION }));
@@ -482,6 +510,28 @@ describe("verifyPlusBase — the per-run cache", () => {
     const second = await verifyPlusBase(d, input);
     expect(first).toMatchObject({ restamped: true, previousBase: PRODUCTION });
     expect(second).toMatchObject({ kind: "verified", restamped: false });
+  });
+
+  it("a second session with the same email does not inherit the first's verdict", async () => {
+    // Found by the cross-model adversarial pass. A verdict certifies a session,
+    // not an address, and a sign-out/sign-in inside one catch-up pass produces
+    // two tokens under one email.
+    const first = session({ sessionToken: "sess_one", verifiedBase: PRODUCTION });
+    const second = session({ sessionToken: "sess_two", verifiedBase: PRODUCTION });
+    const request = mockRequest(() => ({ status: 503, json: { error: "down" } }));
+    const cache = createPlusBaseVerifyCache();
+    const d: PlusBaseVerifyDeps = { storage: appWith(first), request, cache };
+    await verifyPlusBase(d, {
+      session: first,
+      resolvedBase: SELF_HOST,
+      configuredBase: SELF_HOST,
+    });
+    await verifyPlusBase(d, {
+      session: second,
+      resolvedBase: SELF_HOST,
+      configuredBase: SELF_HOST,
+    });
+    expect(request).toHaveBeenCalledTimes(2);
   });
 
   it("a different base in the same run is a different question", async () => {

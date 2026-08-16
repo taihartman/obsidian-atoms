@@ -12,8 +12,16 @@
  *  - **A bare 2xx is not proof of issuance** (KTD1's security lens). A host that
  *    accepts every bearer token would pass a status-only check, become the
  *    permanently stamped issuer, and receive capture text from then on. So the
- *    predicate is the returned entitlement *email*: tokens are opaque random
- *    bytes, so a host that did not issue one cannot name its account.
+ *    predicate is the returned entitlement *email*.
+ *
+ *    **Be precise about what that buys, because it is less than it looks.** An
+ *    email address is not a secret. The predicate stops an accept-anything host
+ *    that does not know the account; it does not stop a *targeted* host that
+ *    does, since it can simply echo the address back. Raising that bar further
+ *    needs something only the real issuer can produce -- a session-bound
+ *    challenge, or an explicit trust gesture before a known issuer is replaced
+ *    -- and that is tracked separately, not solved here. Do not read this check
+ *    as authentication of the host.
  *  - **An absent stamp means unknown, never production** (KTD1) — with the
  *    carve-out that unknown *plus an empty field* must not probe at all, because
  *    an empty field already resolves to the hosted default and probing it would
@@ -214,7 +222,14 @@ export async function verifyPlusBase(
     return refused("needs-address");
   }
 
-  const key = `${email.toLowerCase()}\n${normalizePlusBase(resolvedBase)}`;
+  // Keyed on the token as well as the account, because a verdict certifies a
+  // *session*, not an address. Two sessions can share an email -- a sign-out and
+  // sign-in inside one catch-up pass produces exactly that -- and reusing the
+  // first one's verdict would send the second one's token and content to a host
+  // that was never asked about it. Fingerprinted rather than keyed on the token
+  // itself: the map is in-memory only, but this repo's habit is that a secret
+  // does not become a lookup key.
+  const key = `${tokenFingerprint(token)}\n${email.toLowerCase()}\n${normalizePlusBase(resolvedBase)}`;
   const cached = deps.cache?.get(key);
   if (cached) {
     // A cached success cannot re-announce a move: the move was already reported
@@ -240,6 +255,12 @@ export async function verifyPlusBase(
     // 2xx alone proves a server is willing to accept a token, not that it minted
     // one. Only naming the account is proof of issuance.
     verdict = refused("unverified");
+  } else if (!persistVerifiedBase(deps.storage, token, normalizePlusBase(resolvedBase))) {
+    // The stamp did not land, which means the session was replaced or cleared
+    // while the probe was in flight. The proof we just earned is about a token
+    // this device may no longer hold, so it is not a licence to send: refuse and
+    // let the next call ask again with whatever session is now current.
+    verdict = refused("unverified");
   } else {
     verdict = {
       kind: "verified",
@@ -247,7 +268,6 @@ export async function verifyPlusBase(
       restamped: true,
       previousBase: stamp || undefined,
     };
-    persistVerifiedBase(deps.storage, token, normalizePlusBase(resolvedBase));
   }
 
   deps.cache?.set(key, verdict);
@@ -283,8 +303,32 @@ function persistVerifiedBase(
   storage: LocalStorageLike,
   token: string,
   verifiedBase: string,
-): void {
-  const stored = readPlusSession(storage);
-  if (!stored || stored.sessionToken.trim() !== token) return;
-  writePlusSession(storage, { ...stored, verifiedBase });
+): boolean {
+  try {
+    const stored = readPlusSession(storage);
+    if (!stored || stored.sessionToken.trim() !== token) return false;
+    writePlusSession(storage, { ...stored, verifiedBase });
+    return true;
+  } catch {
+    // The verdict is already earned; only the memo of it failed. A storage
+    // write can throw on the mobile WebViews this plugin supports (quota,
+    // private mode), and letting that escape would replace this module's own
+    // refusal copy with an unhandled error on the *success* path. Reported as
+    // a failed stamp rather than swallowed, so the caller refuses this once and
+    // asks again next run, which is the safe direction.
+    return false;
+  }
+}
+
+/**
+ * A stable, non-reversing tag for a session token, for use as a map key.
+ * Not a security control: it partitions an in-memory cache so one session's
+ * verdict cannot answer for another.
+ */
+function tokenFingerprint(token: string): string {
+  let h = 0;
+  for (let i = 0; i < token.length; i += 1) {
+    h = (Math.imul(31, h) + token.charCodeAt(i)) | 0;
+  }
+  return `${token.length}:${(h >>> 0).toString(36)}`;
 }

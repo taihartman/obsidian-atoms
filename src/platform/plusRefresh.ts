@@ -13,7 +13,18 @@ import {
   type LocalStorageLike,
   type PlusSession,
 } from "./filingAuth";
-import { getEntitlement, type PlusClientConfig } from "./plusClient";
+import {
+  getEntitlement,
+  PLUS_BASE_REFUSED_MESSAGE,
+  type PlusClientConfig,
+} from "./plusClient";
+
+/** Same account, by the rule the service itself normalizes with. */
+function sameAccount(a: string | undefined, b: string | undefined): boolean {
+  const x = a?.trim().toLowerCase() ?? "";
+  const y = b?.trim().toLowerCase() ?? "";
+  return !!x && x === y;
+}
 
 /** Device-local storage key — lowercase-dashed (KTD5 family). */
 export const LS_PLUS_LAST_REFRESH = "atoms-plus-last-refresh";
@@ -117,9 +128,37 @@ export async function refreshPlusEntitlementRecord(
     return record;
   }
   const e = r.entitlement;
+  // #508. A refresh must never rename the account, because the account name is
+  // what the issuer gate compares against.
+  //
+  // This call is content-free and therefore ungated: it goes to whatever base
+  // is configured. Adopting the address that base returns handed it the pen. A
+  // host the session was not issued by could answer `/v1/me` with any string,
+  // become `session.email`, then pass `verifyPlusBase`'s email predicate
+  // against the value it had just chosen, get stamped as the verified issuer,
+  // and receive capture text from then on. The gate's whole claim is that only
+  // the issuer can name the account; an ungated write to that same field is
+  // the one way to defeat it without breaking any check.
+  //
+  // A *differing* address is not ignored, it is refused: it means either this
+  // base is not ours or this session is not what we think, and neither is a
+  // state to write through. Service-side the address is the `accounts` primary
+  // key with no route that changes it, so a legitimate rename is not a case
+  // this gives up.
+  if (e.email?.trim() && !sameAccount(e.email, session.email)) {
+    const record: PlusRefreshRecord = {
+      kind: "rejected",
+      message: PLUS_BASE_REFUSED_MESSAGE,
+      at: now,
+      lastOkAt: previous?.lastOkAt,
+      email: session.email,
+    };
+    writePlusRefreshRecord(app, record);
+    return record;
+  }
   writePlusSession(app, {
     ...session,
-    email: e.email || session.email,
+    email: session.email,
     status: e.status,
     remaining: e.remaining,
     periodEnd: e.periodEnd,

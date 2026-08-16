@@ -2556,12 +2556,6 @@ export default class AtomsPlugin extends Plugin {
       new Notice(`Atoms: ${resolved.message}`);
       return null;
     }
-    if (resolved.issuerMovedFrom) {
-      // #508. The refusal is legible and the case that actually moves data would
-      // otherwise be silent, which is backwards: `plusBaseUrl` syncs through
-      // `data.json`, so this can happen with nobody typing anything.
-      new Notice(`Atoms: ${plusIssuerMovedMessage(resolved.plus?.baseUrl ?? "")}`);
-    }
     return resolved;
   }
 
@@ -2570,13 +2564,23 @@ export default class AtomsPlugin extends Plugin {
    * `AskCoordinator` asks through the same binding, and therefore shares the
    * pass memo above: one owner of the cache, one place the deps are wired.
    */
-  runPlusBaseGate(
+  async runPlusBaseGate(
     input: Parameters<import("../platform/classifyAuth").ClassifyBaseVerifier>[0],
   ) {
-    return verifyPlusBase(
+    const verdict = await verifyPlusBase(
       { storage: this.app, request: plusFetchRequest, cache: this.plusBaseVerdicts },
       input,
     );
+    // Announced here rather than at any one caller, because the caller that
+    // happens to probe first is not predictable. A catch-up pass runs outbox and
+    // mirror before filing, so a move confirmed by either of those left the
+    // classify path with `restamped: false` and nothing to say -- the Notice for
+    // the case that actually moves data was unreachable on the most common
+    // unattended path. The gate is the one place every caller passes through.
+    if (verdict.kind === "verified" && verdict.restamped && verdict.previousBase) {
+      new Notice(`Atoms: ${plusIssuerMovedMessage(verdict.base)}`);
+    }
+    return verdict;
   }
 
   runLogContextPrefix() {

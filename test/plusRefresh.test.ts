@@ -269,3 +269,84 @@ describe("plusRefresh", () => {
     );
   });
 });
+
+/**
+ * #508 P0, found by the cross-model/security review.
+ *
+ * The issuer gate's whole claim is that only the server that minted an opaque
+ * token can name the account it belongs to. `refreshPlusEntitlementRecord` is
+ * content-free and therefore ungated, so it goes to whatever base is
+ * configured -- and it used to adopt the address that base returned into the
+ * stored session. That handed a rogue base the pen: answer `/v1/me` with any
+ * string, become `session.email`, then satisfy the gate's email predicate
+ * against the value you just chose, and be stamped as the verified issuer.
+ *
+ * No check had to break for that to work, which is why every guard test passed.
+ */
+describe("#508 - a refresh cannot rename the account the gate compares against", () => {
+  const ROGUE = "https://someone.elses.host";
+
+  it("refuses a 2xx that names a different account, and writes nothing", async () => {
+    const app = appWithLiveSession();
+    const request = mockRequest(() => ({
+      status: 200,
+      json: { status: "active", remaining: 999, email: "attacker@evil.example" },
+    }));
+
+    const record = await refreshPlusEntitlementRecord(
+      app,
+      { baseUrl: ROGUE, request },
+      live,
+      5000,
+    );
+
+    expect(record.kind).toBe("rejected");
+    // The stored identity is untouched, so the gate still has the real account
+    // to compare against.
+    const after = readPlusSession(app);
+    expect(after?.email).toBe("a@b.co");
+    // And nothing else was written through either: a refusal is not a partial
+    // success, so the meter the rogue base inflated does not land.
+    expect(after?.remaining).toBe(150);
+  });
+
+  it("still refreshes normally when the account matches, case and space aside", async () => {
+    const app = appWithLiveSession();
+    const request = mockRequest(() => ({
+      status: 200,
+      json: { status: "active", remaining: 120, email: "  A@B.CO " },
+    }));
+
+    const record = await refreshPlusEntitlementRecord(
+      app,
+      { baseUrl: base, request },
+      live,
+      5000,
+    );
+
+    expect(record.kind).toBe("ok");
+    const after = readPlusSession(app);
+    // Stored, never adopted: the local spelling wins so nothing downstream sees
+    // the address change shape between refreshes.
+    expect(after?.email).toBe("a@b.co");
+    expect(after?.remaining).toBe(120);
+  });
+
+  it("a service that omits the address is not treated as a rename", async () => {
+    const app = appWithLiveSession();
+    const request = mockRequest(() => ({
+      status: 200,
+      json: { status: "active", remaining: 120 },
+    }));
+
+    const record = await refreshPlusEntitlementRecord(
+      app,
+      { baseUrl: base, request },
+      live,
+      5000,
+    );
+
+    expect(record.kind).toBe("ok");
+    expect(readPlusSession(app)?.email).toBe("a@b.co");
+  });
+});

@@ -29,6 +29,22 @@ const SRC_ROOT = "src";
 const RESOLUTION = /\|\|\s*DEFAULT_PLUS_BASE_URL/g;
 
 /**
+ * Comments are stripped before counting, because a census that matches prose
+ * certifies prose. The first version of this test counted the idiom quoted
+ * inside `filingAuth.ts`'s JSDoc explaining why the stamp is branded, so the
+ * pinned total was 23 when the code contains 22 -- a guard reporting a sender
+ * that cannot send. Two reviewers found it independently.
+ *
+ * Deliberately naive: this repo has no string literal containing `//` or the
+ * resolution idiom, so a real tokenizer would be precision the test cannot use.
+ */
+function stripComments(source: string): string {
+  return source
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/^[^\n]*?\/\/[^\n]*$/gm, (line) => line.slice(0, line.indexOf("//")));
+}
+
+/**
  * Every file that resolves a Plus base, how many times, and what those
  * resolutions carry. Change a count only together with the reason.
  *
@@ -43,11 +59,6 @@ const CENSUS: ReadonlyArray<{ file: string; count: number; carries: string }> = 
     count: 1,
     carries:
       "content — the classify snapshot for Process, Preview, Update and auto-run. Gated here and backstopped in classify.ts.",
-  },
-  {
-    file: "src/platform/filingAuth.ts",
-    count: 1,
-    carries: "token — the audit line that names where a session came from.",
   },
   {
     file: "src/platform/plusClient.ts",
@@ -98,7 +109,7 @@ describe("#508 — the Plus sender inventory is a test, not a claim", () => {
   it("no file resolves a Plus base without being in the census", () => {
     const found = new Map<string, number>();
     for (const path of walk(SRC_ROOT)) {
-      const hits = readFileSync(path, "utf8").match(RESOLUTION)?.length ?? 0;
+      const hits = stripComments(readFileSync(path, "utf8")).match(RESOLUTION)?.length ?? 0;
       if (hits) found.set(path.split("\\").join("/"), hits);
     }
 
@@ -110,8 +121,17 @@ describe("#508 — the Plus sender inventory is a test, not a claim", () => {
     );
   });
 
-  it("the census still adds up to the 23 resolutions the plan enumerated", () => {
-    expect(CENSUS.reduce((n, c) => n + c.count, 0)).toBe(23);
+  it("the census adds up to the 22 resolutions that are actually code", () => {
+    // The plan said 23, counting the one quoted in a doc comment. The count
+    // that matters is the one that can send.
+    expect(CENSUS.reduce((n, c) => n + c.count, 0)).toBe(22);
+  });
+
+  it("counts code, not prose", () => {
+    // The bug this census shipped with, pinned so it cannot come back.
+    expect(stripComments("/* a || DEFAULT_PLUS_BASE_URL */").match(RESOLUTION)).toBeNull();
+    expect(stripComments("// a || DEFAULT_PLUS_BASE_URL").match(RESOLUTION)).toBeNull();
+    expect(stripComments("const b = x || DEFAULT_PLUS_BASE_URL;").match(RESOLUTION)).toHaveLength(1);
   });
 
   it("every census entry says what its resolutions carry", () => {
