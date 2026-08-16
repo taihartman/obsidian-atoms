@@ -475,30 +475,50 @@ describe("account row", () => {
     ],
   ];
 
+  /** The one state whose engine-screen description is an offer rather than a condition. */
+  const SIGNED_OUT_LABEL = "Set up automatic filing";
+
   /**
    * U4 moved this row off the main screen and onto the engine screen, where choosing Plus is one
-   * of two answers rather than the only one on offer. The label per state is unchanged, and so is
-   * the invariant that matters: one account row, not one per branch.
+   * of two answers rather than the only one on offer.
+   *
+   * The row is now named `Atoms Plus` in every state, because a settings row is a noun and the
+   * state is its answer rather than its name. The label per state is unchanged and still renders
+   * on that row, in the description. The invariant that matters is untouched: one account row,
+   * not one per branch.
    */
   it.each(STATES)("renders the %s label on the engine screen", (_name, opts, label) => {
     const { tab } = settingTab(opts);
     tab.display();
-    // The main screen names the question, never the account state.
+    // No row on the main screen is *named* for the account state. The Filing row still answers
+    // with it in its description, which is the whole point of that row.
     expect(destinationNames(tab)).not.toContain(label);
 
-    open(tab, "Who does the filing");
+    open(tab, "Filing");
 
-    expect(destinationNames(tab)).toContain(label);
+    // The name is the noun in every state; the answer rides in the description beneath it.
+    expect(destinationNames(tab)).toContain("Atoms Plus");
+    const plusRow = row(tab, "Atoms Plus").textContent ?? "";
+    if (label === SIGNED_OUT_LABEL) {
+      // Signed out is the one state with no account condition to report, so the description
+      // carries the offer instead. Being told "Set up automatic filing" on the screen whose
+      // whole subject is that setup was never information.
+      expect(plusRow).toContain("We pay for the AI");
+    } else {
+      expect(plusRow).toContain(label);
+    }
     // One account row, not one per branch: no other state's label is on screen with it.
     const others = STATES.map(([, , other]) => other).filter((other) => other !== label);
-    expect(rowNames(tab).filter((name) => others.includes(name))).toEqual([]);
+    for (const other of others) {
+      expect(plusRow).not.toContain(other);
+    }
   });
 
   it("holds Refresh status, Sign out, and Account exactly once in the destination", () => {
     const { tab } = activeTab();
     tab.display();
-    open(tab, "Who does the filing");
-    open(tab, "Plus · 12 filings left");
+    open(tab, "Filing");
+    open(tab, "Atoms Plus");
 
     const names = rowNames(tab);
     for (const once of ["Refresh status", "Sign out", "Account"]) {
@@ -517,15 +537,22 @@ describe("account row", () => {
   it("offers account setup and no Manage row when signed out", () => {
     const { tab } = settingTab();
     tab.display();
-    open(tab, "Who does the filing");
-    open(tab, "Set up automatic filing");
+    open(tab, "Filing");
+    open(tab, "Atoms Plus");
 
     // The exact list, not a membership check: each field and the one button that commits it is
     // now a single row, and a regression that re-splits a pair shows up here as an extra row.
     // "Start free trial" survives as the button label on the Email row, never as a row name.
     // The paste fallback is not here since U7 — it is an escape hatch, and the third thing on
     // the one screen that has to explain the product was the wrong place for it.
-    expect(rowNames(tab)).toEqual(["Account", "Skip the API key", "Email"]);
+    expect(rowNames(tab)).toEqual([
+      "Account",
+      "Skip the API key",
+      "Email",
+      // Never hidden, in any state: hiding it took the row away from a trialing reader, who is
+      // the likeliest holder of a code.
+      "Redeem code",
+    ]);
     expect(buttonLabels(tab, "Email")).toEqual([
       "Send sign-in link",
       "Start free trial",
@@ -548,8 +575,8 @@ describe("account row", () => {
     function accountScreen(name: string) {
       const { tab } = settingTab();
       tab.display();
-      open(tab, "Who does the filing");
-      open(tab, "Set up automatic filing");
+      open(tab, "Filing");
+      open(tab, "Atoms Plus");
       const handler = vi.fn(async () => {});
       // An own property shadowing the prototype method: the row's `onSubmit` resolves
       // `this.<name>` at press time, so stubbing after the render is enough.
@@ -776,7 +803,7 @@ describe("copy lockstep on the screens this plan wrote (U11, R15)", () => {
     for (const opts of [{}, { session: PLUS_SESSION }]) {
       const { tab } = settingTab(opts);
       tab.display();
-      open(tab, "Who does the filing");
+      open(tab, "Filing");
       open(tab, destinationNames(tab).find((n) => n !== "Account") ?? "");
 
       const lines = readableText(tab);
@@ -929,6 +956,149 @@ describe("capture on your phone (U9, R2/R19)", () => {
  * it produced before the restyle, in order. A grouping pass that quietly drops a conditional row
  * has to fail here, and "it looked fine" is not evidence that it did not.
  */
+/**
+ * Redeeming a promo code, across every account state (KD6).
+ *
+ * The invariant with teeth is the **destination**, not the row. A code applies to a subscription,
+ * and two of the six states already have one: sending those to a fresh Checkout buys a second
+ * subscription, which is a billing incident rather than a bad label.
+ *
+ * An earlier draft solved that by hiding the row on a live subscription. That took it away from a
+ * trialing reader — `start_trial` creates a real Stripe subscription, so a user three days into
+ * fourteen is `active` — who is the likeliest holder of a code and was left with no route at all.
+ */
+describe("Redeem code (KD6)", () => {
+  const live = (over: Partial<PlusSession> = {}): SettingTabOptions => {
+    const session: PlusSession = {
+      sessionToken: "sess_live",
+      email: "user@example.com",
+      status: "active",
+      remaining: 12,
+      periodEnd: "2099-09-01T00:00:00.000Z",
+      ...over,
+    };
+    return {
+      session,
+      auth: {
+        mode: "plus",
+        sessionToken: session.sessionToken,
+        email: session.email,
+        status: session.status ?? "unknown",
+        remaining: session.remaining,
+        periodEnd: session.periodEnd,
+        plan: session.plan,
+      },
+    };
+  };
+
+  /** The redeem screen, walked in from the main screen the way a user reaches it. */
+  function redeemScreen(opts: SettingTabOptions = {}) {
+    const made = settingTab(opts);
+    made.tab.display();
+    open(made.tab, "Redeem code");
+    return made;
+  }
+
+  /** Replace both destinations with recorders, so a press proves which one was chosen. */
+  function watchDestinations(tab: AtomsSettingTab) {
+    const portal = vi.fn(async () => {});
+    const checkout = vi.fn(async () => {});
+    const t = tab as unknown as Record<string, unknown>;
+    t.openBillingPortal = portal;
+    t.openSubscribeCheckout = checkout;
+    return { portal, checkout };
+  }
+
+  const STATES: Array<[name: string, opts: SettingTabOptions, live: boolean]> = [
+    ["signed out", {}, false],
+    [
+      "trial started, checkout unfinished",
+      { session: { sessionToken: "sess_soft", email: "user@example.com", status: "inactive" } },
+      false,
+    ],
+    ["active, paying", live(), true],
+    // The state the first draft hid the row from.
+    ["active, trialing", live({ status: "trialing" }), true],
+    ["meter spent inside a live period", live({ status: "exhausted", remaining: 0 }), true],
+    [
+      "period ended",
+      live({ status: "exhausted", remaining: 0, plan: "monthly", periodEnd: "2026-08-10T14:52:03.632Z" }),
+      false,
+    ],
+  ];
+
+  it.each(STATES)("renders the row in %s", (_name, opts) => {
+    const { tab } = settingTab(opts);
+    tab.display();
+
+    // On the main screen, and never hidden.
+    expect(destinationNames(tab)).toContain("Redeem code");
+  });
+
+  it.each(STATES.filter(([, , isLive]) => isLive))(
+    "sends %s to the billing portal, never to a second subscription",
+    (_name, opts) => {
+      const { tab } = redeemScreen(opts);
+      const { portal, checkout } = watchDestinations(tab);
+
+      press(tab, "Billing portal", "Open billing portal");
+
+      expect(portal).toHaveBeenCalledTimes(1);
+      expect(checkout).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(STATES.filter(([name, , isLive]) => !isLive && name !== "signed out"))(
+    "sends %s to subscribe checkout",
+    (_name, opts) => {
+      const { tab } = redeemScreen(opts);
+      const { portal, checkout } = watchDestinations(tab);
+
+      press(tab, "Checkout", "Open checkout");
+
+      expect(checkout).toHaveBeenCalledTimes(1);
+      expect(portal).not.toHaveBeenCalled();
+    },
+  );
+
+  it("asks a signed-out reader for an email, and mints the session with it", () => {
+    const { tab } = redeemScreen();
+    const handler = vi.fn(async () => {});
+    (tab as unknown as Record<string, unknown>).startSubscribeFromEmail = handler;
+
+    fill(tab, "Email", "  someone@example.com  ");
+    press(tab, "Email", "Open checkout");
+
+    // Trimmed by `formRow`, which is what keeps a pasted address with a stray space working.
+    expect(handler).toHaveBeenCalledWith("someone@example.com");
+  });
+
+  it("tells a trialing reader when the code takes effect, since they already have a subscription", () => {
+    const { tab } = redeemScreen(live({ status: "trialing" }));
+
+    expect(prose(tab).join(" ")).toContain(
+      "applies when the trial becomes a subscription",
+    );
+  });
+
+  it("never renders a field for the code itself: Stripe owns that string", () => {
+    for (const [, opts] of STATES) {
+      const { tab } = redeemScreen(opts);
+      const fields = Array.from(
+        tab.containerEl.querySelectorAll("input[type=text], input[type=email]"),
+      ).map((el) => (el as HTMLInputElement).placeholder);
+      // The only field this screen may ever hold is the email that mints a session.
+      expect(fields.filter((p) => p !== "you@example.com")).toEqual([]);
+    }
+  });
+
+  it("writes no em dash into any of its prose", () => {
+    const { tab } = redeemScreen(live({ status: "trialing" }));
+
+    for (const line of prose(tab)) expect(line).not.toContain("—");
+  });
+});
+
 describe("account screen holds the same rows through the restyle (U8, KTD14)", () => {
   const T_PAST = "2026-08-10T14:52:03.632Z";
 
@@ -965,14 +1135,28 @@ describe("account screen holds the same rows through the restyle (U8, KTD14)", (
     auth: authFor(session),
   });
 
-  /** Every signed-in render opens with these, and closes with the sign-out pair. */
+  /**
+   * Every signed-in render opens with these, and closes with the sign-out pair.
+   *
+   * `Redeem code` closes every render, signed out included: it is rendered once at the end of the
+   * screen rather than per state, because a code can be spent from any of them. Hiding it on a
+   * live subscription is what an earlier draft did, and it took the row away from a trialing
+   * reader holding a founding code.
+   */
   const HEAD = ["Account", "Status", "Signed in as"];
-  const TAIL = ["Refresh status", "Manage subscription", "Sign out", "Sign out all devices"];
+  const REDEEM = "Redeem code";
+  const TAIL = [
+    "Refresh status",
+    "Manage subscription",
+    "Sign out",
+    "Sign out all devices",
+    REDEEM,
+  ];
   /** Same tail on a state the billing portal has no subject for (#442). */
-  const TAIL_NO_PORTAL = ["Refresh status", "Sign out", "Sign out all devices"];
+  const TAIL_NO_PORTAL = ["Refresh status", "Sign out", "Sign out all devices", REDEEM];
 
   const NINE: Array<[name: string, opts: SettingTabOptions, rows: string[]]> = [
-    ["signed out", {}, ["Account", "Skip the API key", "Email"]],
+    ["signed out", {}, ["Account", "Skip the API key", "Email", REDEEM]],
     [
       "trial started, checkout unfinished",
       { session: { sessionToken: "sess_soft", email: "user@example.com", status: "inactive" } },
@@ -1024,8 +1208,8 @@ describe("account screen holds the same rows through the restyle (U8, KTD14)", (
   it.each(NINE)("renders %s unchanged", (_case, opts, expected) => {
     const { tab } = settingTab(opts);
     tab.display();
-    open(tab, "Who does the filing");
-    open(tab, opts.session ? accountEntryName(tab) : "Set up automatic filing");
+    open(tab, "Filing");
+    open(tab, opts.session ? accountEntryName(tab) : "Atoms Plus");
 
     expect(rowNames(tab)).toEqual(expected);
   });
@@ -1033,7 +1217,7 @@ describe("account screen holds the same rows through the restyle (U8, KTD14)", (
   it("groups the signed-in screen into what the account is and what you can do to it", () => {
     const { tab } = settingTab(plusSession(live));
     tab.display();
-    open(tab, "Who does the filing");
+    open(tab, "Filing");
     open(tab, accountEntryName(tab));
 
     // Two, not the mock's three: its third is the sign-out block, whose shape is one red row
@@ -1047,8 +1231,8 @@ describe("account screen holds the same rows through the restyle (U8, KTD14)", (
   it("groups the signed-out screen into the pitch and the way in", () => {
     const { tab } = settingTab();
     tab.display();
-    open(tab, "Who does the filing");
-    open(tab, "Set up automatic filing");
+    open(tab, "Filing");
+    open(tab, "Atoms Plus");
 
     expect(groupHeaders(tab)).toEqual(["What Plus does", "Sign in or start a trial"]);
     // The locked three-action frame survives the wrap intact.
@@ -1896,7 +2080,10 @@ describe("API key row (U6)", () => {
   function engineTab(opts: SettingTabOptions) {
     const made = settingTab(opts);
     made.tab.display();
-    open(made.tab, "Who does the filing");
+    open(made.tab, "Filing");
+    // The key row moved one screen deeper, so the walk is one tap longer. The point of the walk
+    // is unchanged: the check costs nothing until somebody is actually looking at the key.
+    open(made.tab, "Use your own Anthropic key");
     return made;
   }
 
@@ -1974,7 +2161,8 @@ describe("API key row (U6)", () => {
 
     tab.hide();
     tab.display();
-    open(tab, "Who does the filing");
+    open(tab, "Filing");
+    open(tab, "Use your own Anthropic key");
     await flush();
 
     expect(net.anthropicCalls()).toBe(2);
@@ -1994,7 +2182,12 @@ describe("API key row (U6)", () => {
     // check is a cost the user opts into by walking to the screen that shows the key.
     expect(seen).toEqual([]);
 
-    open(made.tab, "Who does the filing");
+    open(made.tab, "Filing");
+    await flush();
+    // Still nothing: the decision screen has no key row to check since the credential form moved.
+    expect(seen).toEqual([]);
+
+    open(made.tab, "Use your own Anthropic key");
     await flush();
 
     // The GitHub baseline answers a question this row never asks — it reads the Anthropic
@@ -2140,6 +2333,7 @@ describe("the Resurface leg (U5)", () => {
       "3 · Resurface",
       "Ask",
       "Your data",
+      "Atoms Plus",
     ]);
   });
 
@@ -2928,9 +3122,9 @@ describe("main screen row grammar (U9)", () => {
       // `Custom shortcut link` is not here since U7: it only matters to somebody who forked the
       // recipe, so it sits with the other escape hatches on Advanced.
       // 2 · File, in the mock's order: who files, whether it runs on its own, where atoms land,
-      // what they may be tagged, what gets listed on hub notes. The engine row names the
-      // question rather than the account's state, which is the state's own screen two taps in.
-      "Who does the filing",
+      // what they may be tagged, what gets listed on hub notes. The engine row is a noun and
+      // its answer is the account's state, whose own screen is two taps in.
+      "Filing",
       // Shed to the status group once somebody files; the File group keeps it while the screen
       // is still asking who that is.
       ...(filingChosen ? [] : ["File automatically when Obsidian opens"]),
@@ -2946,6 +3140,10 @@ describe("main screen row grammar (U9)", () => {
       // it enables, which is the engine destination rather than the main screen or Advanced.
       ...(privacy ? ["Privacy and consents"] : []),
       "Advanced",
+      // KD8's Atoms Plus group, last. Before it, billing had no presence on the main screen at
+      // all: `openRoute("account")` had one call site, on the engine screen.
+      "Account",
+      "Redeem code",
     ];
   }
 
@@ -2955,17 +3153,17 @@ describe("main screen row grammar (U9)", () => {
 
     const rows = rowNames(tab, { headings: false });
     expect(rows).toEqual(expectedRows(true, ASK_ROWS, true));
-    expect(rows).toHaveLength(13);
+    expect(rows).toHaveLength(15);
   });
 
-  it("renders eleven rows signed out — the Ask group is the only difference", () => {
+  it("renders thirteen rows signed out — the Ask group is the only difference", () => {
     const { tab } = settingTab();
     tab.display();
 
     const rows = rowNames(tab, { headings: false });
     // No session, no ack, no cloud copy: nothing to take back, so no Privacy row either.
     expect(rows).toEqual(expectedRows(false, [ASK_OFF_ROW], false));
-    expect(rows).toHaveLength(11);
+    expect(rows).toHaveLength(13);
   });
 
   it("adds the device-local key row under its toggle, and nowhere else", () => {
@@ -2979,7 +3177,8 @@ describe("main screen row grammar (U9)", () => {
     );
     expect(rowNames(tab, { headings: false })).not.toContain("Device-local key fallback");
 
-    open(tab, "Who does the filing");
+    open(tab, "Filing");
+    open(tab, "Use your own Anthropic key");
     const rows = rowNames(tab, { headings: false });
     expect(rows.indexOf("Device-local API key")).toBe(
       rows.indexOf("Device-local key fallback") + 1,
@@ -3094,7 +3293,10 @@ describe("main screen row grammar (U9)", () => {
     it("keeps the key naming rule under the pair, and jargon off the key row", () => {
       const { tab } = plusTab();
       tab.display();
-      open(tab, "Who does the filing");
+      open(tab, "Filing");
+      // A fourth home, and the same invariant: the rule answers for the pair, so it stays with
+      // the pair. What changed is that the pair is no longer on the who-pays screen at all.
+      open(tab, "Use your own Anthropic key");
 
       // Reachable, and in the footer rather than the row.
       expect(prose(tab).some((t) => t.includes(API_KEY_SECRET_ID_DEFAULT))).toBe(true);
@@ -3201,11 +3403,12 @@ describe("status group (U2)", () => {
       expect(destinationNames(tab)).toContain("Choose who files your captures");
 
       // The screen that answers "who files" is the one offering both answers, not the one that
-      // manages only the paid half of it.
+      // manages only the paid half of it. Both answers are chevrons now: the key field itself
+      // moved one screen deeper, so the decision screen holds a decision.
       open(tab, "Choose who files your captures");
       const answers = rowNames(tab, { headings: false });
-      expect(answers).toContain("Set up automatic filing");
-      expect(answers).toContain("Anthropic API key");
+      expect(answers).toContain("Atoms Plus");
+      expect(answers).toContain("Use your own Anthropic key");
     });
 
     it("leaves the automatic filing toggle where it was", () => {
@@ -3323,7 +3526,7 @@ describe("status group (U2)", () => {
    * running line. A deleted engine argues nothing can be sent at all. Adversarial repro, live:
    * engine screen → device-local key fallback on → paste a key → back, and the status group takes
    * the toggle; then engine screen → fallback off, which deletes the key → back. The status group
-   * correctly hands the toggle down again and the engine row reads `Not chosen`, while the toggle
+   * correctly hands the toggle down again and the engine row reads `Not set up`, while the toggle
    * itself went on claiming the device files every past day. It files nothing: `resolveFilingAuth`
    * reports `none`, so there is no credential to send a capture with.
    */
@@ -3339,7 +3542,7 @@ describe("status group (U2)", () => {
     expect(rowNames(tab, { headings: false })[0]).toBe(
       "Choose who files your captures",
     );
-    expect(row(tab, "Who does the filing").textContent).toContain("Not chosen");
+    expect(row(tab, "Filing").textContent).toContain("Not set up");
 
     // So the toggle may not say otherwise.
     const toggle = row(tab, "File automatically when Obsidian opens");
@@ -4093,13 +4296,13 @@ describe("Capture and File groups (U3)", () => {
   describe("the engine row", () => {
     /** What the row says under its name: the answer to the question the name asks. */
     const answer = (tab: AtomsSettingTab) =>
-      row(tab, "Who does the filing").textContent ?? "";
+      row(tab, "Filing").textContent ?? "";
 
     it("says nothing is chosen when no engine is", () => {
       const { tab } = settingTab();
       tab.display();
 
-      expect(answer(tab)).toContain("Not chosen");
+      expect(answer(tab)).toContain("Not set up");
     });
 
     it("names the user's own key as the engine when one is set", () => {
@@ -4114,8 +4317,9 @@ describe("Capture and File groups (U3)", () => {
       tab.display();
 
       expect(answer(tab)).toContain("Plus · 12 filings left");
-      open(tab, "Who does the filing");
-      expect(destinationNames(tab)).toContain("Plus · 12 filings left");
+      open(tab, "Filing");
+      // The row there is the noun; the state is its description, asserted in the account-row suite.
+      expect(destinationNames(tab)).toContain("Atoms Plus");
     });
   });
 
@@ -4131,8 +4335,10 @@ describe("Capture and File groups (U3)", () => {
      * promise changed.
      */
     const ENGINE_STATEMENTS = [
-      "Each capture, and your note titles, over TLS",
-      "Never the body of another note, and never your whole vault",
+      // `TLS` was the one security fact on the screen stated as an acronym; it now states the
+      // promise it was making instead.
+      "Each capture, and the titles of your notes, encrypted on the way",
+      "Never the text inside your other notes, and never your whole vault",
       "Nothing from today, unless you ask for it",
     ];
 
@@ -4140,46 +4346,70 @@ describe("Capture and File groups (U3)", () => {
     function engineScreen(opts: SettingTabOptions = {}) {
       const made = settingTab(opts);
       made.tab.display();
-      open(made.tab, "Who does the filing");
+      open(made.tab, "Filing");
       return made;
     }
 
-    it("renders both groups, titled for the question the entry row asks", () => {
+    /** One tap further: the screen the credential form moved to. */
+    function keyScreen(opts: SettingTabOptions = {}) {
+      const made = engineScreen(opts);
+      open(made.tab, "Use your own Anthropic key");
+      return made;
+    }
+
+    it("renders three groups, the recommendation first and the alternative under it", () => {
       const { tab } = engineScreen();
 
-      expect(groupHeaders(tab)).toEqual(["Pick one", "What gets sent"]);
+      // Not two peers under one "Pick one": a recommended path and an escape hatch at equal
+      // weight leave the reader to work out which is which, and this reader cannot.
+      expect(groupHeaders(tab)).toEqual([
+        "Recommended",
+        "Instead",
+        "What gets sent",
+      ]);
       // The back row doubles as the screen's title, so leaving never means scrolling down.
       const back = tab.containerEl.querySelector(".atoms-setting-back");
       expect(back?.querySelector(".setting-item-name")?.textContent).toBe(
-        "Who does the filing",
+        "Filing",
       );
     });
 
-    it("offers both engines: Plus one tap in, and the key field in place", () => {
+    it("holds a decision and no credential control", () => {
       const { tab } = engineScreen();
 
       expect(rowNames(tab, { headings: false })).toEqual([
         // The back row is a row too, and it leads the screen.
-        "Who does the filing",
-        "Set up automatic filing",
-        "Anthropic API key",
-        "Device-local key fallback",
+        "Filing",
+        "Atoms Plus",
+        "Use your own Anthropic key",
         ...ENGINE_STATEMENTS,
       ]);
-      // Plus is a chevron because the account has a screen of its own; the key is not, because
-      // pasting one is the whole of choosing it.
-      expect(destinationNames(tab)).toEqual(["Set up automatic filing"]);
+      // Both engines are chevrons now. The key field used to sit inline here, which made the
+      // screen a decision and a credential form at once and put seven undefined terms in front
+      // of somebody four minutes into Atoms.
+      expect(destinationNames(tab)).toEqual([
+        "Atoms Plus",
+        "Use your own Anthropic key",
+      ]);
+      for (const jargon of [
+        "Anthropic API key",
+        "Device-local key fallback",
+        "sk-ant-",
+        "SecretStorage",
+      ]) {
+        expect(tab.containerEl.textContent ?? "").not.toContain(jargon);
+      }
     });
 
     it("stores a typed secret id through SecretStorage, not data.json", () => {
-      const { tab, plugin } = engineScreen();
+      const { tab, plugin } = keyScreen();
 
       fill(tab, "Anthropic API key", "my-other-key");
       expect(plugin.settings.apiKeySecretId).toBe("my-other-key");
     });
 
     it("deletes the device-local key when the fallback toggle goes off", () => {
-      const { tab, local } = engineScreen({
+      const { tab, local } = keyScreen({
         settings: { useDeviceLocalKeyFallback: true },
         local: { [LOCAL_STORAGE_API_KEY]: "sk-ant-local" },
       });
@@ -4204,7 +4434,9 @@ describe("Capture and File groups (U3)", () => {
       const { tab } = engineScreen();
       const text = tab.containerEl.textContent ?? "";
 
-      expect(text).toContain("Filing works the same either way");
+      // Same claim, said about filing rather than about the product: what is identical between
+      // the two engines is the filing, not what a Plus session unlocks (R13).
+      expect(text).toContain("Same atoms, same links, same speed");
       expect(text).not.toContain("Nothing here unlocks features");
     });
 
@@ -4223,6 +4455,31 @@ describe("Capture and File groups (U3)", () => {
       const { tab } = engineScreen();
 
       for (const line of prose(tab)) expect(line).not.toContain("—");
+    });
+
+    /**
+     * The credential form, one tap off the decision.
+     *
+     * Every term this screen carries was on the decision screen until now. None was deleted;
+     * they render in front of the one reader who chose to meet them.
+     */
+    describe("the key destination", () => {
+      it("holds the key rows and the naming rule that answers for them", () => {
+        const { tab } = keyScreen();
+
+        expect(rowNames(tab, { headings: false })).toEqual([
+          "Use your own Anthropic key",
+          "Anthropic API key",
+          "Device-local key fallback",
+        ]);
+        expect(prose(tab).join(" ")).toContain(API_KEY_SECRET_ID_DEFAULT);
+      });
+
+      it("writes no em dash into any of its prose", () => {
+        const { tab } = keyScreen();
+
+        for (const line of prose(tab)) expect(line).not.toContain("—");
+      });
     });
   });
 

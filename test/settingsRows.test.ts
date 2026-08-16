@@ -1156,9 +1156,10 @@ function onMainScreen(tab: AtomsSettingTab): boolean {
  */
 const DESTINATIONS: Array<[entry: string, title: string]> = [
   // U2's status group opens the screen with the one unfinished step, which on an install where
-  // nobody files yet is a second way into the engine screen.
-  ["Choose who files your captures", "Who does the filing"],
-  ["Who does the filing", "Who does the filing"],
+  // nobody files yet is a second way into the engine screen. The step keeps its verb form while
+  // the row is a bare noun: a step is an instruction, a row names a thing.
+  ["Choose who files your captures", "Filing"],
+  ["Filing", "Filing"],
   [`Tag vocabulary · ${DEFAULT_SETTINGS.activeVocabulary.length} active`, "Tag vocabulary"],
   ["Connect Claude or ChatGPT", "Connect Claude or ChatGPT"],
   ["Privacy and consents", "Privacy and consents"],
@@ -1180,7 +1181,7 @@ const MAIN_DESTINATION_ROWS = [
   // U9 made this a chevron: it opens the procedure sheet rather than a route, the same way
   // `Atoms home` opens a view. Both are here and neither is in the walk table.
   "Capture on your phone",
-  "Who does the filing",
+  "Filing",
   `Tag vocabulary · ${DEFAULT_SETTINGS.activeVocabulary.length} active`,
   "Atoms home",
   "Connect Claude or ChatGPT",
@@ -1188,6 +1189,10 @@ const MAIN_DESTINATION_ROWS = [
   // renders here without the walk needing a seeded ack.
   "Privacy and consents",
   "Advanced",
+  // KD8's Atoms Plus group, rendered last: billing had no presence on the main screen at all
+  // before it, because `openRoute("account")` had exactly one call site on the engine screen.
+  "Account",
+  "Redeem code",
 ];
 
 /**
@@ -1247,7 +1252,7 @@ describe("destination shell", () => {
     tab.display();
     scroller.scrollTop = 420;
 
-    open(tab, "Who does the filing");
+    open(tab, "Filing");
     expect(scroller.scrollTop).toBe(0);
 
     scroller.scrollTop = 260;
