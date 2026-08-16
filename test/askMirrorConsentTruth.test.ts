@@ -318,8 +318,8 @@ describe("#372 — signing out tears the mirror down", () => {
     });
     made.tab.display();
     // Account sits behind the engine screen since U4.
-    open(made.tab, "Who does the filing");
-    open(made.tab, "Plus · 12 filings left");
+    open(made.tab, "Filing");
+    open(made.tab, "Atoms Plus");
     return made;
   }
 

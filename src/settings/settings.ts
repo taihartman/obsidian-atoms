@@ -246,6 +246,23 @@ export function deriveAccountState(
  * missing branch leaves `state` non-`never` and fails `npm run build` (this file ships) as well
  * as `npm test`'s `typecheck:test` step.
  */
+/**
+ * Whether this account already has a Stripe subscription that a coupon must attach to.
+ *
+ * The distinction the redeem path turns on, and the one an earlier draft got wrong. `active`
+ * includes `status: "trialing"`, because `start_trial` Checkout creates a real subscription
+ * carrying `subscription_data[trial_period_days]` — so a reader three days into fourteen has one.
+ * `exhausted` is a spent meter inside a period that is still running (#442), so it has one too.
+ * Everything else has none: `trialIncomplete` and `subscribeIncomplete` never finished checkout,
+ * and `periodEnded` is the state of having had one.
+ *
+ * Sending a state that has one to a fresh Checkout buys a **second** subscription, which is a
+ * billing incident rather than a bad label.
+ */
+export function hasLiveSubscription(state: AccountState): boolean {
+  return state.kind === "active" || state.kind === "exhausted";
+}
+
 export function accountRowDescriptor(state: AccountState): AccountRowDescriptor {
   switch (state.kind) {
     case "signedOut":
@@ -421,6 +438,8 @@ const SETTINGS_OPEN_CLASS = "atoms-settings-open";
 export type SettingsRoute =
   | "main"
   | "engine"
+  | "engineKey"
+  | "redeem"
   | "account"
   | "vocabulary"
   | "connect"
@@ -530,8 +549,17 @@ const CAPTURE_GROUP = {
 
 const FILE_GROUP = {
   header: "2 · File",
+  /**
+   * The group's footer teaches its own vocabulary before anything below it uses the word.
+   *
+   * "Filing" is the product's coinage and the row above is now a bare noun (`DESTINATION_TITLES`),
+   * so the definition has to live somewhere a reader meets it without tapping. A group footer is
+   * where the #493 grammar already puts a group's one explanation, which makes this the cheapest
+   * true place for it: no new row, no paragraph on the decision screen, and it reads before the
+   * safety promise rather than after.
+   */
   footer:
-    "What you wrote is never rewritten. Atoms only adds new atom files, one small marker line under the capture it read, and a list inside its own marked block on hub notes. Older captures wait until you backfill them from Atoms home.",
+    "Filing is Atoms reading a day of captures and writing each thought up as its own note, linked to the people and topics it mentions. What you wrote is never rewritten. Atoms only adds new atom files, one small marker line under the capture it read, and a list inside its own marked block on hub notes. Older captures wait until you backfill them from Atoms home.",
 } as const;
 
 /**
@@ -563,20 +591,37 @@ const FILING_ROW_UNCONFIGURED = {
  * a function. A number typed into this file is a copy that goes stale in silence.
  */
 const ENGINE_SCREEN = {
-  lead: "Atoms sends each capture to Anthropic to be titled and linked. Somebody has to pay for that: us, or you.",
-  pickOne: {
-    header: "Pick one",
-    /**
-     * The naming rule sits here rather than in the key row's own description (F4). It used to be
-     * prose *between* the key row and the fallback toggle, which split a pair that answers for the
-     * same key, and it was moved into the row to stop that. The row is the wrong home too: it put
-     * `SecretStorage`, an Android emulator command and a charset spec on the screen where somebody
-     * four minutes into Atoms decides who pays. A group footer is the third option and the one the
-     * plan already asks for — under *both* rows, so the pair stays together, and out of the way of
-     * a reader who only wanted to pick an engine.
-     */
+  lead: "Filing is Atoms reading a day of captures and writing each thought up as its own linked note. It runs on AI built by a company called Anthropic, and every capture costs a few cents. Somebody has to pay for that: us, or you.",
+  /**
+   * The recommendation, alone in its own group.
+   *
+   * `Pick one` used to hold both engines as peers, which is the one shape this screen must not
+   * have: a recommended path and an escape hatch presented at equal weight leave the reader to
+   * work out which is which, and the reader this screen exists for cannot. The header is a real
+   * header rather than the purer unheadered iOS group because `SettingGroupSpec.header` is
+   * required, and `Recommended` turned out to carry the most useful sentence on the screen anyway.
+   */
+  recommended: {
+    header: "Recommended",
     footer: () =>
-      `Filing works the same either way. Atoms Plus is ${PLUS_PRICING.trialDays} days free, then ${formatUsd(PLUS_PRICING.monthlyUsd)} a month. Your own key bills you at Anthropic's rates instead. The key row asks for a name to file your key under, not the key itself: lowercase letters, numbers and dashes, like ${API_KEY_SECRET_ID_DEFAULT}.`,
+      `${PLUS_PRICING.trialDays} days free, then ${formatUsd(PLUS_PRICING.monthlyUsd)} a month. Cancel any time.`,
+    /** Only for a signed-out reader; every other state answers with its own account words. */
+    signedOut: {
+      desc: "We pay for the AI. Nothing else to set up.",
+    },
+  },
+  /**
+   * The alternative, demoted but not buried.
+   *
+   * `docs/ask-self-host.md` documents running your own key as a supported route, so this is one
+   * group lower and one shade quieter, never behind Advanced. An honest option styled like an
+   * unsupported one is its own kind of lie.
+   */
+  instead: {
+    header: "Instead",
+    desc: "Free from us. You sign up with Anthropic and they bill you for what filing uses.",
+    footer:
+      "Same atoms, same links, same speed. The only difference is who gets the bill.",
   },
   /**
    * The egress facts as three lines rather than one paragraph, so a reader can check them one at
@@ -584,16 +629,80 @@ const ENGINE_SCREEN = {
    * `ContextProvider` sends titles and never bodies, and every pass excludes today unless the
    * user forces it. The footer points at the sheet rather than restating it, because the sheet is
    * versioned (KTD5) and a second copy of versioned wording is the #315 shape.
+   *
+   * These stay inline rather than moving behind an "About filing and privacy" link. The link is
+   * the tidier pattern and it is the wrong one here: this previews a versioned, acknowledged
+   * disclosure, and relocating a consent surface to win a layout argument is how a device ends up
+   * filing under a grant nobody read.
    */
   whatGetsSent: {
     header: "What gets sent",
     footer:
       "You will see the full wording, and have to accept it, before Atoms files on its own.",
     lines: [
-      "Each capture, and your note titles, over TLS",
-      "Never the body of another note, and never your whole vault",
+      "Each capture, and the titles of your notes, encrypted on the way",
+      "Never the text inside your other notes, and never your whole vault",
       "Nothing from today, unless you ask for it",
     ],
+  },
+} as const;
+
+/**
+ * The screen behind `Instead`: everything a reader who brings their own key has to deal with.
+ *
+ * This exists so the decision screen can hold a decision. Seven of the eight terms a first-week
+ * user cannot define (`API key`, `Device-local`, `fallback`, `SecretStorage`, `sk-ant-…`, and the
+ * secret-id naming rule) render here instead of next to the question of who pays. None of them
+ * were deleted; they are in front of the one person who chose to meet them.
+ */
+/**
+ * The redeem screen, whose whole job is naming the tap that happens on the next page.
+ *
+ * The plugin never renders a field for the code itself (`docs/plans/2026-08-13-1146`): Stripe owns
+ * that string, so the only thing this screen can usefully do is make sure nobody arrives on a
+ * hosted page hunting for where the code goes.
+ *
+ * Two leads, because there are two destinations. Without a live subscription a code rides a fresh
+ * Checkout; with one it has to attach to the subscription that already exists, or the tap buys a
+ * second. See `hasLiveSubscription`.
+ */
+const REDEEM_SCREEN = {
+  leadCheckout:
+    "Checkout opens in your browser. Tap Add promotion code on that page, and enter your code there.",
+  leadPortal:
+    "The billing portal opens in your browser. Add your code there and it applies to the subscription you already have.",
+  /**
+   * The line for the state this row exists for.
+   *
+   * A trial is a real Stripe subscription, so a trialing reader is the one most likely to hold a
+   * code and the one an earlier draft of this screen hid the row from entirely.
+   */
+  trialNote:
+    "You are on a trial. Add your code now and it applies when the trial becomes a subscription.",
+  topUpNote: "A code works on extra filings too.",
+  footer:
+    "Atoms never sees your code. You type it on Stripe's page, and it applies to a subscription rather than to a free trial.",
+} as const;
+
+/**
+ * The main screen's fourth group (KD8).
+ *
+ * Billing had no presence on the main screen at all: `openRoute("account")` had exactly one call
+ * site, the Plus row on the engine screen, so a user managed their subscription by opening a row
+ * named after filing. This deviates from R1 of the three-leg overhaul, which says the main screen
+ * is a status group, the three legs and utility. Named as a deviation rather than slipped in.
+ */
+const PLUS_GROUP = {
+  header: "Atoms Plus",
+  footer:
+    "Your Atoms Plus account, and where a promo code goes. Codes are entered on Stripe's page, never here.",
+} as const;
+
+const ENGINE_KEY_SCREEN = {
+  lead: "You will need an account with Anthropic and a key from it. Atoms keeps that key on this device only: never synced, never written into your vault.",
+  yourKey: {
+    header: "Your key",
+    footer: `The key row asks for a name to file your key under, not the key itself: lowercase letters, numbers and dashes, like ${API_KEY_SECRET_ID_DEFAULT}.`,
   },
 } as const;
 
@@ -776,7 +885,12 @@ const PASTE_SESSION_ROUTE = `Advanced → ${PASTE_SESSION_ROW}`;
 
 /** Destination title, shown on its entry row and again on its back row. */
 const DESTINATION_TITLES: Record<Exclude<SettingsRoute, "main">, string> = {
-  engine: "Who does the filing",
+  // A noun with its state in the value slot, not a question in a row label: the row names the
+  // thing, the answer sits on the right. "Who does the filing" asked the reader something they
+  // had no vocabulary for, and no phrasing of that question fixes the shape.
+  engine: "Filing",
+  engineKey: "Use your own Anthropic key",
+  redeem: "Redeem code",
   account: "Account",
   vocabulary: "Tag vocabulary",
   connect: "Connect Claude or ChatGPT",
@@ -1198,6 +1312,16 @@ export class AtomsSettingTab extends PluginSettingTab {
         return;
       case "engine":
         this.renderDestination(containerEl, route, (el) => this.renderEngineDestination(el));
+        return;
+      case "engineKey":
+        this.renderDestination(containerEl, route, (el) =>
+          this.renderEngineKeyDestination(el),
+        );
+        return;
+      case "redeem":
+        this.renderDestination(containerEl, route, (el) =>
+          this.renderRedeemDestination(el),
+        );
         return;
       case "account":
         this.renderDestination(containerEl, route, (el) => this.renderAccountDestination(el));
@@ -1652,6 +1776,7 @@ export class AtomsSettingTab extends PluginSettingTab {
     this.renderFileGroup(containerEl, step, filing);
     this.renderResurfaceGroups(containerEl);
     this.renderUtilityGroup(containerEl);
+    this.renderPlusGroup(containerEl);
   }
 
   /**
@@ -2253,7 +2378,7 @@ export class AtomsSettingTab extends PluginSettingTab {
   private engineAnswer(filing: FilingAuth): string {
     const state = this.accountState(filing);
     if (state.kind !== "signedOut") return accountRowDescriptor(state).name;
-    return filing.mode === "none" ? "Not chosen" : "Your own key";
+    return filing.mode === "none" ? "Not set up" : "Your own key";
   }
 
   /**
@@ -2276,17 +2401,40 @@ export class AtomsSettingTab extends PluginSettingTab {
       cls: "setting-item-description",
     });
 
-    const account = accountRowDescriptor(this.accountState());
+    // The Plus row is a noun with its state on the right, the same shape as the File row that
+    // leads here. Signed out there is no state to report, so the value carries the offer and the
+    // description carries the pitch; every other state already has words for itself and keeps
+    // them, because a reader whose trial ended must not be shown a trial offer.
+    const state = this.accountState();
+    const account = accountRowDescriptor(state);
+    const signedOut = state.kind === "signedOut";
     group(containerEl, {
-      header: ENGINE_SCREEN.pickOne.header,
-      footer: ENGINE_SCREEN.pickOne.footer(),
+      header: ENGINE_SCREEN.recommended.header,
+      footer: ENGINE_SCREEN.recommended.footer(),
       render: (groupEl) => {
         destinationRow(groupEl, {
-          name: account.name,
-          desc: account.desc,
+          name: "Atoms Plus",
+          // The answer rides in the description because `destinationRow`'s right edge is the
+          // chevron and the grammar has no value slot for it. That non-uniformity is already on
+          // the books as F10 (P3) in the #493 QA report; widening the shared primitive to fix it
+          // is its own claim, not a ride-along here.
+          desc: signedOut
+            ? ENGINE_SCREEN.recommended.signedOut.desc
+            : account.name,
           onOpen: () => this.openRoute("account"),
         });
-        this.renderKeyRows(groupEl);
+      },
+    });
+
+    group(containerEl, {
+      header: ENGINE_SCREEN.instead.header,
+      footer: ENGINE_SCREEN.instead.footer,
+      render: (groupEl) => {
+        destinationRow(groupEl, {
+          name: DESTINATION_TITLES.engineKey,
+          desc: ENGINE_SCREEN.instead.desc,
+          onOpen: () => this.openRoute("engineKey"),
+        });
       },
     });
 
@@ -2297,6 +2445,111 @@ export class AtomsSettingTab extends PluginSettingTab {
         for (const name of ENGINE_SCREEN.whatGetsSent.lines) {
           statusRow(groupEl, { name });
         }
+      },
+    });
+  }
+
+  /**
+   * The key screen, which is `renderKeyRows` given a home of its own.
+   *
+   * Called rather than re-implemented on purpose: `renderKeyRows` holds the one direct
+   * `new Setting(` this file is allowed (`DIRECT_SETTING_BUDGET`, currently 5, with no headroom),
+   * so a second construction here would break the ratchet. Moving the call site keeps the count.
+   */
+  private renderEngineKeyDestination(containerEl: HTMLElement): void {
+    containerEl.createEl("p", {
+      text: ENGINE_KEY_SCREEN.lead,
+      cls: "setting-item-description",
+    });
+    group(containerEl, {
+      header: ENGINE_KEY_SCREEN.yourKey.header,
+      footer: ENGINE_KEY_SCREEN.yourKey.footer,
+      render: (groupEl) => this.renderKeyRows(groupEl),
+    });
+  }
+
+
+  /**
+   * Redeem a promo code, in whichever of the six account states the reader is in.
+   *
+   * Never hidden. An earlier draft hid this on a live subscription to avoid buying a second one,
+   * which took the row away from a trialing reader: the likeliest holder of a code, left with no
+   * route and nothing on screen explaining why. The branch belongs on the destination, not on
+   * whether the row renders.
+   */
+  private renderRedeemDestination(containerEl: HTMLElement): void {
+    const state = this.accountState();
+    const live = hasLiveSubscription(state);
+
+    containerEl.createEl("p", {
+      text: live ? REDEEM_SCREEN.leadPortal : REDEEM_SCREEN.leadCheckout,
+      cls: "setting-item-description",
+    });
+    // The two states that own a subscription each get the sentence that is true only for them.
+    const note =
+      state.kind === "active" && state.status === "trialing"
+        ? REDEEM_SCREEN.trialNote
+        : state.kind === "exhausted"
+          ? REDEEM_SCREEN.topUpNote
+          : null;
+    if (note) {
+      containerEl.createEl("p", { text: note, cls: "setting-item-description" });
+    }
+
+    group(containerEl, {
+      header: DESTINATION_TITLES.redeem,
+      footer: REDEEM_SCREEN.footer,
+      render: (groupEl) => {
+        if (state.kind === "signedOut") {
+          // No session, so there is nobody to bill yet: the email is what mints one, exactly as
+          // the locked cluster does. One field, one commit.
+          this.formRow(groupEl, {
+            name: "Email",
+            placeholder: "you@example.com",
+            configure: (text) => {
+              text.inputEl.type = "email";
+              text.inputEl.autocomplete = "email";
+            },
+            submit: {
+              action: "plus:redeem-code",
+              label: "Open checkout",
+              onSubmit: (email) => this.startSubscribeFromEmail(email),
+            },
+          });
+          return;
+        }
+        this.actionRow(groupEl, {
+          action: "plus:redeem-code",
+          name: live ? "Billing portal" : "Checkout",
+          desc: live
+            ? "Add the code to the subscription you already have."
+            : "Start a subscription with your code applied.",
+          label: live ? "Open billing portal" : "Open checkout",
+          onClick: () =>
+            live ? this.openBillingPortal() : this.openSubscribeCheckout(),
+        });
+      },
+    });
+  }
+
+  /**
+   * The main screen's Atoms Plus group: the account, and the way to spend a code (KD8).
+   */
+  private renderPlusGroup(containerEl: HTMLElement): void {
+    const session = readPlusSession(this.app);
+    group(containerEl, {
+      header: PLUS_GROUP.header,
+      footer: PLUS_GROUP.footer,
+      render: (groupEl) => {
+        destinationRow(groupEl, {
+          name: DESTINATION_TITLES.account,
+          desc: session?.email ?? "Not signed in",
+          onOpen: () => this.openRoute("account"),
+        });
+        destinationRow(groupEl, {
+          name: DESTINATION_TITLES.redeem,
+          onOpen: () => this.openRoute("redeem"),
+        });
       },
     });
   }
@@ -2315,6 +2568,12 @@ export class AtomsSettingTab extends PluginSettingTab {
     } else {
       this.renderSignedInAccount(containerEl, state);
     }
+
+    // Every state, including a live subscription: see `renderRedeemDestination`.
+    destinationRow(containerEl, {
+      name: DESTINATION_TITLES.redeem,
+      onOpen: () => this.openRoute("redeem"),
+    });
 
     containerEl.createEl("p", {
       text: "When you use Plus, captures are sent securely to Anthropic under our account. We don’t train on your notes.",
@@ -2355,7 +2614,9 @@ export class AtomsSettingTab extends PluginSettingTab {
     });
 
     containerEl.createEl("p", {
-      text: "To use your own API key instead, add it under API Key. Plus is optional.",
+      // The address, not a row name. This said "add it under API Key", which has not been a row
+      // since #493 renamed it, and after the credential form moved it would have been wrong twice.
+      text: "To use your own key instead, open Filing and choose Use your own Anthropic key. Plus is optional.",
       cls: "setting-item-description",
     });
   }

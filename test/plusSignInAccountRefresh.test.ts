@@ -33,8 +33,8 @@ function liveAccountTab() {
   made.tab.display();
   // Account sits two taps in since U4: the main screen asks who files, the engine screen offers
   // the two answers, and this row is the Plus one.
-  open(made.tab, "Who does the filing");
-  open(made.tab, "Set up automatic filing");
+  open(made.tab, "Filing");
+  open(made.tab, "Atoms Plus");
   return { ...made, app };
 }
 

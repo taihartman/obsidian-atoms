@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| _Nothing in flight._ |
+| In progress | [#530](https://github.com/taihartman/obsidian-atoms/issues/530) | Claude (agent) | `claude/filing-clarity-promo-redemption-ih1220` | [`2026-08-16-001`](docs/plans/2026-08-16-001-feat-filing-clarity-promo-redemption-plan.md) | `src/settings/settings.ts`, `src/settings/rows.ts`, `www/src/setup.html.tmpl`, `www/dist/`, `test/settings.test.ts`, `test/settingsRows.test.ts` | Filing settings read as jargon and a promo code has nowhere to go. **Full lane** (U2 moves the Anthropic API key row, which auto-escalates). Plan written, **doc-review not yet run**; no implementation started. Heavy `settings.ts` overlap — U1-U5 all mutate `expectedRows()` so they land sequentially. Two gates outside the code: the Stripe **portal promotion-code configuration** must be verified in the Dashboard before U4's portal half can be promised (OQ3), and live-vault screenshots need a machine with the QA vault (this session has no Obsidian CLI). |
 
 ## How to claim (copy)
 

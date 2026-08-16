@@ -1,0 +1,1227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Filing clarity and promo code — mock</title>
+<style>
+  :root {
+    /* Inherited from docs/design-handoff/plus-promo-redeem/index.html so the frames match. */
+    --bg: #000;
+    --page-bg: #0a0a0c;
+    --card: #1c1c1e;
+    --elev: #2c2c2e;
+    --sep: rgba(84, 84, 88, 0.55);
+    --label: #fff;
+    --muted: rgba(235, 235, 245, 0.62);
+    --faint: rgba(235, 235, 245, 0.34);
+    --tint: #0a84ff;
+    --person: #ff9f0a;
+    --ok: #30d158;
+    /* Added for this mock only: the colour means "undefined term", nothing else. */
+    --flag: #ff453a;
+    --stripe: #635bff;
+    --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", system-ui, sans-serif;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--page-bg);
+    color: var(--label);
+    font-family: var(--font);
+    line-height: 1.42;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page {
+    max-width: 1240px;
+    margin: 0 auto;
+    padding: 2rem 1.25rem 5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 3rem;
+  }
+
+  /* ---------- page chrome ---------- */
+
+  header.top {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    border-bottom: 1px solid var(--sep);
+    padding-bottom: 1.5rem;
+  }
+  .eyebrow {
+    margin: 0;
+    font-size: 0.68rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--person);
+    font-weight: 600;
+  }
+  header.top h1 {
+    margin: 0;
+    font-size: clamp(1.5rem, 3.4vw, 2rem);
+    font-weight: 700;
+    letter-spacing: -0.035em;
+    text-wrap: balance;
+  }
+  .lede {
+    margin: 0;
+    max-width: 42rem;
+    color: var(--muted);
+    font-size: 0.96rem;
+  }
+  .callout {
+    margin: 0;
+    padding: 0.9rem 1.05rem;
+    background: var(--card);
+    border: 1px solid var(--sep);
+    border-radius: 12px;
+    font-size: 0.87rem;
+    color: var(--muted);
+  }
+  .callout strong { color: var(--label); }
+  .callout.rev { border-left: 3px solid var(--ok); }
+  .callout code { font-family: var(--mono); font-size: 0.82rem; }
+
+  nav.jump { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+  nav.jump a {
+    font-size: 0.78rem;
+    color: var(--tint);
+    text-decoration: none;
+    padding: 0.35rem 0.75rem;
+    border: 1px solid var(--sep);
+    border-radius: 980px;
+    background: var(--card);
+  }
+  nav.jump a:hover { border-color: var(--tint); }
+  nav.jump a:focus-visible { outline: 2px solid var(--tint); outline-offset: 2px; }
+
+  /* ---------- sections ---------- */
+
+  section.block {
+    display: flex;
+    flex-direction: column;
+    gap: 1.15rem;
+    scroll-margin-top: 1rem;
+  }
+  section.block > hgroup { display: flex; flex-direction: column; gap: 0.3rem; }
+  section.block h2 {
+    margin: 0;
+    font-size: 1.15rem;
+    font-weight: 650;
+    letter-spacing: -0.025em;
+  }
+  section.block .sub {
+    margin: 0;
+    max-width: 46rem;
+    color: var(--muted);
+    font-size: 0.87rem;
+  }
+  section.block .sub strong { color: var(--label); }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1.6rem;
+    align-items: start;
+  }
+
+  figure.frame { margin: 0; display: flex; flex-direction: column; gap: 0.6rem; }
+  figure.frame figcaption {
+    font-size: 0.75rem;
+    color: var(--faint);
+    text-align: center;
+  }
+  figure.frame figcaption b { color: var(--muted); font-weight: 600; }
+
+  /* ---------- phone ---------- */
+
+  .phone {
+    background: #111;
+    border-radius: 28px;
+    border: 2px solid #2a2a2e;
+    padding: 10px;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  }
+  .phone.pick { border-color: color-mix(in srgb, var(--ok) 65%, #2a2a2e); }
+  .phone.reject { border-color: color-mix(in srgb, var(--flag) 45%, #2a2a2e); }
+  .phone-notch { height: 16px; display: flex; justify-content: center; margin-bottom: 6px; }
+  .phone-notch span { width: 70px; height: 5px; border-radius: 3px; background: #2c2c2e; }
+  .screen {
+    background: var(--bg);
+    border-radius: 20px;
+    padding: 14px 14px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .nav { display: flex; align-items: center; gap: 7px; color: var(--tint); font-size: 0.92rem; font-weight: 500; }
+  .nav .chev { font-size: 1.15rem; line-height: 1; }
+  .nav .title { color: var(--label); font-size: 1.02rem; font-weight: 650; letter-spacing: -0.02em; }
+
+  .lead { margin: 0; font-size: 0.82rem; color: var(--muted); line-height: 1.4; }
+
+  /* ---------- settings group grammar (mirrors src/settings/rows.ts) ---------- */
+
+  .ghead {
+    margin: 0;
+    font-size: 0.68rem;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--faint);
+    font-weight: 600;
+  }
+  .group { background: var(--card); border-radius: 12px; padding: 0 12px; }
+  .gfoot { margin: 0; font-size: 0.72rem; color: var(--faint); line-height: 1.4; }
+  .gwrap { display: flex; flex-direction: column; gap: 7px; }
+
+  .row {
+    padding: 11px 0 12px;
+    border-bottom: 1px solid var(--sep);
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+  }
+  .row:last-child { border-bottom: none; }
+  .row .txt { flex: 1; min-width: 0; }
+  .row .name { font-size: 0.9rem; font-weight: 500; letter-spacing: -0.01em; }
+  .row .desc { font-size: 0.76rem; color: var(--muted); margin-top: 3px; line-height: 1.35; }
+  .row .edge { flex: none; display: flex; align-items: center; color: var(--faint); font-size: 1.05rem; padding-top: 2px; }
+  .row .value { flex: none; font-size: 0.82rem; color: var(--muted); padding-top: 1px; text-align: right; max-width: 50%; }
+  .row .value.set { color: var(--label); }
+  .row.stack { flex-direction: column; align-items: stretch; gap: 8px; }
+  .row.elide { color: var(--faint); font-size: 0.76rem; padding: 9px 0; justify-content: center; }
+  .row.quiet .name { color: var(--tint); font-weight: 400; }
+
+  .toggle { flex: none; width: 40px; height: 24px; border-radius: 999px; background: var(--elev); position: relative; }
+  .toggle.on { background: var(--tint); }
+  .toggle::after { content: ""; position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; border-radius: 50%; background: #fff; }
+  .toggle.on::after { left: auto; right: 2px; }
+
+  .field {
+    width: 100%;
+    height: 34px;
+    border-radius: 8px;
+    background: var(--elev);
+    color: var(--faint);
+    padding: 0 10px;
+    font-size: 0.8rem;
+    display: flex;
+    align-items: center;
+    font-family: var(--mono);
+  }
+  .btnrow { display: flex; gap: 7px; flex-wrap: wrap; }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 34px;
+    padding: 0 12px;
+    border-radius: 8px;
+    font-size: 0.79rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    background: var(--tint);
+    color: #fff;
+    white-space: nowrap;
+  }
+  .btn.quiet { background: var(--elev); color: var(--label); }
+  .btn.wide { flex: 1; }
+
+  /* ---------- annotation ---------- */
+
+  .jargon {
+    color: var(--flag);
+    border-bottom: 1.5px dashed color-mix(in srgb, var(--flag) 70%, transparent);
+    font-weight: 600;
+  }
+  .new {
+    background: color-mix(in srgb, var(--ok) 16%, transparent);
+    box-shadow: 0 0 0 5px color-mix(in srgb, var(--ok) 16%, transparent);
+    border-radius: 3px;
+  }
+  .tag {
+    display: inline-block;
+    font-size: 0.62rem;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 5px;
+    vertical-align: 2px;
+    margin-left: 6px;
+  }
+  .tag.add { background: color-mix(in srgb, var(--ok) 22%, transparent); color: var(--ok); }
+  .tag.moved { background: color-mix(in srgb, var(--person) 20%, transparent); color: var(--person); }
+  .tag.gone { background: color-mix(in srgb, var(--flag) 20%, transparent); color: var(--flag); }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1.25rem;
+    font-size: 0.78rem;
+    color: var(--muted);
+    padding: 0.75rem 1rem;
+    background: var(--card);
+    border: 1px solid var(--sep);
+    border-radius: 12px;
+  }
+  .legend span { display: inline-flex; align-items: center; gap: 0.45rem; }
+  .swatch { width: 11px; height: 11px; border-radius: 3px; flex: none; }
+
+  /* ---------- terms + moves ---------- */
+
+  .terms {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 0.6rem;
+  }
+  .terms li {
+    background: var(--card);
+    border: 1px solid var(--sep);
+    border-left: 3px solid var(--flag);
+    border-radius: 9px;
+    padding: 0.6rem 0.8rem;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+  .terms li.done { border-left-color: var(--ok); }
+  .terms code { font-family: var(--mono); font-size: 0.78rem; color: var(--label); display: block; margin-bottom: 2px; }
+
+  .moves { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; }
+  .moves article {
+    background: var(--card);
+    border: 1px solid var(--sep);
+    border-radius: 12px;
+    padding: 0.95rem 1.05rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+  .moves article.no { border-color: color-mix(in srgb, var(--flag) 40%, var(--sep)); }
+  .moves h3 { margin: 0; font-size: 0.87rem; font-weight: 650; letter-spacing: -0.01em; }
+  .moves p { margin: 0; font-size: 0.8rem; color: var(--muted); }
+  .moves .verdict {
+    font-size: 0.66rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-weight: 700;
+  }
+  .moves .verdict.take { color: var(--ok); }
+  .moves .verdict.leave { color: var(--flag); }
+
+  /* ---------- tables ---------- */
+
+  .tablewrap { overflow-x: auto; border: 1px solid var(--sep); border-radius: 12px; }
+  table { border-collapse: collapse; width: 100%; min-width: 640px; background: var(--card); }
+  caption {
+    caption-side: top;
+    text-align: left;
+    padding: 0.7rem 0.9rem;
+    font-size: 0.78rem;
+    color: var(--faint);
+    border-bottom: 1px solid var(--sep);
+  }
+  th, td { text-align: left; padding: 0.65rem 0.9rem; font-size: 0.8rem; border-bottom: 1px solid var(--sep); vertical-align: top; }
+  th {
+    font-size: 0.68rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--faint);
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  td.was { color: var(--muted); }
+  td.now { color: var(--label); }
+  code.ref { font-family: var(--mono); font-size: 0.74rem; color: var(--tint); white-space: nowrap; }
+
+  /* ---------- stripe ---------- */
+
+  .checkout {
+    background: #fff;
+    color: #1a1a1a;
+    border-radius: 12px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .checkout h3 { margin: 0; font-size: 0.95rem; }
+  .checkout .price { margin: 0; font-size: 1.35rem; font-weight: 700; }
+  .checkout .promo {
+    align-self: flex-start;
+    font-size: 0.8rem;
+    font-weight: 650;
+    color: #9a6700;
+    background: #fff4d6;
+    padding: 5px 8px;
+    border-radius: 6px;
+  }
+  .checkout .pay {
+    background: var(--stripe);
+    color: #fff;
+    min-height: 38px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 650;
+    font-size: 0.87rem;
+  }
+
+  footer.foot { border-top: 1px solid var(--sep); padding-top: 1.25rem; font-size: 0.78rem; color: var(--faint); }
+
+  @media (prefers-reduced-motion: no-preference) {
+    nav.jump a { transition: border-color 120ms ease; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header class="top">
+    <p class="eyebrow">Mock v2 · not implemented · Settings → Filing + promo code</p>
+    <h1>Filing clarity &amp; promo code</h1>
+    <p class="lede">
+      A first-week user cannot tell what <em>Who does the filing</em> is asking them, and nobody holding
+      a promo code can find where to spend it. Revised after an Apple read: the row stops asking a
+      question, the two options stop being peers, and three promo entries collapse to one.
+    </p>
+    <p class="callout rev">
+      <strong>What changed in v2.</strong> The row becomes a noun with state on the right, the way every
+      iOS Settings row works. Atoms Plus goes first and your own key goes second, because a recommended
+      path and an escape hatch are never peers. Promo becomes one permanent <strong>Redeem code</strong>
+      row where the money lives. Two things Apple would do were <strong>refused</strong>, both for the
+      same reason: this product's honesty is not decoration.
+    </p>
+    <p class="callout">
+      <strong>Already shipped, just buried.</strong> Settings → Account → email → <strong>Use promo
+      code</strong> opens Stripe Checkout, and the server already sends
+      <code>allow_promotion_codes: "true"</code>. Nothing to build on the billing side. Stripe owns the
+      code field, so the plugin never renders one.
+    </p>
+    <nav class="jump">
+      <a href="#today">Today</a>
+      <a href="#read">The Apple read</a>
+      <a href="#row">The row</a>
+      <a href="#screen">Plus first</a>
+      <a href="#promo">Redeem code</a>
+      <a href="#states">Signed in</a>
+      <a href="#copy">Copy diff</a>
+      <a href="#decide">Your calls</a>
+    </nav>
+  </header>
+
+  <!-- ============ TODAY ============ -->
+  <section class="block" id="today">
+    <hgroup>
+      <h2>Today</h2>
+      <p class="sub">
+        Shipped copy, verbatim. Red marks a word the screen never defines. Eight of them, on the screen
+        holding the only decision Atoms cannot make for you.
+      </p>
+    </hgroup>
+
+    <div class="legend">
+      <span><span class="swatch" style="background: var(--flag)"></span> undefined term</span>
+      <span><span class="swatch" style="background: var(--ok)"></span> proposed</span>
+      <span><span class="swatch" style="background: var(--person)"></span> moved, not deleted</span>
+    </div>
+
+    <div class="grid">
+
+      <figure class="frame">
+        <div class="phone">
+          <div class="phone-notch"><span></span></div>
+          <div class="screen">
+            <div class="nav"><span class="title">Atoms</span></div>
+            <div class="gwrap">
+              <p class="ghead">2 · File</p>
+              <div class="group">
+                <div class="row">
+                  <div class="txt"><div class="name">Who does the filing</div></div>
+                  <div class="value">Not chosen</div>
+                  <div class="edge">›</div>
+                </div>
+                <div class="row">
+                  <div class="txt">
+                    <div class="name">File automatically when Obsidian opens</div>
+                    <div class="desc">Filing starts with tomorrow's note, on this device.</div>
+                  </div>
+                  <div class="toggle"></div>
+                </div>
+                <div class="row elide">⋯ folder, vocabulary, hub list</div>
+              </div>
+              <p class="gfoot">
+                What you wrote is never rewritten. Atoms only adds new atom files, one small marker line
+                under the capture it read, and a list inside its own marked block on hub notes.
+              </p>
+            </div>
+          </div>
+        </div>
+        <figcaption><b>Main screen.</b> A question in a row label, answered by two words that raise another.</figcaption>
+      </figure>
+
+      <figure class="frame">
+        <div class="phone">
+          <div class="phone-notch"><span></span></div>
+          <div class="screen">
+            <div class="nav"><span class="chev">‹</span><span class="title">Who does the filing</span></div>
+            <p class="lead">
+              Atoms sends each capture to <span class="jargon">Anthropic</span> to be titled and linked.
+              Somebody has to pay for that: us, or you.
+            </p>
+            <div class="gwrap">
+              <p class="ghead">Pick one</p>
+              <div class="group">
+                <div class="row">
+                  <div class="txt">
+                    <div class="name">Set up automatic filing</div>
+                    <div class="desc">
+                      Atoms Plus files your captures for you. Or keep using your own
+                      <span class="jargon">API key</span>: the full app stays yours either way.
+                    </div>
+                  </div>
+                  <div class="edge">›</div>
+                </div>
+                <div class="row stack">
+                  <div class="txt">
+                    <div class="name"><span class="jargon">Anthropic API key</span></div>
+                    <div class="desc">Kept on this device only, never synced and never in your vault files.</div>
+                  </div>
+                  <div class="field"><span class="jargon">sk-ant-…</span></div>
+                </div>
+                <div class="row">
+                  <div class="txt">
+                    <div class="name"><span class="jargon">Device-local</span> key <span class="jargon">fallback</span></div>
+                    <div class="desc">For devices where Obsidian cannot store the key itself.</div>
+                  </div>
+                  <div class="toggle"></div>
+                </div>
+              </div>
+              <p class="gfoot">
+                Filing works the same either way. Atoms Plus is 14 days free, then $6 a month.
+                <span class="jargon">The key row asks for a name to file your key under, not the key
+                itself: lowercase letters, numbers and dashes, like atoms-anthropic-key.</span>
+              </p>
+            </div>
+            <div class="gwrap">
+              <p class="ghead">What gets sent</p>
+              <div class="group">
+                <div class="row"><div class="txt"><div class="name">Each capture, and your note titles, over <span class="jargon">TLS</span></div></div></div>
+                <div class="row"><div class="txt"><div class="name">Never the body of another note, and never your whole vault</div></div></div>
+                <div class="row"><div class="txt"><div class="name">Nothing from today, unless you ask for it</div></div></div>
+              </div>
+              <p class="gfoot">You will see the full wording, and have to accept it, before Atoms files on its own.</p>
+            </div>
+          </div>
+        </div>
+        <figcaption><b>Engine screen.</b> <code class="ref">settings.ts:565-598</code> · a decision and a credential form, sharing one screen.</figcaption>
+      </figure>
+
+    </div>
+
+    <ul class="terms">
+      <li><code>Anthropic</code>A company the screen never introduces.</li>
+      <li><code>API key</code>Three times, before anything says what one is.</li>
+      <li><code>Device-local</code>Means "not synced", which the row then says anyway.</li>
+      <li><code>fallback</code>Implies a first choice never shown.</li>
+      <li><code>SecretStorage</code>An Obsidian internal, where money is decided.</li>
+      <li><code>TLS</code>The one security fact stated as an acronym.</li>
+      <li><code>sk-ant-…</code>Meaningful only if you already have one.</li>
+      <li><code>a name to file your key under</code>A charset spec, under the pricing.</li>
+    </ul>
+  </section>
+
+  <!-- ============ THE READ ============ -->
+  <section class="block" id="read">
+    <hgroup>
+      <h2>The Apple read</h2>
+      <p class="sub">
+        Four moves. Two taken, two refused. The refusals matter more than the adoptions: they are where
+        this product is deliberately not Apple.
+      </p>
+    </hgroup>
+    <div class="moves">
+      <article>
+        <span class="verdict take">Taken</span>
+        <h3>A row is a noun, not a question</h3>
+        <p>
+          iOS Settings rows never ask anything. <strong>Wi-Fi › Home.</strong>
+          <strong>Screen Time › On.</strong> The row names the thing; the value says where it stands.
+          All three names we debated were questions. The word "filing" gets defined once, in the group
+          footer, which is exactly the job group footers already do.
+        </p>
+      </article>
+      <article>
+        <span class="verdict take">Taken</span>
+        <h3>Demote, do not balance</h3>
+        <p>
+          Apple never puts a recommended path and an escape hatch side by side. Plus becomes the screen;
+          your own key becomes a second, quieter group underneath. This is what removes all eight terms
+          from the decision instead of seven.
+        </p>
+        <p>
+          <strong>Adjusted after checking the code.</strong> The purer iOS shape is an unheadered first
+          group, but <code style="font-family:var(--mono)">SettingGroupSpec.header</code> is a required
+          string, and widening it means touching the primitive every group on the tab renders through.
+          <strong>Recommended</strong> is the better answer anyway: for this reader, being told which
+          one to pick is the most useful sentence on the screen.
+        </p>
+      </article>
+      <article class="no">
+        <span class="verdict leave">Refused</span>
+        <h3>Silence about the vendor</h3>
+        <p>
+          Apple would delete "runs on AI built by a company called Anthropic, and it costs a few cents
+          every time." The vendor and the unit economics are the vendor's problem. But pillar three of
+          this product is <em>the honest middle</em>, and consent to send is gated on saying what gets
+          sent. Reticence is the one thing here that cannot be borrowed.
+        </p>
+      </article>
+      <article class="no">
+        <span class="verdict leave">Refused</span>
+        <h3>Privacy behind a link</h3>
+        <p>
+          Apple's placement is a standard secondary sheet: <em>About Siri &amp; Privacy</em>. Tempting.
+          But <strong>What gets sent</strong> previews a versioned, acknowledged disclosure, and moving a
+          consent surface behind a link to win a layout argument is how a device ends up filing under a
+          grant nobody read. The three lines stay inline.
+        </p>
+      </article>
+    </div>
+  </section>
+
+  <!-- ============ THE ROW ============ -->
+  <section class="block" id="row">
+    <hgroup>
+      <h2>The row stops asking</h2>
+      <p class="sub">
+        <strong>Filing</strong> plus a state, in every account condition. Shorter than all three names we
+        debated, and it teaches the word through the value rather than the label. The definition moves
+        into the File group footer, where the word first appears.
+      </p>
+    </hgroup>
+
+    <div class="grid">
+      <figure class="frame">
+        <div class="phone pick">
+          <div class="phone-notch"><span></span></div>
+          <div class="screen">
+            <div class="nav"><span class="title">Atoms</span></div>
+            <div class="gwrap">
+              <p class="ghead">2 · File</p>
+              <div class="group">
+                <div class="row">
+                  <div class="txt"><div class="name"><span class="new">Filing</span></div></div>
+                  <div class="value"><span class="new">Not set up</span></div>
+                  <div class="edge">›</div>
+                </div>
+                <div class="row">
+                  <div class="txt">
+                    <div class="name">File automatically when Obsidian opens</div>
+                    <div class="desc">Filing starts with tomorrow's note, on this device.</div>
+                  </div>
+                  <div class="toggle"></div>
+                </div>
+                <div class="row elide">⋯ folder, vocabulary, hub list</div>
+              </div>
+              <p class="gfoot">
+                <span class="new">Filing is Atoms reading a day of captures and writing each thought up as
+                its own note, linked to the people and topics it mentions.</span> What you wrote is never
+                rewritten. Atoms only adds new atom files, one small marker line under the capture it
+                read, and a list inside its own marked block on hub notes.
+              </p>
+            </div>
+          </div>
+        </div>
+        <figcaption><b>Unconfigured.</b> The row is a noun; <b>Not set up</b> is the call to action. The footer teaches "filing" once.</figcaption>
+      </figure>
+
+      <figure class="frame">
+        <div class="phone">
+          <div class="phone-notch"><span></span></div>
+          <div class="screen">
+            <div class="nav"><span class="title">Atoms</span></div>
+            <div class="gwrap">
+              <p class="ghead">2 · File</p>
+              <div class="group">
+                <div class="row">
+                  <div class="txt"><div class="name">Filing</div></div>
+                  <div class="value set">Atoms Plus</div>
+                  <div class="edge">›</div>
+                </div>
+                <div class="row elide">⋯</div>
+              </div>
+            </div>
+            <div class="gwrap">
+              <div class="group">
+                <div class="row">
+                  <div class="txt"><div class="name">Filing</div></div>
+                  <div class="value set">Your own key</div>
+                  <div class="edge">›</div>
+                </div>
+                <div class="row">
+                  <div class="txt"><div class="name">Filing</div></div>
+                  <div class="value set">Plus · Trial · 12 left</div>
+                  <div class="edge">›</div>
+                </div>
+                <div class="row">
+                  <div class="txt"><div class="name">Filing</div></div>
+                  <div class="value set">Trial ended</div>
+                  <div class="edge">›</div>
+                </div>
+              </div>
+              <p class="gfoot">
+                Every state <code style="font-family:var(--mono)">engineAnswer()</code> already returns, in
+                the value slot. No new state machine: the words are the ones
+                <code style="font-family:var(--mono)">accountRowDescriptor</code> ships today.
+              </p>
+            </div>
+          </div>
+        </div>
+        <figcaption><b>Every other state.</b> The row never changes; only the answer does. That is the point of a noun.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <!-- ============ SCREEN ============ -->
+  <section class="block" id="screen">
+    <hgroup>
+      <h2>Plus first, your own key second</h2>
+      <p class="sub">
+        <strong>Pick one</strong> is gone. Two peers become a recommendation and an alternative, and the
+        credential form leaves the decision entirely. Every one of the eight terms now renders in front
+        of the person who chose to deal with it, and nothing is deleted.
+      </p>
+    </hgroup>
+
+    <div class="grid">
+
+      <figure class="frame">
+        <div class="phone pick">
+          <div class="phone-notch"><span></span></div>
+          <div class="screen">
+            <div class="nav"><span class="chev">‹</span><span class="title"><span class="new">Filing</span></span></div>
+            <p class="lead">
+              <span class="new">Filing is Atoms reading a day of captures and writing each thought up as
+              its own linked note. It runs on AI built by a company called Anthropic, and every capture
+              costs a few cents. Somebody has to pay for that: us, or you.</span>
+            </p>
+            <div class="gwrap">
+              <p class="ghead"><span class="new">Recommended</span></p>
+              <div class="group">
+                <div class="row">
+                  <div class="txt">
+                    <div class="name">Atoms Plus</div>
+                    <div class="desc"><span class="new">We pay for the AI. Nothing else to set up.</span></div>
+                  </div>
+                  <div class="value"><span class="new">14 days free</span></div>
+                  <div class="edge">›</div>
+                </div>
+              </div>
+              <p class="gfoot"><span class="new">$6 a month after the trial. Cancel any time.</span></p>
+            </div>
+            <div class="gwrap">
+              <p class="ghead"><span class="new">Instead</span></p>
+              <div class="group">
+                <div class="row">
+                  <div class="txt">
+                    <div class="name"><span class="new">Use your own Anthropic key</span></div>
+                    <div class="desc"><span class="new">Free from us. You sign up with Anthropic and they bill you for what filing uses.</span></div>
+                  </div>
+                  <div class="edge">›</div>
+                </div>
+              </div>
+              <p class="gfoot"><span class="new">Same atoms, same links, same speed. The only difference is who gets the bill.</span></p>
+            </div>
+            <div class="gwrap">
+              <p class="ghead">What gets sent</p>
+              <div class="group">
+                <div class="row"><div class="txt"><div class="name">Each capture, and the titles of your notes, <span class="new">encrypted on the way</span></div></div></div>
+                <div class="row"><div class="txt"><div class="name">Never the text inside your other notes, and never your whole vault</div></div></div>
+                <div class="row"><div class="txt"><div class="name">Nothing from today, unless you ask for it</div></div></div>
+              </div>
+              <p class="gfoot">You will see the full wording, and have to accept it, before Atoms files on its own.</p>
+            </div>
+          </div>
+        </div>
+        <figcaption><b>The decision.</b> One recommendation, one alternative, three promises. No credential control, no acronyms, no charset spec.</figcaption>
+      </figure>
+
+      <figure class="frame">
+        <div class="phone">
+          <div class="phone-notch"><span></span></div>
+          <div class="screen">
+            <div class="nav"><span class="chev">‹</span><span class="title"><span class="new">Your own Anthropic key</span></span></div>
+            <p class="lead">
+              <span class="new">You will need an account with Anthropic and a key from it. Atoms keeps that
+              key on this device only: never synced, never written into your vault.</span>
+            </p>
+            <div class="gwrap">
+              <p class="ghead">Your key</p>
+              <div class="group">
+                <div class="row stack">
+                  <div class="txt">
+                    <div class="name">Anthropic API key<span class="tag moved">moved</span></div>
+                    <div class="desc">A different vault, or a reinstall, asks for it once more.</div>
+                  </div>
+                  <div class="field">sk-ant-…</div>
+                </div>
+                <div class="row">
+                  <div class="txt">
+                    <div class="name">Device-local key fallback<span class="tag moved">moved</span></div>
+                    <div class="desc">For devices where Obsidian cannot store the key itself. Turning this off deletes that copy.</div>
+                  </div>
+                  <div class="toggle"></div>
+                </div>
+              </div>
+              <p class="gfoot">
+                The key row asks for a name to file your key under, not the key itself: lowercase letters,
+                numbers and dashes, like atoms-anthropic-key.<span class="tag moved">moved</span>
+              </p>
+            </div>
+          </div>
+        </div>
+        <figcaption><b>New destination.</b> Reuses <code class="ref">renderKeyRows</code> unchanged, so the one raw <code class="ref">new Setting(</code> moves rather than multiplying.</figcaption>
+      </figure>
+
+    </div>
+
+    <ul class="terms">
+      <li class="done"><code>Anthropic</code>Introduced as a company, in the lead.</li>
+      <li class="done"><code>API key</code>Only on the key screen now.</li>
+      <li class="done"><code>Device-local</code>Key screen.</li>
+      <li class="done"><code>fallback</code>Key screen.</li>
+      <li class="done"><code>SecretStorage</code>Key screen.</li>
+      <li class="done"><code>TLS</code>Replaced by the promise it was making.</li>
+      <li class="done"><code>sk-ant-…</code>Key screen.</li>
+      <li class="done"><code>naming rule</code>Key screen footer.</li>
+    </ul>
+  </section>
+
+  <!-- ============ PROMO ============ -->
+  <section class="block" id="promo">
+    <hgroup>
+      <h2>One permanent Redeem code</h2>
+      <p class="sub">
+        Apple's <strong>Redeem Gift Card or Code</strong> is instructive for what it is not: not
+        conditional, not near the feature, not a question. Three rows and three action ids collapse to
+        one row and one id, in the Plus group, where the money lives — plus a copy of it at the bottom
+        of the main screen, next to an Account row that does not exist there yet.
+      </p>
+    </hgroup>
+
+    <div class="grid">
+
+      <figure class="frame">
+        <div class="phone pick">
+          <div class="phone-notch"><span></span></div>
+          <div class="screen">
+            <div class="nav"><span class="chev">‹</span><span class="title">Account</span></div>
+            <div class="gwrap">
+              <p class="ghead">Atoms Plus</p>
+              <div class="group">
+                <div class="row stack">
+                  <div class="txt">
+                    <div class="name">Email</div>
+                    <div class="desc">Sign in, start a trial, or use a promo code. On checkout, tap Add promotion code.</div>
+                  </div>
+                  <div class="field">you@example.com</div>
+                  <div class="btnrow">
+                    <span class="btn quiet">Send sign-in link</span>
+                    <span class="btn">Start free trial</span>
+                    <span class="btn quiet">Use promo code</span>
+                  </div>
+                </div>
+                <div class="row">
+                  <div class="txt"><div class="name"><span class="new">Redeem code</span><span class="tag add">new</span></div></div>
+                  <div class="edge">›</div>
+                </div>
+              </div>
+              <p class="gfoot">
+                <span class="new">You type the code on the checkout page, not here. Codes apply to a
+                subscription, not to a free trial.</span>
+              </p>
+            </div>
+          </div>
+        </div>
+        <figcaption><b>Plus group.</b> Locked email cluster untouched. One noun row above the footer that explains where the code actually goes.</figcaption>
+      </figure>
+
+      <figure class="frame">
+        <div class="phone">
+          <div class="phone-notch"><span></span></div>
+          <div class="screen">
+            <div class="nav"><span class="chev">‹</span><span class="title">Redeem code</span></div>
+            <p class="lead">
+              <span class="new">Checkout opens in your browser. Tap <strong>Add promotion code</strong> on
+              that page and enter your code there.</span>
+            </p>
+            <div class="gwrap">
+              <div class="group">
+                <div class="row stack">
+                  <div class="txt"><div class="name">Email</div></div>
+                  <div class="field">you@example.com</div>
+                  <div class="btnrow"><span class="btn wide">Open checkout</span></div>
+                </div>
+              </div>
+              <p class="gfoot"><span class="new">Signed in already? This step is skipped.</span></p>
+            </div>
+            <div class="checkout">
+              <h3>Atoms Plus</h3>
+              <p class="price">$6.00 <span style="font-size:0.8rem;font-weight:500">/ month</span></p>
+              <p class="promo">Add promotion code</p>
+              <div class="pay">Subscribe</div>
+            </div>
+          </div>
+        </div>
+        <figcaption><b>The handoff.</b> One screen whose entire job is naming the tap on the next page. Signed in, it is skipped and Checkout opens directly.</figcaption>
+      </figure>
+
+      <figure class="frame">
+        <div class="phone pick">
+          <div class="phone-notch"><span></span></div>
+          <div class="screen">
+            <div class="nav"><span class="title">Atoms</span></div>
+            <div class="gwrap">
+              <p class="ghead">3 · Resurface</p>
+              <div class="group"><div class="row elide">⋯</div></div>
+            </div>
+            <div class="gwrap">
+              <p class="ghead">Your data</p>
+              <div class="group">
+                <div class="row"><div class="txt"><div class="name">Privacy and consents</div></div><div class="edge">›</div></div>
+                <div class="row"><div class="txt"><div class="name">Advanced</div></div><div class="edge">›</div></div>
+              </div>
+            </div>
+            <div class="gwrap">
+              <p class="ghead"><span class="new">Atoms Plus</span></p>
+              <div class="group">
+                <div class="row">
+                  <div class="txt"><div class="name"><span class="new">Account</span></div></div>
+                  <div class="value set"><span class="new">tai@example.com</span></div>
+                  <div class="edge">›</div>
+                </div>
+                <div class="row">
+                  <div class="txt"><div class="name"><span class="new">Redeem code</span></div></div>
+                  <div class="edge">›</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <figcaption><b>Bottom of the main screen.</b> Redeem where you asked for it, beside the Account row it belongs to. <b>Today there is no Account row here at all</b> — <code class="ref">openRoute("account")</code> has one call site, on the engine screen.</figcaption>
+      </figure>
+
+    </div>
+
+    <p class="callout">
+      <strong>Where Apple's pattern does not survive Stripe.</strong> Apple's redeem row is unconditional
+      because a code credits an account balance. Atoms has no balance: a code applies to a subscription.
+      What that means state by state is the next section, and it is where this design had a hole. Also:
+      Apple's redeem sheet offers <strong>Use Camera</strong>, because typing codes is miserable. Stripe
+      owns the field, so that is off the table. A real cost of the constraint, not a free win.
+    </p>
+  </section>
+
+  <!-- ============ STATES ============ -->
+  <section class="block" id="states">
+    <hgroup>
+      <h2>"Signed in" is six states, and one of them was a dead end</h2>
+      <p class="sub">
+        <code class="ref">deriveAccountState</code> returns six kinds. The first draft said the row hides
+        on "a live subscription", which quietly took it away from the person <strong>most likely to be
+        holding a code</strong>: somebody three days into a fourteen-day trial.
+      </p>
+    </hgroup>
+
+    <div class="tablewrap">
+      <table>
+        <caption>What <strong>Redeem code</strong> does in each state. <code style="font-family:var(--mono)">settings.ts:215-238</code></caption>
+        <thead>
+          <tr><th>State</th><th>Live Stripe subscription</th><th>Redeem does</th><th>Status</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code class="ref">signedOut</code></td><td class="was">no</td><td class="now">email, then subscribe Checkout</td><td style="color:var(--ok)">works</td></tr>
+          <tr><td><code class="ref">trialIncomplete</code></td><td class="was">no, checkout never completed</td><td class="now">subscribe Checkout</td><td style="color:var(--ok)">works</td></tr>
+          <tr><td><code class="ref">subscribeIncomplete</code></td><td class="was">no</td><td class="now">its own row already says "tap Add promotion code"</td><td style="color:var(--ok)">works today</td></tr>
+          <tr><td><code class="ref">periodEnded</code></td><td class="was">no</td><td class="now">subscribe Checkout</td><td style="color:var(--ok)">works</td></tr>
+          <tr><td><code class="ref">exhausted</code></td><td class="was">yes, meter spent mid-period</td><td class="now">top-up Checkout, which already carries the promo box</td><td style="color:var(--ok)">free win</td></tr>
+          <tr><td><code class="ref">active</code> · trialing</td><td class="was"><strong>yes</strong></td><td class="now">portal, so the coupon lands on the subscription they already have</td><td style="color:var(--flag)">was hidden</td></tr>
+          <tr><td><code class="ref">active</code> · paying</td><td class="was"><strong>yes</strong></td><td class="now">portal</td><td style="color:var(--flag)">was hidden</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="grid">
+
+      <figure class="frame">
+        <div class="phone reject">
+          <div class="phone-notch"><span></span></div>
+          <div class="screen">
+            <div class="nav"><span class="chev">‹</span><span class="title">Account</span></div>
+            <div class="gwrap">
+              <p class="ghead">Atoms Plus</p>
+              <div class="group">
+                <div class="row">
+                  <div class="txt">
+                    <div class="name">tai@example.com</div>
+                    <div class="desc">Plus · Trial · 11 filings left</div>
+                  </div>
+                </div>
+                <div class="row elide">no Redeem code row</div>
+              </div>
+              <p class="gfoot">
+                Eleven days of trial left, a founding code in hand, and nothing on this screen mentions
+                codes. Tapping nothing is not a fallback.
+              </p>
+            </div>
+          </div>
+        </div>
+        <figcaption><b>The hole, as first drafted.</b> <code class="ref">start_trial</code> creates a real Stripe subscription, so a trialing user counts as "live" and the row vanished. Silent dead end.</figcaption>
+      </figure>
+
+      <figure class="frame">
+        <div class="phone pick">
+          <div class="phone-notch"><span></span></div>
+          <div class="screen">
+            <div class="nav"><span class="chev">‹</span><span class="title">Account</span></div>
+            <div class="gwrap">
+              <p class="ghead">Atoms Plus</p>
+              <div class="group">
+                <div class="row">
+                  <div class="txt">
+                    <div class="name">tai@example.com</div>
+                    <div class="desc">Plus · Trial · 11 filings left</div>
+                  </div>
+                </div>
+                <div class="row">
+                  <div class="txt"><div class="name"><span class="new">Redeem code</span></div></div>
+                  <div class="edge">›</div>
+                </div>
+              </div>
+              <p class="gfoot">
+                <span class="new">You are on a trial. Add your code now and it applies when the trial
+                becomes a subscription.</span>
+              </p>
+            </div>
+            <div class="checkout" style="background:#f6f5ff">
+              <h3>Manage your subscription</h3>
+              <p class="promo" style="background:#ede9fe;color:#5b21b6">Add promotion code</p>
+              <div class="pay">Save</div>
+            </div>
+          </div>
+        </div>
+        <figcaption><b>Fixed.</b> Same row, different destination: the billing portal, where a coupon attaches to the subscription that already exists rather than starting a second one.</figcaption>
+      </figure>
+
+      <figure class="frame">
+        <div class="phone">
+          <div class="phone-notch"><span></span></div>
+          <div class="screen">
+            <div class="nav"><span class="chev">‹</span><span class="title">Account</span></div>
+            <div class="gwrap">
+              <p class="ghead">Atoms Plus</p>
+              <div class="group">
+                <div class="row">
+                  <div class="txt">
+                    <div class="name">Monthly limit reached</div>
+                    <div class="desc">This month's included filings are used up. Your allotment starts over on your next billing date.</div>
+                  </div>
+                </div>
+                <div class="row stack">
+                  <div class="txt"><div class="name">Get more</div></div>
+                  <div class="btnrow"><span class="btn wide">Get more</span></div>
+                </div>
+              </div>
+              <p class="gfoot">
+                <span class="new">A code works here too. Tap Add promotion code on the checkout page.</span>
+              </p>
+            </div>
+            <div class="checkout">
+              <h3>50 more filings</h3>
+              <p class="price">$2.00</p>
+              <p class="promo">Add promotion code</p>
+              <div class="pay">Pay</div>
+            </div>
+          </div>
+        </div>
+        <figcaption><b>Spent meter, free win.</b> <code class="ref">allow_promotion_codes</code> is unconditional in <code class="ref">stripe.mjs:208</code>, payment mode included, so top-up already accepts codes. Only the sentence is new.</figcaption>
+      </figure>
+
+    </div>
+
+    <p class="callout">
+      <strong>The scope question this opens.</strong> Routing a live subscription to the portal needs the
+      promotion-code option enabled in the Stripe <em>portal configuration</em>.
+      <code>createPortalSession</code> (<code>stripe.mjs:308-312</code>) sends no
+      <code>configuration</code> param, so we are on the Dashboard default, and two earlier plans put
+      that toggle explicitly out of scope. Turning it on is ops, not code, and it has to be
+      <strong>verified in the Dashboard</strong> before this route can be promised. Second caveat:
+      <code>portalHasSubject</code> (<code>settings.ts:2467</code>) gates the portal on a real Stripe
+      customer, so an account minted without one still has no route and must say so rather than
+      offering a button that fails.
+    </p>
+  </section>
+
+  <!-- ============ COPY ============ -->
+  <section class="block" id="copy">
+    <hgroup>
+      <h2>Copy diff</h2>
+      <p class="sub">
+        Left is shipped today, verbatim. Every proposed string is em-dash free:
+        <code class="ref">test/copyVoice.test.ts</code> is default-deny across <code class="ref">src/**</code>.
+      </p>
+    </hgroup>
+    <div class="tablewrap">
+      <table>
+        <caption>Every string this change touches.</caption>
+        <thead><tr><th>Where</th><th>Today</th><th>Proposed</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><code class="ref">settings.ts:779</code><br>row name</td>
+            <td class="was">Who does the filing</td>
+            <td class="now">Filing</td>
+          </tr>
+          <tr>
+            <td><code class="ref">settings.ts:2256</code><br>row answer</td>
+            <td class="was">Not chosen</td>
+            <td class="now">Not set up <em>(other states unchanged: Atoms Plus, Your own key, Trial ended…)</em></td>
+          </tr>
+          <tr>
+            <td><code class="ref">settings.ts:533-534</code><br>File group footer</td>
+            <td class="was">What you wrote is never rewritten. Atoms only adds new atom files…</td>
+            <td class="now">Filing is Atoms reading a day of captures and writing each thought up as its own note, linked to the people and topics it mentions. <em>(then the existing sentence, unchanged)</em></td>
+          </tr>
+          <tr>
+            <td><code class="ref">settings.ts:566</code><br>screen lead</td>
+            <td class="was">Atoms sends each capture to Anthropic to be titled and linked. Somebody has to pay for that: us, or you.</td>
+            <td class="now">Filing is Atoms reading a day of captures and writing each thought up as its own linked note. It runs on AI built by a company called Anthropic, and every capture costs a few cents. Somebody has to pay for that: us, or you.</td>
+          </tr>
+          <tr>
+            <td><code class="ref">settings.ts:568</code><br>group header</td>
+            <td class="was">Pick one</td>
+            <td class="now">Two groups: <strong>Recommended</strong> and <strong>Instead</strong>. The pinned assertion at <code class="ref">settings.test.ts:4150</code> goes from two headers to three.</td>
+          </tr>
+          <tr>
+            <td><code class="ref">settings.ts:253-254</code><br>Plus row</td>
+            <td class="was">Set up automatic filing — Atoms Plus files your captures for you. Or keep using your own API key: the full app stays yours either way.</td>
+            <td class="now">Atoms Plus · We pay for the AI. Nothing else to set up. · value: 14 days free</td>
+          </tr>
+          <tr>
+            <td>new row</td>
+            <td class="was">— (the key field sat here)</td>
+            <td class="now">Use your own Anthropic key · Free from us. You sign up with Anthropic and they bill you for what filing uses.</td>
+          </tr>
+          <tr>
+            <td><code class="ref">settings.ts:578-579</code><br>footer</td>
+            <td class="was">Filing works the same either way. Atoms Plus is 14 days free, then $6 a month. Your own key bills you at Anthropic's rates instead. The key row asks for a name to file your key under…</td>
+            <td class="now">Split in three. Plus group: "$6 a month after the trial. Cancel any time." Instead group: "Same atoms, same links, same speed. The only difference is who gets the bill." Naming rule: moves to the key screen. <em>Prices still formatted from <code style="font-family:var(--mono)">plus-pricing.json</code>.</em></td>
+          </tr>
+          <tr>
+            <td><code class="ref">settings.ts:592</code></td>
+            <td class="was">Each capture, and your note titles, over TLS</td>
+            <td class="now">Each capture, and the titles of your notes, encrypted on the way</td>
+          </tr>
+          <tr>
+            <td><code class="ref">settings.ts:593</code></td>
+            <td class="was">Never the body of another note, and never your whole vault</td>
+            <td class="now">Never the text inside your other notes, and never your whole vault</td>
+          </tr>
+          <tr>
+            <td><code class="ref">settings.ts:2358</code><br>stale pointer</td>
+            <td class="was">To use your own API key instead, add it under API Key.</td>
+            <td class="now">To use your own key instead, open Filing. <em>(That row has not been called "API Key" since #493.)</em></td>
+          </tr>
+          <tr>
+            <td><code class="ref">setup.html.tmpl:161</code><br>public guide</td>
+            <td class="was">On that screen, tap <strong>Who does the filing</strong>. That is where you add your own Anthropic API key…</td>
+            <td class="now">Rewritten for the new name <em>and</em> the moved key field. Both sentences break independently.</td>
+          </tr>
+          <tr>
+            <td>new row</td>
+            <td class="was">—</td>
+            <td class="now">Redeem code · one permanent row, Plus group, one action id. Two destinations: subscribe Checkout with no live subscription, billing portal with one. Never hidden.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ============ DECIDE ============ -->
+  <section class="block" id="decide">
+    <hgroup>
+      <h2>Your calls</h2>
+      <p class="sub">Two settled by the Apple read. One new one, and it is the biggest: the trial case adds a live-Stripe dependency to a plan that had none.</p>
+    </hgroup>
+    <div class="moves">
+      <article>
+        <h3>1 · The portal route for a live subscription</h3>
+        <p>
+          In scope, or out? <strong>In:</strong> a trialing user with a code has a route, but the plan
+          gains a Stripe Dashboard dependency that has to be verified before it can be promised.
+          <strong>Out:</strong> ship Redeem for the four states with no subscription, and have
+          <code style="font-family:var(--mono)">active</code> say plainly that a code cannot be added
+          from here yet. Recommendation: <strong>in</strong>. A hidden row is worse than a dead end,
+          because it is an invisible one.
+        </p>
+      </article>
+      <article>
+        <h3>2 · Split the key screen</h3>
+        <p>
+          Still the only structural change, and the only reason this is a full-lane job. Moving the key
+          field, the fallback toggle and the naming rule behind <em>Use your own Anthropic key</em> is
+          what clears the decision screen. <strong>Yes or no?</strong>
+        </p>
+      </article>
+      <article>
+        <h3>3 · "We pay for the AI"</h3>
+        <p>
+          Plain, and possibly too plain. The alternative is Apple's own word: <em>Included</em>. Settled
+          by the <code style="font-family:var(--mono)">atoms-voice</code> skill unless you rule first.
+        </p>
+      </article>
+      <article class="no">
+        <span class="verdict leave">Settled</span>
+        <h3>Hide on a live subscription</h3>
+        <p>Reversed. It took the row away from a trialing user, the likeliest holder of a code.</p>
+      </article>
+      <article class="no">
+        <span class="verdict leave">Settled</span>
+        <h3>Row name</h3>
+        <p>No longer a choice between three questions. The row is <strong>Filing</strong> and the value carries the answer.</p>
+      </article>
+      <article class="no">
+        <span class="verdict leave">Settled</span>
+        <h3>Main-screen promo</h3>
+        <p>
+          In, at the bottom, as two rows rather than one. Inside <em>Get started</em> it was withdrawn
+          (R18 makes that group one required step); at the bottom beside Account it has context. Costs
+          a fourth group on the main screen, which deviates from #493's R1.
+        </p>
+      </article>
+    </div>
+  </section>
+
+  <footer class="foot">
+    Mock only, no code changed. Frames follow the row grammar in
+    <code class="ref">src/settings/rows.ts</code> and the #493 group rules: one footer per group, prose
+    only, never an action. Prices shown resolved from <code class="ref">plus-pricing.json</code>; in code
+    they stay a function.
+  </footer>
+
+</div>
+
+</body>
+</html>
