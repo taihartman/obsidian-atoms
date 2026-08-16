@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| _Nothing in flight._ |
+| In progress | [#533](https://github.com/taihartman/obsidian-atoms/issues/533) | Claude (agent) | `claude/filing-clarity-promo-redemption-ih1220` | none (amend lane) | `src/settings/settings.ts`, `test/settingsRows.test.ts` | Back from a settings destination lands at the top of the main screen. `openRoute` serves both directions and resets `scrollTop` unconditionally; the comment's reasoning holds for the push and not the pop. **Amend lane**: one field, one branch, no new surface. Surfaced by 0.8.1 putting the Atoms Plus group at the bottom of the main screen. |
 
 ## How to claim (copy)
 
