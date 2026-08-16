@@ -140,6 +140,7 @@ import {
 } from "../platform/plusClient";
 import {
   plusAddressStateMessage,
+  plusBaseHost,
   plusSessionStamp,
 } from "../platform/plusBaseVerify";
 import {
@@ -2636,6 +2637,7 @@ export class AtomsSettingTab extends PluginSettingTab {
     if (state.kind === "signedOut") {
       this.renderSignedOutAccount(containerEl);
     } else {
+      this.renderConfirmPlusAddressRow(containerEl);
       this.renderSignedInAccount(containerEl, state);
     }
 
@@ -2648,6 +2650,46 @@ export class AtomsSettingTab extends PluginSettingTab {
     containerEl.createEl("p", {
       text: "When you use Plus, captures are sent securely to Anthropic under our account. We don’t train on your notes.",
       cls: "setting-item-description",
+    });
+  }
+
+  /**
+   * The KTD1 carve-out's way out, on the screen the refusal points at (#508).
+   *
+   * Every session minted before #508 is unstamped, and a hosted user leaves `plusBaseUrl` empty,
+   * so the first Process, Preview, Update, auto-run, mirror push and outbox ack after upgrading
+   * all refuse. The Notice says to open Settings, and until this row the only place that could
+   * resolve it was Advanced: the screen labelled for the settings almost nobody needs, asking
+   * them to type the address that is already the implicit default. That is a dead end wearing a
+   * signpost.
+   *
+   * The button writes the address rather than minting a stamp. A stamp from here would be a
+   * verdict nothing verified, and the ungated path it would have to trust is precisely the leak
+   * this issue closed. With a non-empty field the next content call probes, matches the account,
+   * and stamps for real.
+   *
+   * Above the account facts, because it blocks all of them: nothing this screen reports is
+   * actionable while note text has nowhere it is allowed to go.
+   */
+  private renderConfirmPlusAddressRow(containerEl: HTMLElement): void {
+    const needsAddress = plusAddressStateMessage(
+      readPlusSession(this.app),
+      this.plugin.settings.plusBaseUrl,
+    );
+    if (!needsAddress) return;
+    this.actionRow(containerEl, {
+      action: "plus:confirm-address",
+      name: "Confirm the Plus address",
+      desc: `Atoms Plus needs its address before your notes are sent. The standard one is ${plusBaseHost(DEFAULT_PLUS_BASE_URL)}. If you run the service yourself, set your own address under Advanced instead.`,
+      label: `Use ${plusBaseHost(DEFAULT_PLUS_BASE_URL)}`,
+      onClick: () => {
+        this.plugin.settings.plusBaseUrl = DEFAULT_PLUS_BASE_URL;
+        void this.plugin.saveSettings();
+        new Notice(
+          `Atoms Plus: using ${plusBaseHost(DEFAULT_PLUS_BASE_URL)}. Your next Process files as usual.`,
+        );
+        this.redisplay();
+      },
     });
   }
 

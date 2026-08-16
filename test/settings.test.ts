@@ -26,6 +26,7 @@ import {
 } from "../src/settings/settings";
 import {
   readPendingSignIns,
+  readPlusSession,
   type FilingAuth,
   type IssuedBase,
   type PlusSession,
@@ -40,6 +41,7 @@ import {
 import { formatUsd, PLUS_PRICING } from "../src/shared/plusPricing";
 import { s256Challenge } from "../src/platform/pkce";
 import {
+  DEFAULT_PLUS_BASE_URL,
   PLUS_BASE_URL_INVALID_MESSAGE,
   requestMagicLink,
 } from "../src/platform/plusClient";
@@ -1115,6 +1117,15 @@ describe("account screen holds the same rows through the restyle (U8, KTD14)", (
     plan: s.plan,
   });
 
+  /**
+   * #508. Every fixture here is stamped, because every session minted since
+   * `installPlusSession` took an issuer is. An unstamped session with an empty
+   * `plusBaseUrl` is the upgrade cohort, and it earns a row of its own that has
+   * nothing to do with what account state the screen is in — pinned separately
+   * below so these nine keep answering only the restyle's question.
+   */
+  const HOSTED = "https://plus.tryatoms.app";
+
   /** A session whose period is already over, in whichever plan the case is about. */
   const lapsed = (plan: PlusSession["plan"]): PlusSession => ({
     sessionToken: "sess_lapsed",
@@ -1123,6 +1134,7 @@ describe("account screen holds the same rows through the restyle (U8, KTD14)", (
     remaining: 0,
     plan,
     periodEnd: T_PAST,
+    issuedBase: HOSTED as IssuedBase,
   });
 
   const live: PlusSession = {
@@ -1131,6 +1143,7 @@ describe("account screen holds the same rows through the restyle (U8, KTD14)", (
     status: "active",
     remaining: 12,
     periodEnd: "2099-09-01T00:00:00.000Z",
+    issuedBase: HOSTED as IssuedBase,
   };
 
   const plusSession = (session: PlusSession): SettingTabOptions => ({
@@ -1162,7 +1175,14 @@ describe("account screen holds the same rows through the restyle (U8, KTD14)", (
     ["signed out", {}, ["Account", "Skip the API key", "Email", REDEEM]],
     [
       "trial started, checkout unfinished",
-      { session: { sessionToken: "sess_soft", email: "user@example.com", status: "inactive" } },
+      {
+        session: {
+          sessionToken: "sess_soft",
+          email: "user@example.com",
+          status: "inactive",
+          issuedBase: HOSTED as IssuedBase,
+        },
+      },
       // No Plan and no portal: an unfinished setup has neither a period nor a Stripe customer.
       [...HEAD, "Finish trial setup", ...TAIL_NO_PORTAL],
     ],
@@ -1174,6 +1194,7 @@ describe("account screen holds the same rows through the restyle (U8, KTD14)", (
           email: "user@example.com",
           status: "inactive",
           setupKind: "subscribe",
+          issuedBase: HOSTED as IssuedBase,
         },
       },
       [...HEAD, "Finish Plus checkout", ...TAIL_NO_PORTAL],
@@ -1253,6 +1274,120 @@ describe("account screen holds the same rows through the restyle (U8, KTD14)", (
     if (entry === undefined) throw new Error("engine screen has no account row");
     return entry;
   }
+});
+
+/**
+ * #508 D1. Everyone who was already signed in when the issuer gate shipped holds an unstamped
+ * session, and a hosted user leaves `plusBaseUrl` empty, so their first Process refuses. The
+ * refusal says to open Settings. Before this row, Settings had nowhere to open *to* except
+ * Advanced, which asks them to type the address that is already the implicit default.
+ */
+describe("#508 - the Account screen offers the upgrade cohort a way out", () => {
+  const ROW = "Confirm the Plus address";
+
+  const upgrading: PlusSession = {
+    sessionToken: "sess_upgrade",
+    email: "user@example.com",
+    status: "active",
+    remaining: 12,
+    periodEnd: "2099-09-01T00:00:00.000Z",
+  };
+
+  /** The signed-in account state the tab reads: session on disk plus resolved auth. */
+  const signedIn = (session: PlusSession): SettingTabOptions => ({
+    session,
+    auth: {
+      mode: "plus",
+      sessionToken: session.sessionToken,
+      email: session.email,
+      status: session.status ?? "unknown",
+      remaining: session.remaining,
+      periodEnd: session.periodEnd,
+      plan: session.plan,
+    },
+  });
+
+  /** Walk to Account, whatever the engine screen has named the row for this state. */
+  function openAccount(tab: AtomsSettingTab): void {
+    tab.display();
+    open(tab, "Who does the filing");
+    const entry = destinationNames(tab).find((n) => n !== "Account");
+    open(tab, entry ?? "");
+  }
+
+  it("offers the row when there is no stamp and no address", () => {
+    const { tab } = settingTab(signedIn(upgrading));
+    openAccount(tab);
+
+    expect(rowNames(tab)).toContain(ROW);
+    expect(row(tab, ROW).textContent).toContain("plus.tryatoms.app");
+  });
+
+  it("writes the standard address and stops asking", async () => {
+    const { tab, plugin } = settingTab(signedIn(upgrading));
+    openAccount(tab);
+
+    press(tab, ROW, "Use plus.tryatoms.app");
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+    expect(plugin.settings.plusBaseUrl).toBe(DEFAULT_PLUS_BASE_URL);
+    // The screen re-renders, and the question it was asking is answered.
+    expect(rowNames(tab)).not.toContain(ROW);
+  });
+
+  /**
+   * The button writes an *address*, never a stamp. A stamp minted here would be a verdict
+   * nothing verified, and the only thing it could be minted from is the ungated resolution
+   * this issue exists to stop trusting. The next content call probes with the address now in
+   * the field and stamps for real.
+   */
+  it("mints no issuer stamp of its own", async () => {
+    const { tab, local } = settingTab(signedIn(upgrading));
+    openAccount(tab);
+
+    press(tab, ROW, "Use plus.tryatoms.app");
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+    const stored = readPlusSession({
+      loadLocalStorage: (key) => local.get(key) ?? null,
+      saveLocalStorage: () => undefined,
+    });
+    expect(stored?.issuedBase).toBeUndefined();
+    expect(stored?.verifiedBase).toBeUndefined();
+  });
+
+  it("says nothing to a session that carries a stamp", () => {
+    const { tab } = settingTab(
+      signedIn({ ...upgrading, issuedBase: DEFAULT_PLUS_BASE_URL as IssuedBase }),
+    );
+    openAccount(tab);
+
+    expect(rowNames(tab)).not.toContain(ROW);
+  });
+
+  /**
+   * A stamp that disagrees with the configured base is the mismatch case, and it is deliberately
+   * not this row's business: it is unsettled, the next Process or mirror push may re-stamp, and
+   * "confirm the address" is the wrong instruction for someone who already has one.
+   */
+  it("says nothing about a stamp that disagrees with the address in use", () => {
+    const { tab } = settingTab({
+      ...signedIn({ ...upgrading, verifiedBase: "https://my.host" }),
+      settings: { plusBaseUrl: "https://other.host" },
+    });
+    openAccount(tab);
+
+    expect(rowNames(tab)).not.toContain(ROW);
+  });
+
+  it("says nothing when nobody is signed in", () => {
+    const { tab } = settingTab();
+    tab.display();
+    open(tab, "Who does the filing");
+    open(tab, "Set up automatic filing");
+
+    expect(rowNames(tab)).not.toContain(ROW);
+  });
 });
 
 /**
