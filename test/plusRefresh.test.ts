@@ -11,6 +11,7 @@ import {
 } from "../src/platform/filingAuth";
 import {
   upstreamRefusedMessage,
+  PLUS_BASE_REFUSED_MESSAGE,
   type RequestFn,
 } from "../src/platform/plusClient";
 import {
@@ -20,6 +21,7 @@ import {
   readPlusRefreshRecord,
   refreshPlusEntitlementRecord,
   PLUS_REFRESH_REJECTED_MESSAGE,
+  PLUS_REFRESH_SESSION_CHANGED_MESSAGE,
   PLUS_REFRESH_UNREACHABLE_MESSAGE,
 } from "../src/platform/plusRefresh";
 
@@ -300,7 +302,8 @@ describe("#508 - a refresh cannot rename the account the gate compares against",
       5000,
     );
 
-    expect(record.kind).toBe("rejected");
+    expect(record.kind).toBe("failed");
+    expect(record.message).toBe(PLUS_BASE_REFUSED_MESSAGE);
     // The stored identity is untouched, so the gate still has the real account
     // to compare against.
     const after = readPlusSession(app);
@@ -308,6 +311,36 @@ describe("#508 - a refresh cannot rename the account the gate compares against",
     // And nothing else was written through either: a refusal is not a partial
     // success, so the meter the rogue base inflated does not land.
     expect(after?.remaining).toBe(150);
+  });
+
+  /**
+   * R1, found by the cross-model adversarial pass on the P0 fix above.
+   *
+   * The refusal was first recorded as `rejected`, which renders "Sign-in
+   * needed" plus a **Send me a sign-in link** CTA. That link goes to the
+   * current `plusBaseUrl` -- the same base that just answered for someone
+   * else -- and completing it runs `installPlusSession`, stamping that host as
+   * the issuer with the gate never running. Asserted at the presentation
+   * layer, because the bug was that a defensible record kind rendered a
+   * dangerous action.
+   */
+  it("offers no sign-in link back to the base that just named a different account", async () => {
+    const app = appWithLiveSession();
+    const request = mockRequest(() => ({
+      status: 200,
+      json: { status: "active", remaining: 999, email: "attacker@evil.example" },
+    }));
+
+    const record = await refreshPlusEntitlementRecord(
+      app,
+      { baseUrl: ROGUE, request },
+      live,
+      5000,
+    );
+
+    expect(plusRefreshPresentation(record).recovery).toBeNull();
+    expect(plusRefreshPresentation(record).title).not.toBe("Sign-in needed");
+    expect(record.message.toLowerCase()).not.toContain("sign-in link");
   });
 
   it("still refreshes normally when the account matches, case and space aside", async () => {
@@ -348,5 +381,105 @@ describe("#508 - a refresh cannot rename the account the gate compares against",
 
     expect(record.kind).toBe("ok");
     expect(readPlusSession(app)?.email).toBe("a@b.co");
+  });
+});
+
+/**
+ * #508 R2. `refreshPlusEntitlementRecord` used to spread the `session`
+ * *argument*, captured before its own await, so a write that landed while the
+ * check was in flight got the pre-await snapshot put back over it. Four
+ * triggers refresh concurrently (period-end load, checkout poll, backfill
+ * meter, Settings "Refresh status"), and the field that costs is `verifiedBase`
+ * -- erase the stamp and the next content call refuses Plus again.
+ */
+describe("#508 - a refresh writes the session on disk, not the one it was handed", () => {
+  it("keeps a stamp that landed while the check was in flight", async () => {
+    const app = appWithLiveSession();
+    // The stamping probe finishes mid-flight: the real upgrade path, where
+    // Process stamps the base a refresh had already read past.
+    const request = mockRequest(() => {
+      const current = readPlusSession(app);
+      expect(current).not.toBeNull();
+      app.saveLocalStorage(
+        LS_PLUS_SESSION,
+        serializePlusSession({
+          ...(current as PlusSession),
+          issuedBase: base as IssuedBase,
+          verifiedBase: base,
+        }),
+      );
+      return {
+        status: 200,
+        json: { status: "active", remaining: 120, email: "a@b.co" },
+      };
+    });
+
+    const record = await refreshPlusEntitlementRecord(
+      app,
+      { baseUrl: base, request },
+      live,
+      5000,
+    );
+
+    expect(record.kind).toBe("ok");
+    const after = readPlusSession(app);
+    expect(after?.verifiedBase).toBe(base);
+    expect(after?.issuedBase).toBe(base);
+    // The refresh still did its own job.
+    expect(after?.remaining).toBe(120);
+    expect(after?.status).toBe("active");
+  });
+
+  it("writes nothing when the session was replaced mid-flight", async () => {
+    const app = appWithLiveSession();
+    const replacement: PlusSession = {
+      ...live,
+      sessionToken: "sess_new",
+      remaining: 5,
+      refreshedAt: 2000,
+    };
+    const request = mockRequest(() => {
+      app.saveLocalStorage(LS_PLUS_SESSION, serializePlusSession(replacement));
+      return {
+        status: 200,
+        json: { status: "active", remaining: 999, email: "a@b.co" },
+      };
+    });
+
+    const record = await refreshPlusEntitlementRecord(
+      app,
+      { baseUrl: base, request },
+      live,
+      5000,
+    );
+
+    // The answer belongs to a token this device no longer holds, so none of it
+    // lands -- and the row must not tell the new session to sign in again.
+    expect(record.kind).toBe("failed");
+    expect(record.message).toBe(PLUS_REFRESH_SESSION_CHANGED_MESSAGE);
+    expect(plusRefreshPresentation(record).recovery).toBeNull();
+    expect(readPlusSession(app)).toEqual(replacement);
+  });
+
+  it("writes nothing when the session was signed out mid-flight", async () => {
+    const app = appWithLiveSession();
+    const request = mockRequest(() => {
+      clearPlusSession(app);
+      return {
+        status: 200,
+        json: { status: "active", remaining: 999, email: "a@b.co" },
+      };
+    });
+
+    const record = await refreshPlusEntitlementRecord(
+      app,
+      { baseUrl: base, request },
+      live,
+      5000,
+    );
+
+    expect(record.kind).toBe("failed");
+    // A sign-out must not be undone by an answer that was already on its way.
+    expect(readPlusSession(app)).toBeNull();
   });
 });

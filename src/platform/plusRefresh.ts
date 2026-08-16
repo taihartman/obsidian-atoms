@@ -48,6 +48,9 @@ export const PLUS_REFRESH_OK_MESSAGE = "Your plan is up to date.";
 export const PLUS_REFRESH_REJECTED_MESSAGE =
   "Your Atoms Plus session expired, so this device needs re-linking. Send yourself a sign-in link and open it on this device.";
 
+export const PLUS_REFRESH_SESSION_CHANGED_MESSAGE =
+  "Your Atoms Plus session on this device changed while we were checking, so nothing was updated. Try again.";
+
 export const PLUS_REFRESH_UNREACHABLE_MESSAGE =
   "Couldn’t reach Atoms Plus. Check your connection and try again. Your session on this device is untouched.";
 
@@ -145,9 +148,17 @@ export async function refreshPlusEntitlementRecord(
   // state to write through. Service-side the address is the `accounts` primary
   // key with no route that changes it, so a legitimate rename is not a case
   // this gives up.
+  //
+  // Recorded as "failed", not "rejected", because the two kinds prescribe
+  // different remedies. "rejected" renders a **Send me a sign-in link** CTA,
+  // and that link is requested against the very base that just answered for
+  // someone else -- completing it runs `installPlusSession`, which stamps that
+  // host as the issuer without the gate ever running. A live session that
+  // named a different account is a base problem, not an expired session, so
+  // sign-in is the wrong door to point at.
   if (e.email?.trim() && !sameAccount(e.email, session.email)) {
     const record: PlusRefreshRecord = {
-      kind: "rejected",
+      kind: "failed",
       message: PLUS_BASE_REFUSED_MESSAGE,
       at: now,
       lastOkAt: previous?.lastOkAt,
@@ -156,15 +167,40 @@ export async function refreshPlusEntitlementRecord(
     writePlusRefreshRecord(app, record);
     return record;
   }
+  // #508. Re-read and write the *disk* session, never the `session` argument:
+  // that argument was captured before the await above, so spreading it puts a
+  // pre-await snapshot back on disk and erases anything written meanwhile.
+  // The field that costs is `verifiedBase` (#508): a first content call stamps
+  // it, and a refresh already in flight -- period-end load, checkout poll,
+  // backfill meter, Settings "Refresh status" -- would clobber the stamp, so
+  // Plus refuses again on the next call. Same re-read-and-compare
+  // `persistVerifiedBase` uses, for the same reason.
+  //
+  // A differing token means the session was replaced while the check was in
+  // flight. The answer we hold belongs to a token this device no longer has,
+  // so nothing of it is ours to write.
+  const stored = readPlusSession(app);
+  if (!stored || stored.sessionToken.trim() !== session.sessionToken.trim()) {
+    const record: PlusRefreshRecord = {
+      kind: "failed",
+      message: PLUS_REFRESH_SESSION_CHANGED_MESSAGE,
+      at: now,
+      lastOkAt: previous?.lastOkAt,
+      email: session.email,
+    };
+    writePlusRefreshRecord(app, record);
+    return record;
+  }
   writePlusSession(app, {
-    ...session,
-    email: session.email,
+    // Everything not restated below comes from disk -- including `email`, which
+    // the block above must not let the service rewrite.
+    ...stored,
     status: e.status,
     remaining: e.remaining,
     periodEnd: e.periodEnd,
     // Keep the stored plan when the service did not restate it, so a refresh
     // cannot quietly turn a known period into an unnamed one (#442).
-    plan: e.plan ?? session.plan,
+    plan: e.plan ?? stored.plan,
     refreshedAt: now,
   });
   const record: PlusRefreshRecord = {
@@ -172,7 +208,7 @@ export async function refreshPlusEntitlementRecord(
     message: PLUS_REFRESH_OK_MESSAGE,
     at: now,
     lastOkAt: now,
-    email: e.email || session.email,
+    email: stored.email,
   };
   writePlusRefreshRecord(app, record);
   return record;
