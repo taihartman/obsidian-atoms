@@ -38,8 +38,16 @@ import {
   getEntitlement,
   normalizePlusBase,
   plusBaseMatches,
+  PLUS_BASE_REFUSED_MESSAGE,
   type PlusClientConfig,
 } from "./plusClient";
+
+/**
+ * Re-exported so the #508 copy still reads as one set from here. It is *defined*
+ * in `plusClient` because the request layer's own egress backstop returns it,
+ * and that module cannot import this one without a cycle.
+ */
+export { PLUS_BASE_REFUSED_MESSAGE };
 
 /**
  * All this module needs of a session. Deliberately the intersection of
@@ -71,9 +79,6 @@ export type PlusBaseVerdict =
   | { kind: "refused"; reason: "unverified" | "needs-address"; message: string }
   /** Unanswerable. Fails closed exactly like a refusal, with softer copy. */
   | { kind: "unreachable"; message: string };
-
-export const PLUS_BASE_REFUSED_MESSAGE =
-  "Atoms Plus can’t confirm your sign-in at this address. Check the Plus service URL in settings.";
 
 /**
  * The KTD1 carve-out state: no stamp and an empty field, so the plugin has no

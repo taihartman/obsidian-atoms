@@ -32,7 +32,7 @@ import {
   sheetButtons,
 } from "./helpers/settingsTab";
 import { labelCaptureShortcutCta } from "../src/settings/captureShortcut";
-import type { PlusSession } from "../src/platform/filingAuth";
+import type { IssuedBase, PlusSession } from "../src/platform/filingAuth";
 
 /** The guide as a reader reads it: no markup, no line wrapping, so a label may straddle both. */
 const guide = readFileSync(
@@ -47,6 +47,10 @@ const PLUS_SESSION: PlusSession = {
   email: "user@example.com",
   status: "active",
   periodEnd: "2099-01-01T00:00:00.000Z",
+  // #508: stamped with the base an empty `plusBaseUrl` resolves to, which is
+  // what a hosted session carries from sign-in onward.
+  issuedBase: "https://plus.tryatoms.app" as IssuedBase,
+  verifiedBase: "https://plus.tryatoms.app",
 };
 
 /** Signed in to Plus, which is the only state that renders the Ask cluster. */

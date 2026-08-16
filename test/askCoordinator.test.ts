@@ -1,8 +1,11 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AskCoordinator } from "../src/plugin/askCoordinator";
 import { fireAndForgetAsk } from "../src/shared/fireAndForget";
 import { DEFAULT_SETTINGS } from "../src/shared/types";
-import { ASK_PRIVACY_ACK_VERSION } from "../src/shared/askAck";
+import {
+  ASK_PRIVACY_ACK_VERSION,
+  ASK_WRITE_ACK_VERSION,
+} from "../src/shared/askAck";
 import { stripLegacyAskMirrorHashes } from "../src/platform/askMirror";
 import type { AskMirrorHost } from "../src/platform/askMirror";
 import type { ConfirmRequest, ConfirmVerdict } from "../src/shared/confirm";
@@ -44,14 +47,31 @@ let mirrorPasses = 0;
 let onMirrorPass: ((pass: number) => void) | null = null;
 
 /** Expand backfills the coordinator fired, and what the network did with them. */
+let outboxPulls = 0;
 let expandBackfillCalls = 0;
 let expandBackfillImpl: () => Promise<unknown> = async () => ({ ok: true });
 
-vi.mock("../src/platform/filingAuth", () => ({
-  readPlusSession: () => ({ sessionToken: "test-token" }),
+// Same reason as the plusClient mock below, plus a stamp: these tests are about
+// coordinator wiring, and an unstamped session would make every one of them a
+// test of the #508 gate instead. The gate has its own file.
+/** The stored session's #508 stamp, so a test can take it away. */
+const stamped = vi.hoisted(() => ({ base: "https://plus.example" as string | undefined }));
+
+vi.mock("../src/platform/filingAuth", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../src/platform/filingAuth")>()),
+  readPlusSession: () => ({
+    sessionToken: "test-token",
+    email: "a@b.co",
+    issuedBase: stamped.base,
+    verifiedBase: stamped.base,
+  }),
 }));
 
-vi.mock("../src/platform/plusClient", () => ({
+// Spread the real module rather than replacing it: `plusBaseVerify` (the #508
+// gate) imports its comparison helpers and its refusal copy from here, and a
+// bare object mock leaves those undefined at call time.
+vi.mock("../src/platform/plusClient", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../src/platform/plusClient")>()),
   DEFAULT_PLUS_BASE_URL: "https://plus.example",
   plusFetchRequest: async () => ({ ok: true }),
   askMirrorUpsert: async (_cfg: unknown, _token: string, atoms: unknown[]) => {
@@ -61,7 +81,10 @@ vi.mock("../src/platform/plusClient", () => ({
   askMirrorDelete: async () => ({ ok: true }),
   askMirrorReconcile: async () => ({ ok: true }),
   askMirrorStatus: async () => ({ ok: true, count: 0 }),
-  askOutboxPull: async () => ({ ok: true, items: [] }),
+  askOutboxPull: async () => {
+    outboxPulls += 1;
+    return { ok: true, items: [] };
+  },
   askOutboxAck: async () => ({ ok: true }),
   askMirrorExpandBackfill: () => {
     expandBackfillCalls += 1;
@@ -337,3 +360,61 @@ async function coordinatorSync() {
   await new Promise((r) => setTimeout(r, 0));
   return outcome;
 }
+
+/**
+ * #508 U5 — the mirror is the path that carries atom *bodies*, so it refuses a
+ * base this session was not shown to belong to.
+ *
+ * Both assertions are that the network layer was never reached, not that an
+ * error came back: an atom body that leaves the device is the failure, and a
+ * returned verdict object only proves a branch was chosen.
+ */
+describe("#508 — the mirror refuses an unverified base", () => {
+  beforeEach(() => {
+    mirrorPasses = 0;
+    outboxPulls = 0;
+    upserts.length = 0;
+    stamped.base = "https://plus.example";
+  });
+
+  afterEach(() => {
+    stamped.base = "https://plus.example";
+  });
+
+  it("never reaches runAskMirrorSync, so no atom body is built", async () => {
+    // An unstamped session with an empty field: the KTD1 carve-out, and the
+    // exact state a self-hoster upgrades into.
+    stamped.base = undefined;
+    const { coordinator } = makeCoordinator();
+    const outcome = await coordinator.sync({ force: true });
+    expect(mirrorPasses).toBe(0);
+    expect(upserts).toHaveLength(0);
+    expect(outcome.kind).toBe("failed");
+  });
+
+  it("refuses a stamp that names a different server", async () => {
+    stamped.base = "https://someone.elses.host";
+    const { coordinator } = makeCoordinator();
+    await coordinator.sync({ force: true });
+    expect(mirrorPasses).toBe(0);
+    expect(upserts).toHaveLength(0);
+  });
+
+  it("the outbox ack path stops too, silently", async () => {
+    // `askOutboxAck` sends `plan.reason`, which is free text from the vault.
+    // Sorting the ack as content-free was the wrong axis.
+    stamped.base = undefined;
+    const { coordinator, plugin } = makeCoordinator();
+    plugin.settings.askWriteAckAt = GRANTED_AT;
+    plugin.settings.askWriteAckVersion = ASK_WRITE_ACK_VERSION;
+    const outcome = await coordinator.applyOutbox();
+    expect(outboxPulls).toBe(0);
+    expect(outcome).toEqual({ kind: "worked", landed: 0, rejected: 0 });
+  });
+
+  it("a stamped session still syncs, so the gate is not just off", async () => {
+    const { coordinator } = makeCoordinator();
+    await coordinator.sync({ force: true });
+    expect(mirrorPasses).toBe(1);
+  });
+});

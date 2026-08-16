@@ -185,6 +185,35 @@ export class AskCoordinator {
     return runAskOutboxApply(host);
   }
 
+  /**
+   * #508 — was this session issued by the base we are about to push atoms to?
+   *
+   * Asked where the config is *built*, not where each request goes out, so one
+   * pass asks once however many upserts, deletes and reconciles it then makes.
+   * That is already the "once per run, not once per atom" bound, which is why
+   * there is no verdict cache here: a longer-lived memo would leave a briefly
+   * unreachable host refused until the plugin reloaded. `plusClient` holds the
+   * egress backstop for the requests themselves.
+   */
+  private async verifyBase(
+    session: import("../platform/filingAuth").PlusSession,
+    base: string,
+  ): Promise<import("../platform/plusBaseVerify").PlusBaseVerdict> {
+    const p = this.plugin;
+    const { verifyPlusBase } = await import("../platform/plusBaseVerify");
+    const { plusFetchRequest } = await import("../platform/plusClient");
+    return verifyPlusBase(
+      { storage: p.app, request: plusFetchRequest },
+      {
+        session,
+        resolvedBase: base,
+        // The raw field, not the resolved base: an empty one means the plugin
+        // has no address it can trust, not the hosted default (KTD1 carve-out).
+        configuredBase: p.settings.plusBaseUrl,
+      },
+    );
+  }
+
   /** Vault + Plus wiring for the outbox loop; null when there is no session. */
   private async createOutboxHost(): Promise<AskOutboxHost | null> {
     const p = this.plugin;
@@ -198,7 +227,14 @@ export class AskCoordinator {
       plusFetchRequest,
     } = await import("../platform/plusClient");
     const base = p.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL;
-    const cfg = { baseUrl: base, request: plusFetchRequest };
+    // #508. The ack is not id-and-status: `askOutboxAck` also sends `error`,
+    // which is `plan.reason` — free text from the vault, not a fixed literal.
+    // Sorting it as content-free was the wrong axis, and that is the #500
+    // learning. Silent like the other refusals on this path; the user finds out
+    // through the classify Notice, which fires for the same reason.
+    const verdict = await this.verifyBase(session, base);
+    if (verdict.kind !== "verified") return null;
+    const cfg = { baseUrl: base, request: plusFetchRequest, verifiedBase: verdict.base };
     const token = session.sessionToken;
     const folder = clampAtomFolder(p.settings.atomFolder);
     const vault: OutboxVaultPort = {
@@ -321,7 +357,20 @@ export class AskCoordinator {
 
     const folder = "Atoms";
     const base = p.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL;
-    const cfg = { baseUrl: base, request: plusFetchRequest };
+    // #508. This config reaches upsert (atom bodies), mirror/delete (vault
+    // paths) and mirror/reconcile (the whole vault path list), so gating where
+    // it is built covers all three. A cleared field resolves to the hosted
+    // default and passes every #500 check, which is how a self-hoster's atom
+    // bodies would reach production.
+    const verdict = await this.verifyBase(session, base);
+    if (verdict.kind !== "verified") {
+      // The verdict's own copy: "couldn't be reached" and "needs its address"
+      // ask the reader for different things, and flattening them to one line
+      // would tell a briefly offline user to edit a field that is fine.
+      if (force) new Notice(`Atoms: ${verdict.message}`);
+      return { kind: "failed", message: verdict.message };
+    }
+    const cfg = { baseUrl: base, request: plusFetchRequest, verifiedBase: verdict.base };
     const token = session.sessionToken;
     const read = async (f: TFile) => ({
       path: f.path,

@@ -3,6 +3,8 @@ import type { RequestUrlParam, RequestUrlResponse } from "obsidian";
 import {
   askMirrorDelete,
   askMirrorReconcile,
+  askMirrorUpsert,
+  PLUS_BASE_REFUSED_MESSAGE,
   askMirrorStatus,
   askMcpPair,
   classifyViaProxy,
@@ -45,6 +47,13 @@ function mockRequest(
 }
 
 const base = "https://plus.test";
+
+/** A request function whose being called at all is the failure. */
+function neverCalled() {
+  return vi.fn(async () => {
+    throw new Error("must not be called");
+  }) as unknown as RequestFn;
+}
 
 describe("plusClient", () => {
   it("startPlusAccount posts email and returns session", async () => {
@@ -389,6 +398,67 @@ describe("plusClient", () => {
     if (r.ok) expect(r.code).toBe("ABCD1234");
   });
 
+  /**
+   * #508 egress backstop. The coordinator gates where it builds the mirror
+   * config, but `askCoordinator` is not the only place one is built, so the
+   * three calls that carry vault content refuse for themselves.
+   *
+   * The assertion is that nothing was *sent*. A returned error object only
+   * proves a branch was chosen, and what this change claims is that a
+   * self-hoster's atom bodies never reach a server that did not issue their
+   * session.
+   */
+  describe("mirror calls refuse a base this session was not verified against", () => {
+    const unverified = { baseUrl: base, request: neverCalled(), verifiedBase: "https://other.host" };
+
+    it("askMirrorUpsert sends no atom bodies", async () => {
+      const r = await askMirrorUpsert(unverified, "sess", [
+        { path: "Atoms/A.md", title: "A", body: "private note text" },
+      ]);
+      expect(unverified.request).not.toHaveBeenCalled();
+      expect(r.ok).toBe(false);
+      if (!r.ok) expect(r.message).toBe(PLUS_BASE_REFUSED_MESSAGE);
+    });
+
+    it("askMirrorDelete sends no vault paths", async () => {
+      const r = await askMirrorDelete(unverified, "sess", ["Atoms/A.md"]);
+      expect(unverified.request).not.toHaveBeenCalled();
+      expect(r.ok).toBe(false);
+    });
+
+    it("askMirrorReconcile sends no vault path list", async () => {
+      const r = await askMirrorReconcile(unverified, "sess", {
+        keepPaths: ["Atoms/A.md"],
+      });
+      expect(unverified.request).not.toHaveBeenCalled();
+      expect(r.ok).toBe(false);
+    });
+
+    it("an unstamped config refuses too, rather than reading as a match", async () => {
+      const blank = { baseUrl: base, request: neverCalled(), verifiedBase: "" };
+      const r = await askMirrorUpsert(blank, "sess", [
+        { path: "Atoms/A.md", title: "A", body: "private note text" },
+      ]);
+      expect(blank.request).not.toHaveBeenCalled();
+      expect(r.ok).toBe(false);
+    });
+
+    it("a matching base still goes out, normalization and all", async () => {
+      const urls: string[] = [];
+      const request = mockRequest((p) => {
+        urls.push(p.url);
+        return { status: 200, json: { ok: true, count: 1, upserted: 1 } };
+      });
+      const r = await askMirrorUpsert(
+        { baseUrl: `${base}/`, request, verifiedBase: base },
+        "sess",
+        [{ path: "Atoms/A.md", title: "A", body: "b" }],
+      );
+      expect(urls).toEqual([`${base}/v1/ask/mirror/upsert`]);
+      expect(r.ok).toBe(true);
+    });
+  });
+
   it("askMirrorDelete posts paths", async () => {
     const request = mockRequest((p) => {
       expect(p.url).toBe("https://plus.test/v1/ask/mirror/delete");
@@ -399,7 +469,7 @@ describe("plusClient", () => {
       return { status: 200, json: { ok: true, deleted: 1, missing: 0, count: 0 } };
     });
     const r = await askMirrorDelete(
-      { baseUrl: base, request },
+      { baseUrl: base, request, verifiedBase: base },
       "sess",
       ["Atoms/A.md"],
     );
@@ -416,7 +486,7 @@ describe("plusClient", () => {
       return { status: 200, json: { ok: true, deleted: 0, count: 1 } };
     });
     const r = await askMirrorReconcile(
-      { baseUrl: base, request },
+      { baseUrl: base, request, verifiedBase: base },
       "sess",
       { keepPaths: ["Atoms/A.md"], done: true },
     );

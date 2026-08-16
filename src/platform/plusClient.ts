@@ -187,6 +187,45 @@ export const PLUS_BASE_URL_INVALID_MESSAGE =
   "Plus service URL must start with https:// (http:// is allowed only for localhost). Fix it in Settings → Atoms → Advanced, or clear it to use the hosted service.";
 
 /**
+ * Shown when the base is fine but this session was not shown to belong to it
+ * (#508). A different question from the one above: `plus.tryatoms.app` is always
+ * an allowed host, and whether *this* session was issued by it is what decides
+ * whether note text may go there.
+ *
+ * It lives down here rather than beside the rest of the #508 copy in
+ * `plusBaseVerify` because the request layer itself now returns it, and having
+ * that module import from the one that imports it would be a cycle.
+ */
+export const PLUS_BASE_REFUSED_MESSAGE =
+  "Atoms Plus can’t confirm your sign-in at this address. Check the Plus service URL in settings.";
+
+/**
+ * Config for the Plus calls that carry note text. The extra field is the base
+ * the session was *proven* to belong to, and each of those calls refuses when it
+ * does not match the one it is about to post to.
+ *
+ * A separate type rather than an optional field on {@link PlusClientConfig}:
+ * every content-bearing caller then has to state the answer, and a new one is a
+ * build error instead of a silent fail-open. `askCoordinator` is not the only
+ * place a mirror config is built, which is exactly the gap this closes.
+ */
+export type PlusMirrorConfig = PlusClientConfig & { verifiedBase: string };
+
+/**
+ * The #508 egress backstop, one layer below wherever the caller checked.
+ * Returns the refusal to send, or null to proceed.
+ */
+function refuseUnverifiedBase(cfg: PlusMirrorConfig): PlusApiError | null {
+  if (plusBaseMatches(cfg.verifiedBase, cfg.baseUrl)) return null;
+  return {
+    ok: false,
+    status: 0,
+    code: "invalid",
+    message: PLUS_BASE_REFUSED_MESSAGE,
+  };
+}
+
+/**
  * Loopback never leaves the device, so plain http is safe there and nowhere
  * else. Exact match only: a resolver can point `localhost.example.com`
  * anywhere, so a suffix test would hand the session token to that host.
@@ -973,7 +1012,7 @@ export async function signOutAllDevices(
 }
 
 export async function askMirrorUpsert(
-  cfg: PlusClientConfig,
+  cfg: PlusMirrorConfig,
   sessionToken: string,
   atoms: Array<{
     path: string;
@@ -985,6 +1024,8 @@ export async function askMirrorUpsert(
     created?: string;
   }>,
 ): Promise<{ ok: true; count: number; upserted: number } | PlusApiError> {
+  const refusal = refuseUnverifiedBase(cfg);
+  if (refusal) return refusal;
   const res = await plusRequest(cfg, {
     path: "/v1/ask/mirror/upsert",
     method: "POST",
@@ -1124,13 +1165,15 @@ export async function askMcpPair(
 }
 
 export async function askMirrorDelete(
-  cfg: PlusClientConfig,
+  cfg: PlusMirrorConfig,
   sessionToken: string,
   paths: string[],
 ): Promise<
   | { ok: true; deleted: number; missing: number; count: number }
   | PlusApiError
 > {
+  const refusal = refuseUnverifiedBase(cfg);
+  if (refusal) return refusal;
   const res = await plusRequest(cfg, {
     path: "/v1/ask/mirror/delete",
     method: "POST",
@@ -1150,7 +1193,7 @@ export async function askMirrorDelete(
 }
 
 export async function askMirrorReconcile(
-  cfg: PlusClientConfig,
+  cfg: PlusMirrorConfig,
   sessionToken: string,
   opts: {
     keepPaths: string[];
@@ -1162,6 +1205,8 @@ export async function askMirrorReconcile(
   | { ok: true; deleted: number; count: number; staged?: number }
   | PlusApiError
 > {
+  const refusal = refuseUnverifiedBase(cfg);
+  if (refusal) return refusal;
   const res = await plusRequest(cfg, {
     path: "/v1/ask/mirror/reconcile",
     method: "POST",

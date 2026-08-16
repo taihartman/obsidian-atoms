@@ -122,6 +122,8 @@ import {
   DEFAULT_PLUS_BASE_URL,
   isAllowedPlusBaseUrl,
   issuedBaseFromResponse,
+  plusBaseMatches,
+  PLUS_BASE_REFUSED_MESSAGE,
   PLUS_BASE_URL_INVALID_MESSAGE,
   requestMagicLink,
   startPlusAccount,
@@ -1420,6 +1422,23 @@ export class AtomsSettingTab extends PluginSettingTab {
     if (!isAllowedPlusBaseUrl(base)) {
       containerEl.createEl("p", {
         text: PLUS_BASE_URL_INVALID_MESSAGE,
+        cls: "setting-item-description atoms-ask-mirror-error",
+      });
+      return;
+    }
+    // #508, the same reasoning one question further in. The base above is
+    // *allowed*; this asks whether it is the one that issued this session, which
+    // matters here because the screen publishes an origin for Claude or ChatGPT
+    // to OAuth against and `askMcpPair` then sends the session token there.
+    //
+    // Compared against the stamp rather than probed: a render must not egress,
+    // and a screen that opened a network call to name its own address would be
+    // sending the token to the host it is trying to decide about. Sync means a
+    // stale stamp reads as "not yet confirmed", which is the safe direction --
+    // a Process or a mirror push re-verifies and this row then resolves.
+    if (!plusBaseMatches(session.verifiedBase ?? session.issuedBase, base)) {
+      containerEl.createEl("p", {
+        text: PLUS_BASE_REFUSED_MESSAGE,
         cls: "setting-item-description atoms-ask-mirror-error",
       });
       return;

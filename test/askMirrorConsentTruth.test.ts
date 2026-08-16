@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   LS_PLUS_SESSION,
   serializePlusSession,
+  type IssuedBase,
   type PlusSession,
 } from "../src/platform/filingAuth";
 import {
@@ -58,6 +59,10 @@ const PLUS_SESSION: PlusSession = {
   status: "active",
   remaining: 12,
   periodEnd: "2026-09-01T00:00:00.000Z",
+  // #508: stamped with the base an empty `plusBaseUrl` resolves to, which is
+  // what a hosted session carries from sign-in onward.
+  issuedBase: "https://plus.tryatoms.app" as IssuedBase,
+  verifiedBase: "https://plus.tryatoms.app",
 };
 
 const ACKED = "2026-08-07T10:00:00.000Z";

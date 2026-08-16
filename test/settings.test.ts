@@ -27,9 +27,11 @@ import {
 import {
   readPendingSignIns,
   type FilingAuth,
+  type IssuedBase,
   type PlusSession,
 } from "../src/platform/filingAuth";
 import { ASK_PRIVACY_ACK_TITLE, EGRESS_DISCLOSURE } from "../src/settings/consent";
+import { PLUS_BASE_REFUSED_MESSAGE } from "../src/platform/plusClient";
 import {
   LS_ASK_MIRROR_LAST_ERROR,
   LS_ASK_MIRROR_SERVER_COUNT,
@@ -2043,6 +2045,10 @@ const PLUS_SESSION: PlusSession = {
   status: "active",
   remaining: 12,
   periodEnd: "2026-09-01T00:00:00.000Z",
+  // #508: stamped with the base an empty `plusBaseUrl` resolves to, which is
+  // what a hosted session carries from sign-in onward.
+  issuedBase: "https://plus.tryatoms.app" as IssuedBase,
+  verifiedBase: "https://plus.tryatoms.app",
 };
 
 /**
@@ -2687,6 +2693,38 @@ describe("Connect Claude or ChatGPT destination (U6)", () => {
       PLUS_BASE_URL_INVALID_MESSAGE,
     );
     expect(rowNames(tab)).not.toContain("MCP connector URL");
+  });
+
+  /**
+   * #508, the same screen one question further in. `https://plus.tryatoms.app`
+   * passes every #500 check; whether *this* session was issued by it is what
+   * decides whether its origin may be published for another agent to OAuth
+   * against, since `askMcpPair` then sends the session token there.
+   */
+  it("publishes no MCP URL at a base this session was not issued by", () => {
+    const { tab } = settingTab({
+      session: { ...PLUS_SESSION, issuedBase: undefined, verifiedBase: undefined },
+    });
+    tab.display();
+    open(tab, "Connect Claude or ChatGPT");
+
+    expect(rowNames(tab)).not.toContain("MCP connector URL");
+    expect(tab.containerEl.textContent).toContain(PLUS_BASE_REFUSED_MESSAGE);
+  });
+
+  it("publishes it again once the stamp names the base in use", () => {
+    const { tab } = settingTab({
+      session: {
+        ...PLUS_SESSION,
+        issuedBase: undefined,
+        verifiedBase: "https://my.host",
+      },
+      settings: { plusBaseUrl: "https://my.host/" },
+    });
+    tab.display();
+    open(tab, "Connect Claude or ChatGPT");
+
+    expect(rowNames(tab)).toContain("MCP connector URL");
   });
 
   it("still asks before wiping the cloud copy", async () => {
