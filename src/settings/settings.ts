@@ -2685,8 +2685,12 @@ export class AtomsSettingTab extends PluginSettingTab {
       onClick: () => {
         this.plugin.settings.plusBaseUrl = DEFAULT_PLUS_BASE_URL;
         void this.plugin.saveSettings();
+        // Says what happened, not what will happen. Writing the address is not
+        // a stamp: the next content call still probes this host and can still
+        // refuse it, so promising a filing here would be a promise this row has
+        // no way to keep.
         new Notice(
-          `Atoms Plus: using ${plusBaseHost(DEFAULT_PLUS_BASE_URL)}. Your next Process files as usual.`,
+          `Atoms Plus: saved ${plusBaseHost(DEFAULT_PLUS_BASE_URL)}. Your next Process checks it.`,
         );
         this.redisplay();
       },

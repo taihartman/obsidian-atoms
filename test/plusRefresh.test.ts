@@ -21,6 +21,7 @@ import {
   readPlusRefreshRecord,
   refreshPlusEntitlementRecord,
   PLUS_REFRESH_REJECTED_MESSAGE,
+  PLUS_REFRESH_SAVE_FAILED_MESSAGE,
   PLUS_REFRESH_SESSION_CHANGED_MESSAGE,
   PLUS_REFRESH_UNREACHABLE_MESSAGE,
 } from "../src/platform/plusRefresh";
@@ -459,6 +460,79 @@ describe("#508 - a refresh writes the session on disk, not the one it was handed
     expect(record.message).toBe(PLUS_REFRESH_SESSION_CHANGED_MESSAGE);
     expect(plusRefreshPresentation(record).recovery).toBeNull();
     expect(readPlusSession(app)).toEqual(replacement);
+  });
+
+  /**
+   * Found by the code review on the first cut of this fix. The guard only
+   * covered the success path, and the record it did write was hung on whoever
+   * signed in next: `plusRefreshRowRecord` asks whether *a* session exists, not
+   * which one, so a departed account's outcome rendered against the new one.
+   */
+  it("leaves no record behind for the session that went away", async () => {
+    const app = appWithLiveSession();
+    const replacement: PlusSession = { ...live, sessionToken: "sess_new" };
+    const request = mockRequest(() => {
+      app.saveLocalStorage(LS_PLUS_SESSION, serializePlusSession(replacement));
+      return { status: 200, json: { status: "active", remaining: 999 } };
+    });
+
+    const record = await refreshPlusEntitlementRecord(
+      app,
+      { baseUrl: base, request },
+      live,
+      5000,
+    );
+
+    expect(record.kind).toBe("failed");
+    // Returned to the caller for its Notice, never written: the new session
+    // must not inherit this one's outcome, nor the old account's address.
+    expect(readPlusRefreshRecord(app)).toBeNull();
+    expect(record.email).toBeUndefined();
+  });
+
+  it("applies the same guard when the answer is an error", async () => {
+    const app = appWithLiveSession();
+    const request = mockRequest(() => {
+      clearPlusSession(app);
+      return { status: 401, json: { message: "Invalid session" } };
+    });
+
+    const record = await refreshPlusEntitlementRecord(
+      app,
+      { baseUrl: base, request },
+      live,
+      5000,
+    );
+
+    // A 401 about a token the device already dropped is not a reason to tell
+    // the next account to sign in again.
+    expect(record.message).toBe(PLUS_REFRESH_SESSION_CHANGED_MESSAGE);
+    expect(plusRefreshPresentation(record).recovery).toBeNull();
+    expect(readPlusRefreshRecord(app)).toBeNull();
+  });
+
+  it("a storage write that throws is a failed check, not an unhandled rejection", async () => {
+    const app = appWithLiveSession();
+    const saveLocalStorage = app.saveLocalStorage.bind(app);
+    app.saveLocalStorage = (key, value) => {
+      if (key === LS_PLUS_SESSION) throw new Error("quota");
+      saveLocalStorage(key, value);
+    };
+    const request = mockRequest(() => ({
+      status: 200,
+      json: { status: "active", remaining: 120, email: "a@b.co" },
+    }));
+
+    const record = await refreshPlusEntitlementRecord(
+      app,
+      { baseUrl: base, request },
+      live,
+      5000,
+    );
+
+    expect(record.kind).toBe("failed");
+    expect(record.message).toBe(PLUS_REFRESH_SAVE_FAILED_MESSAGE);
+    expect(plusRefreshPresentation(record).recovery).toBeNull();
   });
 
   it("writes nothing when the session was signed out mid-flight", async () => {

@@ -48,6 +48,9 @@ export const PLUS_REFRESH_OK_MESSAGE = "Your plan is up to date.";
 export const PLUS_REFRESH_REJECTED_MESSAGE =
   "Your Atoms Plus session expired, so this device needs re-linking. Send yourself a sign-in link and open it on this device.";
 
+export const PLUS_REFRESH_SAVE_FAILED_MESSAGE =
+  "Atoms Plus couldn’t save your plan on this device, so nothing changed. Try again.";
+
 export const PLUS_REFRESH_SESSION_CHANGED_MESSAGE =
   "Your Atoms Plus session on this device changed while we were checking, so nothing was updated. Try again.";
 
@@ -91,7 +94,15 @@ function writePlusRefreshRecord(
   app: LocalStorageLike,
   record: PlusRefreshRecord,
 ): void {
-  app.saveLocalStorage(LS_PLUS_LAST_REFRESH, JSON.stringify(record));
+  try {
+    app.saveLocalStorage(LS_PLUS_LAST_REFRESH, JSON.stringify(record));
+  } catch {
+    // The record is a memo about a check, not the check's verdict, and three of
+    // the four callers are fire-and-forget polls with no catch of their own. A
+    // storage write can throw on the mobile WebViews this plugin supports
+    // (quota, private mode); losing the settings line there is a smaller
+    // failure than an unhandled rejection in a background poll.
+  }
 }
 
 export function clearPlusRefreshRecord(app: LocalStorageLike): void {
@@ -111,6 +122,26 @@ export async function refreshPlusEntitlementRecord(
 ): Promise<PlusRefreshRecord> {
   const previous = readPlusRefreshRecord(app);
   const r = await getEntitlement(cfg, session.sessionToken);
+  // #508. Re-read once, here, before any branch decides what to write. The
+  // `session` argument was captured before the await above, so by now it may
+  // describe a session this device no longer holds: signed out, or replaced by
+  // a fresh sign-in. Every write below is about *that* session, so a differing
+  // token disqualifies all of them, not only the success path.
+  //
+  // The record is not written either, only returned. A record is device state
+  // about a session, and `plusRefreshRowRecord` asks only whether *a* session
+  // exists -- so writing here would hang this answer, and the departed
+  // account's address with it, on whoever signed in next. The caller still gets
+  // the outcome for its Notice and its poll.
+  const stored = readPlusSession(app);
+  if (!stored || stored.sessionToken.trim() !== session.sessionToken.trim()) {
+    return {
+      kind: "failed",
+      message: PLUS_REFRESH_SESSION_CHANGED_MESSAGE,
+      at: now,
+      lastOkAt: previous?.lastOkAt,
+    };
+  }
   if (!r.ok) {
     // Only code "auth" (our service, service-shaped body) means the session is
     // the problem — a gateway 403 or a 5xx must not offer a sign-in link.
@@ -167,42 +198,39 @@ export async function refreshPlusEntitlementRecord(
     writePlusRefreshRecord(app, record);
     return record;
   }
-  // #508. Re-read and write the *disk* session, never the `session` argument:
-  // that argument was captured before the await above, so spreading it puts a
-  // pre-await snapshot back on disk and erases anything written meanwhile.
-  // The field that costs is `verifiedBase` (#508): a first content call stamps
-  // it, and a refresh already in flight -- period-end load, checkout poll,
-  // backfill meter, Settings "Refresh status" -- would clobber the stamp, so
-  // Plus refuses again on the next call. Same re-read-and-compare
-  // `persistVerifiedBase` uses, for the same reason.
+  // #508. Write the *disk* session, never the `session` argument: that argument
+  // is the pre-await snapshot, and spreading it erases anything written
+  // meanwhile. The field that costs is `verifiedBase`: a first content call
+  // stamps it, and a refresh already in flight -- period-end load, checkout
+  // poll, backfill meter, Settings "Refresh status" -- would clobber the stamp,
+  // so Plus refuses again on the next call. The guard above is the same
+  // re-read-and-compare `persistVerifiedBase` uses, for the same reason.
   //
-  // A differing token means the session was replaced while the check was in
-  // flight. The answer we hold belongs to a token this device no longer has,
-  // so nothing of it is ours to write.
-  const stored = readPlusSession(app);
-  if (!stored || stored.sessionToken.trim() !== session.sessionToken.trim()) {
-    const record: PlusRefreshRecord = {
+  // Wrapped, like `persistVerifiedBase`, because a storage write can throw on
+  // the mobile WebViews this plugin supports (quota, private mode) and three of
+  // the four callers are fire-and-forget polls with no catch of their own. A
+  // meter that could not be saved is a failed check, not an unhandled rejection.
+  try {
+    writePlusSession(app, {
+      // Everything not restated below comes from disk -- including `email`,
+      // which the block above must not let the service rewrite.
+      ...stored,
+      status: e.status,
+      remaining: e.remaining,
+      periodEnd: e.periodEnd,
+      // Keep the stored plan when the service did not restate it, so a refresh
+      // cannot quietly turn a known period into an unnamed one (#442).
+      plan: e.plan ?? stored.plan,
+      refreshedAt: now,
+    });
+  } catch {
+    return {
       kind: "failed",
-      message: PLUS_REFRESH_SESSION_CHANGED_MESSAGE,
+      message: PLUS_REFRESH_SAVE_FAILED_MESSAGE,
       at: now,
       lastOkAt: previous?.lastOkAt,
-      email: session.email,
     };
-    writePlusRefreshRecord(app, record);
-    return record;
   }
-  writePlusSession(app, {
-    // Everything not restated below comes from disk -- including `email`, which
-    // the block above must not let the service rewrite.
-    ...stored,
-    status: e.status,
-    remaining: e.remaining,
-    periodEnd: e.periodEnd,
-    // Keep the stored plan when the service did not restate it, so a refresh
-    // cannot quietly turn a known period into an unnamed one (#442).
-    plan: e.plan ?? stored.plan,
-    refreshedAt: now,
-  });
   const record: PlusRefreshRecord = {
     kind: "ok",
     message: PLUS_REFRESH_OK_MESSAGE,

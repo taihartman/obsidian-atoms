@@ -1336,6 +1336,23 @@ describe("#508 - the Account screen offers the upgrade cohort a way out", () => 
   });
 
   /**
+   * Found by the cross-model review. Writing the address is not a stamp: the
+   * next content call still probes this host and can still refuse it. A Notice
+   * promising a filing is a promise this row has no way to keep.
+   */
+  it("says what it did, not what the next Process will manage", () => {
+    Notice.messages.length = 0;
+    const { tab } = settingTab(signedIn(upgrading));
+    openAccount(tab);
+
+    press(tab, ROW, "Use plus.tryatoms.app");
+
+    const said = Notice.messages.join(" ");
+    expect(said).toContain("plus.tryatoms.app");
+    expect(said.toLowerCase()).not.toContain("files as usual");
+  });
+
+  /**
    * The button writes an *address*, never a stamp. A stamp minted here would be a verdict
    * nothing verified, and the only thing it could be minted from is the ungated resolution
    * this issue exists to stop trusting. The next content call probes with the address now in
