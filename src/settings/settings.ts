@@ -138,7 +138,10 @@ import {
   plusFetchRequest,
   PLUS_UNREACHABLE_MESSAGE,
 } from "../platform/plusClient";
-import { plusAddressStateMessage } from "../platform/plusBaseVerify";
+import {
+  plusAddressStateMessage,
+  plusSessionStamp,
+} from "../platform/plusBaseVerify";
 import {
   type AskMirrorOffReason,
   disarmAskMirror,
@@ -1437,7 +1440,7 @@ export class AtomsSettingTab extends PluginSettingTab {
     // sending the token to the host it is trying to decide about. Sync means a
     // stale stamp reads as "not yet confirmed", which is the safe direction --
     // a Process or a mirror push re-verifies and this row then resolves.
-    if (!plusBaseMatches(session.verifiedBase ?? session.issuedBase, base)) {
+    if (!plusBaseMatches(plusSessionStamp(session), base)) {
       containerEl.createEl("p", {
         text: PLUS_BASE_REFUSED_MESSAGE,
         cls: "setting-item-description atoms-ask-mirror-error",

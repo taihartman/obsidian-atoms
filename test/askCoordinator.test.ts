@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AskCoordinator } from "../src/plugin/askCoordinator";
+import { verifyPlusBase } from "../src/platform/plusBaseVerify";
+import { plusFetchRequest } from "../src/platform/plusClient";
 import { fireAndForgetAsk } from "../src/shared/fireAndForget";
 import { DEFAULT_SETTINGS } from "../src/shared/types";
 import {
@@ -130,6 +132,16 @@ function makeCoordinator() {
       plusBaseUrl: "",
     },
     refreshAtomsHomeLeaves: async () => undefined,
+    /**
+     * The real binding, not a stub: the coordinator asks the plugin for the
+     * #508 verdict so a catch-up pass shares one memo across its stages, and a
+     * double that answered "verified" would test the wiring instead of the gate.
+     */
+    runPlusBaseGate: (input: Parameters<typeof verifyPlusBase>[1]) =>
+      verifyPlusBase(
+        { storage: plugin.app as never, request: plusFetchRequest },
+        input,
+      ),
   };
   const coordinator = new AskCoordinator(plugin as never);
   /**

@@ -151,8 +151,10 @@ import {
 } from "../platform/filingAuth";
 import { resolveClassifyAuth } from "../platform/classifyAuth";
 import {
+  createPlusBaseVerifyCache,
   plusIssuerMovedMessage,
   verifyPlusBase,
+  type PlusBaseVerifyCache,
 } from "../platform/plusBaseVerify";
 import { CURRENT_ATOMS_QUALITY } from "../pipeline/atomQuality";
 import {
@@ -291,6 +293,20 @@ export default class AtomsPlugin extends Plugin {
   private waiverUsedThisSignal = false;
   private waivedFilingStamps: number[] = [];
   private catchUpInFlight = false;
+  /**
+   * #508. Verdict memo for the length of one catch-up pass, and nothing longer.
+   *
+   * A pass runs outbox, mirror and filing as three sequential stages, and each
+   * asks the issuer gate for itself. A *successful* probe self-heals, because it
+   * re-stamps the session and the later stages read the new stamp off disk. A
+   * refusal persists nothing, so without this the three stages hand the token to
+   * the same suspect or unreachable host three times over for one user action.
+   *
+   * `undefined` outside a pass on purpose: every other entry point asks exactly
+   * once, and a memo that outlived the pass would leave a briefly unreachable
+   * host refused until the plugin reloaded.
+   */
+  private plusBaseVerdicts: PlusBaseVerifyCache | undefined;
   /** Drain filed count not yet consumed by a successful filing pass. */
   private pendingNewDrainWork = 0;
   /** Real start times for in-flight stages (liveness). */
@@ -798,6 +814,7 @@ export default class AtomsPlugin extends Plugin {
     // — both read the flag while it was still false and both ran a full pass. The `finally`
     // releases it, so the early returns between here and there stay correct.
     this.catchUpInFlight = true;
+    this.plusBaseVerdicts = createPlusBaseVerifyCache();
     let drained = 0;
     let outbox = 0;
     let mirrored = 0;
@@ -953,6 +970,7 @@ export default class AtomsPlugin extends Plugin {
       return { ran: true, reason: "ok" };
     } finally {
       this.catchUpInFlight = false;
+      this.plusBaseVerdicts = undefined;
     }
   }
 
@@ -2548,18 +2566,17 @@ export default class AtomsPlugin extends Plugin {
   }
 
   /**
-   * The #508 issuer gate, bound to this device.
-   *
-   * No verdict cache here on purpose. Each classify run asks exactly once, which
-   * is already the "once per run, not once per capture" bound the cache exists
-   * to enforce, and a longer-lived memo would leave a briefly unreachable host
-   * refused until the plugin reloaded. The mirror push, which does ask per atom,
-   * makes its own cache for the length of one pass.
+   * The #508 issuer gate, bound to this device. Internal rather than private so
+   * `AskCoordinator` asks through the same binding, and therefore shares the
+   * pass memo above: one owner of the cache, one place the deps are wired.
    */
-  private runPlusBaseGate(
+  runPlusBaseGate(
     input: Parameters<import("../platform/classifyAuth").ClassifyBaseVerifier>[0],
   ) {
-    return verifyPlusBase({ storage: this.app, request: plusFetchRequest }, input);
+    return verifyPlusBase(
+      { storage: this.app, request: plusFetchRequest, cache: this.plusBaseVerdicts },
+      input,
+    );
   }
 
   runLogContextPrefix() {

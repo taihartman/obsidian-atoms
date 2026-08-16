@@ -118,8 +118,27 @@ export function plusAddressStateMessage(
   configuredBase: string,
 ): string {
   if (!session) return "";
-  const stamp = session.verifiedBase?.trim() || session.issuedBase?.trim() || "";
-  return !stamp && !configuredBase.trim() ? PLUS_BASE_NEEDS_ADDRESS_MESSAGE : "";
+  return !plusSessionStamp(session) && !configuredBase.trim()
+    ? PLUS_BASE_NEEDS_ADDRESS_MESSAGE
+    : "";
+}
+
+/**
+ * The base this session is currently believed to belong to, or `""` for none.
+ *
+ * `verifiedBase` first, because it is the one that moves: a rotated tunnel stops
+ * probing after its first success. `issuedBase` is the fallback for a session
+ * that has never re-verified.
+ *
+ * One definition, because three places need this rule and they must not drift.
+ * The Settings row previously spelled it `verifiedBase ?? issuedBase`, which
+ * agrees only as long as `parseBaseStamp` keeps refusing to store empty strings.
+ * That is a real invariant today and a silent divergence the day it changes.
+ */
+export function plusSessionStamp(
+  session: Pick<PlusSession, "issuedBase" | "verifiedBase">,
+): string {
+  return session.verifiedBase?.trim() || session.issuedBase?.trim() || "";
 }
 
 /** Host for user-facing copy. Falls back to the whole base when unparseable. */
@@ -182,10 +201,7 @@ export async function verifyPlusBase(
     return refused("unverified");
   }
 
-  // `verifiedBase` first: it is the one that moves, so a rotated tunnel stops
-  // probing after its first success. `issuedBase` is the fallback for a session
-  // that has never re-verified.
-  const stamp = session.verifiedBase?.trim() || session.issuedBase?.trim() || "";
+  const stamp = plusSessionStamp(session);
   if (plusBaseMatches(stamp, resolvedBase)) {
     return { kind: "verified", base: normalizePlusBase(resolvedBase), restamped: false };
   }
