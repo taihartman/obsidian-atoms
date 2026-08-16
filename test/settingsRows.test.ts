@@ -1247,16 +1247,81 @@ describe("destination shell", () => {
     expect(backRowEl(tab)).toBeNull();
   });
 
-  it("renders a route change from the top instead of restoring the old scroll position", () => {
+  /**
+   * The two directions want opposite things, and one rule used to serve both (#533).
+   *
+   * Walking in, the screen is one the user has never seen, so it starts at the top. Walking back,
+   * the screen is one they were reading and left partway down, so it gives that place back.
+   * `openRoute` used to end in an unconditional `scrollTop = 0`, which is the first rule applied
+   * to both — invisible until a row worth returning from sat below the fold, which is what 0.8.1
+   * put at the bottom of the main screen.
+   */
+  it("opens a destination at the top, however far down the row that led there was", () => {
     const { tab, scroller } = settingTab();
     tab.display();
     scroller.scrollTop = 420;
 
     open(tab, "Filing");
-    expect(scroller.scrollTop).toBe(0);
 
+    expect(scroller.scrollTop).toBe(0);
+  });
+
+  it("gives back the place you left when you come out of a destination", () => {
+    const { tab, scroller } = settingTab();
+    tab.display();
+    scroller.scrollTop = 420;
+
+    open(tab, "Filing");
+    // Where the user got to on the destination is theirs too, and is not the main screen's.
     scroller.scrollTop = 260;
     backRowEl(tab)!.click();
+
+    expect(scroller.scrollTop).toBe(420);
+  });
+
+  it("keeps each route's place apart, so a second destination does not inherit the first's", () => {
+    const { tab, scroller } = settingTab();
+    tab.display();
+    scroller.scrollTop = 420;
+
+    open(tab, "Filing");
+    scroller.scrollTop = 260;
+    backRowEl(tab)!.click();
+    expect(scroller.scrollTop).toBe(420);
+
+    // A route never scrolled has no place to give back, so it opens at the top rather than
+    // inheriting the 260 the previous destination happened to leave behind.
+    open(tab, "Advanced");
+    expect(scroller.scrollTop).toBe(0);
+
+    // And returning to the destination that *was* scrolled gives that back, not the main screen's.
+    backRowEl(tab)!.click();
+    expect(scroller.scrollTop).toBe(420);
+    open(tab, "Filing");
+    expect(scroller.scrollTop).toBe(260);
+  });
+
+  it("does not hand a new visit the places the last one left behind", () => {
+    const { tab, scroller } = settingTab();
+    tab.display();
+    scroller.scrollTop = 420;
+    open(tab, "Filing");
+    // A place on the destination itself, which is the one that can outlive the visit.
+    scroller.scrollTop = 300;
+    backRowEl(tab)!.click();
+
+    // Closing Settings ends the visit: the route resets to main and the per-visit caches clear,
+    // so the remembered places go with them.
+    tab.hide();
+    scroller.scrollTop = 0;
+    tab.display();
+
+    // It has to be the *destination's* place that is checked, not the main screen's: the main
+    // screen is recorded on the way out of it every time, so a stale value there is overwritten
+    // before it could ever be restored. A destination's is not, and would be handed to a visit
+    // that never scrolled it.
+    open(tab, "Filing");
+
     expect(scroller.scrollTop).toBe(0);
   });
 
