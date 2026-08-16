@@ -163,7 +163,7 @@ describe("issuer stamp survives disk to the classify gate (#508)", () => {
     };
   }
 
-  it("reaches the shape resolveClassifyAuth consumes, not just parse/serialize", () => {
+  it("reaches the shape resolveClassifyAuth consumes, not just parse/serialize", async () => {
     const app = diskApp();
     writePlusSession(app, stamped);
 
@@ -183,9 +183,18 @@ describe("issuer stamp survives disk to the classify gate (#508)", () => {
       expect(auth.issuedBase).toBe("https://my.host");
       expect(auth.verifiedBase).toBe("https://tunnel-a.trycloudflare.com");
     }
-    // The projection is what classify actually receives.
-    const classify = resolveClassifyAuth(auth, { plusBaseUrl: "https://my.host" });
+    // The projection is what classify actually receives, and the gate reads the
+    // stamps straight off it — which is the whole reason they are carried here.
+    const asked: string[] = [];
+    const classify = await resolveClassifyAuth(auth, {
+      plusBaseUrl: "https://my.host",
+      verifyBase: async (input) => {
+        asked.push(input.session.issuedBase ?? "", input.session.verifiedBase ?? "");
+        return { kind: "verified", base: input.resolvedBase, restamped: false };
+      },
+    });
     expect(classify.ok).toBe(true);
+    expect(asked).toEqual(["https://my.host", "https://tunnel-a.trycloudflare.com"]);
   });
 
   it("carries the stamp on the unknown-status branch too", () => {

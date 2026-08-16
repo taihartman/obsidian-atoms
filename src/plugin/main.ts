@@ -150,6 +150,10 @@ import {
   type FilingAuth,
 } from "../platform/filingAuth";
 import { resolveClassifyAuth } from "../platform/classifyAuth";
+import {
+  plusIssuerMovedMessage,
+  verifyPlusBase,
+} from "../platform/plusBaseVerify";
 import { CURRENT_ATOMS_QUALITY } from "../pipeline/atomQuality";
 import {
   formatConnectivityConsole,
@@ -610,7 +614,7 @@ export default class AtomsPlugin extends Plugin {
       : this.getApiKey() || "polish-only";
     let plusDeps: import("../pipeline/classify").ClassifyDeps["plus"];
     if (needsApi && !usingFixtures) {
-      const classifyAuth = this.requireClassifyAuth();
+      const classifyAuth = await this.requireClassifyAuth();
       if (!classifyAuth) return;
       apiKey = classifyAuth.apiKey || "plus";
       plusDeps = classifyAuth.plus;
@@ -1149,7 +1153,7 @@ export default class AtomsPlugin extends Plugin {
     }
 
     let auth: Extract<
-      ReturnType<typeof resolveClassifyAuth>,
+      Awaited<ReturnType<typeof resolveClassifyAuth>>,
       { ok: true }
     > | null = null;
     // Boxed so the log after the cycle still sees the report the write callback set.
@@ -1163,7 +1167,7 @@ export default class AtomsPlugin extends Plugin {
         // Same bound as the write (KTD2), and past-only like it: both sides of the cycle read
         // exactly the same set of captures, so the recount can reach zero and stamp the day.
         this.countPastUnprocessed({ since, fallback }),
-      gate: (pastRemaining) => {
+      gate: async (pastRemaining) => {
         // Catch-up manual: bypass auto-run enable (KTD11). Still need privacy ack
         // (auto-run egress) OR catch-up egress notice is gated earlier in decideResumeStages.
         const enabled =
@@ -1195,12 +1199,22 @@ export default class AtomsPlugin extends Plugin {
         }
 
         const filing = this.resolveFilingAuth();
-        const classifyAuth = resolveClassifyAuth(filing, {
+        const classifyAuth = await resolveClassifyAuth(filing, {
+          verifyBase: (i) => this.runPlusBaseGate(i),
           plusBaseUrl: this.settings.plusBaseUrl,
         });
         if (!classifyAuth.ok) {
           // Silent for auto path — manual commands still Notice. Do not stamp.
-          devLog("[atoms] auto-run skipped: no filing auth", classifyAuth.reason);
+          // The reason is logged rather than folded away because #508's refusal
+          // is not a missing key: an unattended pass that quietly reported
+          // "no filing auth" for a base that could not be confirmed would hide
+          // the one state the user has to act on.
+          devLog(
+            classifyAuth.reason === "unverified_base"
+              ? "[atoms] auto-run skipped: Plus base not confirmed for this session"
+              : "[atoms] auto-run skipped: no filing auth",
+            classifyAuth.reason,
+          );
           return { ok: false, reason: "missing_key" };
         }
         auth = classifyAuth;
@@ -1642,7 +1656,7 @@ export default class AtomsPlugin extends Plugin {
     // No guard and no flag of its own: `runPlusBackfillFlow` already holds `backfillInFlight` for
     // the whole flow this runs inside. Taking it a second time here would clear it on the way out
     // while the top-up loop is still live.
-    const classifyAuth = this.requireClassifyAuth();
+    const classifyAuth = await this.requireClassifyAuth();
     if (!classifyAuth) return;
     // Home has to look busy for the duration. The flag above stops a second *backfill*, but
     // home's Process button reads `AtomsHomeView.busy` — and a run that shows no progress
@@ -2500,11 +2514,12 @@ export default class AtomsPlugin extends Plugin {
    * BYOK or Plus credentials for Process/Preview/Update/auto-run (U3).
    * Returns null after Notice when blocked.
    */
-  private requireClassifyAuth():
-    | import("../platform/classifyAuth").ClassifyAuthOk
-    | null {
+  private async requireClassifyAuth(): Promise<
+    import("../platform/classifyAuth").ClassifyAuthOk | null
+  > {
     const auth = this.resolveFilingAuth();
-    const resolved = resolveClassifyAuth(auth, {
+    const resolved = await resolveClassifyAuth(auth, {
+      verifyBase: (i) => this.runPlusBaseGate(i),
       plusBaseUrl: this.settings.plusBaseUrl,
       onRemaining: (remaining) => {
         const session = readPlusSession(this.app);
@@ -2523,7 +2538,28 @@ export default class AtomsPlugin extends Plugin {
       new Notice(`Atoms: ${resolved.message}`);
       return null;
     }
+    if (resolved.issuerMovedFrom) {
+      // #508. The refusal is legible and the case that actually moves data would
+      // otherwise be silent, which is backwards: `plusBaseUrl` syncs through
+      // `data.json`, so this can happen with nobody typing anything.
+      new Notice(`Atoms: ${plusIssuerMovedMessage(resolved.plus?.baseUrl ?? "")}`);
+    }
     return resolved;
+  }
+
+  /**
+   * The #508 issuer gate, bound to this device.
+   *
+   * No verdict cache here on purpose. Each classify run asks exactly once, which
+   * is already the "once per run, not once per capture" bound the cache exists
+   * to enforce, and a longer-lived memo would leave a briefly unreachable host
+   * refused until the plugin reloaded. The mirror push, which does ask per atom,
+   * makes its own cache for the length of one pass.
+   */
+  private runPlusBaseGate(
+    input: Parameters<import("../platform/classifyAuth").ClassifyBaseVerifier>[0],
+  ) {
+    return verifyPlusBase({ storage: this.app, request: plusFetchRequest }, input);
   }
 
   runLogContextPrefix() {
@@ -2567,7 +2603,7 @@ export default class AtomsPlugin extends Plugin {
 
   /** The write pass itself. Runs only under `manualFilingInFlight` — see its one caller. */
   private async processUnprocessedRun(opts?: { includeToday?: boolean }) {
-    const classifyAuth = this.requireClassifyAuth();
+    const classifyAuth = await this.requireClassifyAuth();
     if (!classifyAuth) return;
 
     this.beginHomeRun("process");
@@ -2754,7 +2790,7 @@ export default class AtomsPlugin extends Plugin {
    * Never creates atoms or appends markers (AE5).
    */
   async runDryRunPreview(opts?: { includeToday?: boolean }) {
-    const classifyAuth = this.requireClassifyAuth();
+    const classifyAuth = await this.requireClassifyAuth();
     if (!classifyAuth) return;
 
     this.beginHomeRun("preview");
@@ -3094,7 +3130,7 @@ export default class AtomsPlugin extends Plugin {
     }
 
     // Same auth as Process: BYOK or Atoms Plus (not BYOK-only).
-    const classifyAuth = this.requireClassifyAuth();
+    const classifyAuth = await this.requireClassifyAuth();
     if (!classifyAuth) return;
 
     const nowKind = gate.capture.markerKind!;

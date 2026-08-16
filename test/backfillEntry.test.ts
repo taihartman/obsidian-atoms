@@ -16,6 +16,7 @@ import AtomsPlugin from "../src/plugin/main";
 import {
   LS_PLUS_SESSION,
   serializePlusSession,
+  type IssuedBase,
   type PlusSession,
 } from "../src/platform/filingAuth";
 import {
@@ -214,7 +215,7 @@ function harness(opts: {
       atomFolder: "Atoms",
       enableHubProjection: false,
       proposedTags: [],
-      plusBaseUrl: "https://plus.example",
+      plusBaseUrl: PLUS_BASE,
     },
     autoRunInFlight: false,
     backfillInFlight: false,
@@ -238,12 +239,23 @@ function harness(opts: {
   return { plugin, vault, store, notices, opened, svc };
 }
 
+/**
+ * Stamped with the base these tests point the plugin at (#508). A session with
+ * no stamp is a real state, but it is the *upgrade* state, and making every
+ * backfill fixture wear it would turn each of these tests into a test of the
+ * issuer gate instead of the thing it names. The gate has its own file.
+ */
+/** The base every fixture here signs in to and talks to. */
+const PLUS_BASE = "https://plus.example";
+
 const plusSession = (over: Partial<PlusSession> = {}): PlusSession => ({
   sessionToken: "sess_live",
   email: "a@b.co",
   status: "active",
   remaining: 150,
   periodEnd: dayBack(-20),
+  issuedBase: PLUS_BASE as IssuedBase,
+  verifiedBase: PLUS_BASE,
   ...over,
 });
 
