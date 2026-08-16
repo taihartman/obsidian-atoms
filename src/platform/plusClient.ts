@@ -348,12 +348,17 @@ async function plusRequest(
   // hosted default would be worse than failing: a self-host session token would
   // then be sent to plus.tryatoms.app.
   //
-  // That reasoning holds for a *refused* value and not yet for an empty one:
-  // clearing the field resolves to the hosted default at every call site, so a
-  // self-hoster who empties it does ship their token — and their capture bodies —
-  // to plus.tryatoms.app. Proven live in the #500 adversarial pass. Closing it
-  // needs the session to record the base that issued it, which is #508, not a
-  // check that can be made here.
+  // An *empty* value is a different case and is not answerable here: clearing
+  // the field resolves to the hosted default at every call site, and this
+  // function cannot tell that apart from a hosted user who never set one.
+  //
+  // #508 closed the half that matters. The session now records the base that
+  // issued it, and every call carrying capture text or atom bodies refuses
+  // unless the resolved base is that base or can prove it holds the session —
+  // see `plusBaseVerify.ts`. What is still true, deliberately, is the token
+  // half: the content-free calls below keep sending the session token to
+  // whatever base resolves, and so does #508's own `/v1/me` probe, because a
+  // check cannot gate itself.
   if (!isAllowedPlusBaseUrl(base)) {
     return {
       ok: false,
