@@ -6,8 +6,8 @@ base: master
 tracking: https://github.com/taihartman/obsidian-atoms/issues/508
 pr: https://github.com/taihartman/obsidian-atoms/pull/526
 status: in-progress
-units_done: U1, U2
-units_left: U3, U4, U5, U6, U7
+units_done: U1, U2, U3, U4, U5, U6, U7
+units_left: none — shipping tail only
 ---
 
 # Handoff — #508: a Plus session records the base that issued it
@@ -18,12 +18,11 @@ opened this work is **answered**; nothing is waiting on a human.
 
 ## Where this stands
 
-The design is settled, the plan has been through a four-lens doc-review against the real code, and
-**U1 and U2 are implemented, verified and pushed**. Five units remain, and U3 is the substantial one.
+**All seven units are implemented, verified and pushed.** Nothing is left to build.
+What remains is the shipping tail, and it is the whole of the remaining work.
 
-**The plan is the authority: [`docs/plans/2026-08-15-001-fix-plus-session-issuer-plan.md`](../plans/2026-08-15-001-fix-plus-session-issuer-plan.md).**
-Read it in full before writing code. It carries four KTDs, the six gated call sites, the copy, the
-risks, and the open questions. This handoff does not restate it.
+**The plan is still the authority: [`docs/plans/2026-08-15-001-fix-plus-session-issuer-plan.md`](../plans/2026-08-15-001-fix-plus-session-issuer-plan.md).**
+Read the Corrections and Traps sections below before touching any of this; they are still live.
 
 ## The bug, in one paragraph
 
@@ -38,33 +37,67 @@ covered every input class except the one that is not invalid at all: **absent**.
 | Unit | Commit | What landed |
 |---|---|---|
 | U1 | `4513adb` | `issuedBase` (immutable, branded) + `verifiedBase` (mutable) on `PlusSession`; both added to all **three** allowlists between disk and the gate; `normalizePlusBase` / `plusBaseMatches` / `issuedBaseFromResponse` in `plusClient.ts` |
-| U2 | `7105839` | `installPlusSession(host, session, issuedBase)` with the third arg required; brand minted inside the helpers that made the successful request; magic-link port and `AtomsPlugin` wrapper widened end to end; all four acquisition paths stamp |
+| U2 | `7105839` | `installPlusSession(host, session, issuedBase)` with the third arg required; brand minted inside the helpers that made the successful request; all four acquisition paths stamp |
+| U3 | `57cae42` | `src/platform/plusBaseVerify.ts` — verified / refused / unreachable, the email predicate, the KTD1 carve-out, the re-stamp through `writePlusSession` |
+| U4 | `4e0c989` | `resolveClassifyAuth` async + gated with a required injected verifier; `unverified_base` refusal; `ClassifyDeps.plus.verifiedBase` and the `classify.ts` egress backstop |
+| U5 | `313125d` | Mirror config + outbox ack gated in `askCoordinator`; `PlusMirrorConfig` and per-call backstops in `askMirrorUpsert` / `Delete` / `Reconcile`; the Connect destination gated against the stamp |
+| U6+U7 | `d3401a9` | `plusClient` comment and `docs/ask-self-host.md` rewritten; version `0.8.0-beta.7`; `test/plusSenderInventory.test.ts` re-derives the sender census from source |
+| KTD1 state | `767e867` | Settings shows the needs-address state in the Plus service URL row's existing inline error region |
 
-Both are behaviour-neutral. **Nothing gates yet.** `npm run build && npm test && npm run lint` was
-green at each commit (1963 tests at U2).
+`npm run build && npm test && npm run lint` green at every commit. **2021 tests** at head.
 
-Each unit was verified by neutering its guard and watching tests go red, then restoring. Do the same
-for every unit you write — it is U7 and it is not optional. Two #500 tests passed against a broken
-guard until someone checked.
+**Every guard was neuter-verified**: the guard was broken, the tests were watched go red, and the
+guard was restored. Fourteen neuters across the five units, each recorded in its commit message. Do
+the same for anything you add. Two #500 tests passed against a broken guard until someone checked.
 
-## Next steps
+## Next steps — the shipping tail, in order
 
-1. **U3 — the verification module.** `src/platform/plusBaseVerify.ts`. This is the largest unit and
-   the one the rest hang off. Read the plan's U3 section carefully; the accept condition is not what
-   the original design said (see **Corrections** below).
-2. **U4 — gate classify.** `resolveClassifyAuth` plus the `classify.ts:761` egress backstop. The plan
-   lists the three signature facts that will otherwise stall you: `resolveClassifyAuth` is
-   synchronous today and has no request fn or storage, the ripple set is `requireClassifyAuth` and
-   its five call sites, and `ClassifyDeps.plus` needs a new field for the backstop to compare.
-3. **U5 — gate mirror push**, including the backstop inside `askMirrorUpsert` / `Delete` / `Reconcile`.
-4. **U6 — docs stop hedging.** The #508 comment at `plusClient.ts:259-268` and the warning in
-   `docs/ask-self-host.md` both currently describe this as an open gap. Rewrite both or the docs lie
-   in the other direction. Bump `manifest.json` + `package.json` + `versions.json` to `0.8.0-beta.7`.
-5. **U7 — both checks**, not just neutering: also the source-enumeration test that re-derives the
-   sender inventory, because neutering cannot catch a sender nobody listed.
-6. **Shipping tail:** `ce-simplify-code` → `ce-code-review` → `ce-compound` → `world-class-qa`
-   (ending in `adversarial-qa`). Then the PR body per `CLAUDE.md`, with real Test plan checkboxes and
-   vault screenshots.
+1. **`ce-simplify-code`** on the branch diff. Nothing has been simplified yet.
+2. **`ce-code-review`**, cross-model peer routed to **grok** (see the global rule; create
+   `.compound-engineering/config.local.yaml` with `cross_model_peer: grok` and gitignore it if it is
+   not there). Give the peer a brief that names `plusBaseVerify.ts`, `classifyAuth.ts` and
+   `askCoordinator.ts` rather than the whole 25-file diff, or it burns its turn budget reading.
+3. **`ce-compound`** — the durable learning. Candidates, all real: a bare 2xx is not proof of
+   issuance; a required *type* enforces presence but a required *brand* enforces provenance; an
+   optional field cannot be pinned by an assignability assertion; `Object.create(Prototype)` skips
+   class fields, so a dependency held as a class field is undefined in tests built that way.
+4. **`world-class-qa`**, ending in **`adversarial-qa`** per its hard gate. This is the largest
+   remaining item and none of it has run. The adversarial pass should reuse the #500 fetch recorder
+   that blocks real egress. Read `docs/qa/learnings.md` first, especially the CDP focus-emulation
+   note — an unfocused Obsidian window fires no `focus`/`blur` events at all.
+5. **PR body** on [#526](https://github.com/taihartman/obsidian-atoms/pull/526) per `CLAUDE.md`:
+   `Closes #508`, distilled Core user stories, Edge cases & testing, real Test plan checkboxes, and
+   vault screenshots committed under `docs/qa/screenshots/` and linked with **absolute**
+   `raw.githubusercontent.com` URLs. The PR is still a draft.
+
+## What deliberately did not ship
+
+Say this in the PR body, or the issue reads as more closed than it is.
+
+- **The token half of the leak.** The seventeen content-free base resolutions still send the session
+  token to whatever base resolves, and so does the `/v1/me` probe this fix added, because a check
+  cannot verify the host it is asking. `docs/ask-self-host.md` now says so in both directions.
+- **`sendPlusMagicLink`** carries `vault` (the vault name, often self-descriptive) and is not gated:
+  there is no session at magic-link time, so there is nothing to compare a base against.
+- **The resolver still falls back.** Six consumers are gated instead. Deferred with reasons, not
+  rejected; worth its own issue.
+
+## Decisions taken during implementation, beyond the plan
+
+- **No verdict cache anywhere.** The plan asked for one so an unreachable host is probed once per
+  run. Both call paths already ask exactly once — classify at `resolveClassifyAuth`, the mirror where
+  the config is built — so the bound is already met, and a longer-lived memo would leave a briefly
+  unreachable host refused until the plugin reloaded. `createPlusBaseVerifyCache` exists and is
+  tested; nothing in `src/` passes one.
+- **The Connect destination compares, it does not probe.** A render must not egress, and a screen
+  that opened a network call to name its own address would be sending the token to the host it is
+  trying to decide about. A stale stamp therefore reads as "not yet confirmed" there until a Process
+  or mirror push re-verifies.
+- **The Settings state shows only the needs-address case,** not a mismatch. A mismatch is unsettled;
+  the next push probes and may re-stamp, and a refusal announced before anything tried would alarm a
+  self-hoster who rotated their tunnel.
+- **`PLUS_BASE_REFUSED_MESSAGE` lives in `plusClient`,** re-exported from `plusBaseVerify`. The
+  request layer returns it now, and importing it the other way is a cycle.
 
 ## Corrections the doc-review made to the original design
 
@@ -141,22 +174,13 @@ Recorded in the plan's Open questions section. Summarised:
 ## Git state
 
 - Branch `claude/plus-session-issuer`, base `master` at `f544110`, tracking
-  `origin/claude/plus-session-issuer`.
-- Draft PR [#526](https://github.com/taihartman/obsidian-atoms/pull/526), `Closes #508`.
+  `origin/claude/plus-session-issuer`. Working tree clean, everything pushed.
+- Draft PR [#526](https://github.com/taihartman/obsidian-atoms/pull/526), `Closes #508`. Still a
+  draft, body not yet written.
 - `STATUS.md` row is claimed and current.
-- **Last code commit: `7105839` (U2). Everything after it is docs.** Working tree clean, everything
-  pushed. There is no WIP snapshot commit — nothing was left uncommitted. (This section does not pin
-  the head SHA: the commit that carries this doc cannot state its own hash.)
-- Diff since base: 18 files, +1334/-39.
-- Recent commits, newest first:
-  - `f952c53` docs: confirm the `/v1/me` identity field against the service
-  - `8062881` docs(handoff): U1 and U2 landed, U3 next
-  - `7105839` feat(plus): U2 — stamp the base that actually issued the session
-  - `4513adb` feat(plus): U1 — a session can record the base that issued it
-  - `7cc88f2` docs(plan): KTD1 decided, absent issuer means unknown
-  - `f2811a0` docs(plan): fold in four-lens doc-review findings
-  - `2eae679` docs(plan): a Plus session records the base that issued it
-- Version still `0.8.0-beta.6`; the bump is U6.
+- **Last code commit: `767e867`.** (This section does not pin the head SHA: the commit that carries
+  this doc cannot state its own hash.)
+- Version `0.8.0-beta.7`. The bump has landed; do not bump again.
 - You are in a **linked worktree** (`--git-common-dir` is the main checkout's `.git`). Reuse it. Do
   not create another.
 
