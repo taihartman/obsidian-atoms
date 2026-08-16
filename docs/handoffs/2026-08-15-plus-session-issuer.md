@@ -47,7 +47,7 @@ covered every input class except the one that is not invalid at all: **absent**.
 `npm run build && npm test && npm run lint` green at every commit. **2021 tests** at head.
 
 **Every guard was neuter-verified**: the guard was broken, the tests were watched go red, and the
-guard was restored. Fourteen neuters across the five units, each recorded in its commit message. Do
+guard was restored. Sixteen in all: thirteen guard neuters (U3 five, U4 four, U5 four) plus three structural ones — deleting `verifiedBase` from the `FilingAuth` projection, adding a twenty-fourth base resolution, and adding a fourth mirror endpoint with no backstop. Each is recorded in its commit message. Do
 the same for anything you add. Two #500 tests passed against a broken guard until someone checked.
 
 ## Next steps — the shipping tail, in order
