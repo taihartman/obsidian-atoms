@@ -941,6 +941,16 @@ export class AtomsSettingTab extends PluginSettingTab {
    */
   private markedModal: HTMLElement | null = null;
   /**
+   * Where the user was on each route they have already scrolled, so coming back returns them
+   * there rather than to the top.
+   *
+   * Keyed by route rather than held as one value: the back stack is one level deep today, but a
+   * single "previous position" would be wrong the moment a destination leads to another, and
+   * silently so. A route absent from this map has never been scrolled, which is the same thing
+   * as position zero and needs no entry.
+   */
+  private routeScroll = new Map<SettingsRoute, number>();
+  /**
    * The last answer the API-key row got, and when. Keyed by the key it was about, so a new key
    * is always a fresh question and a re-render of the same key is not.
    */
@@ -1039,10 +1049,15 @@ export class AtomsSettingTab extends PluginSettingTab {
   }
 
   /**
-   * Walk into a destination, or back out of one. Deliberately not `redisplay()`: that restores
-   * the scroll position, which is right for a toggle re-rendering the screen the user is
-   * already reading and wrong here — a destination is a screen they have not seen yet, so it
-   * starts at the top.
+   * Walk into a destination, or back out of one.
+   *
+   * Deliberately not `redisplay()`, which restores the position unconditionally: that is right
+   * for a toggle re-rendering the screen the user is already reading, and wrong for navigation,
+   * where the two directions want opposite things. A screen you have never scrolled starts at
+   * the top; a screen you are returning to gives you back the place you left. Reading the map
+   * rather than the direction is what keeps that true without tracking a back stack: the main
+   * screen has an entry because the user scrolled it, and a destination they have never opened
+   * does not.
    */
   private openRoute(route: SettingsRoute): void {
     // Walking to another screen settles an open sheet the same way closing Settings does: a
@@ -1060,10 +1075,26 @@ export class AtomsSettingTab extends PluginSettingTab {
     // walking out of Advanced with a half-typed URL would discard it — the row is rebuilt from
     // settings on the way back, so the draft has nowhere to survive.
     this.commitPlusBaseUrlDraft?.();
+    // Recorded before `display()`, while the element still holds the position being left.
+    const leaving = this.settingsScrollEl();
+    if (leaving) this.routeScroll.set(this.route, leaving.scrollTop);
+
     this.route = route;
     this.display();
+
     const scroller = this.settingsScrollEl();
-    if (scroller) scroller.scrollTop = 0;
+    if (!scroller) return;
+    const top = this.routeScroll.get(route) ?? 0;
+    scroller.scrollTop = top;
+    // Obsidian finishes laying the pane out after this frame, and a taller screen can clamp a
+    // restore applied too early down to whatever fits so far. `redisplay()` learned the same
+    // thing; re-applying is idempotent and costs nothing when the value is already right.
+    if (top > 0) {
+      window.requestAnimationFrame(() => {
+        const el = this.settingsScrollEl();
+        if (el) el.scrollTop = top;
+      });
+    }
   }
 
   /**
@@ -1131,6 +1162,10 @@ export class AtomsSettingTab extends PluginSettingTab {
     this.commitPlusBaseUrlDraft = null;
     this.plusBaseUrlDraft = null;
     this.route = "main";
+    // Per-visit, like the key verdict below it: opening Settings is a fresh arrival and starts at
+    // the top. Keeping the map would drop a returning user mid-page on a screen they did not
+    // scroll this time.
+    this.routeScroll.clear();
     // A new visit re-asks whether the key works. Without this, a user who saved a key offline
     // would see that verdict forever — the row's only other trigger is saving the key again.
     this.apiKeyCheck = null;
