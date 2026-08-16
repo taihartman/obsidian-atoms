@@ -1,188 +1,200 @@
 ---
-handoff_date: 2026-08-15
+handoff_date: 2026-08-16
 branch: claude/plus-session-issuer
 worktree: /Users/a515138832/StudioProjects/obsidian_plugin/.claude/worktrees/mystifying-hellman-4e183c
 base: master
 tracking: https://github.com/taihartman/obsidian-atoms/issues/508
 pr: https://github.com/taihartman/obsidian-atoms/pull/526
 status: in-progress
-units_done: U1, U2, U3, U4, U5, U6, U7
-units_left: none — shipping tail only
+units_done: U1-U7, plus simplify, code-review, compound
+units_left: two known regressions at head, one product decision, QA, PR body
 ---
 
 # Handoff — #508: a Plus session records the base that issued it
 
-Read this file top to bottom, run **How to resume**, then start at **Next steps**. Do not re-plan
-what the plan already decided and do not ask the user what to work on. The blocking decision that
-opened this work is **answered**; nothing is waiting on a human.
+Read this top to bottom, run **How to resume**, then start at **Next steps**. The design is settled
+and implemented. What remains is **two defects introduced and not fixed**, one product decision, and
+the QA half of the shipping tail.
 
-## Where this stands
+**The plan is the authority:
+[`docs/plans/2026-08-15-001-fix-plus-session-issuer-plan.md`](../plans/2026-08-15-001-fix-plus-session-issuer-plan.md).**
+Its Corrections, Traps and KTD sections are all still live.
 
-**All seven units are implemented, verified and pushed.** Nothing is left to build.
-What remains is the shipping tail, and it is the whole of the remaining work.
+## Read this first: head contains two known regressions
 
-**The plan is still the authority: [`docs/plans/2026-08-15-001-fix-plus-session-issuer-plan.md`](../plans/2026-08-15-001-fix-plus-session-issuer-plan.md).**
-Read the Corrections and Traps sections below before touching any of this; they are still live.
+Both in `src/platform/plusRefresh.ts`, both introduced on 2026-08-15 while fixing a P0, both found
+afterwards by the cross-model adversarial pass. **The code is committed and pushed in this state.**
+Fix them before anything else.
 
-## The bug, in one paragraph
+### R1 (P1) — the refusal offers a sign-in link to the host it just refused
 
-A user signed in to their own Plus server who clears `Plus service URL` silently starts sending their
-session token **and their verbatim capture text** to `plus.tryatoms.app`. Empty has always resolved
-to the hosted default. #500 guarded *invalid* base URLs and deliberately refused to fall back; that
-covered every input class except the one that is not invalid at all: **absent**. Proven live in the
-#500 adversarial pass with a fetch recorder that blocked real egress.
+`plusRefresh.ts:148`. The P0 fix made a differing-email 2xx a `kind: "rejected"` record.
+`plusRefreshPresentation` renders `rejected` as **"Sign-in needed"** with a **Send me a sign-in link**
+CTA. That magic link is requested against the current `plusBaseUrl` — the same possibly-rogue base
+that just failed the check. Completing it runs `installPlusSession`, which stamps that host as the
+issuer, after which classify and the mirror send note text there. **The issuer gate never runs on
+that path**, and [#529](https://github.com/taihartman/obsidian-atoms/issues/529)'s challenge and
+trust-gesture options would not cover it.
+
+**Fix:** record the differing-email case as `kind: "failed"` with `PLUS_BASE_REFUSED_MESSAGE`, the
+same shape as an unreachable check, so no magic-link CTA is offered. The reasoning: a live session
+that named a *different* account is a base problem, not an expired session, so sign-in is the wrong
+remedy.
+
+**Test at the presentation layer, not only the record layer** — the bug is that a defensible record
+kind renders a dangerous CTA, so assert `plusRefreshPresentation(record).recovery` is `null`.
+
+### R2 (P2) — a concurrent refresh erases a just-landed stamp
+
+`plusRefresh.ts:159`. `refreshPlusEntitlementRecord` spreads the `session` **argument**, captured
+before its own `await`. `persistVerifiedBase` re-reads from disk and compares tokens precisely to
+avoid this; the refresh does not. So a first-time probe can land `verifiedBase`, then a concurrent
+refresh (period-end load, checkout poll, backfill meter, Settings → Refresh status) writes the
+pre-stamp snapshot back over it.
+
+That is exactly the upgrade recovery path: type a URL, Process stamps, refresh clobbers. If the user
+then clears the field — Advanced tells them empty means production — the next content call hits the
+KTD1 carve-out and Plus stays refused.
+
+**Fix:** after `getEntitlement` returns ok, re-read the stored session. If it is missing or its
+`sessionToken` differs, write nothing. Otherwise spread the **disk** session and overlay only
+`status`, `remaining`, `periodEnd`, `plan`, `refreshedAt`, keeping `email` from disk per the P0 fix.
+Same re-read-and-compare `persistVerifiedBase` already uses.
+
+## Then a product decision that is not the agent's to make
+
+### D1 (P1) — the upgrade cohort is refused with no recovery on the screen we point them at
+
+Every session already on disk is unstamped, and hosted users keep `plusBaseUrl` empty. So the first
+Process, Preview, Update, auto-run, mirror push and outbox ack after this ships **all refuse, for
+every existing user**. KTD1 accepted that cost. What was not considered: the Notice sends them to
+Account, and Account shows neither the state nor a confirm action. Recovery means finding
+**Advanced** — the screen labelled for settings almost nobody needs — and typing the URL that is
+already the implicit default.
+
+The needs-address state currently renders only in the Advanced row's inline error region
+(`settings.ts`, the `syncPlusBaseUrlError` closure).
+
+Reviewer's proposal: render `plusAddressStateMessage` on the **Account** screen with a primary action
+that writes `DEFAULT_PLUS_BASE_URL` into `plusBaseUrl`. The next content call then has a non-empty
+field, probes, and stamps. Explicitly **do not** mint a stamp from an ungated refresh — that path
+already talks to whatever empty resolves to, which is the leak.
+
+This is new UI, so it needs a scope decision: fold into #508, or ship and file. **Ask the user.** If
+it ships separately, #508's release note must say the first Process after upgrade will refuse until
+the address is confirmed.
 
 ## What is done
 
 | Unit | Commit | What landed |
 |---|---|---|
-| U1 | `4513adb` | `issuedBase` (immutable, branded) + `verifiedBase` (mutable) on `PlusSession`; both added to all **three** allowlists between disk and the gate; `normalizePlusBase` / `plusBaseMatches` / `issuedBaseFromResponse` in `plusClient.ts` |
-| U2 | `7105839` | `installPlusSession(host, session, issuedBase)` with the third arg required; brand minted inside the helpers that made the successful request; all four acquisition paths stamp |
-| U3 | `57cae42` | `src/platform/plusBaseVerify.ts` — verified / refused / unreachable, the email predicate, the KTD1 carve-out, the re-stamp through `writePlusSession` |
-| U4 | `4e0c989` | `resolveClassifyAuth` async + gated with a required injected verifier; `unverified_base` refusal; `ClassifyDeps.plus.verifiedBase` and the `classify.ts` egress backstop |
-| U5 | `313125d` | Mirror config + outbox ack gated in `askCoordinator`; `PlusMirrorConfig` and per-call backstops in `askMirrorUpsert` / `Delete` / `Reconcile`; the Connect destination gated against the stamp |
-| U6+U7 | `d3401a9` | `plusClient` comment and `docs/ask-self-host.md` rewritten; version `0.8.0-beta.7`; `test/plusSenderInventory.test.ts` re-derives the sender census from source |
-| KTD1 state | `767e867` | Settings shows the needs-address state in the Plus service URL row's existing inline error region |
+| U1 | `4513adb` | `issuedBase` (immutable, branded) + `verifiedBase` on `PlusSession`; all three allowlists; `normalizePlusBase` / `plusBaseMatches` / `issuedBaseFromResponse` |
+| U2 | `7105839` | `installPlusSession(host, session, issuedBase)` required third arg; all four acquisition paths stamp |
+| U3 | `57cae42` | `src/platform/plusBaseVerify.ts` — verified / refused / unreachable, the email predicate, the KTD1 carve-out, re-stamp via `writePlusSession` |
+| U4 | `4e0c989` | `resolveClassifyAuth` async + gated with a required injected verifier; `unverified_base`; `ClassifyDeps.plus.verifiedBase` and the `classify.ts` egress backstop |
+| U5 | `313125d` | Mirror config + outbox ack gated; `PlusMirrorConfig` + per-call backstops; Connect destination gated |
+| U6+U7 | `d3401a9` | Docs rewritten; version `0.8.0-beta.7`; `test/plusSenderInventory.test.ts` |
+| KTD1 state | `767e867` | Settings needs-address state in the Advanced row |
+| simplify | `5baf02d` | One `plusSessionStamp` rule; per-pass verdict memo |
+| review fix | `2d9961e` | `askOutboxAck` gets the egress backstop its siblings have |
+| review round | `9e5a390` | Nine findings incl. the P0, the census, the Notice placement |
+| compound | `62b6f29` | Two solution docs + CONCEPTS.md vocabulary |
 
-`npm run build && npm test && npm run lint` green at every commit. **2021 tests** at head.
+`npm run build && npm test && npm run lint` green at every commit. **2030 tests** at head.
 
-**Every guard was neuter-verified**: the guard was broken, the tests were watched go red, and the
-guard was restored. Sixteen in all: thirteen guard neuters (U3 five, U4 four, U5 four) plus three structural ones — deleting `verifiedBase` from the `FilingAuth` projection, adding a twenty-fourth base resolution, and adding a fourth mirror endpoint with no backstop. Each is recorded in its commit message. Do
-the same for anything you add. Two #500 tests passed against a broken guard until someone checked.
+**Every guard is neuter-verified** — broken, watched go red, restored. Do the same for R1 and R2.
 
-## Next steps — the shipping tail, in order
+## Next steps
 
-1. **`ce-simplify-code`** on the branch diff. Nothing has been simplified yet.
-2. **`ce-code-review`**, cross-model peer routed to **grok** (see the global rule; create
-   `.compound-engineering/config.local.yaml` with `cross_model_peer: grok` and gitignore it if it is
-   not there). Give the peer a brief that names `plusBaseVerify.ts`, `classifyAuth.ts` and
-   `askCoordinator.ts` rather than the whole 25-file diff, or it burns its turn budget reading.
-3. **`ce-compound`** — the durable learning. Candidates, all real: a bare 2xx is not proof of
-   issuance; a required *type* enforces presence but a required *brand* enforces provenance; an
-   optional field cannot be pinned by an assignability assertion; `Object.create(Prototype)` skips
-   class fields, so a dependency held as a class field is undefined in tests built that way.
-4. **`world-class-qa`**, ending in **`adversarial-qa`** per its hard gate. This is the largest
-   remaining item and none of it has run. The adversarial pass should reuse the #500 fetch recorder
-   that blocks real egress. Read `docs/qa/learnings.md` first, especially the CDP focus-emulation
-   note — an unfocused Obsidian window fires no `focus`/`blur` events at all.
-5. **PR body** on [#526](https://github.com/taihartman/obsidian-atoms/pull/526) per `CLAUDE.md`:
-   `Closes #508`, distilled Core user stories, Edge cases & testing, real Test plan checkboxes, and
-   vault screenshots committed under `docs/qa/screenshots/` and linked with **absolute**
-   `raw.githubusercontent.com` URLs. The PR is still a draft.
+1. **Fix R1 and R2**, each with a regression test, each neuter-verified.
+2. **Resolve D1** with the user; do not let it ship silently.
+3. **`world-class-qa`**, ending in **`adversarial-qa`** per its hard gate. None of it has run. Reuse
+   the #500 fetch recorder that blocks real egress. Read `docs/qa/learnings.md` first, especially the
+   CDP focus-emulation note: an unfocused Obsidian window fires no `focus`/`blur` events at all.
+4. **PR body** on [#526](https://github.com/taihartman/obsidian-atoms/pull/526) per `CLAUDE.md`:
+   `Closes #508`, Core user stories, Edge cases & testing, real Test plan checkboxes, and vault
+   screenshots committed under `docs/qa/screenshots/` linked with **absolute**
+   `raw.githubusercontent.com` URLs.
 
-## What deliberately did not ship
+## What deliberately did not ship — say this in the PR
 
-Say this in the PR body, or the issue reads as more closed than it is.
-
-- **The token half of the leak.** The seventeen content-free base resolutions still send the session
-  token to whatever base resolves, and so does the `/v1/me` probe this fix added, because a check
-  cannot verify the host it is asking. `docs/ask-self-host.md` now says so in both directions.
-- **`sendPlusMagicLink`** carries `vault` (the vault name, often self-descriptive) and is not gated:
-  there is no session at magic-link time, so there is nothing to compare a base against.
-- **The resolver still falls back.** Six consumers are gated instead. Deferred with reasons, not
-  rejected; worth its own issue.
+- **The token half of the leak.** The content-free base resolutions still send the session token to
+  whatever base resolves, and so does the `/v1/me` probe, because a check cannot verify the host it is
+  asking.
+- **The email predicate is a bar raise, not host authentication.** An address is not a secret, so a
+  targeted host that knows it can echo it back and be stamped. Tracked as
+  [#529](https://github.com/taihartman/obsidian-atoms/issues/529). The code comment and solution doc
+  both state this limit; do not let the PR imply more.
+- **`sendPlusMagicLink`** carries the vault name and is not gated: there is no session at magic-link
+  time, so nothing to compare a base against.
+- **The resolver still falls back.** Six consumers are gated instead. Worth its own issue.
 
 ## Decisions taken during implementation, beyond the plan
 
-- **No verdict cache anywhere.** The plan asked for one so an unreachable host is probed once per
-  run. Both call paths already ask exactly once — classify at `resolveClassifyAuth`, the mirror where
-  the config is built — so the bound is already met, and a longer-lived memo would leave a briefly
-  unreachable host refused until the plugin reloaded. `createPlusBaseVerifyCache` exists and is
-  tested; nothing in `src/` passes one.
-- **The Connect destination compares, it does not probe.** A render must not egress, and a screen
-  that opened a network call to name its own address would be sending the token to the host it is
-  trying to decide about. A stale stamp therefore reads as "not yet confirmed" there until a Process
-  or mirror push re-verifies.
-- **The Settings state shows only the needs-address case,** not a mismatch. A mismatch is unsettled;
-  the next push probes and may re-stamp, and a refusal announced before anything tried would alarm a
-  self-hoster who rotated their tunnel.
-- **`PLUS_BASE_REFUSED_MESSAGE` lives in `plusClient`,** re-exported from `plusBaseVerify`. The
-  request layer returns it now, and importing it the other way is a cycle.
-
-## Corrections the doc-review made to the original design
-
-**Do not revert to the handoff-era shape. These were changed for reasons, with evidence.**
-
-- **A bare 2xx is not proof of issuance.** The original design said stamp the base that returns 2xx.
-  But 2xx proves a server is *willing to accept* a token, not that it minted one — a host that
-  accepts everything passes trivially, becomes the permanent stamped issuer, and capture text then
-  flows there unchecked. **Re-stamp only when the returned entitlement email matches
-  `session.email`.** Found independently by the security and adversarial lenses. Route the probe
-  through the existing `getEntitlement`, not a hand-rolled request, so it inherits `plusRequest`'s
-  #500 guard and error mapping; map results the way `plusRefresh.ts:100-104` already does.
-- **KTD1 is decided: an absent stamp means *unknown*, never *production*.** With a carve-out that is
-  load-bearing: unknown stamp **plus an empty field** must **not** auto-probe, because an empty field
-  already resolves to the hosted default, so probing would send a self-hoster's token to production
-  on first run — the exact user this protects. Surface it as a Settings state, not a dialog.
-- **The carve-out is bounded to the upgrade cohort.** `plusBaseUrl` ships as `""`
-  (`shared/types.ts:225`), so empty is the *normal* state for every hosted user. An earlier framing
-  would have made empty mean "not connected" generally; that would strand nearly the whole install
-  base. From U2 onward a hosted session is stamped at sign-in and its empty field matches its stamp
-  forever, so the field never needs to mean anything.
-- **Two fields, not one.** A single mutable stamp erases its own evidence: after one tunnel rotation
-  nothing on disk records that the session began at a private host.
-- **The inventory is six sites, not four.** The outbox ack (which sends `plan.reason`, free text, not
-  just id and status) and the Connect destination (which publishes an origin for Claude or ChatGPT to
-  OAuth against, then sends the token there). Sorting the Connect screen as "content-free" was the
-  wrong axis, and that is precisely the #500 learning.
-- **This closes the capture-text half of #508, not the token half.** The 17 content-free calls still
-  send the token to whatever base resolves, and the `/v1/me` probe deliberately does too — a check
-  cannot gate itself. Say so; do not let the issue read as "the token no longer leaks".
+- **No verdict memo outside a catch-up pass.** Every other entry point asks once per run already, and
+  a longer-lived memo would leave a briefly unreachable host refused until reload. Inside
+  `runCatchUpPass` the memo is created and cleared with the pass, because its three stages each ask.
+- **The memo is keyed on a token fingerprint**, not just email + base: a verdict certifies a session,
+  and a sign-out/sign-in mid-pass produces two tokens under one email.
+- **A failed stamp write is a refusal**, not a verified verdict — the TOCTOU guard must protect the
+  send decision, not only the file.
+- **The Connect destination compares, it does not probe.** A render must not egress.
+- **The Settings state shows only the needs-address case**, not a mismatch: a mismatch is unsettled
+  and the next push may re-stamp.
+- **`PLUS_BASE_REFUSED_MESSAGE` lives in `plusClient`**, re-exported from `plusBaseVerify`, because
+  the request layer returns it and the other direction is a cycle.
 
 ## Traps that already bit, or will
 
-- **There are three allowlists between disk and the gate, and U3/U4 may create a fourth.**
-  `parsePlusSession`, `serializePlusSession`, and the `FilingAuth` plus variant that
-  `resolveFilingAuth` fills field by field. `resolveClassifyAuth` never sees a `PlusSession`, only
-  that projection. If U3 threads the stamp through `ClassifyAuthOk` into `ClassifyDeps.plus`, that
-  return literal is a fourth with the same silent-drop hazard. Give it the same round-trip assertion.
-- **`tsconfig.test.json` typechecks only a named list of test files.** A `@ts-expect-error` in an
-  unlisted file is inert and a drifted stub signature is caught by nobody. `test/plusSignIn.test.ts`
-  and `test/plusSignInAccountRefresh.test.ts` are **not** on the list; U2 had to fix their stubs by
-  hand. Add any file carrying a compile-time assertion in the same unit that writes it.
-- **`main.ts`'s `onRemaining` closure had zero test coverage before U1.** It is one of two paths that
-  write a session directly. U1 added coverage; do not let it regress.
-- **No em dashes in any string, template, or regex literal under `src/**`.** `test/copyVoice.test.ts`
-  enforces it plugin-wide and fails CI. Comments are exempt.
-- **Test at the level that proves nothing left the device.** `expect(request).not.toHaveBeenCalled()`
-  is the assertion. A returned error object only proves a branch was chosen.
-- **The throwaway QA vault is shared.** A peer session's `install-to-vault.sh` can replace your build
-  mid-pass. `install-to-vault.sh` now takes a worktree lock (exit 3 if held), but still assert build
-  identity by grepping the installed `main.js` for a string your branch introduced, before and after
-  every capture batch.
-- **An unfocused Obsidian window fires no `focus`/`blur` events at all.** Chromium suppresses them
-  when `document.hasFocus()` is false, which it is whenever the CLI drives. Attach CDP and
-  `Emulation.setFocusEmulationEnabled`. Full detail in `docs/qa/learnings.md`.
+- **Three allowlists between disk and the gate**, plus a fourth shape in `ClassifyAuthOk`. A field on
+  the type but missing from one reads as `undefined` at the gate, which is fail-open.
+- **`tsconfig.test.json` typechecks only a named list.** A type-level assertion in an unlisted file is
+  inert. Add any file carrying one in the same unit.
+- **An assignability assertion cannot pin an optional field.** Assert on `keyof`. See
+  `docs/solutions/best-practices/three-ways-a-test-you-just-wrote-asserts-nothing.md`.
+- **`Object.create(Prototype)` skips class fields**, so a dependency held as a class field is
+  `undefined` in tests built that way. `backfillEntry.test.ts` does exactly this.
+- **A fixture updated to satisfy a new required field can make the new check trivially true.** Add the
+  failing case in the same change.
+- **No em dashes in any string, template or regex literal under `src/**`.** Comments are exempt.
+- **Test at the level that proves nothing left the device**: `expect(request).not.toHaveBeenCalled()`.
+- **The throwaway QA vault is shared** and lives in the **main checkout**, not this worktree;
+  `scripts/install-to-vault.sh` resolves it and takes a worktree lock (exit 3 if held). Still grep the
+  installed `main.js` for a branch-introduced string before and after every capture batch.
 - **Reading `plus.sqlite` or service logs to complete a magic link is credential extraction.** Do not.
 
-## Open questions (none blocking)
+## Cross-model peer config changed on 2026-08-15 (machine-wide, affects every repo)
 
-Recorded in the plan's Open questions section. Summarised:
+User-directed: the peer runs **grok-4.6 at medium effort**.
 
-- Should the *resolver* stop falling back, rather than six consumers being gated? Deferred with
-  reasons, not rejected. Worth its own issue.
-- Should a hosted session verify silently onto a self-host base, or does that direction need a
-  gesture?
-- ~~What identity field does `/v1/me` return, and is it stable?~~ **Answered against the service
-  source; U3 is unblocked.** `email`, and nothing else identity-bearing. It is the `accounts` primary
-  key with no route that changes it, normalized `trim().toLowerCase()` service-side. Tokens are
-  opaque `randomBytes(16)`, so a host that did not issue one cannot name its account — the predicate
-  is a real proof of issuance, not a heuristic. Full detail and the threat-model boundary are in the
-  plan's Open questions.
-- Should the outbox-ack refusal surface anything, or stay silent like the existing `return idle`?
+- **Model** — `CROSS_MODEL_MODEL_OVERRIDE_TARGET=grok` + `CROSS_MODEL_MODEL_OVERRIDE=grok-4.6` in
+  `~/.claude/settings.json` → `env`. Survives plugin updates.
+- **Effort** — no env knob exists; it is hardcoded in each worker, so it was patched into the plugin
+  cache. **A plugin update reverts this half silently.** Re-apply with
+  `python3 ~/.claude/bin/ce-cross-model-tier.py`, verify with `--check` (exit 1 on drift). Documented
+  in `~/.claude/CLAUDE.md`.
+
+**One medium run has been attempted and it returned nothing** — it hit grok's 600s hard bound, and
+`--json-schema` buffers, so a killed run yields literally zero. The 4.6-**high** run on the same brief
+finished in ~470s with the three findings above. One data point, not a verdict; if peer output looks
+thin, medium is the first thing to suspect.
+
+**Do not edit a plugin script while a peer job is running.** Bash reads scripts incrementally, so a
+running job died with a syntax error mid-file. Its findings had already been written, which is the
+only reason they survived.
 
 ## Git state
 
 - Branch `claude/plus-session-issuer`, base `master` at `f544110`, tracking
   `origin/claude/plus-session-issuer`. Working tree clean, everything pushed.
-- Draft PR [#526](https://github.com/taihartman/obsidian-atoms/pull/526), `Closes #508`. Still a
-  draft, body not yet written.
+- Draft PR [#526](https://github.com/taihartman/obsidian-atoms/pull/526), `Closes #508`. Body not
+  written.
 - `STATUS.md` row is claimed and current.
-- **Last code commit: `767e867`.** (This section does not pin the head SHA: the commit that carries
-  this doc cannot state its own hash.)
-- Version `0.8.0-beta.7`. The bump has landed; do not bump again.
-- You are in a **linked worktree** (`--git-common-dir` is the main checkout's `.git`). Reuse it. Do
-  not create another.
+- **Last commit before this doc: `62b6f29`.** (This section cannot pin the head SHA: the commit
+  carrying this doc cannot state its own hash.)
+- Version `0.8.0-beta.7`. Already bumped; R1 adds user-visible surface, so bump again only if you
+  ship R1 as its own release.
+- You are in a **linked worktree**. Reuse it; do not create another.
 
 ## How to resume
 
@@ -192,4 +204,4 @@ git fetch origin && git switch claude/plus-session-issuer && git pull --ff-only
 npm run build && npm test && npm run lint
 ```
 
-Then read the plan and start at **Next steps** above.
+Then fix R1 and R2, raise D1 with the user, and run the QA half.
