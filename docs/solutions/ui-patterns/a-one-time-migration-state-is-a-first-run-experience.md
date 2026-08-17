@@ -98,6 +98,19 @@ Three smaller things fell out of it, each worth keeping:
   carve-out. Left in place it is a fail-open waiting for the next author to trust it, so it came out
   of `PlusBaseVerifyInput` and both call sites.
 
+## The rule this produced
+
+The owner's read of it, which is the more useful statement of the principle:
+
+> "Ease is the entire basis of the Plus service. It takes something confusing and makes it easy,
+> and that's the product."
+
+That is now constitutional — `CLAUDE.md` non-negotiable **13** and `docs/architecture.md` design
+principle **8**, *Plus absorbs complexity; it never hands it back*. It was written down *because* of
+this bug: nothing in the constitution forbade a Plus surface from asking the user to supply a value
+Plus is responsible for knowing, so the carve-out cleared review on its security merits alone and
+nobody had a rule to weigh the other side with.
+
 ## How to catch this next time
 
 - When a guard's condition includes "and this setting is at its default", work out what share of
