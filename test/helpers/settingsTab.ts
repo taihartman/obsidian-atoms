@@ -234,15 +234,23 @@ export function prose(tab: AtomsSettingTab): string[] {
   );
 }
 
+/** Every rendered row carrying this name, in document order. */
+export function rowsNamed(tab: AtomsSettingTab, name: string): HTMLElement[] {
+  return Array.from(tab.containerEl.querySelectorAll(".setting-item")).filter(
+    (el): el is HTMLElement =>
+      el instanceof HTMLElement &&
+      el.querySelector(".setting-item-name")?.textContent === name,
+  );
+}
+
 /** The one rendered row carrying this name. Throws rather than silently acting on nothing. */
 export function row(tab: AtomsSettingTab, name: string): HTMLElement {
-  const found = Array.from(tab.containerEl.querySelectorAll(".setting-item")).filter(
-    (el) => el.querySelector(".setting-item-name")?.textContent === name,
-  );
-  if (found.length !== 1 || !(found[0] instanceof HTMLElement)) {
+  const found = rowsNamed(tab, name);
+  const only = found[0];
+  if (found.length !== 1 || !only) {
     throw new Error(`expected one row named ${name}, found ${found.length}`);
   }
-  return found[0];
+  return only;
 }
 
 /** Press the button on the named row, the way a user reaches it: through the rendered row. */

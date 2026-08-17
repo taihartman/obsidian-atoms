@@ -115,6 +115,7 @@ import { appHasDailyNotesPluginLoaded } from "obsidian-daily-notes-interface";
 import {
   atomsPlusTopUpCopy,
   CORE_PLUGINS_SETTINGS_TAB_ID,
+  FILING_NAME,
   firstDaySetupCopy,
   type SetupStep,
 } from "../home/atomsHomeData";
@@ -898,8 +899,9 @@ const PASTE_SESSION_ROUTE = `Advanced → ${PASTE_SESSION_ROW}`;
 const DESTINATION_TITLES: Record<Exclude<SettingsRoute, "main">, string> = {
   // A noun with its state in the value slot, not a question in a row label: the row names the
   // thing, the answer sits on the right. "Who does the filing" asked the reader something they
-  // had no vocabulary for, and no phrasing of that question fixes the shape.
-  engine: "Filing",
+  // had no vocabulary for, and no phrasing of that question fixes the shape. Same string as
+  // the Get started step (#538): one unfinished job, one name.
+  engine: FILING_NAME,
   engineKey: "Use your own Anthropic key",
   redeem: "Redeem code",
   account: "Account",
@@ -1904,9 +1906,8 @@ export class AtomsSettingTab extends PluginSettingTab {
                   openSettingsTab(this.app, CORE_PLUGINS_SETTINGS_TAB_ID);
                   return;
                 case "filing_owner":
-                  // The step is "choose who files", so it lands on the screen that asks exactly
-                  // that. It used to open Account, which offered one of the two answers and never
-                  // named the other.
+                  // The step is Filing, so it lands on the screen that answers it. It used to
+                  // open Account, which offered one of the two answers and never named the other.
                   this.openRoute("engine");
                   return;
               }
