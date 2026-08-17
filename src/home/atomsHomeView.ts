@@ -1447,7 +1447,6 @@ export class AtomsHomeView extends ItemView {
         const next = seedHubListMarkdown(fresh, titles);
         if (next !== fresh) await this.app.vault.modify(file, next);
       }
-      this.snoozeHubInvite({ ...inv, label: linkName });
       this.hubInvite = null;
       new Notice(`Atoms: added to ${linkName}`);
       this.plugin.scheduleAskMirrorSync();
@@ -1501,7 +1500,6 @@ export class AtomsHomeView extends ItemView {
           if (next !== fresh) await this.app.vault.modify(latest, next);
         }
       }
-      this.snoozeHubInvite(inv);
       this.hubInvite = null;
       new Notice(`Atoms: linked to ${linkName}`);
       this.plugin.scheduleAskMirrorSync();

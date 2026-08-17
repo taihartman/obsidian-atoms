@@ -56,9 +56,22 @@ describe("pickListNamedHub", () => {
     ).toBeNull();
   });
 
-  it("returns the only list-named note", () => {
-    expect(pickListNamedHub("want to watch Dune", ["Show list"])).toBe(
-      "Show list",
+  it("does not dump every list-shaped capture onto the only Show list", () => {
+    expect(pickListNamedHub("want to watch Dune", ["Show list"])).toBeNull();
+    expect(
+      pickListNamedHub("pack bug spray for Yosemite packing", ["Show list"]),
+    ).toBeNull();
+  });
+
+  it("still matches a lone Show list when the capture is a show", () => {
+    expect(
+      pickListNamedHub("I want to watch the anime psycho pass", ["Show list"]),
+    ).toBe("Show list");
+  });
+
+  it("matches a lone Movies note for a movie cue", () => {
+    expect(pickListNamedHub("want to watch the new Dune movie", ["Movies"])).toBe(
+      "Movies",
     );
   });
 });
@@ -183,7 +196,7 @@ describe("collectHubAssociationInvites", () => {
   it("invites existing Movies.md even though movies is a soft key", () => {
     const invites = collectHubAssociationInvites({
       atoms: [
-        atom("Atoms/a.md", "Want to watch Dune", "want to watch Dune"),
+        atom("Atoms/a.md", "Want to watch Dune", "want to watch the Dune movie"),
       ],
       vaultTitles: ["Movies"],
       personHubTitles: [],

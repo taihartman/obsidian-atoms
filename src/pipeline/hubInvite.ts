@@ -56,17 +56,18 @@ export function pickListNamedHub(
     .map((raw) => ({ raw, trim: raw.trim(), low: raw.trim().toLowerCase() }))
     .filter((e) => e.trim && LIST_NAMED.test(e.low));
   if (!named.length) return null;
-  if (named.length === 1) return named[0]!.raw;
 
   const mentioned = named.filter((e) => titleMatchesCapture(hay, e.trim));
   if (mentioned.length === 1) return mentioned[0]!.raw;
   if (mentioned.length > 1) return null;
 
-  if (/\b(show|series|anime|season|episode|tv)\b/i.test(hay)) {
+  const showCue = /\b(show|series|anime|season|episode|tv)\b/i.test(hay);
+  const movieCue = /\b(movie|film|cinema)\b/i.test(hay);
+  if (showCue && !movieCue) {
     const shows = named.filter((e) => listFamily(e.low) === "show");
     return shows.length === 1 ? shows[0]!.raw : null;
   }
-  if (/\b(movie|film|cinema)\b/i.test(hay)) {
+  if (movieCue && !showCue) {
     const movies = named.filter((e) => listFamily(e.low) === "movie");
     return movies.length === 1 ? movies[0]!.raw : null;
   }
