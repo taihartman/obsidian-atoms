@@ -140,7 +140,7 @@ export function atomRefuseNotice(): string {
 }
 
 export function collisionNotice(): string {
-  return "Couldn’t file — a note with that claim already exists.";
+  return "Couldn’t file. A note with that claim already exists.";
 }
 
 export function filedNotice(title: string): string {

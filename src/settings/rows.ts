@@ -15,7 +15,7 @@ import { markDestructive } from "./destructiveButton";
 export { markDestructive };
 
 /**
- * Row grammar for the Atoms settings tab: six row kinds, six right edges.
+ * Row grammar for the Atoms settings tab: seven row kinds, seven right edges.
  *
  * | Kind          | Right edge                    |
  * |---------------|-------------------------------|
@@ -24,6 +24,7 @@ export { markDestructive };
  * | `actionRow`   | accent-text button            |
  * | `destructiveRow` | destructive/warning button |
  * | `formRow`     | input plus the one button that commits it |
+ * | `formActionsRow` | input plus several buttons that each commit it |
  * | `statusRow`   | muted trailing text, no control |
  *
  * `formRow`'s two controls are one grammar — "type this, then commit it" — the way a
@@ -31,10 +32,53 @@ export { markDestructive };
  * job is to submit the field beside it, which is why the pair is its own kind rather than an
  * optional `button` bolted onto `settingRow`.
  *
+ * `formActionsRow` is the same grammar with more than one commit: every button still only
+ * submits the field beside it. It exists because signed-out Account has one email and three
+ * things to do with it. Three `formRow`s would be three email boxes.
+ *
+ * `group()` sits alongside them without being one: it is the container those rows compose into,
+ * carrying the header and the single footer that used to be a description on every row.
+ *
  * No row may carry two grammars, so every builder applies exactly one affordance and returns
  * `void` — `Setting` is chainable, and handing the row back would let a caller bolt a second
  * affordance on after the fact. Same shape and same `void` return as `settingHeading()`.
  */
+
+/** A group's prose, and the rows that sit between the two halves of it. */
+export interface SettingGroupSpec {
+  /** The eyebrow above the group — what these rows are for, in the reader's words. */
+  header: string;
+  /**
+   * The one sentence under the group. Prose only, never an action: a group explains itself
+   * once, at the bottom, instead of repeating a description on every row inside it.
+   */
+  footer?: string;
+  /** Builds the rows into the group's own container. Same `containerEl`-first shape as a row. */
+  render: (groupEl: HTMLElement) => void;
+}
+
+/**
+ * A run of rows as one inset block: header above, rows inside, one footer below.
+ *
+ * A container rather than a row kind — it carries no name, no control, and no right edge, so it
+ * is to rows what `renderDestination` is to screens. Every builder already takes its container
+ * first, so a row composes into a group with no signature of its own changing.
+ *
+ * The header is built with `createEl` rather than `settingHeading()`: a heading made from a
+ * `Setting` renders as a `.setting-item`, which would put a row-shaped element *outside* the
+ * group box it labels, and the eyebrow the design asks for is chrome around rows rather than one
+ * of them. The footer keeps `setting-item-description` alongside its own class so it stays the
+ * same prose element the rest of the tab uses.
+ */
+export function group(containerEl: HTMLElement, spec: SettingGroupSpec): void {
+  containerEl.createEl("h3", { cls: "atoms-setting-group-header", text: spec.header });
+  spec.render(containerEl.createDiv({ cls: "atoms-setting-group" }));
+  if (spec.footer === undefined) return;
+  containerEl.createEl("p", {
+    cls: ["setting-item-description", "atoms-setting-group-foot"],
+    text: spec.footer,
+  });
+}
 
 /** Name + optional description shared by every row kind that has a description. */
 interface RowInfo {
@@ -68,12 +112,41 @@ export function settingRow(
       setting.addToggle(row.control.configure);
       return;
     case "text":
+      // A text field is the one control whose usable width is a hard floor rather than a
+      // preference: a toggle reads the same at any size, a half-width URL field does not. The
+      // class is what lets one CSS rule hold that floor for every text row at once, instead of
+      // each site rediscovering the squeeze the way `Custom shortcut link` did (#347/#348).
+      setting.settingEl.addClass("atoms-setting-text");
       setting.addText(row.control.configure);
       return;
     case "dropdown":
       setting.addDropdown(row.control.configure);
       return;
   }
+}
+
+/**
+ * Make a whole row the target, for a pointer and for a keyboard alike.
+ *
+ * The chevron is an `extraButton` — a div, not a `<button>` — so a row whose only affordance is
+ * "the row is the target" is reachable by pointer and by nothing else. `tabindex` puts it in the
+ * tab order, `role="button"` tells a screen reader what landing there means, and Enter and Space
+ * share the click handler so the announced role is the truth. Space is prevented because its
+ * default is scrolling the pane behind the row the user just activated.
+ */
+function activatableRow(setting: Setting, onActivate: () => void): void {
+  const el = setting.settingEl;
+  el.addClass("mod-clickable");
+  el.setAttribute("tabindex", "0");
+  el.setAttribute("role", "button");
+  // The listener lives on the row, not the chevron: a chevron click bubbles here, so the row
+  // acts exactly once wherever the user aims.
+  el.addEventListener("click", () => onActivate());
+  el.addEventListener("keydown", (evt: KeyboardEvent) => {
+    if (evt.key !== "Enter" && evt.key !== " ") return;
+    evt.preventDefault();
+    onActivate();
+  });
 }
 
 /** A way into somewhere else: chevron right edge, whole row clickable, never a toggle. */
@@ -84,10 +157,7 @@ export function destinationRow(
   const setting = baseRow(containerEl, row);
   setting.addExtraButton((chevron) => chevron.setIcon("chevron-right"));
   setting.settingEl.addClass("atoms-setting-destination");
-  setting.settingEl.addClass("mod-clickable");
-  // The listener lives on the row, not the chevron: a chevron click bubbles here, so the
-  // destination opens exactly once wherever the user aims.
-  setting.settingEl.addEventListener("click", () => row.onOpen());
+  activatableRow(setting, () => row.onOpen());
 }
 
 /**
@@ -105,8 +175,7 @@ export function backRow(
   const setting = baseRow(containerEl, row);
   setting.addExtraButton((chevron) => chevron.setIcon("chevron-left"));
   setting.settingEl.addClass("atoms-setting-back");
-  setting.settingEl.addClass("mod-clickable");
-  setting.settingEl.addEventListener("click", () => row.onBack());
+  activatableRow(setting, () => row.onBack());
 }
 
 /**
@@ -255,6 +324,19 @@ export function destructiveRow(containerEl: HTMLElement, row: ButtonRow): void {
   buttonRow(containerEl, row, markDestructive);
 }
 
+/**
+ * A passive record you may open and reconsider: one plain button, never accent.
+ *
+ * A third kind rather than a flag on `actionRow`, for the reason the other two are separate: the
+ * button's weight *is* the meaning. An accent button says "do this"; a consent already granted is
+ * not asking to be done, and a record that shouts louder than the switch that granted it inverts
+ * which of the two the eye lands on (R17, #364 C2). The row is otherwise `actionRow` exactly,
+ * in-flight guard included, because reviewing raises a sheet and a sheet can be double-tapped.
+ */
+export function recordRow(containerEl: HTMLElement, row: ButtonRow): void {
+  buttonRow(containerEl, row, (btn) => btn);
+}
+
 /** A form row's shape: the field, and the one button that commits it. */
 export type FormRowSpec = RowInfo & {
   placeholder?: string;
@@ -311,6 +393,53 @@ export function formRow(containerEl: HTMLElement, row: FormRow): void {
   );
 }
 
+/** One field, and every button that may commit it. Each button still only submits that field. */
+export type FormActionsRowSpec = RowInfo & {
+  placeholder?: string;
+  configure?: (text: TextComponent) => void;
+  submits: Array<{
+    action: string;
+    label: string;
+    /** Accent the primary commit. Others stay quiet. */
+    accent?: boolean;
+    onSubmit: (value: string) => void | Promise<void>;
+  }>;
+};
+
+type FormActionsRow = Omit<FormActionsRowSpec, "submits"> & {
+  submits: Array<FormActionsRowSpec["submits"][number] & { inFlight: InFlightActions }>;
+};
+
+/**
+ * A field and several buttons that each submit it.
+ *
+ * Same trim and Enter rules as `formRow`. Each commit has its own in-flight id, so a double-tap
+ * on Start free trial does not also hold Use promo code.
+ */
+export function formActionsRow(containerEl: HTMLElement, row: FormActionsRow): void {
+  const setting = baseRow(containerEl, row);
+  setting.settingEl.addClass("atoms-setting-form");
+  setting.settingEl.addClass("atoms-setting-form-actions");
+  let field!: TextComponent;
+  setting.addText((text) => {
+    field = text;
+    if (row.placeholder !== undefined) text.setPlaceholder(row.placeholder);
+    row.configure?.(text);
+  });
+  for (const submit of row.submits) {
+    addGuardedButton(
+      setting,
+      {
+        label: submit.label,
+        action: submit.action,
+        inFlight: submit.inFlight,
+        onClick: () => submit.onSubmit(field.getValue().trim()),
+      },
+      (btn) => (submit.accent ? btn.setCta() : btn),
+    );
+  }
+}
+
 /** The question a destructive row asks before it acts. */
 export interface ConfirmSheet {
   app: App;
@@ -359,12 +488,21 @@ export function confirmSheet(sheet: ConfirmSheet): Promise<void> {
   });
 }
 
-/** Read-only state: muted trailing text, no control, and no description paragraph. */
+/**
+ * Read-only state: muted trailing text, no control, and no description paragraph.
+ *
+ * `value` is optional because the same grammar covers a fact with nothing to report on its right
+ * edge — a plain statement the user reads and cannot act on, like the three lines the engine
+ * screen uses to say what leaves the device. Omitting it renders no span at all rather than an
+ * empty one, so a row that has nothing to say does not reserve a column for saying it. This is
+ * not a second kind: a statement is read-only state whose state is the sentence.
+ */
 export function statusRow(
   containerEl: HTMLElement,
-  row: { name: string | DocumentFragment; value: string },
+  row: { name: string | DocumentFragment; value?: string },
 ): void {
   const setting = new Setting(containerEl).setName(row.name);
   setting.settingEl.addClass("atoms-setting-status-row");
+  if (row.value === undefined) return;
   setting.controlEl.createSpan({ cls: "atoms-setting-status", text: row.value });
 }

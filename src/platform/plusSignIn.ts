@@ -12,6 +12,7 @@ import type { ConfirmVerdict, SignInConfirmRequest } from "../shared/confirm";
 import {
   clearPendingSignIn,
   readPendingSignIns,
+  type IssuedBase,
   type LocalStorageLike,
   type PlusSession,
 } from "./filingAuth";
@@ -34,10 +35,10 @@ export const SIGNING_IN_MESSAGE = "Checking this sign-in link…";
  * the user's action is to wait, which no other message tells them.
  */
 export const MAGIC_LINK_RATE_LIMITED_MESSAGE =
-  "Too many sign-in attempts from this device. Wait a minute, then tap the link again — it still works.";
+  "Too many sign-in attempts from this device. Wait a minute, then tap the link again. It still works.";
 
 export const MAGIC_LINK_NETWORK_MESSAGE =
-  "Could not reach Atoms Plus to check this sign-in link. Check your connection, then tap the link again — it still works.";
+  "Could not reach Atoms Plus to check this sign-in link. Check your connection, then tap the link again. It still works.";
 
 /** Nothing else to say, but silence is the symptom #240 exists to remove. */
 export const MAGIC_LINK_UNKNOWN_MESSAGE =
@@ -67,7 +68,7 @@ export const SIGN_IN_STORAGE_FAILED_MESSAGE =
  * link genuinely still works. Saying so is what keeps a cancel recoverable.
  */
 export const SIGN_IN_DECLINED_MESSAGE =
-  "Left signed out. This sign-in link still works — tap it again if you change your mind.";
+  "Left signed out. This sign-in link still works. Tap it again if you change your mind.";
 
 export function signedInMessage(email: string): string {
   return `Signed in to Atoms Plus as ${email}.`;
@@ -120,8 +121,13 @@ export type PlusSignInHost = {
   /**
    * Install the session on this device. The host owns identity-aware Ask teardown
    * (#393) so magic-link sign-in cannot skip the boundary Settings uses.
+   *
+   * `issuedBase` rides through the port rather than being resolved by the host
+   * (#508 KTD4). Widening only the platform function would let the host satisfy
+   * the compiler with `settings.plusBaseUrl` — the exact source the stamp
+   * exists to distrust, and it would compile.
    */
-  installSession: (session: PlusSession) => Promise<void>;
+  installSession: (session: PlusSession, issuedBase: IssuedBase) => Promise<void>;
 };
 
 /**
@@ -174,7 +180,7 @@ export function sanitizeVaultLabel(raw: string): string {
 function refusalMessage(vault?: string): string {
   const named = vault ? sanitizeVaultLabel(vault) : "";
   if (!named) return MAGIC_LINK_REFUSED_MESSAGE;
-  return `This sign-in link was requested by the vault “${named}”, so it was not used here. The link still works — open “${named}” and tap it again.`;
+  return `This sign-in link was requested by the vault “${named}”, so it was not used here. The link still works. Open “${named}” and tap it again.`;
 }
 
 /**
@@ -303,7 +309,7 @@ export async function completeSignInHandoff(
   }
 
   try {
-    await host.installSession(result.session);
+    await host.installSession(result.session, result.issuedBase);
     // The link is spent and the session is stored, so the verifiers it was
     // redeemed against have no further use.
     clearPendingSignIn(host.app);

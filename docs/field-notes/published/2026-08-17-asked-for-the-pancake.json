@@ -1,0 +1,78 @@
+{
+  "subject": "Bring up my pancake atom",
+  "title": "Bring up my pancake atom",
+  "preheader": "I typed that into Claude. It pulled the cottage cheese pancake note and put it on a recipe card.",
+  "blocks": [
+    {
+      "type": "tldr",
+      "lines": [
+        "I asked Claude to bring up my pancake atom. It found the cottage cheese protein pancake note and showed it as a recipe card: servings I could change, a timer on the rest.",
+        "The note is a short markdown file in Obsidian. I didn't open it. Claude did."
+      ]
+    },
+    {
+      "type": "p",
+      "text": "I was in Claude and typed bring up my pancake atom."
+    },
+    {
+      "type": "figure",
+      "src": "https://tryatoms.app/email/fn-ask-pancake.f1e058da.png",
+      "alt": "Asked to bring up my pancake atom. Answer: Breakfast protein pancake, cottage cheese version"
+    },
+    {
+      "type": "h2",
+      "text": "What's in the note"
+    },
+    {
+      "type": "p",
+      "text": "Half a cup of cottage cheese, two eggs, a third of a cup of flour, baking powder, salt, vanilla. Then: Blend. Rest 3 to 5 min. Cook at 350°F."
+    },
+    {
+      "type": "p",
+      "text": "That's all of it. Tagged recipe and breakfast. I wrote it down so I'd remember the cottage cheese version. I didn't lay it out for a cooking app."
+    },
+    {
+      "type": "figure",
+      "src": "https://tryatoms.app/email/fn-pancake-note.01d8f1f7.png",
+      "alt": "Cottage cheese, eggs, flour. Blend. Rest 3 to 5 min. Cook at 350 degrees"
+    },
+    {
+      "type": "h2",
+      "text": "What Claude did with it"
+    },
+    {
+      "type": "p",
+      "text": "It didn't dump the markdown. It put the same note on their recipe card. I could change the servings. There was a timer on the rest."
+    },
+    {
+      "type": "p",
+      "text": "That's Claude's card, not something I built. The note still lives in Obsidian. An agent can reach it, so I can ask the way I'd ask a person."
+    },
+    {
+      "type": "p",
+      "text": "Most recipe notes I save, I never open again. I remember I have one. I don't remember the filename."
+    },
+    {
+      "type": "p",
+      "text": "Want to be featured? Reply and show how you use Atoms day to day. We only name people with permission."
+    }
+  ],
+  "cta": {
+    "label": "Open tryatoms.app",
+    "href": "https://tryatoms.app"
+  },
+  "tease": "I typed that into Claude. It pulled the cottage cheese pancake note and put it on a recipe card.",
+  "slug": "asked-for-the-pancake",
+  "date": "2026-08-17",
+  "paragraphs": [
+    "I asked Claude to bring up my pancake atom. It found the cottage cheese protein pancake note and showed it as a recipe card: servings I could change, a timer on the rest.",
+    "The note is a short markdown file in Obsidian. I didn't open it. Claude did.",
+    "I was in Claude and typed bring up my pancake atom.",
+    "Half a cup of cottage cheese, two eggs, a third of a cup of flour, baking powder, salt, vanilla. Then: Blend. Rest 3 to 5 min. Cook at 350°F.",
+    "That's all of it. Tagged recipe and breakfast. I wrote it down so I'd remember the cottage cheese version. I didn't lay it out for a cooking app.",
+    "It didn't dump the markdown. It put the same note on their recipe card. I could change the servings. There was a timer on the rest.",
+    "That's Claude's card, not something I built. The note still lives in Obsidian. An agent can reach it, so I can ask the way I'd ask a person.",
+    "Most recipe notes I save, I never open again. I remember I have one. I don't remember the filename.",
+    "Want to be featured? Reply and show how you use Atoms day to day. We only name people with permission."
+  ]
+}

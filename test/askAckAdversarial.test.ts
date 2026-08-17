@@ -20,7 +20,15 @@ import {
 import { DEFAULT_SETTINGS, type LinkerSettings } from "../src/shared/types";
 import type { PlusSession } from "../src/platform/filingAuth";
 import { Modal } from "./mocks/obsidian";
-import { flip, press, row, settingTab, sheet, sheetOpen } from "./helpers/settingsTab";
+import {
+  flip,
+  openPrivacy,
+  press,
+  row,
+  settingTab,
+  sheet,
+  sheetOpen,
+} from "./helpers/settingsTab";
 
 afterEach(() => {
   for (const open of [...Modal.open]) open.close();
@@ -55,6 +63,16 @@ const CURRENT_WRITE = {
 function askTab(settings: Partial<LinkerSettings> = {}) {
   const made = settingTab({ session: SESSION, settings });
   made.tab.display();
+  return made;
+}
+
+/**
+ * The same tab, standing on the Privacy screen where U6 put the ack records. The switches that
+ * grant them stayed on the main screen, so a case about a record has to walk in.
+ */
+function recordsTab(settings: Partial<LinkerSettings> = {}) {
+  const made = settingTab({ session: SESSION, settings });
+  openPrivacy(made.tab);
   return made;
 }
 
@@ -291,7 +309,7 @@ describe("adversarial: double-fire", () => {
   });
 
   it("does not double-withdraw into a half-written record", async () => {
-    const { tab, plugin } = askTab({ ...CURRENT_PRIVACY, ...CURRENT_WRITE });
+    const { tab, plugin } = recordsTab({ ...CURRENT_PRIVACY, ...CURRENT_WRITE });
     press(tab, "What Ask stores and shares", "Review");
     const withdraw = sheetButton("Withdraw acknowledgment");
     withdraw.click();
@@ -310,7 +328,7 @@ describe("adversarial: double-fire", () => {
 
 describe("adversarial: the review row after its record is gone", () => {
   it("removes the privacy record row once withdrawn, leaving nothing to press", async () => {
-    const { tab } = askTab({ ...CURRENT_PRIVACY, ...CURRENT_WRITE });
+    const { tab } = recordsTab({ ...CURRENT_PRIVACY, ...CURRENT_WRITE });
     press(tab, "What Ask stores and shares", "Review");
     sheetButton("Withdraw acknowledgment").click();
     await flush();
@@ -319,7 +337,7 @@ describe("adversarial: the review row after its record is gone", () => {
   });
 
   it("re-pressing a retained Review node cannot re-grant anything", async () => {
-    const { tab, plugin } = askTab({ ...CURRENT_PRIVACY, ...CURRENT_WRITE });
+    const { tab, plugin } = recordsTab({ ...CURRENT_PRIVACY, ...CURRENT_WRITE });
     const review = Array.from(
       row(tab, "Vault write acknowledgment").querySelectorAll("button"),
     ).find((el) => el.textContent === "Review") as HTMLButtonElement;

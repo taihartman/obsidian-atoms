@@ -585,7 +585,7 @@ export function noticeHubProjectionErrors(
 ): void {
   for (const err of errors.slice(0, limit)) {
     new Notice(
-      `Atoms: hub projection skipped [[${err.hubTitle}]] — ${err.reason}`,
+      `Atoms: hub projection skipped [[${err.hubTitle}]]: ${err.reason}`,
       8000,
     );
   }

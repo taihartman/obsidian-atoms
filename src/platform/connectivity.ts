@@ -142,9 +142,9 @@ export async function probeAnthropicApi(
       } else if (status === 401 || status === 403) {
         summary = apiKey?.trim()
           ? `Anthropic reachable, but the API key was rejected (HTTP ${status})`
-          : `Anthropic reachable (HTTP ${status} — set an API key in settings to authenticate)`;
+          : `Anthropic reachable (HTTP ${status}: set an API key in settings to authenticate)`;
       } else if (status === 400) {
-        summary = `Anthropic reachable (HTTP 400 validation — network path is fine, ${ms}ms)`;
+        summary = `Anthropic reachable (HTTP 400 validation: network path is fine, ${ms}ms)`;
       } else {
         summary = `Anthropic reachable (HTTP ${status}, ${ms}ms)`;
       }
@@ -164,7 +164,7 @@ export async function probeAnthropicApi(
         id: "anthropic_api",
         label,
         ok: true, // reached server
-        summary: `Anthropic reachable but returned a server error (HTTP ${status}) — try again later`,
+        summary: `Anthropic reachable but returned a server error (HTTP ${status}). Try again later`,
         detail: { status, ms },
       };
     }
@@ -215,7 +215,7 @@ export function buildConnectivityReport(
   if (!baselineOk && !anthropicReached) {
     verdict = "no_https";
     userMessage =
-      "Obsidian cannot complete HTTPS requests from this device. This is an Obsidian/network runtime issue — not your vault. Try restarting Obsidian; if it persists, another plugin or security tool may be blocking Electron network access.";
+      "Obsidian cannot complete HTTPS requests from this device. This is an Obsidian/network runtime issue, not your vault. Try restarting Obsidian; if it persists, another plugin or security tool may be blocking Electron network access.";
   } else if (baselineOk && !anthropicReached) {
     verdict = "baseline_only";
     userMessage =
@@ -231,10 +231,10 @@ export function buildConnectivityReport(
   } else if (anthropicReached) {
     verdict = "ok";
     userMessage =
-      "Connection looks good. Obsidian can reach Anthropic — you can dry-run and process captures.";
+      "Connection looks good. Obsidian can reach Anthropic. You can dry-run and process captures.";
   } else {
     verdict = "partial";
-    userMessage = "Mixed results — open the console for probe details.";
+    userMessage = "Mixed results. Open the console for probe details.";
   }
 
   return {

@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Atoms Plus account screen — all nine states</title>
+<style>
+  /* Tokens: docs/design-handoff/tokens/README.md (v2 editorial).
+     Flat surfaces. No gradients. No accent-tinted fills. No accent borders. */
+  :root {
+    --bg:#000; --group:#1c1c1e; --elev:#2c2c2e; --sep:rgba(84,84,88,0.55);
+    --label:#fff; --secondary:rgba(235,235,245,0.6); --tertiary:rgba(235,235,245,0.32);
+    --tint:#0a84ff; --orange:#ff9f0a; --green:#30d158; --error:#ff453a;
+    --sans:-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif;
+    --page:#0a0a0b; --pline:#232326;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--page); color:var(--label); font-family:var(--sans); -webkit-font-smoothing:antialiased; }
+  .page { max-width:1240px; margin:0 auto; padding:30px 20px 110px; }
+  h1 { font-size:1.85rem; font-weight:700; letter-spacing:-0.035em; margin:0 0 10px; }
+  h2 { font-size:1.1rem; font-weight:650; letter-spacing:-0.02em; margin:46px 0 8px; }
+  .lede { color:var(--secondary); max-width:48rem; line-height:1.5; margin:0 0 20px; font-size:0.95rem; }
+  .lede b { color:var(--label); font-weight:600; }
+  .sub { color:var(--secondary); max-width:47rem; line-height:1.5; font-size:0.87rem; margin:0 0 18px; }
+  .sub b { color:var(--label); font-weight:600; }
+  a { color:var(--tint); }
+  code { background:#141416; border:1px solid var(--pline); border-radius:6px; padding:1px 5px; font-size:0.8em; color:var(--secondary); }
+
+  table { border-collapse:collapse; width:100%; font-size:0.8rem; margin:6px 0 4px; }
+  th,td { text-align:left; padding:9px 10px; border-bottom:1px solid var(--pline); vertical-align:top; }
+  th { color:var(--tertiary); font-weight:600; font-size:0.7rem; letter-spacing:0.08em; text-transform:uppercase; }
+  td.k { color:var(--label); font-weight:550; white-space:nowrap; }
+  td { color:var(--secondary); line-height:1.45; }
+  .y { color:var(--green); } .n { color:var(--tertiary); }
+
+  .bar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:18px 0 6px; }
+  .bar .lbl { font-size:0.68rem; letter-spacing:0.09em; text-transform:uppercase; color:var(--tertiary); margin-right:4px; }
+  .chip { border:1px solid var(--pline); background:#141416; color:var(--secondary); border-radius:980px;
+          padding:7px 14px; font-size:0.81rem; font-weight:500; font-family:inherit; cursor:pointer; }
+  .chip:hover { color:var(--label); }
+  .chip.on { background:var(--elev); color:var(--label); border-color:#3a3a3e; }
+
+  .stage { display:flex; gap:30px; align-items:flex-start; flex-wrap:wrap; margin-top:14px; }
+  .cap { font-size:0.72rem; color:var(--tertiary); margin-bottom:11px; text-align:center; max-width:390px; line-height:1.5; }
+  .cap b { color:var(--secondary); font-weight:600; }
+
+  .phone { width:390px; height:800px; background:var(--bg); border-radius:42px; border:4px solid #1a1a1c;
+           box-shadow:0 26px 64px rgba(0,0,0,0.6); overflow:hidden; display:flex; flex-direction:column; flex-shrink:0; }
+  .nav { padding:15px 16px 11px; display:flex; align-items:center; gap:10px; border-bottom:1px solid var(--sep); flex-shrink:0; }
+  .nav .back { color:var(--tint); font-size:1.05rem; }
+  .nav .ttl { font-size:1.05rem; font-weight:650; letter-spacing:-0.02em; }
+  .nav .x { margin-left:auto; color:var(--tertiary); font-size:1.05rem; }
+  .scroll { overflow-y:auto; flex:1; padding:0 0 44px; scrollbar-width:thin; }
+  .scroll::-webkit-scrollbar { width:4px; }
+  .scroll::-webkit-scrollbar-thumb { background:#303034; border-radius:4px; }
+
+  .eyebrow { font-size:0.7rem; font-weight:600; letter-spacing:0.13em; text-transform:uppercase;
+             color:var(--tertiary); padding:26px 32px 8px; }
+  .eyebrow.first { padding-top:18px; }
+  .group { background:var(--group); border-radius:14px; margin:0 16px; overflow:hidden; }
+  .gfoot { font-size:0.8rem; color:var(--tertiary); line-height:1.5; padding:9px 32px 0; }
+  .gfoot b { color:var(--secondary); font-weight:600; }
+  .gfoot a { color:var(--tint); text-decoration:none; }
+
+  .r { display:flex; align-items:center; gap:12px; min-height:58px; padding:11px 16px; position:relative; }
+  .r + .r::before { content:""; position:absolute; top:0; left:16px; right:0; height:1px; background:var(--sep); }
+  .r .nm { font-size:0.98rem; font-weight:500; letter-spacing:-0.015em; color:var(--label); flex:1; min-width:0; }
+  .r .nm small { display:block; font-size:0.8rem; font-weight:400; color:var(--tertiary); margin-top:3px; letter-spacing:0; line-height:1.4; }
+  .r .val { font-size:0.9rem; color:var(--secondary); flex-shrink:0; }
+  .r .val.hint { color:var(--orange); }
+  .r .cv { color:var(--tertiary); font-size:1.05rem; flex-shrink:0; margin-left:-3px; }
+  .r .nm.dest { color:var(--error); }
+  .r .ph { color:var(--tertiary); }
+
+  .btns { margin:16px 16px 0; }
+  .btn { width:100%; border:none; border-radius:12px; padding:14px; font-size:0.95rem;
+         font-weight:600; font-family:inherit; letter-spacing:-0.015em; }
+  .btn.primary { background:var(--tint); color:#fff; }
+  .btn.secondary { background:var(--elev); color:var(--label); }
+  .btns.pair { display:flex; gap:10px; margin-top:10px; }
+  .btns.pair .btn { flex:1; padding:12px 8px; font-size:0.88rem; }
+
+  .note { border-left:2px solid var(--pline); padding-left:15px; margin:22px 0 0; font-size:0.84rem;
+          color:var(--secondary); line-height:1.6; max-width:47rem; }
+  .note b { color:var(--label); }
+
+  .side { flex:1; min-width:300px; }
+  .sw { position:relative; }
+  .scrim { position:absolute; inset:0; background:rgba(0,0,0,0.6); }
+  .sheet { position:absolute; left:0; right:0; bottom:0; background:var(--group); border-radius:16px 16px 0 0; padding:22px 18px 26px; }
+  .sheet h3 { margin:0 0 6px; font-size:1.35rem; font-weight:700; letter-spacing:-0.03em; }
+  .sheet .lead { font-size:0.87rem; color:var(--secondary); margin:0 0 14px; line-height:1.45; }
+  .sheet .group { margin:0 0 10px; }
+  .sheet .btn { width:100%; margin-top:8px; }
+  .sheet .quiet { width:100%; margin-top:10px; background:none; border:none; color:var(--secondary);
+                  font-family:inherit; font-size:0.9rem; padding:8px; }
+  .kv { padding:12px 0; border-bottom:1px solid var(--pline); }
+  .kv .q { font-size:0.87rem; font-weight:600; }
+  .kv .a { font-size:0.81rem; color:var(--secondary); line-height:1.5; margin-top:5px; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <h1>Atoms Plus, all nine states</h1>
+  <p class="lede">
+    The most stateful screen in the plugin. <code>AccountState</code> is a sealed union of six kinds,
+    and <code>periodEnded</code> carries three lapse variants, so <b>nine screens render here</b>.
+    Two of them differ by a single row, for a reason worth keeping.
+    <br><br>
+    All commercial numbers below come from <code>plus-pricing.json</code>: $6 a month, $60 a year,
+    150 filings a period, $2 for 50 more, 14 day trial. Nothing here invents a price.
+  </p>
+
+  <h2>The state matrix, read from the source</h2>
+  <p class="sub">
+    From <code>deriveAccountState</code> and <code>renderSignedInAccount</code>. The two rows that
+    vary are the reason this screen needs a matrix rather than a single mock.
+  </p>
+  <table>
+    <tr><th>State</th><th>Plan reads</th><th>Its one action</th><th>Manage subscription</th></tr>
+    <tr><td class="k">signedOut</td><td>Not signed in</td><td>Send sign-in link</td><td class="n">no</td></tr>
+    <tr><td class="k">trialIncomplete</td><td>Trial not started</td><td>Finish trial setup</td><td class="n">no, setup incomplete</td></tr>
+    <tr><td class="k">subscribeIncomplete</td><td>Checkout not finished</td><td>Finish checkout</td><td class="n">no, setup incomplete</td></tr>
+    <tr><td class="k">active · trialing</td><td>Trial, ends 28 August</td><td class="n">none</td><td class="y">yes</td></tr>
+    <tr><td class="k">active</td><td>Plus, renews 12 September</td><td class="n">none</td><td class="y">yes</td></tr>
+    <tr><td class="k">exhausted</td><td>Plus, 0 filings left</td><td>Get more filings</td><td class="y">yes</td></tr>
+    <tr><td class="k">periodEnded · trial</td><td>Trial ended 3 August</td><td>Subscribe</td><td class="n"><b>no</b>, no Stripe customer</td></tr>
+    <tr><td class="k">periodEnded · subscription</td><td>Subscription ended 3 August</td><td>Subscribe</td><td class="y">yes</td></tr>
+    <tr><td class="k">periodEnded · unknown</td><td>Plus ended</td><td>Subscribe</td><td class="n"><b>no</b>, plan unproven</td></tr>
+  </table>
+  <p class="sub" style="margin-top:14px">
+    <b>That Manage subscription column is load-bearing and must survive the redesign.</b> A trial that
+    ended without converting has no Stripe customer, so the billing portal has nothing to open and
+    sends the user to an error instead of a card form. The guard is positive proof, not absence of
+    proof: only <code>lapseKind === "subscription"</code> earns the row, so an unknown plan is treated
+    as unproven rather than assumed. That is #442, and it is easy to lose in a visual pass.
+  </p>
+
+  <div class="bar">
+    <span class="lbl">State</span>
+    <button class="chip on" data-s="signedOut">Signed out</button>
+    <button class="chip" data-s="trialIncomplete">Trial incomplete</button>
+    <button class="chip" data-s="subscribeIncomplete">Promo code unfinished</button>
+    <button class="chip" data-s="trialing">Trialing</button>
+    <button class="chip" data-s="active">Active</button>
+    <button class="chip" data-s="exhausted">Limit reached</button>
+    <button class="chip" data-s="endedTrial">Trial ended</button>
+    <button class="chip" data-s="endedSub">Subscription ended</button>
+    <button class="chip" data-s="endedUnknown">Plus ended</button>
+  </div>
+
+  <div class="stage">
+    <div>
+      <div class="cap" id="cap"></div>
+      <div class="phone">
+        <div class="nav"><span class="back">‹</span><span class="ttl">Atoms Plus</span><span class="x">✕</span></div>
+        <div class="scroll" id="screen"></div>
+      </div>
+    </div>
+    <div class="side">
+      <h2 style="margin-top:0">What changed on this screen</h2>
+      <div class="kv">
+        <div class="q">Three rows became one group</div>
+        <div class="a">Today spends <code>Status</code>, <code>Signed in as</code> and <code>Plan</code> on
+        three separate rows, where <code>Status</code>’s value is a whole phrase like “Monthly limit
+        reached”. The state now names the group, and the rows carry facts.</div>
+      </div>
+      <div class="kv">
+        <div class="q">One primary action, always</div>
+        <div class="a">Each state has at most one thing to do, so it gets one button. Today
+        <code>Refresh status</code> and <code>Manage subscription</code> compete with it as equal
+        full-width buttons.</div>
+      </div>
+      <div class="kv">
+        <div class="q">Refresh stops being a button</div>
+        <div class="a">It is still there, and still load-bearing after a checkout returns. It is a
+        quiet row, not a call to action, because a user should never have to press it to be correct.</div>
+      </div>
+      <div class="kv">
+        <div class="q">One destructive row, not two</div>
+        <div class="a">Today <code>Sign out</code> and <code>Sign out all devices</code> sit stacked
+        in red. The nuclear one moves into the footer as a link, so the ordinary one reads as ordinary.
+        It stays a real target and keeps its own confirm.</div>
+      </div>
+      <div class="kv">
+        <div class="q">Paste session leaves</div>
+        <div class="a"><code>Advanced: paste session</code> moves to Advanced, with the other escape
+        hatches. It exists for one case: your email opens on a different device.</div>
+      </div>
+      <div class="kv">
+        <div class="q">The promo path is locked, and inherited as-is</div>
+        <div class="a">Decided 2026-08-13 (<code>plus-promo-redeem</code>), shipped in 0.7.10. Stripe
+        owns the code string, so there is <b>no field in the plugin</b>. <b>Use promo code</b> opens
+        monthly Subscribe checkout, never the trial. One email field serves all three ways in. The
+        wording is “Use promo code”, matching Stripe: not “gift”, not “Have a code”. This redesign
+        restyles that cluster and changes none of it.</div>
+      </div>
+      <div class="kv">
+        <div class="q">A promo start must never offer a trial</div>
+        <div class="a">An unfinished <code>subscribeIncomplete</code> resumes <b>Finish Plus
+        checkout</b>. Offering <b>Finish trial setup</b> there would send a paying gift recipient down
+        the card-for-trial path instead of applying their code. That is the whole reason
+        <code>setupKind</code> is carried on the session.</div>
+      </div>
+      <div class="kv">
+        <div class="q">Dates are dates</div>
+        <div class="a">Today an ended period could render “Renews” against a date already in the past.
+        Ended states say <b>Ended</b>, and only a live period says <b>Renews</b>.</div>
+      </div>
+    </div>
+  </div>
+
+  <h2>Buying without a trial</h2>
+  <p class="sub">
+    <b>The finding.</b> The buy-now route already exists and is mislabelled. The service takes
+    <code>start_trial</code>, <code>subscribe_monthly</code> and <code>subscribe_yearly</code>; the
+    plugin's <b>Use promo code</b> button calls <code>subscribe_monthly</code>. A promo code is only
+    something you may additionally type on Stripe's page. Separately,
+    <code>subscribe_yearly</code> is <b>unreachable from the plugin</b>, though it is priced at $60 in
+    <code>plus-pricing.json</code>.
+  </p>
+  <p class="sub">
+    <b>The recommendation: do not add a Buy button.</b> For a new email the trial strictly dominates
+    subscribing. Both take a card, both cost $6 after, and the trial adds 14 free days. There is no
+    reason for a new user to choose Subscribe, so offering both is offering a dominated option on the
+    most crowded screen in the flow.
+    <br><br>
+    The person who genuinely cannot take a trial is someone who <b>already used it</b>, and today they
+    tap <b>Start free trial</b> and get a 409. That is the real defect, and it is not a missing button.
+    It is the screen asking a question the user cannot answer.
+  </p>
+  <p class="sub">
+    <b>The principle.</b> Keep a button for what the user knows about themselves. Remove the button for
+    what only the server knows.
+  </p>
+  <table>
+    <tr><th>Question</th><th>Who knows</th><th>Verdict</th></tr>
+    <tr><td class="k">I have a promo code</td><td>The user</td><td class="y">Keep the button. Also locked, correctly.</td></tr>
+    <tr><td class="k">I already have an account</td><td>The user</td><td class="y">Keep the button.</td></tr>
+    <tr><td class="k">Have I used my trial?</td><td><b>Only the server</b></td><td>Stop asking. Make the trial button handle it.</td></tr>
+  </table>
+  <p class="sub" style="margin-top:14px">
+    So <b>Start free trial</b> gets smarter rather than joined by a sibling. The account-start response
+    already carries <code>needsMagicLink</code>; trial eligibility rides beside it. A spent trial is not
+    an error, it is a reroute, shown below on the left. The signed-out cluster keeps its three locked
+    buttons and its three locked labels: <b>this is a behavioural change, not a visual one</b>, and a far
+    smaller piece of work than anything else in this folder.
+  </p>
+
+  <div class="stage" style="margin-bottom:8px">
+    <div>
+      <div class="cap"><b>Trial already used.</b> A reroute, not a 409.</div>
+      <div class="phone sw" style="height:560px">
+        <div class="nav"><span class="back">‹</span><span class="ttl">Atoms Plus</span><span class="x">✕</span></div>
+        <div class="scroll" style="filter:blur(2px)">
+          <div class="eyebrow first">Sign in or start a trial</div>
+          <div class="group"><div class="r"><span class="nm">Email</span><span class="val">tai@example.com</span></div></div>
+          <div class="gfoot">Sign in, start a trial, or use a promo code. On checkout, tap Add promotion code.</div>
+        </div>
+        <div class="scrim"></div>
+        <div class="sheet">
+          <h3>You have used your free trial</h3>
+          <p class="lead">That was on 3 August. Plus is $6 a month, or $60 a year. Nothing is charged until you finish checkout.</p>
+          <button class="btn primary">Continue to checkout</button>
+          <button class="quiet">Not now</button>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="cap"><b>Buying, either way in.</b> Plan choice belongs here, not on the sign-up screen.</div>
+      <div class="phone sw" style="height:560px">
+        <div class="nav"><span class="back">‹</span><span class="ttl">Atoms Plus</span><span class="x">✕</span></div>
+        <div class="scroll" style="filter:blur(2px)">
+          <div class="eyebrow first">Trial ended</div>
+          <div class="group"><div class="r"><span class="nm">Ended</span><span class="val hint">3 August</span></div></div>
+        </div>
+        <div class="scrim"></div>
+        <div class="sheet">
+          <h3>Choose a plan</h3>
+          <p class="lead">Then finish on Stripe. Have a promo code? Enter it at checkout.</p>
+          <div class="group">
+            <div class="r"><span class="nm">Monthly</span><span class="val">$6</span><span class="cv">›</span></div>
+            <div class="r"><span class="nm">Yearly <small>Save two months.</small></span><span class="val">$60</span><span class="cv">›</span></div>
+          </div>
+          <button class="quiet">Not now</button>
+        </div>
+      </div>
+    </div>
+    <div class="side">
+      <div class="kv">
+        <div class="q">Why the plan sheet sits here</div>
+        <div class="a">It appears only once someone has decided to pay, which is exactly when comparing
+        $6 and $60 is welcome rather than friction. On the signed-out screen the same choice would
+        compete with the trial and slow down the path almost everyone should take. This is also the
+        only change that makes <code>subscribe_yearly</code> reachable at all.</div>
+      </div>
+      <div class="kv">
+        <div class="q">What stays locked</div>
+        <div class="a">The 2026-08-13 cluster keeps <b>Send sign-in link</b>, <b>Start free trial</b> and
+        <b>Use promo code</b>, with those exact words. Stripe still owns the code string and there is
+        still no code field in the plugin. Nothing above is contradicted.</div>
+      </div>
+      <div class="kv">
+        <div class="q">The judgment call worth challenging</div>
+        <div class="a">Is <b>Start free trial</b> dishonest when it may reroute to checkout? I think the
+        reroute is graceful enough, and the alternative label (<b>Continue</b>) throws away the
+        strongest word on the screen for a new visitor. That is a funnel decision, not a design one.</div>
+      </div>
+      <div class="kv">
+        <div class="q">Rejected: a Subscribe button beside the trial</div>
+        <div class="a">It reads as offering choice while actually presenting a strictly worse deal to
+        everyone eligible for the trial, and it puts a fourth button on the screen this whole redesign
+        exists to calm down.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="note">
+    <b>Copy rules applied.</b> No em dashes. No invented pricing. “Complete Stripe checkout (card for
+    the 14-day trial)” becomes plain language about what happens. The current
+    <code>Plan</code> fallback string “Monthly or yearly — see Manage subscription” carries both an em
+    dash and a cross-reference to a row that may not be rendered in that state; it is replaced by the
+    period date, or by nothing.
+    <br><br>
+    <b>Reachability.</b> This screen sits at Settings → <code>Who does the filing ›</code> →
+    <code>Atoms Plus ›</code>. That is one tap deeper than today, where the account row is on the root
+    screen. The trade is deliberate: the root screen now states which engine is active and how many
+    filings are left, so the only reason to come here is to change something.
+  </div>
+
+<script>
+const money = { mo: "$6", yr: "$60", topUp: "$2", topUpFilings: 50, included: 150, trialDays: 14 };
+
+const row = (nm, sub, right, cls) =>
+  `<div class="r"><span class="nm ${cls||''}">${nm}${sub?`<small>${sub}</small>`:''}</span>${right||''}</div>`;
+const val  = (t, hint) => `<span class="val${hint?' hint':''}">${t}</span>`;
+const chev = () => `<span class="cv">›</span>`;
+const grp  = (rows) => `<div class="group">${rows.join('')}</div>`;
+const eyeb = (t, first) => `<div class="eyebrow${first?' first':''}">${t}</div>`;
+const foot = (t) => `<div class="gfoot">${t}</div>`;
+const prim = (t) => `<div class="btns"><button class="btn primary">${t}</button></div>`;
+
+const signOutBlock = () =>
+  eyeb('&nbsp;') +
+  grp([ row('Sign out', null, null, 'dest') ]) +
+  foot('Removes Plus from this device and turns the Ask mirror off across this vault. Signed in elsewhere? <a href="#">Sign out all devices.</a>');
+
+const accountGroup = (email, portal) =>
+  eyeb('Account') +
+  grp([
+    row('Signed in as', null, val(email)),
+    portal ? row('Manage subscription', null, chev()) : '',
+    row('Refresh status', 'Pull the latest plan from Atoms.', chev()),
+  ].filter(Boolean));
+
+const STATES = {
+  signedOut: {
+    cap: '<b>Signed out.</b> One email field, three ways in. Locked frame, 2026-08-13.',
+    html:
+      eyeb('Sign in or start a trial', true) +
+      grp([ row('Email', null, `<span class="val ph">you@example.com</span>`) ]) +
+      foot(`Sign in, start a trial, or use a promo code. On checkout, tap Add promotion code.`) +
+      prim('Start free trial') +
+      `<div class="btns pair"><button class="btn secondary">Send sign-in link</button><button class="btn secondary">Use promo code</button></div>` +
+      eyeb('What Plus does') +
+      grp([
+        row('Files your captures for you', null, val(`${money.included} a month`)),
+        row('Hosts the copy Claude and ChatGPT search'),
+      ]) +
+      foot(`${money.trialDays} days free, then ${money.mo} a month or ${money.yr} a year. Have a promo code? Enter it at checkout. You can run the Ask server yourself instead, from Advanced.`),
+  },
+  trialIncomplete: {
+    cap: '<b>Trial incomplete.</b> We have the email, checkout never finished.',
+    html:
+      eyeb('Trial not started', true) +
+      grp([ row('Signed in as', null, val('tai@example.com')) ]) +
+      foot(`Your ${money.trialDays} days start when you add a card. You are not charged until they are up.`) +
+      prim('Finish trial setup') +
+      eyeb('Account') +
+      grp([ row('Refresh status', 'Pull the latest plan from Atoms.', chev()) ]) +
+      signOutBlock(),
+  },
+  subscribeIncomplete: {
+    cap: '<b>Promo code started, not finished.</b> This state must never offer Finish trial setup.',
+    html:
+      eyeb('Plus checkout not finished', true) +
+      grp([ row('Signed in as', null, val('tai@example.com')) ]) +
+      foot('Complete subscription checkout. On the next page, tap Add promotion code.') +
+      prim('Finish Plus checkout') +
+      eyeb('Account') +
+      grp([ row('Refresh status', 'Pull the latest plan from Atoms.', chev()) ]) +
+      signOutBlock(),
+  },
+  trialing: {
+    cap: '<b>Trialing.</b> No action needed, so no button.',
+    html:
+      eyeb('Trial', true) +
+      grp([
+        row('Filings left', null, val('143')),
+        row('Trial ends', null, val('28 August')),
+      ]) +
+      foot(`Becomes ${money.mo} a month on 28 August. Cancel any time before then and you are not charged.`) +
+      accountGroup('tai@example.com', true) +
+      signOutBlock(),
+  },
+  active: {
+    cap: '<b>Active.</b> The steady state. Nothing to do.',
+    html:
+      eyeb('Plus', true) +
+      grp([
+        row('Filings left', null, val('43')),
+        row('Renews', null, val('12 September')),
+      ]) +
+      foot(`${money.included} filings each period. Unused ones do not carry over.`) +
+      accountGroup('tai@example.com', true) +
+      signOutBlock(),
+  },
+  exhausted: {
+    cap: '<b>Limit reached.</b> Reads as a full meter, not a broken account.',
+    html:
+      eyeb('Plus', true) +
+      grp([
+        row('Filings left', null, val('0', true)),
+        row('Renews', null, val('12 September')),
+      ]) +
+      foot(`This period’s ${money.included} filings are used. Ask in Claude and ChatGPT keeps working.`) +
+      prim(`Get ${money.topUpFilings} more for ${money.topUp}`) +
+      accountGroup('tai@example.com', true) +
+      signOutBlock(),
+  },
+  endedTrial: {
+    cap: '<b>Trial ended.</b> No Manage subscription row: there is no Stripe customer to manage.',
+    html:
+      eyeb('Trial ended', true) +
+      grp([ row('Ended', null, val('3 August', true)) ]) +
+      foot('Subscribe to file captures again, and to let Claude and ChatGPT reach your atoms. Have a promo code? Enter it at checkout.') +
+      prim('Subscribe') +
+      accountGroup('tai@example.com', false) +
+      signOutBlock(),
+  },
+  endedSub: {
+    cap: '<b>Subscription ended.</b> The one ended state that keeps Manage subscription.',
+    html:
+      eyeb('Subscription ended', true) +
+      grp([ row('Ended', null, val('3 August', true)) ]) +
+      foot('Subscribe to file captures again, and to let Claude and ChatGPT reach your atoms. Have a promo code? Enter it at checkout.') +
+      prim('Subscribe') +
+      accountGroup('tai@example.com', true) +
+      signOutBlock(),
+  },
+  endedUnknown: {
+    cap: '<b>Plus ended, plan unknown.</b> A neutral noun and no portal, rather than a guess.',
+    html:
+      eyeb('Plus ended', true) +
+      grp([ row('Ended', null, val('See Subscribe', true)) ]) +
+      foot('Subscribe to file captures again, and to let Claude and ChatGPT reach your atoms. Have a promo code? Enter it at checkout.') +
+      prim('Subscribe') +
+      accountGroup('tai@example.com', false) +
+      signOutBlock(),
+  },
+};
+
+function draw(k) {
+  document.getElementById('screen').innerHTML = STATES[k].html;
+  document.getElementById('cap').innerHTML = STATES[k].cap;
+}
+document.querySelectorAll('.chip').forEach(c => c.addEventListener('click', () => {
+  document.querySelectorAll('.chip').forEach(o => o.classList.remove('on'));
+  c.classList.add('on');
+  draw(c.dataset.s);
+}));
+draw('signedOut');
+</script>
+</div>
+</body>
+</html>

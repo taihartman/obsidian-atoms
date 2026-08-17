@@ -118,7 +118,7 @@ export function buildPreviewEntry(opts: {
 /** Markdown report for modal / console (AE5: one entry per capture). */
 export function renderPreviewMarkdown(report: DryRunReport): string {
   const lines: string[] = [
-    "# Atoms — dry-run preview",
+    "# Atoms: dry-run preview",
     "",
     `Generated: ${report.generatedAt}`,
     `Unprocessed scanned: ${report.totalUnprocessedScanned}`,
@@ -147,7 +147,7 @@ export function renderPreviewMarkdown(report: DryRunReport): string {
 
     if (!e.outcome.ok) {
       lines.push(
-        `**Result:** FAILED — ${e.outcome.reason}: ${e.outcome.message}`,
+        `**Result:** FAILED. ${e.outcome.reason}: ${e.outcome.message}`,
       );
       lines.push("");
       continue;
@@ -497,7 +497,7 @@ export class DryRunPreviewModal extends Modal {
     header.createEl("h2", { text: "Preview" });
     header.createEl("p", {
       cls: "atoms-preview-sub",
-      text: "Nothing written yet — this is what Process would do.",
+      text: "Nothing written yet. This is what Process would do.",
     });
 
     // Summary pills
@@ -592,12 +592,12 @@ export class DryRunPreviewModal extends Modal {
     } else if (r.verdict === "task") {
       card.createDiv({
         cls: "atoms-preview-title",
-        text: "Task — marker only",
+        text: "Task: marker only",
       });
     } else {
       card.createDiv({
         cls: "atoms-preview-title",
-        text: "Noise — discard",
+        text: "Noise: discard",
       });
     }
 
@@ -657,5 +657,5 @@ export function showDryRunNotice(report: DryRunReport): void {
     );
   }
   const summary = parts.length ? parts.join(" · ") : "nothing";
-  new Notice(`Atoms preview: ${summary} — nothing written yet`);
+  new Notice(`Atoms preview: ${summary}. Nothing written yet`);
 }

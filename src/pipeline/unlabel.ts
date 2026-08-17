@@ -157,9 +157,9 @@ export function unlabelNoticeMessage(
   todayYmd: string,
 ): string {
   if (sourceDate === todayYmd) {
-    return "Unlabeled — Process today to reclassify";
+    return "Unlabeled · Process today to reclassify";
   }
-  return "Unlabeled — will show on next Process";
+  return "Unlabeled · will show on next Process";
 }
 
 export const UNDO_TTL_MS = 12_000;

@@ -3,9 +3,36 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-VAULT="${1:-$ROOT/test_vault/test vault}"
+
+# There is one throwaway vault on this machine and it lives in the MAIN checkout. Defaulting to
+# `$ROOT` meant every worktree minted its own `test_vault/test vault` and installed into that,
+# while the Obsidian CLI — which resolves by vault *name* — went on answering for the main one.
+# The guard at the bottom has been catching that as "the CLI answered for a different vault"; the
+# cause was this line. It also gave the #516 lock a different key per worktree, which would have
+# made the lock useless for the exact contention it exists to stop.
+GIT_COMMON="$(git -C "$ROOT" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || echo "")"
+if [ -n "$GIT_COMMON" ]; then MAIN_CHECKOUT="$(dirname "$GIT_COMMON")"; else MAIN_CHECKOUT="$ROOT"; fi
+VAULT="${1:-$MAIN_CHECKOUT/test_vault/test vault}"
 DEST="$VAULT/.obsidian/plugins/atoms"
 PLUGIN_ID="atoms"
+
+# One writer at a time (#516). This is the destructive step: it replaces `main.js` in a vault that
+# every agent session on this machine drives through the same running Obsidian, so this is where
+# the lock belongs. It is taken when free and refused when another worktree holds it, rather than
+# demanded up front, so an existing agent prompt that just runs this script keeps working.
+#
+# `ATOMS_SKIP_VAULT_LOCK=1` is for a human who knows they are alone with their own vault. It is
+# not a way past a peer who is mid-pass.
+LOCK_SH="$ROOT/scripts/qa-vault-lock.sh"
+if [ "${ATOMS_SKIP_VAULT_LOCK:-}" != "1" ] && [ -x "$LOCK_SH" ]; then
+  if ! "$LOCK_SH" acquire --vault "$VAULT" --note "install-to-vault"; then
+    echo "" >&2
+    echo "REFUSING to install: another session is driving this vault." >&2
+    echo "Installing now would swap the build out from under its pass, which is the exact" >&2
+    echo "failure this lock exists to stop. See docs/qa/README.md § Vault lock." >&2
+    exit 3
+  fi
+fi
 
 cd "$ROOT"
 npm run build

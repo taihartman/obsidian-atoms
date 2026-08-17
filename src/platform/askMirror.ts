@@ -469,7 +469,7 @@ export const ASK_MIRROR_REFUSAL_ESCALATION_NOTICE =
  * status line, Atoms home) are a CLI/device row.
  */
 export function formatAskMirrorRefusalLine(serverCount: string): string {
-  return `Ask mirror: ${serverCount} · sync refused — vault scan incomplete · Sync now to retry`;
+  return `Ask mirror: ${serverCount} · sync refused, vault scan incomplete · Sync now to retry`;
 }
 
 export function mirrorCompletenessFloor(
@@ -730,14 +730,14 @@ export function formatAskMirrorStatusLine(opts: {
   // and it is the only one of the three the user can act on. Above it sits `off`, which is a
   // choice the user made rather than something that happened to them.
   if (opts.lapsed) {
-    return `Ask mirror: ${opts.serverCount}${as} · ${opts.lapsed} ended — Claude and ChatGPT can’t reach these until you subscribe`;
+    return `Ask mirror: ${opts.serverCount}${as} · ${opts.lapsed} ended. Claude and ChatGPT can’t reach these until you subscribe`;
   }
   if (opts.refused) {
-    return `Ask mirror: ${opts.serverCount}${as} · sync refused — vault scan incomplete · Sync now to retry`;
+    return `Ask mirror: ${opts.serverCount}${as} · sync refused, vault scan incomplete · Sync now to retry`;
   }
   const err = truncateMessage(opts.lastErr, 96);
   if (err) {
-    return `Ask mirror: ${opts.serverCount}${as} · push failed${err ? ` — ${err}` : ""} · Sync now to retry`;
+    return `Ask mirror: ${opts.serverCount}${as} · push failed${err ? ` (${err})` : ""} · Sync now to retry`;
   }
   return `Ask mirror: ${opts.serverCount}${as} · last pushed ${opts.relativeLastOk}`;
 }

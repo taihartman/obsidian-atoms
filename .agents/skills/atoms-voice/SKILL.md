@@ -20,6 +20,7 @@ description: >
 
 - One concrete beat first (walk, person, almost-forgotten moment).
 - Then the stack only as it serves that beat (Obsidian, Claude, Atoms).
+- Spoken test, no refrain, no lesson paragraph (`docs/voice.md` § How a note should sound).
 - Soft CTA + invite to reply with their practice.
 - Under-promise cadence; prefer silence to filler.
 - CAN-SPAM: unsubscribe + physical address (ops: `docs/runbooks/atoms-notes-list.md`).

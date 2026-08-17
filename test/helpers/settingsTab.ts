@@ -167,6 +167,13 @@ export function sheetText(): string {
   return `${open.titleEl.textContent ?? ""} ${open.contentEl.textContent ?? ""}`;
 }
 
+/** Every label the open sheet offers, in order — for asserting what a sheet lets you do. */
+export function sheetButtons(): string[] {
+  return Array.from(sheet().contentEl.querySelectorAll("button")).map(
+    (el) => el.textContent ?? "",
+  );
+}
+
 /** Press the sheet's button carrying this label. */
 export function pressSheet(label: string): void {
   const button = Array.from(sheet().contentEl.querySelectorAll("button")).find(
@@ -204,6 +211,20 @@ export function rowNames(
 }
 
 /**
+ * Every group header on the rendered screen, in document order.
+ *
+ * Separate from {@link rowNames} because a group header is not a `Setting`: `group()` builds it
+ * with `createEl`, so it carries no `.setting-item` and `rowNames()` cannot see it. That is the
+ * point — a header is chrome around rows, not a row — but a screen's structure still has to be
+ * readable back, which is what this does.
+ */
+export function groupHeaders(tab: AtomsSettingTab): string[] {
+  return Array.from(tab.containerEl.querySelectorAll(".atoms-setting-group-header")).map(
+    (el) => el.textContent ?? "",
+  );
+}
+
+/**
  * Every loose paragraph on the rendered screen — the text that is *not* a row. Section intros
  * belong here by design; a status fact does not.
  */
@@ -213,15 +234,23 @@ export function prose(tab: AtomsSettingTab): string[] {
   );
 }
 
+/** Every rendered row carrying this name, in document order. */
+export function rowsNamed(tab: AtomsSettingTab, name: string): HTMLElement[] {
+  return Array.from(tab.containerEl.querySelectorAll(".setting-item")).filter(
+    (el): el is HTMLElement =>
+      el instanceof HTMLElement &&
+      el.querySelector(".setting-item-name")?.textContent === name,
+  );
+}
+
 /** The one rendered row carrying this name. Throws rather than silently acting on nothing. */
 export function row(tab: AtomsSettingTab, name: string): HTMLElement {
-  const found = Array.from(tab.containerEl.querySelectorAll(".setting-item")).filter(
-    (el) => el.querySelector(".setting-item-name")?.textContent === name,
-  );
-  if (found.length !== 1 || !(found[0] instanceof HTMLElement)) {
+  const found = rowsNamed(tab, name);
+  const only = found[0];
+  if (found.length !== 1 || !only) {
     throw new Error(`expected one row named ${name}, found ${found.length}`);
   }
-  return found[0];
+  return only;
 }
 
 /** Press the button on the named row, the way a user reaches it: through the rendered row. */
@@ -241,6 +270,31 @@ export function fill(tab: AtomsSettingTab, name: string, value: string): void {
   input.dispatchEvent(new Event("input"));
 }
 
+/**
+ * End an edit on the named row the way a user does — by leaving the field.
+ *
+ * Separate from `fill` on purpose. Most rows commit on input, so blurring them is inert and
+ * folding it into `fill` would say nothing; `Plus service URL` commits on blur (#505), so a test
+ * that wants the typed value to become live has to say so. Keeping the two verbs apart is what
+ * lets a test assert the *gap* between them — that typing alone changes nothing.
+ */
+export function blurRow(tab: AtomsSettingTab, name: string): void {
+  const input = row(tab, name).querySelector("input");
+  if (!input) throw new Error(`row ${name} has no input`);
+  input.dispatchEvent(new Event("blur"));
+}
+
+/** Press a key on the named row's input, for the rows where a key means something. */
+export function pressKey(
+  tab: AtomsSettingTab,
+  name: string,
+  key: string,
+): void {
+  const input = row(tab, name).querySelector("input");
+  if (!input) throw new Error(`row ${name} has no input`);
+  input.dispatchEvent(new KeyboardEvent("keydown", { key, cancelable: true }));
+}
+
 /** Flip the named row's switch. */
 export function flip(tab: AtomsSettingTab, name: string): void {
   const toggle = row(tab, name).querySelector(".checkbox-container");
@@ -253,6 +307,37 @@ export function destinationNames(tab: AtomsSettingTab): string[] {
   return Array.from(tab.containerEl.querySelectorAll(".atoms-setting-destination")).map(
     (el) => el.querySelector(".setting-item-name")?.textContent ?? "",
   );
+}
+
+/**
+ * Render the tab and walk to the Privacy screen, where U6 put every passive consent record and
+ * the wipe.
+ *
+ * A helper rather than two lines inlined at each call site: five test files reach for those
+ * records, and the next unit that moves them would otherwise be five edits and a chance to miss
+ * one. Throws through `open()` if the entry row is not there, which is the assertion that matters
+ * on a screen whose whole job is being reachable (KTD6).
+ */
+export function openPrivacy(tab: AtomsSettingTab): void {
+  // `hide()` first, so this lands on the main screen whatever route the tab was left on. A bare
+  // `display()` re-renders the current route, and every destination's back row is named for that
+  // destination — so on Privacy itself the name check would match the back row.
+  tab.hide();
+  tab.display();
+  open(tab, "Privacy and consents");
+}
+
+/**
+ * Render the tab and walk to the Advanced screen, where U7 put the manual sync, the device
+ * records, the self-host route and the escape hatches.
+ *
+ * Same shape and same reason as `openPrivacy` — several files reach for rows that now live one
+ * tap in, and the `hide()` is what keeps the walk working from whatever route the tab was left on.
+ */
+export function openAdvanced(tab: AtomsSettingTab): void {
+  tab.hide();
+  tab.display();
+  open(tab, "Advanced");
 }
 
 /** Walk into the destination whose entry row carries this name. */

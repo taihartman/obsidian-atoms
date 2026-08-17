@@ -919,7 +919,7 @@ const plural = (n: number, one: string, many: string) => (n === 1 ? one : many);
 function byokCopy(estimate: CostEstimate): BackfillConfirmCopy {
   const lines: BackfillConfirmLine[] = [
     {
-      text: "Uses the Anthropic Message Batches API (async, ~50% off). Results apply through the same write path (atoms + markers). Partial runs are safe — already-marked captures are skipped on resume.",
+      text: "Uses the Anthropic Message Batches API (async, ~50% off). Results apply through the same write path (atoms + markers). Partial runs are safe. Already-marked captures are skipped on resume.",
     },
     { text: `Captures: ${estimate.captureCount}` },
     // The money leads: dollars are the currency this user spends.
@@ -934,7 +934,7 @@ function byokCopy(estimate: CostEstimate): BackfillConfirmCopy {
   ];
   if (estimate.chunks) {
     lines.push({
-      text: `Submitted as ${estimate.chunks.length} batch(es), oldest first — each one can link the atoms the previous one wrote.`,
+      text: `Submitted as ${estimate.chunks.length} batch(es), oldest first. Each one can link the atoms the previous one wrote.`,
       muted: true,
     });
   }

@@ -24,13 +24,15 @@ import { readFileSync } from "fs";
 import { join } from "path";
 import {
   destinationNames,
+  dismissSheet,
   open,
   row,
   rowNames,
   settingTab,
+  sheetButtons,
 } from "./helpers/settingsTab";
 import { labelCaptureShortcutCta } from "../src/settings/captureShortcut";
-import type { PlusSession } from "../src/platform/filingAuth";
+import type { IssuedBase, PlusSession } from "../src/platform/filingAuth";
 
 /** The guide as a reader reads it: no markup, no line wrapping, so a label may straddle both. */
 const guide = readFileSync(
@@ -45,6 +47,10 @@ const PLUS_SESSION: PlusSession = {
   email: "user@example.com",
   status: "active",
   periodEnd: "2099-01-01T00:00:00.000Z",
+  // #508: stamped with the base an empty `plusBaseUrl` resolves to, which is
+  // what a hosted session carries from sign-in onward.
+  issuedBase: "https://plus.tryatoms.app" as IssuedBase,
+  verifiedBase: "https://plus.tryatoms.app",
 };
 
 /** Signed in to Plus, which is the only state that renders the Ask cluster. */
@@ -70,17 +76,28 @@ function buttonLabels(tab: ReturnType<typeof plusTab>["tab"], name: string): str
 }
 
 describe("setup guide quotes labels the plugin still renders", () => {
-  it("names the Capture Atom install button the settings screen renders", () => {
-    // Companion stays hidden until App Store; shortcut is the path.
+  it("names the Capture Atom install button, now inside the sheet that holds it", () => {
+    // Companion stays hidden until App Store; shortcut is the path. U9 moved the CTA off the
+    // row and into the procedure sheet, so this asserts it where a user now finds it —
+    // asserting the label helper alone would be #302 with one indirection added.
     const { tab } = settingTab();
     tab.display();
 
     const shortcutLabel = labelCaptureShortcutCta(null);
     expect(shortcutLabel).toBe("Install Capture Atom");
-    expect(buttonLabels(tab, "Capture Atom shortcut")).toContain(shortcutLabel);
+    open(tab, "Capture on your phone");
+    expect(sheetButtons()).toContain(shortcutLabel);
+    dismissSheet();
+
     expect(guide.includes("Install Capture Atom"), "guide does not name install CTA").toBe(
       true,
     );
+    // Naming the button without naming the row that opens it is not a followable instruction.
+    const sentence = guide
+      .split(/(?<=\.)\s+/)
+      .find((s) => s.includes("Install Capture Atom"));
+    expect(sentence, "guide has no install step").toBeDefined();
+    expect(sentence).toContain("Capture on your phone");
   });
 
   it("names the two Ask switches the main screen renders", () => {
@@ -123,6 +140,28 @@ describe("setup guide quotes labels the plugin still renders", () => {
       .find((s) => s.includes("Get pairing code"));
     expect(sentence, "guide has no pairing-code step").toBeDefined();
     expect(sentence).toContain("Connect Claude or ChatGPT");
+  });
+
+  it("names the self-host controls the Advanced screen renders, and where they are", () => {
+    // Owning source: src/settings/settings.ts, renderAdvancedDestination. U7 renamed both — the
+    // URL field lost its "override" and the guide link stopped being "DIY" — so the shipped page
+    // has to have moved with them or it names two controls that no longer exist.
+    const { tab } = plusTab();
+    tab.display();
+    open(tab, "Advanced");
+
+    const rows = rowNames(tab);
+    for (const label of ["Plus service URL", "Self-host guide"]) {
+      expect(rows, `no row named ${label}`).toContain(label);
+      expect(guide.includes(label), `guide does not name ${label}`).toBe(true);
+    }
+    // Two screens in, so naming the control without the route is not a followable instruction.
+    const sentence = guide
+      .split(/(?<=\.)\s+/)
+      .find((s) => s.includes("Plus service URL"));
+    expect(sentence, "guide has no self-host step").toBeDefined();
+    expect(sentence).toContain("Advanced");
+    expect(guide.includes("DIY Ask guide"), "guide still says DIY Ask guide").toBe(false);
   });
 
   it("has dropped the label this unit retired", () => {

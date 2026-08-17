@@ -18,6 +18,18 @@ describe("MCP ask write helpers + store path", () => {
     assert.match(ASK_MCP_INSTRUCTIONS, /ask the user before/i);
     assert.match(ASK_MCP_INSTRUCTIONS, /invent/i);
     assert.match(ASK_MCP_INSTRUCTIONS, /Do not recite outbox_id/);
+    assert.match(ASK_MCP_INSTRUCTIONS, /check my atoms/);
+    assert.match(ASK_MCP_INSTRUCTIONS, /One look/);
+    assert.match(ASK_MCP_INSTRUCTIONS, /Do not retry search_atoms/);
+    assert.match(ASK_MCP_INSTRUCTIONS, /thinking out loud/i);
+    assert.match(ASK_MCP_INSTRUCTIONS, /generic advice/);
+    assert.match(ASK_MCP_INSTRUCTIONS, /didn't I write/);
+    assert.match(ASK_MCP_INSTRUCTIONS, /I thought I captured/);
+    assert.match(ASK_MCP_INSTRUCTIONS, /I know I have something/);
+    assert.match(ASK_MCP_INSTRUCTIONS, /new query/);
+    assert.match(ASK_MCP_INSTRUCTIONS, /Never unprompted/);
+    assert.match(ASK_MCP_INSTRUCTIONS, /Stance first/);
+    assert.doesNotMatch(ASK_MCP_INSTRUCTIONS, /Do not keep calling tools/);
     assert.doesNotMatch(ASK_MCP_INSTRUCTIONS, /tools cannot write/i);
   });
 
