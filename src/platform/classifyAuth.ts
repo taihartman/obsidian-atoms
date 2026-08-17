@@ -54,7 +54,6 @@ export type ClassifyAuthFail = {
 export type ClassifyBaseVerifier = (input: {
   session: PlusBaseStamp;
   resolvedBase: string;
-  configuredBase: string;
 }) => Promise<PlusBaseVerdict>;
 
 /**
@@ -121,13 +120,7 @@ export async function resolveClassifyAuth(
     // is not enough — the question is whether *this session* was issued by it.
     // A cleared field resolves to the hosted default and passes every #500
     // check, which is exactly how a self-hoster's note text reached production.
-    const verdict = await opts.verifyBase({
-      session: auth,
-      resolvedBase: base,
-      // The raw field, not `base`: the KTD1 carve-out turns on it being empty,
-      // and resolving it away is what destroys that fact.
-      configuredBase: configured,
-    });
+    const verdict = await opts.verifyBase({ session: auth, resolvedBase: base });
     if (verdict.kind !== "verified") {
       return { ok: false, reason: "unverified_base", message: verdict.message };
     }

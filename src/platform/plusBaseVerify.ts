@@ -22,11 +22,25 @@
  *    challenge, or an explicit trust gesture before a known issuer is replaced
  *    -- and that is tracked separately, not solved here. Do not read this check
  *    as authentication of the host.
- *  - **An absent stamp means unknown, never production** (KTD1) — with the
- *    carve-out that unknown *plus an empty field* must not probe at all, because
- *    an empty field already resolves to the hosted default and probing it would
- *    send a self-hoster's token to plus.tryatoms.app on first run. That is the
- *    exact user this change exists to protect.
+ *  - **An absent stamp means unknown, never production** (KTD1) — so an unstamped
+ *    session is not trusted, it is *probed*, at whatever base the caller
+ *    resolved. That includes the hosted default an empty field resolves to.
+ *
+ *    **KTD1's carve-out used to stop exactly that probe and is gone (#540).** It
+ *    refused content-bearing calls whenever an unstamped session met an empty
+ *    field, to keep a pre-#508 self-hoster who had cleared their field from
+ *    handing their token to plus.tryatoms.app. The state it tested for, though,
+ *    is also the state of *every* hosted subscriber on upgrade — no stamp, empty
+ *    field, because empty is what hosted means — so it stopped the entire
+ *    install base to protect one population, and its only exit wrote a permanent
+ *    override that Sync then carried to every device.
+ *
+ *    Probing instead costs that self-hoster one content-free `/v1/me` carrying
+ *    their token to plus.tryatoms.app, which cannot name their account, so the
+ *    verdict is `unverified`, the refusal is recorded, and Settings says so. Note
+ *    text never leaves. That is the accepted cost, and it is still strictly less
+ *    than the 0.8.2 they upgrade from, where every call sent that token *and the
+ *    capture bodies* to the same host (`plusClient.ts` #500 note).
  *  - **The gate fails closed, including offline** (KTD3). "I could not check" is
  *    not "go ahead", and it gets copy of its own that names the connection
  *    rather than a settings field a hosted user never touched.
@@ -84,18 +98,17 @@ export type PlusBaseVerdict =
        */
       previousBase?: string;
     }
-  /** Answered, and the answer was no. Nothing content-bearing may be sent. */
-  | { kind: "refused"; reason: "unverified" | "needs-address"; message: string }
+  /**
+   * Answered, and the answer was no. Nothing content-bearing may be sent.
+   *
+   * `reason` carried a second value, `needs-address`, until #540 retired the
+   * carve-out that produced it. Kept as a one-member union rather than dropped:
+   * it is the field the six gated call sites branch on, and a future second
+   * reason should have to name itself here.
+   */
+  | { kind: "refused"; reason: "unverified"; message: string }
   /** Unanswerable. Fails closed exactly like a refusal, with softer copy. */
   | { kind: "unreachable"; message: string };
-
-/**
- * The KTD1 carve-out state: no stamp and an empty field, so the plugin has no
- * address it can trust. One-time and self-clearing, and it must not read as an
- * error the user caused.
- */
-export const PLUS_BASE_NEEDS_ADDRESS_MESSAGE =
-  "Atoms Plus needs its address before your notes are sent. Open Settings to confirm it.";
 
 /**
  * Said on Settings once a refusal has actually been *recorded* at the address
@@ -119,28 +132,6 @@ export const PLUS_BASE_UNREACHABLE_MESSAGE =
  */
 export function plusIssuerMovedMessage(base: string): string {
   return `Atoms Plus is now using ${plusBaseHost(base)}. Your notes will be sent there.`;
-}
-
-/**
- * The KTD1 carve-out, rendered as a Settings *state* rather than a dialog: no
- * stamp and an empty field, so the plugin has no address it can trust and will
- * not send note text anywhere until one is confirmed. Empty string when there is
- * nothing to say.
- *
- * Only that one state. A stamp that names a *different* server is not shown
- * here, because it is not settled: the next Process or mirror push probes and
- * may well re-stamp, and announcing a refusal before anything has tried would
- * alarm a self-hoster who simply rotated their tunnel. The needs-address state
- * is the one that cannot resolve on its own.
- */
-export function plusAddressStateMessage(
-  session: Pick<PlusSession, "issuedBase" | "verifiedBase"> | null | undefined,
-  configuredBase: string,
-): string {
-  if (!session) return "";
-  return !plusSessionStamp(session) && !configuredBase.trim()
-    ? PLUS_BASE_NEEDS_ADDRESS_MESSAGE
-    : "";
 }
 
 /** Device-local; never `data.json`, which syncs and would carry one device's verdict to all of them. */
@@ -204,21 +195,24 @@ export function clearPlusBaseRefusal(storage: LocalStorageLike): void {
 /**
  * What, if anything, the Plus screens should say about the *address* (#508 A5/A6).
  *
- * Supersedes `plusAddressStateMessage` for the Account recovery row, which could
- * only see the needs-address carve-out. Two states, in priority order:
+ * One state: a probe has actually refused the base this device now resolves to.
+ * Gated on a *recorded* refusal rather than a bare stamp mismatch, because a
+ * mismatch is the normal transient state of an upgrading hosted user and of a
+ * base that just synced in; alarming there would nag everyone on the way to
+ * their first filing. The refusal record is cleared by a verified probe and by a
+ * fresh session, so this state cannot outlive its cause.
  *
- *  - `needs-address` — no stamp and an empty field. Unchanged from today.
- *  - `refused` — a probe has actually refused the base this device now resolves
- *    to. Gated on a *recorded* refusal rather than a bare stamp mismatch,
- *    because a mismatch is the normal transient state of an upgrading hosted
- *    user and of a base that just synced in; alarming there would nag everyone
- *    on the way to their first filing. The refusal record is cleared by a
- *    verified probe and by a fresh session, so this state cannot outlive its
- *    cause.
+ * It had a second state, `needs-address`, until #540: no stamp plus an empty
+ * field. That is not a state worth naming any more, because it is no longer a
+ * state anything is stuck in — the next content call probes the hosted default
+ * and either stamps or records a refusal, and both of those outcomes are
+ * reported by something else. Announcing it in the meantime would nag the entire
+ * upgrade cohort about a condition that resolves itself unprompted.
+ *
+ * Kept returning a discriminated union rather than a bare message, so a second
+ * state can be added back without changing every caller's shape.
  */
-export type PlusAddressAdvisory =
-  | { kind: "needs-address"; message: string }
-  | { kind: "refused"; message: string };
+export type PlusAddressAdvisory = { kind: "refused"; message: string };
 
 export function plusAddressAdvisory(
   session: PlusBaseStamp | null,
@@ -226,10 +220,6 @@ export function plusAddressAdvisory(
   refusal: PlusBaseRefusal | null,
 ): PlusAddressAdvisory | null {
   if (!session) return null;
-  const stamp = plusSessionStamp(session);
-  if (!stamp && !configuredBase.trim()) {
-    return { kind: "needs-address", message: PLUS_BASE_NEEDS_ADDRESS_MESSAGE };
-  }
   const resolved = configuredBase.trim() || DEFAULT_PLUS_BASE_URL;
   if (refusal && plusBaseMatches(refusal.base, resolved)) {
     return { kind: "refused", message: PLUS_BASE_ADDRESS_REFUSED_MESSAGE };
@@ -292,12 +282,16 @@ export type PlusBaseVerifyInput = {
   session: PlusBaseStamp;
   /** The base this call is about to use, after the caller's own resolution. */
   resolvedBase: string;
-  /**
-   * Raw `settings.plusBaseUrl`, *not* the resolved base. The carve-out turns on
-   * the field being empty, and by the time it is resolved that fact is gone.
-   */
-  configuredBase: string;
 };
+/**
+ * There was a third field, `configuredBase` — raw `settings.plusBaseUrl` rather
+ * than the resolved base — and the KTD1 carve-out was its only reader. #540
+ * removed the carve-out, so the gate now asks exactly one question about exactly
+ * the address a call is about to post to, and an empty field is the caller's to
+ * resolve as it always was. Dropped rather than left unread: a parameter every
+ * call site still threads and nothing consults is a fail-open waiting for
+ * someone to trust it.
+ */
 
 /**
  * Decide whether `resolvedBase` may receive this session's content.
@@ -318,10 +312,9 @@ export async function verifyPlusBase(
  * so Settings can name a stuck state instead of leaving a transient Notice as
  * the only signal (adversarial A5/A6).
  *
- * Deliberately narrow about what counts. `needs-address` already has its own
- * row and would double up. `unreachable` is KTD3's briefly-offline user, who
- * must not be pointed at a settings field they never touched. Only a live
- * `unverified` refusal is a host that answered and said no.
+ * Deliberately narrow about what counts. `unreachable` is KTD3's briefly-offline
+ * user, who must not be pointed at a settings field they never touched. Only a
+ * live `unverified` refusal is a host that answered and said no.
  */
 function recordPlusBaseOutcome(
   deps: PlusBaseVerifyDeps,
@@ -339,7 +332,7 @@ async function decidePlusBase(
   deps: PlusBaseVerifyDeps,
   input: PlusBaseVerifyInput,
 ): Promise<PlusBaseVerdict> {
-  const { session, resolvedBase, configuredBase } = input;
+  const { session, resolvedBase } = input;
   const token = session.sessionToken?.trim() ?? "";
   const email = session.email?.trim() ?? "";
   if (!token || !email) {
@@ -353,13 +346,14 @@ async function decidePlusBase(
     return { kind: "verified", base: normalizePlusBase(resolvedBase), restamped: false };
   }
 
-  if (!stamp && !configuredBase.trim()) {
-    // KTD1 carve-out. An empty field resolves to the hosted default, so probing
-    // here is precisely the leak: a self-hoster who cleared the field would have
-    // their token sent to plus.tryatoms.app by the check meant to protect them.
-    // Surfaced as a Settings state, not a dialog, and no request is made.
-    return refused("needs-address");
-  }
+  // #540. No early exit for an unstamped session with an empty field. It used to
+  // refuse here — KTD1's carve-out, so that a pre-#508 self-hoster who had
+  // cleared their field never had their token probed against the hosted default.
+  // That test also matches every hosted subscriber on upgrade, which is how one
+  // population's leak came to stop the whole install base. The probe below is now
+  // the answer for both: it is content-free, it only stamps on an account match,
+  // and a host that did not mint the session cannot produce one. See the module
+  // header for the cost this accepts and why it is smaller than what it replaces.
 
   // Keyed on the token as well as the account, because a verdict certifies a
   // *session*, not an address. Two sessions can share an email -- a sign-out and
@@ -413,13 +407,8 @@ async function decidePlusBase(
   return verdict;
 }
 
-function refused(reason: "unverified" | "needs-address"): PlusBaseVerdict {
-  return {
-    kind: "refused",
-    reason,
-    message:
-      reason === "needs-address" ? PLUS_BASE_NEEDS_ADDRESS_MESSAGE : PLUS_BASE_REFUSED_MESSAGE,
-  };
+function refused(reason: "unverified"): PlusBaseVerdict {
+  return { kind: "refused", reason, message: PLUS_BASE_REFUSED_MESSAGE };
 }
 
 function emailMatches(returned: string | undefined, expected: string): boolean {
