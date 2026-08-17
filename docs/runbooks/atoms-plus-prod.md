@@ -77,7 +77,7 @@ Requires `allow_promotion_codes` on Checkout (shipped in plus-service; deploy be
 
 **Owner free Plus:** 100% off, duration forever (or repeating N months), promo `max_redemptions=1`. Redeem via plugin **Subscribe monthly/yearly** → enter code at Checkout — **not** Start trial (trial webhook only grants 14-day `trialing` in our DB; coupon duration does not rewrite that grant).
 
-**Customer path:** Settings → trial / subscribe / top-up → Stripe Checkout → “Add promotion code”.
+**Customer path:** Settings → Account → Email → **Use promo code** → Stripe Checkout → “Add promotion code”. Not Start free trial.
 
 **$0 first invoice:** expect `payment_status=no_payment_required` (webhook already grants; only literal `unpaid` skips). Stripe may still collect a payment method depending on Dashboard settings.
 

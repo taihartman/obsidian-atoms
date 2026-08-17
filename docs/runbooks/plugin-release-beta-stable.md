@@ -8,23 +8,25 @@ Agent-facing. Humans install via BRAT or Community plugins; agents never copy bu
 
 ## Channels
 
-| Channel | Version / tag (must match package + manifest) | GitHub Release | Who gets it |
-|---|---|---|---|
-| **Stable** | `0.6.77` (semver only) | **not** prerelease | BRAT default · Community directory (when listed) · manual “Latest” |
-| **Beta** | `0.6.78-beta.1` or `0.6.78-rc.1` | **prerelease** (CI sets this) | BRAT only if **Enable betas** is on |
+| Channel | Version / tag (must match package + manifest) | GitHub Release | Who gets it | Where the version lives |
+|---|---|---|---|---|
+| **Stable** | `0.6.77` (semver only) | **not** prerelease | BRAT default · Community directory (when listed) · manual “Latest” | `master` `package.json` + `manifest.json` |
+| **Beta** | `0.6.78-beta.1` or `0.6.78-rc.1` | **prerelease** (CI sets this) | BRAT only if **Enable betas** is on | **Feature branch only.** Tag that commit. Never merge the `-beta` bump to `master`. |
 
 Tag string **must equal** `package.json` `version` and `manifest.json` `version` or the release job fails.
 
+**Why betas stay off master:** Community reads default-branch `manifest.json` and looks for a matching non-prerelease GitHub Release. A `-beta.N` on `master` is a published prerelease; Latest stays on the last stable; the directory delists the plugin (“No release matches your manifest version”). That happened on 2026-08-17 with `0.8.3-beta.2`. CI refuses the merge (`scripts/community-manifest-version.mjs` on the required `test` check).
+
 ## Auto-release (default)
 
-**Every master commit whose `package.json` + `manifest.json` version has no GitHub Release yet gets one automatically** (`.github/workflows/release.yml` on `push` to `master`). CI builds assets, creates tag `X.Y.Z` (or `X.Y.Z-beta.N`), and publishes the Release. Stable vs prerelease still follows the version suffix.
+**Every master commit whose `package.json` + `manifest.json` version has no GitHub Release yet gets one automatically** (`.github/workflows/release.yml` on `push` to `master`). That version must be a plain `X.Y.Z`. CI builds assets, creates tag `X.Y.Z`, and publishes a stable Release. A `-beta` / `-rc` on master fails the job instead of publishing.
 
 Why: Obsidian Community reads **default-branch** `manifest.json` and requires a Release tagged with that exact version. Bumping without a matching Release delists the plugin (“No release matches your manifest version”).
 
 | Merge to master | What CI does |
 |---|---|
 | Version bumped (new `X.Y.Z`) | Build + Release `X.Y.Z` (stable) |
-| Version bumped to `X.Y.Z-beta.N` | Build + **prerelease** `X.Y.Z-beta.N` |
+| Version is `X.Y.Z-beta.N` / `-rc.N` | **Fail.** Do not merge. Tag the beta from the feature branch, then land the PR at the last stable or the next plain `X.Y.Z`. |
 | Version unchanged (docs/www/already-released) | Skip — Release already exists |
 
 Agents do **not** hand-tag after a normal version-bump merge. Watch: `gh run list --workflow=release.yml --limit 1`.
@@ -43,8 +45,8 @@ git tag X.Y.Z && git push origin X.Y.Z
 # Confirm: gh release view X.Y.Z --json isPrerelease,url
 ```
 
-**Stable:** version is plain `X.Y.Z` → `isPrerelease=false`.  
-**Beta:** bump package+manifest+versions to `X.Y.Z-beta.N` (or `-rc.N`) before merge/tag → `isPrerelease=true`.
+**Stable:** version is plain `X.Y.Z` on `master` → `isPrerelease=false`.  
+**Beta:** on the **feature branch**, bump package+manifest+versions to `X.Y.Z-beta.N` (or `-rc.N`), then `git tag X.Y.Z-beta.N && git push origin X.Y.Z-beta.N`. Do not merge that bump. Before the PR to `master`, set the three files back to the last stable or to the next plain `X.Y.Z`.
 
 Tell humans: BRAT → **Check for updates** (betas **off** for stable; **Enable betas** for dogfood). Settings → Atoms → Version should match the tag.
 
@@ -59,7 +61,7 @@ Tell humans: BRAT → **Check for updates** (betas **off** for stable; **Enable 
 
 | Failure | Fix |
 |---|---|
-| “No release matches your manifest version” | Default-branch manifest ahead of Latest Release — tag that version (or merge this workflow and re-push) |
+| “No release matches your manifest version” | Default-branch manifest is a `-beta`/`-rc` or a stable that has no Release yet. Revert master to the last stable, or bump to a plain `X.Y.Z` and let CI cut that Release. Never “fix” it by landing another beta. |
 | Tag ≠ package/manifest | Delete remote tag if needed; retag after fixing version files |
 | Wanted beta but cut `0.6.x` | That is stable; cut a new `-beta.N` if dogfood-only |
 | Wanted stable but used `-beta` | BRAT default users won’t see it; cut clean `X.Y.Z` for prod |

@@ -150,6 +150,12 @@ import {
   type FilingAuth,
 } from "../platform/filingAuth";
 import { resolveClassifyAuth } from "../platform/classifyAuth";
+import {
+  createPlusBaseVerifyCache,
+  plusIssuerMovedMessage,
+  verifyPlusBase,
+  type PlusBaseVerifyCache,
+} from "../platform/plusBaseVerify";
 import { CURRENT_ATOMS_QUALITY } from "../pipeline/atomQuality";
 import {
   formatConnectivityConsole,
@@ -287,6 +293,20 @@ export default class AtomsPlugin extends Plugin {
   private waiverUsedThisSignal = false;
   private waivedFilingStamps: number[] = [];
   private catchUpInFlight = false;
+  /**
+   * #508. Verdict memo for the length of one catch-up pass, and nothing longer.
+   *
+   * A pass runs outbox, mirror and filing as three sequential stages, and each
+   * asks the issuer gate for itself. A *successful* probe self-heals, because it
+   * re-stamps the session and the later stages read the new stamp off disk. A
+   * refusal persists nothing, so without this the three stages hand the token to
+   * the same suspect or unreachable host three times over for one user action.
+   *
+   * `undefined` outside a pass on purpose: every other entry point asks exactly
+   * once, and a memo that outlived the pass would leave a briefly unreachable
+   * host refused until the plugin reloaded.
+   */
+  private plusBaseVerdicts: PlusBaseVerifyCache | undefined;
   /** Drain filed count not yet consumed by a successful filing pass. */
   private pendingNewDrainWork = 0;
   /** Real start times for in-flight stages (liveness). */
@@ -436,7 +456,7 @@ export default class AtomsPlugin extends Plugin {
       this.app.loadLocalStorage(LS_INBOX_BOOKMARK_NOTICE_ACK) === true;
     if (!shouldShowBookmarkSetupNotice(result, acked)) return;
     new Notice(
-      `Atoms: bookmark "${INBOX_NOTE_PATH}" by hand — the Bookmarks core plugin is off, so iOS capture has no target until you do.`,
+      `Atoms: bookmark "${INBOX_NOTE_PATH}" by hand. The Bookmarks core plugin is off, so iOS capture has no target until you do.`,
       10000,
     );
     this.app.saveLocalStorage(LS_INBOX_BOOKMARK_NOTICE_ACK, true);
@@ -453,7 +473,7 @@ export default class AtomsPlugin extends Plugin {
       await this.refreshAtomsHomeLeaves();
     } catch (e) {
       new Notice(
-        `Atoms: inbox drain failed — ${e instanceof Error ? e.message.slice(0, 80) : "error"}`,
+        `Atoms: inbox drain failed: ${e instanceof Error ? e.message.slice(0, 80) : "error"}`,
       );
     }
   }
@@ -554,9 +574,11 @@ export default class AtomsPlugin extends Plugin {
     source: "process" | "autorun",
   ): LandPeak {
     const atoms = landAtomsFromWriteEntries(report.entries);
+    const summary = summaryFromWrite(report);
     return buildLandPeak({
       source,
       atoms,
+      skippedCount: summary.tasks + summary.noise,
       markersAppended: report.markersAppended,
     });
   }
@@ -610,7 +632,7 @@ export default class AtomsPlugin extends Plugin {
       : this.getApiKey() || "polish-only";
     let plusDeps: import("../pipeline/classify").ClassifyDeps["plus"];
     if (needsApi && !usingFixtures) {
-      const classifyAuth = this.requireClassifyAuth();
+      const classifyAuth = await this.requireClassifyAuth();
       if (!classifyAuth) return;
       apiKey = classifyAuth.apiKey || "plus";
       plusDeps = classifyAuth.plus;
@@ -669,7 +691,7 @@ export default class AtomsPlugin extends Plugin {
       this.finishHomeRun(summary, landPeak);
       new Notice(
         report.failed > 0 && report.updated <= 0 && polished <= 0
-          ? `Atoms: couldn't update ${report.failed} note${report.failed === 1 ? "" : "s"} — check model id and API key`
+          ? `Atoms: couldn't update ${report.failed} note${report.failed === 1 ? "" : "s"}. Check model id and API key`
           : `Atoms: polished ${polished}, updated ${report.updated}, renamed ${report.renamed}, failed ${report.failed}`,
       );
       // After projection + atom writes settle — end-of-run push (hubs included).
@@ -784,7 +806,7 @@ export default class AtomsPlugin extends Plugin {
 
     if (this.catchUpInFlight) {
       if (opts.manual) {
-        new Notice("Atoms: catch-up already running — try again in a moment");
+        new Notice("Atoms: catch-up already running. Try again in a moment");
       }
       return { ran: false, reason: "in_flight" };
     }
@@ -794,6 +816,7 @@ export default class AtomsPlugin extends Plugin {
     // — both read the flag while it was still false and both ran a full pass. The `finally`
     // releases it, so the early returns between here and there stay correct.
     this.catchUpInFlight = true;
+    this.plusBaseVerdicts = createPlusBaseVerifyCache();
     let drained = 0;
     let outbox = 0;
     let mirrored = 0;
@@ -820,7 +843,7 @@ export default class AtomsPlugin extends Plugin {
             decision.stages.drain.reason) ||
           "blocked";
         if (opts.manual && reason === "vault_not_ready") {
-          new Notice("Atoms: vault still loading — try Sync everything now again");
+          new Notice("Atoms: vault still loading. Try Sync everything now again");
         }
         return { ran: false, reason: String(reason) };
       }
@@ -908,7 +931,7 @@ export default class AtomsPlugin extends Plugin {
             "Atoms: acknowledge the catch-up notice on Atoms home before filing can spend API",
           );
         } else if ("reason" in fr && fr.reason === "budget") {
-          new Notice("Atoms: filing budget full for this hour — try later");
+          new Notice("Atoms: filing budget full for this hour. Try later");
         }
       }
 
@@ -949,6 +972,7 @@ export default class AtomsPlugin extends Plugin {
       return { ran: true, reason: "ok" };
     } finally {
       this.catchUpInFlight = false;
+      this.plusBaseVerdicts = undefined;
     }
   }
 
@@ -1149,7 +1173,7 @@ export default class AtomsPlugin extends Plugin {
     }
 
     let auth: Extract<
-      ReturnType<typeof resolveClassifyAuth>,
+      Awaited<ReturnType<typeof resolveClassifyAuth>>,
       { ok: true }
     > | null = null;
     // Boxed so the log after the cycle still sees the report the write callback set.
@@ -1163,7 +1187,7 @@ export default class AtomsPlugin extends Plugin {
         // Same bound as the write (KTD2), and past-only like it: both sides of the cycle read
         // exactly the same set of captures, so the recount can reach zero and stamp the day.
         this.countPastUnprocessed({ since, fallback }),
-      gate: (pastRemaining) => {
+      gate: async (pastRemaining) => {
         // Catch-up manual: bypass auto-run enable (KTD11). Still need privacy ack
         // (auto-run egress) OR catch-up egress notice is gated earlier in decideResumeStages.
         const enabled =
@@ -1195,12 +1219,22 @@ export default class AtomsPlugin extends Plugin {
         }
 
         const filing = this.resolveFilingAuth();
-        const classifyAuth = resolveClassifyAuth(filing, {
+        const classifyAuth = await resolveClassifyAuth(filing, {
+          verifyBase: (i) => this.runPlusBaseGate(i),
           plusBaseUrl: this.settings.plusBaseUrl,
         });
         if (!classifyAuth.ok) {
           // Silent for auto path — manual commands still Notice. Do not stamp.
-          devLog("[atoms] auto-run skipped: no filing auth", classifyAuth.reason);
+          // The reason is logged rather than folded away because #508's refusal
+          // is not a missing key: an unattended pass that quietly reported
+          // "no filing auth" for a base that could not be confirmed would hide
+          // the one state the user has to act on.
+          devLog(
+            classifyAuth.reason === "unverified_base"
+              ? "[atoms] auto-run skipped: Plus base not confirmed for this session"
+              : "[atoms] auto-run skipped: no filing auth",
+            classifyAuth.reason,
+          );
           return { ok: false, reason: "missing_key" };
         }
         auth = classifyAuth;
@@ -1558,7 +1592,7 @@ export default class AtomsPlugin extends Plugin {
           message: e instanceof Error ? e.message.slice(0, 200) : "unknown",
         });
         new Notice(
-          `Atoms: backfill unavailable — ${e instanceof Error ? e.message.slice(0, 80) : "error"}`,
+          `Atoms: backfill unavailable: ${e instanceof Error ? e.message.slice(0, 80) : "error"}`,
         );
         return;
       }
@@ -1614,7 +1648,7 @@ export default class AtomsPlugin extends Plugin {
     }
     window.open(checkout.url, "_blank");
     new Notice(
-      "Atoms Plus: finish checkout in the browser — backfill reopens with the new filings.",
+      "Atoms Plus: finish checkout in the browser. Backfill reopens with the new filings.",
     );
 
     for (let attempt = 0; attempt < this.backfillTopUpPoll.attempts; attempt += 1) {
@@ -1630,7 +1664,7 @@ export default class AtomsPlugin extends Plugin {
       if (record?.kind !== "ok") continue;
       if ((readPlusSession(this.app)?.remaining ?? 0) > before) return true;
     }
-    new Notice("Atoms: no new filings yet — open backfill again once your top-up lands.");
+    new Notice("Atoms: no new filings yet. Open backfill again once your top-up lands.");
     return false;
   }
 
@@ -1642,7 +1676,7 @@ export default class AtomsPlugin extends Plugin {
     // No guard and no flag of its own: `runPlusBackfillFlow` already holds `backfillInFlight` for
     // the whole flow this runs inside. Taking it a second time here would clear it on the way out
     // while the top-up loop is still live.
-    const classifyAuth = this.requireClassifyAuth();
+    const classifyAuth = await this.requireClassifyAuth();
     if (!classifyAuth) return;
     // Home has to look busy for the duration. The flag above stops a second *backfill*, but
     // home's Process button reads `AtomsHomeView.busy` — and a run that shows no progress
@@ -1705,7 +1739,7 @@ export default class AtomsPlugin extends Plugin {
       );
       new Notice(
         report.stoppedReason === "exhausted"
-          ? `Atoms backfill: filed ${filed} of ${range.captures} — filings ran out. It picks up here when they reset.`
+          ? `Atoms backfill: filed ${filed} of ${range.captures}. Filings ran out. It picks up here when they reset.`
           : `Atoms backfill: filed ${filed} capture${filed === 1 ? "" : "s"} (${report.atomsCreated} atom${report.atomsCreated === 1 ? "" : "s"})`,
       );
       if (report.atomsCreated > 0 || report.markersAppended > 0) {
@@ -1722,7 +1756,7 @@ export default class AtomsPlugin extends Plugin {
       });
       this.failHomeRun("Backfill failed");
       new Notice(
-        `Atoms: backfill failed — ${e instanceof Error ? e.message.slice(0, 100) : "error"}`,
+        `Atoms: backfill failed: ${e instanceof Error ? e.message.slice(0, 100) : "error"}`,
       );
     }
   }
@@ -1824,7 +1858,7 @@ export default class AtomsPlugin extends Plugin {
       }
 
       new Notice(
-        `Atoms: ${prepared.estimate.summaryLine} — confirm in the dialog`,
+        `Atoms: ${prepared.estimate.summaryLine}. Confirm in the dialog`,
       );
 
       // The gate is awaited rather than fired and forgotten — the same `confirmBackfill` the Plus
@@ -1859,7 +1893,7 @@ export default class AtomsPlugin extends Plugin {
         message: e instanceof Error ? e.message.slice(0, 200) : "unknown",
       });
       new Notice(
-        `Atoms: backfill estimate failed — ${e instanceof Error ? e.message.slice(0, 80) : "error"}`,
+        `Atoms: backfill estimate failed: ${e instanceof Error ? e.message.slice(0, 80) : "error"}`,
       );
     }
   }
@@ -1955,7 +1989,7 @@ export default class AtomsPlugin extends Plugin {
         message: e instanceof Error ? e.message.slice(0, 200) : "unknown",
       });
       new Notice(
-        `Atoms: backfill failed — ${e instanceof Error ? e.message.slice(0, 100) : "error"}`,
+        `Atoms: backfill failed: ${e instanceof Error ? e.message.slice(0, 100) : "error"}`,
       );
     }
   }
@@ -2054,17 +2088,24 @@ export default class AtomsPlugin extends Plugin {
       confirmSignIn: (request: Parameters<typeof askSignInApproval>[1]) =>
         askSignInApproval(this.app, request),
       // Identity-aware install (#393) — same boundary Settings paste/trial use.
-      installSession: (session: import("../platform/filingAuth").PlusSession) =>
-        this.installPlusSession(session),
+      installSession: (
+        session: import("../platform/filingAuth").PlusSession,
+        issuedBase: import("../platform/filingAuth").IssuedBase,
+      ) => this.installPlusSession(session, issuedBase),
     };
   }
 
   /**
    * Write a Plus session after disarming Ask when the identity changes (#393).
    * Same-account re-auth keeps the hash baseline.
+   *
+   * Takes and forwards `issuedBase` rather than resolving one (#508 KTD4): the
+   * only base this wrapper could resolve is `this.settings.plusBaseUrl`, which
+   * is the source the stamp exists to be independent of.
    */
   async installPlusSession(
     session: import("../platform/filingAuth").PlusSession,
+    issuedBase: import("../platform/filingAuth").IssuedBase,
   ): Promise<void> {
     const { installPlusSession } = await import("../platform/plusSessionInstall");
     await installPlusSession(
@@ -2077,6 +2118,7 @@ export default class AtomsPlugin extends Plugin {
         loadLocalStorage: (k): unknown => this.app.loadLocalStorage(k),
       },
       session,
+      issuedBase,
     );
     // Magic-link install does not go through Settings' own redisplay. Paste and
     // trial do. Without this, an open Account destination keeps the signed-out
@@ -2176,7 +2218,7 @@ export default class AtomsPlugin extends Plugin {
    * The merge tail shared by startup and the external-change hook. Replaces
    * `this.settings` rather than mutating it — the "never alias `plugin.settings`"
    * invariant below is what makes one assignment close every gate at once.
-   * Returns whether the legacy strip left disk owing a write.
+   * Returns whether the legacy strip or a folder repair left disk owing a write.
    */
   private applyLoadedSettings(raw: Partial<LinkerSettings>): boolean {
     // One-time strip of the retired synced hash map: mirror evidence is
@@ -2185,9 +2227,32 @@ export default class AtomsPlugin extends Plugin {
     // and dropping it fails safe (no evidence plans no deletes).
     const stripped = stripLegacyAskMirrorHashes(raw);
     this.settings = Object.assign({}, DEFAULT_SETTINGS, raw);
-    this.settings.atomFolder = clampAtomFolder(this.settings.atomFolder);
+    const storedFolder = this.settings.atomFolder;
+    this.settings.atomFolder = clampAtomFolder(storedFolder);
+    // A folder this device cannot file into is repaired here, and the repair has to reach disk
+    // (#501). In memory alone it is not a repair at all: `data.json` syncs, so every other device
+    // keeps receiving the broken name, and this one re-clamps it from scratch on every load
+    // forever. Writing it once ends that, and is also what keeps the notice below to one showing.
+    const folderRepaired = this.settings.atomFolder !== storedFolder;
+    if (folderRepaired) this.noticeFolderRepair(storedFolder);
     settleAckRecords(this.settings);
-    return stripped;
+    return stripped || folderRepaired;
+  }
+
+  /**
+   * Say so, once, when a stored atom folder had to be given up.
+   *
+   * The alternative is a device that quietly starts filing somewhere else: home reads the new
+   * folder and shows an empty library, while the atoms already written under the old name sit
+   * where they are with their daily-note markers still claiming them, so Process will not rebuild
+   * them either. Nothing is destroyed and nothing is moved (non-negotiable 2 forbids moving
+   * files), but a user who is never told cannot go and look.
+   */
+  private noticeFolderRepair(storedFolder: string): void {
+    new Notice(
+      `Atoms could not file into "${storedFolder}", so filing moved back to "${this.settings.atomFolder}". Anything already filed under the old name was left where it is.`,
+      12000,
+    );
   }
 
   /**
@@ -2469,11 +2534,12 @@ export default class AtomsPlugin extends Plugin {
    * BYOK or Plus credentials for Process/Preview/Update/auto-run (U3).
    * Returns null after Notice when blocked.
    */
-  private requireClassifyAuth():
-    | import("../platform/classifyAuth").ClassifyAuthOk
-    | null {
+  private async requireClassifyAuth(): Promise<
+    import("../platform/classifyAuth").ClassifyAuthOk | null
+  > {
     const auth = this.resolveFilingAuth();
-    const resolved = resolveClassifyAuth(auth, {
+    const resolved = await resolveClassifyAuth(auth, {
+      verifyBase: (i) => this.runPlusBaseGate(i),
       plusBaseUrl: this.settings.plusBaseUrl,
       onRemaining: (remaining) => {
         const session = readPlusSession(this.app);
@@ -2495,6 +2561,30 @@ export default class AtomsPlugin extends Plugin {
     return resolved;
   }
 
+  /**
+   * The #508 issuer gate, bound to this device. Internal rather than private so
+   * `AskCoordinator` asks through the same binding, and therefore shares the
+   * pass memo above: one owner of the cache, one place the deps are wired.
+   */
+  async runPlusBaseGate(
+    input: Parameters<import("../platform/classifyAuth").ClassifyBaseVerifier>[0],
+  ) {
+    const verdict = await verifyPlusBase(
+      { storage: this.app, request: plusFetchRequest, cache: this.plusBaseVerdicts },
+      input,
+    );
+    // Announced here rather than at any one caller, because the caller that
+    // happens to probe first is not predictable. A catch-up pass runs outbox and
+    // mirror before filing, so a move confirmed by either of those left the
+    // classify path with `restamped: false` and nothing to say -- the Notice for
+    // the case that actually moves data was unreachable on the most common
+    // unattended path. The gate is the one place every caller passes through.
+    if (verdict.kind === "verified" && verdict.restamped && verdict.previousBase) {
+      new Notice(`Atoms: ${plusIssuerMovedMessage(verdict.base)}`);
+    }
+    return verdict;
+  }
+
   runLogContextPrefix() {
     const ctx = this.contextProvider.buildContext();
     const prefix = buildContextUserMessage(ctx);
@@ -2511,7 +2601,7 @@ export default class AtomsPlugin extends Plugin {
       head: prefix.slice(0, 400),
     });
     new Notice(
-      `Atoms: context ${ctx.titles.length} titles, ${ctx.tags.length} tags — stable=${prefix === prefix2}`,
+      `Atoms: context ${ctx.titles.length} titles, ${ctx.tags.length} tags · stable=${prefix === prefix2}`,
     );
   }
 
@@ -2536,7 +2626,7 @@ export default class AtomsPlugin extends Plugin {
 
   /** The write pass itself. Runs only under `manualFilingInFlight` — see its one caller. */
   private async processUnprocessedRun(opts?: { includeToday?: boolean }) {
-    const classifyAuth = this.requireClassifyAuth();
+    const classifyAuth = await this.requireClassifyAuth();
     if (!classifyAuth) return;
 
     this.beginHomeRun("process");
@@ -2600,7 +2690,7 @@ export default class AtomsPlugin extends Plugin {
         if (report.failures.length > 0) {
           const f = report.failures[0]!;
           const snip = f.captureText.replace(/\s+/g, " ").trim().slice(0, 48);
-          notice += ` — ${f.reason}: ${snip}${f.captureText.length > 48 ? "…" : ""}`;
+          notice += ` · ${f.reason}: ${snip}${f.captureText.length > 48 ? "…" : ""}`;
         }
         new Notice(notice);
       }
@@ -2723,7 +2813,7 @@ export default class AtomsPlugin extends Plugin {
    * Never creates atoms or appends markers (AE5).
    */
   async runDryRunPreview(opts?: { includeToday?: boolean }) {
-    const classifyAuth = this.requireClassifyAuth();
+    const classifyAuth = await this.requireClassifyAuth();
     if (!classifyAuth) return;
 
     this.beginHomeRun("preview");
@@ -2833,7 +2923,7 @@ export default class AtomsPlugin extends Plugin {
         })),
       });
       new Notice(
-        `Atoms: ${totalUnprocessed} unprocessed capture(s) across ${notes.length} past day(s) — see console`,
+        `Atoms: ${totalUnprocessed} unprocessed capture(s) across ${notes.length} past day(s) · see console`,
       );
     } catch (e) {
       if (e instanceof DailyNotesDisabledError) {
@@ -2881,7 +2971,7 @@ export default class AtomsPlugin extends Plugin {
         }
         new Notice(
           `Atoms: ${outcome.result.verdict}${
-            outcome.result.title ? ` — ${outcome.result.title}` : ""
+            outcome.result.title ? ` · ${outcome.result.title}` : ""
           } (cache_read=${outcome.usage.cache_read_input_tokens})`,
         );
       } else {
@@ -2917,7 +3007,7 @@ export default class AtomsPlugin extends Plugin {
     if (outcome.ok) {
       new Notice(
         `Atoms: ${outcome.result.verdict}${
-          outcome.result.title ? ` — ${outcome.result.title}` : ""
+          outcome.result.title ? ` · ${outcome.result.title}` : ""
         }`,
       );
     } else {
@@ -2932,7 +3022,7 @@ export default class AtomsPlugin extends Plugin {
     const captures = [
       SPIKE_CAPTURE,
       "buy oat milk and eggs on the way home",
-      "reminded me of [[Sleep debt doesn't accumulate linearly]] — maybe the plateau is just denial",
+      "reminded me of [[Sleep debt doesn't accumulate linearly]], maybe the plateau is just denial",
     ];
 
     new Notice("Atoms: measuring per-capture cache + day-batch…");
@@ -3063,7 +3153,7 @@ export default class AtomsPlugin extends Plugin {
     }
 
     // Same auth as Process: BYOK or Atoms Plus (not BYOK-only).
-    const classifyAuth = this.requireClassifyAuth();
+    const classifyAuth = await this.requireClassifyAuth();
     if (!classifyAuth) return;
 
     const nowKind = gate.capture.markerKind!;
@@ -3118,7 +3208,7 @@ export default class AtomsPlugin extends Plugin {
           if (report.reason === "collision") {
             new Notice(collisionNotice());
           } else if (report.reason === "stale") {
-            new Notice("Capture changed — open the daily and try again");
+            new Notice("Capture changed. Open the daily and try again");
           } else if (report.reason === "no_change") {
             /* Apply should have been disabled */
           } else {
@@ -3160,7 +3250,7 @@ export default class AtomsPlugin extends Plugin {
 
     if (!this.app.secretStorage) {
       new Notice(
-        "Atoms: SecretStorage API missing — use device-local fallback",
+        "Atoms: SecretStorage API missing. Use device-local fallback",
       );
       return;
     }
@@ -3177,7 +3267,7 @@ export default class AtomsPlugin extends Plugin {
       new Notice(
         ok
           ? "Atoms: SecretStorage read/write OK"
-          : "Atoms: SecretStorage mismatch — consider device-local fallback",
+          : "Atoms: SecretStorage mismatch. Consider device-local fallback",
       );
     } catch (e) {
       devLog("[atoms] SecretStorage probe FAILED", {
@@ -3185,7 +3275,7 @@ export default class AtomsPlugin extends Plugin {
         message: e instanceof Error ? e.message : "unknown",
       });
       new Notice(
-        "Atoms: SecretStorage failed — enable device-local key fallback",
+        "Atoms: SecretStorage failed. Enable device-local key fallback",
       );
     }
   }

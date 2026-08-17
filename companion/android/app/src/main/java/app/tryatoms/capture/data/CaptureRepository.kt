@@ -1,6 +1,7 @@
 package app.tryatoms.capture.data
 
 import android.content.Context
+import app.tryatoms.capture.R
 
 /**
  * Single write/link façade for hub + quick capture + widget.
@@ -21,7 +22,7 @@ class CaptureRepository(
     fun append(body: String): InboxWriter.WriteResult {
         val vault = store.current()
         if (!vault.vaultLinked) {
-            return InboxWriter.WriteResult.Err("Vault not linked")
+            return InboxWriter.WriteResult.Err(appContext.getString(R.string.err_not_linked))
         }
         val abs = vault.vaultAbsolutePath
         return if (!abs.isNullOrBlank()) {
@@ -30,7 +31,7 @@ class CaptureRepository(
             val root = vault.accessRootUri
             val rel = vault.vaultRelativePath
             if (root == null || rel == null) {
-                InboxWriter.WriteResult.Err("Vault not linked")
+                InboxWriter.WriteResult.Err(appContext.getString(R.string.err_not_linked))
             } else {
                 writer.appendCapture(root, rel, body)
             }

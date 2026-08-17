@@ -14,6 +14,18 @@ export type PlusEntitlementStatus =
 
 export type PlusPlan = "monthly" | "yearly" | "trial" | "promo";
 
+/**
+ * A Plus base URL that actually completed an acquisition round trip (KTD4).
+ *
+ * Branded so `settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL` — the idiom
+ * already sitting at 23 call sites — is *not* assignable. A stamp taken from
+ * whatever is configured would equal the resolved base by construction, so the
+ * issuer gate would return true on every device and fail open. Mint one only
+ * with `issuedBaseFromResponse` (plusClient.ts), from the base a response came
+ * back from.
+ */
+export type IssuedBase = string & { readonly __brand: "IssuedBase" };
+
 /** Device-local Plus session (never data.json). */
 export type PlusSession = {
   /** Opaque session token for Plus service Authorization header. */
@@ -33,6 +45,25 @@ export type PlusSession = {
   plan?: PlusPlan;
   /** Epoch ms of last successful entitlement refresh. */
   refreshedAt?: number;
+  /**
+   * What the unfinished Account start was aiming at. An inactive session with
+   * no kind is a trial start (the only start that existed). `subscribe` is a
+   * promo-code start and must not reopen trial checkout.
+   */
+  setupKind?: "trial" | "subscribe";
+  /**
+   * The base that issued this session, stamped once at acquisition and never
+   * rewritten. Absent means *unknown* (a session predating this field), never
+   * "production" — the plugin does not guess where a session came from.
+   * Audit and warning copy read this; the gate reads `verifiedBase`.
+   */
+  issuedBase?: IssuedBase;
+  /**
+   * The base most recently proven to hold this session for this account.
+   * Re-stamped on each successful re-verification, which is what lets a
+   * self-hosted tunnel rotate its subdomain without a sign-out.
+   */
+  verifiedBase?: string;
 };
 
 /**
@@ -64,6 +95,14 @@ export type FilingAuth =
       periodEnd?: string;
       plan?: PlusPlan;
       status: PlusEntitlementStatus;
+      /**
+       * Carried through because this projection is the *third* allowlist on the
+       * path from disk to the gate: `resolveClassifyAuth` never sees a
+       * `PlusSession`, only this. A field added to the type but not here
+       * vanishes before the gate reads it, and the gate then fails open.
+       */
+      issuedBase?: IssuedBase;
+      verifiedBase?: string;
     };
 
 /** Device-local storage keys — lowercase-dashed (KTD5 family). */
@@ -91,7 +130,21 @@ export function resolveFilingAuth(input: {
 
   if (token && email) {
     const status = session?.status ?? "unknown";
-    if (status === "active" || status === "trialing" || status === "exhausted") {
+    // One literal, not two. This projection is the third allowlist between disk
+    // and the issuer gate, and it used to be spelled out once per status branch
+    // — so every new `PlusSession` field had to be added in both places, and a
+    // field added to only one would reach the gate as `undefined` on some
+    // sessions and not others. That is a fail-open that reads as a typo.
+    //
+    // `unknown` is kept alongside the live statuses because a token with an
+    // unread entitlement should still resolve to plus, so the client can go
+    // refresh it rather than falling through to BYOK.
+    if (
+      status === "active" ||
+      status === "trialing" ||
+      status === "exhausted" ||
+      status === "unknown"
+    ) {
       return {
         mode: "plus",
         sessionToken: token,
@@ -100,19 +153,8 @@ export function resolveFilingAuth(input: {
         periodEnd: session?.periodEnd,
         plan: session?.plan,
         status,
-      };
-    }
-    // inactive / unknown with token: still prefer plus if we have a token
-    // so client can refresh entitlement; treat as plus unknown
-    if (status === "unknown") {
-      return {
-        mode: "plus",
-        sessionToken: token,
-        email,
-        remaining: session?.remaining,
-        periodEnd: session?.periodEnd,
-        plan: session?.plan,
-        status: "unknown",
+        issuedBase: session?.issuedBase,
+        verifiedBase: session?.verifiedBase,
       };
     }
   }
@@ -230,7 +272,17 @@ export function parsePlusSession(raw: unknown): PlusSession | null {
     periodEnd,
     plan: parsePlusPlan(o.plan),
     refreshedAt,
+    setupKind: o.setupKind === "subscribe" || o.setupKind === "trial" ? o.setupKind : undefined,
+    // Unstated stays unstated: a missing or wrong-typed stamp reads as unknown,
+    // never as the hosted default. The cast is the deserialization boundary —
+    // the value was minted before it was written.
+    issuedBase: parseBaseStamp(o.issuedBase) as IssuedBase | undefined,
+    verifiedBase: parseBaseStamp(o.verifiedBase),
   };
+}
+
+function parseBaseStamp(v: unknown): string | undefined {
+  return typeof v === "string" && v.trim() ? v.trim() : undefined;
 }
 
 /** Unstated stays unstated — an unreadable plan must not become "trial". */
@@ -263,6 +315,9 @@ export function serializePlusSession(session: PlusSession): string {
     periodEnd: session.periodEnd,
     plan: session.plan,
     refreshedAt: session.refreshedAt,
+    setupKind: session.setupKind,
+    issuedBase: session.issuedBase,
+    verifiedBase: session.verifiedBase,
   });
 }
 

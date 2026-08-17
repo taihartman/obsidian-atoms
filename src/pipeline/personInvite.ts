@@ -458,8 +458,8 @@ export function personInviteCopy(
       title: `Link to ${display}?`,
       body:
         n === 1
-          ? `A note named ${display} already exists. Link this memory to it — no new person note.`
-          : `${n} memories mention ${display}. Link them to the existing note — no new person note.`,
+          ? `A note named ${display} already exists. Link this memory to it. No new person note.`
+          : `${n} memories mention ${display}. Link them to the existing note. No new person note.`,
       createLabel: `Link to ${display}`,
       dismissLabel: "Not now",
       alreadyLabel: "Choose different note…",
@@ -481,7 +481,7 @@ export function personInviteCopy(
 /** Peer link reason (pre-hub). */
 export function personPeerReason(peerTitle: string): string {
   const t = peerTitle.trim() || "related claim";
-  return `same person — related claim ([[${t}]])`;
+  return `same person: related claim ([[${t}]])`;
 }
 
 /**

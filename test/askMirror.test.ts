@@ -758,7 +758,7 @@ describe("askMirror deletion gate (U1)", () => {
         lastErr: "network",
       }),
     ).toBe(
-      "Ask mirror: 56 · as a@ex.co · push failed — network · Sync now to retry",
+      "Ask mirror: 56 · as a@ex.co · push failed (network) · Sync now to retry",
     );
     expect(
       formatAskMirrorStatusLine({
@@ -768,7 +768,7 @@ describe("askMirror deletion gate (U1)", () => {
         refused: true,
       }),
     ).toBe(
-      "Ask mirror: 10 · as a@ex.co · sync refused — vault scan incomplete · Sync now to retry",
+      "Ask mirror: 10 · as a@ex.co · sync refused, vault scan incomplete · Sync now to retry",
     );
   });
 
@@ -787,7 +787,7 @@ describe("askMirror deletion gate (U1)", () => {
     expect(
       formatAskMirrorStatusLine({ ...lapsed, lapsed: "trial" as const }),
     ).toBe(
-      "Ask mirror: 84 · as tai@ex.co · trial ended — Claude and ChatGPT can’t reach these until you subscribe",
+      "Ask mirror: 84 · as tai@ex.co · trial ended. Claude and ChatGPT can’t reach these until you subscribe",
     );
     // A push error and a refusal are both downstream of the lapse, and neither is actionable.
     expect(
@@ -798,7 +798,7 @@ describe("askMirror deletion gate (U1)", () => {
         refused: true,
       }),
     ).toBe(
-      "Ask mirror: 84 · as tai@ex.co · subscription ended — Claude and ChatGPT can’t reach these until you subscribe",
+      "Ask mirror: 84 · as tai@ex.co · subscription ended. Claude and ChatGPT can’t reach these until you subscribe",
     );
     // `off` still wins: a gate the user closed outranks a lapse they did not choose.
     expect(
@@ -877,7 +877,7 @@ describe("askMirror deletion gate (U1)", () => {
 
   it("a refusal renders the literal status line and clears on the next clean pass", async () => {
     expect(formatAskMirrorRefusalLine("400")).toBe(
-      "Ask mirror: 400 · sync refused — vault scan incomplete · Sync now to retry",
+      "Ask mirror: 400 · sync refused, vault scan incomplete · Sync now to retry",
     );
     const f = makeFakeHost({ evidence: 400, scanned: 3, serverCount: 400 });
     await runAskMirrorSync(f.host, { force: false });
@@ -1409,9 +1409,9 @@ describe("the status line carries the shortened message (#446)", () => {
       lastErr:
         "Your Atoms Plus session is no longer valid. Sign in again to reconnect to Atoms Plus, then run Sync now from Settings.",
     });
-    expect(line).not.toMatch(/[a-z]{1,2} · Sync now to retry$/);
+    expect(line).not.toMatch(/[a-z]{1,2}\) · Sync now to retry$/);
     expect(line).toBe(
-      "Ask mirror: 84 · as a@ex.co · push failed — Your Atoms Plus session is no longer valid. Sign in again to reconnect to Atoms Plus, then run… · Sync now to retry",
+      "Ask mirror: 84 · as a@ex.co · push failed (Your Atoms Plus session is no longer valid. Sign in again to reconnect to Atoms Plus, then run…) · Sync now to retry",
     );
   });
 });

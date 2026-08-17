@@ -25,6 +25,36 @@ Before a QA pass, read:
 | Full agent verify | `./scripts/verify.sh` (Obsidian open + CLI on **test** vault) |
 | Live CLI smoke | `obsidian command id=atoms:…` from **test/demo** vault cwd |
 
+## Vault lock (one writer at a time)
+
+There is **one** throwaway vault on this machine, it lives in the main checkout, and every session
+drives it through the same running Obsidian. `install-to-vault.sh` replaces `main.js` in it, so two
+sessions installing at once means one of them is screenshotting the other's build.
+
+That is not hypothetical: on 2026-08-15 an install landed `0.8.0` at 09:19, a probe confirmed it at
+09:21, and by 09:23 another worktree had overwritten it with `0.7.12`. Both builds named a
+plausible version in `manifest.json`, so reading the version back does not catch it.
+
+```bash
+./scripts/qa-vault-lock.sh status                     # free / yours / who has it
+./scripts/qa-vault-lock.sh acquire --note "QA #512"   # take it
+./scripts/qa-vault-lock.sh acquire --wait 600         # queue behind a peer
+./scripts/qa-vault-lock.sh release                    # give it back when your pass ends
+```
+
+**`install-to-vault.sh` takes the lock itself** when it is free and refuses with exit 3 when
+another worktree holds it, naming that worktree and its branch. So an existing agent prompt that
+just runs the install script is already covered; you only reach for the lock directly to hold the
+vault across a longer pass, or to check who has it.
+
+- The holder is a **worktree**, not a process, so a session's subagents share its claim.
+- The lock file lives outside both the repo and the vault, keyed by the vault's real path.
+- It goes stale after 45 minutes (`--ttl`), so an abandoned session cannot block the machine.
+- `release --force` takes someone else's, and is for a session that is definitely gone.
+- Reads are deliberately unguarded: `obsidian eval` resolves by vault name with no isolation, so a
+  probe from another session is noise. The **write** is what corrupts a pass.
+- `ATOMS_SKIP_VAULT_LOCK=1` is for a human alone with their own vault, not for passing a peer.
+
 ## Vault lanes
 
 | Who | Vault | Purpose |

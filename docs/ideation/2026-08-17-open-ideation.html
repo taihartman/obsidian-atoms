@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Ideation: Open / surprise-me — Obsidian Atoms</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #0f1219;
+    --surface: #171b26;
+    --surface-2: #1e2433;
+    --border: #2a3347;
+    --text: #e8ecf4;
+    --muted: #9aa6bd;
+    --accent: #7c9cff;
+    --accent-2: #5eead4;
+    --warn: #f0b429;
+    --good: #7fd99a;
+    --radius: 12px;
+    --font: "DM Sans", system-ui, -apple-system, sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.55;
+    font-size: 15.5px;
+  }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 2.5rem 1.25rem 4rem; }
+  header.doc-header {
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 1.5rem;
+    margin-bottom: 2rem;
+  }
+  .eyebrow {
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent-2);
+    font-weight: 600;
+    margin: 0 0 0.5rem;
+  }
+  h1 { font-size: 1.75rem; line-height: 1.25; margin: 0 0 0.75rem; font-weight: 700; }
+  .meta {
+    display: flex; flex-wrap: wrap; gap: 0.5rem 1.25rem;
+    color: var(--muted); font-size: 0.88rem;
+  }
+  .meta strong { color: var(--text); font-weight: 500; }
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.6rem;
+    margin: 1.25rem 0 0;
+  }
+  .stat {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.7rem 0.8rem;
+  }
+  .stat b { display: block; font-size: 1.15rem; font-weight: 600; color: var(--text); }
+  .stat span { color: var(--muted); font-size: 0.78rem; }
+  nav.toc {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1rem 1.15rem;
+    margin-bottom: 2rem;
+  }
+  nav.toc h2 { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 0 0 0.6rem; }
+  nav.toc ol { margin: 0; padding-left: 1.2rem; }
+  nav.toc a { color: var(--accent); text-decoration: none; }
+  nav.toc a:hover { text-decoration: underline; }
+  section { margin-bottom: 2.5rem; }
+  h2.sec {
+    font-size: 1.15rem;
+    margin: 0 0 0.85rem;
+    padding-bottom: 0.4rem;
+    border-bottom: 1px solid var(--border);
+  }
+  p { max-width: 70ch; }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.25rem 1.35rem;
+    margin-bottom: 1.15rem;
+  }
+  .card h3 { margin: 0 0 0.55rem; font-size: 1.12rem; }
+  .rank {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 0.12rem 0.55rem;
+    margin-right: 0.4rem;
+    color: var(--accent-2);
+  }
+  .chips { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.35rem 0 0.85rem; }
+  .chip {
+    font-size: 0.75rem;
+    border-radius: 999px;
+    padding: 0.15rem 0.55rem;
+    border: 1px solid var(--border);
+    background: var(--surface-2);
+    color: var(--text);
+  }
+  .chip.conf { background: #1a2a22; color: var(--good); border-color: #2a4a38; }
+  .chip.cx-m { background: #2a2618; color: var(--warn); border-color: #4a4020; }
+  .chip.cx-h { background: #2a1a1c; color: #f0a0a6; border-color: #4a282c; }
+  dl.fields { margin: 0; }
+  dl.fields dt {
+    font-size: 0.72rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0.7rem 0 0.2rem;
+    font-weight: 600;
+  }
+  dl.fields dd { margin: 0; max-width: 70ch; }
+  .jump { margin: 0 0 1rem; padding: 0; list-style: none; }
+  .jump li { margin: 0.25rem 0; }
+  .jump a { color: var(--accent); text-decoration: none; }
+  .jump a:hover { text-decoration: underline; }
+  .diagram {
+    margin: 0.9rem 0 0.3rem;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.75rem;
+    overflow-x: auto;
+  }
+  .diagram-cap { font-size: 0.8rem; color: var(--muted); margin: 0.25rem 0 0; max-width: none; }
+  table.rej { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+  table.rej th, table.rej td {
+    text-align: left;
+    vertical-align: top;
+    padding: 0.45rem 0.5rem;
+    border-bottom: 1px solid var(--border);
+  }
+  table.rej th { color: var(--muted); font-weight: 600; font-size: 0.75rem; letter-spacing: 0.04em; text-transform: uppercase; }
+  table.rej td:first-child { font-family: var(--mono); color: var(--accent-2); white-space: nowrap; width: 3.2rem; }
+  footer.composition-signal {
+    margin-top: 2.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 0.8rem;
+  }
+  code { font-family: var(--mono); font-size: 0.86em; }
+  @media (max-width: 640px) {
+    .stats { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="doc-header">
+  <p class="eyebrow">Ideation</p>
+  <h1>What to build next</h1>
+  <div class="meta">
+    <span><strong>Date</strong> <time datetime="2026-08-17">2026-08-17</time></span>
+    <span><strong>Topic</strong> open</span>
+    <span><strong>Mode</strong> repo-grounded</span>
+    <span><strong>Focus</strong> none (surprise-me)</span>
+  </div>
+  <div class="stats">
+    <div class="stat"><b>48</b><span>raw ideas</span></div>
+    <div class="stat"><b>8</b><span>combos</span></div>
+    <div class="stat"><b>7</b><span>kept</span></div>
+    <div class="stat"><b>49</b><span>cut</span></div>
+  </div>
+</header>
+
+<nav class="toc" aria-label="Sections">
+  <h2>On this page</h2>
+  <ol>
+    <li><a href="#grounding-context">Grounding Context</a></li>
+    <li><a href="#topic-axes">Topic Axes</a></li>
+    <li><a href="#ranked-ideas">Ranked Ideas</a></li>
+    <li><a href="#rejection-summary">Rejection Summary</a></li>
+  </ol>
+</nav>
+
+<section id="grounding-context">
+  <h2 class="sec">Grounding Context</h2>
+  <p>Atoms turns yesterday’s daily notes into a second brain. It files them as atoms (your words stay as you wrote them), shows a few back on Home, and lets you Ask questions of the vault. Capture stays outside the plugin. People pay with Plus or bring their own key.</p>
+  <p>Rules we do not break: never rewrite the capture body, never invent folders, never file today on its own, never turn Home into a to-do list, never copy atom bodies back from the cloud.</p>
+  <p>The last two weeks went to Plus sign-in and Settings. The older gap is still this: after a week of real notes, does the vault feel like a brain, or a pile of files? The first live vault run filed everything correctly and still failed — the links said “preference about Nichita” instead of a real why, and some keepable ideas were thrown away as noise. Ask can also lie: if your words and the question do not share the same words, it looks like the vault is empty. Home has one quiet look for “nothing to show,” “something is blocked,” and “filing is broken.”</p>
+</section>
+
+<section id="topic-axes">
+  <h2 class="sec">Topic Axes</h2>
+  <p>Decomposition skipped — surprise-me mode. The seven keepers sit on six surfaces: telling the truth on Home, making link reasons good, honest Ask misses, seeing today before midnight, finding notes when the words do not match, and choosing what old history to file.</p>
+</section>
+
+<section id="ranked-ideas">
+  <h2 class="sec">Ranked Ideas</h2>
+  <ul class="jump">
+    <li><a href="#idea-1">1. After Process, speak one real connection</a></li>
+    <li><a href="#idea-2">2. Write the “why” once, and make it quote the other note</a></li>
+    <li><a href="#idea-3">3. Ask must say which kind of miss it is</a></li>
+    <li><a href="#idea-4">4. Show today’s notes on yesterday’s graph, and say if capture landed</a></li>
+    <li><a href="#idea-5">5. Home has three looks: quiet, blocked, broken</a></li>
+    <li><a href="#idea-6">6. Search title, tags, and link words first; then walk the links</a></li>
+    <li><a href="#idea-7">7. Old history is a map you pick from, not a sweep</a></li>
+  </ul>
+
+  <article class="card" id="idea-1">
+    <h3><span class="rank">1</span> After Process, speak one real connection</h3>
+    <div class="chips">
+      <span class="chip conf">Confidence 78%</span>
+      <span class="chip cx-m">Complexity Medium</span>
+    </div>
+    <dl class="fields">
+      <dt>Description</dt>
+      <dd>Right now, after Process, Home lists the new titles and then goes quiet. Treat that moment as the proof. Show one real “why these two notes belong together,” in your words — or say, honestly, “filed, but not linked.” Also say what got thrown away in that run (noise, weak reasons, rescued ideas). A week of real captures counts as done only when the vault can speak one sentence a friend would recognize as yours. A vault full of empty “about X” links is not the same as a rest day.</dd>
+      <dt>Basis</dt>
+      <dd><code>direct:</code> The first live vault run wrote the files correctly and still failed: links were empty labels, and some real ideas were marked as tasks or noise. After Process, Home lists titles and freezes the stream. A second brain that only files never helps you remember.<br /><code>external:</code> A pretty graph nobody can speak from is a museum, not a brain.<br /><code>reasoned:</code> The tests we run prove “a file was written.” The product fails a different way. The one moment you are looking is right after Process. Spend it on a connection, not a receipt.</dd>
+      <dt>Rationale</dt>
+      <dd>This changes what “it worked” means. Good reasons stop being a cleanup job and become the thing we ship.</dd>
+      <dt>Downsides</dt>
+      <dd>Easy to turn into a score or a guilt badge. The “what we threw away” line can look like an error log. Keep it to one sentence, rare, never a streak.</dd>
+    </dl>
+    <div class="diagram" aria-hidden="true">
+      <svg viewBox="0 0 720 150" width="100%" height="150" role="img">
+        <title>After Process: a title list versus one spoken link</title>
+        <rect x="16" y="24" width="300" height="102" rx="8" fill="#171b26" stroke="#2a3347"/>
+        <text x="32" y="48" fill="#9aa6bd" font-size="12" font-family="DM Sans, sans-serif">Today</text>
+        <text x="32" y="74" fill="#e8ecf4" font-size="14" font-family="DM Sans, sans-serif">Filed 6 titles</text>
+        <text x="32" y="96" fill="#9aa6bd" font-size="13" font-family="DM Sans, sans-serif">then quiet</text>
+        <rect x="404" y="24" width="300" height="102" rx="8" fill="#1a2a22" stroke="#2a4a38"/>
+        <text x="420" y="48" fill="#7fd99a" font-size="12" font-family="DM Sans, sans-serif">This idea</text>
+        <text x="420" y="74" fill="#e8ecf4" font-size="14" font-family="DM Sans, sans-serif">“this revises last week”</text>
+        <text x="420" y="96" fill="#9aa6bd" font-size="13" font-family="DM Sans, sans-serif">or: filed, not linked</text>
+        <path d="M328 75 H392" stroke="#7c9cff" stroke-width="2" fill="none"/>
+        <polygon points="392,70 404,75 392,80" fill="#7c9cff"/>
+      </svg>
+    </div>
+    <p class="diagram-cap">Sketch: same moment after Process, spent on a connection instead of a list.</p>
+  </article>
+
+  <article class="card" id="idea-2">
+    <h3><span class="rank">2</span> Write the “why” once, and make it quote the other note</h3>
+    <div class="chips">
+      <span class="chip conf">Confidence 82%</span>
+      <span class="chip cx-h">Complexity High</span>
+    </div>
+    <dl class="fields">
+      <dt>Description</dt>
+      <dd>Every atom already stores links with a reason. Write that reason as a small structured object: what kind of link it is, why, and whether the model or a later cleanup wrote it. A reason only counts if it quotes a phrase from the other note’s body. Cleanup code then accepts or rejects — it stops rewriting empty phrases. Home and Ask only use strong reasons. The row you scan can be the why; opening it puts you between the two original notes.</dd>
+      <dt>Basis</dt>
+      <dd><code>direct:</code> The model is already asked for “revises / contradicts / relates.” Prompt examples taught empty reasons, and cleanup then pasted the same empty phrases back in. Home’s “connected” card only means “these two notes share a link chip.” Plugin and Plus must keep the same classify shape.<br /><code>external:</code> Bees follow a lively dance, not a limp one that still points somewhere.<br /><code>reasoned:</code> If Home, Ask, and “also about” each re-read a weak sentence, fixing one reason helps one note. One shared object means the next quality pass helps all four.</dd>
+      <dt>Rationale</dt>
+      <dd>The product’s intelligence is supposed to live in the links. This makes a link something we can check, and stops Home from showing you the bug as if it were a memory.</dd>
+      <dt>Downsides</dt>
+      <dd>Has to change classify in the plugin and on Plus together. Requiring a quote will miss some true neighbors that share no words. Long empty reasons could still sneak through. Must not add a second unpaid model call while auto-run is filing.</dd>
+    </dl>
+    <div class="diagram" aria-hidden="true">
+      <svg viewBox="0 0 720 168" width="100%" height="168" role="img">
+        <title>One why, four readers</title>
+        <rect x="250" y="58" width="220" height="52" rx="8" fill="#1a2438" stroke="#7c9cff"/>
+        <text x="360" y="80" text-anchor="middle" fill="#e8ecf4" font-size="14" font-family="DM Sans, sans-serif">the why, written once</text>
+        <text x="360" y="98" text-anchor="middle" fill="#9aa6bd" font-size="12" font-family="DM Sans, sans-serif">kind · quote · who wrote it</text>
+        <rect x="16" y="16" width="150" height="36" rx="6" fill="#171b26" stroke="#2a3347"/>
+        <text x="91" y="39" text-anchor="middle" fill="#e8ecf4" font-size="13" font-family="DM Sans, sans-serif">Home</text>
+        <rect x="554" y="16" width="150" height="36" rx="6" fill="#171b26" stroke="#2a3347"/>
+        <text x="629" y="39" text-anchor="middle" fill="#e8ecf4" font-size="13" font-family="DM Sans, sans-serif">Ask</text>
+        <rect x="16" y="116" width="150" height="36" rx="6" fill="#171b26" stroke="#2a3347"/>
+        <text x="91" y="139" text-anchor="middle" fill="#e8ecf4" font-size="13" font-family="DM Sans, sans-serif">Then / now</text>
+        <rect x="554" y="116" width="150" height="36" rx="6" fill="#171b26" stroke="#2a3347"/>
+        <text x="629" y="139" text-anchor="middle" fill="#e8ecf4" font-size="13" font-family="DM Sans, sans-serif">Also about</text>
+        <path d="M250 78 H166" stroke="#5eead4" stroke-width="1.5" fill="none"/>
+        <path d="M470 78 H554" stroke="#5eead4" stroke-width="1.5" fill="none"/>
+        <path d="M280 110 L166 134" stroke="#5eead4" stroke-width="1.5" fill="none"/>
+        <path d="M440 110 L554 134" stroke="#5eead4" stroke-width="1.5" fill="none"/>
+      </svg>
+    </div>
+    <p class="diagram-cap">Sketch: write the why once. Later screens read it.</p>
+  </article>
+
+  <article class="card" id="idea-3">
+    <h3><span class="rank">3</span> Ask must say which kind of miss it is</h3>
+    <div class="chips">
+      <span class="chip conf">Confidence 85%</span>
+      <span class="chip cx-m">Complexity Medium</span>
+    </div>
+    <dl class="fields">
+      <dt>Description</dt>
+      <dd>Filing already has three answers: atom, task, noise. Ask has one empty list for two opposite worlds — “I have this, under other words” and “you never wrote this.” Give Ask three answers too: found, words do not match, really not here. Never return a blank list. Every answer says how it searched, how much of the body it saw, and whether the hit is thin. Claude may say “you have nothing on this” only when the answer is really-not-here. The miss can be a card: “12 cooking notes, none mention onions.”</dd>
+      <dt>Basis</dt>
+      <dd><code>direct:</code> A note about Ross retention and a question about “how to stop viewers from clicking away” share no words, so Ask returns the same empty list as a true miss. We index about the first 200 characters of a body that is often ten times longer. “Thai place → onions” is world knowledge the vault does not contain.<br /><code>external:</code> A clean map with no warp marks is the one that lies.<br /><code>reasoned:</code> We already chose not to add meaning-search. Honesty does not need that. Extra hint fields still let a chat flatten the result into “nothing.” A required miss object does not.</dd>
+      <dt>Rationale</dt>
+      <dd>People judge the second brain in chat. A confident “you have nothing” is worse than a slow hit.</dd>
+      <dt>Downsides</dt>
+      <dd>Chat tools will ignore extra fields unless the miss is a required object, not a footnote. “Words do not match” can feel like hedging. Must not become an excuse to add meaning-search.</dd>
+    </dl>
+    <div class="diagram" aria-hidden="true">
+      <svg viewBox="0 0 720 120" width="100%" height="120" role="img">
+        <title>Three Ask answers instead of one empty list</title>
+        <rect x="16" y="28" width="210" height="64" rx="8" fill="#1a2a22" stroke="#2a4a38"/>
+        <text x="121" y="56" text-anchor="middle" fill="#7fd99a" font-size="13" font-family="DM Sans, sans-serif">found</text>
+        <text x="121" y="76" text-anchor="middle" fill="#9aa6bd" font-size="12" font-family="DM Sans, sans-serif">say how complete</text>
+        <rect x="255" y="28" width="210" height="64" rx="8" fill="#2a2618" stroke="#4a4020"/>
+        <text x="360" y="56" text-anchor="middle" fill="#f0b429" font-size="13" font-family="DM Sans, sans-serif">words do not match</text>
+        <text x="360" y="76" text-anchor="middle" fill="#9aa6bd" font-size="12" font-family="DM Sans, sans-serif">I have it; not those words</text>
+        <rect x="494" y="28" width="210" height="64" rx="8" fill="#171b26" stroke="#2a3347"/>
+        <text x="599" y="56" text-anchor="middle" fill="#e8ecf4" font-size="13" font-family="DM Sans, sans-serif">really not here</text>
+        <text x="599" y="76" text-anchor="middle" fill="#9aa6bd" font-size="12" font-family="DM Sans, sans-serif">only then: nothing on X</text>
+      </svg>
+    </div>
+    <p class="diagram-cap">Sketch: filing already has three answers. Ask still has one empty.</p>
+  </article>
+
+  <article class="card" id="idea-4">
+    <h3><span class="rank">4</span> Show today’s notes on yesterday’s graph, and say if capture landed</h3>
+    <div class="chips">
+      <span class="chip conf">Confidence 74%</span>
+      <span class="chip cx-m">Complexity Medium</span>
+    </div>
+    <dl class="fields">
+      <dt>Description</dt>
+      <dd>Keep the rule: do not file today, do not rewrite the daily, do not let the model title today’s bullets. Still show those bullets on Home as wet notes sitting next to two or three older atoms they would belong with. Tomorrow’s Process keeps or drops those ghost links. Also show a simple pulse: “last capture landed 2 hours ago” versus “nothing landed since yesterday.” No streak. No opening the inbox file.</dd>
+      <dt>Basis</dt>
+      <dd><code>direct:</code> Day one is silent on purpose: the window starts today, today is skipped, first atoms appear tomorrow. People never open the inbox file. They have seen “4 captures need a fix” with no way to act.<br /><code>external:</code> Other daily-note apps treat today as the inbox you can already see.<br /><code>reasoned:</code> Not filing today is not the same as hiding today. A blank Home on the first day feels like the product is off. The only capture status a phone user can act on is “did it land?”</dd>
+      <dt>Rationale</dt>
+      <dd>Day one can prove the graph before any file is written. A lost capture stops looking like a rest day.</dd>
+      <dt>Downsides</dt>
+      <dd>Ghost links can look like finished atoms. The pulse can become a streak if the copy slips. Today must stay read-only — no files, no markers, no model titles.</dd>
+    </dl>
+    <div class="diagram" aria-hidden="true">
+      <svg viewBox="0 0 720 150" width="100%" height="150" role="img">
+        <title>Today sits on yesterday without becoming a file</title>
+        <rect x="40" y="36" width="280" height="88" rx="8" fill="#171b26" stroke="#2a3347"/>
+        <text x="56" y="60" fill="#9aa6bd" font-size="12" font-family="DM Sans, sans-serif">Yesterday (filed)</text>
+        <text x="56" y="86" fill="#e8ecf4" font-size="14" font-family="DM Sans, sans-serif">real notes and links</text>
+        <rect x="200" y="20" width="280" height="88" rx="8" fill="#1a2438" stroke="#7c9cff" fill-opacity="0.85"/>
+        <text x="216" y="44" fill="#7c9cff" font-size="12" font-family="DM Sans, sans-serif">Today (wet)</text>
+        <text x="216" y="70" fill="#e8ecf4" font-size="14" font-family="DM Sans, sans-serif">no file yet</text>
+        <text x="216" y="90" fill="#9aa6bd" font-size="12" font-family="DM Sans, sans-serif">ghost links only</text>
+        <text x="520" y="70" fill="#5eead4" font-size="13" font-family="DM Sans, sans-serif">landed 2h ago</text>
+      </svg>
+    </div>
+    <p class="diagram-cap">Sketch: today is visible and still not filed.</p>
+  </article>
+
+  <article class="card" id="idea-5">
+    <h3><span class="rank">5</span> Home has three looks: quiet, blocked, broken</h3>
+    <div class="chips">
+      <span class="chip conf">Confidence 80%</span>
+      <span class="chip cx-m">Complexity Medium</span>
+    </div>
+    <dl class="fields">
+      <dt>Description</dt>
+      <dd>One shared “is filing actually running?” answer, used by Home, auto-run, and Plus copy. Home then has three looks, never one idle: quiet (nothing to show, and that is fine), blocked (name the gate and the one thing to do), broken (no key, bad Plus address, login refused, or a stuck sync whose only exit today is reload). Settings is the repair sheet for blocked and broken, not a place you live. “Cannot reach Plus” and “Plus refused you” are different sentences. “Offline” is reserved for no network.</dd>
+      <dt>Basis</dt>
+      <dd><code>direct:</code> A deleted key still produced “Atoms files each past day when Obsidian opens,” because the screen trusted local stamps instead of “do we have a way to file?” A 401 from a proxy reads as “you’re offline” and never reaches the recovery row. A moved phone can lose filing with no explanation. A bad Plus address stops auto-file with no why. A card that offers an action you cannot take is worse than silence.<br /><code>external:</code> Lighthouses use different flashes so “the lamp is out” and “no ships tonight” never look the same.<br /><code>reasoned:</code> Plus work shipped new checks without a Home look the phone can see. Paid filing dying while Ask still answers is the worst Plus failure.</dd>
+      <dt>Rationale</dt>
+      <dd>Filing that works is the product. This makes the truth visible on Home instead of buried in Settings.</dd>
+      <dt>Downsides</dt>
+      <dd>Three looks can become a status dashboard if every leftover bug gets its own card. Stay at three. Do not nag on a healthy rest day.</dd>
+    </dl>
+    <div class="diagram" aria-hidden="true">
+      <svg viewBox="0 0 720 120" width="100%" height="120" role="img">
+        <title>Three Home looks</title>
+        <rect x="16" y="28" width="220" height="64" rx="8" fill="#1a2a22" stroke="#2a4a38"/>
+        <text x="126" y="56" text-anchor="middle" fill="#7fd99a" font-size="13" font-family="DM Sans, sans-serif">quiet</text>
+        <text x="126" y="76" text-anchor="middle" fill="#9aa6bd" font-size="12" font-family="DM Sans, sans-serif">empty is correct</text>
+        <rect x="250" y="28" width="220" height="64" rx="8" fill="#2a2618" stroke="#4a4020"/>
+        <text x="360" y="56" text-anchor="middle" fill="#f0b429" font-size="13" font-family="DM Sans, sans-serif">blocked</text>
+        <text x="360" y="76" text-anchor="middle" fill="#9aa6bd" font-size="12" font-family="DM Sans, sans-serif">one named action</text>
+        <rect x="484" y="28" width="220" height="64" rx="8" fill="#2a1a1c" stroke="#4a282c"/>
+        <text x="594" y="56" text-anchor="middle" fill="#f0a0a6" font-size="13" font-family="DM Sans, sans-serif">broken</text>
+        <text x="594" y="76" text-anchor="middle" fill="#9aa6bd" font-size="12" font-family="DM Sans, sans-serif">no key · 401 · bad URL</text>
+      </svg>
+    </div>
+    <p class="diagram-cap">Sketch: quiet, blocked, and broken no longer share one empty screen.</p>
+  </article>
+
+  <article class="card" id="idea-6">
+    <h3><span class="rank">6</span> Search title, tags, and link words first; then walk the links</h3>
+    <div class="chips">
+      <span class="chip conf">Confidence 76%</span>
+      <span class="chip cx-h">Complexity High</span>
+    </div>
+    <dl class="fields">
+      <dt>Description</dt>
+      <dd>Filing already paid for a title, tags, and link words. Search those as their own fields, in one shared finder used both when we file and when we Ask. On first sync, fill Ask’s extra phrases from those same fields. Call the model for more phrases only when that is not enough. If search still comes up empty, walk the strong links you already wrote — “this note named that note, for this why” — and label the result as a walk, not as “the vault understood you.” Do not invent new people or trip hubs. Do not add meaning-search yet.</dd>
+      <dt>Basis</dt>
+      <dd><code>direct:</code> The retrieval note already says: the title, tags, and link words are extra search terms we already paid for. Pulling neighbors of the top hits into the shortlist is written down and untested. Filing search and Ask search are two different scorers. Empty is not the same as “not in the vault.”<br /><code>external:</code> Disease tracing follows named contacts, not a word count of the neighborhood.<br /><code>reasoned:</code> The miss we keep seeing is different words for the same thought. Searching a longer body does not fix a zero-word overlap. Two finders will pick two next experiments.</dd>
+      <dt>Rationale</dt>
+      <dd>One finder means the next search improvement helps filing and Ask together. The words we already wrote stop sitting unused next to the body.</dd>
+      <dt>Downsides</dt>
+      <dd>Unifying plugin search and Plus Ask is real work, not a rename. A link-walk can look like “it understood me” if we do not label it. Walking weak links rehearses the sticker-reason bug (needs idea 2).</dd>
+    </dl>
+    <div class="diagram" aria-hidden="true">
+      <svg viewBox="0 0 720 140" width="100%" height="140" role="img">
+        <title>Word search, then walk the links</title>
+        <rect x="16" y="36" width="200" height="68" rx="8" fill="#171b26" stroke="#2a3347"/>
+        <text x="116" y="66" text-anchor="middle" fill="#e8ecf4" font-size="13" font-family="DM Sans, sans-serif">title · tags · links</text>
+        <text x="116" y="86" text-anchor="middle" fill="#9aa6bd" font-size="12" font-family="DM Sans, sans-serif">shared finder</text>
+        <rect x="260" y="36" width="200" height="68" rx="8" fill="#171b26" stroke="#2a3347"/>
+        <text x="360" y="66" text-anchor="middle" fill="#e8ecf4" font-size="13" font-family="DM Sans, sans-serif">extra phrases</text>
+        <text x="360" y="86" text-anchor="middle" fill="#9aa6bd" font-size="12" font-family="DM Sans, sans-serif">model only if needed</text>
+        <rect x="504" y="36" width="200" height="68" rx="8" fill="#1a2438" stroke="#7c9cff"/>
+        <text x="604" y="66" text-anchor="middle" fill="#e8ecf4" font-size="13" font-family="DM Sans, sans-serif">walk the links</text>
+        <text x="604" y="86" text-anchor="middle" fill="#9aa6bd" font-size="12" font-family="DM Sans, sans-serif">only the strong whys</text>
+        <path d="M216 70 H260" stroke="#7c9cff" stroke-width="2" fill="none"/>
+        <path d="M460 70 H504" stroke="#7c9cff" stroke-width="2" fill="none"/>
+      </svg>
+    </div>
+    <p class="diagram-cap">Sketch: try the words you already paid for, then follow the links.</p>
+  </article>
+
+  <article class="card" id="idea-7">
+    <h3><span class="rank">7</span> Old history is a map you pick from, not a sweep</h3>
+    <div class="chips">
+      <span class="chip conf">Confidence 68%</span>
+      <span class="chip cx-h">Complexity High</span>
+    </div>
+    <dl class="fields">
+      <dt>Description</dt>
+      <dd>Backfill is the only way to file the far past, and it is priced. Flip it. One run looks at old captures in memory and shows a map: which twenty new atoms would create the first real link, the first person cluster, or the first “I used to think.” You buy those. The rest stay unfiled on purpose. Yesterday still files on its own. A three-year-old stamp must not hide that map or quietly file the whole past for free.</dd>
+      <dt>Basis</dt>
+      <dd><code>direct:</code> Backfill is the only road to history, and one tap must not spend a whole month’s allowance. A far-past start date can hide the offer, so the past runs through the quiet unpaid path.<br /><code>external:</code> A map you edit is you tending the brain. A meter you watch is not.<br /><code>reasoned:</code> A decade of dailies either dies at the confirm sheet or gets swept. Picking the twenty edges that change the drawing spends money on a brain, not on a pile.</dd>
+      <dt>Rationale</dt>
+      <dd>Old notes stop being “file everything or file nothing.” A ten-year vault can change the graph in one sitting without burning the month.</dd>
+      <dt>Downsides</dt>
+      <dd>Looking at a decade in memory is costly. A map of 200 “first edges” is another card you cannot act on. Picking twenty can feel like the product is withholding. Need a hard cap and a way to ignore the map.</dd>
+    </dl>
+  </article>
+</section>
+
+<section id="rejection-summary">
+  <h2 class="sec">Rejection Summary</h2>
+  <table class="rej">
+    <thead>
+      <tr><th>#</th><th>Idea</th><th>Reason rejected</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>P1</td><td>Honesty card only</td><td>Same as idea 5</td></tr>
+      <tr><td>P2</td><td>Heal every stuck state</td><td>True, but it is a rule inside idea 5, not its own bet</td></tr>
+      <tr><td>P3</td><td>The old-history card must always show</td><td>True; folded into idea 7</td></tr>
+      <tr><td>P4</td><td>Split the Ask empty</td><td>Same as idea 3</td></tr>
+      <tr><td>P5</td><td>Thin is not quiet</td><td>Same as idea 1</td></tr>
+      <tr><td>P6</td><td>Refused is not offline</td><td>Same as idea 5</td></tr>
+      <tr><td>P7</td><td>Arrival pulse only</td><td>Same as idea 4</td></tr>
+      <tr><td>P8</td><td>Home says idle at the pay gate</td><td>The cited ticket is not in STATUS; the real bug already shipped a fix</td></tr>
+      <tr><td>I1</td><td>Day-one home is today’s notes</td><td>Same as idea 4</td></tr>
+      <tr><td>I2</td><td>Kill the inbox file</td><td>True, but healing in place already shipped; removing the file is a bigger cut</td></tr>
+      <tr><td>I3</td><td>Judge the note when you open it</td><td>A later debate about when we spend the model</td></tr>
+      <tr><td>I4</td><td>Delete Update notes</td><td>The stream can offer a refresh; not a new product bet</td></tr>
+      <tr><td>I5</td><td>Do not save links, only show them</td><td>Weaker than saving one good why (idea 2)</td></tr>
+      <tr><td>I6</td><td>Ask empty is a typed miss</td><td>Same as idea 3</td></tr>
+      <tr><td>I7</td><td>First tap does today’s preview or old history</td><td>Folded into ideas 4 and 7</td></tr>
+      <tr><td>I8</td><td>Hide Settings when healthy</td><td>A stunt; repair belongs on Home (idea 5)</td></tr>
+      <tr><td>A1</td><td>Day-7 speech test</td><td>Same as idea 1</td></tr>
+      <tr><td>A2</td><td>Home is Ask without a typed question</td><td>Strong, but a later blend of ideas 1 and 2</td></tr>
+      <tr><td>A3</td><td>Two kinds of empty</td><td>Kept as a voice rule inside 1 and 5, not its own idea</td></tr>
+      <tr><td>A4</td><td>Today is hidden from filing, not from the brain</td><td>Same as idea 4</td></tr>
+      <tr><td>A5</td><td>Browse reasons, not titles</td><td>Same as idea 2</td></tr>
+      <tr><td>A6</td><td>Ask’s third answer</td><td>Same as idea 3</td></tr>
+      <tr><td>A7</td><td>After Process, speak a link</td><td>Same as idea 1</td></tr>
+      <tr><td>A8</td><td>You name a group you can already see</td><td>Already decided: show the sibling list; do not invent a new noun</td></tr>
+      <tr><td>L1</td><td>Typed reason, written once</td><td>Same as idea 2</td></tr>
+      <tr><td>L2</td><td>Search tags and link words as fields</td><td>Same as idea 6</td></tr>
+      <tr><td>L3</td><td>Fill Ask phrases from the atom we already wrote</td><td>Same as idea 6</td></tr>
+      <tr><td>L4</td><td>Quality stamp as a rank</td><td>A small follow-on to idea 2</td></tr>
+      <tr><td>L5</td><td>One finder for filing and Ask</td><td>Same as idea 6</td></tr>
+      <tr><td>L6</td><td>Same classify shape in plugin and Plus</td><td>Same as idea 2</td></tr>
+      <tr><td>L7</td><td>Use existing links when choosing neighbors</td><td>Same as idea 6</td></tr>
+      <tr><td>L8</td><td>Only “revises” and “contradicts” get a Home card</td><td>Already in the model; inventory belongs to ideas 1 and 2</td></tr>
+      <tr><td>C1</td><td>Say what the run threw away</td><td>Same as idea 1</td></tr>
+      <tr><td>C2</td><td>More marks on the empty list</td><td>Ask already has some of those fields; marks without a third answer do not stop the lie</td></tr>
+      <tr><td>C3</td><td>Recall an old generation of weak atoms</td><td>A better Update notes, not a new bet</td></tr>
+      <tr><td>C4</td><td>On a title clash, force a “how this is not that”</td><td>Leaps from “we do not rehearse” to a collision rule; old Belief OS ground</td></tr>
+      <tr><td>C5</td><td>Only strong reasons pull a connected card</td><td>Same as idea 2</td></tr>
+      <tr><td>C6</td><td>Different Home flashes</td><td>Same as idea 5</td></tr>
+      <tr><td>C7</td><td>Old notes do not get yesterday’s heat</td><td>Same as idea 7</td></tr>
+      <tr><td>C8</td><td>Walk links when search is empty</td><td>Same as idea 6</td></tr>
+      <tr><td>F1</td><td>Today is a wet overlay</td><td>Same as idea 4</td></tr>
+      <tr><td>F2</td><td>File for free, classify when they open it</td><td>Changes when we spend the model; later debate</td></tr>
+      <tr><td>F3</td><td>The reason must quote the other body</td><td>Same as idea 2</td></tr>
+      <tr><td>F4</td><td>The Ask miss is the product</td><td>Same as idea 3</td></tr>
+      <tr><td>F5</td><td>Unused links go cold</td><td>A small follow-on once idea 2 exists</td></tr>
+      <tr><td>F6</td><td>Never edit an old atom; write a child</td><td>Old Belief OS ground</td></tr>
+      <tr><td>F8</td><td>Save the Ask question as a new note</td><td>Ask writing a new note starts to look like in-app capture, which is out of scope</td></tr>
+      <tr><td>X6</td><td>Quality stamp as a campaign</td><td>Overlaps ideas 1 and 2</td></tr>
+      <tr><td>X8</td><td>Never edit; clash writes a child</td><td>Old Belief OS ground; the clash rule did not hold up</td></tr>
+      <tr><td>—</td><td>Topic split</td><td>Skipped — surprise-me mode</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<footer class="composition-signal">Composed 2026-08-17T16:10Z, copy simplified 2026-08-17T16:35Z, by ce-ideate from a surprise-me pass over the Obsidian Atoms repo.</footer>
+</div>
+</body>
+</html>

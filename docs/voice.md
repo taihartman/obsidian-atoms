@@ -52,6 +52,7 @@ Grounded in shipped landing and home copy, `docs/design-handoff/tokens/README.md
 ## Hard rules (all surfaces)
 
 - **No em dashes** in product-authored copy (tryatoms honesty tests + app). Use period, colon, or comma.
+  In *prose*, that is the whole list. Two exceptions already shipped and are worth naming so they do not read as drift: **`·`** is the house separator for status lines and compound labels (`Ask mirror: 407 · as you@example.com · Sync now`, `Tag vocabulary · 12 active`), and an inline error detail takes **parentheses** (`push failed (network)`). Neither is licence for a dash. Guarded by `test/copyVoice.test.ts`, which bans `—` across all of `src/**` and carries the reason for every exemption.
 - **No guilt language:** due, overdue, still need to, backlog, streak broken, “you haven’t processed.”
 - **No task-app gravity** in marketing the product identity.
 - **No “use case” / “use-case notes”** in user-facing marketing (sounds like a deck). Prefer *how people run it*, *practice*, *field notes*, *second brain in real life*.
@@ -67,6 +68,14 @@ Grounded in shipped landing and home copy, `docs/design-handoff/tokens/README.md
 **What it is:** Occasional maker notes on a second brain you actually use - capture that sticks, tools (Obsidian, Claude, ChatGPT), how other people run it. Invite replies with their practice.
 
 **What it is not:** Changelog drip, sales sequence, “newsletter,” feature dump, use-case PDF.
+
+### How a note should sound
+
+The hard rules above block hype. They do not block cute. A line can be short, specific, and still sound written.
+
+1. **Spoken test.** Read the letter out loud. Cut anything you would not say to a friend.
+2. **No refrain.** Do not turn the object into a catchphrase. The sentence you typed is enough. *Bring up my pancake atom* is the ask. *I asked for the pancake* is a writer summarizing it.
+3. **No lesson paragraph.** Do not explain why the scene matters. Leave the last inference to the reader. *It came back ready to cook from* is the writer claiming the feeling.
 
 ### Cadence and promise
 
@@ -85,7 +94,8 @@ Grounded in shipped landing and home copy, `docs/design-handoff/tokens/README.md
 
 ### Subject lines
 
-- Specific and calm: `The five-second capture that came back`  
+- The actual sentence, calm: `Bring up my pancake atom`
+- Not a lyric callback: `I asked for the pancake.`
 - Not: `🚀 You won't BELIEVE this second brain hack`
 
 ### Sign-off
@@ -113,6 +123,7 @@ Grounded in shipped landing and home copy, `docs/design-handoff/tokens/README.md
 | Do | Don’t |
 |---|---|
 | A thought goes in, in five seconds, and comes back the moment it matters. | Supercharge your PKM workflow with AI-powered atomic notes!!! |
+| I was in Claude and typed bring up my pancake atom. | I asked for the pancake. It came back ready to cook from. |
 | You’re in. Check your email for a short welcome. | 🎉 Welcome to the community of second-brain legends |
 | How people run a real second brain day to day. | Top 7 use cases for knowledge workers |
 | Reply with how you capture and remember. | Submit your testimonial for a chance to be featured |

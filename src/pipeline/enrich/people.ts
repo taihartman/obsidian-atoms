@@ -418,7 +418,7 @@ export function enrichPersonLinks(
     const reason =
       matchedKey.toLowerCase() === hub.canonicalTitle.toLowerCase()
         ? `durable fact about [[${hub.canonicalTitle}]] from this capture`
-        : `about [[${hub.canonicalTitle}]] (matched “${matchedKey}”) — durable person fact`;
+        : `about [[${hub.canonicalTitle}]] (matched “${matchedKey}”): durable person fact`;
 
     links = [
       ...links,

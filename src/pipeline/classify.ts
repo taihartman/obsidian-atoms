@@ -1,6 +1,10 @@
 import { requestUrl } from "obsidian";
+import { PLUS_BASE_REFUSED_MESSAGE } from "../platform/plusBaseVerify";
 import {
+  isAllowedPlusBaseUrl,
   isSessionRejectedMessage,
+  plusBaseMatches,
+  PLUS_BASE_URL_INVALID_MESSAGE,
   plusFetchRequest,
 } from "../platform/plusClient";
 import type {
@@ -724,6 +728,13 @@ export interface ClassifyDeps {
     sessionToken: string;
     /** Called after successful classify with updated remaining. */
     onRemaining?: (remaining: number) => void;
+    /**
+     * #508. The base this session was *proven* to belong to, from
+     * `resolveClassifyAuth`. Required, so a caller assembling `plus` by hand has
+     * to state it rather than inherit a default that would make the backstop
+     * below compare a value against itself.
+     */
+    verifiedBase: string;
   };
 }
 
@@ -746,6 +757,34 @@ export async function classifyCapture(
       ok: false,
       reason: "missing_key",
       message: "Set your API key in settings",
+    };
+  }
+  // #500. This is the only Plus path that builds its own request — capture body
+  // and session token both leave from here — so the predicate gets a home on the
+  // call that egresses, not only on `resolveClassifyAuth` one function above.
+  // Today every `deps.plus` comes from there and carries a base already checked,
+  // so this is unreachable; the repo has been bitten by a gate placed one
+  // function too early before (docs/solutions/security/consent-gate-must-be-
+  // checked-at-egress-not-at-entry.md), and a future caller building `plus` from
+  // settings directly would reopen #500 for note text without failing a test.
+  if (plus && !isAllowedPlusBaseUrl(plus.baseUrl)) {
+    return {
+      ok: false,
+      reason: "auth",
+      message: PLUS_BASE_URL_INVALID_MESSAGE,
+    };
+  }
+  // #508, same reasoning one layer down: #500 asks whether the base is *allowed*,
+  // which a cleared field always is. This asks whether it is the base that holds
+  // this session, which is the question that keeps capture text off a server the
+  // user never signed in to. Synchronous by construction — the network half ran
+  // in `resolveClassifyAuth`, and a gate that could await here would be a second
+  // place for the answer to be computed, and so a second place to get it wrong.
+  if (plus && !plusBaseMatches(plus.verifiedBase, plus.baseUrl)) {
+    return {
+      ok: false,
+      reason: "auth",
+      message: PLUS_BASE_REFUSED_MESSAGE,
     };
   }
 
@@ -878,7 +917,7 @@ export async function classifyCapture(
               // an unexplained one (gateway, proxy, WAF) must not blame the
               // session, which is probably fine.
               plusErrorMessage?.trim() ||
-              `Atoms Plus refused this request (HTTP ${status}) for an unexpected reason. Nothing was filed — try again in a moment.`;
+              `Atoms Plus refused this request (HTTP ${status}) for an unexpected reason. Nothing was filed. Try again in a moment.`;
       deps.onAuthFailure?.(message);
       return { ok: false, reason: "auth", status, message };
     }

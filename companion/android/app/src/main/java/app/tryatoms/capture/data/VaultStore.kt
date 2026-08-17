@@ -8,14 +8,9 @@ import android.util.Log
 /**
  * Vault link prefs — SharedPreferences with commit() so grants survive restart.
  *
- * Two link modes:
- * - **File path**: absolute vault path after an all-files scan. Sideload only.
- * - **SAF**: tree URI + relative path. The only mode the Play build has.
- *
- * Both flavors share an applicationId, so installing the Play build over a
- * sideload one inherits its prefs. A file-path link there would read as linked
- * while every capture failed, so [linkedAbsolutePath] drops it and the hub asks
- * for a folder instead.
+ * The vault is a persisted SAF tree URI plus a relative path. Older installs
+ * stored an absolute path from an all-files scan. That permission is gone, so
+ * [linkedAbsolutePath] drops those leftovers and the hub asks for a folder.
  */
 class VaultStore(
     context: Context,
@@ -50,8 +45,7 @@ class VaultStore(
 
     private fun read(): State {
         return State(
-            vaultAbsolutePath =
-                linkedAbsolutePath(prefs.getString(KEY_ABS, null), FileTreeAccess.SUPPORTED),
+            vaultAbsolutePath = linkedAbsolutePath(prefs.getString(KEY_ABS, null)),
             accessRootUri = prefs.getString(KEY_ROOT, null)?.let { Uri.parse(it) },
             vaultRelativePath =
                 if (prefs.contains(KEY_REL)) {
@@ -176,14 +170,14 @@ class VaultStore(
 
     companion object {
         /**
-         * A stored absolute path counts as a link only where the build can read
-         * one. Without all-files access the path is unreadable, so honoring it
-         * would report a linked vault that silently swallowed every capture.
+         * File-path links need all-files access, which this app no longer has.
+         * Honoring a leftover path would report a linked vault that silently
+         * swallowed every capture.
          */
-        fun linkedAbsolutePath(
-            stored: String?,
-            fileTreeSupported: Boolean,
-        ): String? = if (fileTreeSupported) stored else null
+        fun linkedAbsolutePath(stored: String?): String? {
+            if (stored.isNullOrBlank()) return null
+            return null
+        }
 
         private const val TAG = "AtomsCaptureStore"
         private const val PREFS = "atoms_capture"

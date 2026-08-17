@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   LS_PLUS_SESSION,
   serializePlusSession,
+  type IssuedBase,
   type PlusSession,
 } from "../src/platform/filingAuth";
 import {
@@ -20,6 +21,7 @@ import { readAskMirrorEmail, runAskMirrorSync } from "../src/platform/askMirror"
 import { AskCoordinator } from "../src/plugin/askCoordinator";
 import {
   open,
+  openPrivacy,
   press,
   pressSheet,
   prose,
@@ -57,6 +59,10 @@ const PLUS_SESSION: PlusSession = {
   status: "active",
   remaining: 12,
   periodEnd: "2026-09-01T00:00:00.000Z",
+  // #508: stamped with the base an empty `plusBaseUrl` resolves to, which is
+  // what a hosted session carries from sign-in onward.
+  issuedBase: "https://plus.tryatoms.app" as IssuedBase,
+  verifiedBase: "https://plus.tryatoms.app",
 };
 
 const ACKED = "2026-08-07T10:00:00.000Z";
@@ -89,6 +95,19 @@ function connect(opts: SettingTabOptions = {}) {
   return made;
 }
 
+/**
+ * The screen `Wipe cloud copy` moved to in U6.
+ *
+ * It sits beside the count of what it deletes now, and under a render condition that outlives
+ * the mirror being switched off — which is the case that used to leave a cloud copy with no
+ * screen able to delete it (KTD6).
+ */
+function privacyScreen(opts: SettingTabOptions = {}) {
+  const made = settingTab({ session: PLUS_SESSION, ...opts });
+  openPrivacy(made.tab);
+  return made;
+}
+
 /** The status paragraph the destination prints above the rows that change it. */
 function statusParagraph(made: ReturnType<typeof connect>): HTMLElement {
   const found = Array.from(
@@ -111,7 +130,7 @@ function statusIsError(made: ReturnType<typeof connect>): boolean {
 
 describe("#371 — Wipe cloud copy disarms the mirror", () => {
   it("turns the mirror off, so the cleared baseline cannot become a re-upload", async () => {
-    const made = connect({
+    const made = privacyScreen({
       settings: { askEnabled: true, ...PRIVACY_GRANTED },
       local: { ...MIRRORED },
     });
@@ -129,7 +148,7 @@ describe("#371 — Wipe cloud copy disarms the mirror", () => {
   });
 
   it("leaves the consent record alone, because the withdrawal row keys off it", async () => {
-    const made = connect({
+    const made = privacyScreen({
       settings: { askEnabled: true, ...PRIVACY_GRANTED },
       local: { ...MIRRORED },
     });
@@ -145,7 +164,7 @@ describe("#371 — Wipe cloud copy disarms the mirror", () => {
   });
 
   it("says so before it does it", () => {
-    const made = connect({
+    const made = privacyScreen({
       settings: { askEnabled: true, ...PRIVACY_GRANTED },
       local: { ...MIRRORED },
     });
@@ -160,7 +179,7 @@ describe("#371 — Wipe cloud copy disarms the mirror", () => {
       ok: false,
       message: "Plus network error",
     } as never);
-    const made = connect({
+    const made = privacyScreen({
       settings: { askEnabled: true, ...PRIVACY_GRANTED },
       local: { ...MIRRORED },
     });
@@ -186,7 +205,7 @@ describe("#374 — the status line consults the consent gate", () => {
     // The positive control. Without it, every assertion below passes on a screen that renders
     // no status line at all.
     expect(statusLine(made)).toBe(
-      "Ask mirror: 407 · as user@example.com · push failed — Plus network error · Sync now to retry",
+      "Ask mirror: 407 · as user@example.com · push failed (Plus network error) · Sync now to retry",
     );
     expect(statusIsError(made)).toBe(true);
   });
@@ -248,7 +267,7 @@ describe("#374 — the status line consults the consent gate", () => {
   });
 
   it("claims no cloud copy on a device whose count a wipe already cleared", async () => {
-    const made = connect({
+    const made = privacyScreen({
       settings: { askEnabled: true, ...PRIVACY_GRANTED },
       local: { ...MIRRORED },
     });
@@ -257,7 +276,11 @@ describe("#374 — the status line consults the consent gate", () => {
     pressSheet("Wipe");
     await flush();
 
-    // The wipe redisplays this screen itself, so this reads what the user is left looking at.
+    // The wipe happens on Privacy since U6, so the status line is a screen away. What is under
+    // test is what the sentence says once the count is gone, not which screen prints it.
+    made.tab.hide();
+    made.tab.display();
+    open(made.tab, "Connect Claude or ChatGPT");
     expect(statusLine(made)).toBe("Ask mirror: off");
   });
 });
@@ -299,7 +322,9 @@ describe("#372 — signing out tears the mirror down", () => {
       ...opts,
     });
     made.tab.display();
-    open(made.tab, "Plus · 12 filings left");
+    // Account sits behind the engine screen since U4.
+    open(made.tab, "Filing");
+    open(made.tab, "Atoms Plus");
     return made;
   }
 

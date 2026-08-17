@@ -404,7 +404,11 @@ describe("runWritePath — meter exhaustion abort", () => {
 
   const plusDeps = (request: unknown) => ({
     request: request as never,
-    plus: { baseUrl: "https://plus.example", sessionToken: "t" },
+    plus: {
+      baseUrl: "https://plus.example",
+      sessionToken: "t",
+      verifiedBase: "https://plus.example",
+    },
   });
 
   it("halts on the first exhausted response with no further classify calls", async () => {
@@ -436,7 +440,11 @@ describe("runWritePath — meter exhaustion abort", () => {
       request: (async () => {
         throw new Error("network down");
       }) as never,
-      plus: { baseUrl: "https://plus.example", sessionToken: "t" },
+      plus: {
+      baseUrl: "https://plus.example",
+      sessionToken: "t",
+      verifiedBase: "https://plus.example",
+    },
     };
 
     const report = await runWritePath({

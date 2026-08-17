@@ -346,7 +346,7 @@ export async function runWritePath(
           note,
           capture,
           "collision_mismatch",
-          `Title "${title}" already exists with a different body — left unprocessed`,
+          `Title "${title}" already exists with a different body. Left unprocessed`,
         );
         continue;
       }

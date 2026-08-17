@@ -127,18 +127,18 @@ export type CustomTagCheck =
 export function checkCustomTag(raw: string): CustomTagCheck {
   const tag = normalizeTag(raw);
   if (!tag) {
-    return { ok: false, reason: "Type a tag first — letters, then letters, numbers, - _ or /." };
+    return { ok: false, reason: "Type a tag first. Letters, then letters, numbers, - _ or /." };
   }
   if (tag.length > MAX_CUSTOM_TAG_LENGTH) {
     return {
       ok: false,
-      reason: `That tag is ${tag.length} characters — keep it under ${MAX_CUSTOM_TAG_LENGTH}.`,
+      reason: `That tag is ${tag.length} characters. Keep it under ${MAX_CUSTOM_TAG_LENGTH}.`,
     };
   }
   if (!CUSTOM_TAG_SHAPE.test(tag)) {
     return {
       ok: false,
-      reason: `“${tag}” is not a usable tag — start with a letter, then letters, numbers, - _ or /.`,
+      reason: `“${tag}” is not a usable tag. Start with a letter, then letters, numbers, - _ or /.`,
     };
   }
   return { ok: true, tag };

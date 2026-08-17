@@ -21,13 +21,9 @@ tags:
 
 Shipping **Atoms Capture** to Google Play meant dropping `MANAGE_EXTERNAL_STORAGE`. Play grants
 all-files access only to file managers, backup, and antivirus apps, so the store build cannot have
-it. The split (#382) was two product flavors behind one seam:
-
-- `play` — SAF folder picker only. `FileTreeAccess.SUPPORTED = false`.
-- `sideload` — keeps all-files access and the file-tree scan. `FileTreeAccess.SUPPORTED = true`.
-
-`VaultLocator`, the scanner, moved into `companion/android/app/src/sideload/`, so a `play` build that tries to scan
-the phone does not compile. That felt airtight. It was not.
+it. The first cut (#382) was two product flavors behind a `FileTreeAccess` seam. That split was
+later collapsed to one SAF-only app. The lesson below still holds: older POC installs wrote an
+absolute vault path, and this app still shares that `applicationId`.
 
 ## Guidance
 

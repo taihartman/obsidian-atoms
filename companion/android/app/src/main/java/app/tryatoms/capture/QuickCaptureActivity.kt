@@ -29,7 +29,7 @@ class QuickCaptureActivity : ComponentActivity() {
             Toast
                 .makeText(
                     this,
-                    "Allow Display over other apps for Atoms Capture",
+                    getString(R.string.toast_overlay_permission),
                     Toast.LENGTH_LONG,
                 ).show()
             try {
@@ -59,7 +59,11 @@ class QuickCaptureActivity : ComponentActivity() {
         try {
             CaptureOverlayService.start(this)
         } catch (e: Exception) {
-            Toast.makeText(this, "Could not start capture: ${e.message}", Toast.LENGTH_LONG).show()
+            Toast.makeText(
+                this,
+                getString(R.string.toast_overlay_start_failed, e.message.orEmpty()),
+                Toast.LENGTH_LONG,
+            ).show()
         }
         finish()
     }

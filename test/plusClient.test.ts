@@ -3,15 +3,27 @@ import type { RequestUrlParam, RequestUrlResponse } from "obsidian";
 import {
   askMirrorDelete,
   askMirrorReconcile,
+  askMirrorUpsert,
+  askOutboxAck,
+  PLUS_BASE_REFUSED_MESSAGE,
   askMirrorStatus,
   askMcpPair,
   classifyViaProxy,
+  createBillingPortal,
   createCheckout,
   exchangeMagicToken,
   getEntitlement,
+  isAllowedPlusBaseUrl,
+  issuedBaseFromResponse,
+  normalizePlusBase,
+  openableHttpUrl,
+  plusBaseMatches,
+  PLUS_UNOPENABLE_URL_MESSAGE,
   peekMagicToken,
+  PLUS_BASE_URL_INVALID_MESSAGE,
   requestMagicLink,
   startPlusAccount,
+  PLUS_UNREACHABLE_MESSAGE,
   SESSION_REJECTED_MESSAGE,
   UNREADABLE_RESPONSE_MESSAGE,
   upstreamRefusedMessage,
@@ -36,6 +48,13 @@ function mockRequest(
 }
 
 const base = "https://plus.test";
+
+/** A request function whose being called at all is the failure. */
+function neverCalled() {
+  return vi.fn(async () => {
+    throw new Error("must not be called");
+  }) as unknown as RequestFn;
+}
 
 describe("plusClient", () => {
   it("startPlusAccount posts email and returns session", async () => {
@@ -244,6 +263,75 @@ describe("plusClient", () => {
     expect(r).toEqual({ ok: true, url: "https://checkout.test/c" });
   });
 
+  /**
+   * #504. The billing URL is chosen by the *service*, and five call sites hand it to
+   * `window.open`. #500 narrowed which hosts may answer, but https on any host stays allowed so
+   * people can self-host — so a hostile or compromised service is inside the threat model, and
+   * a `javascript:` URL opened in an Electron renderer can run in the opener's origin.
+   */
+  describe("a billing URL the plugin will not open (#504)", () => {
+    const hostile = [
+      "javascript:alert(document.cookie)",
+      "JavaScript:alert(1)",
+      "file:///etc/passwd",
+      "data:text/html,<script>alert(1)</script>",
+      "obsidian://open?vault=x",
+      "vbscript:msgbox(1)",
+      "not a url",
+    ];
+
+    it("createCheckout refuses it and says so", async () => {
+      for (const url of hostile) {
+        const request = mockRequest(() => ({ status: 200, json: { url } }));
+        const r = await createCheckout(
+          { baseUrl: base, request },
+          "sess",
+          "topup_50",
+        );
+        expect(r.ok, url).toBe(false);
+        if (!r.ok) {
+          expect(r.message, url).toBe(PLUS_UNOPENABLE_URL_MESSAGE);
+          // Not the missing-url message: the body had one, it was just unopenable.
+          expect(r.message).not.toContain("missing url");
+        }
+      }
+    });
+
+    it("createBillingPortal refuses it too", async () => {
+      for (const url of hostile) {
+        const request = mockRequest(() => ({ status: 200, json: { url } }));
+        const r = await createBillingPortal({ baseUrl: base, request }, "sess");
+        expect(r.ok, url).toBe(false);
+        if (!r.ok) expect(r.message, url).toBe(PLUS_UNOPENABLE_URL_MESSAGE);
+      }
+    });
+
+    it("still tells an absent url apart from a hostile one", async () => {
+      for (const json of [{}, { url: "" }, { url: 42 }]) {
+        const request = mockRequest(() => ({ status: 200, json }));
+        const r = await createCheckout(
+          { baseUrl: base, request },
+          "sess",
+          "topup_50",
+        );
+        expect(r.ok).toBe(false);
+        if (!r.ok) expect(r.message).toBe("Checkout response missing url");
+      }
+    });
+
+    it("lets a real checkout through, including a cross-domain redirect target", () => {
+      // Stripe redirects across domains and a self-hoster's checkout lives wherever their
+      // service says, so the guard is about the scheme and never about the host.
+      for (const url of [
+        "https://checkout.stripe.com/c/pay/cs_test_123",
+        "https://my-tunnel.example/billing/portal",
+        "http://127.0.0.1:8787/billing/portal",
+      ]) {
+        expect(openableHttpUrl(url), url).toBe(url);
+      }
+    });
+  });
+
   it("missing baseUrl fails safely", async () => {
     const request = vi.fn() as unknown as RequestFn;
     const r = await requestMagicLink({ baseUrl: "", request }, "a@b.co");
@@ -258,6 +346,30 @@ describe("plusClient", () => {
     const r = await getEntitlement({ baseUrl: base, request }, "sess");
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.code).toBe("network");
+  });
+
+  it("network throw shows advice, not the thrown shape", async () => {
+    const request: RequestFn = async () => {
+      throw new TypeError("Failed to fetch");
+    };
+    const r = await getEntitlement({ baseUrl: base, request }, "sess");
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.message).toBe(PLUS_UNREACHABLE_MESSAGE);
+    expect(r.message).not.toContain("Failed to fetch");
+    // The engine shape survives for diagnostics, off every user surface.
+    expect(r.detail).toBe("TypeError: Failed to fetch");
+  });
+
+  it("network detail stays redacted", async () => {
+    const request: RequestFn = async () => {
+      throw new Error("refused Bearer sess_abc123def456 at edge");
+    };
+    const r = await getEntitlement({ baseUrl: base, request }, "sess");
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.detail).not.toContain("sess_abc123def456");
+    expect(r.detail).toContain("[redacted]");
   });
 
   it("askMirrorStatus parses email", async () => {
@@ -287,6 +399,80 @@ describe("plusClient", () => {
     if (r.ok) expect(r.code).toBe("ABCD1234");
   });
 
+  /**
+   * #508 egress backstop. The coordinator gates where it builds the mirror
+   * config, but `askCoordinator` is not the only place one is built, so the
+   * three calls that carry vault content refuse for themselves.
+   *
+   * The assertion is that nothing was *sent*. A returned error object only
+   * proves a branch was chosen, and what this change claims is that a
+   * self-hoster's atom bodies never reach a server that did not issue their
+   * session.
+   */
+  describe("mirror calls refuse a base this session was not verified against", () => {
+    const unverified = { baseUrl: base, request: neverCalled(), verifiedBase: "https://other.host" };
+
+    it("askMirrorUpsert sends no atom bodies", async () => {
+      const r = await askMirrorUpsert(unverified, "sess", [
+        { path: "Atoms/A.md", title: "A", body: "private note text" },
+      ]);
+      expect(unverified.request).not.toHaveBeenCalled();
+      expect(r.ok).toBe(false);
+      if (!r.ok) expect(r.message).toBe(PLUS_BASE_REFUSED_MESSAGE);
+    });
+
+    it("askMirrorDelete sends no vault paths", async () => {
+      const r = await askMirrorDelete(unverified, "sess", ["Atoms/A.md"]);
+      expect(unverified.request).not.toHaveBeenCalled();
+      expect(r.ok).toBe(false);
+    });
+
+    it("askMirrorReconcile sends no vault path list", async () => {
+      const r = await askMirrorReconcile(unverified, "sess", {
+        keepPaths: ["Atoms/A.md"],
+      });
+      expect(unverified.request).not.toHaveBeenCalled();
+      expect(r.ok).toBe(false);
+    });
+
+    it("askOutboxAck sends no plan.reason, which is free text from the vault", async () => {
+      // Not a mirror call. It is here because its id-and-status shape reads as
+      // content-free and is not: `error` is `plan.reason` upstream.
+      const r = await askOutboxAck(unverified, "sess", {
+        id: "item-1",
+        status: "rejected",
+        error: "collided with a note the user already wrote",
+      });
+      expect(unverified.request).not.toHaveBeenCalled();
+      expect(r.ok).toBe(false);
+      if (!r.ok) expect(r.message).toBe(PLUS_BASE_REFUSED_MESSAGE);
+    });
+
+    it("an unstamped config refuses too, rather than reading as a match", async () => {
+      const blank = { baseUrl: base, request: neverCalled(), verifiedBase: "" };
+      const r = await askMirrorUpsert(blank, "sess", [
+        { path: "Atoms/A.md", title: "A", body: "private note text" },
+      ]);
+      expect(blank.request).not.toHaveBeenCalled();
+      expect(r.ok).toBe(false);
+    });
+
+    it("a matching base still goes out, normalization and all", async () => {
+      const urls: string[] = [];
+      const request = mockRequest((p) => {
+        urls.push(p.url);
+        return { status: 200, json: { ok: true, count: 1, upserted: 1 } };
+      });
+      const r = await askMirrorUpsert(
+        { baseUrl: `${base}/`, request, verifiedBase: base },
+        "sess",
+        [{ path: "Atoms/A.md", title: "A", body: "b" }],
+      );
+      expect(urls).toEqual([`${base}/v1/ask/mirror/upsert`]);
+      expect(r.ok).toBe(true);
+    });
+  });
+
   it("askMirrorDelete posts paths", async () => {
     const request = mockRequest((p) => {
       expect(p.url).toBe("https://plus.test/v1/ask/mirror/delete");
@@ -297,7 +483,7 @@ describe("plusClient", () => {
       return { status: 200, json: { ok: true, deleted: 1, missing: 0, count: 0 } };
     });
     const r = await askMirrorDelete(
-      { baseUrl: base, request },
+      { baseUrl: base, request, verifiedBase: base },
       "sess",
       ["Atoms/A.md"],
     );
@@ -314,7 +500,7 @@ describe("plusClient", () => {
       return { status: 200, json: { ok: true, deleted: 0, count: 1 } };
     });
     const r = await askMirrorReconcile(
-      { baseUrl: base, request },
+      { baseUrl: base, request, verifiedBase: base },
       "sess",
       { keepPaths: ["Atoms/A.md"], done: true },
     );
@@ -565,6 +751,214 @@ describe("plusClient", () => {
           }
         }
       }
+    });
+  });
+
+  /**
+   * #500. The Plus service URL override took any scheme and any host, and every
+   * call attaches the device session token to it. The guard lives at the one
+   * choke point every Plus call routes through, so a bad override cannot leak
+   * the token no matter which caller resolved the base.
+   */
+  describe("isAllowedPlusBaseUrl", () => {
+    it("accepts https on any host", () => {
+      for (const url of [
+        "https://plus.tryatoms.app",
+        "https://plus.test/",
+        "https://YOUR-SUBDOMAIN.trycloudflare.com",
+        "https://example.com/plus",
+        "https://example.com:8443",
+        // Scheme and host are case-insensitive per the URL parser.
+        "HTTPS://PLUS.TEST",
+      ]) {
+        expect(isAllowedPlusBaseUrl(url), url).toBe(true);
+      }
+    });
+
+    it("accepts http only on loopback, which is the documented dogfood address", () => {
+      for (const url of [
+        // docs/ask-self-host.md names this one explicitly.
+        "http://127.0.0.1:8787",
+        "http://localhost:8787",
+        "http://[::1]:8787",
+        // The whole 127/8 block is loopback, not just .0.1.
+        "http://127.0.0.2:8787",
+      ]) {
+        expect(isAllowedPlusBaseUrl(url), url).toBe(true);
+      }
+    });
+
+    it("accepts the numeric spellings of loopback the URL parser normalizes", () => {
+      // All three canonicalize to hostname 127.0.0.1 before the guard sees them.
+      // Pinned because they *are* loopback: a future hand-rolled host check that
+      // only string-matched "127.0.0.1" would wrongly refuse a working dogfood
+      // address.
+      for (const url of [
+        "http://127.1",
+        "http://0x7f.0.0.1",
+        "http://2130706433",
+      ]) {
+        expect(isAllowedPlusBaseUrl(url), url).toBe(true);
+      }
+    });
+
+    it("rejects plain http to anywhere off the device", () => {
+      for (const url of [
+        "http://example.com",
+        "http://plus.tryatoms.app",
+        "http://192.168.1.5:8787",
+        // Host suffixed onto the loopback name — a resolver can send this
+        // anywhere, so an exact match is the only safe test.
+        "http://localhost.evil.com",
+        "http://evil.com/?host=localhost",
+        "http://notlocalhost",
+        // Userinfo confusion: the loopback text is the *username*, and the real
+        // host is what follows the `@`. Reading the raw string instead of the
+        // parsed hostname would hand the session token to evil.example.
+        "http://localhost@evil.example",
+        "http://127.0.0.1@evil.example",
+        // 0.0.0.0 reaches a local listener on some stacks but is not loopback.
+        "http://0",
+        // Trailing dot is a distinct name to a resolver, so it is not `localhost`.
+        "http://localhost.",
+      ]) {
+        expect(isAllowedPlusBaseUrl(url), url).toBe(false);
+      }
+    });
+
+    it("refuses an out-of-range 127.x octet without relying on the URL parser", () => {
+      // `new URL` already throws on these, so the guard's own range check is
+      // belt-and-braces. Pinned so the guard does not silently come to depend on
+      // that parser behavior.
+      for (const url of ["http://127.256.0.1", "http://127.999.1.1"]) {
+        expect(isAllowedPlusBaseUrl(url), url).toBe(false);
+      }
+    });
+
+    it("refuses IPv4-mapped IPv6 loopback — a deliberate false negative", () => {
+      // `http://[::ffff:127.0.0.1]` normalizes to hostname `[::ffff:7f00:1]`,
+      // which is genuinely loopback but is not one of the three literal forms
+      // allowed. Refusing over-refuses, which is the safe direction; this test
+      // records that as a decision rather than an unnoticed gap.
+      expect(isAllowedPlusBaseUrl("http://[::ffff:127.0.0.1]:8787")).toBe(false);
+    });
+
+    it("rejects non-http schemes and unparseable values", () => {
+      for (const url of [
+        "ftp://example.com",
+        "file:///etc/passwd",
+        "javascript:alert(1)",
+        "data:text/html,x",
+        // The likeliest typo: a bare host with no scheme does not parse.
+        "plus.tryatoms.app",
+        "//evil.com",
+        "not a url",
+        // Empty is the caller's question, not this predicate's — an empty
+        // setting means "use the default" and never reaches a request.
+        "",
+        "   ",
+      ]) {
+        expect(isAllowedPlusBaseUrl(url), JSON.stringify(url)).toBe(false);
+      }
+    });
+  });
+
+  describe("normalizePlusBase / plusBaseMatches (#508 KTD2)", () => {
+    it("treats trailing slashes and scheme/host case as noise", () => {
+      for (const [a, b] of [
+        ["https://my.host", "https://my.host/"],
+        ["https://my.host", "https://my.host///"],
+        ["https://my.host", "HTTPS://my.host"],
+        ["https://my.host", "https://MY.HOST"],
+        ["https://my.host", "  https://My.Host/  "],
+        // new URL() drops a default port, so these are the same server here.
+        // Decided in KTD2: same parser as isAllowedPlusBaseUrl, and a spurious
+        // mismatch would only have cost one probe anyway.
+        ["https://my.host", "https://my.host:443"],
+        ["http://127.0.0.1:8787", "http://127.0.0.1:8787/"],
+      ]) {
+        expect(normalizePlusBase(a), `${a} vs ${b}`).toBe(normalizePlusBase(b));
+        expect(plusBaseMatches(a, b), `${a} vs ${b}`).toBe(true);
+      }
+    });
+
+    it("keeps port, path and subdomain significant", () => {
+      for (const [a, b] of [
+        ["https://my.host", "https://my.host:8443"],
+        ["https://my.host:8443", "https://my.host:9443"],
+        ["https://my.host", "https://my.host/plus"],
+        ["https://my.host/plus", "https://my.host/Plus"],
+        ["https://a.trycloudflare.com", "https://b.trycloudflare.com"],
+        ["https://my.host", "http://my.host"],
+      ]) {
+        expect(normalizePlusBase(a), `${a} vs ${b}`).not.toBe(normalizePlusBase(b));
+        expect(plusBaseMatches(a, b), `${a} vs ${b}`).toBe(false);
+      }
+    });
+
+    it("an unknown side never matches", () => {
+      expect(plusBaseMatches(undefined, "https://my.host")).toBe(false);
+      expect(plusBaseMatches("https://my.host", undefined)).toBe(false);
+      expect(plusBaseMatches(undefined, undefined)).toBe(false);
+      expect(plusBaseMatches("", "")).toBe(false);
+      expect(plusBaseMatches("   ", "https://my.host")).toBe(false);
+    });
+
+    it("does not throw on an unparseable base, and never matches a real one", () => {
+      expect(normalizePlusBase("plus.tryatoms.app/")).toBe("plus.tryatoms.app");
+      expect(plusBaseMatches("plus.tryatoms.app", "https://plus.tryatoms.app")).toBe(false);
+    });
+
+    it("mints a stamp in the same normalized form the comparison uses", () => {
+      const stamp = issuedBaseFromResponse("HTTPS://My.Host/");
+      expect(stamp).toBe("https://my.host");
+      expect(plusBaseMatches(stamp, "https://my.host")).toBe(true);
+    });
+  });
+
+  describe("plusRequest base URL guard", () => {
+    it("issues no request at all when the base is not https or loopback", async () => {
+      const request = vi.fn(async () => {
+        throw new Error("must not be called");
+      }) as unknown as RequestFn;
+
+      const r = await getEntitlement(
+        { baseUrl: "http://evil.example", request },
+        "sess",
+      );
+
+      expect(request).not.toHaveBeenCalled();
+      expect(r.ok).toBe(false);
+      if (!r.ok) {
+        expect(r.code).toBe("invalid");
+        expect(r.message).toBe(PLUS_BASE_URL_INVALID_MESSAGE);
+      }
+    });
+
+    it("still reports an empty base as unconfigured rather than falling back", async () => {
+      const request = vi.fn(async () => {
+        throw new Error("must not be called");
+      }) as unknown as RequestFn;
+
+      const r = await getEntitlement({ baseUrl: "  ", request }, "sess");
+
+      expect(request).not.toHaveBeenCalled();
+      expect(r.ok).toBe(false);
+      if (!r.ok) expect(r.message).toContain("not configured");
+    });
+
+    it("lets the documented loopback override through", async () => {
+      const request = mockRequest((p) => {
+        expect(p.url).toBe("http://127.0.0.1:8787/v1/me");
+        return { status: 200, json: { status: "active", remaining: 5 } };
+      });
+
+      const r = await getEntitlement(
+        { baseUrl: "http://127.0.0.1:8787", request },
+        "sess",
+      );
+
+      expect(r.ok).toBe(true);
     });
   });
 });

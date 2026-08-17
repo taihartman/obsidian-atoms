@@ -1,0 +1,797 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>How Atoms works</title>
+<style>
+/* Hallmark · pre-emit critique: P5 H4 E4 S5 R4 V4
+ * audience: plugin owner / incoming agent
+ * use: understand the live product loop
+ * tone: editorial, vault-native
+ */
+:root {
+  --paper: #000000;
+  --card: #1c1c1e;
+  --elevated: #2c2c2e;
+  --hair: rgba(84, 84, 88, 0.55);
+  --ink: #ffffff;
+  --muted: rgba(235, 235, 245, 0.6);
+  --faint: rgba(235, 235, 245, 0.32);
+  --tint: #0a84ff;
+  --person: #ff9f0a;
+  --work: #64d2ff;
+  --mind: #bf5af2;
+  --done: #30d158;
+  --error: #ff453a;
+  --serif: "New York", "Iowan Old Style", "Palatino Linotype", Palatino, ui-serif, Georgia, serif;
+  --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  --mono: "SF Mono", ui-monospace, "Cascadia Code", Menlo, Consolas, monospace;
+  --gutter: 16px;
+  --radius: 16px;
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+* { box-sizing: border-box; }
+html, body { overflow-x: clip; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 16px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: var(--tint); text-decoration: none; }
+a:hover { text-decoration: underline; }
+a:focus-visible, button:focus-visible {
+  outline: 2px solid var(--tint);
+  outline-offset: 3px;
+}
+
+.wrap {
+  width: min(1080px, calc(100% - 2 * var(--gutter)));
+  margin: 0 auto;
+}
+
+/* ── masthead ── */
+.mast {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  backdrop-filter: blur(18px);
+  background: color-mix(in srgb, var(--paper) 78%, transparent);
+  border-bottom: 1px solid var(--hair);
+}
+.mast-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 52px;
+}
+.wordmark {
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  text-decoration: none;
+}
+.wordmark span { color: var(--tint); font-weight: 500; }
+.toc {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+.toc a { color: var(--muted); text-decoration: none; }
+.toc a:hover { color: var(--ink); }
+
+/* ── hero ── */
+.hero {
+  padding: 56px 0 40px;
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
+  gap: 28px;
+  align-items: end;
+}
+.kicker {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--mind);
+  margin: 0 0 12px;
+}
+h1 {
+  font-family: var(--serif);
+  font-style: normal;
+  font-weight: 600;
+  font-size: clamp(2rem, 5vw, 3.4rem);
+  letter-spacing: -0.035em;
+  line-height: 1.08;
+  margin: 0 0 18px;
+}
+.lede {
+  color: var(--muted);
+  font-size: 1.05rem;
+  max-width: 38rem;
+  margin: 0;
+}
+.hero-card {
+  background: var(--card);
+  border: 1px solid var(--hair);
+  border-radius: var(--radius);
+  padding: 18px;
+}
+.hero-card .meta {
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--faint);
+  margin-bottom: 10px;
+}
+.quote {
+  font-family: var(--serif);
+  font-size: 1.15rem;
+  line-height: 1.45;
+  margin: 0;
+}
+.quote::before { content: "“"; }
+.quote::after { content: "”"; }
+
+/* ── sections ── */
+section { padding: 48px 0; border-top: 1px solid var(--hair); }
+h2 {
+  font-size: 1.45rem;
+  font-weight: 650;
+  letter-spacing: -0.03em;
+  margin: 0 0 8px;
+}
+h3 {
+  font-size: 1.02rem;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  margin: 0 0 6px;
+}
+.sub {
+  color: var(--muted);
+  margin: 0 0 22px;
+  max-width: 40rem;
+}
+
+/* ── three legs ── */
+.legs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.leg {
+  background: var(--card);
+  border: 1px solid var(--hair);
+  border-radius: 14px;
+  padding: 16px;
+  min-width: 0;
+}
+.leg .n {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--tint);
+  margin-bottom: 8px;
+}
+.leg p { margin: 8px 0 0; color: var(--muted); font-size: 0.9rem; }
+.leg .own {
+  display: inline-block;
+  margin-top: 12px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--person);
+}
+
+/* ── walkthrough ── */
+.walk {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+.steps {
+  position: sticky;
+  top: 68px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.step {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+  text-align: left;
+  padding: 10px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+  font: inherit;
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  gap: 10px;
+  align-items: start;
+}
+.step .mark {
+  color: var(--faint);
+  font-family: var(--mono);
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+.step.is-on {
+  background: var(--elevated);
+  color: var(--ink);
+}
+.step.is-on .mark { color: var(--tint); }
+.step small { display: block; color: var(--faint); font-size: 0.75rem; margin-top: 2px; }
+
+.stage {
+  display: none;
+  background: var(--card);
+  border: 1px solid var(--hair);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.stage.is-on { display: block; }
+.stage-head {
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid var(--hair);
+}
+.stage-head p { margin: 4px 0 0; color: var(--muted); font-size: 0.9rem; }
+.note {
+  margin: 14px 16px 16px;
+  background: #0a0a0a;
+  border: 1px solid var(--hair);
+  border-radius: 12px;
+  padding: 14px 16px;
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.note .cmt { color: #6a9; }
+.note .link { color: var(--tint); }
+.note .dim { color: var(--faint); }
+.note .hl { background: color-mix(in srgb, var(--tint) 22%, transparent); border-radius: 3px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 16px 16px; }
+.chip {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 5px 10px;
+  border-radius: 980px;
+  background: color-mix(in srgb, var(--tint) 14%, transparent);
+  color: var(--tint);
+}
+.chip.person { background: color-mix(in srgb, var(--person) 16%, transparent); color: var(--person); }
+.chip.work { background: color-mix(in srgb, var(--work) 16%, transparent); color: var(--work); }
+.chip.done { background: color-mix(in srgb, var(--done) 16%, transparent); color: var(--done); }
+.chip.mute { background: var(--elevated); color: var(--muted); }
+
+/* ── pipeline rail ── */
+.rail {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 0 14px;
+}
+.spine {
+  position: relative;
+}
+.spine::before {
+  content: "";
+  position: absolute;
+  left: 7px;
+  top: 10px;
+  bottom: 10px;
+  width: 2px;
+  background: var(--elevated);
+}
+.pipe {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+}
+.node {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 0 14px;
+  align-items: start;
+}
+.dot {
+  width: 16px;
+  height: 16px;
+  margin-top: 4px;
+  border-radius: 50%;
+  background: var(--elevated);
+  border: 2px solid var(--tint);
+  position: relative;
+  z-index: 1;
+}
+.box {
+  background: var(--card);
+  border: 1px solid var(--hair);
+  border-radius: 14px;
+  padding: 14px 16px;
+}
+.box .fn {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  color: var(--tint);
+}
+.box p { margin: 6px 0 0; color: var(--muted); font-size: 0.9rem; }
+
+/* ── verdicts ── */
+.verdicts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.verdict {
+  background: var(--card);
+  border: 1px solid var(--hair);
+  border-radius: 14px;
+  padding: 16px;
+  min-width: 0;
+}
+.verdict.atom { border-color: color-mix(in srgb, var(--tint) 40%, var(--hair)); }
+.verdict.noise { border-color: color-mix(in srgb, var(--faint) 50%, var(--hair)); }
+.verdict.task { opacity: 0.72; }
+.badge {
+  display: inline-block;
+  font-size: 0.68rem;
+  font-weight: 650;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+.verdict.atom .badge { color: var(--tint); }
+.verdict.noise .badge { color: var(--muted); }
+.verdict.task .badge { color: var(--person); }
+.verdict p { margin: 6px 0 0; color: var(--muted); font-size: 0.88rem; }
+.marker {
+  margin-top: 12px;
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  background: #0a0a0a;
+  border-radius: 8px;
+  padding: 8px 10px;
+  overflow-wrap: anywhere;
+}
+
+/* ── anatomy ── */
+.anatomy {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+  gap: 14px;
+}
+.callouts { display: flex; flex-direction: column; gap: 10px; }
+.call {
+  background: var(--card);
+  border: 1px solid var(--hair);
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+.call strong { display: block; margin-bottom: 4px; }
+.call p { margin: 0; color: var(--muted); font-size: 0.88rem; }
+
+/* ── surfaces ── */
+.grid2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.surface {
+  background: var(--card);
+  border: 1px solid var(--hair);
+  border-radius: 14px;
+  padding: 16px;
+  min-width: 0;
+}
+.surface p { margin: 6px 0 0; color: var(--muted); font-size: 0.9rem; }
+
+/* ── never ── */
+.never {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.never li {
+  list-style: none;
+  background: var(--card);
+  border: 1px solid var(--hair);
+  border-radius: 12px;
+  padding: 12px 14px;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+.never { margin: 0; padding: 0; }
+.never strong { color: var(--ink); }
+
+/* ── map ── */
+.map {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.mod {
+  background: var(--card);
+  border: 1px solid var(--hair);
+  border-radius: 12px;
+  padding: 12px 14px;
+  min-width: 0;
+}
+.mod code {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  color: var(--work);
+}
+.mod p { margin: 6px 0 0; color: var(--muted); font-size: 0.84rem; }
+
+.foot {
+  padding: 28px 0 48px;
+  color: var(--faint);
+  font-size: 0.8rem;
+}
+
+@media (max-width: 768px) {
+  .hero, .walk, .anatomy, .legs, .verdicts, .grid2, .never, .map {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .steps { position: static; flex-direction: row; overflow-x: auto; }
+  .step { min-width: 148px; }
+  h1 { overflow-wrap: anywhere; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  * { transition: none !important; animation: none !important; }
+}
+</style>
+</head>
+<body>
+  <header class="mast">
+    <div class="wrap mast-inner">
+      <a class="wordmark" href="#top">Atoms <span>how it works</span></a>
+      <nav class="toc" aria-label="On this page">
+        <a href="#loop">Loop</a>
+        <a href="#walk">A capture</a>
+        <a href="#pipe">Pipeline</a>
+        <a href="#verdicts">Verdicts</a>
+        <a href="#atom">Atom file</a>
+        <a href="#home">Home</a>
+        <a href="#ask">Ask</a>
+        <a href="#never">Rules</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="top" class="wrap">
+    <header class="hero">
+      <div>
+        <p class="kicker">Obsidian plugin</p>
+        <h1>Past captures become a second brain you can trust.</h1>
+        <p class="lede">Atoms files what you already wrote. It titles, links, and marks each capture. The body stays verbatim. Capture UI stays outside the plugin.</p>
+      </div>
+      <aside class="hero-card">
+        <p class="meta">The sacred part</p>
+        <p class="quote">maybe the weekly walk is the only planning that actually works</p>
+      </aside>
+    </header>
+
+    <section id="loop">
+      <h2>Three legs</h2>
+      <p class="sub">The product is this loop. The plugin owns the middle and the return. It does not own capture.</p>
+      <div class="legs">
+        <article class="leg">
+          <div class="n">01</div>
+          <h3>Capture</h3>
+          <p>An iOS Shortcut (or Android companion) appends a stamped bullet to <code>Atoms System/Inbox.md</code>. The plugin later drains that line into the matching daily note.</p>
+          <span class="own">External</span>
+        </article>
+        <article class="leg">
+          <div class="n">02</div>
+          <h3>File + link</h3>
+          <p>Classify past unmarked captures. Keepable ones become flat notes in <code>Atoms/</code>. Every capture gets a sentinel so it never re-enters the queue.</p>
+          <span class="own" style="color: var(--tint)">This plugin</span>
+        </article>
+        <article class="leg">
+          <div class="n">03</div>
+          <h3>Resurface</h3>
+          <p>Home shows a library and a quiet stream: mind-change, on-this-day, connected, then quiet. No due dates. No guilt queue.</p>
+          <span class="own" style="color: var(--tint)">This plugin</span>
+        </article>
+      </div>
+    </section>
+
+    <section id="walk">
+      <h2>Follow one capture</h2>
+      <p class="sub">Click a stage. The same sentence moves through inbox, daily, classify, atom file, and marker. Today’s daily stays untouched unless you force Process today.</p>
+      <div class="walk">
+        <div class="steps" role="tablist" aria-label="Capture stages">
+          <button class="step is-on" data-stage="inbox" role="tab" aria-selected="true"><span class="mark">↳</span><span>Inbox<small>Atoms System/Inbox.md</small></span></button>
+          <button class="step" data-stage="drain" role="tab" aria-selected="false"><span class="mark">↳</span><span>Drain<small>into yesterday’s daily</small></span></button>
+          <button class="step" data-stage="parse" role="tab" aria-selected="false"><span class="mark">↳</span><span>Parse<small>unmarked, not today</small></span></button>
+          <button class="step" data-stage="classify" role="tab" aria-selected="false"><span class="mark">↳</span><span>Classify<small>model sees context</small></span></button>
+          <button class="step" data-stage="write" role="tab" aria-selected="false"><span class="mark">↳</span><span>Write<small>atom + sentinel</small></span></button>
+          <button class="step" data-stage="home" role="tab" aria-selected="false"><span class="mark">↳</span><span>Home<small>library + stream</small></span></button>
+        </div>
+
+        <div>
+          <article class="stage is-on" id="stage-inbox">
+            <div class="stage-head">
+              <h3>Inbox holds the raw line</h3>
+              <p>The Shortcut prepends an ISO stamp with its own offset. That stamp picks the day. Seconds keep two same-minute captures distinct. The plugin never rewrites this line.</p>
+            </div>
+            <pre class="note"><span class="dim"># Inbox</span>
+- 2026-08-12T18:41:03-04:00 maybe the weekly walk is the only planning that actually works</pre>
+            <div class="chips">
+              <span class="chip mute">append only</span>
+              <span class="chip mute">no classify yet</span>
+            </div>
+          </article>
+
+          <article class="stage" id="stage-drain">
+            <div class="stage-head">
+              <h3>Drain files it to its own day</h3>
+              <p>On layout-ready (or the drain command), the plugin copies the body onto that day’s daily as <code>- HH:MM …</code>, then marks the inbox line <code>&lt;!--atoms:filed--&gt;</code>. Future-dated or unreadable stamps stay put.</p>
+            </div>
+            <pre class="note"><span class="dim">Daily/2026-08-12.md</span>
+- 18:41 maybe the weekly walk is the only planning that actually works
+
+<span class="dim">Atoms System/Inbox.md</span>
+- 2026-08-12T18:41:03-04:00 maybe the weekly walk is the only planning that actually works
+  <span class="cmt">&lt;!--atoms:filed--&gt;</span></pre>
+            <div class="chips">
+              <span class="chip done">idempotent</span>
+              <span class="chip mute">inbox marker ≠ daily marker</span>
+            </div>
+          </article>
+
+          <article class="stage" id="stage-parse">
+            <div class="stage-head">
+              <h3>Parse finds unmarked past bullets</h3>
+              <p>A capture is a top-level bullet plus its indented continuations. A wikilink inside the text is ordinary prose. Only the plugin-owned sentinel after the extent counts as processed.</p>
+            </div>
+            <pre class="note">- 18:41 maybe the weekly walk is the only planning that actually works
+<span class="dim">    ← no marker under this extent → unprocessed</span>
+
+- 09:12 groceries: milk, oats
+	<span class="cmt">&lt;!--linker:noise--&gt;</span>
+<span class="dim">    ← already processed, skipped</span></pre>
+            <div class="chips">
+              <span class="chip mute">today excluded</span>
+              <span class="chip mute">empty bullets ignored</span>
+            </div>
+          </article>
+
+          <article class="stage" id="stage-classify">
+            <div class="stage-head">
+              <h3>Classify names the claim. It never authors the body.</h3>
+              <p>The model gets the capture plus a vault context shortlist (titles, tags, vocabulary). It returns a structured verdict: title, tags from the active list, proposed tags (inert), reason-bearing links, people. Enrichment then repairs people, media, and boilerplate link reasons.</p>
+            </div>
+            <pre class="note">{
+  <span class="hl">"verdict": "atom"</span>,
+  "title": "Weekly walk is the planning that works",
+  "tags": ["planning"],
+  "proposed_tags": [],
+  "links": [{ "note": "Walking as thinking", "reason": "same practice as [[Walking as thinking]]" }],
+  "people": []
+}</pre>
+            <div class="chips">
+              <span class="chip">title</span>
+              <span class="chip">tags</span>
+              <span class="chip">links</span>
+              <span class="chip mute">body untouched</span>
+            </div>
+          </article>
+
+          <article class="stage" id="stage-write">
+            <div class="stage-head">
+              <h3>Write creates one flat file and appends a sentinel</h3>
+              <p>Preview is the same classify with no vault writes. Process creates the atom (if the verdict is atom) and appends a marker for every verdict. Re-runs over a fully marked vault cost zero API calls.</p>
+            </div>
+            <pre class="note"><span class="dim">Atoms/Weekly walk is the planning that works.md</span>
+---
+created: 2026-08-12
+source: "[[2026-08-12]]"
+generated-by: linker
+tags:
+  - planning
+---
+maybe the weekly walk is the only planning that actually works
+
+Same practice as <span class="link">[[Walking as thinking]]</span>.
+
+<span class="dim">Daily/2026-08-12.md</span>
+- 18:41 maybe the weekly walk is the only planning that actually works
+	<span class="cmt">↳ [[Weekly walk is the planning that works]] &lt;!--linker--&gt;</span></pre>
+            <div class="chips">
+              <span class="chip done">atom file</span>
+              <span class="chip done">sentinel</span>
+              <span class="chip mute">no folder intelligence</span>
+            </div>
+          </article>
+
+          <article class="stage" id="stage-home">
+            <div class="stage-head">
+              <h3>Home is the library, not a task list</h3>
+              <p>The new atom lands in the recent library. After Process, a land-peak of filed titles freezes the resurface stream until you dismiss it. Later the stream may bring this note back: on this day, connected to a new atom, or as a quiet cue. Open loops stay open until a redeeming child closes them.</p>
+            </div>
+            <pre class="note">For you
+  On this day · Weekly walk is the planning that works
+
+Library
+  Weekly walk is the planning that works
+  Walking as thinking</pre>
+            <div class="chips">
+              <span class="chip person">no due date</span>
+              <span class="chip mute">stream, not a queue</span>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="pipe">
+      <h2>Runtime pipeline</h2>
+      <p class="sub">One function owns each seam. Filing logic lives in <code>pipeline/</code>. The plugin shell only wires lifecycle, commands, and home.</p>
+      <div class="pipe">
+        <div class="node"><div class="dot"></div><div class="box"><div class="fn">inbox.drain → daily</div><p>Move stamped inbox lines onto their own day’s daily. Hold future and unparseable stamps. Never guess a date.</p></div></div>
+        <div class="node"><div class="dot"></div><div class="box"><div class="fn">getPastDailyNotesWithUnmarkedCaptures</div><p>Scan past dailies only. Today stays quiet so a mid-day capture is still in progress.</p></div></div>
+        <div class="node"><div class="dot"></div><div class="box"><div class="fn">parseCaptures</div><p>Find each bullet’s extent and detect the sentinel. Wikilinks inside the capture do not count as processed.</p></div></div>
+        <div class="node"><div class="dot"></div><div class="box"><div class="fn">buildContext</div><p>One ContextProvider seam: vault titles, tags, vocabulary, then a BM25 shortlist. Swappable without rewriting classify.</p></div></div>
+        <div class="node"><div class="dot"></div><div class="box"><div class="fn">classify</div><p>Anthropic structured output (BYOK) or the Plus classify path. Cache the stable system+context prefix. Retry 429/5xx. Invariant: atom requires a title; non-atom forbids one.</p></div></div>
+        <div class="node"><div class="dot"></div><div class="box"><div class="fn">enrich/*</div><p>Post-classify repair: people hubs, media tags, existing-title entity links, idea rescue from task/noise, less boilerplate link reasons.</p></div></div>
+        <div class="node"><div class="dot"></div><div class="box"><div class="fn">render → preview or write</div><p>Dry-run shows the same atom and marker strings. Write creates <code>Atoms/title.md</code> and appends the marker. Collision policy sanitizes the filename and may add an alias.</p></div></div>
+      </div>
+    </section>
+
+    <section id="verdicts">
+      <h2>Every capture gets a marker</h2>
+      <p class="sub">The sentinel is the processed state. Re-process never happens while it sits under the capture. Task is soft-retired: classify should emit atom or noise.</p>
+      <div class="verdicts">
+        <article class="verdict atom">
+          <div class="badge">atom</div>
+          <h3>Keepable memory</h3>
+          <p>Creates a file. Title, tags, and links are model output. Body is the capture, word for word. Lists and media dumps are atoms, not tasks.</p>
+          <div class="marker">↳ [[Title]] &lt;!--linker--&gt;</div>
+        </article>
+        <article class="verdict noise">
+          <div class="badge">noise</div>
+          <h3>Pure logistics</h3>
+          <p>No file. Marked so it never comes back. Groceries, “text Sam”, calendar debris.</p>
+          <div class="marker">&lt;!--linker:noise--&gt;</div>
+        </article>
+        <article class="verdict task">
+          <div class="badge">task · retired</div>
+          <h3>Legacy only</h3>
+          <p>Old markers still mean processed. New classify almost never emits this. Atoms is a second brain, not a task app.</p>
+          <div class="marker">&lt;!--linker:task--&gt;</div>
+        </article>
+      </div>
+    </section>
+
+    <section id="atom">
+      <h2>What an atom file is</h2>
+      <p class="sub">Intelligence lives in titles and links, not folders. Every atom lands flat in the configured folder (default <code>Atoms/</code>).</p>
+      <div class="anatomy">
+        <pre class="note" style="margin:0">---
+created: 2026-08-12
+source: "[[2026-08-12]]"
+generated-by: linker
+atoms-quality: 7
+quality-updated: 2026-08-12
+tags:
+  - planning
+---
+maybe the weekly walk is the only planning that actually works
+
+Same practice as [[Walking as thinking]].</pre>
+        <div class="callouts">
+          <div class="call"><strong>Frontmatter is machine</strong><p>Source points back at the daily. Quality stamps tell Update notes which files are stale. Open-loop fields mark an intention, not unfinished homework.</p></div>
+          <div class="call"><strong>Body is you</strong><p>Whitespace tidy-up only. Hedges and half-formed sentences stay. The model never “improves” this paragraph.</p></div>
+          <div class="call"><strong>Links carry a reason</strong><p>Prose after the body, not a bare list. <em>Revises</em> and <em>contradicts</em> feed mind-change on home. <em>Relates</em> is a soft edge.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="home">
+      <h2>What you see in the vault</h2>
+      <p class="sub">One mobile-first leaf. Preview reuses dry-run. Process reuses the write path. Auto-run stays silent.</p>
+      <div class="grid2">
+        <article class="surface">
+          <h3>Waiting card</h3>
+          <p>When past captures sit unmarked, home offers Preview and Process. A live progress card shows N of M, a snippet, and a bar. Done summary, then the library.</p>
+        </article>
+        <article class="surface">
+          <h3>Resurface stream</h3>
+          <p>Mind-change first (an older claim you later revised), then on-this-day, then named connected, then quiet. Soft throttle hides a card you already opened. Never a review queue.</p>
+        </article>
+        <article class="surface">
+          <h3>Automatic filing</h3>
+          <p>Opt-in, device-local. Needs an egress consent. Files only from the day you enabled it, forward, never today. History is a priced Backfill offer, not an unattended sweep.</p>
+        </article>
+        <article class="surface">
+          <h3>Update notes</h3>
+          <p>User-started refresh of older atoms: new titles, tags, links. Body stays. Never auto. Mutually exclusive with Process, Backfill, and Auto-run.</p>
+        </article>
+        <article class="surface">
+          <h3>People and orbits</h3>
+          <p>Process may invite <em>Add Sam?</em>. You create the hub. No silent stubs. When several atoms hard-link an existing hub, home can show Also about.</p>
+        </article>
+        <article class="surface">
+          <h3>Open loops</h3>
+          <p>An intention note is first-class. It stays open until a redeeming child exists. Ordinary continues do not close it. Browse and Review commands, not a guilt shelf on home.</p>
+        </article>
+      </div>
+    </section>
+
+    <section id="ask">
+      <h2>Ask is a one-way copy</h2>
+      <p class="sub">Plus mirrors flat <code>Atoms/*.md</code> to the cloud so Claude and ChatGPT can search it. The vault remains the source of truth.</p>
+      <div class="grid2">
+        <article class="surface">
+          <h3>Vault → cloud only</h3>
+          <p>Edits, deletes, and renames on this device push after a 2s debounce. Nothing ever writes an atom body back from the cloud. Full orphan cleanup is Sync now.</p>
+        </article>
+        <article class="surface">
+          <h3>Device-local evidence</h3>
+          <p>Hash map and stamps live in local storage, not synced <code>data.json</code>. A device deletes remotely only paths it has hashed. API keys also stay on-device (SecretStorage).</p>
+        </article>
+      </div>
+    </section>
+
+    <section id="never">
+      <h2>Hard stops</h2>
+      <p class="sub">Violating any of these is a bug, not a product tweak.</p>
+      <ul class="never">
+        <li><strong>Body is sacred.</strong> Model output is title, tags, and links only.</li>
+        <li><strong>No folder intelligence.</strong> Atoms stay flat. System files live in <code>Atoms System/</code>.</li>
+        <li><strong>Today is excluded</strong> unless you explicitly force Preview or Process today.</li>
+        <li><strong>Nothing is destroyed.</strong> Runs are idempotent. A bad classify still leaves the capture.</li>
+        <li><strong>Proposed tags stay inert</strong> until you approve them into the vocabulary.</li>
+        <li><strong>No task-app gravity.</strong> No due dates, streaks, or “you should process.”</li>
+      </ul>
+    </section>
+
+    <section id="map">
+      <h2>Where the code lives</h2>
+      <p class="sub"><code>pipeline/**</code> never imports home, settings, or UI. Features import pipeline, shared, and platform. The shell stays thin.</p>
+      <div class="map">
+        <div class="mod"><code>pipeline/</code><p>Parse, context, classify, render, write, inbox drain, enrich, backfill, update.</p></div>
+        <div class="mod"><code>home/</code><p>Atoms home leaf, library, progress, land peak, skipped filter.</p></div>
+        <div class="mod"><code>resurface/</code><p>Cue stream, mind-change, throttle.</p></div>
+        <div class="mod"><code>settings/</code><p>Account, Plus, consents, vocabulary, capture shortcut.</p></div>
+        <div class="mod"><code>platform/</code><p>Auto-run gates, Plus session, Ask mirror client, connectivity.</p></div>
+        <div class="mod"><code>plugin/</code><p>Lifecycle, commands, Ask coordinator, catch-up, inbox bootstrap.</p></div>
+      </div>
+    </section>
+
+    <p class="foot">Drawn from architecture.md, CONCEPTS.md, and the live pipeline. Open this file in a browser. It is an explainer, not shipped plugin chrome.</p>
+  </main>
+
+  <script>
+    const buttons = [...document.querySelectorAll(".step")];
+    const stages = [...document.querySelectorAll(".stage")];
+    function show(id) {
+      buttons.forEach((b) => {
+        const on = b.dataset.stage === id;
+        b.classList.toggle("is-on", on);
+        b.setAttribute("aria-selected", on ? "true" : "false");
+      });
+      stages.forEach((s) => s.classList.toggle("is-on", s.id === "stage-" + id));
+    }
+    buttons.forEach((b) => b.addEventListener("click", () => show(b.dataset.stage)));
+  </script>
+</body>
+</html>

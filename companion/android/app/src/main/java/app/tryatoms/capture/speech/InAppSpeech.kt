@@ -9,6 +9,7 @@ import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.util.Log
+import app.tryatoms.capture.R
 import java.util.Locale
 
 /**
@@ -42,7 +43,7 @@ class InAppSpeech(
     fun start(existingText: String) {
         main.post {
             if (!isAvailable) {
-                onError("Voice not available on this device")
+                onError(host.getString(R.string.speech_unavailable))
                 return@post
             }
             clearRestart()
@@ -110,7 +111,7 @@ class InAppSpeech(
                 SpeechRecognizer.createSpeechRecognizer(host)
             } catch (e: Exception) {
                 Log.e(TAG, "create failed", e)
-                failOut("Could not start mic: ${e.message}")
+                failOut(host.getString(R.string.speech_start_failed, e.message.orEmpty()))
                 return
             }
 
@@ -205,7 +206,7 @@ class InAppSpeech(
     private fun softRestart(error: Int) {
         softRestarts++
         if (softRestarts > MAX_SOFT_RESTARTS) {
-            failOut("Voice kept dropping — try again")
+            failOut(host.getString(R.string.speech_kept_dropping))
             return
         }
         consecutiveHardErrors = 0
@@ -315,15 +316,16 @@ class InAppSpeech(
 
                 val msg =
                     when (error) {
-                        SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Mic permission needed"
+                        SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS ->
+                            host.getString(R.string.speech_mic_permission)
                         SpeechRecognizer.ERROR_NETWORK,
                         SpeechRecognizer.ERROR_NETWORK_TIMEOUT,
-                        -> "Network needed for voice"
-                        SpeechRecognizer.ERROR_AUDIO -> "Mic error"
+                        -> host.getString(R.string.speech_network_needed)
+                        SpeechRecognizer.ERROR_AUDIO -> host.getString(R.string.speech_mic_error)
                         SpeechRecognizer.ERROR_SERVER,
                         ERROR_SERVER_DISCONNECTED,
-                        -> "Voice service error"
-                        ERROR_TOO_MANY_REQUESTS -> "Voice busy — try again"
+                        -> host.getString(R.string.speech_service_error)
+                        ERROR_TOO_MANY_REQUESTS -> host.getString(R.string.speech_busy_retry)
                         else -> errorLabel(error)
                     }
                 failOut(msg)
@@ -347,11 +349,13 @@ class InAppSpeech(
 
     private fun errorLabel(code: Int): String =
         when (code) {
-            SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE -> "Language pack missing"
-            SpeechRecognizer.ERROR_LANGUAGE_NOT_SUPPORTED -> "Language not supported"
-            ERROR_SERVER_DISCONNECTED -> "Voice service disconnected"
-            ERROR_TOO_MANY_REQUESTS -> "Voice busy"
-            else -> "Voice failed ($code)"
+            SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE ->
+                host.getString(R.string.speech_language_missing)
+            SpeechRecognizer.ERROR_LANGUAGE_NOT_SUPPORTED ->
+                host.getString(R.string.speech_language_unsupported)
+            ERROR_SERVER_DISCONNECTED -> host.getString(R.string.speech_disconnected)
+            ERROR_TOO_MANY_REQUESTS -> host.getString(R.string.speech_busy)
+            else -> host.getString(R.string.speech_failed, code)
         }
 
     companion object {

@@ -22,6 +22,7 @@ Turn **past** daily captures into a trusted second brain: classify → flat atom
 | `docs/solutions/` | Documented solutions to past problems (bugs, patterns, workflows), by category with YAML frontmatter (`module`, `tags`, `problem_type`) — relevant when implementing or debugging in those areas |
 | `CONCEPTS.md` | Shared domain vocabulary (entities, named processes, status concepts) — relevant when orienting or discussing domain terms |
 | `docs/voice.md` | Product voice (plugin + tryatoms + Field notes). Skill **`atoms-voice`**. |
+| `docs/localization.md` | User-facing copy lives in a locale catalog, never as a source literal |
 | `docs/field-notes-email.md` + skill **`field-notes`** | Field notes mailing list: idea → draft → test send → (approve) broadcast. Source: `.agents/skills/field-notes/` (also linked from `.claude/skills/`). |
 
 Where an **active feature plan** and amendments conflict, **that plan wins**. Amendments explain rationale for plan KTDs.  
@@ -44,6 +45,7 @@ Where an **active feature plan** and amendments conflict, **that plan wins**. Am
 10. **Second brain, not a task app** — no due-date/checklist gravity; `task` verdict is soft-retired.
 11. **No platform-only product** without an explicit plan note (desktop/iOS/Android consumers).
 12. **Ask mirror is vault→cloud only** — flat `Atoms/*.md` allowlist; device-local hash evidence (not `data.json`); delta deletes only what this device hashed; full orphans = Sync now. Never reverse-sync body, never background wipe from incomplete vault. Shape: `docs/architecture.md` § Ask mirror sync.
+13. **Plus absorbs complexity; it never hands it back** — taking something confusing and making it easy *is* the Plus product, not a quality of its copy. Filing needs an Anthropic account, a key, a billing relationship and a service address; a Plus subscriber has paid so that none of those are theirs to hold. So **no Plus surface may ask the user to supply, confirm, or re-confirm a value Plus is itself responsible for knowing** — least of all as a *migration* step, where "one-time and self-clearing" describes a thing every existing user walks into on update. The override stays for whoever wants it (`Plus service URL`); *having* to touch it is a bug. #540 is the shape to remember: a gate whose condition read as an edge case ("no issuer stamp and no configured address") was in fact the entire install base, and its exit asked a paying customer to type in the default.
 
 ## Versioning
 
@@ -55,6 +57,7 @@ Where an **active feature plan** and amendments conflict, **that plan wins**. Am
 
 - Stack: sample-plugin template, TypeScript + esbuild, `obsidian-daily-notes-interface`, `isDesktopOnly: false`, network via `requestUrl` (not `fetch` — CORS).
 - **Obsidian API conventions (agents):** [`docs/obsidian-api-conventions.md`](docs/obsidian-api-conventions.md) — CSS/`setCssStyles` not `el.style.*`, `Platform.*` not `navigator`, `window.setTimeout`, `createEl`/`createSpan`, `instanceof TFile`, no bare `fetch` except documented Plus localhost. Read before any `src/**` UI or platform change.
+- **Localization:** [`docs/localization.md`](docs/localization.md) — no user-facing string literals. Android companion uses `res/values/strings.xml`.
 - **Test-first** on correctness cores: `parseCaptures`, `render`, and other pure logic touched by the claim.
 - Historical core pipeline units: U1–U10 in the 2026-07-15 plan (done/superseded for roadmap purposes).
 
@@ -101,7 +104,7 @@ Without the Advanced toggle, `obsidian` prints “Command line interface is not 
 | Lane | When | Action |
 |---|---|---|
 | **Stable release** | Version bump `X.Y.Z` merges to master | CI auto-Release (**not** prerelease) → BRAT (betas **off**) + Community when listed |
-| **Beta release** | “beta” / dogfood-only | Bump to `X.Y.Z-beta.N` (or `-rc.N`) in package+manifest+versions → merge master → CI **prerelease** → BRAT only if **Enable betas** |
+| **Beta release** | “beta” / dogfood-only | Bump to `X.Y.Z-beta.N` (or `-rc.N`) **on the feature branch**, tag that commit, push the tag → CI **prerelease** → BRAT only if **Enable betas**. **Never merge a `-beta` / `-rc` version to master** — Community reads default-branch `manifest.json` and delists when it is not a plain `X.Y.Z` with a matching non-prerelease Release. |
 | **Master merge, version unchanged** | docs/www/already-released version | CI no-ops (Release already exists). No agent vault copy |
 
 **Why auto:** Community plugins are delisted when default-branch `manifest.json` has no matching GitHub Release tag. Bump + merge **is** the release.

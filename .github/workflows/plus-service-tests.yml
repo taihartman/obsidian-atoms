@@ -64,6 +64,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # Merge-blocking copy of the community-safe version gate. `test` is the
+      # required check on master (docs/collab.md). root-tests.yml runs the same
+      # script in the plugin job, but that check is not required yet — a red
+      # here is what actually stops a -beta bump from landing and delisting
+      # the Community plugin (2026-08-17, 0.8.3-beta.2).
+      - name: Master-bound plugin version is community-safe
+        if: github.event_name == 'push' || github.base_ref == 'master'
+        working-directory: ${{ github.workspace }}
+        run: node scripts/community-manifest-version.mjs
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:

@@ -12,8 +12,12 @@ import {
   readAskMirrorEmail,
 } from "../src/platform/askMirror";
 import { installPlusSession } from "../src/platform/plusSessionInstall";
+import { issuedBaseFromResponse } from "../src/platform/plusClient";
 import { askMirrorPermitted } from "../src/shared/askAck";
 import { DEFAULT_SETTINGS, type LinkerSettings } from "../src/shared/types";
+
+/** Stand-in for "the base a response actually came back from" (#508 KTD4). */
+const ISSUER = issuedBaseFromResponse("https://plus.tryatoms.test");
 
 const A: PlusSession = {
   sessionToken: "sess_a",
@@ -100,7 +104,7 @@ describe("#393 installPlusSession", () => {
       askEnabled: true,
     });
 
-    const outcome = await installPlusSession(made.host, B);
+    const outcome = await installPlusSession(made.host, B, ISSUER);
 
     expect(outcome).toBe("disarmed");
     expect(made.settings.askEnabled).toBe(false);
@@ -118,7 +122,7 @@ describe("#393 installPlusSession", () => {
       askEnabled: true,
     });
 
-    const outcome = await installPlusSession(made.host, B);
+    const outcome = await installPlusSession(made.host, B, ISSUER);
 
     expect(outcome).toBe("disarmed");
     expect(made.settings.askEnabled).toBe(false);
@@ -135,10 +139,11 @@ describe("#393 installPlusSession", () => {
       askEnabled: true,
     });
 
-    const outcome = await installPlusSession(made.host, {
-      ...A,
-      sessionToken: "sess_a_new",
-    });
+    const outcome = await installPlusSession(
+      made.host,
+      { ...A, sessionToken: "sess_a_new" },
+      ISSUER,
+    );
 
     expect(outcome).toBe("kept");
     expect(made.settings.askEnabled).toBe(true);
@@ -150,10 +155,71 @@ describe("#393 installPlusSession", () => {
   it("writes a first session without tearing down an empty device", async () => {
     const made = host({ askEnabled: false });
 
-    const outcome = await installPlusSession(made.host, A);
+    const outcome = await installPlusSession(made.host, A, ISSUER);
 
     expect(outcome).toBe("kept");
     expect(made.settings.askEnabled).toBe(false);
     expect(readPlusSession(made.host)?.email).toBe("a@tryatoms.test");
+  });
+});
+
+describe("#508 U2 installPlusSession stamps the issuer", () => {
+  it("writes issuedBase and verifiedBase from the argument, not from settings", async () => {
+    const made = host({ askEnabled: false });
+    // The configured base is deliberately a different host: a stamp wired to
+    // settings would land here instead, and both assertions below would fail.
+    made.settings.plusBaseUrl = "https://configured.example";
+
+    await installPlusSession(made.host, A, ISSUER);
+
+    const stored = readPlusSession(made.host);
+    expect(stored?.issuedBase).toBe("https://plus.tryatoms.test");
+    expect(stored?.verifiedBase).toBe("https://plus.tryatoms.test");
+  });
+
+  it("stamps a disarming install too, so a re-signed-in account is not left unstamped", async () => {
+    const made = host({
+      session: A,
+      mirrorEmail: "a@tryatoms.test",
+      hashes: JSON.stringify({ "Atoms/a.md": "h1" }),
+      askEnabled: true,
+    });
+
+    const outcome = await installPlusSession(
+      made.host,
+      B,
+      issuedBaseFromResponse("https://self.host.example:8443/"),
+    );
+
+    expect(outcome).toBe("disarmed");
+    expect(readPlusSession(made.host)?.issuedBase).toBe(
+      "https://self.host.example:8443",
+    );
+    expect(readPlusSession(made.host)?.verifiedBase).toBe(
+      "https://self.host.example:8443",
+    );
+  });
+
+  it("replaces a stale stamp carried by the session literal", async () => {
+    const made = host({ askEnabled: false });
+
+    // A caller that copied an older session forward must not be able to smuggle
+    // that session's issuer past the argument.
+    await installPlusSession(
+      made.host,
+      {
+        ...A,
+        issuedBase: issuedBaseFromResponse("https://stale.example"),
+        verifiedBase: "https://stale.example",
+      },
+      ISSUER,
+    );
+
+    expect(readPlusSession(made.host)?.issuedBase).toBe(
+      "https://plus.tryatoms.test",
+    );
+    expect(readPlusSession(made.host)?.verifiedBase).toBe(
+      "https://plus.tryatoms.test",
+    );
   });
 });

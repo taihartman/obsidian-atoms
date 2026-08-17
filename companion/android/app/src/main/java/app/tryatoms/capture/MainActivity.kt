@@ -9,7 +9,6 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.provider.Settings
 import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -28,7 +27,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
-import app.tryatoms.capture.data.FileTreeAccess
+import app.tryatoms.capture.R
 import app.tryatoms.capture.tile.CaptureTileService
 import app.tryatoms.capture.ui.CaptureScreen
 import app.tryatoms.capture.ui.CaptureViewModel
@@ -69,7 +68,7 @@ class MainActivity : ComponentActivity() {
         registerForActivityResult(OpenPersistableTree()) { uri ->
             Log.i(TAG, "picker result uri=$uri")
             if (uri != null) {
-                Toast.makeText(this, "Scanning for vaults…", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, getString(R.string.toast_scanning), Toast.LENGTH_SHORT).show()
                 viewModel.onAccessRootPicked(uri)
             } else {
                 viewModel.onPickerCancelled()
@@ -112,17 +111,15 @@ class MainActivity : ComponentActivity() {
                         state = state,
                         onDraftChange = viewModel::onDraftChange,
                         onCapture = viewModel::capture,
-                        onAllowFileAccess = ::openAllFilesSettings,
                         onFindVaultsSaf = {
                             Toast
                                 .makeText(
                                     this,
-                                    "Select a folder, then tap Use this folder",
+                                    getString(R.string.toast_pick_folder),
                                     Toast.LENGTH_LONG,
                                 ).show()
                             openTree.launch(null)
                         },
-                        onSelectDiscovered = viewModel::selectDiscoveredVault,
                         onSelectVault = viewModel::selectVault,
                         onUseFolderAsVault = viewModel::useAccessRootAsVault,
                         onRescan = viewModel::rescanListedVaults,
@@ -174,9 +171,9 @@ class MainActivity : ComponentActivity() {
             .makeText(
                 this,
                 if (ok) {
-                    "Confirm Add — then pull the shade anytime for Capture"
+                    getString(R.string.toast_tile_confirm)
                 } else {
-                    "Pull down shade → edit / pencil → add Capture"
+                    getString(R.string.toast_tile_manual)
                 },
                 Toast.LENGTH_LONG,
             ).show()
@@ -191,7 +188,7 @@ class MainActivity : ComponentActivity() {
             if (pinned) {
                 viewModel.markHomeWidgetAdded()
                 Toast
-                    .makeText(this, "Confirm the widget pin on your home screen", Toast.LENGTH_LONG)
+                    .makeText(this, getString(R.string.toast_widget_confirm), Toast.LENGTH_LONG)
                     .show()
                 return
             }
@@ -200,38 +197,9 @@ class MainActivity : ComponentActivity() {
         Toast
             .makeText(
                 this,
-                "Long-press home screen → Widgets → Atoms Capture",
+                getString(R.string.toast_widget_manual),
                 Toast.LENGTH_LONG,
             ).show()
-    }
-
-    private fun openAllFilesSettings() {
-        // The Play build never shows the button that leads here, and it holds no
-        // all-files permission to grant, so it must never ask for one either.
-        if (!FileTreeAccess.SUPPORTED) {
-            viewModel.refreshAllFilesAndScan()
-            return
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            try {
-                val intent =
-                    Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
-                        data = Uri.parse("package:$packageName")
-                    }
-                startActivity(intent)
-                Toast
-                    .makeText(
-                        this,
-                        "Turn on Allow access to manage all files, then return here",
-                        Toast.LENGTH_LONG,
-                    ).show()
-            } catch (e: Exception) {
-                Log.e(TAG, "all-files settings failed", e)
-                startActivity(Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION))
-            }
-        } else {
-            viewModel.refreshAllFilesAndScan()
-        }
     }
 
     companion object {

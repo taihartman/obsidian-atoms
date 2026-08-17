@@ -15,10 +15,12 @@ import {
   backfillDismissUntil,
   backfillOfferCopy,
   countUnprocessedSince,
+  CORE_PLUGINS_SETTINGS_TAB_ID,
   countUpdateWorkRemaining,
   extractSourceDay,
   filingHeroCopy,
   filingPathFromAuth,
+  firstDaySetupCopy,
   filterLinkedOnly,
   formatRelativeTime,
   inboxStuckSummary,
@@ -156,6 +158,7 @@ import {
   writeContinueParent,
   type ContinueParentPending,
 } from "../platform/continueParent";
+import { openSettingsTab } from "../platform/obsidianSettings";
 import { CAPTURE_ATOM_VERSION } from "../shared/mobileInstall";
 import {
   labelCaptureShortcutCta,
@@ -210,23 +213,6 @@ const LS_PERSON_INVITE_SNOOZE = "atoms-person-invite-snooze";
 type FilterMode = "all" | "linked" | "skipped";
 
 /**
- * Undocumented core settings modal — used by many plugins to deep-link.
- * Not on the public App type; keep a narrow local interface (no `any`).
- */
-type SettingsModalApi = {
-  open: () => void | Promise<void>;
-  openTabById: (id: string) => void;
-};
-
-function openPluginSettingsTab(app: object, tabId: string): void {
-  const setting = (app as { setting?: SettingsModalApi }).setting;
-  if (!setting) return;
-  void Promise.resolve(setting.open()).then(() => {
-    setting.openTabById(tabId);
-  });
-}
-
-/**
  * Mobile-first Atoms home: library when clear, wait card when pending,
  * first-day setup when empty.
  */
@@ -260,6 +246,8 @@ export class AtomsHomeView extends ItemView {
   private updatePolishableCount = 0;
   /** Unprocessed bullets on today's daily only (for force-test UI). */
   private todayUnprocessedCount = 0;
+  /** Core Daily Notes or Periodic Notes daily. First-day card branches on this. */
+  private dailyNotesLoaded = true;
   private peek: Array<{ text: string; date: string }> = [];
   private busy = false;
   /**
@@ -355,6 +343,8 @@ export class AtomsHomeView extends ItemView {
   private progressMount: HTMLElement | null = null;
   /** Post-write land peak — survives library refresh until dismiss. */
   private landPeak: LandPeak | null = null;
+  /** See what filed — expand full list on the same card. */
+  private landListOpen = false;
 
   constructor(leaf: WorkspaceLeaf, plugin: AtomsPlugin) {
     super(leaf);
@@ -418,6 +408,7 @@ export class AtomsHomeView extends ItemView {
     this.runSnippet = "";
     this.runSummaryText = "";
     this.landPeak = null;
+    this.landListOpen = false;
     this.render();
   }
 
@@ -446,6 +437,7 @@ export class AtomsHomeView extends ItemView {
     this.runSnippet = "";
     if (landPeak !== undefined) {
       this.landPeak = landPeak;
+      this.landListOpen = false;
     }
     void this.refresh();
   }
@@ -466,6 +458,7 @@ export class AtomsHomeView extends ItemView {
     this.runSummaryText = "";
     this.progressMount = null;
     this.landPeak = null;
+    this.landListOpen = false;
   }
 
   dismissLandPeak(): void {
@@ -498,6 +491,8 @@ export class AtomsHomeView extends ItemView {
       return;
     }
     const d = landDisplayFromPeak(this.landPeak);
+    const processLike =
+      this.landPeak.source === "process" || this.landPeak.source === "autorun";
     if (d.isFailure) {
       el.classList.add("is-error");
     }
@@ -506,10 +501,62 @@ export class AtomsHomeView extends ItemView {
       text: d.isFailure ? "Couldn't finish" : "Done",
     });
     el.createEl("h2", { text: d.headline });
-    el.createEl("p", { text: d.body });
-    if (d.rows.length) {
+    if (processLike && d.sentence && d.featured) {
+      const featured = d.featured;
+      textControl(el, {
+        className: "atoms-home-land-sentence",
+        build: (btn) => {
+          btn.createEl("p", {
+            cls: "atoms-home-land-sentence-why",
+            text: d.sentence ?? "",
+          });
+          btn.createSpan({
+            cls: "atoms-home-landed-title",
+            text: featured.title,
+          });
+        },
+        onClick: () => {
+          void this.openLandedAtom(featured.path);
+        },
+      });
+      if (d.tally) {
+        el.createEl("p", { cls: "atoms-home-land-tally", text: d.tally });
+      }
+    } else {
+      if (d.body) el.createEl("p", { text: d.body });
+      if (!processLike && d.rows.length) {
+        const list = el.createDiv({ cls: "atoms-home-landed" });
+        for (const row of d.rows) {
+          textControl(list, {
+            className: "atoms-home-landed-row",
+            build: (btn) => {
+              btn.createSpan({
+                cls: "atoms-home-landed-title",
+                text: row.title,
+              });
+              if (row.meta) {
+                btn.createSpan({
+                  cls: "atoms-home-landed-meta",
+                  text: row.meta,
+                });
+              }
+            },
+            onClick: () => {
+              void this.openLandedAtom(row.path);
+            },
+          });
+        }
+        if (d.moreCount > 0) {
+          list.createDiv({
+            cls: "atoms-home-landed-more",
+            text: `and ${d.moreCount} more in Recent`,
+          });
+        }
+      }
+    }
+    if (processLike && this.landListOpen) {
       const list = el.createDiv({ cls: "atoms-home-landed" });
-      for (const row of d.rows) {
+      for (const row of this.landPeak.atoms) {
         textControl(list, {
           className: "atoms-home-landed-row",
           build: (btn) => {
@@ -517,26 +564,25 @@ export class AtomsHomeView extends ItemView {
               cls: "atoms-home-landed-title",
               text: row.title,
             });
-            if (row.meta) {
-              btn.createSpan({
-                cls: "atoms-home-landed-meta",
-                text: row.meta,
-              });
-            }
           },
           onClick: () => {
             void this.openLandedAtom(row.path);
           },
         });
       }
-      if (d.moreCount > 0) {
-        list.createDiv({
-          cls: "atoms-home-landed-more",
-          text: `and ${d.moreCount} more in Recent`,
-        });
-      }
     }
     const actions = actionRow(el, { className: "atoms-home-land-actions" });
+    if (processLike && this.landPeak.atoms.length > 0 && !this.landListOpen) {
+      button(actions, {
+        grade: "secondary",
+        label: "See what filed",
+        className: "atoms-home-land-see-filed",
+        onClick: () => {
+          this.landListOpen = true;
+          this.patchProgressMount();
+        },
+      });
+    }
     button(actions, {
       grade: "secondary",
       label: "Done",
@@ -709,6 +755,7 @@ export class AtomsHomeView extends ItemView {
 
     this.inboxStuck = await this.loadInboxStuck();
 
+    this.dailyNotesLoaded = appHasDailyNotesPluginLoaded();
     try {
       const past = await getPastDailyNotesWithUnmarkedCaptures(this.app);
       this.unprocessedCount = past.totalUnprocessed;
@@ -1712,7 +1759,7 @@ export class AtomsHomeView extends ItemView {
     this.closeHomeOpen();
     void this.onOpenToday();
     this.render();
-    new Notice(`Continuing ${title} — write in today, then Process today`);
+    new Notice(`Continuing ${title}. Write in today, then Process today`);
   }
 
   private onCancelContinue(): void {
@@ -1989,6 +2036,9 @@ export class AtomsHomeView extends ItemView {
     }
 
     const firstDay = this.isFirstDay();
+    const firstDayCopy = firstDay
+      ? firstDaySetupCopy(this.dailyNotesLoaded)
+      : null;
 
     // Header
     const header = root.createDiv({ cls: "atoms-home-header" });
@@ -2014,12 +2064,12 @@ export class AtomsHomeView extends ItemView {
       attr: { "aria-label": "Settings" },
     });
     gearBtn.addEventListener("click", () => {
-      openPluginSettingsTab(this.app, "atoms");
+      openSettingsTab(this.app, "atoms");
     });
 
     // One calm subtitle per state — no product jargon
-    const subtitle = firstDay
-      ? "Capture starts in your daily note"
+    const subtitle = firstDayCopy
+      ? firstDayCopy.subtitle
       : this.runPhase !== "idle"
         ? this.runPhase === "preview"
           ? "Previewing…"
@@ -2145,17 +2195,17 @@ export class AtomsHomeView extends ItemView {
           disabled: this.busy,
           onClick: () => {
             if (action === "open_settings" || action === "open_plus") {
-              openPluginSettingsTab(this.app, "atoms");
+              openSettingsTab(this.app, "atoms");
               return;
             }
             if (action === "open_byok_settings") {
-              openPluginSettingsTab(this.app, "atoms");
+              openSettingsTab(this.app, "atoms");
               return;
             }
             // Same destination as Get More: Settings opens on the account row, which now names
             // the ended period and carries Subscribe.
             if (action === "get_more" || action === "subscribe") {
-              openPluginSettingsTab(this.app, "atoms");
+              openSettingsTab(this.app, "atoms");
               return;
             }
             if (action === "dismiss_limit") {
@@ -2282,41 +2332,49 @@ export class AtomsHomeView extends ItemView {
       });
     }
 
-    if (firstDay) {
+    if (firstDay && firstDayCopy) {
       const setup = flatCard(scroll, { className: "atoms-home-setup-card" });
       setup.createEl("p", {
         cls: "atoms-home-card-eyebrow",
-        text: "Get started",
+        text: firstDayCopy.eyebrow,
       });
-      setup.createEl("h2", { text: "Write one bullet today" });
-      setup.createEl("p", {
-        text: "Atoms files thoughts from past days. Capture stays in Daily — this list shows what was filed.",
-      });
-      setup.createDiv({
-        cls: "atoms-home-mono",
-        text: "- Alex likes periwinkle\n- watch Past Lives",
-      });
+      setup.createEl("h2", { text: firstDayCopy.title });
+      setup.createEl("p", { text: firstDayCopy.body });
+      if (firstDayCopy.example) {
+        setup.createDiv({
+          cls: "atoms-home-mono",
+          text: firstDayCopy.example,
+        });
+      }
 
       const actions = actionRow(setup, {
         className: "atoms-home-setup-actions",
       });
       button(actions, {
         grade: "primary",
-        label: "Open today",
-        onClick: () => void this.onOpenToday(),
+        label: firstDayCopy.primaryLabel,
+        onClick: () => {
+          if (firstDayCopy.primaryAction === "open_core_plugins") {
+            openSettingsTab(this.app, CORE_PLUGINS_SETTINGS_TAB_ID);
+            return;
+          }
+          void this.onOpenToday();
+        },
       });
-      button(actions, {
-        grade: "secondary",
-        label: labelCaptureShortcutCta(this.shortcutAcked),
-        disabled: !this.installUrl(),
-        attrs: this.installUrl()
-          ? undefined
-          : {
-              title:
-                "No shortcut link to open — add one in Settings → Capture",
-            },
-        onClick: () => this.onInstallShortcut(),
-      });
+      if (firstDayCopy.showShortcut) {
+        button(actions, {
+          grade: "secondary",
+          label: labelCaptureShortcutCta(this.shortcutAcked),
+          disabled: !this.installUrl(),
+          attrs: this.installUrl()
+            ? undefined
+            : {
+                title:
+                  "No shortcut link to open. Add one in Settings → Capture",
+              },
+          onClick: () => this.onInstallShortcut(),
+        });
+      }
     }
 
     // Library — secondary surface
@@ -2446,7 +2504,7 @@ export class AtomsHomeView extends ItemView {
 
     scroll.createEl("p", {
       cls: "atoms-home-empty-hint",
-      text: "Set-aside daily lines — hold to try filing · tap opens the daily",
+      text: "Set-aside daily lines. Hold to try filing · tap opens the daily",
     });
 
     const list = listGroup(scroll, { className: "atoms-home-list" });
@@ -2789,7 +2847,7 @@ export class AtomsHomeView extends ItemView {
     const url = this.installUrl();
     if (!url) {
       new Notice(
-        "No shortcut link to open — add one in Settings → Capture.",
+        "No shortcut link to open. Add one in Settings → Capture.",
       );
       return;
     }
@@ -2806,7 +2864,7 @@ export class AtomsHomeView extends ItemView {
     );
     this.shortcutAcked = CAPTURE_ATOM_VERSION;
     new Notice(
-      `Opened Capture Atom v${CAPTURE_ATOM_VERSION} — add it, then edit → set bookmark to Atoms Inbox once`,
+      `Opened Capture Atom v${CAPTURE_ATOM_VERSION}. Add it, then edit → set bookmark to Atoms Inbox once`,
     );
     this.render();
   }

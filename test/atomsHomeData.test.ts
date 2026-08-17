@@ -13,8 +13,11 @@ import {
   backfillDismissUntil,
   backfillOfferCopy,
   countUnprocessedSince,
+  FILING_NAME,
   filingHeroCopy,
   filingPathFromAuth,
+  firstDaySetupCopy,
+  CORE_PLUGINS_SETTINGS_TAB_ID,
   filterLinkedOnly,
   formatRelativeTime,
   inboxStuckSummary,
@@ -563,12 +566,12 @@ describe("filingHeroCopy on an ended period (#442)", () => {
     // The title-cased label is for titles. Borrowed into a sentence it read
     // "3 Captures Waiting — filing is paused", a proper noun opening a clause.
     expect(filingHeroCopy({ ...base, plusLapseKind: "trial" })?.body).toMatch(
-      /^3 captures waiting — /,
+      /^3 captures waiting\. /,
     );
     expect(
       filingHeroCopy({ ...base, pastUnprocessed: 1, plusLapseKind: "trial" })
         ?.body,
-    ).toMatch(/^1 capture waiting — /);
+    ).toMatch(/^1 capture waiting\. /);
   });
 
   it("has no Not Now, because waiting does not fix an ended period", () => {
@@ -1001,5 +1004,85 @@ describe("backfillOfferCopy", () => {
         /backlog|overdue|still need to|you haven't|catch up on/,
       );
     }
+  });
+});
+
+describe("firstDaySetupCopy", () => {
+  it("keeps the existing first-day card when Daily Notes is on", () => {
+    const copy = firstDaySetupCopy(true);
+    expect(copy.subtitle).toBe("Capture starts in your daily note");
+    expect(copy.title).toBe("Write one bullet today");
+    expect(copy.body).toBe(
+      "Atoms files thoughts from past days. Capture stays in Daily. This list shows what was filed.",
+    );
+    expect(copy.example).toBe("- Alex likes periwinkle\n- watch Past Lives");
+    expect(copy.primaryAction).toBe("open_today");
+    expect(copy.primaryLabel).toBe("Open today");
+    expect(copy.showShortcut).toBe(true);
+  });
+
+  it("names the Daily Notes switch when the core plugin is off", () => {
+    const copy = firstDaySetupCopy(false);
+    expect(copy.subtitle).toBe("Daily Notes is off");
+    expect(copy.title).toBe("Turn on Daily Notes");
+    expect(copy.body).toContain("Settings → Core plugins");
+    expect(copy.example).toBeNull();
+    expect(CORE_PLUGINS_SETTINGS_TAB_ID).toBe("plugins");
+    expect(copy.primaryAction).toBe("open_core_plugins");
+    expect(copy.primaryLabel).toBe("Open Core plugins");
+    expect(copy.showShortcut).toBe(false);
+    const spoken = [copy.subtitle, copy.title, copy.body, copy.primaryLabel].join(
+      " ",
+    );
+    expect(spoken).not.toMatch(/—/);
+    expect(spoken.toLowerCase()).not.toMatch(
+      /backlog|overdue|still need to|you haven't/,
+    );
+  });
+
+  /**
+   * The settings status group and this card read the same unfinished work (KTD11). Two
+   * hand-maintained lists of "what is not set up yet" is the twin-bug shape, so the step the
+   * settings line names is computed here, beside the card that names the same thing.
+   */
+  describe("the one unfinished step", () => {
+    it("names the Daily Notes step with the same words the card's title uses", () => {
+      const copy = firstDaySetupCopy(false);
+      expect(copy.nextStep).toEqual({
+        kind: "daily_notes",
+        name: "Turn on Daily Notes",
+      });
+      expect(copy.nextStep?.name).toBe(copy.title);
+    });
+
+    it("names the Filing step once Daily Notes is on and nobody files", () => {
+      const copy = firstDaySetupCopy(true, false);
+      expect(copy.nextStep).toEqual({
+        kind: "filing_owner",
+        name: FILING_NAME,
+      });
+    });
+
+    it("puts Daily Notes first when both are unfinished", () => {
+      expect(firstDaySetupCopy(false, false).nextStep?.kind).toBe("daily_notes");
+    });
+
+    it("reports nothing unfinished once someone files, and stays silent for home", () => {
+      expect(firstDaySetupCopy(true, true).nextStep).toBeNull();
+      // Home passes one argument: its card has never spoken about who pays, and the wait card
+      // already owns that. Defaulting to "chosen" keeps this card exactly as it was.
+      expect(firstDaySetupCopy(true).nextStep).toBeNull();
+    });
+
+    it("keeps the step names inside the voice", () => {
+      const spoken = [
+        firstDaySetupCopy(false).nextStep?.name,
+        firstDaySetupCopy(true, false).nextStep?.name,
+      ].join(" ");
+      expect(spoken).not.toMatch(/—/);
+      expect(spoken.toLowerCase()).not.toMatch(
+        /backlog|overdue|still need to|you haven't/,
+      );
+    });
   });
 });

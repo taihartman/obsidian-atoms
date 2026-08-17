@@ -64,5 +64,18 @@ App Group: `group.app.tryatoms.capture.tai`
 ## Out of this app
 
 - Live Activity / in-app type field (removed — Shortcut is the capture UI)
-- App Store listing
+- App Store listing assets
 - Plus capture relay
+
+## Release
+
+[`docs/runbooks/companion-release-beta-stable.md`](../../docs/runbooks/companion-release-beta-stable.md).
+
+```bash
+bundle install
+bundle exec fastlane ios beta   # GitHub prerelease + TestFlight if ASC_* is set
+bundle exec fastlane ios prod   # GitHub Release (not Latest) + App Store, no submit
+bundle exec fastlane ios build
+```
+
+`MARKETING_VERSION` stays `X.Y.Z`. Beta identity is the GitHub tag `capture-ios-X.Y.Z-beta.N`.

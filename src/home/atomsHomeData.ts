@@ -526,7 +526,7 @@ export function countUpdateWorkRemaining(
 export function updateNotesBatchWhy(
   batchLimit: number = UPDATE_NOTES_BATCH_LIMIT,
 ): string {
-  return `Up to ${batchLimit} per Update so each run stays short and cost stays predictable — tap again for the rest.`;
+  return `Up to ${batchLimit} per Update so each run stays short and cost stays predictable. Tap again for the rest.`;
 }
 
 /** Strip copy for Update notes (product strings). */
@@ -598,8 +598,8 @@ export function updateNotesConfirmCopy(
   }
   if (refile <= 0) {
     return polish === 1
-      ? "Clean up link wording on 1 note? Free — no API call. Your original capture text will not change."
-      : `Clean up link wording on older notes (about ${polish})? Free — no API call. Your original capture text will not change.`;
+      ? "Clean up link wording on 1 note? Free, no API call. Your original capture text will not change."
+      : `Clean up link wording on older notes (about ${polish})? Free, no API call. Your original capture text will not change.`;
   }
   const cost = updateNotesBillingLine(billing);
   const batch =
@@ -723,7 +723,7 @@ export function filingHeroCopy(input: {
       mode: "plus_limit",
       eyebrow: "Atoms Plus",
       title: `Your ${what} has ended`,
-      body: `${capturesWaitingSentence(n)} — filing is paused, and Claude and ChatGPT can’t reach your atoms. Subscribe to pick up where you left off.`,
+      body: `${capturesWaitingSentence(n)}. Filing is paused, and Claude and ChatGPT can’t reach your atoms. Subscribe to pick up where you left off.`,
       primaryLabel: "Subscribe",
       primaryAction: "subscribe",
       secondaryLabel: null,
@@ -772,7 +772,7 @@ export function filingHeroCopy(input: {
       mode: "auto_running",
       eyebrow: "Filing",
       title: "Filing past thoughts…",
-      body: "Automatic filing is running. You can keep browsing — nothing needs a tap.",
+      body: "Automatic filing is running. You can keep browsing. Nothing needs a tap.",
       primaryLabel: null,
       primaryAction: null,
       secondaryLabel: "Process now",
@@ -818,7 +818,7 @@ export function filingHeroCopy(input: {
     eyebrow: "Automatic",
     // The window count, not the total: this card's body promises an unattended pass.
     title: capturesWaitingLabel(windowN),
-    body: "Automatic filing is on for this device. Past days file when you open Obsidian — Process only if you want them sooner.",
+    body: "Automatic filing is on for this device. Past days file when you open Obsidian. Process only if you want them sooner.",
     primaryLabel: "Process now",
     primaryAction: "process",
     secondaryLabel: "Preview",
@@ -875,6 +875,119 @@ export function waitingSubtitle(input: {
   return input.pastUnprocessed === 1
     ? "1 thought ready to file"
     : `${input.pastUnprocessed} thoughts ready to file`;
+}
+
+/** Settings → Core plugins. Live tab id is `plugins` (Obsidian 1.13.6). Not `core-plugins`. */
+export const CORE_PLUGINS_SETTINGS_TAB_ID = "plugins";
+
+export type FirstDayPrimaryAction = "open_today" | "open_core_plugins";
+
+/**
+ * The one thing still unfinished, for the surface that shows a step rather than a card.
+ *
+ * `kind` is what a surface switches on to decide where the step sends the user: Obsidian's core
+ * plugins pane, or the screen that asks who pays for filing. `name` is the words both surfaces
+ * use, so the settings line and this card cannot drift apart (KTD11).
+ */
+export type SetupStep = {
+  kind: "daily_notes" | "filing_owner";
+  name: string;
+};
+
+/**
+ * The noun the File row, its destination, and the unfinished setup step all share.
+ *
+ * #530 renamed the destination. #538 makes the Get started step use the same word so a new
+ * install is not told to do a step whose name is not on the screen it lands on.
+ */
+export const FILING_NAME = "Filing";
+
+/**
+ * The words each step is asked for by, written once.
+ *
+ * Home's first-day card titles itself from this same record rather than repeating the sentence,
+ * so the card and the settings line cannot say two different things (KTD11) — and a new kind
+ * cannot be added without naming it, because the record is keyed by the union.
+ */
+const SETUP_STEP_NAMES: Record<SetupStep["kind"], string> = {
+  daily_notes: "Turn on Daily Notes",
+  filing_owner: FILING_NAME,
+};
+
+/**
+ * The one step still outstanding, in the order that matters: Daily Notes first, because there is
+ * nothing to file until captures have somewhere to land.
+ */
+function nextSetupStep(
+  dailyNotesLoaded: boolean,
+  filingChosen: boolean,
+): SetupStep | null {
+  if (!dailyNotesLoaded) {
+    return { kind: "daily_notes", name: SETUP_STEP_NAMES.daily_notes };
+  }
+  if (!filingChosen) {
+    return { kind: "filing_owner", name: SETUP_STEP_NAMES.filing_owner };
+  }
+  return null;
+}
+
+export type FirstDaySetupCopy = {
+  subtitle: string;
+  eyebrow: string;
+  title: string;
+  body: string;
+  example: string | null;
+  primaryLabel: string;
+  primaryAction: FirstDayPrimaryAction;
+  showShortcut: boolean;
+  /** The step still outstanding, or `null` when Atoms can file. */
+  nextStep: SetupStep | null;
+};
+
+/**
+ * First-day home card, and the one unfinished step the settings status group renders.
+ *
+ * Daily Notes off is a setup wall, not an empty library. Existing on-path strings stay
+ * byte-identical when the plugin is already loaded.
+ *
+ * Two surfaces read this, and only this, for what is not set up yet (KTD11): home draws it as a
+ * card, settings draws it as a line above every control. Two hand-maintained lists is the shape
+ * that produces "fixed one, forgot the twin", so `nextSetupStep` above owns the ordering once.
+ *
+ * `filingChosen` defaults to true because home does not pass it: home's card has never spoken
+ * about who pays, and its wait card already owns that. The default keeps this card exactly as it
+ * was while the settings line, which does ask, gets a real answer.
+ */
+export function firstDaySetupCopy(
+  dailyNotesLoaded: boolean,
+  filingChosen = true,
+): FirstDaySetupCopy {
+  const nextStep = nextSetupStep(dailyNotesLoaded, filingChosen);
+  if (!dailyNotesLoaded) {
+    return {
+      subtitle: "Daily Notes is off",
+      eyebrow: "Get started",
+      // The step's own words, not a second copy of them: one string, two surfaces.
+      title: SETUP_STEP_NAMES.daily_notes,
+      body: "Atoms files thoughts from your daily notes. Enable the core Daily Notes plugin under Settings → Core plugins.",
+      example: null,
+      primaryLabel: "Open Core plugins",
+      primaryAction: "open_core_plugins",
+      showShortcut: false,
+      nextStep,
+    };
+  }
+  return {
+    subtitle: "Capture starts in your daily note",
+    eyebrow: "Get started",
+    title: "Write one bullet today",
+    body: "Atoms files thoughts from past days. Capture stays in Daily. This list shows what was filed.",
+    example: "- Alex likes periwinkle\n- watch Past Lives",
+    primaryLabel: "Open today",
+    primaryAction: "open_today",
+    showShortcut: true,
+    nextStep,
+  };
 }
 
 /**

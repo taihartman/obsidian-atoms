@@ -42,11 +42,8 @@ Move every pending inbox capture into **its own day's** daily as a `- HH:MM body
 ### Filed marker
 `<!--atoms:filed-->` after an inbox capture's extent — the inbox's own sentinel, distinct from daily `<!--linker:*-->` markers and unknown to `parse.ts`. Presence is a **region** property (scan to the next top-level bullet), so drifted whitespace never re-files a capture.
 
-### Capture distribution flavor
-Which store the Android companion is going to, and therefore how it can reach a vault. **play** ships to Google Play and holds no all-files permission, so the SAF folder picker is its only route. **sideload** installs directly and keeps all-files access plus the file-tree vault scan. Both share an applicationId, so one installs over the other in place and inherits its state — which is why the capability is enforced where state is read, not only where code is linked.
-
-### Vault link mode
-How the Android companion holds onto a vault. **File path** is an absolute path found by scanning, sideload only. **SAF** is a persisted tree URI plus a relative path, and the only mode a play build can have. A stored file path is ignored outright in a build that cannot read one, so it reads as unlinked rather than as a link that silently fails.
+### Vault link
+How the Android companion holds onto a vault: a persisted SAF tree URI plus a relative path. Play will not grant all-files access to a capture app, so there is no silent whole-phone scan. The user picks the vault folder, or a parent such as Documents, and the app lists vaults under that grant. A leftover absolute path from an older all-files install is ignored, so it reads as unlinked rather than as a link that silently fails.
 
 ### Held / unparseable
 Drain outcomes that are neither filed nor failed. **Held** = stamped ahead of the clock, so no daily exists to file into yet. **Unparseable** = no readable stamp. Both stay in place, counted and surfaced on home rather than dropped or guessed at.
@@ -103,14 +100,28 @@ A For you cue when a hard supersession pair exists (`revises` / `contradicts` in
 One-line subsequent-history chips on Atoms home when an open atom participates in hard supersession edges. Home product chrome only — not injected into the Obsidian editor.
 
 ### Row grammar (settings)
-The rule that every settings row visibly declares what kind of thing it is, through its right edge. Six kinds: **setting** (toggle or input — the only kind that may carry a toggle), **destination** (chevron), **action** (accent button), **destructive** (warning button), **form** (an input plus the one button that commits it), **status** (muted text, no control). No row wears two kinds. A section-intro paragraph is prose, not a row, and is exempt. A **confirm sheet** is not a kind at all — it is what a destructive row may open, and it lives beside the row primitives rather than in the screen that calls it.
+The rule that every settings row visibly declares what kind of thing it is, through its right edge. It governs the row; a **setting group** governs the block a run of rows is composed into. Seven kinds: **setting** (toggle or input — the only kind that may carry a toggle), **destination** (chevron), **action** (accent button), **destructive** (warning button), **form** (an input plus the one button that commits it), **form-actions** (an input plus several buttons that each commit it), **status** (muted text, no control). No row wears two kinds. A section-intro paragraph is prose, not a row, and is exempt. A **confirm sheet** is not a kind at all — it is what a destructive row may open, and it lives beside the row primitives rather than in the screen that calls it.
 
 A **form** row is the exception that proves the rule rather than a hole in it: its field and its button are one grammar — "type this, then commit it" — the way a destination row's name and chevron are one, so the button may only submit the field beside it and can never be an independent action. It exists as its own kind because the alternative, an optional button on the setting row, is one PR away from a button on a toggle row. That is also how the grammar grows: when the rule keeps forcing an awkward shape at one kind of call site — here, two cards where a field and its commit button belonged in one ([#347](https://github.com/taihartman/obsidian-atoms/issues/347)) — it is missing a kind, not too strict.
 
+**form-actions** is that same growth for one email and three commits (sign-in, trial, promo code). Three form rows would be three email boxes. Each button still only submits the field beside it.
+
 The rule governs how a row is drawn, not whether the surface is really a settings screen. Applied mechanically to a list of inbox items, it produced one row per item plus a second row per item carrying nothing but its own button label — the shape [#342](https://github.com/taihartman/obsidian-atoms/issues/342) removed. When a section is a queue rather than a set of settings, give the section one control instead of giving every item two rows.
+
+### Setting group
+The block a run of settings rows is composed into: a header above it, one inset surface holding the rows, and an optional footer under it. The footer says what is behind the rows rather than repeating them, which makes it a claim about the group's contents — a footer that names a row the group did not render is a defect, not a wording choice, and a group whose rows are conditional needs a footer that is conditional too.
+
+The block owns the fill, the corners and the hairlines between rows; its rows are flush rows inside it, not cards. That inversion is against Obsidian's grain, which styles each row as its own floating card on mobile, so composing rows into a group means un-styling the child chrome rather than only styling the parent.
+
+Groups are how the main screen states the product's three **legs** — Capture, File, Resurface — in the product's own order, numbered in their headers. A group is not a **destination**: it is a division of one screen, reached by scrolling rather than by navigating.
 
 ### Destination (settings)
 A settings sub-screen reached from a chevron row and left by a back row. A re-render of the same settings surface under a route value — not a new Obsidian view, and not a modal used as navigation. Leaving and reopening settings always returns to the main screen.
+
+### Setup step
+The single unfinished thing standing between this vault and filing — Daily Notes not turned on, or nobody chosen to do the filing — or nothing, once neither is outstanding. One computation, rendered twice: as Atoms home's first-day card and as the settings screen's status line, so the two surfaces cannot name different next steps.
+
+It is ordered, not a set: Daily Notes comes first because there is nothing to file until captures have somewhere to land. It is also not the negation of **automatic filing** — a device can hold an outstanding setup step while already filing, since switching the Daily Notes core plugin off leaves an earned filing window and a live egress grant untouched. A surface that reads "setup unfinished" as "has never filed" will describe a silence window the device already spent.
 
 ### Confirm sheet
 The question a destructive row asks before it acts — the destructive row's other half: the row declares the kind, the sheet asks the question. Distinct from a **consent sheet**, which authorizes an ongoing capability; a confirm sheet authorizes one act and records nothing. It names what will be destroyed and how much of it, and it holds its row for the whole exchange, so a double-tap cannot stack two questions. Cancel, Escape, and clicking outside are all the same answer: no.
@@ -193,7 +204,7 @@ MCP tools `create_atom` and `continue_atom`. Continue = new child atom + relatio
 From an open atom on home, **Continue** sets a **device-local pending parent** and opens today’s daily. The next **today** capture that successfully files (Process / Process today / auto on that day) gets parent in classify context and a reason-bearing link on the **new** child atom. Parent body never modified. Pending is one-shot and same-device (not synced). Preview injects parent for dry-run but does not clear.
 
 ### Remote MCP (Ask)
-Public Streamable HTTP MCP endpoint (Plus host) that **Claude and ChatGPT** connectors call (same `{plusBase}/mcp` URL). Read tools plus optional write-via-outbox. Connector auth is MCP OAuth bound to Plus identity, not the plugin’s device-local `sess_` token as the connector credential. OAuth redirect allowlist includes Claude callback + ChatGPT `chatgpt.com/connector/oauth/*` (and legacy ChatGPT redirect). Self-host the same stack: [`docs/ask-self-host.md`](docs/ask-self-host.md).
+Public Streamable HTTP MCP endpoint (Plus host) that **Claude and ChatGPT** connectors call (same `{plusBase}/mcp` URL). Read tools plus optional write-via-outbox. Connector auth is MCP OAuth bound to Plus identity, not the plugin’s device-local `sess_` token as the connector credential. OAuth redirect allowlist includes Claude callback + ChatGPT `chatgpt.com/connector/oauth/*` (and legacy ChatGPT redirect). Self-host the same stack: [`docs/ask-self-host.md`](docs/ask-self-host.md). `{plusBase}` is a constrained trust boundary, not free text: it is the hosted default when unset, `https://` on any host, or `http://` **only** on loopback — every Plus call attaches the device session token to it, so anything else is refused rather than swapped for the hosted default, and a refused base publishes no MCP URL at all.
 
 ### Ask MCP pairing code
 Short-lived, single-use code minted from a verified Plus plugin session so connector OAuth can bind `mcp_` tokens to the **Plus account email** without opening that inbox in the OAuth browser. Parallel to email + magic link on the authorize page. Does not create secondary emails or share the mirror with a second tenant. Requirements: `docs/plans/2026-08-04-002-feat-ask-mcp-pairing-plan.md`.
@@ -227,6 +238,23 @@ The **service** holds both halves at once, so it can simply decide: `subscriptio
 The device's stored copy of what the service last said about the account — status, allotment remaining, period end, plan — stamped with when it was confirmed. Every entitlement surface reads this, not the network.
 
 Its age is load-bearing, because expiry is the one entitlement change nothing announces: no push, no webhook, and the **post-checkout resume poll** is armed only while a checkout is in flight. A snapshot confirmed *before* its own period end therefore cannot say what happened at that boundary — the period may have lapsed, renewed, or converted from a trial — and the honest response is to refresh rather than infer. A device may narrow what it claims on stale evidence; it may never assert an entitlement verdict the service has not given.
+
+### Issuing base / issued base
+The Plus server a session was actually acquired from, stamped onto the session at sign-in and never rewritten. It is a *branded* type minted only by the helper that made the acquisition round trip, so a base read from settings is not assignable to it — presence and provenance both fail at build time rather than at runtime. Absent means **unknown**, never the hosted default: the plugin does not guess where a session came from.
+*Avoid:* treating "the configured base" and "the base that issued this session" as the same value. They are equal on almost every device and the whole gate exists for the case where they are not.
+
+### Verified base
+The base most recently *proven* to hold a given session — the mutable half of the pair whose immutable half is the **issued base**. Two fields rather than one, because a single mutable stamp erases its own evidence: after one tunnel rotation nothing on disk would record that the session began at a private host. The issuer gate compares against this; audit and warning copy read the issued base.
+
+### Issuer gate
+The check that runs before anything carrying vault content leaves the device: is the base we are about to talk to the one that holds this session? A match against the stamp answers it for free. A mismatch asks the resolved base to name the account (`GET /v1/me`) and re-stamps only if the address matches. Refused and unreachable both **fail closed** — "I could not check" is not "go ahead".
+*Avoid:* calling it authentication of the host. An email address is not a secret, so it stops a host that accepts every token without knowing the account, not a targeted host that knows it. Learning: `docs/solutions/security/a-2xx-is-not-proof-that-this-server-issued-your-session.md`; the remaining gap is issue #529.
+
+### Content-bearing vs content-free (Plus calls)
+The axis that decides whether the **issuer gate** applies. Content-bearing calls carry something from the vault — capture text, atom bodies, vault paths, or free text like an outbox ack's `plan.reason` — and are gated at the call site and backstopped again where the request is built. Content-free calls carry the session token and nothing else; they are out of scope and still reach whatever base resolves, as does the gate's own probe, because a check cannot verify the host it is asking.
+*Avoid:* sorting a call by how its payload *looks*. An id-and-status ack that also carries a reason string is content-bearing, and a screen that publishes an origin for a third party to authenticate against is egress with extra steps. Sorting on the wrong axis is what both #500 misses had in common.
+
+Content-free is also not the same as harmless: such a call is ungated, so if it *writes* local state the gate later reads, it is inside the trust boundary regardless of what it sends.
 
 ## Flagged ambiguities
 

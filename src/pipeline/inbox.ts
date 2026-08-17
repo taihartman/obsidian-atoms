@@ -485,7 +485,7 @@ export const INBOX_NOTE_TEMPLATE = [
   "",
   "Lines are marked once filed and are never deleted by Atoms.",
   "",
-  "Do not move or rename this note — the capture shortcut points at this exact",
+  "Do not move or rename this note. The capture shortcut points at this exact",
   "path and stops working until you re-point it.",
   "",
   "",
