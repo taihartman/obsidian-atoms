@@ -16,6 +16,7 @@ import {
   type AskMirrorDisarmHost,
 } from "./askMirror";
 import { clearPlusRefreshRecord } from "./plusRefresh";
+import { clearPlusBaseRefusal } from "./plusBaseVerify";
 
 export type PlusSessionInstallHost = AskMirrorDisarmHost & LocalStorageLike;
 
@@ -51,5 +52,9 @@ export async function installPlusSession(
   // the account the user just left. Cleared here rather than at the four call
   // sites so a fifth acquisition path cannot forget it.
   clearPlusRefreshRecord(host);
+  // Same reason, one verdict over: a refusal memo describes a *session* a host
+  // would not vouch for, and the session it described is gone. Left behind it
+  // would render "Check the Plus address" over a sign-in that just worked.
+  clearPlusBaseRefusal(host);
   return outcome;
 }

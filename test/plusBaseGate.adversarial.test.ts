@@ -28,9 +28,11 @@ import {
   LS_PLUS_LAST_REFRESH,
 } from "../src/platform/plusRefresh";
 import {
+  plusAddressAdvisory,
   plusAddressStateMessage,
   plusSessionStamp,
   verifyPlusBase,
+  PLUS_BASE_ADDRESS_REFUSED_MESSAGE,
 } from "../src/platform/plusBaseVerify";
 import { resolveClassifyAuth } from "../src/platform/classifyAuth";
 
@@ -362,20 +364,33 @@ describe("A16 — one stamp present, the other absent", () => {
 
 /* ------------------------------------------------------------- A6 / A11 --- */
 
-describe("A6 — the D1 recovery row vanishes the moment the field is non-empty", () => {
-  // KNOWN GAP, deliberately unfixed pending a product call (adversarial A6).
-  // This pins the CURRENT behaviour, not the desired one: if the recovery row
-  // is later widened to cover an unstamped session with any configured base,
-  // this test SHOULD go red and be rewritten. It exists so that change is a
-  // decision rather than an accident.
-  it("known gap: an unstamped session with a WRONG but valid base gets no recovery row", () => {
+describe("A6 — the recovery row follows a recorded refusal, not an empty field", () => {
+  // FIXED. This used to pin the gap: the row keyed only on an empty field, so a
+  // user who typed a wrong-but-valid address lost it and the only way back was
+  // to guess that CLEARING the field re-summons it. `plusAddressAdvisory` now
+  // widens it to a base that has actually refused. The predicate deliberately
+  // stops there — see the second test, which is what keeps the fix from
+  // becoming a nag.
+  it("an unstamped session with a WRONG but valid base gets the row back once that base refuses", () => {
     const upgrade = session({ issuedBase: undefined, verifiedBase: undefined });
     // The upgrade cohort's rescue row.
-    expect(plusAddressStateMessage(upgrade, "")).not.toBe("");
+    expect(plusAddressAdvisory(upgrade, "", null)).toMatchObject({ kind: "needs-address" });
     // They type a wrong-but-valid address under Advanced instead of pressing it.
-    expect(plusAddressStateMessage(upgrade, BASE_Y)).toBe("");
-    // Row gone. Every Process still refuses, and the only way back is to
-    // discover that CLEARING the field re-summons the row.
+    // Every Process now refuses at BASE_Y and records it.
+    expect(plusAddressAdvisory(upgrade, BASE_Y, { base: BASE_Y, at: 1 })).toEqual({
+      kind: "refused",
+      message: PLUS_BASE_ADDRESS_REFUSED_MESSAGE,
+    });
+  });
+
+  it("but before anything has refused, it stays quiet: the transient state must not nag", () => {
+    const upgrade = session({ issuedBase: undefined, verifiedBase: undefined });
+    // Unstamped with a base that may well be right. The next Process probes and
+    // stamps for real; alarming here would hit every upgrading hosted user
+    // before their first filing.
+    expect(plusAddressAdvisory(upgrade, BASE_Y, null)).toBeNull();
+    // And a refusal recorded at some *other* address is not about this one.
+    expect(plusAddressAdvisory(upgrade, BASE_Y, { base: BASE_X, at: 1 })).toBeNull();
   });
 });
 

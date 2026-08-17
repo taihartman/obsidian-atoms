@@ -46,6 +46,7 @@ import {
   getEntitlement,
   normalizePlusBase,
   plusBaseMatches,
+  DEFAULT_PLUS_BASE_URL,
   PLUS_BASE_REFUSED_MESSAGE,
   type PlusClientConfig,
 } from "./plusClient";
@@ -96,6 +97,17 @@ export type PlusBaseVerdict =
 export const PLUS_BASE_NEEDS_ADDRESS_MESSAGE =
   "Atoms Plus needs its address before your notes are sent. Open Settings to confirm it.";
 
+/**
+ * Said on Settings once a refusal has actually been *recorded* at the address
+ * the plugin is currently resolving to (adversarial A5/A6). Not on a bare
+ * mismatch: an unstamped session, or a stamp that disagrees with a base that
+ * just synced in from another device, is a normal transient that the next
+ * Process clears by probing. Only a recorded refusal is evidence of a stuck
+ * state, and only a stuck state has earned the right to alarm anyone.
+ */
+export const PLUS_BASE_ADDRESS_REFUSED_MESSAGE =
+  "Atoms Plus didn’t accept your sign-in at this address, so your notes stayed on this device.";
+
 export const PLUS_BASE_UNREACHABLE_MESSAGE =
   "Atoms Plus couldn’t be reached, so your notes stayed on this device. Try again when you’re back online.";
 
@@ -129,6 +141,100 @@ export function plusAddressStateMessage(
   return !plusSessionStamp(session) && !configuredBase.trim()
     ? PLUS_BASE_NEEDS_ADDRESS_MESSAGE
     : "";
+}
+
+/** Device-local; never `data.json`, which syncs and would carry one device's verdict to all of them. */
+export const LS_PLUS_BASE_REFUSAL = "atoms-plus-base-refusal";
+
+/**
+ * The memo that a live probe refused this address. `base` is normalized at write
+ * time so the compare side and the stamp side stay in one form.
+ */
+export type PlusBaseRefusal = { base: string; at: number };
+
+export function readPlusBaseRefusal(
+  storage: LocalStorageLike,
+): PlusBaseRefusal | null {
+  try {
+    const raw: unknown = storage.loadLocalStorage(LS_PLUS_BASE_REFUSAL);
+    let parsed: unknown = raw;
+    if (typeof raw === "string" && raw.trim()) {
+      parsed = JSON.parse(raw) as unknown;
+    }
+    if (!parsed || typeof parsed !== "object") return null;
+    const o = parsed as Record<string, unknown>;
+    if (typeof o.base !== "string" || !o.base.trim()) return null;
+    return {
+      base: o.base,
+      at: typeof o.at === "number" && Number.isFinite(o.at) ? o.at : 0,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function writePlusBaseRefusal(
+  storage: LocalStorageLike,
+  base: string,
+  at: number,
+): void {
+  try {
+    storage.saveLocalStorage(
+      LS_PLUS_BASE_REFUSAL,
+      JSON.stringify({ base: normalizePlusBase(base), at }),
+    );
+  } catch {
+    // The record is a memo about a verdict, not the verdict itself — the caller
+    // already holds that and refuses on it regardless. A storage write can throw
+    // on the mobile WebViews this plugin supports (quota, private mode), and
+    // losing a Settings row there is a smaller failure than turning a returned
+    // refusal into an unhandled rejection inside a background run.
+  }
+}
+
+export function clearPlusBaseRefusal(storage: LocalStorageLike): void {
+  try {
+    storage.saveLocalStorage(LS_PLUS_BASE_REFUSAL, "");
+  } catch {
+    // Same reasoning as the write: a memo that could not be cleared must not
+    // break the run that just succeeded.
+  }
+}
+
+/**
+ * What, if anything, the Plus screens should say about the *address* (#508 A5/A6).
+ *
+ * Supersedes `plusAddressStateMessage` for the Account recovery row, which could
+ * only see the needs-address carve-out. Two states, in priority order:
+ *
+ *  - `needs-address` — no stamp and an empty field. Unchanged from today.
+ *  - `refused` — a probe has actually refused the base this device now resolves
+ *    to. Gated on a *recorded* refusal rather than a bare stamp mismatch,
+ *    because a mismatch is the normal transient state of an upgrading hosted
+ *    user and of a base that just synced in; alarming there would nag everyone
+ *    on the way to their first filing. The refusal record is cleared by a
+ *    verified probe and by a fresh session, so this state cannot outlive its
+ *    cause.
+ */
+export type PlusAddressAdvisory =
+  | { kind: "needs-address"; message: string }
+  | { kind: "refused"; message: string };
+
+export function plusAddressAdvisory(
+  session: PlusBaseStamp | null,
+  configuredBase: string,
+  refusal: PlusBaseRefusal | null,
+): PlusAddressAdvisory | null {
+  if (!session) return null;
+  const stamp = plusSessionStamp(session);
+  if (!stamp && !configuredBase.trim()) {
+    return { kind: "needs-address", message: PLUS_BASE_NEEDS_ADDRESS_MESSAGE };
+  }
+  const resolved = configuredBase.trim() || DEFAULT_PLUS_BASE_URL;
+  if (refusal && plusBaseMatches(refusal.base, resolved)) {
+    return { kind: "refused", message: PLUS_BASE_ADDRESS_REFUSED_MESSAGE };
+  }
+  return null;
 }
 
 /**
@@ -178,6 +284,8 @@ export type PlusBaseVerifyDeps = {
   storage: LocalStorageLike;
   request: PlusClientConfig["request"];
   cache?: PlusBaseVerifyCache;
+  /** Injected clock for the refusal memo, so its timestamp is testable. */
+  now?: () => number;
 };
 
 export type PlusBaseVerifyInput = {
@@ -197,6 +305,37 @@ export type PlusBaseVerifyInput = {
  * Never throws: every failure mode is a closed verdict.
  */
 export async function verifyPlusBase(
+  deps: PlusBaseVerifyDeps,
+  input: PlusBaseVerifyInput,
+): Promise<PlusBaseVerdict> {
+  const verdict = await decidePlusBase(deps, input);
+  recordPlusBaseOutcome(deps, input.resolvedBase, verdict);
+  return verdict;
+}
+
+/**
+ * Keep the device's memo of "this address refused us" in step with the verdict,
+ * so Settings can name a stuck state instead of leaving a transient Notice as
+ * the only signal (adversarial A5/A6).
+ *
+ * Deliberately narrow about what counts. `needs-address` already has its own
+ * row and would double up. `unreachable` is KTD3's briefly-offline user, who
+ * must not be pointed at a settings field they never touched. Only a live
+ * `unverified` refusal is a host that answered and said no.
+ */
+function recordPlusBaseOutcome(
+  deps: PlusBaseVerifyDeps,
+  resolvedBase: string,
+  verdict: PlusBaseVerdict,
+): void {
+  if (verdict.kind === "verified") {
+    clearPlusBaseRefusal(deps.storage);
+  } else if (verdict.kind === "refused" && verdict.reason === "unverified") {
+    writePlusBaseRefusal(deps.storage, resolvedBase, (deps.now ?? Date.now)());
+  }
+}
+
+async function decidePlusBase(
   deps: PlusBaseVerifyDeps,
   input: PlusBaseVerifyInput,
 ): Promise<PlusBaseVerdict> {

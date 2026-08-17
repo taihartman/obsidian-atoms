@@ -197,6 +197,31 @@ Screenshot: `docs/qa/screenshots/508-adversarial/a4-signin-cta-at-refusing-base.
 - `plusBaseVerdicts` is not invalidated on `onExternalSettingsChange` (`main.ts:2330`). The cache key includes the base, so no stale hit could be built — not exhausted.
 - A11's re-probe ping-pong may confuse a two-device user on different bases. Behavioural claim only.
 
+### A5 + A6 fixed, and re-driven
+
+Both were fixed in one surface at the user's direction: a recovery row that appears **once a refusal has actually been recorded at the currently resolved base**. New device-local record `atoms-plus-base-refusal` (`{base, at}`), written by `verifyPlusBase` on `refused/unverified` only, cleared on `verified` and on `installPlusSession`.
+
+Gating on a *recorded refusal* rather than a bare stamp/base mismatch is the load-bearing choice. An unstamped session with a configured base, or a stamp disagreeing with a freshly synced one, is a normal transient that self-clears on the next successful probe; alarming there would nag every upgrading hosted user before their first filing, which is the same over-correction KTD3 forbids for offline users.
+
+Re-driven live on the rebuilt bundle (fingerprint-verified):
+
+| | Result |
+|---|---|
+| **R1** the refused row appears | **Passed.** Record on disk `{"base":"http://127.0.0.1:8799","at":…}`. Row `Check the Plus address` above the account facts. Full order: `Account` → **Check the Plus address** → `ATOMS PLUS` → Status → Signed in as → Plan → `MANAGE` → … Screenshot `03-refused-row.png` |
+| **R2** it clears when the cause goes away | **Passed.** Base pointed back at `:8787`, probe verified, re-stamp Notice fired, record `null`, row absent. The state cannot outlive its cause |
+| **R3** `needs-address` unchanged | **Passed.** Byte-identical string and geometry to before this change. Screenshot `04-needs-address-unchanged.png` |
+| **R4** Advanced is no longer silent | **Passed.** The previously-empty `.atoms-setting-error` under `Plus service URL` now renders the refusal for a wrong-but-valid base |
+| **R5** the button | **Passed.** Notice fired, base written, row gone on redisplay, **no stamp minted**, zero network requests from the click. The record still names `:8799` and is correctly *not* cleared — it simply no longer resolves |
+
+**Craft (R1 frame):** 182px row, 16px uniform padding, four-line desc unclipped (`scrollWidth 311 == clientWidth 311`), button 311×44 at the 44pt floor, **24px clear** to the `ATOMS PLUS` eyebrow with no shared hairline. Passed.
+
+**F4 — P2, filed not fixed. A non-service-shaped 401 never reaches the new row.**
+`verifyPlusBase` maps anything that is not `code:"auth"` to `unreachable` with the offline copy (`plusBaseVerify.ts:253`). But `plusClient` deliberately distinguishes three cases, not two: a service-shaped 401 (`isSessionRejectedMessage` — body says "invalid session"/"expired"), a gateway/proxy 401 (`upstreamRefusedMessage`, whose own comment says "blaming the session would be a lie"), and transport failure. The gate collapses the middle case into the last.
+
+Consequence: a self-hoster behind a reverse proxy, WAF or auth gateway that returns a bare 401 is told *"Atoms Plus couldn't be reached … try again when you're back online"* indefinitely, and because the recovery row is gated on a recorded refusal, never sees the row either. Reproduced live: a stub returning `{"error":"unauthorized","message":"nope"}` yielded `unreachable` and wrote no record. A 401 with no CORS headers behaves the same way.
+
+**It fails closed**, so this is diagnosability, not a hole. Pre-existing to the A5/A6 fix — it comes from U3's original mapping — but the new row makes the dead end sharper. Not widened here: making the gate distinguish a proxy refusal from a transport failure is a semantics change to a security mapping and deserves its own decision, since the plan explicitly chose not to branch on raw status codes.
+
 ### Not covered by the adversarial pass
 
 The Advanced-screen navigation failed to change destination in one eval and was not chased; A6 was proven instead via the D1 row's presence/absence plus a unit assertion. **The Advanced field's own error render is therefore untested.**
@@ -226,7 +251,9 @@ Three defects were found and fixed in this change, each with a neuter-verified r
 
 Test count `2044 → 2064`: +1 copy-class guard, +19 adversarial. Build, tests and lint green.
 
-**Blocking nothing, but the user's call before merge:** A5 (silent mismatch) and A6 (recovery row vanishes after a typo) are proven dead ends that are deliberate as designed. Either fix them in this PR or file them as follow-ups — but they should not merge unacknowledged, because both leave a user stuck with no on-screen route out.
+**A5 and A6 were then fixed in this PR at the user's direction**, in one surface, and re-driven (R1–R5 above, all passed, with the `needs-address` state proven byte-identical). Final counts: **2044 → 2080 tests**, seven further guards neuter-verified against named tests, and the KTD14 nine unmoved — which is the check that mattered, since a changed row list there would have meant the new predicate was wrong.
+
+One residual is filed rather than fixed: **F4**, a non-service-shaped 401 reads as "you're offline" forever and never reaches the new row. It fails closed and predates this fix.
 
 **Residual risk to state in the PR:** the token half of the leak is unchanged (content-free calls including `/v1/me` still reach whatever base resolves); the email predicate is a bar raise, not host authentication, and now has a live repro showing an echoing host receiving capture bodies; `sendPlusMagicLink` remains ungated; the resolver still falls back with six consumers gated instead; and one D1 tap moves every synced device via `data.json`.
 

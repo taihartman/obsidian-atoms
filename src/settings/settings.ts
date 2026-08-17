@@ -139,9 +139,12 @@ import {
   PLUS_UNREACHABLE_MESSAGE,
 } from "../platform/plusClient";
 import {
+  plusAddressAdvisory,
   plusAddressStateMessage,
   plusBaseHost,
   plusSessionStamp,
+  readPlusBaseRefusal,
+  PLUS_BASE_ADDRESS_REFUSED_MESSAGE,
 } from "../platform/plusBaseVerify";
 import {
   type AskMirrorOffReason,
@@ -1737,10 +1740,20 @@ export class AtomsSettingTab extends PluginSettingTab {
           const raw = this.plugin.settings.plusBaseUrl.trim();
           // Empty is the hosted default, not a mistake.
           const rejected = raw !== "" && !isAllowedPlusBaseUrl(raw);
+          // #508 A6. A *valid* address can still be the wrong one, and before
+          // this line that case rendered an empty div: `isAllowedPlusBaseUrl`
+          // passes, so there is no #500 message, and the needs-address state
+          // only speaks for an empty field. The recorded refusal is what closes
+          // it. The #500 message keeps priority — a value the request layer will
+          // not even send to is the more basic problem.
           plusBaseUrlErrorEl.setText(
             rejected
               ? PLUS_BASE_URL_INVALID_MESSAGE
-              : plusAddressStateMessage(readPlusSession(this.app), raw),
+              : (plusAddressAdvisory(
+                  readPlusSession(this.app),
+                  raw,
+                  readPlusBaseRefusal(this.app),
+                )?.message ?? ""),
           );
         };
         syncPlusBaseUrlError();
@@ -2670,17 +2683,29 @@ export class AtomsSettingTab extends PluginSettingTab {
    *
    * Above the account facts, because it blocks all of them: nothing this screen reports is
    * actionable while note text has nowhere it is allowed to go.
+   *
+   * Two states share the row (adversarial A5/A6), because the way out is the same one. The
+   * second is a base that has actually *refused* this session: before it, Settings kept
+   * reporting `Plus · 50 filings left` beside an address every Process was silently failing
+   * against, and a user who had typed a wrong-but-valid address lost this row entirely — the
+   * only way back was guessing that clearing the field re-summons it. Gated on a recorded
+   * refusal rather than a stamp mismatch so the upgrading hosted cohort is not nagged through
+   * the transient state they pass through on the way to their first filing.
    */
   private renderConfirmPlusAddressRow(containerEl: HTMLElement): void {
-    const needsAddress = plusAddressStateMessage(
+    const advisory = plusAddressAdvisory(
       readPlusSession(this.app),
       this.plugin.settings.plusBaseUrl,
+      readPlusBaseRefusal(this.app),
     );
-    if (!needsAddress) return;
+    if (!advisory) return;
+    const refused = advisory.kind === "refused";
     this.actionRow(containerEl, {
       action: "plus:confirm-address",
-      name: "Confirm the Plus address",
-      desc: `Atoms Plus needs its address before your notes are sent. The standard one is ${plusBaseHost(DEFAULT_PLUS_BASE_URL)}. If you run the service yourself, set your own address under Advanced instead.`,
+      name: refused ? "Check the Plus address" : "Confirm the Plus address",
+      desc: refused
+        ? `${PLUS_BASE_ADDRESS_REFUSED_MESSAGE} You can correct the address under Advanced, or use the standard one, ${plusBaseHost(DEFAULT_PLUS_BASE_URL)}.`
+        : `Atoms Plus needs its address before your notes are sent. The standard one is ${plusBaseHost(DEFAULT_PLUS_BASE_URL)}. If you run the service yourself, set your own address under Advanced instead.`,
       label: `Use ${plusBaseHost(DEFAULT_PLUS_BASE_URL)}`,
       onClick: () => {
         this.plugin.settings.plusBaseUrl = DEFAULT_PLUS_BASE_URL;

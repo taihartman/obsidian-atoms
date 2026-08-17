@@ -25,17 +25,24 @@ import {
 } from "../src/platform/filingAuth";
 import type { RequestFn } from "../src/platform/plusClient";
 import {
+  clearPlusBaseRefusal,
   createPlusBaseVerifyCache,
+  plusAddressAdvisory,
   plusAddressStateMessage,
   plusBaseHost,
   plusIssuerMovedMessage,
+  readPlusBaseRefusal,
   verifyPlusBase,
+  writePlusBaseRefusal,
+  LS_PLUS_BASE_REFUSAL,
+  PLUS_BASE_ADDRESS_REFUSED_MESSAGE,
   PLUS_BASE_NEEDS_ADDRESS_MESSAGE,
   PLUS_BASE_REFUSED_MESSAGE,
   PLUS_BASE_UNREACHABLE_MESSAGE,
   type PlusBaseStamp,
   type PlusBaseVerifyDeps,
 } from "../src/platform/plusBaseVerify";
+import { installPlusSession } from "../src/platform/plusSessionInstall";
 
 /**
  * Compile-time: the `FilingAuth` plus projection is enough to ask the gate a
@@ -578,6 +585,171 @@ describe("the needs-address Settings state", () => {
 
   it("says nothing when there is no session at all", () => {
     expect(plusAddressStateMessage(null, "")).toBe("");
+  });
+});
+
+/**
+ * #508 A5/A6 — the recorded refusal, and the advisory that reads it.
+ *
+ * The whole design turns on the record being written by a *live* refusal and
+ * nothing else, so every test here asserts on storage rather than on the
+ * verdict: a verdict proves a branch, the record is what Settings will still be
+ * reading tomorrow.
+ */
+describe("the refusal record", () => {
+  it("readPlusBaseRefusal rejects anything that is not a base and a time", () => {
+    const app = fakeApp();
+    expect(readPlusBaseRefusal(app)).toBeNull();
+    for (const junk of ["", "   ", "not json", "42", "null", "{}", '{"base":""}', '{"base":"  "}', '{"base":7}']) {
+      app.store.set(LS_PLUS_BASE_REFUSAL, junk);
+      expect(readPlusBaseRefusal(app)).toBeNull();
+    }
+    // A non-finite `at` is tolerated as 0 rather than discarding a real base:
+    // the base is the load-bearing half, the timestamp is only a memo.
+    app.store.set(LS_PLUS_BASE_REFUSAL, `{"base":"${SELF_HOST}"}`);
+    expect(readPlusBaseRefusal(app)).toEqual({ base: SELF_HOST, at: 0 });
+  });
+
+  it("a storage that throws on read is a missing record, not a crash", () => {
+    const throwing: LocalStorageLike = {
+      loadLocalStorage: () => {
+        throw new Error("private mode");
+      },
+      saveLocalStorage: () => {},
+    };
+    expect(readPlusBaseRefusal(throwing)).toBeNull();
+  });
+
+  it("normalizes at write time, so a trailing slash still matches", () => {
+    const app = fakeApp();
+    writePlusBaseRefusal(app, `${SELF_HOST}/`, 5);
+    expect(readPlusBaseRefusal(app)).toEqual({ base: SELF_HOST, at: 5 });
+    clearPlusBaseRefusal(app);
+    expect(readPlusBaseRefusal(app)).toBeNull();
+  });
+
+  it("a live refusal is recorded at the base that refused", async () => {
+    const s = session({ verifiedBase: PRODUCTION });
+    const app = appWith(s);
+    const request = namesAccount("someone.else@b.co");
+    const verdict = await verifyPlusBase(
+      { storage: app, request, now: () => 4242 },
+      { session: s, resolvedBase: SELF_HOST, configuredBase: SELF_HOST },
+    );
+    expect(verdict.kind).toBe("refused");
+    expect(readPlusBaseRefusal(app)).toEqual({ base: SELF_HOST, at: 4242 });
+  });
+
+  it("needs-address does NOT record: that state already has its own row", async () => {
+    const s = session();
+    const app = appWith(s);
+    await verifyPlusBase(deps(app, namesAccount(EMAIL)), {
+      session: s,
+      resolvedBase: PRODUCTION,
+      configuredBase: "",
+    });
+    expect(readPlusBaseRefusal(app)).toBeNull();
+  });
+
+  it("unreachable does NOT record: KTD3's offline user never touched the field", async () => {
+    const s = session({ verifiedBase: PRODUCTION });
+    const app = appWith(s);
+    const request = mockRequest(() => ({ status: 503, json: undefined, text: "" }));
+    const verdict = await verifyPlusBase(deps(app, request), {
+      session: s,
+      resolvedBase: SELF_HOST,
+      configuredBase: SELF_HOST,
+    });
+    expect(verdict).toEqual({ kind: "unreachable", message: PLUS_BASE_UNREACHABLE_MESSAGE });
+    expect(readPlusBaseRefusal(app)).toBeNull();
+  });
+
+  it("a verified probe clears it, so the state cannot outlive its cause", async () => {
+    const s = session({ verifiedBase: PRODUCTION });
+    const app = appWith(s);
+    writePlusBaseRefusal(app, SELF_HOST, 1);
+    await verifyPlusBase(deps(app, namesAccount(EMAIL)), {
+      session: s,
+      resolvedBase: SELF_HOST,
+      configuredBase: SELF_HOST,
+    });
+    expect(readPlusBaseRefusal(app)).toBeNull();
+  });
+
+  it("installPlusSession clears it: a new session is not the one that was refused", async () => {
+    const app = appWith(session({ verifiedBase: PRODUCTION }));
+    writePlusBaseRefusal(app, SELF_HOST, 1);
+    await installPlusSession(
+      {
+        ...app,
+        settings: { askEnabled: false },
+        saveSettings: async () => {},
+        mirrorPermitted: () => false,
+        cancelPendingSync: () => {},
+      },
+      session({ sessionToken: "sess_fresh" }),
+      PRODUCTION as IssuedBase,
+    );
+    expect(readPlusBaseRefusal(app)).toBeNull();
+  });
+});
+
+describe("plusAddressAdvisory", () => {
+  const stamp = (over: Partial<PlusBaseStamp> = {}): PlusBaseStamp => ({
+    sessionToken: "sess_live",
+    email: EMAIL,
+    ...over,
+  });
+  const refusal = (base: string) => ({ base, at: 1 });
+
+  it("says nothing without a session", () => {
+    expect(plusAddressAdvisory(null, "", refusal(PRODUCTION))).toBeNull();
+  });
+
+  it("needs-address survives unchanged: no stamp, empty field", () => {
+    expect(plusAddressAdvisory(stamp(), "", null)).toEqual({
+      kind: "needs-address",
+      message: PLUS_BASE_NEEDS_ADDRESS_MESSAGE,
+    });
+    expect(plusAddressAdvisory(stamp(), "   ", null)).toMatchObject({ kind: "needs-address" });
+  });
+
+  it("a refusal at the resolved base is the A5/A6 fix", () => {
+    // A6: the unstamped session whose user typed a wrong-but-valid address.
+    expect(plusAddressAdvisory(stamp(), SELF_HOST, refusal(SELF_HOST))).toEqual({
+      kind: "refused",
+      message: PLUS_BASE_ADDRESS_REFUSED_MESSAGE,
+    });
+    // A5: a stamp that disagrees with the field, with a refusal on record.
+    expect(
+      plusAddressAdvisory(stamp({ verifiedBase: PRODUCTION }), SELF_HOST, refusal(SELF_HOST)),
+    ).toMatchObject({ kind: "refused" });
+  });
+
+  it("an empty field resolves to the hosted default before comparing", () => {
+    expect(
+      plusAddressAdvisory(stamp({ verifiedBase: SELF_HOST }), "", refusal(PRODUCTION)),
+    ).toMatchObject({ kind: "refused" });
+  });
+
+  it("normalizes both sides, so a trailing slash is still the same address", () => {
+    expect(
+      plusAddressAdvisory(stamp({ verifiedBase: PRODUCTION }), SELF_HOST, refusal(`${SELF_HOST}/`)),
+    ).toMatchObject({ kind: "refused" });
+  });
+
+  it("a refusal at a DIFFERENT base says nothing: the user already moved on", () => {
+    expect(
+      plusAddressAdvisory(stamp({ verifiedBase: PRODUCTION }), SELF_HOST, refusal(PRODUCTION)),
+    ).toBeNull();
+  });
+
+  it("a bare mismatch with nothing recorded stays quiet, which is the whole gate", () => {
+    // The upgrading hosted cohort and a base that just synced in from another
+    // device both live here. Alarming them would nag every user on the way to
+    // their first filing for a state the next Process clears by probing.
+    expect(plusAddressAdvisory(stamp({ verifiedBase: PRODUCTION }), SELF_HOST, null)).toBeNull();
+    expect(plusAddressAdvisory(stamp(), SELF_HOST, null)).toBeNull();
   });
 });
 

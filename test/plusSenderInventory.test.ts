@@ -61,6 +61,12 @@ const CENSUS: ReadonlyArray<{ file: string; count: number; carries: string }> = 
       "content — the classify snapshot for Process, Preview, Update and auto-run. Gated here and backstopped in classify.ts.",
   },
   {
+    file: "src/platform/plusBaseVerify.ts",
+    count: 1,
+    carries:
+      "nothing — a reader, not a sender. `plusAddressAdvisory` mirrors the senders' resolution rule so the Settings row names the address the content and token calls will actually use; a divergence here would point the user at a field that is not the one failing. No request is built from it.",
+  },
+  {
     file: "src/platform/plusClient.ts",
     count: 1,
     carries: "token — the client's own default when a caller passes nothing.",
@@ -121,10 +127,13 @@ describe("#508 — the Plus sender inventory is a test, not a claim", () => {
     );
   });
 
-  it("the census adds up to the 22 resolutions that are actually code", () => {
+  it("the census adds up to the 23 resolutions that are actually code", () => {
     // The plan said 23, counting the one quoted in a doc comment. The count
-    // that matters is the one that can send.
-    expect(CENSUS.reduce((n, c) => n + c.count, 0)).toBe(22);
+    // that matters is the one that can send. It was 22 until the A5/A6 recovery
+    // row added a twenty-third: a *reader* of the same rule, listed because the
+    // census is about the idiom, not about intent -- the day a real sender hides
+    // behind "it only reads it" is the day this test stops working.
+    expect(CENSUS.reduce((n, c) => n + c.count, 0)).toBe(23);
   });
 
   it("counts code, not prose", () => {
