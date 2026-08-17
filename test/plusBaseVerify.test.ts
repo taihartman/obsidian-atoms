@@ -377,7 +377,6 @@ describe("verifyPlusBase — the probe", () => {
     const verdict = await verifyPlusBase(deps(appWith(s), request), {
       session: s,
       resolvedBase: SELF_HOST,
-      configuredBase: SELF_HOST,
     });
     expect(verdict).toEqual({
       kind: "refused",
@@ -392,7 +391,6 @@ describe("verifyPlusBase — the probe", () => {
     const verdict = await verifyPlusBase(deps(appWith(s), request), {
       session: s,
       resolvedBase: SELF_HOST,
-      configuredBase: SELF_HOST,
     });
     expect(verdict).toEqual({
       kind: "refused",
@@ -661,7 +659,7 @@ describe("the refusal record", () => {
     const request = mockRequest(() => ({ status: 401, json: undefined, text: "" }));
     const verdict = await verifyPlusBase(
       { storage: app, request, now: () => 77 },
-      { session: s, resolvedBase: SELF_HOST, configuredBase: SELF_HOST },
+      { session: s, resolvedBase: SELF_HOST },
     );
     expect(verdict.kind).toBe("refused");
     if (verdict.kind === "refused") expect(verdict.reason).toBe("upstream");
