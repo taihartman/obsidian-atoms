@@ -7,6 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
+| In progress | #551 | grok | feat/after-process-sentence | docs/plans/2026-08-17-1246-feat-after-process-sentence-plan.md | src/home/landPeak.ts, src/home/atomsHomeView.ts | After Process sentence + tally |
 
 ## How to claim (copy)
 
