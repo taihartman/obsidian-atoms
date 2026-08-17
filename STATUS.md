@@ -7,6 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
+| In progress | [#540](https://github.com/taihartman/obsidian-atoms/issues/540) | Claude (agent) | `claude/filing-clarity-promo-redemption-ih1220` | [#508 plan](docs/plans/2026-08-15-001-fix-plus-session-issuer-plan.md) KTD1, amended | `src/platform/plusBaseVerify.ts`, `src/settings/settings.ts` | Reverses KTD1's needs-address carve-out. Owner reversed the 2026-08-15 call after using 0.8.3-beta.1: the state is `!stamp && !configuredBase`, which is every hosted subscriber on upgrade, so the whole install base upgrades into a stop whose only exit writes a permanent `plusBaseUrl` override that then syncs everywhere. Lands as KTD1 row 1 **without** the carve-out — an unstamped session with an empty field probes the hosted default and the probe is the proof — not row 2, which never probes and would grandfather the leak in. Gate, `unreachable` fail-closed, recorded-`refused` advisory and the #500 scheme guard all stay. |
 
 ## How to claim (copy)
 
