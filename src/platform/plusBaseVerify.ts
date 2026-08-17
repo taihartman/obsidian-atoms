@@ -278,12 +278,9 @@ export type PlusBaseVerifyDeps = {
   now?: () => number;
 };
 
-export type PlusBaseVerifyInput = {
-  session: PlusBaseStamp;
-  /** The base this call is about to use, after the caller's own resolution. */
-  resolvedBase: string;
-};
 /**
+ * What the gate is asked about: one session, one address.
+ *
  * There was a third field, `configuredBase` — raw `settings.plusBaseUrl` rather
  * than the resolved base — and the KTD1 carve-out was its only reader. #540
  * removed the carve-out, so the gate now asks exactly one question about exactly
@@ -292,6 +289,11 @@ export type PlusBaseVerifyInput = {
  * call site still threads and nothing consults is a fail-open waiting for
  * someone to trust it.
  */
+export type PlusBaseVerifyInput = {
+  session: PlusBaseStamp;
+  /** The base this call is about to use, after the caller's own resolution. */
+  resolvedBase: string;
+};
 
 /**
  * Decide whether `resolvedBase` may receive this session's content.

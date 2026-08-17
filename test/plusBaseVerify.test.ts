@@ -209,6 +209,20 @@ describe("verifyPlusBase — unknown issuer, empty field (#540, KTD1 without the
     expect(request).toHaveBeenCalledTimes(1);
   });
 
+  it("stamps silently: a first stamp names no previous base, so nobody is told it moved", async () => {
+    // `main.ts` announces `plusIssuerMovedMessage` on `restamped && previousBase`.
+    // Since #540 the upgrade cohort is the dominant path through that branch, so
+    // a `previousBase` here would fire "Atoms Plus is now using plus.tryatoms.app"
+    // at the entire install base, about a move that never happened.
+    const s = session();
+    const verdict = await verifyPlusBase(deps(appWith(s), namesAccount(EMAIL)), {
+      session: s,
+      resolvedBase: PRODUCTION,
+    });
+    expect(verdict).toMatchObject({ kind: "verified", restamped: true });
+    if (verdict.kind === "verified") expect(verdict.previousBase).toBeUndefined();
+  });
+
   it("the probe is still the proof: a host that cannot name the account is refused", async () => {
     // This is the accepted cost, pinned rather than merely argued. A pre-#508
     // self-hoster who cleared their field hands one content-free /v1/me to
