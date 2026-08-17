@@ -15,7 +15,20 @@ export const MEDIA_LIST_HUB_SOFT_TITLES: ReadonlySet<string> = new Set([
   "shows",
   "watchlist",
   "films",
+  "show list",
+  "movie list",
+  "watch list",
 ]);
+
+function mediaHubFamily(
+  title: string,
+): "show" | "movie" | "watch" | null {
+  const low = title.trim().toLowerCase();
+  if (low === "shows" || low === "show list") return "show";
+  if (low === "movies" || low === "films" || low === "movie list") return "movie";
+  if (low === "watchlist" || low === "watch list") return "watch";
+  return null;
+}
 
 export function isListHubShaped(captureText: string): boolean {
   const t = (captureText ?? "").trim();
@@ -51,27 +64,30 @@ export function pickSoftMediaHub(
   softHubs: ListHubDetail[],
 ): ListHubDetail | null {
   if (!softHubs.length) return null;
-  if (softHubs.length === 1) return softHubs[0]!;
 
   const mentioned = softHubs.filter((h) =>
     titleMatchesCapture(hay, h.canonicalTitle),
   );
   if (mentioned.length === 1) return mentioned[0]!;
+  if (mentioned.length > 1) return null;
 
-  const byLow = new Map(
-    softHubs.map((h) => [h.canonicalTitle.trim().toLowerCase(), h] as const),
-  );
-  if (/\b(show|series|anime|season|episode|tv)\b/i.test(hay) && byLow.has("shows")) {
-    return byLow.get("shows")!;
+  const showCue = /\b(show|series|anime|season|episode|tv)\b/i.test(hay);
+  const movieCue = /\b(movie|film|cinema)\b/i.test(hay);
+  const ofFamily = (fam: "show" | "movie" | "watch") =>
+    softHubs.filter((h) => mediaHubFamily(h.canonicalTitle) === fam);
+
+  if (showCue && !movieCue) {
+    const shows = ofFamily("show");
+    return shows.length === 1 ? shows[0]! : null;
   }
-  if (/\b(movie|film|cinema)\b/i.test(hay)) {
-    if (byLow.has("movies")) return byLow.get("movies")!;
-    if (byLow.has("films")) return byLow.get("films")!;
+  if (movieCue && !showCue) {
+    const movies = ofFamily("movie");
+    return movies.length === 1 ? movies[0]! : null;
   }
-  // Generic "want to watch X" → Movies, then Watchlist, else fail closed
-  if (byLow.has("movies")) return byLow.get("movies")!;
-  if (byLow.has("watchlist")) return byLow.get("watchlist")!;
-  if (byLow.has("films")) return byLow.get("films")!;
+  const movies = ofFamily("movie");
+  if (movies.length === 1) return movies[0]!;
+  const watch = ofFamily("watch");
+  if (watch.length === 1) return watch[0]!;
   return null;
 }
 

@@ -60,6 +60,27 @@ describe("pickSoftMediaHub", () => {
       pickSoftMediaHub("add to my Shows list", [movies, shows])?.canonicalTitle,
     ).toBe("Shows");
   });
+
+  it("picks Show list for an anime cue", () => {
+    const showList: ListHubDetail = {
+      canonicalTitle: "Show list",
+      matchKeys: ["Show list"],
+      sections: ["Unsorted"],
+    };
+    expect(
+      pickSoftMediaHub("I want to watch the anime Frieren", [showList])
+        ?.canonicalTitle,
+    ).toBe("Show list");
+  });
+
+  it("does not dump a movie-shaped capture onto Show list", () => {
+    const showList: ListHubDetail = {
+      canonicalTitle: "Show list",
+      matchKeys: ["Show list"],
+      sections: ["Unsorted"],
+    };
+    expect(pickSoftMediaHub("want to watch the Dune movie", [showList])).toBeNull();
+  });
 });
 
 describe("enrichListHubLinks", () => {

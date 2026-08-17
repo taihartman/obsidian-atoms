@@ -2,7 +2,7 @@
 
 ## Verdict
 
-**Ready after fixes** — two live holes found and patched in-session. Live Process (classify silent landing) is **Not tested** (test vault has no API key and no Plus session).
+**Ready after fixes** — Plus dogfood Process ran. Classify created the Frieren atom and did not link Show list. Silent landing is still broken until the enrich family-match ships and is re-processed.
 
 ## Charter
 
@@ -69,7 +69,8 @@ Atom gained `belongs with [[Show list]].` **Passed.**
 
 **US-dismiss.** Not now on Cowboy Bebop leaves Show list as above and does not hard-link Cowboy. **Passed.**
 
-**US-silent.** Second show lands via Process with no card. **Not tested** — `hasKey:false`, no Plus. Home would invite an unlinked second show (Cowboy) once accept snooze was removed.
+**US-silent.** Second show lands via Process with no card.
+Evidence: Plus dogfood on `127.0.0.1:8799` (trialing, Anthropic on). Process wrote `Want to watch anime Frieren` + daily marker. Atom has tags `media`/`show`/`watch` and **no** `[[Show list]]`. Hub block still only Psycho-Pass. **Failed** on this build. Cause: enrich only treated `Shows`/`Movies`/`Watchlist`/`Films` as soft media titles, not `Show list`. Fix is in `listHubs.ts` (unit-tested); not re-Processed this pass (15-filing cap already spent on seed dailies).
 
 **US-wait.** Invite is collected while 36 unprocessed keep the wait card in the hero. Card text only appeared after `unprocessedCount = 0` for a chrome shot. **Failed as UX** (residual): backlog hides the invite.
 
